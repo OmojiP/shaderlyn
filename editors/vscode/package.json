@@ -1,0 +1,104 @@
+{
+  "name": "shaderlyn",
+  "displayName": "Shaderlyn",
+  "description": "Unity の ShaderLab / HLSL を編集しながら解析する",
+  "version": "0.1.0",
+  "publisher": "OmojiP",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OmojiP/shaderlyn.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:shaderlab",
+    "onLanguage:hlsl",
+    "onLanguage:UnityShader",
+    "workspaceContains:**/*.shader",
+    "workspaceContains:**/*.hlsl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "shaderlyn.inspect",
+        "title": "解析の中身を見る",
+        "category": "Shaderlyn"
+      },
+      {
+        "command": "shaderlyn.selectConditionSymbols",
+        "title": "条件のシンボルを選ぶ",
+        "category": "Shaderlyn",
+        "icon": "images/icon_sharp.png"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "shaderlyn.selectConditionSymbols",
+          "when": "resourceExtname =~ /^\\.(shader|hlsl|cginc|hlslinc|compute)$/i",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "shaderlyn.selectConditionSymbols",
+          "when": "resourceExtname =~ /^\\.(shader|hlsl|cginc|hlslinc|compute)$/i"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Shaderlyn",
+      "properties": {
+        "shaderlyn.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "言語サーバの実行ファイル。空の場合は拡張に同梱したものを使います。"
+        },
+        "shaderlyn.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "サーバとのやり取りを出力へ記録します。"
+        },
+        "shaderlyn.inactiveRegions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "条件が外れて効いていない #if / #ifdef の中を薄く表示します。開いたとき・保存したとき・シンボルを選んだときの解析で更新されます。"
+        },
+        "shaderlyn.inactiveRegions.opacity": {
+          "type": "number",
+          "default": 0.45,
+          "minimum": 0.1,
+          "maximum": 1,
+          "description": "効いていない範囲を表示するときの不透明度。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "npm run compile && npx --yes @vscode/vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.5.0"
+  }
+}

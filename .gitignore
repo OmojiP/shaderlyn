@@ -1,0 +1,17 @@
+bin/
+obj/
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+*.user
+.vs/
+.idea/
+TestResults/
+*.received.*
+node_modules/
+editors/vscode/out/
+editors/vscode/server/
+*.vsix
+
+# エディタ・エージェントのローカル設定
+.claude/

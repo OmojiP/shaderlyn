@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Shaderlyn.Cli/Shaderlyn.Cli.csproj" />
+    <Project Path="src/Shaderlyn.Cli.App/Shaderlyn.Cli.App.csproj" />
+    <Project Path="src/Shaderlyn.Core/Shaderlyn.Core.csproj" />
+    <Project Path="src/Shaderlyn.Hlsl/Shaderlyn.Hlsl.csproj" />
+    <Project Path="src/Shaderlyn.LanguageServer/Shaderlyn.LanguageServer.csproj" />
+    <Project Path="src/Shaderlyn.LanguageServer.App/Shaderlyn.LanguageServer.App.csproj" />
+    <Project Path="src/Shaderlyn.Rules/Shaderlyn.Rules.csproj" />
+    <Project Path="src/Shaderlyn.Semantics/Shaderlyn.Semantics.csproj" />
+    <Project Path="src/Shaderlyn.Configuration/Shaderlyn.Configuration.csproj" />
+    <Project Path="src/Shaderlyn.ShaderLab/Shaderlyn.ShaderLab.csproj" />
+    <Project Path="src/Shaderlyn.Testing/Shaderlyn.Testing.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Shaderlyn.Cookbook/Shaderlyn.Cookbook.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Shaderlyn.Tests/Shaderlyn.Tests.csproj" />
+  </Folder>
+</Solution>

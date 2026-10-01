@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- ルートの Directory.Build.props を読み込んだうえで、サンプル固有の緩和を適用する。 -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      写して直すための例なので、公開メンバーごとの XML ドキュメントコメントは求めない。
+      説明は docs/custom-rules/cookbook.md と各クラスのコメントにある。
+      AOT 互換の検査は残す。例を混ぜた CLI や言語サーバーは Native AOT で publish されるため、
+      ここでリフレクション依存が入ればその時点でビルドを止めたい。
+    -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

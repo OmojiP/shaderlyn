@@ -1,0 +1,223 @@
+name: Shaderlyn
+description: Unity の ShaderLab / HLSL / コンピュートシェーダーを静的解析し、PR にインライン注釈を出します。
+author: shaderlyn
+
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  paths:
+    description: >
+      解析対象のパス。空白区切りで複数指定できます。
+      フォルダーを指定すると .shader と .compute を再帰的に探索します。
+    required: false
+    default: Assets
+
+  version:
+    description: 使用するリリースのタグ。latest で最新バージョンを使います。
+    required: false
+    default: latest
+
+  unity-project:
+    description: >
+      Unity プロジェクトのルート。
+      これを指定しないと、プロパティと HLSL の対応検査 (SL1001 / SL1003 など) はほぼ働きません。
+      パッケージ配下のヘッダを解決するために Library/PackageCache が必要です。
+    required: false
+    default: ""
+
+  config:
+    description: 設定ファイルのパス。省略時は解析対象から上へ .shaderlyn.yaml を探します。
+    required: false
+    default: ""
+
+  baseline:
+    description: ベースラインファイルのパス。既存の指摘を除外します。
+    required: false
+    default: ""
+
+  cache:
+    description: >
+      解析結果のキャッシュファイルのパス。
+      前回から変わっていないファイル (取り込んだヘッダも含む) の解析を飛ばします。
+      効かせるには、このパスを actions/cache でジョブ間に持ち越してください。
+      省略した場合は何も作りません。
+    required: false
+    default: ""
+
+  error-on:
+    description: "この重要度以上の指摘でジョブを失敗させます: info / warning / error"
+    required: false
+    default: warning
+
+  upload-sarif:
+    description: >
+      SARIF を Code Scanning へアップロードするかどうか。
+      アップロードには security-events: write 権限が要ります。
+      false の場合はワークフローコマンドで注釈を出します。
+    required: false
+    default: "true"
+
+  working-directory:
+    description: 解析を実行するフォルダー。パスの相対化の基点にもなります。
+    required: false
+    default: .
+
+outputs:
+  exit-code:
+    description: "解析ツールの終了コード (0: 指摘なし / 1: 指摘あり / 2: ツールエラー)"
+    value: ${{ steps.analyze.outputs.exit-code }}
+
+  sarif-file:
+    description: 生成された SARIF ファイルのパス。
+    value: ${{ steps.analyze.outputs.sarif-file }}
+
+runs:
+  using: composite
+
+  steps:
+    # ------------------------------------------------------------------
+    # バイナリの取得
+    #
+    # Native AOT で作った単一バイナリなので、.NET のインストールは要らない。
+    # ランナーの準備に時間をかけないことが、PR ごとに走らせる用途では大きい。
+    # ------------------------------------------------------------------
+    - name: 解析ツールを取得する
+      id: download
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)   asset="shaderlyn-linux-x64.tar.gz" ;;
+          Linux-ARM64) asset="shaderlyn-linux-arm64.tar.gz" ;;
+          macOS-X64)   asset="shaderlyn-osx-x64.tar.gz" ;;
+          macOS-ARM64) asset="shaderlyn-osx-arm64.tar.gz" ;;
+          Windows-X64) asset="shaderlyn-win-x64.zip" ;;
+          *)
+            echo "対応していないランナーです: ${RUNNER_OS}-${RUNNER_ARCH}" >&2
+            exit 1
+            ;;
+        esac
+
+        repository="OmojiP/shaderlyn"
+
+        if [ "${INPUT_VERSION}" = "latest" ]; then
+          url="https://github.com/${repository}/releases/latest/download/${asset}"
+        else
+          url="https://github.com/${repository}/releases/download/${INPUT_VERSION}/${asset}"
+        fi
+
+        install_dir="${RUNNER_TEMP}/shaderlyn"
+        mkdir -p "${install_dir}"
+
+        echo "取得元: ${url}"
+        curl --fail --location --silent --show-error --output "${install_dir}/${asset}" "${url}"
+
+        case "${asset}" in
+          *.tar.gz) tar -xzf "${install_dir}/${asset}" -C "${install_dir}" ;;
+          *.zip)    unzip -q -o "${install_dir}/${asset}" -d "${install_dir}" ;;
+        esac
+
+        if [ "${RUNNER_OS}" = "Windows" ]; then
+          executable="${install_dir}/shaderlyn.exe"
+        else
+          executable="${install_dir}/shaderlyn"
+          chmod +x "${executable}"
+        fi
+
+        echo "executable=${executable}" >> "${GITHUB_OUTPUT}"
+
+    # ------------------------------------------------------------------
+    # 解析
+    #
+    # 指摘があってもここでは失敗させない。
+    # 失敗させると SARIF のアップロードまで到達せず、
+    # 「何が問題だったか」が PR に一切出ないまま赤くなる。
+    # 終了コードは最後の手順で改めて評価する。
+    # ------------------------------------------------------------------
+    - name: シェーダーを解析する
+      id: analyze
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ANALYZER: ${{ steps.download.outputs.executable }}
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_UNITY_PROJECT: ${{ inputs.unity-project }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_CACHE: ${{ inputs.cache }}
+        INPUT_ERROR_ON: ${{ inputs.error-on }}
+        INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+      run: |
+        set -uo pipefail
+
+        args=()
+        # shellcheck disable=SC2206
+        args+=(${INPUT_PATHS})
+        args+=(--error-on "${INPUT_ERROR_ON}")
+
+        [ -n "${INPUT_UNITY_PROJECT}" ] && args+=(--unity-project "${INPUT_UNITY_PROJECT}")
+        [ -n "${INPUT_CONFIG}" ] && args+=(--config "${INPUT_CONFIG}")
+        [ -n "${INPUT_BASELINE}" ] && args+=(--baseline "${INPUT_BASELINE}")
+        [ -n "${INPUT_CACHE}" ] && args+=(--cache "${INPUT_CACHE}")
+
+        sarif_file="${RUNNER_TEMP}/shaderlyn.sarif"
+
+        if [ "${INPUT_UPLOAD_SARIF}" = "true" ]; then
+          # SARIF はファイルへ書き、注釈は同時に標準出力へ出す。
+          # Code Scanning の反映には時間がかかることがあり、
+          # PR を見た人がその場で内容を読めるようにしておきたい。
+          #
+          # --annotate を使うのは、形式を変えて 2 回解析させないためである。
+          # 依存関係を解決した解析は 1 ファイルあたりの処理が重く、
+          # 2 回分の時間は PR ごとに走らせる用途では無視できない。
+          "${ANALYZER}" "${args[@]}" --format sarif --output "${sarif_file}" --annotate
+          exit_code=$?
+
+          echo "sarif-file=${sarif_file}" >> "${GITHUB_OUTPUT}"
+        else
+          "${ANALYZER}" "${args[@]}" --format github
+          exit_code=$?
+          echo "sarif-file=" >> "${GITHUB_OUTPUT}"
+        fi
+
+        echo "exit-code=${exit_code}" >> "${GITHUB_OUTPUT}"
+
+    - name: SARIF をアップロードする
+      if: ${{ inputs.upload-sarif == 'true' && steps.analyze.outputs.sarif-file != '' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.analyze.outputs.sarif-file }}
+        category: shaderlyn
+
+    # ------------------------------------------------------------------
+    # 終了コードの評価
+    #
+    # 1 (指摘あり) と 2 (ツールエラー) を区別してメッセージを変える。
+    # 区別しないと、設定の誤りでツールが動かなかった場合に
+    # 「指摘が出た」と受け取られ、原因の調査が遅れる。
+    # ------------------------------------------------------------------
+    - name: 結果を評価する
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.analyze.outputs.exit-code }}
+      run: |
+        set -euo pipefail
+
+        case "${EXIT_CODE}" in
+          0)
+            echo "指摘はありませんでした。"
+            ;;
+          1)
+            echo "::error::シェーダーの静的解析で指摘が見つかりました。"
+            exit 1
+            ;;
+          *)
+            echo "::error::解析ツールの実行に失敗しました (終了コード ${EXIT_CODE})。設定と引数を確認してください。"
+            exit 1
+            ;;
+        esac

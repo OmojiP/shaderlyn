@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Description>Shaderlyn の自作ルールをテストするための ShaderRuleVerifier。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,24 @@
+name: 提案
+description: 新しいルール、機能、改善の提案
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること
+      description: どんな誤りを見つけたいのか、何ができなくて困っているのか。
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: 例
+      description: 新しいルールなら、指摘してほしいシェーダーと、指摘してほしくない正しいシェーダーの両方を添えてください。
+      render: hlsl
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考えた代わりの方法
+      description: プロジェクト固有の規約であれば、自作ルールとして書くこともできます (docs/custom-rules/tutorial.md)。

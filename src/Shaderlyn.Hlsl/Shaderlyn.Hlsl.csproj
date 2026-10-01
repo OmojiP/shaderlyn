@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Description>Shaderlyn の HLSL のプリプロセッサ、パーサと構文木。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.Semantics" />
+    <InternalsVisibleTo Include="Shaderlyn.Rules" />
+    <InternalsVisibleTo Include="Shaderlyn.Testing" />
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+    <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
+  </ItemGroup>
+
+</Project>

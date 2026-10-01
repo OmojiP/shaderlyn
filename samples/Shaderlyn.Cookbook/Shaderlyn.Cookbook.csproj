@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    docs/custom-rules/cookbook.md に載せたルールの実物。
+    テスト (CookbookTests) と、自作ルールを混ぜた CLI / 言語サーバーの両方から参照できるよう、
+    テストプロジェクトから切り出してある。テストプロジェクトを参照すると、
+    テストが言語サーバーを参照しているため循環する。
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
+  </ItemGroup>
+
+</Project>

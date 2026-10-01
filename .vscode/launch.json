@@ -1,0 +1,16 @@
+{
+  // F5 で拡張開発ホストを起動する。
+  // この設定が無いと、VS Code は「開いているファイルをデバッグする」ものと解釈し、
+  // .shader を開いた状態では「デバッグするための拡張機能がありません」になる。
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "VS Code 拡張を起動",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/editors/vscode"],
+      "outFiles": ["${workspaceFolder}/editors/vscode/out/**/*.js"],
+      "preLaunchTask": "拡張と言語サーバを建てる"
+    }
+  ]
+}

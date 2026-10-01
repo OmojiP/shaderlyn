@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Shaderlyn の土台。DiagnosticAnalyzer、診断、構文ノードの共通の型を持つ。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.ShaderLab" />
+    <InternalsVisibleTo Include="Shaderlyn.Hlsl" />
+    <InternalsVisibleTo Include="Shaderlyn.Rules" />
+    <InternalsVisibleTo Include="Shaderlyn.Testing" />
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+  </ItemGroup>
+
+</Project>

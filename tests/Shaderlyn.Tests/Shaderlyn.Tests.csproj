@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    fixture は出力フォルダーへ複製し、テストからは実行フォルダー相対で読む。
+    ソースツリーからの相対パスを解決する方式にすると、
+    テストランナーの作業フォルダーの違いで壊れるため。
+  -->
+  <ItemGroup>
+    <None Include="fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    ルールのドキュメントも出力フォルダーへ複製する。
+    「全ルールに説明ドキュメントがあるか」をテストで検証するために必要。
+  -->
+  <ItemGroup>
+    <None Include="..\..\docs\rules\*.md" CopyToOutputDirectory="PreserveNewest" LinkBase="docs\rules" />
+  </ItemGroup>
+
+  <!--
+    ルールの一覧 (docs/rules/README.md) は上の docs/rules と一緒に複製される。
+    ここでは自作ルールのドキュメントを複製する。
+    実装とドキュメントのずれは人間のレビューでは必ず見落とされるため、
+    見出し・重要度・一覧の照合をテストで強制する。
+  -->
+  <ItemGroup>
+    <None Include="..\..\docs\custom-rules\api-reference.md" CopyToOutputDirectory="PreserveNewest" LinkBase="docs\custom-rules" />
+    <None Include="..\..\docs\custom-rules\cookbook.md" CopyToOutputDirectory="PreserveNewest" LinkBase="docs\custom-rules" />
+  </ItemGroup>
+
+  <!-- NuGet で配るライブラリの公開 API の記録 (PublicApiTests)。 -->
+  <ItemGroup>
+    <None Include="PublicApi.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Cli\Shaderlyn.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Testing\Shaderlyn.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Configuration\Shaderlyn.Configuration.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.LanguageServer\Shaderlyn.LanguageServer.csproj" />
+    <ProjectReference Include="..\..\samples\Shaderlyn.Cookbook\Shaderlyn.Cookbook.csproj" />
+  </ItemGroup>
+
+</Project>

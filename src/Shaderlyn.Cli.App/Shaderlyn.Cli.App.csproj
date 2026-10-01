@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    配布する CLI の実行ファイル。組み込みのルールだけを持つ。
+    本体は Shaderlyn.Cli にあり、ここは Program.RunAsync を呼ぶだけの入口である。
+    自作ルールの利用者が同じ形の入口を自分で作れるよう、ここに処理を足さない。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      配布される実行ファイル名。プロジェクト名 (Shaderlyn.Cli.App) ではなく
+      利用者がコマンドラインに打つ名前にする。
+    -->
+    <AssemblyName>shaderlyn</AssemblyName>
+    <RootNamespace>Shaderlyn.Cli.App</RootNamespace>
+
+    <!--
+      Native AOT でランタイム不要の単一バイナリを生成する。
+      GitHub Actions のランナーへ .NET をインストールさせずに実行できることが狙い。
+      IsAotCompatible (Directory.Build.props) と組み合わせて、
+      リフレクション依存のコードが混入した時点でビルドエラーになるようにしている。
+    -->
+    <PublishAot>true</PublishAot>
+    <StripSymbols>true</StripSymbols>
+
+    <!--
+      出力サイズと起動時間を優先する。解析処理は短時間で終わる CLI であり、
+      長時間走らせて JIT の最適化が効いてくるような性質の処理ではない。
+    -->
+    <OptimizationPreference>Size</OptimizationPreference>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+
+    <!--
+      サーバー GC を使う。
+      意味解析はファイルを並列に処理し、Pass ごとに include の連鎖を丸ごと展開し直すため、
+      トークン配列の割り当て量が非常に多い。ワークステーション GC では
+      並列に走らせても回収がボトルネックになり、コア数を増やしても速くならない。
+    -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Cli\Shaderlyn.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

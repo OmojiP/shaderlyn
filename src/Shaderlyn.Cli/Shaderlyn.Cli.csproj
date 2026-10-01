@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CLI の本体。引数を読み、解析して、結果を書き出すところまでを持つライブラリ。
+    自作ルールの利用者は Program.RunAsync に自分のアナライザを渡して、自分の CLI を作る。
+    配布する実行ファイル (shaderlyn) は Shaderlyn.Cli.App にある。
+  -->
+  <PropertyGroup>
+    <Description>Shaderlyn の CLI を組み立てるライブラリ。Program.RunAsync に自作のアナライザを渡すと、自作ルール入りの CLI を作れる。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
+  </ItemGroup>
+
+</Project>

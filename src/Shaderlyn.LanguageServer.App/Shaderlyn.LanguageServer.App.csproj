@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VS Code 拡張に同梱する言語サーバーの実行ファイル。組み込みのルールだけを持つ。
+    本体は Shaderlyn.LanguageServer にあり、ここは ShaderLanguageServer を起動するだけの入口である。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>shaderlyn-lsp</AssemblyName>
+    <RootNamespace>Shaderlyn.LanguageServer.App</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <StripSymbols>true</StripSymbols>
+
+    <!--
+      サーバー GC を使う。CLI (Shaderlyn.Cli.App.csproj) と同じ理由である。
+      意味解析は Pass ごと・キーワード構成ごとに include の連鎖を丸ごと展開し直すため、
+      割り当て量が極端に多い (Unity 同梱の 80 件で 29GB、1 ファイルあたり約 370MB)。
+      ワークステーション GC ではこの回収が律速になり、コアを増やしても速くならない。
+
+      常駐するプロセスなので占有メモリは気になるが、
+      言語サーバは 1 ファイルずつ解析する。
+      この形では実測でピーク作業セットが 2707MB から 2763MB (+2%) になるだけで、
+      解析時間は 40.4 秒から 23.5 秒 (1.7 倍) になった。
+      落ち着いたあとの管理ヒープはどちらも 47MB で変わらない。
+
+      バックグラウンド GC も有効にする。
+      解析は入力の裏で走るため、回収で操作が止まるほうが遅さより体感に響く。
+    -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.LanguageServer\Shaderlyn.LanguageServer.csproj" />
+  </ItemGroup>
+
+</Project>

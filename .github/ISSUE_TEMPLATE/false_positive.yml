@@ -1,0 +1,57 @@
+name: 誤検出の報告
+description: 正しいシェーダーに指摘が出る
+labels: ["false positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        誤検出はこのツールで最も重い不具合です。報告ありがとうございます。
+        再現できる最小のシェーダーがあると、確実に直せます。
+
+  - type: input
+    id: rule
+    attributes:
+      label: ルール ID
+      placeholder: SL1001
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: 出た指摘の全文
+      description: CLI の出力、またはエディタに出たメッセージをそのまま貼ってください。
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: shader
+    attributes:
+      label: 再現するシェーダー
+      description: 指摘が出る最小のシェーダーです。自作のヘッダを取り込んでいる場合は、その中身も添えてください。
+      render: hlsl
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 正しいと考える理由
+      description: Unity でコンパイルが通る、意図した書き方である、など。
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Shaderlyn のバージョン
+      description: "`shaderlyn --version` の出力"
+    validations:
+      required: true
+
+  - type: input
+    id: unity
+    attributes:
+      label: Unity のバージョンとレンダーパイプライン
+      placeholder: 6000.0.75f1 / URP 17

@@ -1,0 +1,15 @@
+// テクスチャをグレースケールへ変換する単一カーネルのコンピュートシェーダー。
+#pragma kernel CSMain
+
+#include "ColorUtils.hlsl"
+
+Texture2D<float4> _Source;
+RWTexture2D<float4> _Result;
+float _Saturation;
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    float4 color = _Source[id.xy];
+    _Result[id.xy] = float4(AdjustSaturation(color.rgb, _Saturation), color.a);
+}

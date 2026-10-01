@@ -1,0 +1,305 @@
+name: Release
+
+# タグの push だけで動かす。手動実行を許すと、選んだブランチの中身に入力したバージョン番号を付けて
+# 配ることができてしまい、配布物とタグの中身が食い違う。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # 各プラットフォーム向けのバイナリを作る。
+  #
+  # Native AOT はクロスコンパイルできない。
+  # ネイティブのリンカとシステムライブラリを使うため、
+  # 対象の OS と同じ OS のランナーでビルドする必要がある。
+  # 1 つのジョブで全プラットフォーム分を作ることはできない。
+  # ------------------------------------------------------------------
+  build:
+    name: ${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            archive: tar.gz
+            platform: linux
+            vscode-target: linux-x64
+          - os: ubuntu-24.04-arm
+            runtime: linux-arm64
+            archive: tar.gz
+            platform: linux
+            vscode-target: linux-arm64
+          - os: windows-latest
+            runtime: win-x64
+            archive: zip
+            platform: win32
+            vscode-target: win32-x64
+          # Intel の mac は macos-13 が 2025-12-04 に廃止された。
+          # 公開リポジトリの標準ランナーで Intel なのは macos-15-intel と macos-26-intel だけである。
+          - os: macos-26-intel
+            runtime: osx-x64
+            archive: tar.gz
+            platform: darwin
+            vscode-target: darwin-x64
+          - os: macos-latest
+            runtime: osx-arm64
+            archive: tar.gz
+            platform: darwin
+            vscode-target: darwin-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: ネイティブツールチェーンを入れる
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang zlib1g-dev
+
+      - name: バージョンを決める
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+
+          # 先頭の v を落として semver にする。
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "number=${tag#v}" >> "${GITHUB_OUTPUT}"
+
+      - name: AOT publish
+        run: >
+          dotnet publish src/Shaderlyn.Cli.App/Shaderlyn.Cli.App.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --output artifacts/${{ matrix.runtime }}
+          -p:Version=${{ steps.version.outputs.number }}
+
+      - name: 動作を確認する
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            executable="artifacts/${{ matrix.runtime }}/shaderlyn.exe"
+          else
+            executable="artifacts/${{ matrix.runtime }}/shaderlyn"
+          fi
+
+          "${executable}" --version
+
+          # fixture はルールごとに「それを踏むシェーダー」を置いた場所なので、
+          # 指摘が出るのが正常である (終了コード 1)。
+          # 確かめたいのは、AOT で組んだバイナリが解析を最後まで実行できることである。
+          # 終了コード 2 (ツールの実行に失敗) だけを失敗として扱う (ci.yml と同じ)。
+          set +e
+          "${executable}" tests/Shaderlyn.Tests/fixtures --no-config
+          code=$?
+          set -e
+
+          if [ "${code}" -ge 2 ]; then
+            echo "::error::AOT で組んだバイナリの実行に失敗しました (終了コード ${code})。"
+            exit 1
+          fi
+
+      # 配布物には実行ファイルだけを入れる。
+      # デバッグ情報や中間生成物が混ざると、利用者が何を実行すべきか迷う。
+      - name: アーカイブを作る
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          staging="staging"
+          mkdir -p "${staging}"
+
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            cp "artifacts/${{ matrix.runtime }}/shaderlyn.exe" "${staging}/"
+          else
+            cp "artifacts/${{ matrix.runtime }}/shaderlyn" "${staging}/"
+          fi
+
+          cp README.md "${staging}/"
+          cp LICENSE "${staging}/"
+          cp THIRD-PARTY-NOTICES.txt "${staging}/"
+
+          name="shaderlyn-${{ matrix.runtime }}"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd "${staging}" && 7z a "../${name}.zip" .)
+          else
+            tar -czf "${name}.tar.gz" -C "${staging}" .
+          fi
+
+      # ------------------------------------------------------------------
+      # VS Code 拡張。
+      #
+      # 言語サーバーも Native AOT なので、OS と CPU の組ごとに別の vsix になる。
+      # vsce の --target で組を指定すると、VS Code は利用者の環境に合うものだけを受け付ける。
+      # 拡張は server/<process.platform>/ の下からサーバーを探す (extension.ts)。
+      # ------------------------------------------------------------------
+      - name: 言語サーバーを AOT publish する
+        run: >
+          dotnet publish src/Shaderlyn.LanguageServer.App/Shaderlyn.LanguageServer.App.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --output artifacts/lsp-${{ matrix.runtime }}
+          -p:Version=${{ steps.version.outputs.number }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 配布物にはサーバーの実行ファイルだけを入れる。デバッグ情報は同梱しない。
+      - name: 拡張を vsix にまとめる
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          server="editors/vscode/server/${{ matrix.platform }}"
+          mkdir -p "${server}"
+
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            cp "artifacts/lsp-${{ matrix.runtime }}/shaderlyn-lsp.exe" "${server}/"
+          else
+            cp "artifacts/lsp-${{ matrix.runtime }}/shaderlyn-lsp" "${server}/"
+            chmod +x "${server}/shaderlyn-lsp"
+          fi
+
+          cp THIRD-PARTY-NOTICES.txt editors/vscode/
+
+          cd editors/vscode
+          npm ci
+
+          # 拡張のバージョンは CLI と同じタグから決める。同じリリースに並ぶので、バージョンが食い違うと迷う。
+          npm version "${{ steps.version.outputs.number }}" --no-git-tag-version --allow-same-version
+
+          # 拡張はリポジトリのサブフォルダーにあるが、vsce はそれを知らずに README の相対パスを
+          # リポジトリのルートから書き換える。Marketplace の画像とリンクが切れないよう、基点を渡す。
+          # タグを指すので、そのバージョンの README の画像が出る。
+          base="https://github.com/${GITHUB_REPOSITORY}"
+          npx --yes @vscode/vsce package \
+            --target "${{ matrix.vscode-target }}" \
+            --baseContentUrl "${base}/blob/${{ steps.version.outputs.tag }}/editors/vscode" \
+            --baseImagesUrl "${base}/raw/${{ steps.version.outputs.tag }}/editors/vscode" \
+            --out "../../shaderlyn-vscode-${{ matrix.vscode-target }}.vsix"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shaderlyn-${{ matrix.runtime }}
+          path: |
+            shaderlyn-${{ matrix.runtime }}.*
+            shaderlyn-vscode-${{ matrix.vscode-target }}.vsix
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # 自作ルール用の NuGet パッケージを nuget.org へ公開する。
+  #
+  # バイナリがすべて組めてから出す。nuget.org に出したパッケージは消せない
+  # (一覧から隠せるだけ) ので、どこかのプラットフォームで落ちたリリースのパッケージを残さない。
+  # 途中で失敗して流し直したときのために、出し済みのものは飛ばす (--skip-duplicate)。
+  #
+  # API キーは保存せず、Trusted Publishing で受け取る。GitHub が発行する OIDC トークンを
+  # nuget.org が検証し、1 時間だけ有効なキーを返す。nuget.org 側のポリシーは
+  # リポジトリとこのファイル名 (release.yml) に結びついているので、ファイル名を変えたらポリシーも直す。
+  # ------------------------------------------------------------------
+  nuget:
+    name: NuGet パッケージを公開する
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: パッケージを作る
+        shell: bash
+        run: >
+          dotnet pack
+          --configuration Release
+          --output artifacts/packages
+          -p:Version="${GITHUB_REF_NAME#v}"
+
+      # キーは 1 時間で切れるので、作り終えてから受け取る。
+      # user は nuget.org のプロフィール名で、メールアドレスではない。
+      - name: nuget.org から一時的な API キーを受け取る
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: 公開する
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          # .snupkg は同じフォルダーにあれば一緒に送られる。
+          dotnet nuget push "artifacts/packages/*.nupkg" \
+            --api-key "${NUGET_API_KEY}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+  release:
+    name: リリースを作る
+    needs: [build, nuget]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # 取り違えは配布後に気づくと直すのが面倒なので、
+      # 公開する前に何が入っているかをログへ残す。
+      - name: 配布物を一覧する
+        run: ls -lR artifacts
+
+      - name: チェックサムを作る
+        working-directory: artifacts
+        run: sha256sum shaderlyn-* > SHA256SUMS.txt
+
+      # 拡張は OS と CPU の組ごとに別の vsix なので、作ったものをそのまま送る (--packagePath)。
+      # Marketplace に出したバージョンは上書きできないので、全プラットフォームが組めたこのジョブで出す。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: VS Code Marketplace に公開する
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          set -euo pipefail
+          npx --yes @vscode/vsce publish \
+            --packagePath artifacts/shaderlyn-vscode-*.vsix \
+            --pat "${VSCE_PAT}"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

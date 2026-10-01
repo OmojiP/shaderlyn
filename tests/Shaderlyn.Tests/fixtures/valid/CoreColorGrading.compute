@@ -1,0 +1,31 @@
+// SRP Core の Common.hlsl / Color.hlsl を使う、色調補正のコンピュートシェーダー。
+#pragma kernel CSMain
+
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
+
+TEXTURE2D(_Source);
+RW_TEXTURE2D(float4, _Result);
+
+CBUFFER_START(GradingParams)
+    float _Exposure;
+    float _Contrast;
+    float _Saturation;
+CBUFFER_END
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    float4 source = LOAD_TEXTURE2D(_Source, id.xy);
+
+    float3 color = source.rgb * pow(2.0, _Exposure);
+    float luma = Luminance(color);
+    color = lerp(luma.xxx, color, _Saturation);
+
+    // 対数空間で中間灰色を中心にコントラストを掛ける。
+    float3 logColor = LinearToLogC(color);
+    logColor = (logColor - ACEScc_MIDGRAY) * _Contrast + ACEScc_MIDGRAY;
+    color = LogCToLinear(logColor);
+
+    _Result[id.xy] = float4(max(color, 0.0), source.a);
+}

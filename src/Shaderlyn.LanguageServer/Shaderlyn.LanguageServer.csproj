@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    言語サーバーの本体。自作ルールの利用者は ShaderLanguageServer に自分のアナライザを渡して、
+    自作ルール入りの言語サーバーを作る。
+    VS Code 拡張に同梱する実行ファイル (shaderlyn-lsp) は Shaderlyn.LanguageServer.App にある。
+  -->
+  <PropertyGroup>
+    <Description>Shaderlyn の言語サーバーを組み立てるライブラリ。ShaderLanguageServer に自作のアナライザを渡すと、自作ルール入りの言語サーバーを作れる。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Cli\Shaderlyn.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ビルドとテスト (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # 片方の OS で落ちても、もう片方の結果は知りたい。
+      # 打ち切ると「Windows だけで壊れているのか、両方壊れているのか」が分からない。
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # ドキュメントコメントの漏れはここでビルドエラーになる。
+      # GenerateDocumentationFile と TreatWarningsAsErrors の組み合わせによる。
+      - name: ビルド
+        run: dotnet build --configuration Release
+
+      # Unity が無いランナーでは、実コードに対する検証は自動的に飛ばされる。
+      # そこで失敗させると本質的でない理由でビルドが赤くなる。
+      - name: テスト
+        run: dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
+
+      # 自作ルール用の NuGet パッケージを作れることを確かめる。
+      # 公開はしない。依存の抜けや README の欠落は pack で初めて分かる。
+      - name: パッケージを作る
+        run: dotnet pack --configuration Release --no-build --output artifacts/packages
+
+  publish:
+    name: AOT ビルドの確認 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-latest
+            runtime: osx-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # Native AOT はネイティブのリンカを使う。
+      # Linux ランナーには既定で入っていないので明示的に入れる。
+      - name: ネイティブツールチェーンを入れる
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang zlib1g-dev
+
+      - name: AOT publish
+        run: >
+          dotnet publish src/Shaderlyn.Cli.App/Shaderlyn.Cli.App.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --output artifacts/aot
+
+      # 生成できただけでは足りない。AOT では、実行して初めて分かる失敗
+      # (リフレクションに依存した経路が実行時に落ちる) がある。
+      - name: 生成したバイナリを実行する
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            executable="artifacts/aot/shaderlyn.exe"
+          else
+            executable="artifacts/aot/shaderlyn"
+          fi
+
+          "${executable}" --version
+          "${executable}" --list-rules
+
+          # fixture を解析させる。
+          #
+          # fixture はルールごとに「それを踏むシェーダー」を置いた場所なので、
+          # 指摘が出るのが正常である。--error-on error で失敗させてはならない。
+          #
+          # ここで確かめたいのは「指摘が出ないこと」ではなく、
+          # AOT で組んだバイナリが解析を最後まで実行できることである。
+          # 終了コード 2 (ツールの実行に失敗) だけを失敗として扱う。
+          set +e
+          "${executable}" tests/Shaderlyn.Tests/fixtures --no-config
+          code=$?
+          set -e
+
+          if [ "${code}" -ge 2 ]; then
+            echo "::error::AOT で組んだバイナリの実行に失敗しました (終了コード ${code})。"
+            exit 1
+          fi
+
+          echo "解析は最後まで実行できました (終了コード ${code})。"
+
+  extension:
+    name: VS Code 拡張のビルド
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 型の誤りはここで止める。リリースで初めて気づくと、そのリリースの vsix がすべて作れない。
+      - name: TypeScript をビルドする
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npm run compile

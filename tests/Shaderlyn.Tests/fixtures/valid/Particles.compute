@@ -1,0 +1,55 @@
+// 粒子の初期化と更新を行う、複数カーネルを持つコンピュートシェーダー。
+#pragma kernel Init
+#pragma kernel Update
+
+#include "Noise.hlsl"
+
+struct Particle
+{
+    float3 position;
+    float3 velocity;
+    float life;
+};
+
+RWStructuredBuffer<Particle> _Particles;
+
+CBUFFER_START(Params)
+    float _DeltaTime;
+    float _Time;
+    float3 _Gravity;
+    uint _ParticleCount;
+CBUFFER_END
+
+[numthreads(64, 1, 1)]
+void Init(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ParticleCount)
+    {
+        return;
+    }
+
+    float2 seed = float2(id.x, 0.5);
+    Particle p;
+    p.position = float3(Hash21(seed), Hash21(seed + 1.0), Hash21(seed + 2.0)) * 2.0 - 1.0;
+    p.velocity = float3(0.0, 1.0, 0.0);
+    p.life = 1.0 + Hash21(seed + 3.0);
+    _Particles[id.x] = p;
+}
+
+[numthreads(64, 1, 1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ParticleCount)
+    {
+        return;
+    }
+
+    Particle p = _Particles[id.x];
+    float wobble = ValueNoise(p.position.xz + _Time) - 0.5;
+
+    p.velocity += (_Gravity + float3(wobble, 0.0, wobble)) * _DeltaTime;
+    p.position += p.velocity * _DeltaTime;
+    p.life = max(p.life - _DeltaTime, 0.0);
+
+    _Particles[id.x] = p;
+}

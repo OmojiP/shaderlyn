@@ -1,0 +1,50 @@
+name: 不具合の報告
+description: 見逃し、落ちる、エディタの機能が働かない、など (誤検出は「誤検出の報告」へ)
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 起きたこと
+      description: 何をしたら、何が起きたか。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待したこと
+      description: 見逃しの場合は、Unity (FXC / DXC) が出したエラーを添えてもらえると確実です。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 再現の手順
+      description: 実行したコマンドと、再現に使うシェーダーです。
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 記録
+      description: |
+        CLI の出力、または VS Code の出力パネル「Shaderlyn」の内容です。
+        エディタで処理が失敗した場合は「〜に失敗しました」と例外の内容が記録されています。
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: Shaderlyn のバージョン
+      description: "`shaderlyn --version` の出力"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 環境
+      placeholder: Windows 11 / Unity 6000.0.75f1 / URP 17 / VS Code 1.104

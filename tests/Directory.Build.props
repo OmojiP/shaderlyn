@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- ルートの Directory.Build.props を読み込んだうえで、テスト固有の緩和を適用する。 -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      テストコードにまで XML ドキュメントコメントを要求するのは費用対効果が悪いため、
+      テストプロジェクトでのみ CS1591 の強制を解除する。
+      本体側 (src/) では引き続きビルドエラーとして扱われる。
+    -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+</Project>

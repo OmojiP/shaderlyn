@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // 開発中はネイティブ化を切る。C++ のリンカが要るうえ、建てるのに時間がかかる。
+      // Release で建てるのは、環境によっては Debug の出力が
+      // アプリケーション制御ポリシーに阻まれて読み込めないためである。
+      "label": "言語サーバを建てる",
+      "type": "shell",
+      "command": "dotnet publish src/Shaderlyn.LanguageServer.App -c Release -p:PublishAot=false -o editors/vscode/server",
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "silent" }
+    },
+    {
+      "label": "拡張を建てる",
+      "type": "shell",
+      "command": "npm run compile",
+      "options": { "cwd": "${workspaceFolder}/editors/vscode" },
+      "problemMatcher": "$tsc",
+      "presentation": { "reveal": "silent" }
+    },
+    {
+      "label": "拡張と言語サーバを建てる",
+      "dependsOrder": "sequence",
+      "dependsOn": ["言語サーバを建てる", "拡張を建てる"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

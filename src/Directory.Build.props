@@ -1,0 +1,50 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    src の下のライブラリは NuGet パッケージとして配る。自作ルールの利用者が PackageReference で参照する。
+    パッケージのバージョンはリリースのタグから決まり、pack のときに -p:Version で渡す。
+    実行ファイル (*.App) は IsPackable を false にしている。配布はリリースのバイナリで行う。
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Authors>OmojiP</Authors>
+    <Copyright>Copyright (c) 2026 OmojiP</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/OmojiP/shaderlyn</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/OmojiP/shaderlyn</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>unity;shader;shaderlab;hlsl;analyzer;linter</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- 前のバージョンと比べて公開 API を壊していないかを pack のときに確かめる。比べるバージョンは PackageValidationBaselineVersion で渡す。 -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)PackageReadme.md" Pack="true" PackagePath="README.md" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../docs/images/icon.png" Pack="true" PackagePath="" Visible="false" />
+    <!-- NCSA ライセンスは、バイナリで再配布するときに著作権表示と条文を添えることを求める。 -->
+    <None Include="$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
+  <!--
+    公開するのは自作ルールの利用者が触る型だけで、それ以外は internal にしている。
+    テストは内部の型を直接確かめるので、すべてのライブラリの internal を見せる。
+    ライブラリ同士で internal を見せる相手は、各 csproj に書く。
+    どれも同じバージョンで一緒に出すので、バージョンの違うパッケージを混ぜた組み合わせは想定しない。
+  -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <InternalsVisibleTo Include="Shaderlyn.Tests" />
+  </ItemGroup>
+
+</Project>

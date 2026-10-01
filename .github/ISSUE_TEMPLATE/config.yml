@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 脆弱性の報告
+    url: https://github.com/OmojiP/shaderlyn/security/advisories/new
+    about: 脆弱性は公開の Issue に書かず、非公開で報告してください。

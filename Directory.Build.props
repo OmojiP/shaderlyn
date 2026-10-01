@@ -1,0 +1,37 @@
+<Project>
+
+  <!--
+    全プロジェクト共通のビルド設定。
+
+    最も重要なのは GenerateDocumentationFile と TreatWarningsAsErrors の組み合わせで、
+    これにより CS1591 (公開メンバに XML コメントが無い) がビルドエラーになる。
+    本プロジェクトはパーサ・プリプロセッサ・型解決という「読んだだけでは意図が分からない」
+    コードの塊になるため、ドキュメントコメントを規約ではなくビルド制約として強制する。
+    テストプロジェクトは tests/Directory.Build.props でこの制約を解除している。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!--
+      Native AOT 向けの静的解析を常時有効にしておく。実際に AOT publish するのは Cli だけだが、
+      ライブラリ側でリフレクション依存のコードが混入した時点で警告として検出したいため
+      全プロジェクトで有効にする (TreatWarningsAsErrors によりビルドエラーになる)。
+    -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- 手元でビルドしたときのバージョン。リリースではタグのバージョンを -p:Version で渡し、こちらより優先される -->
+    <Version>0.1.0</Version>
+
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

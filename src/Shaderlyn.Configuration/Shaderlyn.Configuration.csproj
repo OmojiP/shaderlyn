@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Description>Shaderlyn の設定ファイル (.shaderlyn.yaml) の読み取り。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+  </ItemGroup>
+
+</Project>
