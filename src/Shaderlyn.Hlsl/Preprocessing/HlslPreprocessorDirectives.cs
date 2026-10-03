@@ -1580,6 +1580,14 @@ internal sealed partial class HlslPreprocessor
             RecordConditionalDefinition(line[1], [.. line.Skip(1)]);
         }
 
+        // 読み飛ばす分岐の #undef も、別の構成では効いている。
+        // 覚えたままにすると、#undef してから定義し直した中身を「#undef せずに定義し直した」と報告する。
+        // 実行される #undef と同じく、その名前は条件付きで覚えるのをやめる (ForgetConditionalDefinitions)。
+        if (line.Length >= 2 && line[0].Text == "undef" && line[1].Kind == HlslSyntaxKind.IdentifierToken)
+        {
+            ForgetConditionalDefinitions(line[1].Text);
+        }
+
         // 構成によって変わる条件のために読み飛ばした定義は、別の構成では効いている。
         // この構成で定義されていなくても、構成によって定義が変わるマクロである。
         // 数えないと、そのマクロを見る条件を構成によらないものと取り違える

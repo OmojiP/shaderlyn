@@ -277,6 +277,26 @@ public sealed class MacroHoistingTests
     }
 
     [Fact]
+    public void 読み飛ばした分岐でundefしてから定義し直しても再定義と報告しない()
+    {
+        // _A の分岐は既定の構成では読み飛ばすが、#undef も #define と同じく別の構成では効いている。
+        // #undef を見ずに #define だけを覚えると、「#undef してから定義してください」と誤って報告する。
+        PreprocessResult result = Preprocess(
+            """
+            #define CTYPE float4
+            #ifdef _A
+            #undef CTYPE
+            #define CTYPE float3
+            #endif
+
+            CTYPE color;
+            """,
+            "_A");
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0002");
+    }
+
+    [Fact]
     public void 無効にすれば1通りでしか展開しない()
     {
         PreprocessorOptions options = new()
