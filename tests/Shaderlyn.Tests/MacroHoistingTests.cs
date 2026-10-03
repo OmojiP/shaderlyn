@@ -277,6 +277,37 @@ public sealed class MacroHoistingTests
     }
 
     [Fact]
+    public void 別のマクロの本体を通して使っていても定義ごとに複製する()
+    {
+        // APPLY 自体は条件で中身が変わらないが、展開すると BODY になる。
+        // APPLY の位置で BODY の定義ごとに複製しなければ、1 つの構成の値でしか展開されない。
+        PreprocessResult result = Preprocess(
+            """
+            #ifdef _A
+            #define BODY { v = 1; }
+            #else
+            #define BODY v = 2;
+            #endif
+            #define APPLY BODY
+
+            void F(inout float v)
+            {
+                if (v > 0)
+                    APPLY
+                v = 3;
+            }
+            """,
+            "_A");
+
+        string text = TextOf(result);
+
+        Assert.Contains("if ( v > 0 ) { v = 1 ; }", text, StringComparison.Ordinal);
+        Assert.Contains("if ( v > 0 ) v = 2 ;", text, StringComparison.Ordinal);
+        Assert.Contains("_A", result.MergedSymbols);
+        Assert.DoesNotContain("_A", result.DeclinedBothBranchSymbols);
+    }
+
+    [Fact]
     public void 読み飛ばした分岐でundefしてから定義し直しても再定義と報告しない()
     {
         // _A の分岐は既定の構成では読み飛ばすが、#undef も #define と同じく別の構成では効いている。

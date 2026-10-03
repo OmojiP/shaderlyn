@@ -205,9 +205,21 @@ internal sealed partial class HlslPreprocessor
 
         HlslSyntaxToken nameToken = PeekToken()!;
 
-        if (GetHoistableDefinitions(nameToken.Text) is not { } branches
+        if (_conditionalMacros.Count == 0
             || _unitAnchor is not { } anchor
             || !ReferenceEquals(anchor.Source, CurrentSource))
+        {
+            return false;
+        }
+
+        // 文に書かれた名前そのものが条件で中身の変わるマクロでなくても、
+        // その本体を通して参照していれば、そのマクロの定義ごとに複製する (#define APPLY BODY の APPLY)。
+        string? hoisted = GetHoistableDefinitions(nameToken.Text) is not null
+            ? nameToken.Text
+            : FindHoistableThroughMacros(nameToken.Text);
+
+        if (hoisted is null
+            || GetHoistableDefinitions(hoisted, checkCallForm: hoisted == nameToken.Text) is not { } branches)
         {
             return false;
         }
@@ -219,7 +231,7 @@ internal sealed partial class HlslPreprocessor
             return false;
         }
 
-        MacroDefinition? saved = _macros.GetValueOrDefault(nameToken.Text);
+        MacroDefinition? saved = _macros.GetValueOrDefault(hoisted);
         int regionCount = _conditionalRegions.Count;
         int diagnosticCount = _diagnostics.Count;
 
@@ -229,7 +241,7 @@ internal sealed partial class HlslPreprocessor
             _output.RemoveRange(anchor.OutputIndex, _output.Count - anchor.OutputIndex);
             anchor.Source.Index = unitEnd;
 
-            if (TryExpandBranches(nameToken.Text, TakeUnit(anchor, unitEnd), branches, saved))
+            if (TryExpandBranches(hoisted, TakeUnit(anchor, unitEnd), branches, saved))
             {
                 _hoistedUnits++;
                 MoveUnitAnchorPastUnit(anchor.Source);
@@ -364,8 +376,15 @@ internal sealed partial class HlslPreprocessor
     /// ただし、どの定義も関数形式で、次が <c>(</c> でなければ展開されない。
     /// そのときはどの分岐も同じトークン列になるので、複製しない。
     /// </para>
+    /// <para>
+    /// 別のマクロの本体を通して参照しているときは、呼び出しの形かを確かめない (<paramref name="checkCallForm"/>)。
+    /// 次のトークンは外側のマクロの後ろであり、内側のマクロの後ろではない。
+    /// </para>
     /// </remarks>
-    private List<(SymbolCondition Condition, MacroDefinition? Definition)>? GetHoistableDefinitions(string name)
+    /// <param name="checkCallForm">関数形式マクロが呼び出しの形で書かれているかを確かめるかどうか。</param>
+    private List<(SymbolCondition Condition, MacroDefinition? Definition)>? GetHoistableDefinitions(
+        string name,
+        bool checkCallForm = true)
     {
         if (!_conditionalMacros.TryGetValue(name, out List<ConditionalMacro>? recorded))
         {
@@ -390,7 +409,7 @@ internal sealed partial class HlslPreprocessor
 
         // 関数形式マクロは、呼び出しの形になっていなければ展開されない。
         // 展開されないなら、どの分岐も同じトークン列になる。複製する意味が無い。
-        if (definitions.All(d => d.Definition.IsFunctionLike) && !NextNonExhaustedTokenIsOpenParen())
+        if (checkCallForm && definitions.All(d => d.Definition.IsFunctionLike) && !NextNonExhaustedTokenIsOpenParen())
         {
             return null;
         }
@@ -411,6 +430,84 @@ internal sealed partial class HlslPreprocessor
         }
 
         return branches.Count is >= 2 and <= MaxHoistedBranches ? branches : null;
+    }
+
+    /// <summary>本体をたどる深さの上限。</summary>
+    private const int MaxHoistLookupDepth = 8;
+
+    /// <summary>
+    /// マクロの定義ごとに、その本体を通して参照する、条件で中身の変わるマクロ。
+    /// </summary>
+    /// <remarks>
+    /// 答えは条件付きで覚えた定義によって変わるので、それが変わったら捨てる (<see cref="ForgetHoistLookups"/>)。
+    /// 識別子のたびに本体をたどると、ヘッダのマクロを使うたびに同じ走査を繰り返すことになる。
+    /// </remarks>
+    private readonly Dictionary<MacroDefinition, string?> _hoistLookups = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>本体をたどった結果を捨てる。条件付きで覚えた定義が変わったときに呼ぶ。</summary>
+    private void ForgetHoistLookups() => _hoistLookups.Clear();
+
+    /// <summary>
+    /// マクロの本体を通して参照している、条件で中身の変わるマクロを探す。
+    /// </summary>
+    /// <param name="name">文に書かれたマクロの名前。</param>
+    /// <returns>参照しているマクロ。無いか、2 つ以上あれば <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>1 つの文で複製できるのは 1 つのマクロだけである。</b>
+    /// 2 つ以上を参照していれば、組ごとに複製することになる。そこまではしない。
+    /// </para>
+    /// <para>
+    /// 関数形式マクロは、呼び出しの形で書かれていなければ展開されないので探さない。
+    /// </para>
+    /// </remarks>
+    private string? FindHoistableThroughMacros(string name)
+    {
+        if (!_macros.TryGetValue(name, out MacroDefinition? outer)
+            || (outer.IsFunctionLike && !NextNonExhaustedTokenIsOpenParen()))
+        {
+            return null;
+        }
+
+        if (_hoistLookups.TryGetValue(outer, out string? cached))
+        {
+            return cached;
+        }
+
+        HashSet<string> visited = new(StringComparer.Ordinal) { name };
+        HashSet<string> found = new(StringComparer.Ordinal);
+
+        Walk(outer, depth: 1);
+
+        string? result = found.Count == 1 ? found.First() : null;
+        _hoistLookups[outer] = result;
+
+        return result;
+
+        void Walk(MacroDefinition macro, int depth)
+        {
+            if (depth > MaxHoistLookupDepth)
+            {
+                return;
+            }
+
+            foreach (HlslSyntaxToken token in macro.Body)
+            {
+                if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+                {
+                    continue;
+                }
+
+                if (GetHoistableDefinitions(token.Text, checkCallForm: false) is not null)
+                {
+                    found.Add(token.Text);
+                }
+                else if (_macros.TryGetValue(token.Text, out MacroDefinition? inner))
+                {
+                    Walk(inner, depth + 1);
+                }
+            }
+        }
     }
 
     /// <summary>

@@ -262,15 +262,17 @@ float4 color = Load(uv);   // !_A
 定義ごとに展開したものが文・宣言として読めなければ、次の切れ目で読み直します。
 どれも読めなければ複製せず、1 つの構成の値で展開します。
 
+別のマクロの本体を通して使っている場合（`#define COLOR_TYPE CTYPE` を `COLOR_TYPE color = 1;` と使う）も、
+使う位置で、本体が参照している `CTYPE` の定義ごとに複製します。本体は 8 段までたどります。
+
 次の場合、マクロの複製では扱えず、そのシンボルは方法 B の対象になります。
 
 | コードの形 | 方法 B になる理由 |
 | --- | --- |
 | 定義を書き分けた分岐にコードもある | 並べなかった側のコードが、どの木にも載らない |
 | 定義を `#elif` や入れ子の `#if` で 3 通り以上に書き分ける、または `#undef` してから定義する | 書き分けの条件を組み立てていない（[既知の限界](#既知の限界) 11） |
-| マクロを別のマクロの本体の中で使う（`#define COLOR_TYPE CTYPE`） | 別のマクロの展開の中では、文の切れ目が分からない |
 | マクロを使う文の中に `#if` がある | 複製すると指令を 2 度処理することになる |
-| 1 つの文で、条件によって中身が変わるマクロを 2 つ以上使う | 1 つの文で複製できるのは 1 つのマクロだけ |
+| 1 つの文で、条件によって中身が変わるマクロを 2 つ以上使う（別のマクロの本体を通して参照する場合も含む） | 1 つの文で複製できるのは 1 つのマクロだけ |
 
 複製した文は同じ行に並びますが、どれがどの構成のものかは区別されています。
 エディタのホバーは構成ごとの型と展開結果を並べて示し（`CTYPE` の上なら「`_A` のとき `float3`」「`!_A` のとき `float4`」）、
@@ -559,20 +561,22 @@ HELPER_DECL
 同じ場所が構成によって**別の種類の文**になる場合です。
 
 ```hlsl
-#ifdef SHADER_DEBUG
+#pragma multi_compile _ _MODE_A _MODE_B
+
+#if defined(_MODE_A)
 #define BODY { v = 1; }
-#else
+#elif defined(_MODE_B)   // #elif で書き分けているので、3.3 の複製で補えず方法 B になる
 #define BODY v = 2;
+#else
+#define BODY v = 3;
 #endif
-#define APPLY BODY       // 別のマクロを通すので、3.3 の複製で補えず方法 B になる
 
 if (v > 0)
-    APPLY
+    BODY
 ```
 
 `if` の本体が、一方ではブロック、もう一方では式文になります。
 この箇所は [SL0004](../rules/SL0004.md) として報告されます。
-`APPLY` を通さず `BODY` を直接書けば、3.3 の複製で扱えるので `SL0004` にはなりません。
 
 出現条件を根拠にするルール（[HL0311](../rules/HL0311.md) / [HL0313](../rules/HL0313.md) /
 [HL0340](../rules/HL0340.md)）は、誤った指摘を出さないために、この箇所では何も報告しません。
@@ -581,13 +585,12 @@ if (v > 0)
 次の形は方法 B になりますが、`SL0004` にはならず、どちらの形も検査されます。
 
 ```hlsl
-#ifdef SHADER_DEBUG
-#define VALUE 1
-#else
 #define VALUE half(Missing())   // ← !SHADER_DEBUG のときとして検査される
+#ifdef SHADER_DEBUG
+#undef VALUE                    // #undef してから定義し直すので、3.3 の複製で補えず方法 B になる
+#define VALUE 1
 #endif
-#define V2 VALUE
-half4 frag() : SV_Target { half v = V2; return v; }
+half4 frag() : SV_Target { half v = VALUE; return v; }
 ```
 
 分けられるのは文と宣言で、しかもその単位自身のトークンが構成で変わっている場合です。
@@ -805,8 +808,9 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 - 定義は、読み飛ばす分岐のものも条件付きで覚える（[RecordConditionalDefinition](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDefines.cs)）。`#undef` は、読み飛ばす分岐のものも含めて、その名前の記録を捨てる。捨てずにいると、`#undef` してから定義し直した中身を「`#undef` せずに定義し直した」（HL0002）と誤って報告していた
 - 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義の無い分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）
+- 文に書かれた名前が、条件で中身が変わるマクロでなくても、その本体を 8 段までたどって条件で中身が変わるマクロをちょうど 1 つ参照していれば、そのマクロの定義ごとに複製する（[FindHoistableThroughMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。たどった結果はマクロの定義ごとに覚え、マクロ表か条件付きの定義が変わったら捨てる
 - 複製は、どれも同じ位置から作られる。位置で条件を引くと `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`HlslSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）
-- `#define` しか無い領域（`#define` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs) が数える（複製を諦めた箇所、別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
+- `#define` しか無い領域（`#define` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
 
 #### 並べなかった理由の記録
 
@@ -988,7 +992,8 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 例も、`_B` だけの構成で報告される誤り（宣言の無い関数の呼び出し）になっていたので、方法 B の領域どうしの例に差し替えました。
 
 [突き合わせに失敗した場合](#63-突き合わせに失敗した場合sl0004)の例は、以前は `if (v > 0) BODY` でした。
-条件で中身が変わるマクロの複製で扱えるようになり `SL0004` にならなくなったので、別のマクロを通す形に差し替えました。
+条件で中身が変わるマクロの複製で扱えるようになり `SL0004` にならなくなったので、別のマクロを通す形 (`#define APPLY BODY`) に差し替えました。
+別のマクロを通した形も複製で扱えるようになったので、今は `#elif` で 3 通りに書き分ける形にしています。
 
 [既知の限界](#既知の限界)の 3 は以前「取り込んだヘッダの条件はバリアントにしない」でした。
 ヘッダが自分で `#pragma multi_compile` を書いている場合、解析しているファイルにそのシンボルの条件が 1 つも無いため、

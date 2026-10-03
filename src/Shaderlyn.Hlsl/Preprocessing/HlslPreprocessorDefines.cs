@@ -407,6 +407,7 @@ internal sealed partial class HlslPreprocessor
         MacroDefinition definition = ParseMacroDefinition(line, report: false);
 
         definitions.Add(new ConditionalMacro(body, condition, definition));
+        ForgetHoistLookups();
         _writtenDefinitions.Add((definition, condition));
     }
 
@@ -419,7 +420,11 @@ internal sealed partial class HlslPreprocessor
     /// そこまで追わずに、<c>#undef</c> された名前は覚えるのをやめる。
     /// 分からないものを根拠に再定義とは言わない。
     /// </remarks>
-    private void ForgetConditionalDefinitions(string name) => _conditionalMacros.Remove(name);
+    private void ForgetConditionalDefinitions(string name)
+    {
+        _conditionalMacros.Remove(name);
+        ForgetHoistLookups();
+    }
 
     /// <summary>ヘッダの <c>#undef</c> を、定義がある条件に反映する。</summary>
     /// <param name="nameToken">マクロ名のトークン。</param>
@@ -672,6 +677,7 @@ internal sealed partial class HlslPreprocessor
         }
 
         NoteMacroWrite(name);
+        ForgetHoistLookups();
 
         if (_macroHashes.Remove(name, out ulong existing))
         {

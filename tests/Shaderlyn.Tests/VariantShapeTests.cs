@@ -107,10 +107,16 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 別のマクロの本体の中での展開は複製できない。既定の構成の値でしか展開されない。
+            // 別のマクロの本体を通して使っていても、その位置で CTYPE の定義ごとに複製する。
             "15 構成で中身が変わるマクロを別のマクロの中で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#define COLOR_TYPE CTYPE\nfloat F() { COLOR_TYPE color = 1; return color.x; }",
-            "_A"
+            ""
+        },
+        {
+            // 別のマクロが、条件で中身が変わるマクロを 2 つ参照している。1 つの文で複製できるのは 1 つだけである。
+            "37 別のマクロを通して条件で中身が変わるマクロを 2 つ使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define SCALE 2\n#else\n#define SCALE 1\n#endif\n#define MAKE CTYPE(SCALE)\nfloat F() { float4 c = MAKE; return c.x; }",
+            "_A / _B"
         },
         {
             // 定義のほかにコードもある分岐は、並べなかった側のコードがどの木にも載らない。
@@ -666,10 +672,10 @@ public sealed class VariantShapeTests
     public void 分岐の中でマクロを定義するキーワードはまとめない()
     {
         // _A を有効にすると VALUE の中身が変わり、使う側の文は _A の連なりの外にある。
-        // 別のマクロの本体を通して使うので、使う文を定義ごとに複製 (条件の巻き上げ) することもできない。
+        // #undef してから定義し直しているので、使う文を定義ごとに複製 (条件の巻き上げ) することもできない。
         ShaderCompilation compilation = Compile(
-            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define VALUE 1\n#else\n#define VALUE 2.0\n#endif\n"
-            + "#define TWICE (VALUE * 2)\nfloat F() { return TWICE; }\n"
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#define VALUE 2.0\n#ifdef _A\n#undef VALUE\n#define VALUE 1\n#endif\n"
+            + "float F() { return VALUE; }\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
 
         Assert.Equal("_A / _B", DescribeVariants(compilation));
