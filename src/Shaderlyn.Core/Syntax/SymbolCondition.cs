@@ -264,6 +264,31 @@ public readonly struct SymbolCondition : IEquatable<SymbolCondition>
     internal IEnumerable<ImmutableArray<SymbolTerm>> EnumerateTerms()
         => IsAlways || IsNever || IsUnknown ? [] : _terms;
 
+    /// <summary>項ごとに書き換えて、整え直した条件を返す。</summary>
+    /// <param name="rewrite">項 1 つを書き換える処理。シンボルと真偽の対応を受け取り、その場で書き換える。</param>
+    /// <returns>書き換えた条件。</returns>
+    /// <remarks>
+    /// 書き換えで同じ形になった項や、相補になった項は、整え直すときにまとまる。
+    /// </remarks>
+    internal SymbolCondition RewriteTerms(Action<Dictionary<string, bool>> rewrite)
+    {
+        if (IsAlways || IsNever || IsUnknown)
+        {
+            return this;
+        }
+
+        List<ImmutableArray<SymbolTerm>> terms = [];
+
+        foreach (ImmutableArray<SymbolTerm> term in _terms)
+        {
+            Dictionary<string, bool> literals = term.ToDictionary(t => t.Symbol, t => t.IsDefined, StringComparer.Ordinal);
+            rewrite(literals);
+            terms.Add(SortTerm(literals));
+        }
+
+        return Normalize(terms);
+    }
+
     /// <summary>シンボル 1 つだけの条件かどうかを判定する。</summary>
     /// <param name="literal">その 1 つ。</param>
     /// <returns>シンボル 1 つだけであれば <see langword="true"/>。</returns>

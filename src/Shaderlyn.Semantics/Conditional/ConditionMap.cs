@@ -218,13 +218,18 @@ public sealed class ConditionMap
     /// </remarks>
     public bool IsPossible(SymbolCondition condition) => _constraints.IsPossible(condition);
 
-    /// <summary>決して成り立たない項を落とした条件を返す。</summary>
+    /// <summary>決して成り立たない項を落とし、宣言の制約から決まる部分を省いた条件を返す。</summary>
     /// <param name="condition">対象の条件。</param>
-    /// <returns>落とした条件。</returns>
+    /// <returns>実在する構成について同じ意味になる、短い条件。</returns>
     /// <remarks>
+    /// <para>
     /// 利用者に条件を示すときに使う。<c>!_X || !_Y</c> のうち実在しない構成の項を示しても、読み手を迷わせるだけである。
+    /// </para>
+    /// <para>
+    /// <c>#pragma multi_compile _A _B</c> のもとでの <c>!_B</c> は <c>_A</c> と書く (<see cref="SymbolConstraints.Reduce"/>)。
+    /// </para>
     /// </remarks>
-    public SymbolCondition Simplify(SymbolCondition condition) => _constraints.Apply(condition);
+    public SymbolCondition Simplify(SymbolCondition condition) => _constraints.Reduce(condition);
 
     /// <summary>ノードが範囲の中に収まっているかを判定する。</summary>
     /// <param name="node">対象のノード。</param>

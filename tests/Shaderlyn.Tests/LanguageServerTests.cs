@@ -512,8 +512,9 @@ public sealed class LanguageServerTests
         Assert.Contains("型は構成によって変わります", varying, StringComparison.Ordinal);
         Assert.Contains("`_A` のとき **`float`**", varying, StringComparison.Ordinal);
 
-        // #elif は「前の条件が成り立たず、かつ自分の条件が成り立つ」である。そのまま出す。
-        Assert.Contains("`!_A && _B` のとき **`float3`**", varying, StringComparison.Ordinal);
+        // #elif は「前の条件が成り立たず、かつ自分の条件が成り立つ」だが、_A と _B は同じ行なので _B だけで決まる。
+        Assert.Contains("`_B` のとき **`float3`**", varying, StringComparison.Ordinal);
+        Assert.DoesNotContain("`!_A && _B`", varying, StringComparison.Ordinal);
         Assert.DoesNotContain("型を判定できません", varying, StringComparison.Ordinal);
 
         // a.x は float でも float3 でも float。構成を並べる必要は無い。

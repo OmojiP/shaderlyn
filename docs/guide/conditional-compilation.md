@@ -917,6 +917,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - 条件の中でシンボルとして読むのは、ブロックが宣言しているシンボルだけ（`PreprocessorOptions.DeclaredSymbols`）。並べる対象（`BothBranchSymbols`）とは別に渡すので、並べない設定で展開しても組は変わらない
 - 組の中のシンボルは**すべて宣言されている**必要がある。方法 A で並べたシンボルが混ざってもよい（並べた `#ifdef _A` の中の、並べなかった `#ifdef _B` は、`_A` の構成でも `_B` の構成でも通らない）。すべて並べたシンボルなら既定の構成の木に載っているので作らない
 - 同じ行どうしの組を作らないこと、方法 A で外側と合わせて成り立たない分岐を並べないことは、[SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)（`PreprocessorOptions.SymbolConstraints`）で判断する。ルールが条件を掛け合わせて「成り立つか」を見るときも `ConditionMap.IsPossible` を通す。全 Pass をまとめた索引では、どの Pass でも同じ行に並んでいる組だけを排他とする
+- 報告やホバーに示す条件は、制約から決まる部分を省いて短くする（`ConditionMap.Simplify` → [SymbolConstraints.Reduce](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。同時に有効にならないシンボルがあればその否定を省き、`_` の無い `multi_compile` の行で 1 つを除いて否定していれば残りの 1 つと書く。`multi_compile _A _B` / `multi_compile _C _D` のもとの `(_A && !_C && _D) || (!_B && !_C && _D)` は `_A && _D` になる
 - `_` の無い `multi_compile` の行は、既定の構成とどのバリアントも、その行のシンボルを 1 つも有効にしていなければ先頭を定義する（[ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。先頭だけを有効にした構成は既定の構成と同じなので作らない。先頭が無いことを求める分岐には、同じ行の別のシンボルを有効にした構成を作る（[SymbolConstraints.EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。`shader_feature` は対象にしない（[既知の限界](#既知の限界) 9、[ShaderSymbols.IsRequiredSet](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs)）
 
 **(c) ヘッダの条件の構成。** 取り込んだヘッダに書かれた条件は、次のものだけを 1 つずつの構成にします。

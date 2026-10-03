@@ -135,6 +135,7 @@ Shaderlyn.Core.Syntax.SymbolCondition :: virtual System.String ToString()
 Shaderlyn.Core.Syntax.SymbolConstraints : sealed class
 Shaderlyn.Core.Syntax.SymbolConstraints :: .ctor(System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[System.String,System.String]], System.Collections.Generic.IEnumerable`1[System.Collections.Generic.IReadOnlyList`1[System.String]])
 Shaderlyn.Core.Syntax.SymbolConstraints :: Shaderlyn.Core.Syntax.SymbolCondition Apply(Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Core.Syntax.SymbolConstraints :: Shaderlyn.Core.Syntax.SymbolCondition Reduce(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Core.Syntax.SymbolConstraints :: System.Boolean AreExclusive(System.String, System.String)
 Shaderlyn.Core.Syntax.SymbolConstraints :: System.Boolean IsEmpty { get; }
 Shaderlyn.Core.Syntax.SymbolConstraints :: System.Boolean IsPossible(Shaderlyn.Core.Syntax.SymbolCondition)

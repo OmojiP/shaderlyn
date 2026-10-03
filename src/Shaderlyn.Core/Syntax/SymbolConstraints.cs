@@ -109,6 +109,119 @@ public sealed class SymbolConstraints
     public SymbolCondition Apply(SymbolCondition condition)
         => IsEmpty ? condition : condition.WithoutTerms(IsImpossible);
 
+    /// <summary>
+    /// 制約から決まる部分を省いて、短く書き直した条件を返す。
+    /// </summary>
+    /// <param name="condition">対象の条件。</param>
+    /// <returns>実在する構成について同じ意味になる、短い条件。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>利用者に条件を示すときに使う。</b>
+    /// <c>#pragma multi_compile _A _B</c> と <c>#pragma multi_compile _C _D</c> のもとでは、
+    /// <c>(_A &amp;&amp; !_C &amp;&amp; _D) || (!_B &amp;&amp; !_C &amp;&amp; _D)</c> は <c>_A &amp;&amp; _D</c> と同じである。
+    /// <c>!_B</c> なら <c>_A</c> が、<c>_D</c> なら <c>!_C</c> が決まる。
+    /// 長いまま示すと、読み手は自分で制約を当てはめて読み解くことになる。
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     同時には定義されないシンボルがあれば、その否定は省く (<c>_D &amp;&amp; !_C</c> → <c>_D</c>)
+    ///   </description></item>
+    ///   <item><description>
+    ///     どれか 1 つが必ず定義される集まりで、1 つを除いて否定していれば、残りの 1 つにする (<c>!_B</c> → <c>_A</c>)
+    ///   </description></item>
+    ///   <item><description>
+    ///     ちょうど 1 つが定義される 2 つ組は、いったん片方の真偽に揃えてから項をまとめる。
+    ///     <c>(_A &amp;&amp; _D) || (_B &amp;&amp; _D)</c> は <c>_D</c> になる
+    ///   </description></item>
+    /// </list>
+    /// <para>
+    /// 実在しない構成についての意味は変わりうるので、構成が実在するかの判断には使わない (<see cref="IsPossible"/>)。
+    /// </para>
+    /// </remarks>
+    public SymbolCondition Reduce(SymbolCondition condition)
+    {
+        if (IsEmpty)
+        {
+            return condition;
+        }
+
+        ImmutableArray<ImmutableArray<string>> exact = [.. _requiredGroups.Where(IsExactlyOne)];
+
+        // 2 つ組を片方の真偽に揃えると、(_A ∧ X) ∨ (_B ∧ X) が (_A ∧ X) ∨ (¬_A ∧ X) になり、整え直すときにまとまる。
+        SymbolCondition merged = Apply(condition).RewriteTerms(literals =>
+        {
+            DropImplied(literals);
+
+            foreach (ImmutableArray<string> pair in exact.Where(g => g.Length == 2))
+            {
+                if (literals.TryGetValue(pair[1], out bool second) && second)
+                {
+                    literals.Remove(pair[1]);
+                    literals[pair[0]] = false;
+                }
+            }
+        });
+
+        // 示すときは、否定ではなく定義されている側の名前で書く。
+        return merged.RewriteTerms(literals =>
+        {
+            foreach (ImmutableArray<string> pair in exact.Where(g => g.Length == 2))
+            {
+                if (literals.TryGetValue(pair[0], out bool first) && !first)
+                {
+                    literals.Remove(pair[0]);
+                    literals[pair[1]] = true;
+                }
+            }
+        });
+    }
+
+    /// <summary>項のうち、制約から決まるシンボルを省く。</summary>
+    /// <param name="literals">項のシンボルと真偽。その場で書き換える。</param>
+    private void DropImplied(Dictionary<string, bool> literals)
+    {
+        // どれか 1 つが必ず定義される集まりで、1 つを除いて否定していれば、残りの 1 つが定義されている。
+        foreach (ImmutableArray<string> group in _requiredGroups)
+        {
+            string[] open = [.. group.Where(s => !literals.TryGetValue(s, out bool defined) || defined)];
+
+            if (open.Length == 1 && !literals.ContainsKey(open[0]))
+            {
+                literals[open[0]] = true;
+            }
+        }
+
+        // 同時には定義されないシンボルが定義されていれば、その否定は何も足さない。
+        string[] definedSymbols = [.. literals.Where(p => p.Value).Select(p => p.Key)];
+
+        foreach (string symbol in literals.Where(p => !p.Value).Select(p => p.Key).ToArray())
+        {
+            if (definedSymbols.Any(d => AreExclusive(d, symbol)))
+            {
+                literals.Remove(symbol);
+            }
+        }
+    }
+
+    /// <summary>集まりのどの 2 つも同時には定義されないか (どれか 1 つが必ず定義される集まりなら、ちょうど 1 つになる)。</summary>
+    /// <param name="group">対象の集まり。</param>
+    /// <returns>どの 2 つも同時には定義されないなら <see langword="true"/>。</returns>
+    private bool IsExactlyOne(ImmutableArray<string> group)
+    {
+        for (int i = 0; i < group.Length; i++)
+        {
+            for (int j = i + 1; j < group.Length; j++)
+            {
+                if (!AreExclusive(group[i], group[j]))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>その条件が成り立つ構成があるかを判定する。</summary>
     /// <param name="condition">対象の条件。</param>
     /// <returns>あれば <see langword="true"/>。<see cref="SymbolCondition.Unknown"/> もあるものとする。</returns>

@@ -1842,7 +1842,8 @@ public sealed class HlslRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0353");
 
-        Assert.Contains("!_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("'a' は float3 です", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("戻り値の float", diagnostic.GetMessage(), StringComparison.Ordinal);
 
@@ -1889,7 +1890,8 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0351");
 
         Assert.Contains("float2 を返しています", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("!_A && _B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
 
         // 渡せない構成は、値が落ちるだけの構成より重い。警告の陰に隠してはならない。
@@ -1917,7 +1919,8 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
 
         Assert.Contains("float3 に float2 は入りません", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("!_A && _B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]

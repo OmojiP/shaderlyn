@@ -47,6 +47,48 @@ public sealed class SymbolConstraintsTests
         Assert.Equal(Z, XorY.Apply(X.And(Y).Or(Z)));
     }
 
+    /// <summary>
+    /// 制約から決まる部分を省いて短くすることを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <c>#pragma multi_compile _A _B</c> と <c>#pragma multi_compile _C _D</c> は、どちらの行もちょうど 1 つが有効になる。
+    /// </remarks>
+    [Fact]
+    public void 必ずどれか1つが有効になる行の条件を短くする()
+    {
+        SymbolConstraints constraints = SymbolConstraints.FromSets(
+            [["_A", "_B"], ["_C", "_D"]],
+            [["_A", "_B"], ["_C", "_D"]]);
+
+        SymbolCondition a = SymbolCondition.Symbol("_A");
+        SymbolCondition b = SymbolCondition.Symbol("_B");
+        SymbolCondition c = SymbolCondition.Symbol("_C");
+        SymbolCondition d = SymbolCondition.Symbol("_D");
+
+        // (_A && !_C && _D) || (!_B && !_C && _D) は _A && _D。
+        SymbolCondition written = a.And(c.Negate()).And(d).Or(b.Negate().And(c.Negate()).And(d));
+        Assert.Equal("_A && _D", constraints.Reduce(written).ToString());
+
+        // 否定ではなく、有効な側の名前で示す。
+        Assert.Equal("_A", constraints.Reduce(b.Negate()).ToString());
+
+        // (_A && _D) || (_B && _D) は _D。
+        Assert.Equal("_D", constraints.Reduce(a.And(d).Or(b.And(d))).ToString());
+
+        // _A || _B はどの構成でも成り立つ。
+        Assert.True(constraints.Reduce(a.Or(b)).IsAlways);
+    }
+
+    [Fact]
+    public void 無しを含む行では否定を残す()
+    {
+        // multi_compile _ _X _Y: !_X は「無し」か _Y なので、_Y とは書けない。
+        Assert.Equal("!_X", XorY.Reduce(X.Negate()).ToString());
+
+        // _X が有効なら _Y は無効に決まっているので、!_Y は省く。
+        Assert.Equal("_X", XorY.Reduce(X.And(Y.Negate())).ToString());
+    }
+
     [Fact]
     public void 分からない条件はあるものとする()
     {
