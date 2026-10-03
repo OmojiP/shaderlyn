@@ -60,6 +60,14 @@ public sealed partial class ShaderLanguageServer
                         writer.WriteString("detail", detail);
                     }
 
+                    if (item.Documentation is { } documentation)
+                    {
+                        writer.WriteStartObject("documentation");
+                        writer.WriteString("kind", "markdown");
+                        writer.WriteString("value", documentation);
+                        writer.WriteEndObject();
+                    }
+
                     writer.WriteEndObject();
                 }
 

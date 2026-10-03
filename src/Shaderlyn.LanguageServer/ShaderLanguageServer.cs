@@ -1286,6 +1286,9 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("completionProvider");
             writer.WriteStartArray("triggerCharacters");
             writer.WriteStringValue(".");
+
+            // # を打った時点で指令の名前を出す (CompletionPlaces)。
+            writer.WriteStringValue("#");
             writer.WriteEndArray();
             writer.WriteEndObject();
 

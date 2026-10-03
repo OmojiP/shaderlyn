@@ -36,6 +36,8 @@ Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.c
 * **定義へ移動 (`F12`):** `Properties` 名と HLSL 側 uniform 名の相互ジャンプ、変数・関数・構造体・マクロの宣言箇所へジャンプ
 * **Package Cache の自動解決:** `Packages/com.unity...` などの仮想パスを実際の `Library/PackageCache` 配下のファイルへ自動解決してジャンプ
 * **インテリセンス・補完:** `#ifdef` などの条件付きコンパイル情報を考慮し、現在のコンテキストで利用可能なメンバーや引数（シグネチャヘルプ）を提示
+  * `#` の後ろでは指令の名前、`#pragma` の後ろでは pragma の名前（説明付き）、`#pragma vertex` などの後ろではこのファイルの関数、`#if` / `#ifdef` ではシェーダーのシンボルとマクロを出します
+  * コメント・文字列の中と、`.shader` の ShaderLab の部分では、HLSL の候補を出しません
 * **一括リネーム (`F2`) / 参照検索 (`Shift+F12`):** スコープを正確に解釈し、安全にコードを変更・検索
 
 ![引数 IN の参照を一覧した画面](images/f12.png)

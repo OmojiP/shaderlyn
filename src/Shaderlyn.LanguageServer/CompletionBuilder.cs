@@ -13,7 +13,8 @@ namespace Shaderlyn.LanguageServer;
 /// <param name="Label">表示する名前。</param>
 /// <param name="Kind">LSP の CompletionItemKind。</param>
 /// <param name="Detail">名前の右に出す短い説明。</param>
-internal readonly record struct CompletionItem(string Label, int Kind, string? Detail);
+/// <param name="Documentation">候補を選んだときに出す説明 (Markdown)。</param>
+internal readonly record struct CompletionItem(string Label, int Kind, string? Detail, string? Documentation = null);
 
 /// <summary>
 /// カーソルの位置で書ける名前を挙げる。
@@ -31,7 +32,7 @@ internal readonly record struct CompletionItem(string Label, int Kind, string? D
 /// ここでは「その位置で書ける名前」をすべて返す。
 /// </para>
 /// </remarks>
-internal static class CompletionBuilder
+internal static partial class CompletionBuilder
 {
     /// <summary>LSP の CompletionItemKind。必要なものだけ。</summary>
     private const int KindField = 5;
@@ -49,6 +50,34 @@ internal static class CompletionBuilder
     public static ImmutableArray<CompletionItem> Build(ShaderCompilation compilation, int offset)
     {
         ArgumentNullException.ThrowIfNull(compilation);
+
+        // 指令の行やコメントの中で、HLSL のコードの候補を出さない。
+        switch (CompletionPlaces.Find(compilation, offset))
+        {
+            case CompletionPlace.None:
+                return [];
+
+            case CompletionPlace.DirectiveName:
+                return BuildDirectives();
+
+            case CompletionPlace.PragmaName:
+                return BuildPragmas();
+
+            case CompletionPlace.EntryPoint:
+                return BuildEntryPoints(compilation);
+
+            case CompletionPlace.Condition:
+                return BuildConditionNames(compilation, includeDefined: true);
+
+            case CompletionPlace.DefinedName:
+                return BuildConditionNames(compilation, includeDefined: false);
+
+            case CompletionPlace.MacroName:
+                return BuildMacroNames(compilation);
+
+            default:
+                break;
+        }
 
         // "." の直後なら、その型が持つものだけを出す。
         if (FindMemberTarget(compilation, offset) is { } target)
