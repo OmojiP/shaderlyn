@@ -161,6 +161,43 @@ public sealed class VariantShapeTests
         Assert.True(expected == DescribeVariants(compilation), $"{shape}: {DescribeVariants(compilation)}");
     }
 
+    /// <summary>
+    /// 取り込みの切り替えを、取り込んだヘッダのマクロの使い方ごとに検証する。
+    /// </summary>
+    /// <param name="code">解析するコード。</param>
+    /// <param name="expected">作るはずの構成。</param>
+    /// <remarks>
+    /// <para>
+    /// ヘッダが定義したマクロをコードで使うと、その展開はどちらか 1 つの構成のものになる。
+    /// マクロをこのファイルの #ifdef で定義し直せば、使う文を定義ごとに複製できる。
+    /// </para>
+    /// <para>
+    /// 3 つ目は、取り込みを切り替える領域の終わりを求めずに中身を調べていたとき、
+    /// 後ろの #define VALUE_TYPE まで領域の中身として読んで並べられなかった形である。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"a.hlsl\"\n#else\n#include \"b.hlsl\"\n#endif\nfloat F() { return Shade(); }",
+        "")]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"ma.hlsl\"\n#else\n#include \"mb.hlsl\"\n#endif\nfloat F() { VALUE_TYPE v = 1; return v.x; }",
+        "_A")]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"a.hlsl\"\n#else\n#include \"b.hlsl\"\n#endif\n#ifdef _A\n#define VALUE_TYPE float3\n#else\n#define VALUE_TYPE float4\n#endif\nfloat F() { VALUE_TYPE v = Shade(); return v.x; }",
+        "")]
+    public void 取り込みの切り替えはヘッダのマクロをコードで使わなければ並べる(string code, string expected)
+    {
+        ShaderCompilation compilation = Compile(
+            code,
+            ("a.hlsl", "float Shade() { return 1; }"),
+            ("b.hlsl", "float Shade() { return 2; }"),
+            ("ma.hlsl", "#define VALUE_TYPE float3"),
+            ("mb.hlsl", "#define VALUE_TYPE float4"));
+
+        Assert.Equal(expected, DescribeVariants(compilation));
+    }
+
     [Fact]
     public void ビット演算の論理和はどちらかのキーワードの条件として読む()
     {
