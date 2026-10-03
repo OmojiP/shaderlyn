@@ -232,7 +232,7 @@ internal sealed partial class HlslPreprocessor
             if (TryExpandBranches(nameToken.Text, TakeUnit(anchor, unitEnd), branches, saved))
             {
                 _hoistedUnits++;
-                _unitAnchor = null;
+                MoveUnitAnchorPastUnit(anchor.Source);
                 _conditionalRangeStart = _output.Count;
                 return true;
             }
@@ -252,11 +252,25 @@ internal sealed partial class HlslPreprocessor
         anchor.Source.Index = candidates[0];
         ExpandTokensAsUnit(TakeUnit(anchor, candidates[0]));
 
-        _unitAnchor = null;
+        MoveUnitAnchorPastUnit(anchor.Source);
         _conditionalRangeStart = _output.Count;
 
         return true;
     }
+
+    /// <summary>
+    /// 展開し直した文の次へ、文の始まりの目印を置く。
+    /// </summary>
+    /// <param name="source">文を読んだトークンソース。読み終えた位置を指している。</param>
+    /// <remarks>
+    /// <b>次の文もそこから始まる。</b>
+    /// 展開し直した文のトークンは積んだソースから出すので、切れ目の目印は置かれない
+    /// (<see cref="NoteUnitBoundary"/> はファイルのトークンにだけ置く)。
+    /// 置かずにいると、続けて書いた次の文は、条件で中身が変わるマクロを使っていても複製されない
+    /// (<c>CTYPE d = 1; VTYPE e = 1;</c> の 2 つ目)。
+    /// </remarks>
+    private void MoveUnitAnchorPastUnit(TokenSource source)
+        => _unitAnchor = (source, source.Index, _output.Count);
 
     /// <summary>目印からその位置までのトークンを取り出す。</summary>
     /// <param name="anchor">文の始まりの目印。</param>

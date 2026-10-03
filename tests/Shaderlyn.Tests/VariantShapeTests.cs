@@ -119,6 +119,18 @@ public sealed class VariantShapeTests
             "_A"
         },
         {
+            // 1 つの文で複製できるのは 1 つのマクロだけである。VTYPE はどちらか 1 つの構成の値でしか展開されない。
+            "31 条件で中身が変わるマクロを 1 つの文で 2 つ使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE f = VTYPE(1); return f.x; }",
+            "_B"
+        },
+        {
+            // 31 の書き換え。文を分ければ、続けて書いた文もそれぞれ複製する。
+            "32 条件で中身が変わるマクロを文ごとに分けて使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE d = 1; VTYPE e = 1; return d.x + e.x; }",
+            ""
+        },
+        {
             "07 キーワードと構成によらない比較",
             "#pragma multi_compile _ _A\n#define TARGET_LEVEL 50\nfloat F() {\n#if defined(_A) && (TARGET_LEVEL >= 45)\n    return 1;\n#else\n    return 2;\n#endif\n}",
             ""
