@@ -156,6 +156,44 @@ Shaderlyn.Core.Syntax.SyntaxNode :: abstract System.Collections.Generic.IEnumera
 Shaderlyn.Core.Syntax.SyntaxNode :: protected .ctor()
 Shaderlyn.Core.Syntax.SyntaxNode :: protected virtual System.Void WireChildren(System.Collections.Generic.Stack`1[Shaderlyn.Core.Syntax.SyntaxNode])
 Shaderlyn.Core.Syntax.SyntaxNode :: static System.Void WireParents(Shaderlyn.Core.Syntax.SyntaxNode)
+Shaderlyn.Core.Syntax.VariantDeclaration : sealed class (System.IEquatable`1[Shaderlyn.Core.Syntax.VariantDeclaration])
+Shaderlyn.Core.Syntax.VariantDeclaration :: .ctor(System.String, Shaderlyn.Core.Syntax.VariantSymbolKind, Shaderlyn.Core.Diagnostics.Location, System.Boolean = False)
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Syntax.VariantDeclaration <Clone>$()
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Syntax.VariantSymbolKind Kind { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Boolean Equals(Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Boolean IsImplicit { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.String Name { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Void Deconstruct(out System.String, out Shaderlyn.Core.Syntax.VariantSymbolKind, out Shaderlyn.Core.Diagnostics.Location, out System.Boolean)
+Shaderlyn.Core.Syntax.VariantDeclaration :: static System.Boolean op_Equality(Shaderlyn.Core.Syntax.VariantDeclaration, Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: static System.Boolean op_Inequality(Shaderlyn.Core.Syntax.VariantDeclaration, Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.String ToString()
+Shaderlyn.Core.Syntax.VariantGroup : sealed class (System.IEquatable`1[Shaderlyn.Core.Syntax.VariantGroup])
+Shaderlyn.Core.Syntax.VariantGroup :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], System.Boolean)
+Shaderlyn.Core.Syntax.VariantGroup :: Shaderlyn.Core.Syntax.VariantGroup <Clone>$()
+Shaderlyn.Core.Syntax.VariantGroup :: System.Boolean Equals(Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: System.Boolean RequiresOne { get; set; }
+Shaderlyn.Core.Syntax.VariantGroup :: System.Collections.Immutable.ImmutableArray`1[System.String] Symbols { get; set; }
+Shaderlyn.Core.Syntax.VariantGroup :: System.Void Deconstruct(out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Boolean)
+Shaderlyn.Core.Syntax.VariantGroup :: static System.Boolean op_Equality(Shaderlyn.Core.Syntax.VariantGroup, Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: static System.Boolean op_Inequality(Shaderlyn.Core.Syntax.VariantGroup, Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.String ToString()
+Shaderlyn.Core.Syntax.VariantSpace : sealed class
+Shaderlyn.Core.Syntax.VariantSpace :: .ctor(System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantDeclaration], System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantGroup])
+Shaderlyn.Core.Syntax.VariantSpace :: Shaderlyn.Core.Syntax.SymbolConstraints Constraints { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsDeclared(System.String)
+Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsEmpty { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantDeclaration] Declarations { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantGroup] Groups { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableHashSet`1[System.String] Symbols { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: static Shaderlyn.Core.Syntax.VariantSpace Empty { get; }
+Shaderlyn.Core.Syntax.VariantSymbolKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Core.Syntax.VariantSymbolKind :: Compiled = 0
+Shaderlyn.Core.Syntax.VariantSymbolKind :: Runtime = 1
 Shaderlyn.Core.Text.LinePosition : struct (System.IComparable`1[Shaderlyn.Core.Text.LinePosition], System.IEquatable`1[Shaderlyn.Core.Text.LinePosition])
 Shaderlyn.Core.Text.LinePosition :: .ctor(System.Int32, System.Int32)
 Shaderlyn.Core.Text.LinePosition :: System.Boolean Equals(Shaderlyn.Core.Text.LinePosition)
@@ -493,6 +531,8 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: virtual System.String ToStri
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols : static class
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraints(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraintsFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.VariantSpace ReadVariantSpace(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.VariantSpace ReadVariantSpaceFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsDeclaringPragma(Shaderlyn.Hlsl.Preprocessing.PragmaDirective)
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsDeclaringPragmaName(System.String)
 Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsNoSymbol(System.String)

@@ -86,6 +86,112 @@ public static class ShaderSymbols
         => DeclaringPragmaPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal));
 
     /// <summary>
+    /// <c>#pragma</c> の宣言から、構成の空間を作る。
+    /// </summary>
+    /// <param name="pragmas">現れた <c>#pragma</c>。取り込んだヘッダの分も含めてよい。</param>
+    /// <returns>宣言と組。</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="CollectDeclared"/> (名前)・<see cref="EnumerateDeclared"/> と <see cref="EnumerateBuiltInDeclared"/> (位置)・
+    /// <see cref="CollectGroups"/> (行)・<see cref="CollectConstraints"/> (制約) を 1 つにまとめたものである。
+    /// 解析と規則が Unity の <c>#pragma</c> を知らずに済むよう、この形で渡す。
+    /// </para>
+    /// <para>
+    /// <c>dynamic_branch</c> の宣言は <see cref="VariantSymbolKind.Runtime"/> にする。
+    /// 組み込みの宣言 (<c>multi_compile_fog</c> など) が作るシンボルは、名前が書かれていないので宣言の名前の位置を持たせる。
+    /// </para>
+    /// </remarks>
+    public static VariantSpace ReadVariantSpace(ImmutableArray<PragmaDirective> pragmas)
+        => BuildVariantSpace(pragmas.Select(p => (p.NameToken, (IEnumerable<HlslSyntaxToken>)p.Arguments)));
+
+    /// <summary>
+    /// 展開する前のトークン列から、構成の空間を作る。
+    /// </summary>
+    /// <param name="tokens">字句解析しただけのトークン列。</param>
+    /// <returns>宣言と組。</returns>
+    /// <remarks>
+    /// 展開の前に要る (<see cref="CollectDeclaredFromTokens"/>)。このファイル自身に書かれた <c>#pragma</c> だけを見る。
+    /// </remarks>
+    public static VariantSpace ReadVariantSpaceFromTokens(ImmutableArray<HlslSyntaxToken> tokens)
+        => BuildVariantSpace(EnumeratePragmaLines(tokens));
+
+    /// <summary><c>#pragma</c> の名前と引数から、構成の空間を作る。</summary>
+    /// <param name="pragmas">名前のトークンと、引数のトークン。</param>
+    /// <returns>宣言と組。</returns>
+    private static VariantSpace BuildVariantSpace(
+        IEnumerable<(HlslSyntaxToken Name, IEnumerable<HlslSyntaxToken> Arguments)> pragmas)
+    {
+        List<VariantDeclaration> declarations = [];
+        List<VariantGroup> groups = [];
+
+        foreach ((HlslSyntaxToken name, IEnumerable<HlslSyntaxToken> arguments) in pragmas)
+        {
+            if (!IsDeclaringPragmaName(name.Text))
+            {
+                continue;
+            }
+
+            VariantSymbolKind kind = name.Text.StartsWith("dynamic_branch", StringComparison.Ordinal)
+                ? VariantSymbolKind.Runtime
+                : VariantSymbolKind.Compiled;
+
+            HlslSyntaxToken[] identifiers = [.. arguments.Where(a => a.Kind == HlslSyntaxKind.IdentifierToken)];
+            List<DeclaringLine> lines = [.. LinesOf(name.Text, identifiers.Select(a => a.Text))];
+
+            if (BuiltInSets.ContainsKey(name.Text))
+            {
+                // 組み込みの宣言の引数はシンボルではなく、除くものの指定である (nolightmap など)。
+                declarations.AddRange(lines
+                    .SelectMany(l => l.Symbols)
+                    .Select(symbol => new VariantDeclaration(symbol, kind, name.GetLocation(), IsImplicit: true)));
+            }
+            else
+            {
+                declarations.AddRange(identifiers
+                    .Where(a => !IsNoSymbol(a.Text))
+                    .Select(a => new VariantDeclaration(a.Text, kind, a.GetLocation())));
+            }
+
+            groups.AddRange(lines
+                .Where(l => l.Symbols.Count > 0)
+                .Select(l => new VariantGroup([.. l.Symbols], IsRequiredSet(l.PragmaName, l.HasPlaceholder))));
+        }
+
+        return new VariantSpace(declarations, groups);
+    }
+
+    /// <summary>
+    /// 展開する前のトークン列から、<c>#pragma</c> の名前と引数を読む。
+    /// </summary>
+    /// <param name="tokens">字句解析しただけのトークン列。</param>
+    /// <returns>名前のトークンと、行の終わりまでの引数のトークン。</returns>
+    private static IEnumerable<(HlslSyntaxToken Name, IEnumerable<HlslSyntaxToken> Arguments)> EnumeratePragmaLines(
+        ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+                || !tokens[i].IsAtLineStart
+                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 1].Text != "pragma"
+                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            int end = i + 3;
+
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            {
+                end++;
+            }
+
+            yield return (tokens[i + 2], tokens[(i + 3)..end]);
+            i = end - 1;
+        }
+    }
+
+    /// <summary>
     /// 宣言されているシンボルのトークンを列挙する。
     /// </summary>
     /// <param name="pragmas">現れた <c>#pragma</c>。</param>
