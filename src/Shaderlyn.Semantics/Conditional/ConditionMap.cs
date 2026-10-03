@@ -17,6 +17,13 @@ namespace Shaderlyn.Semantics.Conditional;
 internal readonly record struct ConditionalRegion(Location Location, SymbolCondition Condition);
 
 /// <summary>
+/// 定義ごとに複製した文 (条件の巻き上げ) のトークン 1 つ分の条件。
+/// </summary>
+/// <param name="Copy">その複製の先頭のトークン。どの複製のものかを見分ける。</param>
+/// <param name="Condition">その複製が存在する条件。</param>
+internal readonly record struct HoistedToken(HlslSyntaxToken Copy, SymbolCondition Condition);
+
+/// <summary>
 /// 構文木のノードが、どのシンボルの組み合わせのもとで存在するか。
 /// </summary>
 /// <remarks>
@@ -34,24 +41,27 @@ public sealed class ConditionMap
 {
     /// <summary>すべてのノードが無条件で、突き合わせも済んでいる索引。</summary>
     /// <remarks>シンボルバリアントが無い場合に使う。条件を引くと必ず「常に」を返す。</remarks>
-    public static ConditionMap Empty { get; } = new([], [], [], [], SymbolConstraints.Empty);
+    public static ConditionMap Empty { get; } = new([], [], [], [], SymbolConstraints.Empty, []);
 
     private readonly Dictionary<HlslSyntaxNode, SymbolCondition> _conditions;
     private readonly ImmutableArray<ConditionalRegion> _regions;
     private readonly Dictionary<HlslSyntaxNode, List<ConditionalNode>> _inserted;
     private readonly SymbolConstraints _constraints;
+    private readonly Dictionary<HlslSyntaxToken, HoistedToken> _hoisted;
 
     internal ConditionMap(
         Dictionary<HlslSyntaxNode, SymbolCondition> conditions,
         ImmutableArray<Location> unmergedLocations,
         ImmutableArray<ConditionalRegion> regions,
         Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted,
-        SymbolConstraints constraints)
+        SymbolConstraints constraints,
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
     {
         _constraints = constraints;
         _conditions = conditions;
         _regions = regions;
         _inserted = inserted;
+        _hoisted = hoisted;
         UnmergedLocations = unmergedLocations;
     }
 
@@ -152,7 +162,41 @@ public sealed class ConditionMap
             }
         }
 
+        // 定義ごとに複製した文から出た条件。複製はどれも同じ位置にあるので、トークンで引く。
+        if (GetHoistedCondition(node) is { } hoisted)
+        {
+            condition = condition.And(hoisted);
+        }
+
         return _constraints.Apply(condition);
+    }
+
+    /// <summary>
+    /// ノードが定義ごとに複製した文の中にあれば、その複製の条件を返す。
+    /// </summary>
+    /// <param name="node">対象のノード。</param>
+    /// <returns>複製の条件。複製の中に無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <b>先頭と末尾のトークンが同じ複製のものであるときだけ、その中にある。</b>
+    /// 複製を含むブロックは、先頭も末尾も複製の外にある。
+    /// 末尾を求めるには子孫を辿るので、先頭が複製のものだったときだけ求める。
+    /// </remarks>
+    private SymbolCondition? GetHoistedCondition(HlslSyntaxNode node)
+    {
+        if (_hoisted.Count == 0
+            || node.FirstToken is not { } first
+            || !_hoisted.TryGetValue(first, out HoistedToken entry))
+        {
+            return null;
+        }
+
+        HlslSyntaxToken? last = node.DescendantTokens().LastOrDefault();
+
+        return last is not null
+               && _hoisted.TryGetValue(last, out HoistedToken end)
+               && ReferenceEquals(entry.Copy, end.Copy)
+            ? entry.Condition
+            : null;
     }
 
     /// <summary>

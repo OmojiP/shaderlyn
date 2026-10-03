@@ -349,6 +349,83 @@ public sealed class ReportingTests : IDisposable
         Assert.True(found, "debugColor が構文木のノードとして出ていない");
     }
 
+    [Fact]
+    public async Task 定義ごとに複製した文にはそれぞれの条件を書き出す()
+    {
+        // 条件で中身が変わるマクロを使う文は、定義ごとに複製されて同じ位置に並ぶ。
+        // 条件が無いと、同じ行が 2 回出る理由も、どちらがどの構成のものかも読み取れない。
+        string shaderPath = Path.Combine(_workDirectory, "Assets", "Shaders", "Hoisted.shader");
+        await File.WriteAllTextAsync(shaderPath, """
+            Shader "Company/Hoisted"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma multi_compile _ _A
+                        #ifdef _A
+                        #define CTYPE float3
+                        #else
+                        #define CTYPE float4
+                        #endif
+
+                        half4 frag() : SV_Target
+                        {
+                            CTYPE d = 1.0;
+                            return d.x;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        string path = Path.Combine(_workDirectory, "hoisted.html");
+
+        ExitCode code = await Program.RunAsync(
+            [shaderPath, "--no-config", "--inspect", path],
+            BuiltInAnalyzers.All,
+            new StringWriter(),
+            new StringWriter());
+
+        Assert.Equal(ExitCode.Success, code);
+
+        using JsonDocument document = JsonDocument.Parse(ExtractData(await File.ReadAllTextAsync(path)));
+
+        List<(string Text, string Condition)> conditioned = [];
+
+        foreach (JsonElement program in document.RootElement.GetProperty("programs").EnumerateArray())
+        {
+            foreach (JsonElement declaration in program.GetProperty("declarations").EnumerateArray())
+            {
+                CollectConditions(declaration, conditioned);
+            }
+        }
+
+        Assert.Contains(conditioned, c => c.Text.StartsWith("float3 d", StringComparison.Ordinal) && c.Condition == "_A");
+        Assert.Contains(conditioned, c => c.Text.StartsWith("float4 d", StringComparison.Ordinal) && c.Condition == "!_A");
+    }
+
+    /// <summary>条件が書き出されたノードを集める。</summary>
+    /// <param name="node">調べる木。</param>
+    /// <param name="found">集めた先。</param>
+    private static void CollectConditions(JsonElement node, List<(string Text, string Condition)> found)
+    {
+        if (node.TryGetProperty("condition", out JsonElement condition))
+        {
+            found.Add((node.GetProperty("text").GetString() ?? string.Empty, condition.GetString() ?? string.Empty));
+        }
+
+        if (node.TryGetProperty("children", out JsonElement children))
+        {
+            foreach (JsonElement child in children.EnumerateArray())
+            {
+                CollectConditions(child, found);
+            }
+        }
+    }
+
     /// <summary>木のどこかに、その語を含むノードがあるかを調べる。</summary>
     /// <param name="node">調べる木。</param>
     /// <param name="text">探す語。</param>

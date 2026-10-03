@@ -32,6 +32,7 @@
 | [`AnalyzedProgram`](#analyzedprogram) | セマンティックモデル |
 | [`AnalyzerOptions`](#analyzeroptions) | セマンティックモデル |
 | [`CallCompatibility`](#callcompatibility-shaderlynsemanticsprograms) | セマンティックモデル |
+| [`ConditionalTokenRange`](#conditionaltokenrange-shaderlynhlslpreprocessing) | セマンティックモデル |
 | [`ConditionMap`](#conditionmap-shaderlynsemanticsconditional) | セマンティックモデル |
 | [`Diagnostic`](#diagnostic) | 診断 |
 | [`DiagnosticAnalyzer`](#diagnosticanalyzer-shaderlyncoreanalysis) | アナライザ |
@@ -778,6 +779,37 @@ if (conditions.IsPossible(missing))
 | `PassName`                                                      | 囲む `Pass` の名前               |
 | `KernelName`                                                    | `.compute` のカーネル名          |
 | `Keyword`                                                       | どのシンボルを有効にした構成か |
+
+### `ConditionalTokenRange` (`Shaderlyn.Hlsl.Preprocessing`)
+
+プリプロセッサが条件付きで出力したトークンの範囲です。`program.Tree.PreprocessResult.ConditionalRegions` で列挙できます。
+位置は展開後のトークン列 (`PreprocessResult.Tokens`) の添字で表します。
+
+| メンバー    |                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `Start`     | 範囲の先頭の、展開後のトークン列での位置                                              |
+| `Length`    | 範囲に含まれるトークンの数                                                            |
+| `Condition` | その範囲が存在する条件 (`SymbolCondition`)                                            |
+| `IsHoisted` | 条件で中身が変わるマクロを使う文を、定義ごとに複製した範囲か (条件の巻き上げ)         |
+
+`IsHoisted` が `true` の範囲は、同じ文を定義の数だけ並べたものです。
+
+```hlsl
+#ifdef _A
+#define CTYPE float3
+#else
+#define CTYPE float4
+#endif
+
+CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの範囲になる
+```
+
+**巻き上げた範囲は、ソース上の位置で見分けられません。**
+複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に直すと `_A` の複製と `!_A` の複製が重なります。
+複製ごとにトークンは別のインスタンスなので、見分けるにはトークンそのもので比べてください。
+
+ノードがどの条件で存在するかを知りたいだけなら、この範囲を読まずに `ConditionMap.GetCondition(node)` を使ってください。
+巻き上げた範囲の条件も、そこに含まれています。
 
 ### `AnalyzerOptions`
 

@@ -291,6 +291,8 @@ internal sealed partial class HlslPreprocessor
     /// </remarks>
     private void NoteMergedMacroUse(string name, bool atExpansion = true)
     {
+        NoteUnhoistedExpansion(name);
+
         // 定義した分岐の中 (定義の条件を含む条件の下) で使うなら、どの構成でもその定義が効いている。
         if (atExpansion && IsUsedWhereDefined(name))
         {
@@ -402,7 +404,10 @@ internal sealed partial class HlslPreprocessor
             break;
         }
 
-        definitions.Add(new ConditionalMacro(body, condition, ParseMacroDefinition(line, report: false)));
+        MacroDefinition definition = ParseMacroDefinition(line, report: false);
+
+        definitions.Add(new ConditionalMacro(body, condition, definition));
+        _writtenDefinitions.Add((definition, condition));
     }
 
     /// <summary>
@@ -516,8 +521,24 @@ internal sealed partial class HlslPreprocessor
     /// <param name="name">シンボル。</param>
     /// <param name="reason">残せなかった理由。記録済みなら <see langword="null"/> (二重に数えない)。</param>
     /// <param name="at">その条件の指令のトークン。書かれたファイルを覚えるのに使う。</param>
-    private void AddDeclinedSymbol(string name, BothBranchDeclineReason? reason, HlslSyntaxToken at)
+    /// <param name="hoistableMacros">
+    /// 巻き上げで補えるかもしれない領域なら、その領域が定義するマクロ (<see cref="FindHoistableDefinitions"/>)。
+    /// </param>
+    private void AddDeclinedSymbol(
+        string name,
+        BothBranchDeclineReason? reason,
+        HlslSyntaxToken at,
+        ImmutableArray<string>? hoistableMacros = null)
     {
+        if (hoistableMacros is { } macros)
+        {
+            NoteHoistableDecline(name, macros);
+        }
+        else
+        {
+            _firmDeclines.Add(name);
+        }
+
         _declinedBothBranchSymbols.Add(name);
         Record(recording => recording.DeclinedBothBranchSymbols.Add(name));
 

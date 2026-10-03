@@ -407,7 +407,23 @@ public readonly record struct PragmaDirective(
 public readonly record struct ConditionalTokenRange(
     int Start,
     int Length,
-    SymbolCondition Condition);
+    SymbolCondition Condition)
+{
+    /// <summary>
+    /// 条件で中身が変わるマクロを使う文を、定義ごとに複製した範囲かどうか (条件の巻き上げ)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>巻き上げた範囲は、位置で条件を引いてはならない。</b>
+    /// 複製はどれも同じ位置から作られるので、ソース上の範囲に直すと
+    /// <c>_A</c> の複製と <c>!_A</c> の複製が同じ場所に重なる。
+    /// </para>
+    /// <para>
+    /// 複製ごとに別のトークンのインスタンスを持たせてあるので、トークンで引く。
+    /// </para>
+    /// </remarks>
+    public bool IsHoisted { get; init; }
+}
 
 /// <summary>
 /// 現れた <c>#include</c> 1 件分。
@@ -730,6 +746,16 @@ public readonly record struct PreprocessResult(
     /// その中の <c>#define</c> で数える。既定値 (<c>default</c>) のままのこともある。
     /// </remarks>
     public ImmutableArray<string> MacroAffectingSymbols { get; init; }
+
+    /// <summary>
+    /// 解析しているファイルに書かれた <c>#define</c> と、その定義に通る条件。読み飛ばした分岐の分も含む。
+    /// </summary>
+    /// <remarks>
+    /// <b>マクロ表 (<see cref="Macros"/>) には、既定の構成で最後に効いた定義しか残らない。</b>
+    /// <c>#ifdef _A</c> と <c>#else</c> で書き分けた定義の、もう一方を説明するのに使う (エディタのホバー)。
+    /// 定義の <see cref="MacroDefinition.NameToken"/> は書かれた位置を指す。
+    /// </remarks>
+    internal ImmutableArray<(MacroDefinition Definition, SymbolCondition Condition)> WrittenDefinitions { get; init; } = [];
 
     /// <summary>両方の分岐を並べた領域の、指令名のトークンの位置。取り込んだヘッダの分も含む。</summary>
     /// <remarks>バリアントに同じ判断をさせるために使う (<see cref="PreprocessorOptions.MergeOnlyRegions"/>)。</remarks>

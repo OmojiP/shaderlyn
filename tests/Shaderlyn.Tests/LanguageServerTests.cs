@@ -524,6 +524,132 @@ public sealed class LanguageServerTests
         Assert.DoesNotContain("型は構成によって変わります", swizzle, StringComparison.Ordinal);
     }
 
+    /// <summary>条件で中身が変わるマクロで宣言するシェーダー。</summary>
+    /// <param name="pragma">シンボルの宣言。</param>
+    /// <returns>シェーダーの中身。</returns>
+    private static string ConditionalMacroShader(string pragma) => $$"""
+        Shader "Company/ConditionalMacro"
+        {
+            SubShader
+            {
+                Pass
+                {
+                    HLSLPROGRAM
+                    {{pragma}}
+                    #ifdef _A
+                    #define CTYPE float3
+                    #else
+                    #define CTYPE float4
+                    #endif
+
+                    half4 frag() : SV_Target
+                    {
+                        CTYPE d = 1.0;
+                        return d.x;
+                    }
+                    ENDHLSL
+                }
+            }
+        }
+        """;
+
+    /// <summary>
+    /// 条件で中身が変わるマクロの上で、構成ごとの展開結果を答えることを検証する。
+    /// </summary>
+    /// <param name="pragma">シンボルの宣言。</param>
+    /// <remarks>
+    /// <b>マクロ表には既定の構成の定義しか残らない。</b>
+    /// それだけを出すと、既定の構成で <c>_A</c> が有効かどうかで <c>float3</c> とも <c>float4</c> とも答え、
+    /// どちらにしても、もう一方の構成が見えない。
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A")]
+    [InlineData("#pragma multi_compile _A _B")]
+    public async Task 条件で中身が変わるマクロは構成ごとの展開結果を答える(string pragma)
+    {
+        string shader = ConditionalMacroShader(pragma);
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeAsync();
+        await harness.OpenAsync(shader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        string markdown = await harness.HoverAsync(shader, "CTYPE d");
+
+        Assert.Contains("構成によって変わります", markdown, StringComparison.Ordinal);
+        Assert.Contains("`_A` のとき **`float3`**", markdown, StringComparison.Ordinal);
+        Assert.Contains("`!_A` のとき **`float4`**", markdown, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>#define</c> の行の名前の上では、その行に書かれた定義と条件を答えることを検証する。
+    /// </summary>
+    /// <param name="pragma">シンボルの宣言。</param>
+    /// <remarks>
+    /// マクロ表には既定の構成で最後に効いた定義しか残らない。
+    /// それを答えると、<c>#define CTYPE float4</c> の上で <c>#define CTYPE float3</c> と答えることがある。
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A")]
+    [InlineData("#pragma multi_compile _A _B")]
+    public async Task 定義の行ではその行の定義を答える(string pragma)
+    {
+        string shader = ConditionalMacroShader(pragma);
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeAsync();
+        await harness.OpenAsync(shader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        // 目印の中心が CTYPE に来るように前後を含める。
+        string otherwise = await harness.HoverAsync(shader, "fine CTYPE float4");
+
+        Assert.StartsWith("```hlsl\n#define CTYPE float4\n```", otherwise, StringComparison.Ordinal);
+        Assert.Contains("`#if !_A` のときの定義", otherwise, StringComparison.Ordinal);
+
+        string whenA = await harness.HoverAsync(shader, "fine CTYPE float3");
+
+        Assert.StartsWith("```hlsl\n#define CTYPE float3\n```", whenA, StringComparison.Ordinal);
+        Assert.Contains("`#if _A` のときの定義", whenA, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 定義ごとに複製された宣言の上で、構成ごとの宣言を答えることを検証する。
+    /// </summary>
+    /// <param name="pragma">シンボルの宣言。</param>
+    /// <remarks>
+    /// 複製は同じ位置に並ぶ。1 つだけ選ぶと、後ろの複製 (<c>float4 d</c>) だけを答えることになる。
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A")]
+    [InlineData("#pragma multi_compile _A _B")]
+    public async Task 複製された宣言は構成ごとに答える(string pragma)
+    {
+        string shader = ConditionalMacroShader(pragma);
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeAsync();
+        await harness.OpenAsync(shader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        // 目印の中心が d に来るように空白を含める。
+        string markdown = await harness.HoverAsync(shader, " d =");
+
+        Assert.Contains("構成によって変わります", markdown, StringComparison.Ordinal);
+
+        int whenA = markdown.IndexOf("`#if _A`", StringComparison.Ordinal);
+        int otherwise = markdown.IndexOf("`#if !_A`", StringComparison.Ordinal);
+
+        Assert.True(whenA >= 0 && otherwise >= 0, markdown);
+        Assert.Contains("float3 d", markdown[whenA..(otherwise > whenA ? otherwise : markdown.Length)], StringComparison.Ordinal);
+        Assert.Contains("float4 d", markdown[otherwise..(whenA > otherwise ? whenA : markdown.Length)], StringComparison.Ordinal);
+
+        // 複製の外の式は、構成ごとの型を答える (d.x はどちらでも float)。
+        string swizzle = await harness.HoverAsync(shader, "d.x");
+
+        Assert.Contains("型: **`float`**", swizzle, StringComparison.Ordinal);
+    }
+
     /// <summary>同じ名前を条件ごとに違う型で宣言した HLSL の断片。</summary>
     private const string VaryingTypeFragment = """
         float ReturnFloat()

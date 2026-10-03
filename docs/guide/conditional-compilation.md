@@ -117,6 +117,11 @@ float4 color = Load(uv);   // !_A
 
 関数形式マクロも同じで、引数ごと展開し直します。
 
+複製した文は同じ行に並びますが、どれがどの構成のものかは区別されています。
+エディタのホバーは構成ごとの型と展開結果を並べて示し（`CTYPE` の上なら「`_A` のとき `float3`」「`!_A` のとき `float4`」）、
+`--inspect` の HLSL タブは複製のそれぞれに `#if _A` / `#if !_A` を付けます。
+使う文をすべて複製できたなら、そのシンボルについて方法 B の展開は行いません。
+
 **複製する範囲は構文解析が決めます。** 記号の数え方では、
 `#define BEGIN struct Foo {` のようにマクロが括弧を作る場合に切れ目を取り違えます。
 定義ごとに展開したものが文・宣言として読めなければ、次の切れ目で読み直します。
@@ -506,6 +511,12 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - 並べずに展開しているキーワードは、その構成では値が決まっている。条件付きで覚えたマクロの条件にそうしたキーワードが現れたら、その値で置き換えてから並べるかを決める（`SymbolCondition.Assume`）。置き換えずに並べると、そのキーワードのときだけの分岐の `#define` がこの構成に漏れる（HDRP の Lit.shader の `_HEIGHTMAP` → `_CONSERVATIVE_DEPTH_OFFSET` → `SV_POSITION_QUALIFIERS`）。条件の巻き上げも、その構成で通らない定義は複製しない
 - 並べた分岐で定義したマクロがコードとして展開されたら、そのシンボルを並べずにブロックを展開し直す（`PreprocessResult.MergedMacroConflicts`、[ParseWithoutMergedMacroConflicts](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。取り込んだヘッダが使っている場合も、取り込みの記録に残した名前から分かる
 
+条件の巻き上げ（[HlslPreprocessorHoisting.cs](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）について、
+
+- 複製は、どれも同じ位置から作られる。位置で条件を引くと `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`HlslSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）。条件の索引はこの範囲だけを位置ではなくトークンで引く。ノードの先頭と末尾のトークンが同じ複製のものなら、その複製の条件が付く（`ConditionMap.GetHoistedCondition`）
+- `#define` しか無い領域を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（`RestoreHoistedDeclines`）。展開し直したバリアントには複製の片方しか無く、どちらの複製と対応するかが位置からは決まらないためである。取り違えると、`multi_compile _A _B` で `float4 d` に `!_B` が付いていた。巻き上げを諦めた箇所、別のマクロの本体やヘッダの中での展開、`#elif` や `#undef` を含む領域は対象にしない
+- それでもバリアントを作る場合、複製の中のノードには突き合わせの結果を付けず、バリアントの木から足すこともしない（`ConditionMapBuilder.IsInsideAny`）
+
 並べられなかった領域に現れたシンボルは `DeclinedBothBranchSymbols` に記録され、方法 B の候補になります
 （[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs)、
 [CollectMergedSymbols](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
@@ -579,6 +590,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 1. 突き合わせできなかった領域の中なら `Unknown` を返す（「分からない」を「常に」にしない）
 2. バリアントとの突き合わせから出た条件を、**親を辿りながら**論理積で重ねる
 3. 方法 A で並べた領域の条件を論理積で重ねる
+4. 条件の巻き上げで複製した文の中なら、その複製の条件を論理積で重ねる
 
 `IsAlwaysPresent`（[IsAlwaysPresent](../../src/Shaderlyn.Semantics/Conditional/ConditionMap.cs)）は `GetCondition(node).IsAlways` です。
 

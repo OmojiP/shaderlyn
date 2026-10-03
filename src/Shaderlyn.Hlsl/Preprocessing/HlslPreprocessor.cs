@@ -223,6 +223,9 @@ internal sealed partial class HlslPreprocessor
     /// </remarks>
     private readonly Dictionary<string, List<ConditionalMacro>> _conditionalMacros = new(StringComparer.Ordinal);
 
+    /// <summary>解析しているファイルに書かれた <c>#define</c> と、その条件。<c>#undef</c> されても消さない。</summary>
+    private readonly List<(MacroDefinition Definition, SymbolCondition Condition)> _writtenDefinitions = [];
+
     /// <summary>トークン列ごとに、条件以外の場所に現れる名前。</summary>
     /// <remarks>マクロを定義する分岐を並べてよいかの判定に使う。</remarks>
     private readonly Dictionary<ImmutableArray<HlslSyntaxToken>, HashSet<string>> _namesUsedInCode = [];
@@ -342,6 +345,7 @@ internal sealed partial class HlslPreprocessor
         Run();
 
         ReportUnterminatedConditionals();
+        RestoreHoistedDeclines();
 
         return new PreprocessResult(
             _output.ToImmutable(),
@@ -375,6 +379,7 @@ internal sealed partial class HlslPreprocessor
             HoistedUnits = _hoistedUnits,
             HoistRetries = _hoistRetries,
             HoistGiveUps = _hoistGiveUps,
+            WrittenDefinitions = [.. _writtenDefinitions],
         };
     }
 

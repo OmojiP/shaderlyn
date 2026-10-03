@@ -263,6 +263,7 @@ Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange : struct (System.IEquatable`1
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: .ctor(System.Int32, System.Int32, Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; set; }
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange)
+Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: System.Boolean IsHoisted { get; set; }
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: System.Int32 Length { get; set; }
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: System.Int32 Start { get; set; }
 Shaderlyn.Hlsl.Preprocessing.ConditionalTokenRange :: System.Void Deconstruct(out System.Int32, out System.Int32, out Shaderlyn.Core.Syntax.SymbolCondition)

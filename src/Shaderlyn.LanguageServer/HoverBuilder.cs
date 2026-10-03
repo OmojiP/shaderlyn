@@ -66,19 +66,36 @@ internal static partial class HoverBuilder
     {
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            if (FindInnermost(compilation, program, offset) is not { } node)
+            List<HlslSyntaxNode> nodes = FindInnermost(compilation, program, offset);
+
+            if (nodes.Count == 0)
             {
                 continue;
             }
 
             ExpressionTypeBinder binder = new(compilation, program);
+            List<(SyntaxNode Node, HoverResult Described)> found = [];
 
-            for (SyntaxNode? current = node; current is not null; current = current.Parent)
+            foreach (HlslSyntaxNode node in nodes)
             {
-                if (Describe(compilation, program, binder, current, offset) is { } described)
+                for (SyntaxNode? current = node; current is not null; current = current.Parent)
                 {
-                    return WithCondition(compilation, current, described);
+                    if (Describe(compilation, program, binder, current, offset) is { } described)
+                    {
+                        found.Add((current, described));
+                        break;
+                    }
                 }
+            }
+
+            if (found.Count == 1)
+            {
+                return WithCondition(compilation, found[0].Node, found[0].Described);
+            }
+
+            if (found.Count > 1)
+            {
+                return CombineCopies(compilation, found);
             }
         }
 
@@ -91,20 +108,28 @@ internal static partial class HoverBuilder
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="program">対象のコードブロック。</param>
     /// <param name="offset">カーソルのオフセット。</param>
-    /// <returns>見つかったノード。無い場合は <see langword="null"/>。</returns>
+    /// <returns>見つかったノード。同じ位置に複製された文があれば、複製ごとに 1 つずつ。無い場合は空。</returns>
     /// <remarks>
+    /// <para>
     /// <b>範囲の内側にあることを、端に触れていることより優先する。</b>
     /// <c>uv.x</c> の <c>.</c> は <c>uv</c> の終端でもある。
     /// 短いほうを選ぶ規則だけで決めると、<c>.</c> の上で <c>uv</c> を答えることになり、
     /// 利用者が見ている語と食い違う。
+    /// </para>
+    /// <para>
+    /// <b>同じ位置に、親子でないノードが並ぶことがある。</b>
+    /// 条件で中身が変わるマクロを使う文は、定義ごとに複製されて同じ位置に並ぶ (条件の巻き上げ)。
+    /// 1 つだけ選ぶと、どの構成の話なのかが分からないまま、片方の構成の型だけを答えることになる。
+    /// 複製ごとに最も内側のものを残す。
+    /// </para>
     /// </remarks>
-    private static HlslSyntaxNode? FindInnermost(
+    private static List<HlslSyntaxNode> FindInnermost(
         ShaderCompilation compilation,
         AnalyzedProgram program,
         int offset)
     {
-        HlslSyntaxNode? inside = null;
-        HlslSyntaxNode? touching = null;
+        List<HlslSyntaxNode> inside = [];
+        List<HlslSyntaxNode> touching = [];
 
         foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
         {
@@ -117,21 +142,124 @@ internal static partial class HoverBuilder
                 continue;
             }
 
-            if (offset < hlsl.Span.End)
+            KeepInnermost(offset < hlsl.Span.End ? inside : touching, hlsl);
+        }
+
+        return inside.Count > 0 ? inside : touching;
+    }
+
+    /// <summary>
+    /// 候補に、より内側のノードを残す。
+    /// </summary>
+    /// <param name="candidates">これまでの候補。どれも同じ長さを持つ。</param>
+    /// <param name="node">新しく見つかったノード。木は親から子の順に辿るので、親より後に来る。</param>
+    /// <remarks>
+    /// 短いものが見つかれば入れ替える。同じ長さなら、直前の候補の子孫であれば置き換え
+    /// (内側のほうが利用者が指したものに近い)、そうでなければ別の複製として並べる。
+    /// </remarks>
+    private static void KeepInnermost(List<HlslSyntaxNode> candidates, HlslSyntaxNode node)
+    {
+        if (candidates.Count > 0 && node.Span.Length > candidates[0].Span.Length)
+        {
+            return;
+        }
+
+        if (candidates.Count > 0 && node.Span.Length < candidates[0].Span.Length)
+        {
+            candidates.Clear();
+        }
+
+        if (candidates.Count > 0 && IsAncestorOf(candidates[^1], node))
+        {
+            candidates[^1] = node;
+            return;
+        }
+
+        candidates.Add(node);
+    }
+
+    /// <summary>一方が他方の祖先であるかを判定する。</summary>
+    /// <param name="ancestor">祖先かどうかを調べるノード。</param>
+    /// <param name="node">対象のノード。</param>
+    /// <returns>祖先であれば <see langword="true"/>。</returns>
+    private static bool IsAncestorOf(SyntaxNode ancestor, SyntaxNode node)
+    {
+        for (SyntaxNode? current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, ancestor))
             {
-                if (inside is null || hlsl.Span.Length <= inside.Span.Length)
-                {
-                    inside = hlsl;
-                }
-            }
-            else if (touching is null || hlsl.Span.Length <= touching.Span.Length)
-            {
-                touching = hlsl;
+                return true;
             }
         }
 
-        return inside ?? touching;
+        return false;
     }
+
+    /// <summary>
+    /// 同じ位置に複製された要素の説明を、構成ごとにまとめる。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="found">複製ごとの要素と説明。</param>
+    /// <returns>まとめた説明。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>説明が同じなら 1 つにまとめる。</b>
+    /// <c>CTYPE d = 1.0;</c> の <c>1.0</c> は、どの複製でも同じ <c>float</c> である。
+    /// 構成を並べても読み手に伝わることは増えない。
+    /// </para>
+    /// <para>
+    /// 違うなら、どの条件のときにどうなるかを並べる。
+    /// </para>
+    /// </remarks>
+    private static HoverResult CombineCopies(
+        ShaderCompilation compilation,
+        List<(SyntaxNode Node, HoverResult Described)> found)
+    {
+        ConditionMap conditions = compilation.GetConditionMap();
+
+        List<(SymbolCondition Condition, HoverResult Described)> groups = [];
+
+        foreach ((SyntaxNode node, HoverResult described) in found)
+        {
+            SymbolCondition condition = node is HlslSyntaxNode hlsl
+                ? conditions.GetCondition(hlsl)
+                : SymbolCondition.Always;
+
+            int index = groups.FindIndex(g => string.Equals(g.Described.Markdown, described.Markdown, StringComparison.Ordinal));
+
+            if (index < 0)
+            {
+                groups.Add((condition, described));
+            }
+            else
+            {
+                groups[index] = (conditions.Simplify(groups[index].Condition.Or(condition)), groups[index].Described);
+            }
+        }
+
+        if (groups.Count == 1)
+        {
+            return WithCondition(groups[0].Condition, groups[0].Described);
+        }
+
+        string sections = string.Join(
+            "\n\n---\n\n",
+            groups.Select(g => $"{DescribeCondition(g.Condition)}\n\n{g.Described.Markdown}"));
+
+        return new HoverResult(
+            "**この位置のコードは構成によって変わります。**\n\n---\n\n" + sections,
+            groups[0].Described.Span);
+    }
+
+    /// <summary>条件を見出しとして表す。</summary>
+    /// <param name="condition">対象の条件。</param>
+    /// <returns>組み立てた文字列。</returns>
+    private static string DescribeCondition(SymbolCondition condition)
+        => condition.IsAlways
+            ? "**既定**"
+            : condition.IsUnknown
+                ? "**条件を追えていない構成**"
+                : $"**`#if {condition}`** のとき";
 
     /// <summary>
     /// ノード 1 つを説明する。
@@ -218,8 +346,15 @@ internal static partial class HoverBuilder
             return described;
         }
 
-        SymbolCondition condition = compilation.GetConditionMap().GetCondition(hlsl);
+        return WithCondition(compilation.GetConditionMap().GetCondition(hlsl), described);
+    }
 
+    /// <summary>説明に、その要素が存在する条件を添える。</summary>
+    /// <param name="condition">存在する条件。</param>
+    /// <param name="described">組み立てた説明。</param>
+    /// <returns>条件を添えた説明。</returns>
+    private static HoverResult WithCondition(SymbolCondition condition, HoverResult described)
+    {
         if (condition.IsAlways)
         {
             return described;

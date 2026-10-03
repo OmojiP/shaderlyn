@@ -91,18 +91,31 @@ public sealed class VariantShapeTests
             "_A"
         },
         {
+            // 使う文を定義ごとに複製すれば (条件の巻き上げ)、どの構成の展開も 1 本の木に載る。
             "04 構成で中身が変わるマクロを文で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
-            "_A"
+            ""
         },
         {
             "05 構成で中身が変わるマクロを式で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define SCALE(x) (x * 2)\n#else\n#define SCALE(x) (x)\n#endif\nfloat F(float v) { return SCALE(v) + SCALE(v * 3); }",
-            "_A"
+            ""
         },
         {
             "06 構成で中身が変わるマクロを関数の頭で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define EXTRA_PARAM , float extra\n#else\n#define EXTRA_PARAM\n#endif\nfloat F(float v EXTRA_PARAM) { return v; }",
+            ""
+        },
+        {
+            // 別のマクロの本体の中での展開は複製できない。既定の構成の値でしか展開されない。
+            "15 構成で中身が変わるマクロを別のマクロの中で使う",
+            "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#define COLOR_TYPE CTYPE\nfloat F() { COLOR_TYPE color = 1; return color.x; }",
+            "_A"
+        },
+        {
+            // 定義のほかにコードもある分岐は、並べなかった側のコードがどの木にも載らない。
+            "16 マクロを定義する分岐にコードもある",
+            "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\nfloat G() { return 1; }\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
             "_A"
         },
         {
@@ -489,9 +502,10 @@ public sealed class VariantShapeTests
     public void 分岐の中でマクロを定義するキーワードはまとめない()
     {
         // _A を有効にすると VALUE の中身が変わり、使う側の文は _A の連なりの外にある。
+        // 別のマクロの本体を通して使うので、使う文を定義ごとに複製 (条件の巻き上げ) することもできない。
         ShaderCompilation compilation = Compile(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define VALUE 1\n#else\n#define VALUE 2.0\n#endif\n"
-            + "float F() { return VALUE; }\n"
+            + "#define TWICE (VALUE * 2)\nfloat F() { return TWICE; }\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
 
         Assert.Equal("_A / _B", DescribeVariants(compilation));
