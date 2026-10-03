@@ -706,6 +706,52 @@ public sealed class ConditionMapTests
     }
 
     [Fact]
+    public void 別のシンボルの分岐の中で複製した文にもそのシンボルの条件が残る()
+    {
+        // _B の分岐の中で CTYPE を使うと、_B は構成ごとに展開する (構成で定義が変わるマクロを分岐の中で使っている)。
+        // 既定の木の #else 側の複製には、突き合わせから !_B が付く。
+        // 複製の中だからと突き合わせの結果を捨てると !_B が消え、_B の木の複製と同時にあることになる
+        // (HL0314「既に宣言されています」の誤報告)。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define CTYPE float3
+            #else
+            #define CTYPE float4
+            #endif
+
+            float4 Use()
+            {
+            #ifdef _B
+                CTYPE d = 1;
+            #else
+                CTYPE d = 0;
+            #endif
+                return d.x;
+            }
+            """,
+            "#pragma shader_feature_local _A\n#pragma shader_feature_local _B");
+
+        ConditionMap condition = compilation.GetConditionMap();
+
+        VariableDeclarationSyntax[] otherwise =
+        [
+            .. compilation.Programs
+                .SelectMany(p => p.Tree.Root.DescendantNodesAndSelf())
+                .OfType<VariableDeclarationSyntax>()
+                .Where(d => d.Variables.Any(v => v.Name == "d")),
+        ];
+
+        Assert.NotEmpty(otherwise);
+
+        Assert.All(
+            otherwise,
+            declaration => Assert.False(
+                condition.IsPossible(condition.GetCondition(declaration).And(SymbolCondition.Symbol("_B"))),
+                condition.GetCondition(declaration).ToString()));
+    }
+
+    [Fact]
     public void 巻き上げを諦めた箇所があればシンボルは構成ごとに展開し直す()
     {
         // 間に指令がある文は複製しない。その文の CTYPE は既定の構成の値でしか展開されない。
