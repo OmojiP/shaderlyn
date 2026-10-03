@@ -407,6 +407,71 @@ public sealed class ReportingTests : IDisposable
         Assert.Contains(conditioned, c => c.Text.StartsWith("float4 d", StringComparison.Ordinal) && c.Condition == "!_A");
     }
 
+    [Fact]
+    public async Task シンボルごとに並べたか構成ごとに展開したかと原因の指令を書き出す()
+    {
+        // 構成ごとの展開は解析を遅くし、上限に届けば SL0003 になる。
+        // 書き方を変えれば避けられることが多いが、原因の #if が見えなければ直しようがない。
+        string shaderPath = Path.Combine(_workDirectory, "Assets", "Shaders", "Symbols.shader");
+        await File.WriteAllTextAsync(shaderPath, """
+            Shader "Company/Symbols"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma multi_compile _ _SPLIT
+                        #pragma multi_compile _ _CLOSED
+                        #pragma multi_compile _ _UNUSED
+                        half4 frag() : SV_Target
+                        {
+                            half m
+                        #ifdef _SPLIT
+                                = 1
+                        #else
+                                = 2
+                        #endif
+                                ;
+                        #ifdef _CLOSED
+                            m += 1;
+                        #endif
+                            return m;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        string path = Path.Combine(_workDirectory, "symbols.html");
+
+        ExitCode code = await Program.RunAsync(
+            [shaderPath, "--no-config", "--inspect", path],
+            BuiltInAnalyzers.All,
+            new StringWriter(),
+            new StringWriter());
+
+        Assert.Equal(ExitCode.Success, code);
+
+        using JsonDocument document = JsonDocument.Parse(ExtractData(await File.ReadAllTextAsync(path)));
+        JsonElement program = document.RootElement.GetProperty("programs")[0];
+
+        Dictionary<string, JsonElement> symbols = program.GetProperty("symbols").EnumerateArray()
+            .ToDictionary(s => s.GetProperty("name").GetString()!, s => s);
+
+        Assert.Equal("variant", symbols["_SPLIT"].GetProperty("state").GetString());
+        Assert.Equal("merged", symbols["_CLOSED"].GetProperty("state").GetString());
+        Assert.Equal("unused", symbols["_UNUSED"].GetProperty("state").GetString());
+
+        // 原因の #ifdef を、このファイルの行で指す (1 始まりで 14 行目)。
+        JsonElement reason = Assert.Single(symbols["_SPLIT"].GetProperty("reasons").EnumerateArray());
+        Assert.StartsWith("14:", reason.GetProperty("where").GetString(), StringComparison.Ordinal);
+        Assert.Contains("閉じていない", reason.GetProperty("label").GetString(), StringComparison.Ordinal);
+
+        Assert.Equal(["_SPLIT"], program.GetProperty("configurations").EnumerateArray().Select(c => c.GetString()));
+    }
+
     /// <summary>条件が書き出されたノードを集める。</summary>
     /// <param name="node">調べる木。</param>
     /// <param name="found">集めた先。</param>

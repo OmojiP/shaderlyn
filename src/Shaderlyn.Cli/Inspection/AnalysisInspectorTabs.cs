@@ -41,6 +41,61 @@ internal static partial class AnalysisInspector
           });
         });
 
+        // どのシンボルが方法 B (構成ごとの展開) になったか、その原因の #if はどこかを示す。
+        // 展開は解析を遅くし、上限に届けば SL0003 になる。書き方で避けられることが多いが、
+        // 原因の #if が見えなければ直しようがない。
+        tabs.push({
+          label: "シンボルの扱い",
+          build: () => {
+            const box = document.createElement("div");
+            box.append(note("#pragma で宣言したシンボルごとに、#if の両方の分岐を 1 本の木に並べたか (方法 A)、" +
+                            "そのシンボルを有効にした構成を別に展開したか (方法 B) を示します。" +
+                            "方法 B は解析を遅くし、上限 (--max-symbol-variants) に届くと SL0003 になります。" +
+                            "理由の行を選ぶと、原因の #if をソースで示します。"));
+
+            DATA.programs.forEach(program => {
+              if (!program.symbols) { return; }
+
+              const heading = document.createElement("h3");
+              heading.textContent = program.label;
+              box.append(heading);
+
+              const rows = [];
+              program.symbols.forEach(s => {
+                const state = s.label + (s.configurations.length ? " (" + s.configurations.join(" / ") + ")" : "");
+                if (!s.reasons.length) {
+                  rows.push({ start: 0, length: 0, cells: [s.name, state, "—", ""] });
+                  return;
+                }
+                s.reasons.forEach((r, i) => rows.push({
+                  start: r.start,
+                  length: r.length,
+                  cells: [i === 0 ? s.name : "", i === 0 ? state : "", r.label, r.where],
+                }));
+              });
+
+              box.append(tableView(["シンボル", "扱い", "並べなかった理由", "位置"], rows,
+                                   "宣言されたシンボルはありません。"));
+
+              if (program.configurations.length) {
+                box.append(note("展開した構成: " + program.configurations.join(" / ") +
+                                " (A+B は同時に有効にした組、{A,B} は互いに関係しないシンボルを 1 回にまとめた展開)"));
+              }
+            });
+
+            if (DATA.unexploredCombinations.length) {
+              const heading = document.createElement("h3");
+              heading.textContent = "上限で展開しなかった組 (SL0003)";
+              box.append(heading);
+              box.append(tableView(["組", "位置"],
+                DATA.unexploredCombinations.map(c => ({ start: c.start, length: c.length, cells: [c.label, c.where] })),
+                ""));
+            }
+
+            return box;
+          },
+        });
+
         tabs.push({
           label: "uniform",
           build: () => {

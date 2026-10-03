@@ -544,7 +544,7 @@ internal sealed partial class HlslPreprocessor
 
         if (reason is { } known)
         {
-            BothBranchDecline decline = new(name, known, at.Source.FilePath);
+            BothBranchDecline decline = new(name, known, at.Source.FilePath) { DirectiveSpan = at.Span };
 
             _bothBranchDeclines.Add(decline);
             Record(recording => recording.BothBranchDeclines.Add(decline));

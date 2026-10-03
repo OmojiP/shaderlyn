@@ -81,6 +81,7 @@ internal static partial class AnalysisInspector
             WriteNode(writer, compilation.ShaderLabTree.Root, compilation.Text, new NodeBudget());
 
             WritePrograms(writer, compilation);
+            WriteUnexploredCombinations(writer, compilation);
             WriteProperties(writer, compilation);
             WriteTokens(writer, compilation);
             WriteExpressions(writer, compilation);
@@ -409,6 +410,13 @@ internal static partial class AnalysisInspector
 
             writer.WriteBoolean("truncated", budget.Exhausted);
             WriteUniforms(writer, program);
+
+            // シンボルの扱いは既定の構成のブロックについて書く。バリアントはその結果の 1 つである。
+            if (program.EnabledSymbols.IsDefaultOrEmpty)
+            {
+                WriteSymbolStates(writer, compilation, program);
+            }
+
             writer.WriteEndObject();
         }
 

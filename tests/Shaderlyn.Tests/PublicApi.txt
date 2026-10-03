@@ -240,6 +240,7 @@ Shaderlyn.Hlsl.Preprocessing.BothBranchDecline : struct (System.IEquatable`1[Sha
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: .ctor(System.String, Shaderlyn.Hlsl.Preprocessing.BothBranchDeclineReason, System.String)
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: Shaderlyn.Hlsl.Preprocessing.BothBranchDeclineReason Reason { get; set; }
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.BothBranchDecline)
+Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] DirectiveSpan { get; set; }
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: System.String FilePath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: System.String Symbol { get; set; }
 Shaderlyn.Hlsl.Preprocessing.BothBranchDecline :: System.Void Deconstruct(out System.String, out Shaderlyn.Hlsl.Preprocessing.BothBranchDeclineReason, out System.String)

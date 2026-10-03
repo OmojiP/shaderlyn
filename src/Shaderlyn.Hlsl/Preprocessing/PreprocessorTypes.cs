@@ -605,7 +605,15 @@ public enum BothBranchDeclineReason
 /// 並べなかったシンボルは構成ごとに展開し直す (バリアント)。
 /// なぜバリアントが要ったのかを後から数えるために残す。挙動には使わない。
 /// </remarks>
-public readonly record struct BothBranchDecline(string Symbol, BothBranchDeclineReason Reason, string FilePath);
+public readonly record struct BothBranchDecline(string Symbol, BothBranchDeclineReason Reason, string FilePath)
+{
+    /// <summary>並べなかった条件の指令名 (<c>ifdef</c> など) の、<see cref="FilePath"/> での位置。</summary>
+    /// <remarks>
+    /// <b>どの <c>#if</c> のせいで構成ごとの展開が要ったのかを、利用者が確かめるのに使う</b> (<c>--inspect</c>)。
+    /// 理由だけでは、同じシンボルを見ている条件が何か所もあるとき、直す場所が分からない。
+    /// </remarks>
+    public TextSpan? DirectiveSpan { get; init; }
+}
 
 /// <summary>
 /// プリプロセッサの実行結果。

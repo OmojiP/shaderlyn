@@ -366,7 +366,8 @@ internal sealed partial class HlslPreprocessor
                 .. _bothBranchDeclines
                     .OrderBy(d => d.FilePath, StringComparer.Ordinal)
                     .ThenBy(d => d.Symbol, StringComparer.Ordinal)
-                    .ThenBy(d => d.Reason),
+                    .ThenBy(d => d.Reason)
+                    .ThenBy(d => d.DirectiveSpan?.Start ?? -1),
             ],
             RequiredSymbolCombinations = [.. _requiredSymbolCombinations.Values],
             SkippedIncludedIdentifiers = [.. _skippedIncludedIdentifiers],
