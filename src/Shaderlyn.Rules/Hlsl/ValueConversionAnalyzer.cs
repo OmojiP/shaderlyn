@@ -80,13 +80,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
             AnalyzeReturnPaths(context, compilation, program, function, reported);
             AnalyzeFunction(
-                context, compilation, conditions, compilation.GetExpressionTypeBinder(program), function, structs, reported);
+                context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), function, structs, reported);
         }
     }
 
     /// <summary>関数 1 つ分を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">関数がある木。</param>
     /// <param name="conditions">出現条件の索引。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="function">検査する関数。</param>
@@ -95,6 +96,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     private static void AnalyzeFunction(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
+        AnalyzedProgram program,
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         FunctionDeclarationSyntax function,
@@ -111,7 +113,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             switch (node)
             {
                 case VariableDeclarationSyntax declaration:
-                    AnalyzeInitializers(context, compilation, conditions, binder, declaration, structs, reported);
+                    AnalyzeInitializers(context, compilation, program, conditions, binder, declaration, structs, reported);
                     break;
 
                 case AssignmentExpressionSyntax assignment:
@@ -263,6 +265,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <summary>初期化子を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">宣言がある木。</param>
     /// <param name="conditions">出現条件の索引。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="declaration">検査する宣言。</param>
@@ -271,6 +274,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     private static void AnalyzeInitializers(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
+        AnalyzedProgram program,
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         VariableDeclarationSyntax declaration,
@@ -290,7 +294,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             if (initializer is InitializerListExpressionSyntax list)
             {
                 CheckInitializerList(
-                    context, compilation, binder, list, declaration, variable, structs, target, reported);
+                    context, compilation, program, binder, list, declaration, variable, structs, target, reported);
                 continue;
             }
 
@@ -309,6 +313,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// </summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">宣言がある木。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="list">検査する初期化子リスト。</param>
     /// <param name="declaration">対象の宣言。</param>
@@ -317,12 +322,30 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="target">報告に出す代入先の呼び名。</param>
     /// <param name="reported">報告済みの位置。</param>
     /// <remarks>
+    /// <para>
     /// HLSL の波括弧による初期化は、平らにした成分の個数がちょうど一致していなければならない。
     /// 入れ子の波括弧もベクトルも、成分に展開してから数える。
+    /// </para>
+    /// <para>
+    /// <b>構成を仮定して、その構成にあるメンバーと要素だけを数えて比べる。</b>
+    /// <c>#ifdef</c> で増えるメンバーは、同じ <c>#ifdef</c> で増える要素と釣り合っていればよい。
+    /// 平らに合計すると、条件の付いた分が片側にだけ並んでいるときに食い違って見える。
+    /// </para>
+    /// <para>
+    /// 以前は出現条件の組ごとに突き合わせ、片側にしか無い条件があれば判断しなかった。
+    /// <c>float4 c = { 1, 2, 3 #ifdef _A , 4 #endif };</c> は、条件の付いた要素が書いた側にしか無いので、
+    /// <c>!_A</c> の構成で 1 個足りないことを見逃していた。
+    /// </para>
+    /// <para>
+    /// 仮定は、その木が表す構成 (<see cref="ShaderCompilation.GetTreeConfiguration"/>) に合うものだけにする。
+    /// 同じシンボルの <c>#ifdef</c> でも、メンバーは 1 本の木に並び、要素は構成ごとの展開へ回ることがある。
+    /// 展開へ回したシンボルを有効にした構成は、この木には要素が無いだけで、別の木にある。
+    /// </para>
     /// </remarks>
     private static void CheckInitializerList(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
+        AnalyzedProgram program,
         ExpressionTypeBinder binder,
         InitializerListExpressionSyntax list,
         VariableDeclarationSyntax declaration,
@@ -331,40 +354,89 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         string target,
         HashSet<int> reported)
     {
-        // 出現条件ごとに突き合わせる。
-        // #ifdef で増えるメンバーは、同じ #ifdef で増える要素と釣り合っていればよい。
-        // 平らに合計すると、条件の付いた分が片側にだけ並んでいるときに食い違って見える。
         ConditionMap conditions = compilation.GetConditionMap();
+        SymbolCondition declared = conditions.GetCondition(declaration);
 
-        if (CountRequiredComponents(conditions, declaration, variable, structs) is not { } required
+        if (declared.IsUnknown
+            || CountRequiredComponents(conditions, declaration, variable, structs) is not { } required
             || CountWrittenComponents(conditions, binder, list) is not { } written
-            || list.GetLocation() is not { } location)
+            || list.GetLocation() is not { } location
+            || reported.Contains(location.Span.Start))
         {
             return;
         }
 
-        // 片側にしか無い条件があるときは判断しない。
-        // 代入先のメンバーと書いた要素で、同じ #ifdef の扱いが分かれることがある
-        // (一方は 1 本の木に並び、もう一方は構成ごとの展開へ回る)。
-        // その状態では、釣り合っていないのか、別の木に並んでいるだけなのかを決められない。
-        if (!required.Keys.ToHashSet().SetEquals(written.Keys))
+        SortedSet<string> symbols = new(StringComparer.Ordinal);
+
+        foreach (SymbolCondition condition in required.Keys.Concat(written.Keys).Append(declared))
+        {
+            symbols.UnionWith(condition.EnumerateSymbols());
+        }
+
+        // 組み合わせが多すぎるときは判断しない。
+        if (symbols.Count > ShaderCompilation.MaxConfigurationSymbols)
         {
             return;
         }
 
-        foreach ((SymbolCondition condition, int need) in required)
-        {
-            int wrote = written[condition];
+        string[] ordered = [.. symbols];
+        SymbolCondition tree = compilation.GetTreeConfiguration(program);
+        SymbolCondition mismatched = SymbolCondition.Never;
+        (int Wrote, int Need)? first = null;
+        int considered = 0;
+        int failed = 0;
 
-            if (need == wrote || !reported.Add(location.Span.Start))
+        for (int mask = 0; mask < 1 << ordered.Length; mask++)
+        {
+            HashSet<string> enabled = new(StringComparer.Ordinal);
+            SymbolCondition assignment = SymbolCondition.Always;
+
+            for (int i = 0; i < ordered.Length; i++)
+            {
+                bool on = (mask & (1 << i)) != 0;
+
+                if (on)
+                {
+                    enabled.Add(ordered[i]);
+                }
+
+                assignment = assignment.And(SymbolCondition.Symbol(ordered[i], on));
+            }
+
+            // 宣言そのものが無い構成と、この木が表さない構成は数えない。
+            if (!declared.IsSatisfiedBy(enabled.Contains) || !conditions.IsPossible(assignment.And(tree)))
             {
                 continue;
             }
 
-            context.ReportDiagnostic(Diagnostic.Create(
-                HlslRuleDescriptors.InitializerCountMismatch, location, target, wrote, need));
+            int need = Sum(required, enabled);
+            int wrote = Sum(written, enabled);
+            considered++;
+
+            if (need != wrote)
+            {
+                first ??= (wrote, need);
+                failed++;
+                mismatched = mismatched.Or(assignment);
+            }
+        }
+
+        if (first is not { } counts)
+        {
             return;
         }
+
+        // 宣言がある構成のどれでも食い違うなら、宣言の条件で示す。
+        // 構成ごとに複製した文 (条件の巻き上げ) は、どれも同じ位置にあるので、条件が無いとどの複製の話か分からない。
+        SymbolCondition shown = conditions.Simplify(failed == considered ? declared : mismatched);
+        string where = shown.IsAlways ? string.Empty : $" ({shown} のとき)";
+
+        reported.Add(location.Span.Start);
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.InitializerCountMismatch, location, target, counts.Wrote, counts.Need, where));
+
+        static int Sum(Dictionary<SymbolCondition, int> counts, HashSet<string> enabled)
+            => counts.Where(pair => pair.Key.IsSatisfiedBy(enabled.Contains)).Sum(pair => pair.Value);
     }
 
     /// <summary>

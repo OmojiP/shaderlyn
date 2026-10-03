@@ -2142,6 +2142,86 @@ public sealed class HlslRuleTests
         Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
     }
 
+    /// <summary>
+    /// 条件の付いた要素が書いた側にしか無い初期化も、構成ごとに数えて報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前は条件の組ごとに突き合わせ、片側にしか無い条件があると判断しなかった。
+    /// <c>!_A</c> の構成では 3 個しか書いていない。
+    /// </remarks>
+    [Fact]
+    public void 要素だけが条件で増える初期化は足りない構成を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "half4 frag() : SV_Target",
+            "{",
+            "    float4 c = { 1, 2, 3",
+            "#ifdef _A",
+            "        , 4",
+            "#endif",
+            "    };",
+            "    return c;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+
+        Assert.Contains("3 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("4 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// メンバーだけが条件で増える構造体の初期化を、増える構成で報告することを検証する。
+    /// </summary>
+    [Fact]
+    public void メンバーだけが条件で増える構造体の初期化は足りない構成を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "struct pixel_t {",
+            "    float4 a;",
+            "#ifdef _A",
+            "    float4 b;",
+            "#endif",
+            "};",
+            "half4 frag() : SV_Target",
+            "{",
+            "    pixel_t o = { float4(1, 1, 1, 1) };",
+            "    return o.a;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+
+        Assert.Contains("4 個書いていますが、8 個必要です", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 要素が条件で増えても、どの構成でも釣り合っていれば報告しないことを検証する。
+    /// </summary>
+    [Theory]
+    [InlineData("float4 c = { 1, 2, 3", ", 4", ", 5")]   // _A では 4 個、!_A でも 4 個
+    [InlineData("float4 c = { 1, 2", ", float2(3, 4)", ", 3, 4")]
+    public void 分岐ごとに釣り合う初期化は報告しない(string head, string enabled, string disabled)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "half4 frag() : SV_Target",
+            "{",
+            "    " + head,
+            "#ifdef _A",
+            "        " + enabled,
+            "#else",
+            "        " + disabled,
+            "#endif",
+            "    };",
+            "    return c;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+    }
+
     [Theory]
     [InlineData("m._m44", "この行列は 3 行 3 列です")]
     [InlineData("m._m00_11", "混ぜて書くことはできません")]

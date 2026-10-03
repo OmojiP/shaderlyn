@@ -255,7 +255,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor InitializerCountMismatch { get; } = new(
         id: "HL0352",
         title: "初期化の要素の個数が合いません",
-        messageFormat: "{0} の初期化に要素を {1} 個書いていますが、{2} 個必要です。",
+        messageFormat: "{0} の初期化に要素を {1} 個書いていますが、{2} 個必要です。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "波括弧による初期化で、書いた要素の個数が代入先と合っていません。"
