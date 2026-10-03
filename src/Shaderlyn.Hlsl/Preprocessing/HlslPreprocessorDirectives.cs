@@ -937,7 +937,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="reading">読み方。</param>
     /// <returns>読み取った条件。この形でなければ <see langword="null"/>。</returns>
     /// <remarks>
-    /// 括弧は省略できる (<c>defined X</c>)。前処理器の文法として認められている。
+    /// 括弧は省略できる (<c>defined X</c>)。プリプロセッサの文法として認められている。
     /// </remarks>
     private SymbolCondition? ReadDefinedAtom(ImmutableArray<HlslSyntaxToken> line, ref int index, ConditionReading reading)
     {
