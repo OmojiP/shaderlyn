@@ -36,6 +36,20 @@ public sealed class VariantShapeTests
         return ShaderCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
     }
 
+    /// <summary>条件の巻き上げを切ってコードを解析する。</summary>
+    /// <param name="code">解析するコード。</param>
+    /// <param name="options">ほかに変える設定。</param>
+    /// <returns>解析結果。</returns>
+    /// <remarks>
+    /// <b>構成ごとの展開 (方法 B) の仕組みそのものを確かめるテストが使う。</b>
+    /// 文の途中で分かれる <c>#if</c> は、巻き上げると分岐ごとに文を複製して並べ (方法 A)、構成を作らない。
+    /// まとめた構成や、並べなかった分岐の数え方を確かめるには、その形を方法 B に残す必要がある。
+    /// </remarks>
+    private static ShaderCompilation CompileWithoutHoisting(string code, SemanticsOptions? options = null)
+        => ShaderCompilation.CreateForHlsl(
+            SourceText.From(code, "Shape.hlsl"),
+            (options ?? new SemanticsOptions()) with { HoistConditionalMacros = false });
+
     /// <summary>作った構成を、期待値と同じ書き方にする。</summary>
     /// <param name="compilation">解析結果。</param>
     /// <returns>構成を並べた文字列。</returns>
@@ -81,9 +95,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // 分岐ごとに文を複製して並べる (float m = 1; と float m = 2;)。構成は作らない。
             "02 文の途中で分かれる",
             "#pragma multi_compile _ _A\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "_A"
+            ""
         },
         {
             "03 if の頭だけを分ける",
@@ -183,9 +198,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // #elif の分岐も、それまでの否定を掛け合わせた条件で複製する。
             "27 並べられない #if に続く #elif",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#elif defined(_B)\n        = 2\n#else\n        = 3\n#endif\n        ;\n    return m;\n}",
-            "_A / _B"
+            ""
         },
         {
             "28 文ごとに分けた #elif",
@@ -193,10 +209,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 要素は , で区切るので、分岐の中身が文の単位で閉じない。
+            // 初期化の波括弧は単位の中で閉じるので、宣言の文ごと複製する。
             "29 初期化の要素を条件で足す",
             "#pragma multi_compile _ _A\nfloat4 F() {\n    float4 c = { 1, 2, 3\n#ifdef _A\n        , 4\n#endif\n    };\n    return c;\n}",
-            "_A"
+            ""
         },
         {
             // 29 の書き換え。
@@ -217,10 +233,11 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 複製すると、文の中の #if を 2 度処理することになる。
+            // #ifdef _B の領域は文ごと複製するが、その中の CTYPE は複製しない (1 つの単位で複製するのは 1 回まで)。
+            // CTYPE は既定の構成の値でしか展開されないので、_A は構成ごとに展開する。
             "34 条件で中身が変わるマクロを使う文の中に #if がある",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() {\n    CTYPE d = CTYPE(\n#ifdef _B\n        1, 2, 3, 4\n#else\n        0, 0, 0, 0\n#endif\n    );\n    return d.x;\n}",
-            "_A / _B"
+            "_A"
         },
         {
             // 34 の書き換え。#if で分ける部分を、マクロを使わない文にする。
@@ -252,14 +269,16 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // 論理積の条件でも、分岐ごとに文を複製して並べる。
             "10 論理積で文の途中が分かれる",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n    float m\n#if defined(_A) && defined(_B)\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "_A / _B / _A+_B"
+            ""
         },
         {
+            // #else の側 (!MODE_A、つまり MODE_B) も複製した文として並べる。
             "11 _ の無い行の #else",
             "#pragma multi_compile MODE_A MODE_B\nfloat F() {\n    float m\n#ifdef MODE_A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "MODE_B"
+            ""
         },
         {
             // USE_A_IN_CODE を使うのは、それを定義した _A の分岐の中だけである。
@@ -323,9 +342,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 互いに関係しないシンボルは1回の展開にまとめて上限を1つ分だけ使う()
     {
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(
-            SourceText.From(TwoIndependentSplits, "Shape.hlsl"),
-            new SemanticsOptions { MaxSymbolVariants = 1 });
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits, new SemanticsOptions { MaxSymbolVariants = 1 });
 
         Assert.Equal("{_A,_B}", DescribeVariants(compilation));
         Assert.Empty(compilation.UnexploredSymbols);
@@ -582,7 +599,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void バリアントもキーワードで導いたマクロの条件を覚えて並べる()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#if !defined(_B)\n#define WNB\n#endif\n#ifdef WNB\nfloat4 _WithWnb;\n#else\nfloat4 _WithoutWnb;\n#endif\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}");
 
         Assert.Equal("_A", DescribeVariants(compilation));
@@ -615,7 +632,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 互いに関係しないキーワードは1つの構成にまとめる()
     {
-        ShaderCompilation compilation = Compile(TwoIndependentSplits);
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits);
 
         Assert.Equal("{_A,_B}", DescribeVariants(compilation));
 
@@ -638,7 +655,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 一方が宣言する名前をもう一方が使うならまとめない()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float4\n#ifdef _B\n    _Extra\n#else\n    _Other\n#endif\n    ;\n"
             + "float F() {\n    float m\n#ifdef _A\n        = _Extra.x\n#else\n        = 2\n#endif\n        ;\n    return m;\n}");
@@ -650,7 +667,7 @@ public sealed class VariantShapeTests
     public void 同じ関数の中で変わるキーワードはまとめない()
     {
         // _B が同じ関数に return を足すと、_A だけのときの誤り (戻り値が無いなど) が隠れうる。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n"
             + "    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return m + n;\n}");
@@ -661,9 +678,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void まとめないように設定すれば1つずつ展開する()
     {
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(
-            SourceText.From(TwoIndependentSplits, "Shape.hlsl"),
-            new SemanticsOptions { PackIndependentSymbols = false });
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits, new SemanticsOptions { PackIndependentSymbols = false });
 
         Assert.Equal("_A / _B", DescribeVariants(compilation));
     }
@@ -673,7 +688,7 @@ public sealed class VariantShapeTests
     {
         // _A を有効にすると VALUE の中身が変わり、使う側の文は _A の連なりの外にある。
         // #undef してから定義し直しているので、使う文を定義ごとに複製 (条件の巻き上げ) することもできない。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#define VALUE 2.0\n#ifdef _A\n#undef VALUE\n#define VALUE 1\n#endif\n"
             + "float F() { return VALUE; }\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
@@ -685,7 +700,7 @@ public sealed class VariantShapeTests
     public void キーワードで導いたマクロを条件でだけ使うキーワードはまとめる()
     {
         // USE_A は条件でしか使わない。#ifdef USE_A の連なりは _A を見ていることになり、違いのキーワードを決められる。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define USE_A\n#endif\n"
             + "float F() {\n    float m\n#ifdef USE_A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
@@ -710,7 +725,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 並べなかったelifに書いたキーワードも条件に現れたものとして展開する()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A _B\nfloat F() {\n    float m\n#if _A\n        = 1\n#elif _B\n        = 2\n#else\n        = 3\n#endif\n        ;\n    return m;\n}");
 
         Assert.Contains(compilation.Programs[0].Tree.PreprocessResult.ConditionalIdentifiers, t => t.Text == "_B");
@@ -762,7 +777,7 @@ public sealed class VariantShapeTests
     public void 違いのキーワードを決められなければ1つずつ展開し直す()
     {
         // 1 つの文が _A と _B の両方で変わる。まとめた木の違いは、どちらのものとも言えない。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float F() {\n    float m = 0\n#ifdef _A\n        + 1\n#endif\n#ifdef _B\n        + 2\n#endif\n        ;\n    return m;\n}");
 

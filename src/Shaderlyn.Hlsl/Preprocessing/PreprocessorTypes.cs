@@ -165,6 +165,8 @@ public sealed record PreprocessorOptions
     /// <c>#ifdef _A</c> で <c>#define CTYPE float3</c>、<c>#else</c> で <c>float4</c> と定義したマクロを
     /// <c>CTYPE color = ...;</c> と使っている場合、その文を定義ごとに展開し直し、
     /// それぞれに条件を付けて 1 本のトークン列に並べる。
+    /// 文の途中で分かれる <c>#if</c> (<c>float m</c> / <c>#ifdef _A</c> / <c>= 1</c> / <c>#else</c> / <c>= 2</c> / <c>#endif</c> / <c>;</c>) も、
+    /// 同じく分岐ごとに文を複製して並べる。<c>{ }</c> のブロックを含む文は複製しない。
     /// </para>
     /// <para>
     /// 文の切れ目の候補は字句で出し、採否は構文解析 (<c>HlslParser.IsCompleteUnits</c>) が決める。

@@ -1437,6 +1437,41 @@ public sealed class HlslRuleTests
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 文の途中で分かれる別々の <c>#if</c> が、同時に有効なときだけ起きる誤りを報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// どちらの領域も分岐ごとに文を複製して並べる (条件の巻き上げ)。構成ごとに展開していたときは、
+    /// <c>_A</c> だけ・<c>_B</c> だけの構成しか作らず、両方が有効な構成のこの誤りは調べていなかった。
+    /// </remarks>
+    [Fact]
+    public void 文の途中で分かれる別々のifの組み合わせも検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _B",
+            "float F()",
+            "{",
+            "#ifdef _A",
+            "    float2",
+            "#else",
+            "    float4",
+            "#endif",
+            "    v = 0;",
+            "    float r",
+            "#ifdef _B",
+            "        = v.z",
+            "#else",
+            "        = 0",
+            "#endif",
+            "        ;",
+            "    return r;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Assert.Contains("_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void 構成によって型が変わる名前でもどの型にもある成分は報告しない()
     {

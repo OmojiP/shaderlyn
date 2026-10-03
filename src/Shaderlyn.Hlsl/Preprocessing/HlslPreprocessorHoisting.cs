@@ -112,6 +112,9 @@ internal sealed partial class HlslPreprocessor
     /// <summary>出力に出した角括弧の深さ。</summary>
     private int _unitBracketDepth;
 
+    /// <summary>出力に出した、初期化の波括弧の深さ。</summary>
+    private int _unitInitializerDepth;
+
     /// <summary>
     /// 文の始まりの目印。巻き上げるときに、この位置から展開し直す。
     /// </summary>
@@ -140,6 +143,19 @@ internal sealed partial class HlslPreprocessor
             case HlslSyntaxKind.CloseParenToken: _unitParenDepth--; break;
             case HlslSyntaxKind.OpenBracketToken: _unitBracketDepth++; break;
             case HlslSyntaxKind.CloseBracketToken: _unitBracketDepth--; break;
+
+            // 初期化の波括弧 (float4 c = { 1, 2, 3, 4 };) は文の途中にある。切れ目にしない。
+            // 切れ目にすると、条件で足した要素を含む文を、波括弧の内側からしか複製できない。
+            case HlslSyntaxKind.OpenBraceToken
+                when _unitInitializerDepth > 0
+                     || (_output.Count > 0 && _output[^1].Kind is HlslSyntaxKind.EqualsToken or HlslSyntaxKind.CommaToken):
+                _unitInitializerDepth++;
+                return;
+
+            case HlslSyntaxKind.CloseBraceToken when _unitInitializerDepth > 0:
+                _unitInitializerDepth--;
+                return;
+
             default: break;
         }
 
@@ -282,7 +298,15 @@ internal sealed partial class HlslPreprocessor
     /// (<c>CTYPE d = 1; VTYPE e = 1;</c> の 2 つ目)。
     /// </remarks>
     private void MoveUnitAnchorPastUnit(TokenSource source)
-        => _unitAnchor = (source, source.Index, _output.Count);
+    {
+        _unitAnchor = (source, source.Index, _output.Count);
+
+        // 文は括弧が閉じたところで終わっている。展開し直した分を数えた深さは捨てる。
+        // 手前の部分は 1 度出してから分岐ごとに出し直すので、数えたままだと深さがずれる。
+        _unitParenDepth = 0;
+        _unitBracketDepth = 0;
+        _unitInitializerDepth = 0;
+    }
 
     /// <summary>目印からその位置までのトークンを取り出す。</summary>
     /// <param name="anchor">文の始まりの目印。</param>

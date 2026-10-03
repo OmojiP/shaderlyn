@@ -116,6 +116,8 @@ internal static class ConditionalRegionScanner
 
                     if (inner is not (ConditionalRegionLayout.Mergeable or ConditionalRegionLayout.DefinesMacros))
                     {
+                        // 中身を並べられなくても、終わる位置は求めておく (#include の場合と同じ)。
+                        end = FindRegionEnd(tokens, i);
                         return inner;
                     }
 
@@ -142,6 +144,8 @@ internal static class ConditionalRegionScanner
                 case "else" or "elif":
                     if (ClassifyBranch(tokens, branchStart, i) is { } branchShape)
                     {
+                        // 分岐ごとに文を複製するとき (条件の巻き上げ) は、領域の後ろから文の切れ目を探す。
+                        end = FindRegionEnd(tokens, i + 1);
                         return branchShape;
                     }
 

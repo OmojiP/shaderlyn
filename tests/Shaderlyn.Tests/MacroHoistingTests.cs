@@ -277,6 +277,128 @@ public sealed class MacroHoistingTests
     }
 
     [Fact]
+    public void 文の途中で分かれるifは分岐ごとに文を複製する()
+    {
+        // 並べると float m = 1 = 2 ; になり文にならない。分岐ごとに文を複製すれば、それぞれが文になる。
+        PreprocessResult result = Preprocess(
+            """
+            float F()
+            {
+                float m
+            #ifdef _A
+                    = 1
+            #else
+                    = 2
+            #endif
+                    ;
+                return m;
+            }
+            """,
+            "_A");
+
+        string text = TextOf(result);
+
+        Assert.Contains("float m = 1 ; float m = 2 ; return m ;", text, StringComparison.Ordinal);
+        Assert.Equal(SymbolCondition.Symbol("_A", true), ConditionOf(result, "1"));
+        Assert.Equal(SymbolCondition.Symbol("_A", false), ConditionOf(result, "2"));
+        Assert.All(result.ConditionalRegions, r => Assert.True(r.IsHoisted));
+        Assert.DoesNotContain("_A", result.DeclinedBothBranchSymbols);
+    }
+
+    [Fact]
+    public void 初期化の要素を条件で足す形も宣言ごと複製する()
+    {
+        // 初期化の波括弧は文の途中にある。文の切れ目と見なすと、波括弧の内側しか複製できない。
+        PreprocessResult result = Preprocess(
+            """
+            float4 F()
+            {
+                float4 c = { 1, 2, 3
+            #ifdef _A
+                    , 4
+            #endif
+                };
+                return c;
+            }
+            """,
+            "_A");
+
+        string text = TextOf(result);
+
+        Assert.Contains("float4 c = { 1 , 2 , 3 , 4 } ;", text, StringComparison.Ordinal);
+        Assert.Contains("float4 c = { 1 , 2 , 3 } ;", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("_A", result.DeclinedBothBranchSymbols);
+    }
+
+    [Fact]
+    public void elifの分岐はそれまでの否定を掛け合わせた条件で複製する()
+    {
+        PreprocessResult result = Preprocess(
+            """
+            float F()
+            {
+                float m
+            #ifdef _A
+                    = 1
+            #elif defined(_B)
+                    = 2
+            #endif
+                    ;
+                return m;
+            }
+            """,
+            "_A", "_B");
+
+        string text = TextOf(result);
+
+        // #else が無いので、どの分岐も通らない構成のための「何も足さない」文もできる。
+        Assert.Contains("float m = 1 ; float m = 2 ; float m ; return m ;", text, StringComparison.Ordinal);
+        Assert.Equal(SymbolCondition.Symbol("_A", false).And(SymbolCondition.Symbol("_B", true)), ConditionOf(result, "2"));
+    }
+
+    [Theory]
+    [InlineData("float Helper(float a\n#ifdef _A\n    , float b\n#endif\n    ) { return a; }")]
+    [InlineData("float F(float y) {\n#ifdef _A\n    if (y < 1)\n#else\n    if (y < 2)\n#endif\n    { return 1; }\n    return 0;\n}")]
+    public void ブロックを含む単位は複製しない(string code)
+    {
+        // 関数や if の本体まで複製すると、どの構成にもあるコードまで条件付きになる。今までどおり構成ごとに展開する。
+        PreprocessResult result = Preprocess(code, "_A");
+
+        Assert.Empty(result.ConditionalRegions);
+        Assert.Contains("_A", result.DeclinedBothBranchSymbols);
+    }
+
+    [Fact]
+    public void 続けて書いた文の途中の分岐もそれぞれ複製する()
+    {
+        PreprocessResult result = Preprocess(
+            """
+            float F()
+            {
+                float m
+            #ifdef _A
+                    = 1
+            #else
+                    = 2
+            #endif
+                    ;
+                float n
+            #ifdef _B
+                    = 3
+            #else
+                    = 4
+            #endif
+                    ;
+                return m + n;
+            }
+            """,
+            "_A", "_B");
+
+        Assert.Equal(4, result.ConditionalRegions.Length);
+        Assert.Empty(result.DeclinedBothBranchSymbols);
+    }
+
+    [Fact]
     public void 別のマクロの本体を通して使っていても定義ごとに複製する()
     {
         // APPLY 自体は条件で中身が変わらないが、展開すると BODY になる。

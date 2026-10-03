@@ -140,6 +140,16 @@ internal sealed partial class HlslPreprocessor
                 // どの構成でも成り立たない条件 (#if _A == 2 など) の分岐は、どの構成でも通らない。
                 // 構成によらない条件と同じく、並べる必要も、そのシンボルを有効にした構成を作る必要も無い。
                 bool neverTrue = NoteIfNeverTrue(line, directiveToken, _conditionals.Count);
+
+                // 文の途中で分かれる領域は、分岐ごとに文を複製して並べる。複製したら領域は読み終えている。
+                if (!neverTrue
+                    && read is { IsUnknown: false } readable
+                    && readable.EnumerateSymbols().Any()
+                    && TryHoistRegion(directiveToken, readable))
+                {
+                    break;
+                }
+
                 SymbolCondition? kept = neverTrue ? null : ChooseKeptCondition(read, directiveToken);
 
                 // キーワード以外を値に解いたらキーワードが残らなかった条件 (defined(_A) && SHADER_TARGET >= 45 で
@@ -187,6 +197,18 @@ internal sealed partial class HlslPreprocessor
             {
                 bool expectDefined = directive == "ifdef";
                 bool value = EvaluateDefinedLine(directiveToken, expectDefined, out string? symbol);
+
+                // 文の途中で分かれる領域は、分岐ごとに文を複製して並べる。条件の読み方は ChooseKeptCondition と同じ。
+                SymbolCondition? defined = symbol is null
+                    ? null
+                    : _options.BothBranchSymbols.Contains(symbol)
+                        ? SymbolOrDefinition(symbol)
+                        : GetDefinedCondition(symbol);
+
+                if (defined is { } present && TryHoistRegion(directiveToken, expectDefined ? present : present.Negate()))
+                {
+                    break;
+                }
 
                 BeginConditional(directiveToken, value, ChooseKeptCondition(symbol, expectDefined, directiveToken));
 

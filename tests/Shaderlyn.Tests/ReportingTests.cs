@@ -426,13 +426,13 @@ public sealed class ReportingTests : IDisposable
                         #pragma multi_compile _ _UNUSED
                         half4 frag() : SV_Target
                         {
-                            half m
+                            half m = 0;
                         #ifdef _SPLIT
-                                = 1
+                            if (m < 1)
                         #else
-                                = 2
+                            if (m < 2)
                         #endif
-                                ;
+                            { m = 1; }
                         #ifdef _CLOSED
                             m += 1;
                         #endif

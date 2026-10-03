@@ -196,7 +196,8 @@ public sealed record SemanticsOptions
     public bool FixedSymbolConfiguration { get; init; }
 
     /// <summary>
-    /// 条件によって中身が変わるマクロを使っている文を、定義ごとに複製するかどうか。既定は有効。
+    /// 条件によって中身が変わるマクロを使っている文と、文の途中で分かれる <c>#if</c> を含む文を、
+    /// 定義・分岐ごとに複製するかどうか。既定は有効。
     /// </summary>
     /// <remarks>
     /// SuperC の条件の巻き上げを文・宣言の単位で行う

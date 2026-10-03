@@ -26,8 +26,8 @@ internal static partial class AnalysisInspector
                               "「本体」が付いているものは、このファイル自身が書いたマクロから来たもので、" +
                               "その行が報告の位置になります。"));
               if (program.hoistedUnits) {
-                box.append(note("条件で中身が変わるマクロを使う文を " + program.hoistedUnits +
-                                " か所で定義ごとに複製し、それぞれに条件を付けています。" +
+                box.append(note("条件で中身が変わるマクロを使う文や、文の途中で分かれる #if を含む文を " + program.hoistedUnits +
+                                " か所で定義・分岐ごとに複製し、それぞれに条件を付けています。" +
                                 "同じ位置に複数の形が並ぶのはこのためです。" +
                                 (program.hoistGiveUps ? "文にならず複製を諦めた箇所が " +
                                  program.hoistGiveUps + " か所あります。" : "")));
