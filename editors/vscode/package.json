@@ -2,7 +2,7 @@
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
   "description": "Unity の ShaderLab / HLSL を編集しながら解析する",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",

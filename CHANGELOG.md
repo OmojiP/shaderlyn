@@ -10,12 +10,41 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ## [未リリース]
 
-最初の公開バージョン (0.1.0)。
+## [0.1.1] - 2026-10-04
+
+0.1.0 では見逃していた誤りを報告するようになったため、同じコードでも指摘が増えることがある。
+CI で `--error-on` を使っている場合は、上げる前に手元で確かめること。
+
+### 追加
+
+- [HL0332](docs/rules/HL0332.md): どの構成でも成り立たない条件 (`#if _DETAIL == 2` など) を報告する
+- `--inspect` に「シンボルの扱い」タブ。シンボルごとに、両方の分岐を並べたか構成ごとに展開したかと、その原因の `#if` を示す
+
+### 変更
+
+- 文の途中で分かれる `#if` と、条件で中身が変わるマクロを使う文を、分岐・定義ごとに文を複製して検査する。
+  構成ごとの展開が減り、別々の `#if` が同時に有効なときだけ起きる誤り (`_A && _B` のときの [HL0312](docs/rules/HL0312.md) など) も報告する
+- 報告とホバーに示す条件を、宣言の制約を使って短くする。
+  `#pragma multi_compile _A _B` のもとでは `!_B` を `_A` と、`!_A && _B` を `_B` と示す
+- [HL0352](docs/rules/HL0352.md): 構成ごとに要素とメンバーを数えて比べる。
+  条件の付いた要素やメンバーが片側にしか無い初期化も報告し、食い違う構成をメッセージに添える
+- VS Code 拡張: 補完の候補を、カーソルの位置で書けるものに絞る。
+  `#` の後ろでは指令の名前、`#pragma` の後ろでは pragma の名前、`#if` / `#ifdef` ではシンボルとマクロを出し、
+  コメント・文字列の中と ShaderLab の部分では HLSL の候補を出さない
+
+### 修正
+
+- 条件で中身が変わるマクロ (`#ifdef _A` / `#define CTYPE float3` / `#else` / `#define CTYPE float4`) を使った宣言で、
+  ホバーが片方の構成の型しか示さなかった
+
+## [0.1.0] - 2026-10-02
+
+最初の公開バージョン。
 
 ### 追加
 
 - Unity の ShaderLab、埋め込み HLSL、HLSL 単体のファイル (`.compute` / `.hlsl` / `.cginc` / `.hlslinc`) の静的解析
-- 51 のルール。ShaderLab、Properties と HLSL の対応、HLSL、URP 固有の検査がある ([ルール一覧](docs/rules/README.md))
+- 52 のルール。ShaderLab、Properties と HLSL の対応、HLSL、URP 固有の検査がある ([ルール一覧](docs/rules/README.md))
 - `#ifdef` で分かれるコードは、どちらの分岐も検査する ([条件付きコンパイルの扱い](docs/guide/conditional-compilation.md))
 - 利用者が書いて取り込んだヘッダ (共通の `.hlsl` など) も、取り込むシェーダーの文脈で検査する。
   Unity と外部パッケージのヘッダは対象にしない
@@ -30,4 +59,6 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/commits/main
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/OmojiP/shaderlyn/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/OmojiP/shaderlyn/releases/tag/v0.1.0

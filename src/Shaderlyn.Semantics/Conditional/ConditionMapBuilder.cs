@@ -40,11 +40,13 @@ internal static class ConditionMapBuilder
         ImmutableArray<Location>.Builder unmerged = ImmutableArray.CreateBuilder<Location>();
         ImmutableArray<ConditionalRegion>.Builder regions =
             ImmutableArray.CreateBuilder<ConditionalRegion>();
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted = [];
+        Dictionary<AnalyzedProgram, List<Location>> hoistedLocations = [];
 
         // バリアントが並べた範囲も集める。バリアントにしか無いノードも、その木で並べた分岐の中にあれば条件が付く
         // (LutBuilder3D.compute の TONEMAPPING_ACES_APPROX の木では、#ifdef HDR_COLORSPACE_CONVERSION を並べた中に呼び出しがある)。
         // 範囲の条件は、有効にしたキーワード以外のものなので、どの構成でも同じ意味を持つ。
-        CollectEmittedRegions([.. programs, .. variants], regions);
+        CollectEmittedRegions([.. programs, .. variants], regions, hoisted, hoistedLocations);
 
         foreach (AnalyzedProgram variant in variants)
         {
@@ -66,9 +68,17 @@ internal static class ConditionMapBuilder
 
             unmerged.AddRange(merged.UnmergedLocations);
 
+            // 定義ごとに複製した文の位置のうち、突き合わせが複製を取り違えうるところ。
+            List<Location> ambiguous = FindAmbiguousCopies(baseline, variant, hoistedLocations, hoisted);
+
             // 1 本の木として見せるための挿入先。親ごとにまとめる。
             foreach (NodeInsertion addition in merged.NodeInsertions)
             {
+                if (IsInsideAny(addition.Node, ambiguous))
+                {
+                    continue;
+                }
+
                 if (!inserted.TryGetValue(addition.Parent, out List<ConditionalNode>? siblings))
                 {
                     siblings = [];
@@ -80,6 +90,12 @@ internal static class ConditionMapBuilder
 
             foreach (ConditionalNode conditional in merged.ConditionalNodes)
             {
+                // 複製の条件は巻き上げが付けたものが正しい。取り違えうる位置では突き合わせの結果を使わない。
+                if (IsInsideAny(conditional.Node, ambiguous))
+                {
+                    continue;
+                }
+
                 conditions[conditional.Node] =
                     conditions.TryGetValue(conditional.Node, out SymbolCondition existing)
                         ? existing.And(conditional.Condition)
@@ -87,7 +103,7 @@ internal static class ConditionMapBuilder
             }
         }
 
-        if (conditions.Count == 0 && unmerged.Count == 0 && regions.Count == 0)
+        if (conditions.Count == 0 && unmerged.Count == 0 && regions.Count == 0 && hoisted.Count == 0)
         {
             return ConditionMap.Empty;
         }
@@ -103,7 +119,109 @@ internal static class ConditionMapBuilder
             unmerged.ToImmutable(),
             regions.ToImmutable(),
             inserted,
-            CollectConstraints(programs));
+            CollectConstraints(programs),
+            hoisted);
+    }
+
+    /// <summary>
+    /// 突き合わせが、定義ごとに複製した文を取り違えうる位置を求める。
+    /// </summary>
+    /// <param name="baseline">既定の構成の木。</param>
+    /// <param name="variant">バリアントの木。</param>
+    /// <param name="hoistedLocations">木ごとの、複製した文の位置。</param>
+    /// <param name="hoisted">複製した文のトークン。</param>
+    /// <returns>取り違えうる位置。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>一方の木では複製してあり、もう一方の木では同じ位置に複製していない文がある位置だけである。</b>
+    /// そこでは、1 つの文がどの複製と対応するかが位置からは決まらない。
+    /// 取り違えると、ある構成に存在する宣言に「その構成には無い」条件が付く
+    /// (<c>multi_compile _A _B</c> で、<c>_B</c> の木の <c>float4 d</c> が既定の木の <c>float3 d</c> と対応した)。
+    /// </para>
+    /// <para>
+    /// 両方の木で複製してあれば、複製どうしが同じ順に並ぶので取り違えない。
+    /// 片方の木にしか文が無ければ (<c>#ifdef _B</c> の中で使った場合など)、
+    /// その文は片方の構成にしか無いという突き合わせの結果が正しい。捨てると <c>_B</c> の条件が消える。
+    /// </para>
+    /// </remarks>
+    private static List<Location> FindAmbiguousCopies(
+        AnalyzedProgram baseline,
+        AnalyzedProgram variant,
+        Dictionary<AnalyzedProgram, List<Location>> hoistedLocations,
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+    {
+        List<Location> ambiguous = [];
+
+        Collect(baseline, variant);
+        Collect(variant, baseline);
+
+        return ambiguous;
+
+        void Collect(AnalyzedProgram copied, AnalyzedProgram other)
+        {
+            if (!hoistedLocations.TryGetValue(copied, out List<Location>? locations))
+            {
+                return;
+            }
+
+            foreach (Location location in locations)
+            {
+                if (HasUncopiedTokens(other.Tree.PreprocessResult.Tokens, location, hoisted))
+                {
+                    ambiguous.Add(location);
+                }
+            }
+        }
+    }
+
+    /// <summary>その位置に、複製していないトークンがあるかを判定する。</summary>
+    /// <param name="tokens">展開後のトークン列。</param>
+    /// <param name="location">調べる位置。</param>
+    /// <param name="hoisted">複製した文のトークン。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    private static bool HasUncopiedTokens(
+        ImmutableArray<HlslSyntaxToken> tokens,
+        Location location,
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+    {
+        foreach (HlslSyntaxToken token in tokens)
+        {
+            if (ReferenceEquals(token.Source, location.Source)
+                && location.Span.Start <= token.Span.Start
+                && token.Span.End <= location.Span.End
+                && !hoisted.ContainsKey(token))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>ノードが、どれかの範囲の中に収まっているかを判定する。</summary>
+    /// <param name="node">対象のノード。</param>
+    /// <param name="locations">比べる範囲。</param>
+    /// <returns>収まっていれば <see langword="true"/>。</returns>
+    private static bool IsInsideAny(HlslSyntaxNode node, List<Location> locations)
+    {
+        if (locations.Count == 0 || node.Source is not { } source)
+        {
+            return false;
+        }
+
+        TextSpan span = node.Span;
+
+        foreach (Location location in locations)
+        {
+            if (ReferenceEquals(source, location.Source)
+                && location.Span.Start <= span.Start
+                && span.End <= location.Span.End)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -170,6 +288,8 @@ internal static class ConditionMapBuilder
     /// </summary>
     /// <param name="programs">対象のコードブロック。</param>
     /// <param name="regions">集めた範囲を書き出す先。</param>
+    /// <param name="hoisted">定義ごとに複製した文のトークンと、その条件を書き出す先。</param>
+    /// <param name="hoistedLocations">定義ごとに複製した文の、ソース上の範囲を木ごとに書き出す先。</param>
     /// <remarks>
     /// <para>
     /// <b>これを読まないと、並べた分岐のノードが無条件に見える。</b>
@@ -184,13 +304,12 @@ internal static class ConditionMapBuilder
     /// </remarks>
     private static void CollectEmittedRegions(
         ImmutableArray<AnalyzedProgram> programs,
-        ImmutableArray<ConditionalRegion>.Builder regions)
+        ImmutableArray<ConditionalRegion>.Builder regions,
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<AnalyzedProgram, List<Location>> hoistedLocations)
     {
         // 同じソース範囲を占める領域は、掛け合わせずに足し合わせる。
-        // 条件で中身が変わるマクロを使う文は定義ごとに複製されるが (条件の巻き上げ)、
-        // 複製はどれも同じ位置から作られるため、位置では見分けられない。
-        // 掛け合わせると「_A かつ !_A」になり、そこにある宣言がどの構成にも無いことになってしまう。
-        // どの複製も「いつか通る」コードなので、和が正しい。
+        // 既定の木とバリアントの木は、同じ領域を同じ条件で並べている。
         Dictionary<(SourceText Source, TextSpan Span), SymbolCondition> byLocation = [];
         List<(SourceText Source, TextSpan Span)> order = [];
 
@@ -200,6 +319,27 @@ internal static class ConditionMapBuilder
 
             foreach (ConditionalTokenRange range in result.ConditionalRegions)
             {
+                // 定義ごとに複製した文 (条件の巻き上げ) は、どれも同じ位置から作られる。
+                // 位置に直すと _A の複製と !_A の複製が重なり、どちらも「常に」になってしまう。
+                // 複製ごとに別のトークンを持っているので、トークンで引く。
+                if (range.IsHoisted)
+                {
+                    AddHoistedRange(result.Tokens, range, hoisted);
+
+                    if (TryGetRegionLocation(result.Tokens, range, out Location copied))
+                    {
+                        if (!hoistedLocations.TryGetValue(program, out List<Location>? locations))
+                        {
+                            locations = [];
+                            hoistedLocations[program] = locations;
+                        }
+
+                        locations.Add(copied);
+                    }
+
+                    continue;
+                }
+
                 if (!TryGetRegionLocation(result.Tokens, range, out Location location))
                 {
                     continue;
@@ -221,6 +361,35 @@ internal static class ConditionMapBuilder
         foreach ((SourceText Source, TextSpan Span) key in order)
         {
             regions.Add(new ConditionalRegion(Location.Create(key.Source, key.Span), byLocation[key]));
+        }
+    }
+
+    /// <summary>
+    /// 定義ごとに複製した文のトークンに、その複製の条件を付ける。
+    /// </summary>
+    /// <param name="tokens">展開後のトークン列。</param>
+    /// <param name="range">複製 1 つ分の範囲。</param>
+    /// <param name="hoisted">書き出す先。</param>
+    /// <remarks>
+    /// 複製は先頭のトークンで見分ける。複製ごとに別のインスタンスである
+    /// (<see cref="ConditionalTokenRange.IsHoisted"/>)。
+    /// 取り込みの結果を使い回すと、同じトークンが別のブロックの木にも現れる。条件は同じなので、先に覚えたほうを残す。
+    /// </remarks>
+    private static void AddHoistedRange(
+        ImmutableArray<HlslSyntaxToken> tokens,
+        ConditionalTokenRange range,
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+    {
+        if (range.Start < 0 || range.Start >= tokens.Length || range.Length <= 0)
+        {
+            return;
+        }
+
+        HoistedToken entry = new(tokens[range.Start], range.Condition);
+
+        for (int i = range.Start; i < range.Start + range.Length && i < tokens.Length; i++)
+        {
+            hoisted.TryAdd(tokens[i], entry);
         }
     }
 

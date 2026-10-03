@@ -286,6 +286,69 @@ public sealed class HlslRuleTests
         }
         """;
 
+    // ------------------------------------------------------------------
+    // HL0332: どの構成でも成り立たない条件
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// どの構成でも成り立たない条件だけを報告することを検証する。
+    /// </summary>
+    /// <param name="pragmas">シンボルの宣言。行は <c>|</c> で区切る。</param>
+    /// <param name="condition">分岐の条件。</param>
+    /// <param name="expected">報告するはずなら <see langword="true"/>。</param>
+    /// <remarks>
+    /// <para>
+    /// Unity は有効なシンボルを値 1 で定義する。1 以外と比べる条件は、有効にしても無効にしても通らない。
+    /// 同じ行のシンボルは同時に有効にならず、<c>_</c> の無い <c>multi_compile</c> の行はどれか 1 つが必ず有効である。
+    /// </para>
+    /// <para>
+    /// 環境のマクロ (<c>SHADER_API_D3D11</c>) を含む条件は報告しない。1 通りの値を仮に選んでいるだけで、
+    /// 別のプラットフォームでは真になりうる。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 2", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A > 1", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if defined(_A) && !defined(_A)", true)]
+    [InlineData("#pragma multi_compile _ _X _Y", "#if defined(_X) && defined(_Y)", true)]
+    [InlineData("#pragma multi_compile MODE_A MODE_B", "#if !defined(MODE_A) && !defined(MODE_B)", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 1", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A != 0", false)]
+    [InlineData("#pragma multi_compile _ _X|#pragma multi_compile _ _Y", "#if defined(_X) && defined(_Y)", false)]
+    [InlineData("#pragma shader_feature MODE_A MODE_B", "#if !defined(MODE_A) && !defined(MODE_B)", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 2 || SHADER_API_D3D11", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _UNDECLARED == 2", false)]
+    public void どの構成でも成り立たない条件を報告する(string pragmas, string condition, bool expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            [.. pragmas.Split('|'), condition, "float _Never;", "#endif", .. ValidProgram]));
+
+        Diagnostic[] reported = [.. diagnostics.Where(d => d.Id == "HL0332")];
+
+        Assert.True(expected == (reported.Length == 1), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void どの構成でも成り立たないelifを報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            ["#pragma multi_compile _ _A", "#if defined(_A)", "float _First;", "#elif _A == 2", "float _Second;", "#endif", .. ValidProgram]));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics.Where(d => d.Id == "HL0332"));
+        Assert.Contains("_A == 2", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 取り込んだヘッダの成り立たない条件は報告しない()
+    {
+        // ヘッダの条件はヘッダの都合で書かれている。このファイルの利用者に直しようが無い。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            Shader(["#pragma multi_compile _ _A", .. ValidProgram]),
+            "#if _A == 2\nfloat _InHeader;\n#endif\n");
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0332");
+    }
+
     [Fact]
     public void 宣言されていないシンボルを報告する()
     {
@@ -1374,6 +1437,41 @@ public sealed class HlslRuleTests
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 文の途中で分かれる別々の <c>#if</c> が、同時に有効なときだけ起きる誤りを報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// どちらの領域も分岐ごとに文を複製して並べる (条件の巻き上げ)。構成ごとに展開していたときは、
+    /// <c>_A</c> だけ・<c>_B</c> だけの構成しか作らず、両方が有効な構成のこの誤りは調べていなかった。
+    /// </remarks>
+    [Fact]
+    public void 文の途中で分かれる別々のifの組み合わせも検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _B",
+            "float F()",
+            "{",
+            "#ifdef _A",
+            "    float2",
+            "#else",
+            "    float4",
+            "#endif",
+            "    v = 0;",
+            "    float r",
+            "#ifdef _B",
+            "        = v.z",
+            "#else",
+            "        = 0",
+            "#endif",
+            "        ;",
+            "    return r;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Assert.Contains("_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void 構成によって型が変わる名前でもどの型にもある成分は報告しない()
     {
@@ -1744,7 +1842,8 @@ public sealed class HlslRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0353");
 
-        Assert.Contains("!_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("'a' は float3 です", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("戻り値の float", diagnostic.GetMessage(), StringComparison.Ordinal);
 
@@ -1791,7 +1890,8 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0351");
 
         Assert.Contains("float2 を返しています", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("!_A && _B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
 
         // 渡せない構成は、値が落ちるだけの構成より重い。警告の陰に隠してはならない。
@@ -1819,7 +1919,8 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
 
         Assert.Contains("float3 に float2 は入りません", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("!_A && _B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2039,6 +2140,86 @@ public sealed class HlslRuleTests
             "#endif",
             "    };",
             "    return o.a;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+    }
+
+    /// <summary>
+    /// 条件の付いた要素が書いた側にしか無い初期化も、構成ごとに数えて報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前は条件の組ごとに突き合わせ、片側にしか無い条件があると判断しなかった。
+    /// <c>!_A</c> の構成では 3 個しか書いていない。
+    /// </remarks>
+    [Fact]
+    public void 要素だけが条件で増える初期化は足りない構成を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "half4 frag() : SV_Target",
+            "{",
+            "    float4 c = { 1, 2, 3",
+            "#ifdef _A",
+            "        , 4",
+            "#endif",
+            "    };",
+            "    return c;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+
+        Assert.Contains("3 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("4 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// メンバーだけが条件で増える構造体の初期化を、増える構成で報告することを検証する。
+    /// </summary>
+    [Fact]
+    public void メンバーだけが条件で増える構造体の初期化は足りない構成を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "struct pixel_t {",
+            "    float4 a;",
+            "#ifdef _A",
+            "    float4 b;",
+            "#endif",
+            "};",
+            "half4 frag() : SV_Target",
+            "{",
+            "    pixel_t o = { float4(1, 1, 1, 1) };",
+            "    return o.a;",
+            "}"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+
+        Assert.Contains("4 個書いていますが、8 個必要です", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 要素が条件で増えても、どの構成でも釣り合っていれば報告しないことを検証する。
+    /// </summary>
+    [Theory]
+    [InlineData("float4 c = { 1, 2, 3", ", 4", ", 5")]   // _A では 4 個、!_A でも 4 個
+    [InlineData("float4 c = { 1, 2", ", float2(3, 4)", ", 3, 4")]
+    public void 分岐ごとに釣り合う初期化は報告しない(string head, string enabled, string disabled)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "half4 frag() : SV_Target",
+            "{",
+            "    " + head,
+            "#ifdef _A",
+            "        " + enabled,
+            "#else",
+            "        " + disabled,
+            "#endif",
+            "    };",
+            "    return c;",
             "}"));
 
         Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));

@@ -165,6 +165,8 @@ public sealed record PreprocessorOptions
     /// <c>#ifdef _A</c> で <c>#define CTYPE float3</c>、<c>#else</c> で <c>float4</c> と定義したマクロを
     /// <c>CTYPE color = ...;</c> と使っている場合、その文を定義ごとに展開し直し、
     /// それぞれに条件を付けて 1 本のトークン列に並べる。
+    /// 文の途中で分かれる <c>#if</c> (<c>float m</c> / <c>#ifdef _A</c> / <c>= 1</c> / <c>#else</c> / <c>= 2</c> / <c>#endif</c> / <c>;</c>) も、
+    /// 同じく分岐ごとに文を複製して並べる。<c>{ }</c> のブロックを含む文は複製しない。
     /// </para>
     /// <para>
     /// 文の切れ目の候補は字句で出し、採否は構文解析 (<c>HlslParser.IsCompleteUnits</c>) が決める。
@@ -407,7 +409,23 @@ public readonly record struct PragmaDirective(
 public readonly record struct ConditionalTokenRange(
     int Start,
     int Length,
-    SymbolCondition Condition);
+    SymbolCondition Condition)
+{
+    /// <summary>
+    /// 条件で中身が変わるマクロを使う文を、定義ごとに複製した範囲かどうか (条件の巻き上げ)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>巻き上げた範囲は、位置で条件を引いてはならない。</b>
+    /// 複製はどれも同じ位置から作られるので、ソース上の範囲に直すと
+    /// <c>_A</c> の複製と <c>!_A</c> の複製が同じ場所に重なる。
+    /// </para>
+    /// <para>
+    /// 複製ごとに別のトークンのインスタンスを持たせてあるので、トークンで引く。
+    /// </para>
+    /// </remarks>
+    public bool IsHoisted { get; init; }
+}
 
 /// <summary>
 /// 現れた <c>#include</c> 1 件分。
@@ -589,7 +607,15 @@ public enum BothBranchDeclineReason
 /// 並べなかったシンボルは構成ごとに展開し直す (バリアント)。
 /// なぜバリアントが要ったのかを後から数えるために残す。挙動には使わない。
 /// </remarks>
-public readonly record struct BothBranchDecline(string Symbol, BothBranchDeclineReason Reason, string FilePath);
+public readonly record struct BothBranchDecline(string Symbol, BothBranchDeclineReason Reason, string FilePath)
+{
+    /// <summary>並べなかった条件の指令名 (<c>ifdef</c> など) の、<see cref="FilePath"/> での位置。</summary>
+    /// <remarks>
+    /// <b>どの <c>#if</c> のせいで構成ごとの展開が要ったのかを、利用者が確かめるのに使う</b> (<c>--inspect</c>)。
+    /// 理由だけでは、同じシンボルを見ている条件が何か所もあるとき、直す場所が分からない。
+    /// </remarks>
+    public TextSpan? DirectiveSpan { get; init; }
+}
 
 /// <summary>
 /// プリプロセッサの実行結果。
@@ -730,6 +756,21 @@ public readonly record struct PreprocessResult(
     /// その中の <c>#define</c> で数える。既定値 (<c>default</c>) のままのこともある。
     /// </remarks>
     public ImmutableArray<string> MacroAffectingSymbols { get; init; }
+
+    /// <summary>
+    /// 解析しているファイルに書かれた <c>#define</c> と、その定義に通る条件。読み飛ばした分岐の分も含む。
+    /// </summary>
+    /// <remarks>
+    /// <b>マクロ表 (<see cref="Macros"/>) には、既定の構成で最後に効いた定義しか残らない。</b>
+    /// <c>#ifdef _A</c> と <c>#else</c> で書き分けた定義の、もう一方を説明するのに使う (エディタのホバー)。
+    /// 定義の <see cref="MacroDefinition.NameToken"/> は書かれた位置を指す。
+    /// </remarks>
+    internal ImmutableArray<(MacroDefinition Definition, SymbolCondition Condition)> WrittenDefinitions { get; init; } = [];
+
+    /// <summary>
+    /// 解析しているファイルに書かれた、どの構成でも成り立たない <c>#if</c> / <c>#elif</c> の条件 (HL0332)。
+    /// </summary>
+    internal ImmutableArray<NeverTrueCondition> NeverTrueConditions { get; init; } = [];
 
     /// <summary>両方の分岐を並べた領域の、指令名のトークンの位置。取り込んだヘッダの分も含む。</summary>
     /// <remarks>バリアントに同じ判断をさせるために使う (<see cref="PreprocessorOptions.MergeOnlyRegions"/>)。</remarks>

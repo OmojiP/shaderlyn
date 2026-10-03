@@ -27,7 +27,7 @@ namespace Shaderlyn.LanguageServer;
 internal static partial class HoverBuilder
 {
     /// <summary>名前がそのまま決まっている <c>#pragma</c> と、その説明。</summary>
-    private static readonly Dictionary<string, string> PragmaDescriptions = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, string> PragmaDescriptions = new(StringComparer.Ordinal)
     {
         ["vertex"] = "頂点シェーダーのエントリポイントを指定する。",
         ["fragment"] = "フラグメント (ピクセル) シェーダーのエントリポイントを指定する。",
@@ -70,7 +70,7 @@ internal static partial class HoverBuilder
     /// <c>_local</c> や <c>_fragment</c> が後ろに付いた形は、ここに付け足して説明する。
     /// 組み合わせをすべて並べても、説明の中身は変わらない。
     /// </remarks>
-    private static readonly (string Prefix, string Description)[] KeywordPragmaDescriptions =
+    internal static readonly (string Prefix, string Description)[] KeywordPragmaDescriptions =
     [
         ("shader_feature",
             "マテリアルが使っているシンボルの組み合わせだけを、バリアントとしてビルドに含める。"
@@ -84,7 +84,7 @@ internal static partial class HoverBuilder
     ];
 
     /// <summary>段階を限る接尾辞と、その段階の名前。</summary>
-    private static readonly Dictionary<string, string> PragmaStageSuffixes = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, string> PragmaStageSuffixes = new(StringComparer.Ordinal)
     {
         ["_vertex"] = "頂点シェーダー",
         ["_fragment"] = "フラグメントシェーダー",
@@ -95,7 +95,7 @@ internal static partial class HoverBuilder
     };
 
     /// <summary>エントリポイントを指定する <c>#pragma</c> と、その段階の名前。</summary>
-    private static readonly Dictionary<string, string> EntryPointPragmas = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, string> EntryPointPragmas = new(StringComparer.Ordinal)
     {
         ["vertex"] = "頂点シェーダー",
         ["fragment"] = "フラグメントシェーダー",
@@ -191,7 +191,7 @@ internal static partial class HoverBuilder
     /// <c>multi_compile_fog</c> のように、接尾辞として読めない形は説明しない。
     /// 名前が決まっているものは <see cref="PragmaDescriptions"/> で先に引いている。
     /// </remarks>
-    private static string? DescribeKeywordPragma(string name)
+    internal static string? DescribeKeywordPragma(string name)
     {
         foreach ((string prefix, string description) in KeywordPragmaDescriptions)
         {

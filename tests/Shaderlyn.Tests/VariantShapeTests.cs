@@ -36,6 +36,20 @@ public sealed class VariantShapeTests
         return ShaderCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
     }
 
+    /// <summary>条件の巻き上げを切ってコードを解析する。</summary>
+    /// <param name="code">解析するコード。</param>
+    /// <param name="options">ほかに変える設定。</param>
+    /// <returns>解析結果。</returns>
+    /// <remarks>
+    /// <b>構成ごとの展開 (方法 B) の仕組みそのものを確かめるテストが使う。</b>
+    /// 文の途中で分かれる <c>#if</c> は、巻き上げると分岐ごとに文を複製して並べ (方法 A)、構成を作らない。
+    /// まとめた構成や、並べなかった分岐の数え方を確かめるには、その形を方法 B に残す必要がある。
+    /// </remarks>
+    private static ShaderCompilation CompileWithoutHoisting(string code, SemanticsOptions? options = null)
+        => ShaderCompilation.CreateForHlsl(
+            SourceText.From(code, "Shape.hlsl"),
+            (options ?? new SemanticsOptions()) with { HoistConditionalMacros = false });
+
     /// <summary>作った構成を、期待値と同じ書き方にする。</summary>
     /// <param name="compilation">解析結果。</param>
     /// <returns>構成を並べた文字列。</returns>
@@ -81,9 +95,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // 分岐ごとに文を複製して並べる (float m = 1; と float m = 2;)。構成は作らない。
             "02 文の途中で分かれる",
             "#pragma multi_compile _ _A\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "_A"
+            ""
         },
         {
             "03 if の頭だけを分ける",
@@ -91,18 +106,155 @@ public sealed class VariantShapeTests
             "_A"
         },
         {
+            // 使う文を定義ごとに複製すれば (条件の巻き上げ)、どの構成の展開も 1 本の木に載る。
             "04 構成で中身が変わるマクロを文で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
-            "_A"
+            ""
         },
         {
             "05 構成で中身が変わるマクロを式で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define SCALE(x) (x * 2)\n#else\n#define SCALE(x) (x)\n#endif\nfloat F(float v) { return SCALE(v) + SCALE(v * 3); }",
-            "_A"
+            ""
         },
         {
             "06 構成で中身が変わるマクロを関数の頭で使う",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define EXTRA_PARAM , float extra\n#else\n#define EXTRA_PARAM\n#endif\nfloat F(float v EXTRA_PARAM) { return v; }",
+            ""
+        },
+        {
+            // 別のマクロの本体を通して使っていても、その位置で CTYPE の定義ごとに複製する。
+            "15 構成で中身が変わるマクロを別のマクロの中で使う",
+            "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#define COLOR_TYPE CTYPE\nfloat F() { COLOR_TYPE color = 1; return color.x; }",
+            ""
+        },
+        {
+            // 別のマクロが、条件で中身が変わるマクロを 2 つ参照している。1 つの文で複製できるのは 1 つだけである。
+            "37 別のマクロを通して条件で中身が変わるマクロを 2 つ使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define SCALE 2\n#else\n#define SCALE 1\n#endif\n#define MAKE CTYPE(SCALE)\nfloat F() { float4 c = MAKE; return c.x; }",
+            "_A / _B"
+        },
+        {
+            // 定義のほかにコードもある分岐は、並べなかった側のコードがどの木にも載らない。
+            "16 マクロを定義する分岐にコードもある",
+            "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\nfloat G() { return 1; }\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
+            "_A"
+        },
+        {
+            // 16 の書き換え。定義とコードを別の #ifdef に分ける。
+            "17 マクロの定義とコードを別の分岐に書く",
+            "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _A\nfloat G() { return 1; }\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
+            ""
+        },
+        {
+            // 02 の書き換え。
+            "18 文ごと分ける",
+            "#pragma multi_compile _ _A\nfloat F() {\n#ifdef _A\n    float m = 1;\n#else\n    float m = 2;\n#endif\n    return m;\n}",
+            ""
+        },
+        {
+            "19 仮引数を条件で足す",
+            "#pragma multi_compile _ _A\nfloat Helper(float a\n#ifdef _A\n    , float b\n#endif\n    ) { return a; }",
+            "_A"
+        },
+        {
+            // 19 の書き換え。
+            "20 関数ごと分ける",
+            "#pragma multi_compile _ _A\n#ifdef _A\nfloat Helper(float a, float b) { return a; }\n#else\nfloat Helper(float a) { return a; }\n#endif",
+            ""
+        },
+        {
+            // _B の分岐の中の V は、_A の値でしか展開されない。
+            "21 構成で変わるマクロを別のシンボルの分岐の中で使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define V 1\n#else\n#define V 2\n#endif\nfloat F() {\n#ifdef _B\n    return V;\n#else\n    return 0;\n#endif\n}",
+            "_B"
+        },
+        {
+            // 21 の書き換え。マクロを使う文を分岐の外へ出す。
+            "22 構成で変わるマクロを分岐の外で使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define V 1\n#else\n#define V 2\n#endif\nfloat F() {\n    float v = V;\n#ifdef _B\n    return v;\n#else\n    return 0;\n#endif\n}",
+            ""
+        },
+        {
+            // 定義を条件付きで覚える領域は #define / #else / #endif だけのものに限る。
+            "23 #elif で定義を書き分ける",
+            "#pragma multi_compile _ _A _B\n#if defined(_A)\n#define CTYPE float3\n#elif defined(_B)\n#define CTYPE float2\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
+            "_A / _B"
+        },
+        {
+            "24 #undef してから定義し直す",
+            "#pragma multi_compile _ _A\n#define CTYPE float4\n#ifdef _A\n#undef CTYPE\n#define CTYPE float3\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
+            "_A"
+        },
+        {
+            // 外側が文の途中で分かれていると、内側を並べても外側の分岐が片方しか木に載らない。
+            "25 並べられない #if の中の #if",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n    float m\n#ifdef _A\n        = 1;\n#ifdef _B\n    m = 3;\n#endif\n    float k\n#else\n        = 2;\n    float k\n#endif\n        = 0;\n    return m + k;\n}",
+            "_A / _B / _A+_B"
+        },
+        {
+            // 25 の書き換え。外側を文ごとに分ける。
+            "26 文ごとに分けた #if の中の #if",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n#ifdef _A\n    float m = 1;\n#ifdef _B\n    m = 3;\n#endif\n#else\n    float m = 2;\n#endif\n    return m;\n}",
+            ""
+        },
+        {
+            // #elif の分岐も、それまでの否定を掛け合わせた条件で複製する。
+            "27 並べられない #if に続く #elif",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#elif defined(_B)\n        = 2\n#else\n        = 3\n#endif\n        ;\n    return m;\n}",
+            ""
+        },
+        {
+            "28 文ごとに分けた #elif",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n#ifdef _A\n    float m = 1;\n#elif defined(_B)\n    float m = 2;\n#else\n    float m = 3;\n#endif\n    return m;\n}",
+            ""
+        },
+        {
+            // 初期化の波括弧は単位の中で閉じるので、宣言の文ごと複製する。
+            "29 初期化の要素を条件で足す",
+            "#pragma multi_compile _ _A\nfloat4 F() {\n    float4 c = { 1, 2, 3\n#ifdef _A\n        , 4\n#endif\n    };\n    return c;\n}",
+            ""
+        },
+        {
+            // 29 の書き換え。
+            "30 初期化の文ごと分ける",
+            "#pragma multi_compile _ _A\nfloat4 F() {\n#ifdef _A\n    float4 c = { 1, 2, 3, 4 };\n#else\n    float4 c = { 1, 2, 3, 0 };\n#endif\n    return c;\n}",
+            ""
+        },
+        {
+            // 1 つの文で複製できるのは 1 つのマクロだけである。VTYPE はどちらか 1 つの構成の値でしか展開されない。
+            "31 条件で中身が変わるマクロを 1 つの文で 2 つ使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE f = VTYPE(1); return f.x; }",
+            "_B"
+        },
+        {
+            // 31 の書き換え。文を分ければ、続けて書いた文もそれぞれ複製する。
+            "32 条件で中身が変わるマクロを文ごとに分けて使う",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE d = 1; VTYPE e = 1; return d.x + e.x; }",
+            ""
+        },
+        {
+            // #ifdef _B の領域は文ごと複製するが、その中の CTYPE は複製しない (1 つの単位で複製するのは 1 回まで)。
+            // CTYPE は既定の構成の値でしか展開されないので、_A は構成ごとに展開する。
+            "34 条件で中身が変わるマクロを使う文の中に #if がある",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() {\n    CTYPE d = CTYPE(\n#ifdef _B\n        1, 2, 3, 4\n#else\n        0, 0, 0, 0\n#endif\n    );\n    return d.x;\n}",
+            "_A"
+        },
+        {
+            // 34 の書き換え。#if で分ける部分を、マクロを使わない文にする。
+            "35 #if で分ける部分をマクロを使わない文にする",
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() {\n#ifdef _B\n    float4 init = float4(1, 2, 3, 4);\n#else\n    float4 init = 0;\n#endif\n    CTYPE d = (CTYPE)init;\n    return d.x;\n}",
+            ""
+        },
+        {
+            // どの構成でも成り立たない条件 (HL0332) の分岐は、どの構成でも通らない。構成を作っても読めるものは増えない。
+            "36 どの構成でも成り立たない条件",
+            "#pragma multi_compile _ _A\nfloat F() {\n#if _A == 2\n    return 1;\n#else\n    return 2;\n#endif\n}",
+            ""
+        },
+        {
+            // 1 以外と比べる条件は、シンボルの条件として読めない。値として解いた構成を別に作る。
+            "33 シンボルを値で比べる",
+            "#pragma multi_compile _ _A\nfloat F() {\n#if _A == 1\n    return 1;\n#else\n    return 2;\n#endif\n}",
             "_A"
         },
         {
@@ -117,14 +269,16 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // 論理積の条件でも、分岐ごとに文を複製して並べる。
             "10 論理積で文の途中が分かれる",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\nfloat F() {\n    float m\n#if defined(_A) && defined(_B)\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "_A / _B / _A+_B"
+            ""
         },
         {
+            // #else の側 (!MODE_A、つまり MODE_B) も複製した文として並べる。
             "11 _ の無い行の #else",
             "#pragma multi_compile MODE_A MODE_B\nfloat F() {\n    float m\n#ifdef MODE_A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
-            "MODE_B"
+            ""
         },
         {
             // USE_A_IN_CODE を使うのは、それを定義した _A の分岐の中だけである。
@@ -146,6 +300,52 @@ public sealed class VariantShapeTests
         ShaderCompilation compilation = Compile(code);
 
         Assert.True(expected == DescribeVariants(compilation), $"{shape}: {DescribeVariants(compilation)}");
+    }
+
+    /// <summary>
+    /// 取り込みの切り替えを、取り込んだヘッダのマクロの使い方ごとに検証する。
+    /// </summary>
+    /// <param name="code">解析するコード。</param>
+    /// <param name="expected">作るはずの構成。</param>
+    /// <remarks>
+    /// <para>
+    /// ヘッダが定義したマクロをコードで使うと、その展開はどちらか 1 つの構成のものになる。
+    /// マクロをこのファイルの #ifdef で定義し直せば、使う文を定義ごとに複製できる。
+    /// </para>
+    /// <para>
+    /// 3 つ目は、取り込みを切り替える領域の終わりを求めずに中身を調べていたとき、
+    /// 後ろの #define VALUE_TYPE まで領域の中身として読んで並べられなかった形である。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"a.hlsl\"\n#else\n#include \"b.hlsl\"\n#endif\nfloat F() { return Shade(); }",
+        "")]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"ma.hlsl\"\n#else\n#include \"mb.hlsl\"\n#endif\nfloat F() { VALUE_TYPE v = 1; return v.x; }",
+        "_A")]
+    [InlineData(
+        "#pragma multi_compile _ _A\n#ifdef _A\n#include \"a.hlsl\"\n#else\n#include \"b.hlsl\"\n#endif\n#ifdef _A\n#define VALUE_TYPE float3\n#else\n#define VALUE_TYPE float4\n#endif\nfloat F() { VALUE_TYPE v = Shade(); return v.x; }",
+        "")]
+    public void 取り込みの切り替えはヘッダのマクロをコードで使わなければ並べる(string code, string expected)
+    {
+        ShaderCompilation compilation = Compile(
+            code,
+            ("a.hlsl", "float Shade() { return 1; }"),
+            ("b.hlsl", "float Shade() { return 2; }"),
+            ("ma.hlsl", "#define VALUE_TYPE float3"),
+            ("mb.hlsl", "#define VALUE_TYPE float4"));
+
+        Assert.Equal(expected, DescribeVariants(compilation));
+    }
+
+    [Fact]
+    public void 互いに関係しないシンボルは1回の展開にまとめて上限を1つ分だけ使う()
+    {
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits, new SemanticsOptions { MaxSymbolVariants = 1 });
+
+        Assert.Equal("{_A,_B}", DescribeVariants(compilation));
+        Assert.Empty(compilation.UnexploredSymbols);
     }
 
     [Fact]
@@ -399,7 +599,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void バリアントもキーワードで導いたマクロの条件を覚えて並べる()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#if !defined(_B)\n#define WNB\n#endif\n#ifdef WNB\nfloat4 _WithWnb;\n#else\nfloat4 _WithoutWnb;\n#endif\nfloat F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}");
 
         Assert.Equal("_A", DescribeVariants(compilation));
@@ -432,7 +632,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 互いに関係しないキーワードは1つの構成にまとめる()
     {
-        ShaderCompilation compilation = Compile(TwoIndependentSplits);
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits);
 
         Assert.Equal("{_A,_B}", DescribeVariants(compilation));
 
@@ -455,7 +655,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 一方が宣言する名前をもう一方が使うならまとめない()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float4\n#ifdef _B\n    _Extra\n#else\n    _Other\n#endif\n    ;\n"
             + "float F() {\n    float m\n#ifdef _A\n        = _Extra.x\n#else\n        = 2\n#endif\n        ;\n    return m;\n}");
@@ -467,7 +667,7 @@ public sealed class VariantShapeTests
     public void 同じ関数の中で変わるキーワードはまとめない()
     {
         // _B が同じ関数に return を足すと、_A だけのときの誤り (戻り値が無いなど) が隠れうる。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float F() {\n    float m\n#ifdef _A\n        = 1\n#else\n        = 2\n#endif\n        ;\n"
             + "    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return m + n;\n}");
@@ -478,9 +678,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void まとめないように設定すれば1つずつ展開する()
     {
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(
-            SourceText.From(TwoIndependentSplits, "Shape.hlsl"),
-            new SemanticsOptions { PackIndependentSymbols = false });
+        ShaderCompilation compilation = CompileWithoutHoisting(TwoIndependentSplits, new SemanticsOptions { PackIndependentSymbols = false });
 
         Assert.Equal("_A / _B", DescribeVariants(compilation));
     }
@@ -489,8 +687,9 @@ public sealed class VariantShapeTests
     public void 分岐の中でマクロを定義するキーワードはまとめない()
     {
         // _A を有効にすると VALUE の中身が変わり、使う側の文は _A の連なりの外にある。
-        ShaderCompilation compilation = Compile(
-            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define VALUE 1\n#else\n#define VALUE 2.0\n#endif\n"
+        // #undef してから定義し直しているので、使う文を定義ごとに複製 (条件の巻き上げ) することもできない。
+        ShaderCompilation compilation = CompileWithoutHoisting(
+            "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#define VALUE 2.0\n#ifdef _A\n#undef VALUE\n#define VALUE 1\n#endif\n"
             + "float F() { return VALUE; }\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
 
@@ -501,7 +700,7 @@ public sealed class VariantShapeTests
     public void キーワードで導いたマクロを条件でだけ使うキーワードはまとめる()
     {
         // USE_A は条件でしか使わない。#ifdef USE_A の連なりは _A を見ていることになり、違いのキーワードを決められる。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define USE_A\n#endif\n"
             + "float F() {\n    float m\n#ifdef USE_A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}\n"
             + "float G() {\n    float n\n#ifdef _B\n        = 3\n#else\n        = 4\n#endif\n        ;\n    return n;\n}");
@@ -526,7 +725,7 @@ public sealed class VariantShapeTests
     [Fact]
     public void 並べなかったelifに書いたキーワードも条件に現れたものとして展開する()
     {
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A _B\nfloat F() {\n    float m\n#if _A\n        = 1\n#elif _B\n        = 2\n#else\n        = 3\n#endif\n        ;\n    return m;\n}");
 
         Assert.Contains(compilation.Programs[0].Tree.PreprocessResult.ConditionalIdentifiers, t => t.Text == "_B");
@@ -578,7 +777,7 @@ public sealed class VariantShapeTests
     public void 違いのキーワードを決められなければ1つずつ展開し直す()
     {
         // 1 つの文が _A と _B の両方で変わる。まとめた木の違いは、どちらのものとも言えない。
-        ShaderCompilation compilation = Compile(
+        ShaderCompilation compilation = CompileWithoutHoisting(
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n"
             + "float F() {\n    float m = 0\n#ifdef _A\n        + 1\n#endif\n#ifdef _B\n        + 2\n#endif\n        ;\n    return m;\n}");
 

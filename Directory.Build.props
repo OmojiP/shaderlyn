@@ -28,7 +28,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
 
     <!-- 手元でビルドしたときのバージョン。リリースではタグのバージョンを -p:Version で渡し、こちらより優先される -->
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
 
     <NeutralLanguage>en-US</NeutralLanguage>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>

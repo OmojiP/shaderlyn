@@ -137,14 +137,28 @@ internal sealed partial class HlslPreprocessor
                 int recordedBefore = _conditionalIdentifiers.Count;
                 SymbolCondition? read = TryReadDefinedCondition(line);
                 RecordBareKeywords(line, recordedBefore);
-                SymbolCondition? kept = ChooseKeptCondition(read, directiveToken);
+                // どの構成でも成り立たない条件 (#if _A == 2 など) の分岐は、どの構成でも通らない。
+                // 構成によらない条件と同じく、並べる必要も、そのシンボルを有効にした構成を作る必要も無い。
+                bool neverTrue = NoteIfNeverTrue(line, directiveToken, _conditionals.Count);
+
+                // 文の途中で分かれる領域は、分岐ごとに文を複製して並べる。複製したら領域は読み終えている。
+                if (!neverTrue
+                    && read is { IsUnknown: false } readable
+                    && readable.EnumerateSymbols().Any()
+                    && TryHoistRegion(directiveToken, readable))
+                {
+                    break;
+                }
+
+                SymbolCondition? kept = neverTrue ? null : ChooseKeptCondition(read, directiveToken);
 
                 // キーワード以外を値に解いたらキーワードが残らなかった条件 (defined(_A) && SHADER_TARGET >= 45 で
                 // SHADER_TARGET が 35 のときなど) は、どの構成でも同じ分岐を通る。並べられなかったとは数えない。
                 // 構成によって定義が変わるマクロを値に解いていれば、その値はこの構成でのものにすぎない。
-                bool isStatic = read is { IsUnknown: false } resolved
-                                && !resolved.EnumerateSymbols().Any()
-                                && !ReferencesConfigurationDependentMacro(line);
+                bool isStatic = neverTrue
+                                || (read is { IsUnknown: false } resolved
+                                    && !resolved.EnumerateSymbols().Any()
+                                    && !ReferencesConfigurationDependentMacro(line));
 
                 // どの構成でも同じ分岐を通るので、その行のキーワードは構成ごとに展開し直さなくてよい。
                 // 未定義の名前は 0 として解く (C の規則。fxc と DXC も同じ)。
@@ -183,6 +197,18 @@ internal sealed partial class HlslPreprocessor
             {
                 bool expectDefined = directive == "ifdef";
                 bool value = EvaluateDefinedLine(directiveToken, expectDefined, out string? symbol);
+
+                // 文の途中で分かれる領域は、分岐ごとに文を複製して並べる。条件の読み方は ChooseKeptCondition と同じ。
+                SymbolCondition? defined = symbol is null
+                    ? null
+                    : _options.BothBranchSymbols.Contains(symbol)
+                        ? SymbolOrDefinition(symbol)
+                        : GetDefinedCondition(symbol);
+
+                if (defined is { } present && TryHoistRegion(directiveToken, expectDefined ? present : present.Negate()))
+                {
+                    break;
+                }
 
                 BeginConditional(directiveToken, value, ChooseKeptCondition(symbol, expectDefined, directiveToken));
 
@@ -297,18 +323,24 @@ internal sealed partial class HlslPreprocessor
         ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
         int recordedBefore = _conditionalIdentifiers.Count;
 
+        // どの構成でも成り立たない分岐のために、構成ごとの展開は要らない。
+        bool neverTrue = NoteIfNeverTrue(line, directiveToken, _conditionals.Count - 1);
+
         EndInactiveBranch(state, directiveToken);
         AddConditionSymbols(state, line);
         NoteRegionDependencies(state, line.Where(t => t.Kind == HlslSyntaxKind.IdentifierToken).Select(t => t.Text), readsValues: true);
-        state.IsConfigurationDependent |= ReferencesConfigurationDependentName(line);
+        state.IsConfigurationDependent |= !neverTrue && ReferencesConfigurationDependentName(line);
 
         if (state.Folded)
         {
-            EnterFoldedBranch(state, ReadElifCondition(state, line, directiveToken));
+            EnterFoldedBranch(state, neverTrue ? NeverBranch(state) : ReadElifCondition(state, line, directiveToken));
         }
         else
         {
-            DeclineBothBranchSymbolsIn(line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1);
+            if (!neverTrue)
+            {
+                DeclineBothBranchSymbolsIn(line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1);
+            }
 
             if (!state.IsParentSkipping)
             {
@@ -374,6 +406,14 @@ internal sealed partial class HlslPreprocessor
     private static bool IsDefinedOperand(ImmutableArray<HlslSyntaxToken> line, int index)
         => (index >= 1 && line[index - 1].TextIs("defined"))
            || (index >= 2 && line[index - 1].Kind == HlslSyntaxKind.OpenParenToken && line[index - 2].TextIs("defined"));
+
+    /// <summary>
+    /// 両方の分岐を残す領域で、どの構成でも成り立たない <c>#elif</c> の分岐に付ける条件を返す。
+    /// </summary>
+    /// <param name="state">対象の条件ブロック。</param>
+    /// <returns>決して成り立たない条件。残りの分岐の条件は変えない。</returns>
+    private static SymbolCondition NeverBranch(ConditionalState state)
+        => state.Remaining.And(SymbolCondition.Never);
 
     /// <summary>
     /// 両方の分岐を残す領域で、<c>#elif</c> の分岐に付ける条件を求める。
@@ -937,7 +977,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="reading">読み方。</param>
     /// <returns>読み取った条件。この形でなければ <see langword="null"/>。</returns>
     /// <remarks>
-    /// 括弧は省略できる (<c>defined X</c>)。前処理器の文法として認められている。
+    /// 括弧は省略できる (<c>defined X</c>)。プリプロセッサの文法として認められている。
     /// </remarks>
     private SymbolCondition? ReadDefinedAtom(ImmutableArray<HlslSyntaxToken> line, ref int index, ConditionReading reading)
     {
@@ -1578,6 +1618,14 @@ internal sealed partial class HlslPreprocessor
         if (isDefine && line.Length >= 2 && line[1].Kind == HlslSyntaxKind.IdentifierToken)
         {
             RecordConditionalDefinition(line[1], [.. line.Skip(1)]);
+        }
+
+        // 読み飛ばす分岐の #undef も、別の構成では効いている。
+        // 覚えたままにすると、#undef してから定義し直した中身を「#undef せずに定義し直した」と報告する。
+        // 実行される #undef と同じく、その名前は条件付きで覚えるのをやめる (ForgetConditionalDefinitions)。
+        if (line.Length >= 2 && line[0].Text == "undef" && line[1].Kind == HlslSyntaxKind.IdentifierToken)
+        {
+            ForgetConditionalDefinitions(line[1].Text);
         }
 
         // 構成によって変わる条件のために読み飛ばした定義は、別の構成では効いている。

@@ -259,7 +259,9 @@ internal sealed partial class HlslPreprocessor
             NoteMergedMacroUse(name, atExpansion: false);
         }
 
+        // ヘッダの領域は巻き上げで補わない (FindHoistableDefinitions)。
         _declinedBothBranchSymbols.UnionWith(expansion.DeclinedBothBranchSymbols);
+        _firmDeclines.UnionWith(expansion.DeclinedBothBranchSymbols);
         _bothBranchDeclines.UnionWith(expansion.BothBranchDeclines);
         _mergedSymbols.UnionWith(expansion.MergedSymbols);
         _mergedRegions.UnionWith(expansion.MergedRegions);

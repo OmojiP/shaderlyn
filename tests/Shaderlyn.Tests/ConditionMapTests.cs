@@ -604,7 +604,6 @@ public sealed class ConditionMapTests
         // 定義ごとに複製した文は、どれも同じ位置から作られる。位置では見分けられない。
         // 掛け合わせると「_NORMALMAP かつ !_NORMALMAP」になり、
         // そこにある宣言がどの構成にも無いことになってしまう。
-        // どの複製も「いつか通る」コードなので、和が正しい。
         ShaderCompilation compilation = CompileFolded(
             """
             #ifndef _NORMALMAP
@@ -634,6 +633,153 @@ public sealed class ConditionMapTests
             declaration => Assert.False(
                 condition.GetCondition(declaration).IsNever,
                 "複製した宣言の条件が決して成り立たないものになっている"));
+    }
+
+    /// <summary>
+    /// 定義ごとに複製した文のそれぞれに、その定義の条件が付くことを検証する。
+    /// </summary>
+    /// <param name="pragma">シンボルの宣言。</param>
+    /// <param name="whenA"><c>float3</c> の複製に付く条件。</param>
+    /// <param name="otherwise"><c>float4</c> の複製に付く条件。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>和を取ると、どの複製も「常に」になる。</b>
+    /// <c>_A || !_A</c> はどの構成でも成り立つので、<c>float3 d</c> がどの構成にもあることになり、
+    /// <c>!_A</c> の構成で <c>d</c> の型を <c>float3</c> と取り違える。
+    /// </para>
+    /// <para>
+    /// 既定の構成で <c>_A</c> が有効な宣言 (<c>multi_compile _A _B</c>) でも同じでなければならない。
+    /// 以前は <c>_A</c> を有効にしない構成を別に展開して突き合わせており、
+    /// その 1 文が先頭の複製と対応して、<c>float4 d</c> に <c>!_B</c> が付いていた。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A", "_A", "!_A")]
+    [InlineData("#pragma multi_compile _A _B", "_A", "!_A")]
+    [InlineData("#pragma shader_feature_local _A", "_A", "!_A")]
+    public void 巻き上げた複製にはそれぞれの定義の条件が付く(string pragma, string whenA, string otherwise)
+    {
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define CTYPE float3
+            #else
+            #define CTYPE float4
+            #endif
+
+            float4 Use()
+            {
+                CTYPE d = 1.0;
+                return d.x;
+            }
+            """,
+            pragma);
+
+        ConditionMap condition = compilation.GetConditionMap();
+
+        VariableDeclarationSyntax[] copies =
+        [
+            .. compilation.Programs
+                .SelectMany(p => p.Tree.Root.DescendantNodesAndSelf())
+                .OfType<VariableDeclarationSyntax>()
+                .Where(d => d.Variables.Any(v => v.Name == "d")),
+        ];
+
+        Assert.Equal(2, copies.Length);
+        Assert.Equal(whenA, condition.GetCondition(copies.Single(c => c.Type.Name == "float3")).ToString());
+        Assert.Equal(otherwise, condition.GetCondition(copies.Single(c => c.Type.Name == "float4")).ToString());
+
+        // 複製の中の要素も、その複製の条件のもとにある。
+        VariableDeclaratorSyntax declarator = copies.Single(c => c.Type.Name == "float4").Variables.Single();
+        Assert.Equal(otherwise, condition.GetCondition(declarator).ToString());
+
+        // 複製の外は無条件のまま。
+        ReturnStatementSyntax returned = compilation.Programs
+            .SelectMany(p => p.Tree.Root.DescendantNodesAndSelf())
+            .OfType<ReturnStatementSyntax>()
+            .Single();
+
+        Assert.True(condition.GetCondition(returned).IsAlways, condition.GetCondition(returned).ToString());
+
+        // 巻き上げで使う箇所をすべて補えたので、構成ごとに展開し直していない。
+        Assert.Empty(compilation.SymbolVariants);
+    }
+
+    [Fact]
+    public void 別のシンボルの分岐の中で複製した文にもそのシンボルの条件が残る()
+    {
+        // _B の分岐の中で CTYPE を使うと、_B は構成ごとに展開する (構成で定義が変わるマクロを分岐の中で使っている)。
+        // 既定の木の #else 側の複製には、突き合わせから !_B が付く。
+        // 複製の中だからと突き合わせの結果を捨てると !_B が消え、_B の木の複製と同時にあることになる
+        // (HL0314「既に宣言されています」の誤報告)。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define CTYPE float3
+            #else
+            #define CTYPE float4
+            #endif
+
+            float4 Use()
+            {
+            #ifdef _B
+                CTYPE d = 1;
+            #else
+                CTYPE d = 0;
+            #endif
+                return d.x;
+            }
+            """,
+            "#pragma shader_feature_local _A\n#pragma shader_feature_local _B");
+
+        ConditionMap condition = compilation.GetConditionMap();
+
+        VariableDeclarationSyntax[] otherwise =
+        [
+            .. compilation.Programs
+                .SelectMany(p => p.Tree.Root.DescendantNodesAndSelf())
+                .OfType<VariableDeclarationSyntax>()
+                .Where(d => d.Variables.Any(v => v.Name == "d")),
+        ];
+
+        Assert.NotEmpty(otherwise);
+
+        Assert.All(
+            otherwise,
+            declaration => Assert.False(
+                condition.IsPossible(condition.GetCondition(declaration).And(SymbolCondition.Symbol("_B"))),
+                condition.GetCondition(declaration).ToString()));
+    }
+
+    [Fact]
+    public void 巻き上げを諦めた箇所があればシンボルは構成ごとに展開し直す()
+    {
+        // 間に指令がある文は複製しない。その文の CTYPE は既定の構成の値でしか展開されない。
+        // ほかの使い方を補えていても、そのシンボルは構成ごとの展開がまだ要る。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define CTYPE float3
+            #else
+            #define CTYPE float4
+            #endif
+
+            float4 Use()
+            {
+                CTYPE d = 1.0;
+                CTYPE e = CTYPE(
+            #ifdef _B
+                    1, 2, 3, 4
+            #else
+                    0, 0, 0, 0
+            #endif
+                );
+                return d.x + e.x;
+            }
+            """,
+            "#pragma shader_feature_local _A\n#pragma shader_feature_local _B");
+
+        Assert.Contains(compilation.SymbolVariants, v => v.EnabledSymbols.Contains("_A"));
     }
 
     [Fact]

@@ -261,6 +261,20 @@ public sealed class HlslSyntaxToken
         => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
             IsFromMacroExpansion, span, MacroArgumentSpan, source);
 
+    /// <summary>
+    /// 中身が同じで、別のインスタンスである複製を返す。
+    /// </summary>
+    /// <returns>複製されたトークン。</returns>
+    /// <remarks>
+    /// <b>条件の巻き上げが、複製した文どうしを見分けるのに使う。</b>
+    /// 複製はどれも同じ位置を持つので、位置では区別できない。
+    /// インスタンスが違えば、どのトークンがどの複製のものかを引ける
+    /// (<see cref="Preprocessing.ConditionalTokenRange.IsHoisted"/>)。
+    /// </remarks>
+    internal HlslSyntaxToken Duplicate()
+        => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
+            IsFromMacroExpansion, MacroDefinitionSpan, MacroArgumentSpan, MacroDefinitionSource);
+
     /// <summary>トークンの種別とテキストを並べた文字列を返す。</summary>
     /// <returns>デバッグ用の文字列表現。</returns>
     public override string ToString() => IsMissing ? $"{Kind}(欠落)" : $"{Kind}('{Text}')";

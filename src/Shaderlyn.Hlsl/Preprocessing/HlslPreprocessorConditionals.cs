@@ -265,9 +265,20 @@ internal sealed partial class HlslPreprocessor
 
         if (FindDeclineReason(layout, end, directive) is { } reason)
         {
+            // #define しか無い領域なら、使う文を定義ごとに複製して補えることがある。
+            // 補えたかは展開を終えてから決める (RestoreHoistedDeclines)。
+            ImmutableArray<string>? hoistable = reason == BothBranchDeclineReason.RegionDefinesMacros
+                ? FindHoistableDefinitions(CurrentSource.Index, end)
+                : null;
+
+            if (hoistable is not null)
+            {
+                _hoistableRegions[directive] = symbols;
+            }
+
             foreach (string symbol in symbols)
             {
-                AddDeclinedSymbol(symbol, reason, directive);
+                AddDeclinedSymbol(symbol, reason, directive, hoistable);
             }
 
             return null;
@@ -698,8 +709,17 @@ internal sealed partial class HlslPreprocessor
 
         // 実在しない構成を求める項は、どの構成でも通らないので組にしない。
         // どれか 1 つが必ず有効な行の先頭が無いことを求める項には、同じ行の別のシンボルを足す。
+        // 巻き上げで補えるかもしれない領域の組は、補えたかが決まるまで記録しない (RestoreHoistedDeclines)。
+        _hoistableRegions.TryGetValue(state.Directive, out ImmutableArray<string> hoistable);
+
         foreach (ImmutableArray<string> combination in _options.SymbolConstraints.EnumerateRequiredCombinations(path))
         {
+            if (!hoistable.IsDefault)
+            {
+                _deferredCombinations.Add((hoistable, combination, directive));
+                continue;
+            }
+
             AddRequiredCombination(combination, directive);
         }
     }

@@ -10,7 +10,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (HL0330 / HL0331)。
+/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (HL0330 / HL0331 / HL0332)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,7 +30,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslDescriptors.UndeclaredSymbol, HlslDescriptors.UnusedSymbol];
+        [HlslDescriptors.UndeclaredSymbol, HlslDescriptors.UnusedSymbol, HlslDescriptors.NeverTrueCondition];
 
     /// <inheritdoc/>
     /// <remarks>
@@ -86,6 +86,37 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             }
 
             ReportUnused(context, compilation, result, referenced, reported);
+            ReportNeverTrue(context, compilation, result, reported);
+        }
+    }
+
+    /// <summary>
+    /// どの構成でも成り立たない条件を報告する。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="result">プリプロセスの結果。</param>
+    /// <param name="reported">すでに報告した場所。</param>
+    /// <remarks>
+    /// 判定はプリプロセッサが行い、このファイルに書かれた条件だけを記録している
+    /// (<see cref="PreprocessResult.NeverTrueConditions"/>)。
+    /// 同じ指令は既定の構成とバリアントの両方で読まれるので、位置ごとに 1 回だけ報告する。
+    /// </remarks>
+    private static void ReportNeverTrue(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        PreprocessResult result,
+        HashSet<TextSpan> reported)
+    {
+        foreach (NeverTrueCondition condition in result.NeverTrueConditions)
+        {
+            if (!compilation.IsWrittenHere(condition.Directive) || !reported.Add(condition.Directive.Span))
+            {
+                continue;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslDescriptors.NeverTrueCondition, condition.Directive.GetLocation(), condition.Text));
         }
     }
 

@@ -116,6 +116,8 @@ internal static class ConditionalRegionScanner
 
                     if (inner is not (ConditionalRegionLayout.Mergeable or ConditionalRegionLayout.DefinesMacros))
                     {
+                        // 中身を並べられなくても、終わる位置は求めておく (#include の場合と同じ)。
+                        end = FindRegionEnd(tokens, i);
                         return inner;
                     }
 
@@ -134,11 +136,16 @@ internal static class ConditionalRegionScanner
 
                 case "include":
                     // その先の展開結果そのものが変わる。並べても意味を成さない。
+                    // 終わる位置は求めておく。呼び出し側は領域の中身をもう一度見る (取り込みを並べるかの判断)。
+                    // 求めずに返すと、領域の後ろのコードまで領域の中身として読まれる。
+                    end = FindRegionEnd(tokens, i);
                     return ConditionalRegionLayout.SwitchesIncludes;
 
                 case "else" or "elif":
                     if (ClassifyBranch(tokens, branchStart, i) is { } branchShape)
                     {
+                        // 分岐ごとに文を複製するとき (条件の巻き上げ) は、領域の後ろから文の切れ目を探す。
+                        end = FindRegionEnd(tokens, i + 1);
                         return branchShape;
                     }
 
@@ -255,6 +262,41 @@ internal static class ConditionalRegionScanner
 
         name = tokens[index + 1].Text;
         return true;
+    }
+
+    /// <summary>
+    /// 中身を調べずに、領域が終わる位置だけを求める。
+    /// </summary>
+    /// <param name="tokens">走査するトークン列。</param>
+    /// <param name="start">領域の中の位置。</param>
+    /// <returns>対応する <c>#endif</c> の行の次のトークンの位置。見つからなければ末尾。</returns>
+    private static int FindRegionEnd(ImmutableArray<HlslSyntaxToken> tokens, int start)
+    {
+        int depth = 0;
+
+        for (int i = start; i < tokens.Length; i++)
+        {
+            if (!IsDirectiveStart(tokens, i, out string? name))
+            {
+                continue;
+            }
+
+            if (name is "if" or "ifdef" or "ifndef")
+            {
+                depth++;
+            }
+            else if (name == "endif")
+            {
+                if (depth == 0)
+                {
+                    return SkipDirectiveLine(tokens, i);
+                }
+
+                depth--;
+            }
+        }
+
+        return tokens.Length;
     }
 
     /// <summary>指令の行を読み飛ばした次の位置を返す。</summary>
