@@ -381,6 +381,7 @@ internal sealed partial class HlslPreprocessor
             HoistRetries = _hoistRetries,
             HoistGiveUps = _hoistGiveUps,
             WrittenDefinitions = [.. _writtenDefinitions],
+            NeverTrueConditions = [.. _neverTrueConditions],
         };
     }
 

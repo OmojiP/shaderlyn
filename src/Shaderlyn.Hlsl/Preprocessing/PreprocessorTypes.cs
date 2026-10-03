@@ -765,6 +765,11 @@ public readonly record struct PreprocessResult(
     /// </remarks>
     internal ImmutableArray<(MacroDefinition Definition, SymbolCondition Condition)> WrittenDefinitions { get; init; } = [];
 
+    /// <summary>
+    /// 解析しているファイルに書かれた、どの構成でも成り立たない <c>#if</c> / <c>#elif</c> の条件 (HL0332)。
+    /// </summary>
+    internal ImmutableArray<NeverTrueCondition> NeverTrueConditions { get; init; } = [];
+
     /// <summary>両方の分岐を並べた領域の、指令名のトークンの位置。取り込んだヘッダの分も含む。</summary>
     /// <remarks>バリアントに同じ判断をさせるために使う (<see cref="PreprocessorOptions.MergeOnlyRegions"/>)。</remarks>
     public ImmutableArray<MergedRegion> MergedRegions { get; init; }

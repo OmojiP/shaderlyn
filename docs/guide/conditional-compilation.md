@@ -176,6 +176,7 @@ float3 Shade(float3 n) { return n * 2; }
 | `#if X` | X が宣言されたシンボルなら、シンボルの条件として読む |
 | `#if !X`、`#if A && B`、`#if A \|\| B`、`#if (A)` | シンボルの条件として読む |
 | `#if X == 1`、`#if X != 0`、`#if X > 0` | 値として解く。X が宣言されたシンボルなら、その構成を作って検査する（方法 B） |
+| `#if X == 2`、`#if defined(_X) && defined(_Y)`（同じ行） | どの構成でも成り立たない。[HL0332](../rules/HL0332.md) を報告し、構成は作らない |
 | `#if SHADER_API_D3D11` | 宣言されたシンボルではないので、値として解く |
 
 `#ifdef _A`、`#if _A`、`#if defined(_A)` の 3 つは同じに扱います。Unity は有効なシンボルを値 1 のマクロとして定義するため、
@@ -183,6 +184,11 @@ URP 自身も `#if _ALPHATEST_ON` の形を使っています。
 
 **値として比べる書き方は、方法 A で並べられません。** `#if _A == 1` と `#if _A` は通る構成が同じですが、
 前者はシンボルの条件として読めないので、`_A` を有効にした構成を別に作ります。
+
+**どの構成でも成り立たない条件は [HL0332](../rules/HL0332.md)（情報）として報告します。**
+宣言されたシンボルと定数だけでできた条件について、シンボルの有効・無効の組をすべて試し、どれでも偽なら成り立たないと判断します。
+同じ `#pragma` 行のシンボルを両方求める組や、`_` の無い `multi_compile` の行をすべて否定する組は、実在しないので試しません。
+`SHADER_API_*` のような環境のマクロを含む条件は、別のプラットフォームで成り立つことがあるので判断しません。
 
 `SHADER_API_*` や `UNITY_VERSION` のような環境のマクロは、1 通りの値を仮に選んで解きます（`--define` で変えられます）。
 
@@ -661,7 +667,7 @@ half4 frag() : SV_Target { half v = V2; return v; }
 | 3 | 5 | **シェーダー自身が宣言したシンボルについて、ヘッダに書かれた条件をすべて構成の候補にはしない。** まず両方の分岐を並べ、並べられなかったシンボルだけ構成を作る（[5.2](#52-作る構成)） |
 | 4 | 8 | **[HL0352](../rules/HL0352.md) は、代入先と初期化の要素の片方にだけ条件が付いているとき、判断を見送る。** `float4 c = { 1, 2, 3` / `#ifdef _A` / `, 4` / `#endif` / `};` は、`_A` が無効なとき要素が足りないが報告しない。初期化の要素（`,` で区切る）は並べられず方法 B になり、代入先（`float4`）には条件が無いため、釣り合っていないのか別の木に並んでいるだけなのかを決められない |
 | 5 | 8 | **「無いこと」を根拠にするルール（SL1001 / SL1004 / URP0001 / HL0301 / HL0310）は、取り込んだヘッダの無効な分岐に現れた名前を、解析されなかった場所にあるものとして扱う。** 解析しているファイル自身の分岐は位置で見分け、どの構成でも解析されなかった場所の名前だけを数える。ヘッダは見分けないので、ヘッダの無効な分岐にある名前と同じ名前の誤りは見逃す |
-| 6 | 3 | **`#if X == 2` のように 1 以外と比べる条件は通らない。** バリアントは値 1 を定義するため。Unity も有効なシンボルを 1 として定義するので、実機でも通らない |
+| 6 | 3 | **`#if X == 2` のように 1 以外と比べる条件は通らない。** Unity は有効なシンボルを 1 として定義するので、実機でも通らない。宣言されたシンボルと定数だけでできた条件なら [HL0332](../rules/HL0332.md) として報告する。環境のマクロや別のマクロを含む条件は報告しない |
 | 7 | 5 | **`dynamic_branch` のシンボルは、条件で参照されなければバリアントを作らない。** 実行時分岐 (`if (_A)`) として書かれた場合、その両側は元から解析されている |
 | 8 | 5 | **上限に達したときに落ちるシンボルは名前順で決まる。** 重要度は見ない |
 | 9 | 8 | **`SL0003` は、同じシンボルを見ている条件のうち最初の 1 か所にしか出ない。** 2 つ目以降の `#ifdef` の中も読まれていないが、そこには指摘が出ない |
@@ -950,6 +956,7 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 | --- | --- | --- |
 | [HL0330](../rules/HL0330.md) | `ConditionalIdentifiers` のうち、宣言に無く、下線+大文字の命名に合い、マクロでもなく、このファイルに書かれたもの。取り込まれる前提の断片 (`.hlsl` など) では報告しない | [ShaderSymbolAnalyzer.ReportUndeclared](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs)、[IsMaterialSymbol](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [HL0331](../rules/HL0331.md) | 宣言のうち、条件でも実行時の参照でも現れないもの。宣言がこのファイルにある場合だけ | [ReportUnused](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
+| [HL0332](../rules/HL0332.md) | `#if` / `#elif` の条件のうち、宣言されたシンボルと定数だけでできていて、宣言の制約で成り立つシンボルの組のどれでも偽になるもの。このファイルに書かれた条件だけ。判定はプリプロセッサが行い（[NoteIfNeverTrue](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorNeverTrue.cs)）、その分岐のためのバリアントは作らない | [ReportNeverTrue](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [SL0003](../rules/SL0003.md) | `UnexploredSymbols` のシンボルごとに 1 件。位置はそのシンボルを参照する最初の条件（このファイルに書かれたもの）。見つからなければファイルの先頭。`UnexploredSymbolCombinations` の組ごとにも 1 件。位置はその組でしか通らない分岐を始めた指令 | [UnexploredSymbolAnalyzer.cs](../../src/Shaderlyn.Rules/Semantics/UnexploredSymbolAnalyzer.cs) |
 | [HL0314](../rules/HL0314.md) | 2 つの宣言の出現条件を掛け合わせて成り立つとき。ただし、その条件を満たすバリアントを展開していれば、その木に両方があるときだけ | [RedeclarationAnalyzer.Collides](../../src/Shaderlyn.Rules/Hlsl/RedeclarationAnalyzer.cs) |
 | [SL0004](../rules/SL0004.md) | `UnmergedLocations` の各位置 | [UnresolvedConditionAnalyzer.Analyze](../../src/Shaderlyn.Rules/Semantics/UnresolvedConditionAnalyzer.cs) |

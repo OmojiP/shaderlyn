@@ -223,6 +223,12 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // どの構成でも成り立たない条件 (HL0332) の分岐は、どの構成でも通らない。構成を作っても読めるものは増えない。
+            "36 どの構成でも成り立たない条件",
+            "#pragma multi_compile _ _A\nfloat F() {\n#if _A == 2\n    return 1;\n#else\n    return 2;\n#endif\n}",
+            ""
+        },
+        {
             // 1 以外と比べる条件は、シンボルの条件として読めない。値として解いた構成を別に作る。
             "33 シンボルを値で比べる",
             "#pragma multi_compile _ _A\nfloat F() {\n#if _A == 1\n    return 1;\n#else\n    return 2;\n#endif\n}",

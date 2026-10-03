@@ -286,6 +286,69 @@ public sealed class HlslRuleTests
         }
         """;
 
+    // ------------------------------------------------------------------
+    // HL0332: どの構成でも成り立たない条件
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// どの構成でも成り立たない条件だけを報告することを検証する。
+    /// </summary>
+    /// <param name="pragmas">シンボルの宣言。行は <c>|</c> で区切る。</param>
+    /// <param name="condition">分岐の条件。</param>
+    /// <param name="expected">報告するはずなら <see langword="true"/>。</param>
+    /// <remarks>
+    /// <para>
+    /// Unity は有効なシンボルを値 1 で定義する。1 以外と比べる条件は、有効にしても無効にしても通らない。
+    /// 同じ行のシンボルは同時に有効にならず、<c>_</c> の無い <c>multi_compile</c> の行はどれか 1 つが必ず有効である。
+    /// </para>
+    /// <para>
+    /// 環境のマクロ (<c>SHADER_API_D3D11</c>) を含む条件は報告しない。1 通りの値を仮に選んでいるだけで、
+    /// 別のプラットフォームでは真になりうる。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 2", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A > 1", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if defined(_A) && !defined(_A)", true)]
+    [InlineData("#pragma multi_compile _ _X _Y", "#if defined(_X) && defined(_Y)", true)]
+    [InlineData("#pragma multi_compile MODE_A MODE_B", "#if !defined(MODE_A) && !defined(MODE_B)", true)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 1", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A != 0", false)]
+    [InlineData("#pragma multi_compile _ _X|#pragma multi_compile _ _Y", "#if defined(_X) && defined(_Y)", false)]
+    [InlineData("#pragma shader_feature MODE_A MODE_B", "#if !defined(MODE_A) && !defined(MODE_B)", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _A == 2 || SHADER_API_D3D11", false)]
+    [InlineData("#pragma multi_compile _ _A", "#if _UNDECLARED == 2", false)]
+    public void どの構成でも成り立たない条件を報告する(string pragmas, string condition, bool expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            [.. pragmas.Split('|'), condition, "float _Never;", "#endif", .. ValidProgram]));
+
+        Diagnostic[] reported = [.. diagnostics.Where(d => d.Id == "HL0332")];
+
+        Assert.True(expected == (reported.Length == 1), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void どの構成でも成り立たないelifを報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            ["#pragma multi_compile _ _A", "#if defined(_A)", "float _First;", "#elif _A == 2", "float _Second;", "#endif", .. ValidProgram]));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics.Where(d => d.Id == "HL0332"));
+        Assert.Contains("_A == 2", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 取り込んだヘッダの成り立たない条件は報告しない()
+    {
+        // ヘッダの条件はヘッダの都合で書かれている。このファイルの利用者に直しようが無い。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            Shader(["#pragma multi_compile _ _A", .. ValidProgram]),
+            "#if _A == 2\nfloat _InHeader;\n#endif\n");
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0332");
+    }
+
     [Fact]
     public void 宣言されていないシンボルを報告する()
     {

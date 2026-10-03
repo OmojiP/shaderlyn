@@ -143,6 +143,30 @@ internal static class HlslDescriptors
             + "使っていない宣言はビルド時間とメモリを無駄に消費します。",
         helpLinkUri: DocumentationLinks.For("HL0331"));
 
+    /// <summary>どの構成でも成り立たない条件を書いている。</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Unity は有効なシンボルを値 1 のマクロとして定義する。</b>
+    /// <c>#if _A == 2</c> は <c>_A</c> を有効にしても無効にしても成り立たず、その分岐は決してコンパイルに含まれない。
+    /// 同じ <c>#pragma</c> 行のシンボルを両方求める条件も、実在する構成では成り立たない。
+    /// </para>
+    /// <para>
+    /// 書いた側は通るつもりでいることが多いので、警告ではなく情報として知らせる。
+    /// 意図して無効にしている分岐なら、そのまま抑制すればよい。
+    /// </para>
+    /// </remarks>
+    public static DiagnosticDescriptor NeverTrueCondition { get; } = new(
+        id: "HL0332",
+        title: "どの構成でも成り立たない条件です",
+        messageFormat: "条件 '{0}' はどの構成でも成り立ちません。この分岐は有効になりません。",
+        category: "Correctness",
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "#if / #elif の条件が、宣言されたシンボルをどう有効にしても成り立ちません。"
+            + "Unity は有効なシンボルを値 1 として定義するため、1 以外と比べる条件 (#if _A == 2) は通りません。"
+            + "同じ #pragma 行のシンボルは同時に有効にならず、_ の無い multi_compile の行はどれか 1 つが必ず有効です。"
+            + "この分岐のコードは決してコンパイルに含まれません。",
+        helpLinkUri: DocumentationLinks.For("HL0332"));
+
     /// <summary>include を解決できなかった。</summary>
     /// <remarks>
     /// <para>
