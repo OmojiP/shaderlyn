@@ -95,7 +95,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
     /// <summary>Unity のインストール先を探す。</summary>
     /// <returns>見つかった Editor のデータフォルダー。無ければ <see langword="null"/>。</returns>
-    private static string? FindUnityEditorData()
+    internal static string? FindUnityEditorData()
     {
         string root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Unity", "Hub", "Editor");
@@ -142,7 +142,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// <summary>Unity の標準的なインクルードパスを組み立てる。</summary>
     /// <param name="editorData">Editor のデータフォルダー。</param>
     /// <returns>include の解決に使う設定。</returns>
-    private static PreprocessorOptions CreateOptions(string editorData)
+    internal static PreprocessorOptions CreateOptions(string editorData)
     {
         List<string> searchPaths =
         [
