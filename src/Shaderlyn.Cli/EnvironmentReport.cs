@@ -74,7 +74,7 @@ internal static partial class EnvironmentReport
             WriteProject(builder, options);
             WriteEditor(builder, editor);
         }
-        else
+        else if (environment.HlslEnvironment is not null)
         {
             bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
             WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021);

@@ -31,4 +31,19 @@ public sealed record HostEnvironment(
     string Name,
     string DisplayName,
     ImmutableArray<string> DefaultExtensions,
-    Func<IHlslEnvironment> CreateEnvironment);
+    Func<IHlslEnvironment> CreateEnvironment)
+{
+    /// <summary>
+    /// HLSL ではない言語の環境が、ファイルを解析単位にする口。設定されていれば <see cref="CreateEnvironment"/> は使わない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Godot のシェーダー言語のように、HLSL の字句解析・型を使えない言語を足すための口である。</b>
+    /// 解析単位 (<see cref="Core.Analysis.AnalysisTarget"/>) を返せば、CLI の実行・抑制コメント・ベースライン・出力・キャッシュはそのまま働く。
+    /// </para>
+    /// <para>
+    /// 今は内部の口である (テストが作り物の言語で通り道を確かめている)。公開の形は、その言語を入れるときに決める。
+    /// </para>
+    /// </remarks>
+    internal Func<Environments.IAnalysisEnvironment>? CreateAnalysisEnvironment { get; init; }
+}

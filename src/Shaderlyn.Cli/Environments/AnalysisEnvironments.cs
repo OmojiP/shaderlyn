@@ -79,7 +79,8 @@ internal static class AnalysisEnvironments
                 "Unreal Engine",
                 [".usf"]),
             _ => settings.HostEnvironments.FirstOrDefault(h => h.Name == settings.Environment) is { } host
-                ? new HlslAnalysisEnvironment(settings.Configuration, host.CreateEnvironment(), host.DisplayName, host.DefaultExtensions)
+                ? host.CreateAnalysisEnvironment?.Invoke()
+                  ?? new HlslAnalysisEnvironment(settings.Configuration, host.CreateEnvironment(), host.DisplayName, host.DefaultExtensions)
                 : null,
         };
 
