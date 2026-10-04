@@ -399,7 +399,7 @@ public sealed class ProgramTests : IDisposable
         CreateShaderFile(
             Path.Combine("Assets", "Test.shader"),
             "Shader \"Test\" { SubShader { Pass { HLSLPROGRAM\n#include \"Missing.hlsl\"\nENDHLSL } } }");
-        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "profile: hdrp\n");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "unity:\n  profile: hdrp\n");
         Directory.CreateDirectory(Path.Combine(_workDirectory, "ProjectSettings"));
         File.WriteAllText(
             Path.Combine(_workDirectory, "ProjectSettings", "ProjectVersion.txt"), "m_EditorVersion: 1.0.0f1\n");
@@ -414,6 +414,27 @@ public sealed class ProgramTests : IDisposable
         Assert.Contains("\"Missing.hlsl\"", output, StringComparison.Ordinal);
         Assert.Contains("解析対象の上に Unity プロジェクトがあります", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ファイルを解析", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 設定ファイルの unity: project を、--unity-project の代わりに使うことを検証する。
+    /// </summary>
+    [Fact]
+    public async Task 設定ファイルのUnityプロジェクトを使う()
+    {
+        CreateShaderFile(
+            Path.Combine("Assets", "Test.shader"),
+            "Shader \"Test\" { SubShader { Pass { HLSLPROGRAM\nENDHLSL } } }");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "unity:\n  project: .\n");
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "ProjectSettings"));
+        File.WriteAllText(
+            Path.Combine(_workDirectory, "ProjectSettings", "ProjectVersion.txt"), "m_EditorVersion: 1.0.0f1\n");
+
+        (ExitCode code, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--env");
+
+        Assert.Equal(ExitCode.Success, code);
+        Assert.Contains($"--unity-project: {Path.GetFullPath(_workDirectory)}", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("解析対象の上に Unity プロジェクトがあります", output, StringComparison.Ordinal);
     }
 
     [Fact]

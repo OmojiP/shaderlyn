@@ -14,7 +14,10 @@
 
 ```yaml
 version: 1
-profile: urp
+
+unity:
+  profile: urp
+  project: .         # Unity プロジェクトのルート。--unity-project と同じ
 
 include-paths:
   - Assets/ShaderLibrary
@@ -36,10 +39,24 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `profile`       | レンダーパイプライン: `urp` / `brp` / `hdrp`                    |
+| `environment`   | 解析する環境。現在は `unity` (既定) だけ                        |
+| `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`                      |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
+
+## unity
+
+Unity の環境だけで使う設定です。
+
+| キー      | 内容                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が勝ちます                    |
+| `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が勝ちます |
+| `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が勝ちます                            |
+
+節の外に書いた `profile` (v0.1 の書き方) も読みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) が出ます。
+両方に書いた場合は `unity:` の下を使います。
 
 ## rules
 

@@ -20,6 +20,7 @@ internal sealed class EffectiveSettings
 {
     private EffectiveSettings(
         ShaderlynConfiguration configuration,
+        string environment,
         string profile,
         ImmutableArray<string> includePaths,
         ImmutableArray<string> defines,
@@ -27,6 +28,7 @@ internal sealed class EffectiveSettings
         ImmutableArray<Diagnostic> configurationDiagnostics)
     {
         Configuration = configuration;
+        Environment = environment;
         Profile = profile;
         IncludePaths = includePaths;
         Defines = defines;
@@ -41,6 +43,12 @@ internal sealed class EffectiveSettings
     /// 設定ファイルを探し始めたフォルダー。探さなかった場合 (<c>--config</c> / <c>--no-config</c>) は <see langword="null"/>。
     /// </summary>
     public string? ConfigurationSearchDirectory { get; private init; }
+
+    /// <summary>環境を指定しない場合に使う環境。</summary>
+    public const string DefaultEnvironment = "unity";
+
+    /// <summary>解析する環境の名前 (設定ファイルの <c>environment</c>、無ければ <see cref="DefaultEnvironment"/>)。</summary>
+    public string Environment { get; }
 
     /// <summary>適用するレンダーパイプラインプロファイルの名前。</summary>
     public string Profile { get; }
@@ -74,6 +82,8 @@ internal sealed class EffectiveSettings
 
         ShaderlynConfiguration configuration = LoadConfiguration(options, out string? searchDirectory);
 
+        options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+
         // 探索パスと定義は積み上げる。設定ファイルの内容を先に置くことで、
         // 同じマクロを両方で定義した場合にコマンドラインの指定が勝つ。
         ImmutableArray<string> includePaths = [.. configuration.IncludePaths, .. options.IncludePaths];
@@ -84,6 +94,7 @@ internal sealed class EffectiveSettings
 
         return new EffectiveSettings(
             configuration,
+            configuration.Environment ?? DefaultEnvironment,
             options.Profile ?? configuration.Profile ?? RenderPipelineProfiles.Default.Name,
             includePaths,
             defines,

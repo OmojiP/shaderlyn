@@ -162,6 +162,21 @@ internal sealed class CommandLineOptions
     /// </remarks>
     public string? UnityEditorDataPath { get; private set; }
 
+    /// <summary>
+    /// コマンドラインで指定されていない Unity のパスを、設定ファイルの値で埋める。
+    /// </summary>
+    /// <param name="projectPath">設定ファイルの <c>unity: project</c>。</param>
+    /// <param name="editorDataPath">設定ファイルの <c>unity: editor</c>。</param>
+    /// <remarks>
+    /// <b>コマンドラインの指定が勝つ。</b> 設定ファイルはリポジトリの既定で、コマンドラインはその場の指定である。
+    /// ここで埋めておけば、パスを読む側 (include の解決、環境の表示、キャッシュの鍵) は出どころを区別しなくてよい。
+    /// </remarks>
+    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath)
+    {
+        UnityProjectPath ??= projectPath;
+        UnityEditorDataPath ??= editorDataPath;
+    }
+
     /// <summary><c>#include</c> の探索パス。</summary>
     public ImmutableArray<string> IncludePaths { get; private set; } = [];
 

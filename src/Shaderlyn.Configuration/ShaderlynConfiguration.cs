@@ -43,8 +43,20 @@ internal sealed class ShaderlynConfiguration
     /// <summary>読み込み元のファイルパス。設定ファイルが無い場合は <see langword="null"/>。</summary>
     public string? FilePath { get; init; }
 
-    /// <summary>適用するレンダーパイプラインプロファイルの名前。指定が無い場合は <see langword="null"/>。</summary>
+    /// <summary>解析する環境の名前 (<c>environment</c>)。指定が無い場合は <see langword="null"/>。</summary>
+    public string? Environment { get; init; }
+
+    /// <summary>
+    /// 適用するレンダーパイプラインプロファイルの名前 (<c>unity: profile</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>節の外の <c>profile</c> も読む (警告を出す)。両方あれば <c>unity:</c> の節が勝つ。</remarks>
     public string? Profile { get; init; }
+
+    /// <summary>Unity プロジェクトのルート (<c>unity: project</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnityProjectPath { get; init; }
+
+    /// <summary>Unity Editor のデータフォルダー (<c>unity: editor</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnityEditorPath { get; init; }
 
     /// <summary><c>#include</c> の追加探索パス。設定ファイルからの相対で解決済み。</summary>
     public ImmutableArray<string> IncludePaths { get; init; } = [];

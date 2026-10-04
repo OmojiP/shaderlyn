@@ -22,10 +22,16 @@ namespace Shaderlyn.Configuration;
 internal static class ConfigurationLoader
 {
     /// <summary>最上位で認識するキー。</summary>
+    /// <remarks>
+    /// <c>profile</c> は v0.1 の書き方である。今は <c>unity:</c> の節に書く。節の外も、警告を出して読む。
+    /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "profile", "include-paths", "defines", "rules",
+        "version", "environment", "unity", "profile", "include-paths", "defines", "rules",
     ];
+
+    /// <summary><c>unity:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownUnityKeys = ["profile", "project", "editor"];
 
     /// <summary>
     /// 指定したフォルダーから上へ辿って設定ファイルを探す。
@@ -146,10 +152,20 @@ internal static class ConfigurationLoader
             ReportUnknownKeys(root, KnownRootKeys, "設定");
             CheckVersion();
 
+            YamlMapping? unity = ReadSection("unity");
+
+            if (unity is not null)
+            {
+                ReportUnknownKeys(unity, KnownUnityKeys, "unity:");
+            }
+
             return new ShaderlynConfiguration
             {
                 FilePath = filePath,
-                Profile = ReadOptionalScalar("profile"),
+                Environment = ReadOptionalScalar(root, "environment"),
+                Profile = ReadProfile(unity),
+                UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
+                UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),
                 IncludePaths = ReadIncludePaths(),
                 Defines = ReadStringSequence("defines"),
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
@@ -189,8 +205,89 @@ internal static class ConfigurationLoader
             }
         }
 
-        private string? ReadOptionalScalar(string key)
-            => root.TryGetScalar(key, out YamlScalar? scalar) && scalar.Value.Length > 0 ? scalar.Value : null;
+        /// <summary>写像からスカラーの値を読む。</summary>
+        /// <param name="mapping">読む写像。無ければ値も無い。</param>
+        /// <param name="key">キー。</param>
+        /// <returns>値。無いか空なら <see langword="null"/>。</returns>
+        private static string? ReadOptionalScalar(YamlMapping? mapping, string key)
+            => mapping is not null && mapping.TryGetScalar(key, out YamlScalar? scalar) && scalar.Value.Length > 0
+                ? scalar.Value
+                : null;
+
+        /// <summary>最上位の節 (キーと値の対) を読む。</summary>
+        /// <param name="key">節の名前。</param>
+        /// <returns>節。無いか空なら <see langword="null"/>。</returns>
+        private YamlMapping? ReadSection(string key)
+        {
+            if (!root.TryGet(key, out YamlNode? node) || node is YamlScalar { Value.Length: 0 })
+            {
+                return null;
+            }
+
+            if (node is YamlMapping mapping)
+            {
+                return mapping;
+            }
+
+            problems.Add(new ConfigurationProblem(node.Line, $"{key}: にはキーと値の対を指定してください。"));
+            return null;
+        }
+
+        /// <summary>
+        /// レンダーパイプラインのプロファイルを読む。
+        /// </summary>
+        /// <param name="unity"><c>unity:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>プロファイルの名前。指定が無ければ <see langword="null"/>。</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>節の外の <c>profile</c> も読む。</b> v0.1 の設定ファイルをそのまま使えるようにするためである。
+        /// ただし、Unity の環境だけの設定であることが分かるよう、<c>unity:</c> の下へ移すよう伝える。
+        /// </para>
+        /// <para>
+        /// 両方あれば <c>unity:</c> の節が勝つ。食い違っていれば、どちらを使ったかを伝える。
+        /// </para>
+        /// </remarks>
+        private string? ReadProfile(YamlMapping? unity)
+        {
+            string? inSection = ReadOptionalScalar(unity, "profile");
+
+            if (!root.TryGetScalar("profile", out YamlScalar? legacy) || legacy.Value.Length == 0)
+            {
+                return inSection;
+            }
+
+            if (inSection is null)
+            {
+                problems.Add(new ConfigurationProblem(
+                    legacy.Line,
+                    "profile は unity: の節の下に書いてください。Unity の環境だけの設定です。"
+                    + "節の外の profile も読みます。"));
+                return legacy.Value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                legacy.Line,
+                $"profile が節の外と unity: の節の両方にあります。unity: の節の '{inSection}' を使います。"
+                + "節の外の profile は消してください。"));
+            return inSection;
+        }
+
+        /// <summary>設定ファイルからの相対パスを解決する。</summary>
+        /// <param name="path">設定に書かれたパス。</param>
+        /// <returns>絶対パス。指定が無ければ <see langword="null"/>。</returns>
+        private string? ResolvePath(string? path)
+        {
+            if (path is null)
+            {
+                return null;
+            }
+
+            string? baseDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+
+            return string.IsNullOrEmpty(baseDirectory)
+                ? path
+                : Path.GetFullPath(Path.Combine(baseDirectory, path));
+        }
 
         /// <summary>
         /// <c>include-paths</c> を読み、設定ファイルからの相対で解決する。
