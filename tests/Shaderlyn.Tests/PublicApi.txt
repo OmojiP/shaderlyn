@@ -260,7 +260,11 @@ Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Preprocessing.PreprocessResult P
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax Root { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective] Pragmas { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] UnanalyzedIdentifiers { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: static Shaderlyn.Hlsl.HlslSyntaxTree Parse(Shaderlyn.Core.Text.SourceText, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions = null, Shaderlyn.Core.Analysis.ISyntaxTimingRecorder = null)
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2018 = 0
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2021 = 1
 Shaderlyn.Hlsl.Parsing.HlslLexer : sealed class
 Shaderlyn.Hlsl.Parsing.HlslLexer :: .ctor(Shaderlyn.Core.Text.SourceText)
 Shaderlyn.Hlsl.Parsing.HlslLexer :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Lex(out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslLexer+LexerDiagnostic])
@@ -502,6 +506,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions : sealed class (System.IEquatab
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: .ctor()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.SymbolConstraints SymbolConstraints { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.HlslIncludeCache IncludeCache { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.HlslTokenCache TokenCache { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.IIncludeResolver IncludeResolver { get; set; }

@@ -4,6 +4,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 
 namespace Shaderlyn.Hlsl.Preprocessing;
 
@@ -312,6 +313,15 @@ public sealed record PreprocessorOptions
     /// </remarks>
     public ImmutableHashSet<string> AdditionalIncludeDirectives { get; init; } =
         ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 受け付ける HLSL の言語のバージョン。既定は <see cref="HlslLanguageVersion.Hlsl2018"/> (Unity と同じ)。
+    /// </summary>
+    /// <remarks>
+    /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) が読む。
+    /// 展開と構文解析の設定を 1 つにまとめて渡しているので、ここに置く。
+    /// </remarks>
+    public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
     /// <summary>
     /// 使えない指令として報告する名前。

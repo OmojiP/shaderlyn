@@ -419,6 +419,10 @@ internal static class ShaderCompilationBuilder
                 Unanalyzed.UnionWith(result.SkippedIncludedIdentifiers);
             }
 
+            // 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の template など) の名前。
+            // 読み飛ばした分岐の名前と同じく、宣言が無いと言い切る根拠にしない。
+            Unanalyzed.UnionWith(tree.UnanalyzedIdentifiers.Select(token => token.Text));
+
             if (!result.SkippedRootIdentifiers.IsDefaultOrEmpty)
             {
                 foreach (HlslSyntaxToken token in result.SkippedRootIdentifiers)

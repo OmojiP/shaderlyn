@@ -32,6 +32,15 @@ public sealed class HlslSyntaxTree
         Diagnostics = diagnostics;
     }
 
+    /// <summary>
+    /// 構文木にせずに読み飛ばした宣言に現れた識別子 (<see cref="HlslParser.UnanalyzedIdentifiers"/>)。
+    /// </summary>
+    /// <remarks>
+    /// 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の <c>template</c> など) の名前である。
+    /// 解析していない場所に現れた名前として扱うこと。
+    /// </remarks>
+    public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
+
     /// <summary>解析対象のソーステキスト。</summary>
     public SourceText Text { get; }
 
@@ -70,7 +79,10 @@ public sealed class HlslSyntaxTree
         PreprocessResult preprocessed = new HlslPreprocessor(options).Preprocess(text);
         start = Record(timings, SyntaxStep.Preprocess, start);
 
-        HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude);
+        HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude)
+        {
+            LanguageVersion = options?.LanguageVersion ?? HlslLanguageVersion.Hlsl2018,
+        };
         HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);
 
@@ -82,7 +94,10 @@ public sealed class HlslSyntaxTree
         diagnostics.AddRange(parseDiagnostics);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
-        return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable());
+        return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
+        {
+            UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
+        };
     }
 
     /// <summary>1 つの段の時間を記録し、次の段の開始時刻を返す。</summary>

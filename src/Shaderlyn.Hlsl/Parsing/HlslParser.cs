@@ -102,6 +102,27 @@ internal sealed class HlslParser
         _isUserInclude = isUserInclude;
     }
 
+    /// <summary>受け付ける言語のバージョン。既定は <see cref="HlslLanguageVersion.Hlsl2018"/>。</summary>
+    public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
+
+    /// <summary>
+    /// 構文木にせずに読み飛ばした宣言に現れた識別子。<see cref="ParseCompilationUnit"/> のあとで揃う。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>報告せずに読み飛ばした宣言のためにある。</b>
+    /// HLSL 2021 の <c>template</c> の関数をまだ構文木にできないとき、その名前はどこにも宣言されていないことになる。
+    /// 呼び出しを「宣言されていない関数」と報告すると、正しいコードを誤りとして指摘することになる。
+    /// </para>
+    /// <para>
+    /// 読み飛ばした <c>#if</c> の分岐と同じく、解析していない場所に現れた名前として扱う。
+    /// 報告して読み飛ばした宣言 (<see cref="HlslLanguageVersion.Hlsl2018"/>) では、ブロックの解析そのものが不完全になるので集めない。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers => [.. _unanalyzedIdentifiers];
+
+    private readonly List<HlslSyntaxToken> _unanalyzedIdentifiers = [];
+
     /// <summary>
     /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する。
     /// </summary>
@@ -346,13 +367,17 @@ internal sealed class HlslParser
     private IncompleteDeclarationSyntax ParseUnsupportedTypeDeclaration(bool endsWithSemicolon)
     {
         HlslSyntaxToken keyword = Current;
+        bool reported = LanguageVersion == HlslLanguageVersion.Hlsl2018;
 
-        string description = keyword.Text == "operator"
-            ? "operator による演算子の多重定義"
-            : $"{keyword.Text} 宣言";
+        if (reported)
+        {
+            string description = keyword.Text == "operator"
+                ? "operator による演算子の多重定義"
+                : $"{keyword.Text} 宣言";
 
-        _diagnostics.Add(Diagnostic.Create(
-            HlslDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description));
+            _diagnostics.Add(Diagnostic.Create(
+                HlslDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description));
+        }
 
         ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
         skipped.Add(Advance());
@@ -394,6 +419,12 @@ internal sealed class HlslParser
         if (Current.Kind == HlslSyntaxKind.SemicolonToken)
         {
             skipped.Add(Advance());
+        }
+
+        // 報告しない (受け付ける構文だが、まだ構文木にしない) なら、名前を解析していない場所の名前として残す。
+        if (!reported)
+        {
+            _unanalyzedIdentifiers.AddRange(skipped.Where(t => t.Kind == HlslSyntaxKind.IdentifierToken));
         }
 
         return new IncompleteDeclarationSyntax(skipped.ToImmutable());
@@ -962,8 +993,13 @@ internal sealed class HlslParser
             // Unity も数値を指して拒む ("unexpected integer constant")。コロン自体はセマンティクスの記法として正しい。
             Advance();
             HlslSyntaxToken width = Advance();
-            _diagnostics.Add(Diagnostic.Create(
-                HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド"));
+
+            // HLSL 2021 では正しい書き方である。幅は型の判定に関わらないので、読み飛ばすだけでよい。
+            if (LanguageVersion == HlslLanguageVersion.Hlsl2018)
+            {
+                _diagnostics.Add(Diagnostic.Create(
+                    HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド"));
+            }
         }
 
         while (Current.Kind == HlslSyntaxKind.ColonToken
