@@ -114,6 +114,12 @@ internal static partial class HoverBuilder
     /// <returns>説明。<c>#pragma</c> の上に無い場合は <see langword="null"/>。</returns>
     private static HoverResult? BuildForPragma(ShaderCompilation compilation, int offset)
     {
+        // #pragma の説明は Unity の書き方の説明である。ほかの環境では #pragma を読まない。
+        if (compilation.GetUnity() is null)
+        {
+            return null;
+        }
+
         ImmutableArray<HlslSyntaxToken> tokens = compilation.CodeTokens;
 
         for (int i = 0; i + 2 < tokens.Length; i++)

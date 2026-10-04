@@ -1,36 +1,42 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
-using Shaderlyn.Unity;
+using Shaderlyn.Semantics.Environments;
 
 namespace Shaderlyn.LanguageServer;
 
 /// <summary>
 /// 利用者が選べる、条件のシンボル。
 /// </summary>
-/// <param name="Name">シンボルの名前。</param>
-/// <param name="DeclaredByPragma">
-/// <c>#pragma multi_compile</c> などでこのファイルが宣言したシンボルかどうか。
+/// <param name="Name">シンボルの名前。値を持つシンボルでは、値ごとの原子 (<c>QUALITY==2</c>)。</param>
+/// <param name="Declared">
+/// 構成の軸として宣言されたシンボルかどうか。Unity なら <c>#pragma multi_compile</c> など、
+/// ほかの環境なら設定ファイルの <c>symbols:</c> で宣言したもの。
 /// </param>
 /// <param name="Group">
-/// 同じ <c>#pragma</c> の行で宣言されたシンボルをまとめる番号。宣言されていない場合は -1。
+/// 同時には有効にならないシンボルの組の番号 (Unity なら同じ <c>#pragma</c> の行)。組に入っていなければ -1。
 /// </param>
 /// <param name="RequiresOne">
-/// その行のどれか 1 つが必ず有効かどうか。<c>_</c> の無い <c>multi_compile</c> が該当する。
+/// その組のどれか 1 つが必ず有効かどうか。<c>_</c> の無い <c>multi_compile</c> と、値を持つシンボルが該当する。
 /// </param>
+/// <param name="Variable">値を持つシンボルの名前 (<c>QUALITY</c>)。値を持たなければ <see langword="null"/>。</param>
+/// <param name="Value">値を持つシンボルの値。値を持たなければ <see langword="null"/>。</param>
 /// <remarks>
-/// <b>同じ行のシンボルは同時に有効にならない。</b>
-/// 選ばせる画面は、この 2 つを見て「同じ行では 1 つだけ」「外せない行がある」を守る。
-/// 守らないと、実在しない構成を選べてしまう。
+/// <b>同じ組のシンボルは同時に有効にならない。</b>
+/// 選ばせる画面は、組の番号と <paramref name="RequiresOne"/> を見て「組では 1 つだけ」「外せない組がある」を守る。
+/// 守らないと、実在しない構成を選べてしまう。値を持つシンボルは、値を 1 つ選ぶ組になる。
 /// </remarks>
 internal readonly record struct ConditionSymbol(
     string Name,
-    bool DeclaredByPragma,
+    bool Declared,
     int Group = -1,
-    bool RequiresOne = false);
+    bool RequiresOne = false,
+    string? Variable = null,
+    int? Value = null);
 
 /// <summary>
 /// 条件で参照されているシンボルのうち、利用者が選んで切り替えられるものを集める。
@@ -46,11 +52,15 @@ internal readonly record struct ConditionSymbol(
 ///     単体で解析するとその分岐の中は一度も検査されない。選ぶと <c>#define 名前 1</c> として解析し直す。
 ///   </description></item>
 ///   <item><description>
-///     <b>このファイルが宣言したシンボル。</b>
+///     <b>構成の軸として宣言されたシンボル。</b>
 ///     解析はすべてのバリアントを合わせて見るので、シンボルで分かれる分岐はどれも効いているように見える。
 ///     選ぶと、そのシンボルを有効にした構成で「効いていない範囲」を表示する。
 ///   </description></item>
 /// </list>
+/// <para>
+/// 宣言は環境が読んだ構成の空間 (<see cref="AnalyzedProgram.Variants"/>) から引く。Unity の <c>#pragma</c> も、
+/// 設定ファイルの <c>symbols:</c> も同じ形になる。
+/// </para>
 /// <para>
 /// <b>定義を足していないセマンティックモデルから集めること。</b>
 /// 利用者が選んだシンボルを定義済みにしたモデルでは、そのシンボルが「定義されている」側に入り、
@@ -68,18 +78,23 @@ internal static class ConditionSymbols
 
         ImmutableArray<AnalyzedProgram> programs = [.. compilation.Programs, .. compilation.SymbolVariants];
         HashSet<string> declared = new(StringComparer.Ordinal);
+        Dictionary<string, ImmutableArray<int>> valueSymbols = new(StringComparer.Ordinal);
 
-        // 同じ #pragma の行で宣言されたものをまとめる。
-        // 画面はこの単位で「1 つだけ」「外せない」を守る。
+        // 同時には有効にならない組をまとめる。画面はこの単位で「1 つだけ」「外せない」を守る。
         Dictionary<string, (int Group, bool RequiresOne)> groups = new(StringComparer.Ordinal);
 
         foreach (AnalyzedProgram program in programs)
         {
-            declared.UnionWith(ShaderSymbols.CollectDeclared(program.Tree.PreprocessResult.Pragmas));
+            declared.UnionWith(program.Variants.Symbols);
 
-            foreach (SymbolGroup group in ShaderSymbols.CollectGroups(program.Tree.PreprocessResult.Pragmas))
+            foreach ((string name, ImmutableArray<int> values) in program.Variants.ValueSymbols)
             {
-                // 同じ行はブロックごとに何度も現れる。先頭の名前で 1 つに寄せる。
+                valueSymbols.TryAdd(name, values);
+            }
+
+            foreach (VariantGroup group in program.Variants.Groups)
+            {
+                // 同じ組はブロックごとに何度も現れる。先頭の名前で 1 つに寄せる。
                 int index = groups.TryGetValue(group.Symbols[0], out (int Group, bool RequiresOne) known)
                     ? known.Group
                     : groups.Count == 0 ? 0 : groups.Values.Max(v => v.Group) + 1;
@@ -106,6 +121,13 @@ internal static class ConditionSymbols
                     continue;
                 }
 
+                // 値を持つシンボルは、値ごとの原子を並べる。画面は値を 1 つ選ばせる。
+                if (valueSymbols.TryGetValue(token.Text, out ImmutableArray<int> values))
+                {
+                    symbols.UnionWith(values.Select(value => VariantValues.Atom(token.Text, value)));
+                    continue;
+                }
+
                 // シンボルのバリアントでは、そのシンボルがマクロとして定義されている。
                 // シンボルは定義の有無にかかわらず、切り替えられるものとして候補に残す。
                 if (declared.Contains(token.Text) || !result.Macros.ContainsKey(token.Text))
@@ -115,19 +137,15 @@ internal static class ConditionSymbols
             }
         }
 
-        return
-        [
-            .. symbols.Select(name => groups.TryGetValue(name, out (int Group, bool RequiresOne) group)
-                ? new ConditionSymbol(name, declared.Contains(name), group.Group, group.RequiresOne)
-                : new ConditionSymbol(name, declared.Contains(name))),
-        ];
+        return [.. symbols.Select(name => Create(name, declared, groups))];
     }
 
     /// <summary>
-    /// 選んだシンボルから、このファイルが宣言したシンボルを除く。
+    /// 選んだシンボルから、構成の軸として宣言されたシンボルを除く。
     /// </summary>
     /// <param name="text">対象のテキスト。</param>
     /// <param name="symbols">利用者が選んだシンボル。</param>
+    /// <param name="environment">宣言を読む環境。<see langword="null"/> なら何も除かない。</param>
     /// <returns>指摘を出す解析で定義済みにするシンボル。</returns>
     /// <remarks>
     /// <para>
@@ -137,10 +155,14 @@ internal static class ConditionSymbols
     /// <c>multi_compile _ A B</c> の A と B が同時に定義された、ありえない構成を検査することになる。
     /// </para>
     /// <para>
-    /// 宣言は展開前のトークンから拾う。ここでセマンティックモデルを組むと、保存のたびに解析が 1 回増える。
+    /// 宣言は展開前のトークンから拾う (環境の <see cref="IHlslEnvironment.ReadDeclaredVariants"/>)。
+    /// ここでセマンティックモデルを組むと、保存のたびに解析が 1 回増える。
     /// </para>
     /// </remarks>
-    public static ImmutableArray<string> ExcludeDeclaredSymbols(SourceText text, ImmutableArray<string> symbols)
+    public static ImmutableArray<string> ExcludeDeclaredSymbols(
+        SourceText text,
+        ImmutableArray<string> symbols,
+        IHlslEnvironment? environment)
     {
         ArgumentNullException.ThrowIfNull(text);
 
@@ -149,8 +171,31 @@ internal static class ConditionSymbols
             return [];
         }
 
-        HashSet<string> declared = ShaderSymbols.CollectDeclaredFromTokens(new HlslLexer(text).Lex(out _));
+        if (environment is null)
+        {
+            return symbols;
+        }
 
-        return [.. symbols.Where(symbol => !declared.Contains(symbol))];
+        VariantSpace declared = environment.ReadDeclaredVariants(
+            HlslEnvironment.WholeFile(text), new HlslLexer(text).Lex(out _));
+
+        return [.. symbols.Where(symbol => !declared.IsDeclared(symbol))];
+    }
+
+    /// <summary>候補を 1 つ作る。</summary>
+    /// <param name="name">名前。</param>
+    /// <param name="declared">宣言されたシンボル。</param>
+    /// <param name="groups">組。</param>
+    /// <returns>候補。</returns>
+    private static ConditionSymbol Create(
+        string name,
+        HashSet<string> declared,
+        Dictionary<string, (int Group, bool RequiresOne)> groups)
+    {
+        (int group, bool requiresOne) = groups.TryGetValue(name, out (int Group, bool RequiresOne) found) ? found : (-1, false);
+
+        return VariantValues.TryParseAtom(name, out string? variable, out int value)
+            ? new ConditionSymbol(name, declared.Contains(name), group, requiresOne, variable, value)
+            : new ConditionSymbol(name, declared.Contains(name), group, requiresOne);
     }
 }

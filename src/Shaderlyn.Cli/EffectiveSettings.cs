@@ -104,6 +104,10 @@ internal sealed class EffectiveSettings
         {
             options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
         }
+        else
+        {
+            options.ClearUnityOptions();
+        }
 
         if (isUnity &&(!configuration.Symbols.IsEmpty || !configuration.SymbolGroups.IsEmpty || !configuration.Units.IsEmpty))
         {

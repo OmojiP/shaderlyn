@@ -173,6 +173,21 @@ internal sealed class CommandLineOptions
         UnityEditorDataPath ??= editorDataPath;
     }
 
+    /// <summary>
+    /// Unity だけの指定 (<c>--profile</c> / <c>--unity-project</c> / <c>--unity-editor</c>) を外す。
+    /// </summary>
+    /// <remarks>
+    /// Unity 以外の環境で、Unity のプロジェクトのパスが探索パスに混ざらないようにする。
+    /// CLI は外す前に指定を覚えておき、エラーにする (<see cref="EffectiveSettings.UnityOnlyCommandLineOptions"/>)。
+    /// 言語サーバーはワークスペースから推定した <c>--unity-project</c> を渡すので、ここで黙って外れる。
+    /// </remarks>
+    internal void ClearUnityOptions()
+    {
+        Profile = null;
+        UnityProjectPath = null;
+        UnityEditorDataPath = null;
+    }
+
     /// <summary><c>#include</c> の探索パス。</summary>
     public ImmutableArray<string> IncludePaths { get; private set; } = [];
 

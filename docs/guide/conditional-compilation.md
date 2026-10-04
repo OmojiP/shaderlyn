@@ -1021,7 +1021,7 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 
 | 項目 | 内容 | コード |
 | --- | --- | --- |
-| `shaderlyn/conditionSymbols` | 切り替え候補になる名前の一覧を返す。`declaredByPragma` はその名前が `#pragma` で宣言されたシンボルか | [OnConditionSymbolsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs)、[ConditionSymbol](../../src/Shaderlyn.LanguageServer/ConditionSymbols.cs) |
+| `shaderlyn/conditionSymbols` | 切り替え候補になる名前の一覧を返す。`declared` はその名前が構成の軸として宣言されたシンボルか (Unity は `#pragma`、ほかの環境は設定ファイルの `symbols:`。v0.1 の `declaredByPragma` も同じ値で返す)。値を持つシンボルは値ごとの名前 (`QUALITY==2`) で並び、`variable` と `value` が付く | [OnConditionSymbolsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs)、[ConditionSymbol](../../src/Shaderlyn.LanguageServer/ConditionSymbols.cs) |
 | `shaderlyn/setDefinedSymbols` | 選んだ名前を定義済みとして解析し直す | [OnSetDefinedSymbolsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs) |
 | `shaderlyn/inactiveRegions` | 効いていない領域の通知 | [PublishInactiveRegionsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs) |
 | ホバー | 同じ位置の複製を構成ごとに並べる（[HoverBuilder](../../src/Shaderlyn.LanguageServer/HoverBuilder.cs)）。マクロの上では呼び出し位置の展開結果を構成ごとに、`#define` の行ではその行の定義と条件を示す（[HoverMacros](../../src/Shaderlyn.LanguageServer/HoverMacros.cs)、`PreprocessResult.WrittenDefinitions`） | |

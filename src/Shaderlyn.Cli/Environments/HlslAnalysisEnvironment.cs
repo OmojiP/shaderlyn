@@ -75,6 +75,9 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     public ImmutableArray<string> DefaultExtensions { get; }
 
     /// <inheritdoc/>
+    public IHlslEnvironment HlslEnvironment => _environment;
+
+    /// <inheritdoc/>
     public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -101,7 +104,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <returns>単位。<c>units:</c> に当てはまらなければ、ファイル全体の 1 つ。</returns>
     private ImmutableArray<HlslCompilationUnit> CreateUnits(SourceText text)
     {
-        HlslCompilationUnit whole = HlslEnvironment.WholeFile(text);
+        HlslCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text);
 
         if (string.IsNullOrEmpty(text.FilePath))
         {

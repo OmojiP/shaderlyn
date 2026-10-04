@@ -78,6 +78,27 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
         (await ReceiveAsync()).Dispose();
     }
 
+    /// <summary>ワークスペースのルートを添えて初期化を済ませる。</summary>
+    /// <param name="initializationOptions">initialize の要求に添える設定。</param>
+    /// <param name="workspaceDirectory">ワークスペースのルート。設定ファイルはここから探される。</param>
+    /// <returns>完了を表すタスク。</returns>
+    public async Task InitializeAsync(object? initializationOptions, string workspaceDirectory)
+    {
+        await SendAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "initialize",
+            @params = new
+            {
+                capabilities = new { },
+                initializationOptions,
+                rootUri = LanguageServer.DocumentUri.FromFilePath(workspaceDirectory),
+            },
+        });
+        (await ReceiveAsync()).Dispose();
+    }
+
     /// <summary>スクリプトを開く。</summary>
     /// <param name="text">スクリプトの中身。</param>
     /// <returns>完了を表すタスク。</returns>
@@ -464,6 +485,16 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
                     s.TryGetProperty("group", out JsonElement group) ? group.GetInt32() : -1,
                     s.TryGetProperty("requiresOne", out JsonElement requires) && requires.GetBoolean()))]
             : [];
+    }
+
+    /// <summary>条件のシンボルの応答をそのまま求める。</summary>
+    /// <returns><c>symbols</c> の並び。</returns>
+    public async Task<JsonElement[]> RequestConditionSymbolsRawAsync()
+    {
+        JsonElement result = await RequestAsync(
+            "shaderlyn/conditionSymbols", new { textDocument = new { uri = Uri } });
+
+        return result.ValueKind == JsonValueKind.Object ? [.. result.GetProperty("symbols").EnumerateArray()] : [];
     }
 
     /// <summary>効いていない範囲をどちらの構成で表示しているかを求める。</summary>

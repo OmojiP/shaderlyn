@@ -40,6 +40,11 @@ internal sealed class UnityAnalysisEnvironment(UnityOptions options) : IAnalysis
     public ImmutableArray<string> DefaultExtensions { get; } = [".shader", ".compute"];
 
     /// <inheritdoc/>
+    public Semantics.Environments.IHlslEnvironment HlslEnvironment => _hlslEnvironment ??= new UnityHlslEnvironment(Options);
+
+    private UnityHlslEnvironment? _hlslEnvironment;
+
+    /// <inheritdoc/>
     public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)
     {
         ArgumentNullException.ThrowIfNull(text);

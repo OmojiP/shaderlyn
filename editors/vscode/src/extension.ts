@@ -43,9 +43,32 @@ interface ConditionSymbolsResponse {
 interface ConditionSymbol {
   name: string;
   defined: boolean;
+  /** 構成の軸として宣言されたか (Unity の `#pragma multi_compile`、設定ファイルの `symbols:`)。 */
+  declared?: boolean;
+  /** v0.1 のサーバが返す名前。`declared` と同じ意味。 */
   declaredByPragma?: boolean;
   group?: number;
   requiresOne?: boolean;
+  /** 値を持つシンボルの名前 (`QUALITY`)。`name` は値ごとの名前 (`QUALITY==2`) になる。 */
+  variable?: string;
+  /** 値を持つシンボルの値。 */
+  value?: number;
+}
+
+/** 宣言されたシンボルかどうか。古いサーバの `declaredByPragma` も読む。 */
+function isDeclared(symbol: ConditionSymbol): boolean {
+  return (symbol.declared ?? symbol.declaredByPragma) === true;
+}
+
+/**
+ * 画面に出す名前。値を持つシンボルは `QUALITY = 2` と見せる。
+ *
+ * サーバへ送るのは `name` (`QUALITY==2`) のほうである。
+ */
+function labelOf(symbol: ConditionSymbol): string {
+  return symbol.variable !== undefined && symbol.value !== undefined
+    ? `${symbol.variable} = ${symbol.value}`
+    : symbol.name;
 }
 
 /** workspaceState に覚えておく、ファイルごとの選択。 */
@@ -78,7 +101,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // HLSL だけを編集することも多い。どの言語として開かれるかは入れている拡張で変わる
       // (組み込みの hlsl、Unity 向け拡張の UnityShader など) ので、言語ではなく拡張子で選ぶ。
       // サーバが HLSL 単体として読む拡張子 (ShaderSourceKinds) と揃えること。
-      { scheme: "file", pattern: "**/*.{hlsl,cginc,hlslinc,compute}" },
+      // .hlsli は汎用の HLSL (environment: hlsl)、.usf / .ush は Unreal (environment: unreal) のもの。
+      { scheme: "file", pattern: "**/*.{hlsl,hlsli,cginc,hlslinc,compute,usf,ush}" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。
@@ -250,8 +274,9 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
     return;
   }
 
-  const declared = response.symbols.filter(symbol => symbol.declaredByPragma === true);
-  const others = response.symbols.filter(symbol => symbol.declaredByPragma !== true);
+  const declared = response.symbols.filter(isDeclared);
+  const others = response.symbols.filter(symbol => !isDeclared(symbol));
+  const byLabel = new Map(response.symbols.map(symbol => [labelOf(symbol), symbol]));
 
   // シンボルを 1 つも選ばないときに、すべての構成を合わせるか、シンボルをすべて外した構成にするかを決める項目。
   // `multi_compile _ _FOO` の「_FOO を外した構成」を見る手段は、これを外して確定する以外に無い。
@@ -268,7 +293,7 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
       allConfigurations,
       { label: "シンボル（選ばなかったものは無効として表示）", kind: vscode.QuickPickItemKind.Separator },
       ...declared.map(symbol => ({
-        label: symbol.name,
+        label: labelOf(symbol),
         picked: symbol.defined,
         description: describeGroup(symbol),
       })),
@@ -278,7 +303,7 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
   if (others.length > 0) {
     items.push(
       { label: "定義されていないシンボル（#define して解析）", kind: vscode.QuickPickItemKind.Separator },
-      ...others.map(symbol => ({ label: symbol.name, picked: symbol.defined })),
+      ...others.map(symbol => ({ label: labelOf(symbol), picked: symbol.defined })),
     );
   }
 
@@ -289,7 +314,9 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
     return;
   }
 
-  const symbols = picked.filter(item => item !== allConfigurations).map(item => item.label);
+  const symbols = picked
+    .filter(item => item !== allConfigurations)
+    .map(item => byLabel.get(item.label)?.name ?? item.label);
   const declaredNames = new Set(declared.map(symbol => symbol.name));
 
   // シンボルを選んだなら、その構成で表示する。選んでいなければ「すべての構成」の項目に従う。
@@ -316,6 +343,10 @@ function describeGroup(symbol: ConditionSymbol): string | undefined {
     return undefined;
   }
 
+  if (symbol.variable !== undefined) {
+    return `${symbol.variable} の値を 1 つ選びます`;
+  }
+
   return symbol.requiresOne === true
     ? "同じ行のどれか 1 つが必ず有効（外せません）"
     : "同じ行では 1 つだけ有効にできます";
@@ -337,7 +368,8 @@ function pickSymbols(
   symbols: ConditionSymbol[],
   allConfigurations: vscode.QuickPickItem | undefined,
 ): Promise<readonly vscode.QuickPickItem[] | undefined> {
-  const byName = new Map(symbols.map(symbol => [symbol.name, symbol]));
+  // 項目は画面に出す名前で引く (値を持つシンボルは `QUALITY = 2`)。
+  const byName = new Map(symbols.map(symbol => [labelOf(symbol), symbol]));
 
   const quickPick = vscode.window.createQuickPick();
   quickPick.items = items;

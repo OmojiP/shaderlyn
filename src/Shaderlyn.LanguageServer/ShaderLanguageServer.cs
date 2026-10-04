@@ -814,7 +814,7 @@ public sealed partial class ShaderLanguageServer
             }
             else
             {
-                HashSet<string> declared = [.. candidates.Where(c => c.DeclaredByPragma).Select(c => c.Name)];
+                HashSet<string> declared = [.. candidates.Where(c => c.Declared).Select(c => c.Name)];
                 Dictionary<string, ConditionSymbol> byName =
                     candidates.ToDictionary(c => c.Name, StringComparer.Ordinal);
 
@@ -829,6 +829,9 @@ public sealed partial class ShaderLanguageServer
                     writer.WriteStartObject();
                     writer.WriteString("name", name);
                     writer.WriteBoolean("defined", defined.Contains(name));
+                    writer.WriteBoolean("declared", declared.Contains(name));
+
+                    // v0.1 の名前。拡張の古い版のために残す。
                     writer.WriteBoolean("declaredByPragma", declared.Contains(name));
 
                     // 同じ行のシンボルは同時に有効にならない。
@@ -837,6 +840,13 @@ public sealed partial class ShaderLanguageServer
                     {
                         writer.WriteNumber("group", symbol.Group);
                         writer.WriteBoolean("requiresOne", symbol.RequiresOne);
+                    }
+
+                    // 値を持つシンボルの原子 (QUALITY==2) は、名前と値を分けて添える。画面は「QUALITY = 2」と見せる。
+                    if (byName.TryGetValue(name, out ConditionSymbol valued) && valued.Variable is { } variable && valued.Value is { } value)
+                    {
+                        writer.WriteString("variable", variable);
+                        writer.WriteNumber("value", value);
                     }
 
                     writer.WriteEndObject();
@@ -950,7 +960,7 @@ public sealed partial class ShaderLanguageServer
     /// <returns>選ばれたシンボルから、このファイルが宣言したシンボルを除いたもの。</returns>
     /// <remarks>シンボルを除く理由は <see cref="ConditionSymbols.ExcludeDeclaredSymbols"/> を参照。</remarks>
     private ImmutableArray<string> AnalysisSymbolsOf(string uri, OpenDocument document)
-        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri));
+        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), _session.HlslEnvironment);
 
     /// <summary>要求が、選んだ構成での表示を求めているかを読む。</summary>
     /// <param name="message">受け取ったメッセージ。</param>
@@ -1084,7 +1094,7 @@ public sealed partial class ShaderLanguageServer
                 try
                 {
                     ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols);
+                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, _session.HlslEnvironment);
 
                     ImmutableArray<Diagnostic> diagnostics =
                         _session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);

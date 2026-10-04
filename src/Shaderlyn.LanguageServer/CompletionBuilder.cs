@@ -6,6 +6,7 @@ using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -60,11 +61,12 @@ internal static partial class CompletionBuilder
             case CompletionPlace.DirectiveName:
                 return BuildDirectives();
 
+            // #pragma の名前とエントリポイントの指定は Unity の書き方である。ほかの環境では #pragma を読まない。
             case CompletionPlace.PragmaName:
-                return BuildPragmas();
+                return compilation.GetUnity() is null ? [] : BuildPragmas();
 
             case CompletionPlace.EntryPoint:
-                return BuildEntryPoints(compilation);
+                return compilation.GetUnity() is null ? [] : BuildEntryPoints(compilation);
 
             case CompletionPlace.Condition:
                 return BuildConditionNames(compilation, includeDefined: true);

@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
@@ -47,6 +48,9 @@ internal sealed class AnalysisSession
     private readonly AnalysisRunner _full;
     private readonly SemanticsOptions _semantics;
     private readonly IAnalysisEnvironment _environment;
+
+    /// <summary>意味解析に渡す HLSL の環境。宣言されたシンボルを、解析せずに読むのに使う。</summary>
+    public Semantics.Environments.IHlslEnvironment? HlslEnvironment => _environment.HlslEnvironment;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
@@ -261,15 +265,17 @@ internal sealed class AnalysisSession
     }
 
     /// <summary>シンボルを <c>#define 名前 1</c> として足した設定を返す。</summary>
-    /// <param name="symbols">足すシンボル。</param>
+    /// <param name="symbols">足すシンボル。値を持つシンボルの原子 (<c>QUALITY==2</c>) は、その値で定義する。</param>
     /// <returns>足した設定。</returns>
     private SemanticsOptions DefineSymbols(IReadOnlyCollection<string> symbols)
     {
-        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros ?? UnityOptions.DefaultPredefinedMacros;
+        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty;
 
         foreach (string symbol in symbols)
         {
-            macros = macros.SetItem(symbol, "1");
+            macros = VariantValues.TryParseAtom(symbol, out string? name, out int value)
+                ? macros.SetItem(name, value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                : macros.SetItem(symbol, "1");
         }
 
         return _semantics with { PredefinedMacros = macros };
