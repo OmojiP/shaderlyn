@@ -7,6 +7,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -45,7 +46,7 @@ internal sealed class AnalysisSession
     private readonly AnalysisRunner _syntaxOnly;
     private readonly AnalysisRunner _full;
     private readonly SemanticsOptions _semantics;
-    private readonly UnityOptions _unity;
+    private readonly IAnalysisEnvironment _environment;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
@@ -94,9 +95,13 @@ internal sealed class AnalysisSession
         _analyzers = all;
         _analyzerOptions = settings.AnalyzerOptions;
         _semantics = SemanticsSetup.Create(options, settings);
-        _unity = SemanticsSetup.CreateUnity(settings);
-        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions, unityOptions: _unity);
-        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics, unityOptions: _unity);
+        // 知らない環境の名前は、設定の問題として編集中のファイルにも出る (EffectiveSettings)。
+        // エディタは止めずに、既定の環境 (Unity) で解析を続ける。
+        _environment = AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment)
+            ? environment
+            : new UnityAnalysisEnvironment(SemanticsSetup.CreateUnity(settings));
+        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions, environment: _environment);
+        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics, environment: _environment);
     }
 
     /// <summary>
@@ -168,12 +173,10 @@ internal sealed class AnalysisSession
     /// <returns>組み立てたセマンティックモデル。</returns>
     private ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
     {
-        // どの言語として読むかは拡張子だけで決める。
-        // CLI と同じ判断を使う。片方だけ別に判定すると、
+        // どの言語として読むかは環境が決める。CLI と同じ口を通す。片方だけ別に判定すると、
         // 「CLI では見るのにエディタでは見ない」という食い違いが生まれる。
-        return ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-            ? UnityCompilation.CreateForHlsl(text, semantics, _unity)
-            : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics, _unity);
+        return _environment.Prepare(text, semantics, timings: null).Compilation
+            ?? throw new InvalidOperationException($"環境 '{_environment.Name}' は HLSL のセマンティックモデルを作りません。");
     }
 
     /// <summary>ワークスペースのルート。</summary>
@@ -253,7 +256,7 @@ internal sealed class AnalysisSession
         return _withSymbols.GetOrAdd(key, _ =>
         {
             SemanticsOptions semantics = DefineSymbols(definedSymbols);
-            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics, unityOptions: _unity));
+            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics, environment: _environment));
         });
     }
 

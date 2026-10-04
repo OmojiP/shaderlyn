@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Shaderlyn.Configuration;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -38,6 +39,7 @@ internal static partial class EnvironmentReport
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     /// <param name="version">このツールのバージョン。</param>
@@ -45,19 +47,21 @@ internal static partial class EnvironmentReport
     public static string Build(
         CommandLineOptions options,
         EffectiveSettings settings,
+        IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths,
         string version)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(environment);
 
         StringBuilder builder = new();
 
         Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
 
-        WriteInputs(builder, options, files, missingPaths);
-        WriteConfiguration(builder, options, settings);
+        WriteInputs(builder, options, environment, files, missingPaths);
+        WriteConfiguration(builder, options, settings, environment);
 
         EditorDataLookup editor = UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath);
 
@@ -81,11 +85,13 @@ internal static partial class EnvironmentReport
     /// <summary>解析対象を書き出す。</summary>
     /// <param name="builder">書き出し先。</param>
     /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     private static void WriteInputs(
         StringBuilder builder,
         CommandLineOptions options,
+        IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths)
     {
@@ -102,7 +108,7 @@ internal static partial class EnvironmentReport
             Line(builder, $"  {(kind == "存在しない" ? Warning : string.Empty)}{FullPath(path)} ({kind})");
         }
 
-        Line(builder, $"  見つかったシェーダー: {files.Length} 件 ({string.Join(" / ", CommandLineOptions.DefaultExtensions)})");
+        Line(builder, $"  見つかったシェーダー: {files.Length} 件 ({string.Join(" / ", environment.DefaultExtensions)})");
 
         if (!options.InputPaths.IsEmpty && files.IsEmpty && missingPaths.IsEmpty)
         {
@@ -114,7 +120,12 @@ internal static partial class EnvironmentReport
     /// <param name="builder">書き出し先。</param>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
-    private static void WriteConfiguration(StringBuilder builder, CommandLineOptions options, EffectiveSettings settings)
+    /// <param name="environment">解析する環境。</param>
+    private static void WriteConfiguration(
+        StringBuilder builder,
+        CommandLineOptions options,
+        EffectiveSettings settings,
+        IAnalysisEnvironment environment)
     {
         Section(builder, $"設定ファイル ({ShaderlynConfiguration.FileName})");
 
@@ -147,6 +158,11 @@ internal static partial class EnvironmentReport
             ? "コマンドライン"
             : configuration.Profile is not null ? "設定ファイル" : "既定";
 
+        string environmentSource = options.Environment is not null
+            ? "コマンドライン"
+            : configuration.Environment is not null ? "設定ファイル" : "既定";
+
+        Line(builder, $"  環境: {environment.DisplayName} ({environmentSource})");
         Line(builder, $"  プロファイル: {settings.Profile} ({profileSource})");
 
         foreach (string define in configuration.Defines)

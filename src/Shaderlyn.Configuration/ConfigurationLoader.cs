@@ -163,6 +163,7 @@ internal static class ConfigurationLoader
             {
                 FilePath = filePath,
                 Environment = ReadOptionalScalar(root, "environment"),
+                EnvironmentLine = root.TryGetScalar("environment", out YamlScalar? environment) ? environment.Line : 0,
                 Profile = ReadProfile(unity),
                 UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
                 UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),

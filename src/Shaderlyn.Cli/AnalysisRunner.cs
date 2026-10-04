@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
+using Shaderlyn.Cli.Environments;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
 
@@ -61,7 +62,7 @@ internal sealed class AnalysisRunner
 {
     private readonly AnalyzerDriver _driver;
     private readonly SemanticsOptions? _semanticsOptions;
-    private readonly UnityOptions _unityOptions;
+    private readonly IAnalysisEnvironment _environment;
     private readonly AnalysisTimings? _timings;
     private readonly AnalysisCache? _cache;
 
@@ -86,18 +87,18 @@ internal sealed class AnalysisRunner
     /// <param name="cache">
     /// 実行のあいだで結果を持ち越すキャッシュ。<see langword="null"/> の場合は持ち越さない。
     /// </param>
-    /// <param name="unityOptions">Unity の環境の設定。<see langword="null"/> の場合は既定 (URP)。</param>
+    /// <param name="environment">解析する環境。<see langword="null"/> の場合は Unity (既定の設定)。</param>
     public AnalysisRunner(
         IEnumerable<DiagnosticAnalyzer> analyzers,
         AnalyzerOptions? options = null,
         SemanticsOptions? semanticsOptions = null,
         AnalysisTimings? timings = null,
         AnalysisCache? cache = null,
-        UnityOptions? unityOptions = null)
+        IAnalysisEnvironment? environment = null)
     {
         _driver = new AnalyzerDriver(analyzers, options, timings);
         _semanticsOptions = semanticsOptions;
-        _unityOptions = unityOptions ?? UnityOptions.Default;
+        _environment = environment ?? new UnityAnalysisEnvironment(UnityOptions.Default);
         _timings = timings;
         _cache = cache;
     }
@@ -289,41 +290,11 @@ internal sealed class AnalysisRunner
         out ImmutableArray<string> includePaths,
         CancellationToken cancellationToken)
     {
-        includePaths = [];
-
-        // どの言語として読むかは拡張子だけで決める。
-        // .compute を ShaderLab として読むと、正しいファイルに SL0001 が出る。
-        bool isHlsl = ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl;
-
-        long start = AnalysisTimings.Now();
-        ShaderLabSyntaxTree? tree = isHlsl ? null : ShaderLabSyntaxTree.Parse(text);
-        _timings?.Add(AnalysisStep.ShaderLab, start);
-
-        // 意味解析を行う場合、解析単位の組み立てはセマンティックモデル側に任せる。
-        // 埋め込み HLSL の構文エラーは、そこで初めて分かる解析基盤の診断であり、
-        // ShaderLab の構文診断とあわせて渡さなければ出力に現れない。
-        long expandStart = AnalysisTimings.Now();
-        ShaderCompilation? compilation = _semanticsOptions is null
-            ? null
-            : tree is null
-                ? UnityCompilation.CreateForHlsl(text, _semanticsOptions, _unityOptions)
-                : UnityCompilation.Create(text, tree, _semanticsOptions, _unityOptions);
-        _timings?.Add(AnalysisStep.Expand, expandStart);
-
-        if (compilation is not null)
-        {
-            includePaths = compilation.AllIncludePaths;
-        }
-
-        // 意味解析を省いた場合、HLSL 単体ファイルには見るものが無い。
-        // ShaderLab 単体で完結するルールに、対応する構文が 1 つも無いためである。
-        long unitStart = AnalysisTimings.Now();
-        AnalysisTarget unit = compilation is not null
-            ? compilation.CreateAnalysisTarget()
-            : tree is null
-                ? new AnalysisTarget(text, null, [])
-                : new AnalysisTarget(text, tree.Root, tree.Diagnostics);
-        _timings?.Add(AnalysisStep.Target, unitStart);
+        // どの言語として読み、どう単位に切り出すかは環境が決める。
+        PreparedFile prepared = _environment.Prepare(text, _semanticsOptions, _timings);
+        ShaderCompilation? compilation = prepared.Compilation;
+        AnalysisTarget unit = prepared.Target;
+        includePaths = prepared.IncludePaths;
 
         if (_timings is not null && compilation is not null)
         {

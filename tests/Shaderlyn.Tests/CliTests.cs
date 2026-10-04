@@ -416,6 +416,43 @@ public sealed class ProgramTests : IDisposable
         Assert.DoesNotContain("ファイルを解析", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task 知らない環境を指定するとエラーにする()
+    {
+        CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+
+        (ExitCode code, _, string error) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--environment", "godot");
+
+        Assert.Equal(ExitCode.ToolError, code);
+        Assert.Contains("環境 'godot' はありません", error, StringComparison.Ordinal);
+        Assert.Contains("unity", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 設定ファイルの知らない環境は書いた行に報告する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: unreel\n");
+
+        Assert.True(CommandLineOptions.TryParse([_workDirectory], out CommandLineOptions? options, out _));
+        EffectiveSettings settings = EffectiveSettings.Create(options);
+
+        Diagnostic diagnostic = Assert.Single(settings.ConfigurationDiagnostics);
+        Assert.Equal("TOOL0003", diagnostic.Id);
+        Assert.Equal(1, diagnostic.Location.LineSpan.Start.Line);
+        Assert.Contains("unreel", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 環境の表示に環境を出す()
+    {
+        CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+
+        (ExitCode code, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--env", "--environment", "unity");
+
+        Assert.Equal(ExitCode.Success, code);
+        Assert.Contains("環境: Unity (コマンドライン)", output, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// 設定ファイルの unity: project を、--unity-project の代わりに使うことを検証する。
     /// </summary>

@@ -398,7 +398,7 @@ public sealed class ComputeShaderTests : IDisposable
     public void 走査の対象はshaderとcomputeだけ()
     {
         // .hlsl と .cginc は断片であることが多く、走査対象にすると雑音になる。
-        Assert.Equal([".shader", ".compute"], CommandLineOptions.DefaultExtensions.ToArray());
+        Assert.Equal([".shader", ".compute"], new Cli.Environments.UnityAnalysisEnvironment(UnityOptions.Default).DefaultExtensions.ToArray());
     }
 
     [Fact]

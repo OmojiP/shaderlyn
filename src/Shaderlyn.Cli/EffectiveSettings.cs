@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Unity.Profiles;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -84,6 +85,22 @@ internal sealed class EffectiveSettings
 
         options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
 
+        // 環境の名前を知っているのは CLI である。設定ファイルに書かれた知らない名前は、書いた行に報告する。
+        // コマンドラインの指定はその場でエラーにする (Program)。
+        if (options.Environment is null
+            && configuration.Environment is { } environmentName
+            && !AnalysisEnvironments.Names.Contains(environmentName))
+        {
+            configuration = configuration with
+            {
+                Problems =
+                [
+                    .. configuration.Problems,
+                    new ConfigurationProblem(configuration.EnvironmentLine, AnalysisEnvironments.DescribeUnknown(environmentName)),
+                ],
+            };
+        }
+
         // 探索パスと定義は積み上げる。設定ファイルの内容を先に置くことで、
         // 同じマクロを両方で定義した場合にコマンドラインの指定が勝つ。
         ImmutableArray<string> includePaths = [.. configuration.IncludePaths, .. options.IncludePaths];
@@ -94,7 +111,7 @@ internal sealed class EffectiveSettings
 
         return new EffectiveSettings(
             configuration,
-            configuration.Environment ?? DefaultEnvironment,
+            options.Environment ?? configuration.Environment ?? DefaultEnvironment,
             options.Profile ?? configuration.Profile ?? RenderPipelineProfiles.Default.Name,
             includePaths,
             defines,

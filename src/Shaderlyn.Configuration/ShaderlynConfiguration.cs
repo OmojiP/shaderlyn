@@ -24,7 +24,7 @@ internal readonly record struct ConfigurationProblem(int Line, string Message);
 /// テストからは設定ファイルを用意せずに任意の設定を注入できる。
 /// </para>
 /// </remarks>
-internal sealed class ShaderlynConfiguration
+internal sealed record ShaderlynConfiguration
 {
     /// <summary>設定ファイルの既定の名前。</summary>
     public const string FileName = ".shaderlyn.yaml";
@@ -45,6 +45,10 @@ internal sealed class ShaderlynConfiguration
 
     /// <summary>解析する環境の名前 (<c>environment</c>)。指定が無い場合は <see langword="null"/>。</summary>
     public string? Environment { get; init; }
+
+    /// <summary><c>environment</c> を書いた 0 始まりの行。書かれていなければ 0。</summary>
+    /// <remarks>知らない環境の名前を、書いた行に報告するために使う。名前を知っているのは CLI である。</remarks>
+    public int EnvironmentLine { get; init; }
 
     /// <summary>
     /// 適用するレンダーパイプラインプロファイルの名前 (<c>unity: profile</c>)。指定が無い場合は <see langword="null"/>。

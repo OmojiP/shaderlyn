@@ -11,6 +11,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -80,9 +81,18 @@ public static class Program
             return ExitCode.ToolError;
         }
 
+        // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
+        EffectiveSettings settings = EffectiveSettings.Create(options);
+
+        if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
+        {
+            await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment)).ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
         ImmutableArray<string> files = ShaderFileDiscovery.Discover(
             options.InputPaths,
-            CommandLineOptions.DefaultExtensions,
+            environment.DefaultExtensions,
             out ImmutableArray<string> missingPaths,
             out ImmutableArray<string> unsupportedFiles);
 
@@ -90,7 +100,7 @@ public static class Program
         if (options.ShowEnvironment)
         {
             await output.WriteAsync(
-                EnvironmentReport.Build(options, EffectiveSettings.Create(options), files, missingPaths, GetVersion()))
+                EnvironmentReport.Build(options, settings, environment, files, missingPaths, GetVersion()))
                 .ConfigureAwait(false);
             return ExitCode.Success;
         }
@@ -107,12 +117,10 @@ public static class Program
 
         await ReportUnsupportedFilesAsync(options, unsupportedFiles, errorOutput).ConfigureAwait(false);
 
-        EffectiveSettings settings = EffectiveSettings.Create(options);
-
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
             return await WriteInspectionAsync(
-                options, settings, analyzers, files, inspectOutputPath, output, errorOutput, cancellationToken)
+                options, settings, environment, analyzers, files, inspectOutputPath, output, errorOutput, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -121,7 +129,7 @@ public static class Program
         AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
 
         AnalysisRunner runner = new(
-            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, SemanticsSetup.CreateUnity(settings));
+            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, environment);
 
         AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
 
@@ -267,6 +275,7 @@ public static class Program
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
     /// <param name="files">解析対象のファイル。</param>
     /// <param name="outputPath">出力先。</param>
@@ -282,6 +291,7 @@ public static class Program
     private static async Task<ExitCode> WriteInspectionAsync(
         CommandLineOptions options,
         EffectiveSettings settings,
+        IAnalysisEnvironment environment,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         ImmutableArray<string> files,
         string outputPath,
@@ -309,16 +319,18 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        SemanticsOptions semantics = SemanticsSetup.Create(options, settings);
-        UnityOptions unity = SemanticsSetup.CreateUnity(settings);
+        PreparedFile prepared = environment.Prepare(text, SemanticsSetup.Create(options, settings), timings: null);
 
-        ShaderCompilation compilation =
-            ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-                ? UnityCompilation.CreateForHlsl(text, semantics, unity)
-                : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics, unity);
+        // 中身を見せる画面は HLSL のセマンティックモデルを描く。HLSL ではない言語の環境では、まだ描けない。
+        if (prepared.Compilation is not { } compilation)
+        {
+            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使えません。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(analyzers, settings.AnalyzerOptions)
-            .Analyze(compilation.CreateAnalysisTarget(), cancellationToken);
+            .Analyze(prepared.Target, cancellationToken);
 
         await File.WriteAllTextAsync(
             outputPath, AnalysisInspector.BuildHtml(compilation, diagnostics), cancellationToken)

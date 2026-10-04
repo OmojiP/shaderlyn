@@ -39,16 +39,6 @@ internal enum OutputFormat
 /// </remarks>
 internal sealed class CommandLineOptions
 {
-    /// <summary>
-    /// 解析対象として既定で探索するファイル拡張子。
-    /// </summary>
-    /// <remarks>
-    /// 第一マイルストーンでは ShaderLab のファイルのみを対象とする。
-    /// HLSL の単独ファイル (.hlsl / .cginc) は、include 解決を通じて
-    /// ShaderLab 側から辿られる形で解析対象になる。
-    /// </remarks>
-    public static ImmutableArray<string> DefaultExtensions { get; } = [".shader", ".compute"];
-
     /// <summary>既定の設定で作る。外からは <see cref="TryParse"/> を通す。</summary>
     private CommandLineOptions()
     {
@@ -62,6 +52,12 @@ internal sealed class CommandLineOptions
     /// 指定が無い場合は設定ファイルの値を使い、それも無ければ既定値を使う。
     /// </remarks>
     public string? Profile { get; private set; }
+
+    /// <summary>
+    /// 解析する環境の名前 (<c>--environment</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無い場合は設定ファイルの <c>environment</c> を使い、それも無ければ <c>unity</c>。</remarks>
+    public string? Environment { get; private set; }
 
     /// <summary>
     /// 解析の中身を書き出すビューアーの出力先。指定が無い場合は <see langword="null"/>。
@@ -258,6 +254,7 @@ internal sealed class CommandLineOptions
             ["-o"] = (o, v) => Set(() => o.OutputPath = v),
             ["--output"] = (o, v) => Set(() => o.OutputPath = v),
             ["--profile"] = ReadProfile,
+            ["--environment"] = (o, v) => Set(() => o.Environment = v),
             ["--max-symbol-variants"] = ReadMaxSymbolVariants,
             ["--unity-project"] = (o, v) => Set(() => o.UnityProjectPath = v),
             ["--unity-editor"] = (o, v) => Set(() => o.UnityEditorDataPath = v),
@@ -441,6 +438,7 @@ internal sealed class CommandLineOptions
                                  探索しません。名前を挙げて指定すれば解析します。
 
         オプション:
+          --environment <名前>   解析する環境: unity (既定)。設定ファイルの environment より優先します。
           --format <形式>        出力形式: text (既定), json, sarif, github
           --error-on <重要度>    この重要度以上の指摘で終了コード 1 を返す: info, warning (既定), error
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
