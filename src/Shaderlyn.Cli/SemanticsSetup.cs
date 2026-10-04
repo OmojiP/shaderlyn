@@ -2,7 +2,8 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
-using Shaderlyn.Semantics.Profiles;
+using Shaderlyn.Unity;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Cli;
 
@@ -37,10 +38,6 @@ internal static class SemanticsSetup
 
         return new SemanticsOptions
         {
-            Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
-                ? profile
-                : RenderPipelineProfiles.Default,
-
             IncludeResolver = CreateIncludeResolver(options, settings, editorData),
             IsUserInclude = CreateUserIncludePredicate(options, editorData),
             PredefinedMacros = BuildPredefinedMacros(settings.Defines),
@@ -60,6 +57,24 @@ internal static class SemanticsSetup
 
             // 段ごとの内訳を測る先。--timings のときだけ渡される。
             SyntaxTimings = syntaxTimings,
+        };
+    }
+
+    /// <summary>
+    /// 実行時設定から、Unity の環境の設定を作る。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>Unity の環境の設定。</returns>
+    /// <remarks>知らないプロファイルの名前は既定 (URP) にする。名前の検査は設定を読む側で済ませている。</remarks>
+    public static UnityOptions CreateUnity(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        return new UnityOptions
+        {
+            Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
+                ? profile
+                : RenderPipelineProfiles.Default,
         };
     }
 
@@ -257,7 +272,7 @@ internal static class SemanticsSetup
     /// </remarks>
     public static ImmutableDictionary<string, string> BuildPredefinedMacros(ImmutableArray<string> defines)
     {
-        ImmutableDictionary<string, string> macros = SemanticsOptions.DefaultPredefinedMacros;
+        ImmutableDictionary<string, string> macros = UnityOptions.DefaultPredefinedMacros;
 
         foreach (string define in defines)
         {

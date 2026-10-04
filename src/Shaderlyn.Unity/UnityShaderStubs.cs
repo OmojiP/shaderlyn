@@ -1,6 +1,6 @@
 using Shaderlyn.Core.Text;
 
-namespace Shaderlyn.Semantics;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// Unity のヘッダが取り込めなかった場合に備える、最小限のマクロ定義。

@@ -10,6 +10,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli;
 
@@ -120,7 +121,7 @@ public static class Program
         AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
 
         AnalysisRunner runner = new(
-            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache);
+            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, SemanticsSetup.CreateUnity(settings));
 
         AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
 
@@ -309,11 +310,12 @@ public static class Program
         }
 
         SemanticsOptions semantics = SemanticsSetup.Create(options, settings);
+        UnityOptions unity = SemanticsSetup.CreateUnity(settings);
 
         ShaderCompilation compilation =
             ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-                ? ShaderCompilation.CreateForHlsl(text, semantics)
-                : ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+                ? UnityCompilation.CreateForHlsl(text, semantics, unity)
+                : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics, unity);
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(analyzers, settings.AnalyzerOptions)
             .Analyze(compilation.CreateAnalysisTarget(), cancellationToken);

@@ -5,6 +5,7 @@ using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -169,12 +170,12 @@ internal static class CompletionPlaces
     /// </remarks>
     private static bool IsInHlsl(ShaderCompilation compilation, int offset)
     {
-        if (compilation.IsStandaloneHlsl)
+        if (compilation.GetUnity() is not { IsStandaloneHlsl: false })
         {
             return true;
         }
 
-        foreach (SyntaxNode node in compilation.ShaderLabTree.Root.DescendantNodesAndSelf())
+        foreach (SyntaxNode node in (compilation.Source.Root?.DescendantNodesAndSelf() ?? []))
         {
             if (node is ProgramBlockSyntax { Language: ProgramBlockLanguage.Hlsl } block
                 && block.BodySpan.Start <= offset

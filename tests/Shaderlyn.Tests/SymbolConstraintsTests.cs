@@ -4,6 +4,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 

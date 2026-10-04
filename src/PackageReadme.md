@@ -8,6 +8,7 @@ Unity の ShaderLab / HLSL / コンピュートシェーダーを解析する [S
 | パッケージ | 用途 |
 | --- | --- |
 | `Shaderlyn.Semantics` | ルールを書く。`HlslRuleAnalyzer` とセマンティックモデル |
+| `Shaderlyn.Unity` | Unity 固有の情報を見るルールを書く。`Properties`・Pass・レンダーパイプラインのプロファイル (`compilation.GetUnity()`) |
 | `Shaderlyn.Testing` | ルールをテストする。`ShaderRuleVerifier` |
 | `Shaderlyn.Cli` | 自作ルール入りの CLI を作る。`Program.RunAsync` |
 | `Shaderlyn.LanguageServer` | 自作ルール入りの言語サーバーを作る。`ShaderLanguageServer` |

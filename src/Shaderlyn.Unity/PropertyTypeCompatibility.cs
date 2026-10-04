@@ -1,4 +1,6 @@
-namespace Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Semantics.Symbols;
+
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// ShaderLab のプロパティ型と HLSL の uniform の型が噛み合うかを判定する。

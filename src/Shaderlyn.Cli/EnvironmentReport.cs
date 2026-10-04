@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Shaderlyn.Configuration;
 using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli;
 

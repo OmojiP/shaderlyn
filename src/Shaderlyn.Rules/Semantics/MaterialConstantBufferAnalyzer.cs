@@ -3,6 +3,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 
@@ -119,26 +120,27 @@ internal sealed class MaterialConstantBufferAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!compilation.HasCompleteDependencies
-            || !compilation.Profile.AppliesTo(compilation)
-            || compilation.Properties.IsEmpty)
+        if (compilation.GetUnity() is not { } unity
+            || !compilation.HasCompleteDependencies
+            || !unity.Profile.AppliesTo(compilation)
+            || unity.Properties.IsEmpty)
         {
             return;
         }
 
         HashSet<string> propertyNames =
-            new(compilation.Properties.Select(p => p.Name), StringComparer.Ordinal);
+            new(unity.Properties.Select(p => p.Name), StringComparer.Ordinal);
 
         // 同じ定数バッファが複数の Pass に現れるため、同じ uniform を重ねて報告しないようにする。
         HashSet<string> reported = new(StringComparer.Ordinal);
 
-        foreach (ConstantBufferSymbol buffer in compilation.GetMaterialConstantBuffers())
+        foreach (ConstantBufferSymbol buffer in unity.GetMaterialConstantBuffers())
         {
             foreach (UniformSymbol member in buffer.Members)
             {
                 if (propertyNames.Contains(member.Name)
                     || AutoProvidedUniforms.IsEngineProvided(member.Name)
-                    || AutoProvidedUniforms.IsAutoProvided(member.Name, compilation.Properties)
+                    || AutoProvidedUniforms.IsAutoProvided(member.Name, unity.Properties)
                     || !reported.Add(member.Name))
                 {
                     continue;

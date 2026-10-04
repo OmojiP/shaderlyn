@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Semantics.Profiles;
 
 namespace Shaderlyn.Semantics;
 
@@ -22,42 +21,8 @@ namespace Shaderlyn.Semantics;
 /// </remarks>
 public sealed record SemanticsOptions
 {
-    /// <summary>
-    /// 何も指定しない場合に使う定義済みマクロ。
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>単一構成での展開なので、どれか 1 つの構成を選ばなければならない</b>。
-    /// ここでは D3D11 向けの構成を選んでいる。Unity のヘッダは
-    /// <c>SHADER_API_*</c> のいずれも定義されていないと取り込むファイルを決められず、
-    /// 何も定義しないままでは解析が成立しないためである。
-    /// </para>
-    /// <para>
-    /// グラフィックス API の選択は uniform の宣言にはほとんど影響しない。
-    /// 影響するのはテクスチャのサンプリング方法や精度の扱いであり、
-    /// 現在のルールが見ている範囲の外にある。
-    /// </para>
-    /// <para>
-    /// 別の構成で解析したい場合は <c>--define</c> で上書きする。
-    /// </para>
-    /// </remarks>
-    public static ImmutableDictionary<string, string> DefaultPredefinedMacros { get; } =
-        ImmutableDictionary<string, string>.Empty
-            .WithComparers(StringComparer.Ordinal)
-            .Add("SHADER_API_D3D11", "1")
-            .Add("SHADER_API_DESKTOP", "1")
-            .Add("UNITY_COMPILER_HLSL", "1")
-            .Add("SHADER_TARGET", "45")
-
-            // Unity 6 を想定する。#if UNITY_VERSION >= ... という分岐が
-            // ヘッダの各所にあり、未定義だと 0 として扱われて古い側の経路が選ばれる。
-            .Add("UNITY_VERSION", "600000");
-
     /// <summary>既定の設定。</summary>
     public static SemanticsOptions Default { get; } = new();
-
-    /// <summary>適用するレンダーパイプラインプロファイル。</summary>
-    public IRenderPipelineProfile Profile { get; init; } = RenderPipelineProfiles.Default;
 
     /// <summary>
     /// <c>#include</c> を解決する仕組み。<see langword="null"/> の場合、include は解決されない。
@@ -68,8 +33,14 @@ public sealed record SemanticsOptions
     /// </remarks>
     public IIncludeResolver? IncludeResolver { get; init; }
 
-    /// <summary>解析開始時に定義済みとするマクロ。</summary>
-    public ImmutableDictionary<string, string> PredefinedMacros { get; init; } = DefaultPredefinedMacros;
+    /// <summary>
+    /// 解析開始時に定義済みとするマクロ。<see langword="null"/> (既定) なら環境の既定を使う。
+    /// </summary>
+    /// <remarks>
+    /// Unity の環境は、D3D11 向けの代表的な構成 (<c>SHADER_API_D3D11</c> など) を既定にする。
+    /// 指定した場合は、環境の既定に重ねずにそのまま使う。
+    /// </remarks>
+    public ImmutableDictionary<string, string>? PredefinedMacros { get; init; }
 
     /// <summary>
     /// 構成ごとに展開し直すのではなく、両方の分岐を 1 つの木に残すシンボル。
@@ -115,15 +86,6 @@ public sealed record SemanticsOptions
     /// </para>
     /// </remarks>
     public Func<string, bool>? IsUserInclude { get; init; }
-
-    /// <summary>
-    /// Unity のヘッダを取り込めなかった場合に備えて、既定のマクロ定義を先頭に差し込むかどうか。
-    /// </summary>
-    /// <remarks>
-    /// 既定で有効。詳細は <see cref="UnityShaderStubs"/> を参照。
-    /// 無効にするのは、先頭に差し込むコードの影響を切り分けて調べたい場合に限られる。
-    /// </remarks>
-    public bool UseFallbackMacros { get; init; } = true;
 
     /// <summary>
     /// 字句解析の結果を共有するキャッシュ。

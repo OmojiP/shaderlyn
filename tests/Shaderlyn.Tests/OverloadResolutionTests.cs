@@ -4,6 +4,7 @@ using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -44,7 +45,7 @@ public sealed class OverloadResolutionTests
     {
         SourceText text = SourceText.From(Shader(body), Path.Combine("Assets", "Test.shader"));
 
-        return ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text));
+        return UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text));
     }
 
     /// <summary>名前で呼び出しを 1 つ探す。</summary>

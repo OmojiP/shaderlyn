@@ -7,6 +7,7 @@ using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -58,7 +59,7 @@ public sealed class ConditionMapTests
             BothBranchSymbols = [],
         };
 
-        return ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
+        return UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
     }
 
     /// <summary>1 本の木にまとめた状態でブロックを解析する。</summary>
@@ -97,7 +98,7 @@ public sealed class ConditionMapTests
             HoistConditionalMacros = hoist,
         };
 
-        return ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
+        return UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
     }
 
     /// <summary>

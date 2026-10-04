@@ -64,7 +64,7 @@ internal static class ShaderCompilationBuilder
             new PreprocessorOptions
             {
                 IncludeResolver = options.IncludeResolver,
-                PredefinedMacros = options.PredefinedMacros,
+                PredefinedMacros = options.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty,
                 TokenCache = options.TokenCache,
                 IncludeCache = options.IncludeCache,
                 IsUserInclude = options.IsUserInclude,

@@ -10,6 +10,7 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli.Inspection;
 
@@ -70,15 +71,24 @@ internal static partial class AnalysisInspector
             writer.WriteStartObject();
             writer.WriteString("filePath", compilation.Text.FilePath);
             writer.WriteString("source", compilation.Text.Content);
-            writer.WriteString("shaderName", compilation.ShaderName);
-            writer.WriteString("profile", compilation.Profile.DisplayName);
+            writer.WriteString("shaderName", compilation.GetUnity()?.ShaderName ?? string.Empty);
+            writer.WriteString("profile", compilation.GetUnity()?.Profile.DisplayName ?? string.Empty);
             writer.WriteBoolean("hasCompleteDependencies", compilation.HasCompleteDependencies);
 
             WriteStringArray(writer, "unresolvedIncludes", compilation.UnresolvedIncludes);
             WriteStringArray(writer, "resolvedIncludes", compilation.AllIncludePaths);
 
+            // ファイル全体の木 (Unity なら ShaderLab の木)。持たない環境では null を書く。
             writer.WritePropertyName("shaderLab");
-            WriteNode(writer, compilation.ShaderLabTree.Root, compilation.Text, new NodeBudget());
+
+            if (compilation.Source.Root is { } root)
+            {
+                WriteNode(writer, root, compilation.Text, new NodeBudget());
+            }
+            else
+            {
+                writer.WriteNullValue();
+            }
 
             WritePrograms(writer, compilation);
             WriteUnexploredCombinations(writer, compilation);
@@ -437,11 +447,11 @@ internal static partial class AnalysisInspector
     /// <returns>画面に出す名前。</returns>
     private static string DescribeProgram(ShaderCompilation compilation, AnalyzedProgram program)
     {
-        string keyword = program.Block?.Delimiter?.StartKeyword ?? "PROGRAM";
+        string keyword = program.GetUnityBlock()?.Block?.Delimiter?.StartKeyword ?? "PROGRAM";
 
         string pass = program.KernelName is { Length: > 0 } kernelName
             ? $"kernel {kernelName}"
-            : program.PassName is { Length: > 0 } passName
+            : program.GetUnityBlock()?.PassName is { Length: > 0 } passName
             ? $"{keyword} (Pass \"{passName}\")"
             : keyword;
 
@@ -498,7 +508,7 @@ internal static partial class AnalysisInspector
     {
         writer.WriteStartArray("properties");
 
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in compilation.GetUnity()?.Properties ?? [])
         {
             Location location = property.NameLocation;
 

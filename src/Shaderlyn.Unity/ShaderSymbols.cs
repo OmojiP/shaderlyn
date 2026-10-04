@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Preprocessing;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// 1 行の <c>#pragma</c> が宣言したシンボルの並び。

@@ -6,9 +6,10 @@ using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Environments;
 
-namespace Shaderlyn.Semantics.Environments;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// Unity の環境。
@@ -22,12 +23,14 @@ namespace Shaderlyn.Semantics.Environments;
 /// 単位ごとに、<c>#pragma target</c> から <c>SHADER_TARGET</c> を定義し、
 /// <c>CGPROGRAM</c> には Unity が自動で取り込むヘッダを先頭に足す。
 /// </para>
+/// <para>
+/// 定義済みマクロの指定が無ければ (<see cref="SemanticsOptions.PredefinedMacros"/> が <see langword="null"/>)、
+/// <see cref="UnityOptions.DefaultPredefinedMacros"/> を使う。
+/// </para>
 /// </remarks>
-internal sealed class UnityHlslEnvironment : IHlslEnvironment
+/// <param name="options">Unity の環境の設定。</param>
+public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironment
 {
-    /// <summary>ただ 1 つの実体。状態を持たない。</summary>
-    public static UnityHlslEnvironment Instance { get; } = new();
-
     /// <summary><c>CGPROGRAM</c> に Unity が自動で取り込むヘッダ。</summary>
     private static readonly string[] CgAutoIncludes = ["HLSLSupport.cginc", "UnityShaderVariables.cginc"];
 
@@ -37,9 +40,7 @@ internal sealed class UnityHlslEnvironment : IHlslEnvironment
     /// <summary>作った先頭のコード。同じヘッダの組には同じテキストを返し、字句解析の結果を使い回す。</summary>
     private static readonly ConcurrentDictionary<string, SourceText> CgPreludes = new(StringComparer.Ordinal);
 
-    private UnityHlslEnvironment()
-    {
-    }
+    private readonly UnityOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
     /// <inheritdoc/>
     public string Name => "unity";
@@ -47,7 +48,7 @@ internal sealed class UnityHlslEnvironment : IHlslEnvironment
     /// <inheritdoc/>
     /// <remarks>
     /// Unity のヘッダが引けない環境でも宣言を取り出せるよう、最小限のマクロを先頭に差し込む
-    /// (<see cref="SemanticsOptions.UseFallbackMacros"/>、<see cref="UnityShaderStubs"/>)。
+    /// (<see cref="UnityOptions.UseFallbackMacros"/>、<see cref="UnityShaderStubs"/>)。
     /// </remarks>
     public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
     {
@@ -56,7 +57,8 @@ internal sealed class UnityHlslEnvironment : IHlslEnvironment
 
         return UnityPreprocessorDirectives.Apply(options) with
         {
-            Prelude = semantics.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
+            PredefinedMacros = semantics.PredefinedMacros ?? UnityOptions.DefaultPredefinedMacros,
+            Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
     }
 
@@ -77,7 +79,7 @@ internal sealed class UnityHlslEnvironment : IHlslEnvironment
             options = options with { PredefinedMacros = options.PredefinedMacros.SetItem("SHADER_TARGET", shaderTarget) };
         }
 
-        if (unit.Data is ProgramBlockView { Block.Delimiter.StartKeyword: "CGPROGRAM" })
+        if (unit.Data is UnityProgramBlock { Block.Delimiter.StartKeyword: "CGPROGRAM" })
         {
             options = WithCgAutoIncludes(options, filePath, ReadSurfaceLighting(tokens));
         }

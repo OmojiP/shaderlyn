@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cookbook;
 
@@ -17,7 +18,8 @@ public sealed class KernelNamePrefixAnalyzer(string prefix) : DiagnosticAnalyzer
 
         context.RegisterSyntaxTreeAction(c =>
         {
-            if (c.Unit.GetModel<ShaderCompilation>() is not { IsStandaloneHlsl: true } compilation)
+            if (c.Unit.GetModel<ShaderCompilation>() is not { } compilation
+                || compilation.GetUnity() is not { IsStandaloneHlsl: true })
             {
                 return;
             }

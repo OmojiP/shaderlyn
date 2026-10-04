@@ -5,6 +5,7 @@ using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -21,7 +22,7 @@ internal static partial class HoverBuilder
     /// <returns>説明。答えるものが無い場合は <see langword="null"/>。</returns>
     private static HoverResult? BuildForProperty(ShaderCompilation compilation, int offset)
     {
-        foreach (SyntaxNode node in compilation.ShaderLabTree.Root.DescendantNodesAndSelf())
+        foreach (SyntaxNode node in (compilation.Source.Root?.DescendantNodesAndSelf() ?? []))
         {
             if (node.Span.Length == 0 || offset < node.Span.Start || offset > node.Span.End)
             {
@@ -258,7 +259,7 @@ internal static partial class HoverBuilder
               + (found.ContainingBufferName is { } buffer ? $" (`{buffer}` の中)" : " (定数バッファの外)")
             : "**HLSL 側に対応する宣言が見つかりません。**";
 
-        PropertySymbol? symbol = compilation.Properties.FirstOrDefault(p => p.Name == name);
+        PropertySymbol? symbol = (compilation.GetUnity()?.Properties ?? []).FirstOrDefault(p => p.Name == name);
         string kind = symbol is null ? string.Empty : $"プロパティの型: **`{symbol.Kind}`**\n\n";
 
         return new HoverResult(

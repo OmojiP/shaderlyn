@@ -3,6 +3,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -37,7 +38,7 @@ public sealed class StandaloneHlslRuleTests
     private static ImmutableArray<Diagnostic> Analyze(string source, string fileName)
     {
         SourceText text = SourceText.From(source, Path.Combine("Assets", fileName));
-        AnalysisTarget unit = ShaderCompilation.CreateForHlsl(text, new SemanticsOptions()).CreateAnalysisTarget();
+        AnalysisTarget unit = UnityCompilation.CreateForHlsl(text, new SemanticsOptions()).CreateAnalysisTarget();
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(unit);
     }

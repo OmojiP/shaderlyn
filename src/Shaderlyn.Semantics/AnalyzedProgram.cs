@@ -6,7 +6,6 @@ using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
-using Shaderlyn.ShaderLab.Syntax;
 
 namespace Shaderlyn.Semantics;
 
@@ -27,14 +26,9 @@ public sealed class AnalyzedProgram
         DeclarationSet declarations,
         VariantSpace variants)
     {
-        ProgramBlockView? block = unit.Data as ProgramBlockView;
-
         Unit = unit;
-        Block = block?.Block;
         CodeSpan = unit.CodeSpan;
         KernelName = unit.Name;
-        IncludeBlocks = block?.IncludeBlocks ?? [];
-        Pass = block?.Pass;
         Text = unit.Text;
         Tree = tree;
         Variants = variants;
@@ -43,7 +37,6 @@ public sealed class AnalyzedProgram
         Structs = declarations.Structs;
         FunctionNames = declarations.FunctionNames;
         FunctionSignatures = declarations.FunctionSignatures;
-        PassName = block?.PassName;
     }
 
     /// <summary>この木を解析したコンパイル単位。</summary>
@@ -59,16 +52,6 @@ public sealed class AnalyzedProgram
     public VariantSpace Variants { get; }
 
     /// <summary>
-    /// 対応する <c>*PROGRAM</c> ブロック。
-    /// HLSL 単体ファイル (<c>.compute</c> など) では <see langword="null"/>。
-    /// </summary>
-    /// <remarks>
-    /// <b>ブロックを見分けるには <see cref="CodeSpan"/> を使うこと。</b>
-    /// こちらは ShaderLab の構文木がある場合にしか無い。
-    /// </remarks>
-    public ProgramBlockSyntax? Block { get; }
-
-    /// <summary>
     /// このブロックが占めるファイル上の範囲。
     /// </summary>
     /// <remarks>
@@ -77,18 +60,9 @@ public sealed class AnalyzedProgram
     /// </remarks>
     public TextSpan CodeSpan { get; }
 
-    /// <summary>このブロックへ差し込まれた共通コード片。</summary>
-    public ImmutableArray<ProgramBlockSyntax> IncludeBlocks { get; }
-
-    /// <summary>ブロックを含む <c>Pass</c>。<c>Pass</c> の外にある場合は <see langword="null"/>。</summary>
-    public PassSyntax? Pass { get; }
-
-    /// <summary><c>Name "..."</c> で付けられた Pass の名前。無い場合は <see langword="null"/>。</summary>
-    public string? PassName { get; }
-
     /// <summary>
-    /// このブロックが対応するコンピュートシェーダーのカーネル名。
-    /// カーネルでない場合は <see langword="null"/>。
+    /// 同じ範囲から作られた単位を見分ける名前 (<see cref="Environments.HlslCompilationUnit.Name"/>)。
+    /// Unity ではコンピュートシェーダーのカーネル名。無ければ <see langword="null"/>。
     /// </summary>
     /// <remarks>
     /// <b>Unity はカーネルごとに別々にコンパイルする。</b>
@@ -249,14 +223,10 @@ public sealed class AnalyzedProgram
     /// 開始シンボルを指すので、どのブロックの話かが読み手に伝わる。
     /// </para>
     /// <para>
-    /// HLSL 単体ファイルには開始シンボルが無いので、ファイルの先頭を指す。
+    /// 位置は環境が単位に持たせる (<see cref="Environments.HlslCompilationUnit.MarkerSpan"/>)。
+    /// 無ければ単位の先頭の 1 文字を指す。HLSL 単体ファイルではファイルの先頭になる。
     /// </para>
     /// </remarks>
     public Location GetBlockLocation()
-        => Location.Create(Text, new TextSpan(CodeSpan.Start, GetKeywordLength()));
-
-    /// <summary>開始シンボルの長さを求める。</summary>
-    /// <returns>開始シンボルの文字数。判別できない場合は 1。</returns>
-    private int GetKeywordLength()
-        => Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1;
+        => Location.Create(Text, Unit.MarkerSpan ?? new TextSpan(CodeSpan.Start, 1));
 }

@@ -1,4 +1,4 @@
-namespace Shaderlyn.Semantics.Symbols;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// ShaderLab の <c>Properties</c> に書けるプロパティの型。

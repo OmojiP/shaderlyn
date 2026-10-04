@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Preprocessing;
 using Xunit.Abstractions;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -151,7 +152,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         ];
 
         // Unity のヘッダは #include_with_pragmas を使う。
-        return Semantics.UnityPreprocessorDirectives.Apply(new PreprocessorOptions
+        return Unity.UnityPreprocessorDirectives.Apply(new PreprocessorOptions
         {
             // Unity のシェーダーは他パッケージのヘッダを Packages/<パッケージ名>/... で参照する。
             // これを解決できないとマクロが未定義のまま残り、構文エラーの山になる。
@@ -619,7 +620,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             try
             {
                 ShaderLab.ShaderLabSyntaxTree tree = ShaderLab.ShaderLabSyntaxTree.Parse(text);
-                Semantics.ShaderCompilation compilation = Semantics.ShaderCompilation.Create(text, tree, options);
+                Semantics.ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
                 analyzedShaders++;
                 if (compilation.HasCompleteDependencies)
@@ -862,8 +863,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
             Semantics.ShaderCompilation compilation =
                 file.EndsWith(".compute", StringComparison.OrdinalIgnoreCase)
-                    ? Semantics.ShaderCompilation.CreateForHlsl(text, options)
-                    : Semantics.ShaderCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
+                    ? UnityCompilation.CreateForHlsl(text, options)
+                    : UnityCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
 
             compilations++;
             unexplored += compilation.UnexploredSymbols.Length + compilation.UnexploredSymbolCombinations.Length;
@@ -1007,8 +1008,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     {
         Semantics.ShaderCompilation compilation =
             text.FilePath.EndsWith(".compute", StringComparison.OrdinalIgnoreCase)
-                ? Semantics.ShaderCompilation.CreateForHlsl(text, options)
-                : Semantics.ShaderCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
+                ? UnityCompilation.CreateForHlsl(text, options)
+                : UnityCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
 
         results = [.. compilation.Programs.Select(p => p.Tree.PreprocessResult)];
 
@@ -1130,8 +1131,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         {
             SourceText text = SourceText.From(source, path);
             Semantics.ShaderCompilation compilation = path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase)
-                ? Semantics.ShaderCompilation.CreateForHlsl(text, options)
-                : Semantics.ShaderCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
+                ? UnityCompilation.CreateForHlsl(text, options)
+                : UnityCompilation.Create(text, ShaderLab.ShaderLabSyntaxTree.Parse(text), options);
 
             return
             [
@@ -1160,7 +1161,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         if (path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase))
         {
             SourceText text = SourceText.From(content, path);
-            Semantics.ShaderCompilation compilation = Semantics.ShaderCompilation.CreateForHlsl(text, options);
+            Semantics.ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, options);
 
             blocks.AddRange(compilation.Programs
                 .SelectMany(program => program.Tree.PreprocessResult.Pragmas)

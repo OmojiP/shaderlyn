@@ -1,4 +1,5 @@
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Rules;
 

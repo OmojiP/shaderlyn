@@ -5,6 +5,7 @@ using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 

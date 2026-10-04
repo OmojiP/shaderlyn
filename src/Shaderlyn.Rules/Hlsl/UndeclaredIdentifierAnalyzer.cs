@@ -8,6 +8,7 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 

@@ -4,6 +4,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -413,7 +414,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void LineはUnityで使えない構文として報告する()
     {
-        PreprocessorOptions options = Semantics.UnityPreprocessorDirectives.Apply(PreprocessorOptions.Default);
+        PreprocessorOptions options = Unity.UnityPreprocessorDirectives.Apply(PreprocessorOptions.Default);
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("#line 100\nfloat4 f(float4 x) { return x; }\n", "test.hlsl"), options);
 
@@ -454,7 +455,7 @@ public sealed class HlslDeclarationParsingTests
 
         if (unity)
         {
-            options = Semantics.UnityPreprocessorDirectives.Apply(options);
+            options = Unity.UnityPreprocessorDirectives.Apply(options);
         }
 
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(

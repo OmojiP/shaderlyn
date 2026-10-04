@@ -4,6 +4,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 
@@ -34,14 +35,15 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (compilation.Profile.MaterialConstantBufferName is not { } bufferName
+        if (compilation.GetUnity() is not { } unity
+            || unity.Profile.MaterialConstantBufferName is not { } bufferName
             || !compilation.HasCompleteDependencies
-            || !compilation.Profile.AppliesTo(compilation))
+            || !unity.Profile.AppliesTo(compilation))
         {
             return;
         }
 
-        ImmutableArray<ConstantBufferSymbol> buffers = compilation.GetMaterialConstantBuffers();
+        ImmutableArray<ConstantBufferSymbol> buffers = unity.GetMaterialConstantBuffers();
 
         // 定数バッファが 1 つも無いシェーダーは、そもそも SRP Batcher を狙っていない。
         // 「全プロパティが入っていない」と全件報告しても、直し方の指示にはならず雑音になる。
@@ -89,7 +91,7 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         string bufferName)
     {
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in compilation.GetUnity()!.Properties)
         {
             if (property.IsPerRendererData())
             {
@@ -210,9 +212,14 @@ internal sealed class ObsoleteApiAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        ImmutableDictionary<string, string> obsolete = compilation.Profile.ObsoleteApis;
+        if (compilation.GetUnity() is not { } unity)
+        {
+            return;
+        }
 
-        if (obsolete.IsEmpty || !compilation.Profile.AppliesTo(compilation))
+        ImmutableDictionary<string, string> obsolete = unity.Profile.ObsoleteApis;
+
+        if (obsolete.IsEmpty || !unity.Profile.AppliesTo(compilation))
         {
             return;
         }
@@ -230,7 +237,7 @@ internal sealed class ObsoleteApiAnalyzer : SemanticRuleAnalyzer
                 RenderPipelineRuleDescriptors.ObsoleteApi,
                 token.GetLocation(),
                 token.Text,
-                compilation.Profile.DisplayName,
+                unity.Profile.DisplayName,
                 replacement));
         }
     }

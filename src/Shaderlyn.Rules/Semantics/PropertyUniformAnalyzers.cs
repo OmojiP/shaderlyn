@@ -3,6 +3,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 
@@ -160,12 +161,12 @@ internal sealed class PropertyUniformAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!compilation.HasHlslPrograms)
+        if (!compilation.HasHlslPrograms || compilation.GetUnity() is not { } unity)
         {
             return;
         }
 
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in unity.Properties)
         {
             IReadOnlyList<UniformSymbol> uniforms = compilation.GetUniforms(property.Name);
 
@@ -264,7 +265,7 @@ internal sealed class PropertyUniformAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (compilation.IsReferencedFromShaderLab(property.Name))
+        if (compilation.GetUnity()!.IsReferencedFromShaderLab(property.Name))
         {
             return;
         }
@@ -274,7 +275,7 @@ internal sealed class PropertyUniformAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (compilation.CountIdentifierOccurrences(property.Name) > 0)
+        if (compilation.GetUnity()!.CountIdentifierOccurrences(property.Name) > 0)
         {
             return;
         }
@@ -298,19 +299,19 @@ internal sealed class UnusedPropertyAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!compilation.HasHlslPrograms || !compilation.HasCompleteDependencies)
+        if (!compilation.HasHlslPrograms || !compilation.HasCompleteDependencies || compilation.GetUnity() is not { } unity)
         {
             return;
         }
 
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in unity.Properties)
         {
-            if (compilation.IsReferencedFromShaderLab(property.Name))
+            if (unity.IsReferencedFromShaderLab(property.Name))
             {
                 continue;
             }
 
-            if (!compilation.IsDeclaredButNeverUsed(property.Name))
+            if (!unity.IsDeclaredButNeverUsed(property.Name))
             {
                 continue;
             }

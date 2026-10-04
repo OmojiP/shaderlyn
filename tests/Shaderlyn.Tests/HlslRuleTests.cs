@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -48,7 +49,7 @@ public sealed class HlslRuleTests
                 new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = urpCoreContent }),
         };
 
-        AnalysisTarget unit = ShaderCompilation.Create(text, tree, options).CreateAnalysisTarget();
+        AnalysisTarget unit = UnityCompilation.Create(text, tree, options).CreateAnalysisTarget();
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(unit);
     }

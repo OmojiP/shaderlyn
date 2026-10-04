@@ -6,6 +6,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -44,6 +45,7 @@ internal sealed class AnalysisSession
     private readonly AnalysisRunner _syntaxOnly;
     private readonly AnalysisRunner _full;
     private readonly SemanticsOptions _semantics;
+    private readonly UnityOptions _unity;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
@@ -92,8 +94,9 @@ internal sealed class AnalysisSession
         _analyzers = all;
         _analyzerOptions = settings.AnalyzerOptions;
         _semantics = SemanticsSetup.Create(options, settings);
-        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions);
-        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics);
+        _unity = SemanticsSetup.CreateUnity(settings);
+        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions, unityOptions: _unity);
+        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics, unityOptions: _unity);
     }
 
     /// <summary>
@@ -163,14 +166,14 @@ internal sealed class AnalysisSession
     /// <param name="text">対象のテキスト。</param>
     /// <param name="semantics">意味解析の設定。</param>
     /// <returns>組み立てたセマンティックモデル。</returns>
-    private static ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
+    private ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
     {
         // どの言語として読むかは拡張子だけで決める。
         // CLI と同じ判断を使う。片方だけ別に判定すると、
         // 「CLI では見るのにエディタでは見ない」という食い違いが生まれる。
         return ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-            ? ShaderCompilation.CreateForHlsl(text, semantics)
-            : ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+            ? UnityCompilation.CreateForHlsl(text, semantics, _unity)
+            : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics, _unity);
     }
 
     /// <summary>ワークスペースのルート。</summary>
@@ -250,7 +253,7 @@ internal sealed class AnalysisSession
         return _withSymbols.GetOrAdd(key, _ =>
         {
             SemanticsOptions semantics = DefineSymbols(definedSymbols);
-            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics));
+            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics, unityOptions: _unity));
         });
     }
 
@@ -259,7 +262,7 @@ internal sealed class AnalysisSession
     /// <returns>足した設定。</returns>
     private SemanticsOptions DefineSymbols(IReadOnlyCollection<string> symbols)
     {
-        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros;
+        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros ?? UnityOptions.DefaultPredefinedMacros;
 
         foreach (string symbol in symbols)
         {

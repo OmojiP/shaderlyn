@@ -2,9 +2,10 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab.Syntax;
 
-namespace Shaderlyn.Semantics.Programs;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// <c>.shader</c> に埋め込まれた HLSL を、ファイル上の位置を保ったまま取り出す。
@@ -49,12 +50,12 @@ internal static class ProgramBlockExtractor
     /// 解析単位が 1 つも作られない。
     /// </para>
     /// </remarks>
-    public static ImmutableArray<ProgramBlockView> Extract(ShaderLab.ShaderLabSyntaxTree tree)
+    public static ImmutableArray<UnityProgramBlock> Extract(ShaderLab.ShaderLabSyntaxTree tree)
     {
         ArgumentNullException.ThrowIfNull(tree);
 
-        ImmutableArray<ProgramBlockView>.Builder results =
-            ImmutableArray.CreateBuilder<ProgramBlockView>();
+        ImmutableArray<UnityProgramBlock>.Builder results =
+            ImmutableArray.CreateBuilder<UnityProgramBlock>();
 
         foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
         {
@@ -73,7 +74,7 @@ internal static class ProgramBlockExtractor
                 block.BodySpan,
             ];
 
-            results.Add(new ProgramBlockView(
+            results.Add(new UnityProgramBlock(
                 block,
                 applicableIncludes,
                 FindEnclosingPass(block),
@@ -116,13 +117,13 @@ internal static class ProgramBlockExtractor
     /// <c>VARIANT=0</c> と <c>VARIANT=1</c> は両立しないので、1 つにまとめられない。
     /// </para>
     /// <para>
-    /// <see cref="ProgramBlockView.Block"/> は <see langword="null"/> になる。
+    /// <see cref="UnityProgramBlock.Block"/> は <see langword="null"/> になる。
     /// 対応する ShaderLab のノードが無いためである。
     /// <b>偽物のノードは作らない。</b>
     /// 存在しない位置を指すノードを木に入れると、いつか誰かがそれを位置として使う。
     /// </para>
     /// </remarks>
-    public static ImmutableArray<ProgramBlockView> ForStandaloneHlsl(
+    public static ImmutableArray<UnityProgramBlock> ForStandaloneHlsl(
         SourceText text,
         ImmutableArray<ComputeKernel> kernels)
     {
@@ -135,7 +136,7 @@ internal static class ProgramBlockExtractor
         {
             return
             [
-                new ProgramBlockView(
+                new UnityProgramBlock(
                     Block: null,
                     IncludeBlocks: [],
                     Pass: null,
@@ -150,12 +151,12 @@ internal static class ProgramBlockExtractor
         //
         // カーネルのコンパイルでは SHADER_STAGE_COMPUTE も定義される。
         // ヘッダはこれを見て、コンピュートシェーダーでだけ使うマクロ (UNITY_XR_ASSIGN_VIEW_INDEX など) を定義する。
-        ImmutableArray<ProgramBlockView>.Builder results =
-            ImmutableArray.CreateBuilder<ProgramBlockView>(kernels.Length);
+        ImmutableArray<UnityProgramBlock>.Builder results =
+            ImmutableArray.CreateBuilder<UnityProgramBlock>(kernels.Length);
 
         foreach (ComputeKernel kernel in kernels)
         {
-            results.Add(new ProgramBlockView(
+            results.Add(new UnityProgramBlock(
                 Block: null,
                 IncludeBlocks: [],
                 Pass: null,
@@ -323,7 +324,7 @@ internal static class ProgramBlockExtractor
 }
 
 /// <summary>
-/// HLSL として解析する 1 単位分の切り出し結果。
+/// Unity のコードブロック 1 つ分。コンパイル単位 (<see cref="HlslCompilationUnit"/>) に持たせる付帯情報。
 /// </summary>
 /// <param name="Block">
 /// 対象の <c>*PROGRAM</c> ブロック。
@@ -346,11 +347,16 @@ internal static class ProgramBlockExtractor
 /// カーネルでない場合は <see langword="null"/>。
 /// </param>
 /// <remarks>
+/// <para>
 /// <b>ブロックの同一性は <paramref name="CodeSpan"/> で判定する。</b>
 /// <paramref name="Block"/> は ShaderLab の構文木がある場合にしか無いが、
 /// 範囲はどちらの経路でも必ず決まる。
+/// </para>
+/// <para>
+/// 解析した木から引くには <see cref="UnityCompilationExtensions.GetUnityBlock"/> を使う。
+/// </para>
 /// </remarks>
-internal sealed record ProgramBlockView(
+public sealed record UnityProgramBlock(
     ProgramBlockSyntax? Block,
     ImmutableArray<ProgramBlockSyntax> IncludeBlocks,
     PassSyntax? Pass,
@@ -364,6 +370,16 @@ internal sealed record ProgramBlockView(
 
     /// <summary>コンパイル単位にする。この切り出し自体を単位の付帯情報として持たせる。</summary>
     /// <returns>コンパイル単位。</returns>
-    public Environments.HlslCompilationUnit ToUnit()
-        => new(MaskedText, CodeSpan, KernelName, ExtraMacros, this);
+    /// <remarks>
+    /// 単位全体についての指摘は、<c>HLSLPROGRAM</c> などの開始の語を指す。どのブロックの話かが読み手に伝わる。
+    /// HLSL 単体ファイルには開始の語が無いので、ファイルの先頭を指す。
+    /// </remarks>
+    internal HlslCompilationUnit ToUnit()
+        => new(
+            MaskedText,
+            CodeSpan,
+            KernelName,
+            ExtraMacros,
+            this,
+            new TextSpan(CodeSpan.Start, Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1));
 }

@@ -5,6 +5,7 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -25,7 +26,7 @@ internal static partial class DefinitionBuilder
     /// </remarks>
     private static DefinitionTarget? FindShaderLabProperty(ShaderCompilation compilation, int offset)
     {
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in compilation.GetUnity()?.Properties ?? [])
         {
             Core.Diagnostics.Location name = property.NameLocation;
 
@@ -240,7 +241,7 @@ internal static partial class DefinitionBuilder
     /// <returns>見つかった定義。無い場合は <see langword="null"/>。</returns>
     private static DefinitionTarget? FindProperty(ShaderCompilation compilation, string name)
     {
-        foreach (PropertySymbol property in compilation.Properties)
+        foreach (PropertySymbol property in compilation.GetUnity()?.Properties ?? [])
         {
             if (property.Name == name)
             {

@@ -8,6 +8,7 @@ using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Xunit.Abstractions;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -130,8 +131,8 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
             SourceText text = SourceText.From(File.ReadAllText(path), path);
 
             ShaderCompilation compilation = path.EndsWith(".shader", StringComparison.Ordinal)
-                ? ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options)
-                : ShaderCompilation.CreateForHlsl(text, options);
+                ? UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options)
+                : UnityCompilation.CreateForHlsl(text, options);
 
             IEnumerable<string> diagnostics = driver.Analyze(compilation.CreateAnalysisTarget())
                 .OrderBy(d => d.Location.Span.Start)

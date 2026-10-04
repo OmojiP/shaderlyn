@@ -3,6 +3,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.LanguageServer;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -138,7 +139,7 @@ public sealed class CompletionTests
         text = text.Remove(second, 1);
 
         SourceText source = SourceText.From(text, Path.Combine("Assets", "Completion.shader"));
-        ShaderCompilation compilation = ShaderCompilation.Create(source, ShaderLabSyntaxTree.Parse(source));
+        ShaderCompilation compilation = UnityCompilation.Create(source, ShaderLabSyntaxTree.Parse(source));
 
         Assert.Empty(CompletionBuilder.Build(compilation, first));
         Assert.Contains(CompletionBuilder.Build(compilation, second), i => i.Label == "saturate");
@@ -153,7 +154,7 @@ public sealed class CompletionTests
         int offset = joined.IndexOf(Cursor, StringComparison.Ordinal);
         string text = joined.Remove(offset, 1);
 
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(SourceText.From(text, "Completion.hlsl"));
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(SourceText.From(text, "Completion.hlsl"));
 
         return CompletionBuilder.Build(compilation, offset);
     }

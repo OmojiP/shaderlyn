@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Preprocessing;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// <c>#pragma kernel</c> が宣言する、コンピュートシェーダーの入口 1 つ分。

@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Semantics.Profiles;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Cli;
 

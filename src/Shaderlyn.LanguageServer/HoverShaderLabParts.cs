@@ -2,6 +2,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -32,7 +33,7 @@ internal static partial class HoverBuilder
 
         return new HoverResult(
             $"```shaderlab\nShader \"{shader.Name}\"\n```\n\n{menu}"
-            + $"\n\nレンダーパイプライン: {compilation.Profile.DisplayName}",
+            + $"\n\nレンダーパイプライン: {compilation.GetUnity()?.Profile.DisplayName}",
             shader.NameToken.Span);
     }
 
@@ -74,7 +75,7 @@ internal static partial class HoverBuilder
 
         return new HoverResult(
             $"```shaderlab\nPass  // {name}\n```\n\nLightMode: {lightMode}"
-            + $"\n\nレンダーパイプライン: {compilation.Profile.DisplayName}",
+            + $"\n\nレンダーパイプライン: {compilation.GetUnity()?.Profile.DisplayName}",
             pass.Keyword.Span);
     }
 
@@ -216,7 +217,8 @@ internal static partial class HoverBuilder
     {
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            if (ReferenceEquals(program.Block, block) || program.IncludeBlocks.Contains(block))
+            if (program.GetUnityBlock() is { } unityBlock
+                && (ReferenceEquals(unityBlock.Block, block) || unityBlock.IncludeBlocks.Contains(block)))
             {
                 return new AnalyzedProgramInfo(program.Uniforms.Length, program.UnresolvedIncludes.Length);
             }

@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Hlsl.Preprocessing;
 
-namespace Shaderlyn.Semantics;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// Unity のシェーダーのコンパイルが受け付ける指令の違い。

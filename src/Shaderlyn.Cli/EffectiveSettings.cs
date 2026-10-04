@@ -3,6 +3,7 @@ using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Cli;
 
@@ -83,7 +84,7 @@ internal sealed class EffectiveSettings
 
         return new EffectiveSettings(
             configuration,
-            options.Profile ?? configuration.Profile ?? Semantics.Profiles.RenderPipelineProfiles.Default.Name,
+            options.Profile ?? configuration.Profile ?? RenderPipelineProfiles.Default.Name,
             includePaths,
             defines,
             analyzerOptions,

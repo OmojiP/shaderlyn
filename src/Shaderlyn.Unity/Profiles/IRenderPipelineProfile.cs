@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.Semantics;
 
-namespace Shaderlyn.Semantics.Profiles;
+namespace Shaderlyn.Unity.Profiles;
 
 /// <summary>
 /// レンダーパイプラインごとに異なる知識をまとめた差し替え点。

@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Unity\Shaderlyn.Unity.csproj" />
   </ItemGroup>
 
 </Project>

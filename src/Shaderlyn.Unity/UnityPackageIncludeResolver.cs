@@ -2,8 +2,9 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Hlsl.Preprocessing;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.Unity;
 
 /// <summary>
 /// Unity のパッケージ参照形式の <c>#include</c> を解決する。

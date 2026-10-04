@@ -20,6 +20,10 @@ namespace Shaderlyn.Semantics.Environments;
 /// 環境が単位に持たせる情報 (Unity なら、ShaderLab のブロックと Pass)。
 /// 解析そのものは中身を見ない。
 /// </param>
+/// <param name="MarkerSpan">
+/// 単位全体についての指摘を出す位置。Unity なら <c>HLSLPROGRAM</c> の語。
+/// 無ければ <see langword="null"/> で、単位の先頭の 1 文字を指す。
+/// </param>
 /// <remarks>
 /// <para>
 /// <b>環境が作り、解析はこの形だけを見る。</b>
@@ -35,4 +39,5 @@ public sealed record HlslCompilationUnit(
     TextSpan CodeSpan,
     string? Name = null,
     ImmutableDictionary<string, string>? ExtraMacros = null,
-    object? Data = null);
+    object? Data = null,
+    TextSpan? MarkerSpan = null);

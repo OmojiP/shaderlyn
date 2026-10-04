@@ -745,20 +745,20 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 ### 付録 2: 宣言の読み取り
 
-[ShaderSymbols.cs](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) の 1 か所だけが判断します。
+[ShaderSymbols.cs](../../src/Shaderlyn.Unity/ShaderSymbols.cs) の 1 か所だけが判断します。
 
 | 判断 | コード |
 | --- | --- |
-| 対象の `#pragma`（前方一致） | [ShaderSymbols.DeclaringPragmaPrefixes](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs)、[IsDeclaringPragmaName](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
-| 引数（その行の識別子トークンすべて） | [ShaderSymbols.EnumerateDeclared](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
-| 除外する引数（下線だけの名前） | [ShaderSymbols.IsNoSymbol](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
+| 対象の `#pragma`（前方一致） | [ShaderSymbols.DeclaringPragmaPrefixes](../../src/Shaderlyn.Unity/ShaderSymbols.cs)、[IsDeclaringPragmaName](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| 引数（その行の識別子トークンすべて） | [ShaderSymbols.EnumerateDeclared](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| 除外する引数（下線だけの名前） | [ShaderSymbols.IsNoSymbol](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 
 宣言を集める経路は 2 つあります。
 
 | 経路 | 入力 | 使う場面 | コード |
 | --- | --- | --- | --- |
-| `CollectDeclared(pragmas)` | プリプロセス後の `PragmaDirective` | HL0330 / HL0331、バリアントの候補選び | [ShaderSymbols.CollectDeclared](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
-| `CollectDeclaredFromTokens(tokens)` | 字句解析しただけのトークン列 | プリプロセスの**前**に「どれがシンボルか」を知る必要があるため | [ShaderSymbols.CollectDeclaredFromTokens](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
+| `CollectDeclared(pragmas)` | プリプロセス後の `PragmaDirective` | HL0330 / HL0331、バリアントの候補選び | [ShaderSymbols.CollectDeclared](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| `CollectDeclaredFromTokens(tokens)` | 字句解析しただけのトークン列 | プリプロセスの**前**に「どれがシンボルか」を知る必要があるため | [ShaderSymbols.CollectDeclaredFromTokens](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 
 `CollectDeclaredFromTokens` は **解析対象のファイル自身の `#pragma` しか見ません**。取り込んだヘッダの宣言は
 この時点では読めていません。
@@ -772,7 +772,7 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 | 経路 | 内容 | コード |
 | --- | --- | --- |
 | `ConditionalIdentifiers` | 条件で参照された名前のトークン | [PreprocessResult.ConditionalIdentifiers](../../src/Shaderlyn.Hlsl/Preprocessing/PreprocessorTypes.cs) |
-| `CollectRuntimeReferences(codeTokens)` | コード中に識別子として現れた名前（`dynamic_branch` のため）。`#` で始まる行は飛ばす | [ShaderSymbols.CollectRuntimeReferences](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs) |
+| `CollectRuntimeReferences(codeTokens)` | コード中に識別子として現れた名前（`dynamic_branch` のため）。`#` で始まる行は飛ばす | [ShaderSymbols.CollectRuntimeReferences](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 
 ### 付録 3: プリプロセス
 
@@ -887,7 +887,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 | 決めるもの | 内容 | 適用する場所 |
 | --- | --- | --- |
 | 環境 | `SHADER_API_*`、`UNITY_VERSION` など。1 通りだけを仮に選ぶ | [SemanticsOptions.DefaultPredefinedMacros](../../src/Shaderlyn.Semantics/SemanticsOptions.cs)、`--define`（[ValueOptions](../../src/Shaderlyn.Cli/CommandLineOptions.cs)） |
-| カーネルのマクロ | `#pragma kernel KMain USE_X` がそのカーネルだけに与えるもの | [ProgramBlockExtractor](../../src/Shaderlyn.Semantics/Programs/ProgramBlockExtractor.cs) の `ExtraMacros`、[WithExtraMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
+| カーネルのマクロ | `#pragma kernel KMain USE_X` がそのカーネルだけに与えるもの | [ProgramBlockExtractor](../../src/Shaderlyn.Unity/ProgramBlockExtractor.cs) の `ExtraMacros`、[WithExtraMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | シンボル | その構成で有効にするシェーダーキーワード | [ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | 宣言から分かる制約 | 同じ行のシンボルは同時に有効にならない。`_` の無い `multi_compile` はどれか 1 つが必ず有効 | [SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs) |
 
@@ -918,7 +918,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - 組の中のシンボルは**すべて宣言されている**必要がある。方法 A で並べたシンボルが混ざってもよい（並べた `#ifdef _A` の中の、並べなかった `#ifdef _B` は、`_A` の構成でも `_B` の構成でも通らない）。すべて並べたシンボルなら既定の構成の木に載っているので作らない
 - 同じ行どうしの組を作らないこと、方法 A で外側と合わせて成り立たない分岐を並べないことは、[SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)（`PreprocessorOptions.SymbolConstraints`）で判断する。ルールが条件を掛け合わせて「成り立つか」を見るときも `ConditionMap.IsPossible` を通す。全 Pass をまとめた索引では、どの Pass でも同じ行に並んでいる組だけを排他とする
 - 報告やホバーに示す条件は、制約から決まる部分を省いて短くする（`ConditionMap.Simplify` → [SymbolConstraints.Reduce](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。同時に有効にならないシンボルがあればその否定を省き、`_` の無い `multi_compile` の行で 1 つを除いて否定していれば残りの 1 つと書く。`multi_compile _A _B` / `multi_compile _C _D` のもとの `(_A && !_C && _D) || (!_B && !_C && _D)` は `_A && _D` になる
-- `_` の無い `multi_compile` の行は、既定の構成とどのバリアントも、その行のシンボルを 1 つも有効にしていなければ先頭を定義する（[ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。先頭だけを有効にした構成は既定の構成と同じなので作らない。先頭が無いことを求める分岐には、同じ行の別のシンボルを有効にした構成を作る（[SymbolConstraints.EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。`shader_feature` は対象にしない（[既知の限界](#既知の限界) 9、[ShaderSymbols.IsRequiredSet](../../src/Shaderlyn.Hlsl/Preprocessing/ShaderSymbols.cs)）
+- `_` の無い `multi_compile` の行は、既定の構成とどのバリアントも、その行のシンボルを 1 つも有効にしていなければ先頭を定義する（[ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。先頭だけを有効にした構成は既定の構成と同じなので作らない。先頭が無いことを求める分岐には、同じ行の別のシンボルを有効にした構成を作る（[SymbolConstraints.EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。`shader_feature` は対象にしない（[既知の限界](#既知の限界) 9、[ShaderSymbols.IsRequiredSet](../../src/Shaderlyn.Unity/ShaderSymbols.cs)）
 
 **(c) ヘッダの条件の構成。** 取り込んだヘッダに書かれた条件は、次のものだけを 1 つずつの構成にします。
 

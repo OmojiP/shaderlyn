@@ -7,6 +7,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -262,7 +263,7 @@ public sealed partial class ConfigurationOracleTests
             options = options with
             {
                 PredefinedMacros = symbols.Aggregate(
-                    SemanticsOptions.DefaultPredefinedMacros,
+                    UnityOptions.DefaultPredefinedMacros,
                     (macros, symbol) => macros.SetItem(symbol, "1")),
                 BothBranchSymbols = [],
                 MaxSymbolVariants = 0,
@@ -270,7 +271,7 @@ public sealed partial class ConfigurationOracleTests
             };
         }
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
         return new AnalyzerDriver(BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }

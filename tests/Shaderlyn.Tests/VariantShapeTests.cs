@@ -4,6 +4,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -33,7 +34,7 @@ public sealed class VariantShapeTests
             IncludeResolver = new InMemoryIncludeResolver(headers.ToDictionary(h => h.Path, h => h.Content)),
         };
 
-        return ShaderCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
+        return UnityCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
     }
 
     /// <summary>条件の巻き上げを切ってコードを解析する。</summary>
@@ -46,7 +47,7 @@ public sealed class VariantShapeTests
     /// まとめた構成や、並べなかった分岐の数え方を確かめるには、その形を方法 B に残す必要がある。
     /// </remarks>
     private static ShaderCompilation CompileWithoutHoisting(string code, SemanticsOptions? options = null)
-        => ShaderCompilation.CreateForHlsl(
+        => UnityCompilation.CreateForHlsl(
             SourceText.From(code, "Shape.hlsl"),
             (options ?? new SemanticsOptions()) with { HoistConditionalMacros = false });
 
@@ -800,8 +801,8 @@ public sealed class VariantShapeTests
             IncludeCache = new HlslIncludeCache(),
         };
 
-        ShaderCompilation first = ShaderCompilation.CreateForHlsl(SourceText.From(code, "First.hlsl"), options);
-        ShaderCompilation second = ShaderCompilation.CreateForHlsl(SourceText.From(code, "Second.hlsl"), options);
+        ShaderCompilation first = UnityCompilation.CreateForHlsl(SourceText.From(code, "First.hlsl"), options);
+        ShaderCompilation second = UnityCompilation.CreateForHlsl(SourceText.From(code, "Second.hlsl"), options);
 
         Assert.Equal(SymbolCondition.Symbol("_A"), ConditionOfDeclaration(first, "_OnlyWithA"));
         Assert.Equal(SymbolCondition.Symbol("_A"), ConditionOfDeclaration(second, "_OnlyWithA"));

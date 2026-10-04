@@ -5,6 +5,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli;
 
@@ -60,6 +61,7 @@ internal sealed class AnalysisRunner
 {
     private readonly AnalyzerDriver _driver;
     private readonly SemanticsOptions? _semanticsOptions;
+    private readonly UnityOptions _unityOptions;
     private readonly AnalysisTimings? _timings;
     private readonly AnalysisCache? _cache;
 
@@ -84,15 +86,18 @@ internal sealed class AnalysisRunner
     /// <param name="cache">
     /// 実行のあいだで結果を持ち越すキャッシュ。<see langword="null"/> の場合は持ち越さない。
     /// </param>
+    /// <param name="unityOptions">Unity の環境の設定。<see langword="null"/> の場合は既定 (URP)。</param>
     public AnalysisRunner(
         IEnumerable<DiagnosticAnalyzer> analyzers,
         AnalyzerOptions? options = null,
         SemanticsOptions? semanticsOptions = null,
         AnalysisTimings? timings = null,
-        AnalysisCache? cache = null)
+        AnalysisCache? cache = null,
+        UnityOptions? unityOptions = null)
     {
         _driver = new AnalyzerDriver(analyzers, options, timings);
         _semanticsOptions = semanticsOptions;
+        _unityOptions = unityOptions ?? UnityOptions.Default;
         _timings = timings;
         _cache = cache;
     }
@@ -301,8 +306,8 @@ internal sealed class AnalysisRunner
         ShaderCompilation? compilation = _semanticsOptions is null
             ? null
             : tree is null
-                ? ShaderCompilation.CreateForHlsl(text, _semanticsOptions)
-                : ShaderCompilation.Create(text, tree, _semanticsOptions);
+                ? UnityCompilation.CreateForHlsl(text, _semanticsOptions, _unityOptions)
+                : UnityCompilation.Create(text, tree, _semanticsOptions, _unityOptions);
         _timings?.Add(AnalysisStep.Expand, expandStart);
 
         if (compilation is not null)

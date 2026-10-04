@@ -8,6 +8,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -164,7 +165,7 @@ public sealed class RuleFixtureTests
             ]),
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
         return new AnalyzerDriver(BuiltInAnalyzers.All)
             .Analyze(compilation.CreateAnalysisTarget());

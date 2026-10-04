@@ -2,6 +2,7 @@ using System.Text.Json;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli.Inspection;
 

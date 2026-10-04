@@ -4,10 +4,11 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
-using Shaderlyn.Semantics.Profiles;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Tests;
 
@@ -72,7 +73,7 @@ public sealed class SemanticsTests
             : [];
 
         SemanticsOptions options = new() { IncludeResolver = new InMemoryIncludeResolver(files) };
-        return ShaderCompilation.Create(text, tree, options);
+        return UnityCompilation.Create(text, tree, options);
     }
 
     private static ImmutableArray<Diagnostic> Analyze(string source, bool provideUrpHeaders = true)
@@ -145,7 +146,7 @@ public sealed class SemanticsTests
         SourceText text = SourceText.From(CorrectUrpShader, "Test.shader");
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
 
-        ProgramBlockView extraction = Assert.Single(ProgramBlockExtractor.Extract(tree));
+        UnityProgramBlock extraction = Assert.Single(ProgramBlockExtractor.Extract(tree));
 
         Assert.Equal(text.Length, extraction.MaskedText.Length);
         Assert.Equal(text.LineCount, extraction.MaskedText.LineCount);
@@ -161,7 +162,7 @@ public sealed class SemanticsTests
     {
         SourceText text = SourceText.From(CorrectUrpShader, "Test.shader");
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
-        ProgramBlockView extraction = Assert.Single(ProgramBlockExtractor.Extract(tree));
+        UnityProgramBlock extraction = Assert.Single(ProgramBlockExtractor.Extract(tree));
 
         // Shader 宣言はコードの外なので覆われている。
         Assert.DoesNotContain("Test/Lit", extraction.MaskedText.Content, StringComparison.Ordinal);
@@ -212,7 +213,7 @@ public sealed class SemanticsTests
         ShaderCompilation compilation = Compile(source);
 
         Assert.Equal(2, compilation.Programs.Length);
-        Assert.All(compilation.Programs, program => Assert.Single(program.IncludeBlocks));
+        Assert.All(compilation.Programs, program => Assert.Single(program.GetUnityBlock()!.IncludeBlocks));
 
         // 両方の Pass から共通コード片の uniform が見えている。
         Assert.All(compilation.Programs, program => Assert.Contains(program.Uniforms, u => u.Name == "_Tint"));
@@ -293,7 +294,7 @@ public sealed class SemanticsTests
             ["UnityShaderVariables.cginc"] = "float4 unity_Probe;\n",
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(
+        ShaderCompilation compilation = UnityCompilation.Create(
             text,
             ShaderLabSyntaxTree.Parse(text),
             new SemanticsOptions { IncludeResolver = new InMemoryIncludeResolver(files) });
@@ -337,7 +338,7 @@ public sealed class SemanticsTests
             ["UnityPBSLighting.cginc"] = "float4 pbs_Uniform;\n",
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(
+        ShaderCompilation compilation = UnityCompilation.Create(
             text,
             ShaderLabSyntaxTree.Parse(text),
             new SemanticsOptions { IncludeResolver = new InMemoryIncludeResolver(files) });
@@ -582,7 +583,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
             BothBranchSymbols = [],
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
         Assert.Empty(compilation.SymbolVariants);
         Assert.Contains("_NORMALMAP", compilation.UnexploredSymbols);
@@ -626,7 +627,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
             MaxSymbolVariants = 0,
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
@@ -656,7 +657,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
             BothBranchSymbols = [],
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
@@ -737,7 +738,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
             MaxSymbolVariants = 2,
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
