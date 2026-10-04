@@ -12,6 +12,7 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 Unity 以外の環境 (DXC で直接コンパイルする HLSL、Unreal Engine、独自エンジン) を解析できるようにした。
 そのために Unity 固有の部分を `Shaderlyn.Unity` パッケージへ分けたので、自作ルールの一部は書き換えが要る (下の「破壊的変更」)。
+書き換えの手順は [0.1 から 0.2 へ移行する](docs/guide/migration-0.2.md) にある。
 Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同梱のシェーダーと fixtures の全診断を比べて確かめた)。
 
 ### 追加
@@ -50,7 +51,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   `AnalyzedProgram` の `Block` / `IncludeBlocks` / `Pass` / `PassName` は `program.GetUnityBlock()` (`UnityProgramBlock`) へ移した
 - **破壊的変更:** `SemanticsOptions` の `Profile` / `UseFallbackMacros` / `DefaultPredefinedMacros` は `UnityOptions` へ移した。
   `SemanticsOptions.PredefinedMacros` は `null` で「環境の既定」を表す
-- **破壊的変更:** 設定ファイルの `profile` は `unity:` の節に書く。節の外の `profile` も読むが、TOOL0003 で移すよう伝える
+- **破壊的変更:** 設定ファイルの `profile` は `unity:` の節に書く。節の外の `profile` も読むが、TOOL0003 で移すよう伝える。
+  既定の `--error-on warning` ではこの警告で終了コードが 1 になるので、上げる前に移すこと
 - **破壊的変更:** `--profile` / `--unity-project` / `--unity-editor` を Unity 以外の環境で指定するとエラーにする
 - 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに `declared` と、値を持つシンボルの `variable` / `value` を足した。
   `declaredByPragma` は同じ値で残してある

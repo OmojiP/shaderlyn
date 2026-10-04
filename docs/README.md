@@ -7,6 +7,7 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 1. [CLI の使い方](guide/cli-usage.md) — インストール、実行、出力の読み方、オプション
 2. [設定ファイル](guide/configuration.md) — `.shaderlyn.yaml`、抑制コメント
    - [Unity 以外の環境で使う](guide/environments.md) — 汎用の HLSL (DXC)、Unreal Engine、独自エンジン
+   - [0.1 から 0.2 へ移行する](guide/migration-0.2.md) — 設定ファイルと自作ルールの書き換え
 3. [ルール](rules/README.md) — 組み込みルールの一覧と、ルールごとの説明
 
 必要になったら読むもの:

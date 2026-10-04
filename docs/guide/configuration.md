@@ -62,6 +62,7 @@ Unity の環境だけで使う設定です。
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が勝ちます                            |
 
 節の外に書いた `profile` (v0.1 の書き方) も読みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) が出ます。
+既定の `--error-on warning` では、この警告でも終了コードが `1` になります（[0.1 から 0.2 へ移行する](migration-0.2.md#設定ファイル)）。
 両方に書いた場合は `unity:` の下を使います。
 
 ほかの環境では `unity:` の節を読みません。`--profile` / `--unity-project` / `--unity-editor` をほかの環境で指定するとエラーになります。
