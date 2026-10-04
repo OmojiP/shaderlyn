@@ -185,15 +185,22 @@ Shaderlyn.Core.Syntax.VariantGroup :: virtual System.String ToString()
 Shaderlyn.Core.Syntax.VariantSpace : sealed class
 Shaderlyn.Core.Syntax.VariantSpace :: .ctor(System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantDeclaration], System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantGroup])
 Shaderlyn.Core.Syntax.VariantSpace :: Shaderlyn.Core.Syntax.SymbolConstraints Constraints { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: Shaderlyn.Core.Syntax.VariantSpace Union(Shaderlyn.Core.Syntax.VariantSpace)
 Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsDeclared(System.String)
 Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsEmpty { get; }
 Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantDeclaration] Declarations { get; }
 Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantGroup] Groups { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] ValueSymbols { get; }
 Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableHashSet`1[System.String] Symbols { get; }
 Shaderlyn.Core.Syntax.VariantSpace :: static Shaderlyn.Core.Syntax.VariantSpace Empty { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: static Shaderlyn.Core.Syntax.VariantSpace ForValues(System.String, System.Collections.Generic.IReadOnlyList`1[System.Int32], Shaderlyn.Core.Diagnostics.Location = null)
 Shaderlyn.Core.Syntax.VariantSymbolKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Core.Syntax.VariantSymbolKind :: Compiled = 0
 Shaderlyn.Core.Syntax.VariantSymbolKind :: Runtime = 1
+Shaderlyn.Core.Syntax.VariantValues : static class
+Shaderlyn.Core.Syntax.VariantValues :: static System.Boolean TryParseAtom(System.String, out System.String, out System.Int32)
+Shaderlyn.Core.Syntax.VariantValues :: static System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] Collect(System.Collections.Generic.IEnumerable`1[System.String])
+Shaderlyn.Core.Syntax.VariantValues :: static System.String Atom(System.String, System.Int32)
 Shaderlyn.Core.Text.LinePosition : struct (System.IComparable`1[Shaderlyn.Core.Text.LinePosition], System.IEquatable`1[Shaderlyn.Core.Text.LinePosition])
 Shaderlyn.Core.Text.LinePosition :: .ctor(System.Int32, System.Int32)
 Shaderlyn.Core.Text.LinePosition :: System.Boolean Equals(Shaderlyn.Core.Text.LinePosition)
@@ -516,6 +523,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shader
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean MergeSwitchedIncludes { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean ReportUnresolvedIncludes { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] ValueSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] AdditionalIncludeDirectives { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] BothBranchSymbols { get; set; }

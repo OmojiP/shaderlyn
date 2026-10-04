@@ -315,6 +315,23 @@ public sealed record PreprocessorOptions
         ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
 
     /// <summary>
+    /// 値を持つシンボルと、その値の範囲 (<see cref="VariantSpace.ValueSymbols"/>)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>条件の中の比較を、値の原子 (<see cref="VariantValues.Atom"/>) の論理和として読む。</b>
+    /// <c>QUALITY</c> が 0 / 1 / 2 をとるなら、<c>#if QUALITY &gt;= 1</c> は <c>QUALITY==1 ∨ QUALITY==2</c> である。
+    /// 原子が記号として残す名前 (<see cref="BothBranchSymbols"/> など) に入っていれば記号として、入っていなければ値を解いて読む。
+    /// </para>
+    /// <para>
+    /// 値を持つシンボルは、どの構成でも定義されている (<c>defined(QUALITY)</c> は常に真)。
+    /// 既定は空で、値を持つシンボルは無い (Unity)。
+    /// </para>
+    /// </remarks>
+    public ImmutableDictionary<string, ImmutableArray<int>> ValueSymbols { get; init; } =
+        ImmutableDictionary<string, ImmutableArray<int>>.Empty.WithComparers(StringComparer.Ordinal);
+
+    /// <summary>
     /// 受け付ける HLSL の言語のバージョン。既定は <see cref="HlslLanguageVersion.Hlsl2018"/> (Unity と同じ)。
     /// </summary>
     /// <remarks>
@@ -408,6 +425,17 @@ public sealed record PreprocessorOptions
 
             // 並べてよい領域が決められていれば、ヘッダの中の判断もそれに従う。
             hash.Add(MergeOnlyRegions?.ContentHash ?? 0);
+
+            // 値を持つシンボルが違えば、ヘッダの条件の読み方が変わる。
+            foreach ((string name, ImmutableArray<int> values) in ValueSymbols.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                hash.Add(name, StringComparer.Ordinal);
+
+                foreach (int value in values)
+                {
+                    hash.Add(value);
+                }
+            }
 
             // 取り込みとして扱う指令と、報告する指令が違えば、ヘッダの展開結果と診断が変わる。
             foreach (ImmutableHashSet<string> directives in (ImmutableHashSet<string>[])[AdditionalIncludeDirectives, UnsupportedDirectives])

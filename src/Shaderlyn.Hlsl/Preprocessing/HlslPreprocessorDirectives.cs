@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -870,9 +871,89 @@ internal sealed partial class HlslPreprocessor
         }
 
         return ReadDefinedAtom(line, ref index, reading)
+               ?? ReadValueAtom(line, ref index, reading)
                ?? ReadSymbolAtom(line, ref index, reading)
                ?? ReadConstantOperand(line, ref index);
     }
+
+    /// <summary>
+    /// 値を持つシンボルの比較 (<c>QUALITY == 2</c>、<c>QUALITY &gt;= 1</c>) か、名前そのもの (<c>QUALITY</c>) を読む。
+    /// </summary>
+    /// <param name="line">条件式の行。</param>
+    /// <param name="index">読み取り位置。</param>
+    /// <param name="reading">読み方。</param>
+    /// <returns>
+    /// 比較が成り立つ値の原子の論理和。値を持つシンボルでないか、記号として読めない値があれば <see langword="null"/>。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// 名前だけなら 0 でない値の論理和 (<c>#if QUALITY</c> は <c>QUALITY != 0</c>)。
+    /// 比べる相手は整数のリテラルに限る。左右を入れ替えた形 (<c>2 == QUALITY</c>) は読まない。
+    /// </para>
+    /// <para>
+    /// <b>成り立つ値のどれかが記号として残す名前に入っていなければ、記号としては読まない。</b>
+    /// その原子の構成は別に展開するので、値を解く側へ倒す。
+    /// </para>
+    /// </remarks>
+    private SymbolCondition? ReadValueAtom(ImmutableArray<HlslSyntaxToken> line, ref int index, ConditionReading reading)
+    {
+        if (_options.ValueSymbols.IsEmpty
+            || index >= line.Length
+            || line[index].Kind != HlslSyntaxKind.IdentifierToken
+            || !_options.ValueSymbols.TryGetValue(line[index].Text, out ImmutableArray<int> values))
+        {
+            return null;
+        }
+
+        HlslSyntaxToken name = line[index];
+        int position = index + 1;
+        Func<int, bool> holds = value => value != 0;
+
+        if (position + 1 < line.Length
+            && ComparisonOf(line[position].Kind) is { } compare
+            && line[position + 1].Kind == HlslSyntaxKind.NumericLiteralToken
+            && int.TryParse(line[position + 1].Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int operand))
+        {
+            holds = value => compare(value, operand);
+            position += 2;
+        }
+
+        if (reading.Record)
+        {
+            RecordConditionalIdentifier(name);
+        }
+
+        SymbolCondition condition = SymbolCondition.Never;
+
+        foreach (int value in values.Where(holds))
+        {
+            string atom = VariantValues.Atom(name.Text, value);
+
+            if (!reading.Symbols.Contains(atom))
+            {
+                return null;
+            }
+
+            condition = condition.Or(SymbolCondition.Symbol(atom));
+        }
+
+        index = position;
+        return condition;
+    }
+
+    /// <summary>比較の演算子を、値どうしの比較に直す。</summary>
+    /// <param name="kind">演算子のトークンの種類。</param>
+    /// <returns>比較。比較の演算子でなければ <see langword="null"/>。</returns>
+    private static Func<int, int, bool>? ComparisonOf(HlslSyntaxKind kind) => kind switch
+    {
+        HlslSyntaxKind.EqualsEqualsToken => (a, b) => a == b,
+        HlslSyntaxKind.ExclamationEqualsToken => (a, b) => a != b,
+        HlslSyntaxKind.LessThanToken => (a, b) => a < b,
+        HlslSyntaxKind.LessThanEqualsToken => (a, b) => a <= b,
+        HlslSyntaxKind.GreaterThanToken => (a, b) => a > b,
+        HlslSyntaxKind.GreaterThanEqualsToken => (a, b) => a >= b,
+        _ => null,
+    };
 
     /// <summary>
     /// 構成によって変わる名前を含まない項を、この構成での値に解いて読む。

@@ -20,7 +20,13 @@ internal readonly record struct SymbolTerm(string Symbol, bool IsDefined)
 
     /// <summary>条件式としての表記を返す。</summary>
     /// <returns>表示用の文字列。</returns>
-    public override string ToString() => IsDefined ? Symbol : $"!{Symbol}";
+    /// <remarks>
+    /// 値を持つシンボルの原子 (<see cref="VariantValues.Atom"/>) は、<c>QUALITY == 2</c> / <c>QUALITY != 2</c> の形で書く。
+    /// </remarks>
+    public override string ToString()
+        => VariantValues.TryParseAtom(Symbol, out string? name, out int value)
+            ? $"{name} {(IsDefined ? "==" : "!=")} {value}"
+            : IsDefined ? Symbol : $"!{Symbol}";
 }
 
 /// <summary>

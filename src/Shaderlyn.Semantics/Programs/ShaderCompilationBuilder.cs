@@ -599,27 +599,37 @@ internal static class ShaderCompilationBuilder
         SortedSet<string> singles = new(StringComparer.Ordinal);
         SortedSet<string> fromIncluded = new(StringComparer.Ordinal);
 
+        // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。候補は値ごとの原子 (QUALITY==2) である。
+        ImmutableDictionary<string, ImmutableArray<int>> valueSymbols = variants.ValueSymbols;
+
         foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
         {
-            if (!declared.Contains(token.Text)
-                || alreadyMerged.Contains(token.Text)
-                || defaults.Contains(token.Text)
-                || token.IsFromMacroExpansion)
-            {
-                continue;
-            }
+            IEnumerable<string> symbols = valueSymbols.TryGetValue(token.Text, out ImmutableArray<int> values)
+                ? values.Select(value => VariantValues.Atom(token.Text, value))
+                : [token.Text];
 
-            // このファイルが自分で書いた条件を先に置く。
-            // ヘッダの条件は、そのヘッダ自身が宣言したシンボルのものだけを、後ろに置く。
-            // このファイルが宣言したシンボルの条件はヘッダ側に大量にあり、
-            // 全部を候補にすると 1 ブロックで数十件になる (PreprocessorOptions.IncludedDeclaredSymbols)。
-            if (string.Equals(token.Source.FilePath, text.FilePath, StringComparison.Ordinal))
+            foreach (string symbol in symbols)
             {
-                singles.Add(token.Text);
-            }
-            else if (includedSymbols.Contains(token.Text))
-            {
-                fromIncluded.Add(token.Text);
+                if (!declared.Contains(symbol)
+                    || alreadyMerged.Contains(symbol)
+                    || defaults.Contains(symbol)
+                    || token.IsFromMacroExpansion)
+                {
+                    continue;
+                }
+
+                // このファイルが自分で書いた条件を先に置く。
+                // ヘッダの条件は、そのヘッダ自身が宣言したシンボルのものだけを、後ろに置く。
+                // このファイルが宣言したシンボルの条件はヘッダ側に大量にあり、
+                // 全部を候補にすると 1 ブロックで数十件になる (PreprocessorOptions.IncludedDeclaredSymbols)。
+                if (string.Equals(token.Source.FilePath, text.FilePath, StringComparison.Ordinal))
+                {
+                    singles.Add(symbol);
+                }
+                else if (includedSymbols.Contains(symbol))
+                {
+                    fromIncluded.Add(symbol);
+                }
             }
         }
 
@@ -1210,7 +1220,10 @@ internal static class ShaderCompilationBuilder
             options.BothBranchSymbols ?? blockSymbols) with
         {
             DeclaredSymbols = blockSymbols,
-            ConfigurationSymbols = blockSymbols,
+
+            // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。名前も構成によって変わるものとして読む。
+            ConfigurationSymbols = blockSymbols.Union(VariantValues.Collect(blockSymbols).Keys),
+            ValueSymbols = VariantValues.Collect(blockSymbols),
             IncludedDeclaredSymbols = includedSymbols,
             SymbolConstraints = constraints,
             HoistConditionalMacros = options.HoistConditionalMacros,
@@ -1387,19 +1400,38 @@ internal static class ShaderCompilationBuilder
 
         foreach (string symbol in enabledSymbols)
         {
-            macros = macros.SetItem(symbol, "1");
+            macros = Define(macros, symbol);
         }
 
         foreach (ImmutableArray<string> group in constraints.RequiredGroups)
         {
-            if (!group.Any(macros.ContainsKey))
+            if (!group.Any(symbol => IsDefinedBy(macros, symbol)))
             {
-                macros = macros.SetItem(group[0], "1");
+                macros = Define(macros, group[0]);
             }
         }
 
         return macros;
     }
+
+    /// <summary>シンボルを有効にするマクロを定義する。</summary>
+    /// <param name="macros">元のマクロ。</param>
+    /// <param name="symbol">シンボル。値を持つシンボルの原子 (<c>QUALITY==2</c>) なら、その値で定義する。</param>
+    /// <returns>定義したマクロ。</returns>
+    /// <remarks>Unity と同じく、値を持たないシンボルは値 1 のマクロとして定義する。</remarks>
+    private static ImmutableDictionary<string, string> Define(ImmutableDictionary<string, string> macros, string symbol)
+        => VariantValues.TryParseAtom(symbol, out string? name, out int value)
+            ? macros.SetItem(name, value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : macros.SetItem(symbol, "1");
+
+    /// <summary>シンボルの値がマクロで決まっているかを判定する。</summary>
+    /// <param name="macros">マクロ。</param>
+    /// <param name="symbol">シンボル。値を持つシンボルの原子なら、その名前が定義されているかを見る。</param>
+    /// <returns>決まっていれば <see langword="true"/>。</returns>
+    private static bool IsDefinedBy(ImmutableDictionary<string, string> macros, string symbol)
+        => VariantValues.TryParseAtom(symbol, out string? name, out _)
+            ? macros.ContainsKey(name)
+            : macros.ContainsKey(symbol);
 
     /// <summary>
     /// 並べた分岐のマクロがコードとして展開されたら、そのシンボルを並べずに展開し直す。
@@ -1461,7 +1493,7 @@ internal static class ShaderCompilationBuilder
     private static HashSet<string> DefaultSymbols(
         ImmutableDictionary<string, string> predefined,
         SymbolConstraints constraints)
-        => [.. constraints.RequiredGroups.Where(g => !g.Any(predefined.ContainsKey)).Select(g => g[0])];
+        => [.. constraints.RequiredGroups.Where(g => !g.Any(symbol => IsDefinedBy(predefined, symbol))).Select(g => g[0])];
 
     /// <summary>指定した構成で展開する。</summary>
     /// <param name="maskedText">対象のコードブロック。</param>

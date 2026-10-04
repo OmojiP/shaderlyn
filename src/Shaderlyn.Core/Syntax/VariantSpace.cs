@@ -111,6 +111,45 @@ public sealed class VariantSpace
     /// <summary>シンボルが 1 つも無いかどうか。</summary>
     public bool IsEmpty => Declarations.IsEmpty;
 
+    /// <summary>
+    /// 値を持つシンボルと、その値の範囲。名前から、とりうる値 (小さい順) への対応。
+    /// </summary>
+    /// <remarks>
+    /// 宣言の原子 (<see cref="VariantValues.Atom"/>) から集める。値を持つシンボルが無ければ空。
+    /// </remarks>
+    public ImmutableDictionary<string, ImmutableArray<int>> ValueSymbols => _valueSymbols ??= VariantValues.Collect(Symbols);
+
+    private ImmutableDictionary<string, ImmutableArray<int>>? _valueSymbols;
+
+    /// <summary>
+    /// 値を持つシンボルを宣言した空間を作る。
+    /// </summary>
+    /// <param name="name">シンボルの名前。</param>
+    /// <param name="values">とりうる値。先頭が既定の値になる。</param>
+    /// <param name="location">宣言の位置。設定ファイルなどソースの外なら <see langword="null"/>。</param>
+    /// <returns>値ごとの原子と、「ちょうど 1 つ」の組を持つ空間。</returns>
+    public static VariantSpace ForValues(string name, IReadOnlyList<int> values, Location? location = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(values);
+
+        ImmutableArray<string> atoms = [.. values.Distinct().Select(value => VariantValues.Atom(name, value))];
+
+        return new VariantSpace(
+            atoms.Select(atom => new VariantDeclaration(atom, VariantSymbolKind.Compiled, location)),
+            [new VariantGroup(atoms, RequiresOne: true)]);
+    }
+
+    /// <summary>空間を重ねる。</summary>
+    /// <param name="other">重ねる空間。</param>
+    /// <returns>両方の宣言と組を持つ空間。</returns>
+    public VariantSpace Union(VariantSpace other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        return other.IsEmpty ? this : IsEmpty ? other : new VariantSpace([.. Declarations, .. other.Declarations], [.. Groups, .. other.Groups]);
+    }
+
     /// <summary>組から分かる、実在する組み合わせの制約。</summary>
     public SymbolConstraints Constraints => _constraints ??= SymbolConstraints.FromSets(
         Groups.Select(g => (IReadOnlyList<string>)g.Symbols),
