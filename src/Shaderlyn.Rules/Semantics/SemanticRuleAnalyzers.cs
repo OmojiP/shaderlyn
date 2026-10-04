@@ -112,6 +112,15 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeReason(ShaderCompilation compilation)
     {
+        // ビルドのときに生成されるファイルだけが無いなら、設定の誤りではない。そう伝えないと、利用者は探索パスを探し回る。
+        if (!compilation.UnresolvedIncludes.IsEmpty
+            && compilation.UnresolvedIncludes.All(compilation.Environment.IsGeneratedInclude))
+        {
+            return "ビルドのときにエンジンが生成するファイルの中身が分からないため、宣言の一覧が不完全です。"
+                + $"生成されるファイル: {string.Join(", ", compilation.UnresolvedIncludes.Take(MaxListedIncludes))}"
+                + (compilation.UnresolvedIncludes.Length > MaxListedIncludes ? $" ほか {compilation.UnresolvedIncludes.Length - MaxListedIncludes} 件" : string.Empty);
+        }
+
         if (!compilation.UnresolvedIncludes.IsEmpty)
         {
             IEnumerable<string> listed = compilation.UnresolvedIncludes.Take(MaxListedIncludes);

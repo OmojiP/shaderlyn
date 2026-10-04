@@ -1,10 +1,13 @@
 using System.Collections.Immutable;
 using Shaderlyn.Cli.Environments;
+using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
 using Shaderlyn.Unity.Profiles;
+using Shaderlyn.Unreal;
 
 namespace Shaderlyn.Cli;
 
@@ -76,6 +79,26 @@ internal static class SemanticsSetup
             Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
                 ? profile
                 : RenderPipelineProfiles.Default,
+        };
+    }
+
+    /// <summary>
+    /// 実行時設定から、Unreal の環境の設定を作る。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>Unreal の環境の設定。</returns>
+    public static UnrealOptions CreateUnreal(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        ShaderlynConfiguration configuration = settings.Configuration;
+
+        return new UnrealOptions
+        {
+            EngineDirectory = configuration.UnrealEngineDirectory,
+            ProjectDirectory = configuration.UnrealProjectDirectory,
+            VirtualPaths = configuration.UnrealVirtualPaths,
+            LanguageVersion = configuration.HlslVersion == 2021 ? HlslLanguageVersion.Hlsl2021 : HlslLanguageVersion.Hlsl2018,
         };
     }
 
@@ -208,16 +231,31 @@ internal static class SemanticsSetup
         // 解析対象が分からない場合は制限しない。
         // 「どこまでが対象か」を決められないまま境界を引くと、
         // 対象のすぐ隣にあるヘッダまで読めなくなる。
+        // Unreal の仮想パスの割り当て先も、読んでよい範囲に入れる。探索パスには入れない
+        // (Unreal は #include "Common.ush" をエンジンのフォルダーから探さない)。
+        ImmutableDictionary<string, string> virtualPaths = settings.Environment == UnrealOptions.EnvironmentName
+            ? CreateUnreal(settings).GetVirtualPathMappings()
+            : ImmutableDictionary<string, string>.Empty;
+
         IncludeBoundary boundary = options.InputPaths.IsEmpty
             ? IncludeBoundary.Unrestricted
             : new IncludeBoundary(
             [
                 .. searchPaths,
+                .. virtualPaths.Values,
                 .. options.InputPaths.Select(path =>
                     Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? path),
             ]);
 
-        List<IIncludeResolver> resolvers = [new FileSystemIncludeResolver(searchPaths, boundary)];
+        List<IIncludeResolver> resolvers = [];
+
+        // 仮想パス (/Engine/...) を先に引く。Windows では /Engine/... がドライブの直下と読まれうる。
+        if (!virtualPaths.IsEmpty)
+        {
+            resolvers.Add(new UnrealVirtualPathResolver(virtualPaths, boundary));
+        }
+
+        resolvers.Add(new FileSystemIncludeResolver(searchPaths, boundary));
 
         // Packages/<パッケージ名>/... の形は実在するフォルダーではないため、
         // 通常のパス探索では解決できない。URP のシェーダーはこの形を多用する。

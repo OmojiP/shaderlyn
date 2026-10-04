@@ -30,28 +30,49 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     private readonly ShaderlynConfiguration _configuration;
     private readonly HlslEnvironment _environment;
 
-    /// <summary>設定ファイルから作る。</summary>
+    /// <summary>設定ファイルから、汎用の HLSL 環境を作る。</summary>
     /// <param name="configuration">設定ファイルの内容。</param>
     public HlslAnalysisEnvironment(ShaderlynConfiguration configuration)
+        : this(
+            configuration,
+            new HlslEnvironment(new HlslEnvironmentOptions
+            {
+                LanguageVersion = configuration?.HlslVersion == 2018 ? HlslLanguageVersion.Hlsl2018 : HlslLanguageVersion.Hlsl2021,
+                Variants = BuildVariants(configuration!, null),
+            }),
+            "HLSL (DXC)",
+            [".hlsl"])
+    {
+    }
+
+    /// <summary>設定ファイルと、意味解析に渡す環境から作る。</summary>
+    /// <param name="configuration">設定ファイルの内容。<c>units:</c> と <c>symbols:</c> を読む。</param>
+    /// <param name="environment">意味解析に渡す環境 (Unreal なら名前と生成される取り込みが違う)。</param>
+    /// <param name="displayName">画面に出す名前。</param>
+    /// <param name="defaultExtensions">フォルダーを指定したときに探す拡張子。</param>
+    public HlslAnalysisEnvironment(
+        ShaderlynConfiguration configuration,
+        HlslEnvironment environment,
+        string displayName,
+        ImmutableArray<string> defaultExtensions)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
 
         _configuration = configuration;
-        _environment = new HlslEnvironment(new HlslEnvironmentOptions
-        {
-            LanguageVersion = configuration.HlslVersion == 2018 ? HlslLanguageVersion.Hlsl2018 : HlslLanguageVersion.Hlsl2021,
-            Variants = BuildVariants(configuration, null),
-        });
+        _environment = environment;
+        DisplayName = displayName;
+        DefaultExtensions = defaultExtensions;
     }
 
     /// <inheritdoc/>
-    public string Name => HlslEnvironment.EnvironmentName;
+    public string Name => _environment.Name;
 
     /// <inheritdoc/>
-    public string DisplayName => "HLSL (DXC)";
+    public string DisplayName { get; }
 
     /// <inheritdoc/>
-    public ImmutableArray<string> DefaultExtensions { get; } = [".hlsl"];
+    public ImmutableArray<string> DefaultExtensions { get; }
 
     /// <inheritdoc/>
     public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)

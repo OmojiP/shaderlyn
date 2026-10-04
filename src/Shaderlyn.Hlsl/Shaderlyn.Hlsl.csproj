@@ -14,6 +14,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Shaderlyn.Semantics" />
     <InternalsVisibleTo Include="Shaderlyn.Unity" />
+    <InternalsVisibleTo Include="Shaderlyn.Unreal" />
     <InternalsVisibleTo Include="Shaderlyn.Rules" />
     <InternalsVisibleTo Include="Shaderlyn.Testing" />
     <InternalsVisibleTo Include="Shaderlyn.Cli" />

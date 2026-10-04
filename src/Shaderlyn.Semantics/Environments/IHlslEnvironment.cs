@@ -94,4 +94,20 @@ public interface IHlslEnvironment
     /// 慣習の無い環境 (<c>_DEBUG</c> などが普通に条件に出る) は常に <see langword="false"/> を返す。
     /// </remarks>
     bool LooksLikeVariantSymbol(string name);
+
+    /// <summary>
+    /// <c>#include</c> のパスが、ビルドのときにエンジンの C++ が生成するファイルかを判定する。
+    /// </summary>
+    /// <param name="path"><c>#include</c> に書かれたパス。</param>
+    /// <returns>生成されるファイルなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// Unreal の <c>/Engine/Generated/…</c> (uniform buffer やマテリアルの宣言) がそうである。ディスクには無いので解決できない。
+    /// </para>
+    /// <para>
+    /// <b>解決できないことは変わらないが、誤りとしては報告しない (HL0321)。</b>
+    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (SL0002 で伝える)。
+    /// </para>
+    /// </remarks>
+    bool IsGeneratedInclude(string path);
 }

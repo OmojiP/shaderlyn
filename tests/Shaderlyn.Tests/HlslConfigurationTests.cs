@@ -79,6 +79,8 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    target: ps66\n", "ps_6_6")]
     [InlineData("units:\n  - files: a.hlsl\n    symbols: [NOPE]\n", "'NOPE' は symbols: で宣言されていません")]
     [InlineData("units:\n  - files: a.hlsl\n    stage: pixel\n", "'stage'")]
+    [InlineData("unreal:\n  virtual-paths:\n    Plugin/A: x\n", "/ で始めて")]
+    [InlineData("unreal:\n  engines: x\n", "'engines'")]
     public void 書き誤りを報告する(string content, string expected)
     {
         ShaderlynConfiguration configuration = Parse(content);

@@ -55,6 +55,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
             foreach (IncludeReference include in program.Tree.PreprocessResult.Includes)
             {
                 if (include.IsResolved
+                    || compilation.Environment.IsGeneratedInclude(include.Path)
                     || !IsWrittenInSource(compilation, include)
                     || !reported.Add(include.Location.Span))
                 {
@@ -100,7 +101,9 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
         [
             .. compilation.Programs
                 .SelectMany(p => p.Tree.PreprocessResult.Includes)
-                .Where(i => !i.IsResolved && IsWrittenInSource(compilation, i)),
+                .Where(i => !i.IsResolved
+                            && !compilation.Environment.IsGeneratedInclude(i.Path)
+                            && IsWrittenInSource(compilation, i)),
         ];
 
         if (unresolved.Count == 0)
@@ -137,6 +140,14 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     private static string DescribeFix(string path)
     {
         string normalized = path.Replace('\\', '/');
+
+        if (normalized.StartsWith("/Engine/", StringComparison.Ordinal)
+            || normalized.StartsWith("/Plugin/", StringComparison.Ordinal)
+            || normalized.StartsWith("/Project/", StringComparison.Ordinal))
+        {
+            return "Unreal の仮想パスを参照しています。設定ファイルの unreal: に、エンジンの場所 (engine) と"
+                + "プロジェクト・プラグインのフォルダー (project / virtual-paths) を書いてください。";
+        }
 
         if (normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
         {

@@ -124,6 +124,10 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
            && !name.Any(char.IsAsciiLetterLower);
 
     /// <inheritdoc/>
+    /// <remarks>Unity のヘッダはどれもディスクにある。</remarks>
+    public bool IsGeneratedInclude(string path) => false;
+
+    /// <inheritdoc/>
     public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
     {
         ArgumentNullException.ThrowIfNull(unit);

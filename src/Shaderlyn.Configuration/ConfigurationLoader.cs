@@ -27,11 +27,14 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules",
+        "version", "environment", "unity", "unreal", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules",
     ];
 
     /// <summary><c>unity:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownUnityKeys = ["profile", "project", "editor"];
+
+    /// <summary><c>unreal:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["version"];
@@ -172,6 +175,13 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(unity, KnownUnityKeys, "unity:");
             }
 
+            YamlMapping? unreal = ReadSection("unreal");
+
+            if (unreal is not null)
+            {
+                ReportUnknownKeys(unreal, KnownUnrealKeys, "unreal:");
+            }
+
             YamlMapping? hlsl = ReadSection("hlsl");
 
             if (hlsl is not null)
@@ -189,6 +199,9 @@ internal static class ConfigurationLoader
                 Profile = ReadProfile(unity),
                 UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
                 UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),
+                UnrealEngineDirectory = ResolvePath(ReadOptionalScalar(unreal, "engine")),
+                UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
+                UnrealVirtualPaths = ReadVirtualPaths(unreal),
                 HlslVersion = ReadHlslVersion(hlsl),
                 Symbols = symbols,
                 SymbolGroups = groups,
@@ -297,6 +310,53 @@ internal static class ConfigurationLoader
                 $"profile が節の外と unity: の節の両方にあります。unity: の節の '{inSection}' を使います。"
                 + "節の外の profile は消してください。"));
             return inSection;
+        }
+
+        /// <summary>
+        /// Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>) を読む。
+        /// </summary>
+        /// <param name="unreal"><c>unreal:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>仮想パスから、設定ファイルからの相対で解決したフォルダーへの対応。</returns>
+        /// <remarks>
+        /// <code>
+        /// unreal:
+        ///   virtual-paths:
+        ///     /Plugin/MyPlugin: Plugins/MyPlugin/Shaders
+        /// </code>
+        /// </remarks>
+        private ImmutableDictionary<string, string> ReadVirtualPaths(YamlMapping? unreal)
+        {
+            ImmutableDictionary<string, string>.Builder paths = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+
+            if (unreal is null || !unreal.TryGet("virtual-paths", out YamlNode? node) || node is YamlScalar { Value.Length: 0 })
+            {
+                return paths.ToImmutable();
+            }
+
+            if (node is not YamlMapping mapping)
+            {
+                problems.Add(new ConfigurationProblem(node.Line, "unreal: の virtual-paths には、仮想パスとフォルダーの対を書いてください。"));
+                return paths.ToImmutable();
+            }
+
+            foreach (string key in mapping.Keys)
+            {
+                if (!key.StartsWith('/'))
+                {
+                    problems.Add(new ConfigurationProblem(
+                        mapping.Entries[key].Line, $"仮想パス '{key}' は / で始めてください (/Plugin/MyPlugin のように)。"));
+                }
+                else if (mapping.Entries[key] is YamlScalar { Value.Length: > 0 } directory)
+                {
+                    paths[key] = ResolvePath(directory.Value)!;
+                }
+                else
+                {
+                    problems.Add(new ConfigurationProblem(mapping.Entries[key].Line, $"仮想パス '{key}' にはフォルダーを書いてください。"));
+                }
+            }
+
+            return paths.ToImmutable();
         }
 
         /// <summary>HLSL の言語のバージョン (<c>hlsl: version</c>) を読む。</summary>

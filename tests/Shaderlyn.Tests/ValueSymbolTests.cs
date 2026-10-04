@@ -170,5 +170,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
         public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
 
         public bool LooksLikeVariantSymbol(string name) => false;
+
+        public bool IsGeneratedInclude(string path) => false;
     }
 }

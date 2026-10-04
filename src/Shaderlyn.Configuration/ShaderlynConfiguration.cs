@@ -62,10 +62,19 @@ internal sealed record ShaderlynConfiguration
     /// <summary>Unity Editor のデータフォルダー (<c>unity: editor</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnityEditorPath { get; init; }
 
+    /// <summary>Unreal のエンジンのフォルダー (<c>unreal: engine</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnrealEngineDirectory { get; init; }
+
+    /// <summary>Unreal のプロジェクトのフォルダー (<c>unreal: project</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnrealProjectDirectory { get; init; }
+
+    /// <summary>Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>)。フォルダーは設定ファイルからの相対で解決済み。</summary>
+    public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
+
     /// <summary>
     /// HLSL の言語のバージョン (<c>hlsl: version</c>)。<c>2018</c> か <c>2021</c>。指定が無い場合は <see langword="null"/>。
     /// </summary>
-    /// <remarks>汎用の HLSL 環境で使う。Unity の環境は 2018 で固定。</remarks>
+    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。Unity の環境は 2018 で固定。</remarks>
     public int? HlslVersion { get; init; }
 
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>

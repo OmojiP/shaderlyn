@@ -15,6 +15,9 @@ public sealed record HlslEnvironmentOptions
     /// <summary>既定の設定。HLSL 2021、構成の軸なし。</summary>
     public static HlslEnvironmentOptions Default { get; } = new();
 
+    /// <summary>環境の名前。既定は <c>hlsl</c>。同じ作りで設定だけが違う環境 (<c>unreal</c>) は名前を変える。</summary>
+    public string Name { get; init; } = HlslEnvironment.EnvironmentName;
+
     /// <summary>
     /// HLSL の言語のバージョン (DXC の <c>-HV</c>)。既定は <see cref="HlslLanguageVersion.Hlsl2021"/> (DXC 1.7 以降の既定)。
     /// </summary>
@@ -24,6 +27,18 @@ public sealed record HlslEnvironmentOptions
     /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="HlslCompilationUnit.Variants"/>) があれば、そちらを使う。
     /// </summary>
     public VariantSpace Variants { get; init; } = VariantSpace.Empty;
+
+    /// <summary>
+    /// ビルドのときに生成される <c>#include</c> のパスの接頭辞 (<c>/Engine/Generated/</c>)。
+    /// </summary>
+    /// <remarks><see cref="IHlslEnvironment.IsGeneratedInclude"/> を見ること。</remarks>
+    public ImmutableArray<string> GeneratedIncludePrefixes { get; init; } = [];
+
+    /// <summary>
+    /// どの単位にも共通する定義済みマクロ。DXC が定義するものの後、解析の設定で与えたものの前に重ねる。
+    /// </summary>
+    /// <remarks>エンジンのシェーダーコンパイラが定義するもの (Unreal の <c>COMPILER_HLSL</c> など) を与える。</remarks>
+    public ImmutableDictionary<string, string> PredefinedMacros { get; init; } = ImmutableDictionary<string, string>.Empty;
 }
 
 /// <summary>
@@ -51,7 +66,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     public HlslEnvironmentOptions Options { get; } = options ?? HlslEnvironmentOptions.Default;
 
     /// <inheritdoc/>
-    public string Name => EnvironmentName;
+    public string Name => Options.Name;
 
     /// <inheritdoc/>
     public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
@@ -63,6 +78,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         {
             LanguageVersion = Options.LanguageVersion,
             PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(Options.LanguageVersion)
+                .SetItems(Options.PredefinedMacros)
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
         };
     }
@@ -100,6 +116,15 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     /// <inheritdoc/>
     /// <remarks>構成の軸は設定で宣言するものなので、宣言に無い名前をシンボルとは見なさない。</remarks>
     public bool LooksLikeVariantSymbol(string name) => false;
+
+    /// <inheritdoc/>
+    public bool IsGeneratedInclude(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        string normalized = path.Replace('\\', '/');
+        return Options.GeneratedIncludePrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     /// ファイル全体を 1 つの単位にする。

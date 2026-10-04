@@ -39,8 +39,9 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
+| `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
@@ -76,6 +77,40 @@ Unity の環境だけで使う設定です。
 ターゲットで決まるものは `units:` の `target` から決めます。`defines` で同じ名前を定義すると、そちらが勝ちます。
 
 フォルダーを指定したときは `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、名前を挙げたときだけ解析します。
+
+## unreal
+
+`environment: unreal` で使う設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
+言語のバージョンは `hlsl: version` で変えられます (Unreal の既定は `2018`)。
+
+| キー            | 内容                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
+| `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
+| `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
+
+```yaml
+environment: unreal
+unreal:
+  engine: C:/Program Files/Epic Games/UE_5.4/Engine
+  project: .
+  virtual-paths:
+    /Plugin/MyPlugin: Plugins/MyPlugin/Shaders
+symbols:
+  - name: PERMUTATION_HIGH_QUALITY   # SHADER_PERMUTATION_BOOL は 0 か 1 で定義される
+    values: [0, 1]
+units:
+  - files: Shaders/**/*.usf
+    entry: MainPS
+    target: ps_6_6
+```
+
+- フォルダーを指定したときは `.usf` を探します。`.ush` は名前を挙げたときだけ解析します
+- ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は解決できません。その `#include` は誤りとして報告しませんが、
+  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません (SL0002 で伝えます)
+- シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
+  ほかのプラットフォームに合わせるときは `defines` で上書きしてください (エンジン本体では確かめていません)
+- パーミュテーションは C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
 
 ## symbols
 

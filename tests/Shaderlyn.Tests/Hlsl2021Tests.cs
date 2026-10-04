@@ -154,5 +154,7 @@ public sealed class Hlsl2021Tests
         public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
 
         public bool LooksLikeVariantSymbol(string name) => false;
+
+        public bool IsGeneratedInclude(string path) => false;
     }
 }

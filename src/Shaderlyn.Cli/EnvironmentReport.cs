@@ -76,7 +76,13 @@ internal static partial class EnvironmentReport
         }
         else
         {
-            WriteHlsl(builder, settings.Configuration);
+            bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
+            WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021);
+
+            if (isUnreal)
+            {
+                WriteUnreal(builder, settings);
+            }
         }
 
         UnityPackageIncludeResolver? packages = editor is null
@@ -247,14 +253,39 @@ internal static partial class EnvironmentReport
         }
     }
 
+    /// <summary>Unreal の仮想パスの割り当てと、生成される取り込みを書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    private static void WriteUnreal(StringBuilder builder, EffectiveSettings settings)
+    {
+        Section(builder, "Unreal Engine");
+
+        ImmutableDictionary<string, string> mappings = SemanticsSetup.CreateUnreal(settings).GetVirtualPathMappings();
+
+        if (mappings.IsEmpty)
+        {
+            Line(builder, $"  {Warning}仮想パスの割り当てがありません。/Engine/... を解決するには unreal: の engine を書いてください。");
+        }
+
+        foreach ((string virtualPath, string directory) in mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            bool exists = Directory.Exists(directory);
+            Line(builder, $"  {(exists ? string.Empty : Warning)}{virtualPath} → {directory}{(exists ? string.Empty : " (ありません)")}");
+        }
+
+        Line(builder, $"  生成される取り込み (解決せず、HL0321 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
+        Line(builder, $"  既定のマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}");
+    }
+
     /// <summary>汎用の HLSL 環境の設定 (言語のバージョン・構成の軸・コンパイル単位) を書き出す。</summary>
     /// <param name="builder">書き出し先。</param>
     /// <param name="configuration">設定ファイルの内容。</param>
-    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration)
+    /// <param name="defaultVersion">指定が無いときの言語のバージョン。</param>
+    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration, int defaultVersion)
     {
         Section(builder, "HLSL");
 
-        Line(builder, $"  言語のバージョン: {configuration.HlslVersion ?? 2021}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
+        Line(builder, $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
 
         string symbols = string.Join(
             ", ",
