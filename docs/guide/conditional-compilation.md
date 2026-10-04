@@ -745,7 +745,10 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 ### 付録 2: 宣言の読み取り
 
-[ShaderSymbols.cs](../../src/Shaderlyn.Unity/ShaderSymbols.cs) の 1 か所だけが判断します。
+宣言をどう読むかは環境が決めます ([IHlslEnvironment](../../src/Shaderlyn.Semantics/Environments/IHlslEnvironment.cs))。
+解析とルールは、環境が読んだ構成の空間 ([VariantSpace](../../src/Shaderlyn.Core/Syntax/VariantSpace.cs)) だけを見ます。
+Unity の環境では [ShaderSymbols.cs](../../src/Shaderlyn.Unity/ShaderSymbols.cs) の 1 か所だけが判断します。
+ほかの環境 (汎用の HLSL・Unreal) は設定ファイルの `symbols:` から作ります。
 
 | 判断 | コード |
 | --- | --- |
@@ -757,12 +760,12 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 | 経路 | 入力 | 使う場面 | コード |
 | --- | --- | --- | --- |
-| `CollectDeclared(pragmas)` | プリプロセス後の `PragmaDirective` | HL0330 / HL0331、バリアントの候補選び | [ShaderSymbols.CollectDeclared](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
-| `CollectDeclaredFromTokens(tokens)` | 字句解析しただけのトークン列 | プリプロセスの**前**に「どれがシンボルか」を知る必要があるため | [ShaderSymbols.CollectDeclaredFromTokens](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| `ReadVariants(unit, result)` | プリプロセス後の結果 (Unity は `PragmaDirective`) | HL0330 / HL0331、バリアントの候補選び | Unity は [ShaderSymbols.ReadVariantSpace](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| `ReadDeclaredVariants(unit, tokens)` | 字句解析しただけのトークン列 | プリプロセスの**前**に「どれがシンボルか」を知る必要があるため | Unity は [ShaderSymbols.ReadVariantSpaceFromTokens](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 
-`CollectDeclaredFromTokens` は **解析対象のファイル自身の `#pragma` しか見ません**。取り込んだヘッダの宣言は
+Unity の `ReadDeclaredVariants` は **解析対象のファイル自身の `#pragma` しか見ません**。取り込んだヘッダの宣言は
 この時点では読めていません。
-そのため、1 度プリプロセスしたあとに `CollectDeclared(pragmas)` で宣言を集め直し、ヘッダが宣言していた場合は
+そのため、1 度プリプロセスしたあとに `ReadVariants` で宣言を集め直し、ヘッダが宣言していた場合は
 その分も並べる対象と制約に足して**プリプロセスし直します**
 （[ShaderCompilationBuilder.TryAddIncludedSymbols](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 プリプロセスし直すのは、足したシンボルの `#ifdef` が実際にある場合だけです。
@@ -772,7 +775,7 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 | 経路 | 内容 | コード |
 | --- | --- | --- |
 | `ConditionalIdentifiers` | 条件で参照された名前のトークン | [PreprocessResult.ConditionalIdentifiers](../../src/Shaderlyn.Hlsl/Preprocessing/PreprocessorTypes.cs) |
-| `CollectRuntimeReferences(codeTokens)` | コード中に識別子として現れた名前（`dynamic_branch` のため）。`#` で始まる行は飛ばす | [ShaderSymbols.CollectRuntimeReferences](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
+| `CollectRuntimeReferences(codeTokens)` | コード中に識別子として現れた名前（`dynamic_branch` のため）。`#` で始まる行は飛ばす | [ShaderSymbolAnalyzer.CollectRuntimeReferences](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 
 ### 付録 3: プリプロセス
 
@@ -886,7 +889,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 | 決めるもの | 内容 | 適用する場所 |
 | --- | --- | --- |
-| 環境 | `SHADER_API_*`、`UNITY_VERSION` など。1 通りだけを仮に選ぶ | [SemanticsOptions.DefaultPredefinedMacros](../../src/Shaderlyn.Semantics/SemanticsOptions.cs)、`--define`（[ValueOptions](../../src/Shaderlyn.Cli/CommandLineOptions.cs)） |
+| 環境 | `SHADER_API_*`、`UNITY_VERSION` など。1 通りだけを仮に選ぶ | Unity は [UnityOptions.DefaultPredefinedMacros](../../src/Shaderlyn.Unity/UnityOptions.cs)、ほかの環境は環境の `ConfigurePreprocessor`、`--define`（[ValueOptions](../../src/Shaderlyn.Cli/CommandLineOptions.cs)） |
 | カーネルのマクロ | `#pragma kernel KMain USE_X` がそのカーネルだけに与えるもの | [ProgramBlockExtractor](../../src/Shaderlyn.Unity/ProgramBlockExtractor.cs) の `ExtraMacros`、[WithExtraMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | シンボル | その構成で有効にするシェーダーキーワード | [ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | 宣言から分かる制約 | 同じ行のシンボルは同時に有効にならない。`_` の無い `multi_compile` はどれか 1 つが必ず有効 | [SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs) |

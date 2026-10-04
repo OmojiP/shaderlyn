@@ -45,7 +45,9 @@ flowchart TD
 
 1. 実行ファイルの入口 [Shaderlyn.Cli.App/Program.cs](../../src/Shaderlyn.Cli.App/Program.cs) が組み込みルールを渡して `Program.RunAsync` を呼び、[Program.cs](../../src/Shaderlyn.Cli/Program.cs) が引数・対象ファイル・設定・意味解析の環境を整えます。
    自作ルール入りの CLI も、同じ `Program.RunAsync` を呼びます。
-2. [AnalysisRunner.cs](../../src/Shaderlyn.Cli/AnalysisRunner.cs) がファイルを `SourceText` として読み、拡張子を [ShaderSourceKind.cs](../../src/Shaderlyn.Semantics/ShaderSourceKind.cs) 経由で判定します。`.shader` は ShaderLab、`.compute` や HLSL ファイルは HLSL として扱います。
+2. [AnalysisRunner.cs](../../src/Shaderlyn.Cli/AnalysisRunner.cs) がファイルを `SourceText` として読み、設定ファイルの `environment` で選んだ環境 ([Environments](../../src/Shaderlyn.Cli/Environments/)) に渡します。
+   環境がファイルをコンパイル単位に切り出します。Unity は拡張子で判定し、`.shader` は ShaderLab、`.compute` や HLSL ファイルは HLSL として扱います。
+   汎用の HLSL と Unreal は、設定ファイルの `units:` に当てはまる単位ごとに、当てはまらなければファイル全体を 1 つの単位にします。
 3. 字句解析と構文解析を行います（[4 章](#4-字句解析と構文解析)）。
 4. セマンティックモデル `ShaderCompilation` を組み立てます（[5 章](#5-セマンティックモデルの組み立て)）。
 5. ルールを実行して診断を集めます（[6 章](#6-ルールの実行)）。
@@ -85,10 +87,13 @@ flowchart TD
 
 ## 5. セマンティックモデルの組み立て
 
-[ShaderCompilationBuilder](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) が ShaderLab の `Properties` と HLSL を結び、[ShaderCompilation](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) を組み立てます。
+[ShaderCompilationBuilder](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) がコンパイル単位ごとに HLSL を展開・解析し、[ShaderCompilation](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) を組み立てます。
 組み立てを別の型に分けてあるのは、`ShaderCompilation` がルールから使われる問い合わせの面であり、作り方はそこに置く必要がないためです。
 
-- 入口は、ShaderLab なら `ShaderCompilation.Create(text, tree, semantics)`、HLSL 単体なら `ShaderCompilation.CreateForHlsl(text, semantics)` です
+- 入口は `ShaderCompilation.Create(text, units, codeText, environment, source, semantics)` です。
+  Unity は [UnityCompilation](../../src/Shaderlyn.Unity/UnityCompilation.cs) の `Create` (ShaderLab) と `CreateForHlsl` (HLSL 単体) が単位を切り出してこれを呼びます
+- 環境の決まり (構成の軸・エントリポイント・定義済みマクロ・生成される取り込み) は [IHlslEnvironment](../../src/Shaderlyn.Semantics/Environments/IHlslEnvironment.cs) から受け取ります。
+  組み立ては環境の決まりを持ちません ([設計判断「環境」](design-decisions.md#環境))
 - Unity のヘッダの解決は、`SemanticsOptions` に渡された include resolver が担います。
   どの取り込み先が利用者のファイルかは `SemanticsOptions.IsUserInclude` が決め、CLI と言語サーバーは `SemanticsSetup.CreateUserIncludePredicate` で作ります
   （プロジェクトの `Library` の下と Unity Editor に同梱のもの以外）

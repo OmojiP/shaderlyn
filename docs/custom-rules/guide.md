@@ -99,7 +99,6 @@ context.RegisterSyntaxTreeAction(c =>
 
 | `ShaderCompilation`                                 | 引けるもの                                      |
 | --------------------------------------------------- | ------------------------------------------ |
-| `Properties`                                        | `Properties` ブロックの宣言                       |
 | `Programs`                                          | コードブロックごとの解析結果                             |
 | `TryGetUniform(name, out _)`                        | uniform の宣言                                |
 | `HasCompleteDependencies`                           | `#include` をすべて解決できたか                      |
@@ -107,6 +106,21 @@ context.RegisterSyntaxTreeAction(c =>
 | `EnumerateRuleNodes()`                              | 検査のために歩くノード。既定の構成と各バリアントの木のノードを、属する木とともに返す |
 | `GetEffectiveCondition(node, program)`              | そのノードが存在する条件。その木を解析した構成も掛け合わせる             |
 | `TryEnumerateConfigurations(nodes, program, out _)` | 構成ごとに存在するノード。数えるルールはこれで数える                 |
+
+Unity の `Properties`・ShaderLab の木・`Pass` は、`Shaderlyn.Unity` パッケージの `compilation.GetUnity()` (`UnityShaderModel`) と
+`program.GetUnityBlock()` (`UnityProgramBlock`) から引きます。Unity 以外の環境で作ったモデルでは `null` なので、そのときは何もしないでください。
+
+```csharp
+if (compilation.GetUnity() is not { } unity)
+{
+    return;   // Unity の環境ではない
+}
+
+foreach (PropertySymbol property in unity.Properties)
+{
+    ...
+}
+```
 
 `HlslRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
 ノードは既定の構成の木とバリアントの木の両方から、それぞれの文脈で渡ってきます (`c.Program`)。

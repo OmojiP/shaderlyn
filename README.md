@@ -6,6 +6,8 @@
 
 Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
 
+DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
+
 CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能
@@ -255,7 +257,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md)                                                         |
+| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md)                                                         |
 | CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |

@@ -442,7 +442,6 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 
 | メンバー                           |                                             |
 | ---------------------------------- | ------------------------------------------- |
-| `Properties`                       | `Properties` ブロックの宣言                 |
 | `Programs`                         | コードブロックごとの解析結果                |
 | `SymbolVariants`                  | シンボルを 1 つ有効にした構成での解析結果 |
 | `TryGetUniform(name, out _)`       | uniform を引く                              |
@@ -468,11 +467,23 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 | `CodeTokens`                       | このファイルのコードの、マクロ展開前のトークン |
 | `UserIncludeCodeTokens`            | 利用者が書いて取り込んだヘッダの、マクロ展開前のトークン。位置はヘッダを指す |
 | `GetConditionMap()`                | ノードがどのシンボル構成で存在するか      |
-| `IsStandaloneHlsl`                 | `.compute` などの単体ファイルか             |
 | `ResolveCall(invocation, program)` | その呼び出しでどの関数が呼ばれるか          |
 | `GetFunctionDeclarations(name)`    | その名前で宣言されている関数すべて          |
 | `HasFunctionDeclarations`          | 関数の宣言が 1 つでもあるか                 |
 | `GetExpressionTypeBinder(program)` | 式の型を求める `ExpressionTypeBinder`       |
+| `Environment`                      | このモデルを作った環境 (`IHlslEnvironment`。[環境](#環境)) |
+| `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
+
+Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
+`compilation.GetUnity()` (`UnityShaderModel`) から引きます。Unity 以外の環境で作ったモデルでは `null` です。
+
+| `UnityShaderModel` のメンバー      |                                             |
+| ---------------------------------- | ------------------------------------------- |
+| `Properties`                       | `Properties` ブロックの宣言                 |
+| `Tree`                             | ShaderLab の構文木                          |
+| `Profile`                          | レンダーパイプラインのプロファイル          |
+| `IsStandaloneHlsl`                 | `.compute` などの単体ファイルか             |
+| `IsReferencedFromShaderLab(name)`  | その名前が ShaderLab から参照されているか   |
 
 #### 報告してよいノードか
 
@@ -777,9 +788,13 @@ if (conditions.IsPossible(missing))
 | --------------------------------------------------------------- | -------------------------------- |
 | `Tree`                                                          | そのブロックの HLSL 構文木       |
 | `Uniforms` / `Structs` / `FunctionNames` / `FunctionSignatures` | そのブロックから見える宣言       |
-| `PassName`                                                      | 囲む `Pass` の名前               |
-| `KernelName`                                                    | `.compute` のカーネル名          |
-| `Keyword`                                                       | どのシンボルを有効にした構成か |
+| `KernelName`                                                    | 同じ範囲から作った単位を見分ける名前 (`.compute` のカーネル名) |
+| `EnabledSymbols`                                                | どのシンボルを有効にした構成か。既定の構成では空 |
+| `Variants`                                                      | その木から環境が読んだ構成の空間 (`VariantSpace`) |
+| `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
+| `Unit`                                                          | 解析したコンパイル単位 (`HlslCompilationUnit`) |
+
+囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
 
 ### `ConditionalTokenRange` (`Shaderlyn.Hlsl.Preprocessing`)
 

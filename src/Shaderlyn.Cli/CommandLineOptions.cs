@@ -453,7 +453,7 @@ internal sealed class CommandLineOptions
                                  探索しません。名前を挙げて指定すれば解析します。
 
         オプション:
-          --environment <名前>   解析する環境: unity (既定)。設定ファイルの environment より優先します。
+          --environment <名前>   解析する環境: unity (既定), hlsl, unreal。設定ファイルの environment より優先します。
           --format <形式>        出力形式: text (既定), json, sarif, github
           --error-on <重要度>    この重要度以上の指摘で終了コード 1 を返す: info, warning (既定), error
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
@@ -470,13 +470,13 @@ internal sealed class CommandLineOptions
           -h, --help             このヘルプを表示します。
 
         意味解析のオプション:
-          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います。
+          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います (Unity の環境だけ)。
                                  明示的に指定してください。
-          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます。
+          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます (Unity の環境だけ)。
                                  省略時は ProjectSettings/ProjectVersion.txt から推定し、
                                  --unity-project も無ければインストール済みの最新バージョンを使います。
           --include-path <パス>  #include の追加探索パス。複数回指定できます。
-          --profile <名前>       レンダーパイプライン: urp (既定), brp, hdrp
+          --profile <名前>       レンダーパイプライン: urp (既定), brp, hdrp (Unity の環境だけ)
           --define <名前[=値]>   定義済みマクロ。複数回指定できます。
           --max-symbol-variants <数>
                                  #pragma shader_feature / multi_compile で宣言された
