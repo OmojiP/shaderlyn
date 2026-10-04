@@ -74,6 +74,8 @@ internal static class ShaderCompilationBuilder
             TokenCache = options.TokenCache,
             IncludeCache = options.IncludeCache,
             IsUserInclude = options.IsUserInclude,
+            AdditionalIncludeDirectives = UnityPreprocessorDirectives.IncludeDirectives,
+            UnsupportedDirectives = UnityPreprocessorDirectives.UnsupportedDirectives,
         };
 
         ImmutableArray<AnalyzedProgram>.Builder programs = ImmutableArray.CreateBuilder<AnalyzedProgram>();

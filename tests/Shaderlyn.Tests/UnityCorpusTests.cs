@@ -150,7 +150,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"),
         ];
 
-        return new PreprocessorOptions
+        // Unity のヘッダは #include_with_pragmas を使う。
+        return Semantics.UnityPreprocessorDirectives.Apply(new PreprocessorOptions
         {
             // Unity のシェーダーは他パッケージのヘッダを Packages/<パッケージ名>/... で参照する。
             // これを解決できないとマクロが未定義のまま残り、構文エラーの山になる。
@@ -164,7 +165,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
                 .Add("SHADER_API_D3D11", "1")
                 .Add("SHADER_TARGET", "45")
                 .Add("UNITY_VERSION", "600000"),
-        };
+        });
     }
 
     [Fact]

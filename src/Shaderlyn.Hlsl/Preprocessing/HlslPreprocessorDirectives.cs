@@ -56,7 +56,10 @@ internal sealed partial class HlslPreprocessor
                 break;
 
             case "include":
-            case "include_with_pragmas":
+                NoteMacroAffectingSymbols();
+                break;
+
+            case var _ when _options.AdditionalIncludeDirectives.Contains(directive):
                 NoteMacroAffectingSymbols();
                 break;
         }
@@ -71,6 +74,21 @@ internal sealed partial class HlslPreprocessor
 
         HlslSyntaxToken directiveToken = TakeToken();
 
+        // 環境が受け付けない指令 (Unity の #line など)。
+        if (_options.UnsupportedDirectives.Contains(directive))
+        {
+            Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), $"#{directive} 指令");
+            SkipDirectiveLine();
+            return;
+        }
+
+        // 環境が足した取り込みの指令 (Unity の #include_with_pragmas など)。
+        if (_options.AdditionalIncludeDirectives.Contains(directive))
+        {
+            ProcessInclude(directiveToken);
+            return;
+        }
+
         switch (directive)
         {
             case "define":
@@ -82,11 +100,6 @@ internal sealed partial class HlslPreprocessor
                 break;
 
             case "include":
-
-            // Unity 固有の指令。取り込んだ先の #pragma も呼び出し側へ伝播させる点が
-            // #include と異なるが、構文解析の観点では同じ扱いでよい。
-            // 対応していないと URP のシェーダーの多くが依存関係を取り込めなくなる。
-            case "include_with_pragmas":
                 ProcessInclude(directiveToken);
                 break;
 
@@ -94,21 +107,17 @@ internal sealed partial class HlslPreprocessor
                 ProcessPragma();
                 break;
 
-            // #line は Unity のシェーダーのコンパイルでエラーになる
-            // ("syntax error: unexpected token 'line'")。
-            case "line":
-                Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), "#line 指令");
-                SkipDirectiveLine();
-                break;
-
             // #error / #warning は解析には影響しないため読み飛ばす。
             // #error を診断として報告しないのは、それが非活性領域に置かれる
             // 「この構成では使えない」という印であることが多く、
             // 単一構成での展開では偽の指摘になりやすいためである。
+            // #line は報告の位置を付け替えるだけで、展開には影響しない。
+            // 受け付けない環境は UnsupportedDirectives で報告する。
             case "error":
             case "warning":
             case "version":
             case "extension":
+            case "line":
                 SkipDirectiveLine();
                 break;
 

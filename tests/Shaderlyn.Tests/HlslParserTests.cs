@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
+using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
@@ -412,11 +413,57 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void LineはUnityで使えない構文として報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("#line 100\nfloat4 f(float4 x) { return x; }\n");
+        PreprocessorOptions options = Semantics.UnityPreprocessorDirectives.Apply(PreprocessorOptions.Default);
+        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#line 100\nfloat4 f(float4 x) { return x; }\n", "test.hlsl"), options);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
         Assert.Contains("#line", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 環境が受け付けない指令を与えなければ、<c>#line</c> を読み飛ばすことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// プリプロセッサは環境の決まりを持たない。DXC は <c>#line</c> をそのまま受け付ける。
+    /// </remarks>
+    [Fact]
+    public void 環境の指定が無ければLineを読み飛ばす()
+    {
+        HlslSyntaxTree tree = HlslHarness.ParseValid("#line 100\nfloat4 f(float4 x) { return x; }\n");
+
+        Assert.Contains(tree.Root.Declarations, d => d is FunctionDeclarationSyntax { Name: "f" });
+    }
+
+    /// <summary>
+    /// 環境が足した取り込みの指令を、<c>#include</c> と同じく扱うことを検証する。
+    /// </summary>
+    /// <param name="unity">Unity の指令の扱いを重ねるか。</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void 環境が足した取り込みの指令はincludeと同じに扱う(bool unity)
+    {
+        InMemoryIncludeResolver resolver = new(new Dictionary<string, string>
+        {
+            ["Common.hlsl"] = "float4 Shared(float4 x) { return x; }",
+        });
+
+        PreprocessorOptions options = new() { IncludeResolver = resolver };
+
+        if (unity)
+        {
+            options = Semantics.UnityPreprocessorDirectives.Apply(options);
+        }
+
+        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#include_with_pragmas \"Common.hlsl\"\n", "test.hlsl"), options);
+
+        Assert.Equal(unity, tree.Root.Declarations.Any(d => d is FunctionDeclarationSyntax { Name: "Shared" }));
+
+        // 知らない指令は、知らない指令として報告する。
+        Assert.Equal(!unity, tree.Diagnostics.Any(d => d.Id == "HL0002"));
     }
 
     /// <summary>

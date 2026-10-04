@@ -298,6 +298,37 @@ public sealed record PreprocessorOptions
     public Func<string, bool>? IsUserInclude { get; init; }
 
     /// <summary>
+    /// <c>#include</c> と同じく、ファイルを取り込む指令として扱う名前。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 環境が独自に足す指令のためにある。Unity の <c>#include_with_pragmas</c> は、
+    /// 取り込んだ先の <c>#pragma</c> も呼び出し側へ伝える点が <c>#include</c> と違うが、
+    /// 展開の観点では同じである。<c>#pragma</c> はもともとすべて集めている。
+    /// </para>
+    /// <para>
+    /// 既定は空で、<c>#include</c> だけを取り込みとする。ここに無い名前の指令は、知らない指令として報告する。
+    /// </para>
+    /// </remarks>
+    public ImmutableHashSet<string> AdditionalIncludeDirectives { get; init; } =
+        ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 使えない指令として報告する名前。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 環境が受け付けない指令のためにある。Unity のシェーダーのコンパイルは <c>#line</c> をエラーにする
+    /// ("syntax error: unexpected token 'line'")。DXC はそのまま受け付ける。
+    /// </para>
+    /// <para>
+    /// 既定は空で、どれも報告しない。<c>#line</c> は読み飛ばす。
+    /// </para>
+    /// </remarks>
+    public ImmutableHashSet<string> UnsupportedDirectives { get; init; } =
+        ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
+
+    /// <summary>
     /// 展開のしかたを変える設定をまとめた指紋。
     /// </summary>
     /// <remarks>
@@ -367,6 +398,17 @@ public sealed record PreprocessorOptions
 
             // 並べてよい領域が決められていれば、ヘッダの中の判断もそれに従う。
             hash.Add(MergeOnlyRegions?.ContentHash ?? 0);
+
+            // 取り込みとして扱う指令と、報告する指令が違えば、ヘッダの展開結果と診断が変わる。
+            foreach (ImmutableHashSet<string> directives in (ImmutableHashSet<string>[])[AdditionalIncludeDirectives, UnsupportedDirectives])
+            {
+                hash.Add(directives.Count);
+
+                foreach (string directive in directives.Order(StringComparer.Ordinal))
+                {
+                    hash.Add(directive, StringComparer.Ordinal);
+                }
+            }
 
             return hash.ToHashCode();
         }
