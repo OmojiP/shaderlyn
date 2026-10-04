@@ -101,7 +101,7 @@ public readonly record struct HlslShaderTarget(HlslShaderStage Stage, int Major,
     /// <returns>マクロの名前と値。</returns>
     /// <remarks>
     /// <para>
-    /// DXC 1.6 で確かめた (2026-10-04)。<c>__SHADER_TARGET_STAGE</c> はステージの番号で、
+    /// 値は DXC (1.6) の振る舞いに合わせた。<c>__SHADER_TARGET_STAGE</c> はステージの番号で、
     /// <c>__SHADER_STAGE_PIXEL</c> などと比べて使う。<c>__HLSL_VERSION</c> は <c>-HV</c> の値。
     /// </para>
     /// <para>

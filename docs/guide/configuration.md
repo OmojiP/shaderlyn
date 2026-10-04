@@ -111,7 +111,7 @@ units:
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません (SL0002 で伝えます)
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
-  ほかのプラットフォームに合わせるときは `defines` で上書きしてください (エンジン本体では確かめていません)
+  プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
 
 ## symbols

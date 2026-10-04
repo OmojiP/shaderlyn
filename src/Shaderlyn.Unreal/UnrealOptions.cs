@@ -34,7 +34,7 @@ public sealed record UnrealOptions
     /// <remarks>
     /// <para>
     /// エンジンの <c>Platform.ush</c> などが、コンパイラとプラットフォームを見分けるのに使う。
-    /// 値はエンジンのシェーダーコンパイラ (ShaderFormatD3D) が定義するものに合わせた。エンジン本体では確かめていない。
+    /// PC の Direct3D 12 を想定した値である。エンジンの版やプラットフォームで違いうるので、設定で上書きできるようにしてある。
     /// </para>
     /// <para>
     /// ほかのプラットフォーム (Vulkan、コンソール) を想定するなら、設定ファイルの <c>defines</c> で上書きする。
@@ -60,7 +60,7 @@ public sealed record UnrealOptions
     /// <summary>そのほかの割り当て (<c>/Plugin/MyPlugin</c> → プラグインの <c>Shaders</c>)。</summary>
     public ImmutableDictionary<string, string> VirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 
-    /// <summary>HLSL の言語のバージョン。既定は 2018 (エンジンが <c>-HV 2021</c> を付けるのは、そう指定したシェーダーだけ)。</summary>
+    /// <summary>HLSL の言語のバージョン。既定は 2018。HLSL 2021 で書いたシェーダーは設定の <c>hlsl: version</c> で 2021 にする。</summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
     /// <summary>

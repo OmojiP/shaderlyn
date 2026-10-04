@@ -102,7 +102,8 @@ public interface IHlslEnvironment
     /// <returns>生成されるファイルなら <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
-    /// Unreal の <c>/Engine/Generated/…</c> (uniform buffer やマテリアルの宣言) がそうである。ディスクには無いので解決できない。
+    /// Unreal の <c>/Engine/Generated/…</c> (uniform buffer やマテリアルの宣言) がそうである。
+    /// エンジンがシェーダーをコンパイルするときにメモリ上で作るもので、エンジンのフォルダーには無いので解決できない。
     /// </para>
     /// <para>
     /// <b>解決できないことは変わらないが、誤りとしては報告しない (HL0321)。</b>

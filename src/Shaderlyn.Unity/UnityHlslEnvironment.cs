@@ -124,7 +124,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
            && !name.Any(char.IsAsciiLetterLower);
 
     /// <inheritdoc/>
-    /// <remarks>Unity のヘッダはどれもディスクにある。</remarks>
+    /// <remarks>Unity には、コンパイルのときに作られて取り込まれるヘッダが無い。取り込むヘッダはどれもファイルとしてある。</remarks>
     public bool IsGeneratedInclude(string path) => false;
 
     /// <inheritdoc/>
