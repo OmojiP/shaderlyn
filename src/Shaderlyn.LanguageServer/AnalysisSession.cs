@@ -83,6 +83,20 @@ internal sealed class AnalysisSession
     /// 食い違いが残る (docs/custom-rules/tutorial.md)。
     /// </remarks>
     public AnalysisSession(string? workspaceDirectory, IEnumerable<DiagnosticAnalyzer> analyzers)
+        : this(workspaceDirectory, analyzers, [])
+    {
+    }
+
+    /// <summary>
+    /// 独自エンジンの環境を足して、解析の設定を組み立てる。
+    /// </summary>
+    /// <param name="workspaceDirectory">ワークスペースのルート。設定ファイルの探索に使う。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">自前のホストが足した環境。</param>
+    public AnalysisSession(
+        string? workspaceDirectory,
+        IEnumerable<DiagnosticAnalyzer> analyzers,
+        ImmutableArray<HostEnvironment> environments)
     {
         ArgumentNullException.ThrowIfNull(analyzers);
 
@@ -91,7 +105,7 @@ internal sealed class AnalysisSession
         ImmutableArray<DiagnosticAnalyzer> all = [.. analyzers];
 
         CommandLineOptions options = BuildOptions(workspaceDirectory);
-        EffectiveSettings settings = EffectiveSettings.Create(options);
+        EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
         UnityProjectPath = options.UnityProjectPath;

@@ -59,6 +59,9 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         {
             declared.UnionWith(program.Variants.Symbols);
 
+            // 値を持つシンボルは原子 (QUALITY==2) で宣言されるが、条件には名前 (QUALITY) で書く。
+            declared.UnionWith(program.Variants.ValueSymbols.Keys);
+
             foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
             {
                 referenced.Add(token.Text);
@@ -188,9 +191,12 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         // 名前が書かれていない宣言 (組み込みの宣言が作るもの) は、使うかどうかを利用者が選んでいない。
         foreach (VariantDeclaration declaration in variants.Declarations)
         {
+            // 値を持つシンボルは、値ごとの原子 (QUALITY==2) として宣言されている。条件に書くのは名前 (QUALITY) である。
+            string name = VariantValues.TryParseAtom(declaration.Name, out string? valueName, out _) ? valueName : declaration.Name;
+
             if (declaration.IsImplicit
                 || declaration.Location is not { } location
-                || referenced.Contains(declaration.Name)
+                || referenced.Contains(name)
                 || !compilation.IsWrittenHere(location)
                 || !reported.Add(location.Span))
             {
@@ -198,7 +204,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             }
 
             context.ReportDiagnostic(Diagnostic.Create(
-                HlslDescriptors.UnusedSymbol, location, declaration.Name));
+                HlslDescriptors.UnusedSymbol, location, name));
         }
     }
 

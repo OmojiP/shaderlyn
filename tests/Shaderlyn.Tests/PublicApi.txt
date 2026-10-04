@@ -4,7 +4,22 @@ Shaderlyn.Cli.ExitCode : enum (System.IComparable, System.IConvertible, System.I
 Shaderlyn.Cli.ExitCode :: DiagnosticsFound = 1
 Shaderlyn.Cli.ExitCode :: Success = 0
 Shaderlyn.Cli.ExitCode :: ToolError = 2
+Shaderlyn.Cli.HostEnvironment : sealed class (System.IEquatable`1[Shaderlyn.Cli.HostEnvironment])
+Shaderlyn.Cli.HostEnvironment :: .ctor(System.String, System.String, System.Collections.Immutable.ImmutableArray`1[System.String], System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: Shaderlyn.Cli.HostEnvironment <Clone>$()
+Shaderlyn.Cli.HostEnvironment :: System.Boolean Equals(Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: System.Collections.Immutable.ImmutableArray`1[System.String] DefaultExtensions { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment] CreateEnvironment { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.String DisplayName { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.String Name { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.Void Deconstruct(out System.String, out System.String, out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Equality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Inequality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Cli.HostEnvironment :: virtual System.Int32 GetHashCode()
+Shaderlyn.Cli.HostEnvironment :: virtual System.String ToString()
 Shaderlyn.Cli.Program : static class
+Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Cli.HostEnvironment], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
 Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
 Shaderlyn.Core.Analysis.AnalysisContext : sealed class
 Shaderlyn.Core.Analysis.AnalysisContext :: System.Void RegisterAnalysisStartAction(System.Action`1[Shaderlyn.Core.Analysis.AnalysisStartContext])
@@ -1018,6 +1033,7 @@ Shaderlyn.LanguageServer.Protocol.LspConnection :: System.Threading.Tasks.Task`1
 Shaderlyn.LanguageServer.ShaderLanguageServer : sealed class
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection)
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer])
+Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Generic.IEnumerable`1[Shaderlyn.Cli.HostEnvironment])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: System.Threading.Tasks.Task`1[System.Int32] RunAsync(System.Threading.CancellationToken)
 Shaderlyn.Semantics.Analysis.HlslAnalysisContext : sealed class
 Shaderlyn.Semantics.Analysis.HlslAnalysisContext :: .ctor()

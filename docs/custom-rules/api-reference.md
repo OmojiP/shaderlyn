@@ -18,6 +18,7 @@
   - [HLSL のノード型](#hlsl-のノード型)
   - [構文の上の事実を引く](#構文の上の事実を引く)
 - [セマンティックモデル](#セマンティックモデル)
+- [環境](#環境)
 - [テスト](#テスト)
 
 ### 型の索引
@@ -824,6 +825,41 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 重要度の上書きはドライバが一律に適用します。ルール側で設定を読む必要はありません。
 
 ---
+
+## 環境
+
+ルールを書くだけなら、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使います。
+例は [ルールの実例集「独自エンジンの環境」](cookbook.md#独自エンジンの環境) にあります。
+
+### `IHlslEnvironment` (`Shaderlyn.Semantics.Environments`)
+
+エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
+組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
+セマンティックモデルを作った環境は `compilation.Environment` で引けます。
+
+| メンバー | 役目 |
+| --- | --- |
+| `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
+| `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
+| `ReadEntryPoints` | エントリポイント (`HlslEntryPoint`)。HL0301 が見る |
+| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
+| `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
+
+### `ShaderCompilation.Create`
+
+コンパイル単位 (`HlslCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
+ファイル全体を 1 つの単位にするなら `HlslEnvironment.WholeFile(text)` を使います。
+
+### `VariantSpace` / `VariantValues` (`Shaderlyn.Core.Syntax`)
+
+構成の空間です。宣言 (`VariantDeclaration`) と、同時には有効にならない組 (`VariantGroup`) を持ちます。
+値を持つシンボルは `VariantSpace.ForValues("QUALITY", [0, 1, 2])` で作ります。
+値ごとの原子 (`QUALITY==2`) の「ちょうど 1 つ」の組になり、条件の表示は `QUALITY == 2` になります。
+
+### `HostEnvironment` (`Shaderlyn.Cli`)
+
+自前の CLI (`Program.RunAsync`) と言語サーバー (`ShaderLanguageServer`) に環境を足します。
+名前・表示名・フォルダーを指定したときに探す拡張子・環境を作る関数を持ちます。
 
 ## テスト
 

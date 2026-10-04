@@ -28,7 +28,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     private const string EntryOrigin = "設定ファイルの entry";
 
     private readonly ShaderlynConfiguration _configuration;
-    private readonly HlslEnvironment _environment;
+    private readonly IHlslEnvironment _environment;
 
     /// <summary>設定ファイルから、汎用の HLSL 環境を作る。</summary>
     /// <param name="configuration">設定ファイルの内容。</param>
@@ -52,7 +52,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <param name="defaultExtensions">フォルダーを指定したときに探す拡張子。</param>
     public HlslAnalysisEnvironment(
         ShaderlynConfiguration configuration,
-        HlslEnvironment environment,
+        IHlslEnvironment environment,
         string displayName,
         ImmutableArray<string> defaultExtensions)
     {

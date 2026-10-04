@@ -44,7 +44,7 @@ internal static class AnalysisCacheKey
 
         StringBuilder material = new();
 
-        AppendAnalyzerIdentity(material, analyzers);
+        AppendAnalyzerIdentity(material, analyzers, settings.HostEnvironments);
         AppendConfiguration(material, settings);
         AppendOptions(material, options, settings);
 
@@ -56,14 +56,16 @@ internal static class AnalysisCacheKey
     /// </summary>
     /// <param name="material">書き出し先。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="hostEnvironments">自前のホストが足した環境。環境を作る関数のアセンブリも混ぜる。</param>
     /// <remarks>
-    /// 自作のアナライザを渡して実行する経路 (<see cref="Program.RunAsync"/> の第 2 引数) があるため、
+    /// 自作のアナライザを渡して実行する経路 (<see cref="Program.RunAsync(string[], System.Collections.Immutable.ImmutableArray{Core.Analysis.DiagnosticAnalyzer}, TextWriter, TextWriter, CancellationToken)"/> の第 2 引数) があるため、
     /// 組み込みのアセンブリに加えて、渡されたアナライザのアセンブリと
     /// 報告しうるルール ID も混ぜる。
     /// </remarks>
     private static void AppendAnalyzerIdentity(
         StringBuilder material,
-        ImmutableArray<DiagnosticAnalyzer> analyzers)
+        ImmutableArray<DiagnosticAnalyzer> analyzers,
+        ImmutableArray<HostEnvironment> hostEnvironments)
     {
         SortedSet<string> modules = new(StringComparer.Ordinal);
 
@@ -71,6 +73,13 @@ internal static class AnalysisCacheKey
         AddModule(modules, typeof(Program).Assembly);
         AddModule(modules, typeof(Diagnostic).Assembly);
         AddModule(modules, typeof(ShaderCompilation).Assembly);
+        AddModule(modules, typeof(Unity.UnityHlslEnvironment).Assembly);
+        AddModule(modules, typeof(Unreal.UnrealOptions).Assembly);
+
+        foreach (HostEnvironment host in hostEnvironments)
+        {
+            AddModule(modules, host.CreateEnvironment.Method.Module.Assembly);
+        }
 
         SortedSet<string> ruleIds = new(StringComparer.Ordinal);
 
@@ -175,6 +184,7 @@ internal static class AnalysisCacheKey
         EffectiveSettings settings)
     {
         material.AppendLine("options");
+        material.AppendLine(settings.Environment);
         material.AppendLine(settings.Profile);
         material.AppendLine(options.UnityProjectPath ?? "(none)");
         material.AppendLine(SemanticsSetup.ResolveEditorDataPath(options, settings) ?? "(none)");

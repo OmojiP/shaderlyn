@@ -96,6 +96,9 @@ public sealed partial class ShaderLanguageServer
     /// <summary>実行するアナライザ。ワークスペースが決まるたびに新しい設定へ渡す。</summary>
     private readonly ImmutableArray<DiagnosticAnalyzer> _analyzers;
 
+    /// <summary>自前のホストが足した環境。</summary>
+    private readonly ImmutableArray<HostEnvironment> _environments;
+
     private AnalysisSession _session;
     private bool _shutdownRequested;
 
@@ -118,13 +121,31 @@ public sealed partial class ShaderLanguageServer
     /// CLI の <c>Program.RunAsync</c> と同じ形で一覧を渡す。
     /// </remarks>
     public ShaderLanguageServer(LspConnection connection, IEnumerable<DiagnosticAnalyzer> analyzers)
+        : this(connection, analyzers, [])
+    {
+    }
+
+    /// <summary>
+    /// 独自エンジンの環境を足したサーバを生成する。
+    /// </summary>
+    /// <param name="connection">エディタとの接続。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">足す環境。CLI の <c>Program.RunAsync</c> に渡すものと同じ。</param>
+    /// <exception cref="ArgumentException">環境の名前が組み込みの環境やほかの環境と重なっている。</exception>
+    public ShaderLanguageServer(
+        LspConnection connection,
+        IEnumerable<DiagnosticAnalyzer> analyzers,
+        IEnumerable<HostEnvironment> environments)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(analyzers);
+        ArgumentNullException.ThrowIfNull(environments);
 
         _connection = connection;
         _analyzers = [.. analyzers];
-        _session = new AnalysisSession(workspaceDirectory: null, _analyzers);
+        _environments = [.. environments];
+        Cli.Environments.AnalysisEnvironments.Validate(_environments);
+        _session = new AnalysisSession(workspaceDirectory: null, _analyzers, _environments);
     }
 
     /// <summary>
@@ -178,7 +199,7 @@ public sealed partial class ShaderLanguageServer
         switch (method)
         {
             case "initialize":
-                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers);
+                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;

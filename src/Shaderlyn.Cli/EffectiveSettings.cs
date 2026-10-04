@@ -51,6 +51,9 @@ internal sealed class EffectiveSettings
     /// <remarks>Unity 以外の環境で指定していればエラーにする。黙って無視すると、効いていると思い込ませる。</remarks>
     public ImmutableArray<string> UnityOnlyCommandLineOptions { get; private init; } = [];
 
+    /// <summary>自前のホストが足した環境。</summary>
+    public ImmutableArray<HostEnvironment> HostEnvironments { get; private init; } = [];
+
     /// <summary>環境を指定しない場合に使う環境。</summary>
     public const string DefaultEnvironment = "unity";
 
@@ -83,9 +86,19 @@ internal sealed class EffectiveSettings
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <returns>組み立てた設定。</returns>
-    public static EffectiveSettings Create(CommandLineOptions options)
+    public static EffectiveSettings Create(CommandLineOptions options) => Create(options, []);
+
+    /// <summary>
+    /// コマンドライン引数と、自前のホストが足した環境から実行時の設定を組み立てる。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="hostEnvironments">自前のホストが足した環境。</param>
+    /// <returns>組み立てた設定。</returns>
+    public static EffectiveSettings Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hostEnvironments)
     {
         ArgumentNullException.ThrowIfNull(options);
+
+        hostEnvironments = hostEnvironments.IsDefault ? [] : hostEnvironments;
 
         ShaderlynConfiguration configuration = LoadConfiguration(options, out string? searchDirectory);
         string environment = options.Environment ?? configuration.Environment ?? DefaultEnvironment;
@@ -128,14 +141,14 @@ internal sealed class EffectiveSettings
         // コマンドラインの指定はその場でエラーにする (Program)。
         if (options.Environment is null
             && configuration.Environment is { } environmentName
-            && !AnalysisEnvironments.Names.Contains(environmentName))
+            && !AnalysisEnvironments.Names(hostEnvironments).Contains(environmentName))
         {
             configuration = configuration with
             {
                 Problems =
                 [
                     .. configuration.Problems,
-                    new ConfigurationProblem(configuration.EnvironmentLine, AnalysisEnvironments.DescribeUnknown(environmentName)),
+                    new ConfigurationProblem(configuration.EnvironmentLine, AnalysisEnvironments.DescribeUnknown(environmentName, hostEnvironments)),
                 ],
             };
         }
@@ -159,6 +172,7 @@ internal sealed class EffectiveSettings
         {
             ConfigurationSearchDirectory = searchDirectory,
             UnityOnlyCommandLineOptions = unityOnlyOptions,
+            HostEnvironments = hostEnvironments,
         };
     }
 

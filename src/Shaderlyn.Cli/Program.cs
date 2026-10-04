@@ -40,13 +40,36 @@ public static class Program
     /// AOT publish できるようにするためである (Roslyn Analyzer と同じ考え方)。
     /// </para>
     /// </remarks>
-    public static async Task<ExitCode> RunAsync(
+    public static Task<ExitCode> RunAsync(
         string[] args,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         TextWriter output,
         TextWriter errorOutput,
         CancellationToken cancellationToken = default)
+        => RunAsync(args, analyzers, [], output, errorOutput, cancellationToken);
+
+    /// <summary>
+    /// 独自エンジンの環境を足して、解析を実行する。
+    /// </summary>
+    /// <param name="args">コマンドライン引数。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">
+    /// 足す環境。設定ファイルの <c>environment</c> か <c>--environment</c> に名前を書くと選ばれる。
+    /// </param>
+    /// <param name="output">通常の出力先。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>終了コード。</returns>
+    /// <exception cref="ArgumentException">環境の名前が組み込みの環境やほかの環境と重なっている。</exception>
+    public static async Task<ExitCode> RunAsync(
+        string[] args,
+        ImmutableArray<DiagnosticAnalyzer> analyzers,
+        ImmutableArray<HostEnvironment> environments,
+        TextWriter output,
+        TextWriter errorOutput,
+        CancellationToken cancellationToken = default)
     {
+        AnalysisEnvironments.Validate(environments);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errorOutput);
 
@@ -82,11 +105,11 @@ public static class Program
         }
 
         // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
-        EffectiveSettings settings = EffectiveSettings.Create(options);
+        EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
         {
-            await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment)).ConfigureAwait(false);
+            await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment, environments)).ConfigureAwait(false);
             return ExitCode.ToolError;
         }
 
