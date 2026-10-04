@@ -37,7 +37,7 @@ internal static class SemanticRuleDescriptors
     public static DiagnosticDescriptor IncompleteAnalysis { get; } = new(
         id: "SL0002",
         title: "一部の検査を行っていません",
-        messageFormat: "プロパティと uniform の対応検査を行っていません。{0}",
+        messageFormat: "{0}を行っていません。{1}",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "include を解決できなかった、あるいは HLSL の解析に失敗したため、"

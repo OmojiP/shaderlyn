@@ -14,7 +14,7 @@ namespace Shaderlyn.Cli.Environments;
 internal static class AnalysisEnvironments
 {
     /// <summary>指定できる環境の名前。</summary>
-    public static ImmutableArray<string> Names { get; } = [UnityAnalysisEnvironment.EnvironmentName];
+    public static ImmutableArray<string> Names { get; } = [UnityAnalysisEnvironment.EnvironmentName, Semantics.Environments.HlslEnvironment.EnvironmentName];
 
     /// <summary>
     /// 設定から環境を作る。
@@ -29,6 +29,7 @@ internal static class AnalysisEnvironments
         environment = settings.Environment switch
         {
             UnityAnalysisEnvironment.EnvironmentName => new UnityAnalysisEnvironment(SemanticsSetup.CreateUnity(settings)),
+            Semantics.Environments.HlslEnvironment.EnvironmentName => new HlslAnalysisEnvironment(settings.Configuration),
             _ => null,
         };
 

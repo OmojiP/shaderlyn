@@ -52,6 +52,14 @@ public sealed class AnalyzedProgram
     public VariantSpace Variants { get; }
 
     /// <summary>
+    /// この単位のエントリポイント。既定の構成の木で読む。バリアントの木では空。
+    /// </summary>
+    /// <remarks>
+    /// 環境が読んだもの (<see cref="Environments.IHlslEnvironment.ReadEntryPoints"/>)。
+    /// </remarks>
+    public ImmutableArray<Environments.HlslEntryPoint> EntryPoints { get; init; } = [];
+
+    /// <summary>
     /// このブロックが占めるファイル上の範囲。
     /// </summary>
     /// <remarks>

@@ -149,6 +149,10 @@ public sealed class Hlsl2021Tests
         public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
             => VariantSpace.Empty;
 
-        public VariantSpace ReadVariants(PreprocessResult result) => VariantSpace.Empty;
+        public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => VariantSpace.Empty;
+
+        public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
+
+        public bool LooksLikeVariantSymbol(string name) => false;
     }
 }

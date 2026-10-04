@@ -108,7 +108,7 @@ internal static class ShaderCompilationBuilder
             HlslSyntaxTree tree = ParseWithoutMergedMacroConflicts(
                 unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
-            VariantSpace treeVariants = environment.ReadVariants(tree.PreprocessResult);
+            VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
 
             // 取り込んだヘッダの宣言は、取り込んでみるまで分からない。
             // ヘッダが宣言していたなら、その分も並べる対象にして展開し直す。
@@ -119,7 +119,7 @@ internal static class ShaderCompilationBuilder
 
                 tree = ParseWithoutMergedMacroConflicts(
                     unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
-                treeVariants = environment.ReadVariants(tree.PreprocessResult);
+                treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
             DeclarationSet declarations = UniformCollector.Collect(tree.Root);
@@ -127,6 +127,7 @@ internal static class ShaderCompilationBuilder
             AnalyzedProgram program = new(unit, tree, declarations, treeVariants)
             {
                 MacroConflictSymbols = macroConflicts,
+                EntryPoints = environment.ReadEntryPoints(unit, tree.PreprocessResult),
             };
 
             programs.Add(program);
@@ -217,7 +218,7 @@ internal static class ShaderCompilationBuilder
             foreach (((ImmutableArray<string> enabled, HlslSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
-                VariantSpace variantSpace = environment.ReadVariants(variantTree.PreprocessResult);
+                VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
                 index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
 
                 variants.Add(new AnalyzedProgram(unit, variantTree, variantDeclarations, variantSpace)
@@ -235,6 +236,7 @@ internal static class ShaderCompilationBuilder
         return new ShaderCompilation(
             text,
             source,
+            environment,
             programs.ToImmutable(),
             index.UniformsByName,
             index.DeclarationCounts,

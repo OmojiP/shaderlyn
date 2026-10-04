@@ -76,8 +76,21 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         context.ReportDiagnostic(
             SemanticRuleDescriptors.IncompleteAnalysis,
             new Core.Text.TextSpan(0, 0),
+            DescribeSkipped(compilation),
             DescribeReason(compilation));
     }
+
+    /// <summary>行っていない検査を言う。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns>メッセージの主語。</returns>
+    /// <remarks>
+    /// Unity (ファイル全体の木を持つ環境) では、プロパティと uniform の対応検査が主である。
+    /// ファイル全体の木を持たない環境 (汎用の HLSL) には対応検査が無いので、「無いこと」を根拠にする検査を挙げる。
+    /// </remarks>
+    private static string DescribeSkipped(ShaderCompilation compilation)
+        => compilation.Source.Root is null
+            ? "宣言が無いことを根拠にする検査 (HL0301 / HL0310 など)"
+            : "プロパティと uniform の対応検査";
 
     /// <summary>
     /// 検査を行えなかった理由を短くまとめる。

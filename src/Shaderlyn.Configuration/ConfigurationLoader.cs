@@ -27,11 +27,24 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "profile", "include-paths", "defines", "rules",
+        "version", "environment", "unity", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules",
     ];
 
     /// <summary><c>unity:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownUnityKeys = ["profile", "project", "editor"];
+
+    /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownHlslKeys = ["version"];
+
+    /// <summary><c>units:</c> の要素で認識するキー。</summary>
+    private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "defines", "symbols"];
+
+    /// <summary><c>symbols:</c> の要素で認識するキー。</summary>
+    private static readonly string[] KnownSymbolKeys = ["name", "values", "one-of", "at-most-one"];
+
+    /// <summary>コンパイルのターゲットの形 (<c>ps_6_6</c>)。</summary>
+    private static readonly System.Text.RegularExpressions.Regex TargetPattern =
+        new("^(ps|vs|gs|hs|ds|cs|lib|ms|as)_[0-9]+_[0-9]+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>
     /// 指定したフォルダーから上へ辿って設定ファイルを探す。
@@ -159,6 +172,15 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(unity, KnownUnityKeys, "unity:");
             }
 
+            YamlMapping? hlsl = ReadSection("hlsl");
+
+            if (hlsl is not null)
+            {
+                ReportUnknownKeys(hlsl, KnownHlslKeys, "hlsl:");
+            }
+
+            (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
+
             return new ShaderlynConfiguration
             {
                 FilePath = filePath,
@@ -167,6 +189,10 @@ internal static class ConfigurationLoader
                 Profile = ReadProfile(unity),
                 UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
                 UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),
+                HlslVersion = ReadHlslVersion(hlsl),
+                Symbols = symbols,
+                SymbolGroups = groups,
+                Units = ReadUnits(symbols, groups),
                 IncludePaths = ReadIncludePaths(),
                 Defines = ReadStringSequence("defines"),
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
@@ -273,6 +299,248 @@ internal static class ConfigurationLoader
             return inSection;
         }
 
+        /// <summary>HLSL の言語のバージョン (<c>hlsl: version</c>) を読む。</summary>
+        /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>2018 か 2021。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private int? ReadHlslVersion(YamlMapping? hlsl)
+        {
+            if (hlsl is null || !hlsl.TryGetScalar("version", out YamlScalar? version) || version.Value.Length == 0)
+            {
+                return null;
+            }
+
+            if (version.TryGetInt32(out int value) && value is 2018 or 2021)
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                version.Line, $"hlsl: の version には 2018 か 2021 を指定してください ('{version.Value}')。"));
+            return null;
+        }
+
+        /// <summary>
+        /// 構成の軸になるシンボル (<c>symbols:</c>) を読む。
+        /// </summary>
+        /// <returns>シンボルと、同時には有効にならない組。</returns>
+        /// <remarks>
+        /// <code>
+        /// symbols:
+        ///   - name: QUALITY
+        ///     values: [0, 1, 2]          # 省略すると「定義されているか・いないか」
+        ///   - name: USE_FOG
+        ///   - one-of: [MODE_A, MODE_B]   # 同時には有効にならず、どれか 1 つは有効
+        ///   - at-most-one: [FX_A, FX_B]  # 同時には有効にならない
+        /// </code>
+        /// 組に書いた名前は、<c>name</c> で宣言していなくても構成の軸になる。
+        /// </remarks>
+        private (ImmutableArray<ConfiguredSymbol> Symbols, ImmutableArray<ConfiguredSymbolGroup> Groups) ReadSymbols()
+        {
+            ImmutableArray<ConfiguredSymbol>.Builder symbols = ImmutableArray.CreateBuilder<ConfiguredSymbol>();
+            ImmutableArray<ConfiguredSymbolGroup>.Builder groups = ImmutableArray.CreateBuilder<ConfiguredSymbolGroup>();
+
+            foreach (YamlMapping item in ReadMappingSequence("symbols"))
+            {
+                ReportUnknownKeys(item, KnownSymbolKeys, "symbols の要素");
+
+                string[] kinds = [.. new[] { "name", "one-of", "at-most-one" }.Where(item.Entries.ContainsKey)];
+
+                if (kinds.Length != 1)
+                {
+                    problems.Add(new ConfigurationProblem(
+                        item.Line, "symbols の要素には name / one-of / at-most-one のどれか 1 つを書いてください。"));
+                    continue;
+                }
+
+                if (kinds[0] == "name")
+                {
+                    if (ReadSymbol(item) is { } symbol)
+                    {
+                        if (symbols.Any(s => s.Name == symbol.Name))
+                        {
+                            problems.Add(new ConfigurationProblem(symbol.Line, $"シンボル '{symbol.Name}' が 2 回宣言されています。"));
+                            continue;
+                        }
+
+                        symbols.Add(symbol);
+                    }
+
+                    continue;
+                }
+
+                if (item.Entries[kinds[0]] is not YamlSequence members
+                    || members.Items.Length < 2
+                    || members.Items.Any(m => m is not YamlScalar { Value.Length: > 0 }))
+                {
+                    problems.Add(new ConfigurationProblem(item.Line, $"{kinds[0]} にはシンボルの名前を 2 つ以上並べてください。"));
+                    continue;
+                }
+
+                groups.Add(new ConfiguredSymbolGroup(
+                    [.. members.Items.Cast<YamlScalar>().Select(m => m.Value)],
+                    RequiresOne: kinds[0] == "one-of",
+                    item.Line));
+            }
+
+            foreach (ConfiguredSymbolGroup group in groups)
+            {
+                foreach (string name in group.Symbols.Where(n => symbols.FirstOrDefault(s => s.Name == n) is { Values.IsEmpty: false }))
+                {
+                    problems.Add(new ConfigurationProblem(
+                        group.Line, $"値を持つシンボル '{name}' は組に入れられません。値ごとの構成はもともと同時には有効になりません。"));
+                }
+            }
+
+            return (symbols.ToImmutable(), groups.ToImmutable());
+        }
+
+        /// <summary><c>symbols:</c> の <c>name</c> の要素を読む。</summary>
+        /// <param name="item">要素。</param>
+        /// <returns>シンボル。読めなければ <see langword="null"/>。</returns>
+        private ConfiguredSymbol? ReadSymbol(YamlMapping item)
+        {
+            if (!item.TryGetScalar("name", out YamlScalar? name) || name.Value.Length == 0)
+            {
+                problems.Add(new ConfigurationProblem(item.Line, "symbols の name にはシンボルの名前を書いてください。"));
+                return null;
+            }
+
+            if (!item.TryGet("values", out YamlNode? valuesNode))
+            {
+                return new ConfiguredSymbol(name.Value, [], name.Line);
+            }
+
+            List<int> values = [];
+
+            if (valuesNode is YamlSequence sequence)
+            {
+                foreach (YamlNode value in sequence.Items)
+                {
+                    if (value is YamlScalar scalar && scalar.TryGetInt32(out int number))
+                    {
+                        if (!values.Contains(number))
+                        {
+                            values.Add(number);
+                        }
+                    }
+                    else
+                    {
+                        problems.Add(new ConfigurationProblem(value.Line, $"シンボル '{name.Value}' の values には整数を並べてください。"));
+                        return null;
+                    }
+                }
+            }
+
+            if (values.Count < 2)
+            {
+                problems.Add(new ConfigurationProblem(
+                    valuesNode.Line, $"シンボル '{name.Value}' の values には、とりうる値を 2 つ以上並べてください。"));
+                return null;
+            }
+
+            return new ConfiguredSymbol(name.Value, [.. values], name.Line);
+        }
+
+        /// <summary>
+        /// コンパイル単位 (<c>units:</c>) を読む。
+        /// </summary>
+        /// <param name="symbols">宣言したシンボル。単位が使うシンボルの名前を確かめる。</param>
+        /// <param name="groups">宣言した組。</param>
+        /// <returns>単位。</returns>
+        /// <remarks>
+        /// <code>
+        /// units:
+        ///   - files: Shaders/**/*.hlsl
+        ///     entry: MainPS
+        ///     target: ps_6_6
+        ///     defines: [USE_FOO=1]
+        ///     symbols: [QUALITY]
+        /// </code>
+        /// </remarks>
+        private ImmutableArray<ConfiguredUnit> ReadUnits(
+            ImmutableArray<ConfiguredSymbol> symbols,
+            ImmutableArray<ConfiguredSymbolGroup> groups)
+        {
+            ImmutableArray<ConfiguredUnit>.Builder units = ImmutableArray.CreateBuilder<ConfiguredUnit>();
+            string baseDirectory = Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? string.Empty;
+
+            HashSet<string> declared = [.. symbols.Select(s => s.Name), .. groups.SelectMany(g => g.Symbols)];
+
+            foreach (YamlMapping item in ReadMappingSequence("units"))
+            {
+                ReportUnknownKeys(item, KnownUnitKeys, "units の要素");
+
+                if (ReadOptionalScalar(item, "files") is not { } files)
+                {
+                    problems.Add(new ConfigurationProblem(item.Line, "units の要素には files (対象のファイルの glob) を書いてください。"));
+                    continue;
+                }
+
+                string? target = ReadOptionalScalar(item, "target");
+
+                if (target is not null && !TargetPattern.IsMatch(target))
+                {
+                    problems.Add(new ConfigurationProblem(
+                        item.Entries["target"].Line,
+                        $"target '{target}' を解釈できません。ps_6_6 のように、ステージ (ps / vs / gs / hs / ds / cs / lib / ms / as) と"
+                        + "シェーダーモデルを書いてください。"));
+                    target = null;
+                }
+
+                ImmutableArray<string>? unitSymbols = null;
+
+                if (item.TryGet("symbols", out YamlNode? _))
+                {
+                    unitSymbols = ReadStringSequence(item, "symbols");
+
+                    foreach (string name in unitSymbols.Value.Where(n => !declared.Contains(n)))
+                    {
+                        problems.Add(new ConfigurationProblem(
+                            item.Entries["symbols"].Line, $"シンボル '{name}' は symbols: で宣言されていません。"));
+                    }
+                }
+
+                units.Add(new ConfiguredUnit(files, baseDirectory, item.Line)
+                {
+                    Entry = ReadOptionalScalar(item, "entry"),
+                    Target = target,
+                    Defines = ReadStringSequence(item, "defines"),
+                    Symbols = unitSymbols,
+                });
+            }
+
+            return units.ToImmutable();
+        }
+
+        /// <summary>最上位の、写像の並びを読む。</summary>
+        /// <param name="key">キー。</param>
+        /// <returns>写像の要素。写像でない要素は報告して飛ばす。</returns>
+        private IEnumerable<YamlMapping> ReadMappingSequence(string key)
+        {
+            if (!root.TryGet(key, out YamlNode? node) || node is YamlScalar { Value.Length: 0 })
+            {
+                yield break;
+            }
+
+            if (node is not YamlSequence sequence)
+            {
+                problems.Add(new ConfigurationProblem(node.Line, $"{key} には要素の並びを指定してください。"));
+                yield break;
+            }
+
+            foreach (YamlNode item in sequence.Items)
+            {
+                if (item is YamlMapping mapping)
+                {
+                    yield return mapping;
+                }
+                else
+                {
+                    problems.Add(new ConfigurationProblem(item.Line, $"{key} の要素にはキーと値の対を書いてください。"));
+                }
+            }
+        }
+
         /// <summary>設定ファイルからの相対パスを解決する。</summary>
         /// <param name="path">設定に書かれたパス。</param>
         /// <returns>絶対パス。指定が無ければ <see langword="null"/>。</returns>
@@ -313,9 +581,11 @@ internal static class ConfigurationLoader
             ];
         }
 
-        private ImmutableArray<string> ReadStringSequence(string key)
+        private ImmutableArray<string> ReadStringSequence(string key) => ReadStringSequence(root, key);
+
+        private ImmutableArray<string> ReadStringSequence(YamlMapping mapping, string key)
         {
-            if (!root.TryGet(key, out YamlNode? node))
+            if (!mapping.TryGet(key, out YamlNode? node))
             {
                 return [];
             }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
@@ -39,6 +40,12 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
     /// <summary>作った先頭のコード。同じヘッダの組には同じテキストを返し、字句解析の結果を使い回す。</summary>
     private static readonly ConcurrentDictionary<string, SourceText> CgPreludes = new(StringComparer.Ordinal);
+
+    /// <summary>関数名を第 1 引数に取る <c>#pragma</c>。</summary>
+    private static readonly FrozenSet<string> EntryPointPragmas = new[]
+    {
+        "vertex", "fragment", "geometry", "hull", "domain", "surface", "kernel",
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     private readonly UnityOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
@@ -92,7 +99,57 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         => ShaderSymbols.ReadVariantSpaceFromTokens(tokens);
 
     /// <inheritdoc/>
-    public VariantSpace ReadVariants(PreprocessResult result) => ShaderSymbols.ReadVariantSpace(result.Pragmas);
+    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => ShaderSymbols.ReadVariantSpace(result.Pragmas);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// 関数名を第 1 引数に取る <c>#pragma</c> (<c>vertex</c> / <c>fragment</c> / <c>geometry</c> / <c>hull</c> /
+    /// <c>domain</c> / <c>surface</c> / <c>kernel</c>) から読む。<c>surface</c> はサーフェスシェーダーの記述関数を指す。
+    /// </para>
+    /// <para>
+    /// <b>コンピュートシェーダーは、このカーネルの <c>#pragma kernel</c> だけを読む。</b>
+    /// カーネルごとに別々にコンパイルされ、単位もカーネルごとに 1 つある。
+    /// この単位はこのカーネルの構成でしか展開していないので、他のカーネルの入口がここに見えていなくても当たり前である。
+    /// </para>
+    /// </remarks>
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 下線で始まり、小文字を含まない名前 (<c>_NORMALMAP</c>)。
+    /// Unity のシンボルはこの慣習に従っており、プラットフォーム判定 (<c>SHADER_API_D3D11</c>) や内部の名前と取り違えずに済む。
+    /// </remarks>
+    public bool LooksLikeVariantSymbol(string name)
+        => name is { Length: > 1 }
+           && name[0] == '_'
+           && !name.Any(char.IsAsciiLetterLower);
+
+    /// <inheritdoc/>
+    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+
+        ImmutableArray<HlslEntryPoint>.Builder entryPoints = ImmutableArray.CreateBuilder<HlslEntryPoint>();
+
+        foreach (PragmaDirective pragma in result.Pragmas)
+        {
+            if (!EntryPointPragmas.Contains(pragma.Name)
+                || pragma.Arguments.FirstOrDefault() is not { Kind: HlslSyntaxKind.IdentifierToken } name)
+            {
+                continue;
+            }
+
+            if (unit.Name is { } kernel
+                && string.Equals(pragma.Name, "kernel", StringComparison.Ordinal)
+                && !string.Equals(name.Text, kernel, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            entryPoints.Add(new HlslEntryPoint(name.Text, "#pragma " + pragma.Name, name.GetLocation()));
+        }
+
+        return entryPoints.ToImmutable();
+    }
 
     /// <summary>
     /// <c>#pragma surface 関数 照明モデル</c> から照明モデルの名前を読む。

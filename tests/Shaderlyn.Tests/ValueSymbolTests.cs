@@ -165,6 +165,10 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
 
         public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens) => Space;
 
-        public VariantSpace ReadVariants(PreprocessResult result) => Space;
+        public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => Space;
+
+        public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
+
+        public bool LooksLikeVariantSymbol(string name) => false;
     }
 }

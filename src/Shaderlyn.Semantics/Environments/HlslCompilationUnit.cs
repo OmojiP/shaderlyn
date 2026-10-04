@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 
 namespace Shaderlyn.Semantics.Environments;
@@ -40,4 +41,28 @@ public sealed record HlslCompilationUnit(
     string? Name = null,
     ImmutableDictionary<string, string>? ExtraMacros = null,
     object? Data = null,
-    TextSpan? MarkerSpan = null);
+    TextSpan? MarkerSpan = null)
+{
+    /// <summary>
+    /// ソースの外 (設定ファイル) で指定したエントリポイント。無ければ空。
+    /// </summary>
+    /// <remarks>
+    /// ソースの中の指令で指定する環境 (Unity の <c>#pragma vertex</c>) は、ここではなく展開の結果から読む
+    /// (<see cref="IHlslEnvironment.ReadEntryPoints"/>)。
+    /// </remarks>
+    public ImmutableArray<HlslEntryPoint> EntryPoints { get; init; } = [];
+
+    /// <summary>
+    /// ソースの外 (設定ファイル) で指定したコンパイルのターゲット (<c>ps_6_6</c>)。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>ターゲットで決まるマクロ (DXC の <c>__SHADER_TARGET_STAGE</c> など) を定義するのに使う。</remarks>
+    public HlslShaderTarget? Target { get; init; }
+
+    /// <summary>
+    /// ソースの外 (設定ファイル) で指定した構成の空間。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// ソースの中の指令で宣言する環境 (Unity の <c>#pragma multi_compile</c>) は、ここではなく単位のトークンと展開の結果から読む。
+    /// </remarks>
+    public VariantSpace? Variants { get; init; }
+}

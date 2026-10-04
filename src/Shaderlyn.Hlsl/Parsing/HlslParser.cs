@@ -561,6 +561,17 @@ internal sealed class HlslParser
     private ParameterSyntax ParseParameter()
     {
         ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
+
+        // メッシュシェーダーの出力・増幅シェーダーの受け渡し (out vertices Vertex verts[64])。
+        // 変数名としてもよく使う語なので、引数の中で、後ろに型と名前が続くときだけ修飾子として読む。
+        if (Current.Kind == HlslSyntaxKind.IdentifierToken
+            && HlslKeywords.MeshParameterModifiers.Contains(Current.Text)
+            && Peek(1).Kind == HlslSyntaxKind.IdentifierToken
+            && Peek(2).Kind == HlslSyntaxKind.IdentifierToken)
+        {
+            modifiers = modifiers.Add(Advance());
+        }
+
         HlslTypeSyntax type = ParseType();
 
         HlslSyntaxToken name = Current.Kind == HlslSyntaxKind.IdentifierToken

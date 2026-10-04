@@ -45,6 +45,12 @@ internal sealed class EffectiveSettings
     /// </summary>
     public string? ConfigurationSearchDirectory { get; private init; }
 
+    /// <summary>
+    /// コマンドラインで指定した、Unity の環境だけのオプション (<c>--profile</c> など)。
+    /// </summary>
+    /// <remarks>Unity 以外の環境で指定していればエラーにする。黙って無視すると、効いていると思い込ませる。</remarks>
+    public ImmutableArray<string> UnityOnlyCommandLineOptions { get; private init; } = [];
+
     /// <summary>環境を指定しない場合に使う環境。</summary>
     public const string DefaultEnvironment = "unity";
 
@@ -82,8 +88,37 @@ internal sealed class EffectiveSettings
         ArgumentNullException.ThrowIfNull(options);
 
         ShaderlynConfiguration configuration = LoadConfiguration(options, out string? searchDirectory);
+        string environment = options.Environment ?? configuration.Environment ?? DefaultEnvironment;
+        bool isUnity = environment == UnityAnalysisEnvironment.EnvironmentName;
 
-        options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+        // Unity だけの指定は、コマンドラインに書かれたものを覚えておく。他の環境で指定していればエラーにする (Program)。
+        // 設定ファイルの unity: の節は、他の環境では読まない。1 つの設定を環境の切り替えで使い回せるように。
+        ImmutableArray<string> unityOnlyOptions =
+        [
+            .. options.Profile is null ? [] : new[] { "--profile" },
+            .. options.UnityProjectPath is null ? [] : new[] { "--unity-project" },
+            .. options.UnityEditorDataPath is null ? [] : new[] { "--unity-editor" },
+        ];
+
+        if (isUnity)
+        {
+            options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+        }
+
+        if (isUnity &&(!configuration.Symbols.IsEmpty || !configuration.SymbolGroups.IsEmpty || !configuration.Units.IsEmpty))
+        {
+            configuration = configuration with
+            {
+                Problems =
+                [
+                    .. configuration.Problems,
+                    new ConfigurationProblem(
+                        0,
+                        "symbols: と units: は Unity の環境では使いません。Unity の構成の軸は #pragma multi_compile などから、"
+                        + "コンパイル単位は ShaderLab から読みます。ほかの環境で使うなら environment を指定してください。"),
+                ],
+            };
+        }
 
         // 環境の名前を知っているのは CLI である。設定ファイルに書かれた知らない名前は、書いた行に報告する。
         // コマンドラインの指定はその場でエラーにする (Program)。
@@ -111,7 +146,7 @@ internal sealed class EffectiveSettings
 
         return new EffectiveSettings(
             configuration,
-            options.Environment ?? configuration.Environment ?? DefaultEnvironment,
+            environment,
             options.Profile ?? configuration.Profile ?? RenderPipelineProfiles.Default.Name,
             includePaths,
             defines,
@@ -119,6 +154,7 @@ internal sealed class EffectiveSettings
             CreateConfigurationDiagnostics(configuration))
         {
             ConfigurationSearchDirectory = searchDirectory,
+            UnityOnlyCommandLineOptions = unityOnlyOptions,
         };
     }
 

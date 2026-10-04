@@ -22,7 +22,7 @@ namespace Shaderlyn.Rules;
 /// </para>
 /// <para>
 /// <b>呼び出しの対象も見る。</b>
-/// 組み込み関数の名前を <see cref="HlslIntrinsics.IsKnownFunction"/> で除けるので、
+/// 組み込み関数の名前を <see cref="HlslIntrinsics.IsKnownFunction(string?, Hlsl.Parsing.HlslLanguageVersion)"/> で除けるので、
 /// スペルミスの関数呼び出しも報告できる。
 /// 表に無い名前が出たら、それは表の不足である。報告しないのではなく表へ足す。
 /// </para>
@@ -119,7 +119,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (HlslIntrinsics.IsKnownFunction(identifier.Name)
+        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.LanguageVersion)
             || HlslIntrinsics.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown

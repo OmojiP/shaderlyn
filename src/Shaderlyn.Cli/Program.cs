@@ -90,6 +90,14 @@ public static class Program
             return ExitCode.ToolError;
         }
 
+        if (environment.Name != UnityAnalysisEnvironment.EnvironmentName && !settings.UnityOnlyCommandLineOptions.IsEmpty)
+        {
+            await errorOutput.WriteLineAsync(
+                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使えます (環境: {environment.Name})。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
         ImmutableArray<string> files = ShaderFileDiscovery.Discover(
             options.InputPaths,
             environment.DefaultExtensions,

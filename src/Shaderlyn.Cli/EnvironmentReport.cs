@@ -63,19 +63,36 @@ internal static partial class EnvironmentReport
         WriteInputs(builder, options, environment, files, missingPaths);
         WriteConfiguration(builder, options, settings, environment);
 
-        EditorDataLookup editor = UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath);
+        // Unity のプロジェクト・Editor・パッケージは、Unity の環境でだけ探す。
+        bool isUnity = environment.Name == UnityAnalysisEnvironment.EnvironmentName;
+        EditorDataLookup? editor = isUnity
+            ? UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath)
+            : null;
 
-        WriteProject(builder, options);
-        WriteEditor(builder, editor);
+        if (editor is not null)
+        {
+            WriteProject(builder, options);
+            WriteEditor(builder, editor);
+        }
+        else
+        {
+            WriteHlsl(builder, settings.Configuration);
+        }
 
-        UnityPackageIncludeResolver? packages = SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
+        UnityPackageIncludeResolver? packages = editor is null
+            ? null
+            : SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
 
-        WriteSearchOrder(builder, options, settings, editor.DataPath, packages);
+        WriteSearchOrder(builder, options, settings, editor?.DataPath, packages);
 
-        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor.DataPath);
+        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor?.DataPath);
         ImmutableArray<IncludeLine> includes = ReadDirectIncludes(files);
 
-        WritePackages(builder, options, packages, includes);
+        if (editor is not null)
+        {
+            WritePackages(builder, options, packages, includes);
+        }
+
         WriteIncludes(builder, resolver, includes);
         WriteMacros(builder, settings);
 
@@ -112,7 +129,9 @@ internal static partial class EnvironmentReport
 
         if (!options.InputPaths.IsEmpty && files.IsEmpty && missingPaths.IsEmpty)
         {
-            Line(builder, $"  {Warning}解析するファイルがありません。.hlsl / .cginc はフォルダーからは探しません。");
+            Line(builder, environment.Name == UnityAnalysisEnvironment.EnvironmentName
+                ? $"  {Warning}解析するファイルがありません。.hlsl / .cginc はフォルダーからは探しません。"
+                : $"  {Warning}解析するファイルがありません。.hlsli はフォルダーからは探しません。");
         }
     }
 
@@ -225,6 +244,36 @@ internal static partial class EnvironmentReport
         if (!Directory.Exists(Path.Combine(project, "Library", "PackageCache")))
         {
             Line(builder, "     Library/PackageCache は Unity でプロジェクトを 1 度開くと作られます。無いとパッケージのヘッダを解決できません。");
+        }
+    }
+
+    /// <summary>汎用の HLSL 環境の設定 (言語のバージョン・構成の軸・コンパイル単位) を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="configuration">設定ファイルの内容。</param>
+    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration)
+    {
+        Section(builder, "HLSL");
+
+        Line(builder, $"  言語のバージョン: {configuration.HlslVersion ?? 2021}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
+
+        string symbols = string.Join(
+            ", ",
+            configuration.Symbols.Select(s => s.Values.IsEmpty ? s.Name : $"{s.Name} ∈ {{{string.Join(", ", s.Values)}}}")
+                .Concat(configuration.SymbolGroups.Select(g => $"{(g.RequiresOne ? "one-of" : "at-most-one")} [{string.Join(", ", g.Symbols)}]")));
+        Line(builder, $"  構成の軸 (symbols): {(symbols.Length == 0 ? "(なし)" : symbols)}");
+
+        if (configuration.Units.IsEmpty)
+        {
+            Line(builder, "  コンパイル単位 (units): (なし。ファイル全体を 1 つの単位として解析します)");
+            return;
+        }
+
+        Line(builder, "  コンパイル単位 (units):");
+
+        foreach (ConfiguredUnit unit in configuration.Units)
+        {
+            Line(builder, $"    {unit.Files}: entry {unit.Entry ?? "(なし)"}, target {unit.Target ?? "(なし)"}"
+                          + (unit.Symbols is { } used ? $", symbols [{string.Join(", ", used)}]" : string.Empty));
         }
     }
 
@@ -384,7 +433,7 @@ internal static partial class EnvironmentReport
     {
         Section(builder, "定義済みマクロ (展開に使う値)");
 
-        ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Defines);
+        ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Environment, settings.Defines);
 
         foreach ((string name, string value) in macros.OrderBy(p => p.Key, StringComparer.Ordinal))
         {

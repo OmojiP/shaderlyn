@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Cli.Environments;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
@@ -34,13 +35,13 @@ internal static class SemanticsSetup
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
 
-        string? editorData = ResolveEditorDataPath(options);
+        string? editorData = ResolveEditorDataPath(options, settings);
 
         return new SemanticsOptions
         {
             IncludeResolver = CreateIncludeResolver(options, settings, editorData),
             IsUserInclude = CreateUserIncludePredicate(options, editorData),
-            PredefinedMacros = BuildPredefinedMacros(settings.Defines),
+            PredefinedMacros = BuildPredefinedMacros(settings.Environment, settings.Defines),
 
             // 指定が無ければ既定値のままにする。
             // ここで 0 を渡すと、既定値を持たせた意味が消える。
@@ -83,6 +84,7 @@ internal static class SemanticsSetup
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <returns>データフォルダー。見つからない場合は <see langword="null"/>。</returns>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。Unity 以外の環境では探さない。</param>
     /// <remarks>
     /// <para>
     /// 明示的な指定を最優先し、無ければプロジェクトから推定する。
@@ -95,9 +97,15 @@ internal static class SemanticsSetup
     /// 指定を変えていなくても解析し直さなければならない。
     /// </para>
     /// </remarks>
-    public static string? ResolveEditorDataPath(CommandLineOptions options)
+    public static string? ResolveEditorDataPath(CommandLineOptions options, EffectiveSettings settings)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (settings.Environment != UnityAnalysisEnvironment.EnvironmentName)
+        {
+            return null;
+        }
 
         return options.UnityEditorDataPath
                ?? UnityInstallation.Lookup(null, options.UnityProjectPath).DataPath;
@@ -263,17 +271,28 @@ internal static class SemanticsSetup
     }
 
     /// <summary>
-    /// <c>--define</c> の指定を既定のマクロへ重ねる。
+    /// <c>--define</c> の指定を、環境の既定のマクロへ重ねる。
     /// </summary>
+    /// <param name="environment">環境の名前。Unity なら Unity の既定のマクロに重ね、それ以外は何も無いところに重ねる。</param>
     /// <param name="defines"><c>NAME</c> または <c>NAME=VALUE</c> 形式の指定。</param>
     /// <returns>定義済みマクロの表。</returns>
     /// <remarks>
     /// 値を省略した場合は <c>1</c> とみなす。C コンパイラの <c>-D</c> と同じ規則である。
+    /// 汎用の HLSL 環境の、DXC が定義するマクロは環境が足す。
     /// </remarks>
-    public static ImmutableDictionary<string, string> BuildPredefinedMacros(ImmutableArray<string> defines)
-    {
-        ImmutableDictionary<string, string> macros = UnityOptions.DefaultPredefinedMacros;
+    public static ImmutableDictionary<string, string> BuildPredefinedMacros(string environment, ImmutableArray<string> defines)
+        => ApplyDefines(
+            environment == UnityAnalysisEnvironment.EnvironmentName
+                ? UnityOptions.DefaultPredefinedMacros
+                : ImmutableDictionary<string, string>.Empty,
+            defines);
 
+    /// <summary><c>NAME</c> / <c>NAME=VALUE</c> の指定をマクロの表へ重ねる。</summary>
+    /// <param name="macros">元の表。</param>
+    /// <param name="defines">指定。</param>
+    /// <returns>重ねた表。</returns>
+    public static ImmutableDictionary<string, string> ApplyDefines(ImmutableDictionary<string, string> macros, ImmutableArray<string> defines)
+    {
         foreach (string define in defines)
         {
             int separator = define.IndexOf('=', StringComparison.Ordinal);

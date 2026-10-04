@@ -62,6 +62,23 @@ internal sealed record ShaderlynConfiguration
     /// <summary>Unity Editor のデータフォルダー (<c>unity: editor</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnityEditorPath { get; init; }
 
+    /// <summary>
+    /// HLSL の言語のバージョン (<c>hlsl: version</c>)。<c>2018</c> か <c>2021</c>。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>汎用の HLSL 環境で使う。Unity の環境は 2018 で固定。</remarks>
+    public int? HlslVersion { get; init; }
+
+    /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
+    /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
+    public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];
+
+    /// <summary>同時には有効にならないシンボルの組 (<c>symbols:</c> の <c>one-of</c> / <c>at-most-one</c>)。</summary>
+    public ImmutableArray<ConfiguredSymbolGroup> SymbolGroups { get; init; } = [];
+
+    /// <summary>コンパイル単位 (<c>units:</c>)。</summary>
+    /// <remarks>Unity の環境では使わない (Unity は ShaderLab と <c>#pragma</c> から決める)。</remarks>
+    public ImmutableArray<ConfiguredUnit> Units { get; init; } = [];
+
     /// <summary><c>#include</c> の追加探索パス。設定ファイルからの相対で解決済み。</summary>
     public ImmutableArray<string> IncludePaths { get; init; } = [];
 

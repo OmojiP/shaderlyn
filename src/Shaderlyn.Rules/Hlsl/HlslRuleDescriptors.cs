@@ -31,6 +31,23 @@ internal static class HlslRuleDescriptors
             + "TEXCOORD の番号の付け間違いで起きることがほとんどです。",
         helpLinkUri: DocumentationLinks.For("HL0210"));
 
+    /// <summary>環境が指定したエントリポイントが存在しない。</summary>
+    /// <remarks>
+    /// 文の <c>{0}</c> は指定した場所 (<see cref="Semantics.Environments.HlslEntryPoint.Origin"/>)。
+    /// Unity なら <c>#pragma vertex</c> になり、v0.1 までと同じ文になる。
+    /// </remarks>
+    public static DiagnosticDescriptor EntryPointNotFound { get; } = new(
+        id: "HL0301",
+        title: "エントリポイントが見つかりません",
+        messageFormat: "{0} が指定する関数 '{1}' が見つかりません。{2}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "エントリポイントに指定した名前の関数が定義されていません"
+            + " (Unity なら #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境なら units の entry)。"
+            + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
+            + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
+        helpLinkUri: DocumentationLinks.For("HL0301"));
+
     /// <summary>呼んでいる関数の定義が、その構成には存在しない。</summary>
     /// <remarks>
     /// <b>「定義があるか」ではなく「その構成に定義があるか」を見る。</b>

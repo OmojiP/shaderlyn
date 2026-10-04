@@ -41,6 +41,9 @@ public sealed class HlslSyntaxTree
     /// </remarks>
     public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
 
+    /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="PreprocessorOptions.LanguageVersion"/>)。</summary>
+    public HlslLanguageVersion LanguageVersion { get; private init; } = HlslLanguageVersion.Hlsl2018;
+
     /// <summary>解析対象のソーステキスト。</summary>
     public SourceText Text { get; }
 
@@ -97,6 +100,7 @@ public sealed class HlslSyntaxTree
         return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
         {
             UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
+            LanguageVersion = parser.LanguageVersion,
         };
     }
 

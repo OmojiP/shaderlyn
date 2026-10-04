@@ -39,8 +39,11 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。現在は `unity` (既定) だけ                        |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
+| `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
+| `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
+| `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`                      |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
@@ -57,6 +60,53 @@ Unity の環境だけで使う設定です。
 
 節の外に書いた `profile` (v0.1 の書き方) も読みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) が出ます。
 両方に書いた場合は `unity:` の下を使います。
+
+ほかの環境では `unity:` の節を読みません。`--profile` / `--unity-project` / `--unity-editor` をほかの環境で指定するとエラーになります。
+
+## hlsl
+
+`environment: hlsl` で使う設定です。
+
+| キー      | 内容                                                                 |
+| --------- | -------------------------------------------------------------------- |
+| `version` | HLSL の言語のバージョン (DXC の `-HV`): `2018` / `2021` (既定)        |
+
+汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
+`__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。
+ターゲットで決まるものは `units:` の `target` から決めます。`defines` で同じ名前を定義すると、そちらが勝ちます。
+
+フォルダーを指定したときは `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、名前を挙げたときだけ解析します。
+
+## symbols
+
+構成の軸になるシンボルを宣言します。Unity の `#pragma multi_compile` に当たるもので、宣言したシンボルの構成ごとにコードを解析します。
+Unity の環境では使いません (`#pragma` から読みます)。
+
+```yaml
+symbols:
+  - name: QUALITY
+    values: [0, 1, 2]          # 値を持つシンボル。先頭が既定の値
+  - name: USE_FOG              # values を省略すると「定義されているか・いないか」
+  - one-of: [MODE_A, MODE_B]   # 同時には有効にならず、どれか 1 つは有効
+  - at-most-one: [FX_A, FX_B]  # 同時には有効にならない
+```
+
+値を持つシンボルは、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分けます。
+指摘には `QUALITY == 2 のとき` のように、その値を添えます。
+
+## units
+
+コンパイル単位を書きます。1 つのファイルに複数の単位を当てられます (頂点シェーダーとピクセルシェーダーを 1 つのファイルに書く場合など)。
+どの単位にも当てはまらないファイルは、ファイル全体を 1 つの単位にし、`symbols:` のすべてを構成の軸にして解析します。
+
+```yaml
+units:
+  - files: Shaders/**/*.hlsl   # 設定ファイルからの相対の glob
+    entry: MainPS              # この名前の関数が無ければ HL0301
+    target: ps_6_6             # DXC の -T と同じ書き方
+    defines: [USE_FOO=1]       # この単位でだけ定義するマクロ
+    symbols: [QUALITY]         # この単位で使う構成の軸。省略するとすべて
+```
 
 ## rules
 
@@ -97,6 +147,8 @@ rules:
 - 閉じられていない括弧や引用符
 - 解釈できない重要度の綴り
 - このツールより新しい `version`
+- `symbols:` / `units:` の書き誤り (読めない `target`、宣言していないシンボルの名前など)
+- Unity の環境で `symbols:` / `units:` を書いている
 
 問題があっても読み込みは失敗せず、読めた範囲は適用されます。
 

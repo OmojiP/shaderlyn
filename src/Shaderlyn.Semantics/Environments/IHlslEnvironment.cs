@@ -64,7 +64,34 @@ public interface IHlslEnvironment
     /// <summary>
     /// 展開の結果から、構成の空間を読む。取り込んだヘッダの宣言も含む。
     /// </summary>
+    /// <param name="unit">対象の単位。</param>
     /// <param name="result">展開の結果。</param>
     /// <returns>構成の空間。</returns>
-    VariantSpace ReadVariants(PreprocessResult result);
+    VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result);
+
+    /// <summary>
+    /// 単位のエントリポイントを読む。
+    /// </summary>
+    /// <param name="unit">対象の単位。</param>
+    /// <param name="result">既定の構成で展開した結果。取り込んだヘッダの指令も含む。</param>
+    /// <returns>
+    /// エントリポイント。解析は、この名前の関数があるかを確かめる (HL0301)。
+    /// 指定が無い (取り込まれる断片など) なら空。
+    /// </returns>
+    /// <remarks>
+    /// Unity は <c>#pragma vertex</c> などから、設定でコンパイル単位を与える環境は単位の情報
+    /// (<see cref="HlslCompilationUnit.EntryPoints"/>) から読む。
+    /// </remarks>
+    ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result);
+
+    /// <summary>
+    /// 宣言されていない名前が、構成の軸になるシンボルのつもりで書かれたものらしいかを判定する。
+    /// </summary>
+    /// <param name="name">条件に書かれた名前。</param>
+    /// <returns>シンボルらしければ <see langword="true"/>。宣言し忘れとして報告する (HL0330)。</returns>
+    /// <remarks>
+    /// Unity は「下線で始まる大文字の名前」(<c>_NORMALMAP</c>) という慣習を持つ。
+    /// 慣習の無い環境 (<c>_DEBUG</c> などが普通に条件に出る) は常に <see langword="false"/> を返す。
+    /// </remarks>
+    bool LooksLikeVariantSymbol(string name);
 }

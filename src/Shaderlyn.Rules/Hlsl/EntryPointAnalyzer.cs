@@ -1,24 +1,26 @@
-using System.Collections.Frozen;
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
-using Shaderlyn.Rules;
+using Shaderlyn.Semantics.Environments;
 
-namespace Shaderlyn.Unity.Rules;
+namespace Shaderlyn.Rules;
 
 /// <summary>
-/// <c>#pragma</c> が指すエントリポイントの存在を検査する (HL0301 / HL0302)。
+/// 環境が指定したエントリポイントの関数があるかを検査する (HL0301)。
 /// </summary>
 /// <remarks>
 /// <para>
 /// エントリポイント名のスペルミスは、そのシェーダーが丸ごとコンパイルできなくなる誤りである。
 /// Unity はシェーダーを必要になった時点でコンパイルするため、
 /// 該当のマテリアルを画面に出すまで気づけないことがある。
+/// </para>
+/// <para>
+/// エントリポイントは環境が読む (<see cref="IHlslEnvironment.ReadEntryPoints"/>)。
+/// Unity なら <c>#pragma vertex</c> などに書いた名前、設定でコンパイル単位を与える環境なら設定に書いた名前である。
 /// </para>
 /// <para>
 /// <b>依存関係が完全に解決できている場合にのみ検査する。</b>
@@ -28,38 +30,9 @@ namespace Shaderlyn.Unity.Rules;
 /// </remarks>
 internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 {
-    /// <summary>
-    /// 関数名を引数に取る <c>#pragma</c>。
-    /// </summary>
-    /// <remarks>
-    /// <c>surface</c> はサーフェスシェーダーの記述関数、
-    /// <c>kernel</c> はコンピュートシェーダーの入口を指す。
-    /// いずれも第 1 引数が関数名である点は共通している。
-    /// </remarks>
-    private static readonly FrozenSet<string> EntryPointPragmas = new[]
-    {
-        "vertex", "fragment", "geometry", "hull", "domain", "surface", "kernel",
-    }.ToFrozenSet(StringComparer.Ordinal);
-
-    /// <summary>
-    /// これがあればシェーダーステージが指定されているとみなす <c>#pragma</c>。
-    /// </summary>
-    /// <remarks>
-    /// <c>raytracing</c> や <c>require</c> のように、
-    /// 頂点・フラグメント以外の形でステージが決まる書き方も受け入れる。
-    /// 知らない書き方を「指定が無い」と報告すると誤検出になる。
-    /// </remarks>
-    private static readonly FrozenSet<string> StagePragmas = new[]
-    {
-        "vertex", "fragment", "surface", "kernel", "raytracing", "geometry", "hull", "domain",
-    }.ToFrozenSet(StringComparer.Ordinal);
-
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-    [
-        UnityRuleDescriptors.EntryPointNotFound,
-        UnityRuleDescriptors.MissingShaderStage,
-    ];
+        [HlslRuleDescriptors.EntryPointNotFound];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -69,65 +42,12 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // 取り込まれる前提の断片 (.hlsl など) は、ステージの #pragma を持たないのが普通である。
-        // ステージは取り込む側の .shader が決める。
-        bool requireStage = !ShaderSourceKinds.IsIncludeFragment(compilation.Text.FilePath);
-
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            AnalyzeProgram(context, compilation, program, requireStage);
-        }
-    }
-
-    /// <summary>コードブロック 1 つ分を検査する。</summary>
-    /// <param name="context">解析コンテキスト。</param>
-    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <param name="program">検査するコードブロック。</param>
-    /// <param name="requireStage">ステージの指定が無いことを報告するかどうか。</param>
-    private static void AnalyzeProgram(
-        SyntaxTreeAnalysisContext context,
-        ShaderCompilation compilation,
-        AnalyzedProgram program,
-        bool requireStage)
-    {
-        bool hasStage = false;
-
-        foreach (PragmaDirective pragma in program.Tree.Pragmas)
-        {
-            if (StagePragmas.Contains(pragma.Name))
+            foreach (HlslEntryPoint entryPoint in program.EntryPoints)
             {
-                hasStage = true;
+                CheckEntryPoint(context, compilation, program, entryPoint);
             }
-
-            if (!EntryPointPragmas.Contains(pragma.Name))
-            {
-                continue;
-            }
-
-            if (pragma.Arguments.FirstOrDefault() is not { } entryPoint
-                || entryPoint.Kind != HlslSyntaxKind.IdentifierToken)
-            {
-                continue;
-            }
-
-            // コンピュートシェーダーはカーネルごとに別々にコンパイルされ、
-            // ブロックもカーネルごとに 1 つある。
-            // このブロックはこのカーネルの構成でしか展開していないので、
-            // 他のカーネルの入口がここに見えていなくても当たり前である。
-            if (program.KernelName is { } kernel
-                && string.Equals(pragma.Name, "kernel", StringComparison.Ordinal)
-                && !string.Equals(entryPoint.Text, kernel, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            CheckEntryPoint(context, compilation, program, pragma.Name, entryPoint);
-        }
-
-        if (requireStage && !hasStage)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
-                UnityRuleDescriptors.MissingShaderStage, program.GetBlockLocation()));
         }
     }
 
@@ -135,26 +55,24 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="program">検査するコードブロック。</param>
-    /// <param name="pragmaName"><c>#pragma</c> の名前。</param>
-    /// <param name="entryPoint">エントリポイントの名前を表すトークン。</param>
+    /// <param name="entryPoint">エントリポイント。</param>
     private static void CheckEntryPoint(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        string pragmaName,
-        HlslSyntaxToken entryPoint)
+        HlslEntryPoint entryPoint)
     {
         // 入口の関数が無い構成を求める。
         // 両方の分岐を並べた木では、#ifdef _B の中の関数も木にある。名前があるだけで「ある」とすると、
         // !_B の構成で入口が無いことを見落とす。
-        if (MissingEntryPoint(compilation, program, entryPoint.Text, out bool nowhere) is not { } missing)
+        if (MissingEntryPoint(compilation, program, entryPoint.Name, out bool nowhere) is not { } missing)
         {
             return;
         }
 
         // どの構成でも解析しなかった領域に名前があれば、そこで定義されているかもしれない。
         // 見るのはこのブロックの読み飛ばしだけである。別の Pass に同じ名前があっても、この Pass の入口ではない。
-        if (compilation.AppearsOutsideAnalyzedCode(entryPoint.Text, program))
+        if (compilation.AppearsOutsideAnalyzedCode(entryPoint.Name, program))
         {
             return;
         }
@@ -164,10 +82,10 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
             : $" ({missing} のとき)";
 
         context.ReportDiagnostic(Diagnostic.Create(
-            UnityRuleDescriptors.EntryPointNotFound,
-            entryPoint.GetLocation(),
-            pragmaName,
-            entryPoint.Text,
+            HlslRuleDescriptors.EntryPointNotFound,
+            entryPoint.Location ?? program.GetBlockLocation(),
+            entryPoint.Origin,
+            entryPoint.Name,
             suffix));
     }
 

@@ -70,18 +70,6 @@ internal static class UnityRuleDescriptors
             + "スクリプトから読む用途や、将来使う予定がある場合は抑制して構いません。",
         helpLinkUri: DocumentationLinks.For("SL1004"));
 
-    /// <summary><c>#pragma</c> で指定したエントリポイントが存在しない。</summary>
-    public static DiagnosticDescriptor EntryPointNotFound { get; } = new(
-        id: "HL0301",
-        title: "エントリポイントが見つかりません",
-        messageFormat: "#pragma {0} が指定する関数 '{1}' が見つかりません。{2}",
-        category: CorrectnessCategory,
-        defaultSeverity: DiagnosticSeverity.Error,
-        description: "#pragma vertex や #pragma fragment に書かれた名前の関数が定義されていません。"
-            + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
-            + "この Pass はコンパイルできず、シェーダー全体が使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0301"));
-
     /// <summary>シェーダーステージの指定が無い。</summary>
     public static DiagnosticDescriptor MissingShaderStage { get; } = new(
         id: "HL0302",

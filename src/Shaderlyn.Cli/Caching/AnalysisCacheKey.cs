@@ -177,7 +177,7 @@ internal static class AnalysisCacheKey
         material.AppendLine("options");
         material.AppendLine(settings.Profile);
         material.AppendLine(options.UnityProjectPath ?? "(none)");
-        material.AppendLine(SemanticsSetup.ResolveEditorDataPath(options) ?? "(none)");
+        material.AppendLine(SemanticsSetup.ResolveEditorDataPath(options, settings) ?? "(none)");
         material.AppendLine(
             (options.MaxSymbolVariants ?? SemanticsOptions.DefaultMaxSymbolVariants).ToString(
                 System.Globalization.CultureInfo.InvariantCulture));

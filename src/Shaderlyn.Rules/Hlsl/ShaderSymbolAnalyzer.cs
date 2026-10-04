@@ -136,7 +136,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// 利用者に直しようがない。
     /// </para>
     /// <para>
-    /// <b>マテリアルのシンボルの形をしたものだけを報告する。</b>
+    /// <b>環境がシンボルらしいと言う名前だけを報告する (<see cref="Semantics.Environments.IHlslEnvironment.LooksLikeVariantSymbol"/>)。</b>
     /// 条件にはプラットフォームの判定 (<c>SHADER_API_D3D11</c>) や
     /// コンパイラが定義する名前も現れる。それらは宣言されていなくて当然である。
     /// シンボルはアンダースコアで始まる大文字の名前という慣習があり、
@@ -153,7 +153,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
         {
             if (declared.Contains(token.Text)
-                || !IsMaterialSymbol(token.Text)
+                || !compilation.Environment.LooksLikeVariantSymbol(token.Text)
                 || result.Macros.ContainsKey(token.Text)
                 || !compilation.IsWrittenHere(token)
                 || !reported.Add(token.Span))
@@ -243,19 +243,4 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
 
         return referenced;
     }
-
-    /// <summary>
-    /// 名前がマテリアルのシンボルの形をしているかを判定する。
-    /// </summary>
-    /// <param name="name">調べる名前。</param>
-    /// <returns>シンボルの形であれば <see langword="true"/>。</returns>
-    /// <remarks>
-    /// アンダースコアで始まり、小文字を含まない。
-    /// Unity のシンボルはこの慣習に従っており、
-    /// プラットフォーム判定や内部の名前と取り違えずに済む。
-    /// </remarks>
-    private static bool IsMaterialSymbol(string name)
-        => name.Length > 1
-           && name[0] == '_'
-           && !name.Any(char.IsAsciiLetterLower);
 }

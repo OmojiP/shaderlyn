@@ -52,6 +52,10 @@ internal static class HlslKeywords
         "PointStream", "LineStream", "TriangleStream",
         "InputPatch", "OutputPatch",
         "RaytracingAccelerationStructure", "RayDesc", "BuiltInTriangleIntersectionAttributes",
+        "RayQuery", "FeedbackTexture2D", "FeedbackTexture2DArray",
+        "RasterizerOrderedTexture1D", "RasterizerOrderedTexture1DArray", "RasterizerOrderedTexture2D",
+        "RasterizerOrderedTexture2DArray", "RasterizerOrderedTexture3D",
+        "RasterizerOrderedBuffer", "RasterizerOrderedByteAddressBuffer", "RasterizerOrderedStructuredBuffer",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -92,6 +96,16 @@ internal static class HlslKeywords
         // triangle VertexToGeometry input[3] のような宣言が解析できない。
         "point", "line", "triangle", "lineadj", "triangleadj",
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// メッシュシェーダーと増幅シェーダーの引数に付く修飾子 (シェーダーモデル 6.5)。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DeclarationModifiers"/> には入れない。<c>vertices</c> や <c>indices</c> は変数名としてもよく使うので、
+    /// どこでも修飾子として読むと <c>indices[i] = 0;</c> を宣言と読み違える。引数の中でだけ読む。
+    /// </remarks>
+    public static FrozenSet<string> MeshParameterModifiers { get; } =
+        new[] { "vertices", "indices", "primitives", "payload" }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>指定した名前が確実に型かどうかを判定する。</summary>
     /// <param name="name">判定する名前。</param>

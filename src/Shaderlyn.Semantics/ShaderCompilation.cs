@@ -63,6 +63,7 @@ public sealed class ShaderCompilation
     internal ShaderCompilation(
         SourceText text,
         Environments.ShaderSourceInfo source,
+        Environments.IHlslEnvironment environment,
         ImmutableArray<AnalyzedProgram> programs,
         Dictionary<string, List<UniformSymbol>> uniformsByName,
         Dictionary<string, int> declarationCounts,
@@ -81,6 +82,7 @@ public sealed class ShaderCompilation
         UnexploredSymbolCombinations = unexploredSymbolCombinations;
         Text = text;
         Source = source;
+        Environment = environment;
         Programs = programs;
         _uniformsByName = uniformsByName;
         _declarationCounts = declarationCounts;
@@ -175,6 +177,10 @@ public sealed class ShaderCompilation
 
     /// <summary>環境が解析した、ファイルそのものの情報 (ファイル全体の構文木と、その診断)。</summary>
     public Environments.ShaderSourceInfo Source { get; }
+
+    /// <summary>このモデルを作った環境。</summary>
+    /// <remarks>ルールとエディタ機能が、環境ごとの決まり (シンボルらしい名前など) を尋ねるのに使う。</remarks>
+    public Environments.IHlslEnvironment Environment { get; }
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>

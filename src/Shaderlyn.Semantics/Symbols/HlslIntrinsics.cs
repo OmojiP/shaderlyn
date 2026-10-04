@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Shaderlyn.Hlsl.Parsing;
 
 namespace Shaderlyn.Semantics.Symbols;
 
@@ -411,6 +412,17 @@ public static class HlslIntrinsics
         "pack_s8", "pack_u8", "pack_clamp_s8", "pack_clamp_u8",
         "unpack_s8s16", "unpack_u8u16", "unpack_s8s32", "unpack_u8u32",
 
+        // シェーダーモデル 6.1 〜 6.9 (DXC の gen_intrin_main.txt より)。
+        // DirectX 12 のエンジンで使う。DXC の内部向けのもの (__builtin_* など) は入れない
+        "GetAttributeAtVertex", "asfloat16", "asint16", "asuint16",
+        "DispatchMesh", "SetMeshOutputCounts",
+        "WaveMatch", "WaveMultiPrefixBitAnd", "WaveMultiPrefixBitOr", "WaveMultiPrefixBitXor",
+        "WaveMultiPrefixCountBits", "WaveMultiPrefixProduct", "WaveMultiPrefixSum",
+        "QuadAny", "QuadAll",
+        "InterlockedCompareExchangeFloatBitwise", "InterlockedCompareStoreFloatBitwise",
+        "Barrier", "GetGroupWaveIndex", "GetGroupWaveCount", "GetRemainingRecursionLevels",
+        "TriangleObjectPositions", "ClusterID", "DebugBreak", "isnormal",
+
         // レイトレーシング (DXR、シェーダーモデル 6.3)。上の一覧には載っていない
         "TraceRay", "ReportHit", "CallShader", "IgnoreHit", "AcceptHitAndEndSearch",
         "DispatchRaysIndex", "DispatchRaysDimensions",
@@ -441,6 +453,16 @@ public static class HlslIntrinsics
         "RAY_FLAG_CULL_BACK_FACING_TRIANGLES", "RAY_FLAG_CULL_FRONT_FACING_TRIANGLES",
         "RAY_FLAG_CULL_OPAQUE", "RAY_FLAG_CULL_NON_OPAQUE",
         "RAY_FLAG_SKIP_TRIANGLES", "RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES",
+
+        // シェーダーモデル 6.6 の動的リソース。宣言せずに ResourceDescriptorHeap[i] と書く
+        "ResourceDescriptorHeap", "SamplerDescriptorHeap",
+
+        // サンプラーフィードバック (シェーダーモデル 6.5) の FeedbackTexture2D<...> の引数
+        "SAMPLER_FEEDBACK_MIN_MIP", "SAMPLER_FEEDBACK_MIP_REGION_USED",
+
+        // シェーダーモデル 6.8 の Barrier の引数 (MEMORY_TYPE_FLAG と BARRIER_SEMANTIC_FLAG)
+        "UAV_MEMORY", "GROUP_SHARED_MEMORY", "NODE_INPUT_MEMORY", "NODE_OUTPUT_MEMORY", "ALL_MEMORY",
+        "GROUP_SYNC", "GROUP_SCOPE", "DEVICE_SCOPE",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -458,6 +480,24 @@ public static class HlslIntrinsics
     /// <returns>組み込み関数であれば <see langword="true"/>。</returns>
     public static bool IsKnownFunction(string? name)
         => name is not null && IntrinsicNames.Contains(name);
+
+    /// <summary>
+    /// その名前が、その言語のバージョンで使える組み込み関数かどうかを判定する。
+    /// </summary>
+    /// <param name="name">判定する名前。</param>
+    /// <param name="languageVersion">HLSL の言語のバージョン。</param>
+    /// <returns>組み込み関数であれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>select</c> / <c>and</c> / <c>or</c> は HLSL 2021 で入った。2018 では宣言されていない名前である
+    /// (2021 で <c>?:</c> と <c>&amp;&amp;</c> / <c>||</c> がベクトルに使えなくなった代わり)。
+    /// </remarks>
+    public static bool IsKnownFunction(string? name, HlslLanguageVersion languageVersion)
+        => IsKnownFunction(name)
+           || (languageVersion >= HlslLanguageVersion.Hlsl2021 && name is not null && Hlsl2021Names.Contains(name));
+
+    /// <summary>HLSL 2021 で入った組み込み関数。</summary>
+    private static readonly FrozenSet<string> Hlsl2021Names =
+        new[] { "select", "and", "or" }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>組み込み関数の名前を列挙する。</summary>
     /// <remarks>補完の候補に出すために使う。</remarks>
