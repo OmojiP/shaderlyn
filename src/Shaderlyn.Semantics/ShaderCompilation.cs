@@ -40,10 +40,9 @@ namespace Shaderlyn.Semantics;
 public sealed class ShaderCompilation
 {
     private readonly Dictionary<string, List<UniformSymbol>> _uniformsByName;
-    private readonly Dictionary<string, int> _identifierOccurrences;
+    private readonly Lazy<Dictionary<string, int>> _identifierOccurrences;
     private readonly Dictionary<string, int> _declarationCounts;
     private readonly HashSet<string> _inactiveIdentifiers;
-    private readonly HashSet<string> _shaderLabPropertyReferences;
     private readonly FrozenSet<string> _functionLikeMacroNames;
     private Conditional.ConditionMap? _condition;
     private FrozenSet<string>? _declaredNames;
@@ -67,16 +66,12 @@ public sealed class ShaderCompilation
 
     internal ShaderCompilation(
         SourceText text,
-        ShaderLabSyntaxTree shaderLabTree,
-        IRenderPipelineProfile profile,
-        ImmutableArray<PropertySymbol> properties,
+        Environments.ShaderSourceInfo source,
         ImmutableArray<AnalyzedProgram> programs,
         Dictionary<string, List<UniformSymbol>> uniformsByName,
-        Dictionary<string, int> identifierOccurrences,
         Dictionary<string, int> declarationCounts,
         HashSet<string> inactiveIdentifiers,
         HashSet<string> unanalyzedIdentifiers,
-        HashSet<string> shaderLabPropertyReferences,
         ImmutableArray<string> allIncludePaths,
         ImmutableArray<string> unresolvedIncludes,
         SourceText codeText,
@@ -89,17 +84,16 @@ public sealed class ShaderCompilation
         UnexploredSymbols = unexploredSymbols;
         UnexploredSymbolCombinations = unexploredSymbolCombinations;
         Text = text;
-        ShaderLabTree = shaderLabTree;
-        Profile = profile;
-        Properties = properties;
+        Source = source;
         Programs = programs;
         _uniformsByName = uniformsByName;
-        _identifierOccurrences = identifierOccurrences;
         _declarationCounts = declarationCounts;
         _inactiveIdentifiers = inactiveIdentifiers;
         UnanalyzedIdentifiers = unanalyzedIdentifiers.ToFrozenSet(StringComparer.Ordinal);
-        _shaderLabPropertyReferences = shaderLabPropertyReferences;
         AllIncludePaths = allIncludePaths;
+
+        // 既定の構成とバリアントのすべての木を数える。使われるときに初めて数える。
+        _identifierOccurrences = new(() => Unity.CountOccurrences([.. Programs, .. SymbolVariants]));
         UnresolvedIncludes = unresolvedIncludes;
         CodeText = codeText;
         CodeTokens = codeTokens;
@@ -186,12 +180,18 @@ public sealed class ShaderCompilation
     /// <summary>解析対象の <c>.shader</c> のソーステキスト。</summary>
     public SourceText Text { get; }
 
+    /// <summary>環境が解析した、ファイルそのものの情報 (ファイル全体の構文木と、その診断)。</summary>
+    public Environments.ShaderSourceInfo Source { get; }
+
+    /// <summary>Unity のシェーダーとしての情報。</summary>
+    private Environments.UnityShaderData Unity => (Environments.UnityShaderData)Source.Data!;
+
     /// <summary>ShaderLab としての構文木。</summary>
     /// <remarks>
     /// HLSL 単体ファイルでは、全部を空白でマスクしたテキストから作った空の木である。
     /// <see cref="IsStandaloneHlsl"/> を参照。
     /// </remarks>
-    public ShaderLabSyntaxTree ShaderLabTree { get; }
+    public ShaderLabSyntaxTree ShaderLabTree => Unity.Tree;
 
     /// <summary>
     /// HLSL 単体ファイル (<c>.compute</c> など) を解析したものかどうか。
@@ -201,13 +201,13 @@ public sealed class ShaderCompilation
     /// 「対象が無いので報告しない」は「検査できなかった」とは違うので、
     /// 見送ったことを報告する必要も無い。
     /// </remarks>
-    public bool IsStandaloneHlsl { get; internal init; }
+    public bool IsStandaloneHlsl => Unity.IsStandaloneHlsl;
 
     /// <summary>適用するレンダーパイプラインプロファイル。</summary>
-    public IRenderPipelineProfile Profile { get; }
+    public IRenderPipelineProfile Profile => Unity.Profile;
 
     /// <summary><c>Properties</c> に宣言されたプロパティ。</summary>
-    public ImmutableArray<PropertySymbol> Properties { get; }
+    public ImmutableArray<PropertySymbol> Properties => Unity.Properties;
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
@@ -532,7 +532,7 @@ public sealed class ShaderCompilation
     public bool IsReferencedFromShaderLab(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return _shaderLabPropertyReferences.Contains(name);
+        return Unity.PropertyReferences.Contains(name);
     }
 
     /// <summary>
@@ -555,7 +555,7 @@ public sealed class ShaderCompilation
     public int CountIdentifierOccurrences(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return _identifierOccurrences.GetValueOrDefault(name);
+        return _identifierOccurrences.Value.GetValueOrDefault(name);
     }
 
     /// <summary>
@@ -579,7 +579,7 @@ public sealed class ShaderCompilation
 
         int declarations = _declarationCounts.GetValueOrDefault(name);
         return declarations > 0
-               && _identifierOccurrences.GetValueOrDefault(name) <= declarations
+               && _identifierOccurrences.Value.GetValueOrDefault(name) <= declarations
                && !_inactiveIdentifiers.Contains(name);
     }
 
@@ -1691,13 +1691,18 @@ public sealed class ShaderCompilation
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(shaderLabTree);
 
+        options ??= SemanticsOptions.Default;
+
         return ShaderCompilationBuilder.Build(
             text,
-            shaderLabTree,
             [.. ProgramBlockExtractor.Extract(shaderLabTree).Select(view => view.ToUnit())],
             ProgramBlockExtractor.ExtractAllCode(shaderLabTree),
             options,
-            Environments.UnityHlslEnvironment.Instance);
+            Environments.UnityHlslEnvironment.Instance,
+            new Environments.ShaderSourceInfo(
+                shaderLabTree.Root,
+                shaderLabTree.Diagnostics,
+                new Environments.UnityShaderData(text, shaderLabTree, options.Profile, isStandaloneHlsl: false)));
     }
 
     /// <summary>
@@ -1737,14 +1742,21 @@ public sealed class ShaderCompilation
             ? cache.GetOrLex(text, out _)
             : new HlslLexer(text).Lex(out _);
 
+        ShaderLabSyntaxTree blankTree = ShaderLabSyntaxTree.Parse(blank);
+
         return ShaderCompilationBuilder.Build(
             text,
-            ShaderLabSyntaxTree.Parse(blank),
             [.. ProgramBlockExtractor.ForStandaloneHlsl(text, ComputeKernels.Collect(tokens)).Select(view => view.ToUnit())],
             text,
             options,
             Environments.UnityHlslEnvironment.Instance,
-            isStandaloneHlsl: true);
+
+            // 全部を空白でマスクしたテキストから作った ShaderLab の木はダミーである。
+            // そこから出る構文診断はダミーについての話であって、解析しているファイルについての事実ではない。
+            new Environments.ShaderSourceInfo(
+                blankTree.Root,
+                [],
+                new Environments.UnityShaderData(text, blankTree, options.Profile, isStandaloneHlsl: true)));
     }
 
     /// <summary>
@@ -1779,13 +1791,9 @@ public sealed class ShaderCompilation
     public AnalysisTarget CreateAnalysisTarget()
         => new AnalysisTarget(
                 Text,
-                ShaderLabTree.Root,
+                Source.Root,
                 [
-                    // HLSL 単体ファイルの ShaderLab の木は、
-                    // 全部を空白でマスクしたテキストから作ったダミーである。
-                    // そこから出る構文診断はダミーについての話であって、
-                    // 解析しているファイルについての事実ではない。
-                    .. IsStandaloneHlsl ? [] : ShaderLabTree.Diagnostics,
+                    .. Source.Diagnostics,
                     .. ReportableHlslDiagnostics,
                 ])
             .WithModel(this);

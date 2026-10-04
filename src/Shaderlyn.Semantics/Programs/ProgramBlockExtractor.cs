@@ -78,7 +78,10 @@ internal static class ProgramBlockExtractor
                 applicableIncludes,
                 FindEnclosingPass(block),
                 CreateMaskedText(tree.Text, visibleSpans),
-                block.Token.Span));
+                block.Token.Span)
+            {
+                PassName = FindPassName(FindEnclosingPass(block)),
+            });
         }
 
         return results.ToImmutable();
@@ -263,6 +266,29 @@ internal static class ProgramBlockExtractor
         return null;
     }
 
+    /// <summary>Pass に付けられた名前を探す。</summary>
+    /// <param name="pass">対象の Pass。<see langword="null"/> の場合は名前も無い。</param>
+    /// <returns>見つかった名前。無い場合は <see langword="null"/>。</returns>
+    private static string? FindPassName(PassSyntax? pass)
+    {
+        if (pass is null)
+        {
+            return null;
+        }
+
+        foreach (ShaderLabStatementSyntax statement in pass.Body.Statements)
+        {
+            if (statement is CommandSyntax command
+                && command.NameIs("Name")
+                && command.ValueArguments.FirstOrDefault() is LiteralArgumentSyntax literal)
+            {
+                return literal.Token.ValueText;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// 指定した範囲だけを残し、他を空白でマスクしたテキストを作る。
     /// </summary>
@@ -333,6 +359,9 @@ internal sealed record ProgramBlockView(
     ImmutableDictionary<string, string>? ExtraMacros = null,
     string? KernelName = null)
 {
+    /// <summary><c>Name "..."</c> で付けられた Pass の名前。無い場合は <see langword="null"/>。</summary>
+    public string? PassName { get; init; }
+
     /// <summary>コンパイル単位にする。この切り出し自体を単位の付帯情報として持たせる。</summary>
     /// <returns>コンパイル単位。</returns>
     public Environments.HlslCompilationUnit ToUnit()

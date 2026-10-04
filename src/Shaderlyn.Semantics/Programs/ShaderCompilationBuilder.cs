@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -12,11 +11,8 @@ using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Environments;
-using Shaderlyn.Semantics.Profiles;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
-using Shaderlyn.ShaderLab;
-using Shaderlyn.ShaderLab.Syntax;
 
 namespace Shaderlyn.Semantics;
 
@@ -43,12 +39,11 @@ internal static class ShaderCompilationBuilder
     /// 取り出したコードブロックからセマンティックモデルを組み立てる。
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
-    /// <param name="shaderLabTree">ShaderLab の構文木。</param>
     /// <param name="units">解析するコンパイル単位。</param>
     /// <param name="codeText">利用者が書いた HLSL だけを残したテキスト。</param>
     /// <param name="options">実行時設定。</param>
     /// <param name="environment">環境。構成の空間の読み方と、単位ごとの設定を与える。</param>
-    /// <param name="isStandaloneHlsl">HLSL 単体ファイルとして解析しているかどうか。</param>
+    /// <param name="source">環境が解析したファイルそのものの情報 (ファイル全体の構文木と、その診断)。</param>
     /// <returns>構築されたセマンティックモデル。</returns>
     /// <remarks>
     /// <c>.shader</c> と HLSL 単体ファイルで違うのは、
@@ -57,17 +52,13 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     internal static ShaderCompilation Build(
         SourceText text,
-        ShaderLabSyntaxTree shaderLabTree,
         ImmutableArray<HlslCompilationUnit> units,
         SourceText codeText,
         SemanticsOptions? options,
         IHlslEnvironment environment,
-        bool isStandaloneHlsl = false)
+        ShaderSourceInfo source)
     {
         options ??= SemanticsOptions.Default;
-
-        ImmutableArray<PropertySymbol> properties = CollectProperties(shaderLabTree, text);
-        HashSet<string> shaderLabReferences = CollectShaderLabPropertyReferences(shaderLabTree);
 
         PreprocessorOptions preprocessorOptions = environment.ConfigurePreprocessor(
             new PreprocessorOptions
@@ -85,7 +76,7 @@ internal static class ShaderCompilationBuilder
         SortedSet<string> unexploredSymbols = new(StringComparer.Ordinal);
         SortedDictionary<string, SymbolCombination> unexploredCombinations = new(StringComparer.Ordinal);
 
-        DeclarationIndex index = new(properties);
+        DeclarationIndex index = new();
 
         foreach (HlslCompilationUnit unit in units)
         {
@@ -133,8 +124,7 @@ internal static class ShaderCompilationBuilder
 
             DeclarationSet declarations = UniformCollector.Collect(tree.Root);
 
-            string? passName = FindPassName((unit.Data as ProgramBlockView)?.Pass);
-            AnalyzedProgram program = new(unit, tree, declarations, passName, treeVariants)
+            AnalyzedProgram program = new(unit, tree, declarations, treeVariants)
             {
                 MacroConflictSymbols = macroConflicts,
             };
@@ -230,7 +220,7 @@ internal static class ShaderCompilationBuilder
                 VariantSpace variantSpace = environment.ReadVariants(variantTree.PreprocessResult);
                 index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
 
-                variants.Add(new AnalyzedProgram(unit, variantTree, variantDeclarations, passName, variantSpace)
+                variants.Add(new AnalyzedProgram(unit, variantTree, variantDeclarations, variantSpace)
                 {
                     EnabledSymbols = enabled,
                     PackedMerge = packedMerge,
@@ -244,16 +234,12 @@ internal static class ShaderCompilationBuilder
 
         return new ShaderCompilation(
             text,
-            shaderLabTree,
-            options.Profile,
-            properties,
+            source,
             programs.ToImmutable(),
             index.UniformsByName,
-            index.Occurrences,
             index.DeclarationCounts,
             index.InactiveIdentifiers,
             index.UnanalyzedIdentifiers,
-            shaderLabReferences,
             [.. index.IncludePaths],
             [.. index.UnresolvedIncludes],
             codeText,
@@ -262,7 +248,6 @@ internal static class ShaderCompilationBuilder
             [.. unexploredSymbols],
             [.. unexploredCombinations.Values])
         {
-            IsStandaloneHlsl = isStandaloneHlsl,
             IsUserInclude = options.IsUserInclude,
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
@@ -288,24 +273,8 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private sealed class DeclarationIndex
     {
-        private readonly SearchValues<char> _propertyInitials;
-
-        /// <summary>索引を用意する。</summary>
-        /// <param name="properties"><c>Properties</c> に宣言されたプロパティ。</param>
-        public DeclarationIndex(ImmutableArray<PropertySymbol> properties)
-        {
-            // プロパティ名の先頭文字だけを集めておき、トークン走査の足切りに使う。
-            // URP のヘッダ群を展開すると 1 ブロックあたり数十万トークンになるため、
-            // 全トークンに対して辞書を引くと解析時間がここに吸われる。
-            _propertyInitials = SearchValues.Create(
-                [.. properties.Where(p => p.Name.Length > 0).Select(p => p.Name[0]).Distinct()]);
-        }
-
         /// <summary>名前ごとの uniform 宣言。</summary>
         public Dictionary<string, List<UniformSymbol>> UniformsByName { get; } = new(StringComparer.Ordinal);
-
-        /// <summary>プロパティ名が展開後のコードに現れた回数。</summary>
-        public Dictionary<string, int> Occurrences { get; } = new(StringComparer.Ordinal);
 
         /// <summary>名前ごとの宣言の数。</summary>
         public Dictionary<string, int> DeclarationCounts { get; } = new(StringComparer.Ordinal);
@@ -364,8 +333,6 @@ internal static class ShaderCompilationBuilder
                 group.Add(uniform);
                 DeclarationCounts[uniform.Name] = DeclarationCounts.GetValueOrDefault(uniform.Name) + 1;
             }
-
-            CountOccurrences(tree.PreprocessResult.Tokens, _propertyInitials, Occurrences);
 
             _all.Add(tree, variants);
 
@@ -1538,73 +1505,6 @@ internal static class ShaderCompilationBuilder
         return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
     }
 
-    /// <summary><c>Properties</c> ブロックからプロパティを集める。</summary>
-    /// <param name="tree">ShaderLab の構文木。</param>
-    /// <param name="text">ソーステキスト。</param>
-    /// <returns>見つかったプロパティ。</returns>
-    private static ImmutableArray<PropertySymbol> CollectProperties(ShaderLabSyntaxTree tree, SourceText text)
-    {
-        ImmutableArray<PropertySymbol>.Builder properties = ImmutableArray.CreateBuilder<PropertySymbol>();
-
-        foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
-        {
-            if (node is PropertyDeclarationSyntax declaration
-                && !declaration.NameToken.IsMissing
-                && declaration.Name.Length > 0)
-            {
-                properties.Add(new PropertySymbol(declaration, text));
-            }
-        }
-
-        return properties.ToImmutable();
-    }
-
-    /// <summary>
-    /// ShaderLab 側からプロパティを参照している箇所を集める。
-    /// </summary>
-    /// <param name="tree">ShaderLab の構文木。</param>
-    /// <returns>参照されているプロパティ名。</returns>
-    /// <remarks>
-    /// <c>Cull [_Cull]</c> や <c>SetTexture [_MainTex]</c> の形の参照が対象。
-    /// </remarks>
-    private static HashSet<string> CollectShaderLabPropertyReferences(ShaderLabSyntaxTree tree)
-    {
-        HashSet<string> references = new(StringComparer.Ordinal);
-
-        foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
-        {
-            if (node is PropertyReferenceArgumentSyntax reference && !reference.NameToken.IsMissing)
-            {
-                references.Add(reference.Name);
-            }
-        }
-
-        return references;
-    }
-
-    /// <summary>Pass に付けられた名前を探す。</summary>
-    /// <param name="pass">対象の Pass。<see langword="null"/> の場合は名前も無い。</param>
-    /// <returns>見つかった名前。無い場合は <see langword="null"/>。</returns>
-    private static string? FindPassName(PassSyntax? pass)
-    {
-        if (pass is null)
-        {
-            return null;
-        }
-
-        foreach (ShaderLabStatementSyntax statement in pass.Body.Statements)
-        {
-            if (statement is CommandSyntax command
-                && command.NameIs("Name")
-                && command.ValueArguments.FirstOrDefault() is LiteralArgumentSyntax literal)
-            {
-                return literal.Token.ValueText;
-            }
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// マクロ定義の本体に現れた識別子を集める。
     /// </summary>
@@ -1629,35 +1529,6 @@ internal static class ShaderCompilationBuilder
                     identifiers.Add(token.Text);
                 }
             }
-        }
-    }
-
-    /// <summary>
-    /// トークン列に現れた識別子の回数を数える。
-    /// </summary>
-    /// <param name="tokens">展開済みのトークン列。</param>
-    /// <param name="initials">数える対象の名前の先頭文字。</param>
-    /// <param name="occurrences">回数の集計先。</param>
-    /// <remarks>
-    /// 先頭文字による足切りを先に行う。展開後のトークン列は
-    /// URP のヘッダ群を含めると数十万件になり、
-    /// すべてに対して辞書を引くと解析時間の大半がここに消える。
-    /// </remarks>
-    private static void CountOccurrences(
-        ImmutableArray<HlslSyntaxToken> tokens,
-        SearchValues<char> initials,
-        Dictionary<string, int> occurrences)
-    {
-        foreach (HlslSyntaxToken token in tokens)
-        {
-            if (token.Kind != HlslSyntaxKind.IdentifierToken
-                || token.Text.Length == 0
-                || !initials.Contains(token.Text[0]))
-            {
-                continue;
-            }
-
-            occurrences[token.Text] = occurrences.GetValueOrDefault(token.Text) + 1;
         }
     }
 }

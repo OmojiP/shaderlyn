@@ -25,7 +25,6 @@ public sealed class AnalyzedProgram
         Environments.HlslCompilationUnit unit,
         HlslSyntaxTree tree,
         DeclarationSet declarations,
-        string? passName,
         VariantSpace variants)
     {
         ProgramBlockView? block = unit.Data as ProgramBlockView;
@@ -44,7 +43,7 @@ public sealed class AnalyzedProgram
         Structs = declarations.Structs;
         FunctionNames = declarations.FunctionNames;
         FunctionSignatures = declarations.FunctionSignatures;
-        PassName = passName;
+        PassName = block?.PassName;
     }
 
     /// <summary>この木を解析したコンパイル単位。</summary>
