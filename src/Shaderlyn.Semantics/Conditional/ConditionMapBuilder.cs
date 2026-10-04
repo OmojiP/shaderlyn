@@ -238,17 +238,16 @@ internal static class ConditionMapBuilder
     /// 呼び出しに合う宣言が無いと誤って報告することになる。
     /// </para>
     /// <para>
-    /// 取り込んだヘッダの宣言も含める (<see cref="PreprocessResult.Pragmas"/>)。
+    /// 取り込んだヘッダの宣言も含める (<see cref="AnalyzedProgram.Variants"/>)。
     /// </para>
     /// </remarks>
     private static SymbolConstraints CollectConstraints(ImmutableArray<AnalyzedProgram> programs)
     {
-        List<(HashSet<string> Declared, SymbolConstraints Constraints)> blocks = [];
+        List<(ImmutableHashSet<string> Declared, SymbolConstraints Constraints)> blocks = [];
 
         foreach (AnalyzedProgram program in programs)
         {
-            ImmutableArray<PragmaDirective> pragmas = program.Tree.PreprocessResult.Pragmas;
-            blocks.Add((ShaderSymbols.CollectDeclared(pragmas), ShaderSymbols.CollectConstraints(pragmas)));
+            blocks.Add((program.Variants.Symbols, program.Variants.Constraints));
         }
 
         if (blocks.All(block => block.Constraints.IsEmpty))

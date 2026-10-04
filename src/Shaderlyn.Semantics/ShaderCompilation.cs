@@ -1694,9 +1694,10 @@ public sealed class ShaderCompilation
         return ShaderCompilationBuilder.Build(
             text,
             shaderLabTree,
-            ProgramBlockExtractor.Extract(shaderLabTree),
+            [.. ProgramBlockExtractor.Extract(shaderLabTree).Select(view => view.ToUnit())],
             ProgramBlockExtractor.ExtractAllCode(shaderLabTree),
-            options);
+            options,
+            Environments.UnityHlslEnvironment.Instance);
     }
 
     /// <summary>
@@ -1739,9 +1740,10 @@ public sealed class ShaderCompilation
         return ShaderCompilationBuilder.Build(
             text,
             ShaderLabSyntaxTree.Parse(blank),
-            ProgramBlockExtractor.ForStandaloneHlsl(text, ComputeKernels.Collect(tokens)),
+            [.. ProgramBlockExtractor.ForStandaloneHlsl(text, ComputeKernels.Collect(tokens)).Select(view => view.ToUnit())],
             text,
             options,
+            Environments.UnityHlslEnvironment.Instance,
             isStandaloneHlsl: true);
     }
 

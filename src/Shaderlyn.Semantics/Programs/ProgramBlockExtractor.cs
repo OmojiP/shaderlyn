@@ -324,11 +324,17 @@ internal static class ProgramBlockExtractor
 /// <paramref name="Block"/> は ShaderLab の構文木がある場合にしか無いが、
 /// 範囲はどちらの経路でも必ず決まる。
 /// </remarks>
-internal readonly record struct ProgramBlockView(
+internal sealed record ProgramBlockView(
     ProgramBlockSyntax? Block,
     ImmutableArray<ProgramBlockSyntax> IncludeBlocks,
     PassSyntax? Pass,
     SourceText MaskedText,
     TextSpan CodeSpan,
     ImmutableDictionary<string, string>? ExtraMacros = null,
-    string? KernelName = null);
+    string? KernelName = null)
+{
+    /// <summary>コンパイル単位にする。この切り出し自体を単位の付帯情報として持たせる。</summary>
+    /// <returns>コンパイル単位。</returns>
+    public Environments.HlslCompilationUnit ToUnit()
+        => new(MaskedText, CodeSpan, KernelName, ExtraMacros, this);
+}

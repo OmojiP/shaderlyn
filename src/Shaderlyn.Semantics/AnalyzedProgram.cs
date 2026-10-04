@@ -22,18 +22,23 @@ namespace Shaderlyn.Semantics;
 public sealed class AnalyzedProgram
 {
     internal AnalyzedProgram(
-        ProgramBlockView extraction,
+        Environments.HlslCompilationUnit unit,
         HlslSyntaxTree tree,
         DeclarationSet declarations,
-        string? passName)
+        string? passName,
+        VariantSpace variants)
     {
-        Block = extraction.Block;
-        CodeSpan = extraction.CodeSpan;
-        KernelName = extraction.KernelName;
-        IncludeBlocks = extraction.IncludeBlocks;
-        Pass = extraction.Pass;
-        Text = extraction.MaskedText;
+        ProgramBlockView? block = unit.Data as ProgramBlockView;
+
+        Unit = unit;
+        Block = block?.Block;
+        CodeSpan = unit.CodeSpan;
+        KernelName = unit.Name;
+        IncludeBlocks = block?.IncludeBlocks ?? [];
+        Pass = block?.Pass;
+        Text = unit.Text;
         Tree = tree;
+        Variants = variants;
         Uniforms = declarations.Uniforms;
         ConstantBuffers = declarations.ConstantBuffers;
         Structs = declarations.Structs;
@@ -41,6 +46,18 @@ public sealed class AnalyzedProgram
         FunctionSignatures = declarations.FunctionSignatures;
         PassName = passName;
     }
+
+    /// <summary>この木を解析したコンパイル単位。</summary>
+    public Environments.HlslCompilationUnit Unit { get; }
+
+    /// <summary>
+    /// この木から読んだ構成の空間。取り込んだヘッダの宣言も含む。
+    /// </summary>
+    /// <remarks>
+    /// 環境が展開の結果から読んだもの (<see cref="Environments.IHlslEnvironment.ReadVariants"/>)。
+    /// Unity なら、この木に現れた <c>#pragma multi_compile</c> などの宣言である。
+    /// </remarks>
+    public VariantSpace Variants { get; }
 
     /// <summary>
     /// 対応する <c>*PROGRAM</c> ブロック。
