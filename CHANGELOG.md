@@ -54,6 +54,9 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - **破壊的変更:** 設定ファイルの `profile` は `unity:` の節に書く。節の外の `profile` も読むが、TOOL0003 で移すよう伝える。
   既定の `--error-on warning` ではこの警告で終了コードが 1 になるので、上げる前に移すこと
 - **破壊的変更:** `--profile` / `--unity-project` / `--unity-editor` を Unity 以外の環境で指定するとエラーにする
+- 言語サーバー: 設定ファイルを、開いたファイルから上へ辿って探す (CLI と同じ)。ワークスペースのルートにしか設定ファイルを置けなかった。
+  設定ファイルを書き換えると、次の解析から反映される (ウィンドウの再読み込みが要らない)
+- Unity の環境でも `.hlsli` / `.usf` / `.ush` を HLSL として読む。名前を挙げて解析したときに ShaderLab として読み、SL0001 を出していた
 - 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに `declared` と、値を持つシンボルの `variable` / `value` を足した。
   `declaredByPragma` は同じ値で残してある
 - HL0301 の文の `#pragma {0}` を `{0}` にした。Unity では同じ文が出る。汎用の HLSL 環境では `設定ファイルの entry が指定する…` になる

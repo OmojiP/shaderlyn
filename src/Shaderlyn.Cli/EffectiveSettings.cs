@@ -177,6 +177,14 @@ internal sealed class EffectiveSettings
     }
 
     /// <summary>
+    /// フォルダーから上へ辿って、設定ファイルを探す。
+    /// </summary>
+    /// <param name="directory">探し始めるフォルダー。</param>
+    /// <returns>見つかった設定ファイルのパス。無ければ <see langword="null"/>。</returns>
+    /// <remarks>言語サーバーが、開いたファイルごとに使う設定を決めるのに使う。CLI と同じ探し方である。</remarks>
+    public static string? FindConfigurationFile(string directory) => ConfigurationLoader.FindConfigurationFile(directory);
+
+    /// <summary>
     /// 設定ファイルを読み込む。
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Shaderlyn.Core.Analysis;
@@ -99,7 +100,13 @@ public sealed partial class ShaderLanguageServer
     /// <summary>自前のホストが足した環境。</summary>
     private readonly ImmutableArray<HostEnvironment> _environments;
 
+    /// <summary>設定ファイルが見つからないファイルに使う設定。ワークスペースのルートから作る。</summary>
     private AnalysisSession _session;
+
+    /// <summary>設定ファイルごとの設定。鍵は設定ファイルのパスで、書き換えられたら作り直す。</summary>
+    private readonly ConcurrentDictionary<string, (DateTime Written, AnalysisSession Session)> _sessionsByConfiguration =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private bool _shutdownRequested;
 
     /// <summary>
@@ -583,11 +590,55 @@ public sealed partial class ShaderLanguageServer
         if (!_models.TryGetValue(uri, out (int Version, ShaderCompilation Model) cached)
             || cached.Version != document.Version)
         {
-            cached = (document.Version, _session.CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
+            cached = (document.Version, SessionFor(uri).CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
             _models[uri] = cached;
         }
 
         return cached.Model;
+    }
+
+    /// <summary>
+    /// 開いたファイルの解析に使う設定を返す。
+    /// </summary>
+    /// <param name="uri">ファイルの URI。</param>
+    /// <returns>そのファイルから上へ辿って一番近い設定ファイルの設定。見つからなければワークスペースの設定。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>CLI と同じく、ファイルの場所から設定ファイルを探す。</b>
+    /// ワークスペースのルートからだけ探すと、サブフォルダーに置いた設定 (環境ごとに分けたフォルダーなど) が読まれず、
+    /// 別の環境で解析してしまう (<c>environment: unreal</c> の <c>.usf</c> を Unity の環境で ShaderLab として読むなど)。
+    /// </para>
+    /// <para>
+    /// 設定ファイルが書き換えられたら作り直す。更新日時で見分ける。
+    /// </para>
+    /// </remarks>
+    private AnalysisSession SessionFor(string uri)
+    {
+        if (DocumentUri.ToFilePath(uri) is not { } path
+            || Path.GetDirectoryName(path) is not { Length: > 0 } directory
+            || EffectiveSettings.FindConfigurationFile(directory) is not { } configuration)
+        {
+            return _session;
+        }
+
+        DateTime written;
+
+        try
+        {
+            written = File.GetLastWriteTimeUtc(configuration);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return _session;
+        }
+
+        return _sessionsByConfiguration.AddOrUpdate(
+            configuration,
+            key => (written, CreateSession(key)),
+            (key, existing) => existing.Written == written ? existing : (written, CreateSession(key))).Session;
+
+        AnalysisSession CreateSession(string configurationPath)
+            => new(Path.GetDirectoryName(configurationPath), _analyzers, _environments);
     }
 
     /// <summary>
@@ -809,7 +860,7 @@ public sealed partial class ShaderLanguageServer
                 selectedConfiguration = _selectedConfigurationDisplays.Contains(uri);
 
                 // 定義を足していないモデルから集める。足したモデルでは、選んだシンボルが候補から消える。
-                candidates = ConditionSymbols.Collect(_session.CreateModel(document.Text));
+                candidates = ConditionSymbols.Collect(SessionFor(uri).CreateModel(document.Text));
                 found = true;
             }
         }
@@ -981,7 +1032,7 @@ public sealed partial class ShaderLanguageServer
     /// <returns>選ばれたシンボルから、このファイルが宣言したシンボルを除いたもの。</returns>
     /// <remarks>シンボルを除く理由は <see cref="ConditionSymbols.ExcludeDeclaredSymbols"/> を参照。</remarks>
     private ImmutableArray<string> AnalysisSymbolsOf(string uri, OpenDocument document)
-        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), _session.HlslEnvironment);
+        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), SessionFor(uri).HlslEnvironment);
 
     /// <summary>要求が、選んだ構成での表示を求めているかを読む。</summary>
     /// <param name="message">受け取ったメッセージ。</param>
@@ -1015,8 +1066,8 @@ public sealed partial class ShaderLanguageServer
                 ImmutableArray<string> symbols = AnalysisSymbolsOf(uri, document);
 
                 html = AnalysisInspector.BuildHtml(
-                    _session.CreateModel(document.Text, symbols),
-                    _session.Analyze(document.Text, AnalysisDepth.Full, symbols, cancellationToken));
+                    SessionFor(uri).CreateModel(document.Text, symbols),
+                    SessionFor(uri).Analyze(document.Text, AnalysisDepth.Full, symbols, cancellationToken));
             }
         }
         catch (OperationCanceledException)
@@ -1108,6 +1159,7 @@ public sealed partial class ShaderLanguageServer
         ImmutableArray<string> symbols = DefinedSymbolsOf(document.Uri);
         bool selectedConfiguration = _selectedConfigurationDisplays.Contains(document.Uri);
         bool inactiveRegionsRequested = _inactiveRegionsRequested;
+        AnalysisSession session = SessionFor(document.Uri);
 
         _ = Task.Run(
             async () =>
@@ -1115,10 +1167,10 @@ public sealed partial class ShaderLanguageServer
                 try
                 {
                     ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, _session.HlslEnvironment);
+                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.HlslEnvironment);
 
                     ImmutableArray<Diagnostic> diagnostics =
-                        _session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+                        session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
 
                     await PublishAnalysisAsync(document, stage, diagnostics, cancellation.Token)
                         .ConfigureAwait(false);
@@ -1129,8 +1181,8 @@ public sealed partial class ShaderLanguageServer
                     {
                         ImmutableArray<InactiveLineRange> regions = selectedConfiguration
                             ? InactiveRegionCollector.CollectSelectedConfiguration(
-                                _session.CreateConfigurationModel(document.Text, symbols))
-                            : InactiveRegionCollector.Collect(_session.CreateModel(document.Text, analysisSymbols));
+                                session.CreateConfigurationModel(document.Text, symbols))
+                            : InactiveRegionCollector.Collect(session.CreateModel(document.Text, analysisSymbols));
 
                         cancellation.Token.ThrowIfCancellationRequested();
 

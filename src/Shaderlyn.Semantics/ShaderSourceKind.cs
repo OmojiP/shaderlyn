@@ -46,7 +46,7 @@ internal static class ShaderSourceKinds
 
         return extension.ToLowerInvariant() switch
         {
-            ".compute" or ".hlsl" or ".cginc" or ".hlslinc" => ShaderSourceKind.Hlsl,
+            ".compute" or ".hlsl" or ".hlsli" or ".cginc" or ".hlslinc" or ".usf" or ".ush" => ShaderSourceKind.Hlsl,
             _ => ShaderSourceKind.ShaderLab,
         };
     }
@@ -55,7 +55,7 @@ internal static class ShaderSourceKinds
     /// ほかのシェーダーから取り込まれる前提の断片かどうかを判定する。
     /// </summary>
     /// <param name="filePath">対象のファイルパス。</param>
-    /// <returns><c>.hlsl</c> / <c>.cginc</c> / <c>.hlslinc</c> なら <see langword="true"/>。</returns>
+    /// <returns><c>.hlsl</c> / <c>.cginc</c> / <c>.hlslinc</c> / <c>.hlsli</c> / <c>.ush</c> なら <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
     /// <b>断片だけでは判断できないことがある。</b>
@@ -72,6 +72,6 @@ internal static class ShaderSourceKinds
     {
         string extension = filePath is null ? string.Empty : Path.GetExtension(filePath);
 
-        return extension.ToLowerInvariant() is ".hlsl" or ".cginc" or ".hlslinc";
+        return extension.ToLowerInvariant() is ".hlsl" or ".hlsli" or ".cginc" or ".hlslinc" or ".ush";
     }
 }
