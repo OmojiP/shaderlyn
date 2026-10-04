@@ -1,5 +1,5 @@
 name: Shaderlyn
-description: Unity の ShaderLab / HLSL / コンピュートシェーダーを静的解析し、PR にインライン注釈を出します。
+description: Unity の ShaderLab / HLSL、DXC で直接コンパイルする HLSL、Unreal Engine のシェーダーを静的解析し、PR にインライン注釈を出します。
 author: shaderlyn
 
 branding:
@@ -10,7 +10,7 @@ inputs:
   paths:
     description: >
       解析対象のパス。空白区切りで複数指定できます。
-      フォルダーを指定すると .shader と .compute を再帰的に探索します。
+      フォルダーを指定すると、環境の拡張子 (Unity は .shader と .compute、hlsl は .hlsl、unreal は .usf) を再帰的に探索します。
     required: false
     default: Assets
 
@@ -19,9 +19,16 @@ inputs:
     required: false
     default: latest
 
+  environment:
+    description: >
+      解析する環境: unity / hlsl / unreal。
+      省略時は設定ファイルの environment を使い、それも無ければ unity です。
+    required: false
+    default: ""
+
   unity-project:
     description: >
-      Unity プロジェクトのルート。
+      Unity プロジェクトのルート (Unity の環境だけ)。
       これを指定しないと、プロパティと HLSL の対応検査 (SL1001 / SL1003 など) はほぼ働きません。
       パッケージ配下のヘッダを解決するために Library/PackageCache が必要です。
     required: false
@@ -146,6 +153,7 @@ runs:
       env:
         ANALYZER: ${{ steps.download.outputs.executable }}
         INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
         INPUT_UNITY_PROJECT: ${{ inputs.unity-project }}
         INPUT_CONFIG: ${{ inputs.config }}
         INPUT_BASELINE: ${{ inputs.baseline }}
@@ -160,6 +168,7 @@ runs:
         args+=(${INPUT_PATHS})
         args+=(--error-on "${INPUT_ERROR_ON}")
 
+        [ -n "${INPUT_ENVIRONMENT}" ] && args+=(--environment "${INPUT_ENVIRONMENT}")
         [ -n "${INPUT_UNITY_PROJECT}" ] && args+=(--unity-project "${INPUT_UNITY_PROJECT}")
         [ -n "${INPUT_CONFIG}" ] && args+=(--config "${INPUT_CONFIG}")
         [ -n "${INPUT_BASELINE}" ] && args+=(--baseline "${INPUT_BASELINE}")

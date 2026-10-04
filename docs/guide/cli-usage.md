@@ -98,6 +98,9 @@ shaderlyn Assets/Shaders Packages/com.mycompany.shaders
 同じヘッダを取り込むシェーダーが複数あっても 1 件にまとまります。
 Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、直せないので報告しません。
 
+上は Unity の環境の場合です。設定ファイルの `environment` で選んだほかの環境では、フォルダーの指定で探す拡張子が変わります
+(汎用の HLSL は `.hlsl`、Unreal は `.usf`。[Unity 以外の環境で使う](environments.md))。
+
 ### 解析対象は自分のシェーダーに絞る
 
 Unityプロジェクト全体を解析する場合、Assets 以下を指定してください。
@@ -289,6 +292,8 @@ shaderlyn Assets --error-on info
 
 ## 5. プロジェクトの解析設定
 
+この章は Unity の環境の設定です。汎用の HLSL・Unreal の設定は [Unity 以外の環境で使う](environments.md) にあります。
+
 ### --unity-project
 
 Unityで用意された関数等のヘッダ取得に利用します
@@ -435,6 +440,7 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
 ■ 設定ファイル (.shaderlyn.yaml)
   探し始めた場所: D:\...\Assets\ (ここから上のフォルダーへ辿ります)
   見つかりませんでした。既定の設定で解析します。
+  環境: Unity (既定)
   プロファイル: urp (既定)
 
 ■ Unity プロジェクト

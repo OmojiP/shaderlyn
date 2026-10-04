@@ -12,6 +12,8 @@
 
 ## 例
 
+Unity の例です。汎用の HLSL・Unreal の例は、環境ごとのテンプレート ([samples/environments](../../samples/environments/)) にあります。
+
 ```yaml
 version: 1
 

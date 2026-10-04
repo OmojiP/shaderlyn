@@ -1,0 +1,10 @@
+// エンジンの Common.ush の代わり (動作確認用)。本物はエンジンの Shaders/Private にある。
+#pragma once
+
+// 本物の Common.ush と同じく、ビルドのときに生成される uniform buffer の宣言を取り込む。
+// ディスクには無いので解決できないが、誤りとしては報告しない (SL0002 で伝える)。
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+
+#if COMPILER_HLSL && SM6_PROFILE
+float Square(float x) { return x * x; }
+#endif

@@ -97,6 +97,9 @@ DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine
 * 変わるのは薄く表示する範囲だけです。指摘はこれまでどおり、シンボルのバリアントをすべて検査した結果を出します
 * プラットフォームで決まる分岐（`SHADER_API_*` など）と、取り込むヘッダを解決できない構成は、構成を選んでも薄くしません
 
+汎用の HLSL・Unreal の環境では、設定ファイルの `symbols:` で宣言したシンボルが並びます。
+値を持つシンボル（`QUALITY: [0, 1, 2]` など）は `QUALITY = 0` / `QUALITY = 1` / `QUALITY = 2` のように並び、値を 1 つ選びます。
+
 ![シンボルを選んで、その構成で効いていない分岐を薄く表示する様子](images/select-symbol.gif)
 
 ---
@@ -133,6 +136,7 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 ### 動作条件
 
 * Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
+* Unity 以外の環境（汎用の HLSL・Unreal）では、`.shaderlyn.yaml` のあるフォルダーを開き、`environment` を書いてください（[Unity 以外の環境で使う](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
 
 ### 設定項目 (`settings.json`)
 

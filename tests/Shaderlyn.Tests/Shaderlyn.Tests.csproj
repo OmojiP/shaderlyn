@@ -37,6 +37,14 @@
   </ItemGroup>
 
   <!--
+    環境ごとの設定ファイルのテンプレート (samples/environments) も複製する。
+    テンプレートが今の設定の書式で読めて、README に書いた指摘が出ることを検証する。
+  -->
+  <ItemGroup>
+    <None Include="..\..\samples\environments\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="samples\environments" />
+  </ItemGroup>
+
+  <!--
     ルールの一覧 (docs/rules/README.md) は上の docs/rules と一緒に複製される。
     ここでは自作ルールのドキュメントを複製する。
     実装とドキュメントのずれは人間のレビューでは必ず見落とされるため、

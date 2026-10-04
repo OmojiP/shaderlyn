@@ -1,0 +1,32 @@
+# Unreal Engine の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments.md と docs/guide/configuration.md にある。
+version: 1
+environment: unreal
+
+unreal:
+  # エンジンのフォルダー。/Engine を <engine>/Shaders に割り当てる。
+  # 実際のプロジェクトでは C:/Program Files/Epic Games/UE_5.4/Engine のようにエンジンの場所を書く。
+  # このサンプルは、エンジンの代わりの小さなフォルダー (Engine/) を使う
+  engine: Engine
+  project: .              # /Project を <project>/Shaders に割り当てる
+  virtual-paths:          # そのほかの割り当て (プラグインなど)
+    /Plugin/MyPlugin: Plugins/MyPlugin/Shaders
+
+hlsl:
+  version: 2018           # Unreal の既定は 2018。HLSL 2021 で書いたシェーダーなら 2021
+
+# defines:                # シェーダーコンパイラのマクロ (既定は COMPILER_HLSL / COMPILER_DXC / SM6_PROFILE) を上書き・追加する
+#   - SM6_PROFILE=0
+#   - SM5_PROFILE=1
+
+# パーミュテーション。C++ の SHADER_PERMUTATION_BOOL / SHADER_PERMUTATION_INT に合わせて書く (C++ からは読まない)
+symbols:
+  - name: PERMUTATION_HIGH_QUALITY   # SHADER_PERMUTATION_BOOL は 0 か 1 で定義される
+    values: [0, 1]
+  - name: PERMUTATION_SAMPLES        # SHADER_PERMUTATION_INT("PERMUTATION_SAMPLES", 3)
+    values: [0, 1, 2]
+
+units:
+  - files: Shaders/**/*.usf
+    entry: MainPS
+    target: ps_6_6

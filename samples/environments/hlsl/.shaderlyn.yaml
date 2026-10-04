@@ -1,0 +1,35 @@
+# 汎用の HLSL (DXC で直接コンパイルする構成) の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments.md と docs/guide/configuration.md にある。
+version: 1
+environment: hlsl
+
+hlsl:
+  version: 2021           # DXC の -HV: 2018 / 2021 (既定)
+
+# include-paths:          # #include の追加探索パス (設定ファイルからの相対)
+#   - Shaders/Include
+defines:                  # どの単位にも定義するマクロ。NAME または NAME=VALUE
+  - PLATFORM_PC=1
+
+# 構成の軸 (-D の組み合わせを変えてコンパイルし分けるもの)
+symbols:
+  - name: QUALITY         # 値を持つシンボル。先頭の値が既定
+    values: [0, 1, 2]
+  - name: USE_FOG         # values を省略すると「定義するか・しないか」
+  - one-of: [LIGHT_FORWARD, LIGHT_DEFERRED]   # 同時には有効にならず、どれか 1 つは有効
+  # - at-most-one: [FX_A, FX_B]               # 同時には有効にならない
+
+# コンパイル単位。1 つのファイルに複数の単位を当てられる (頂点とピクセルを 1 つのファイルに書く場合など)。
+# どの単位にも当てはまらないファイル (.hlsli など) は、ファイル全体を 1 つの単位にし、symbols: のすべてを構成の軸にする
+units:
+  - files: Shaders/*.hlsl # 設定ファイルからの相対の glob (** はフォルダーをまたぐ)
+    entry: MainVS         # この名前の関数が無ければ HL0301
+    target: vs_6_6        # DXC の -T と同じ書き方。__SHADER_TARGET_STAGE などを決める
+    symbols: [QUALITY]    # この単位で使う構成の軸。省略するとすべて
+  - files: Shaders/*.hlsl
+    entry: MainPS
+    target: ps_6_6
+    defines: [PIXEL_SHADER=1]   # この単位でだけ定義するマクロ
+
+rules:
+  HL0331: none            # 例: 使われていないシンボルの指摘を止める

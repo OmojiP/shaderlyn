@@ -3,6 +3,10 @@
 組み込みルールの一覧です。ID を開くと、そのルールが何を報告するか、直し方、報告しない場合の説明があります。
 重要度は設定ファイルで変えたり無効にしたりできます（[設定ファイル「rules」](../guide/configuration.md#rules)）。
 
+**Unity の環境だけで動くルール**: SL0001 / SL0005 / SL1001〜SL1041 (ShaderLab と Properties を見るもの)、URP0001〜URP0003、HL0302。
+汎用の HLSL・Unreal の環境では出ません。HL0330 の推測と HL0003 も環境で振る舞いが変わります (各ルールの説明を参照)。
+ほかのルール (HL・SL0002〜SL0004・TOOL) はどの環境でも動きます（[Unity 以外の環境で使う](../guide/environments.md#環境によって変わること)）。
+
 ## ShaderLab
 
 構文:

@@ -188,7 +188,12 @@ internal static partial class EnvironmentReport
             : configuration.Environment is not null ? "設定ファイル" : "既定";
 
         Line(builder, $"  環境: {environment.DisplayName} ({environmentSource})");
-        Line(builder, $"  プロファイル: {settings.Profile} ({profileSource})");
+
+        // レンダーパイプラインのプロファイルは Unity の環境だけのもの。
+        if (environment.Name == UnityAnalysisEnvironment.EnvironmentName)
+        {
+            Line(builder, $"  プロファイル: {settings.Profile} ({profileSource})");
+        }
 
         foreach (string define in configuration.Defines)
         {

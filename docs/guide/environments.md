@@ -3,12 +3,16 @@
 Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、独自エンジンのシェーダーも解析できます。
 環境ごとの違いは設定ファイルに書き、ルールと出力 (CLI・VS Code 拡張・GitHub Actions) はどの環境でも同じです。
 
+環境ごとの設定ファイルのテンプレートと、試すためのシェーダーが [samples/environments](../../samples/environments/) にあります。
+写して書き換えると早く始められます。
+
 ## 目次
 
 - [環境の選び方](#環境の選び方)
 - [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
 - [Unreal Engine](#unreal-engine)
 - [独自エンジン](#独自エンジン)
+- [CI で使う](#ci-で使う)
 - [環境によって変わること](#環境によって変わること)
 
 ## 環境の選び方
@@ -104,6 +108,18 @@ units:
 作り方は [ルールの実例集「独自エンジンの環境」](../custom-rules/cookbook.md#独自エンジンの環境) にあります。
 
 独自の書き方を持たないエンジン (`-D` を変えて DXC でコンパイルするだけ) は、[汎用の HLSL](#汎用の-hlsl-dxc) で足ります。
+
+## CI で使う
+
+GitHub Action は設定ファイルの `environment` に従います。設定ファイルを使わないなら、入力の `environment` で選びます。
+Unity 以外の環境では Unity のプロジェクト (`Library/`) が要らないので、GitHub のホストランナーで動かせます。
+
+```yaml
+- uses: OmojiP/shaderlyn/action@v0.2.0
+  with:
+    paths: Shaders
+    environment: hlsl      # 省略時は設定ファイルの environment
+```
 
 ## 環境によって変わること
 
