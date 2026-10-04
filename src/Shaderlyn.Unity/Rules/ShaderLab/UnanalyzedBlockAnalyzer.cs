@@ -3,8 +3,9 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// 解析の対象外のコードブロックがあることを伝える (SL0005)。

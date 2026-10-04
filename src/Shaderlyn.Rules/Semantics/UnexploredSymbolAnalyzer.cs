@@ -5,7 +5,7 @@ using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
-using Shaderlyn.Unity;
+using Shaderlyn.Core.Syntax;
 
 namespace Shaderlyn.Rules;
 
@@ -82,32 +82,35 @@ internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
         // .shader で宣言して共通の .hlsl の機能だけを切り替える書き方では、このファイルに条件が無い。
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (HlslSyntaxToken token in ShaderSymbols.EnumerateDeclared(program.Tree.PreprocessResult.Pragmas))
+            foreach (VariantDeclaration declaration in program.Variants.Declarations)
             {
-                if (!unexplored.Contains(token.Text)
-                    || !compilation.IsWrittenHere(token)
-                    || !reported.Add(token.Text))
+                if (declaration.IsImplicit
+                    || declaration.Location is not { } location
+                    || !unexplored.Contains(declaration.Name)
+                    || !compilation.IsWrittenHere(location)
+                    || !reported.Add(declaration.Name))
                 {
                     continue;
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    SemanticRuleDescriptors.UnexploredSymbols, token.GetLocation(), DescribeSymbol(token.Text)));
+                    SemanticRuleDescriptors.UnexploredSymbols, location, DescribeSymbol(declaration.Name)));
             }
 
             // #pragma multi_compile_instancing のような組み込みの宣言は、シンボルの名前を書かない。宣言の名前に出す。
-            foreach ((HlslSyntaxToken declaration, string symbol) in
-                ShaderSymbols.EnumerateBuiltInDeclared(program.Tree.PreprocessResult.Pragmas))
+            foreach (VariantDeclaration declaration in program.Variants.Declarations)
             {
-                if (!unexplored.Contains(symbol)
-                    || !compilation.IsWrittenHere(declaration)
-                    || !reported.Add(symbol))
+                if (!declaration.IsImplicit
+                    || declaration.Location is not { } location
+                    || !unexplored.Contains(declaration.Name)
+                    || !compilation.IsWrittenHere(location)
+                    || !reported.Add(declaration.Name))
                 {
                     continue;
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    SemanticRuleDescriptors.UnexploredSymbols, declaration.GetLocation(), DescribeSymbol(symbol)));
+                    SemanticRuleDescriptors.UnexploredSymbols, location, DescribeSymbol(declaration.Name)));
             }
         }
 

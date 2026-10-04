@@ -2,8 +2,9 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// プロパティ名の命名規約を検査する (SL1030)。

@@ -8,7 +8,6 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
-using Shaderlyn.Unity;
 
 namespace Shaderlyn.Rules;
 
@@ -396,8 +395,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         continue;
                     }
 
-                    PreprocessResult result = tree.Tree.PreprocessResult;
-                    names.UnionWith(ShaderSymbols.CollectDeclared(result.Pragmas));
+                    names.UnionWith(tree.Variants.Symbols);
                     names.UnionWith(tree.Uniforms.Select(uniform => uniform.Name));
                     AddWrittenDeclarations(_compilation, tree, names);
                 }

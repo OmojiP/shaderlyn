@@ -251,48 +251,6 @@ public static class ShaderSymbols
             .SelectMany(p => LinesOf(p).SelectMany(l => l.Symbols).Select(s => (p.NameToken, s)));
 
     /// <summary>
-    /// コードの中で名前として現れた識別子を集める。
-    /// </summary>
-    /// <param name="tokens">対象のトークン列。</param>
-    /// <returns>現れた識別子の名前。</returns>
-    /// <remarks>
-    /// <para>
-    /// <b><c>#ifdef</c> だけを見ていては、使われているかを判定できない。</b>
-    /// <c>#pragma dynamic_branch</c> で宣言したシンボルはバリアントを作らず、
-    /// <c>if (_HDR_OVERLAY)</c> のように実行時の分岐として書かれる。
-    /// 条件だけを数えると「宣言したのに使っていない」と誤って言うことになる。
-    /// </para>
-    /// <para>
-    /// プリプロセッサの行は数えない。
-    /// <c>#pragma</c> の行にはシンボルの名前そのものが並んでおり、
-    /// それを使用と数えると、どのシンボルも使われていることになる。
-    /// </para>
-    /// </remarks>
-    public static HashSet<string> CollectRuntimeReferences(ImmutableArray<HlslSyntaxToken> tokens)
-    {
-        HashSet<string> referenced = new(StringComparer.Ordinal);
-
-        for (int i = 0; i < tokens.Length; i++)
-        {
-            // プリプロセッサの行は飛ばす。
-            // #pragma の行にはシンボルの名前そのものが並んでおり、
-            // それを使用と数えると、どのシンボルも「使われている」ことになる。
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken && tokens[i].IsAtLineStart)
-            {
-                while (i + 1 < tokens.Length && !tokens[i + 1].IsAtLineStart) { i++; }
-                continue;
-            }
-
-            if (tokens[i].Kind == HlslSyntaxKind.IdentifierToken)
-            {
-                referenced.Add(tokens[i].Text);
-            }
-        }
-
-        return referenced;
-    }
-
-    /// <summary>
     /// 展開する前のトークン列から、宣言されているシンボルを集める。
     /// </summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>

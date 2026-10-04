@@ -544,6 +544,21 @@ public sealed class ShaderCompilation
     }
 
     /// <summary>
+    /// 位置が、解析しているファイルの中かどうかを判定する。
+    /// </summary>
+    /// <param name="location">判定する位置。</param>
+    /// <returns>このファイルの中であれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 構成の空間の宣言 (<see cref="VariantDeclaration.Location"/>) のように、位置だけを持つものに使う。
+    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(HlslSyntaxToken)"/>) と同じ答えになる。
+    /// </remarks>
+    public bool IsWrittenHere(Location location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        return string.Equals(location.FilePath, Text.FilePath, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// ノードが、利用者がこのファイルに書いたものかどうかを判定する。
     /// </summary>
     /// <param name="node">判定するノード。</param>

@@ -5,8 +5,9 @@ using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.Unity;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// SRP Batcher との互換性を検査する (URP0001 / URP0002)。

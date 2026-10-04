@@ -3,8 +3,9 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// レンダーステート命令の引数の値を検査する (SL1021)。

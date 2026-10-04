@@ -6,6 +6,7 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab.Syntax;
 using Shaderlyn.Unity;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.LanguageServer;
 

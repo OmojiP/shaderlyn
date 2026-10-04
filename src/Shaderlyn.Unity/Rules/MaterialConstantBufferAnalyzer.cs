@@ -4,8 +4,9 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.Unity;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// テクスチャプロパティに対して Unity が自動的に用意する uniform を判別する。
@@ -101,7 +102,7 @@ internal sealed class MaterialConstantBufferAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [SemanticRuleDescriptors.UniformNotExposed];
+        [UnityRuleDescriptors.UniformNotExposed];
 
     /// <inheritdoc/>
     /// <remarks>
@@ -150,7 +151,7 @@ internal sealed class MaterialConstantBufferAnalyzer : SemanticRuleAnalyzer
                 if (member.GetLocation() is { } location && compilation.IsUserFile(location.FilePath))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
-                        SemanticRuleDescriptors.UniformNotExposed, location, member.Name, buffer.Name));
+                        UnityRuleDescriptors.UniformNotExposed, location, member.Name, buffer.Name));
                 }
             }
         }

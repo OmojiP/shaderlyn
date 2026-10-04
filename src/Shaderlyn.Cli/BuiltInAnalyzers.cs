@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Rules;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.Cli;
 

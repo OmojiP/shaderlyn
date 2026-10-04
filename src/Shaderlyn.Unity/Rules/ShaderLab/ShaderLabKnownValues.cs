@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// ShaderLab の命令・タグ・属性について、既知の名前と取りうる値をまとめた表。

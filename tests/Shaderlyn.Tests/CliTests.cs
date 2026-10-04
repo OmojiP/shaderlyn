@@ -3,6 +3,7 @@ using System.Reflection;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.Tests;
 
@@ -622,8 +623,9 @@ public sealed class BuiltInAnalyzerRegistrationTests
     [Fact]
     public void アセンブリ内の全アナライザがBuiltInAnalyzersに登録されている()
     {
-        IEnumerable<Type> declaredAnalyzers = typeof(Rules.TagAnalyzer).Assembly
-            .GetTypes()
+        // 組み込みのルールは、汎用の HLSL のルールと、Unity の環境のルールの 2 つのアセンブリにある。
+        IEnumerable<Type> declaredAnalyzers = new[] { typeof(Rules.CallSignatureAnalyzer).Assembly, typeof(TagAnalyzer).Assembly }
+            .SelectMany(assembly => assembly.GetTypes())
             .Where(t => t is { IsAbstract: false, IsNested: false } && t.IsSubclassOf(typeof(DiagnosticAnalyzer)));
 
         HashSet<Type> registered = [.. BuiltInAnalyzers.All.Select(a => a.GetType())];

@@ -29,7 +29,7 @@ public sealed class PublicApiTests
         typeof(Semantics.ShaderCompilation).Assembly,
         typeof(Unity.UnityCompilation).Assembly,
         typeof(Configuration.ConfigurationLoader).Assembly,
-        typeof(Rules.TagAnalyzer).Assembly,
+        typeof(Rules.CallSignatureAnalyzer).Assembly,
         typeof(Cli.Program).Assembly,
         typeof(LanguageServer.ShaderLanguageServer).Assembly,
         typeof(Testing.ShaderRuleVerifier).Assembly,

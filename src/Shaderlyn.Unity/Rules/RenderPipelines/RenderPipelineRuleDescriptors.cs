@@ -1,7 +1,8 @@
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Unity.Profiles;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// レンダーパイプライン固有のルールの定義。

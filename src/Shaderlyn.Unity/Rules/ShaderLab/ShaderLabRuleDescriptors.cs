@@ -1,6 +1,7 @@
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// ShaderLab 単体で検査できるルールの定義。

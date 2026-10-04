@@ -31,18 +31,6 @@ internal static class HlslRuleDescriptors
             + "TEXCOORD の番号の付け間違いで起きることがほとんどです。",
         helpLinkUri: DocumentationLinks.For("HL0210"));
 
-    /// <summary><c>#pragma</c> で指定したエントリポイントが存在しない。</summary>
-    public static DiagnosticDescriptor EntryPointNotFound { get; } = new(
-        id: "HL0301",
-        title: "エントリポイントが見つかりません",
-        messageFormat: "#pragma {0} が指定する関数 '{1}' が見つかりません。{2}",
-        category: CorrectnessCategory,
-        defaultSeverity: DiagnosticSeverity.Error,
-        description: "#pragma vertex や #pragma fragment に書かれた名前の関数が定義されていません。"
-            + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
-            + "この Pass はコンパイルできず、シェーダー全体が使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0301"));
-
     /// <summary>呼んでいる関数の定義が、その構成には存在しない。</summary>
     /// <remarks>
     /// <b>「定義があるか」ではなく「その構成に定義があるか」を見る。</b>
@@ -388,17 +376,4 @@ internal static class HlslRuleDescriptors
             + "配列は要素の型と長さの両方が一致していなければなりません。"
             + "配列でない値を渡すこともできません。",
         helpLinkUri: DocumentationLinks.For("HL0344"));
-
-    /// <summary>シェーダーステージの指定が無い。</summary>
-    public static DiagnosticDescriptor MissingShaderStage { get; } = new(
-        id: "HL0302",
-        title: "シェーダーステージが指定されていません",
-        messageFormat: "このコードブロックに #pragma vertex / #pragma fragment がありません。",
-        category: CorrectnessCategory,
-        defaultSeverity: DiagnosticSeverity.Warning,
-        description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使うかが指定されていません。"
-            + "この Pass はコンパイルできません。"
-            + "共通コード片 (HLSLINCLUDE) に書いたつもりの #pragma が、"
-            + "別の SubShader に属していて届いていない場合によく起きます。",
-        helpLinkUri: DocumentationLinks.For("HL0302"));
 }

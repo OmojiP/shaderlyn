@@ -4,6 +4,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Rules;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.Tests;
 

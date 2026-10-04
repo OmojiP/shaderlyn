@@ -2,8 +2,9 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.ShaderLab.Syntax;
+using Shaderlyn.Rules;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// 同じ SubShader 内での Pass 名の重複を検出する (SL1041)。
