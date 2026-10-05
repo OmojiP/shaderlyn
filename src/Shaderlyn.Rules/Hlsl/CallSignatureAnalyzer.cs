@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules;
 
 /// <summary>
 /// 呼び出しが、その構成に存在する宣言と噛み合っているかを検査する
-/// (HL0340 / HL0341 / HL0342)。
+/// (HL0340 / HL0341 / HL0342 / HL0344 / HL0345)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,6 +41,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         HlslRuleDescriptors.ArgumentCountMismatch,
         HlslRuleDescriptors.ArgumentNotAssignable,
         HlslRuleDescriptors.ArrayArgumentMismatch,
+        HlslRuleDescriptors.TemplateArgumentConflict,
     ];
 
     /// <inheritdoc/>
@@ -93,6 +94,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     {
         if (invocation.TargetName is not { } name || !compilation.IsReportable(invocation))
         {
+            return;
+        }
+
+        // template の関数と同じ名前なら、型引数の推論を含めて別に見る (HLSL 2021)。
+        if (binder.TryGetTemplateFunctions(name, out ImmutableArray<TemplateFunctionCandidate> templates))
+        {
+            AnalyzeTemplateCall(context, compilation, condition, binder, invocation, name, templates, reported);
             return;
         }
 
@@ -416,6 +424,99 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             found.ParameterType,
             DescribeCondition(call)));
     }
+
+    /// <summary>template の関数と同じ名前の関数の呼び出しを検査する (HL0341 / HL0345)。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="condition">出現条件の索引。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="invocation">検査する呼び出し。</param>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="candidates">同じ名前の関数すべて (template でないものを含む)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// <para>
+    /// 候補は宣言の出現条件で絞らない。そのため、宣言にも呼び出しにも条件が付いていないときだけ報告する。
+    /// 取り込みを解決できていなければ、ほかの多重定義があるかもしれないので報告しない。
+    /// </para>
+    /// <para>
+    /// 型引数の食い違い (HL0345) は、同じ名前の関数が template の関数 1 つだけのときに見る。
+    /// 候補が複数あれば、どれが選ばれるかは実引数の型の変換で決まり、その規則は扱わない。
+    /// </para>
+    /// </remarks>
+    private static void AnalyzeTemplateCall(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ConditionMap condition,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        string name,
+        ImmutableArray<TemplateFunctionCandidate> candidates,
+        HashSet<int> reported)
+    {
+        if (!compilation.HasCompleteDependencies
+            || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
+            || !condition.GetCondition(invocation).IsAlways
+            || candidates.Any(c => !condition.GetCondition(c.Declaration).IsAlways))
+        {
+            return;
+        }
+
+        // 型引数を書いた呼び出しは、template の関数だけが候補になる。
+        TemplateFunctionCandidate[] pool = invocation.HasTypeArguments ? [.. candidates.Where(c => c.IsTemplate)] : [.. candidates];
+        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+
+        if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location.Span.Start))
+        {
+            return;
+        }
+
+        if (!pool.Any(c => CallCompatibility.AcceptsArgumentCount(c.Declaration.ParameterList, arguments.Length)))
+        {
+            ReportArity(
+                context, invocation, name, [.. pool.Select(c => c.Declaration)], arguments.Length, SymbolCondition.Always, reported);
+            return;
+        }
+
+        if (pool is not [{ IsTemplate: true } single])
+        {
+            return;
+        }
+
+        ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
+        TemplateDeductionResult deduced = TemplateDeduction.Deduce(
+            single, invocation, argument => TemplateDeduction.ArgumentType(evaluator, argument));
+
+        if (deduced.Conflict is not { } conflict || !reported.Add(location.Span.Start))
+        {
+            return;
+        }
+
+        bool literal = TemplateDeduction.IsLiteral(conflict.FirstType) || TemplateDeduction.IsLiteral(conflict.SecondType);
+        string hint = literal
+            ? $"接尾辞の無い数は float / int とは別の型として推論されます。1.0f のように接尾辞を付けるか、型引数を書いてください ({name}<float>(...))。"
+            : $"実引数の型を揃えるか、型引数を書いてください ({name}<{conflict.FirstType}>(...))。";
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.TemplateArgumentConflict,
+            location,
+            name,
+            conflict.TypeParameter,
+            conflict.FirstIndex + 1,
+            DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex]),
+            conflict.SecondIndex + 1,
+            DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex]),
+            hint));
+    }
+
+    /// <summary>推論に使った実引数の型を、画面に出す形にする。</summary>
+    /// <param name="type">推論に使った型。</param>
+    /// <param name="argument">実引数。</param>
+    /// <returns>画面に出す文字列。</returns>
+    private static string DescribeDeduced(string type, HlslExpressionSyntax argument)
+        => TemplateDeduction.IsLiteral(type)
+            ? $"接尾辞の無い数 {TemplateDeduction.AsLiteral(argument)?.Text} の型"
+            : type;
 
     /// <summary>引数の個数が合わないことを報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

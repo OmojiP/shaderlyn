@@ -219,6 +219,110 @@ public sealed class Hlsl2021TemplateTests
         Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
     }
 
+    /// <summary>
+    /// 型引数の推論で、DXC (`-HV 2021`) が拒む呼び出しだけを報告することを検証する。
+    /// </summary>
+    /// <param name="statement">main の中に書く文。</param>
+    /// <param name="expected">報告されるはずの規則。正しい呼び出しなら <see langword="null"/>。</param>
+    /// <remarks>どの行も DXC で結果を確かめた。</remarks>
+    [Theory]
+    [InlineData("float a = MaxOf(k, k)", null)]
+    [InlineData("float a = MaxOf(1.0, k)", "HL0345")]
+    [InlineData("float a = MaxOf(1.0f, k)", null)]
+    [InlineData("float a = MaxOf(1, k)", "HL0345")]
+    [InlineData("float a = MaxOf(1.0, 2.0)", null)]
+    [InlineData("float a = MaxOf(1, 2)", null)]
+    [InlineData("float a = MaxOf(1, 2.0)", "HL0345")]
+    [InlineData("float a = MaxOf(k, h)", "HL0345")]
+    [InlineData("float a = MaxOf(k, i)", "HL0345")]
+    [InlineData("float a = MaxOf(i, u)", "HL0345")]
+    [InlineData("float3 a = MaxOf(v, k)", "HL0345")]
+    [InlineData("float a = MaxOf(k, d)", "HL0345")]
+    [InlineData("float a = MaxOf(k)", "HL0341")]
+    [InlineData("float a = MaxOf(k, k, k)", "HL0341")]
+    [InlineData("float a = One(1.0)", null)]
+    [InlineData("float4 a = One(f4)", null)]
+    [InlineData("float a = First(k, v)", null)]
+    [InlineData("float a = MaxOf<float>(1.0, k)", null)]
+    [InlineData("float a = MaxOf<float>(k, v)", null)]
+    [InlineData("float a = MaxOf(v.x, f4.y)", null)]
+    [InlineData("float a = MaxOf(k * 2, k)", null)]
+    [InlineData("float a = MaxOf(k * 2.0, k)", null)]
+    [InlineData("uint a = MaxOf(dw, u)", null)]
+    [InlineData("float a = MaxOf(k1, k)", "HL0345")]
+    [InlineData("float a = MaxOf(m, k)", "HL0345")]
+    [InlineData("float a = MaxOf(k32, k)", null)]
+    [InlineData("float a = MaxOf(-1.0, 2.0)", null)]
+    [InlineData("float a = MaxOf(-1.0, k)", "HL0345")]
+    [InlineData("float a = MaxOf((1.0), k)", "HL0345")]
+    [InlineData("float a = MaxOf(k, 1.0L)", "HL0345")]
+    [InlineData("float a = MaxOf(i, 1)", "HL0345")]
+    [InlineData("float a = MaxOf(u, 1u)", null)]
+    [InlineData("float a = Opt(k)", null)]
+    [InlineData("float a = Opt(k, 1.0)", "HL0345")]
+    [InlineData("float a = Opt(k, k, k)", "HL0341")]
+    [InlineData("float a; Out(k, a)", null)]
+    [InlineData("float3 a; Out(k, a)", "HL0345")]
+    [InlineData("float a = One(f4).q", "HL0312")]
+    [InlineData("float a = One(f4).w", null)]
+    [InlineData("float a = First(v, k).w", "HL0312")]
+    public void 型引数の推論をDXCと同じに扱う(string statement, string? expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze($$"""
+            template<typename T> T MaxOf(T a, T b) { return max(a, b); }
+            template<typename T> T One(T a) { return a; }
+            template<typename T, typename U> T First(T a, U b) { return a; }
+            template<typename T> T Opt(T a, T b = (T)0) { return a; }
+            template<typename T> void Out(T a, out T b) { b = a; }
+
+            cbuffer C { float k; half h; float3 v; int i; uint u; float4 f4; dword dw; float1 k1; min16float m; float32_t k32; double d; };
+
+            float4 main() : SV_Target { {{statement}}; return 0; }
+            """);
+
+        string[] reported = [.. diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id)];
+
+        Assert.Equal(expected is null ? [] : [expected], reported);
+    }
+
+    [Fact]
+    public void 推論の食い違いの文に両方の型を書く()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            template<typename T> T MaxOf(T a, T b) { return max(a, b); }
+            cbuffer C { float k; half h; };
+            float4 main() : SV_Target { return MaxOf(k, h) + MaxOf(1.0, k); }
+            """);
+
+        string[] messages = [.. diagnostics.Where(d => d.Id == "HL0345").Select(d => d.GetMessage())];
+
+        Assert.Equal(2, messages.Length);
+        Assert.Contains("型引数 T を決められません。第 1 引数からは float、第 2 引数からは half になります。", messages[0], StringComparison.Ordinal);
+        Assert.Contains("第 1 引数からは 接尾辞の無い数 1.0 の型、第 2 引数からは float", messages[1], StringComparison.Ordinal);
+        Assert.Contains("1.0f", messages[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 条件の中の宣言と呼び出しでは推論の食い違いを報告しない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            #if defined(USE_HALF)
+            template<typename T> T MaxOf(T a, T b) { return max(a, b); }
+            #endif
+            cbuffer C { float k; half h; };
+            float4 main() : SV_Target
+            {
+            #if defined(USE_HALF)
+                return MaxOf(k, h);
+            #else
+                return k;
+            #endif
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0345");
+    }
+
     private static HlslSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),

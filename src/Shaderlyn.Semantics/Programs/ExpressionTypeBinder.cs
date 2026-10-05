@@ -251,7 +251,7 @@ public sealed class ExpressionTypeBinder
                 byName[function.Name] = candidates;
             }
 
-            candidates.Add(new TemplateFunctionCandidate(parameters, returnType));
+            candidates.Add(new TemplateFunctionCandidate(function, parameters, returnType));
         }
 
         Collect(declarations);
@@ -260,6 +260,13 @@ public sealed class ExpressionTypeBinder
             .Where(p => templates.Contains(p.Key))
             .ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
     }
+
+    /// <summary>template の関数の名前から、同じ名前の関数すべての候補を引く (HLSL 2021)。</summary>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="candidates">同じ名前の関数 (template でないものを含む)。</param>
+    /// <returns>その名前の template の関数があれば <see langword="true"/>。</returns>
+    internal bool TryGetTemplateFunctions(string name, out ImmutableArray<TemplateFunctionCandidate> candidates)
+        => _templateFunctions.TryGetValue(name, out candidates);
 
     /// <summary>構造体のフィールドの宣言子を引く。</summary>
     /// <param name="structType">構造体の名前。</param>

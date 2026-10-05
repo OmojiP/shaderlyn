@@ -51,6 +51,10 @@ public sealed class RuleFixtureTests
         // .shader の診断としては SL0002 のメッセージの中に現れる。
         // これは HL0320_の循環はSL0002の中に現れる で確かめている。
         ["HL0320"] = "循環は取り込み先で起きるため、報告が SL0002 のメッセージの中に入る",
+
+        // template は HLSL 2021 の構文で、Unity (HLSL 2018) の .shader では HL0003 になる。
+        // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
+        ["HL0345"] = "HLSL 2021 の template の呼び出しなので、Unity の .shader では起こせない",
     };
 
     /// <summary>違反するシェーダーを置いてある規則。</summary>

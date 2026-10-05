@@ -393,4 +393,21 @@ internal static class HlslRuleDescriptors
             + "配列は要素の型と長さの両方が一致していなければなりません。"
             + "配列でない値を渡すこともできません。",
         helpLinkUri: DocumentationLinks.For("HL0344"));
+
+    /// <summary>template の型引数を、実引数から 1 つに決められない (HLSL 2021)。</summary>
+    /// <remarks>
+    /// 同じ型引数に当たる実引数の型は完全に一致しなければならない。
+    /// 接尾辞の無い数 (<c>1.0</c>) は <c>float</c> とは別の型として推論される。DXC で確かめた。
+    /// </remarks>
+    public static DiagnosticDescriptor TemplateArgumentConflict { get; } = new(
+        id: "HL0345",
+        title: "template の型引数を実引数から決められません",
+        messageFormat: "template の関数 '{0}' の型引数 {1} を決められません。第 {2} 引数からは {3}、第 {4} 引数からは {5} になります。{6}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "template の関数を型引数を書かずに呼ぶと、型引数は実引数の型から決まります (推論)。"
+            + "同じ型引数に当たる実引数の型は完全に一致しなければならず、"
+            + "float と half、float3 と float のような違いがあると呼び出せません。"
+            + "接尾辞の無い数 (1.0 / 1) は float / int とは別の型として扱われます。",
+        helpLinkUri: DocumentationLinks.For("HL0345"));
 }
