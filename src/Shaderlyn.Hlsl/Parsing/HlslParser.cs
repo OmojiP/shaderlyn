@@ -116,7 +116,7 @@ internal sealed class HlslParser
     /// <remarks>
     /// <para>
     /// <b>報告せずに読み飛ばした宣言のためにある。</b>
-    /// HLSL 2021 の <c>template</c> の関数をまだ構文木にできないとき、その名前はどこにも宣言されていないことになる。
+    /// HLSL 2021 の <c>class</c> や <c>template</c> の明示的な特殊化は構文木にしないので、その名前はどこにも宣言されていないことになる。
     /// 呼び出しを「宣言されていない関数」と報告すると、正しいコードを誤りとして指摘することになる。
     /// </para>
     /// <para>
@@ -285,10 +285,12 @@ internal sealed class HlslParser
                 : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
         }
 
-        // template が導く宣言は、関数なら波括弧で、変数ならセミコロンで終わる。
+        // template は HLSL 2021 で構文木にする。2018 (Unity) では使えないので、報告して読み飛ばす。
         if (CurrentTextIs("template"))
         {
-            return ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
+            return LanguageVersion == HlslLanguageVersion.Hlsl2021 && TryParseTemplate() is { } template
+                ? template
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
         }
 
         if (CurrentTextIs("typedef"))
@@ -356,7 +358,8 @@ internal sealed class HlslParser
     }
 
     /// <summary>
-    /// この解析ツールが解釈しない宣言 (<c>class</c> / <c>interface</c> / <c>enum</c> / <c>template</c>) を読み飛ばす。
+    /// この解析ツールが解釈しない宣言 (<c>class</c> / <c>interface</c>、HLSL 2018 の <c>enum</c> / <c>template</c> / <c>operator</c>、
+    /// HLSL 2021 の <c>template</c> の明示的な特殊化) を読み飛ばす。
     /// </summary>
     /// <param name="endsWithSemicolon">
     /// 宣言がセミコロンで終わるかどうか。型宣言は <c>class Foo { ... } bar;</c> のように
@@ -758,6 +761,74 @@ internal sealed class HlslParser
 
         HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
         return new InitializerListExpressionSyntax(openBrace, elements.ToImmutable(), closeBrace);
+    }
+
+    /// <summary><c>template</c> の宣言を読む (HLSL 2021)。</summary>
+    /// <returns>読んだ宣言。この形では読めない場合は <see langword="null"/> で、何も読み進めない。</returns>
+    /// <remarks>
+    /// <para>
+    /// 文法: <c>template '&lt;' TemplateParameter (',' TemplateParameter)* '&gt;' Declaration</c>。
+    /// 型引数の並びは名前だけを読み、続く関数か構造体はふつうの宣言として読む。
+    /// </para>
+    /// <para>
+    /// 明示的な特殊化 (<c>template&lt;&gt; float Twice&lt;float&gt;(float x)</c>) は読まない。
+    /// 関数名の後ろに型引数が付く形を関数の宣言が持たないためで、今までどおり読み飛ばす。
+    /// </para>
+    /// </remarks>
+    private TemplateDeclarationSyntax? TryParseTemplate()
+    {
+        if (Peek(1).Kind != HlslSyntaxKind.LessThanToken)
+        {
+            return null;
+        }
+
+        // 閉じ山括弧の位置を先に確かめる。閉じられなければ読み進めない。
+        int depth = 0;
+        int close = -1;
+
+        for (int offset = 1; close < 0; offset++)
+        {
+            switch (Peek(offset).Kind)
+            {
+                case HlslSyntaxKind.LessThanToken:
+                    depth++;
+                    break;
+
+                case HlslSyntaxKind.GreaterThanToken:
+                    if (--depth == 0)
+                    {
+                        close = offset;
+                    }
+
+                    break;
+
+                case HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.OpenBraceToken
+                    or HlslSyntaxKind.CloseBraceToken or HlslSyntaxKind.EndOfFileToken:
+                    return null;
+
+                default:
+                    break;
+            }
+        }
+
+        if (close == 2)
+        {
+            return null;
+        }
+
+        HlslSyntaxToken keyword = Advance();
+        HlslSyntaxToken openAngle = Advance();
+        ImmutableArray<HlslSyntaxToken>.Builder parameters = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+        for (int i = 2; i < close; i++)
+        {
+            parameters.Add(Advance());
+        }
+
+        HlslSyntaxToken closeAngle = Advance();
+        HlslDeclarationSyntax declaration = ParseDeclaration();
+
+        return new TemplateDeclarationSyntax(keyword, openAngle, parameters.ToImmutable(), closeAngle, declaration);
     }
 
     /// <summary><c>enum</c> の宣言を読む (HLSL 2021)。</summary>
@@ -1852,9 +1923,17 @@ internal sealed class HlslParser
                 break;
             }
             else if (kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.EndOfFileToken
-                or HlslSyntaxKind.OpenBraceToken or HlslSyntaxKind.CommaToken)
+                or HlslSyntaxKind.OpenBraceToken)
             {
                 return false;
+            }
+            else if (kind == HlslSyntaxKind.CommaToken)
+            {
+                // 山括弧の中のカンマは型引数の区切りである ((vector<float, 3>) x)。外のカンマは型の記述に現れない。
+                if (angleDepth == 0)
+                {
+                    return false;
+                }
             }
             else if (kind is not (HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.OpenBracketToken
                 or HlslSyntaxKind.CloseBracketToken or HlslSyntaxKind.NumericLiteralToken
@@ -1930,6 +2009,25 @@ internal sealed class HlslParser
                     expression = new PostfixUnaryExpressionSyntax(expression, Advance());
                     break;
 
+                // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
+                case HlslSyntaxKind.LessThanToken
+                    when LanguageVersion == HlslLanguageVersion.Hlsl2021
+                         && expression is IdentifierExpressionSyntax or MemberAccessExpressionSyntax
+                         && FindTypeArgumentsEnd() is int close:
+                {
+                    HlslSyntaxToken openAngle = Advance();
+                    ImmutableArray<HlslSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+                    for (int i = 1; i < close; i++)
+                    {
+                        typeArguments.Add(Advance());
+                    }
+
+                    HlslSyntaxToken closeAngle = Advance();
+                    expression = ParseInvocation(expression, openAngle, typeArguments.ToImmutable(), closeAngle);
+                    break;
+                }
+
                 default:
                     return expression;
             }
@@ -1938,10 +2036,57 @@ internal sealed class HlslParser
         return expression;
     }
 
+    /// <summary>
+    /// 現在の <c>&lt;</c> から型引数の並びが始まり、閉じ山括弧の直後に開き括弧が続くかを調べる。
+    /// </summary>
+    /// <returns>閉じ山括弧の位置 (現在からの距離)。型引数の並びでなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <c>a &lt; b &gt; (c)</c> という比較の連なりと形が同じになる。
+    /// 比較の結果をさらに比べる書き方はまず無いので、型の記述に現れるトークンだけで閉じていれば呼び出しとみなす。
+    /// </remarks>
+    private int? FindTypeArgumentsEnd()
+    {
+        int depth = 0;
+
+        for (int offset = 0; offset < 32; offset++)
+        {
+            switch (Peek(offset).Kind)
+            {
+                case HlslSyntaxKind.LessThanToken:
+                    depth++;
+                    break;
+
+                case HlslSyntaxKind.GreaterThanToken:
+                    if (--depth == 0)
+                    {
+                        return offset > 1 && Peek(offset + 1).Kind == HlslSyntaxKind.OpenParenToken ? offset : null;
+                    }
+
+                    break;
+
+                case HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.NumericLiteralToken
+                    or HlslSyntaxKind.CommaToken or HlslSyntaxKind.ColonColonToken:
+                    break;
+
+                default:
+                    return null;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>関数呼び出しを解析する。</summary>
     /// <param name="target">呼び出す対象。</param>
+    /// <param name="openAngle">型引数の開き山括弧。書いていなければ <see langword="null"/>。</param>
+    /// <param name="typeArguments">型引数のトークン。</param>
+    /// <param name="closeAngle">型引数の閉じ山括弧。書いていなければ <see langword="null"/>。</param>
     /// <returns>解析した式。</returns>
-    private InvocationExpressionSyntax ParseInvocation(HlslExpressionSyntax target)
+    private InvocationExpressionSyntax ParseInvocation(
+        HlslExpressionSyntax target,
+        HlslSyntaxToken? openAngle = null,
+        ImmutableArray<HlslSyntaxToken> typeArguments = default,
+        HlslSyntaxToken? closeAngle = null)
     {
         HlslSyntaxToken openParen = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder arguments =
@@ -1968,7 +2113,8 @@ internal sealed class HlslParser
         }
 
         HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
-        return new InvocationExpressionSyntax(target, openParen, arguments.ToImmutable(), closeParen);
+        return new InvocationExpressionSyntax(
+            target, openParen, arguments.ToImmutable(), closeParen, openAngle, typeArguments, closeAngle);
     }
 
     /// <summary>基本要素を解析する。</summary>

@@ -27,6 +27,13 @@ namespace Shaderlyn.Semantics.Symbols;
 public readonly record struct ResolvedTypeName(string TypeName, bool IsArray, string? TemplateArgument = null, int ArrayDimensions = 0);
 
 /// <summary>
+/// template の関数と同じ名前を持つ関数 1 つの、戻り値の型の決まり方 (HLSL 2021)。
+/// </summary>
+/// <param name="TypeParameters">型引数の名前。template でない関数では空。</param>
+/// <param name="ReturnType">戻り値の型名。型引数を含む型 (<c>vector&lt;T, 3&gt;</c>) で決められなければ <see langword="null"/>。</param>
+internal readonly record struct TemplateFunctionCandidate(ImmutableArray<string> TypeParameters, string? ReturnType);
+
+/// <summary>
 /// 式の型を、確実に分かる場合にだけ求める。
 /// </summary>
 /// <remarks>
@@ -112,11 +119,32 @@ public sealed class ExpressionTypeEvaluator
         = FrozenDictionary<string, FrozenDictionary<string, string>>.Empty;
 
     /// <summary>
+    /// 分からない型として扱う型名。式を囲む <c>template</c> の型引数 (<c>T</c>) である (HLSL 2021)。
+    /// </summary>
+    /// <remarks>型引数が何に置き換わるかは使う側で決まるので、その型だと答えると別の型の値について判断することになる。</remarks>
+    internal FrozenSet<string> UnknownTypeNames { get; init; } = FrozenSet<string>.Empty;
+
+    /// <summary>
+    /// template の関数の名前から、その名前を持つ関数 (template でないものを含む) の戻り値の決まり方への対応 (HLSL 2021)。
+    /// </summary>
+    internal FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> TemplateFunctions { get; init; }
+        = FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>>.Empty;
+
+    /// <summary>
     /// 式の型名を求める。
     /// </summary>
     /// <param name="expression">対象の式。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    public string? Evaluate(HlslExpressionSyntax? expression) => expression switch
+    public string? Evaluate(HlslExpressionSyntax? expression)
+    {
+        string? type = EvaluateCore(expression);
+        return type is not null && UnknownTypeNames.Contains(type) ? null : type;
+    }
+
+    /// <summary>式の型名を求める。型引数による絞り込みの前の値。</summary>
+    /// <param name="expression">対象の式。</param>
+    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
+    private string? EvaluateCore(HlslExpressionSyntax? expression) => expression switch
     {
         ParenthesizedExpressionSyntax parenthesized => Evaluate(parenthesized.Expression),
 
@@ -175,6 +203,18 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateInvocation(InvocationExpressionSyntax invocation)
     {
+        if (invocation.TargetName is { } templateName
+            && TemplateFunctions.TryGetValue(templateName, out ImmutableArray<TemplateFunctionCandidate> candidates))
+        {
+            return EvaluateTemplateCall(candidates, invocation);
+        }
+
+        // ほかの型引数を書いた呼び出し (buffer.Load<float4>(i)) の型は主張しない。
+        if (invocation.HasTypeArguments)
+        {
+            return null;
+        }
+
         if (invocation.TargetName is not { } name)
         {
             // tex.Sample(...) のように、呼び出しの対象がメンバーの場合。
@@ -207,6 +247,79 @@ public sealed class ExpressionTypeEvaluator
         }
 
         return EvaluateIntrinsic(name, arguments);
+    }
+
+    /// <summary>
+    /// template の関数の呼び出しの型を求める。
+    /// </summary>
+    /// <param name="candidates">同じ名前の関数すべての、戻り値の決まり方。</param>
+    /// <param name="invocation">呼び出し。</param>
+    /// <returns>どの候補でも同じ型になるならその型。それ以外は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 戻り値が型引数そのもの (<c>T Twice(T x)</c>) なら、書いた型引数 (<c>Twice&lt;float4&gt;</c> の <c>float4</c>) に置き換える。
+    /// 型引数を書かずに呼んだ場合は、実引数から型を推論することになるので答えない。
+    /// </para>
+    /// <para>
+    /// 引数の個数や型で候補を選ばないので、すべての候補が同じ型になるときだけ答える。
+    /// </para>
+    /// </remarks>
+    private string? EvaluateTemplateCall(
+        ImmutableArray<TemplateFunctionCandidate> candidates,
+        InvocationExpressionSyntax invocation)
+    {
+        ImmutableArray<string?> arguments = SplitTypeArguments(invocation.TypeArgumentTokens);
+        string? result = null;
+
+        foreach (TemplateFunctionCandidate candidate in candidates)
+        {
+            int index = candidate.ReturnType is null ? -1 : candidate.TypeParameters.IndexOf(candidate.ReturnType);
+            string? type = index < 0 ? candidate.ReturnType : index < arguments.Length ? arguments[index] : null;
+
+            if (type is null || (result is not null && result != type))
+            {
+                return null;
+            }
+
+            result = type;
+        }
+
+        // 型引数に書いた typedef の別名 (Twice<V3>) は元の型にする。
+        return result is null ? null : TypeAliases.GetValueOrDefault(result, result);
+    }
+
+    /// <summary>型引数のトークンを、カンマで区切った 1 つずつの型名にする。</summary>
+    /// <param name="tokens">型引数のトークン。</param>
+    /// <returns>型名。1 つの名前で書かれていないもの (<c>vector&lt;float, 3&gt;</c> や数) は <see langword="null"/>。</returns>
+    private static ImmutableArray<string?> SplitTypeArguments(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        ImmutableArray<string?>.Builder arguments = ImmutableArray.CreateBuilder<string?>();
+        List<HlslSyntaxToken> current = [];
+        int depth = 0;
+
+        foreach (HlslSyntaxToken token in tokens)
+        {
+            if (token.Kind == HlslSyntaxKind.CommaToken && depth == 0)
+            {
+                arguments.Add(AsTypeName(current));
+                current.Clear();
+                continue;
+            }
+
+            depth += token.Kind switch
+            {
+                HlslSyntaxKind.LessThanToken => 1,
+                HlslSyntaxKind.GreaterThanToken => -1,
+                _ => 0,
+            };
+            current.Add(token);
+        }
+
+        arguments.Add(AsTypeName(current));
+        return arguments.ToImmutable();
+
+        static string? AsTypeName(List<HlslSyntaxToken> argument)
+            => argument is [{ Kind: HlslSyntaxKind.IdentifierToken } single] ? single.Text : null;
     }
 
     /// <summary>

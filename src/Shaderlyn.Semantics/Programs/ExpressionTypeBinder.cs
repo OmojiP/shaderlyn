@@ -32,6 +32,7 @@ public sealed class ExpressionTypeBinder
     private readonly FrozenDictionary<string, ImmutableArray<FunctionSignature>> _functionSignatures;
     private readonly FrozenDictionary<string, FrozenDictionary<string, ResolvedTypeName>> _structFields;
     private readonly FrozenDictionary<string, FrozenDictionary<string, string>> _structOperators;
+    private readonly FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> _templateFunctions;
 
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
@@ -82,6 +83,7 @@ public sealed class ExpressionTypeBinder
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structOperators = CollectStructOperators(program);
+        _templateFunctions = CollectTemplateFunctions(program.Tree.Root.Declarations);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
         _fileVariables = CollectFileVariables(_globalNames);
         _fileScope = new ExpressionTypeEvaluator(
@@ -89,6 +91,7 @@ public sealed class ExpressionTypeBinder
         {
             TypeAliases = program.Tree.Root.TypeAliases,
             StructOperators = _structOperators,
+            TemplateFunctions = _templateFunctions,
         };
     }
 
@@ -196,6 +199,68 @@ public sealed class ExpressionTypeBinder
         return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// template の関数と、それと同じ名前の関数の、戻り値の型の決まり方を集める (HLSL 2021)。
+    /// </summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>template の関数の名前から、その名前を持つ関数すべての戻り値の決まり方への対応。</returns>
+    /// <remarks>
+    /// 戻り値の型が型引数を含む形 (<c>vector&lt;T, 3&gt;</c>) なら決められない (<see langword="null"/>)。
+    /// 名前空間の中の関数もトップレベルと同じに扱う (<see cref="UniformCollector"/> と揃える)。
+    /// </remarks>
+    private static FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> CollectTemplateFunctions(
+        ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        Dictionary<string, List<TemplateFunctionCandidate>> byName = new(StringComparer.Ordinal);
+        HashSet<string> templates = new(StringComparer.Ordinal);
+
+        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        {
+            foreach (HlslDeclarationSyntax declaration in scope)
+            {
+                switch (declaration)
+                {
+                    case TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax function } template:
+                        templates.Add(function.Name);
+                        Add(function, template.ParameterNames);
+                        break;
+
+                    case FunctionDeclarationSyntax { IsMethodDefinition: false } function:
+                        Add(function, []);
+                        break;
+
+                    case NamespaceDeclarationSyntax ns:
+                        Collect(ns.Members);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        void Add(FunctionDeclarationSyntax function, ImmutableArray<string> parameters)
+        {
+            HlslTypeSyntax type = function.ReturnType;
+            bool dependsOnParameters = type.TemplateArguments.Any(t => parameters.Contains(t.Text));
+            string? returnType = dependsOnParameters ? null : type.Name;
+
+            if (!byName.TryGetValue(function.Name, out List<TemplateFunctionCandidate>? candidates))
+            {
+                candidates = [];
+                byName[function.Name] = candidates;
+            }
+
+            candidates.Add(new TemplateFunctionCandidate(parameters, returnType));
+        }
+
+        Collect(declarations);
+
+        return byName
+            .Where(p => templates.Contains(p.Key))
+            .ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
+    }
+
     /// <summary>構造体のフィールドの宣言子を引く。</summary>
     /// <param name="structType">構造体の名前。</param>
     /// <param name="fieldName">フィールドの名前。</param>
@@ -238,19 +303,43 @@ public sealed class ExpressionTypeBinder
         if (!_byFunction.TryGetValue(function, out ExpressionTypeEvaluator? evaluator))
         {
             LocalScopes scopes = GetScopes(function);
+            FrozenSet<string> unknown = TemplateParametersOf(function);
 
             evaluator = _byFunction[function] = new ExpressionTypeEvaluator(
-                identifier => Resolve(scopes, identifier, static candidates => candidates),
+                identifier => Hide(Resolve(scopes, identifier, static candidates => candidates), unknown),
                 _functionSignatures,
                 _structFields)
             {
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructOperators = _structOperators,
+                TemplateFunctions = _templateFunctions,
+                UnknownTypeNames = unknown,
             };
         }
 
         return evaluator;
     }
+
+    /// <summary>関数を囲む <c>template</c> の型引数の名前を集める。</summary>
+    /// <param name="function">対象の関数。</param>
+    /// <returns>型引数の名前。template の中でなければ空。</returns>
+    /// <remarks>関数そのものの template と、関数を持つ構造体の template の両方を見る。</remarks>
+    private static FrozenSet<string> TemplateParametersOf(FunctionDeclarationSyntax function)
+    {
+        string[] names = [.. function.Ancestors().OfType<TemplateDeclarationSyntax>().SelectMany(t => t.ParameterNames)];
+        return names.Length == 0 ? FrozenSet<string>.Empty : names.ToFrozenSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>型引数を含む型を、分からない型にする。</summary>
+    /// <param name="type">宣言から引いた型。</param>
+    /// <param name="unknown">型引数の名前。</param>
+    /// <returns>型引数を含まなければ <paramref name="type"/>。含めば <see langword="null"/>。</returns>
+    private static ResolvedTypeName? Hide(ResolvedTypeName? type, FrozenSet<string> unknown)
+        => type is { } known
+           && unknown.Count > 0
+           && (unknown.Contains(known.TypeName) || (known.TemplateArgument is { } argument && unknown.Contains(argument)))
+            ? null
+            : type;
 
     /// <summary>識別子が指す宣言の型を引く。</summary>
     /// <param name="scopes">識別子を囲む関数の範囲。</param>
@@ -529,9 +618,12 @@ public sealed class ExpressionTypeBinder
             => candidates.Where(c => c.Condition is { IsUnknown: false } declared
                                      && conditions.IsPossible(assumption.And(declared)));
 
+        FrozenSet<string> unknown = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosing
+            ? TemplateParametersOf(enclosing)
+            : FrozenSet<string>.Empty;
         Func<IdentifierExpressionSyntax, ResolvedTypeName?> resolve = scopes is null
             ? identifier => LookupGlobal(identifier.Name)
-            : identifier => Resolve(scopes, identifier, Visible);
+            : identifier => Hide(Resolve(scopes, identifier, Visible), unknown);
 
         // 条件によって違う型を返す関数は、その構成で見える宣言だけに絞る。
         // 表を作り直すと関数の数だけ費用がかかるので、変わる名前だけを重ねる。
@@ -561,6 +653,8 @@ public sealed class ExpressionTypeBinder
         {
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructOperators = _structOperators,
+            TemplateFunctions = _templateFunctions,
+            UnknownTypeNames = unknown,
         };
     }
 

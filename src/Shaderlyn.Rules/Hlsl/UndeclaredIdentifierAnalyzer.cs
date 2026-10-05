@@ -441,6 +441,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         declared.UnionWith(ShaderCompilation.DeclaredNamesOf(enumeration));
                         break;
 
+                    case TemplateDeclarationSyntax template:
+                        declared.UnionWith(template.ParameterNames);
+                        break;
+
                     case VariableDeclarationSyntax variable when !IsInsideFunction(variable):
                         foreach (VariableDeclaratorSyntax declarator in variable.Variables)
                         {

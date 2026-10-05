@@ -317,6 +317,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
 | `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |
+| `TemplateDeclarationSyntax`       | `template<typename T>` (HLSL 2021)。`ParameterNames` (`T`) / `Declaration` (続く関数か構造体)。明示的な特殊化 (`template<>`) は `IncompleteDeclarationSyntax` |
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 
@@ -324,7 +325,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
-| `InvocationExpressionSyntax`      | 呼び出し。`Target` / `Arguments`   |
+| `InvocationExpressionSyntax`      | 呼び出し。`Target` / `Arguments`。型引数を書いた呼び出し (HLSL 2021 の `Twice<float4>(x)`) は `HasTypeArguments` / `TypeArgumentTokens` |
 | `IdentifierExpressionSyntax`      | 名前の参照。`Name`                 |
 | `MemberAccessExpressionSyntax`    | `a.b`                              |
 | `ElementAccessExpressionSyntax`   | `a[i]`                             |

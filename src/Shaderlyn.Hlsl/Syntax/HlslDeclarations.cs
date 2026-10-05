@@ -1100,3 +1100,110 @@ public sealed class IncompleteDeclarationSyntax(ImmutableArray<HlslSyntaxToken> 
         }
     }
 }
+
+/// <summary>
+/// <c>template</c> の宣言 (HLSL 2021)。<c>template&lt;typename T&gt;</c> に続く関数か構造体を持つ。
+/// </summary>
+/// <param name="keyword"><c>template</c> キーワード。</param>
+/// <param name="openAngle">型引数の並びの開き山括弧。</param>
+/// <param name="parameterTokens">型引数の並び (<c>typename T, uint N = 4</c>) のトークン。カンマを含む。</param>
+/// <param name="closeAngle">型引数の並びの閉じ山括弧。</param>
+/// <param name="declaration">型引数を使う宣言 (関数か構造体)。</param>
+/// <remarks>
+/// 型引数 (<c>T</c>) を含む型は、使う側で何に置き換わるかが決まるまで分からない。
+/// 検査はそうした型を「分からない型」として扱う。
+/// </remarks>
+public sealed class TemplateDeclarationSyntax(
+    HlslSyntaxToken keyword,
+    HlslSyntaxToken openAngle,
+    ImmutableArray<HlslSyntaxToken> parameterTokens,
+    HlslSyntaxToken closeAngle,
+    HlslDeclarationSyntax declaration) : HlslDeclarationSyntax
+{
+    /// <summary><c>template</c> キーワード。</summary>
+    public HlslSyntaxToken Keyword { get; } = keyword;
+
+    /// <summary>型引数の並びの開き山括弧。</summary>
+    public HlslSyntaxToken OpenAngle { get; } = openAngle;
+
+    /// <summary>型引数の並びのトークン。カンマを含む。</summary>
+    public ImmutableArray<HlslSyntaxToken> ParameterTokens { get; } = parameterTokens;
+
+    /// <summary>型引数の並びの閉じ山括弧。</summary>
+    public HlslSyntaxToken CloseAngle { get; } = closeAngle;
+
+    /// <summary>型引数を使う宣言 (関数か構造体)。</summary>
+    public HlslDeclarationSyntax Declaration { get; } = declaration;
+
+    /// <summary>型引数の名前 (<c>typename T, uint N</c> の <c>T</c> と <c>N</c>)。</summary>
+    /// <remarks>カンマで区切った 1 つずつの、既定値 (<c>=</c> の後ろ) より前にある最後の名前である。</remarks>
+    public ImmutableArray<string> ParameterNames { get; } = ReadParameterNames(parameterTokens);
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return Keyword;
+        yield return OpenAngle;
+
+        foreach (HlslSyntaxToken token in ParameterTokens)
+        {
+            yield return token;
+        }
+
+        yield return CloseAngle;
+        yield return Declaration;
+    }
+
+    /// <summary>型引数の並びから、型引数の名前を読む。</summary>
+    /// <param name="tokens">型引数の並びのトークン。</param>
+    /// <returns>型引数の名前。</returns>
+    private static ImmutableArray<string> ReadParameterNames(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        ImmutableArray<string>.Builder names = ImmutableArray.CreateBuilder<string>();
+        string? last = null;
+        bool inDefault = false;
+        int depth = 0;
+
+        foreach (HlslSyntaxToken token in tokens)
+        {
+            switch (token.Kind)
+            {
+                case HlslSyntaxKind.LessThanToken:
+                    depth++;
+                    break;
+
+                case HlslSyntaxKind.GreaterThanToken:
+                    depth--;
+                    break;
+
+                case HlslSyntaxKind.CommaToken when depth == 0:
+                    if (last is not null)
+                    {
+                        names.Add(last);
+                    }
+
+                    last = null;
+                    inDefault = false;
+                    break;
+
+                case HlslSyntaxKind.EqualsToken when depth == 0:
+                    inDefault = true;
+                    break;
+
+                case HlslSyntaxKind.IdentifierToken when depth == 0 && !inDefault:
+                    last = token.Text;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        if (last is not null)
+        {
+            names.Add(last);
+        }
+
+        return names.ToImmutable();
+    }
+}

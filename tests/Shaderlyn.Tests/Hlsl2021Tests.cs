@@ -21,7 +21,8 @@ namespace Shaderlyn.Tests;
 /// 使えない構文 (HL0003) として報告する。DXC の HLSL 2021 は受け付ける。
 /// </para>
 /// <para>
-/// <c>enum</c> と演算子の多重定義は構文木にする (<see cref="Hlsl2021EnumTests"/>、<see cref="Hlsl2021OperatorTests"/>)。
+/// <c>enum</c>・演算子の多重定義・<c>template</c> は構文木にする
+/// (<see cref="Hlsl2021EnumTests"/>、<see cref="Hlsl2021OperatorTests"/>、<see cref="Hlsl2021TemplateTests"/>)。
 /// まだ構文木にしない構文は読み飛ばし、その名前を「解析していない場所の名前」として扱う。
 /// 呼び出しを「宣言されていない」と報告すると、正しいコードを誤りとして指摘することになる。
 /// </para>
@@ -67,20 +68,20 @@ public sealed class Hlsl2021Tests
     public void 読み飛ばした宣言の名前を残す()
     {
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(
-            SourceText.From("template<typename T> T Twice(T x) { return x + x; }", "test.hlsl"),
+            SourceText.From("interface ILight { float3 Color(); };", "test.hlsl"),
             new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
-        Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "Twice");
+        Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "ILight");
     }
 
     /// <summary>
-    /// 読み飛ばした template の関数を呼んでも、宣言されていないと報告しないことを検証する。
+    /// 読み飛ばした template の明示的な特殊化の関数を呼んでも、宣言されていないと報告しないことを検証する。
     /// </summary>
     [Fact]
     public void 読み飛ばした宣言を呼んでも宣言が無いとは言わない()
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze("""
-            template<typename T> T Twice(T x) { return x + x; }
+            template<> float4 Twice<float4>(float4 x) { return x + x; }
 
             float4 main(float4 p : POSITION) : SV_POSITION
             {
@@ -113,6 +114,31 @@ public sealed class Hlsl2021Tests
         Assert.True(
             !diagnostics.Any(d => d.Severity >= DiagnosticSeverity.Warning),
             string.Join("\n", diagnostics.Select(d => $"{d.Id} {d.Severity}: {d.GetMessage()}")));
+    }
+
+    /// <summary>
+    /// ビットフィールドを構造体のフィールドとして読み、無いメンバーを DXC と同じく報告することを検証する (U9e)。
+    /// </summary>
+    [Fact]
+    public void ビットフィールドをフィールドとして読む()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            struct Packed { uint a : 4; uint b : 28; float f; };
+
+            float4 main(uint v : V) : SV_Target
+            {
+                Packed p;
+                p.a = v;
+                p.b = v >> 4;
+                p.f = 1;
+                float x = p.c;
+                return p.a + p.b + p.f + x;
+            }
+            """);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Equal("HL0312", diagnostic.Id);
+        Assert.Contains("a, b, f", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>HLSL 2021 の環境で 1 ファイルを解析する。</summary>

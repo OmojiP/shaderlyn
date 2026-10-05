@@ -42,6 +42,10 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   名前空間で修飾した型への型変換 (`(AnalyticPrimitive::Enum) x`) も読む。構文木は `EnumDeclarationSyntax`
 - HLSL 2021 の演算子の多重定義 (`Complex operator+(Complex other)`、`operator[]`、`operator()`) を関数として読み、本体も検査する。
   `(a + b).re` のように演算の結果を使う式は、演算子の戻り値の型として読む。構文木は `FunctionDeclarationSyntax` (`IsOperator` / `OperatorTokens`)
+- HLSL 2021 の `template` の関数と構造体を読み、本体も検査する。型引数 (`T`) を含む型は分からない型として扱い、それを根拠に指摘しない。
+  型引数を書いた呼び出し (`Twice<float4>(x)`、`buffer.Load<float4>(i)`) を読み、戻り値が型引数そのものなら書いた型に置き換える。
+  template と同じ名前の関数は、引数の個数や型を検査しない。明示的な特殊化 (`template<>`) は今までどおり読み飛ばす。
+  構文木は `TemplateDeclarationSyntax`、`InvocationExpressionSyntax.TypeArgumentTokens`
 - 汎用の HLSL 環境で、ライブラリ (`lib_6_x`) とターゲットの分からない単位では、宣言だけの関数 (HL0311) を報告しない。
   定義はリンクするほかのライブラリにありうる (`HlslCompilationUnit.AllowsExternalDefinitions`)
 - GitHub Action に入力 `environment` を足した
@@ -84,6 +88,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   組の並びが逆だと、同時に有効にならないシンボルを選べた
 - 設定ファイルで、値を 1 つだけ書くキー (`environment` / `profile` / `version` / ルールの `severity` など) に並びやキーと値の対を書くと、
   何も伝えずに無視していた。TOOL0003 で報告する
+- 山括弧の中にカンマのある型への型変換 (`(vector<float, 3>) x`) を読めず、構文の誤り (HL0001) と報告していた
 
 ## [0.1.1] - 2026-10-04
 

@@ -868,6 +868,7 @@ public sealed class ShaderCompilation
             }
 
             Dictionary<string, List<FunctionDeclarationSyntax>> byName = new(StringComparer.Ordinal);
+            HashSet<string> templates = new(StringComparer.Ordinal);
             HashSet<(SourceText Source, int Start)> seen = [];
             Dictionary<(SourceText Source, int Start), HashSet<(int Start, string? Kernel)>> blocks = [];
 
@@ -875,6 +876,12 @@ public sealed class ShaderCompilation
             {
                 foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
                 {
+                    if (declaration is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax template })
+                    {
+                        templates.Add(template.Name);
+                        continue;
+                    }
+
                     // 構造体の外で定義したメソッド (Wave::GetIndex) はグローバルな関数ではない。
                     if (declaration is not FunctionDeclarationSyntax function
                         || function.NameToken.IsMissing
@@ -908,7 +915,9 @@ public sealed class ShaderCompilation
                 }
             }
 
-            _functionDeclarations = byName.ToFrozenDictionary(
+            // template の関数と同じ名前の関数は載せない。どれが呼ばれるかは型引数の推論で決まり、
+            // ふつうの関数の形だけで引数の個数や型を判定すると、template のほうを呼んだ正しいコードを指摘することになる。
+            _functionDeclarations = byName.Where(p => !templates.Contains(p.Key)).ToFrozenDictionary(
                 p => p.Key,
                 p => (ImmutableArray<FunctionDeclarationSyntax>)[.. p.Value],
                 StringComparer.Ordinal);
@@ -1124,6 +1133,16 @@ public sealed class ShaderCompilation
                     {
                         names.Add(enumName);
                         outside.Add(enumName);
+                    }
+
+                    break;
+
+                // template の型引数 (T / N)。宣言の中でだけ見えるが、関数の中の名前と同じく、どこかで宣言された名前として扱う。
+                case TemplateDeclarationSyntax template:
+                    foreach (string parameterName in template.ParameterNames)
+                    {
+                        names.Add(parameterName);
+                        outside.Add(parameterName);
                     }
 
                     break;

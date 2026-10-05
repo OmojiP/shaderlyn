@@ -205,6 +205,9 @@ public sealed class ConditionalExpressionSyntax(
 /// <param name="openParen">開き括弧。</param>
 /// <param name="arguments">引数。区切りのカンマを含む。</param>
 /// <param name="closeParen">閉じ括弧。</param>
+/// <param name="openAngle">型引数 (HLSL 2021 の <c>Twice&lt;float4&gt;(x)</c>) の開き山括弧。無ければ <see langword="null"/>。</param>
+/// <param name="typeArgumentTokens">型引数のトークン。カンマを含む。無ければ空。</param>
+/// <param name="closeAngle">型引数の閉じ山括弧。無ければ <see langword="null"/>。</param>
 /// <remarks>
 /// <c>float4(1, 0, 0, 1)</c> のような型のコンストラクタも同じ形で表す。
 /// 構文の上では関数呼び出しと区別がつかず、
@@ -214,10 +217,25 @@ public sealed class InvocationExpressionSyntax(
     HlslExpressionSyntax target,
     HlslSyntaxToken openParen,
     ImmutableArray<HlslNodeOrTokenEntry> arguments,
-    HlslSyntaxToken closeParen) : HlslExpressionSyntax
+    HlslSyntaxToken closeParen,
+    HlslSyntaxToken? openAngle = null,
+    ImmutableArray<HlslSyntaxToken> typeArgumentTokens = default,
+    HlslSyntaxToken? closeAngle = null) : HlslExpressionSyntax
 {
     /// <summary>呼び出す対象。</summary>
     public HlslExpressionSyntax Target { get; } = target;
+
+    /// <summary>型引数の開き山括弧。型引数を書いていなければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? OpenAngle { get; } = openAngle;
+
+    /// <summary>型引数のトークン (<c>Twice&lt;float4&gt;(x)</c> の <c>float4</c>)。カンマを含む。書いていなければ空。</summary>
+    public ImmutableArray<HlslSyntaxToken> TypeArgumentTokens { get; } = typeArgumentTokens.IsDefault ? [] : typeArgumentTokens;
+
+    /// <summary>型引数の閉じ山括弧。型引数を書いていなければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? CloseAngle { get; } = closeAngle;
+
+    /// <summary>型引数を書いた呼び出しかどうか。</summary>
+    public bool HasTypeArguments => OpenAngle is not null;
 
     /// <summary>開き括弧。</summary>
     public HlslSyntaxToken OpenParen { get; } = openParen;
@@ -240,6 +258,22 @@ public sealed class InvocationExpressionSyntax(
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
     {
         yield return Target;
+
+        if (OpenAngle is not null)
+        {
+            yield return OpenAngle;
+        }
+
+        foreach (HlslSyntaxToken token in TypeArgumentTokens)
+        {
+            yield return token;
+        }
+
+        if (CloseAngle is not null)
+        {
+            yield return CloseAngle;
+        }
+
         yield return OpenParen;
 
         foreach (HlslNodeOrTokenEntry argument in Arguments)

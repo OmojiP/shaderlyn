@@ -902,12 +902,16 @@ Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: Shaderlyn.Hlsl.Syntax.H
 Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Elements { get; }
 Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null)
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Target { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseParen { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenParen { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Boolean HasTypeArguments { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax] ArgumentExpressions { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Arguments { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TypeArgumentTokens { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.String TargetName { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.JumpStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
@@ -1014,6 +1018,15 @@ Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxT
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax] Statements { get; }
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax Declaration { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ParameterTokens { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[System.String] ParameterNames { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
