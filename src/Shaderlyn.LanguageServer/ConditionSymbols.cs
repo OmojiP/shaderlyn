@@ -17,26 +17,40 @@ namespace Shaderlyn.LanguageServer;
 /// 構成の軸として宣言されたシンボルかどうか。Unity なら <c>#pragma multi_compile</c> など、
 /// ほかの環境なら設定ファイルの <c>symbols:</c> で宣言したもの。
 /// </param>
-/// <param name="Group">
-/// 同時には有効にならないシンボルの組の番号 (Unity なら同じ <c>#pragma</c> の行)。組に入っていなければ -1。
-/// </param>
-/// <param name="RequiresOne">
-/// その組のどれか 1 つが必ず有効かどうか。<c>_</c> の無い <c>multi_compile</c> と、値を持つシンボルが該当する。
+/// <param name="Groups">
+/// 属している、同時には有効にならないシンボルの組 (Unity なら同じ <c>#pragma</c> の行)。組に入っていなければ空。
+/// 1 つのシンボルが複数の組に入ることがある (<c>at-most-one: [A, B]</c> と <c>at-most-one: [B, C]</c> の <c>B</c>)。
 /// </param>
 /// <param name="Variable">値を持つシンボルの名前 (<c>QUALITY</c>)。値を持たなければ <see langword="null"/>。</param>
 /// <param name="Value">値を持つシンボルの値。値を持たなければ <see langword="null"/>。</param>
 /// <remarks>
 /// <b>同じ組のシンボルは同時に有効にならない。</b>
-/// 選ばせる画面は、組の番号と <paramref name="RequiresOne"/> を見て「組では 1 つだけ」「外せない組がある」を守る。
+/// 選ばせる画面は、組ごとに「組では 1 つだけ」「外せない組がある」を守る。
 /// 守らないと、実在しない構成を選べてしまう。値を持つシンボルは、値を 1 つ選ぶ組になる。
 /// </remarks>
 internal readonly record struct ConditionSymbol(
     string Name,
     bool Declared,
-    int Group = -1,
-    bool RequiresOne = false,
+    ImmutableArray<ConditionGroup> Groups = default,
     string? Variable = null,
-    int? Value = null);
+    int? Value = null)
+{
+    /// <summary>最初の組の番号。組に入っていなければ -1。</summary>
+    /// <remarks>組を 1 つしか知らない古い拡張のために返す。</remarks>
+    public int Group => Groups.IsDefaultOrEmpty ? -1 : Groups[0].Id;
+
+    /// <summary>最初の組のどれか 1 つが必ず有効かどうか。</summary>
+    public bool RequiresOne => !Groups.IsDefaultOrEmpty && Groups[0].RequiresOne;
+}
+
+/// <summary>
+/// 同時には有効にならないシンボルの組。
+/// </summary>
+/// <param name="Id">組の番号。</param>
+/// <param name="RequiresOne">
+/// 組のどれか 1 つが必ず有効かどうか。<c>_</c> の無い <c>multi_compile</c>、設定ファイルの <c>one-of</c>、値を持つシンボルが該当する。
+/// </param>
+internal readonly record struct ConditionGroup(int Id, bool RequiresOne);
 
 /// <summary>
 /// 条件で参照されているシンボルのうち、利用者が選んで切り替えられるものを集める。
@@ -80,8 +94,11 @@ internal static class ConditionSymbols
         HashSet<string> declared = new(StringComparer.Ordinal);
         Dictionary<string, ImmutableArray<int>> valueSymbols = new(StringComparer.Ordinal);
 
-        // 同時には有効にならない組をまとめる。画面はこの単位で「1 つだけ」「外せない」を守る。
-        Dictionary<string, (int Group, bool RequiresOne)> groups = new(StringComparer.Ordinal);
+        // 同時には有効にならない組を集める。画面はこの単位で「1 つだけ」「外せない」を守る。
+        // 同じ組 (同じ #pragma の行) はブロックごとに何度も現れるので、並びと RequiresOne が同じなら 1 つに寄せる。
+        // 重なる別の組 ([A, B] と [B, C]) は寄せない。寄せると、どちらの組にも入っていない A と C まで同時に選べなくなる。
+        List<VariantGroup> distinctGroups = [];
+        Dictionary<string, List<ConditionGroup>> groups = new(StringComparer.Ordinal);
 
         foreach (AnalyzedProgram program in programs)
         {
@@ -94,14 +111,23 @@ internal static class ConditionSymbols
 
             foreach (VariantGroup group in program.Variants.Groups)
             {
-                // 同じ組はブロックごとに何度も現れる。先頭の名前で 1 つに寄せる。
-                int index = groups.TryGetValue(group.Symbols[0], out (int Group, bool RequiresOne) known)
-                    ? known.Group
-                    : groups.Count == 0 ? 0 : groups.Values.Max(v => v.Group) + 1;
+                if (distinctGroups.Contains(group))
+                {
+                    continue;
+                }
+
+                ConditionGroup entry = new(distinctGroups.Count, group.RequiresOne);
+                distinctGroups.Add(group);
 
                 foreach (string symbol in group.Symbols)
                 {
-                    groups[symbol] = (index, group.RequiresOne);
+                    if (!groups.TryGetValue(symbol, out List<ConditionGroup>? memberships))
+                    {
+                        memberships = [];
+                        groups[symbol] = memberships;
+                    }
+
+                    memberships.Add(entry);
                 }
             }
         }
@@ -185,17 +211,17 @@ internal static class ConditionSymbols
     /// <summary>候補を 1 つ作る。</summary>
     /// <param name="name">名前。</param>
     /// <param name="declared">宣言されたシンボル。</param>
-    /// <param name="groups">組。</param>
+    /// <param name="groups">シンボルごとの、属している組。</param>
     /// <returns>候補。</returns>
     private static ConditionSymbol Create(
         string name,
         HashSet<string> declared,
-        Dictionary<string, (int Group, bool RequiresOne)> groups)
+        Dictionary<string, List<ConditionGroup>> groups)
     {
-        (int group, bool requiresOne) = groups.TryGetValue(name, out (int Group, bool RequiresOne) found) ? found : (-1, false);
+        ImmutableArray<ConditionGroup> memberships = groups.TryGetValue(name, out List<ConditionGroup>? found) ? [.. found] : [];
 
         return VariantValues.TryParseAtom(name, out string? variable, out int value)
-            ? new ConditionSymbol(name, declared.Contains(name), group, requiresOne, variable, value)
-            : new ConditionSymbol(name, declared.Contains(name), group, requiresOne);
+            ? new ConditionSymbol(name, declared.Contains(name), memberships, variable, value)
+            : new ConditionSymbol(name, declared.Contains(name), memberships);
     }
 }

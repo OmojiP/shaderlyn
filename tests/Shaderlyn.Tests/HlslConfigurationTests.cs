@@ -81,6 +81,13 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    stage: pixel\n", "'stage'")]
     [InlineData("unreal:\n  virtual-paths:\n    Plugin/A: x\n", "/ で始めて")]
     [InlineData("unreal:\n  engines: x\n", "'engines'")]
+    [InlineData("environment: [unreal]\n", "environment には値を 1 つだけ")]
+    [InlineData("unity:\n  profile: [urp]\n", "unity: の profile には値を 1 つだけ")]
+    [InlineData("hlsl:\n  version: [2021]\n", "hlsl: の version には値を 1 つだけ")]
+    [InlineData("units:\n  - files: [a.hlsl]\n", "units の要素の files には値を 1 つだけ")]
+    [InlineData("units:\n  - files: a.hlsl\n    entry: { name: Main }\n", "units の要素の entry には値を 1 つだけ")]
+    [InlineData("symbols:\n  - name: [Q]\n", "symbols の要素の name には値を 1 つだけ")]
+    [InlineData("rules:\n  HL0301:\n    severity: [error]\n", "ルール HL0301 の severity には値を 1 つだけ")]
     public void 書き誤りを報告する(string content, string expected)
     {
         ShaderlynConfiguration configuration = Parse(content);

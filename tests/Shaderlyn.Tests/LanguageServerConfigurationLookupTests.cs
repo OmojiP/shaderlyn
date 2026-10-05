@@ -78,6 +78,57 @@ public sealed class LanguageServerConfigurationLookupTests : IDisposable
     }
 
     [Fact]
+    public async Task 重なった組をひとつの組にまとめない()
+    {
+        // B は 2 つの組に入る。A と C はどちらの組でも一緒にならないので、同時に選べなければならない。
+        File.WriteAllText(Path.Combine(_workspace, ".shaderlyn.yaml"), """
+            environment: hlsl
+            symbols:
+              - at-most-one: [A, B]
+              - at-most-one: [B, C]
+              - one-of: [D, E]
+            """);
+
+        string path = Path.Combine(_workspace, "Lit.hlsl");
+
+        await using LanguageServerHarness harness = new(LanguageServer.DocumentUri.FromFilePath(path));
+        await harness.InitializeAsync(null, _workspace);
+        await harness.OpenAsync("""
+            float4 main() : SV_Target
+            {
+            #if defined(A) || defined(B) || defined(C) || defined(D) || defined(E)
+                return 1;
+            #endif
+                return 0;
+            }
+            """);
+        await harness.ReceiveDiagnosticsAsync();
+
+        JsonElement result = await harness.RequestConditionSymbolsResultAsync();
+        Dictionary<string, int[]> groupsOf = result.GetProperty("symbols").EnumerateArray().ToDictionary(
+            s => s.GetProperty("name").GetString()!,
+            s => s.TryGetProperty("groups", out JsonElement groups)
+                ? groups.EnumerateArray().Select(g => g.GetInt32()).ToArray()
+                : Array.Empty<int>());
+
+        Assert.Single(groupsOf["A"]);
+        Assert.Single(groupsOf["C"]);
+        Assert.Equal(2, groupsOf["B"].Length);
+        Assert.NotEqual(groupsOf["A"][0], groupsOf["C"][0]);
+        Assert.Contains(groupsOf["A"][0], groupsOf["B"]);
+        Assert.Contains(groupsOf["C"][0], groupsOf["B"]);
+
+        // 組ごとの「どれか 1 つが必ず有効か」。one-of の組だけが立つ。
+        Dictionary<int, bool> requiresOne = result.GetProperty("groups").EnumerateArray().ToDictionary(
+            g => g.GetProperty("id").GetInt32(),
+            g => g.GetProperty("requiresOne").GetBoolean());
+
+        Assert.False(requiresOne[groupsOf["A"][0]]);
+        Assert.False(requiresOne[groupsOf["C"][0]]);
+        Assert.True(requiresOne[groupsOf["D"][0]]);
+    }
+
+    [Fact]
     public async Task 設定ファイルを書き換えたら読み直す()
     {
         string configuration = Path.Combine(_workspace, ".shaderlyn.yaml");

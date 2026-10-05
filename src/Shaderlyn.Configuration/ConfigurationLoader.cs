@@ -189,6 +189,11 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(hlsl, KnownHlslKeys, "hlsl:");
             }
 
+            ReportNonScalars(root, string.Empty, "version", "environment", "profile");
+            ReportNonScalars(unity, "unity: の ", "profile", "project", "editor");
+            ReportNonScalars(unreal, "unreal: の ", "engine", "project");
+            ReportNonScalars(hlsl, "hlsl: の ", "version");
+
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
             return new ShaderlynConfiguration
@@ -242,6 +247,33 @@ internal static class ConfigurationLoader
                     $"設定ファイルのバージョン {value} はこのツールより新しいものです "
                     + $"(対応しているバージョン: {ShaderlynConfiguration.SupportedVersion})。"
                     + "解釈できない設定は無視されます。"));
+            }
+        }
+
+        /// <summary>
+        /// 値を 1 つだけ書くキーに、並びや写像が書かれていないかを確かめる。
+        /// </summary>
+        /// <param name="mapping">確かめる写像。無ければ何もしない。</param>
+        /// <param name="context">メッセージに含める文脈 (<c>unity:</c> など)。最上位なら空。</param>
+        /// <param name="keys">値を 1 つだけ書くキー。</param>
+        /// <remarks>
+        /// <b>型の違う値を黙って捨てない。</b> <c>environment: [unreal]</c> を読めないまま捨てると、
+        /// 既定の Unity の環境で解析し、設定が効いていないことに気づけない。
+        /// </remarks>
+        private void ReportNonScalars(YamlMapping? mapping, string context, params string[] keys)
+        {
+            if (mapping is null)
+            {
+                return;
+            }
+
+            foreach (string key in keys)
+            {
+                if (mapping.TryGet(key, out YamlNode? node) && node is not YamlScalar)
+                {
+                    problems.Add(new ConfigurationProblem(
+                        node.Line, $"{context}{key} には値を 1 つだけ書いてください。並びやキーと値の対は書けません。"));
+                }
             }
         }
 
@@ -402,6 +434,7 @@ internal static class ConfigurationLoader
             foreach (YamlMapping item in ReadMappingSequence("symbols"))
             {
                 ReportUnknownKeys(item, KnownSymbolKeys, "symbols の要素");
+                ReportNonScalars(item, "symbols の要素の ", "name");
 
                 string[] kinds = [.. new[] { "name", "one-of", "at-most-one" }.Where(item.Entries.ContainsKey)];
 
@@ -461,7 +494,12 @@ internal static class ConfigurationLoader
         {
             if (!item.TryGetScalar("name", out YamlScalar? name) || name.Value.Length == 0)
             {
-                problems.Add(new ConfigurationProblem(item.Line, "symbols の name にはシンボルの名前を書いてください。"));
+                // 値が 1 つでないものは ReportNonScalars が報告している。
+                if (item.Entries["name"] is YamlScalar)
+                {
+                    problems.Add(new ConfigurationProblem(item.Line, "symbols の name にはシンボルの名前を書いてください。"));
+                }
+
                 return null;
             }
 
@@ -529,10 +567,16 @@ internal static class ConfigurationLoader
             foreach (YamlMapping item in ReadMappingSequence("units"))
             {
                 ReportUnknownKeys(item, KnownUnitKeys, "units の要素");
+                ReportNonScalars(item, "units の要素の ", "files", "entry", "target");
 
                 if (ReadOptionalScalar(item, "files") is not { } files)
                 {
-                    problems.Add(new ConfigurationProblem(item.Line, "units の要素には files (対象のファイルの glob) を書いてください。"));
+                    // 書いてあるのに値が 1 つでないものは、上で報告している。
+                    if (!item.Entries.ContainsKey("files"))
+                    {
+                        problems.Add(new ConfigurationProblem(item.Line, "units の要素には files (対象のファイルの glob) を書いてください。"));
+                    }
+
                     continue;
                 }
 
@@ -741,6 +785,7 @@ internal static class ConfigurationLoader
             ImmutableDictionary<string, ImmutableDictionary<string, string>>.Builder optionBuilder)
         {
             ReportUnknownKeys(detail, ["severity", "options"], $"ルール {ruleId}");
+            ReportNonScalars(detail, $"ルール {ruleId} の ", "severity");
 
             if (detail.TryGetScalar("severity", out YamlScalar? severity))
             {

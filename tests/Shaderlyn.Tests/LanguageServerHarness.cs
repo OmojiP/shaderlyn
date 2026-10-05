@@ -487,6 +487,11 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
             : [];
     }
 
+    /// <summary>条件のシンボルの応答の結果全体を求める。</summary>
+    /// <returns><c>result</c> のオブジェクト。</returns>
+    public Task<JsonElement> RequestConditionSymbolsResultAsync()
+        => RequestAsync("shaderlyn/conditionSymbols", new { textDocument = new { uri = Uri } });
+
     /// <summary>条件のシンボルの応答をそのまま求める。</summary>
     /// <returns><c>symbols</c> の並び。</returns>
     public async Task<JsonElement[]> RequestConditionSymbolsRawAsync()

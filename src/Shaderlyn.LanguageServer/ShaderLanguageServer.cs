@@ -908,10 +908,20 @@ public sealed partial class ShaderLanguageServer
 
                     // 同じ行のシンボルは同時に有効にならない。
                     // 画面がそれを守れるよう、行の単位と「外せない行か」を添える。
+                    // group / requiresOne は最初の組だけを表す (組を 1 つしか知らない古い拡張のため)。
+                    // 1 つのシンボルが複数の組に入ることがあるので、groups にすべての組の番号を並べる。
                     if (byName.TryGetValue(name, out ConditionSymbol symbol) && symbol.Group >= 0)
                     {
                         writer.WriteNumber("group", symbol.Group);
                         writer.WriteBoolean("requiresOne", symbol.RequiresOne);
+                        writer.WriteStartArray("groups");
+
+                        foreach (ConditionGroup group in symbol.Groups)
+                        {
+                            writer.WriteNumberValue(group.Id);
+                        }
+
+                        writer.WriteEndArray();
                     }
 
                     // 値を持つシンボルの原子 (QUALITY==2) は、名前と値を分けて添える。画面は「QUALITY = 2」と見せる。
@@ -921,6 +931,22 @@ public sealed partial class ShaderLanguageServer
                         writer.WriteNumber("value", value);
                     }
 
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+
+                // 組ごとの「どれか 1 つが必ず有効か」。番号は symbols の groups と同じ。
+                writer.WriteStartArray("groups");
+
+                foreach (ConditionGroup group in candidates
+                             .SelectMany(c => c.Groups.IsDefault ? [] : c.Groups)
+                             .Distinct()
+                             .OrderBy(g => g.Id))
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("id", group.Id);
+                    writer.WriteBoolean("requiresOne", group.RequiresOne);
                     writer.WriteEndObject();
                 }
 
