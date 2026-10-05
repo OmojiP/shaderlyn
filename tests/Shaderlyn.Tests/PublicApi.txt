@@ -1123,6 +1123,7 @@ Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Syntax.Va
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.SourceText Text { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Semantics.Environments.HlslCompilationUnit <Clone>$()
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean AllowsExternalDefinitions { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslCompilationUnit)
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
@@ -1473,6 +1474,7 @@ Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.Int32 GetHashCode
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.String ToString()
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Element = 1
+Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Gathered = 3
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Scalar = 2
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Unknown = 0
 Shaderlyn.Semantics.Symbols.UniformSymbol : sealed class

@@ -105,7 +105,8 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <returns>単位。<c>units:</c> に当てはまらなければ、ファイル全体の 1 つ。</returns>
     private ImmutableArray<HlslCompilationUnit> CreateUnits(SourceText text)
     {
-        HlslCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text);
+        // ターゲットが分からない単位では、ほかのライブラリとリンクするかも分からない。宣言だけの関数を誤りにしない (HL0311)。
+        HlslCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
 
         if (string.IsNullOrEmpty(text.FilePath))
         {
@@ -131,6 +132,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
                 ExtraMacros = unit.Defines.IsEmpty ? null : SemanticsSetup.ApplyDefines(ImmutableDictionary<string, string>.Empty, unit.Defines),
                 EntryPoints = unit.Entry is { } entry ? [new HlslEntryPoint(entry, EntryOrigin)] : [],
                 Target = HlslShaderTarget.TryParse(unit.Target, out HlslShaderTarget? target) ? target : null,
+                AllowsExternalDefinitions = target is null || target.Value.Stage == HlslShaderStage.Library,
                 Variants = unit.Symbols is { } symbols ? BuildVariants(_configuration, symbols) : null,
             }),
         ];

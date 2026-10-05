@@ -60,6 +60,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 {
+    /// <summary>構造体の宣言の形。関数の形 (仮引数の型の並び) や変数の形 (空) とは重ならない。</summary>
+    private const string StructShape = "<struct>";
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.Redeclaration];
@@ -275,13 +278,16 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 break;
 
+            // 構造体の名前は、変数や関数の名前とはぶつからない。C++ と同じく、同じ名前の変数は型の名前を隠すだけである
+            // (ConstantBuffer<Constants> Constants。DXC はこれを受け付け、D3D12 のサンプルもこの書き方をする)。
+            // 形を分けて、構造体どうしだけを比べる。
             case StructDeclarationSyntax structure
                 when structure.NameToken is { IsMissing: false } structureName:
                 yield return new Declared(
                     structure.Name,
                     structureName.GetLocation(),
                     condition.GetCondition(structure),
-                    string.Empty);
+                    StructShape);
                 break;
 
             default:

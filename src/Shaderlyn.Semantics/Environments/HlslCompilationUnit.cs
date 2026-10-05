@@ -65,4 +65,18 @@ public sealed record HlslCompilationUnit(
     /// ソースの中の指令で宣言する環境 (Unity の <c>#pragma multi_compile</c>) は、ここではなく単位のトークンと展開の結果から読む。
     /// </remarks>
     public VariantSpace? Variants { get; init; }
+
+    /// <summary>
+    /// 宣言だけの関数の定義が、ほかの場所 (ほかのライブラリ) にありうるかどうか。既定は <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// DXR のライブラリ (<c>lib_6_x</c>) は、ほかのライブラリとリンクしてから使う。宣言だけして定義はほかのライブラリに置く書き方がある。
+    /// 立っていれば、宣言に定義が無いこと (HL0311) を報告しない。
+    /// </para>
+    /// <para>
+    /// 環境が決める。汎用の HLSL 環境は、ターゲットがライブラリか、ターゲットが分からない単位で立てる。Unity は立てない (リンクしない)。
+    /// </para>
+    /// </remarks>
+    public bool AllowsExternalDefinitions { get; init; }
 }

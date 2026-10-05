@@ -56,6 +56,13 @@ internal static class HlslKeywords
         "RasterizerOrderedTexture1D", "RasterizerOrderedTexture1DArray", "RasterizerOrderedTexture2D",
         "RasterizerOrderedTexture2DArray", "RasterizerOrderedTexture3D",
         "RasterizerOrderedBuffer", "RasterizerOrderedByteAddressBuffer", "RasterizerOrderedStructuredBuffer",
+
+        // ワークグラフ (シェーダーモデル 6.8) の入出力のレコード。
+        "DispatchNodeInputRecord", "RWDispatchNodeInputRecord",
+        "GroupNodeInputRecords", "RWGroupNodeInputRecords",
+        "ThreadNodeInputRecord", "RWThreadNodeInputRecord", "EmptyNodeInput",
+        "NodeOutput", "NodeOutputArray", "EmptyNodeOutput", "EmptyNodeOutputArray",
+        "ThreadNodeOutputRecords", "GroupNodeOutputRecords",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -90,6 +97,9 @@ internal static class HlslKeywords
         "precise", "inline", "row_major", "column_major", "globallycoherent",
         "nointerpolation", "linear", "centroid", "noperspective", "sample",
         "in", "out", "inout", "unsigned", "snorm", "unorm",
+
+        // ライブラリ (lib_6_x) からほかのライブラリへ見せる関数 (export void F())。
+        "export",
 
         // ジオメトリシェーダーの入力プリミティブ種別。
         // 引数の型の前に置かれるため、修飾子として扱わないと

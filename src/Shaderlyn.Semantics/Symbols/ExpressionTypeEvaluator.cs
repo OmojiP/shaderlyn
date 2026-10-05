@@ -461,6 +461,9 @@ public sealed class ExpressionTypeEvaluator
         {
             TextureMethodReturnType.Element => texture.TemplateArgument ?? "float4",
             TextureMethodReturnType.Scalar => "float",
+            TextureMethodReturnType.Gathered => HlslTypeClassifier.TryDescribeNumeric(texture.TemplateArgument ?? "float4", out HlslNumericShape element)
+                ? element.BaseName + "4"
+                : "float4",
             _ => null,
         };
     }

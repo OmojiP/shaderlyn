@@ -70,6 +70,9 @@ public enum TextureMethodReturnType
 
     /// <summary>比較の結果。スカラー。</summary>
     Scalar,
+
+    /// <summary>テクセルの成分を 4 つ集めたベクトル (<c>Gather</c> 系)。<c>Texture2D&lt;float3&gt;</c> なら <c>float4</c>。</summary>
+    Gathered,
 }
 
 /// <summary>
@@ -333,11 +336,17 @@ public static class HlslIntrinsics
             ["SampleBias"] = TextureMethodReturnType.Element,
             ["SampleGrad"] = TextureMethodReturnType.Element,
             ["Load"] = TextureMethodReturnType.Element,
-            ["Gather"] = TextureMethodReturnType.Element,
-            ["GatherRed"] = TextureMethodReturnType.Element,
-            ["GatherGreen"] = TextureMethodReturnType.Element,
-            ["GatherBlue"] = TextureMethodReturnType.Element,
-            ["GatherAlpha"] = TextureMethodReturnType.Element,
+            // 4 つのテクセルから 1 成分ずつ集めるので、要素の成分の型の 4 成分になる (Texture2D<float3> でも float4)。
+            ["Gather"] = TextureMethodReturnType.Gathered,
+            ["GatherRed"] = TextureMethodReturnType.Gathered,
+            ["GatherGreen"] = TextureMethodReturnType.Gathered,
+            ["GatherBlue"] = TextureMethodReturnType.Gathered,
+            ["GatherAlpha"] = TextureMethodReturnType.Gathered,
+            ["GatherCmp"] = TextureMethodReturnType.Gathered,
+            ["GatherCmpRed"] = TextureMethodReturnType.Gathered,
+            ["GatherCmpGreen"] = TextureMethodReturnType.Gathered,
+            ["GatherCmpBlue"] = TextureMethodReturnType.Gathered,
+            ["GatherCmpAlpha"] = TextureMethodReturnType.Gathered,
 
             // 比較の結果はスカラーになる。
             ["SampleCmp"] = TextureMethodReturnType.Scalar,

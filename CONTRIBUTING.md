@@ -22,6 +22,14 @@ dotnet test
 - **Native AOT で配布しています。** リフレクションに頼るコードはビルドで弾かれます（`IsAotCompatible`）
 - VS Code 拡張を動かすには `editors/vscode` で `npm install` し、VS Code の「実行とデバッグ」から「VS Code 拡張を起動」を選びます
 - Unity がインストールされていなくてもテストは通ります。Unity の実物を使う検証は、見つからなければ飛ばされます
+- DirectX 12 の公開サンプルを使う検証 (誤検出が無いか) は、コーパスを取ってきて環境変数で渡したときだけ動きます。コーパスはリポジトリに入れません (`.work/` は git の対象外)
+
+  ```sh
+  node tools/corpus/fetch.mjs
+  SHADERLYN_HLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~ExternalCorpusTests"
+  ```
+
+  指摘の一覧は `.work/corpus/report-<名前>.txt` に書き出されます
 
 ## ルールを足す・直す
 

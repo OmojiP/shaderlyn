@@ -375,6 +375,14 @@ public sealed class HlslLexer
         {
             if (_text[_position] == '\\')
             {
+                // 行末のバックスラッシュは行の継続である。文字列は次の行へ続く
+                // (#define ROOT_SIG "CBV(b0), \ の形。ルートシグネチャをマクロに書くときに使う)。
+                if (IsLineBreakAt(_position + 1))
+                {
+                    _position += _text[_position + 1] == '\r' && _position + 2 < _text.Length && _text[_position + 2] == '\n' ? 3 : 2;
+                    continue;
+                }
+
                 _position = Math.Min(_position + 2, _text.Length);
                 continue;
             }
@@ -394,6 +402,9 @@ public sealed class HlslLexer
 
         return (kind, _text.ToString(TextSpan.FromBounds(Math.Min(start + 1, _position), _position)));
     }
+
+    /// <summary>MSVC 流の、無限大と非数を表す浮動小数の書き方 (<c>1.#INF</c>)。長いものを先に並べる。</summary>
+    private static readonly string[] SpecialFloatSuffixes = ["#QNAN", "#SNAN", "#INF", "#IND"];
 
     /// <summary>
     /// 数値リテラルを読み進める。
@@ -435,6 +446,16 @@ public sealed class HlslLexer
             while (_position < _text.Length && char.IsDigit(_text[_position]))
             {
                 _position++;
+            }
+
+            // MSVC 流の無限大と非数 (1.#INF / 1.#IND / 1.#QNAN)。FXC と DXC が受け付ける。
+            foreach (string special in SpecialFloatSuffixes)
+            {
+                if (string.CompareOrdinal(_text.ToString(new TextSpan(_position, Math.Min(special.Length, _text.Length - _position))), special) == 0)
+                {
+                    _position += special.Length;
+                    return HlslSyntaxKind.NumericLiteralToken;
+                }
             }
         }
 

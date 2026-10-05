@@ -306,6 +306,25 @@ internal sealed class HlslParser
             return ParseNamespace();
         }
 
+        // using namespace dx; (シェーダーモデル 6.9 の dx::HitObject など)。名前の引き方には関わらないので読み飛ばす。
+        // 修飾した名前 (dx::HitObject) は今までどおり読める。
+        if (CurrentTextIs("using"))
+        {
+            ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+            while (!AtEnd && Current.Kind != HlslSyntaxKind.SemicolonToken)
+            {
+                skipped.Add(Advance());
+            }
+
+            if (Current.Kind == HlslSyntaxKind.SemicolonToken)
+            {
+                skipped.Add(Advance());
+            }
+
+            return new IncompleteDeclarationSyntax(skipped.ToImmutable());
+        }
+
         ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
 
         if (CurrentTextIs("class") || CurrentTextIs("interface"))
@@ -565,6 +584,12 @@ internal sealed class HlslParser
     /// <returns>解析した仮引数。</returns>
     private ParameterSyntax ParseParameter()
     {
+        // 引数に付ける属性 (ワークグラフの [MaxRecords(2)] NodeOutput<T> output)。型の判定には関わらないので読み飛ばす。
+        if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        {
+            _ = ParseAttributes();
+        }
+
         ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
 
         // メッシュシェーダーの出力・増幅シェーダーの受け渡し (out vertices Vertex verts[64])。
@@ -701,6 +726,12 @@ internal sealed class HlslParser
     private StructDeclarationSyntax ParseStruct()
     {
         HlslSyntaxToken keyword = Advance();
+
+        // 構造体に付ける属性 (struct [raypayload] RayPayload)。読み飛ばす。
+        if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        {
+            _ = ParseAttributes();
+        }
 
         HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
 
@@ -1860,6 +1891,14 @@ internal sealed class HlslParser
             {
                 HlslSyntaxToken openParen = Advance();
                 HlslExpressionSyntax inner = ParseExpression();
+
+                // 括弧の中のカンマ演算子 ((0.1, 0.1, 0.1, 1) は 1 になる)。左から順に二項演算として読む。値の型は決めない。
+                while (Current.Kind == HlslSyntaxKind.CommaToken)
+                {
+                    HlslSyntaxToken comma = Advance();
+                    inner = new BinaryExpressionSyntax(inner, comma, ParseExpression());
+                }
+
                 HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
                 return new ParenthesizedExpressionSyntax(openParen, inner, closeParen);
             }

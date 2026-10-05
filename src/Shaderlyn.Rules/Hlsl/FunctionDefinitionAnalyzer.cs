@@ -69,6 +69,12 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in EnumeratePrograms(compilation))
         {
+            // ほかのライブラリとリンクする単位 (lib_6_x など) では、定義はほかのライブラリにありうる。宣言だけでも誤りではない。
+            if (program.Unit.AllowsExternalDefinitions)
+            {
+                continue;
+            }
+
             if (!definedByBlock.TryGetValue(program.BlockKey, out Dictionary<string, SymbolCondition>? defined))
             {
                 continue;
