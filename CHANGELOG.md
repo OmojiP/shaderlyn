@@ -51,7 +51,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - 汎用の HLSL 環境で、ライブラリ (`lib_6_x`) とターゲットの分からない単位では、宣言だけの関数 (HL0311) を報告しない。
   定義はリンクするほかのライブラリにありうる (`HlslCompilationUnit.AllowsExternalDefinitions`)
 - GitHub Action に入力 `environment` を足した
-- 環境ごとの設定ファイルのテンプレートと、試すためのシェーダー ([samples/environments](samples/environments/))
+- 環境ごとの設定ファイルのテンプレートと、試すためのシェーダー ([samples/environments](samples/environments/))。
+  汎用の HLSL には HLSL 2021 の構文を使うシェーダーと、DXR のライブラリ (`lib_6_6`) の単位がある
 
 ### 変更
 
@@ -90,6 +91,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   組の並びが逆だと、同時に有効にならないシンボルを選べた
 - 設定ファイルで、値を 1 つだけ書くキー (`environment` / `profile` / `version` / ルールの `severity` など) に並びやキーと値の対を書くと、
   何も伝えずに無視していた。TOOL0003 で報告する
+- `--env` が、Unity 以外の環境でも `Packages/<名前>/... は解決できません` と書いていた
 - 山括弧の中にカンマのある型への型変換 (`(vector<float, 3>) x`) を読めず、構文の誤り (HL0001) と報告していた
 
 ## [0.1.1] - 2026-10-04

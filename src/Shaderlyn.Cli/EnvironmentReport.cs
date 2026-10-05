@@ -89,7 +89,7 @@ internal static partial class EnvironmentReport
             ? null
             : SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
 
-        WriteSearchOrder(builder, options, settings, editor?.DataPath, packages);
+        WriteSearchOrder(builder, options, settings, editor?.DataPath, packages, isUnity);
 
         IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor?.DataPath);
         ImmutableArray<IncludeLine> includes = ReadDirectIncludes(files);
@@ -351,12 +351,14 @@ internal static partial class EnvironmentReport
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
     /// <param name="editorData">Editor のデータフォルダー。</param>
     /// <param name="packages">パッケージの解決器。</param>
+    /// <param name="isUnity">Unity の環境かどうか。Packages/ の行は Unity の環境でだけ出す。</param>
     private static void WriteSearchOrder(
         StringBuilder builder,
         CommandLineOptions options,
         EffectiveSettings settings,
         string? editorData,
-        UnityPackageIncludeResolver? packages)
+        UnityPackageIncludeResolver? packages,
+        bool isUnity)
     {
         Section(builder, "#include を探す順序");
 
@@ -367,6 +369,11 @@ internal static partial class EnvironmentReport
         {
             bool exists = Directory.Exists(path);
             Line(builder, $"  {index++}. {(exists ? string.Empty : Warning)}{FullPath(path)}{(exists ? string.Empty : " (ありません)")}");
+        }
+
+        if (!isUnity)
+        {
+            return;
         }
 
         Line(builder, packages is null

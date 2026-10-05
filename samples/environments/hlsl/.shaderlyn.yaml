@@ -31,6 +31,9 @@ units:
     entry: MainPS
     target: ps_6_6
     defines: [PIXEL_SHADER=1]   # この単位でだけ定義するマクロ
+  - files: Shaders/Library/*.hlsl   # * はフォルダーをまたがないので、上の 2 つの単位には入らない
+    target: lib_6_6       # ライブラリ (DXR など)。entry は書かない。宣言だけの関数を HL0311 にしない
+    symbols: []           # 構成の軸を使わない
 
 rules:
   HL0331: none            # 例: 使われていないシンボルの指摘を止める

@@ -243,6 +243,7 @@ public sealed class HlslConfigurationTests : IDisposable
         Assert.Contains("QUALITY ∈ {0, 1}", output, StringComparison.Ordinal);
         Assert.Contains("*.hlsl: entry MainPS, target ps_6_6", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Unity Editor", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Packages/<名前>", output, StringComparison.Ordinal);
     }
 
     private static ShaderlynConfiguration Parse(string content)
