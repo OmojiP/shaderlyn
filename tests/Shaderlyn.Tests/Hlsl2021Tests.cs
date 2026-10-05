@@ -21,6 +21,7 @@ namespace Shaderlyn.Tests;
 /// 使えない構文 (HL0003) として報告する。DXC の HLSL 2021 は受け付ける。
 /// </para>
 /// <para>
+/// <c>enum</c> と演算子の多重定義は構文木にする (<see cref="Hlsl2021EnumTests"/>、<see cref="Hlsl2021OperatorTests"/>)。
 /// まだ構文木にしない構文は読み飛ばし、その名前を「解析していない場所の名前」として扱う。
 /// 呼び出しを「宣言されていない」と報告すると、正しいコードを誤りとして指摘することになる。
 /// </para>

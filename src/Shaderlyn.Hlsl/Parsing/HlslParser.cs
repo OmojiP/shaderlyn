@@ -475,10 +475,12 @@ internal sealed class HlslParser
 
         HlslTypeSyntax type = ParseType();
 
-        // operator による演算子の多重定義 (S operator+(S a, S b) { ... }) は Unity では使えない。
+        // operator による演算子の多重定義 (S operator+(S other) { ... }) は HLSL 2021 から使える。
         if (CurrentTextIs("operator"))
         {
-            return ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
+            return LanguageVersion == HlslLanguageVersion.Hlsl2021
+                ? ParseOperatorFunction(attributes, modifiers, type)
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
         }
 
         if (Current.Kind != HlslSyntaxKind.IdentifierToken)
@@ -525,6 +527,7 @@ internal sealed class HlslParser
     /// <param name="returnType">戻り値の型。</param>
     /// <param name="name">関数名。</param>
     /// <param name="qualifiers">構造体の外でのメソッドの定義なら、関数名の前の修飾 (<c>Wave</c> と <c>::</c>)。</param>
+    /// <param name="operatorTokens">演算子の多重定義なら、<c>operator</c> に続く記号。</param>
     /// <returns>解析した宣言。</returns>
     /// <remarks>
     /// 文法:
@@ -535,7 +538,8 @@ internal sealed class HlslParser
         ImmutableArray<HlslSyntaxToken> modifiers,
         HlslTypeSyntax returnType,
         HlslSyntaxToken name,
-        ImmutableArray<HlslSyntaxToken> qualifiers = default)
+        ImmutableArray<HlslSyntaxToken> qualifiers = default,
+        ImmutableArray<HlslSyntaxToken> operatorTokens = default)
     {
         HlslSyntaxToken openParen = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder parameters =
@@ -571,13 +575,52 @@ internal sealed class HlslParser
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
             return new FunctionDeclarationSyntax(
                 attributes, modifiers, returnType, name, openParen,
-                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers);
+                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens);
         }
 
         HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
         return new FunctionDeclarationSyntax(
             attributes, modifiers, returnType, name, openParen,
-            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers);
+            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens);
+    }
+
+    /// <summary>
+    /// HLSL 2021 の演算子の多重定義 (<c>Complex operator+(Complex other) { ... }</c>) を関数として解析する。
+    /// </summary>
+    /// <param name="attributes">属性。</param>
+    /// <param name="modifiers">修飾子。</param>
+    /// <param name="returnType">戻り値の型。</param>
+    /// <returns>解析した宣言。</returns>
+    /// <remarks>
+    /// 記号は 1 トークンが基本で、<c>operator[]</c> と <c>operator()</c> だけが 2 トークンになる。
+    /// <c>operator()</c> の後ろにはもう 1 組の括弧 (仮引数) が続く。
+    /// </remarks>
+    private HlslDeclarationSyntax ParseOperatorFunction(
+        ImmutableArray<HlslAttributeSyntax> attributes,
+        ImmutableArray<HlslSyntaxToken> modifiers,
+        HlslTypeSyntax returnType)
+    {
+        HlslSyntaxToken keyword = Advance();
+        ImmutableArray<HlslSyntaxToken>.Builder symbols = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+        if ((Current.Kind == HlslSyntaxKind.OpenBracketToken && Peek(1).Kind == HlslSyntaxKind.CloseBracketToken)
+            || (Current.Kind == HlslSyntaxKind.OpenParenToken && Peek(1).Kind == HlslSyntaxKind.CloseParenToken
+                && Peek(2).Kind == HlslSyntaxKind.OpenParenToken))
+        {
+            symbols.Add(Advance());
+            symbols.Add(Advance());
+        }
+        else if (!AtEnd && Current.Kind is not (HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.IdentifierToken))
+        {
+            symbols.Add(Advance());
+        }
+
+        if (symbols.Count == 0 || Current.Kind != HlslSyntaxKind.OpenParenToken)
+        {
+            return RecoverDeclaration($"演算子と '(' が必要ですが '{DescribeCurrent()}' がありました。");
+        }
+
+        return ParseFunctionRest(attributes, modifiers, returnType, keyword, operatorTokens: symbols.ToImmutable());
     }
 
     /// <summary>関数の仮引数を 1 つ解析する。</summary>

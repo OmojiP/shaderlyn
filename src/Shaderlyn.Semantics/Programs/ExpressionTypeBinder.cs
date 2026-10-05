@@ -31,6 +31,7 @@ public sealed class ExpressionTypeBinder
     private readonly ShaderCompilation _compilation;
     private readonly FrozenDictionary<string, ImmutableArray<FunctionSignature>> _functionSignatures;
     private readonly FrozenDictionary<string, FrozenDictionary<string, ResolvedTypeName>> _structFields;
+    private readonly FrozenDictionary<string, FrozenDictionary<string, string>> _structOperators;
 
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
@@ -80,12 +81,14 @@ public sealed class ExpressionTypeBinder
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
+        _structOperators = CollectStructOperators(program);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
         _fileVariables = CollectFileVariables(_globalNames);
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
             TypeAliases = program.Tree.Root.TypeAliases,
+            StructOperators = _structOperators,
         };
     }
 
@@ -147,6 +150,52 @@ public sealed class ExpressionTypeBinder
         return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// 構造体の中で多重定義した演算子の、戻り値の型を集める (HLSL 2021)。
+    /// </summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <returns>構造体の名前から、演算子の名前 (<c>operator+</c>) と戻り値の型への対応。</returns>
+    /// <remarks>
+    /// 同じ演算子を引数の型を変えて何度も定義できる。
+    /// 実引数の型による選択はしないので、すべての定義が同じ型を返す演算子だけを載せる。
+    /// </remarks>
+    private static FrozenDictionary<string, FrozenDictionary<string, string>> CollectStructOperators(AnalyzedProgram program)
+    {
+        Dictionary<string, FrozenDictionary<string, string>> byStruct = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax declaration in program.Structs)
+        {
+            if (declaration.Name.Length == 0 || byStruct.ContainsKey(declaration.Name))
+            {
+                continue;
+            }
+
+            Dictionary<string, string?> operators = new(StringComparer.Ordinal);
+
+            foreach (HlslDeclarationSyntax member in declaration.Members)
+            {
+                if (member is not FunctionDeclarationSyntax { IsOperator: true } function)
+                {
+                    continue;
+                }
+
+                string returnType = function.ReturnType.Name;
+                operators[function.Name] = operators.TryGetValue(function.Name, out string? seen) && seen != returnType
+                    ? null
+                    : returnType;
+            }
+
+            if (operators.Count > 0)
+            {
+                byStruct[declaration.Name] = operators
+                    .Where(p => p.Value is not null)
+                    .ToFrozenDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+            }
+        }
+
+        return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
     /// <summary>構造体のフィールドの宣言子を引く。</summary>
     /// <param name="structType">構造体の名前。</param>
     /// <param name="fieldName">フィールドの名前。</param>
@@ -196,6 +245,7 @@ public sealed class ExpressionTypeBinder
                 _structFields)
             {
                 TypeAliases = Program.Tree.Root.TypeAliases,
+                StructOperators = _structOperators,
             };
         }
 
@@ -510,6 +560,7 @@ public sealed class ExpressionTypeBinder
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
             TypeAliases = Program.Tree.Root.TypeAliases,
+            StructOperators = _structOperators,
         };
     }
 

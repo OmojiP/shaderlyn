@@ -106,6 +106,12 @@ public sealed class ExpressionTypeEvaluator
     public FrozenDictionary<string, string> TypeAliases { get; init; } = FrozenDictionary<string, string>.Empty;
 
     /// <summary>
+    /// 構造体の名前から、その構造体で多重定義した演算子 (<c>operator+</c>) と戻り値の型への対応 (HLSL 2021)。
+    /// </summary>
+    internal FrozenDictionary<string, FrozenDictionary<string, string>> StructOperators { get; init; }
+        = FrozenDictionary<string, FrozenDictionary<string, string>>.Empty;
+
+    /// <summary>
     /// 式の型名を求める。
     /// </summary>
     /// <param name="expression">対象の式。</param>
@@ -776,9 +782,30 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="binary">対象の演算。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     /// <remarks>
+    /// <para>
     /// 代入は左辺の型になるが、実引数の位置に代入を書くコードは検査の対象として想定していない。
+    /// </para>
+    /// <para>
+    /// 左辺が演算子を多重定義した構造体なら、その演算子の戻り値の型になる (HLSL 2021)。
+    /// 演算子は構造体の中でしか定義できないので、多重定義が効くのは左辺が構造体のときだけである。
+    /// </para>
     /// </remarks>
-    private string? EvaluateBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
+    private string? EvaluateBinary(BinaryExpressionSyntax binary)
+    {
+        if (StructOperators.Count > 0
+            && Evaluate(binary.Left) is { } left
+            && StructOperators.TryGetValue(TypeAliases.GetValueOrDefault(left, left), out FrozenDictionary<string, string>? operators))
+        {
+            return operators.GetValueOrDefault("operator" + binary.OperatorToken.Text);
+        }
+
+        return EvaluateBuiltInBinary(binary);
+    }
+
+    /// <summary>組み込みの二項演算の結果の型を求める。</summary>
+    /// <param name="binary">対象の演算。</param>
+    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
+    private string? EvaluateBuiltInBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
     {
         HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken
             or HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken

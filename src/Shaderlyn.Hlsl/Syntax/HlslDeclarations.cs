@@ -557,6 +557,10 @@ public sealed class ParameterSyntax(
 /// 構造体の外で書いたメソッドの定義 (<c>uint Wave::GetIndex() { ... }</c>) の、関数名の前の修飾。
 /// <c>Wave</c> と <c>::</c> が交互に並ぶ。ふつうの関数では空。
 /// </param>
+/// <param name="operatorTokens">
+/// 演算子の多重定義 (HLSL 2021 の <c>Complex operator+(Complex other)</c>) の、<c>operator</c> に続く記号。
+/// <paramref name="nameToken"/> は <c>operator</c> になる。ふつうの関数では空。
+/// </param>
 public sealed class FunctionDeclarationSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
     ImmutableArray<HlslSyntaxToken> modifierTokens,
@@ -568,7 +572,8 @@ public sealed class FunctionDeclarationSyntax(
     ImmutableArray<SemanticSyntax> semantics,
     BlockStatementSyntax? body,
     HlslSyntaxToken? semicolonToken,
-    ImmutableArray<HlslSyntaxToken> qualifierTokens = default) : HlslDeclarationSyntax
+    ImmutableArray<HlslSyntaxToken> qualifierTokens = default,
+    ImmutableArray<HlslSyntaxToken> operatorTokens = default) : HlslDeclarationSyntax
 {
     /// <summary>
     /// 関数名の前の修飾 (<c>Wave</c> と <c>::</c>)。ふつうの関数では空。
@@ -595,11 +600,21 @@ public sealed class FunctionDeclarationSyntax(
     /// <summary>戻り値の型。</summary>
     public HlslTypeSyntax ReturnType { get; } = returnType;
 
-    /// <summary>関数名のトークン。</summary>
+    /// <summary>関数名のトークン。演算子の多重定義では <c>operator</c>。</summary>
     public HlslSyntaxToken NameToken { get; } = nameToken;
 
-    /// <summary>関数名。</summary>
-    public string Name => NameToken.Text;
+    /// <summary>
+    /// 演算子の多重定義の、<c>operator</c> に続く記号 (<c>+</c>、<c>[</c> と <c>]</c> など)。ふつうの関数では空。
+    /// </summary>
+    public ImmutableArray<HlslSyntaxToken> OperatorTokens { get; } = operatorTokens.IsDefault ? [] : operatorTokens;
+
+    /// <summary>演算子の多重定義かどうか。</summary>
+    public bool IsOperator => !OperatorTokens.IsEmpty;
+
+    /// <summary>関数名。演算子の多重定義では <c>operator+</c> のように記号を続けた名前。</summary>
+    public string Name => IsOperator
+        ? NameToken.Text + string.Concat(OperatorTokens.Select(t => t.Text))
+        : NameToken.Text;
 
     /// <summary>開き括弧。</summary>
     public HlslSyntaxToken OpenParen { get; } = openParen;
@@ -647,6 +662,12 @@ public sealed class FunctionDeclarationSyntax(
         }
 
         yield return NameToken;
+
+        foreach (HlslSyntaxToken symbol in OperatorTokens)
+        {
+            yield return symbol;
+        }
+
         yield return OpenParen;
 
         foreach (HlslNodeOrTokenEntry parameter in Parameters)

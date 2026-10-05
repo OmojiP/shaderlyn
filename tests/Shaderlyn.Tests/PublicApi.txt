@@ -678,7 +678,7 @@ Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.Immutab
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Incrementors { get; }
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.BlockStatementSyntax Body { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseParen { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
@@ -687,10 +687,12 @@ Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyn
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax ReturnType { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsDefinition { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsMethodDefinition { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsOperator { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax] ParameterList { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Parameters { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ModifierTokens { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] OperatorTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] QualifierTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
