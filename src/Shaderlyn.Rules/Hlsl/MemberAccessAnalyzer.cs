@@ -97,13 +97,17 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         SymbolCondition analyzed,
         HashSet<int> reported)
     {
-        // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。
         // メンバー名そのものが書かれたものでなければ見ない。
         // UNITY_SETUP_INSTANCE_ID(v) の v.instanceID は、v は書かれたものだが .instanceID はヘッダのマクロの本体である。
-        if (IsMethodCall(access)
-            || !compilation.IsReportable(access)
-            || !compilation.IsReportable(access.NameToken))
+        if (!compilation.IsReportable(access) || !compilation.IsReportable(access.NameToken))
         {
+            return;
+        }
+
+        // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。構造体のメソッドだけを見る。
+        if (IsMethodCall(access))
+        {
+            AnalyzeMethodCall(context, structs, binder, access, reported);
             return;
         }
 
@@ -207,6 +211,41 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             typeName,
             access.Name,
             missing.IsAlways ? "どの構成でも" : $"{missing} のとき"));
+    }
+
+    /// <summary>構造体のメソッドの呼び出し (HLSL 2021 の <c>s.Get()</c>) で、そのメソッドがあるかを検査する。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="structs">このシェーダーが書いた構造体のうち、参照と同じコードブロックのもの。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="access">呼び出しの対象の参照。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// フィールドと同じ名前なら報告しない (フィールドを呼ぶ誤りは扱わない)。
+    /// 基底を引けない構造体では「無い」とは言わない。
+    /// </remarks>
+    private static void AnalyzeMethodCall(
+        SyntaxTreeAnalysisContext context,
+        Dictionary<string, StructInfo> structs,
+        ExpressionTypeBinder binder,
+        MemberAccessExpressionSyntax access,
+        HashSet<int> reported)
+    {
+        if (access.DotToken.Kind != HlslSyntaxKind.DotToken
+            || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
+            || !structs.TryGetValue(typeName, out StructInfo structure)
+            || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing
+            || access.GetLocation() is not { } location
+            || !reported.Add(location.Span.Start))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.MemberNotFound,
+            location,
+            $"構造体 '{typeName}'",
+            access.Name,
+            DescribeCandidates(AllMembers(structs, structure, includeMethods: true))));
     }
 
     /// <summary>
@@ -471,14 +510,16 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="structure">探し始める構造体。</param>
     /// <param name="name">メンバーの名前。</param>
     /// <param name="depth">継承をたどった深さ。</param>
+    /// <param name="includeMethods">メソッドも探すかどうか。</param>
     /// <returns>探した結果。</returns>
     private static MemberLookup FindMember(
         Dictionary<string, StructInfo> structs,
         StructInfo structure,
         string name,
-        int depth)
+        int depth,
+        bool includeMethods = false)
     {
-        if (structure.Members.Contains(name))
+        if (structure.Members.Contains(name) || (includeMethods && structure.Methods.Contains(name)))
         {
             return depth == 0 ? MemberLookup.Own : MemberLookup.Inherited;
         }
@@ -490,7 +531,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 return MemberLookup.Unknown;
             }
 
-            MemberLookup found = FindMember(structs, baseInfo, name, depth + 1);
+            MemberLookup found = FindMember(structs, baseInfo, name, depth + 1, includeMethods);
 
             if (found != MemberLookup.Missing)
             {
@@ -504,10 +545,17 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <summary>構造体と、その基底のメンバーをすべて集める。</summary>
     /// <param name="structs">同じコードブロックの構造体。</param>
     /// <param name="structure">集め始める構造体。</param>
+    /// <param name="includeMethods">メソッドも集めるかどうか。</param>
     /// <returns>メンバーの名前。</returns>
-    private static HashSet<string> AllMembers(Dictionary<string, StructInfo> structs, StructInfo structure)
+    private static HashSet<string> AllMembers(Dictionary<string, StructInfo> structs, StructInfo structure, bool includeMethods = false)
     {
         HashSet<string> members = new(structure.Members, StringComparer.Ordinal);
+
+        if (includeMethods)
+        {
+            members.UnionWith(structure.Methods);
+        }
+
         Queue<(StructInfo Info, int Depth)> pending = new([(structure, 0)]);
 
         while (pending.TryDequeue(out (StructInfo Info, int Depth) current))
@@ -517,6 +565,12 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 if (current.Depth < MaxInheritanceDepth && structs.TryGetValue(baseName, out StructInfo baseInfo))
                 {
                     members.UnionWith(baseInfo.Members);
+
+                    if (includeMethods)
+                    {
+                        members.UnionWith(baseInfo.Methods);
+                    }
+
                     pending.Enqueue((baseInfo, current.Depth + 1));
                 }
             }
@@ -536,10 +590,12 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="Members">すべてのメンバーの名前。</param>
     /// <param name="Conditions">条件が付いたメンバーの、宣言がある条件。</param>
     /// <param name="Bases">継承した基底の名前。</param>
+    /// <param name="Methods">メソッドの名前。</param>
     private readonly record struct StructInfo(
         IReadOnlySet<string> Members,
         Dictionary<string, SymbolCondition> Conditions,
-        HashSet<string> Bases);
+        HashSet<string> Bases,
+        HashSet<string> Methods);
 
     /// <summary>
     /// このシェーダーが書いた構造体を集める。
@@ -586,6 +642,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                     info = new StructInfo(
                         new HashSet<string>(StringComparer.Ordinal),
                         new Dictionary<string, SymbolCondition>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal));
 
                     structs[structure.Name] = info;
@@ -610,6 +667,19 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         if (structure.BaseTypeName is { } baseName)
         {
             info.Bases.Add(baseName);
+        }
+
+        // メソッド (template のメソッドを含む)。演算子は名前で呼ばないので含めない。
+        foreach (HlslDeclarationSyntax member in structure.Members)
+        {
+            if (member is FunctionDeclarationSyntax { IsOperator: false } method)
+            {
+                info.Methods.Add(method.Name);
+            }
+            else if (member is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax { IsOperator: false } generic })
+            {
+                info.Methods.Add(generic.Name);
+            }
         }
 
         foreach (VariableDeclarationSyntax field in structure.Fields)

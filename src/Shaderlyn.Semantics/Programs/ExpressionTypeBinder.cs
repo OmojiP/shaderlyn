@@ -31,7 +31,7 @@ public sealed class ExpressionTypeBinder
     private readonly ShaderCompilation _compilation;
     private readonly FrozenDictionary<string, ImmutableArray<FunctionSignature>> _functionSignatures;
     private readonly FrozenDictionary<string, FrozenDictionary<string, ResolvedTypeName>> _structFields;
-    private readonly FrozenDictionary<string, FrozenDictionary<string, string>> _structOperators;
+    private readonly FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> _structFunctions;
     private readonly FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> _templateFunctions;
 
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
@@ -82,7 +82,7 @@ public sealed class ExpressionTypeBinder
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
-        _structOperators = CollectStructOperators(program);
+        _structFunctions = CollectStructFunctions(program);
         _templateFunctions = CollectTemplateFunctions(program.Tree.Root.Declarations);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
         _fileVariables = CollectFileVariables(_globalNames);
@@ -90,7 +90,7 @@ public sealed class ExpressionTypeBinder
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
             TypeAliases = program.Tree.Root.TypeAliases,
-            StructOperators = _structOperators,
+            StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
         };
     }
@@ -157,17 +157,24 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>
-    /// 構造体の中で多重定義した演算子の、戻り値の型を集める (HLSL 2021)。
+    /// 構造体のメソッドと、多重定義した演算子を集める (HLSL 2021)。
     /// </summary>
     /// <param name="program">対象のコードブロック。</param>
-    /// <returns>構造体の名前から、演算子の名前 (<c>operator+</c>) と戻り値の型への対応。</returns>
+    /// <returns>構造体の名前から、関数の名前 (<c>Get</c> / <c>operator+</c>) とその宣言への対応。</returns>
     /// <remarks>
-    /// 同じ演算子を引数の型を変えて何度も定義できる。
-    /// 実引数の型による選択はしないので、すべての定義が同じ型を返す演算子だけを載せる。
+    /// <para>
+    /// template のメソッド (<c>template&lt;typename U&gt; U As()</c>) も、中の関数の宣言として載せる。
+    /// 戻り値の型を求める側が、親が <see cref="TemplateDeclarationSyntax"/> であることを見て型を主張しない。
+    /// </para>
+    /// <para>
+    /// 継承した基底 (<c>struct D : B</c>) の関数も載せる。派生で同じ名前を宣言していれば、基底の同じ名前の関数は隠れる。
+    /// </para>
     /// </remarks>
-    private static FrozenDictionary<string, FrozenDictionary<string, string>> CollectStructOperators(AnalyzedProgram program)
+    private static FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> CollectStructFunctions(
+        AnalyzedProgram program)
     {
-        Dictionary<string, FrozenDictionary<string, string>> byStruct = new(StringComparer.Ordinal);
+        Dictionary<string, Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> byStruct = new(StringComparer.Ordinal);
+        Dictionary<string, string> bases = new(StringComparer.Ordinal);
 
         foreach (StructDeclarationSyntax declaration in program.Structs)
         {
@@ -176,30 +183,85 @@ public sealed class ExpressionTypeBinder
                 continue;
             }
 
-            Dictionary<string, string?> operators = new(StringComparer.Ordinal);
+            Dictionary<string, List<FunctionDeclarationSyntax>> functions = new(StringComparer.Ordinal);
 
             foreach (HlslDeclarationSyntax member in declaration.Members)
             {
-                if (member is not FunctionDeclarationSyntax { IsOperator: true } function)
+                FunctionDeclarationSyntax? function = member switch
+                {
+                    FunctionDeclarationSyntax own => own,
+                    TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax generic } => generic,
+                    _ => null,
+                };
+
+                if (function is null || function.NameToken.IsMissing)
                 {
                     continue;
                 }
 
-                string returnType = function.ReturnType.Name;
-                operators[function.Name] = operators.TryGetValue(function.Name, out string? seen) && seen != returnType
-                    ? null
-                    : returnType;
+                if (!functions.TryGetValue(function.Name, out List<FunctionDeclarationSyntax>? overloads))
+                {
+                    overloads = [];
+                    functions[function.Name] = overloads;
+                }
+
+                overloads.Add(function);
             }
 
-            if (operators.Count > 0)
+            byStruct[declaration.Name] = functions.ToDictionary(
+                p => p.Key, p => (ImmutableArray<FunctionDeclarationSyntax>)[.. p.Value], StringComparer.Ordinal);
+
+            if (declaration.BaseTypeName is { } baseName)
             {
-                byStruct[declaration.Name] = operators
-                    .Where(p => p.Value is not null)
-                    .ToFrozenDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+                bases[declaration.Name] = baseName;
             }
         }
 
-        return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
+        Dictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> result = new(StringComparer.Ordinal);
+
+        foreach ((string name, Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>> own) in byStruct)
+        {
+            Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>> merged = new(own, StringComparer.Ordinal);
+            string current = name;
+
+            // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
+            for (int depth = 0; depth < 8 && bases.TryGetValue(current, out string? baseName); depth++)
+            {
+                if (!byStruct.TryGetValue(baseName, out Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? inherited))
+                {
+                    break;
+                }
+
+                foreach ((string function, ImmutableArray<FunctionDeclarationSyntax> overloads) in inherited)
+                {
+                    merged.TryAdd(function, overloads);
+                }
+
+                current = baseName;
+            }
+
+            if (merged.Count > 0)
+            {
+                result[name] = merged.ToFrozenDictionary(StringComparer.Ordinal);
+            }
+        }
+
+        return result.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
+    /// <param name="structName">構造体の名前。</param>
+    /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>
+    /// <param name="overloads">同じ名前の宣言。継承した基底のものを含む。</param>
+    /// <returns>見つかれば <see langword="true"/>。</returns>
+    internal bool TryGetStructFunctions(
+        string structName,
+        string functionName,
+        out ImmutableArray<FunctionDeclarationSyntax> overloads)
+    {
+        overloads = default;
+        return _structFunctions.TryGetValue(structName, out FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? functions)
+               && functions.TryGetValue(functionName, out overloads);
     }
 
     /// <summary>
@@ -377,7 +439,7 @@ public sealed class ExpressionTypeBinder
                 _structFields)
             {
                 TypeAliases = Program.Tree.Root.TypeAliases,
-                StructOperators = _structOperators,
+                StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
                 UnknownTypeNames = unknown,
             };
@@ -718,7 +780,7 @@ public sealed class ExpressionTypeBinder
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
             TypeAliases = Program.Tree.Root.TypeAliases,
-            StructOperators = _structOperators,
+            StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
             UnknownTypeNames = unknown,
         };

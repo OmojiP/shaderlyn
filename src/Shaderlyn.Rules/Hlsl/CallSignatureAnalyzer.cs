@@ -92,7 +92,19 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         SymbolCondition analyzed,
         HashSet<int> reported)
     {
-        if (invocation.TargetName is not { } name || !compilation.IsReportable(invocation))
+        if (!compilation.IsReportable(invocation))
+        {
+            return;
+        }
+
+        // 構造体のメソッド (s.Get()、HLSL 2021)。
+        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.DotToken } access)
+        {
+            AnalyzeMethodCall(context, compilation, condition, binder, invocation, access, reported);
+            return;
+        }
+
+        if (invocation.TargetName is not { } name)
         {
             return;
         }
@@ -507,6 +519,47 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             conflict.SecondIndex + 1,
             DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex]),
             hint));
+    }
+
+    /// <summary>構造体のメソッドの呼び出しで、引数の個数を検査する (HL0341、HLSL 2021)。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="condition">出現条件の索引。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="invocation">検査する呼び出し。</param>
+    /// <param name="access">呼び出しの対象 (<c>s.Get</c>)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// 宣言は出現条件で絞らない。そのため、宣言にも呼び出しにも条件が付いていないときだけ報告する。
+    /// template のメソッドがあれば、型引数で形が変わりうるので見ない。
+    /// </remarks>
+    private static void AnalyzeMethodCall(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ConditionMap condition,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        HashSet<int> reported)
+    {
+        if (!compilation.HasCompleteDependencies
+            || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
+            || !condition.GetCondition(invocation).IsAlways
+            || binder.GetEvaluatorFor(invocation).Evaluate(access.Target) is not { } receiver
+            || !binder.TryGetStructFunctions(receiver, access.Name, out ImmutableArray<FunctionDeclarationSyntax> overloads)
+            || overloads.Any(o => o.Parent is TemplateDeclarationSyntax || !condition.GetCondition(o).IsAlways))
+        {
+            return;
+        }
+
+        int actual = invocation.ArgumentExpressions.Count();
+
+        if (overloads.Any(o => CallCompatibility.AcceptsArgumentCount(o.ParameterList, actual)))
+        {
+            return;
+        }
+
+        ReportArity(context, invocation, $"{receiver}.{access.Name}", [.. overloads], actual, SymbolCondition.Always, reported);
     }
 
     /// <summary>推論に使った実引数の型を、画面に出す形にする。</summary>
