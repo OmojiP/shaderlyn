@@ -437,6 +437,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         declared.Add(bufferName.Text);
                         break;
 
+                    case EnumDeclarationSyntax enumeration:
+                        declared.UnionWith(ShaderCompilation.DeclaredNamesOf(enumeration));
+                        break;
+
                     case VariableDeclarationSyntax variable when !IsInsideFunction(variable):
                         foreach (VariableDeclaratorSyntax declarator in variable.Variables)
                         {

@@ -1118,8 +1118,45 @@ public sealed class ShaderCompilation
                     outside.Add(name.Text);
                     break;
 
+                // enum の型の名前と、スコープの無い列挙子 (enum Mode { A } の A)。enum class の列挙子は Mode::A とだけ書くので足さない。
+                case EnumDeclarationSyntax enumeration:
+                    foreach (string enumName in DeclaredNamesOf(enumeration))
+                    {
+                        names.Add(enumName);
+                        outside.Add(enumName);
+                    }
+
+                    break;
+
                 default:
                     break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>enum</c> の宣言が、外側に見せる名前を列挙する。
+    /// </summary>
+    /// <param name="enumeration">対象の宣言。</param>
+    /// <returns>型の名前と、スコープの無い列挙子の名前。</returns>
+    /// <remarks>
+    /// スコープの無い列挙子 (<c>enum Mode { A }</c> の <c>A</c>) は、型の名前で修飾しなくても見える。
+    /// <c>enum class</c> の列挙子は <c>Mode::A</c> とだけ書くので、名前としては見せない。
+    /// </remarks>
+    public static IEnumerable<string> DeclaredNamesOf(EnumDeclarationSyntax enumeration)
+    {
+        ArgumentNullException.ThrowIfNull(enumeration);
+
+        if (enumeration.Name.Length > 0)
+        {
+            yield return enumeration.Name;
+        }
+
+        if (!enumeration.IsScoped)
+        {
+            foreach (EnumMemberSyntax member in enumeration.Members)
+            {
+                yield return member.Name;
             }
         }
     }

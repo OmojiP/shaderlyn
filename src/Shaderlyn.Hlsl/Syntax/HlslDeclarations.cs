@@ -923,6 +923,146 @@ public sealed class NamespaceDeclarationSyntax(
     }
 }
 
+/// <summary>
+/// <c>enum</c> の宣言 (HLSL 2021)。
+/// </summary>
+/// <param name="keyword"><c>enum</c> キーワード。</param>
+/// <param name="scopeKeyword"><c>enum class</c> / <c>enum struct</c> の <c>class</c> / <c>struct</c>。無ければ <see langword="null"/>。</param>
+/// <param name="nameToken">型の名前。無名の場合は <see langword="null"/>。</param>
+/// <param name="baseTypeTokens">基になる型の指定 (<c>: uint</c>) のトークン。無ければ空。</param>
+/// <param name="openBrace">開き波括弧。</param>
+/// <param name="members">列挙子。</param>
+/// <param name="closeBrace">閉じ波括弧。</param>
+/// <param name="semicolonToken">セミコロン。</param>
+/// <remarks>
+/// <para>
+/// <b>スコープの無い列挙子 (<c>enum Mode { A }</c>) は、外側の名前として見える。</b>
+/// <c>A</c> とも <c>Mode::A</c> とも書ける。<c>enum class</c> の列挙子は <c>Mode::A</c> とだけ書ける。
+/// </para>
+/// <para>
+/// HLSL 2018 (Unity) では使えない。パーサーは HLSL 2021 のときだけこのノードを作り、2018 では HL0003 を報告して読み飛ばす。
+/// </para>
+/// </remarks>
+public sealed class EnumDeclarationSyntax(
+    HlslSyntaxToken keyword,
+    HlslSyntaxToken? scopeKeyword,
+    HlslSyntaxToken? nameToken,
+    ImmutableArray<HlslSyntaxToken> baseTypeTokens,
+    HlslSyntaxToken openBrace,
+    ImmutableArray<EnumMemberSyntax> members,
+    HlslSyntaxToken closeBrace,
+    HlslSyntaxToken semicolonToken) : HlslDeclarationSyntax
+{
+    /// <summary><c>enum</c> キーワード。</summary>
+    public HlslSyntaxToken Keyword { get; } = keyword;
+
+    /// <summary><c>enum class</c> / <c>enum struct</c> の後ろのキーワード。無ければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? ScopeKeyword { get; } = scopeKeyword;
+
+    /// <summary>列挙子が型の名前で修飾しないと見えない (<c>enum class</c>) か。</summary>
+    public bool IsScoped => ScopeKeyword is not null;
+
+    /// <summary>型の名前のトークン。無名の場合は <see langword="null"/>。</summary>
+    public HlslSyntaxToken? NameToken { get; } = nameToken;
+
+    /// <summary>型の名前。無名の場合は空文字列。</summary>
+    public string Name => NameToken?.Text ?? string.Empty;
+
+    /// <summary>基になる型の指定 (<c>: uint</c>) のトークン。</summary>
+    public ImmutableArray<HlslSyntaxToken> BaseTypeTokens { get; } = baseTypeTokens;
+
+    /// <summary>開き波括弧。</summary>
+    public HlslSyntaxToken OpenBrace { get; } = openBrace;
+
+    /// <summary>列挙子。</summary>
+    public ImmutableArray<EnumMemberSyntax> Members { get; } = members;
+
+    /// <summary>閉じ波括弧。</summary>
+    public HlslSyntaxToken CloseBrace { get; } = closeBrace;
+
+    /// <summary>セミコロン。</summary>
+    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return Keyword;
+
+        if (ScopeKeyword is not null)
+        {
+            yield return ScopeKeyword;
+        }
+
+        if (NameToken is not null)
+        {
+            yield return NameToken;
+        }
+
+        foreach (HlslSyntaxToken token in BaseTypeTokens)
+        {
+            yield return token;
+        }
+
+        yield return OpenBrace;
+
+        foreach (EnumMemberSyntax member in Members)
+        {
+            yield return member;
+        }
+
+        yield return CloseBrace;
+        yield return SemicolonToken;
+    }
+}
+
+/// <summary>列挙子 1 つ。</summary>
+/// <param name="nameToken">名前。</param>
+/// <param name="equalsToken">値を与える <c>=</c>。無ければ <see langword="null"/>。</param>
+/// <param name="value">値の式。無ければ <see langword="null"/>。</param>
+/// <param name="commaToken">後ろのカンマ。最後の列挙子では無いことがある。</param>
+public sealed class EnumMemberSyntax(
+    HlslSyntaxToken nameToken,
+    HlslSyntaxToken? equalsToken,
+    HlslExpressionSyntax? value,
+    HlslSyntaxToken? commaToken) : HlslSyntaxNode
+{
+    /// <summary>名前のトークン。</summary>
+    public HlslSyntaxToken NameToken { get; } = nameToken;
+
+    /// <summary>名前。</summary>
+    public string Name => NameToken.Text;
+
+    /// <summary>値を与える <c>=</c>。</summary>
+    public HlslSyntaxToken? EqualsToken { get; } = equalsToken;
+
+    /// <summary>値の式。</summary>
+    public HlslExpressionSyntax? Value { get; } = value;
+
+    /// <summary>後ろのカンマ。</summary>
+    public HlslSyntaxToken? CommaToken { get; } = commaToken;
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return NameToken;
+
+        if (EqualsToken is not null)
+        {
+            yield return EqualsToken;
+        }
+
+        if (Value is not null)
+        {
+            yield return Value;
+        }
+
+        if (CommaToken is not null)
+        {
+            yield return CommaToken;
+        }
+    }
+}
+
 /// <summary>解釈できなかった宣言。</summary>
 /// <param name="tokens">読み飛ばしたトークン。</param>
 public sealed class IncompleteDeclarationSyntax(ImmutableArray<HlslSyntaxToken> tokens) : HlslDeclarationSyntax

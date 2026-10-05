@@ -277,12 +277,12 @@ internal sealed class HlslParser
 
         ImmutableArray<HlslAttributeSyntax> attributes = ParseAttributes();
 
-        // HLSL 2021 の template と enum は解釈しない。
-        // 読めるふりをすると、template は構文の誤りとして、
-        // enum は「列挙子がどこにも宣言されていない」として報告することになる。
+        // enum は HLSL 2021 で構文木にする。2018 (Unity) では使えないので、報告して読み飛ばす。
         if (CurrentTextIs("enum"))
         {
-            return ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
+            return LanguageVersion == HlslLanguageVersion.Hlsl2021
+                ? ParseEnum()
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
         }
 
         // template が導く宣言は、関数なら波括弧で、変数ならセミコロンで終わる。
@@ -715,6 +715,58 @@ internal sealed class HlslParser
 
         HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
         return new InitializerListExpressionSyntax(openBrace, elements.ToImmutable(), closeBrace);
+    }
+
+    /// <summary><c>enum</c> の宣言を読む (HLSL 2021)。</summary>
+    /// <returns>読んだ宣言。</returns>
+    /// <remarks>
+    /// 文法: <c>enum [class|struct] Name [: Type] { A [= 式], ... } ;</c>。
+    /// 列挙子の値の式は定数の式で、カンマで区切るので代入の式 (カンマ演算子を含まない) として読む。
+    /// </remarks>
+    private EnumDeclarationSyntax ParseEnum()
+    {
+        HlslSyntaxToken keyword = Advance();
+        HlslSyntaxToken? scope = CurrentTextIs("class") || CurrentTextIs("struct") ? Advance() : null;
+        HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
+
+        ImmutableArray<HlslSyntaxToken>.Builder baseType = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+        if (Current.Kind == HlslSyntaxKind.ColonToken)
+        {
+            while (!AtEnd && Current.Kind is not (HlslSyntaxKind.OpenBraceToken or HlslSyntaxKind.SemicolonToken))
+            {
+                baseType.Add(Advance());
+            }
+        }
+
+        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ImmutableArray<EnumMemberSyntax>.Builder members = ImmutableArray.CreateBuilder<EnumMemberSyntax>();
+
+        while (!AtEnd && Current.Kind == HlslSyntaxKind.IdentifierToken)
+        {
+            HlslSyntaxToken memberName = Advance();
+            HlslSyntaxToken? equals = null;
+            HlslExpressionSyntax? value = null;
+
+            if (Current.Kind == HlslSyntaxKind.EqualsToken)
+            {
+                equals = Advance();
+                value = ParseExpression();
+            }
+
+            HlslSyntaxToken? comma = Current.Kind == HlslSyntaxKind.CommaToken ? Advance() : null;
+            members.Add(new EnumMemberSyntax(memberName, equals, value, comma));
+
+            if (comma is null)
+            {
+                break;
+            }
+        }
+
+        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+
+        return new EnumDeclarationSyntax(keyword, scope, name, baseType.ToImmutable(), openBrace, members.ToImmutable(), closeBrace, semicolon);
     }
 
     /// <summary>構造体宣言を解析する。</summary>
@@ -1762,7 +1814,10 @@ internal sealed class HlslParser
                 return false;
             }
             else if (kind is not (HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.OpenBracketToken
-                or HlslSyntaxKind.CloseBracketToken or HlslSyntaxKind.NumericLiteralToken))
+                or HlslSyntaxKind.CloseBracketToken or HlslSyntaxKind.NumericLiteralToken
+
+                // 名前空間で修飾した型 ((AnalyticPrimitive::Enum) x)。
+                or HlslSyntaxKind.ColonColonToken))
             {
                 // 型の記述に現れない記号があれば型変換ではない。
                 return false;

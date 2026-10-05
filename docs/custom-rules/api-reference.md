@@ -316,6 +316,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `StructDeclarationSyntax`         | 構造体                                                               |
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
+| `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 
