@@ -74,6 +74,7 @@ Unity の環境だけで使う設定です。
 | キー      | 内容                                                                 |
 | --------- | -------------------------------------------------------------------- |
 | `version` | HLSL の言語のバージョン (DXC の `-HV`): `2018` / `2021` (既定)        |
+| `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false` |
 
 汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
 `__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。

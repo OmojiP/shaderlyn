@@ -85,6 +85,7 @@ public sealed class HlslSyntaxTree
         HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude)
         {
             LanguageVersion = options?.LanguageVersion ?? HlslLanguageVersion.Hlsl2018,
+            DialectSubject = (options ?? new PreprocessorOptions()).DescribeDialect(),
         };
         HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);

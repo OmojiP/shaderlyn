@@ -51,6 +51,28 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void 十六ビットの型を使う設定でだけ__HLSL_ENABLE_16_BITを定義する()
+    {
+        // 16 ビットの型を使うときだけ通る分岐に誤りを置く。
+        const string code = """
+            float4 main() : SV_Target
+            {
+            #if __HLSL_ENABLE_16_BIT
+                float3 c = 1;
+                return c.w;
+            #else
+                return 0;
+            #endif
+            }
+            """;
+
+        HlslEnvironment enabled = new(new HlslEnvironmentOptions { Enable16BitTypes = true });
+
+        Assert.Contains(Analyze(code, Unit(code, "ps_6_2"), environment: enabled), d => d.Id == "HL0312");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "HL0312");
+    }
+
+    [Fact]
     public void ターゲットのマクロで分岐を選ぶ()
     {
         // ピクセルシェーダーのときだけ誤りがある。コンピュートのターゲットでは通らない分岐。
@@ -219,6 +241,23 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             """;
 
         Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0330");
+    }
+
+    [Fact]
+    public void HLSL2018の環境では使えない構文をその言語のバージョンで伝える()
+    {
+        const string code = """
+            enum Mode { First, Second };
+            float4 main() : SV_Target { return 1; }
+            """;
+
+        HlslEnvironment hlsl2018 = new(new HlslEnvironmentOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2018 });
+
+        Diagnostic diagnostic = Assert.Single(Analyze(code, Unit(code, "ps_6_6"), environment: hlsl2018), d => d.Id == "HL0003");
+        Assert.Equal("enum 宣言 は HLSL 2018 では使えません。", diagnostic.GetMessage());
+
+        // HLSL 2021 (既定) では正しい構文なので報告しない。
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0003");
     }
 
     [Fact]

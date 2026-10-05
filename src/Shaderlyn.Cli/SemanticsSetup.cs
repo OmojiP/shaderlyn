@@ -99,6 +99,7 @@ internal static class SemanticsSetup
             ProjectDirectory = configuration.UnrealProjectDirectory,
             VirtualPaths = configuration.UnrealVirtualPaths,
             LanguageVersion = configuration.HlslVersion == 2021 ? HlslLanguageVersion.Hlsl2021 : HlslLanguageVersion.Hlsl2018,
+            Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
         };
     }
 

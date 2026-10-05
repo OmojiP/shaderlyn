@@ -78,7 +78,7 @@ internal sealed partial class HlslPreprocessor
         // 環境が受け付けない指令 (Unity の #line など)。
         if (_options.UnsupportedDirectives.Contains(directive))
         {
-            Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), $"#{directive} 指令");
+            Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), $"#{directive} 指令", _options.DescribeDialect());
             SkipDirectiveLine();
             return;
         }

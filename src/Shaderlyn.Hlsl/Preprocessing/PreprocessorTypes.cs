@@ -341,6 +341,23 @@ public sealed record PreprocessorOptions
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
     /// <summary>
+    /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> なら言語のバージョンで言う (<c>HLSL 2018</c>)。
+    /// 環境が与える。Unity の環境は、Unity のコンパイルでエラーになることを伝える。
+    /// </remarks>
+    public string? DialectName { get; init; }
+
+    /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。</summary>
+    /// <returns>名前。英数字で終わるなら、後ろに続く「では」との間に空白を入れる。</returns>
+    internal string DescribeDialect()
+    {
+        string name = DialectName ?? (LanguageVersion == HlslLanguageVersion.Hlsl2021 ? "HLSL 2021" : "HLSL 2018");
+        return name.Length > 0 && char.IsAsciiLetterOrDigit(name[^1]) ? name + " " : name;
+    }
+
+    /// <summary>
     /// 使えない指令として報告する名前。
     /// </summary>
     /// <remarks>

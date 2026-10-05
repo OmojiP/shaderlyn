@@ -58,8 +58,8 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
-        Assert.DoesNotContain("QUALITY == 0", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("QUALITY", diagnostic.GetMessage(), StringComparison.Ordinal);
+        // (QUALITY == 1) || (QUALITY == 2) ではなく、0 以外と短く書く。
+        Assert.Contains("QUALITY != 0 のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -103,6 +103,35 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             """);
 
         Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
+    }
+
+    [Fact]
+    public void 一つを除くすべての値の論理和は否定として表示する()
+    {
+        VariantSpace space = VariantSpace.ForValues("QUALITY", [0, 1, 2])
+            .Union(new VariantSpace(
+                [
+                    new VariantDeclaration("_A", VariantSymbolKind.Compiled, null),
+                    new VariantDeclaration("_B", VariantSymbolKind.Compiled, null),
+                    new VariantDeclaration("_C", VariantSymbolKind.Compiled, null),
+                ],
+                [new VariantGroup(["_A", "_B", "_C"], RequiresOne: true)]));
+
+        SymbolCondition one = SymbolCondition.Symbol(VariantValues.Atom("QUALITY", 1));
+        SymbolCondition two = SymbolCondition.Symbol(VariantValues.Atom("QUALITY", 2));
+        SymbolCondition fog = SymbolCondition.Symbol("USE_FOG");
+
+        Assert.Equal("QUALITY != 0", space.Constraints.Reduce(one.Or(two)).ToString());
+
+        // ほかの条件と掛け合わせた項も、残りの部分が同じならまとめる。
+        Assert.Equal("QUALITY != 0 && USE_FOG", space.Constraints.Reduce(one.And(fog).Or(two.And(fog))).ToString());
+
+        // 2 つだけなら短くならないので、そのまま書く。
+        Assert.Equal("QUALITY == 1", space.Constraints.Reduce(one).ToString());
+
+        // 値を持たない組 (Unity の multi_compile _A _B _C) は、否定にまとめない。
+        SymbolCondition ab = SymbolCondition.Symbol("_A").Or(SymbolCondition.Symbol("_B"));
+        Assert.DoesNotContain("!", space.Constraints.Reduce(ab).ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

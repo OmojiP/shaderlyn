@@ -163,7 +163,7 @@ public sealed class SymbolConstraints
         });
 
         // 示すときは、否定ではなく定義されている側の名前で書く。
-        return merged.RewriteTerms(literals =>
+        SymbolCondition named = merged.RewriteTerms(literals =>
         {
             foreach (ImmutableArray<string> pair in exact.Where(g => g.Length == 2))
             {
@@ -174,6 +174,118 @@ public sealed class SymbolConstraints
                 }
             }
         });
+
+        return ShortenValueGroups(named, exact);
+    }
+
+    /// <summary>
+    /// 値を持つシンボルの、1 つの値を除くすべての値を並べた論理和を、その値の否定にまとめる。
+    /// </summary>
+    /// <param name="condition">整えた条件。</param>
+    /// <param name="exact">どれか 1 つが必ず、1 つだけ定義される組。</param>
+    /// <returns>まとめた条件。</returns>
+    /// <remarks>
+    /// <para>
+    /// <c>#if QUALITY</c> は「0 以外」なので、<c>(QUALITY == 1) || (QUALITY == 2)</c> より <c>QUALITY != 0</c> のほうが読みやすい。
+    /// 値は「ちょうど 1 つ」の組なので、0 でなければ残りのどれかである。
+    /// </para>
+    /// <para>
+    /// 値を持つシンボルの組 (<see cref="VariantValues"/> の原子だけの組) だけを対象にする。
+    /// Unity の <c>multi_compile A B C</c> を <c>!C</c> と書くと、どの構成かがかえって分かりにくい。
+    /// </para>
+    /// </remarks>
+    private static SymbolCondition ShortenValueGroups(SymbolCondition condition, ImmutableArray<ImmutableArray<string>> exact)
+    {
+        ImmutableArray<string>[] valueGroups = [.. exact.Where(IsValueGroup)];
+
+        if (valueGroups.Length == 0)
+        {
+            return condition;
+        }
+
+        return condition.RewriteTermList(terms =>
+        {
+            foreach (ImmutableArray<string> group in valueGroups)
+            {
+                terms = ShortenValueGroup(terms, group);
+            }
+
+            return terms;
+        });
+    }
+
+    /// <summary>組の原子が、1 つのシンボルの値ごとの原子だけでできているか。</summary>
+    /// <param name="group">組。</param>
+    /// <returns>3 つ以上の値を持つシンボルの組なら <see langword="true"/>。2 つなら否定と肯定が同じ長さなので対象にしない。</returns>
+    private static bool IsValueGroup(ImmutableArray<string> group)
+    {
+        if (group.Length < 3)
+        {
+            return false;
+        }
+
+        string? name = null;
+
+        foreach (string atom in group)
+        {
+            if (!VariantValues.TryParseAtom(atom, out string? atomName, out _) || (name is not null && name != atomName))
+            {
+                return false;
+            }
+
+            name = atomName;
+        }
+
+        return true;
+    }
+
+    /// <summary>1 つの値の組について、1 つを除くすべての値を並べた項を否定の 1 項にまとめる。</summary>
+    /// <param name="terms">項の並び。</param>
+    /// <param name="group">値の組。</param>
+    /// <returns>まとめた項の並び。</returns>
+    private static List<Dictionary<string, bool>> ShortenValueGroup(List<Dictionary<string, bool>> terms, ImmutableArray<string> group)
+    {
+        // 組の原子を 1 つだけ (肯定で) 含む項を、残りの部分ごとに集める。
+        Dictionary<string, List<(Dictionary<string, bool> Term, string Atom)>> byRest = new(StringComparer.Ordinal);
+
+        foreach (Dictionary<string, bool> term in terms)
+        {
+            string[] atoms = [.. term.Keys.Where(group.Contains)];
+
+            if (atoms.Length != 1 || !term[atoms[0]])
+            {
+                continue;
+            }
+
+            string rest = string.Join("&", term.Where(p => p.Key != atoms[0]).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"));
+
+            if (!byRest.TryGetValue(rest, out List<(Dictionary<string, bool>, string)>? members))
+            {
+                members = [];
+                byRest[rest] = members;
+            }
+
+            members.Add((term, atoms[0]));
+        }
+
+        foreach (List<(Dictionary<string, bool> Term, string Atom)> members in byRest.Values)
+        {
+            string[] covered = [.. members.Select(m => m.Atom).Distinct(StringComparer.Ordinal)];
+
+            if (covered.Length != group.Length - 1)
+            {
+                continue;
+            }
+
+            string missing = group.First(atom => !covered.Contains(atom, StringComparer.Ordinal));
+            Dictionary<string, bool> shortened = new(members[0].Term, StringComparer.Ordinal);
+            shortened.Remove(members[0].Atom);
+            shortened[missing] = false;
+
+            terms = [.. terms.Where(term => !members.Any(m => ReferenceEquals(m.Term, term))), shortened];
+        }
+
+        return terms;
     }
 
     /// <summary>項のうち、制約から決まるシンボルを省く。</summary>

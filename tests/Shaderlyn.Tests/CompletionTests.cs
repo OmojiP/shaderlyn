@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Text;
 using Shaderlyn.LanguageServer;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
 
@@ -43,6 +44,36 @@ public sealed class CompletionTests
         Assert.Contains(items, i => i.Label == "multi_compile_local_fragment");
         Assert.Contains(items, i => i.Label == "vertex" && i.Documentation is not null);
         Assert.DoesNotContain(items, i => i.Label == "saturate");
+    }
+
+    [Theory]
+    [InlineData("#pragma |")]
+    [InlineData("#pragma vertex v|")]
+    public void Unity以外の環境ではpragmaの名前もエントリポイントも出さない(string line)
+    {
+        // #pragma の名前と、#pragma vertex に続く関数の名前は Unity の書き方である。DXC は #pragma を読み流す。
+        ImmutableArray<CompletionItem> items = CompleteHlsl(
+            new HlslEnvironment(),
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            line);
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public void Unity以外の環境ではpragmaの説明を出さない()
+    {
+        const string code = "#pragma multi_compile _ _A\nfloat4 main() : SV_Target { return 1; }";
+        SourceText text = SourceText.From(code, "Hover.hlsl");
+
+        ShaderCompilation hlsl = ShaderCompilation.Create(
+            text, [HlslEnvironment.WholeFile(text)], text, new HlslEnvironment(), ShaderSourceInfo.None);
+        ShaderCompilation unity = UnityCompilation.CreateForHlsl(text);
+
+        int offset = code.IndexOf("multi_compile", StringComparison.Ordinal) + 2;
+
+        Assert.NotNull(HoverBuilder.Build(unity, offset));
+        Assert.Null(HoverBuilder.Build(hlsl, offset));
     }
 
     [Fact]
@@ -155,6 +186,22 @@ public sealed class CompletionTests
         string text = joined.Remove(offset, 1);
 
         ShaderCompilation compilation = UnityCompilation.CreateForHlsl(SourceText.From(text, "Completion.hlsl"));
+
+        return CompletionBuilder.Build(compilation, offset);
+    }
+
+    /// <summary>指定した環境の HLSL のファイルとして、目印の位置の候補を求める。</summary>
+    /// <param name="environment">環境。</param>
+    /// <param name="lines">ファイルの行。どれか 1 つに目印を含める。</param>
+    /// <returns>候補。</returns>
+    private static ImmutableArray<CompletionItem> CompleteHlsl(IHlslEnvironment environment, params string[] lines)
+    {
+        string joined = string.Join("\n", lines);
+        int offset = joined.IndexOf(Cursor, StringComparison.Ordinal);
+        SourceText text = SourceText.From(joined.Remove(offset, 1), "Completion.hlsl");
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text, [HlslEnvironment.WholeFile(text)], text, environment, ShaderSourceInfo.None);
 
         return CompletionBuilder.Build(compilation, offset);
     }

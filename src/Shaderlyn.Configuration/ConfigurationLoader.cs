@@ -37,7 +37,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownHlslKeys = ["version"];
+    private static readonly string[] KnownHlslKeys = ["version", "enable-16bit-types"];
 
     /// <summary><c>units:</c> の要素で認識するキー。</summary>
     private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "defines", "symbols"];
@@ -192,7 +192,7 @@ internal static class ConfigurationLoader
             ReportNonScalars(root, string.Empty, "version", "environment", "profile");
             ReportNonScalars(unity, "unity: の ", "profile", "project", "editor");
             ReportNonScalars(unreal, "unreal: の ", "engine", "project");
-            ReportNonScalars(hlsl, "hlsl: の ", "version");
+            ReportNonScalars(hlsl, "hlsl: の ", "version", "enable-16bit-types");
 
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
@@ -208,6 +208,7 @@ internal static class ConfigurationLoader
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
                 HlslVersion = ReadHlslVersion(hlsl),
+                HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = ReadUnits(symbols, groups),
@@ -389,6 +390,26 @@ internal static class ConfigurationLoader
             }
 
             return paths.ToImmutable();
+        }
+
+        /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>) を読む。</summary>
+        /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>指定があればその値。無いか読めなければ <see langword="null"/>。</returns>
+        private bool? ReadHlslEnable16BitTypes(YamlMapping? hlsl)
+        {
+            if (hlsl is null || !hlsl.TryGetScalar("enable-16bit-types", out YamlScalar? value) || value.Value.Length == 0)
+            {
+                return null;
+            }
+
+            if (value.TryGetBoolean(out bool enabled))
+            {
+                return enabled;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                value.Line, $"hlsl: の enable-16bit-types には true か false を指定してください ('{value.Value}')。"));
+            return null;
         }
 
         /// <summary>HLSL の言語のバージョン (<c>hlsl: version</c>) を読む。</summary>

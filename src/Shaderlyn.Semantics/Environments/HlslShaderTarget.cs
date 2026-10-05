@@ -108,7 +108,8 @@ public readonly record struct HlslShaderTarget(HlslShaderStage Stage, int Major,
     /// <b>DXC はシェーダーモデル 6.0 未満を 6.0 に上げる。</b> <c>ps_5_0</c> でも <c>__SHADER_TARGET_MAJOR</c> は 6 になる。
     /// </para>
     /// <para>
-    /// DXC の版 (<c>__DXC_VERSION_*</c>) と、版によって有無が違うもの (<c>__HLSL_ENABLE_16_BIT</c>) は定義しない。
+    /// DXC の版 (<c>__DXC_VERSION_*</c>) は定義しない。版によって有無が違う <c>__HLSL_ENABLE_16_BIT</c> は、
+    /// 設定で 16 ビットの型を使うと明示したときだけ環境が定義する (<see cref="HlslEnvironmentOptions.Enable16BitTypes"/>)。
     /// 分からないものを決め打ちすると、使う側の分岐を誤って選ぶ。
     /// </para>
     /// </remarks>

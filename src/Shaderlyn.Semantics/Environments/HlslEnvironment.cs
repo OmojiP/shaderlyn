@@ -24,6 +24,14 @@ public sealed record HlslEnvironmentOptions
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2021;
 
     /// <summary>
+    /// 16 ビットの型を使うか (DXC の <c>-enable-16bit-types</c>)。立っていれば <c>__HLSL_ENABLE_16_BIT</c> を 1 で定義する。
+    /// </summary>
+    /// <remarks>
+    /// DXC の版によって、このオプションでマクロを定義するかが違う (1.6 は定義しない)。設定で明示したときだけ定義する。
+    /// </remarks>
+    public bool Enable16BitTypes { get; init; }
+
+    /// <summary>
     /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="HlslCompilationUnit.Variants"/>) があれば、そちらを使う。
     /// </summary>
     public VariantSpace Variants { get; init; } = VariantSpace.Empty;
@@ -78,6 +86,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         {
             LanguageVersion = Options.LanguageVersion,
             PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(Options.LanguageVersion)
+                .SetItems(Options.Enable16BitTypes ? [new("__HLSL_ENABLE_16_BIT", "1")] : [])
                 .SetItems(Options.PredefinedMacros)
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
         };

@@ -73,7 +73,7 @@
 | ------------------------- | -------------------------------- | ------ |
 | [HL0001](HL0001.md) | 構文エラー                       | エラー |
 | [HL0002](HL0002.md) | プリプロセッサのエラー           | エラー |
-| [HL0003](HL0003.md) | Unity のシェーダーでは使えない構文 (class / interface / enum / template / operator / ビットフィールド / #line) | エラー |
+| [HL0003](HL0003.md) | この環境では使えない構文 (HLSL 2018 の class / interface / enum / template / operator / ビットフィールド、Unity の #line) | エラー |
 | [HL0004](HL0004.md) | #ifdef の後ろの記述が無視される  | 警告   |
 
 重複した宣言:

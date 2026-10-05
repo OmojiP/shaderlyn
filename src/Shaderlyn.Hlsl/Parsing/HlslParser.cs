@@ -106,6 +106,11 @@ internal sealed class HlslParser
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
     /// <summary>
+    /// 使えない構文の報告 (HL0003) に入れる、どこで使えないかを伝える語 (<see cref="Preprocessing.PreprocessorOptions.DescribeDialect"/>)。
+    /// </summary>
+    public string DialectSubject { get; init; } = "HLSL 2018 ";
+
+    /// <summary>
     /// 構文木にせずに読み飛ばした宣言に現れた識別子。<see cref="ParseCompilationUnit"/> のあとで揃う。
     /// </summary>
     /// <remarks>
@@ -376,7 +381,7 @@ internal sealed class HlslParser
                 : $"{keyword.Text} 宣言";
 
             _diagnostics.Add(Diagnostic.Create(
-                HlslDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description));
+                HlslDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description, DialectSubject));
         }
 
         ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
@@ -1009,7 +1014,7 @@ internal sealed class HlslParser
             if (LanguageVersion == HlslLanguageVersion.Hlsl2018)
             {
                 _diagnostics.Add(Diagnostic.Create(
-                    HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド"));
+                    HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド", DialectSubject));
             }
         }
 

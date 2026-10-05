@@ -77,6 +77,9 @@ internal sealed record ShaderlynConfiguration
     /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。Unity の環境は 2018 で固定。</remarks>
     public int? HlslVersion { get; init; }
 
+    /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>、DXC の <c>-enable-16bit-types</c>)。指定が無い場合は <see langword="null"/>。</summary>
+    public bool? HlslEnable16BitTypes { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

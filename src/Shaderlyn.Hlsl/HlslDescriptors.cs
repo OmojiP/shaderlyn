@@ -59,12 +59,13 @@ internal static class HlslDescriptors
     /// </remarks>
     public static DiagnosticDescriptor UnsupportedDeclaration { get; } = new(
         id: "HL0003",
-        title: "Unity のシェーダーでは使えない構文です",
-        messageFormat: "{0} は Unity のシェーダーでは使えません。",
+        title: "この環境では使えない構文です",
+        messageFormat: "{0} は {1}では使えません。",
         category: "Syntax",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "class / interface / enum / template の宣言、operator による演算子の多重定義、"
-            + "構造体のビットフィールド、#line 指令は、Unity のシェーダーのコンパイルでエラーになります。"
+            + "構造体のビットフィールドは HLSL 2018 で、#line 指令は Unity のシェーダーのコンパイルでエラーになります。"
+            + "Unity のシェーダーは HLSL 2018 としてコンパイルされます。HLSL 2021 の環境 (hlsl: version: 2021) では enum などは報告しません。"
             + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (SL0002)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));

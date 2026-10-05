@@ -551,6 +551,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Func`2[System.String,
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 FingerprintForCache { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxExpansionDepth { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxIncludeDepth { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.String DialectName { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions Default { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
@@ -1166,6 +1167,7 @@ Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: .ctor()
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Semantics.Environments.HlslEnvironmentOptions <Clone>$()
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Enable16BitTypes { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableArray`1[System.String] GeneratedIncludePrefixes { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }

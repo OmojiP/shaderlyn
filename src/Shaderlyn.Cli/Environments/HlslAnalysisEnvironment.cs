@@ -38,6 +38,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
             new HlslEnvironment(new HlslEnvironmentOptions
             {
                 LanguageVersion = configuration?.HlslVersion == 2018 ? HlslLanguageVersion.Hlsl2018 : HlslLanguageVersion.Hlsl2021,
+                Enable16BitTypes = configuration?.HlslEnable16BitTypes == true,
                 Variants = BuildVariants(configuration!, null),
             }),
             "HLSL (DXC)",

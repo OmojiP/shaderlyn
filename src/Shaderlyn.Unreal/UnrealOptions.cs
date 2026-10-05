@@ -63,6 +63,9 @@ public sealed record UnrealOptions
     /// <summary>HLSL の言語のバージョン。既定は 2018。HLSL 2021 で書いたシェーダーは設定の <c>hlsl: version</c> で 2021 にする。</summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
+    /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>)。立っていれば <c>__HLSL_ENABLE_16_BIT</c> を定義する。</summary>
+    public bool Enable16BitTypes { get; init; }
+
     /// <summary>
     /// 仮想パスの割り当てをすべて集める。
     /// </summary>
@@ -94,6 +97,7 @@ public sealed record UnrealOptions
         {
             Name = EnvironmentName,
             LanguageVersion = LanguageVersion,
+            Enable16BitTypes = Enable16BitTypes,
             Variants = variants ?? VariantSpace.Empty,
             GeneratedIncludePrefixes = GeneratedIncludePrefixes,
             PredefinedMacros = DefaultPredefinedMacros,

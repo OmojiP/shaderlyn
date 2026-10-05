@@ -5,6 +5,7 @@ environment: hlsl
 
 hlsl:
   version: 2021           # DXC の -HV: 2018 / 2021 (既定)
+  # enable-16bit-types: true   # DXC の -enable-16bit-types。__HLSL_ENABLE_16_BIT=1 を定義する
 
 # include-paths:          # #include の追加探索パス (設定ファイルからの相対)
 #   - Shaders/Include

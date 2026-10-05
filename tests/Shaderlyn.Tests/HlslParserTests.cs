@@ -384,7 +384,7 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("8", diagnostic.Location.Source.ToString(diagnostic.Location.Span));
         Assert.Contains("ビットフィールド", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("Unity", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("HLSL 2018 では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>

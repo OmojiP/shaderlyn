@@ -36,6 +36,7 @@ public sealed class HlslConfigurationTests : IDisposable
             environment: hlsl
             hlsl:
               version: 2018
+              enable-16bit-types: true
             symbols:
               - name: QUALITY
                 values: [0, 1, 2]
@@ -51,6 +52,7 @@ public sealed class HlslConfigurationTests : IDisposable
             """);
 
         Assert.Equal(2018, configuration.HlslVersion);
+        Assert.True(configuration.HlslEnable16BitTypes);
         Assert.Equal(["QUALITY", "USE_FOG"], configuration.Symbols.Select(s => s.Name));
         Assert.Equal([0, 1, 2], configuration.Symbols[0].Values.ToArray());
         Assert.True(configuration.Symbols[1].Values.IsEmpty);
@@ -81,6 +83,7 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    stage: pixel\n", "'stage'")]
     [InlineData("unreal:\n  virtual-paths:\n    Plugin/A: x\n", "/ で始めて")]
     [InlineData("unreal:\n  engines: x\n", "'engines'")]
+    [InlineData("hlsl:\n  enable-16bit-types: yes-please\n", "true か false")]
     [InlineData("environment: [unreal]\n", "environment には値を 1 つだけ")]
     [InlineData("unity:\n  profile: [urp]\n", "unity: の profile には値を 1 つだけ")]
     [InlineData("hlsl:\n  version: [2021]\n", "hlsl: の version には値を 1 つだけ")]
