@@ -149,6 +149,9 @@ public sealed class ExpressionTypeBinder
             declaratorsByStruct[declaration.Name] = fieldDeclarators.ToFrozenDictionary(StringComparer.Ordinal);
         }
 
+        // 継承した基底 (struct D : B) のフィールドも、その構造体のフィールドとして引ける。自身のフィールドを優先する。
+        InheritBaseFields(program, byStruct, declaratorsByStruct);
+
         declarators = declaratorsByStruct.ToFrozenDictionary(StringComparer.Ordinal);
         return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
     }
@@ -267,6 +270,62 @@ public sealed class ExpressionTypeBinder
     /// <returns>その名前の template の関数があれば <see langword="true"/>。</returns>
     internal bool TryGetTemplateFunctions(string name, out ImmutableArray<TemplateFunctionCandidate> candidates)
         => _templateFunctions.TryGetValue(name, out candidates);
+
+    /// <summary>継承した基底のフィールドを、構造体のフィールドの表へ足す。</summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <param name="fields">構造体の名前から、フィールドの型への対応。書き足す。</param>
+    /// <param name="declarators">構造体の名前から、フィールドの宣言子への対応。書き足す。</param>
+    /// <remarks>継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。</remarks>
+    private static void InheritBaseFields(
+        AnalyzedProgram program,
+        Dictionary<string, FrozenDictionary<string, ResolvedTypeName>> fields,
+        Dictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> declarators)
+    {
+        Dictionary<string, string> bases = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax declaration in program.Structs)
+        {
+            if (declaration.BaseTypeName is { } baseName && declaration.Name.Length > 0)
+            {
+                bases.TryAdd(declaration.Name, baseName);
+            }
+        }
+
+        foreach (string derived in bases.Keys)
+        {
+            if (!fields.TryGetValue(derived, out FrozenDictionary<string, ResolvedTypeName>? own))
+            {
+                continue;
+            }
+
+            Dictionary<string, ResolvedTypeName> merged = new(own, StringComparer.Ordinal);
+            Dictionary<string, VariableDeclaratorSyntax> mergedDeclarators = new(declarators[derived], StringComparer.Ordinal);
+            string current = derived;
+
+            for (int depth = 0; depth < 8 && bases.TryGetValue(current, out string? baseName); depth++)
+            {
+                if (!fields.TryGetValue(baseName, out FrozenDictionary<string, ResolvedTypeName>? inherited))
+                {
+                    break;
+                }
+
+                foreach ((string name, ResolvedTypeName type) in inherited)
+                {
+                    merged.TryAdd(name, type);
+                }
+
+                foreach ((string name, VariableDeclaratorSyntax declarator) in declarators[baseName])
+                {
+                    mergedDeclarators.TryAdd(name, declarator);
+                }
+
+                current = baseName;
+            }
+
+            fields[derived] = merged.ToFrozenDictionary(StringComparer.Ordinal);
+            declarators[derived] = mergedDeclarators.ToFrozenDictionary(StringComparer.Ordinal);
+        }
+    }
 
     /// <summary>構造体のフィールドの宣言子を引く。</summary>
     /// <param name="structType">構造体の名前。</param>

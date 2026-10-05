@@ -313,7 +313,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | --------------------------------- | -------------------------------------------------------------------- |
 | `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition`。演算子の多重定義 (HLSL 2021) は `IsOperator` が真で、`Name` が `operator+` のようになる |
 | `VariableDeclarationSyntax`       | 変数・uniform。`Type` / `Variables`                                  |
-| `StructDeclarationSyntax`         | 構造体                                                               |
+| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseTypeName` |
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
 | `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |

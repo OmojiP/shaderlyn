@@ -524,6 +524,20 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return null;
         }
 
+        // 継承した基底 (struct D : B) のフィールドが先に並ぶ。基底を数えられなければ、この構造体も数えない。
+        if (structure.BaseTypeName is { } baseName)
+        {
+            if (CountElementComponents(conditions, baseName, structs, depth + 1) is not { } inherited)
+            {
+                return null;
+            }
+
+            foreach ((SymbolCondition inner, int components) in inherited)
+            {
+                counts[inner] = counts.GetValueOrDefault(inner) + components;
+            }
+        }
+
         foreach (VariableDeclarationSyntax field in structure.Fields)
         {
             SymbolCondition condition = conditions.GetCondition(field);

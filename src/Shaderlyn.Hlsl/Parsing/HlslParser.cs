@@ -901,14 +901,17 @@ internal sealed class HlslParser
 
         HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
 
-        // struct の継承指定 (: BaseType) は読み飛ばす。
+        // struct の継承 (HLSL 2021 の struct D : B)。基底のメンバーも使えるので、名前を残す。
+        HlslSyntaxToken? colon = null;
+        HlslSyntaxToken? baseType = null;
+
         if (Current.Kind == HlslSyntaxKind.ColonToken)
         {
-            Advance();
+            colon = Advance();
 
             if (Current.Kind == HlslSyntaxKind.IdentifierToken)
             {
-                Advance();
+                baseType = Advance();
             }
         }
 
@@ -947,7 +950,7 @@ internal sealed class HlslParser
         HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
 
         return new StructDeclarationSyntax(
-            keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon);
+            keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType);
     }
 
     /// <summary>定数バッファの宣言を解析する。</summary>

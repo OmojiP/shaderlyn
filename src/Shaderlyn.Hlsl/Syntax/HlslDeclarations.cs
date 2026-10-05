@@ -702,6 +702,8 @@ public sealed class FunctionDeclarationSyntax(
 /// <param name="closeBrace">閉じ波括弧。</param>
 /// <param name="declarators">構造体宣言に続く変数宣言子。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
+/// <param name="colonToken">継承 (HLSL 2021 の <c>struct D : B</c>) の <c>:</c>。継承していなければ <see langword="null"/>。</param>
+/// <param name="baseTypeToken">継承する構造体の名前。継承していなければ <see langword="null"/>。</param>
 public sealed class StructDeclarationSyntax(
     HlslSyntaxToken keyword,
     HlslSyntaxToken? nameToken,
@@ -709,8 +711,20 @@ public sealed class StructDeclarationSyntax(
     ImmutableArray<HlslDeclarationSyntax> members,
     HlslSyntaxToken closeBrace,
     ImmutableArray<HlslNodeOrTokenEntry> declarators,
-    HlslSyntaxToken semicolonToken) : HlslDeclarationSyntax
+    HlslSyntaxToken semicolonToken,
+    HlslSyntaxToken? colonToken = null,
+    HlslSyntaxToken? baseTypeToken = null) : HlslDeclarationSyntax
 {
+    /// <summary>継承の <c>:</c>。継承していなければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? ColonToken { get; } = colonToken;
+
+    /// <summary>継承する構造体の名前のトークン。継承していなければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? BaseTypeToken { get; } = baseTypeToken;
+
+    /// <summary>継承する構造体の名前。継承していなければ <see langword="null"/>。</summary>
+    /// <remarks>基底のフィールドとメソッドは、この構造体のメンバーとしても使える。</remarks>
+    public string? BaseTypeName => BaseTypeToken?.Text;
+
     /// <summary><c>struct</c> キーワード。</summary>
     public HlslSyntaxToken Keyword { get; } = keyword;
 
@@ -746,6 +760,16 @@ public sealed class StructDeclarationSyntax(
         if (NameToken is not null)
         {
             yield return NameToken;
+        }
+
+        if (ColonToken is not null)
+        {
+            yield return ColonToken;
+        }
+
+        if (BaseTypeToken is not null)
+        {
+            yield return BaseTypeToken;
         }
 
         yield return OpenBrace;
