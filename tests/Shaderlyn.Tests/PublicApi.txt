@@ -678,7 +678,7 @@ Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.Immutab
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Incrementors { get; }
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.BlockStatementSyntax Body { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseParen { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
@@ -694,6 +694,7 @@ Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ModifierTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] OperatorTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] QualifierTokens { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String OwnerName { get; }
@@ -990,7 +991,7 @@ Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.Collections.Immutable.ImmutableAr
 Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null, Shaderlyn.Hlsl.Syntax.HlslTypeSyntax = null)
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null, Shaderlyn.Hlsl.Syntax.HlslTypeSyntax = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseBrace { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken ColonToken { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
@@ -1001,6 +1002,7 @@ Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeS
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax] Fields { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Members { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()

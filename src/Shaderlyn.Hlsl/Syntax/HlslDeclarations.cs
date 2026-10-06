@@ -561,6 +561,9 @@ public sealed class ParameterSyntax(
 /// 演算子の多重定義 (HLSL 2021 の <c>Complex operator+(Complex other)</c>) の、<c>operator</c> に続く記号。
 /// <paramref name="nameToken"/> は <c>operator</c> になる。ふつうの関数では空。
 /// </param>
+/// <param name="specializationTokens">
+/// 明示的な特殊化 (HLSL 2021 の <c>template&lt;&gt; float Twice&lt;float&gt;(float x)</c>) の、関数名に付く型引数。山括弧を含む。ふつうの関数では空。
+/// </param>
 public sealed class FunctionDeclarationSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
     ImmutableArray<HlslSyntaxToken> modifierTokens,
@@ -573,8 +576,12 @@ public sealed class FunctionDeclarationSyntax(
     BlockStatementSyntax? body,
     HlslSyntaxToken? semicolonToken,
     ImmutableArray<HlslSyntaxToken> qualifierTokens = default,
-    ImmutableArray<HlslSyntaxToken> operatorTokens = default) : HlslDeclarationSyntax
+    ImmutableArray<HlslSyntaxToken> operatorTokens = default,
+    ImmutableArray<HlslSyntaxToken> specializationTokens = default) : HlslDeclarationSyntax
 {
+    /// <summary>明示的な特殊化の、関数名に付く型引数 (山括弧を含む)。ふつうの関数では空。</summary>
+    public ImmutableArray<HlslSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
+
     /// <summary>
     /// 関数名の前の修飾 (<c>Wave</c> と <c>::</c>)。ふつうの関数では空。
     /// </summary>
@@ -668,6 +675,11 @@ public sealed class FunctionDeclarationSyntax(
             yield return symbol;
         }
 
+        foreach (HlslSyntaxToken token in SpecializationTokens)
+        {
+            yield return token;
+        }
+
         yield return OpenParen;
 
         foreach (HlslNodeOrTokenEntry parameter in Parameters)
@@ -704,6 +716,12 @@ public sealed class FunctionDeclarationSyntax(
 /// <param name="semicolonToken">終端のセミコロン。</param>
 /// <param name="colonToken">継承 (HLSL 2021 の <c>struct D : B</c>) の <c>:</c>。継承していなければ <see langword="null"/>。</param>
 /// <param name="baseType">継承する構造体の型 (<c>B</c> / <c>Box&lt;T&gt;</c>)。継承していなければ <see langword="null"/>。</param>
+/// <param name="specializationTokens">
+/// 明示的な特殊化 (<c>template&lt;&gt; struct Box&lt;float&gt;</c>) の、構造体名に付く型引数。山括弧を含む。ふつうの構造体では空。
+/// </param>
+/// <remarks>
+/// HLSL 2021 の <c>class</c> と <c>interface</c> も同じ形で表す。<see cref="Keyword"/> がそのキーワードになる。
+/// </remarks>
 public sealed class StructDeclarationSyntax(
     HlslSyntaxToken keyword,
     HlslSyntaxToken? nameToken,
@@ -713,8 +731,12 @@ public sealed class StructDeclarationSyntax(
     ImmutableArray<HlslNodeOrTokenEntry> declarators,
     HlslSyntaxToken semicolonToken,
     HlslSyntaxToken? colonToken = null,
-    HlslTypeSyntax? baseType = null) : HlslDeclarationSyntax
+    HlslTypeSyntax? baseType = null,
+    ImmutableArray<HlslSyntaxToken> specializationTokens = default) : HlslDeclarationSyntax
 {
+    /// <summary>明示的な特殊化の、構造体名に付く型引数 (山括弧を含む)。ふつうの構造体では空。</summary>
+    public ImmutableArray<HlslSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
+
     /// <summary>継承の <c>:</c>。継承していなければ <see langword="null"/>。</summary>
     public HlslSyntaxToken? ColonToken { get; } = colonToken;
 
@@ -760,6 +782,11 @@ public sealed class StructDeclarationSyntax(
         if (NameToken is not null)
         {
             yield return NameToken;
+        }
+
+        foreach (HlslSyntaxToken token in SpecializationTokens)
+        {
+            yield return token;
         }
 
         if (ColonToken is not null)

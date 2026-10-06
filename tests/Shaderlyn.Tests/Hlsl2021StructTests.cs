@@ -312,6 +312,37 @@ public sealed class Hlsl2021StructTests
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0350");
     }
 
+    /// <summary>
+    /// <c>class</c> / <c>interface</c> / 明示的な特殊化 (<c>template&lt;&gt;</c>) を構造体と同じに検査することを検証する (G8)。
+    /// </summary>
+    /// <param name="code">シェーダー全体。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    [Theory]
+    [InlineData("class Light { float3 color; float3 Get() { return color; } }; float4 main() : SV_Target { Light l; l.color = 1; return float4(l.Get() + l.color, 1); }", null)]
+    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.missing; }", "HL0312")]
+    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.Nope(); }", "HL0312")]
+    [InlineData("class B { float x; }; class D : B { float y; }; float4 main() : SV_Target { D d; d.x = 1; d.y = 2; return d.x + d.y; }", null)]
+    [InlineData("interface ILight { float3 Color(); }; float4 main() : SV_Target { return 0; }", null)]
+    [InlineData("interface ILight { float3 Color(); }; class Sun : ILight { float3 Color() { return 1; } }; float4 main() : SV_Target { Sun s; return float4(s.Color(), 1); }", null)]
+    [InlineData("interface ILight { float3 Color(); }; class Sun : ILight { float3 Color() { return 1; } }; float4 main() : SV_Target { Sun s; return float4(s.Nope(), 1); }", "HL0312")]
+    [InlineData("class Light { float3 color; } g_light; float4 main() : SV_Target { return float4(g_light.color, 1); }", null)]
+    [InlineData("struct Light { float3 color; } g_light; float4 main() : SV_Target { return float4(g_light.color, 1); }", null)]
+    [InlineData("template<typename T> T Twice(T x) { return x + x; } template<> float Twice<float>(float x) { return x * 2; } float4 main() : SV_Target { return Twice(2.0f) + Twice<float>(1.0f); }", null)]
+    [InlineData("template<typename T> T Twice(T x) { return x + x; } template<> float Twice<float>(float x) { return x * missingName; } float4 main() : SV_Target { return Twice(2.0f); }", "HL0310")]
+    [InlineData("template<typename T> struct Box { T v; }; template<> struct Box<float> { float v; float extra; }; float4 main() : SV_Target { Box<float> b = (Box<float>)0; return b.extra; }", null)]
+    [InlineData("template<typename T> struct Box { T v; }; template<> struct Box<float> { float v; float extra; }; float4 main() : SV_Target { Box<float> b = (Box<float>)0; return b.nope; }", "HL0312")]
+    [InlineData("struct Light; struct Light { float x; }; float4 main() : SV_Target { Light l = (Light)0; return l.x; }", null)]
+    [InlineData("class ObjModelLoader; float4 main() : SV_Target { return 0; }", null)]
+    public void classとinterfaceと明示的な特殊化をDXCと同じに扱う(string code, string? expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(code);
+        string[] reported = [.. diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id)];
+
+        Assert.True(
+            (expected is null ? [] : new[] { expected }).SequenceEqual(reported),
+            $"期待: [{expected}] 実際: [{string.Join(", ", diagnostics.Select(d => $"{d.Id}: {d.GetMessage()}"))}]");
+    }
+
     /// <summary>前置きの構造体を使う文を解析し、報告された規則を比べる。</summary>
     /// <param name="statement">main の中に書く文。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>

@@ -311,13 +311,13 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 | 型                                | 何を指すか                                                           |
 | --------------------------------- | -------------------------------------------------------------------- |
-| `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition`。演算子の多重定義 (HLSL 2021) は `IsOperator` が真で、`Name` が `operator+` のようになる |
+| `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition`。演算子の多重定義 (HLSL 2021) は `IsOperator` が真で、`Name` が `operator+` のようになる。明示的な特殊化の型引数は `SpecializationTokens` |
 | `VariableDeclarationSyntax`       | 変数・uniform。`Type` / `Variables`                                  |
-| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseType` / `BaseTypeName` |
+| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseType` / `BaseTypeName`。HLSL 2021 の `class` / `interface` もこの形 (`Keyword` で区別)。明示的な特殊化の型引数は `SpecializationTokens` |
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
 | `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |
-| `TemplateDeclarationSyntax`       | `template<typename T>` (HLSL 2021)。`ParameterNames` (`T`) / `Declaration` (続く関数か構造体)。明示的な特殊化 (`template<>`) は `IncompleteDeclarationSyntax` |
+| `TemplateDeclarationSyntax`       | `template<typename T>` (HLSL 2021)。`ParameterNames` (`T`) / `Declaration` (続く関数か構造体)。明示的な特殊化 (`template<>`) は `ParameterNames` が空 |
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 

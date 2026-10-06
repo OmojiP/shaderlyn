@@ -432,6 +432,13 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
                     case StructDeclarationSyntax structure:
                         declared.Add(structure.Name);
+
+                        // 構造体の宣言に続けて宣言した変数 (struct Light { ... } g_light;)。関数の中のものは除く。
+                        if (!structure.Ancestors().Any(a => a is FunctionDeclarationSyntax))
+                        {
+                            declared.UnionWith(structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().Select(v => v.Name));
+                        }
+
                         break;
 
                     case ConstantBufferDeclarationSyntax { NameToken: { } bufferName }:

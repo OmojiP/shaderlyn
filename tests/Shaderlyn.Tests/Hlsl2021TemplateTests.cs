@@ -78,13 +78,26 @@ public sealed class Hlsl2021TemplateTests
     }
 
     [Fact]
-    public void 明示的な特殊化は読み飛ばす()
+    public void 明示的な特殊化を構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("template<> float Twice<float>(float x) { return x * 2; }");
+        HlslSyntaxTree tree = Parse2021("""
+            template<> float Twice<float>(float x) { return x * 2; }
+            template<> struct Box<float> { float v; };
+            """);
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
-        Assert.IsType<IncompleteDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
-        Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "Twice");
+
+        TemplateDeclarationSyntax function = Assert.IsType<TemplateDeclarationSyntax>(tree.Root.Declarations[0]);
+        Assert.Empty(function.ParameterNames);
+        FunctionDeclarationSyntax twice = Assert.IsType<FunctionDeclarationSyntax>(function.Declaration);
+        Assert.Equal("Twice", twice.Name);
+        Assert.Equal(["<", "float", ">"], twice.SpecializationTokens.Select(t => t.Text));
+
+        TemplateDeclarationSyntax structure = Assert.IsType<TemplateDeclarationSyntax>(tree.Root.Declarations[1]);
+        StructDeclarationSyntax box = Assert.IsType<StructDeclarationSyntax>(structure.Declaration);
+        Assert.Equal("Box", box.Name);
+        Assert.Equal(["<", "float", ">"], box.SpecializationTokens.Select(t => t.Text));
+        Assert.Empty(tree.UnanalyzedIdentifiers);
     }
 
     [Fact]

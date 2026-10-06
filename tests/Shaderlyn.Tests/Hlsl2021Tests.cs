@@ -21,7 +21,7 @@ namespace Shaderlyn.Tests;
 /// 使えない構文 (HL0003) として報告する。DXC の HLSL 2021 は受け付ける。
 /// </para>
 /// <para>
-/// <c>enum</c>・演算子の多重定義・<c>template</c> は構文木にする
+/// <c>enum</c>・演算子の多重定義・<c>template</c>・<c>class</c>・<c>interface</c> は構文木にする
 /// (<see cref="Hlsl2021EnumTests"/>、<see cref="Hlsl2021OperatorTests"/>、<see cref="Hlsl2021TemplateTests"/>)。
 /// まだ構文木にしない構文は読み飛ばし、その名前を「解析していない場所の名前」として扱う。
 /// 呼び出しを「宣言されていない」と報告すると、正しいコードを誤りとして指摘することになる。
@@ -64,28 +64,30 @@ public sealed class Hlsl2021Tests
         Assert.Empty(tree.Diagnostics);
     }
 
+    /// <summary>型引数の並びを読めない template (既定値の中の <c>&gt;&gt;</c> を 1 つの記号として読む) は読み飛ばし、名前を残すことを検証する。</summary>
     [Fact]
     public void 読み飛ばした宣言の名前を残す()
     {
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(
-            SourceText.From("interface ILight { float3 Color(); };", "test.hlsl"),
+            SourceText.From("template<typename T = vector<float, 3>> T Make() { return (T)0; }", "test.hlsl"),
             new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
-        Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "ILight");
+        Assert.Empty(tree.Diagnostics);
+        Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "Make");
     }
 
     /// <summary>
-    /// 読み飛ばした template の明示的な特殊化の関数を呼んでも、宣言されていないと報告しないことを検証する。
+    /// 読み飛ばした template の関数を呼んでも、宣言されていないと報告しないことを検証する。
     /// </summary>
     [Fact]
     public void 読み飛ばした宣言を呼んでも宣言が無いとは言わない()
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze("""
-            template<> float4 Twice<float4>(float4 x) { return x + x; }
+            template<typename T = vector<float, 3>> T Make() { return (T)0; }
 
             float4 main(float4 p : POSITION) : SV_POSITION
             {
-                return Twice(p);
+                return float4(Make(), 1);
             }
             """);
 

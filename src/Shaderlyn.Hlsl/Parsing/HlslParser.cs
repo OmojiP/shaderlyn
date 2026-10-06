@@ -329,9 +329,20 @@ internal sealed class HlslParser
 
         ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
 
+        // 前方宣言 (struct Light; / class ObjModelLoader;)。名前を知らせるだけで中身は無い。
+        if ((CurrentTextIs("struct") || (LanguageVersion == HlslLanguageVersion.Hlsl2021 && (CurrentTextIs("class") || CurrentTextIs("interface"))))
+            && Peek(1).Kind == HlslSyntaxKind.IdentifierToken
+            && Peek(2).Kind == HlslSyntaxKind.SemicolonToken)
+        {
+            return new IncompleteDeclarationSyntax([Advance(), Advance(), Advance()]);
+        }
+
+        // class と interface は HLSL 2021 で、構造体と同じ形で構文木にする。2018 (Unity) では報告して読み飛ばす。
         if (CurrentTextIs("class") || CurrentTextIs("interface"))
         {
-            return ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
+            return LanguageVersion == HlslLanguageVersion.Hlsl2021
+                ? ParseStruct()
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
         }
 
         if (CurrentTextIs("struct"))
@@ -519,6 +530,21 @@ internal sealed class HlslParser
             return RecoverDeclaration($"'(' が必要ですが '{DescribeCurrent()}' がありました。");
         }
 
+        // 明示的な特殊化の関数名に付く型引数 (template<> float Twice<float>(float x))。
+        if (LanguageVersion == HlslLanguageVersion.Hlsl2021
+            && Current.Kind == HlslSyntaxKind.LessThanToken
+            && FindTypeArgumentsEnd() is int close)
+        {
+            ImmutableArray<HlslSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+            for (int i = 0; i <= close; i++)
+            {
+                specialization.Add(Advance());
+            }
+
+            return ParseFunctionRest(attributes, modifiers, type, name, specializationTokens: specialization.ToImmutable());
+        }
+
         return Current.Kind == HlslSyntaxKind.OpenParenToken
             ? ParseFunctionRest(attributes, modifiers, type, name)
             : ParseVariableRest(modifiers, type, name);
@@ -531,6 +557,7 @@ internal sealed class HlslParser
     /// <param name="name">関数名。</param>
     /// <param name="qualifiers">構造体の外でのメソッドの定義なら、関数名の前の修飾 (<c>Wave</c> と <c>::</c>)。</param>
     /// <param name="operatorTokens">演算子の多重定義なら、<c>operator</c> に続く記号。</param>
+    /// <param name="specializationTokens">明示的な特殊化なら、関数名に付く型引数 (山括弧を含む)。</param>
     /// <returns>解析した宣言。</returns>
     /// <remarks>
     /// 文法:
@@ -542,7 +569,8 @@ internal sealed class HlslParser
         HlslTypeSyntax returnType,
         HlslSyntaxToken name,
         ImmutableArray<HlslSyntaxToken> qualifiers = default,
-        ImmutableArray<HlslSyntaxToken> operatorTokens = default)
+        ImmutableArray<HlslSyntaxToken> operatorTokens = default,
+        ImmutableArray<HlslSyntaxToken> specializationTokens = default)
     {
         HlslSyntaxToken openParen = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder parameters =
@@ -578,13 +606,13 @@ internal sealed class HlslParser
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
             return new FunctionDeclarationSyntax(
                 attributes, modifiers, returnType, name, openParen,
-                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens);
+                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens, specializationTokens);
         }
 
         HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
         return new FunctionDeclarationSyntax(
             attributes, modifiers, returnType, name, openParen,
-            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens);
+            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens, specializationTokens);
     }
 
     /// <summary>
@@ -811,11 +839,6 @@ internal sealed class HlslParser
             }
         }
 
-        if (close == 2)
-        {
-            return null;
-        }
-
         HlslSyntaxToken keyword = Advance();
         HlslSyntaxToken openAngle = Advance();
         ImmutableArray<HlslSyntaxToken>.Builder parameters = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
@@ -901,6 +924,26 @@ internal sealed class HlslParser
 
         HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
 
+        // 明示的な特殊化の構造体名に付く型引数 (template<> struct Box<float> { ... })。
+        ImmutableArray<HlslSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+        if (name is not null && LanguageVersion == HlslLanguageVersion.Hlsl2021 && Current.Kind == HlslSyntaxKind.LessThanToken)
+        {
+            int depth = 0;
+
+            do
+            {
+                depth += Current.Kind switch
+                {
+                    HlslSyntaxKind.LessThanToken => 1,
+                    HlslSyntaxKind.GreaterThanToken => -1,
+                    _ => 0,
+                };
+                specialization.Add(Advance());
+            }
+            while (!AtEnd && depth > 0 && Current.Kind is not (HlslSyntaxKind.OpenBraceToken or HlslSyntaxKind.SemicolonToken));
+        }
+
         // struct の継承 (HLSL 2021 の struct D : B)。基底のメンバーも使えるので、名前を残す。
         // 基底は型引数を持ちうる (struct Derived : Box<T>)。
         HlslSyntaxToken? colon = null;
@@ -951,7 +994,8 @@ internal sealed class HlslParser
         HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
 
         return new StructDeclarationSyntax(
-            keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType);
+            keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
+            specialization.ToImmutable());
     }
 
     /// <summary>定数バッファの宣言を解析する。</summary>

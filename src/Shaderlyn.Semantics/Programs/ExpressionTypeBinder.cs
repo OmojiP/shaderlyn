@@ -449,7 +449,14 @@ public sealed class ExpressionTypeBinder
                 {
                     case TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax function } template:
                         templates.Add(function.Name);
-                        Add(function, template.ParameterNames);
+
+                        // 明示的な特殊化 (template<>) は、元の template がその型で推論されたときに選ばれる。
+                        // 戻り値の型は元の template から決まるので、候補には足さない。
+                        if (!template.ParameterNames.IsEmpty)
+                        {
+                            Add(function, template.ParameterNames);
+                        }
+
                         break;
 
                     case FunctionDeclarationSyntax { IsMethodDefinition: false } function:

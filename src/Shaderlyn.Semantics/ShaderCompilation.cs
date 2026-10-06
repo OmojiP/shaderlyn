@@ -1120,6 +1120,18 @@ public sealed class ShaderCompilation
                 case StructDeclarationSyntax structure:
                     names.Add(structure.Name);
                     outside.Add(structure.Name);
+
+                    // 構造体の宣言に続けて宣言した変数 (struct Light { ... } g_light;)。
+                    foreach (VariableDeclaratorSyntax declarator in structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                    {
+                        names.Add(declarator.Name);
+
+                        if (!structure.Ancestors().Any(a => a is FunctionDeclarationSyntax))
+                        {
+                            outside.Add(declarator.Name);
+                        }
+                    }
+
                     break;
 
                 case ConstantBufferDeclarationSyntax buffer when buffer.NameToken is { } name:
