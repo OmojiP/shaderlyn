@@ -333,7 +333,7 @@ public sealed class ExpressionTypeEvaluator
                 TemplateDeductionResult deduced = TemplateDeduction.Deduce(
                     candidate, invocation, argument => TemplateDeduction.ArgumentType(this, argument));
 
-                if (deduced.Conflict is not null)
+                if (deduced.Fails)
                 {
                     continue;
                 }

@@ -499,26 +499,32 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         TemplateDeductionResult deduced = TemplateDeduction.Deduce(
             single, invocation, argument => TemplateDeduction.ArgumentType(evaluator, argument));
 
-        if (deduced.Conflict is not { } conflict || !reported.Add(location.Span.Start))
+        if (!deduced.Fails || !reported.Add(location.Span.Start))
         {
             return;
         }
 
-        bool literal = TemplateDeduction.IsLiteral(conflict.FirstType) || TemplateDeduction.IsLiteral(conflict.SecondType);
-        string hint = literal
-            ? $"接尾辞の無い数は float / int とは別の型として推論されます。1.0f のように接尾辞を付けるか、型引数を書いてください ({name}<float>(...))。"
-            : $"実引数の型を揃えるか、型引数を書いてください ({name}<{conflict.FirstType}>(...))。";
+        string message;
 
-        context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.TemplateArgumentConflict,
-            location,
-            name,
-            conflict.TypeParameter,
-            conflict.FirstIndex + 1,
-            DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex]),
-            conflict.SecondIndex + 1,
-            DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex]),
-            hint));
+        if (deduced.Mismatch is { } mismatch)
+        {
+            message = $"template の関数 '{name}' の第 {mismatch.ArgumentIndex + 1} 引数の {mismatch.ArgumentType} から、"
+                      + $"仮引数 {mismatch.ParameterType} の型引数を決められません。仮引数の形に合う値を渡してください。";
+        }
+        else
+        {
+            TemplateDeductionConflict conflict = deduced.Conflict!.Value;
+            bool literal = TemplateDeduction.IsLiteral(conflict.FirstType) || TemplateDeduction.IsLiteral(conflict.SecondType);
+            string hint = literal
+                ? $"接尾辞の無い数は float / int とは別の型として推論されます。1.0f のように接尾辞を付けるか、型引数を書いてください ({name}<float>(...))。"
+                : $"実引数の型を揃えるか、型引数を書いてください ({name}<{conflict.FirstType}>(...))。";
+
+            message = $"template の関数 '{name}' の型引数 {conflict.TypeParameter} を決められません。"
+                      + $"第 {conflict.FirstIndex + 1} 引数からは {DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex])}、"
+                      + $"第 {conflict.SecondIndex + 1} 引数からは {DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex])} になります。{hint}";
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.TemplateArgumentConflict, location, message));
     }
 
     /// <summary>構造体のメソッドの呼び出しで、引数の個数を検査する (HL0341、HLSL 2021)。</summary>

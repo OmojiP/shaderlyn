@@ -402,7 +402,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor TemplateArgumentConflict { get; } = new(
         id: "HL0345",
         title: "template の型引数を実引数から決められません",
-        messageFormat: "template の関数 '{0}' の型引数 {1} を決められません。第 {2} 引数からは {3}、第 {4} 引数からは {5} になります。{6}",
+        messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "template の関数を型引数を書かずに呼ぶと、型引数は実引数の型から決まります (推論)。"

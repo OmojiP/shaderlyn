@@ -63,7 +63,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   `template` の明示的な特殊化 (`template<> float Twice<float>(float x)`、`template<> struct Box<float>`) も読み、本体を検査する
 - HLSL 2021 の構造体のメソッドの中の `this` を読む (`this.x`)
 - 新しいルール HL0345 (template の型引数を実引数から決められない)。`MaxOf(k, h)` (`float` と `half`) や `MaxOf(1.0, k)` (接尾辞の無い数と `float`) を報告する。
-  template の関数の引数の個数が合わない呼び出しは HL0341 で報告する
+  template の関数の引数の個数が合わない呼び出しは HL0341 で報告する。
+  `vector<T, N>` の仮引数からも推論し、形の合わない実引数 (`float4` を `vector<T, 3>` へ) も報告する。戻り値の `vector<T, N>` も置き換える
   構文木は `TemplateDeclarationSyntax`、`InvocationExpressionSyntax.TypeArgumentTokens`
 - 汎用の HLSL 環境で、ライブラリ (`lib_6_x`) とターゲットの分からない単位では、宣言だけの関数 (HL0311) を報告しない。
   定義はリンクするほかのライブラリにありうる (`HlslCompilationUnit.AllowsExternalDefinitions`)

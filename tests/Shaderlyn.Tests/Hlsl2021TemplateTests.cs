@@ -298,6 +298,62 @@ public sealed class Hlsl2021TemplateTests
         Assert.Equal(expected is null ? [] : [expected], reported);
     }
 
+    /// <summary>
+    /// <c>vector&lt;T, N&gt;</c> の仮引数からの推論を、DXC と同じに扱うことを検証する (G10)。
+    /// </summary>
+    /// <param name="statement">main の中に書く文。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    [Theory]
+    [InlineData("float a = Sum3(f3)", null)]
+    [InlineData("int a = Sum3(i3)", null)]
+    [InlineData("float a = Sum3(f4)", "HL0345")]
+    [InlineData("float a = Sum3(k)", "HL0345")]
+    [InlineData("float a = Sum3(m)", "HL0345")]
+    [InlineData("float3 a = Scale(f3, k)", null)]
+    [InlineData("float3 a = Scale(f3, 2.0f)", null)]
+    [InlineData("float3 a = Scale(f3, 2)", "HL0345")]
+    [InlineData("float3 a = Scale(f3, i)", "HL0345")]
+    [InlineData("float4 a = Scale(f4, k)", null)]
+    [InlineData("float3 a = Scale(h3, k)", "HL0345")]
+    [InlineData("float a = Dot(f3, f3)", null)]
+    [InlineData("float a = Dot(f3, f4)", "HL0345")]
+    [InlineData("float a = Dot(f3, i3)", "HL0345")]
+    [InlineData("float a = Dot(f3, h3)", "HL0345")]
+    [InlineData("float a = Sum3(f3).x", null)]
+    [InlineData("float a = Scale(f3, k).w", "HL0312")]
+    [InlineData("float a = Sum3(f3).y", "HL0312")]
+    [InlineData("float a = Ones(f3).z", null)]
+    [InlineData("float a = Ones(f3).w", "HL0312")]
+    [InlineData("float a = Ones(i3).x", "HL0345")]
+    public void vectorの仮引数からの推論をDXCと同じに扱う(string statement, string? expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze($$"""
+            template<typename T> T Sum3(vector<T, 3> v) { return v.x + v.y + v.z; }
+            template<typename T, int N> vector<T, N> Scale(vector<T, N> v, T s) { return v * s; }
+            template<typename T, int N> T Dot(vector<T, N> a, vector<T, N> b) { return dot(a, b); }
+            template<int N> vector<float, N> Ones(vector<float, N> v) { return v; }
+            cbuffer C { float k; int i; float3 f3; float4 f4; int3 i3; half3 h3; float3x3 m; };
+            float4 main() : SV_Target { {{statement}}; return 0; }
+            """);
+
+        string[] reported = [.. diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id)];
+
+        Assert.Equal(expected is null ? [] : [expected], reported);
+    }
+
+    [Fact]
+    public void 形の合わない実引数の文に仮引数の形を書く()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            template<typename T> T Sum3(vector<T, 3> v) { return v.x + v.y + v.z; }
+            cbuffer C { float4 f4; };
+            float4 main() : SV_Target { return Sum3(f4); }
+            """);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0345");
+        Assert.Contains("第 1 引数の float4 から、仮引数 vector<T, 3> の型引数を決められません", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void 推論の食い違いの文に両方の型を書く()
     {

@@ -33,12 +33,24 @@ internal readonly record struct TemplateDeductionConflict(
     int SecondIndex,
     string SecondType);
 
+/// <summary>実引数の形が、仮引数の形 (<c>vector&lt;T, 3&gt;</c>) に合わないこと。</summary>
+/// <param name="ArgumentIndex">実引数の位置 (0 から)。</param>
+/// <param name="ArgumentType">実引数の型。</param>
+/// <param name="ParameterType">仮引数の型の書き方 (<c>vector&lt;T, 3&gt;</c>)。</param>
+internal readonly record struct TemplateDeductionMismatch(int ArgumentIndex, string ArgumentType, string ParameterType);
+
 /// <summary>推論の結果。</summary>
 /// <param name="Bindings">型引数の名前から、決まった型への対応。決められなかった型引数は <see langword="null"/>。</param>
 /// <param name="Conflict">同じ型引数が違う型に決まった場合、その中身。</param>
+/// <param name="Mismatch">実引数の形が仮引数の形に合わない場合、その中身。</param>
 internal readonly record struct TemplateDeductionResult(
     FrozenDictionary<string, string?> Bindings,
-    TemplateDeductionConflict? Conflict);
+    TemplateDeductionConflict? Conflict,
+    TemplateDeductionMismatch? Mismatch = null)
+{
+    /// <summary>その関数を呼べないことが確かかどうか。</summary>
+    public bool Fails => Conflict is not null || Mismatch is not null;
+}
 
 /// <summary>
 /// template の関数の呼び出しで、型引数を実引数から決める (HLSL 2021)。
@@ -55,6 +67,10 @@ internal readonly record struct TemplateDeductionResult(
 /// <b>接尾辞の無い数は、<c>float</c> / <c>int</c> とは別の型として推論される。</b>
 /// <c>MaxOf(1.0, k)</c> (<c>k</c> は <c>float</c>) も <c>MaxOf(1, 2.0)</c> も呼び出せない。
 /// 括弧や符号 (<c>-1.0</c>) を付けてもリテラルのままである。式 (<c>k * 2.0</c>) は式の型になる。
+/// </para>
+/// <para>
+/// 仮引数が <c>vector&lt;T, N&gt;</c> なら、実引数のベクトルの基本型が <c>T</c>、成分の数が <c>N</c> になる。
+/// ベクトルでない実引数 (スカラー・行列) や、成分の数が書かれた数と違う実引数は呼び出せない。
 /// </para>
 /// <para>
 /// <b>型を比べてよいときだけ食い違いと言う。</b>
@@ -152,7 +168,7 @@ internal static class TemplateDeduction
     /// <returns>決まった型引数と、食い違い。</returns>
     /// <remarks>
     /// 書いた型引数 (<c>MaxOf&lt;float&gt;</c>) は推論しない。実引数はその型へ変換される。
-    /// 仮引数の型が型引数を含む別の形 (<c>vector&lt;T, 3&gt;</c>、配列) なら、そこからは推論しない。
+    /// 仮引数の型が型引数そのものか <c>vector&lt;T, N&gt;</c> のときだけ推論する。ほかの形 (行列・配列・構造体) からは推論しない。
     /// </remarks>
     internal static TemplateDeductionResult Deduce(
         TemplateFunctionCandidate candidate,
@@ -176,49 +192,122 @@ internal static class TemplateDeduction
         ParameterSyntax[] parameters = [.. candidate.Declaration.ParameterList];
         HlslExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
         TemplateDeductionConflict? conflict = null;
+        TemplateDeductionMismatch? mismatch = null;
 
-        for (int i = 0; i < parameters.Length && i < arguments.Length && conflict is null; i++)
+        bool IsDeducible(string name)
+            => candidate.TypeParameters.Contains(name) && !explicitlyWritten.Contains(name);
+
+        // 実引数 1 つから、型引数 1 つの値が分かった。
+        void Observe(string name, string? value, int index)
         {
-            ParameterSyntax parameter = parameters[i];
-
-            if (parameter.IsArray
-                || parameter.Type.OpenAngle is not null
-                || !parameter.Type.QualifierTokens.IsEmpty
-                || parameter.Type.NameToken.Text is not { } name
-                || !candidate.TypeParameters.Contains(name)
-                || explicitlyWritten.Contains(name)
-                || undecided.Contains(name))
+            if (undecided.Contains(name))
             {
-                continue;
+                return;
             }
 
-            if (argumentType(arguments[i]) is not { } type)
+            if (value is null)
             {
                 undecided.Add(name);
-                continue;
+                return;
             }
 
             if (!boundAt.TryGetValue(name, out int first))
             {
-                bindings[name] = type;
-                boundAt[name] = i;
-                continue;
+                bindings[name] = value;
+                boundAt[name] = index;
+                return;
             }
 
             string previous = bindings[name]!;
 
-            if (previous == type)
+            if (previous == value)
             {
-                continue;
+                return;
             }
 
-            if (IsComparable(previous) && IsComparable(type))
+            if (IsComparable(previous) && IsComparable(value))
             {
-                conflict = new TemplateDeductionConflict(name, first, previous, i, type);
+                conflict ??= new TemplateDeductionConflict(name, first, previous, index, value);
             }
             else
             {
                 undecided.Add(name);
+            }
+        }
+
+        for (int i = 0; i < parameters.Length && i < arguments.Length && conflict is null && mismatch is null; i++)
+        {
+            ParameterSyntax parameter = parameters[i];
+            HlslTypeSyntax type = parameter.Type;
+
+            if (parameter.IsArray || !type.QualifierTokens.IsEmpty)
+            {
+                continue;
+            }
+
+            // 型引数そのもの (T a)。
+            if (type.OpenAngle is null)
+            {
+                if (IsDeducible(type.NameToken.Text))
+                {
+                    Observe(type.NameToken.Text, argumentType(arguments[i]), i);
+                }
+
+                continue;
+            }
+
+            // vector<T, N> a。
+            if (type.NameToken.Text != "vector"
+                || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+            {
+                continue;
+            }
+
+            bool deducesElement = IsDeducible(element.Text);
+            bool deducesCount = IsDeducible(count.Text);
+
+            if (!deducesElement && !deducesCount)
+            {
+                continue;
+            }
+
+            if (argumentType(arguments[i]) is not { } argument
+                || IsLiteral(argument)
+                || !HlslTypeClassifier.TryDescribeNumeric(argument, out HlslNumericShape shape)
+                || !ComparableBaseNames.Contains(shape.BaseName))
+            {
+                if (deducesElement)
+                {
+                    undecided.Add(element.Text);
+                }
+
+                if (deducesCount)
+                {
+                    undecided.Add(count.Text);
+                }
+
+                continue;
+            }
+
+            string parameterType = $"vector<{element.Text}, {count.Text}>";
+
+            // ベクトルでない値、書かれた基本型や成分の数と違う値は、この仮引数に合わない。
+            if (shape.Kind != HlslNumericKind.Vector
+                || (!deducesElement && IsComparable(element.Text) && Canonicalize(element.Text) != shape.BaseName)
+                || (!deducesCount && int.TryParse(count.Text, out int columns) && columns != shape.Columns))
+            {
+                mismatch = new TemplateDeductionMismatch(i, argument, parameterType);
+                break;
+            }
+
+            if (deducesElement)
+            {
+                Observe(element.Text, shape.BaseName, i);
+            }
+
+            if (deducesCount)
+            {
+                Observe(count.Text, shape.Columns.ToString(System.Globalization.CultureInfo.InvariantCulture), i);
             }
         }
 
@@ -230,7 +319,7 @@ internal static class TemplateDeduction
             }
         }
 
-        return new TemplateDeductionResult(bindings.ToFrozenDictionary(StringComparer.Ordinal), conflict);
+        return new TemplateDeductionResult(bindings.ToFrozenDictionary(StringComparer.Ordinal), conflict, mismatch);
     }
 
     /// <summary>決まった型引数で、戻り値の型を置き換える。</summary>
@@ -241,7 +330,7 @@ internal static class TemplateDeduction
     {
         if (candidate.ReturnType is not { } returnType)
         {
-            return null;
+            return ComposedReturnType(candidate, result);
         }
 
         if (!candidate.TypeParameters.Contains(returnType))
@@ -251,6 +340,35 @@ internal static class TemplateDeduction
 
         // リテラルから決まった型 (One(1.0)) は、使う場所で float などになる。ここでは主張しない。
         return result.Bindings.GetValueOrDefault(returnType) is { } bound && !IsLiteral(bound) ? bound : null;
+    }
+
+    /// <summary>戻り値の <c>vector&lt;T, N&gt;</c> を、決まった型引数で組み立てる。</summary>
+    /// <param name="candidate">template の関数。</param>
+    /// <param name="result">推論の結果。</param>
+    /// <returns>組み立てた型 (<c>float3</c>)。決まらなければ <see langword="null"/>。</returns>
+    private static string? ComposedReturnType(TemplateFunctionCandidate candidate, TemplateDeductionResult result)
+    {
+        HlslTypeSyntax type = candidate.Declaration.ReturnType;
+
+        if (type.NameToken.Text != "vector"
+            || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+        {
+            return null;
+        }
+
+        string? baseName = candidate.TypeParameters.Contains(element.Text)
+            ? result.Bindings.GetValueOrDefault(element.Text)
+            : element.Text;
+        string? columns = candidate.TypeParameters.Contains(count.Text)
+            ? result.Bindings.GetValueOrDefault(count.Text)
+            : count.Text;
+
+        return baseName is not null
+               && !IsLiteral(baseName)
+               && int.TryParse(columns, out int n)
+               && n is >= 1 and <= 4
+            ? HlslTypeClassifier.ComposeNumeric(baseName, n)
+            : null;
     }
 
     /// <summary>型名が、リテラルの型を表すかを調べる。</summary>
@@ -311,5 +429,6 @@ internal static class TemplateDeduction
     /// <returns>比べてよければ <see langword="true"/>。</returns>
     private static bool IsComparable(string type)
         => IsLiteral(type)
+           || int.TryParse(type, out _)
            || (HlslTypeClassifier.TryDescribeNumeric(type, out HlslNumericShape shape) && ComparableBaseNames.Contains(shape.BaseName));
 }
