@@ -1,4 +1,4 @@
-// 動作確認用。HLSL 2021 の構文 (enum class・ビットフィールド・演算子の多重定義・template) を読んで検査する。
+// 動作確認用。HLSL 2021 の構文 (enum class・ビットフィールド・演算子の多重定義・template・class と継承) を読んで検査する。
 // 意図的に誤りを入れてある (samples/environments/README.md)。
 #include "Common.hlsli"
 
@@ -18,8 +18,36 @@ struct Rgb
     Rgb operator*(float scale) { Rgb r; r.value = value * scale; return r; }
 };
 
+// class は構造体と同じに読む。継承した基底のメンバーとメソッドも使える。
+class Exposure
+{
+    float stops;
+    float Scale() { return exp2(this.stops); }
+};
+
+class AutoExposure : Exposure
+{
+    float speed;
+};
+
+// template の構造体。T は宣言の型引数 (Box<float3>) に置き換わる。
+template<typename T>
+struct Box
+{
+    T value;
+    T Get() { return value; }
+};
+
 template<typename T>
 T Lerp3(T a, T b, float t) { return a + (b - a) * t; }
+
+// 明示的な特殊化も中身を検査する。
+template<>
+float Lerp3<float>(float a, float b, float t) { return lerp(a, b, t); }
+
+// vector<T, N> の仮引数からも型引数を推論する。
+template<typename T, int N>
+vector<T, N> Saturate(vector<T, N> v) { return saturate(v); }
 
 template<typename T>
 T MaxOf(T a, T b) { return max(a, b); }
@@ -59,9 +87,16 @@ float4 MainPS(VsOut input, uint packed : FLAGS) : SV_Target
         mixed = mixed / (1 + mixed);
     }
 
+    Box<float3> box;
+    box.value = Saturate(mixed);
+
+    AutoExposure adapt;
+    adapt.stops = FogColor.a;
+    adapt.speed = 1;
+
     // 誤り 1 (HL0345): 接尾辞の無い 1.0 は float とは別の型として推論されるので、T を決められない (1.0f と書く)
-    float exposure = MaxOf(1.0, FogColor.a);
+    float exposure = MaxOf(1.0, adapt.Scale());
 
     // 誤り 2 (HL0312): (color * 2) は Rgb で、alpha というメンバーは無い
-    return float4(mixed * exposure, (color * 2).alpha);
+    return float4(box.Get() * exposure, (color * 2).alpha);
 }
