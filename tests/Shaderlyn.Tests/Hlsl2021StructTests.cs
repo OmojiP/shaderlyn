@@ -233,6 +233,85 @@ public sealed class Hlsl2021StructTests
         Assert.Equal(["HL0312", "HL0312"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
     }
 
+    /// <summary>構造体の変換の前置き。</summary>
+    private const string ConversionPrelude = """
+        struct P { float x; };
+        struct Q { float x; };
+        struct R { float x; float y; };
+        struct D : P { float z; };
+        struct E : D { float w; };
+        template<typename T> struct Box { T v; };
+        typedef P PAlias;
+        cbuffer C { float k; float4 f4; };
+        P MakeP() { return (P)0; }
+        float TakeP(P p) { return p.x; }
+        """;
+
+    /// <summary>構造体の暗黙の変換を、DXC と同じに扱うことを検証する (G7)。</summary>
+    /// <param name="statement">main の中に書く文。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    /// <remarks>
+    /// template の構造体は型引数が違えば別の型だが、名前だけでは区別できないので見ない
+    /// (<c>Box&lt;float4&gt;</c> から <c>Box&lt;float3&gt;</c> は DXC ではエラーだが報告しない)。
+    /// </remarks>
+    [Theory]
+    [InlineData("Q q = (Q)0; P p = q", "HL0350")]
+    [InlineData("R r = (R)0; P p = r", "HL0350")]
+    [InlineData("P p = (P)0; float f = p", "HL0350")]
+    [InlineData("P p = k", "HL0350")]
+    [InlineData("P p = 0", "HL0350")]
+    [InlineData("P p = (P)k", null)]
+    [InlineData("Q q = (Q)0; P p = (P)q", null)]
+    [InlineData("D d = (D)0; P p = d", null)]
+    [InlineData("E e = (E)0; P p = e", null)]
+    [InlineData("P p = (P)0; D d = p", "HL0350")]
+    [InlineData("Box<float4> b = (Box<float4>)0; Box<float3> c = b", null)]
+    [InlineData("PAlias a = (P)0; P p = a", null)]
+    [InlineData("Q q = (Q)0; P p = MakeP(); p = q", "HL0350")]
+    [InlineData("Q q = (Q)0; float r = TakeP(q)", "HL0340")]
+    [InlineData("float r = TakeP(MakeP())", null)]
+    [InlineData("D d = (D)0; float r = TakeP(d)", null)]
+    [InlineData("P p = (P)0; float4 v = p", "HL0350")]
+    [InlineData("P p = f4", "HL0350")]
+    [InlineData("P p = { 1 }", null)]
+    public void 構造体の暗黙の変換をDXCと同じに扱う(string statement, string? expected)
+        => AssertReported(statement, expected, ConversionPrelude);
+
+    [Fact]
+    public void 構造体を返すreturnの型を検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            struct P { float x; };
+            struct Q { float x; };
+            P RetQ() { Q q = (Q)0; return q; }
+            float RetP() { return (P)0; }
+            P Good() { return (P)0; }
+            float4 main() : SV_Target { return 0; }
+            """);
+
+        Assert.Equal(["HL0351", "HL0351"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
+    }
+
+    [Fact]
+    public void HLSL2018では構造体の変換を見ない()
+    {
+        SourceText text = SourceText.From("""
+            struct P { float x; };
+            struct Q { float x; };
+            float4 main() : SV_Target { Q q = (Q)0; P p = q; return p.x; }
+            """, "test.hlsl");
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text)],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { LanguageVersion = HlslLanguageVersion.Hlsl2018 }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0350");
+    }
+
     /// <summary>前置きの構造体を使う文を解析し、報告された規則を比べる。</summary>
     /// <param name="statement">main の中に書く文。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>

@@ -358,6 +358,59 @@ public sealed class ExpressionTypeBinder
     /// <returns>構造体なら <see langword="true"/>。</returns>
     internal bool IsStructType(string typeName) => _structFields.ContainsKey(typeName);
 
+    /// <summary>型名が template の構造体 (HLSL 2021) の名前かを調べる。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <returns>template の構造体なら <see langword="true"/>。型引数が違えば別の型だが、名前だけでは区別できない。</returns>
+    internal bool IsTemplateStruct(string typeName) => _templateStructs.ContainsKey(typeName);
+
+    /// <summary>構造体が、もう一方の構造体から (継承をたどって) 派生しているかを調べる (HLSL 2021)。</summary>
+    /// <param name="derived">派生しているかを調べる構造体。</param>
+    /// <param name="baseName">基底の構造体。</param>
+    /// <returns>
+    /// 派生していれば <see langword="true"/>、していなければ <see langword="false"/>。
+    /// 継承の途中に引けない基底や型引数を付けた基底があれば <see langword="null"/>。
+    /// </returns>
+    internal bool? IsDerivedFrom(string derived, string baseName)
+    {
+        _structBases ??= AllStructs(Program)
+            .Where(s => s.Name.Length > 0)
+            .GroupBy(s => s.Name, StringComparer.Ordinal)
+            .ToFrozenDictionary(g => g.Key, g => g.First().BaseType, StringComparer.Ordinal);
+
+        string current = derived;
+
+        // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
+        for (int depth = 0; depth < 8; depth++)
+        {
+            if (!_structBases.TryGetValue(current, out HlslTypeSyntax? baseType))
+            {
+                return null;
+            }
+
+            if (baseType is null)
+            {
+                return false;
+            }
+
+            if (baseType.OpenAngle is not null)
+            {
+                return null;
+            }
+
+            if (baseType.NameToken.Text == baseName)
+            {
+                return true;
+            }
+
+            current = baseType.NameToken.Text;
+        }
+
+        return null;
+    }
+
+    /// <summary>構造体の名前から、継承する基底の型への対応。継承していなければ <see langword="null"/>。</summary>
+    private FrozenDictionary<string, HlslTypeSyntax?>? _structBases;
+
     /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
     /// <param name="structName">構造体の名前。</param>
     /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
@@ -9,23 +10,60 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// enum の値の変換と演算子を検査する (HL0347、HLSL 2021)。
+/// 利用者が定義した型 (enum と構造体) の値の変換と、enum への演算子を検査する
+/// (HL0347、構造体は HL0350 / HL0340 / HL0351、HLSL 2021)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 規則は DXC (<c>-HV 2021</c>) で確かめた (<see cref="EnumInfo"/>)。
-/// 見るのは、変数の初期化・代入・return・関数の実引数と、演算子である。
+/// 規則は DXC (<c>-HV 2021</c>) で確かめた。見るのは、変数の初期化・代入・return・関数の実引数と、enum への演算子である。
 /// </para>
 /// <para>
-/// <b>値の型が分かったときだけ見る。</b>型が分からない値 (構造体のメンバーの型が引けないなど) は見ない。
-/// 数のリテラル (<c>1</c>) は数として扱う。DXC も <c>Mode m = 1;</c> を拒む。
+/// enum の型へ入れられるのは同じ enum の値だけである (<see cref="EnumInfo"/>)。
+/// 構造体へ入れられるのは同じ構造体か、そこから派生した構造体の値だけで、構造体と数の間も暗黙には変換されない。
+/// </para>
+/// <para>
+/// <b>構造体の検査は HLSL 2021 のときだけ行う。</b>
+/// Unity が使う FXC (HLSL 2018 相当) の変換の規則は確かめていない。
+/// template の構造体は、型引数が違えば別の型だが名前だけでは区別できないので見ない。
+/// </para>
+/// <para>
+/// <b>値の型が分かったときだけ見る。</b>数のリテラル (<c>1</c>) は数として扱う。DXC も <c>Mode m = 1;</c> を拒む。
 /// </para>
 /// </remarks>
-internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
+internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslRuleDescriptors.EnumValueMismatch];
+    [
+        HlslRuleDescriptors.EnumValueMismatch,
+        HlslRuleDescriptors.ValueNotConvertible,
+        HlslRuleDescriptors.ArgumentNotConvertible,
+        HlslRuleDescriptors.ReturnNotConvertible,
+    ];
+
+    /// <summary>値を受け取る側。</summary>
+    /// <param name="Kind">受け取り方。</param>
+    /// <param name="TypeName">受け取る側の型名。</param>
+    /// <param name="Label">受け取る側を表す言葉 (<c>変数 'm'</c> など)。</param>
+    /// <param name="FunctionName">関数の名前 (実引数と return のとき)。</param>
+    /// <param name="Index">実引数の位置 (1 から)。</param>
+    private readonly record struct Receiver(ReceiverKind Kind, string TypeName, string Label, string? FunctionName = null, int Index = 0);
+
+    /// <summary>値の受け取り方。</summary>
+    private enum ReceiverKind
+    {
+        /// <summary>変数の初期化。</summary>
+        Initializer,
+
+        /// <summary>代入。</summary>
+        Assignment,
+
+        /// <summary>関数の実引数。</summary>
+        Argument,
+
+        /// <summary>return の値。</summary>
+        Return,
+    }
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -49,7 +87,8 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
                     {
                         if (!variable.IsArray && variable.Initializer is { } initializer and not InitializerListExpressionSyntax)
                         {
-                            CheckConversion(context, binder, declaration.Type.Name, initializer, $"変数 '{variable.Name}'", reported);
+                            Receiver receiver = new(ReceiverKind.Initializer, declaration.Type.Name, $"{declaration.Type.Name} の '{variable.Name}'");
+                            CheckConversion(context, binder, receiver, initializer, reported);
                         }
                     }
 
@@ -57,7 +96,7 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
 
                 case AssignmentExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.EqualsToken } assignment
                     when binder.GetEvaluatorFor(assignment).Evaluate(assignment.Left) is { } target:
-                    CheckConversion(context, binder, target, assignment.Right, "代入先", reported);
+                    CheckConversion(context, binder, new Receiver(ReceiverKind.Assignment, target, target), assignment.Right, reported);
                     break;
 
                 case AssignmentExpressionSyntax compound:
@@ -66,7 +105,8 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
 
                 case ReturnStatementSyntax { Expression: { } value } statement
                     when statement.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function:
-                    CheckConversion(context, binder, function.ReturnType.Name, value, $"関数 '{function.Name}' の戻り値", reported);
+                    Receiver returned = new(ReceiverKind.Return, function.ReturnType.Name, $"関数 '{function.Name}' の戻り値", function.Name);
+                    CheckConversion(context, binder, returned, value, reported);
                     break;
 
                 case InvocationExpressionSyntax { TargetName: { } name, HasTypeArguments: false } invocation:
@@ -91,45 +131,93 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    /// <summary>値を、その型の入れ物へ入れられるかを検査する。</summary>
+    /// <summary>値を、受け取る側の型へ暗黙に変換できるかを検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
-    /// <param name="target">入れ物の型名。</param>
-    /// <param name="value">入れる値。</param>
-    /// <param name="subject">入れ物を表す言葉 (<c>変数 'm'</c> など)。</param>
+    /// <param name="receiver">受け取る側。</param>
+    /// <param name="value">渡す値。</param>
     /// <param name="reported">報告済みの位置。</param>
     private static void CheckConversion(
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
-        string target,
+        Receiver receiver,
         HlslExpressionSyntax value,
-        string subject,
         HashSet<int> reported)
     {
+        string target = receiver.TypeName;
+
         if (binder.GetEvaluatorFor(value).Evaluate(value) is not { } valueType || valueType == target)
         {
             return;
         }
 
         bool valueIsNumeric = HlslTypeClassifier.TryDescribeNumeric(valueType, out _);
+        bool targetIsNumeric = HlslTypeClassifier.TryDescribeNumeric(target, out _);
         bool valueIsEnum = binder.TryGetEnum(valueType, out EnumInfo? valueEnum);
 
-        // enum の入れ物には、同じ enum の値しか入らない。
+        // enum の受け取る側には、同じ enum の値しか入らない。
         if (binder.TryGetEnum(target, out EnumInfo? targetEnum))
         {
             if (valueIsNumeric || valueIsEnum)
             {
-                Report(context, value, $"{subject} は {DescribeEnum(targetEnum)} ですが、{valueType} の値は入れられません。型変換 (({target}) x) を書いてください。", reported);
+                ReportEnum(context, value, $"{receiver.Label} は {DescribeEnum(targetEnum)} ですが、{valueType} の値は入れられません。型変換 (({target}) x) を書いてください。", reported);
             }
 
             return;
         }
 
         // enum class の値は、数へ暗黙に変換されない。
-        if (valueEnum is { IsScoped: true } && HlslTypeClassifier.TryDescribeNumeric(target, out _))
+        if (valueEnum is { IsScoped: true } && targetIsNumeric)
         {
-            Report(context, value, $"{subject} は {target} ですが、{DescribeEnum(valueEnum)} の値は数へ暗黙に変換されません。型変換 (({target}) x) を書いてください。", reported);
+            ReportEnum(context, value, $"{receiver.Label} は {target} ですが、{DescribeEnum(valueEnum)} の値は数へ暗黙に変換されません。型変換 (({target}) x) を書いてください。", reported);
+            return;
         }
+
+        if (binder.Program.Tree.LanguageVersion == HlslLanguageVersion.Hlsl2021
+            && DescribeStructMismatch(binder, target, targetIsNumeric, valueType, valueIsNumeric) is { } reason)
+        {
+            ReportStruct(context, receiver, value, valueType, reason, reported);
+        }
+    }
+
+    /// <summary>構造体が関わる変換が成り立たない理由を返す (HLSL 2021)。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="target">受け取る側の型。</param>
+    /// <param name="targetIsNumeric">受け取る側が数値型か。</param>
+    /// <param name="value">値の型。</param>
+    /// <param name="valueIsNumeric">値が数値型か。</param>
+    /// <returns>成り立たない理由。成り立つか、判断しないなら <see langword="null"/>。</returns>
+    private static string? DescribeStructMismatch(
+        ExpressionTypeBinder binder,
+        string target,
+        bool targetIsNumeric,
+        string value,
+        bool valueIsNumeric)
+    {
+        bool targetIsStruct = binder.IsStructType(target);
+        bool valueIsStruct = binder.IsStructType(value);
+
+        if ((targetIsStruct && binder.IsTemplateStruct(target)) || (valueIsStruct && binder.IsTemplateStruct(value)))
+        {
+            return null;
+        }
+
+        if (targetIsStruct && valueIsStruct)
+        {
+            // 派生した構造体の値は、基底の構造体へ入る (基底の部分だけが残る)。
+            return binder.IsDerivedFrom(value, target) is false
+                ? $"構造体へは同じ構造体か、そこから派生した構造体の値しか入りません。型変換 (({target}) x) を書いてください。"
+                : null;
+        }
+
+        if (targetIsStruct && valueIsNumeric)
+        {
+            return $"数は構造体へ暗黙に変換されません。型変換 (({target}) x) を書くか、メンバーごとに入れてください。";
+        }
+
+        return valueIsStruct && targetIsNumeric
+            ? "構造体は数へ暗黙に変換されません。メンバーを取り出してください。"
+            : null;
     }
 
     /// <summary>関数の実引数を検査する。</summary>
@@ -177,7 +265,8 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            CheckConversion(context, binder, parameter.Type.Name, arguments[i], $"関数 '{name}' の第 {i + 1} 引数", reported);
+            Receiver receiver = new(ReceiverKind.Argument, parameter.Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
+            CheckConversion(context, binder, receiver, arguments[i], reported);
         }
     }
 
@@ -212,7 +301,7 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
             {
                 if (symbol is "++" or "--")
                 {
-                    Report(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。", reported);
+                    ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。", reported);
                 }
 
                 continue;
@@ -228,11 +317,11 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
                     return;
                 }
 
-                Report(context, expression, $"{DescribeEnum(enumeration)} の値と {other} の値は比べられません。同じ enum の値どうしでだけ比べられます。", reported);
+                ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値と {other} の値は比べられません。同じ enum の値どうしでだけ比べられます。", reported);
                 return;
             }
 
-            Report(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。数として使うなら型変換 ((int) x) を書いてください。", reported);
+            ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。数として使うなら型変換 ((int) x) を書いてください。", reported);
             return;
         }
     }
@@ -243,12 +332,12 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
     private static string DescribeEnum(EnumInfo enumeration)
         => enumeration.IsScoped ? $"enum class '{enumeration.Name}'" : $"enum '{enumeration.Name}'";
 
-    /// <summary>報告する。</summary>
+    /// <summary>enum の食い違いを報告する (HL0347)。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="node">報告する位置のノード。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    private static void Report(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, HashSet<int> reported)
+    private static void ReportEnum(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, HashSet<int> reported)
     {
         if (node.GetLocation() is not { } location || !reported.Add(location.Span.Start))
         {
@@ -256,5 +345,37 @@ internal sealed class EnumValueAnalyzer : SemanticRuleAnalyzer
         }
 
         context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.EnumValueMismatch, location, message));
+    }
+
+    /// <summary>構造体の食い違いを、受け取り方に合ったルールで報告する (HL0350 / HL0340 / HL0351)。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="receiver">受け取る側。</param>
+    /// <param name="value">渡した値。</param>
+    /// <param name="valueType">値の型。</param>
+    /// <param name="reason">成り立たない理由。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    private static void ReportStruct(
+        SyntaxTreeAnalysisContext context,
+        Receiver receiver,
+        HlslExpressionSyntax value,
+        string valueType,
+        string reason,
+        HashSet<int> reported)
+    {
+        if (value.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        {
+            return;
+        }
+
+        Diagnostic diagnostic = receiver.Kind switch
+        {
+            ReceiverKind.Argument => Diagnostic.Create(
+                HlslRuleDescriptors.ArgumentNotConvertible, location, receiver.FunctionName, receiver.Index, valueType, receiver.TypeName, reason),
+            ReceiverKind.Return => Diagnostic.Create(
+                HlslRuleDescriptors.ReturnNotConvertible, location, receiver.FunctionName, receiver.TypeName, $"{valueType} の値を返しています", reason),
+            _ => Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, location, receiver.Label, valueType, reason),
+        };
+
+        context.ReportDiagnostic(diagnostic);
     }
 }
