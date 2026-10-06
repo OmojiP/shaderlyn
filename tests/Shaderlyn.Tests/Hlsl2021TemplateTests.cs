@@ -323,6 +323,28 @@ public sealed class Hlsl2021TemplateTests
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0345");
     }
 
+    [Fact]
+    public void 呼び出しの案内にtemplateの関数を出す()
+    {
+        const string Code = """
+            template<typename T, typename U>
+            T Mix(T a, U b, float t) { return a; }
+
+            float4 main(float4 p : P) : SV_Target { return Mix(p, 1.0f, 0.5f); }
+            """;
+
+        SourceText text = SourceText.From(Code, "test.hlsl");
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text, [HlslEnvironment.WholeFile(text)], text, new HlslEnvironment(), ShaderSourceInfo.None);
+
+        LanguageServer.SignatureHelp? help = LanguageServer.SignatureHelpBuilder.Build(
+            compilation, Code.IndexOf("1.0f", StringComparison.Ordinal));
+
+        Assert.NotNull(help);
+        Assert.Equal("template<T, U> T Mix(T a, U b, float t)", Assert.Single(help.Value.Signatures).Label);
+        Assert.Equal(1, help.Value.ActiveParameter);
+    }
+
     private static HlslSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),

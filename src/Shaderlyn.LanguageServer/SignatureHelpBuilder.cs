@@ -60,7 +60,15 @@ internal static class SignatureHelpBuilder
         {
             foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
-                if (declaration is not FunctionDeclarationSyntax function
+                // template の関数 (HLSL 2021) も出す。
+                FunctionDeclarationSyntax? function = declaration switch
+                {
+                    FunctionDeclarationSyntax plain => plain,
+                    TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax generic } => generic,
+                    _ => null,
+                };
+
+                if (function is null
                     || function.Name != name
                     || !compilation.IsWrittenHere(function))
                 {
@@ -96,6 +104,11 @@ internal static class SignatureHelpBuilder
         ];
 
         string label = $"{function.ReturnType.Name} {function.Name}({string.Join(", ", parameters)})";
+
+        if (function.Parent is TemplateDeclarationSyntax template)
+        {
+            label = $"template<{string.Join(", ", template.ParameterNames)}> {label}";
+        }
 
         // 条件で形が変わる関数では、どちらを見ているのかが分からないと書きようがない。
         return new SignatureInfo(
