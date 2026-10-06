@@ -703,7 +703,7 @@ public sealed class FunctionDeclarationSyntax(
 /// <param name="declarators">構造体宣言に続く変数宣言子。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
 /// <param name="colonToken">継承 (HLSL 2021 の <c>struct D : B</c>) の <c>:</c>。継承していなければ <see langword="null"/>。</param>
-/// <param name="baseTypeToken">継承する構造体の名前。継承していなければ <see langword="null"/>。</param>
+/// <param name="baseType">継承する構造体の型 (<c>B</c> / <c>Box&lt;T&gt;</c>)。継承していなければ <see langword="null"/>。</param>
 public sealed class StructDeclarationSyntax(
     HlslSyntaxToken keyword,
     HlslSyntaxToken? nameToken,
@@ -713,17 +713,17 @@ public sealed class StructDeclarationSyntax(
     ImmutableArray<HlslNodeOrTokenEntry> declarators,
     HlslSyntaxToken semicolonToken,
     HlslSyntaxToken? colonToken = null,
-    HlslSyntaxToken? baseTypeToken = null) : HlslDeclarationSyntax
+    HlslTypeSyntax? baseType = null) : HlslDeclarationSyntax
 {
     /// <summary>継承の <c>:</c>。継承していなければ <see langword="null"/>。</summary>
     public HlslSyntaxToken? ColonToken { get; } = colonToken;
 
-    /// <summary>継承する構造体の名前のトークン。継承していなければ <see langword="null"/>。</summary>
-    public HlslSyntaxToken? BaseTypeToken { get; } = baseTypeToken;
+    /// <summary>継承する構造体の型。継承していなければ <see langword="null"/>。</summary>
+    public HlslTypeSyntax? BaseType { get; } = baseType;
 
-    /// <summary>継承する構造体の名前。継承していなければ <see langword="null"/>。</summary>
+    /// <summary>継承する構造体の名前 (型引数を除く)。継承していなければ <see langword="null"/>。</summary>
     /// <remarks>基底のフィールドとメソッドは、この構造体のメンバーとしても使える。</remarks>
-    public string? BaseTypeName => BaseTypeToken?.Text;
+    public string? BaseTypeName => BaseType?.NameToken.Text;
 
     /// <summary><c>struct</c> キーワード。</summary>
     public HlslSyntaxToken Keyword { get; } = keyword;
@@ -767,9 +767,9 @@ public sealed class StructDeclarationSyntax(
             yield return ColonToken;
         }
 
-        if (BaseTypeToken is not null)
+        if (BaseType is not null)
         {
-            yield return BaseTypeToken;
+            yield return BaseType;
         }
 
         yield return OpenBrace;

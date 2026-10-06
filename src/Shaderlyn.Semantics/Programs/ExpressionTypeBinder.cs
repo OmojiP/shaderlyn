@@ -34,6 +34,9 @@ public sealed class ExpressionTypeBinder
     private readonly FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> _structFunctions;
     private readonly FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> _templateFunctions;
 
+    /// <summary>template の構造体の名前から、型引数の名前への対応 (HLSL 2021)。</summary>
+    private readonly FrozenDictionary<string, ImmutableArray<string>> _templateStructs;
+
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
 
@@ -84,6 +87,9 @@ public sealed class ExpressionTypeBinder
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structFunctions = CollectStructFunctions(program);
         _templateFunctions = CollectTemplateFunctions(program.Tree.Root.Declarations);
+        _templateStructs = TemplateStructsOf(program.Tree.Root.Declarations)
+            .GroupBy(t => t.Structure.Name, StringComparer.Ordinal)
+            .ToFrozenDictionary(g => g.Key, g => g.First().Template.ParameterNames, StringComparer.Ordinal);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
         _fileVariables = CollectFileVariables(_globalNames);
         _fileScope = new ExpressionTypeEvaluator(
@@ -92,7 +98,49 @@ public sealed class ExpressionTypeBinder
             TypeAliases = program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
+            TemplateStructs = _templateStructs,
         };
+    }
+
+    /// <summary>
+    /// 型を引く対象の構造体を並べる。ふつうの構造体と、template の構造体 (HLSL 2021) である。
+    /// </summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <returns>構造体の宣言。</returns>
+    /// <remarks>
+    /// template の構造体は <see cref="AnalyzedProgram.Structs"/> に載せていない。
+    /// フィールドの型が型引数で決まるので、構造体の形を数える検査 (初期化の要素の数など) には使えないためである。
+    /// 型を引くときは、受け手の型引数で置き換えるか、分からない型にする (<see cref="ExpressionTypeEvaluator"/>)。
+    /// </remarks>
+    private static IEnumerable<StructDeclarationSyntax> AllStructs(AnalyzedProgram program)
+        => program.Structs.Concat(TemplateStructsOf(program.Tree.Root.Declarations).Select(t => t.Structure));
+
+    /// <summary>template の構造体を並べる。名前空間の中のものを含む。</summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>template の宣言と、その構造体。</returns>
+    internal static IEnumerable<(TemplateDeclarationSyntax Template, StructDeclarationSyntax Structure)> TemplateStructsOf(
+        ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        foreach (HlslDeclarationSyntax declaration in declarations)
+        {
+            switch (declaration)
+            {
+                case TemplateDeclarationSyntax { Declaration: StructDeclarationSyntax { Name.Length: > 0 } structure } template:
+                    yield return (template, structure);
+                    break;
+
+                case NamespaceDeclarationSyntax ns:
+                    foreach ((TemplateDeclarationSyntax, StructDeclarationSyntax) inner in TemplateStructsOf(ns.Members))
+                    {
+                        yield return inner;
+                    }
+
+                    break;
+
+                default:
+                    break;
+            }
+        }
     }
 
     /// <summary>
@@ -117,7 +165,7 @@ public sealed class ExpressionTypeBinder
         Dictionary<string, FrozenDictionary<string, ResolvedTypeName>> byStruct = new(StringComparer.Ordinal);
         Dictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> declaratorsByStruct = new(StringComparer.Ordinal);
 
-        foreach (StructDeclarationSyntax declaration in program.Structs)
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
         {
             if (declaration.Name.Length == 0 || byStruct.ContainsKey(declaration.Name))
             {
@@ -176,7 +224,7 @@ public sealed class ExpressionTypeBinder
         Dictionary<string, Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> byStruct = new(StringComparer.Ordinal);
         Dictionary<string, string> bases = new(StringComparer.Ordinal);
 
-        foreach (StructDeclarationSyntax declaration in program.Structs)
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
         {
             if (declaration.Name.Length == 0 || byStruct.ContainsKey(declaration.Name))
             {
@@ -211,7 +259,8 @@ public sealed class ExpressionTypeBinder
             byStruct[declaration.Name] = functions.ToDictionary(
                 p => p.Key, p => (ImmutableArray<FunctionDeclarationSyntax>)[.. p.Value], StringComparer.Ordinal);
 
-            if (declaration.BaseTypeName is { } baseName)
+            // 型引数を付けた基底 (Box<T>) の関数の型は、その型引数で決まる。型を引けないので継がない。
+            if (declaration.BaseTypeName is { } baseName && declaration.BaseType?.OpenAngle is null)
             {
                 bases[declaration.Name] = baseName;
             }
@@ -345,9 +394,10 @@ public sealed class ExpressionTypeBinder
     {
         Dictionary<string, string> bases = new(StringComparer.Ordinal);
 
-        foreach (StructDeclarationSyntax declaration in program.Structs)
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
         {
-            if (declaration.BaseTypeName is { } baseName && declaration.Name.Length > 0)
+            // 型引数を付けた基底 (Box<T>) のフィールドの型は、その型引数で決まる。型を引けないので継がない。
+            if (declaration.BaseTypeName is { } baseName && declaration.BaseType?.OpenAngle is null && declaration.Name.Length > 0)
             {
                 bases.TryAdd(declaration.Name, baseName);
             }
@@ -404,7 +454,9 @@ public sealed class ExpressionTypeBinder
         declarator = null;
         elementType = null;
 
-        if (!_structFieldDeclarators.TryGetValue(structType, out FrozenDictionary<string, VariableDeclaratorSyntax>? fields)
+        // template の構造体のフィールドの型は、型引数で決まる。
+        if (_templateStructs.ContainsKey(structType)
+            || !_structFieldDeclarators.TryGetValue(structType, out FrozenDictionary<string, VariableDeclaratorSyntax>? fields)
             || !fields.TryGetValue(fieldName, out declarator))
         {
             return false;
@@ -441,6 +493,7 @@ public sealed class ExpressionTypeBinder
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
+                TemplateStructs = _templateStructs,
                 UnknownTypeNames = unknown,
             };
         }
@@ -782,6 +835,7 @@ public sealed class ExpressionTypeBinder
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
+            TemplateStructs = _templateStructs,
             UnknownTypeNames = unknown,
         };
     }

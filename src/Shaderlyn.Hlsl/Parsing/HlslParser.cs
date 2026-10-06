@@ -902,8 +902,9 @@ internal sealed class HlslParser
         HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
 
         // struct の継承 (HLSL 2021 の struct D : B)。基底のメンバーも使えるので、名前を残す。
+        // 基底は型引数を持ちうる (struct Derived : Box<T>)。
         HlslSyntaxToken? colon = null;
-        HlslSyntaxToken? baseType = null;
+        HlslTypeSyntax? baseType = null;
 
         if (Current.Kind == HlslSyntaxKind.ColonToken)
         {
@@ -911,7 +912,7 @@ internal sealed class HlslParser
 
             if (Current.Kind == HlslSyntaxKind.IdentifierToken)
             {
-                baseType = Advance();
+                baseType = ParseType();
             }
         }
 

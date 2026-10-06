@@ -113,6 +113,16 @@ public sealed class ExpressionTypeEvaluator
         = FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>>.Empty;
 
     /// <summary>
+    /// template の構造体の名前から、型引数の名前への対応 (HLSL 2021)。
+    /// </summary>
+    /// <remarks>
+    /// フィールドやメソッドの型が型引数そのもの (<c>T v;</c>) なら、受け手の型引数 (<c>Box&lt;float4&gt; b</c> の <c>float4</c>) で置き換える。
+    /// 置き換えられなければ分からない型にする。
+    /// </remarks>
+    internal FrozenDictionary<string, ImmutableArray<string>> TemplateStructs { get; init; }
+        = FrozenDictionary<string, ImmutableArray<string>>.Empty;
+
+    /// <summary>
     /// 分からない型として扱う型名。式を囲む <c>template</c> の型引数 (<c>T</c>) である (HLSL 2021)。
     /// </summary>
     /// <remarks>型引数が何に置き換わるかは使う側で決まるので、その型だと答えると別の型の値について判断することになる。</remarks>
@@ -223,7 +233,7 @@ public sealed class ExpressionTypeEvaluator
                 && access.DotToken.Kind == HlslSyntaxKind.DotToken
                 && AsStruct(Evaluate(access.Target)) is { } receiver)
             {
-                return EvaluateStructCall(receiver, access.Name, count);
+                return EvaluateStructCall(receiver, access.Name, count, access.Target);
             }
 
             // tex.Sample(...) のように、呼び出しの対象がメンバーの場合。
@@ -247,7 +257,7 @@ public sealed class ExpressionTypeEvaluator
             && _resolve(callee) is { IsArray: false } variable
             && AsStruct(variable.TypeName) is { } callable)
         {
-            return EvaluateStructCall(callable, "operator()", count);
+            return EvaluateStructCall(callable, "operator()", count, callee);
         }
 
         ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
@@ -731,7 +741,7 @@ public sealed class ExpressionTypeEvaluator
         // operator[] を持つ構造体の添字 (HLSL 2021)。
         if (StructFunctions.Count > 0 && AsStruct(Evaluate(element.Target)) is { } indexed)
         {
-            return EvaluateStructCall(indexed, "operator[]", argumentCount: 1);
+            return EvaluateStructCall(indexed, "operator[]", argumentCount: 1, element.Target);
         }
 
         // バッファとテクスチャは、それ自体の型と取り出したものの型が別物である。名前の宣言を先に見る。
@@ -811,11 +821,12 @@ public sealed class ExpressionTypeEvaluator
         if (!HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape shape))
         {
             // 数値型でなければ、構造体のフィールドとして引く。配列のフィールドそのものは型を持たない。
+            // template の構造体のフィールドは、受け手の型引数で置き換える。
             return targetType is not null
                    && _structFields.TryGetValue(targetType, out FrozenDictionary<string, ResolvedTypeName>? fields)
                    && fields.TryGetValue(member.Name, out ResolvedTypeName field)
                    && !field.IsArray
-                ? field.TypeName
+                ? Specialize(targetType, field.TypeName, member.Target)
                 : null;
         }
 
@@ -914,7 +925,7 @@ public sealed class ExpressionTypeEvaluator
     {
         if (StructFunctions.Count > 0 && AsStruct(Evaluate(binary.Left)) is { } left)
         {
-            return EvaluateStructCall(left, "operator" + binary.OperatorToken.Text, argumentCount: 1);
+            return EvaluateStructCall(left, "operator" + binary.OperatorToken.Text, argumentCount: 1, binary.Left);
         }
 
         return EvaluateBuiltInBinary(binary);
@@ -934,11 +945,12 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="structName">構造体の名前。</param>
     /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>
     /// <param name="argumentCount">渡している引数の個数。</param>
+    /// <param name="receiver">呼び出しの受け手の式。template の構造体なら、その型引数で戻り値を置き換える。</param>
     /// <returns>個数の合う宣言がすべて同じ型を返すならその型。それ以外は <see langword="null"/>。</returns>
     /// <remarks>
     /// 実引数の型による多重定義の選択はしない。template のメソッドは、型引数で戻り値が変わりうるので答えない。
     /// </remarks>
-    private string? EvaluateStructCall(string structName, string functionName, int argumentCount)
+    private string? EvaluateStructCall(string structName, string functionName, int argumentCount, HlslExpressionSyntax receiver)
     {
         if (!StructFunctions.TryGetValue(structName, out FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? functions)
             || !functions.TryGetValue(functionName, out ImmutableArray<FunctionDeclarationSyntax> overloads))
@@ -964,7 +976,41 @@ public sealed class ExpressionTypeEvaluator
             result = overload.ReturnType.Name;
         }
 
-        return result is null ? null : TypeAliases.GetValueOrDefault(result, result);
+        return result is null ? null : Specialize(structName, TypeAliases.GetValueOrDefault(result, result), receiver);
+    }
+
+    /// <summary>template の構造体のメンバーの型を、受け手の型引数で置き換える (HLSL 2021)。</summary>
+    /// <param name="structName">構造体の名前。</param>
+    /// <param name="type">宣言に書かれたメンバーの型。</param>
+    /// <param name="receiver">受け手の式。</param>
+    /// <returns>
+    /// template の構造体でなければ <paramref name="type"/>。型引数そのものなら置き換えた型。
+    /// 置き換えられなければ <see langword="null"/>。
+    /// </returns>
+    /// <remarks>
+    /// 受け手が名前 (<c>b</c>) で、その宣言の型引数が 1 つの名前 (<c>Box&lt;float4&gt;</c>) のときだけ置き換える。
+    /// 型引数を含む別の形 (<c>vector&lt;T, 3&gt;</c>) は、書かれた名前 (<c>vector</c>) のままで、数値型とは見なされない。
+    /// </remarks>
+    private string? Specialize(string structName, string type, HlslExpressionSyntax receiver)
+    {
+        if (!TemplateStructs.TryGetValue(structName, out ImmutableArray<string> parameters))
+        {
+            return type;
+        }
+
+        int index = parameters.IndexOf(type);
+
+        if (index < 0)
+        {
+            return type;
+        }
+
+        return index == 0
+               && parameters.Length == 1
+               && receiver is IdentifierExpressionSyntax identifier
+               && _resolve(identifier) is { IsArray: false, TemplateArgument: { } argument }
+            ? TypeAliases.GetValueOrDefault(argument, argument)
+            : null;
     }
 
     /// <summary>組み込みの二項演算の結果の型を求める。</summary>

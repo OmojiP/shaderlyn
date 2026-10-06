@@ -47,6 +47,9 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - HLSL 2021 の `template` の関数と構造体を読み、本体も検査する。型引数 (`T`) を含む型は分からない型として扱い、それを根拠に指摘しない。
   型引数を書いた呼び出し (`Twice<float4>(x)`、`buffer.Load<float4>(i)`) を読む。型引数を書かない呼び出しは、DXC と同じ規則で実引数から型引数を推論する。
   戻り値が型引数そのものなら、書いた型か推論した型に置き換える (`Twice(p).q` を HL0312)。明示的な特殊化 (`template<>`) は今までどおり読み飛ばす
+- HLSL 2021 の template の構造体 (`Box<float4> b`) のメンバーを検査する。無いメンバーとメソッドを HL0312 で報告し、
+  型引数そのものの型のフィールドやメソッドの戻り値 (`T v;`) を、宣言の型引数 (`float4`) に置き換えて読む。
+  型引数を付けた基底 (`struct Derived : Box<T>`) も読む
 - 新しいルール HL0345 (template の型引数を実引数から決められない)。`MaxOf(k, h)` (`float` と `half`) や `MaxOf(1.0, k)` (接尾辞の無い数と `float`) を報告する。
   template の関数の引数の個数が合わない呼び出しは HL0341 で報告する
   構文木は `TemplateDeclarationSyntax`、`InvocationExpressionSyntax.TypeArgumentTokens`
@@ -94,7 +97,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - 設定ファイルで、値を 1 つだけ書くキー (`environment` / `profile` / `version` / ルールの `severity` など) に並びやキーと値の対を書くと、
   何も伝えずに無視していた。TOOL0003 で報告する
 - HLSL 2021 の構造体の継承 (`struct D : B`) で、基底のメンバー (`d.x`) を無いメンバー (HL0312) と報告していた。
-  波括弧の初期化 (`D d = { ... }`) も基底のフィールドを数えずに HL0352 と報告していた。基底の名前は `StructDeclarationSyntax.BaseTypeName`
+  波括弧の初期化 (`D d = { ... }`) も基底のフィールドを数えずに HL0352 と報告していた。基底は `StructDeclarationSyntax.BaseType` / `BaseTypeName`
 - `--env` が、Unity 以外の環境でも `Packages/<名前>/... は解決できません` と書いていた
 - 山括弧の中にカンマのある型への型変換 (`(vector<float, 3>) x`) を読めず、構文の誤り (HL0001) と報告していた
 

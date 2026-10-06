@@ -630,7 +630,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 blocks[program.BlockKey] = structs;
             }
 
-            foreach (StructDeclarationSyntax structure in program.Structs)
+            // template の構造体 (HLSL 2021) も、メンバーがあるかどうかは型引数によらない。
+            IEnumerable<StructDeclarationSyntax> declared = program.Structs.Concat(
+                ExpressionTypeBinder.TemplateStructsOf(program.Tree.Root.Declarations).Select(t => t.Structure));
+
+            foreach (StructDeclarationSyntax structure in declared)
             {
                 if (structure.Name.Length == 0 || !compilation.IsReportable(structure))
                 {

@@ -115,6 +115,47 @@ public sealed class Hlsl2021StructTests
     public void メソッドと演算子の呼び出しをDXCと同じに扱う(string statement, string? expected)
         => AssertReported(statement, expected, MethodPrelude);
 
+    /// <summary>template の構造体の前置き。</summary>
+    private const string TemplatePrelude = """
+        template<typename T> struct Box { T v; float w; T Get() { return v; } float Len() { return 1; } T operator[](uint i) { return v; } };
+        template<typename T, uint N> struct Arr { T items[N]; T First() { return items[0]; } };
+        template<typename T> struct Derived : Box<T> { T extra; };
+        struct Fixed : Box<float3> { float z; };
+        typedef float4 F4;
+        """;
+
+    /// <summary>template の構造体のメンバーを、DXC と同じに扱うことを検証する (G1)。</summary>
+    /// <param name="statement">main の中に書く文。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    /// <remarks>
+    /// 型引数を付けた基底 (<c>Fixed : Box&lt;float3&gt;</c>) のフィールドの型は引かない (<c>f.v.w</c> は DXC ではエラーだが報告しない)。
+    /// </remarks>
+    [Theory]
+    [InlineData("Box<float4> b = (Box<float4>)0; float4 a = b.v", null)]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.missing = 1", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.v.q", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.v.w", null)]
+    [InlineData("Box<float3> b = (Box<float3>)0; float a = b.v.w", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Get().q", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Get().w", null)]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.Nope()", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.w.y", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Len().y", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b[0].q", "HL0312")]
+    [InlineData("Box<F4> b = (Box<F4>)0; float a = b.v.q", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.Get(1)", "HL0341")]
+    [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; float a = r.items[0]", null)]
+    [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; float a = r.First()", null)]
+    [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; r.missing = 1", "HL0312")]
+    [InlineData("Box<float4> bs[2]; float a = bs[0].v.x", null)]
+    [InlineData("Derived<float4> d = (Derived<float4>)0; float a = d.v.x + d.extra.y", null)]
+    [InlineData("Derived<float4> d = (Derived<float4>)0; d.missing = 1", "HL0312")]
+    [InlineData("Fixed f = (Fixed)0; float a = f.v.x + f.z + f.Get().y", null)]
+    [InlineData("Fixed f = (Fixed)0; float a = f.v.w", null)]
+    [InlineData("Fixed f = (Fixed)0; f.missing = 1", "HL0312")]
+    public void templateの構造体のメンバーをDXCと同じに扱う(string statement, string? expected)
+        => AssertReported(statement, expected, TemplatePrelude);
+
     /// <summary>前置きの構造体を使う文を解析し、報告された規則を比べる。</summary>
     /// <param name="statement">main の中に書く文。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
