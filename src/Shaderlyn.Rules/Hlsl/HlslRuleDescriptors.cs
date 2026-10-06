@@ -427,4 +427,21 @@ internal static class HlslRuleDescriptors
             + "HLSL 2021 では、構造体の中で operator+ などを定義すると、その構造体を左辺にして使えます。"
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
         helpLinkUri: DocumentationLinks.For("HL0346"));
+
+    /// <summary>enum の値を、変換できない型との間でやり取りしている。または使えない演算子を使っている (HLSL 2021)。</summary>
+    /// <remarks>
+    /// enum の型へ入れられるのは同じ enum の値だけである。<c>enum class</c> の値は数へ暗黙に変換されず、
+    /// <c>==</c> / <c>!=</c> (同じ enum どうし) のほかに演算子を使えない。DXC で確かめた。
+    /// </remarks>
+    public static DiagnosticDescriptor EnumValueMismatch { get; } = new(
+        id: "HL0347",
+        title: "enum の値の型が合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "enum の型の変数や仮引数へ入れられるのは、同じ enum の値 (か、その型へ変換したもの) だけです。"
+            + "数や別の enum の値は、型変換 ((Mode)1) を書かないと入れられません。"
+            + "enum class の値は数へ暗黙に変換されず、== / != (同じ enum どうし) のほかに演算子を使えません。"
+            + "ふつうの enum の値は数として使えますが、++ / -- は使えません。",
+        helpLinkUri: DocumentationLinks.For("HL0347"));
 }

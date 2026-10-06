@@ -55,6 +55,9 @@ public sealed class RuleFixtureTests
         // template は HLSL 2021 の構文で、Unity (HLSL 2018) の .shader では HL0003 になる。
         // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
         ["HL0345"] = "HLSL 2021 の template の呼び出しなので、Unity の .shader では起こせない",
+
+        // enum も HLSL 2021 の構文。Hlsl2021EnumTests で確かめている。
+        ["HL0347"] = "HLSL 2021 の enum の値なので、Unity の .shader では起こせない",
     };
 
     /// <summary>違反するシェーダーを置いてある規則。</summary>

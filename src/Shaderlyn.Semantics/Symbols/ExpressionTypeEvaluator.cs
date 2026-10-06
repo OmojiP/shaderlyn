@@ -122,6 +122,23 @@ public sealed class ExpressionTypeEvaluator
     internal FrozenDictionary<string, ImmutableArray<string>> TemplateStructs { get; init; }
         = FrozenDictionary<string, ImmutableArray<string>>.Empty;
 
+    /// <summary>enum の名前から、その型への対応 (HLSL 2021)。</summary>
+    /// <remarks>
+    /// <c>Mode::A</c> は <c>Mode</c>、スコープの無い enum の列挙子 (<c>P0</c>) はその enum の型になる。
+    /// </remarks>
+    internal FrozenDictionary<string, EnumInfo> Enums { get; init; } = FrozenDictionary<string, EnumInfo>.Empty;
+
+    /// <summary>スコープの無い enum の列挙子の名前から、enum の名前への対応。2 つの enum にある名前は載せない。</summary>
+    private FrozenDictionary<string, string> UnscopedEnumerators
+        => _unscopedEnumerators ??= Enums.Values
+            .Where(e => !e.IsScoped)
+            .SelectMany(e => e.Members.Select(m => (Member: m, Enum: e.Name)))
+            .GroupBy(p => p.Member, StringComparer.Ordinal)
+            .Where(g => g.Count() == 1)
+            .ToFrozenDictionary(g => g.Key, g => g.First().Enum, StringComparer.Ordinal);
+
+    private FrozenDictionary<string, string>? _unscopedEnumerators;
+
     /// <summary>式を囲むメソッドを持つ構造体の名前 (<c>this</c> の型)。メソッドの中でなければ <see langword="null"/>。</summary>
     internal string? ThisType { get; init; }
 
@@ -700,7 +717,13 @@ public sealed class ExpressionTypeEvaluator
             return resolved.IsArray ? null : resolved.TypeName;
         }
 
-        return identifier.Name is "true" or "false" ? "bool" : null;
+        if (identifier.Name is "true" or "false")
+        {
+            return "bool";
+        }
+
+        // スコープの無い enum の列挙子 (enum Plain { P0 } の P0) は、その enum の型である (HLSL 2021)。
+        return Enums.Count > 0 ? UnscopedEnumerators.GetValueOrDefault(identifier.Name) : null;
     }
 
     /// <summary>
@@ -825,6 +848,16 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateSwizzle(MemberAccessExpressionSyntax member)
     {
+        // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。
+        if (member.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        {
+            return member.Target is IdentifierExpressionSyntax { Name: var enumName }
+                   && Enums.TryGetValue(enumName, out EnumInfo? enumeration)
+                   && enumeration.Members.Contains(member.Name)
+                ? enumName
+                : null;
+        }
+
         string? targetType = Evaluate(member.Target);
 
         if (!HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape shape))

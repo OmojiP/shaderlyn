@@ -34,6 +34,9 @@ public sealed class ExpressionTypeBinder
     private readonly FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> _structFunctions;
     private readonly FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> _templateFunctions;
 
+    /// <summary>enum の名前から、その型への対応 (HLSL 2021)。</summary>
+    private readonly FrozenDictionary<string, EnumInfo> _enums;
+
     /// <summary>template の構造体の名前から、型引数の名前への対応 (HLSL 2021)。</summary>
     private readonly FrozenDictionary<string, ImmutableArray<string>> _templateStructs;
 
@@ -87,6 +90,7 @@ public sealed class ExpressionTypeBinder
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structFunctions = CollectStructFunctions(program);
         _templateFunctions = CollectTemplateFunctions(program.Tree.Root.Declarations);
+        _enums = CollectEnums(program.Tree.Root.Declarations);
         _templateStructs = TemplateStructsOf(program.Tree.Root.Declarations)
             .GroupBy(t => t.Structure.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(g => g.Key, g => g.First().Template.ParameterNames, StringComparer.Ordinal);
@@ -99,6 +103,7 @@ public sealed class ExpressionTypeBinder
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
             TemplateStructs = _templateStructs,
+            Enums = _enums,
         };
     }
 
@@ -297,6 +302,56 @@ public sealed class ExpressionTypeBinder
 
         return result.ToFrozenDictionary(StringComparer.Ordinal);
     }
+
+    /// <summary>enum を集める。名前空間の中のものを含む。同じ名前の enum が複数あれば載せない。</summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>enum の名前から、その型への対応。</returns>
+    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        Dictionary<string, EnumInfo?> enums = new(StringComparer.Ordinal);
+
+        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        {
+            foreach (HlslDeclarationSyntax declaration in scope)
+            {
+                switch (declaration)
+                {
+                    case EnumDeclarationSyntax { Name.Length: > 0 } enumeration:
+                        EnumInfo info = new(
+                            enumeration.Name,
+                            enumeration.IsScoped,
+                            enumeration.Members.Select(m => m.Name).ToFrozenSet(StringComparer.Ordinal));
+
+                        // 同じ名前の enum が 2 つあれば (名前空間が違うなど)、どちらか決められない。
+                        enums[enumeration.Name] = enums.TryGetValue(enumeration.Name, out EnumInfo? seen)
+                                                  && (seen is null || !seen.Members.SetEquals(info.Members) || seen.IsScoped != info.IsScoped)
+                            ? null
+                            : info;
+                        break;
+
+                    case NamespaceDeclarationSyntax ns:
+                        Collect(ns.Members);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        Collect(declarations);
+
+        return enums
+            .Where(p => p.Value is not null)
+            .ToFrozenDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+    }
+
+    /// <summary>型名が enum ならその型を引く (HLSL 2021)。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <param name="info">enum の型。</param>
+    /// <returns>enum なら <see langword="true"/>。</returns>
+    internal bool TryGetEnum(string typeName, [NotNullWhen(true)] out EnumInfo? info)
+        => _enums.TryGetValue(typeName, out info);
 
     /// <summary>型名が、このコードブロックで見える構造体 (template の構造体を含む) の名前かを調べる。</summary>
     /// <param name="typeName">型名。</param>
@@ -499,6 +554,7 @@ public sealed class ExpressionTypeBinder
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
                 TemplateStructs = _templateStructs,
+                Enums = _enums,
                 UnknownTypeNames = unknown,
                 ThisType = OwnerOf(function),
             };
@@ -857,6 +913,7 @@ public sealed class ExpressionTypeBinder
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
             TemplateStructs = _templateStructs,
+            Enums = _enums,
             UnknownTypeNames = unknown,
             ThisType = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } method ? OwnerOf(method) : null,
         };

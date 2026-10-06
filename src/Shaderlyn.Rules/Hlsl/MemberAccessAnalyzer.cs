@@ -104,6 +104,26 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // 名前の修飾 (Mode::A、名前空間の UnifiedRT::TraceRay)。enum の列挙子だけを見る (HLSL 2021)。
+        if (access.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        {
+            if (access.Target is IdentifierExpressionSyntax { Name: var enumName }
+                && binder.TryGetEnum(enumName, out EnumInfo? enumeration)
+                && !enumeration.Members.Contains(access.Name)
+                && access.GetLocation() is { } enumLocation
+                && reported.Add(enumLocation.Span.Start))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.MemberNotFound,
+                    enumLocation,
+                    $"enum '{enumName}'",
+                    access.Name,
+                    DescribeCandidates(enumeration.Members)));
+            }
+
+            return;
+        }
+
         // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。構造体のメソッドだけを見る。
         if (IsMethodCall(access))
         {
