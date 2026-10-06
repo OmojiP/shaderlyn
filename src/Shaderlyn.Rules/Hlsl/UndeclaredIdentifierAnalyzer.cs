@@ -124,6 +124,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
+            || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
             || identifier.GetLocation() is not { } location
             || qualifiers.Contains(location.Span.Start))
@@ -459,6 +460,15 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>
+    /// 構造体のメソッドの中かを判定する。メソッドの中では <c>this</c> が使える (DXC で確かめた)。
+    /// </summary>
+    /// <param name="node">対象のノード。</param>
+    /// <returns>構造体の中のメソッドか、構造体の外で定義したメソッド (<c>uint Wave::GetIndex()</c>) の中なら <see langword="true"/>。</returns>
+    private static bool IsInsideMethod(SyntaxNode node)
+        => node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+           && (function.IsMethodDefinition || function.Ancestors().Any(a => a is StructDeclarationSyntax));
 
     /// <summary>変数の宣言が関数の中の変数かを判定する。構造体のフィールドは変数ではない。</summary>
     /// <param name="declaration">対象の宣言。</param>

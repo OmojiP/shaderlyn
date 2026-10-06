@@ -298,6 +298,11 @@ public sealed class ExpressionTypeBinder
         return result.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
+    /// <summary>型名が、このコードブロックで見える構造体 (template の構造体を含む) の名前かを調べる。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <returns>構造体なら <see langword="true"/>。</returns>
+    internal bool IsStructType(string typeName) => _structFields.ContainsKey(typeName);
+
     /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
     /// <param name="structName">構造体の名前。</param>
     /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>
@@ -495,10 +500,26 @@ public sealed class ExpressionTypeBinder
                 TemplateFunctions = _templateFunctions,
                 TemplateStructs = _templateStructs,
                 UnknownTypeNames = unknown,
+                ThisType = OwnerOf(function),
             };
         }
 
         return evaluator;
+    }
+
+    /// <summary>メソッドを持つ構造体の名前を求める (<c>this</c> の型)。</summary>
+    /// <param name="function">対象の関数。</param>
+    /// <returns>構造体の中のメソッドか、構造体の外で定義したメソッドならその構造体の名前。それ以外は <see langword="null"/>。</returns>
+    private static string? OwnerOf(FunctionDeclarationSyntax function)
+    {
+        if (function.OwnerName is { } owner)
+        {
+            return owner;
+        }
+
+        return function.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault() is { Name.Length: > 0 } structure
+            ? structure.Name
+            : null;
     }
 
     /// <summary>関数を囲む <c>template</c> の型引数の名前を集める。</summary>
@@ -837,6 +858,7 @@ public sealed class ExpressionTypeBinder
             TemplateFunctions = _templateFunctions,
             TemplateStructs = _templateStructs,
             UnknownTypeNames = unknown,
+            ThisType = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } method ? OwnerOf(method) : null,
         };
     }
 

@@ -122,6 +122,9 @@ public sealed class ExpressionTypeEvaluator
     internal FrozenDictionary<string, ImmutableArray<string>> TemplateStructs { get; init; }
         = FrozenDictionary<string, ImmutableArray<string>>.Empty;
 
+    /// <summary>式を囲むメソッドを持つ構造体の名前 (<c>this</c> の型)。メソッドの中でなければ <see langword="null"/>。</summary>
+    internal string? ThisType { get; init; }
+
     /// <summary>
     /// 分からない型として扱う型名。式を囲む <c>template</c> の型引数 (<c>T</c>) である (HLSL 2021)。
     /// </summary>
@@ -686,6 +689,12 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateIdentifier(IdentifierExpressionSyntax identifier)
     {
+        // 構造体のメソッドの中の this は、その構造体である (HLSL 2021)。
+        if (identifier.Name == "this" && ThisType is { } self)
+        {
+            return self;
+        }
+
         if (_resolve(identifier) is { } resolved)
         {
             return resolved.IsArray ? null : resolved.TypeName;

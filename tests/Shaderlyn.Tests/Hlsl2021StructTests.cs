@@ -156,6 +156,83 @@ public sealed class Hlsl2021StructTests
     public void templateの構造体のメンバーをDXCと同じに扱う(string statement, string? expected)
         => AssertReported(statement, expected, TemplatePrelude);
 
+    /// <summary>演算子の前置き。</summary>
+    private const string OperatorPrelude = """
+        struct P { float x; float Self() { return this.x; } };
+        struct O { float x; O operator+(O o) { return o; } bool operator==(O o) { return x == o.x; } bool operator&&(bool b) { return b; } O operator-() { return this; } };
+        struct W { uint i; uint Get(); };
+        uint W::Get() { return this.i; }
+        cbuffer C { float k; };
+        """;
+
+    /// <summary>構造体に使えない演算子を、DXC と同じに扱うことを検証する (G4 / G6、HL0346)。</summary>
+    /// <param name="statement">main の中に書く文。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    [Theory]
+    [InlineData("P a = (P)0; P b = (P)0; P c = k > 0 ? a : b", "HL0346")]
+    [InlineData("P a = (P)0; float c = k > 0 ? a.x : 1", null)]
+    [InlineData("O a = (O)0; O b = (O)0; O c = k > 0 ? a : b", "HL0346")]
+    [InlineData("P a = (P)0; P b = (P)0; P c = a + b", "HL0346")]
+    [InlineData("P a = (P)0; P c = a * 2", "HL0346")]
+    [InlineData("P a = (P)0; P c = -a", "HL0346")]
+    [InlineData("P a = (P)0; bool c = !a", "HL0346")]
+    [InlineData("P a = (P)0; P b = (P)0; bool c = a == b", "HL0346")]
+    [InlineData("P a = (P)0; a++", "HL0346")]
+    [InlineData("P a = (P)0; ++a", "HL0346")]
+    [InlineData("P a = (P)0; P b = (P)0; a += b", "HL0346")]
+    [InlineData("P a = (P)0; float c = 2 * a", "HL0346")]
+    [InlineData("P a = (P)0; float c = 2 * a.x", null)]
+    [InlineData("P a = (P)0; bool c = a && true", "HL0346")]
+    [InlineData("P a = (P)0; bool c = true || a", "HL0346")]
+    [InlineData("O a = (O)0; O b = (O)0; O c = a + b", null)]
+    [InlineData("O a = (O)0; O c = a * 2", "HL0346")]
+    [InlineData("O a = (O)0; O b = (O)0; bool c = a == b", null)]
+    [InlineData("O a = (O)0; O b = (O)0; bool c = a != b", "HL0346")]
+    [InlineData("O a = (O)0; bool c = a && true", null)]
+    [InlineData("O a = (O)0; bool c = true && a", "HL0346")]
+    [InlineData("O a = (O)0; O b = (O)0; a += b", "HL0346")]
+    [InlineData("P a = (P)0; P b = (P)0; a = b", null)]
+    [InlineData("P a = (P)0; P c = (a)", null)]
+    [InlineData("P a = (P)0; float c = a.Self()", null)]
+    [InlineData("W w = (W)0; uint c = w.Get()", null)]
+    public void 構造体に使えない演算子をDXCと同じに扱う(string statement, string? expected)
+        => AssertReported(statement, expected, OperatorPrelude);
+
+    /// <summary>多重定義できない演算子の定義を報告することを検証する (HL0346)。</summary>
+    /// <param name="definition">構造体の中に書く定義。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    [Theory]
+    [InlineData("O operator<<(O o) { return o; }", "HL0346")]
+    [InlineData("O operator+=(O o) { return o; }", "HL0346")]
+    [InlineData("O operator=(O o) { return o; }", "HL0346")]
+    [InlineData("O operator++() { return (O)0; }", "HL0346")]
+    [InlineData("O operator--() { return (O)0; }", "HL0346")]
+    [InlineData("O operator+(O o) { return o; }", null)]
+    [InlineData("O operator-() { return (O)0; }", null)]
+    [InlineData("float operator[](uint i) { return x; }", null)]
+    public void 多重定義できない演算子の定義を報告する(string definition, string? expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze($$"""
+            struct O { float x; {{definition}} };
+            float4 main() : SV_Target { return 0; }
+            """);
+
+        string[] reported = [.. diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id)];
+
+        Assert.Equal(expected is null ? [] : [expected], reported);
+    }
+
+    [Fact]
+    public void メソッドの中のthisは構造体として読む()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            struct P { float x; float Bad() { return this.missing; } float Y() { return this.x.y; } };
+            float4 main() : SV_Target { return 0; }
+            """);
+
+        Assert.Equal(["HL0312", "HL0312"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
+    }
+
     /// <summary>前置きの構造体を使う文を解析し、報告された規則を比べる。</summary>
     /// <param name="statement">main の中に書く文。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>

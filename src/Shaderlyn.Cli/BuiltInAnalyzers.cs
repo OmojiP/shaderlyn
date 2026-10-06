@@ -57,6 +57,7 @@ public static class BuiltInAnalyzers
         new VariableDeclarationPresenceAnalyzer(),
         new MemberAccessAnalyzer(),
         new CallSignatureAnalyzer(),
+        new StructOperatorAnalyzer(),
         new ValueConversionAnalyzer(),
         new UndeclaredIdentifierAnalyzer(),
         new RedeclarationAnalyzer(),

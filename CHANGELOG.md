@@ -50,6 +50,10 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - HLSL 2021 の template の構造体 (`Box<float4> b`) のメンバーを検査する。無いメンバーとメソッドを HL0312 で報告し、
   型引数そのものの型のフィールドやメソッドの戻り値 (`T v;`) を、宣言の型引数 (`float4`) に置き換えて読む。
   型引数を付けた基底 (`struct Derived : Box<T>`) も読む
+- 新しいルール HL0346 (構造体に使えない演算子)。演算子を定義していない構造体への演算 (`a + b`、`-a`、`a == b`)、
+  右辺だけが構造体の演算 (`2 * a`)、条件演算子で構造体を選ぶ式 (`k > 0 ? a : b`)、複合代入と増減 (`a += b`、`a++`)、
+  多重定義できない演算子の定義 (`operator++`、`operator+=`、`operator<<`) を報告する
+- HLSL 2021 の構造体のメソッドの中の `this` を読む (`this.x`)
 - 新しいルール HL0345 (template の型引数を実引数から決められない)。`MaxOf(k, h)` (`float` と `half`) や `MaxOf(1.0, k)` (接尾辞の無い数と `float`) を報告する。
   template の関数の引数の個数が合わない呼び出しは HL0341 で報告する
   構文木は `TemplateDeclarationSyntax`、`InvocationExpressionSyntax.TypeArgumentTokens`

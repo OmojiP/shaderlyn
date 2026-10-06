@@ -410,4 +410,21 @@ internal static class HlslRuleDescriptors
             + "float と half、float3 と float のような違いがあると呼び出せません。"
             + "接尾辞の無い数 (1.0 / 1) は float / int とは別の型として扱われます。",
         helpLinkUri: DocumentationLinks.For("HL0345"));
+
+    /// <summary>構造体の値に、使えない演算子を使っている。または多重定義できない演算子を定義している。</summary>
+    /// <remarks>
+    /// 演算子は数値型の値にしか使えない。HLSL 2021 では、構造体の中で定義した演算子だけが構造体の左辺に使える。
+    /// 条件演算子は構造体を選べない。<c>++</c> / <c>--</c> / 複合代入 / <c>&lt;&lt;</c> / <c>&gt;&gt;</c> は多重定義できない。
+    /// どれも DXC で確かめた。
+    /// </remarks>
+    public static DiagnosticDescriptor StructOperatorNotAvailable { get; } = new(
+        id: "HL0346",
+        title: "構造体に使えない演算子です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "HLSL の演算子は数値型 (スカラー・ベクトル・行列) の値にしか使えません。"
+            + "HLSL 2021 では、構造体の中で operator+ などを定義すると、その構造体を左辺にして使えます。"
+            + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
+        helpLinkUri: DocumentationLinks.For("HL0346"));
 }
