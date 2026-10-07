@@ -198,6 +198,26 @@ public sealed class Hlsl2021StructTests
     public void 構造体に使えない演算子をDXCと同じに扱う(string statement, string? expected)
         => AssertReported(statement, expected, OperatorPrelude);
 
+    /// <summary>
+    /// 構造体の外に同じ演算子の定義があれば、HL0346 を報告しないことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// DXC 1.6 は構造体の外の演算子を定義としては受け付け、式には使わない (<c>2 * a</c> はエラー)。
+    /// 新しい DXC で使われるかもしれないので、定義があれば言い切らない。
+    /// </remarks>
+    [Fact]
+    public void 構造体の外に演算子の定義があれば報告しない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            struct S { float x; };
+            S operator*(float k, S s) { S r; r.x = s.x * k; return r; }
+            float4 main() : SV_Target { S a = (S)0; S c = 2 * a; S d = a + a; return c.x + d.x; }
+            """);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
+        Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     /// <summary>多重定義できない演算子の定義を報告することを検証する (HL0346)。</summary>
     /// <param name="definition">構造体の中に書く定義。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>

@@ -63,7 +63,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
             }
 
             if (node is HlslExpressionSyntax expression
-                && Describe(compilation.GetExpressionTypeBinder(program), expression) is { } problem)
+                && Describe(compilation, compilation.GetExpressionTypeBinder(program), expression) is { } problem)
             {
                 Report(context, problem.Token, problem.Message, reported);
             }
@@ -88,10 +88,14 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>式 1 つについて、構造体に使えない演算子を使っていればその中身を返す。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="expression">対象の式。</param>
     /// <returns>報告する位置と文。問題が無ければ <see langword="null"/>。</returns>
-    private static (HlslSyntaxToken Token, string Message)? Describe(ExpressionTypeBinder binder, HlslExpressionSyntax expression)
+    private static (HlslSyntaxToken Token, string Message)? Describe(
+        ShaderCompilation compilation,
+        ExpressionTypeBinder binder,
+        HlslExpressionSyntax expression)
     {
         ExpressionTypeEvaluator? evaluator = null;
 
@@ -107,6 +111,13 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
             {
                 string symbol = binary.OperatorToken.Text;
 
+                // 構造体の外で定義した演算子 (S operator*(float k, S s))。DXC 1.6 は定義を受け付けるが、式には使わない。
+                // 新しい DXC が使うかもしれないので、定義があれば報告しない。
+                if (!compilation.GetFunctionDeclarations("operator" + symbol, binder.Program).IsEmpty)
+                {
+                    return null;
+                }
+
                 if (StructOf(binary.Left) is { } left)
                 {
                     return HasOperator(binder, left, symbol, parameters: 1)
@@ -115,7 +126,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 }
 
                 return StructOf(binary.Right) is { } right
-                    ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使えません。構造体の演算子は、左辺が構造体のときだけ使えます。")
+                    ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使えません。構造体の中で定義した演算子は、左辺が構造体のときだけ使われます ({right} を左に書いてください)。")
                     : null;
             }
 
