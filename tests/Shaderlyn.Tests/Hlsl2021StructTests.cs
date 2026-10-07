@@ -218,6 +218,29 @@ public sealed class Hlsl2021StructTests
         Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// HLSL 2018 では構造体の増減 (<c>a++</c>) を報告しないことを検証する。FXC は受け付ける (成分ごとに増減する)。
+    /// </summary>
+    [Fact]
+    public void HLSL2018では構造体の増減を報告しない()
+    {
+        SourceText text = SourceText.From("""
+            struct P { float x; };
+            float4 main() : SV_Target { P a = (P)0; a++; ++a; P b = (P)0; P c = a + b; return c.x; }
+            """, "test.hlsl");
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text)],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { LanguageVersion = HlslLanguageVersion.Hlsl2018 }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
+        Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     /// <summary>多重定義できない演算子の定義を報告することを検証する (HL0346)。</summary>
     /// <param name="definition">構造体の中に書く定義。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>

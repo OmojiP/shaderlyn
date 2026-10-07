@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
@@ -129,6 +130,15 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                     ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使えません。構造体の中で定義した演算子は、左辺が構造体のときだけ使われます ({right} を左に書いてください)。")
                     : null;
             }
+
+            // 構造体の増減 (a++ / ++a) は、FXC だけが受け付ける (成分ごとに増減する)。DXC は 2016 から拒む。
+            // まだコンパイラを区別していないので、DXC だけが使う HLSL 2021 のときだけ報告する。
+            case PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken }
+                when binder.Program.Tree.LanguageVersion != HlslLanguageVersion.Hlsl2021:
+                return null;
+
+            case PostfixUnaryExpressionSyntax when binder.Program.Tree.LanguageVersion != HlslLanguageVersion.Hlsl2021:
+                return null;
 
             case PrefixUnaryExpressionSyntax unary:
             {
