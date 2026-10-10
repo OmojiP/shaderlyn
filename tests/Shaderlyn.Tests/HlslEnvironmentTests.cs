@@ -247,17 +247,40 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     public void HLSL2018の環境では使えない構文をその言語のバージョンで伝える()
     {
         const string code = """
-            enum Mode { First, Second };
-            float4 main() : SV_Target { return 1; }
+            template<typename T> T Twice(T x) { return x + x; }
+            float4 main() : SV_Target { return Twice(1.0f); }
             """;
 
         HlslEnvironment hlsl2018 = new(new HlslEnvironmentOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2018 });
 
         Diagnostic diagnostic = Assert.Single(Analyze(code, Unit(code, "ps_6_6"), environment: hlsl2018), d => d.Id == "HL0003");
-        Assert.Equal("enum 宣言 は HLSL 2018 では使えません。", diagnostic.GetMessage());
+        Assert.Equal("template 宣言 は HLSL 2018 では使えません。", diagnostic.GetMessage());
 
         // HLSL 2021 (既定) では正しい構文なので報告しない。
         Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0003");
+    }
+
+    /// <summary>
+    /// <c>enum</c> は DXC 2017 から使えることを検証する。2016 と FXC では報告する (手元の DXC 1.8 / FXC で確かめた)。
+    /// </summary>
+    [Fact]
+    public void enumはDXC2017から使える()
+    {
+        const string code = """
+            enum Mode { First, Second };
+            float4 main() : SV_Target { return 1; }
+            """;
+
+        HlslEnvironment Dxc(Hlsl.Parsing.HlslLanguageVersion version) => new(new HlslEnvironmentOptions { LanguageVersion = version });
+
+        Diagnostic diagnostic = Assert.Single(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2016)), d => d.Id == "HL0003");
+        Assert.Equal("enum 宣言 は HLSL 2016 では使えません。", diagnostic.GetMessage());
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2017)), d => d.Id == "HL0003");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2018)), d => d.Id == "HL0003");
+
+        HlslEnvironment fxc = new(new HlslEnvironmentOptions { Compiler = Hlsl.Parsing.HlslCompiler.Fxc });
+        Diagnostic fxcDiagnostic = Assert.Single(Analyze(code, Unit(code, "ps_5_0"), environment: fxc), d => d.Id == "HL0003");
+        Assert.Equal("enum 宣言 は FXC では使えません。", fxcDiagnostic.GetMessage());
     }
 
     [Fact]

@@ -286,19 +286,13 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// <c>interface</c> / <c>class</c> を、解釈できない宣言として報告することを検証する。
+    /// 既定の方言 (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
     /// </summary>
     /// <remarks>
-    /// <b>何も伝えずに取り込んでいた。</b>
-    /// この経路が無かったとき、<c>interface IBase { ... };</c> は
-    /// 「<c>interface</c> 型の変数 <c>IBase</c>」として解析され、
-    /// 波括弧の中身は <c>sampler_state { ... }</c> を読み飛ばす経路が捨てていた。
-    /// 診断は 1 件も出ず、中のメソッドもフィールドも無かったことになる。
+    /// FXC は <c>enum</c> も <c>template</c> も "syntax error: unexpected token" で拒む (手元の FXC で確かめた)。
+    /// <c>class</c> / <c>interface</c> は FXC でも使えるので報告しない (<see cref="classとinterfaceは構造体として読む"/>)。
     /// </remarks>
     [Theory]
-    [InlineData("interface IBase { float4 Shade(float4 x); };", "interface")]
-    [InlineData("class Impl : IBase { float4 v; float4 Shade(float4 x) { return x; } };", "class")]
-    [InlineData("class Impl { float4 v; } impl;", "class")]
     [InlineData("enum Mode { First, Second };", "enum")]
     [InlineData("enum class Mode : uint { First, Second };", "enum")]
     [InlineData("template<typename T> T Twice(T x) { return x + x; }", "template")]
@@ -316,14 +310,14 @@ public sealed class HlslDeclarationParsingTests
     /// 解釈できない型宣言を、変数宣言として取り込まないことを検証する。
     /// </summary>
     /// <remarks>
-    /// 取り込むと、<c>interface</c> 型の uniform が一覧に載る。
+    /// 取り込むと、<c>enum</c> 型の uniform が一覧に載る。
     /// 中身を読んでいない以上、名前だけを登録しても根拠にならない。
     /// </remarks>
     [Fact]
     public void 解釈できない型宣言は宣言として取り込まない()
     {
         HlslSyntaxTree tree = HlslHarness.Parse("""
-            interface ILight { half3 Shade(half3 n); };
+            enum Mode { First, Second } mode;
             float4 _BaseColor;
             """);
 
@@ -342,7 +336,6 @@ public sealed class HlslDeclarationParsingTests
     /// 消えたことは診断に現れないため、件数ではなく中身で確かめる。
     /// </remarks>
     [Theory]
-    [InlineData("class Impl { float4 v; float4 Get() { return v; } };")]
     [InlineData("enum Mode { First, Second };")]
 
     // template が導く関数は波括弧で終わる。セミコロンまで読み飛ばすと、後ろの宣言を丸ごと捨てる。
@@ -384,7 +377,30 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("8", diagnostic.Location.Source.ToString(diagnostic.Location.Span));
         Assert.Contains("ビットフィールド", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("HLSL 2018 では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("FXC では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>class</c> / <c>interface</c> を、どの方言でも構造体と同じ形で読むことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// FXC でも DXC のどの版でも使える。Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。
+    /// 以前は解釈できない宣言として報告していた (誤検出)。
+    /// </remarks>
+    [Fact]
+    public void classとinterfaceは構造体として読む()
+    {
+        HlslSyntaxTree tree = HlslHarness.Parse("""
+            interface IBase { float4 Shade(float4 x); };
+            class Impl : IBase { float4 v; float4 Shade(float4 x) { return x * v; } };
+            class Plain { float4 v; } impl;
+            """);
+
+        Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+        Assert.Equal(
+            ["interface", "class", "class"],
+            tree.Root.Declarations.OfType<StructDeclarationSyntax>().Select(s => s.Keyword.Text));
+        Assert.Equal("IBase", tree.Root.Declarations.OfType<StructDeclarationSyntax>().ElementAt(1).BaseTypeName);
     }
 
     /// <summary>

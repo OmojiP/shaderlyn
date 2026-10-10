@@ -60,6 +60,10 @@ public sealed record UnrealOptions
     /// <summary>そのほかの割り当て (<c>/Plugin/MyPlugin</c> → プラグインの <c>Shaders</c>)。</summary>
     public ImmutableDictionary<string, string> VirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 
+    /// <summary>コンパイラ。既定は DXC。設定の <c>hlsl: compiler</c> で変える。</summary>
+    /// <remarks>Unreal Engine がどのコンパイラ・版でコンパイルするかは実測していない。既定は今までどおり DXC 2018 としている。</remarks>
+    public HlslCompiler Compiler { get; init; } = HlslCompiler.Dxc;
+
     /// <summary>HLSL の言語のバージョン。既定は 2018。HLSL 2021 で書いたシェーダーは設定の <c>hlsl: version</c> で 2021 にする。</summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
 
@@ -96,6 +100,7 @@ public sealed record UnrealOptions
         => new(new HlslEnvironmentOptions
         {
             Name = EnvironmentName,
+            Compiler = Compiler,
             LanguageVersion = LanguageVersion,
             Enable16BitTypes = Enable16BitTypes,
             Variants = variants ?? VariantSpace.Empty,

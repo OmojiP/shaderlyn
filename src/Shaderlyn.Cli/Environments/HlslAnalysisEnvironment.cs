@@ -37,7 +37,8 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
             configuration,
             new HlslEnvironment(new HlslEnvironmentOptions
             {
-                LanguageVersion = configuration?.HlslVersion == 2018 ? HlslLanguageVersion.Hlsl2018 : HlslLanguageVersion.Hlsl2021,
+                Compiler = configuration?.HlslCompiler == "fxc" ? HlslCompiler.Fxc : HlslCompiler.Dxc,
+                LanguageVersion = (HlslLanguageVersion)(configuration?.HlslVersion ?? 2021),
                 Enable16BitTypes = configuration?.HlslEnable16BitTypes == true,
                 Variants = BuildVariants(configuration!, null),
             }),

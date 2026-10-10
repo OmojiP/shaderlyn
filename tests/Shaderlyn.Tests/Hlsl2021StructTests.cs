@@ -232,7 +232,7 @@ public sealed class Hlsl2021StructTests
             text,
             [HlslEnvironment.WholeFile(text)],
             text,
-            new HlslEnvironment(new HlslEnvironmentOptions { LanguageVersion = HlslLanguageVersion.Hlsl2018 }),
+            new HlslEnvironment(new HlslEnvironmentOptions { Compiler = HlslCompiler.Fxc }),
             ShaderSourceInfo.None);
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());

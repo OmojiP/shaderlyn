@@ -332,19 +332,41 @@ public sealed record PreprocessorOptions
         ImmutableDictionary<string, ImmutableArray<int>>.Empty.WithComparers(StringComparer.Ordinal);
 
     /// <summary>
-    /// 受け付ける HLSL の言語のバージョン。既定は <see cref="HlslLanguageVersion.Hlsl2018"/> (Unity と同じ)。
+    /// このコードをコンパイルする方言。既定は FXC (Unity の既定のコンパイラ)。
     /// </summary>
     /// <remarks>
-    /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) が読む。
+    /// <para>
+    /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) とルールが読む。
     /// 展開と構文解析の設定を 1 つにまとめて渡しているので、ここに置く。
+    /// </para>
+    /// <para>
+    /// <b>1 つのコードが複数の方言でコンパイルされることがある。</b>
+    /// パーサーは、どれかの方言が受け付ける構文を読む (<see cref="HlslLanguageFeatures.Any"/>)。
+    /// どの方言も受け付けない構文を HL0003 として報告する。
+    /// </para>
     /// </remarks>
-    public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
+    public ImmutableArray<HlslDialect> Dialects { get; init; } = [HlslDialect.Fxc];
+
+    /// <summary>
+    /// DXC の言語のバージョン。設定すると、方言をその版の DXC 1 つにする (<see cref="Dialects"/> の略記)。
+    /// </summary>
+    /// <remarks>
+    /// 読むと、並べた方言のうち最も新しい DXC の版を返す。DXC が無ければ <see cref="HlslLanguageVersion.Hlsl2018"/>。
+    /// </remarks>
+    public HlslLanguageVersion LanguageVersion
+    {
+        get => Dialects.Where(d => d.Compiler == HlslCompiler.Dxc).Select(d => d.LanguageVersion).Max() ?? HlslLanguageVersion.Hlsl2018;
+        init => Dialects = [HlslDialect.Dxc(value)];
+    }
+
+    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。パーサーはこれで読む。</summary>
+    public HlslLanguageFeatures Features => HlslLanguageFeatures.Any(Dialects);
 
     /// <summary>
     /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
     /// </summary>
     /// <remarks>
-    /// <see langword="null"/> なら言語のバージョンで言う (<c>HLSL 2018</c>)。
+    /// <see langword="null"/> なら方言で言う (<c>FXC</c> / <c>HLSL 2018</c>)。
     /// 環境が与える。Unity の環境は、Unity のコンパイルでエラーになることを伝える。
     /// </remarks>
     public string? DialectName { get; init; }
@@ -353,7 +375,7 @@ public sealed record PreprocessorOptions
     /// <returns>名前。英数字で終わるなら、後ろに続く「では」との間に空白を入れる。</returns>
     internal string DescribeDialect()
     {
-        string name = DialectName ?? (LanguageVersion == HlslLanguageVersion.Hlsl2021 ? "HLSL 2021" : "HLSL 2018");
+        string name = DialectName ?? HlslLanguageFeatures.Describe(Dialects);
         return name.Length > 0 && char.IsAsciiLetterOrDigit(name[^1]) ? name + " " : name;
     }
 

@@ -173,7 +173,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.Program.Tree.LanguageVersion == HlslLanguageVersion.Hlsl2021
+        if (!binder.Program.Tree.Features.ImplicitUserTypeConversion
             && DescribeStructMismatch(binder, target, targetIsNumeric, valueType, valueIsNumeric) is { } reason)
         {
             ReportStruct(context, receiver, value, valueType, reason, reported);

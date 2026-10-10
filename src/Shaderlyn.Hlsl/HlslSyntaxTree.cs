@@ -42,7 +42,14 @@ public sealed class HlslSyntaxTree
     public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
 
     /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="PreprocessorOptions.LanguageVersion"/>)。</summary>
+    /// <remarks>並べた方言のうち最も新しい DXC の版。方言そのものは <see cref="Dialects"/> にある。</remarks>
     public HlslLanguageVersion LanguageVersion { get; private init; } = HlslLanguageVersion.Hlsl2018;
+
+    /// <summary>このコードをコンパイルする方言 (<see cref="PreprocessorOptions.Dialects"/>)。</summary>
+    public ImmutableArray<HlslDialect> Dialects { get; private init; } = [HlslDialect.Fxc];
+
+    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。この木はこれで読んだ。</summary>
+    public HlslLanguageFeatures Features { get; private init; } = HlslDialect.Fxc.Features;
 
     /// <summary>解析対象のソーステキスト。</summary>
     public SourceText Text { get; }
@@ -82,10 +89,11 @@ public sealed class HlslSyntaxTree
         PreprocessResult preprocessed = new HlslPreprocessor(options).Preprocess(text);
         start = Record(timings, SyntaxStep.Preprocess, start);
 
+        PreprocessorOptions effective = options ?? new PreprocessorOptions();
         HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude)
         {
-            LanguageVersion = options?.LanguageVersion ?? HlslLanguageVersion.Hlsl2018,
-            DialectSubject = (options ?? new PreprocessorOptions()).DescribeDialect(),
+            Features = effective.Features,
+            DialectSubject = effective.DescribeDialect(),
         };
         HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);
@@ -101,7 +109,9 @@ public sealed class HlslSyntaxTree
         return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
         {
             UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
-            LanguageVersion = parser.LanguageVersion,
+            LanguageVersion = effective.LanguageVersion,
+            Dialects = effective.Dialects,
+            Features = parser.Features,
         };
     }
 

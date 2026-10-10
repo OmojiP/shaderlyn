@@ -72,9 +72,16 @@ internal sealed record ShaderlynConfiguration
     public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 
     /// <summary>
-    /// HLSL の言語のバージョン (<c>hlsl: version</c>)。<c>2018</c> か <c>2021</c>。指定が無い場合は <see langword="null"/>。
+    /// コンパイラ (<c>hlsl: compiler</c>)。<c>dxc</c> か <c>fxc</c>。指定が無い場合は <see langword="null"/> (DXC)。
     /// </summary>
-    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。Unity の環境は 2018 で固定。</remarks>
+    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。FXC のときは <see cref="HlslVersion"/> を使わない。</remarks>
+    public string? HlslCompiler { get; init; }
+
+    /// <summary>
+    /// HLSL の言語のバージョン (<c>hlsl: version</c>、DXC の <c>-HV</c>)。<c>2016</c> / <c>2017</c> / <c>2018</c> / <c>2021</c>。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。Unity の環境は Unity が決める (FXC か、DXC の 2018)。</remarks>
     public int? HlslVersion { get; init; }
 
     /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>、DXC の <c>-enable-16bit-types</c>)。指定が無い場合は <see langword="null"/>。</summary>

@@ -37,7 +37,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownHlslKeys = ["version", "enable-16bit-types"];
+    private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
 
     /// <summary><c>units:</c> の要素で認識するキー。</summary>
     private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "defines", "symbols"];
@@ -192,7 +192,7 @@ internal static class ConfigurationLoader
             ReportNonScalars(root, string.Empty, "version", "environment", "profile");
             ReportNonScalars(unity, "unity: の ", "profile", "project", "editor");
             ReportNonScalars(unreal, "unreal: の ", "engine", "project");
-            ReportNonScalars(hlsl, "hlsl: の ", "version", "enable-16bit-types");
+            ReportNonScalars(hlsl, "hlsl: の ", "compiler", "version", "enable-16bit-types");
 
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
@@ -207,6 +207,7 @@ internal static class ConfigurationLoader
                 UnrealEngineDirectory = ResolvePath(ReadOptionalScalar(unreal, "engine")),
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
+                HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
                 Symbols = symbols,
@@ -412,9 +413,32 @@ internal static class ConfigurationLoader
             return null;
         }
 
-        /// <summary>HLSL の言語のバージョン (<c>hlsl: version</c>) を読む。</summary>
+        /// <summary>コンパイラ (<c>hlsl: compiler</c>) を読む。</summary>
         /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
-        /// <returns>2018 か 2021。指定が無いか読めなければ <see langword="null"/>。</returns>
+        /// <returns><c>dxc</c> か <c>fxc</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadHlslCompiler(YamlMapping? hlsl)
+        {
+            if (hlsl is null || !hlsl.TryGetScalar("compiler", out YamlScalar? compiler) || compiler.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = compiler.Value.Trim().ToLowerInvariant();
+
+            if (value is "dxc" or "fxc")
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                compiler.Line, $"hlsl: の compiler には dxc か fxc を指定してください ('{compiler.Value}')。"));
+            return null;
+        }
+
+        /// <summary>HLSL の言語のバージョン (<c>hlsl: version</c>、DXC の <c>-HV</c>) を読む。</summary>
+        /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>2016 / 2017 / 2018 / 2021。指定が無いか読めなければ <see langword="null"/>。</returns>
+        /// <remarks>DXC 1.8 は 2015 をコンパイルできない (言語サービス専用) ので、受け付けない。</remarks>
         private int? ReadHlslVersion(YamlMapping? hlsl)
         {
             if (hlsl is null || !hlsl.TryGetScalar("version", out YamlScalar? version) || version.Value.Length == 0)
@@ -422,13 +446,13 @@ internal static class ConfigurationLoader
                 return null;
             }
 
-            if (version.TryGetInt32(out int value) && value is 2018 or 2021)
+            if (version.TryGetInt32(out int value) && value is 2016 or 2017 or 2018 or 2021)
             {
                 return value;
             }
 
             problems.Add(new ConfigurationProblem(
-                version.Line, $"hlsl: の version には 2018 か 2021 を指定してください ('{version.Value}')。"));
+                version.Line, $"hlsl: の version には 2016 / 2017 / 2018 / 2021 のどれかを指定してください ('{version.Value}')。"));
             return null;
         }
 

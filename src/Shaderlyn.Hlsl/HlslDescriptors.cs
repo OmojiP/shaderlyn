@@ -63,9 +63,9 @@ internal static class HlslDescriptors
         messageFormat: "{0} は {1}では使えません。",
         category: "Syntax",
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "class / interface / enum / template の宣言、operator による演算子の多重定義、"
-            + "構造体のビットフィールドは HLSL 2018 で、#line 指令は Unity のシェーダーのコンパイルでエラーになります。"
-            + "Unity のシェーダーは HLSL 2018 としてコンパイルされます。HLSL 2021 の環境 (hlsl: version: 2021) では enum などは報告しません。"
+        description: "enum / template の宣言、operator による演算子の多重定義、構造体のビットフィールドは、"
+            + "コンパイラ (方言) によってはエラーになります。FXC (Unity の既定) はどれも使えず、DXC は enum を 2017 から、ほかを 2021 から使えます。"
+            + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface はどの方言でも使えます。"
             + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (SL0002)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));

@@ -494,15 +494,19 @@ public static class HlslIntrinsics
     /// その名前が、その言語のバージョンで使える組み込み関数かどうかを判定する。
     /// </summary>
     /// <param name="name">判定する名前。</param>
-    /// <param name="languageVersion">HLSL の言語のバージョン。</param>
+    /// <param name="features">このコードをコンパイルする方言のどれかで使えるもの。</param>
     /// <returns>組み込み関数であれば <see langword="true"/>。</returns>
     /// <remarks>
-    /// <c>select</c> / <c>and</c> / <c>or</c> は HLSL 2021 で入った。2018 では宣言されていない名前である
+    /// <c>select</c> / <c>and</c> / <c>or</c> は DXC 2021 で入った。それより前と FXC では宣言されていない名前である
     /// (2021 で <c>?:</c> と <c>&amp;&amp;</c> / <c>||</c> がベクトルに使えなくなった代わり)。
     /// </remarks>
-    public static bool IsKnownFunction(string? name, HlslLanguageVersion languageVersion)
-        => IsKnownFunction(name)
-           || (languageVersion >= HlslLanguageVersion.Hlsl2021 && name is not null && Hlsl2021Names.Contains(name));
+    public static bool IsKnownFunction(string? name, HlslLanguageFeatures features)
+    {
+        ArgumentNullException.ThrowIfNull(features);
+
+        return IsKnownFunction(name)
+               || (features.LogicalIntrinsics && name is not null && Hlsl2021Names.Contains(name));
+    }
 
     /// <summary>HLSL 2021 で入った組み込み関数。</summary>
     private static readonly FrozenSet<string> Hlsl2021Names =

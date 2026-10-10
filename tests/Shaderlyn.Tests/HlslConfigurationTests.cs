@@ -70,7 +70,9 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("hlsl:\n  version: 2020\n", "2018 か 2021")]
+    [InlineData("hlsl:\n  version: 2020\n", "2016 / 2017 / 2018 / 2021")]
+    [InlineData("hlsl:\n  version: 2015\n", "2016 / 2017 / 2018 / 2021")]
+    [InlineData("hlsl:\n  compiler: clang\n", "dxc か fxc")]
     [InlineData("symbols:\n  - name: Q\n    values: [0]\n", "2 つ以上")]
     [InlineData("symbols:\n  - name: Q\n    values: [a, b]\n", "整数")]
     [InlineData("symbols:\n  - name: Q\n  - name: Q\n", "2 回")]

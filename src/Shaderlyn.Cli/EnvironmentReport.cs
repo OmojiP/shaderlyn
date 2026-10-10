@@ -290,7 +290,11 @@ internal static partial class EnvironmentReport
     {
         Section(builder, "HLSL");
 
-        Line(builder, $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
+        bool fxc = configuration.HlslCompiler == "fxc";
+        Line(builder, $"  コンパイラ: {(fxc ? "FXC" : "DXC")}{(configuration.HlslCompiler is null ? " (既定)" : string.Empty)}");
+        Line(builder, fxc
+            ? "  言語のバージョン: (FXC には無い)"
+            : $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
         Line(builder, $"  16 ビットの型 (enable-16bit-types): {(configuration.HlslEnable16BitTypes == true ? "使う (__HLSL_ENABLE_16_BIT=1)" : "使わない")}");
 
         string symbols = string.Join(

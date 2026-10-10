@@ -36,6 +36,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - VS Code 拡張: 呼び出しの案内 (引数の形) に HLSL 2021 の template の関数も出す (`template<T, U> T Mix(T a, U b, float t)`)
 - VS Code 拡張: `.hlsli` / `.usf` / `.ush` も開く。構成の選択で、値を持つシンボルは `QUALITY = 2` のように値を選ぶ
 - `--env` に環境と、その設定 (汎用の HLSL なら構成の軸とコンパイル単位、Unreal なら仮想パスの割り当て) を出す
+- 設定ファイルの `hlsl: compiler` (`dxc` / `fxc`)。`hlsl: version` は `2016` / `2017` も受け付ける。
+  使える構文はコンパイラと版で決まる (`HlslDialect` / `HlslLanguageFeatures`。手元の FXC と DXC 1.8 で確かめた表)
 - 設定ファイルの `hlsl: enable-16bit-types` (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義する
 - DirectX 12 のシェーダーの書き方を読む: `export` 修飾子、引数の属性とワークグラフの型 (`[MaxRecords(2)] NodeOutput<T>`)、
   文字列の中の行の継続 (ルートシグネチャのマクロ)、`using namespace dx;`、`1.#INF`、括弧の中のカンマ演算子、`struct [raypayload]`
@@ -85,6 +87,9 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   `AnalyzedProgram` の `Block` / `IncludeBlocks` / `Pass` / `PassName` は `program.GetUnityBlock()` (`UnityProgramBlock`) へ移した
 - **破壊的変更:** `SemanticsOptions` の `Profile` / `UseFallbackMacros` / `DefaultPredefinedMacros` は `UnityOptions` へ移した。
   `SemanticsOptions.PredefinedMacros` は `null` で「環境の既定」を表す
+- **破壊的変更:** 構文木を読む方言を `PreprocessorOptions.Dialects` (`HlslDialect` の並び) で持つ。既定は FXC (以前の既定は HLSL 2018)。
+  `LanguageVersion` は DXC 1 つの略記として残した。`HlslIntrinsics.IsKnownFunction` は言語のバージョンの代わりに `HlslLanguageFeatures` を受け取る。
+  `HlslLanguageVersion` の値はバージョンの数そのもの (`Hlsl2018 = 2018`) になり、`Hlsl2016` / `Hlsl2017` を足した
 - **破壊的変更:** 設定ファイルの `profile` は `unity:` の節に書く。節の外の `profile` も読むが、TOOL0003 で移すよう伝える。
   既定の `--error-on warning` ではこの警告で終了コードが 1 になるので、上げる前に移すこと
 - **破壊的変更:** `--profile` / `--unity-project` / `--unity-editor` を Unity 以外の環境で指定するとエラーにする
@@ -111,6 +116,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   何も伝えずに無視していた。TOOL0003 で報告する
 - HLSL 2021 の構造体の継承 (`struct D : B`) で、基底のメンバー (`d.x`) を無いメンバー (HL0312) と報告していた。
   波括弧の初期化 (`D d = { ... }`) も基底のフィールドを数えずに HL0352 と報告していた。基底は `StructDeclarationSyntax.BaseType` / `BaseTypeName`
+- `class` / `interface` を HLSL 2018 (Unity を含む) で HL0003 と報告していた。FXC でも DXC のどの版でも使える (Unity でも使える)
+- `enum` を DXC の HLSL 2018 (`hlsl: version: 2018`、Unreal の既定) で HL0003 と報告していた。DXC は 2017 から使える
 - 構造体の前方宣言 (`struct Light;`、HLSL 2021 の `class ObjModelLoader;`) を構文の誤り (HL0001) と報告していた
 - 構造体の宣言に続けて宣言した変数 (`struct Light { ... } g_light;`) を、宣言されていない名前 (HL0310) と報告していた
 - `--env` が、Unity 以外の環境でも `Packages/<名前>/... は解決できません` と書いていた

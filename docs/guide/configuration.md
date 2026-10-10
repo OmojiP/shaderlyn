@@ -73,8 +73,11 @@ Unity の環境だけで使う設定です。
 
 | キー      | 内容                                                                 |
 | --------- | -------------------------------------------------------------------- |
-| `version` | HLSL の言語のバージョン (DXC の `-HV`): `2018` / `2021` (既定)        |
+| `compiler` | コンパイラ: `dxc` (既定) / `fxc`。`fxc` のときは `version` を使わず、DXC のマクロも定義しません |
+| `version` | HLSL の言語のバージョン (DXC の `-HV`): `2016` / `2017` / `2018` / `2021` (既定)。DXC 1.8 は `2015` をコンパイルできないので受け付けません |
 | `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false` |
+
+使える構文は方言で決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
 
 汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
 `__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。
@@ -85,7 +88,7 @@ Unity の環境だけで使う設定です。
 ## unreal
 
 `environment: unreal` で使う設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
-言語のバージョンは `hlsl: version` で変えられます (Unreal の既定は `2018`)。
+コンパイラと言語のバージョンは `hlsl: compiler` / `hlsl: version` で変えられます (Unreal の既定は DXC の `2018`。Unreal Engine の実際のコンパイラは確かめていません)。
 
 | キー            | 内容                                                                                   |
 | --------------- | -------------------------------------------------------------------------------------- |

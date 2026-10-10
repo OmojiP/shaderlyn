@@ -18,10 +18,19 @@ public sealed record HlslEnvironmentOptions
     /// <summary>環境の名前。既定は <c>hlsl</c>。同じ作りで設定だけが違う環境 (<c>unreal</c>) は名前を変える。</summary>
     public string Name { get; init; } = HlslEnvironment.EnvironmentName;
 
+    /// <summary>コンパイラ。既定は <see cref="HlslCompiler.Dxc"/>。</summary>
+    /// <remarks>FXC のときは言語のバージョンを使わず、DXC が定義するマクロ (<c>__HLSL_VERSION</c> など) も定義しない。</remarks>
+    public HlslCompiler Compiler { get; init; } = HlslCompiler.Dxc;
+
     /// <summary>
     /// HLSL の言語のバージョン (DXC の <c>-HV</c>)。既定は <see cref="HlslLanguageVersion.Hlsl2021"/> (DXC 1.7 以降の既定)。
     /// </summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2021;
+
+    /// <summary>このコードをコンパイルする方言。</summary>
+    public HlslDialect Dialect => Compiler == HlslCompiler.Fxc
+        ? HlslDialect.Fxc
+        : HlslDialect.Dxc(LanguageVersion) with { Enable16BitTypes = Enable16BitTypes };
 
     /// <summary>
     /// 16 ビットの型を使うか (DXC の <c>-enable-16bit-types</c>)。立っていれば <c>__HLSL_ENABLE_16_BIT</c> を 1 で定義する。
@@ -82,11 +91,16 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(semantics);
 
+        // FXC は DXC のマクロ (__HLSL_VERSION / __SHADER_STAGE_* など) を定義しない。
+        ImmutableDictionary<string, string> compilerMacros = Options.Compiler == HlslCompiler.Fxc
+            ? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal)
+            : HlslShaderTarget.CreateCommonDxcMacros(Options.LanguageVersion)
+                .SetItems(Options.Enable16BitTypes ? [new("__HLSL_ENABLE_16_BIT", "1")] : []);
+
         return options with
         {
-            LanguageVersion = Options.LanguageVersion,
-            PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(Options.LanguageVersion)
-                .SetItems(Options.Enable16BitTypes ? [new("__HLSL_ENABLE_16_BIT", "1")] : [])
+            Dialects = [Options.Dialect],
+            PredefinedMacros = compilerMacros
                 .SetItems(Options.PredefinedMacros)
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
         };
@@ -103,7 +117,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         ArgumentNullException.ThrowIfNull(options);
 
         // ターゲットで決まるマクロは、設定で与えたマクロ (共通・単位ごと) に負ける。
-        return unit.Target is { } target
+        return unit.Target is { } target && Options.Compiler == HlslCompiler.Dxc
             ? options with { PredefinedMacros = target.CreateDxcMacros(Options.LanguageVersion).SetItems(options.PredefinedMacros) }
             : options;
     }

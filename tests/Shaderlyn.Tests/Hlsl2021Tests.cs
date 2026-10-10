@@ -17,8 +17,9 @@ namespace Shaderlyn.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Unity は <c>template</c> / <c>enum</c> / <c>class</c> / <c>interface</c> / 演算子の多重定義 / ビットフィールドを受け付けないので、
+/// 既定の方言 (FXC。Unity の既定のコンパイラ) は <c>template</c> / <c>enum</c> / 演算子の多重定義 / ビットフィールドを受け付けないので、
 /// 使えない構文 (HL0003) として報告する。DXC の HLSL 2021 は受け付ける。
+/// <c>class</c> / <c>interface</c> は FXC でも DXC でも使える。
 /// </para>
 /// <para>
 /// <c>enum</c>・演算子の多重定義・<c>template</c>・<c>class</c>・<c>interface</c> は構文木にする
@@ -29,13 +30,11 @@ namespace Shaderlyn.Tests;
 /// </remarks>
 public sealed class Hlsl2021Tests
 {
-    /// <summary>HLSL 2021 で書いた、Unity では使えない構文。</summary>
+    /// <summary>HLSL 2021 で書いた、FXC (Unity の既定) では使えない構文。</summary>
     public static TheoryData<string, string> Constructs { get; } = new()
     {
         { "template<typename T> T Twice(T x) { return x + x; }", "template" },
         { "enum Mode { ModeA, ModeB };", "enum" },
-        { "class Light { float3 color; };", "class" },
-        { "interface ILight { float3 Color(); };", "interface" },
         { "struct S { uint flags : 4; };", "ビットフィールド" },
     };
 

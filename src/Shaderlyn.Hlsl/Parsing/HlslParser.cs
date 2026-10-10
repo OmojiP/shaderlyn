@@ -102,13 +102,16 @@ internal sealed class HlslParser
         _isUserInclude = isUserInclude;
     }
 
-    /// <summary>受け付ける言語のバージョン。既定は <see cref="HlslLanguageVersion.Hlsl2018"/>。</summary>
-    public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2018;
+    /// <summary>
+    /// 受け付ける構文。このコードをコンパイルする方言の<b>どれかで</b>使えるもの (<see cref="HlslLanguageFeatures.Any"/>)。
+    /// 既定は FXC で使えるもの。
+    /// </summary>
+    public HlslLanguageFeatures Features { get; init; } = HlslDialect.Fxc.Features;
 
     /// <summary>
     /// 使えない構文の報告 (HL0003) に入れる、どこで使えないかを伝える語 (<see cref="Preprocessing.PreprocessorOptions.DescribeDialect"/>)。
     /// </summary>
-    public string DialectSubject { get; init; } = "HLSL 2018 ";
+    public string DialectSubject { get; init; } = "FXC ";
 
     /// <summary>
     /// 構文木にせずに読み飛ばした宣言に現れた識別子。<see cref="ParseCompilationUnit"/> のあとで揃う。
@@ -121,7 +124,7 @@ internal sealed class HlslParser
     /// </para>
     /// <para>
     /// 読み飛ばした <c>#if</c> の分岐と同じく、解析していない場所に現れた名前として扱う。
-    /// 報告して読み飛ばした宣言 (<see cref="HlslLanguageVersion.Hlsl2018"/>) では、ブロックの解析そのものが不完全になるので集めない。
+    /// 報告して読み飛ばした宣言 (どの方言でも使えない構文) では、ブロックの解析そのものが不完全になるので集めない。
     /// </para>
     /// </remarks>
     public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers => [.. _unanalyzedIdentifiers];
@@ -277,20 +280,21 @@ internal sealed class HlslParser
 
         ImmutableArray<HlslAttributeSyntax> attributes = ParseAttributes();
 
-        // enum は HLSL 2021 で構文木にする。2018 (Unity) では使えないので、報告して読み飛ばす。
+        // enum は DXC 2017 から使える。どの方言でも使えなければ、報告して読み飛ばす (FXC / DXC 2016)。
         if (CurrentTextIs("enum"))
         {
-            return LanguageVersion == HlslLanguageVersion.Hlsl2021
+            return Features.Enums
                 ? ParseEnum()
-                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true, report: true);
         }
 
-        // template は HLSL 2021 で構文木にする。2018 (Unity) では使えないので、報告して読み飛ばす。
+        // template は DXC 2021 から使える。どの方言でも使えなければ、報告して読み飛ばす。
+        // 使えるのに型引数の並びを読めない形 (既定値の中の >>) は、報告せずに読み飛ばす。
         if (CurrentTextIs("template"))
         {
-            return LanguageVersion == HlslLanguageVersion.Hlsl2021 && TryParseTemplate() is { } template
+            return Features.Templates && TryParseTemplate() is { } template
                 ? template
-                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false, report: !Features.Templates);
         }
 
         if (CurrentTextIs("typedef"))
@@ -330,19 +334,17 @@ internal sealed class HlslParser
         ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
 
         // 前方宣言 (struct Light; / class ObjModelLoader;)。名前を知らせるだけで中身は無い。
-        if ((CurrentTextIs("struct") || (LanguageVersion == HlslLanguageVersion.Hlsl2021 && (CurrentTextIs("class") || CurrentTextIs("interface"))))
+        if ((CurrentTextIs("struct") || CurrentTextIs("class") || CurrentTextIs("interface"))
             && Peek(1).Kind == HlslSyntaxKind.IdentifierToken
             && Peek(2).Kind == HlslSyntaxKind.SemicolonToken)
         {
             return new IncompleteDeclarationSyntax([Advance(), Advance(), Advance()]);
         }
 
-        // class と interface は HLSL 2021 で、構造体と同じ形で構文木にする。2018 (Unity) では報告して読み飛ばす。
+        // class と interface は、構造体と同じ形で構文木にする。FXC でも DXC のどの版でも使える (Unity でも使える)。
         if (CurrentTextIs("class") || CurrentTextIs("interface"))
         {
-            return LanguageVersion == HlslLanguageVersion.Hlsl2021
-                ? ParseStruct()
-                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true);
+            return ParseStruct();
         }
 
         if (CurrentTextIs("struct"))
@@ -378,6 +380,10 @@ internal sealed class HlslParser
     /// <c>template</c> が導くのは関数か変数で、関数は波括弧で終わるため偽にする。
     /// 真のまま読み飛ばすと、次のセミコロンまで、つまり後ろの宣言を丸ごと捨ててしまう。
     /// </param>
+    /// <param name="report">
+    /// HL0003 として報告するか。どの方言でも使えない構文なら報告する。
+    /// 使えるが読めない形 (型引数の並びを読めない template) なら報告せず、名前を解析していない場所の名前として残す。
+    /// </param>
     /// <returns>読み飛ばしたトークンを保持するノード。</returns>
     /// <remarks>
     /// <para>
@@ -402,10 +408,10 @@ internal sealed class HlslParser
     /// 取りこぼしても誤検出にはならない。
     /// </para>
     /// </remarks>
-    private IncompleteDeclarationSyntax ParseUnsupportedTypeDeclaration(bool endsWithSemicolon)
+    private IncompleteDeclarationSyntax ParseUnsupportedTypeDeclaration(bool endsWithSemicolon, bool report)
     {
         HlslSyntaxToken keyword = Current;
-        bool reported = LanguageVersion == HlslLanguageVersion.Hlsl2018;
+        bool reported = report;
 
         if (reported)
         {
@@ -489,12 +495,12 @@ internal sealed class HlslParser
 
         HlslTypeSyntax type = ParseType();
 
-        // operator による演算子の多重定義 (S operator+(S other) { ... }) は HLSL 2021 から使える。
+        // operator による演算子の多重定義 (S operator+(S other) { ... }) は DXC 2021 から使える。
         if (CurrentTextIs("operator"))
         {
-            return LanguageVersion == HlslLanguageVersion.Hlsl2021
+            return Features.OperatorOverloading
                 ? ParseOperatorFunction(attributes, modifiers, type)
-                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false);
+                : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false, report: true);
         }
 
         if (Current.Kind != HlslSyntaxKind.IdentifierToken)
@@ -531,7 +537,7 @@ internal sealed class HlslParser
         }
 
         // 明示的な特殊化の関数名に付く型引数 (template<> float Twice<float>(float x))。
-        if (LanguageVersion == HlslLanguageVersion.Hlsl2021
+        if (Features.Templates
             && Current.Kind == HlslSyntaxKind.LessThanToken
             && FindTypeArgumentsEnd() is int close)
         {
@@ -927,7 +933,7 @@ internal sealed class HlslParser
         // 明示的な特殊化の構造体名に付く型引数 (template<> struct Box<float> { ... })。
         ImmutableArray<HlslSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
 
-        if (name is not null && LanguageVersion == HlslLanguageVersion.Hlsl2021 && Current.Kind == HlslSyntaxKind.LessThanToken)
+        if (name is not null && Features.Templates && Current.Kind == HlslSyntaxKind.LessThanToken)
         {
             int depth = 0;
 
@@ -1255,8 +1261,8 @@ internal sealed class HlslParser
             Advance();
             HlslSyntaxToken width = Advance();
 
-            // HLSL 2021 では正しい書き方である。幅は型の判定に関わらないので、読み飛ばすだけでよい。
-            if (LanguageVersion == HlslLanguageVersion.Hlsl2018)
+            // DXC 2021 では正しい書き方である。幅は型の判定に関わらないので、読み飛ばすだけでよい。
+            if (!Features.Bitfields)
             {
                 _diagnostics.Add(Diagnostic.Create(
                     HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド", DialectSubject));
@@ -2059,7 +2065,7 @@ internal sealed class HlslParser
 
                 // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
                 case HlslSyntaxKind.LessThanToken
-                    when LanguageVersion == HlslLanguageVersion.Hlsl2021
+                    when Features.Templates
                          && expression is IdentifierExpressionSyntax or MemberAccessExpressionSyntax
                          && FindTypeArgumentsEnd() is int close:
                 {

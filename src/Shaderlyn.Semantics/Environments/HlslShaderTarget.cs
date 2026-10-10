@@ -140,7 +140,7 @@ public readonly record struct HlslShaderTarget(HlslShaderStage Stage, int Major,
             macros["__SHADER_STAGE_" + stage.ToString().ToUpperInvariant()] = Number((int)stage);
         }
 
-        macros["__HLSL_VERSION"] = languageVersion == HlslLanguageVersion.Hlsl2021 ? "2021" : "2018";
+        macros["__HLSL_VERSION"] = ((int)languageVersion).ToString(System.Globalization.CultureInfo.InvariantCulture);
         macros["__hlsl_dx_compiler"] = "1";
 
         return macros.ToImmutable();

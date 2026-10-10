@@ -3832,7 +3832,7 @@ public sealed class HlslRuleTests
     /// 指摘が出ないことを「問題が無い」と受け取られてはならない。
     /// </remarks>
     [Fact]
-    public void クラスとインターフェイスを解釈できないことを報告する()
+    public void クラスとインターフェイスはUnityでも使えるので報告しない()
     {
         string source = Shader(
             "#pragma vertex vert",
@@ -3845,7 +3845,9 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.Equal(2, diagnostics.Count(d => d.Id == "HL0003"));
+        // FXC でも Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。以前は HL0003 と報告していた (誤検出)。
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0003");
+        Assert.False(Has(diagnostics, "SL0002"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3863,7 +3865,7 @@ public sealed class HlslRuleTests
         string source = Shader(
             "#pragma vertex vert",
             "#pragma fragment frag",
-            "interface ILight { half3 Shade(half3 n); };",
+            "enum Mode { First, Second };",
             "struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };",
             "Varyings vert(float4 positionOS : POSITION) { Varyings o; o.positionCS = positionOS; o.uv = 0; return o; }",
             "half4 frag(Varyings i) : SV_Target { return i.uv.xyxy; }");

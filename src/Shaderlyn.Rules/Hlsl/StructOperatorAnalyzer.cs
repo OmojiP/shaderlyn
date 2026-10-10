@@ -131,13 +131,13 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                     : null;
             }
 
-            // 構造体の増減 (a++ / ++a) は、FXC だけが受け付ける (成分ごとに増減する)。DXC は 2016 から拒む。
-            // まだコンパイラを区別していないので、DXC だけが使う HLSL 2021 のときだけ報告する。
+            // 構造体の増減 (a++ / ++a) は、FXC だけが受け付ける (通るが何もしない)。DXC はどの版でも拒む。
+            // FXC でもコンパイルされるなら、ここでは報告しない。
             case PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken }
-                when binder.Program.Tree.LanguageVersion != HlslLanguageVersion.Hlsl2021:
+                when binder.Program.Tree.Features.StructIncrement:
                 return null;
 
-            case PostfixUnaryExpressionSyntax when binder.Program.Tree.LanguageVersion != HlslLanguageVersion.Hlsl2021:
+            case PostfixUnaryExpressionSyntax when binder.Program.Tree.Features.StructIncrement:
                 return null;
 
             case PrefixUnaryExpressionSyntax unary:
