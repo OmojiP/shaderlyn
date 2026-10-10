@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
@@ -42,7 +43,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslRuleDescriptors.StructOperatorNotAvailable];
+        [HlslRuleDescriptors.StructOperatorNotAvailable, HlslRuleDescriptors.StructIncrementIgnored];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -63,8 +64,24 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (node is HlslExpressionSyntax expression
-                && Describe(compilation, compilation.GetExpressionTypeBinder(program), expression) is { } problem)
+            if (node is not HlslExpressionSyntax expression)
+            {
+                continue;
+            }
+
+            ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+
+            if (IsIncrement(expression, out HlslSyntaxToken? incrementToken, out HlslExpressionSyntax? operand))
+            {
+                if (DescribeIncrement(compilation, binder, expression, operand, incrementToken) is { } increment)
+                {
+                    Report(context, increment.Token, increment.Message, reported, increment.Descriptor);
+                }
+
+                continue;
+            }
+
+            if (Describe(compilation, binder, expression) is { } problem)
             {
                 Report(context, problem.Token, problem.Message, reported);
             }
@@ -134,15 +151,6 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                     : null;
             }
 
-            // 構造体の増減 (a++ / ++a) は、FXC だけが受け付ける (通るが何もしない)。DXC はどの版でも拒む。
-            // FXC でもコンパイルされるなら、ここでは報告しない。
-            case PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken }
-                when binder.Program.Tree.Features.StructIncrement:
-                return null;
-
-            case PostfixUnaryExpressionSyntax when binder.Program.Tree.Features.StructIncrement:
-                return null;
-
             case PrefixUnaryExpressionSyntax unary:
             {
                 string symbol = unary.OperatorToken.Text;
@@ -182,6 +190,86 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>増減 (<c>++a</c> / <c>a++</c> / <c>--a</c> / <c>a--</c>) かを判定する。</summary>
+    /// <param name="expression">式。</param>
+    /// <param name="token">演算子のトークン。</param>
+    /// <param name="operand">増減する値。</param>
+    /// <returns>増減なら <see langword="true"/>。</returns>
+    private static bool IsIncrement(
+        HlslExpressionSyntax expression,
+        [NotNullWhen(true)] out HlslSyntaxToken? token,
+        [NotNullWhen(true)] out HlslExpressionSyntax? operand)
+    {
+        (token, operand) = expression switch
+        {
+            PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken } prefix
+                => (prefix.OperatorToken, prefix.Operand),
+            PostfixUnaryExpressionSyntax postfix => (postfix.OperatorToken, postfix.Operand),
+            _ => ((HlslSyntaxToken?)null, (HlslExpressionSyntax?)null),
+        };
+
+        return token is not null && operand is not null;
+    }
+
+    /// <summary>
+    /// 構造体の増減を、届くコンパイル先ごとに判定する。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="expression">増減の式。</param>
+    /// <param name="operand">増減する値。</param>
+    /// <param name="token">演算子のトークン。</param>
+    /// <returns>報告する中身。構造体でないか、報告しなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>構造体の増減は、FXC だけが受け付けて何もしない。</b> DXC はどの版でも拒む (HL0346)。
+    /// FXC だけでコンパイルされるなら、何も起きないことを HL0348 で警告する。
+    /// </para>
+    /// <para>
+    /// コンパイル先が分かれば (Unity)、届くコンパイル先に DXC があるかで決め、その API を文に添える。
+    /// 分からなければ、どれかの方言が受け付けるか (<see cref="HlslLanguageFeatures.StructIncrement"/>) で決める。
+    /// </para>
+    /// </remarks>
+    private static (HlslSyntaxToken Token, string Message, DiagnosticDescriptor Descriptor)? DescribeIncrement(
+        ShaderCompilation compilation,
+        ExpressionTypeBinder binder,
+        HlslExpressionSyntax expression,
+        HlslExpressionSyntax operand,
+        HlslSyntaxToken token)
+    {
+        if (binder.GetEvaluatorFor(expression).Evaluate(operand) is not { } type || !binder.IsStructType(type))
+        {
+            return null;
+        }
+
+        string symbol = token.Text;
+        AnalyzedProgram program = binder.Program;
+
+        if (program.Tree.CompileTargets.IsDefaultOrEmpty)
+        {
+            return program.Tree.Features.StructIncrement
+                ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored)
+                : (token, $"構造体 '{type}' の値に演算子 '{symbol}' は使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
+        }
+
+        HlslCompileTarget[] reaching = [.. CompileTargets.Reaching(compilation, expression, program)];
+        string[] rejecting = [.. reaching.Where(t => !t.Dialect.Features.StructIncrement).Select(t => t.Subject).Distinct(StringComparer.Ordinal)];
+
+        if (rejecting.Length > 0)
+        {
+            return (token, $"構造体 '{type}' の値に演算子 '{symbol}' は {string.Join("・", rejecting)} では使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
+        }
+
+        return reaching.Length > 0 ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored) : null;
+    }
+
+    /// <summary>FXC で何もしないことを伝える文。</summary>
+    /// <param name="type">構造体の名前。</param>
+    /// <param name="symbol">演算子の記号。</param>
+    /// <returns>文。</returns>
+    private static string IgnoredMessage(string type, string symbol)
+        => $"構造体 '{type}' の値への '{symbol}' は、FXC ではエラーにならずに何もしません。メンバーごとに増減してください。";
+
     /// <summary>構造体がその演算子を定義しているかを調べる。</summary>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="structName">構造体の名前。</param>
@@ -206,13 +294,19 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="token">報告する位置のトークン。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    private static void Report(SyntaxTreeAnalysisContext context, HlslSyntaxToken token, string message, HashSet<int> reported)
+    /// <param name="descriptor">ルール。省略すると HL0346。</param>
+    private static void Report(
+        SyntaxTreeAnalysisContext context,
+        HlslSyntaxToken token,
+        string message,
+        HashSet<int> reported,
+        DiagnosticDescriptor? descriptor = null)
     {
         if (token.GetLocation() is not { } location || !reported.Add(location.Span.Start))
         {
             return;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.StructOperatorNotAvailable, location, message));
+        context.ReportDiagnostic(Diagnostic.Create(descriptor ?? HlslRuleDescriptors.StructOperatorNotAvailable, location, message));
     }
 }

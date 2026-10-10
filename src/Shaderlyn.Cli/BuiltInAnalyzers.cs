@@ -58,6 +58,7 @@ public static class BuiltInAnalyzers
         new MemberAccessAnalyzer(),
         new CallSignatureAnalyzer(),
         new StructOperatorAnalyzer(),
+        new CompileTargetAnalyzer(),
         new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),
         new UndeclaredIdentifierAnalyzer(),

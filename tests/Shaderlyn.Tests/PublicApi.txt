@@ -290,6 +290,7 @@ Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[S
 Shaderlyn.Hlsl.HlslSyntaxTree :: static Shaderlyn.Hlsl.HlslSyntaxTree Parse(Shaderlyn.Core.Text.SourceText, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions = null, Shaderlyn.Core.Analysis.ISyntaxTimingRecorder = null)
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget : sealed class (System.IEquatable`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget])
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: .ctor(System.String, Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Hlsl.Parsing.HlslCompileTarget <Clone>$()
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Hlsl.Parsing.HlslDialect Dialect { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Boolean AppliesTo(System.Collections.Generic.IReadOnlyCollection`1[System.String])
@@ -300,6 +301,7 @@ Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Collections.Immutable.Immutab
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Describe()
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Platform { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Reason { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Subject { get; }
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Void Deconstruct(out System.String, out Shaderlyn.Hlsl.Parsing.HlslDialect)
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Parsing.HlslCompileTarget, Shaderlyn.Hlsl.Parsing.HlslCompileTarget)
 Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Parsing.HlslCompileTarget, Shaderlyn.Hlsl.Parsing.HlslCompileTarget)

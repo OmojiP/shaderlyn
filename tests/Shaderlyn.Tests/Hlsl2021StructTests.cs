@@ -223,10 +223,11 @@ public sealed class Hlsl2021StructTests
     }
 
     /// <summary>
-    /// HLSL 2018 では構造体の増減 (<c>a++</c>) を報告しないことを検証する。FXC は受け付ける (成分ごとに増減する)。
+    /// FXC では構造体の増減 (<c>a++</c>) をエラーにせず、何もしないことを警告する (HL0348) ことを検証する。
+    /// FXC は受け付けるが、値は変わらない (Unity 2022.3〜6.6 で確かめた)。
     /// </summary>
     [Fact]
-    public void HLSL2018では構造体の増減を報告しない()
+    public void FXCでは構造体の増減を何もしないと警告する()
     {
         SourceText text = SourceText.From("""
             struct P { float x; };
@@ -243,6 +244,7 @@ public sealed class Hlsl2021StructTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
         Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(2, diagnostics.Count(d => d.Id == "HL0348" && d.Severity == DiagnosticSeverity.Warning));
     }
 
     /// <summary>多重定義できない演算子の定義を報告することを検証する (HL0346)。</summary>

@@ -428,6 +428,21 @@ internal static class HlslRuleDescriptors
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
         helpLinkUri: DocumentationLinks.For("HL0346"));
 
+    /// <summary>構造体の値を増減している (FXC では何もしない)。</summary>
+    /// <remarks>
+    /// FXC は構造体自身への <c>++</c> / <c>--</c> をエラーにせず、何もしないコードにする。
+    /// DXC はどの版でもエラーにする (HL0346)。手元の FXC と、Unity 2022.3〜6.6 の FXC で確かめた。
+    /// </remarks>
+    public static DiagnosticDescriptor StructIncrementIgnored { get; } = new(
+        id: "HL0348",
+        title: "構造体の増減は何もしません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "FXC は構造体の値への ++ / -- をエラーにせず、何もしません。値は変わらないので、意図した計算になりません。"
+            + "DXC ではエラーになります (HL0346)。メンバーごとに増減してください。",
+        helpLinkUri: DocumentationLinks.For("HL0348"));
+
     /// <summary>enum の値を、変換できない型との間でやり取りしている。または使えない演算子を使っている (HLSL 2021)。</summary>
     /// <remarks>
     /// enum の型へ入れられるのは同じ enum の値だけである。<c>enum class</c> の値は数へ暗黙に変換されず、

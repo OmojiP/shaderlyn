@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.Syntax;
 
 namespace Shaderlyn.Hlsl.Parsing;
 
@@ -41,6 +42,39 @@ public sealed record HlslCompileTarget(string Platform, HlslDialect Dialect)
 
     /// <summary>このコンパイル先になった理由 (<c>#pragma use_dxc</c> など)。画面に出す。</summary>
     public string? Reason { get; init; }
+
+    /// <summary>このコンパイル先になる構成の条件 (<see cref="WhenAnySymbol"/> と <see cref="UnlessAnySymbol"/> を式にしたもの)。</summary>
+    public SymbolCondition Condition
+    {
+        get
+        {
+            SymbolCondition condition = WhenAnySymbol.IsDefaultOrEmpty
+                ? SymbolCondition.Always
+                : WhenAnySymbol.Aggregate(SymbolCondition.Never, (c, s) => c.Or(SymbolCondition.Symbol(s)));
+
+            return UnlessAnySymbol.IsDefaultOrEmpty
+                ? condition
+                : UnlessAnySymbol.Aggregate(condition, (c, s) => c.And(SymbolCondition.Symbol(s, isDefined: false)));
+        }
+    }
+
+    /// <summary>
+    /// 診断の文に入れる名前 (<c>dx11 (FXC)</c>、条件があれば <c>UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成の dx12 (FXC)</c>)。
+    /// </summary>
+    public string Subject
+    {
+        get
+        {
+            string name = $"{Platform} ({Dialect.DisplayName})";
+
+            if (!WhenAnySymbol.IsDefaultOrEmpty)
+            {
+                return $"{string.Join(" / ", WhenAnySymbol)} が有効な構成の {name}";
+            }
+
+            return UnlessAnySymbol.IsDefaultOrEmpty ? name : $"{string.Join(" / ", UnlessAnySymbol)} が無効な構成の {name}";
+        }
+    }
 
     /// <summary>有効にしたシンボルの構成が、このコンパイル先になるかを判定する。</summary>
     /// <param name="enabledSymbols">構成で有効なシンボル。</param>
