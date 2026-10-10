@@ -199,14 +199,14 @@ public sealed class Hlsl2021StructTests
         => AssertReported(statement, expected, OperatorPrelude);
 
     /// <summary>
-    /// 構造体の外に同じ演算子の定義があれば、HL0346 を報告しないことを検証する。
+    /// 構造体の外の演算子の定義を報告し、それを使う式も報告することを検証する。
     /// </summary>
     /// <remarks>
-    /// DXC 1.6 は構造体の外の演算子を定義としては受け付け、式には使わない (<c>2 * a</c> はエラー)。
-    /// 新しい DXC で使われるかもしれないので、定義があれば言い切らない。
+    /// DXC 1.8 は構造体の外の演算子の定義そのものを拒む (<c>overloading non-member 'operator*' is not allowed</c>)。
+    /// DXC 1.6 は定義だけ通し、式には使わない (<c>2 * a</c> はエラー)。
     /// </remarks>
     [Fact]
-    public void 構造体の外に演算子の定義があれば報告しない()
+    public void 構造体の外の演算子の定義を報告する()
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze("""
             struct S { float x; };
@@ -214,8 +214,12 @@ public sealed class Hlsl2021StructTests
             float4 main() : SV_Target { S a = (S)0; S c = 2 * a; S d = a + a; return c.x + d.x; }
             """);
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
-        Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        string[] messages = [.. diagnostics.Where(d => d.Id == "HL0346").Select(d => d.GetMessage())];
+
+        Assert.Equal(3, messages.Length);
+        Assert.Contains(messages, m => m.Contains("operator* は構造体の中でだけ定義できます", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("'*'", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("'+'", StringComparison.Ordinal));
     }
 
     /// <summary>

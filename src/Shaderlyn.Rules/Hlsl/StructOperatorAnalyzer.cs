@@ -25,7 +25,7 @@ namespace Shaderlyn.Rules;
 /// <c>++</c> / <c>--</c> / 複合代入 (<c>+=</c> など) / <c>=</c> / <c>&lt;&lt;</c> / <c>&gt;&gt;</c> / <c>-&gt;</c> は多重定義できない。
 /// </para>
 /// <para>
-/// 単項の <c>+ - ! ~</c> は、DXC 1.6 では定義していても使えなかった。新しい DXC で使えるかもしれないので、
+/// 単項の <c>+ - ! ~</c> は、DXC 1.6 / 1.8 では定義していても使えなかった。Unity の DXC 1.10 は確かめていないので、
 /// 定義があれば報告しない。
 /// </para>
 /// <para>
@@ -71,10 +71,14 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    /// <summary>多重定義できない演算子の定義を報告する。</summary>
+    /// <summary>多重定義できない演算子の定義と、構造体の外の演算子の定義を報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="declaration">演算子の定義。</param>
     /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// 構造体の外の演算子 (<c>S operator*(float k, S s)</c>) は、DXC 1.8 では定義そのものがエラー
+    /// (<c>overloading non-member 'operator*' is not allowed</c>)。DXC 1.6 は定義だけ通すが、式には使わない。
+    /// </remarks>
     private static void AnalyzeDeclaration(
         SyntaxTreeAnalysisContext context,
         FunctionDeclarationSyntax declaration,
@@ -85,6 +89,12 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         if (NotOverloadable.Contains(symbol))
         {
             Report(context, declaration.NameToken, $"operator{symbol} は多重定義できません。", reported);
+            return;
+        }
+
+        if (!declaration.Ancestors().Any(a => a is StructDeclarationSyntax))
+        {
+            Report(context, declaration.NameToken, $"operator{symbol} は構造体の中でだけ定義できます。構造体の外の演算子は使えません。", reported);
         }
     }
 
@@ -111,13 +121,6 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
             case BinaryExpressionSyntax { OperatorToken.Kind: not HlslSyntaxKind.CommaToken } binary:
             {
                 string symbol = binary.OperatorToken.Text;
-
-                // 構造体の外で定義した演算子 (S operator*(float k, S s))。DXC 1.6 は定義を受け付けるが、式には使わない。
-                // 新しい DXC が使うかもしれないので、定義があれば報告しない。
-                if (!compilation.GetFunctionDeclarations("operator" + symbol, binder.Program).IsEmpty)
-                {
-                    return null;
-                }
 
                 if (StructOf(binary.Left) is { } left)
                 {
