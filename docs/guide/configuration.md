@@ -60,6 +60,30 @@ Unity の環境だけで使う設定です。
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が勝ちます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が勝ちます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が勝ちます                            |
+| `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
+| `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
+| `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
+
+### シェーダーのコンパイラ
+
+Unity は既定で FXC を使い、次の場合にパス (コンピュートシェーダーはカーネル) を DXC (HLSL 2018) でコンパイルします。
+Shaderlyn はパスごと・API ごとにどちらでコンパイルされるかを決め、使える構文をそれで判断します。
+
+- `#pragma use_dxc` (API を書けばその API だけ)
+- DXC が要る `#pragma require` (`int64` / `native16bit` / ウェーブの命令など 12 個。`inlineraytracing` は 6.4 から)
+- `multi_compile` の `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` / `UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING` が有効な構成
+  (コンピュートシェーダーでは `UNITY_DEVICE_SUPPORTS_WAVE_*` も)
+- Unity 6.6 で Shader Compiler Backend を DXC にした API
+
+判定は Unity のバージョンで変わります (`use_dxc dx12` は 6.6 から効く、6.5 以前の `use_dxc` は DX11 も DXC にするなど)。
+バージョンが分からないときは、どのバージョンの結果も並べます。
+読んだ設定は `--env` の「シェーダーのコンパイラ」に出ます。
+
+`#pragma` はコードブロックと `HLSLINCLUDE` に直接書いたものを読みます。
+include ファイルの中の `use_dxc` / `require` は Unity 2022.3 だけで効くので、2022.3 (またはバージョンが分からないとき) だけ読みます。
+その場合 `#if` は評価せず、書かれた `#include` をすべてたどります。
+
+ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと判定が一致することを確かめています。
 
 節の外に書いた `profile` (v0.1 の書き方) も読みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) が出ます。
 既定の `--error-on warning` では、この警告でも終了コードが `1` になります（[0.1 から 0.2 へ移行する](migration-0.2.md#設定ファイル)）。

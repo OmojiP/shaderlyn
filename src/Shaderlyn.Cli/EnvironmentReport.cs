@@ -73,6 +73,7 @@ internal static partial class EnvironmentReport
         {
             WriteProject(builder, options);
             WriteEditor(builder, editor);
+            WriteUnityCompiler(builder, settings);
         }
         else if (environment.HlslEnvironment is not null)
         {
@@ -256,6 +257,38 @@ internal static partial class EnvironmentReport
         {
             Line(builder, "     Library/PackageCache は Unity でプロジェクトを 1 度開くと作られます。無いとパッケージのヘッダを解決できません。");
         }
+    }
+
+    /// <summary>Unity がシェーダーをどのコンパイラでコンパイルするかの設定を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <remarks>パスごとの判定 (<c>#pragma use_dxc</c> など) は解析するときに決まるので、ここでは規則だけを書く。</remarks>
+    private static void WriteUnityCompiler(StringBuilder builder, EffectiveSettings settings)
+    {
+        Section(builder, "シェーダーのコンパイラ");
+
+        UnityCompilerSettings compiler = SemanticsSetup.ResolveUnityCompilerSettings(settings);
+
+        if (compiler.EditorVersion is { } version)
+        {
+            string band = UnityVersions.TryGetBand(version, out UnityVersionBand? found)
+                ? UnityVersions.Describe(found.Value)
+                : "知らないバージョン";
+            Line(builder, $"  Unity のバージョン: {version} ({band} の規則、{compiler.EditorVersionSource})");
+        }
+        else
+        {
+            Line(builder, "  Unity のバージョン: 不明 (バージョンで変わる判定は、どのバージョンの結果も並べます。unity: の version で指定できます)");
+        }
+
+        Line(builder, $"  グラフィックス API: {string.Join(", ", compiler.GraphicsApis.Select(UnityGraphicsApis.GetName))} ({compiler.GraphicsApisSource})");
+        Line(builder, compiler.DxcBackendApis.IsEmpty
+            ? $"  Shader Compiler Backend: FXC ({compiler.DxcBackendSource})"
+            : $"  Shader Compiler Backend: DXC ({string.Join(", ", compiler.DxcBackendApis.Select(UnityGraphicsApis.GetName))}、{compiler.DxcBackendSource})");
+        Line(builder, compiler.DxcBackendApis.IsEmpty
+            ? "  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
+            : "  Backend を DXC にした API は、#pragma never_use_dxc の無いパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
+        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。");
     }
 
     /// <summary>Unreal の仮想パスの割り当てと、生成される取り込みを書き出す。</summary>

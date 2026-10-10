@@ -363,6 +363,35 @@ public sealed record PreprocessorOptions
     public HlslLanguageFeatures Features => HlslLanguageFeatures.Any(Dialects);
 
     /// <summary>
+    /// コンパイル先 (API と方言の組)。環境が分かるときだけ並べる。空なら分からない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 設定すると、方言 (<see cref="Dialects"/>) をコンパイル先の方言にする。
+    /// 使える API のコンパイル先があれば、その方言だけにする。使えない API でのエラーは利用者に見えない。
+    /// </para>
+    /// <para>
+    /// Unity の環境が、パスごとの <c>#pragma use_dxc</c> などから決める。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslCompileTarget> CompileTargets
+    {
+        get;
+        init
+        {
+            field = value.IsDefault ? [] : value;
+
+            if (field.IsEmpty)
+            {
+                return;
+            }
+
+            IEnumerable<HlslCompileTarget> usable = field.Any(t => t.IsUsable) ? field.Where(t => t.IsUsable) : field;
+            Dialects = [.. usable.Select(t => t.Dialect).Distinct()];
+        }
+    } = [];
+
+    /// <summary>
     /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
     /// </summary>
     /// <remarks>

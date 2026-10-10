@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
@@ -49,6 +51,9 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
     private readonly UnityOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
+    /// <summary>include ファイルごとの、コンパイラの選び方に関わる <c>#pragma</c> と、取り込む名前。</summary>
+    private readonly ConditionalWeakTable<SourceText, IncludedFile> _includedFiles = [];
+
     /// <inheritdoc/>
     public string Name => "unity";
 
@@ -92,6 +97,16 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         if (unit.Data is UnityProgramBlock { Block.Delimiter.StartKeyword: "CGPROGRAM" })
         {
             options = WithCgAutoIncludes(options, filePath, ReadSurfaceLighting(tokens));
+        }
+
+        // コンパイラはパス (コンピュートシェーダーはカーネル) と API ごとに決まる。
+        // include ファイルを単体で読んだときは、どこから取り込まれるかで変わるので決めない。
+        if (IsCompiledShader(unit, filePath, out bool isCompute))
+        {
+            options = options with
+            {
+                CompileTargets = UnityCompilerSelection.Select(tokens, isCompute, _options, ReadIncludedPragmas(tokens, options, filePath)),
+            };
         }
 
         return options;
@@ -156,6 +171,108 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         }
 
         return entryPoints.ToImmutable();
+    }
+
+    /// <summary>
+    /// 取り込む include ファイルの中の <c>#pragma use_dxc</c> / <c>require</c> を集める。
+    /// </summary>
+    /// <param name="tokens">コードブロックを字句解析しただけのトークン列。</param>
+    /// <param name="options">この単位の設定。include の解決に使う。</param>
+    /// <param name="filePath">解析しているファイルのパス。</param>
+    /// <returns>集めたもの。2022.3 でありえないか、何も無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>2022.3 だけが include ファイルの中の指定を使う。</b> 2023.2 以降は無視して FXC に渡す (実測)。
+    /// バージョンが 2022.3 以外と分かっていれば読まない。
+    /// </para>
+    /// <para>
+    /// <c>#if</c> は評価せず、書かれた <c>#include</c> を全部たどる。ファイルの中身は <see cref="SourceText"/> ごとに覚える。
+    /// </para>
+    /// </remarks>
+    private UnityCompilerPragmas? ReadIncludedPragmas(
+        ImmutableArray<HlslSyntaxToken> tokens,
+        PreprocessorOptions options,
+        string filePath)
+    {
+        if (options.IncludeResolver is not { } resolver
+            || (_options.VersionBand is { } band && band != UnityVersionBand.Unity2022_3))
+        {
+            return null;
+        }
+
+        UnityCompilerPragmas result = new();
+        HashSet<string> visited = new(StringComparer.OrdinalIgnoreCase);
+        Stack<(string Name, string From)> pending = new(ReadIncludeNames(tokens).Select(name => (name, filePath)).Reverse());
+
+        while (pending.Count > 0 && visited.Count < 4096)
+        {
+            (string name, string from) = pending.Pop();
+
+            if (!resolver.TryResolve(name, from, out SourceText? header)
+                || !visited.Add(header.FilePath ?? name))
+            {
+                continue;
+            }
+
+            IncludedFile file = _includedFiles.GetValue(header, text =>
+            {
+                ImmutableArray<HlslSyntaxToken> headerTokens = options.TokenCache is { } cache
+                    ? cache.GetOrLex(text, out _)
+                    : new HlslLexer(text).Lex(out _);
+
+                return new IncludedFile(UnityCompilerPragmas.Read(headerTokens), ReadIncludeNames(headerTokens));
+            });
+
+            if (!file.Pragmas.HasNoCompilerPragmas)
+            {
+                result = result.WithIncluded(file.Pragmas);
+            }
+
+            foreach (string next in file.Includes.Reverse())
+            {
+                pending.Push((next, header.FilePath ?? from));
+            }
+        }
+
+        return result.HasNoCompilerPragmas ? null : result;
+    }
+
+    /// <summary>トークン列の <c>#include "..."</c> / <c>#include_with_pragmas "..."</c> の名前を集める。</summary>
+    /// <param name="tokens">字句解析しただけのトークン列。</param>
+    /// <returns>名前 (引用符を外したもの)。</returns>
+    private static ImmutableArray<string> ReadIncludeNames(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        ImmutableArray<string>.Builder names = ImmutableArray.CreateBuilder<string>();
+
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind == HlslSyntaxKind.HashToken
+                && tokens[i].IsAtLineStart
+                && tokens[i + 1].Text is "include" or "include_with_pragmas"
+                && tokens[i + 2].Kind == HlslSyntaxKind.StringLiteralToken
+                && !tokens[i + 2].IsAtLineStart
+                && tokens[i + 2].Text.Length >= 2)
+            {
+                names.Add(tokens[i + 2].Text[1..^1]);
+            }
+        }
+
+        return names.ToImmutable();
+    }
+
+    /// <summary>
+    /// Unity がそのままコンパイルする単位 (<c>.shader</c> のパスか <c>.compute</c> のカーネル) かを判定する。
+    /// </summary>
+    /// <param name="unit">コンパイル単位。</param>
+    /// <param name="filePath">解析しているファイルのパス。</param>
+    /// <param name="isCompute">コンピュートシェーダーなら <see langword="true"/>。</param>
+    /// <returns>コンパイルする単位なら <see langword="true"/>。</returns>
+    private static bool IsCompiledShader(HlslCompilationUnit unit, string filePath, out bool isCompute)
+    {
+        isCompute = unit.Data is UnityProgramBlock { Block: null }
+                    && string.Equals(Path.GetExtension(filePath), ".compute", StringComparison.OrdinalIgnoreCase);
+
+        return isCompute || unit.Data is UnityProgramBlock { Block: not null };
     }
 
     /// <summary>
@@ -309,3 +426,8 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         return options with { Prelude = prelude };
     }
 }
+
+/// <summary>include ファイル 1 つの、コンパイラの選び方に関わる <c>#pragma</c> と、取り込む名前。</summary>
+/// <param name="Pragmas"><c>#pragma</c>。</param>
+/// <param name="Includes">取り込む名前。</param>
+internal sealed record IncludedFile(UnityCompilerPragmas Pragmas, ImmutableArray<string> Includes);

@@ -31,7 +31,10 @@ internal static class ConfigurationLoader
     ];
 
     /// <summary><c>unity:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnityKeys = ["profile", "project", "editor"];
+    private static readonly string[] KnownUnityKeys = ["profile", "project", "editor", "version", "graphics-apis", "shader-compiler-backend"];
+
+    /// <summary><c>unity: graphics-apis</c> で受け付ける名前。</summary>
+    private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
 
     /// <summary><c>unreal:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
@@ -190,7 +193,7 @@ internal static class ConfigurationLoader
             }
 
             ReportNonScalars(root, string.Empty, "version", "environment", "profile");
-            ReportNonScalars(unity, "unity: の ", "profile", "project", "editor");
+            ReportNonScalars(unity, "unity: の ", "profile", "project", "editor", "version", "shader-compiler-backend");
             ReportNonScalars(unreal, "unreal: の ", "engine", "project");
             ReportNonScalars(hlsl, "hlsl: の ", "compiler", "version", "enable-16bit-types");
 
@@ -204,6 +207,9 @@ internal static class ConfigurationLoader
                 Profile = ReadProfile(unity),
                 UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
                 UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),
+                UnityVersion = ReadUnityVersion(unity),
+                UnityGraphicsApis = ReadUnityGraphicsApis(unity),
+                UnityShaderCompilerBackend = ReadUnityShaderCompilerBackend(unity),
                 UnrealEngineDirectory = ResolvePath(ReadOptionalScalar(unreal, "engine")),
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
@@ -432,6 +438,92 @@ internal static class ConfigurationLoader
 
             problems.Add(new ConfigurationProblem(
                 compiler.Line, $"hlsl: の compiler には dxc か fxc を指定してください ('{compiler.Value}')。"));
+            return null;
+        }
+
+        /// <summary>Unity のバージョン (<c>unity: version</c>) を読む。</summary>
+        /// <param name="unity"><c>unity:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>バージョン。指定が無いか読めなければ <see langword="null"/>。</returns>
+        /// <remarks>
+        /// <c>6.3</c> / <c>6000.3.0f1</c> / <c>2022.3</c> のように、主番号と副番号が数字で始まるものを受け付ける。
+        /// どのまとまりに当たるかは Unity の環境が決める。
+        /// </remarks>
+        private string? ReadUnityVersion(YamlMapping? unity)
+        {
+            if (unity is null || !unity.TryGetScalar("version", out YamlScalar? version) || version.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string[] parts = version.Value.Trim().Split('.');
+
+            if (parts.Length >= 2
+                && parts[0].Length > 0 && parts[0].All(char.IsAsciiDigit)
+                && parts[1].Length > 0 && char.IsAsciiDigit(parts[1][0]))
+            {
+                return version.Value.Trim();
+            }
+
+            problems.Add(new ConfigurationProblem(
+                version.Line, $"unity: の version には 6.3 や 2022.3 のようなバージョンを指定してください ('{version.Value}')。"));
+            return null;
+        }
+
+        /// <summary>シェーダーをコンパイルするグラフィックス API (<c>unity: graphics-apis</c>) を読む。</summary>
+        /// <param name="unity"><c>unity:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>API の名前 (小文字)。指定が無ければ空。</returns>
+        private ImmutableArray<string> ReadUnityGraphicsApis(YamlMapping? unity)
+        {
+            if (unity is null)
+            {
+                return [];
+            }
+
+            ImmutableArray<string>.Builder apis = ImmutableArray.CreateBuilder<string>();
+            int line = unity.TryGet("graphics-apis", out YamlNode? node) ? node.Line : 0;
+
+            foreach (string value in ReadStringSequence(unity, "graphics-apis"))
+            {
+                string name = value.Trim().ToLowerInvariant() switch
+                {
+                    "d3d11" => "dx11",
+                    "d3d12" => "dx12",
+                    { } other => other,
+                };
+
+                if (KnownGraphicsApis.Contains(name))
+                {
+                    apis.Add(name);
+                }
+                else
+                {
+                    problems.Add(new ConfigurationProblem(
+                        line, $"unity: の graphics-apis に知らない API '{value}' があります ({string.Join(" / ", KnownGraphicsApis)} のどれか)。"));
+                }
+            }
+
+            return [.. apis.Distinct(StringComparer.Ordinal)];
+        }
+
+        /// <summary>Shader Compiler Backend (<c>unity: shader-compiler-backend</c>) を読む。</summary>
+        /// <param name="unity"><c>unity:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns><c>fxc</c> か <c>dxc</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadUnityShaderCompilerBackend(YamlMapping? unity)
+        {
+            if (unity is null || !unity.TryGetScalar("shader-compiler-backend", out YamlScalar? backend) || backend.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = backend.Value.Trim().ToLowerInvariant();
+
+            if (value is "dxc" or "fxc")
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                backend.Line, $"unity: の shader-compiler-backend には dxc か fxc を指定してください ('{backend.Value}')。"));
             return null;
         }
 

@@ -310,6 +310,33 @@ public sealed class ConfigurationLoaderTests
     }
 
     [Fact]
+    public void unityのコンパイラの設定を読む()
+    {
+        ShaderlynConfiguration configuration = ParseWithoutProblems("""
+            unity:
+              version: 6.3
+              graphics-apis: [dx12, D3D11, vulkan]
+              shader-compiler-backend: DXC
+            """);
+
+        Assert.Equal("6.3", configuration.UnityVersion);
+        Assert.Equal(["dx12", "dx11", "vulkan"], configuration.UnityGraphicsApis.ToArray());
+        Assert.Equal("dxc", configuration.UnityShaderCompilerBackend);
+    }
+
+    [Theory]
+    [InlineData("version: six", "version")]
+    [InlineData("graphics-apis: [dx13]", "dx13")]
+    [InlineData("shader-compiler-backend: spirv", "shader-compiler-backend")]
+    public void unityのコンパイラの設定の誤りを報告する(string line, string expected)
+    {
+        ShaderlynConfiguration configuration = Parse("unity:\n  " + line + "\n");
+
+        ConfigurationProblem problem = Assert.Single(configuration.Problems);
+        Assert.Contains(expected, problem.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void unityの節の知らないキーを報告する()
     {
         ShaderlynConfiguration configuration = Parse("""

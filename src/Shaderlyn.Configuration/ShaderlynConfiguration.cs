@@ -62,6 +62,25 @@ internal sealed record ShaderlynConfiguration
     /// <summary>Unity Editor のデータフォルダー (<c>unity: editor</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnityEditorPath { get; init; }
 
+    /// <summary>
+    /// Unity のバージョン (<c>unity: version</c>、<c>6.3</c> / <c>6000.3.0f1</c> / <c>2022.3</c> など)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトの <c>ProjectSettings/ProjectVersion.txt</c> から読む。</remarks>
+    public string? UnityVersion { get; init; }
+
+    /// <summary>
+    /// シェーダーをコンパイルするグラフィックス API (<c>unity: graphics-apis</c>、<c>dx11</c> / <c>dx12</c> / <c>vulkan</c> など、小文字)。
+    /// 指定が無い場合は空。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトの <c>ProjectSettings.asset</c> の Windows 向けの API を読む。それも無ければ DX11 と DX12。</remarks>
+    public ImmutableArray<string> UnityGraphicsApis { get; init; } = [];
+
+    /// <summary>
+    /// Shader Compiler Backend (<c>unity: shader-compiler-backend</c>、Unity 6.6 から)。<c>fxc</c> か <c>dxc</c>。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトのビルドプロファイルから読む。<c>dxc</c> は DX11 以外の API を DXC にする。</remarks>
+    public string? UnityShaderCompilerBackend { get; init; }
+
     /// <summary>Unreal のエンジンのフォルダー (<c>unreal: engine</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnrealEngineDirectory { get; init; }
 

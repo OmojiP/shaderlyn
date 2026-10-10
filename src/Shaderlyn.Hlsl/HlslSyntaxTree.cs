@@ -51,6 +51,9 @@ public sealed class HlslSyntaxTree
     /// <summary>並べた方言の<b>どれかで</b>使える構文と型。この木はこれで読んだ。</summary>
     public HlslLanguageFeatures Features { get; private init; } = HlslDialect.Fxc.Features;
 
+    /// <summary>コンパイル先 (<see cref="PreprocessorOptions.CompileTargets"/>)。分からなければ空。</summary>
+    public ImmutableArray<HlslCompileTarget> CompileTargets { get; private init; } = [];
+
     /// <summary>解析対象のソーステキスト。</summary>
     public SourceText Text { get; }
 
@@ -112,6 +115,7 @@ public sealed class HlslSyntaxTree
             LanguageVersion = effective.LanguageVersion,
             Dialects = effective.Dialects,
             Features = parser.Features,
+            CompileTargets = effective.CompileTargets,
         };
     }
 

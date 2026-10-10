@@ -188,6 +188,16 @@ internal static class AnalysisCacheKey
         material.AppendLine(settings.Profile);
         material.AppendLine(options.UnityProjectPath ?? "(none)");
         material.AppendLine(SemanticsSetup.ResolveEditorDataPath(options, settings) ?? "(none)");
+
+        // コンパイラの選び方は、Unity プロジェクトの設定 (バージョン、API、Backend) でも変わる。
+        if (settings.Environment == Environments.UnityAnalysisEnvironment.EnvironmentName)
+        {
+            UnityCompilerSettings compiler = SemanticsSetup.ResolveUnityCompilerSettings(settings);
+            material.AppendLine(compiler.EditorVersion ?? "(unknown)");
+            material.AppendLine(string.Join(",", compiler.GraphicsApis));
+            material.AppendLine(string.Join(",", compiler.DxcBackendApis));
+        }
+
         material.AppendLine(
             (options.MaxSymbolVariants ?? SemanticsOptions.DefaultMaxSymbolVariants).ToString(
                 System.Globalization.CultureInfo.InvariantCulture));

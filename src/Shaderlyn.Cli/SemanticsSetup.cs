@@ -74,12 +74,68 @@ internal static class SemanticsSetup
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        UnityCompilerSettings compiler = ResolveUnityCompilerSettings(settings);
+
         return new UnityOptions
         {
             Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
                 ? profile
                 : RenderPipelineProfiles.Default,
+            EditorVersion = compiler.EditorVersion,
+            GraphicsApis = compiler.GraphicsApis,
+            DxcBackendApis = compiler.DxcBackendApis,
         };
+    }
+
+    /// <summary>
+    /// Unity のシェーダーのコンパイラの選び方に関わる設定 (バージョン、API、Shader Compiler Backend) を決める。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>決めた設定と、それぞれをどこから読んだか。</returns>
+    /// <remarks>
+    /// 設定ファイルの <c>unity:</c> の指定が勝つ。無ければ Unity プロジェクトの設定ファイルを読む。
+    /// それも無ければ、バージョンは不明 (どのバージョンの結果も並べる)、API は DX11 と DX12、Backend は FXC。
+    /// </remarks>
+    public static UnityCompilerSettings ResolveUnityCompilerSettings(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        ShaderlynConfiguration configuration = settings.Configuration;
+        UnityProjectSettings project = settings.UnityProjectPath is { } path && Directory.Exists(path)
+            ? UnityProjectSettings.Read(path)
+            : UnityProjectSettings.Empty;
+
+        const string FromConfiguration = "設定ファイル";
+        const string FromProject = "Unity プロジェクト";
+        const string FromDefault = "既定";
+
+        (string? version, string versionSource) = configuration.UnityVersion is { } configuredVersion
+            ? (configuredVersion, FromConfiguration)
+            : project.EditorVersion is { } projectVersion
+                ? (projectVersion, FromProject)
+                : ((string?)null, FromDefault);
+
+        ImmutableArray<UnityGraphicsApi> configuredApis =
+        [
+            .. configuration.UnityGraphicsApis
+                .Select(name => UnityGraphicsApis.TryParse(name, out UnityGraphicsApi api) ? (UnityGraphicsApi?)api : null)
+                .OfType<UnityGraphicsApi>(),
+        ];
+
+        (ImmutableArray<UnityGraphicsApi> apis, string apisSource) = !configuredApis.IsEmpty
+            ? (configuredApis, FromConfiguration)
+            : !project.GraphicsApis.IsEmpty
+                ? (project.GraphicsApis, FromProject)
+                : (UnityGraphicsApis.Default, FromDefault);
+
+        (ImmutableArray<UnityGraphicsApi> dxc, string dxcSource) = configuration.UnityShaderCompilerBackend switch
+        {
+            "dxc" => ([.. apis.Where(api => api != UnityGraphicsApi.Direct3D11)], FromConfiguration),
+            "fxc" => ([], FromConfiguration),
+            _ => !project.DxcBackendApis.IsEmpty ? (project.DxcBackendApis, FromProject) : ([], FromDefault),
+        };
+
+        return new UnityCompilerSettings(version, versionSource, apis, apisSource, dxc, dxcSource);
     }
 
     /// <summary>
@@ -350,3 +406,20 @@ internal static class SemanticsSetup
         return macros;
     }
 }
+
+/// <summary>
+/// Unity のシェーダーのコンパイラの選び方に関わる設定と、それぞれをどこから読んだか。
+/// </summary>
+/// <param name="EditorVersion">Unity のバージョン。分からなければ <see langword="null"/>。</param>
+/// <param name="EditorVersionSource">バージョンを読んだ場所。</param>
+/// <param name="GraphicsApis">シェーダーをコンパイルする API。</param>
+/// <param name="GraphicsApisSource">API を読んだ場所。</param>
+/// <param name="DxcBackendApis">Shader Compiler Backend を DXC にした API。</param>
+/// <param name="DxcBackendSource">Backend を読んだ場所。</param>
+internal sealed record UnityCompilerSettings(
+    string? EditorVersion,
+    string EditorVersionSource,
+    ImmutableArray<UnityGraphicsApi> GraphicsApis,
+    string GraphicsApisSource,
+    ImmutableArray<UnityGraphicsApi> DxcBackendApis,
+    string DxcBackendSource);

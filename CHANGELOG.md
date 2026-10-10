@@ -37,6 +37,11 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - VS Code 拡張: `.hlsli` / `.usf` / `.ush` も開く。構成の選択で、値を持つシンボルは `QUALITY = 2` のように値を選ぶ
 - `--env` に環境と、その設定 (汎用の HLSL なら構成の軸とコンパイル単位、Unreal なら仮想パスの割り当て) を出す
 - 設定ファイルの `hlsl: compiler` (`dxc` / `fxc`)。`hlsl: version` は `2016` / `2017` も受け付ける。
+- Unity の環境で、パスごと・API ごとに FXC と DXC (HLSL 2018) のどちらでコンパイルされるかを判定する
+  (`#pragma use_dxc` / `never_use_dxc` / DXC が要る `require`、`UNITY_DEVICE_SUPPORTS_*` のキーワード、Unity 6.6 の Shader Compiler Backend)。
+  Unity 2022.3〜6.6 の実測に合わせ、バージョンで変わる規則も扱う。DXC になるパスでは `enum` などを HL0003 にしない。
+- 設定ファイルの `unity: version` / `unity: graphics-apis` / `unity: shader-compiler-backend`。
+  無ければ Unity プロジェクトの `ProjectVersion.txt`・`ProjectSettings.asset`・ビルドプロファイルから読み、`--env` に出す。
   使える構文はコンパイラと版で決まる (`HlslDialect` / `HlslLanguageFeatures`。手元の FXC と DXC 1.8 で確かめた表)
 - 設定ファイルの `hlsl: enable-16bit-types` (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義する
 - DirectX 12 のシェーダーの書き方を読む: `export` 修飾子、引数の属性とワークグラフの型 (`[MaxRecords(2)] NodeOutput<T>`)、

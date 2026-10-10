@@ -56,4 +56,27 @@ public sealed record UnityOptions
     /// 無効にするのは、先頭に差し込むコードの影響を切り分けて調べたい場合に限られる。
     /// </remarks>
     public bool UseFallbackMacros { get; init; } = true;
+
+    /// <summary>
+    /// Unity のバージョン (<c>6000.3.0f1</c> / <c>6.3</c> など)。分からなければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// シェーダーのコンパイラの選び方がバージョンで変わる (<see cref="UnityCompilerSelection"/>)。
+    /// 分からなければ、どのバージョンの結果も並べる。
+    /// </remarks>
+    public string? EditorVersion { get; init; }
+
+    /// <summary><see cref="EditorVersion"/> のまとまり。分からなければ <see langword="null"/>。</summary>
+    public UnityVersionBand? VersionBand => UnityVersions.TryGetBand(EditorVersion, out UnityVersionBand? band) ? band : null;
+
+    /// <summary>
+    /// シェーダーをコンパイルするグラフィックス API。既定は DX11 と DX12 (<see cref="UnityGraphicsApis.Default"/>)。
+    /// </summary>
+    public ImmutableArray<UnityGraphicsApi> GraphicsApis { get; init; } = UnityGraphicsApis.Default;
+
+    /// <summary>
+    /// Shader Compiler Backend を DXC にした API (Unity 6.6 から)。既定は無し。
+    /// </summary>
+    /// <remarks>DX11 は設定に関わらず FXC でコンパイルされる。</remarks>
+    public ImmutableArray<UnityGraphicsApi> DxcBackendApis { get; init; } = [];
 }

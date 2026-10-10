@@ -51,6 +51,11 @@ internal sealed class EffectiveSettings
     /// <remarks>Unity 以外の環境で指定していればエラーにする。黙って無視すると、効いていると思い込ませる。</remarks>
     public ImmutableArray<string> UnityOnlyCommandLineOptions { get; private init; } = [];
 
+    /// <summary>
+    /// Unity プロジェクトのルート (<c>--unity-project</c>、無ければ設定ファイルの <c>unity: project</c>)。Unity 以外の環境では <see langword="null"/>。
+    /// </summary>
+    public string? UnityProjectPath { get; private init; }
+
     /// <summary>自前のホストが足した環境。</summary>
     public ImmutableArray<HostEnvironment> HostEnvironments { get; private init; } = [];
 
@@ -173,6 +178,7 @@ internal sealed class EffectiveSettings
             ConfigurationSearchDirectory = searchDirectory,
             UnityOnlyCommandLineOptions = unityOnlyOptions,
             HostEnvironments = hostEnvironments,
+            UnityProjectPath = isUnity ? options.UnityProjectPath : null,
         };
     }
 
