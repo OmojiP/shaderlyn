@@ -990,7 +990,8 @@ public sealed class ExpressionTypeBinder
     {
         if (!_scopes.TryGetValue(function, out LocalScopes? scopes))
         {
-            scopes = _scopes[function] = new LocalScopes(function, _compilation.GetConditionMap());
+            scopes = _scopes[function] = new LocalScopes(
+                function, _compilation.GetConditionMap(), Program.Tree.Features.LoopVariableOutsideLoop);
         }
 
         return scopes;

@@ -59,6 +59,9 @@ public sealed class RuleFixtureTests
         // enum も HLSL 2021 の構文。Hlsl2021EnumTests で確かめている。
         ["HL0347"] = "HLSL 2021 の enum の値なので、Unity の .shader では起こせない",
 
+        // Unity は HLSL 2021 でコンパイルしないので起こせない。Hlsl2021Tests で、汎用の HLSL 環境の .hlsl として確かめている。
+        ["HL0349"] = "HLSL 2021 だけの規則なので、Unity の .shader では起こせない",
+
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。
         ["SL1051"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",

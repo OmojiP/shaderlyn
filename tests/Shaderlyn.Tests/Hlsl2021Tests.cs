@@ -142,6 +142,77 @@ public sealed class Hlsl2021Tests
         Assert.Contains("a, b, f", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// HLSL 2021 では for の初期化の変数をループの外で使えないことを検証する (DXC 1.8: use of undeclared identifier)。
+    /// </summary>
+    [Fact]
+    public void forの変数をループの外で使うと報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            float4 main() : SV_Target
+            {
+                float s = 0;
+                for (int i = 0; i < 4; i++) { s += i; }
+                return s + i;
+            }
+            """);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Equal("HL0310", diagnostic.Id);
+        Assert.Contains("'i'", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// HLSL 2021 ではベクトルと行列に &amp;&amp; / || / ?: を使えないことを検証する (HL0349)。行は DXC 1.8 がエラーにした式。
+    /// </summary>
+    [Fact]
+    public void ベクトルへの論理演算子と条件演算子を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            float4 main(float3 a : A, float3 b : B, float1 c : C, float d : D) : SV_Target
+            {
+                bool3 x = a && b;
+                bool3 y = a || b;
+                float3 z = a > 0 ? a : b;
+                bool1 w = c && c;
+                float m = (a > 0).x ? 1 : 0;
+                bool n = d > 0 && d < 1;
+                float2x2 mm = (float2x2)1;
+                bool2x2 q = mm && mm;
+                return float4(x.x + y.x + z.x + w.x + m + n + q[0][0], 0, 0, 1);
+            }
+            """);
+
+        Assert.Equal([3, 4, 5, 6, 10], diagnostics.Where(d => d.Id == "HL0349").Select(d => d.Location.LineSpan.Start.Line + 1).Order().ToArray());
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning && d.Id != "HL0349");
+    }
+
+    /// <summary>FXC では for の変数をループの後でも使え、ベクトルへの論理演算子は成分ごとに計算することを検証する。</summary>
+    [Fact]
+    public void FXCではforの変数とベクトルへの論理演算子を報告しない()
+    {
+        SourceText text = SourceText.From("""
+            float4 main(float3 a : A, float3 b : B) : SV_Target
+            {
+                float s = 0;
+                for (int i = 0; i < 4; i++) { s += i; }
+                bool3 x = a && b;
+                return s + i + x.x;
+            }
+            """, "test.hlsl");
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text)],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { Compiler = HlslCompiler.Fxc }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+    }
+
     /// <summary>HLSL 2021 の環境で 1 ファイルを解析する。</summary>
     /// <param name="code">コード。</param>
     /// <returns>診断。</returns>

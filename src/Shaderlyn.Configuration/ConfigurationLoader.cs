@@ -218,7 +218,7 @@ internal static class ConfigurationLoader
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
                 Symbols = symbols,
                 SymbolGroups = groups,
-                Units = ReadUnits(symbols, groups),
+                Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),
                 IncludePaths = ReadIncludePaths(),
                 Defines = ReadStringSequence("defines"),
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
@@ -399,6 +399,14 @@ internal static class ConfigurationLoader
             return paths.ToImmutable();
         }
 
+        /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>) を、問題を報告せずに読む。</summary>
+        /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>読めた値。</returns>
+        private static bool? ReadHlslEnable16BitTypesQuietly(YamlMapping? hlsl)
+            => hlsl is not null && hlsl.TryGetScalar("enable-16bit-types", out YamlScalar? value) && value.TryGetBoolean(out bool enabled)
+                ? enabled
+                : null;
+
         /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>) を読む。</summary>
         /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
         /// <returns>指定があればその値。無いか読めなければ <see langword="null"/>。</returns>
@@ -409,14 +417,57 @@ internal static class ConfigurationLoader
                 return null;
             }
 
-            if (value.TryGetBoolean(out bool enabled))
+            if (!value.TryGetBoolean(out bool enabled))
             {
-                return enabled;
+                problems.Add(new ConfigurationProblem(
+                    value.Line, $"hlsl: の enable-16bit-types には true か false を指定してください ('{value.Value}')。"));
+                return null;
             }
 
-            problems.Add(new ConfigurationProblem(
-                value.Line, $"hlsl: の enable-16bit-types には true か false を指定してください ('{value.Value}')。"));
-            return null;
+            // 16 ビットの型は DXC の HLSL 2018 から。FXC には無い (手元の FXC / DXC 1.8 で確かめた)。
+            if (enabled && ReadOptionalScalar(hlsl, "compiler")?.Trim().ToLowerInvariant() == "fxc")
+            {
+                problems.Add(new ConfigurationProblem(
+                    value.Line, "hlsl: の enable-16bit-types は DXC の設定です。compiler が fxc では使えません (FXC に 16 ビットの型はありません)。"));
+            }
+            else if (enabled && hlsl.TryGetScalar("version", out YamlScalar? version) && version.TryGetInt32(out int number) && number < 2018)
+            {
+                problems.Add(new ConfigurationProblem(
+                    value.Line, $"hlsl: の enable-16bit-types は HLSL 2018 から使えます (version が {number})。"));
+            }
+
+            return enabled;
+        }
+
+        /// <summary>
+        /// 16 ビットの型を使う設定で、シェーダーモデル 6.2 より前のターゲットの単位を報告する。
+        /// </summary>
+        /// <param name="units">コンパイル単位。</param>
+        /// <param name="enabled">16 ビットの型を使うか。</param>
+        /// <returns>コンパイル単位 (そのまま)。</returns>
+        /// <remarks>DXC は 6.2 より前のターゲットで <c>-enable-16bit-types</c> を拒む。</remarks>
+        private ImmutableArray<ConfiguredUnit> CheckSixteenBitTargets(ImmutableArray<ConfiguredUnit> units, bool? enabled)
+        {
+            if (enabled != true)
+            {
+                return units;
+            }
+
+            foreach (ConfiguredUnit unit in units)
+            {
+                string[] parts = unit.Target?.Split('_') ?? [];
+
+                if (parts.Length == 3
+                    && int.TryParse(parts[1], out int major)
+                    && int.TryParse(parts[2], out int minor)
+                    && (major * 10) + minor < 62)
+                {
+                    problems.Add(new ConfigurationProblem(
+                        unit.Line, $"16 ビットの型 (hlsl: の enable-16bit-types) はシェーダーモデル 6.2 から使えます (target が {unit.Target})。"));
+                }
+            }
+
+            return units;
         }
 
         /// <summary>コンパイラ (<c>hlsl: compiler</c>) を読む。</summary>

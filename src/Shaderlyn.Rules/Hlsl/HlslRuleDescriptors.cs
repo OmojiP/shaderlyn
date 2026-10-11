@@ -428,6 +428,18 @@ internal static class HlslRuleDescriptors
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
         helpLinkUri: DocumentationLinks.For("HL0346"));
 
+    /// <summary>HLSL 2021 で、ベクトルや行列に <c>&amp;&amp;</c> / <c>||</c> / <c>?:</c> を使っている。</summary>
+    /// <remarks>HLSL 2021 ではこれらが短絡評価になり、スカラーにしか使えない。DXC 1.8 で確かめた。</remarks>
+    public static DiagnosticDescriptor VectorLogicalOperator { get; } = new(
+        id: "HL0349",
+        title: "HLSL 2021 ではベクトルに && / || / ?: を使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "HLSL 2021 の && / || / ?: は短絡評価になり、スカラーにしか使えません。"
+            + "成分ごとに計算するなら and() / or() / select() を使ってください。FXC と DXC 2021 より前は成分ごとに計算します。",
+        helpLinkUri: DocumentationLinks.For("HL0349"));
+
     /// <summary>構造体の値を増減している (FXC では何もしない)。</summary>
     /// <remarks>
     /// FXC は構造体自身への <c>++</c> / <c>--</c> をエラーにせず、何もしないコードにする。

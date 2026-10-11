@@ -43,7 +43,10 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - HL0003 が、パスの届く API のどれかで使えない構文と型を、API とコンパイラを添えて報告する
   (`enum は dx11 (FXC) では使えません` など)。FXC での `int64_t` / `float32_t` / `float16_t` などの型、
   `-enable-16bit-types` の無い DXC での 16 ビットの型も報告する。構成のキーワード (`UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` など) を踏まえる。
-  interface 型のグローバル変数 (DXC と、シェーダーモデル 5.0 より前の FXC でエラー) も報告する。
+  interface 型のグローバル変数 (DXC と、シェーダーモデル 5.0 より前の FXC でエラー)、単体の DXC での `sampler2D` / `tex2D` などの DX9 の書き方、
+  DXC でのエントリ関数の `uniform` 引数も報告する。
+- HL0349: HLSL 2021 でベクトルや行列に `&&` / `||` / `?:` を使っている (`and()` / `or()` / `select()` を案内する)。
+- 設定ファイルの `hlsl: enable-16bit-types` を、`compiler: fxc`・HLSL 2018 より前・シェーダーモデル 6.2 より前の `target` と組み合わせたら TOOL0003 で報告する。
 - HL0348: FXC で構造体の値を `++` / `--` している (エラーにならず何もしない)。DXC に届くなら HL0346 で API を添えて報告する。
 - SL1050 / SL1051: `#pragma use_dxc` / `never_use_dxc` / `require` が、対象の API や Unity のバージョンでは意図どおりに効かない
   (無視される API 名、DX11 で使えなくなる指定、バージョンで結果が逆になる組み合わせ、2023.2 以降で無視される include ファイルの中の指定、6.6 で非推奨の `d3d11` など)。
@@ -120,6 +123,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 
 ### 修正
 
+- HLSL 2021 だけでコンパイルするとき、`for` の初期化の変数をループの外で使えば HL0310 で報告する (以前は FXC と同じく見えるものとして扱った)。
 - `Texture2D<float3>` の `GatherRed` などの型を、要素の型 (`float3`) と判定していた。成分を 4 つ集めたベクトル (`float4`) である。
   型の食い違い (HL0350) を誤って報告していた
 - 構造体と同じ名前の変数 (`ConstantBuffer<Constants> Constants`) を二重宣言 (HL0314) と報告していた。DXC は受け付ける

@@ -210,6 +210,58 @@ public sealed class CompileTargetRuleTests
         Assert.Equal(expected, diagnostics.Any(d => d.Id == "HL0003"));
     }
 
+    [Theory]
+    [InlineData(HlslCompiler.Dxc, 3)]
+    [InlineData(HlslCompiler.Fxc, 0)]
+    public void 汎用のHLSLではDXCのときDX9の書き方とエントリのuniform引数を報告する(HlslCompiler compiler, int expected)
+    {
+        SourceText text = SourceText.From("""
+            sampler2D s2;
+            float4 main(float2 uv : TEXCOORD0, uniform float k) : SV_Target { return tex2D(s2, uv) * k; }
+            """, "test.hlsl");
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new HlslEntryPoint("main", "test")] }],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { Compiler = compiler }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.Equal(expected, diagnostics.Count(d => d.Id == "HL0003"));
+    }
+
+    [Fact]
+    public void UnityのDXCはDX9の書き方を受け付けるがエントリのuniform引数を報告する()
+    {
+        UnityOptions options = new() { EditorVersion = "6.6", GraphicsApis = [UnityGraphicsApi.Direct3D12] };
+        string source = """
+            Shader "Test"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #pragma use_dxc
+                        sampler2D _MainTex;
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag(float4 p : SV_POSITION, uniform float k) : SV_Target { return tex2D(_MainTex, p.xy) * k; }
+                        ENDHLSL
+                    }
+                }
+            }
+            """;
+        SourceText text = SourceText.From(source, Path.Combine("Assets", "Test.shader"));
+        ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), new SemanticsOptions(), options);
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0003");
+        Assert.Equal("エントリ関数 frag の uniform 引数 k は dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
+    }
+
     [Fact]
     public void DX11を対象にしなければrequireを報告しない()
         => Assert.DoesNotContain(

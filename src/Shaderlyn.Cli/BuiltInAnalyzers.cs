@@ -61,6 +61,7 @@ public static class BuiltInAnalyzers
         new CallSignatureAnalyzer(),
         new StructOperatorAnalyzer(),
         new CompileTargetAnalyzer(),
+        new VectorLogicalOperatorAnalyzer(),
         new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),
         new UndeclaredIdentifierAnalyzer(),

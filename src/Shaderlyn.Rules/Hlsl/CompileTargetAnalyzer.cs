@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
@@ -92,8 +93,45 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         EnumDeclarationSyntax enumeration => new Construct(enumeration.NameToken ?? enumeration.Keyword, "enum", static d => d.Features.Enums),
         HlslTypeSyntax type => DescribeType(type),
         VariableDeclarationSyntax variable => DescribeInterfaceVariable(variable, program),
+        InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: var name } target } when LegacyTextureIntrinsics.Contains(name)
+            => new Construct(target.Identifier, $"DX9 の組み込み関数 {name}", static d => d.AcceptsLegacySamplerSyntax) { CheckWithoutTargets = true },
+        ParameterSyntax parameter => DescribeUniformParameter(parameter, program),
         _ => null,
     };
+
+    /// <summary>DX9 の書き方のテクスチャの組み込み関数。単体の DXC は知らない (<c>Unsupported intrinsic</c>)。</summary>
+    private static readonly FrozenSet<string> LegacyTextureIntrinsics = new[]
+    {
+        "tex1D", "tex1Dbias", "tex1Dgrad", "tex1Dlod", "tex1Dproj",
+        "tex2D", "tex2Dbias", "tex2Dgrad", "tex2Dlod", "tex2Dproj",
+        "tex3D", "tex3Dbias", "tex3Dgrad", "tex3Dlod", "tex3Dproj",
+        "texCUBE", "texCUBEbias", "texCUBEgrad", "texCUBElod", "texCUBEproj",
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// エントリ関数の <c>uniform</c> 引数を見分ける。DXC はどの版でも拒む
+    /// (<c>Semantic must be defined for all parameters of an entry function</c>)。FXC は通す。手元の DXC 1.8 と Unity で確かめた。
+    /// </summary>
+    /// <param name="parameter">仮引数。</param>
+    /// <param name="program">仮引数が属する木。</param>
+    /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
+    private static Construct? DescribeUniformParameter(ParameterSyntax parameter, AnalyzedProgram program)
+    {
+        if (!parameter.ModifierTokens.Any(t => t.Text == "uniform")
+            || parameter.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is not { } function
+            || !program.EntryPoints.Any(e => e.Name == function.Name))
+        {
+            return null;
+        }
+
+        return new Construct(
+            parameter.ModifierTokens.First(t => t.Text == "uniform"),
+            $"エントリ関数 {function.Name} の uniform 引数 {parameter.Name}",
+            static d => d.Compiler == HlslCompiler.Fxc)
+        {
+            CheckWithoutTargets = true,
+        };
+    }
 
     /// <summary>
     /// グローバルな interface 型の変数を見分ける。
@@ -183,6 +221,12 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
             : type.NameToken;
         string written = token.Text;
         string scalar = StripShape(written);
+
+        // sampler1D / sampler2D / sampler3D / samplerCUBE は DX9 の書き方。単体の DXC は知らない (unknown type name)。
+        if (written is "sampler1D" or "sampler2D" or "sampler3D" or "samplerCUBE")
+        {
+            return new Construct(token, $"DX9 の型 {written}", static d => d.AcceptsLegacySamplerSyntax) { CheckWithoutTargets = true };
+        }
 
         return scalar switch
         {
