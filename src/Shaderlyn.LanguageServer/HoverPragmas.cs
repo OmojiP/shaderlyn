@@ -40,7 +40,10 @@ internal static partial class HoverBuilder
             + "名前の後ろに書いたマクロは、このカーネルのコンパイルでだけ定義される。",
         ["surface"] = "サーフェスシェーダーの関数と照明モデルを指定する。ビルトインレンダーパイプライン専用。",
         ["target"] = "シェーダーモデルの下限を指定する。満たさない GPU では、この SubShader は使われない。",
-        ["require"] = "必要な GPU の機能を個別に指定する (`geometry`、`compute` など)。満たさない GPU では、この SubShader は使われない。",
+        ["require"] =
+            "必要な GPU の機能を個別に指定する (`geometry`、`compute` など)。満たさない GPU では、この SubShader は使われない。"
+            + "`int64` / `native16bit` / ウェーブの命令 (`wavebasic` など) / `barycentrics` などの値は、パスを DXC (HLSL 2018) でコンパイルさせ、"
+            + "DX11 では使えなくなる。`inlineraytracing` は Unity 6.4 から DXC になる。",
         ["only_renderers"] = "指定したグラフィックス API に対してだけコンパイルする。",
         ["exclude_renderers"] = "指定したグラフィックス API に対してはコンパイルしない。",
         ["skip_variants"] = "指定したシンボルを含むバリアントをコンパイルしない。",
@@ -48,8 +51,12 @@ internal static partial class HoverBuilder
         ["hardware_tier_variants"] = "グラフィックスの階層 (Tier) ごとにバリアントを作る。",
         ["editor_sync_compilation"] = "エディタでこのシェーダーを非同期にコンパイルせず、使う前に同期でコンパイルする。",
         ["enable_d3d11_debug_symbols"] = "D3D11 向けにデバッグ情報を付けてコンパイルする。最適化も弱まるため、調査が済んだら外す。",
-        ["use_dxc"] = "DXC コンパイラでコンパイルする。",
-        ["never_use_dxc"] = "DXC を使わず、従来の FXC コンパイラでコンパイルする。",
+        ["use_dxc"] =
+            "DXC (HLSL 2018) でコンパイルする。API を書くとその API だけ (`vulkan`、6.6 から `dx12`。6.5 以前の DX12 は `d3d11`。`d3d12` は無視される)。"
+            + "6.5 以前は API を書かないと DX11 も DXC になり、DX11 では使えなくなる。include ファイルの中に書いても、2023.2 以降は効かない。",
+        ["never_use_dxc"] =
+            "DXC を使わず、FXC でコンパイルする。6.5 以前は DXC が要る `require` より優先され、6.6 からは `require` に負ける。"
+            + "6.6 の Shader Compiler Backend の DXC の設定には勝つ。",
         ["multi_compile_fog"] =
             "霧のモード (`FOG_LINEAR` / `FOG_EXP` / `FOG_EXP2`) ごとのバリアントを作る。"
             + "ビルドでは、プロジェクトで使っていない霧のモードのバリアントが取り除かれる。",

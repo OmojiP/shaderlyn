@@ -74,7 +74,7 @@ internal static class UnityRuleDescriptors
     public static DiagnosticDescriptor MissingShaderStage { get; } = new(
         id: "HL0302",
         title: "シェーダーステージが指定されていません",
-        messageFormat: "このコードブロックに #pragma vertex / #pragma fragment がありません。",
+        messageFormat: "このコードブロックに {0} がありません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使うかが指定されていません。"

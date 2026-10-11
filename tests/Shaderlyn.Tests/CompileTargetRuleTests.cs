@@ -305,6 +305,18 @@ public sealed class CompileTargetRuleTests
     public void コンパイラを切り替えるキーワードは条件に無くても使われている(string keyword, bool expected)
         => Assert.Equal(expected, Analyze($"#pragma multi_compile _ {keyword}", "return 1;", "6.3").Any(d => d.Id == "HL0331"));
 
+    /// <summary>カーネルの無いコンピュートシェーダーには、頂点・フラグメントではなく #pragma kernel を求めることを検証する (HL0302)。</summary>
+    [Fact]
+    public void カーネルの無いコンピュートシェーダーにはkernelを求める()
+    {
+        SourceText text = SourceText.From("float F() { return 1; }\n", Path.Combine("Assets", "K.compute"));
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, new SemanticsOptions(), new UnityOptions());
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0302");
+        Assert.Equal("このコードブロックに #pragma kernel がありません。", diagnostic.GetMessage());
+    }
+
     /// <summary><c>sampler_state { ... }</c> を、宣言されていない名前として報告しないことを検証する。</summary>
     [Fact]
     public void sampler_stateを名前として報告しない()

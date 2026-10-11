@@ -352,7 +352,7 @@ internal static class SemanticsSetup
         bool isUnity = settings.Environment == UnityAnalysisEnvironment.EnvironmentName;
         string? candidate = isUnity && options.UnityProjectPath is null ? UnityInstallation.FindProjectAbove(options.InputPaths) : null;
         string projectHint = candidate is null
-            ? "--unity-project で Unity プロジェクトのルートを指定してください。"
+            ? "Unity プロジェクトのルートを指定してください (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。"
             : $"--unity-project \"{candidate}\" を指定してください (解析対象はこの Unity プロジェクトの中にあります)。";
 
         return include =>

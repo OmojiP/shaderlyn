@@ -52,12 +52,17 @@ internal sealed class ShaderStageAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // コンピュートシェーダーの入口は #pragma kernel である。頂点・フラグメントを求めると、直し方を誤らせる。
+        string expected = string.Equals(Path.GetExtension(compilation.Text.FilePath), ".compute", StringComparison.OrdinalIgnoreCase)
+            ? "#pragma kernel"
+            : "#pragma vertex / #pragma fragment";
+
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             if (!program.Tree.Pragmas.Any(pragma => StagePragmas.Contains(pragma.Name)))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    UnityRuleDescriptors.MissingShaderStage, program.GetBlockLocation()));
+                    UnityRuleDescriptors.MissingShaderStage, program.GetBlockLocation(), expected));
             }
         }
     }
