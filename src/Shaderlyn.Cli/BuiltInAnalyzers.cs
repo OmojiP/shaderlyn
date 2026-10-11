@@ -62,6 +62,7 @@ public static class BuiltInAnalyzers
         new StructOperatorAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
+        new LoopVariableScopeAnalyzer(),
         new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),
         new UndeclaredIdentifierAnalyzer(),

@@ -428,6 +428,18 @@ internal static class HlslRuleDescriptors
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
         helpLinkUri: DocumentationLinks.For("HL0346"));
 
+    /// <summary><c>for</c> の初期化で宣言した変数を、ループの外で使っている (HLSL 2021 へ移せない)。</summary>
+    /// <remarks>FXC と DXC 2021 より前は通るが、DXC 2021 はエラーにする。手元の FXC / DXC 1.8 で確かめた。</remarks>
+    public static DiagnosticDescriptor LoopVariableOutsideLoop { get; } = new(
+        id: "HL0354",
+        title: "for の変数をループの外で使っています",
+        messageFormat: "'{0}' は for 文の初期化で宣言した変数です。ループの外で使えるのは FXC と HLSL 2021 より前の DXC だけで、HLSL 2021 ではエラーになります。ループの前で宣言してください。",
+        category: "Portability",
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも見えますが、HLSL 2021 では C++ と同じくループの中だけで見えます。"
+            + "DXC の HLSL 2021 へ移すとき (Unity の DXC が 2021 になったときを含む) にエラーになるので、ループの前で宣言してください。",
+        helpLinkUri: DocumentationLinks.For("HL0354"));
+
     /// <summary>HLSL 2021 で、ベクトルや行列に <c>&amp;&amp;</c> / <c>||</c> / <c>?:</c> を使っている。</summary>
     /// <remarks>HLSL 2021 ではこれらが短絡評価になり、スカラーにしか使えない。DXC 1.8 で確かめた。</remarks>
     public static DiagnosticDescriptor VectorLogicalOperator { get; } = new(

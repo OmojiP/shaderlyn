@@ -1153,6 +1153,20 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>
+    /// 名前が指す局所変数の宣言を引く。
+    /// </summary>
+    /// <param name="identifier">名前。</param>
+    /// <returns>宣言の候補。関数の外の名前か、局所変数でなければ空。判断しない位置なら <see langword="null"/>。</returns>
+    internal ImmutableArray<LocalDeclaration>? LookupLocal(IdentifierExpressionSyntax identifier)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+
+        return identifier.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+            ? GetScopes(function).Lookup(identifier)
+            : [];
+    }
+
+    /// <summary>
     /// 識別子が指している変数の宣言を求める。
     /// </summary>
     /// <param name="identifier">使っている識別子。</param>

@@ -213,6 +213,58 @@ public sealed class Hlsl2021Tests
         Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
     }
 
+    /// <summary>
+    /// FXC と DXC 2021 より前では、for の変数をループの外で使う箇所を、2021 へ移せないと情報で伝えることを検証する (HL0354)。
+    /// </summary>
+    /// <param name="compiler">コンパイラ。</param>
+    [Theory]
+    [InlineData(HlslCompiler.Fxc)]
+    [InlineData(HlslCompiler.Dxc)]
+    public void forの変数をループの外で使うと2021へ移せないと伝える(HlslCompiler compiler)
+    {
+        SourceText text = SourceText.From("""
+            float4 main() : SV_Target
+            {
+                float s = 0;
+                for (int i = 0; i < 4; i++) { s += i; }
+                float t = s + i;
+                for (int j = 0; j < 2; j++) { s += j; }
+                return t;
+            }
+            """, "test.hlsl");
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text)],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { Compiler = compiler, LanguageVersion = HlslLanguageVersion.Hlsl2018 }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0354");
+        Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
+        Assert.Equal(5, diagnostic.Location.LineSpan.Start.Line + 1);
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+    }
+
+    /// <summary>HLSL 2021 だけなら、HL0354 ではなく HL0310 (宣言されていない) になることを検証する。</summary>
+    [Fact]
+    public void HLSL2021ではforの変数の情報を出さない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            float4 main() : SV_Target
+            {
+                float s = 0;
+                for (int i = 0; i < 4; i++) { s += i; }
+                return s + i;
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0354");
+        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+    }
+
     /// <summary>HLSL 2021 の環境で 1 ファイルを解析する。</summary>
     /// <param name="code">コード。</param>
     /// <returns>診断。</returns>
