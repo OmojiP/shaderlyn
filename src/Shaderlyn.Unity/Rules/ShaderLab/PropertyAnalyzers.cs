@@ -135,7 +135,7 @@ internal sealed class PropertyAttributeAnalyzer : DiagnosticAnalyzer
             attribute.NameToken.Span,
             attribute.Name,
             argumentCount,
-            "列挙型名を 1 つ指定するか、名前と値の組を偶数個で指定してください (例: Enum(Off, 0, On, 1))。");
+            "列挙型名 1 つか、名前と値の組を偶数個指定する必要があります (例: Enum(Off, 0, On, 1))");
     }
 
     /// <summary>
@@ -184,8 +184,8 @@ internal sealed class PropertyAttributeAnalyzer : DiagnosticAnalyzer
     /// <returns>説明文。</returns>
     private static string DescribeExpectedCount((int Min, int Max) expected)
         => expected.Min == expected.Max
-            ? $"{expected.Min} 個の引数が必要です。"
-            : $"{expected.Min} 個から {expected.Max} 個の引数を指定してください。";
+            ? $"{expected.Min} 個の引数が必要です"
+            : $"{expected.Min} 個から {expected.Max} 個の引数が必要です";
 }
 
 /// <summary>
@@ -254,7 +254,7 @@ internal sealed class ShaderNameAnalyzer : DiagnosticAnalyzer
         {
             if (segment.Length == 0)
             {
-                return "階層の区切り '/' の前後に空の階層があります。";
+                return "空の階層があります。";
             }
 
             if (segment.Trim() != segment)

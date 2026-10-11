@@ -65,8 +65,8 @@ internal static class SemanticRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor UnexploredSymbols { get; } = new(
         id: "SL0003",
-        title: "調べていないシンボルの経路があります",
-        messageFormat: "シンボル {0} を{1}有効にした構成は調べていません。{2}で分かれる分岐の中は読んでいません。",
+        title: "未解析のシンボル構成が存在します",
+        messageFormat: "シンボル {0} を{1}有効にした構成は未解析です。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#pragma shader_feature / multi_compile で宣言されたシンボルは、"

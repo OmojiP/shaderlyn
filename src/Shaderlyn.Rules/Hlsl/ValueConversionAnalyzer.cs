@@ -179,7 +179,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             location,
             function.Name,
             returnType,
-            missing.IsAlways ? string.Empty : $" ({missing} のとき)"));
+            missing.IsAlways ? string.Empty : $" (構成：{missing} のとき)"));
     }
 
     /// <summary>値を返さずに終わる経路がある構成を求める。</summary>
@@ -429,7 +429,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 宣言がある構成のどれでも食い違うなら、宣言の条件で示す。
         // 構成ごとに複製した文 (条件の巻き上げ) は、どれも同じ位置にあるので、条件が無いとどの複製の話か分からない。
         SymbolCondition shown = conditions.Simplify(failed == considered ? declared : mismatched);
-        string where = shown.IsAlways ? string.Empty : $" ({shown} のとき)";
+        string where = shown.IsAlways ? string.Empty : $" (構成：{shown} のとき)";
 
         reported.Add(location.Span.Start);
         context.ReportDiagnostic(Diagnostic.Create(
@@ -717,7 +717,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                         location,
                         targetType,
                         valueType,
-                        assumption.IsAlways ? string.Empty : $"{assumption} のとき、代入先は {targetType} です。"));
+                        assumption.IsAlways ? string.Empty : $"構成：{assumption} のとき、代入先は {targetType} です。"));
                 }
 
                 return;
@@ -860,7 +860,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="assumption">対象の構成。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeAssumption(SymbolCondition assumption)
-        => assumption.IsAlways ? "どの構成でも" : $"{assumption} のとき";
+        => assumption.IsAlways ? "どの構成でも" : $"構成：{assumption} のとき";
 
     /// <summary>渡している値を文言にする。</summary>
     /// <param name="value">対象の値。</param>
@@ -886,7 +886,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     private static string DescribeNote(ConfigurationFinding finding)
         => finding.Assumption.IsAlways
             ? string.Empty
-            : $"{finding.Assumption} のとき、この式は {finding.ValueType} です。";
+            : $"構成：{finding.Assumption} のとき、この式は {finding.ValueType} です。";
 
     /// <summary><c>return</c> を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>

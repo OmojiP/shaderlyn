@@ -38,6 +38,21 @@ internal static class PreprocessorHarness
 
 public sealed class MacroExpansionTests
 {
+    /// <summary>名前の無い <c>#define</c> / <c>#undef</c> / <c>#ifdef</c> は、そのファイルの指令名を指すことを検証する (以前は「&lt;不明&gt;」を指していた)。</summary>
+    /// <param name="content">指令の行。</param>
+    [Theory]
+    [InlineData("#define\n")]
+    [InlineData("#undef\n")]
+    [InlineData("#ifdef\n#endif\n")]
+    public void 名前の無い指令は指令名を指す(string content)
+    {
+        Diagnostic diagnostic = Assert.Single(PreprocessorHarness.Run(content).Diagnostics, d => d.Id == "HL0002");
+
+        Assert.Equal("test.hlsl", diagnostic.Location.FilePath);
+        Assert.Equal(0, diagnostic.Location.LineSpan.Start.Line);
+        Assert.Equal(1, diagnostic.Location.LineSpan.Start.Character);
+    }
+
     [Fact]
     public void オブジェクト形式マクロを展開する()
     {

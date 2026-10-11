@@ -746,7 +746,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "SL0003"));
         Assert.Equal(
-            "シンボル '_A' と '_B' を同時に有効にした構成は調べていません。この組み合わせで分かれる分岐の中は読んでいません。",
+            "シンボル '_A' と '_B' を同時に有効にした構成は未解析です。",
             reported.GetMessage());
 
         // 組でしか通らない分岐を始めた、内側の #ifdef を指す。LinePosition は 0 始まり。

@@ -20,7 +20,7 @@ public sealed class CompileTargetRuleTests
     {
         Diagnostic diagnostic = Assert.Single(Analyze("", "int64_t v = 1; return (float)v;", "6.3"), d => d.Id == "HL0003");
 
-        Assert.Equal("型 int64_t は dx11 (FXC)・dx12 (FXC) では使えません。", diagnostic.GetMessage());
+        Assert.Equal("型 int64_t は 環境：dx11 (FXC)・dx12 (FXC) では使えません。", diagnostic.GetMessage());
     }
 
     [Theory]
@@ -40,7 +40,7 @@ public sealed class CompileTargetRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze("#pragma use_dxc", "Mode m = ModeA; return m == ModeB ? 1 : 0;", "6.6", "enum Mode { ModeA, ModeB };");
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0003");
-        Assert.Equal("enum は dx11 (FXC) では使えません。", diagnostic.GetMessage());
+        Assert.Equal("enum は 環境：dx11 (FXC) では使えません。", diagnostic.GetMessage());
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class CompileTargetRuleTests
         UnityOptions options = new() { EditorVersion = "6.3", GraphicsApis = [UnityGraphicsApi.Direct3D12] };
         Diagnostic diagnostic = Assert.Single(Analyze("#pragma use_dxc", "float16_t v = 1; return v;", options), d => d.Id == "HL0003");
 
-        Assert.Equal("型 float16_t は dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
+        Assert.Equal("型 float16_t は 環境：dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class CompileTargetRuleTests
             d => d.Id == "HL0003");
 
         Assert.Equal(
-            "型 float16_t は UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成の dx11 (FXC)・UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成の dx12 (FXC) では使えません。",
+            "型 float16_t は 環境：UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成の dx11 (FXC)・UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成の dx12 (FXC) では使えません。",
             diagnostic.GetMessage());
     }
 
@@ -176,7 +176,7 @@ public sealed class CompileTargetRuleTests
     {
         Diagnostic diagnostic = Assert.Single(Analyze("", "return 1;", "6.3", LightInterface), d => d.Id == "HL0003");
 
-        Assert.Equal("interface 型 ILight のグローバル変数 は dx11 (FXC)・dx12 (FXC) では使えません。", diagnostic.GetMessage());
+        Assert.Equal("interface 型 ILight のグローバル変数 は 環境：dx11 (FXC)・dx12 (FXC) では使えません。", diagnostic.GetMessage());
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public sealed class CompileTargetRuleTests
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0003");
-        Assert.Equal("エントリ関数 frag の uniform 引数 k は dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
+        Assert.Equal("エントリ関数 frag の uniform 引数 k は 環境：dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
     }
 
     /// <summary>
@@ -314,7 +314,7 @@ public sealed class CompileTargetRuleTests
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0302");
-        Assert.Equal("このコードブロックに #pragma kernel がありません。", diagnostic.GetMessage());
+        Assert.Equal("コードブロックに #pragma kernel が存在しません。", diagnostic.GetMessage());
     }
 
     /// <summary><c>sampler_state { ... }</c> を、宣言されていない名前として報告しないことを検証する。</summary>

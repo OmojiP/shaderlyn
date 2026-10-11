@@ -117,8 +117,8 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                     HlslRuleDescriptors.MemberNotFound,
                     enumLocation,
                     $"enum '{enumName}'",
-                    access.Name,
-                    DescribeCandidates(enumeration.Members)));
+                    $"列挙子 '{access.Name}' ",
+                    DescribeCandidates(enumeration.Members, "列挙子")));
             }
 
             return;
@@ -188,8 +188,8 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                         HlslRuleDescriptors.MemberNotFound,
                         location,
                         $"構造体 '{typeName}'",
-                        access.Name,
-                        DescribeCandidates(AllMembers(structs, structure))));
+                        $"メンバー '{access.Name}' ",
+                        DescribeCandidates(AllMembers(structs, structure), "メンバー")));
                 }
 
                 return;
@@ -230,7 +230,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             location,
             typeName,
             access.Name,
-            missing.IsAlways ? "どの構成でも" : $"{missing} のとき"));
+            missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"));
     }
 
     /// <summary>構造体のメソッドの呼び出し (HLSL 2021 の <c>s.Get()</c>) で、そのメソッドがあるかを検査する。</summary>
@@ -264,8 +264,8 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             HlslRuleDescriptors.MemberNotFound,
             location,
             $"構造体 '{typeName}'",
-            access.Name,
-            DescribeCandidates(AllMembers(structs, structure, includeMethods: true))));
+            $"メンバー '{access.Name}' ",
+            DescribeCandidates(AllMembers(structs, structure, includeMethods: true), "メンバー")));
     }
 
     /// <summary>
@@ -307,7 +307,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
             string note = assumption.IsAlways
                 ? string.Empty
-                : $"{assumption} のとき、この式は {typeName} です。";
+                : $"構成：{assumption} のとき、この式は {typeName} です。";
 
             if (AnalyzeSwizzle(context, typeName, access, reported, note))
             {
@@ -351,7 +351,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.MemberNotFound, location, typeName, access.Name, note + reason));
+            HlslRuleDescriptors.MemberNotFound, location, typeName, $"成分 {access.Name} ", note + reason));
         return true;
     }
 
@@ -471,7 +471,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 || ColorComponents.Contains(c, StringComparison.Ordinal))
                 ? $"位置 ({string.Join(", ", PositionComponents.Select(c => c.ToString()))}) と "
                   + $"色 ({string.Join(", ", ColorComponents.Select(c => c.ToString()))}) は混ぜられません。"
-                : $"{DescribeComponents(PositionComponents, components)} です。";
+                : DescribeComponents(PositionComponents, components);
         }
 
         string set = position ? PositionComponents : ColorComponents;
@@ -480,7 +480,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         {
             if (set.IndexOf(component, StringComparison.Ordinal) >= components)
             {
-                return $"{DescribeComponents(set, components)} までです。";
+                return DescribeComponents(set, components);
             }
         }
 
@@ -492,7 +492,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="components">成分数。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeComponents(string set, int components)
-        => $"使えるのは {string.Join(", ", set[..components].Select(c => c.ToString()))}";
+        => $"使える成分は {string.Join(", ", set[..components].Select(c => c.ToString()))} です。";
 
     /// <summary>構造体にあるメンバーを並べた文字列を返す。</summary>
     /// <param name="members">メンバーの名前。</param>
@@ -501,10 +501,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// スペルミスのほとんどは、正しい名前を並べれば自分で気づける。
     /// 多すぎる場合は並べない。読み手の助けにならない。
     /// </remarks>
-    private static string DescribeCandidates(IReadOnlySet<string> members)
+    /// <param name="kind">何を並べるか (<c>メンバー</c> / <c>列挙子</c>)。</param>
+    private static string DescribeCandidates(IReadOnlySet<string> members, string kind)
         => members.Count is 0 or > 12
             ? string.Empty
-            : $"あるのは {string.Join(", ", members.Order(StringComparer.Ordinal))} です。";
+            : $"存在する{kind}は {string.Join(", ", members.Order(StringComparer.Ordinal))} です。";
 
     /// <summary>継承の深さの上限。循環した継承 (誤ったコード) で止まらなくならないようにする。</summary>
     private const int MaxInheritanceDepth = 8;

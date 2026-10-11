@@ -854,7 +854,7 @@ internal sealed partial class HlslPreprocessor
 
         if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line),
+            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#ifdef / #ifndef にはマクロ名が必要です。");
             return false;
         }
@@ -904,10 +904,10 @@ internal sealed partial class HlslPreprocessor
         string? expression = expectDefined ? TryJoinAsDefinedExpression(line) : null;
 
         string guidance = expression is not null
-            ? $"'#if {expression}' と書いてください。"
+            ? $"複数シンボル条件を書く場合は次のように書いてください：'#if {expression}'"
             : expectDefined
-                ? "複数の名前を条件にするときは '#if defined(A) || defined(B)' のように書きます。"
-                : "複数の名前を条件にするときは '#if !defined(A) && !defined(B)' のように書きます。";
+                ? "複数シンボル条件を書く場合は次のように書いてください：'#if defined(A) || defined(B)'"
+                : "複数シンボル条件を書く場合は次のように書いてください：'#if !defined(A) && !defined(B)'";
 
         Diagnostic diagnostic = Diagnostic.Create(
             HlslDescriptors.ExtraTokensAfterConditionName, location, directiveToken.Text, ignored, guidance);

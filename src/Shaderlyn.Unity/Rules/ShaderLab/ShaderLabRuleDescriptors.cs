@@ -114,8 +114,8 @@ internal static class ShaderLabRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor PropertyNamingConvention { get; } = new(
         id: "SL1030",
-        title: "プロパティ名がアンダースコアで始まっていません",
-        messageFormat: "プロパティ名 '{0}' はアンダースコアで始めてください。",
+        title: "プロパティ名がアンダースコア '_' で始まっていません",
+        messageFormat: "プロパティ名 '{0}' はアンダースコアで始めてください ('_{0}')。",
         category: NamingCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "Unity のシェーダープロパティはアンダースコア始まりにするのが慣習です。"
@@ -131,7 +131,7 @@ internal static class ShaderLabRuleDescriptors
     public static DiagnosticDescriptor InvalidAttributeArguments { get; } = new(
         id: "SL1031",
         title: "プロパティ属性の引数が不正です",
-        messageFormat: "属性 '{0}' の引数の個数が不正です ({1} 個)。{2}",
+        messageFormat: "属性 '{0}' は {2}。引数個数 {1} 個は不正です。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "既知のプロパティ属性に、必要な引数が渡されていないか、余分な引数が渡されています。"

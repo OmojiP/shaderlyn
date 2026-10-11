@@ -401,12 +401,8 @@ public sealed record PreprocessorOptions
     public string? DialectName { get; init; }
 
     /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。</summary>
-    /// <returns>名前。英数字で終わるなら、後ろに続く「では」との間に空白を入れる。</returns>
-    internal string DescribeDialect()
-    {
-        string name = DialectName ?? HlslLanguageFeatures.Describe(Dialects);
-        return name.Length > 0 && char.IsAsciiLetterOrDigit(name[^1]) ? name + " " : name;
-    }
+    /// <returns>名前。</returns>
+    internal string DescribeDialect() => DialectName ?? HlslLanguageFeatures.Describe(Dialects);
 
     /// <summary>
     /// 使えない指令として報告する名前。

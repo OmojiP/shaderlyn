@@ -75,7 +75,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
             PredefinedMacros = semantics.PredefinedMacros ?? UnityOptions.DefaultPredefinedMacros,
 
             // 使えない構文の報告 (HL0003) は、Unity のコンパイルでエラーになることを伝える。
-            DialectName = "Unity のシェーダー",
+            DialectName = "Unity",
             Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
     }

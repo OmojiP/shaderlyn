@@ -254,7 +254,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
         HlslEnvironment hlsl2018 = new(new HlslEnvironmentOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2018 });
 
         Diagnostic diagnostic = Assert.Single(Analyze(code, Unit(code, "ps_6_6"), environment: hlsl2018), d => d.Id == "HL0003");
-        Assert.Equal("template 宣言 は HLSL 2018 では使えません。", diagnostic.GetMessage());
+        Assert.Equal("template 宣言 は 環境：HLSL 2018 では使えません。", diagnostic.GetMessage());
 
         // HLSL 2021 (既定) では正しい構文なので報告しない。
         Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0003");
@@ -274,13 +274,13 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
         HlslEnvironment Dxc(Hlsl.Parsing.HlslLanguageVersion version) => new(new HlslEnvironmentOptions { LanguageVersion = version });
 
         Diagnostic diagnostic = Assert.Single(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2016)), d => d.Id == "HL0003");
-        Assert.Equal("enum 宣言 は HLSL 2016 では使えません。", diagnostic.GetMessage());
+        Assert.Equal("enum 宣言 は 環境：HLSL 2016 では使えません。", diagnostic.GetMessage());
         Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2017)), d => d.Id == "HL0003");
         Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6"), environment: Dxc(Hlsl.Parsing.HlslLanguageVersion.Hlsl2018)), d => d.Id == "HL0003");
 
         HlslEnvironment fxc = new(new HlslEnvironmentOptions { Compiler = Hlsl.Parsing.HlslCompiler.Fxc });
         Diagnostic fxcDiagnostic = Assert.Single(Analyze(code, Unit(code, "ps_5_0"), environment: fxc), d => d.Id == "HL0003");
-        Assert.Equal("enum 宣言 は FXC では使えません。", fxcDiagnostic.GetMessage());
+        Assert.Equal("enum 宣言 は 環境：FXC では使えません。", fxcDiagnostic.GetMessage());
     }
 
     /// <summary>

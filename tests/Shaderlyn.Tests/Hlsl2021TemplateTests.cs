@@ -205,7 +205,7 @@ public sealed class Hlsl2021TemplateTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
         Assert.Equal("HL0312", diagnostic.Id);
-        Assert.Contains("'q'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("成分 q ", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>

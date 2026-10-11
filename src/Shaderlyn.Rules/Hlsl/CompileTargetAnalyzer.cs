@@ -79,7 +79,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
             if (token.GetLocation() is { } location)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects) + " "));
+                    HlslDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects)));
             }
         }
     }

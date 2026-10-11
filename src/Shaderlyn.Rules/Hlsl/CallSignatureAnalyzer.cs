@@ -383,7 +383,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            $"組み込み関数が受け付けるのは {accepted}です",
+            $"必要な引数は {accepted}です",
             string.Empty));
     }
 
@@ -421,7 +421,6 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 name,
                 found.Index + 1,
                 found.ParameterType,
-                location.Source.ToString(location.Span),
                 DescribeCondition(call)));
 
             return;
@@ -611,7 +610,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            $"宣言が受け付けるのは {string.Join(" / ", accepted)}です",
+            $"必要な引数は {string.Join(" / ", accepted)}です",
             DescribeCondition(call)));
     }
 
@@ -631,7 +630,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="call">呼び出しの出現条件。</param>
     /// <returns>添える文字列。無条件なら空。</returns>
     private static string DescribeCondition(SymbolCondition call)
-        => call.IsAlways ? string.Empty : $" ({call} のとき)";
+        => call.IsAlways ? string.Empty : $" (構成：{call} のとき)";
 
     /// <summary>食い違いの種類。</summary>
     private enum MismatchKind
@@ -765,7 +764,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         if (argument is not IdentifierExpressionSyntax identifier)
         {
             return declaresArrays && binder.GetEvaluatorFor(argument).Evaluate(argument) is not null
-                ? "配列ではありません"
+                ? "配列ではない値を渡しています"
                 : null;
         }
 
@@ -786,12 +785,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (actualLength != expected)
         {
-            return $"渡しているのは要素 {actualLength} 個の配列です";
+            return $"{elementType}[{actualLength}] を渡しています";
         }
 
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
-            : $"渡しているのは {elementType}[{actualLength}] です";
+            : $"{elementType}[{actualLength}] を渡しています";
     }
 
     /// <summary>構造体のフィールドを配列の仮引数へ渡す実引数を検査する。</summary>
@@ -811,13 +810,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         {
             // 構造体のフィールドでなければ、成分の取り出し (v.xyz) などである。型が分かれば配列ではない。
             return declaresArrays && binder.GetEvaluatorFor(member).Evaluate(member) is not null
-                ? "配列ではありません"
+                ? "配列ではない値を渡しています"
                 : null;
         }
 
         if (!field.IsArray)
         {
-            return declaresArrays ? "配列ではありません" : null;
+            return declaresArrays ? "配列ではない値を渡しています" : null;
         }
 
         if (!field.TryGetArrayLength(out int actualLength) || !parameter.TryGetArrayLength(out int expected))
@@ -827,12 +826,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (actualLength != expected)
         {
-            return $"渡しているのは要素 {actualLength} 個の配列です";
+            return $"{elementType}[{actualLength}] を渡しています";
         }
 
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
-            : $"渡しているのは {elementType}[{actualLength}] です";
+            : $"{elementType}[{actualLength}] を渡しています";
     }
 
     /// <summary>配列の仮引数を表す文字列を返す。</summary>

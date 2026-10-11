@@ -428,7 +428,7 @@ internal static class ConfigurationLoader
             if (enabled && ReadOptionalScalar(hlsl, "compiler")?.Trim().ToLowerInvariant() == "fxc")
             {
                 problems.Add(new ConfigurationProblem(
-                    value.Line, "hlsl: の enable-16bit-types は DXC の設定です。compiler が fxc では使えません (FXC に 16 ビットの型はありません)。"));
+                    value.Line, "hlsl: の enable-16bit-types は DXC の設定です。compiler が fxc では使えません (FXC に 16 ビットの型は存在しません)。"));
             }
             else if (enabled && hlsl.TryGetScalar("version", out YamlScalar? version) && version.TryGetInt32(out int number) && number < 2018)
             {
@@ -1048,7 +1048,7 @@ internal static class ConfigurationLoader
                 {
                     problems.Add(new ConfigurationProblem(
                         mapping.Entries[key].Line,
-                        $"{context}に指定できないキー '{key}' があります。"
+                        $"{context}{(context.EndsWith(':') ? " " : string.Empty)}に指定できないキー '{key}' があります。"
                         + $"指定できるキー: {string.Join(", ", knownKeys)}"));
                 }
             }

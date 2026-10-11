@@ -140,7 +140,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             required,
-            $"渡しているのは {written} 個です"));
+            written));
     }
 
     /// <summary>

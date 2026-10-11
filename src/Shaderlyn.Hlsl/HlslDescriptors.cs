@@ -60,7 +60,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UnsupportedDeclaration { get; } = new(
         id: "HL0003",
         title: "この環境では使えない構文です",
-        messageFormat: "{0} は {1}では使えません。",
+        messageFormat: "{0} は 環境：{1} では使えません。",
         category: "Syntax",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "enum / template の宣言、operator による演算子の多重定義、構造体のビットフィールドは、"
@@ -89,7 +89,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor ExtraTokensAfterConditionName { get; } = new(
         id: "HL0004",
         title: "#ifdef / #ifndef の後ろの記述は無視されます",
-        messageFormat: "#{0} はシンボルを 1 つだけ解析します。後ろの '{1}' は無視されます。{2}",
+        messageFormat: "#{0} の後ろに指定できるシンボルは 1 つです。'{1}' は無視されます。{2}",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#ifdef / #ifndef は直後の名前 1 つだけを条件にし、その後ろの記述を無視します。"
@@ -119,7 +119,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UndeclaredSymbol { get; } = new(
         id: "HL0330",
         title: "未宣言のシンボルが使用されています",
-        messageFormat: "シンボル '{0}' はこのシェーダーで宣言されていません。この分岐は有効になりません。",
+        messageFormat: "シンボル '{0}' の宣言が存在しないため、この分岐は常に無効になります。",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#ifdef などで参照しているシンボルが、"
@@ -137,7 +137,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UnusedSymbol { get; } = new(
         id: "HL0331",
         title: "宣言したシンボルが未使用です",
-        messageFormat: "シンボル '{0}' は宣言されていますが、条件のどこにも現れません。",
+        messageFormat: "シンボル '{0}' はプリプロセッサ条件で使用されていません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#pragma shader_feature / multi_compile で宣言したシンボルが、"
@@ -161,7 +161,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor NeverTrueCondition { get; } = new(
         id: "HL0332",
         title: "どの構成でも成り立たない条件です",
-        messageFormat: "条件 '{0}' はどの構成でも成り立ちません。この分岐は有効になりません。",
+        messageFormat: "条件 '{0}' はどの構成でも成立しないため、この分岐は常に無効になります。",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#if / #elif の条件が、宣言されたシンボルをどう有効にしても成り立ちません。"

@@ -163,7 +163,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
     /// <param name="missing">定義が無い構成を表す条件。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string Describe(SymbolCondition missing)
-        => missing.IsAlways ? "どの構成でも" : $"{missing} のとき";
+        => missing.IsAlways ? "どの構成でも" : $" 構成：{missing} で";
 
     /// <summary>
     /// 宣言が見えている関数の名前を集める。

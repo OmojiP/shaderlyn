@@ -94,7 +94,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     HlslRuleDescriptors.UndeclaredIdentifier,
                     use.Location,
                     use.Name,
-                    missing.IsAlways ? "どこにも" : $" {missing} のとき"));
+                    missing.IsAlways ? "どこにも" : $" 構成：{missing} のとき"));
             }
         }
     }

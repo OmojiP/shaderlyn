@@ -268,7 +268,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="symbol">演算子の記号。</param>
     /// <returns>文。</returns>
     private static string IgnoredMessage(string type, string symbol)
-        => $"構造体 '{type}' の値への '{symbol}' は、FXC ではエラーにならずに何もしません。メンバーごとに増減してください。";
+        => $"構造体 '{type}' の値への '{symbol}' は、FXC ではエラーになりませんが無視されます。";
 
     /// <summary>構造体がその演算子を定義しているかを調べる。</summary>
     /// <param name="binder">式の型を引く仕組み。</param>
@@ -286,8 +286,8 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <returns>添える文。</returns>
     private static string HintFor(string structName, string symbol)
         => NotOverloadable.Contains(symbol)
-            ? $"'{symbol}' は多重定義できないので、メンバーごとに計算してください。"
-            : $"HLSL 2021 では、'{structName}' の中で operator{symbol} を定義すると使えます。";
+            ? $"'{symbol}' はオーバーロードできないので、メンバーごとに計算してください。"
+            : "HLSL 2021 以降なら演算子オーバーロードを行ってください。";
 
     /// <summary>報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

@@ -16,7 +16,7 @@ internal static class UnityRuleDescriptors
     /// <summary>プロパティに対応する uniform 宣言が無い。</summary>
     public static DiagnosticDescriptor MissingUniformDeclaration { get; } = new(
         id: "SL1001",
-        title: "プロパティに対応する HLSL の宣言がありません",
+        title: "プロパティに対応する HLSL の宣言が存在しません",
         messageFormat: "プロパティ '{0}' は HLSL コードで未使用です。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -35,7 +35,7 @@ internal static class UnityRuleDescriptors
     public static DiagnosticDescriptor UniformNotExposed { get; } = new(
         id: "SL1002",
         title: "定数バッファの uniform が Properties に公開されていません",
-        messageFormat: "'{1}' の '{0}' に対応するプロパティが Properties にありません。マテリアルからは値を設定できません。",
+        messageFormat: "'{1}' の '{0}' に対応するプロパティが Properties にありません。マテリアルから値を設定できません。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "マテリアルごとの値を収める定数バッファに、Properties へ公開されていない uniform があります。"
@@ -60,8 +60,8 @@ internal static class UnityRuleDescriptors
     /// <summary>宣言されているが一度も使われていないプロパティ。</summary>
     public static DiagnosticDescriptor UnusedProperty { get; } = new(
         id: "SL1004",
-        title: "プロパティが宣言されているだけで使われていません",
-        messageFormat: "プロパティ '{0}' は uniform として宣言されていますが、シェーダーのコードから一度も読まれていません。",
+        title: "プロパティはシェーダー側で宣言されていますが、使用されていません",
+        messageFormat: "プロパティ '{0}' は uniform として宣言されていますが、シェーダーコードで未使用です。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "uniform の宣言はあるものの、その値をどこからも読んでいません。"
@@ -74,7 +74,7 @@ internal static class UnityRuleDescriptors
     public static DiagnosticDescriptor MissingShaderStage { get; } = new(
         id: "HL0302",
         title: "シェーダーステージが指定されていません",
-        messageFormat: "このコードブロックに {0} がありません。",
+        messageFormat: "コードブロックに {0} が存在しません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使うかが指定されていません。"
@@ -87,7 +87,7 @@ internal static class UnityRuleDescriptors
     /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
     public static DiagnosticDescriptor CompilerPragmaMismatch { get; } = new(
         id: "SL1050",
-        title: "コンパイラの指定が API や Unity のバージョンと合いません",
+        title: "コンパイラの指定が API や Unity のバージョンと一致しません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,

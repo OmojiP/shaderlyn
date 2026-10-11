@@ -162,11 +162,11 @@ internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
     /// <summary>シンボル 1 つ分のメッセージの引数を作る。</summary>
     /// <param name="symbol">シンボル。</param>
     /// <returns>メッセージの引数。</returns>
-    private static string[] DescribeSymbol(string symbol) => [$"'{symbol}'", string.Empty, "このシンボル"];
+    private static string[] DescribeSymbol(string symbol) => [$"'{symbol}'", string.Empty];
 
     /// <summary>組 1 つ分のメッセージの引数を作る。</summary>
     /// <param name="combination">組。</param>
     /// <returns>メッセージの引数。</returns>
     private static string[] DescribeCombination(ImmutableArray<string> combination)
-        => [string.Join(" と ", combination.Select(s => $"'{s}'")), "同時に", "この組み合わせ"];
+        => [string.Join(" と ", combination.Select(s => $"'{s}'")), "同時に"];
 }

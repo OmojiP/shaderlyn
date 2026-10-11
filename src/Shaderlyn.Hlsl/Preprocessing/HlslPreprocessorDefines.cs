@@ -26,13 +26,14 @@ internal sealed partial class HlslPreprocessor
     /// 本体が <c>(x) x</c> になる。この区別を誤ると展開結果がまったく別のものになる。
     /// </para>
     /// </remarks>
-    private void ProcessDefine()
+    /// <param name="directiveToken">指令名のトークン。</param>
+    private void ProcessDefine(HlslSyntaxToken directiveToken)
     {
         ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
 
         if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line),
+            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#define にはマクロ名が必要です。");
             return;
         }
@@ -791,13 +792,14 @@ internal sealed partial class HlslPreprocessor
     }
 
     /// <summary><c>#undef</c> を処理する。</summary>
-    private void ProcessUndef()
+    /// <param name="directiveToken">指令名のトークン。</param>
+    private void ProcessUndef(HlslSyntaxToken directiveToken)
     {
         ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
 
         if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line),
+            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#undef にはマクロ名が必要です。");
             return;
         }

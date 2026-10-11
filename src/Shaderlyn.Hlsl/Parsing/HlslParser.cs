@@ -111,7 +111,7 @@ internal sealed class HlslParser
     /// <summary>
     /// 使えない構文の報告 (HL0003) に入れる、どこで使えないかを伝える語 (<see cref="Preprocessing.PreprocessorOptions.DescribeDialect"/>)。
     /// </summary>
-    public string DialectSubject { get; init; } = "FXC ";
+    public string DialectSubject { get; init; } = "FXC";
 
     /// <summary>
     /// 構文木にせずに読み飛ばした宣言に現れた識別子。<see cref="ParseCompilationUnit"/> のあとで揃う。
@@ -490,7 +490,7 @@ internal sealed class HlslParser
     {
         if (Current.Kind != HlslSyntaxKind.IdentifierToken)
         {
-            return RecoverDeclaration($"型名が必要ですが '{DescribeCurrent()}' がありました。");
+            return RecoverDeclaration(DescribeExpected("型名"));
         }
 
         HlslTypeSyntax type = ParseType();
@@ -505,7 +505,7 @@ internal sealed class HlslParser
 
         if (Current.Kind != HlslSyntaxKind.IdentifierToken)
         {
-            return RecoverDeclaration($"宣言する名前が必要ですが '{DescribeCurrent()}' がありました。");
+            return RecoverDeclaration(DescribeExpected("宣言する名前"));
         }
 
         HlslSyntaxToken name = Advance();
@@ -533,7 +533,7 @@ internal sealed class HlslParser
                 return ParseFunctionRest(attributes, modifiers, type, name, qualifiers.ToImmutable());
             }
 
-            return RecoverDeclaration($"'(' が必要ですが '{DescribeCurrent()}' がありました。");
+            return RecoverDeclaration(DescribeExpected("'('"));
         }
 
         // 明示的な特殊化の関数名に付く型引数 (template<> float Twice<float>(float x))。
@@ -654,7 +654,7 @@ internal sealed class HlslParser
 
         if (symbols.Count == 0 || Current.Kind != HlslSyntaxKind.OpenParenToken)
         {
-            return RecoverDeclaration($"演算子と '(' が必要ですが '{DescribeCurrent()}' がありました。");
+            return RecoverDeclaration(DescribeExpected("演算子と '('"));
         }
 
         return ParseFunctionRest(attributes, modifiers, returnType, keyword, operatorTokens: symbols.ToImmutable());
@@ -2214,7 +2214,7 @@ internal sealed class HlslParser
                 return ParseInitializerList();
 
             default:
-                ReportError($"式が必要ですが '{DescribeCurrent()}' がありました。");
+                ReportError(DescribeExpected("式"));
                 return new IncompleteExpressionSyntax([AdvanceIfPossible()]);
         }
     }
@@ -2382,7 +2382,7 @@ internal sealed class HlslParser
             return Advance();
         }
 
-        ReportError($"{expectation} が必要ですが '{DescribeCurrent()}' がありました。");
+        ReportError(DescribeExpected(expectation));
         return CreateMissingToken(kind);
     }
 
@@ -2390,6 +2390,22 @@ internal sealed class HlslParser
     /// <returns>エラーメッセージに埋め込む文字列。</returns>
     private string DescribeCurrent()
         => Current.Kind == HlslSyntaxKind.EndOfFileToken ? "ファイルの終わり" : Current.Text;
+
+    /// <summary>今の位置で何かが要ることを伝える文を作る。</summary>
+    /// <param name="expectation">要るもの (<c>';'</c> / <c>式</c> など)。</param>
+    /// <returns>文。ファイルの終わりなら「ファイルの末尾には … が必要です。」</returns>
+    private string DescribeExpected(string expectation)
+        => Current.Kind == HlslSyntaxKind.EndOfFileToken
+            ? $"ファイルの末尾には {expectation}{Space(expectation)}が必要です。"
+            : $"{expectation}{Space(expectation)}が必要ですが '{Current.Text}' がありました。";
+
+    /// <summary>
+    /// 要るものの名前と「が」の間の空白。記号や英字 ('}' / HLSLPROGRAM) なら空け、日本語 (式 / 型名) なら詰める。
+    /// </summary>
+    /// <param name="expectation">要るもの。</param>
+    /// <returns>空白か空。</returns>
+    private static string Space(string expectation)
+        => expectation.Length > 0 && char.IsAscii(expectation[^1]) ? " " : string.Empty;
 
     /// <summary>欠落トークンを合成する。</summary>
     /// <param name="kind">合成するトークンの種別。</param>

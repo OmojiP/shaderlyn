@@ -1194,7 +1194,7 @@ public sealed class HlslRuleTests
         // c.w は float4 なら読める。c.q はどの型でも読めないので、float4 として報告する。
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
         Assert.Contains("float4", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("'q'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("成分 q ", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1919,7 +1919,7 @@ public sealed class HlslRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
 
-        Assert.Contains("float3 に float2 は入りません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("float2 を float3 に変換できません", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -2198,7 +2198,7 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
 
         Assert.Contains("4 個書いていますが、8 個必要です", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("(構成：_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2881,7 +2881,7 @@ public sealed class HlslRuleTests
     // ------------------------------------------------------------------
 
     [Theory]
-    [InlineData("float wrong[2]; fill(wrong);", "要素 2 個")]
+    [InlineData("float wrong[2]; fill(wrong);", "float[2] を渡しています")]
     [InlineData("float2 wrong[4]; fill(wrong);", "float2[4]")]
     public void 形の合わない配列の引数を報告する(string body, string expected)
     {
@@ -2911,7 +2911,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { float arr[4]; fill(arr); return arr[0] + wrong(); }"));
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0344");
-        Assert.Contains("要素 2 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("float[2] を渡しています", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>

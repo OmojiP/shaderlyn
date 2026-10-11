@@ -787,8 +787,10 @@ internal sealed class ShaderLabParser
             return Advance();
         }
 
-        string found = Current.Kind == SyntaxKind.EndOfFileToken ? "ファイルの終わり" : $"'{Current.Text}'";
-        ReportError(Current.Span, $"{expectation} が必要ですが {found} がありました。");
+        string space = expectation.Length > 0 && char.IsAscii(expectation[^1]) ? " " : string.Empty;
+        ReportError(Current.Span, Current.Kind == SyntaxKind.EndOfFileToken
+            ? $"ファイルの末尾には {expectation}{space}が必要です。"
+            : $"{expectation}{space}が必要ですが '{Current.Text}' がありました。");
 
         return new SyntaxToken(kind, new TextSpan(Current.Span.Start, 0), string.Empty, isMissing: true);
     }

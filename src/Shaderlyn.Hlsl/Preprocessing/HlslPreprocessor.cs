@@ -551,11 +551,10 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary>指令の行から診断の位置を求める。</summary>
     /// <param name="line">指令の行のトークン。</param>
+    /// <param name="directiveToken">指令名のトークン。行が空 (<c>#define</c> だけ) なら、ここを指す。</param>
     /// <returns>診断の位置。</returns>
-    private Location GetDirectiveLocation(ImmutableArray<HlslSyntaxToken> line)
-        => line.IsEmpty
-            ? Location.Create(SourceText.From(string.Empty, "<不明>"), new TextSpan(0, 0))
-            : line[0].GetLocation();
+    private static Location GetDirectiveLocation(ImmutableArray<HlslSyntaxToken> line, HlslSyntaxToken directiveToken)
+        => line.IsEmpty ? directiveToken.GetLocation() : line[0].GetLocation();
 
     /// <summary>診断を記録する。</summary>
     /// <param name="descriptor">報告するルール。</param>

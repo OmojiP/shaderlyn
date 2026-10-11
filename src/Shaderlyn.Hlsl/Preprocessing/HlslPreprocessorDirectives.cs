@@ -93,11 +93,11 @@ internal sealed partial class HlslPreprocessor
         switch (directive)
         {
             case "define":
-                ProcessDefine();
+                ProcessDefine(directiveToken);
                 break;
 
             case "undef":
-                ProcessUndef();
+                ProcessUndef(directiveToken);
                 break;
 
             case "include":
@@ -1621,7 +1621,7 @@ internal sealed partial class HlslPreprocessor
         foreach (ConditionalState state in _conditionals)
         {
             Report(HlslDescriptors.PreprocessorError, state.Directive.GetLocation(),
-                "#if に対応する #endif がありません。");
+                "#if に対応する #endif が存在しません。");
         }
     }
 

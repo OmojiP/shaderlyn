@@ -95,7 +95,7 @@ internal static class ConditionalExpressionEvaluator
 
             if (CurrentKind != HlslSyntaxKind.ColonToken)
             {
-                Fail("三項演算子に ':' がありません。");
+                Fail("三項演算子に ':' が存在しません。");
                 return 0;
             }
 

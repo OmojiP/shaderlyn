@@ -59,7 +59,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor FunctionDefinitionNotFound { get; } = new(
         id: "HL0311",
         title: "関数の定義が見つかりません",
-        messageFormat: "関数 '{0}' の定義がありません ({1})。",
+        messageFormat: "関数 '{0}' の定義が{1}存在しません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "呼んでいる関数の定義が、その構成には存在しません。"
@@ -76,8 +76,8 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor VariableDeclarationNotPresent { get; } = new(
         id: "HL0315",
-        title: "変数の宣言がその構成にありません",
-        messageFormat: "変数 '{0}' の宣言がありません ({1})。",
+        title: "変数の宣言がその構成に存在しません",
+        messageFormat: "{1}変数 '{0}' の宣言が{2}存在しません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "使っている変数の宣言が、その構成には存在しません。"
@@ -114,7 +114,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor ArgumentNotConvertible { get; } = new(
         id: "HL0340",
         title: "実引数を仮引数の型へ変換できません",
-        messageFormat: "関数 '{0}' の第 {1} 引数に {2} は渡せません (仮引数は {3})。{4}",
+        messageFormat: "関数 '{0}' の第 {1} 引数に {2} を指定できません (仮引数は {3})。{4}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "渡している値の成分が、仮引数の型より少なくなっています。"
@@ -131,7 +131,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ArgumentCountMismatch { get; } = new(
         id: "HL0341",
-        title: "引数の個数が合いません",
+        title: "引数の個数が一致しません",
         messageFormat: "関数 '{0}' に引数を {1} 個渡していますが、{2}。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -149,7 +149,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor MemberNotFound { get; } = new(
         id: "HL0312",
         title: "存在しないメンバー",
-        messageFormat: "{0} に '{1}' はありません。{2}",
+        messageFormat: "{0} に{1}は存在しません。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "参照しているメンバーが存在しません。"
@@ -167,7 +167,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor ArgumentNotAssignable { get; } = new(
         id: "HL0342",
         title: "out の引数に書き戻せません",
-        messageFormat: "関数 '{0}' の第 {1} 引数は {2} です。'{3}' には書き戻せません。{4}",
+        messageFormat: "関数 '{0}' の第 {1} 引数は {2} です。{2} 引数には変数を指定してください。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "out / inout の仮引数は、呼び出し側の変数へ値を書き戻します。"
@@ -185,7 +185,7 @@ internal static class HlslRuleDescriptors
         title: "値を代入先の型へ変換できません",
 
         // {2} は「どの構成でそうなるか」の注記。構成によらず型が決まる場合は空になる。
-        messageFormat: "{0} に {1} は入りません。{2}",
+        messageFormat: "{1} を {0} に変換できません。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "代入や初期化において、右辺の成分数が左辺より不足しています"
@@ -197,7 +197,7 @@ internal static class HlslRuleDescriptors
     /// <summary><c>return</c> の値が関数の戻り値の型と合わない。</summary>
     public static DiagnosticDescriptor ReturnNotConvertible { get; } = new(
         id: "HL0351",
-        title: "return の値が戻り値の型と合いません",
+        title: "return の値が戻り値の型と一致しません",
 
         // {3} は「どの構成でそうなるか」の注記。構成によらず型が決まる場合は空になる。
         messageFormat: "関数 '{0}' の戻り値は {1} ですが、{2}。{3}",
@@ -230,7 +230,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ConditionalTruncation { get; } = new(
         id: "HL0353",
-        title: "構成によっては成分が切り捨てられます",
+        title: "一部構成で成分が切り捨てられます",
         messageFormat: "{0}、{1} は {2} です。{3} へ渡すと成分が切り捨てられます。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -250,7 +250,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor MissingReturn { get; } = new(
         id: "HL0360",
         title: "値を返さずに終わる経路があります",
-        messageFormat: "関数 '{0}' は {1} を返しますが、値を返さずに終わる経路があります。{2}",
+        messageFormat: "関数 '{0}' は {1} を返しますが、値を返さない経路が存在します。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "値を返す関数に、return を通らずに末尾へ到達する経路があります。",
@@ -259,7 +259,7 @@ internal static class HlslRuleDescriptors
     /// <summary>波括弧による初期化の要素の個数が合わない。</summary>
     public static DiagnosticDescriptor InitializerCountMismatch { get; } = new(
         id: "HL0352",
-        title: "初期化の要素の個数が合いません",
+        title: "初期化の要素の個数が一致しません",
         messageFormat: "{0} の初期化に要素を {1} 個書いていますが、{2} 個必要です。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -306,7 +306,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor Redeclaration { get; } = new(
         id: "HL0314",
         title: "シンボル宣言の重複",
-        messageFormat: "'{0}' は既に {1} 行目で宣言されています。",
+        messageFormat: "'{0}' は {1} 行目にも宣言されています。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "同じ範囲に同じ名前の宣言が 2 つあります (FXC の X3003)。"
@@ -322,8 +322,8 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ConstructorArgumentMismatch { get; } = new(
         id: "HL0343",
-        title: "コンストラクタの引数が合いません",
-        messageFormat: "{0} は成分が {1} 個ですが、{2}。",
+        title: "コンストラクタに渡す成分の数が一致しません",
+        messageFormat: "{0} のコンストラクタには成分を {1} 個渡してください (渡している成分は {2} 個です)。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "数値型のコンストラクタに渡した値の成分の数が、その型と合っていません。"
@@ -355,7 +355,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor ArrayIndexOutOfBounds { get; } = new(
         id: "HL0370",
         title: "配列の添字が範囲を超えています",
-        messageFormat: "'{0}' の長さは {1} ですが、{2} 番目を読もうとしています。",
+        messageFormat: "'{0}' の長さは {1} ですが、要素 {2} を指定しています。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "配列の長さを超えた添字を書いています。"
@@ -385,7 +385,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ArrayArgumentMismatch { get; } = new(
         id: "HL0344",
-        title: "配列の引数が合いません",
+        title: "関数の配列型の引数が一致しません",
         messageFormat: "関数 '{0}' の第 {1} 引数は {2} ですが、{3}。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -419,7 +419,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor StructOperatorNotAvailable { get; } = new(
         id: "HL0346",
-        title: "構造体に使えない演算子です",
+        title: "構造体に使用できない演算子です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -432,8 +432,8 @@ internal static class HlslRuleDescriptors
     /// <remarks>FXC と DXC 2021 より前は通るが、DXC 2021 はエラーにする。手元の FXC / DXC 1.8 で確かめた。</remarks>
     public static DiagnosticDescriptor LoopVariableOutsideLoop { get; } = new(
         id: "HL0354",
-        title: "for の変数をループの外で使っています",
-        messageFormat: "'{0}' は for 文の初期化で宣言した変数です。ループの外で使えるのは FXC と HLSL 2021 より前の DXC だけで、HLSL 2021 ではエラーになります。ループの前で宣言してください。",
+        title: "HLSL 2021 では for の変数をループの外で使用できません",
+        messageFormat: "'{0}' は for 文の初期化で宣言した変数です。HLSL 2021 ではエラーになります。",
         category: "Portability",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも見えますが、HLSL 2021 では C++ と同じくループの中だけで見えます。"
@@ -444,7 +444,7 @@ internal static class HlslRuleDescriptors
     /// <remarks>HLSL 2021 ではこれらが短絡評価になり、スカラーにしか使えない。DXC 1.8 で確かめた。</remarks>
     public static DiagnosticDescriptor VectorLogicalOperator { get; } = new(
         id: "HL0349",
-        title: "HLSL 2021 ではベクトルに && / || / ?: を使えません",
+        title: "ベクトルに使用できない演算子です (HLSL 2021)",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -459,7 +459,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor StructIncrementIgnored { get; } = new(
         id: "HL0348",
-        title: "構造体の増減は何もしません",
+        title: "構造体の ++ / -- は無視されます",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -474,7 +474,7 @@ internal static class HlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor EnumValueMismatch { get; } = new(
         id: "HL0347",
-        title: "enum の値の型が合いません",
+        title: "enum の値の型が一致しません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
