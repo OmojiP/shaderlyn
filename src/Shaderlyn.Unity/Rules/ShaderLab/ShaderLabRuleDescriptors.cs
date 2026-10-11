@@ -147,7 +147,7 @@ internal static class ShaderLabRuleDescriptors
     public static DiagnosticDescriptor UnanalyzedBlock { get; } = new(
         id: "SL0005",
         title: "解析の対象外のコードブロックです",
-        messageFormat: "{0} の中は現在解析の対象外です。",
+        messageFormat: "{0} の中は解析の対象外です。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "GLSLPROGRAM / GLSLINCLUDE の中のコードは解析しません。"

@@ -136,7 +136,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(
             WellKnownDescriptors.IncludesUnavailable,
             include.Location,
-            $"最初に引けなかったのは '{include.Path}'",
+            $"'{include.Path}'",
             compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeFix(include.Path)));
     }
 
@@ -169,30 +169,23 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
                 + "プロジェクト・プラグインのフォルダー (project / virtual-paths) を書いてください。";
         }
 
-        if (normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
         {
-            return "Unity のパッケージを参照しています。Unity プロジェクトのルートを指定してください"
-                + " (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。"
-                + "CI では Library/PackageCache がキャッシュされているかを確かめてください。";
+            // CLI は、--unity-project を付けていないなら見つけたプロジェクトを添えた文を作る (DescribeUnresolvedInclude)。
+            // ここに来るのは、付けているのにパッケージを引けない場合か、言語サーバーの場合である。
+            return "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください"
+                + " (指定済みなら、Unity でプロジェクトを 1 度開いて Library/PackageCache を作ってください)。";
         }
 
-        if (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+        // Unity 同梱のヘッダ (UnityCG.cginc / Lighting.cginc など) は、フォルダーを付けずに .cginc で書く。
+        if (!normalized.Contains('/', StringComparison.Ordinal)
+            && normalized.EndsWith(".cginc", StringComparison.OrdinalIgnoreCase))
         {
-            return "Unity プロジェクトの中のファイルを参照しています。Unity プロジェクトのルートを指定してください"
-                + " (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。";
+            return $"{path} は Unity Editor 同梱のヘッダです。Unity Editor が見つかりません。--unity-editor で場所を指定してください。";
         }
 
-        if (!normalized.Contains('/', StringComparison.Ordinal))
-        {
-            return "Unity 同梱のヘッダ (UnityCG.cginc など) なら、Unity Editor が見つかる必要があります"
-                + " (CLI は --unity-editor で場所を指定できます)。"
-                + "自前のヘッダなら、パスの書き方と置き場所を確かめ、探索パスに加えてください"
-                + " (CLI は --include-path、設定ファイルは include-paths)。";
-        }
-
-        return "パスの書き方と、取り込み元のファイルからの相対位置を確かめてください。"
-            + "別の場所に置いたヘッダなら探索パスに加えてください"
-            + " (CLI は --include-path、設定ファイルは include-paths)。";
+        return "ヘッダの場所を --include-path (設定ファイルは include-paths) に加えてください。";
     }
 
     /// <summary>

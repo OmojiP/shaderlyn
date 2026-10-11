@@ -319,7 +319,8 @@ internal sealed class TagAnalyzer : DiagnosticAnalyzer
         if (!ShaderLabKnownValues.RenderQueues.Contains(baseName))
         {
             Report(context, tag,
-                $"指定できる値: {string.Join(", ", ShaderLabKnownValues.RenderQueues.Order(StringComparer.Ordinal))} (数値のオフセットを付けられます)");
+                $"指定できる queue name: {string.Join(", ", ShaderLabKnownValues.RenderQueues.Order(StringComparer.Ordinal))} "
+                + "(微調整する場合は 'Geometry+1' のようにオフセットを指定 [queue name] [offset] )");
             return;
         }
 

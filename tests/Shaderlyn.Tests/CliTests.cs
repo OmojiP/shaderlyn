@@ -281,7 +281,7 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Equal(ExitCode.Success, code);
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
-        Assert.Contains("現在解析の対象外のファイルがあります", error, StringComparison.Ordinal);
+        Assert.Contains("解析の対象外のファイルがあります", error, StringComparison.Ordinal);
         Assert.Contains(".shadergraph 1 件", error, StringComparison.Ordinal);
         Assert.Contains(".raytrace 1 件", error, StringComparison.Ordinal);
     }
@@ -295,7 +295,7 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Equal(ExitCode.Success, code);
         Assert.Contains("0 ファイルを解析", output, StringComparison.Ordinal);
-        Assert.Contains("現在解析の対象外です", error, StringComparison.Ordinal);
+        Assert.Contains("解析の対象外です", error, StringComparison.Ordinal);
     }
 
     [Fact]

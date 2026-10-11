@@ -370,7 +370,7 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor LiteralTruncated { get; } = new(
         id: "HL0371",
         title: "整数のリテラルが 32 ビットに収まりません",
-        messageFormat: "'{0}' は 32 ビットに収まらないため、切り詰められます。",
+        messageFormat: "'{0}' は 32 bit に収まりません。下位 32 bit が使用されます。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "整数のリテラルが 32 ビットで表せる範囲を超えています。"

@@ -47,7 +47,11 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="Label">受け取る側を表す言葉 (<c>変数 'm'</c> など)。</param>
     /// <param name="FunctionName">関数の名前 (実引数と return のとき)。</param>
     /// <param name="Index">実引数の位置 (1 から)。</param>
-    private readonly record struct Receiver(ReceiverKind Kind, string TypeName, string Label, string? FunctionName = null, int Index = 0);
+    private readonly record struct Receiver(ReceiverKind Kind, string TypeName, string Label, string? FunctionName = null, int Index = 0)
+    {
+        /// <summary>初期化する変数の名前。初期化でなければ <see langword="null"/>。</summary>
+        public string? VariableName { get; init; }
+    }
 
     /// <summary>値の受け取り方。</summary>
     private enum ReceiverKind
@@ -87,7 +91,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     {
                         if (!variable.IsArray && variable.Initializer is { } initializer and not InitializerListExpressionSyntax)
                         {
-                            Receiver receiver = new(ReceiverKind.Initializer, declaration.Type.Name, $"{declaration.Type.Name} の '{variable.Name}'");
+                            Receiver receiver = new(ReceiverKind.Initializer, declaration.Type.Name, $"{declaration.Type.Name} の '{variable.Name}'") { VariableName = variable.Name };
                             CheckConversion(context, binder, receiver, initializer, reported);
                         }
                     }
@@ -160,7 +164,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         {
             if (valueIsNumeric || valueIsEnum)
             {
-                ReportEnum(context, value, $"{receiver.Label} は {DescribeEnum(targetEnum)} ですが、{valueType} の値は入れられません。型変換 (({target}) x) を書いてください。", reported);
+                ReportEnum(context, value, $"{DescribeReceiver(receiver, DescribeEnum(targetEnum))} に {valueType} は{DescribeVerb(receiver)}。型変換 (({target}) x) を書いてください。", reported);
             }
 
             return;
@@ -169,7 +173,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         // enum class の値は、数へ暗黙に変換されない。
         if (valueEnum is { IsScoped: true } && targetIsNumeric)
         {
-            ReportEnum(context, value, $"{receiver.Label} は {target} ですが、{DescribeEnum(valueEnum)} の値は数へ暗黙に変換されません。型変換 (({target}) x) を書いてください。", reported);
+            ReportEnum(context, value, $"{DescribeReceiver(receiver, target)} に {DescribeEnum(valueEnum)} の値は{DescribeVerb(receiver)}。enum class の値は数へ暗黙に変換されません。型変換 (({target}) x) を書いてください。", reported);
             return;
         }
 
@@ -331,6 +335,27 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeEnum(EnumInfo enumeration)
         => enumeration.IsScoped ? $"enum class '{enumeration.Name}'" : $"enum '{enumeration.Name}'";
+
+    /// <summary>受け取る側を、型を添えて言う (<c>enum class 'Mode' の 'm'</c> / <c>関数 'f' の第 1 引数 (int)</c>)。</summary>
+    /// <param name="receiver">受け取る側。</param>
+    /// <param name="type">受け取る側の型の言い方。</param>
+    /// <returns>文に入れる言葉。</returns>
+    private static string DescribeReceiver(Receiver receiver, string type) => receiver.Kind switch
+    {
+        ReceiverKind.Initializer when receiver.VariableName is { } name => $"{type} の '{name}'",
+        ReceiverKind.Argument or ReceiverKind.Return => $"{receiver.Label} ({type})",
+        _ => type,
+    };
+
+    /// <summary>受け取り方に合う「できない」の言い方。</summary>
+    /// <param name="receiver">受け取る側。</param>
+    /// <returns>文に入れる言葉。</returns>
+    private static string DescribeVerb(Receiver receiver) => receiver.Kind switch
+    {
+        ReceiverKind.Argument => "指定できません",
+        ReceiverKind.Return => "返せません",
+        _ => "代入できません",
+    };
 
     /// <summary>enum の食い違いを報告する (HL0347)。</summary>
     /// <param name="context">解析コンテキスト。</param>

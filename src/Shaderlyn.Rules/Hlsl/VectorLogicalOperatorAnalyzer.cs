@@ -41,12 +41,12 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
                 BinaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.AmpersandAmpersandToken or HlslSyntaxKind.BarBarToken } binary
                     when IsNonScalar(compilation, program, binary, binary.Left) || IsNonScalar(compilation, program, binary, binary.Right)
                     => (binary.OperatorToken,
-                        $"HLSL 2021 では '{binary.OperatorToken.Text}' はスカラーにしか使えません。成分ごとに計算するなら "
+                        $"HLSL 2021 では '{binary.OperatorToken.Text}' はベクトルには使用できません。成分ごとに計算するなら "
                         + $"{(binary.OperatorToken.Kind == HlslSyntaxKind.AmpersandAmpersandToken ? "and" : "or")}() を使ってください。"),
                 ConditionalExpressionSyntax conditional
                     when IsNonScalar(compilation, program, conditional, conditional.Condition)
                     => (conditional.QuestionToken,
-                        "HLSL 2021 では条件演算子 (?:) の条件はスカラーでなければなりません。成分ごとに選ぶなら select() を使ってください。"),
+                        "HLSL 2021 では条件演算子 (?:) の条件はベクトルには使用できません。成分ごとに選ぶなら select() を使ってください。"),
                 _ => null,
             };
 

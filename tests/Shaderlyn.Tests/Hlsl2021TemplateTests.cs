@@ -351,7 +351,9 @@ public sealed class Hlsl2021TemplateTests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0345");
-        Assert.Contains("第 1 引数の float4 から、仮引数 vector<T, 3> の型引数を決められません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(
+            "template の関数 'Sum3' の型引数を推論できません。第 1 引数 (float4) は仮引数 vector<T, 3> の形と一致しません。仮引数の形に合う値を渡してください。",
+            diagnostic.GetMessage());
     }
 
     [Fact]
@@ -366,9 +368,14 @@ public sealed class Hlsl2021TemplateTests
         string[] messages = [.. diagnostics.Where(d => d.Id == "HL0345").Select(d => d.GetMessage())];
 
         Assert.Equal(2, messages.Length);
-        Assert.Contains("型引数 T を決められません。第 1 引数からは float、第 2 引数からは half になります。", messages[0], StringComparison.Ordinal);
-        Assert.Contains("第 1 引数からは 接尾辞の無い数 1.0 の型、第 2 引数からは float", messages[1], StringComparison.Ordinal);
-        Assert.Contains("1.0f", messages[1], StringComparison.Ordinal);
+        Assert.Equal(
+            "template の関数 'MaxOf' の型引数 T を推論できません。第 1 引数 (float) と第 2 引数 (half) で T の型が一致しません。"
+            + "実引数の型を揃えるか、MaxOf<float>(...) のように型引数を書いてください。",
+            messages[0]);
+        Assert.Equal(
+            "template の関数 'MaxOf' の型引数 T を推論できません。第 1 引数 (1.0) と第 2 引数 (float) で T の型が一致しません。"
+            + "1.0 のように f の付かない小数は、float とは別の型として推論されます。1.0f と書くか、MaxOf<float>(...) のように型引数を書いてください。",
+            messages[1]);
     }
 
     [Fact]

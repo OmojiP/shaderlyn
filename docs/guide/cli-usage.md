@@ -310,10 +310,8 @@ shaderlyn Assets --unity-project .
 見つからない場合、次のエラーが発生します。
 
 ```
-Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つも解決できません
-    (最初に引けなかったのは 'Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl')。
-    --unity-project にプロジェクトのルートを渡してください。
-    CI では Library/PackageCache がキャッシュされているかを確かめてください。
+Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つも解決できません ('Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl')。
+    Unity プロジェクトとして解析する場合は --unity-project "C:\Work\MyGame" を指定してください。
 ```
 
 ### Unity Editor の場所

@@ -507,20 +507,36 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (deduced.Mismatch is { } mismatch)
         {
-            message = $"template の関数 '{name}' の第 {mismatch.ArgumentIndex + 1} 引数の {mismatch.ArgumentType} から、"
-                      + $"仮引数 {mismatch.ParameterType} の型引数を決められません。仮引数の形に合う値を渡してください。";
+            message = $"template の関数 '{name}' の型引数を推論できません。"
+                      + $"第 {mismatch.ArgumentIndex + 1} 引数 ({mismatch.ArgumentType}) は仮引数 {mismatch.ParameterType} の形と一致しません。"
+                      + "仮引数の形に合う値を渡してください。";
         }
         else
         {
             TemplateDeductionConflict conflict = deduced.Conflict!.Value;
-            bool literal = TemplateDeduction.IsLiteral(conflict.FirstType) || TemplateDeduction.IsLiteral(conflict.SecondType);
-            string hint = literal
-                ? $"接尾辞の無い数は float / int とは別の型として推論されます。1.0f のように接尾辞を付けるか、型引数を書いてください ({name}<float>(...))。"
-                : $"実引数の型を揃えるか、型引数を書いてください ({name}<{conflict.FirstType}>(...))。";
+            string? literalText = TemplateDeduction.IsLiteral(conflict.FirstType)
+                ? TemplateDeduction.AsLiteral(arguments[conflict.FirstIndex])?.Text
+                : TemplateDeduction.IsLiteral(conflict.SecondType)
+                    ? TemplateDeduction.AsLiteral(arguments[conflict.SecondIndex])?.Text
+                    : null;
+            string? otherType = TemplateDeduction.IsLiteral(conflict.FirstType)
+                ? (TemplateDeduction.IsLiteral(conflict.SecondType) ? null : conflict.SecondType)
+                : conflict.FirstType;
+            string typeArgument = otherType ?? "float";
 
-            message = $"template の関数 '{name}' の型引数 {conflict.TypeParameter} を決められません。"
-                      + $"第 {conflict.FirstIndex + 1} 引数からは {DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex])}、"
-                      + $"第 {conflict.SecondIndex + 1} 引数からは {DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex])} になります。{hint}";
+            // 何ができないか、なぜか、どう直すかを分けて書く。
+            string reason = $"第 {conflict.FirstIndex + 1} 引数 ({DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex])}) と"
+                            + $"第 {conflict.SecondIndex + 1} 引数 ({DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex])}) で"
+                            + $" {conflict.TypeParameter} の型が一致しません。";
+            string fix = literalText is null
+                ? $"実引数の型を揃えるか、{name}<{typeArgument}>(...) のように型引数を書いてください。"
+                : literalText.Contains('.', StringComparison.Ordinal)
+                    ? $"{literalText} のように f の付かない小数は、float とは別の型として推論されます。"
+                      + $"{literalText}f と書くか、{name}<{typeArgument}>(...) のように型引数を書いてください。"
+                    : $"{literalText} のように接尾辞の付かない整数は、int とは別の型として推論されます。"
+                      + $"{name}<{typeArgument}>(...) のように型引数を書いてください。";
+
+            message = $"template の関数 '{name}' の型引数 {conflict.TypeParameter} を推論できません。{reason}{fix}";
         }
 
         context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.TemplateArgumentConflict, location, message));
@@ -573,7 +589,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeDeduced(string type, HlslExpressionSyntax argument)
         => TemplateDeduction.IsLiteral(type)
-            ? $"接尾辞の無い数 {TemplateDeduction.AsLiteral(argument)?.Text} の型"
+            ? TemplateDeduction.AsLiteral(argument)?.Text ?? type
             : type;
 
     /// <summary>引数の個数が合わないことを報告する。</summary>

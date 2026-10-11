@@ -95,8 +95,8 @@ internal static class SemanticRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor UnresolvedCondition { get; } = new(
         id: "SL0004",
-        title: "条件を追えなかった箇所があります",
-        messageFormat: "この箇所の #ifdef の条件を追えなかったため、構成をまたいだ検査を行っていません。",
+        title: "構成によって文の形が変わる箇所があります",
+        messageFormat: "この箇所は構成によって別の種類の文になるため、構成をまたいだ検査をしていません。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#if が構文の単位をまたいでいるため、"

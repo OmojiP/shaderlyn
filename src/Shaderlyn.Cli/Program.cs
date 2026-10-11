@@ -522,7 +522,7 @@ public static class Program
 
         foreach (string file in unsupported.Where(direct.Contains))
         {
-            await errorOutput.WriteLineAsync($"現在解析の対象外です: {file}").ConfigureAwait(false);
+            await errorOutput.WriteLineAsync($"解析の対象外です: {file}").ConfigureAwait(false);
         }
 
         string[] counts =
@@ -536,7 +536,7 @@ public static class Program
 
         if (counts.Length > 0)
         {
-            await errorOutput.WriteLineAsync($"現在解析の対象外のファイルがあります: {string.Join(", ", counts)}")
+            await errorOutput.WriteLineAsync($"解析の対象外のファイルがあります: {string.Join(", ", counts)}")
                 .ConfigureAwait(false);
         }
     }
