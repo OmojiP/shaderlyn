@@ -352,8 +352,8 @@ internal static class SemanticsSetup
         bool isUnity = settings.Environment == UnityAnalysisEnvironment.EnvironmentName;
         string? candidate = isUnity && options.UnityProjectPath is null ? UnityInstallation.FindProjectAbove(options.InputPaths) : null;
         string projectHint = candidate is null
-            ? "Unity プロジェクトのルートを指定してください (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。"
-            : $"--unity-project \"{candidate}\" を指定してください (解析対象はこの Unity プロジェクトの中にあります)。";
+            ? "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください。"
+            : $"Unity プロジェクトとして解析する場合は --unity-project \"{candidate}\" を指定してください。";
 
         return include =>
         {
@@ -364,10 +364,7 @@ internal static class SemanticsSetup
                 bool inCandidate = candidate is not null
                     && Path.GetFullPath(outside).StartsWith(Path.GetFullPath(candidate) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-                return $"'{outside}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません。"
-                    + (inCandidate
-                        ? projectHint
-                        : "意図した取り込みなら、探索パス (CLI は --include-path、設定ファイルは include-paths) に加えてください。");
+                return inCandidate ? projectHint : "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。";
             }
 
             if (isUnity
@@ -375,7 +372,7 @@ internal static class SemanticsSetup
                 && (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
                     || normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)))
             {
-                return $"Unity プロジェクトからのパスですが、Unity プロジェクトを指定していません。{projectHint}";
+                return projectHint;
             }
 
             return null;

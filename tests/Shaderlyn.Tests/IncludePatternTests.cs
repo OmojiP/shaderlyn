@@ -138,16 +138,13 @@ public sealed class IncludePatternTests : IDisposable
     public async Task プロジェクトを付けなければ推定せずに理由を添える()
     {
         string project = Path.Combine(_root, "project");
-        string output = await RunAsync(Path.Combine(project, "Assets", "Shaders", "Main.shader"), "--no-config");
+        string output = await RunAsync(Path.Combine(project, "Assets", "Shaders", "Main.shader"), "--no-config", "--format", "json");
 
-        // Assets/... と Packages/... は、プロジェクトを指定していないことを伝える。
-        Assert.Contains("include 'Assets/Lib/Lib.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
-        Assert.Contains("Unity プロジェクトからのパスですが、Unity プロジェクトを指定していません。", output, StringComparison.Ordinal);
-        Assert.Contains($"--unity-project \"{project}\" を指定してください", output, StringComparison.Ordinal);
-
-        // 解析対象のフォルダーより上は、範囲の外であることを伝える。
-        Assert.Contains("include '../Lib/Lib.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
-        Assert.Contains("の外なので読みません", output, StringComparison.Ordinal);
+        // Assets/... と、プロジェクトの中で解析対象のフォルダーより上を指す ../... は、プロジェクトを指定すれば引けると伝える。
+        string hint = $"Unity プロジェクトとして解析する場合は --unity-project \"{project}\" を指定してください。";
+        string[] messages = Messages(output);
+        Assert.Contains("include 'Assets/Lib/Lib.hlsl' を解決できませんでした。" + hint, messages);
+        Assert.Contains("include '../Lib/Lib.hlsl' を解決できませんでした。" + hint, messages);
 
         // 同じフォルダーと、その下は引ける。
         Assert.DoesNotContain("include './Common.hlsl'", output, StringComparison.Ordinal);
@@ -186,12 +183,13 @@ public sealed class IncludePatternTests : IDisposable
     [Fact]
     public async Task 範囲の外は読まずに理由を添える()
     {
-        string output = await RunAsync(Path.Combine(_root, "plain", "shaders", "fx", "A.shader"), "--no-config");
+        string output = await RunAsync(Path.Combine(_root, "plain", "shaders", "fx", "A.shader"), "--no-config", "--format", "json");
+        string[] messages = Messages(output);
 
-        Assert.Contains("include '../../../secret/s.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
-        Assert.Contains("読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません", output, StringComparison.Ordinal);
-        Assert.Contains("--include-path", output, StringComparison.Ordinal);
-        Assert.Contains("include 'Missing.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
+        Assert.Contains(
+            "include '../../../secret/s.hlsl' を解決できませんでした。読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。",
+            messages);
+        Assert.Contains("include 'Missing.hlsl' を解決できませんでした。", messages);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
     }
 
@@ -227,6 +225,13 @@ public sealed class IncludePatternTests : IDisposable
         Assert.Equal(Path.Combine(_root, "secret", "s.hlsl"), resolver.FindOutsideBoundary("../../../secret/s.hlsl", including));
         Assert.Null(resolver.FindOutsideBoundary("Missing.hlsl", including));
         Assert.Null(new FileSystemIncludeResolver([assets]).FindOutsideBoundary("../../../secret/s.hlsl", including));
+    }
+
+    /// <summary>JSON の出力から、指摘の文を取り出す。</summary>
+    private static string[] Messages(string json)
+    {
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(json);
+        return [.. document.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("message").GetString() ?? string.Empty)];
     }
 
     private void Write(string relative, string content)

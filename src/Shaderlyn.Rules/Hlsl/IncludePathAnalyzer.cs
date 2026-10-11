@@ -85,8 +85,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeOutsideBoundary(IncludeReference include)
         => include.OutsideBoundaryPath is { } path
-            ? $"'{path}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません。"
-              + "意図した取り込みなら、探索パス (CLI は --include-path、設定ファイルは include-paths) に加えてください。"
+            ? "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。"
             : string.Empty;
 
     /// <summary>

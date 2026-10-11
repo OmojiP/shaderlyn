@@ -351,7 +351,7 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 - `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス
 
-範囲の外を指した場合、そのファイルは読まず、[HL0321](../rules/HL0321.md) の文に「範囲の外なので読みません」と添えます。
+範囲の外を指した場合、そのファイルは読まず、[HL0321](../rules/HL0321.md) の文に「読んでよい範囲の外にあるため読みません」と添えます。
 意図した取り込みであれば `--include-path` を追加してください。
 
 ### レンダーパイプライン
