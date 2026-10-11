@@ -106,4 +106,21 @@ internal static class UnityRuleDescriptors
         description: "Unity 6.6 で非推奨になった use_dxc d3d11、Unity 2023.2〜6.3 でコンパイルされない require inlineraytracing など、"
             + "エラーにはならないが意図と違う結果になりうる指定を伝えます。",
         helpLinkUri: DocumentationLinks.For("SL1051"));
+
+    /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
+    /// <remarks>
+    /// <c>-enable-16bit-types</c> では <c>half</c> が <c>float16_t</c> になり、定数バッファの中で 2 バイトに詰められる。
+    /// Unity は値を 32 ビットの float で書き込むので、シェーダーは別の値を読む
+    /// (白 (1, 1, 1, 1) が DX12 で (0, 1.875, 0, 1.875)、Vulkan で 0)。Unity 2022.3〜6.6 で確かめた。
+    /// </remarks>
+    public static DiagnosticDescriptor HalfInNative16BitConstantBuffer { get; } = new(
+        id: "SL1052",
+        title: "16 ビットの型を有効にしたパスの定数バッファに half があります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "#pragma require native16bit や UNITY_DEVICE_SUPPORTS_NATIVE_16BIT の構成では、DXC が 16 ビットの型を有効にしてコンパイルし、"
+            + "half / min16float は 2 バイトの float16_t になります。定数バッファの配置が変わり、Unity が 32 ビットで書き込んだ値を正しく読めません。"
+            + "定数バッファのメンバーは float で宣言し、使うところで half に変換してください。",
+        helpLinkUri: DocumentationLinks.For("SL1052"));
 }

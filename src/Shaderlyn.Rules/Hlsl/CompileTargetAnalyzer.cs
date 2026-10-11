@@ -35,25 +35,28 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        // 型 (int64_t など) はパーサーが見ないので、方言が 1 つだけでも見る。コンパイル先が分からなければ見ない。
-        if (compilation.Programs.All(p => p.Tree.CompileTargets.IsDefaultOrEmpty))
-        {
-            return;
-        }
-
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
         Dictionary<int, (HlslSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (Describe(node) is not { } construct || !compilation.IsReportable(node))
+            if (Describe(node, program) is not { } construct || !compilation.IsReportable(node))
             {
                 continue;
             }
 
-            foreach (HlslCompileTarget target in CompileTargets.Reaching(compilation, node, program))
+            // 型 (int64_t など) はパーサーが見ないので、方言が 1 つだけでも見る。
+            // コンパイル先が分からなければ (汎用の HLSL)、方言を 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
+            // (型は、コンパイルの設定 (-enable-16bit-types など) が分からないと決められない)。
+            IEnumerable<HlslCompileTarget> targets = !program.Tree.CompileTargets.IsDefaultOrEmpty
+                ? CompileTargets.Reaching(compilation, node, program)
+                : construct.CheckWithoutTargets
+                    ? program.Tree.Dialects.Select(d => new HlslCompileTarget(string.Empty, d))
+                    : [];
+
+            foreach (HlslCompileTarget target in targets)
             {
-                if (construct.IsAvailable(target.Dialect.Features))
+                if (construct.IsAvailable(target.Dialect))
                 {
                     continue;
                 }
@@ -82,13 +85,92 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>方言で使えるかが変わる構文と型を見分ける。</summary>
     /// <param name="node">ノード。</param>
+    /// <param name="program">ノードが属する木。</param>
     /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
-    private static Construct? Describe(HlslSyntaxNode node) => node switch
+    private static Construct? Describe(HlslSyntaxNode node, AnalyzedProgram program) => node switch
     {
-        EnumDeclarationSyntax enumeration => new Construct(enumeration.NameToken ?? enumeration.Keyword, "enum", static f => f.Enums),
+        EnumDeclarationSyntax enumeration => new Construct(enumeration.NameToken ?? enumeration.Keyword, "enum", static d => d.Features.Enums),
         HlslTypeSyntax type => DescribeType(type),
+        VariableDeclarationSyntax variable => DescribeInterfaceVariable(variable, program),
         _ => null,
     };
+
+    /// <summary>
+    /// グローバルな interface 型の変数を見分ける。
+    /// </summary>
+    /// <param name="variable">変数の宣言。</param>
+    /// <param name="program">宣言が属する木。</param>
+    /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// interface の変数は、FXC のシェーダーモデル 5 の動的リンクのためのもので、実体はコンパイルの外から結び付ける。
+    /// DXC はどの版でも拒み (<c>variable type 'ILight' is an abstract class</c>)、
+    /// FXC もシェーダーモデル 5.0 より前では拒む (<c>abstract interfaces not supported on ps_4_0</c>)。手元の FXC / DXC 1.8 と Unity で確かめた。
+    /// </para>
+    /// <para>
+    /// シェーダーモデルは <c>#pragma target</c> から読む (Unity。無ければ Unity の既定の 3.5)。
+    /// 単位にターゲットがあれば (<c>units:</c> の <c>target</c>) それを使う。どちらも無ければ FXC では報告しない。
+    /// </para>
+    /// </remarks>
+    private static Construct? DescribeInterfaceVariable(VariableDeclarationSyntax variable, AnalyzedProgram program)
+    {
+        if (variable.Parent is not (HlslCompilationUnitSyntax or NamespaceDeclarationSyntax or ConstantBufferDeclarationSyntax)
+            || variable.HasModifier("static")
+            || !InterfaceNames(program).Contains(variable.Type.NameToken.Text))
+        {
+            return null;
+        }
+
+        int? shaderModel = program.Unit.Target is { } target
+            ? (target.Major * 10) + target.Minor
+            : !program.Tree.CompileTargets.IsDefaultOrEmpty
+                ? ReadPragmaTarget(program) ?? 35
+                : null;
+
+        return new Construct(
+            variable.Type.NameToken,
+            $"interface 型 {variable.Type.NameToken.Text} のグローバル変数",
+            d => d.Compiler == HlslCompiler.Fxc && (shaderModel is null || shaderModel >= 50))
+        {
+            CheckWithoutTargets = true,
+        };
+    }
+
+    /// <summary>木の中で宣言された interface の名前。</summary>
+    /// <param name="program">木。</param>
+    /// <returns>名前。</returns>
+    private static HashSet<string> InterfaceNames(AnalyzedProgram program)
+        => InterfaceCache.GetValue(program.Tree, static tree => [
+            .. tree.Root.DescendantNodesAndSelf()
+                .OfType<StructDeclarationSyntax>()
+                .Where(s => s.Keyword.Text == "interface" && s.Name.Length > 0)
+                .Select(s => s.Name),
+        ]);
+
+    /// <summary>木ごとの interface の名前。</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HlslSyntaxTree, HashSet<string>> InterfaceCache = [];
+
+    /// <summary><c>#pragma target</c> のシェーダーモデルを読む (<c>4.5</c> → 45)。複数あれば最も高いもの。</summary>
+    /// <param name="program">木。</param>
+    /// <returns>シェーダーモデル。無ければ <see langword="null"/>。</returns>
+    private static int? ReadPragmaTarget(AnalyzedProgram program)
+    {
+        int? best = null;
+
+        foreach (Hlsl.Preprocessing.PragmaDirective pragma in program.Tree.Pragmas)
+        {
+            if (pragma.Name == "target"
+                && pragma.Arguments.FirstOrDefault()?.Text is { } text
+                && text.Split('.') is [var major, var minor, ..]
+                && int.TryParse(major, out int a)
+                && int.TryParse(minor.AsSpan(0, Math.Min(1, minor.Length)), out int b))
+            {
+                best = Math.Max(best ?? 0, (a * 10) + b);
+            }
+        }
+
+        return best;
+    }
 
     /// <summary>型名を見分ける (<c>int64_t</c>、<c>float32_t</c>、<c>float16_t3</c> など)。</summary>
     /// <param name="type">型。</param>
@@ -104,9 +186,9 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 
         return scalar switch
         {
-            "int64_t" or "uint64_t" => new Construct(token, $"型 {written}", static f => f.Int64Types),
-            "float64_t" or "float32_t" or "int32_t" or "uint32_t" => new Construct(token, $"型 {written}", static f => f.ExplicitWidthTypes),
-            "float16_t" or "int16_t" or "uint16_t" => new Construct(token, $"型 {written}", static f => f.SixteenBitTypes),
+            "int64_t" or "uint64_t" => new Construct(token, $"型 {written}", static d => d.Features.Int64Types),
+            "float64_t" or "float32_t" or "int32_t" or "uint32_t" => new Construct(token, $"型 {written}", static d => d.Features.ExplicitWidthTypes),
+            "float16_t" or "int16_t" or "uint16_t" => new Construct(token, $"型 {written}", static d => d.Features.SixteenBitTypes),
             _ => null,
         };
     }
@@ -134,7 +216,11 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <param name="Token">報告する位置。</param>
     /// <param name="Name">文に入れる名前。</param>
     /// <param name="IsAvailable">方言で使えるか。</param>
-    private sealed record Construct(HlslSyntaxToken Token, string Name, Func<HlslLanguageFeatures, bool> IsAvailable);
+    private sealed record Construct(HlslSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
+    {
+        /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、方言で見るか。</summary>
+        public bool CheckWithoutTargets { get; init; }
+    }
 }
 
 /// <summary>

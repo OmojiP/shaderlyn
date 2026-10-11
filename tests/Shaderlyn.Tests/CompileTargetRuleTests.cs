@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Hlsl.Parsing;
+using Shaderlyn.Semantics.Environments;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
@@ -110,7 +112,7 @@ public sealed class CompileTargetRuleTests
     [InlineData("#pragma use_dxc d3d11", "6.6", "SL1051", "非推奨")]
     [InlineData("#pragma use_dxc d3d11", "6.3", "SL1050", "DX11 では使えなくなります")]
     [InlineData("#pragma use_dxc", "6.3", "SL1050", "API を書かない use_dxc で DX11 も DXC")]
-    [InlineData("#pragma require int64", "6.6", "SL1050", "require int64 は DXC が要るので")]
+    [InlineData("#pragma require int64", "6.6", "SL1050", "require int64 は DXC が要るので、このシェーダーは DX11 では使えません (コンパイルされないか、作られても使われません)。DX11 でも使うなら、キーワードで分けてください (require int64 : キーワード)。")]
     [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "知らないので無視します")]
     [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "このシェーダーをコンパイルしません")]
     [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "SL1050", "6.5 以前は FXC、6.6 からは DXC")]
@@ -130,6 +132,83 @@ public sealed class CompileTargetRuleTests
         => Assert.DoesNotContain(
             Analyze(pragma, "return 1;", new UnityOptions { EditorVersion = version }),
             d => d.Id is "SL1050" or "SL1051");
+
+    [Fact]
+    public void require_native16bitのパスで定数バッファのhalfを報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            "#pragma require native16bit",
+            "return _BaseColor + _Other;",
+            "6.3",
+            "cbuffer UnityPerMaterial { half4 _BaseColor; float4 _Other; };");
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "SL1052");
+        Assert.Equal(
+            "定数バッファ 'UnityPerMaterial' の _BaseColor は half4 ですが、dx12 (DXC (HLSL 2018、16 ビットの型)) では 16 ビットの型になり、"
+            + "Unity が書き込んだ値を正しく読めません。float4 で宣言し、使うところで変換してください。",
+            diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void NATIVE_16BITが有効な構成に届く定数バッファのhalfを報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            "#pragma multi_compile _ UNITY_DEVICE_SUPPORTS_NATIVE_16BIT",
+            "return _BaseColor;",
+            "6.3",
+            "cbuffer UnityPerMaterial { min16float4 _BaseColor; };");
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "SL1052");
+        Assert.Contains("UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成の dx12", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("#pragma use_dxc", "cbuffer UnityPerMaterial { half4 _BaseColor; };")]
+    [InlineData("#pragma require native16bit", "cbuffer UnityPerMaterial { float4 _BaseColor; };")]
+    [InlineData("", "cbuffer UnityPerMaterial { half4 _BaseColor; };")]
+    public void 十六ビットの型を有効にしないか定数バッファがfloatなら報告しない(string pragma, string declarations)
+        => Assert.DoesNotContain(Analyze(pragma, "return _BaseColor;", "6.3", declarations), d => d.Id == "SL1052");
+
+    private const string LightInterface = "interface ILight { float3 Get(); }; ILight g_light;";
+
+    [Fact]
+    public void グローバルなinterfaceの変数を報告する()
+    {
+        Diagnostic diagnostic = Assert.Single(Analyze("", "return 1;", "6.3", LightInterface), d => d.Id == "HL0003");
+
+        Assert.Equal("interface 型 ILight のグローバル変数 は dx11 (FXC)・dx12 (FXC) では使えません。", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void シェーダーモデル5のFXCではinterfaceの変数を報告しない()
+        => Assert.DoesNotContain(Analyze("#pragma target 5.0", "return 1;", "6.3", LightInterface), d => d.Id == "HL0003");
+
+    [Fact]
+    public void DXCに届くinterfaceの変数を報告する()
+    {
+        UnityOptions options = new() { EditorVersion = "6.6", GraphicsApis = [UnityGraphicsApi.Direct3D12] };
+        Diagnostic diagnostic = Assert.Single(Analyze("#pragma target 5.0\n#pragma use_dxc", "return 1;", options, LightInterface), d => d.Id == "HL0003");
+
+        Assert.Contains("dx12 (DXC (HLSL 2018))", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(HlslCompiler.Dxc, true)]
+    [InlineData(HlslCompiler.Fxc, false)]
+    public void 汎用のHLSLではDXCのときinterfaceの変数を報告する(HlslCompiler compiler, bool expected)
+    {
+        SourceText text = SourceText.From(LightInterface + " float4 main() : SV_Target { return 1; }", "test.hlsl");
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text)],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { Compiler = compiler }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.Equal(expected, diagnostics.Any(d => d.Id == "HL0003"));
+    }
 
     [Fact]
     public void DX11を対象にしなければrequireを報告しない()

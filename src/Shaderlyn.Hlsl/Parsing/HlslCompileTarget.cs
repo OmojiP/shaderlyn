@@ -65,7 +65,7 @@ public sealed record HlslCompileTarget(string Platform, HlslDialect Dialect)
     {
         get
         {
-            string name = $"{Platform} ({Dialect.DisplayName})";
+            string name = Platform.Length == 0 ? Dialect.DisplayName : $"{Platform} ({Dialect.DisplayName})";
 
             if (!WhenAnySymbol.IsDefaultOrEmpty)
             {

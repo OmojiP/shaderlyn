@@ -227,7 +227,7 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     value.GetLocation(),
                     UnityRuleDescriptors.CompilerPragmaMismatch,
                     $"require {value.Text} は DXC が要るので、このシェーダーは DX11 では使えません (コンパイルされないか、作られても使われません)。"
-                    + "DX11 でも使うなら、キーワードで分けてください (require {value.Text} : キーワード)。");
+                    + $"DX11 でも使うなら、キーワードで分けてください (require {value.Text} : キーワード)。");
             }
         }
 
