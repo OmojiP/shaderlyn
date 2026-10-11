@@ -412,7 +412,7 @@ public sealed class ProgramTests : IDisposable
         Assert.Contains("プロファイル: hdrp (設定ファイル)", output, StringComparison.Ordinal);
         Assert.Contains("解決できた: 0 / 1", output, StringComparison.Ordinal);
         Assert.Contains("\"Missing.hlsl\"", output, StringComparison.Ordinal);
-        Assert.Contains("解析対象の上に Unity プロジェクトがあります", output, StringComparison.Ordinal);
+        Assert.Contains("(指定なし。解析対象の上にあるプロジェクトを使います)", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ファイルを解析", output, StringComparison.Ordinal);
     }
 

@@ -600,6 +600,14 @@ public readonly record struct IncludeReference(
 {
     /// <summary>解決できたかどうか。</summary>
     public bool IsResolved => ResolvedFilePath is not null;
+
+    /// <summary>
+    /// 解決できなかったが、読んでよい範囲の外にファイルがあった場合、そのパス。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 「見つからない」と「あるが読まなかった」では直し方が違う。後者は探索パスを足せば読める。
+    /// </remarks>
+    public string? OutsideBoundaryPath { get; init; }
 }
 
 /// <summary>

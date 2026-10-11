@@ -50,11 +50,14 @@ internal sealed partial class HlslPreprocessor
         if (!_options.IncludeResolver.TryResolve(path, includingFilePath, out SourceText? included))
         {
             AddUnresolvedInclude(path);
-            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null));
+            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
+            {
+                OutsideBoundaryPath = _options.IncludeResolver.FindOutsideBoundary(path, includingFilePath),
+            });
 
             if (_options.ReportUnresolvedIncludes)
             {
-                Report(HlslDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path);
+                Report(HlslDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path, string.Empty);
             }
 
             return;

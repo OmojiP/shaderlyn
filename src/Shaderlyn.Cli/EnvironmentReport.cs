@@ -227,18 +227,12 @@ internal static partial class EnvironmentReport
         if (options.UnityProjectPath is not { } project)
         {
             Line(builder, "  --unity-project: 指定なし (Editor 同梱のパッケージだけを解決します)");
-
-            // 指定を推定では補わない (解析は明示を求める)。候補があることだけを伝える。
-            if (FindProjectAbove(options.InputPaths) is { } candidate)
-            {
-                Line(builder, $"  {Warning}解析対象の上に Unity プロジェクトがあります: {candidate}");
-                Line(builder, $"     --unity-project \"{candidate}\" を指定すると、Library/PackageCache と Packages のパッケージも解決します。");
-            }
-
             return;
         }
 
-        Line(builder, $"  --unity-project: {FullPath(project)}");
+        Line(builder, options.IsUnityProjectInferred
+            ? $"  --unity-project: {FullPath(project)} (指定なし。解析対象の上にあるプロジェクトを使います)"
+            : $"  --unity-project: {FullPath(project)}");
 
         if (!Directory.Exists(project))
         {
@@ -609,37 +603,6 @@ internal static partial class EnvironmentReport
         }
 
         return names;
-    }
-
-    /// <summary>解析対象の上にある Unity プロジェクトを探す。</summary>
-    /// <param name="inputPaths">解析対象のパス。</param>
-    /// <returns>見つかったプロジェクトのルート。無ければ <see langword="null"/>。</returns>
-    private static string? FindProjectAbove(ImmutableArray<string> inputPaths)
-    {
-        foreach (string input in inputPaths)
-        {
-            DirectoryInfo? directory;
-            try
-            {
-                string full = Path.GetFullPath(input);
-                directory = new DirectoryInfo(Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full);
-            }
-            catch (Exception ex) when (ex is ArgumentException or IOException)
-            {
-                continue;
-            }
-
-            for (; directory is not null; directory = directory.Parent)
-            {
-                if (File.Exists(Path.Combine(directory.FullName, "ProjectSettings", "ProjectVersion.txt"))
-                    && Directory.Exists(Path.Combine(directory.FullName, "Assets")))
-                {
-                    return directory.FullName;
-                }
-            }
-        }
-
-        return null;
     }
 
     /// <summary>絶対パスにする。できなければそのまま返す。</summary>

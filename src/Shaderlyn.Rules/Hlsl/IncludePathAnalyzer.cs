@@ -41,7 +41,8 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!HasResolvedAnything(compilation))
+        // 範囲の外で読まなかったものがあるなら、原因は環境ではなく範囲である。1 行ずつ理由を添えて報告する。
+        if (!HasResolvedAnything(compilation) && !HasOutsideBoundary(compilation))
         {
             ReportEnvironment(context, compilation);
             return;
@@ -63,10 +64,29 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path));
+                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path, DescribeOutsideBoundary(include)));
             }
         }
     }
+
+    /// <summary>読んでよい範囲の外にあったために読まなかった include があるかを判定する。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    private static bool HasOutsideBoundary(ShaderCompilation compilation)
+        => compilation.Programs.Any(p => p.Tree.PreprocessResult.Includes.Any(i => i.OutsideBoundaryPath is not null));
+
+    /// <summary>範囲の外にファイルがあったなら、そのことと直し方を伝える文。</summary>
+    /// <param name="include">解決できなかった include。</param>
+    /// <returns>文。無ければ空。</returns>
+    /// <remarks>
+    /// 読んでよい範囲は、ファイルを読ませる 1 行で任意のファイルを読めないようにするためにある
+    /// (<see cref="Hlsl.Preprocessing.IncludeBoundary"/>)。「見つからない」と言うと、利用者はパスの誤りを探してしまう。
+    /// </remarks>
+    private static string DescribeOutsideBoundary(IncludeReference include)
+        => include.OutsideBoundaryPath is { } path
+            ? $"'{path}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・探索パス) の外なので読みません。"
+              + "意図した取り込みなら、探索パス (CLI は --include-path、設定ファイルは include-paths) に加えてください。"
+            : string.Empty;
 
     /// <summary>
     /// この解析で include を 1 件でも解決できたかを判定する。

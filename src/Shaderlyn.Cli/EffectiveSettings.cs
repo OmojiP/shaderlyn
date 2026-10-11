@@ -121,6 +121,7 @@ internal sealed class EffectiveSettings
         if (isUnity)
         {
             options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+            options.InferUnityProject(UnityInstallation.FindProjectAbove(options.InputPaths));
         }
         else
         {

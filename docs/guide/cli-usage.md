@@ -302,7 +302,9 @@ Unityで用意された関数等のヘッダ取得に利用します
 shaderlyn Assets --unity-project .
 ```
 
-指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。
+指定しない場合は、解析対象の上にある Unity プロジェクト (`ProjectSettings/ProjectVersion.txt` と `Assets` があるフォルダー) を使います。
+`--env` には「指定なし。解析対象の上にあるプロジェクトを使います」と出ます。
+プロジェクトも見つからなければ、そのマシンにインストール済みの Unity Editor からヘッダを探します。
 
 見つからない場合、次のエラーが発生します。
 
@@ -343,12 +345,13 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 ### `#include` が読む範囲
 
 - コマンドラインで渡した解析対象
-- `--unity-project` とその `Assets`
+- `--unity-project` (無ければ解析対象の上にある Unity プロジェクト) とその `Assets`
+- 設定ファイルを置いたフォルダー
 - `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス
 
-範囲の外を指した場合、[SL0002](../rules/SL0002.md) を報告します。
-意図した取り込みであれば`--include-path` を追加してください。
+範囲の外を指した場合、そのファイルは読まず、[HL0321](../rules/HL0321.md) の文に「範囲の外なので読みません」と添えます。
+意図した取り込みであれば `--include-path` を追加してください。
 
 ### レンダーパイプライン
 

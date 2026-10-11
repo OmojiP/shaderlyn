@@ -62,7 +62,8 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
 
             foreach (PragmaDirective pragma in program.Tree.Pragmas)
             {
-                if (!compilation.IsReportable(pragma.NameToken))
+                // 利用者のヘッダに書いたものも「報告できる」が、コードブロックに直接書いたものとは効き方が違う (2023.2 以降は無視される)。
+                if (!compilation.IsWrittenHere(pragma.NameToken))
                 {
                     if (pragma.Name is "use_dxc" or "require"
                         && band >= UnityVersionBand.Unity2023_2To6_3

@@ -193,12 +193,13 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UnresolvedInclude { get; } = new(
         id: "HL0321",
         title: "include を解決できません",
-        messageFormat: "include '{0}' を解決できませんでした。",
+        messageFormat: "include '{0}' を解決できませんでした。{1}",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "指定されたパスのファイルが見つかりませんでした。"
             + "探索パスの設定が不足しているか、パスの書き方が誤っている可能性があります。"
             + "解決できない include があると、その中で定義されるマクロや型が未知のままになり、"
-            + "その先の検査は根拠を欠いたまま行うことになります。",
+            + "その先の検査は根拠を欠いたまま行うことになります。"
+            + "ファイルがあっても、読んでよい範囲 (解析対象・Unity プロジェクト・探索パス) の外なら読みません。",
         helpLinkUri: DocumentationLinks.For("HL0321"));
 }

@@ -426,6 +426,7 @@ Shaderlyn.Hlsl.Preprocessing.HlslTokenCache :: .ctor()
 Shaderlyn.Hlsl.Preprocessing.HlslTokenCache :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] GetOrLex(Shaderlyn.Core.Text.SourceText, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslLexer+LexerDiagnostic])
 Shaderlyn.Hlsl.Preprocessing.IIncludeResolver : interface
 Shaderlyn.Hlsl.Preprocessing.IIncludeResolver :: abstract System.Boolean TryResolve(System.String, System.String, out Shaderlyn.Core.Text.SourceText)
+Shaderlyn.Hlsl.Preprocessing.IIncludeResolver :: virtual System.String FindOutsideBoundary(System.String, System.String)
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion : struct (System.IEquatable`1[Shaderlyn.Hlsl.Preprocessing.InactiveRegion])
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion :: .ctor(Shaderlyn.Core.Diagnostics.Location, System.Collections.Immutable.ImmutableArray`1[System.String])
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
@@ -504,6 +505,7 @@ Shaderlyn.Hlsl.Preprocessing.IncludeReference :: .ctor(System.String, Shaderlyn.
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.IncludeReference)
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsResolved { get; }
+Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String OutsideBoundaryPath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String Path { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String ResolvedFilePath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Void Deconstruct(out System.String, out Shaderlyn.Core.Diagnostics.Location, out System.String)

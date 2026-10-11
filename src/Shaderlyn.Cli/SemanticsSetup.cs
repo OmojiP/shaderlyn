@@ -301,8 +301,12 @@ internal static class SemanticsSetup
             [
                 .. searchPaths,
                 .. virtualPaths.Values,
-                .. options.InputPaths.Select(path =>
-                    Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? path),
+                .. options.InputPaths.Select(InputRoot),
+
+                // 設定ファイルを置いたフォルダーはプロジェクトの根である。解析対象から "../common/..." と上がっても、その中なら読む。
+                .. settings.Configuration.FilePath is { } configurationPath && Path.GetDirectoryName(configurationPath) is { Length: > 0 } configurationDirectory
+                    ? new[] { configurationDirectory }
+                    : [],
             ]);
 
         List<IIncludeResolver> resolvers = [];
@@ -323,6 +327,29 @@ internal static class SemanticsSetup
         }
 
         return new CompositeIncludeResolver([.. resolvers]);
+    }
+
+    /// <summary>解析対象のパスから、読んでよい範囲の根にするフォルダーを決める。</summary>
+    /// <param name="path">解析対象のパス。</param>
+    /// <returns>フォルダーならそのもの、ファイルならそれを置いたフォルダー (絶対パス)。</returns>
+    /// <remarks>
+    /// フォルダーを付けずに渡したファイル (<c>shaderlyn Main.shader</c>) は作業フォルダーにある。
+    /// 絶対パスにせずにフォルダーを取ると空になり、根から外れる。
+    /// </remarks>
+    private static string InputRoot(string path)
+    {
+        string full;
+
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
+
+        return Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full;
     }
 
     /// <summary>
