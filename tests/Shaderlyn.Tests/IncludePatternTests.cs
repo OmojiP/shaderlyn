@@ -11,9 +11,12 @@ namespace Shaderlyn.Tests;
 /// <para>
 /// Unity では、取り込み元からの相対 (<c>../Lib/Lib.hlsl</c>、<c>..\Lib\Lib.hlsl</c>、<c>./Common.hlsl</c>)、
 /// プロジェクトからのパス (<c>Assets/...</c> / <c>Packages/...</c>)、大文字と小文字の違い、空白を含むパスがどれも通る。
-/// 解析対象をフォルダーで渡しても、1 ファイルで渡しても、<c>--unity-project</c> を付けなくても、同じく解決できなければならない。
+/// <c>--unity-project</c> を付ければ、解析対象をフォルダーで渡しても 1 ファイルで渡しても、同じく解決できなければならない。
 /// </para>
-/// <para>読んでよい範囲の外は読まず、読まなかったことを HL0321 の文で伝える。</para>
+/// <para>
+/// <b>Unity プロジェクトは推定しない。</b> 付けなければ <c>Assets/...</c> などは引けないので、
+/// 引けない理由と、解析対象の上で見つけたプロジェクトを HL0321 の文で伝える。
+/// </para>
 /// </remarks>
 [Collection(CurrentDirectoryCollection.Name)]
 public sealed class IncludePatternTests : IDisposable
@@ -109,32 +112,46 @@ public sealed class IncludePatternTests : IDisposable
     }
 
     /// <summary>
-    /// どう渡しても、正しい include を報告しないことを検証する。<c>--unity-project</c> が無ければ、解析対象の上のプロジェクトを使う。
+    /// <c>--unity-project</c> を付ければ、どう渡しても正しい include を報告しないことを検証する。
     /// </summary>
     /// <param name="target">プロジェクトからの解析対象。</param>
-    /// <param name="withProject"><c>--unity-project</c> を付けるか。</param>
     [Theory]
-    [InlineData("Assets", true)]
-    [InlineData("Assets", false)]
-    [InlineData("Assets/Shaders/Main.shader", false)]
-    [InlineData("Assets/Shaders/Sub", false)]
-    [InlineData("Assets/Shaders/Sub/Inner.hlsl", false)]
-    [InlineData("Assets/Compute/K.compute", false)]
-    public async Task 正しいincludeを報告しない(string target, bool withProject)
+    [InlineData("Assets")]
+    [InlineData("Assets/Shaders/Main.shader")]
+    [InlineData("Assets/Shaders/Sub")]
+    [InlineData("Assets/Shaders/Sub/Inner.hlsl")]
+    [InlineData("Assets/Compute/K.compute")]
+    public async Task 正しいincludeを報告しない(string target)
     {
         string project = Path.Combine(_root, "project");
-        List<string> args = [Path.Combine(project, target), "--no-config"];
-
-        if (withProject)
-        {
-            args.AddRange(["--unity-project", project]);
-        }
-
-        string output = await RunAsync([.. args]);
+        string output = await RunAsync(Path.Combine(project, target), "--no-config", "--unity-project", project);
 
         Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
         Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>--unity-project</c> を付けなければプロジェクトを推定せず、引けない理由と見つけたプロジェクトを添えることを検証する。
+    /// </summary>
+    [Fact]
+    public async Task プロジェクトを付けなければ推定せずに理由を添える()
+    {
+        string project = Path.Combine(_root, "project");
+        string output = await RunAsync(Path.Combine(project, "Assets", "Shaders", "Main.shader"), "--no-config");
+
+        // Assets/... と Packages/... は、プロジェクトを指定していないことを伝える。
+        Assert.Contains("include 'Assets/Lib/Lib.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
+        Assert.Contains("Unity プロジェクトからのパスですが、Unity プロジェクトを指定していません。", output, StringComparison.Ordinal);
+        Assert.Contains($"--unity-project \"{project}\" を指定してください", output, StringComparison.Ordinal);
+
+        // 解析対象のフォルダーより上は、範囲の外であることを伝える。
+        Assert.Contains("include '../Lib/Lib.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
+        Assert.Contains("の外なので読みません", output, StringComparison.Ordinal);
+
+        // 同じフォルダーと、その下は引ける。
+        Assert.DoesNotContain("include './Common.hlsl'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("include 'Sub/Inner.hlsl'", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -147,11 +164,17 @@ public sealed class IncludePatternTests : IDisposable
 
         try
         {
-            Environment.CurrentDirectory = Path.Combine(_root, "project", "Assets", "Shaders");
-            string output = await RunAsync("Main.shader", "--no-config");
+            string project = Path.Combine(_root, "project");
+            Environment.CurrentDirectory = Path.Combine(project, "Assets", "Shaders");
+            string output = await RunAsync("Main.shader", "--no-config", "--unity-project", project);
 
             Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
             Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
+
+            // プロジェクトを付けなくても、同じフォルダーのヘッダは引ける。
+            string withoutProject = await RunAsync("Main.shader", "--no-config");
+            Assert.DoesNotContain("include 'Common.hlsl'", withoutProject, StringComparison.Ordinal);
+            Assert.DoesNotContain("include './Common.hlsl'", withoutProject, StringComparison.Ordinal);
         }
         finally
         {
@@ -166,7 +189,8 @@ public sealed class IncludePatternTests : IDisposable
         string output = await RunAsync(Path.Combine(_root, "plain", "shaders", "fx", "A.shader"), "--no-config");
 
         Assert.Contains("include '../../../secret/s.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
-        Assert.Contains("読んでよい範囲 (解析対象・Unity プロジェクト・探索パス) の外なので読みません", output, StringComparison.Ordinal);
+        Assert.Contains("読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません", output, StringComparison.Ordinal);
+        Assert.Contains("--include-path", output, StringComparison.Ordinal);
         Assert.Contains("include 'Missing.hlsl' を解決できませんでした。", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
     }
@@ -182,13 +206,14 @@ public sealed class IncludePatternTests : IDisposable
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
     }
 
-    /// <summary>推定したプロジェクトを --env に出すことを検証する。</summary>
+    /// <summary>プロジェクトを付けていないとき、見つけたプロジェクトと、引けないものを --env に出すことを検証する。</summary>
     [Fact]
-    public async Task 推定したプロジェクトをenvに出す()
+    public async Task 見つけたプロジェクトをenvに出す()
     {
         string output = await RunAsync(Path.Combine(_root, "project", "Assets"), "--no-config", "--env");
 
-        Assert.Contains("(指定なし。解析対象の上にあるプロジェクトを使います)", output, StringComparison.Ordinal);
+        Assert.Contains("解析対象は Unity プロジェクトの中にあります", output, StringComparison.Ordinal);
+        Assert.Contains("Assets/... と Packages/... の #include", output, StringComparison.Ordinal);
     }
 
     [Fact]

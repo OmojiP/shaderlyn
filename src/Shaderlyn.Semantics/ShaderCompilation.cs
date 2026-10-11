@@ -495,6 +495,9 @@ public sealed class ShaderCompilation
     /// <remarks><see cref="SemanticsOptions.IsUserInclude"/> を受け取る。</remarks>
     internal Func<string, bool>? IsUserInclude { get; init; }
 
+    /// <summary>解決できなかった include の理由を述べる文を作る (<see cref="SemanticsOptions.DescribeUnresolvedInclude"/>)。</summary>
+    internal Func<IncludeReference, string?>? DescribeUnresolvedInclude { get; init; }
+
     /// <summary>パスごとの <see cref="IsUserFile"/> の結果。ルールから並列に引かれる。</summary>
     private readonly ConcurrentDictionary<string, bool> _userFiles = new(StringComparer.Ordinal);
 

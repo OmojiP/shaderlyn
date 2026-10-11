@@ -64,7 +64,8 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path, DescribeOutsideBoundary(include)));
+                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path,
+                    compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeOutsideBoundary(include)));
             }
         }
     }
@@ -84,7 +85,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeOutsideBoundary(IncludeReference include)
         => include.OutsideBoundaryPath is { } path
-            ? $"'{path}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・探索パス) の外なので読みません。"
+            ? $"'{path}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません。"
               + "意図した取り込みなら、探索パス (CLI は --include-path、設定ファイルは include-paths) に加えてください。"
             : string.Empty;
 
@@ -137,7 +138,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
             WellKnownDescriptors.IncludesUnavailable,
             include.Location,
             $"最初に引けなかったのは '{include.Path}'",
-            DescribeFix(include.Path)));
+            compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeFix(include.Path)));
     }
 
     /// <summary>

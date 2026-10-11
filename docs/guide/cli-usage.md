@@ -302,9 +302,10 @@ Unityで用意された関数等のヘッダ取得に利用します
 shaderlyn Assets --unity-project .
 ```
 
-指定しない場合は、解析対象の上にある Unity プロジェクト (`ProjectSettings/ProjectVersion.txt` と `Assets` があるフォルダー) を使います。
-`--env` には「指定なし。解析対象の上にあるプロジェクトを使います」と出ます。
-プロジェクトも見つからなければ、そのマシンにインストール済みの Unity Editor からヘッダを探します。
+指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。プロジェクトは推定しません。
+そのため `Assets/...` と `Packages/...` の `#include`、解析対象のフォルダーより上を指す `../...` の `#include` は解決できません。
+これらは [HL0321](../rules/HL0321.md) の文に、引けない理由と、解析対象の上で見つけた Unity プロジェクトを添えて報告します。
+`--env` にも、見つけたプロジェクトと引けないものが出ます。
 
 見つからない場合、次のエラーが発生します。
 
@@ -345,7 +346,7 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 ### `#include` が読む範囲
 
 - コマンドラインで渡した解析対象
-- `--unity-project` (無ければ解析対象の上にある Unity プロジェクト) とその `Assets`
+- `--unity-project` とその `Assets`
 - 設定ファイルを置いたフォルダー
 - `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス

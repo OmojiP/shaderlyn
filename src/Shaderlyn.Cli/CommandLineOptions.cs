@@ -174,33 +174,6 @@ internal sealed class CommandLineOptions
     }
 
     /// <summary>
-    /// <see cref="UnityProjectPath"/> を、コマンドラインにも設定ファイルにも無かったので推定したか。
-    /// </summary>
-    internal bool IsUnityProjectInferred { get; private set; }
-
-    /// <summary>
-    /// コマンドラインにも設定ファイルにも Unity プロジェクトが無ければ、解析対象の上にあるプロジェクトを使う。
-    /// </summary>
-    /// <param name="projectPath">解析対象の上で見つけたプロジェクト。無ければ <see langword="null"/>。</param>
-    /// <remarks>
-    /// <para>
-    /// <b>無いままでは、正しい <c>#include</c> を誤りとして報告する。</b>
-    /// <c>Assets/...</c> と <c>Packages/...</c> はプロジェクトからのパスで、
-    /// <c>../Lib/Lib.hlsl</c> も解析対象のフォルダーの外 (読んでよい範囲の外) に出る。
-    /// どれも Unity では通る書き方である。
-    /// </para>
-    /// <para>言語サーバーはワークスペースから同じように推定している。CLI もそれに揃える。</para>
-    /// </remarks>
-    internal void InferUnityProject(string? projectPath)
-    {
-        if (UnityProjectPath is null && projectPath is not null)
-        {
-            UnityProjectPath = projectPath;
-            IsUnityProjectInferred = true;
-        }
-    }
-
-    /// <summary>
     /// Unity だけの指定 (<c>--profile</c> / <c>--unity-project</c> / <c>--unity-editor</c>) を外す。
     /// </summary>
     /// <remarks>
@@ -213,7 +186,6 @@ internal sealed class CommandLineOptions
         Profile = null;
         UnityProjectPath = null;
         UnityEditorDataPath = null;
-        IsUnityProjectInferred = false;
     }
 
     /// <summary><c>#include</c> の探索パス。</summary>
@@ -499,7 +471,7 @@ internal sealed class CommandLineOptions
 
         意味解析のオプション:
           --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います (Unity の環境だけ)。
-                                 省略時は解析対象の上にあるプロジェクトを使います。
+                                 明示的に指定してください (推定はしません)。
           --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます (Unity の環境だけ)。
                                  省略時は ProjectSettings/ProjectVersion.txt から推定し、
                                  --unity-project も無ければインストール済みの最新バージョンを使います。

@@ -44,6 +44,7 @@ internal static class SemanticsSetup
         {
             IncludeResolver = CreateIncludeResolver(options, settings, editorData),
             IsUserInclude = CreateUserIncludePredicate(options, editorData),
+            DescribeUnresolvedInclude = CreateUnresolvedIncludeDescriber(options, settings),
             PredefinedMacros = BuildPredefinedMacros(settings.Environment, settings.Defines),
 
             // 指定が無ければ既定値のままにする。
@@ -327,6 +328,58 @@ internal static class SemanticsSetup
         }
 
         return new CompositeIncludeResolver([.. resolvers]);
+    }
+
+    /// <summary>
+    /// 解決できなかった <c>#include</c> の理由を述べる文を作る関数を作る。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <returns>関数。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Unity プロジェクトは推定しない。</b> 解析は明示した設定で行う。
+    /// 代わりに、指定していないために引けないものには、そのことと、解析対象の上で見つけたプロジェクトを添える。
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>読んでよい範囲の外にあった: その場所と、範囲を広げる指定</item>
+    ///   <item><c>--unity-project</c> が無く、<c>Assets/...</c> / <c>Packages/...</c>: プロジェクトを指定すること</item>
+    /// </list>
+    /// <para>どれでもなければ <see langword="null"/> を返し、ルールの既定の文に任せる。</para>
+    /// </remarks>
+    private static Func<IncludeReference, string?> CreateUnresolvedIncludeDescriber(CommandLineOptions options, EffectiveSettings settings)
+    {
+        bool isUnity = settings.Environment == UnityAnalysisEnvironment.EnvironmentName;
+        string? candidate = isUnity && options.UnityProjectPath is null ? UnityInstallation.FindProjectAbove(options.InputPaths) : null;
+        string projectHint = candidate is null
+            ? "--unity-project で Unity プロジェクトのルートを指定してください。"
+            : $"--unity-project \"{candidate}\" を指定してください (解析対象はこの Unity プロジェクトの中にあります)。";
+
+        return include =>
+        {
+            string normalized = include.Path.Replace('\\', '/');
+
+            if (include.OutsideBoundaryPath is { } outside)
+            {
+                bool inCandidate = candidate is not null
+                    && Path.GetFullPath(outside).StartsWith(Path.GetFullPath(candidate) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+                return $"'{outside}' にありますが、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なので読みません。"
+                    + (inCandidate
+                        ? projectHint
+                        : "意図した取り込みなら、探索パス (CLI は --include-path、設定ファイルは include-paths) に加えてください。");
+            }
+
+            if (isUnity
+                && options.UnityProjectPath is null
+                && (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                    || normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)))
+            {
+                return $"Unity プロジェクトからのパスですが、Unity プロジェクトを指定していません。{projectHint}";
+            }
+
+            return null;
+        };
     }
 
     /// <summary>解析対象のパスから、読んでよい範囲の根にするフォルダーを決める。</summary>

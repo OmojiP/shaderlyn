@@ -227,12 +227,19 @@ internal static partial class EnvironmentReport
         if (options.UnityProjectPath is not { } project)
         {
             Line(builder, "  --unity-project: 指定なし (Editor 同梱のパッケージだけを解決します)");
+
+            // 指定を推定では補わない (解析は明示を求める)。候補と、指定しないと何が読めないかを伝える。
+            if (UnityInstallation.FindProjectAbove(options.InputPaths) is { } candidate)
+            {
+                Line(builder, $"  {Warning}解析対象は Unity プロジェクトの中にあります: {candidate}");
+                Line(builder, $"     --unity-project \"{candidate}\" を指定しないと、Assets/... と Packages/... の #include、");
+                Line(builder, "     解析対象のフォルダーより上を指す相対パス (../...) の #include を解決できません。");
+            }
+
             return;
         }
 
-        Line(builder, options.IsUnityProjectInferred
-            ? $"  --unity-project: {FullPath(project)} (指定なし。解析対象の上にあるプロジェクトを使います)"
-            : $"  --unity-project: {FullPath(project)}");
+        Line(builder, $"  --unity-project: {FullPath(project)}");
 
         if (!Directory.Exists(project))
         {

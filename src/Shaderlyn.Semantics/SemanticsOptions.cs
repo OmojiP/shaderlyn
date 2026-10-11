@@ -88,6 +88,16 @@ public sealed record SemanticsOptions
     public Func<string, bool>? IsUserInclude { get; init; }
 
     /// <summary>
+    /// 解決できなかった <c>#include</c> について、理由と直し方を述べる文を作る。<see langword="null"/> (既定) か、
+    /// 返した文が <see langword="null"/> なら、ルールが既定の文を使う。
+    /// </summary>
+    /// <remarks>
+    /// <b>理由を知っているのは、探索パスと読んでよい範囲を組み立てた呼び出し側である。</b>
+    /// CLI は、<c>--unity-project</c> を付けていないために引けない <c>Assets/...</c> などに、見つけたプロジェクトを添える。
+    /// </remarks>
+    public Func<IncludeReference, string?>? DescribeUnresolvedInclude { get; init; }
+
+    /// <summary>
     /// 字句解析の結果を共有するキャッシュ。
     /// </summary>
     /// <remarks>

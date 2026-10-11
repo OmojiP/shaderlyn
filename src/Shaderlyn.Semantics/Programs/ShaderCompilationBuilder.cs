@@ -251,6 +251,7 @@ internal static class ShaderCompilationBuilder
             [.. unexploredCombinations.Values])
         {
             IsUserInclude = options.IsUserInclude,
+            DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToFrozenSet(StringComparer.Ordinal)),

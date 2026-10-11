@@ -1439,6 +1439,7 @@ Shaderlyn.Semantics.SemanticsOptions :: System.Boolean MergeSwitchedIncludes { g
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean PackIndependentSymbols { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] BothBranchSymbols { get; set; }
+Shaderlyn.Semantics.SemanticsOptions :: System.Func`2[Shaderlyn.Hlsl.Preprocessing.IncludeReference,System.String] DescribeUnresolvedInclude { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Func`2[System.String,System.Boolean] IsUserInclude { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Int32 MaxSymbolVariants { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: static Shaderlyn.Semantics.SemanticsOptions Default { get; }
