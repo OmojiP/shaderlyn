@@ -197,6 +197,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             if (declaration.IsImplicit
                 || declaration.Location is not { } location
                 || referenced.Contains(name)
+                || SwitchesCompiler(compilation, name)
                 || !compilation.IsWrittenHere(location)
                 || !reported.Add(location.Span))
             {
@@ -207,6 +208,19 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
                 HlslDescriptors.UnusedSymbol, location, name));
         }
     }
+
+    /// <summary>
+    /// そのシンボルが、有効なときにコンパイラ (方言) を切り替えるかを判定する。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="name">シンボル。</param>
+    /// <returns>切り替えるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// Unity の <c>UNITY_DEVICE_SUPPORTS_NATIVE_16BIT</c> などは、条件に書かなくても、有効な構成を DXC でコンパイルさせる。
+    /// 宣言するだけで意味があるので、「条件のどこにも現れない」とは言わない。
+    /// </remarks>
+    private static bool SwitchesCompiler(ShaderCompilation compilation, string name)
+        => compilation.Programs.Any(p => p.Tree.CompileTargets.Any(t => t.WhenAnySymbol.Contains(name)));
 
     /// <summary>
     /// コードの中で名前として現れた識別子を集める。

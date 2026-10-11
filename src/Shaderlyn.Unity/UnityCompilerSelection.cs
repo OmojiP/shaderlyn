@@ -228,6 +228,9 @@ public static class UnityCompilerSelection
             }
         }
 
+        // DXC にするキーワードだけが並んだ _ の無い multi_compile の行があれば、キーワードが無効な構成は無い。
+        bool keywordAlwaysOn = pragmas.AlwaysOnGroups.Any(group => group.All(k => keywords.Any(kw => kw.Keyword == k)));
+
         if (api == UnityGraphicsApi.Direct3D11)
         {
             if (required is not null)
@@ -257,7 +260,9 @@ public static class UnityCompilerSelection
             // (デバイスのキーワードは DX11 では有効にならない)。
             return
             [
-                new HlslCompileTarget(platform, HlslDialect.Fxc) { UnlessAnySymbol = [.. keywords.Select(k => k.Keyword)] },
+                .. keywordAlwaysOn
+                    ? []
+                    : new[] { new HlslCompileTarget(platform, HlslDialect.Fxc) { UnlessAnySymbol = [.. keywords.Select(k => k.Keyword)] } },
                 .. keywords.Select(k => new HlslCompileTarget(platform, k.SixteenBit ? Dxc16Bit : Dxc)
                 {
                     WhenAnySymbol = [k.Keyword],
@@ -304,14 +309,13 @@ public static class UnityCompilerSelection
 
         List<HlslCompileTarget> targets = [];
 
+        // もとから DXC でも、キーワードが有効な構成のコンパイル先として持っておく。
+        // キーワードがコンパイラを切り替えるものであること (FXC のプロジェクトでは DXC にする) を、ルールが知るのに使う (HL0331)。
         foreach ((string keyword, bool keywordSixteenBit, string? keywordReason) in keywords)
         {
-            if (baseDialect == Dxc16Bit || (baseDialect == Dxc && !keywordSixteenBit))
-            {
-                continue;
-            }
+            HlslDialect dialect = baseDialect == Dxc16Bit || keywordSixteenBit || sixteenBit ? Dxc16Bit : Dxc;
 
-            targets.Add(new HlslCompileTarget(platform, keywordSixteenBit || sixteenBit ? Dxc16Bit : Dxc)
+            targets.Add(new HlslCompileTarget(platform, dialect)
             {
                 WhenAnySymbol = [keyword],
                 Reason = reason ?? keywordReason,
@@ -319,7 +323,11 @@ public static class UnityCompilerSelection
         }
 
         ImmutableArray<string> exceptions = [.. targets.SelectMany(t => t.WhenAnySymbol)];
-        targets.Insert(0, new HlslCompileTarget(platform, baseDialect) { UnlessAnySymbol = exceptions, Reason = baseReason });
+
+        if (!(keywordAlwaysOn && baseDialect == HlslDialect.Fxc))
+        {
+            targets.Insert(0, new HlslCompileTarget(platform, baseDialect) { UnlessAnySymbol = exceptions, Reason = baseReason });
+        }
 
         return targets;
     }
@@ -422,6 +430,15 @@ public sealed class UnityCompilerPragmas
     /// <summary><c>multi_compile</c> / <c>shader_feature</c> で宣言した、デバイスのキーワード (<c>UNITY_DEVICE_SUPPORTS_*</c>)。</summary>
     public ImmutableArray<string> DeviceKeywords { get; private set; } = [];
 
+    /// <summary>
+    /// <c>_</c> の無い <c>multi_compile</c> の行に並んだキーワード。行ごとに、どれか 1 つが必ず有効になる。
+    /// </summary>
+    /// <remarks>
+    /// <c>#pragma multi_compile UNITY_DEVICE_SUPPORTS_WAVE_32</c> には、キーワードが無効な構成が無い。
+    /// <c>shader_feature</c> は 1 つだけでも無効な構成を作るので、ここには入れない。
+    /// </remarks>
+    public ImmutableArray<ImmutableArray<string>> AlwaysOnGroups { get; private set; } = [];
+
     /// <summary>トークン列から読む。</summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>読んだもの。</returns>
@@ -433,6 +450,7 @@ public sealed class UnityCompilerPragmas
         List<string> requires = [];
         List<(string, string)> conditional = [];
         List<string> keywords = [];
+        List<ImmutableArray<string>> alwaysOn = [];
 
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
@@ -486,6 +504,13 @@ public sealed class UnityCompilerPragmas
                     if (KeywordPragmas.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
                     {
                         keywords.AddRange(arguments.Where(a => a.StartsWith("UNITY_DEVICE_SUPPORTS_", StringComparison.Ordinal)));
+
+                        if (name.StartsWith("multi_compile", StringComparison.Ordinal)
+                            && arguments.Count > 0
+                            && !arguments.Any(a => a.All(c => c == '_')))
+                        {
+                            alwaysOn.Add([.. arguments]);
+                        }
                     }
 
                     break;
@@ -499,6 +524,7 @@ public sealed class UnityCompilerPragmas
         result.UnconditionalRequirements = [.. requires.Distinct(StringComparer.Ordinal)];
         result.ConditionalRequirements = [.. conditional.Distinct()];
         result.DeviceKeywords = [.. keywords.Distinct(StringComparer.Ordinal)];
+        result.AlwaysOnGroups = [.. alwaysOn];
         return result;
     }
 
@@ -526,6 +552,7 @@ public sealed class UnityCompilerPragmas
             UnconditionalRequirements = [.. UnconditionalRequirements.Concat(included.UnconditionalRequirements).Distinct(StringComparer.Ordinal)],
             ConditionalRequirements = [.. ConditionalRequirements.Concat(included.ConditionalRequirements).Distinct()],
             DeviceKeywords = DeviceKeywords,
+            AlwaysOnGroups = AlwaysOnGroups,
         };
     }
 

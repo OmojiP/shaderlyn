@@ -124,6 +124,9 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 
 ### 修正
 
+- `sampler2D s = sampler_state { ... };` の `sampler_state` を、宣言されていない名前 (HL0310) と報告していた。
+- `_` の無い `multi_compile UNITY_DEVICE_SUPPORTS_WAVE_32` のように常に有効なデバイスのキーワードでも、キーワードが無効な構成 (FXC) があるものとして HL0003 を報告していた。
+- `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` などコンパイラを切り替えるキーワードを、条件に書いていないというだけで HL0331 と報告していた。
 - `--unity-project` を付けずに解析すると、`../Lib/Lib.hlsl`・`Assets/...`・`Packages/...` の `#include` を、理由を言わずに HL0321 と報告していた。
   プロジェクトを指定していないこと、読んでよい範囲の外であることと、解析対象の上で見つけた Unity プロジェクトを文に添える (プロジェクトは推定しない)。
   設定ファイルを置いたフォルダーは読んでよい範囲に入れた。

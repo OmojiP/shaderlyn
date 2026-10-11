@@ -750,7 +750,16 @@ internal sealed class HlslParser
         if (Current.Kind == HlslSyntaxKind.EqualsToken)
         {
             equals = Advance();
-            initializer = ParseInitializer();
+
+            // sampler_state { ... } は値ではなくサンプラ状態の指定である。名前として読むと、宣言されていない名前 (HL0310) になる。
+            if (Current.Text == "sampler_state" && Peek(1).Kind == HlslSyntaxKind.OpenBraceToken)
+            {
+                Advance();
+            }
+            else
+            {
+                initializer = ParseInitializer();
+            }
         }
 
         // sampler_state { ... } のようなサンプラ状態の指定。

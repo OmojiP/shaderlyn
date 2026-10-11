@@ -262,6 +262,62 @@ public sealed class CompileTargetRuleTests
         Assert.Equal("エントリ関数 frag の uniform 引数 k は dx12 (DXC (HLSL 2018)) では使えません。", diagnostic.GetMessage());
     }
 
+    /// <summary>
+    /// <c>_</c> の無い multi_compile のデバイスのキーワードは常に有効なので、キーワードが無効な構成 (FXC) を考えないことを検証する。
+    /// </summary>
+    [Fact]
+    public void 常に有効なデバイスのキーワードではFXCの構成を考えない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            "#pragma multi_compile UNITY_DEVICE_SUPPORTS_NATIVE_16BIT",
+            "Mode m = ModeA; float16_t v = 1; return m == ModeB ? v : 0;",
+            "6.3",
+            "enum Mode { ModeA, ModeB };");
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "HL0331");
+    }
+
+    [Fact]
+    public void コンピュートシェーダーの常に有効なWAVEのキーワードではFXCの構成を考えない()
+    {
+        SourceText text = SourceText.From("""
+            #pragma kernel CSMain
+            #pragma multi_compile UNITY_DEVICE_SUPPORTS_WAVE_32
+            enum Mode { ModeA, ModeB };
+            RWStructuredBuffer<float> Out;
+            [numthreads(8,1,1)]
+            void CSMain(uint3 id : SV_DispatchThreadID) { Mode m = ModeB; Out[id.x] = m == ModeB ? 1 : 0; }
+            """, Path.Combine("Assets", "K.compute"));
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, new SemanticsOptions(), new UnityOptions { EditorVersion = "6.3" });
+        ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "HL0331");
+    }
+
+    /// <summary>
+    /// コンパイラを切り替えるデバイスのキーワードは、条件に書かなくても HL0331 にしないことを検証する。
+    /// .shader の WAVE のキーワードはコンパイラを切り替えないので、使っていなければ報告する。
+    /// </summary>
+    [Theory]
+    [InlineData("UNITY_DEVICE_SUPPORTS_NATIVE_16BIT", false)]
+    [InlineData("UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING", false)]
+    [InlineData("UNITY_DEVICE_SUPPORTS_WAVE_ANY", true)]
+    public void コンパイラを切り替えるキーワードは条件に無くても使われている(string keyword, bool expected)
+        => Assert.Equal(expected, Analyze($"#pragma multi_compile _ {keyword}", "return 1;", "6.3").Any(d => d.Id == "HL0331"));
+
+    /// <summary><c>sampler_state { ... }</c> を、宣言されていない名前として報告しないことを検証する。</summary>
+    [Fact]
+    public void sampler_stateを名前として報告しない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            "",
+            "return tex2D(_ProbeSampler, float2(0.5, 0.5));",
+            "6.3",
+            "Texture2D _ProbeTexture; sampler2D _ProbeSampler = sampler_state { Texture = <_ProbeTexture>; };");
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0310" or "HL0001");
+    }
+
     [Fact]
     public void DX11を対象にしなければrequireを報告しない()
         => Assert.DoesNotContain(

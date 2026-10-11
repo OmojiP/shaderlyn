@@ -1945,6 +1945,7 @@ Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean NeverUseDxcForAll { get; 
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean Requires(System.String)
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean UseDxcApplies(Shaderlyn.Unity.UnityGraphicsApi, Shaderlyn.Unity.UnityVersionBand)
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean UseDxcForAll { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Immutable.ImmutableArray`1[System.String]] AlwaysOnGroups { get; }
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.String] DeviceKeywords { get; }
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.String] UnconditionalRequirements { get; }
 Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.ValueTuple`2[System.String,System.String]] ConditionalRequirements { get; }
