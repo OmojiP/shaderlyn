@@ -92,7 +92,9 @@ public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? Lan
 /// </param>
 /// <param name="LoopVariableOutsideLoop"><c>for</c> の初期化で宣言した変数を、ループの外で使えるか (DXC 2021 より前と FXC)。</param>
 /// <param name="VectorLogicalOperators">ベクトルに <c>&amp;&amp;</c> / <c>||</c> / <c>?:</c> を使えるか (DXC 2021 より前と FXC)。</param>
-/// <param name="LogicalIntrinsics">組み込み関数 <c>and</c> / <c>or</c> / <c>select</c> (DXC 2021)。</param>
+/// <param name="LogicalIntrinsics">
+/// 組み込み関数 <c>and</c> / <c>or</c> / <c>select</c> (DXC。1.8 はどの版でも使える。1.6 は 2021 だけ)。
+/// </param>
 /// <param name="StructIncrement">構造体そのものへの <c>++</c> / <c>--</c> (FXC だけが通す。何もしない)。</param>
 /// <param name="LegacySamplerSyntax"><c>sampler2D</c> / <c>tex2D</c> / <c>sampler_state</c> (<see cref="HlslDialect.AcceptsLegacySamplerSyntax"/>)。</param>
 public sealed record HlslLanguageFeatures(
@@ -149,7 +151,7 @@ public sealed record HlslLanguageFeatures(
             ImplicitUserTypeConversion: !is2021,
             LoopVariableOutsideLoop: !is2021,
             VectorLogicalOperators: !is2021,
-            LogicalIntrinsics: is2021,
+            LogicalIntrinsics: true,
             StructIncrement: false,
             LegacySamplerSyntax: dialect.AcceptsLegacySamplerSyntax);
     }

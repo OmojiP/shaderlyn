@@ -354,6 +354,16 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 
 既定は `urp` で、`urp` / `brp` / `hdrp` から選べます。
 
+対応の度合いはパイプラインで違います。
+
+| プロファイル | 対応 |
+| --- | --- |
+| `urp` | すべてのルール (URP0001〜URP0003 を含む) |
+| `brp` | 共通のルールだけ。BRP だけのルールは足しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使えます) |
+| `hdrp` | 共通のルールと SRP Batcher の検査 (URP0001 / URP0002) だけ |
+
+どのプロファイルでも、誤検出の報告は直します。
+
 ```bash
 shaderlyn Assets --unity-project . --profile brp
 ```

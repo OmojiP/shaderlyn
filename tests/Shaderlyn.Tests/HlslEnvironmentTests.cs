@@ -283,8 +283,12 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
         Assert.Equal("enum 宣言 は FXC では使えません。", fxcDiagnostic.GetMessage());
     }
 
+    /// <summary>
+    /// select / and / or は DXC の組み込み関数で、FXC には無いことを検証する。
+    /// DXC 1.8 はどの版 (-HV 2016〜2021) でも受け付ける (1.6 は 2021 だけ)。基準は 1.8 (tools/dialects/probe.mjs)。
+    /// </summary>
     [Fact]
-    public void HLSL2021の組み込み関数は2018では宣言されていない()
+    public void selectはDXCの組み込み関数でFXCでは宣言されていない()
     {
         const string code = """
             float4 main(float4 c : COLOR) : SV_Target { return select(c.a > 0.5, c, 0); }
@@ -293,8 +297,11 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
         HlslCompilationUnit unit = Unit(code, "ps_6_6");
 
         Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "HL0310");
-        Assert.Contains(
+        Assert.DoesNotContain(
             Analyze(code, unit, environment: new HlslEnvironment(new HlslEnvironmentOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2018 })),
+            d => d.Id == "HL0310");
+        Assert.Contains(
+            Analyze(code, Unit(code, "ps_5_0"), environment: new HlslEnvironment(new HlslEnvironmentOptions { Compiler = Hlsl.Parsing.HlslCompiler.Fxc })),
             d => d.Id == "HL0310");
     }
 

@@ -14,6 +14,7 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 - [独自エンジン](#独自エンジン)
 - [CI で使う](#ci-で使う)
 - [環境によって変わること](#環境によって変わること)
+- [コンパイラと言語のバージョン](#コンパイラと言語のバージョン)
 
 ## 環境の選び方
 
@@ -63,7 +64,7 @@ units:
   `__HLSL_VERSION` と `__SHADER_STAGE_*` はどの単位でも定義します
 - 値を持つシンボルは `#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、指摘に `QUALITY == 2 のとき` を添えます
 - シェーダーモデル 6.x の組み込み関数 (メッシュシェーダー、wave、`Barrier` など) と、ディスクリプタヒープ (`ResourceDescriptorHeap`) を知っています。
-  `select` / `and` / `or` は HLSL 2021 のときだけ組み込み関数です
+  `select` / `and` / `or` は DXC の組み込み関数です (DXC 1.8 はどの版でも使えます。1.6 は 2021 だけ)
 
 キーの一覧は [設定](configuration.md#hlsl) にあります。
 
@@ -127,8 +128,53 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 | --- | --- | --- |
 | 構成の軸 | `#pragma multi_compile` / `shader_feature` / `dynamic_branch` | 設定ファイルの `symbols:` |
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
-| HLSL の言語のバージョン | 2018 | `hlsl: version` (汎用の HLSL は 2021、Unreal は 2018 が既定) |
+| コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021、Unreal は DXC の 2018 が既定) |
 | 宣言し忘れたシンボル (HL0330) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
 | Unity だけのルール | SL / URP / HL0302 | 出ない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |
 | VS Code の構成の選択 | `#pragma` で宣言したシンボル | `symbols:` のシンボル。値を持つシンボルは `QUALITY = 2` のように値を選ぶ |
+
+## コンパイラと言語のバージョン
+
+使える構文と型は、コードをコンパイルするコンパイラ (FXC / DXC) と、DXC の言語のバージョン (`-HV`) で決まります。
+Shaderlyn はこの組 (方言) ごとの表を持ち、使えない構文を [HL0003](../rules/HL0003.md) などで報告します。
+表は手元の FXC (Windows SDK 10.0.26100) と DXC 1.6 / 1.8 で確かめたものです。
+
+| | FXC | DXC 2016 | 2017 | 2018 | 2021 |
+| --- | --- | --- | --- | --- | --- |
+| `template` / 演算子の多重定義 / ビットフィールド | × | × | × | × | ○ |
+| `enum` / `enum class` | × | × | ○ | ○ | ○ |
+| `int64_t` | × | ○ | ○ | ○ | ○ |
+| `float32_t` などの明示のビット幅の型 | × | × | × | ○ | ○ |
+| `float16_t` など (`-enable-16bit-types`) | × | × | × | ○ | ○ |
+| ベクトルへの `&&` / `?:` | ○ | ○ | ○ | ○ | × ([HL0349](../rules/HL0349.md)) |
+| `for` の変数をループの外で使う | ○ | ○ | ○ | ○ | × |
+| `and()` / `or()` / `select()` | × | ○ | ○ | ○ | ○ |
+| 構造体の `++` | 何もしない ([HL0348](../rules/HL0348.md)) | × | × | × | × |
+| `sampler2D` / `tex2D` (DX9 の書き方) | ○ | × | × | × | × |
+
+### Unity
+
+Unity は既定で FXC を使い、パス (コンピュートシェーダーはカーネル) ごと・API ごとに DXC (HLSL 2018) へ切り替えます。
+Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn はこの判定を Unity のバージョンごとに持っています。
+
+| | 2022.3 | 2023.2〜6.3 | 6.4〜6.5 | 6.6〜 |
+| --- | --- | --- | --- | --- |
+| include ファイルの中の `use_dxc` / `require` | 効く | 無視 | 無視 | 無視 |
+| `use_dxc` (API なし) | DX11 も DXC (DX11 で使えない) | 同左 | 同左 | DX12 / Vulkan / Metal が DXC、DX11 は FXC |
+| `use_dxc d3d11` | DX12 と DX11 が DXC | 同左 | 同左 | DX12 が DXC (非推奨) |
+| `use_dxc dx12` | 無視 | 無視 | 無視 | DX12 が DXC |
+| `use_dxc d3d12` | 無視 | 無視 | 無視 | 無視 |
+| DXC が要る `require` (12 個) | DXC (DX11 で使えない) | 同左 | 同左 | 同左 |
+| `require inlineraytracing` | 知らない値 (FXC) | コンパイルされない | DXC | DXC |
+| `never_use_dxc` と DXC が要る `require` | FXC | FXC | FXC | DXC |
+| `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` が有効な構成 | DXC | DXC | DXC | DXC |
+| `UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING` が有効な構成 | FXC | DXC | DXC | DXC |
+| `UNITY_DEVICE_SUPPORTS_WAVE_*` が有効な構成 | コンピュートシェーダーだけ DXC | 同左 | 同左 | 同左 |
+| Shader Compiler Backend を DXC | ― | ― | ― | その API は DXC (`never_use_dxc` が勝つ) |
+
+- Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから読みます。設定ファイルで上書きできます
+  ([設定](configuration.md#unity))。読んだものは `--env` に出ます
+- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (SL1050 の一部と SL1051) は出しません
+- DXC でコンパイルされるパスは DX11 では使えません。使えない API でのエラーは利用者に見えないので、そこでは構文を報告しません
+- この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確かめています
