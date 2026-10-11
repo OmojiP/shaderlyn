@@ -53,6 +53,7 @@ public static class BuiltInAnalyzers
         new IncludePathAnalyzer(),
         new EntryPointAnalyzer(),
         new ShaderStageAnalyzer(),
+        new CompilerPragmaAnalyzer(),
         new FunctionDefinitionAnalyzer(),
         new VariableDeclarationPresenceAnalyzer(),
         new MemberAccessAnalyzer(),

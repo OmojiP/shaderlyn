@@ -82,4 +82,28 @@ internal static class UnityRuleDescriptors
             + "共通コード片 (HLSLINCLUDE) に書いたつもりの #pragma が、"
             + "別の SubShader に属していて届いていない場合によく起きます。",
         helpLinkUri: DocumentationLinks.For("HL0302"));
+
+    /// <summary>コンパイラの指定 (<c>#pragma use_dxc</c> / <c>require</c> など) が、対象の API や Unity のバージョンと合わない。</summary>
+    /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
+    public static DiagnosticDescriptor CompilerPragmaMismatch { get; } = new(
+        id: "SL1050",
+        title: "コンパイラの指定が API や Unity のバージョンと合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "#pragma use_dxc / never_use_dxc / require の扱いは、Unity のバージョンと API で変わります。"
+            + "無視される API 名 (d3d12、6.5 以前の dx12)、DX11 では使えなくなる指定 (DXC が要る require、6.5 以前の API の無い use_dxc)、"
+            + "バージョンで結果が逆になる組み合わせ (never_use_dxc と require)、2023.2 以降で無視される include ファイルの中の指定を報告します。",
+        helpLinkUri: DocumentationLinks.For("SL1050"));
+
+    /// <summary>コンパイラの指定について、知っておくとよいこと (非推奨の API 名など)。</summary>
+    public static DiagnosticDescriptor CompilerPragmaNote { get; } = new(
+        id: "SL1051",
+        title: "コンパイラの指定についての注意",
+        messageFormat: "{0}",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "Unity 6.6 で非推奨になった use_dxc d3d11、Unity 2023.2〜6.3 でコンパイルされない require inlineraytracing など、"
+            + "エラーにはならないが意図と違う結果になりうる指定を伝えます。",
+        helpLinkUri: DocumentationLinks.For("SL1051"));
 }

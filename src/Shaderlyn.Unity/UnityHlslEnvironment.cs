@@ -54,6 +54,9 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// <summary>include ファイルごとの、コンパイラの選び方に関わる <c>#pragma</c> と、取り込む名前。</summary>
     private readonly ConditionalWeakTable<SourceText, IncludedFile> _includedFiles = [];
 
+    /// <summary>Unity の環境の設定。</summary>
+    internal UnityOptions Options => _options;
+
     /// <inheritdoc/>
     public string Name => "unity";
 

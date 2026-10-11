@@ -104,6 +104,39 @@ public sealed class CompileTargetRuleTests
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0348");
     }
 
+    [Theory]
+    [InlineData("#pragma use_dxc d3d12", "6.6", "SL1050", "d3d12 は、どのバージョンの Unity でも無視されます")]
+    [InlineData("#pragma use_dxc dx12", "6.3", "SL1050", "Unity 6.5 以前は use_dxc dx12 を無視します")]
+    [InlineData("#pragma use_dxc d3d11", "6.6", "SL1051", "非推奨")]
+    [InlineData("#pragma use_dxc d3d11", "6.3", "SL1050", "DX11 では使えなくなります")]
+    [InlineData("#pragma use_dxc", "6.3", "SL1050", "API を書かない use_dxc で DX11 も DXC")]
+    [InlineData("#pragma require int64", "6.6", "SL1050", "require int64 は DXC が要るので")]
+    [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "知らないので無視します")]
+    [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "このシェーダーをコンパイルしません")]
+    [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "SL1050", "6.5 以前は FXC、6.6 からは DXC")]
+    public void コンパイラの指定を対象のAPIとバージョンに照らして報告する(string pragma, string version, string id, string expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(pragma.Replace("|", "\n", StringComparison.Ordinal), "return 1;", version);
+
+        Assert.Contains(diagnostics, d => d.Id == id && d.GetMessage().Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("#pragma use_dxc", null)]
+    [InlineData("#pragma use_dxc dx12", null)]
+    [InlineData("#pragma use_dxc", "6.6")]
+    [InlineData("#pragma require int64 : _USE_INT64", "6.3")]
+    public void 問題の無いコンパイラの指定は報告しない(string pragma, string? version)
+        => Assert.DoesNotContain(
+            Analyze(pragma, "return 1;", new UnityOptions { EditorVersion = version }),
+            d => d.Id is "SL1050" or "SL1051");
+
+    [Fact]
+    public void DX11を対象にしなければrequireを報告しない()
+        => Assert.DoesNotContain(
+            Analyze("#pragma require int64", "return 1;", new UnityOptions { EditorVersion = "6.3", GraphicsApis = [UnityGraphicsApi.Direct3D12] }),
+            d => d.Id is "SL1050");
+
     private static ImmutableArray<Diagnostic> Analyze(string pragma, string body, string version, string declarations = "")
         => Analyze(pragma, body, new UnityOptions { EditorVersion = version }, declarations);
 
