@@ -159,6 +159,120 @@ public sealed class ProgramTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// 利用者が書いたヘッダで書き分けたマクロの誤りを、その構成のときとして報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 以前は、既定の構成で読み飛ばしたヘッダの分岐の名前を、名前だけで「解析されなかった場所にある名前」としていた。
+    /// 誤った名前そのものがその分岐にあるので、<c>_MODE_A</c> の木で見つけても報告されなかった。
+    /// SL0004 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
+    /// </para>
+    /// <para>
+    /// 今は利用者のヘッダの定義も条件付きで覚え、使う文を定義ごとに複製する (条件の巻き上げ)。
+    /// 文の種類が構成で変わっても SL0004 にならない。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("#ifdef _MODE_A\n#define BODY { v = missingA; }\n#else\n#define BODY v = 3;\n#endif", "_MODE_A")]
+    [InlineData("#if defined(_MODE_B)\n#define BODY v = 2;\n#elif defined(_MODE_A)\n#define BODY { v = missingA; }\n#else\n#define BODY v = 3;\n#endif", "_MODE_A")]
+    [InlineData("#ifdef _MODE_A\nfloat Helper() { return missingA; }\n#else\nfloat Helper() { return 0; }\n#endif\n#define BODY v = Helper();", "_MODE_A")]
+    public async Task 利用者のヘッダで書き分けたマクロの誤りを構成付きで報告する(string header, string symbol)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "Body.hlsl"), header.Replace("\n", Environment.NewLine, StringComparison.Ordinal));
+        CreateShaderFile(
+            "Test.shader",
+            """
+            Shader "Test"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #pragma multi_compile _ _MODE_A _MODE_B
+                        #include "Body.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target
+                        {
+                            float v = 0;
+                            if (v > 0)
+                                BODY
+                            return v;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
+
+        Assert.Contains($"Body.hlsl", output, StringComparison.Ordinal);
+        Assert.Contains($"'missingA' は 構成：{symbol} のとき宣言されていません", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("SL0004", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、SL0004 で伝えることを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 定義が 5 通りあるので複製しない。Unity やパッケージのヘッダと違い、利用者が直せる。
+    /// </remarks>
+    [Fact]
+    public async Task 利用者のヘッダで条件を追えなかった箇所を報告する()
+    {
+        File.WriteAllText(
+            Path.Combine(_workDirectory, "Body.hlsl"),
+            string.Join(
+                Environment.NewLine,
+                "#if defined(_MODE_A)",
+                "#define BODY { v = 1; }",
+                "#elif defined(_MODE_B)",
+                "#define BODY v = 2;",
+                "#elif defined(_MODE_C)",
+                "#define BODY v = 3;",
+                "#elif defined(_MODE_D)",
+                "#define BODY v = 4;",
+                "#else",
+                "#define BODY v = 5;",
+                "#endif"));
+        CreateShaderFile(
+            "Test.shader",
+            """
+            Shader "Test"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #pragma multi_compile _ _MODE_A _MODE_B _MODE_C _MODE_D
+                        #include "Body.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target
+                        {
+                            float v = 0;
+                            if (v > 0)
+                                BODY
+                            return v;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
+
+        Assert.Contains("Body.hlsl", output, StringComparison.Ordinal);
+        Assert.Contains("SL0004", output, StringComparison.Ordinal);
+    }
+
     private string CreateShaderFile(string name, string content = "Shader \"Test\" { }")
     {
         string path = Path.Combine(_workDirectory, name);

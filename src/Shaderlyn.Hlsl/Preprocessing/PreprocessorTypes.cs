@@ -857,6 +857,20 @@ public readonly record struct PreprocessResult(
     public ImmutableArray<HlslSyntaxToken> SkippedRootIdentifiers { get; init; }
 
     /// <summary>
+    /// 利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="SkippedRootIdentifiers"/> と同じく、別の構成がその場所を解析したかを確かめるために位置を持つ。
+    /// <see cref="SkippedIncludedIdentifiers"/> には含まない。
+    /// </para>
+    /// <para>
+    /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslSyntaxToken> SkippedUserHeaderIdentifiers { get; init; }
+
+    /// <summary>
     /// 1 つずつ有効にしただけでは通らない、条件に書かれたシンボルの組。
     /// </summary>
     /// <remarks>

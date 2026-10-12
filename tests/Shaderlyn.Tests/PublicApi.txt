@@ -463,6 +463,7 @@ Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.Im
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.MergedRegion] MergedRegions { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective] Pragmas { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ConditionalIdentifiers { get; set; }
+Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedUserIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Tokens { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.Hlsl.Preprocessing.MacroDefinition]] MacroChanges { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]]] MergedMacros { get; set; }
@@ -582,6 +583,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.Im
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.SymbolCombination] RequiredSymbolCombinations { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ConditionalIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedRootIdentifiers { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedUserHeaderIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Tokens { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] DeclinedBothBranchSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] MacroAffectingSymbols { get; set; }

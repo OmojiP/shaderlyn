@@ -673,7 +673,8 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// <para>
     /// <c>#elif</c> の分岐は扱う。その分岐の定義は、それまでの分岐がすべて偽という条件付きで覚えている。
-    /// 入れ子の <c>#if</c> と <c>#undef</c> は扱わない。条件の組み立てが別に要る。
+    /// <c>#undef</c> も扱う。それまでの定義の条件を縮める (<see cref="ForgetConditionalDefinitions"/>)。
+    /// 入れ子の <c>#if</c> は扱わない。条件の組み立てが別に要る。
     /// 定義を条件付きで覚えるのは解析しているファイルだけなので、ヘッダの領域も扱わない。
     /// </para>
     /// </remarks>
@@ -714,7 +715,13 @@ internal sealed partial class HlslPreprocessor
 
                 // #elif で 3 通り以上に書き分けた定義も、使う文を定義ごとに複製して補える。
                 // 定義の条件は「それまでの分岐がすべて偽、かつ自分の条件」で覚えている (EnterPathBranch)。
-                case "elif" or "else" or "endif":
+                // 入れ子の #if も、定義の条件は外側と掛け合わせた経路の条件で覚えている。
+                case "if" or "ifdef" or "ifndef" or "elif" or "else" or "endif":
+                    break;
+
+                // #undef してから定義し直す形も、#undef がそれまでの定義の条件を縮める (ForgetConditionalDefinitions)。
+                case "undef" when i + 2 < tokens.Length && tokens[i + 2].Kind == HlslSyntaxKind.IdentifierToken:
+                    defined.Add(tokens[i + 2].Text);
                     break;
 
                 default:

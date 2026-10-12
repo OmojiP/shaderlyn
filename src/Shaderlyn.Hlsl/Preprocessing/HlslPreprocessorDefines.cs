@@ -294,6 +294,13 @@ internal sealed partial class HlslPreprocessor
     {
         NoteUnhoistedExpansion(name);
 
+        // 定義ごとに複製している最中の展開は、それぞれの定義の条件付きで並ぶ。どれか 1 つの構成のものではない。
+        // 利用者が書いたヘッダで書き分けたマクロは、これで構成ごとの展開をしなくて済む。
+        if (atExpansion && _hoisting && string.Equals(name, _hoistingMacro, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         // 定義した分岐の中 (定義の条件を含む条件の下) で使うなら、どの構成でもその定義が効いている。
         if (atExpansion && IsUsedWhereDefined(name))
         {
@@ -360,18 +367,28 @@ internal sealed partial class HlslPreprocessor
     /// 単一構成の展開ではどちらか一方しか通らないので、条件を持たなければ気づけない。
     /// </para>
     /// <para>
-    /// 取り込んだヘッダの定義は覚えない。ヘッダは取り込む順序で中身を差し替える書き方を多用しており、
+    /// Unity やパッケージのヘッダの定義は覚えない。取り込む順序で中身を差し替える書き方を多用しており、
     /// 条件も追えていない。利用者が直せる範囲でもない。
     /// </para>
+    /// <para>
+    /// <b>利用者が書いたヘッダの定義は、並べた分岐の条件 (<see cref="CurrentCondition"/>) 付きで覚える。</b>
+    /// 使う文を定義ごとに複製できる (条件の巻き上げ)。覚えずにいると、ヘッダで書き分けたマクロを使うたびに
+    /// そのシンボルを構成ごとに展開し直し、文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// ヘッダの条件は解析しているファイルのシンボルを経路の条件として読まない (<see cref="TryReadPathCondition"/>) ので、
+    /// 経路の条件は使えない。読み飛ばした分岐の定義も、条件が分からないので覚えない (<paramref name="active"/>)。
+    /// </para>
     /// </remarks>
-    private void RecordConditionalDefinition(HlslSyntaxToken nameToken, ImmutableArray<HlslSyntaxToken> line)
+    /// <param name="active">読んでいる分岐の定義か。読み飛ばした分岐の定義なら <see langword="false"/>。</param>
+    private void RecordConditionalDefinition(HlslSyntaxToken nameToken, ImmutableArray<HlslSyntaxToken> line, bool active = true)
     {
-        if (!IsInRootFile(nameToken))
+        bool root = IsInRootFile(nameToken);
+
+        if (!root && !(active && IsUserHeaderDefinition(nameToken)))
         {
             return;
         }
 
-        SymbolCondition condition = _options.SymbolConstraints.Apply(CurrentPathCondition);
+        SymbolCondition condition = _options.SymbolConstraints.Apply(root ? CurrentPathCondition : CurrentCondition);
 
         if (condition.IsNever)
         {
@@ -409,22 +426,89 @@ internal sealed partial class HlslPreprocessor
 
         definitions.Add(new ConditionalMacro(body, condition, definition));
         ForgetHoistLookups();
-        _writtenDefinitions.Add((definition, condition));
+
+        if (root)
+        {
+            _writtenDefinitions.Add((definition, condition));
+        }
     }
 
+    /// <summary>利用者が書いたヘッダの定義で、条件付きで覚えるものかを判定する。</summary>
+    /// <param name="nameToken">マクロ名のトークン。</param>
+    /// <returns>覚えるなら <see langword="true"/>。</returns>
+    private bool IsUserHeaderDefinition(HlslSyntaxToken nameToken)
+        => IsHoistingEnabled
+           && !nameToken.IsFromMacroExpansion
+           && IsUserFile(nameToken.Source.FilePath);
+
     /// <summary>
-    /// <c>#undef</c> されたマクロの、条件付きの記録を捨てる。
+    /// <c>#undef</c> を、条件付きで覚えた定義に反映する。
     /// </summary>
-    /// <param name="name">マクロの名前。</param>
+    /// <param name="nameToken">マクロ名のトークン。</param>
+    /// <param name="active">読んでいる分岐の <c>#undef</c> か。読み飛ばした分岐のものなら <see langword="false"/>。</param>
     /// <remarks>
-    /// 条件付きの <c>#undef</c> を追うと、定義がある条件は「定義 ∧ その後に undef されていない」になる。
-    /// そこまで追わずに、<c>#undef</c> された名前は覚えるのをやめる。
-    /// 分からないものを根拠に再定義とは言わない。
+    /// <para>
+    /// <b>条件 C の下の <c>#undef</c> は、それまでの定義の条件を「元の条件 ∧ ¬C」に縮める。</b>
+    /// <code>
+    /// #define BODY v = 3;      // 常に → !_A に縮む
+    /// #ifdef _A
+    /// #undef BODY
+    /// #define BODY { v = 1; }  // _A
+    /// #endif
+    /// </code>
+    /// 縮めた定義と、その後の定義は条件が重ならないので、使う文を定義ごとに複製できる (条件の巻き上げ)。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめており、この形は構成ごとに展開して SL0004 になっていた。
+    /// </para>
+    /// <para>
+    /// 条件が分からないか「常に」なら、それまでの記録をすべて捨てる。分からないものを根拠に再定義とは言わない。
+    /// </para>
     /// </remarks>
-    private void ForgetConditionalDefinitions(string name)
+    private void ForgetConditionalDefinitions(HlslSyntaxToken nameToken, bool active = true)
     {
-        _conditionalMacros.Remove(name);
+        if (!_conditionalMacros.TryGetValue(nameToken.Text, out List<ConditionalMacro>? definitions))
+        {
+            return;
+        }
+
         ForgetHoistLookups();
+
+        SymbolCondition? undefined = IsInRootFile(nameToken)
+            ? _options.SymbolConstraints.Apply(CurrentPathCondition)
+            : active && IsUserHeaderDefinition(nameToken)
+                ? _options.SymbolConstraints.Apply(CurrentCondition)
+                : null;
+
+        if (undefined is not { IsAlways: false, IsUnknown: false } condition)
+        {
+            _conditionalMacros.Remove(nameToken.Text);
+            return;
+        }
+
+        if (condition.IsNever)
+        {
+            return;
+        }
+
+        SymbolCondition kept = condition.Negate();
+        List<ConditionalMacro> narrowed = [];
+
+        foreach (ConditionalMacro definition in definitions)
+        {
+            SymbolCondition remaining = _options.SymbolConstraints.Apply(definition.Condition.And(kept));
+
+            if (!remaining.IsNever && (remaining.IsUnknown || _options.SymbolConstraints.IsPossible(remaining)))
+            {
+                narrowed.Add(definition with { Condition = remaining });
+            }
+        }
+
+        if (narrowed.Count == 0)
+        {
+            _conditionalMacros.Remove(nameToken.Text);
+            return;
+        }
+
+        _conditionalMacros[nameToken.Text] = narrowed;
     }
 
     /// <summary>ヘッダの <c>#undef</c> を、定義がある条件に反映する。</summary>
@@ -506,6 +590,12 @@ internal sealed partial class HlslPreprocessor
     /// 詳しくは <see cref="Record"/> を見ること。
     /// 取り込みの記録に入るのは取り込んだファイルのものだけなので、位置は要らない。
     /// </para>
+    /// <para>
+    /// <b>利用者が書いたヘッダのものも、位置ごと覚える。</b>
+    /// 名前だけで覚えると、<c>#ifdef _A</c> の中で定義したマクロの本体にある誤った名前そのものが
+    /// 「読み飛ばした場所にある名前」になり、<c>_A</c> の木でその誤りを見つけても報告されない。
+    /// Unity やパッケージのヘッダは、取り込み結果の使い回しが多く、利用者も直せないので、名前のまま覚える。
+    /// </para>
     /// </remarks>
     private void AddSkippedIdentifier(HlslSyntaxToken token)
     {
@@ -516,6 +606,13 @@ internal sealed partial class HlslPreprocessor
         if (IsInRootSource(token))
         {
             _skippedRootIdentifiers.Add(token);
+            return;
+        }
+
+        if (IsUserFile(token.Source.FilePath))
+        {
+            _skippedUserHeaderIdentifiers.Add(token);
+            Record(recording => recording.SkippedUserIdentifiers.Add(token));
             return;
         }
 
@@ -804,7 +901,7 @@ internal sealed partial class HlslPreprocessor
             return;
         }
 
-        ForgetConditionalDefinitions(line[0].Text);
+        ForgetConditionalDefinitions(line[0]);
         ForgetHeaderDefinition(line[0]);
         SetMacro(line[0].Text, null);
 

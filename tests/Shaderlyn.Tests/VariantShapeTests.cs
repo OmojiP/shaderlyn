@@ -182,9 +182,16 @@ public sealed class VariantShapeTests
             ""
         },
         {
+            // #undef は、それまでの定義の条件を縮める (常に → !_A)。04 と同じく使う文を定義ごとに複製する。
             "24 #undef してから定義し直す",
             "#pragma multi_compile _ _A\n#define CTYPE float4\n#ifdef _A\n#undef CTYPE\n#define CTYPE float3\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
-            "_A"
+            ""
+        },
+        {
+            // 入れ子の #if の定義も、外側と掛け合わせた条件で覚えている。
+            "24b 入れ子の #if で定義を書き分ける",
+            "#pragma multi_compile _ _A _B\n#ifdef _A\n#define CTYPE float3\n#else\n#ifdef _B\n#define CTYPE float2\n#else\n#define CTYPE float4\n#endif\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
+            ""
         },
         {
             // 外側が文の途中で分かれていると、内側を並べても外側の分岐が片方しか木に載らない。

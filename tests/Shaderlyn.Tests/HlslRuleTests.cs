@@ -1704,6 +1704,7 @@ public sealed class HlslRuleTests
     [InlineData("#if defined(_MODE_A)", "#elif defined(_MODE_B)", "#else", "#endif")]
     [InlineData("#ifdef _MODE_A", "#elif defined(_MODE_B)", "#else", "#endif")]
     [InlineData("#ifdef _MODE_A", "#endif\n#ifdef _MODE_B", "#endif\n#if !defined(_MODE_A) && !defined(_MODE_B)", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#else\n#ifdef _MODE_B", "#else", "#endif\n#endif")]
     public void elifで書き分けたマクロも定義ごとに複製して条件を追う(string first, string second, string third, string end)
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
@@ -1766,6 +1767,53 @@ public sealed class HlslRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
         Assert.Contains("構成：!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>#undef</c> してから定義し直したマクロも、使う文を定義ごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <c>#undef</c> は、それまでの定義の条件を縮める (常に → <c>!_A</c>)。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して SL0004 になっていた。
+    /// </remarks>
+    [Fact]
+    public void undefしてから定義し直したマクロも定義ごとに複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY v = missingDefault;",
+            "#ifdef _A",
+            "#undef BODY",
+            "#define BODY { v = missingA; }",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0002"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 条件付きでundefした後にundefせず定義し直すと報告する()
+    {
+        // _A のときは #undef されているが、!_A のときは前の定義が残っている。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY 3",
+            "#ifdef _A",
+            "#undef BODY",
+            "#endif",
+            "#define BODY 4",
+            "half4 frag() : SV_Target { return BODY; }"));
+
+        Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -267,9 +267,12 @@ internal sealed partial class HlslPreprocessor
         {
             // #define しか無い領域なら、使う文を定義ごとに複製して補えることがある。
             // 補えたかは展開を終えてから決める (RestoreHoistedDeclines)。
-            ImmutableArray<string>? hoistable = reason == BothBranchDeclineReason.RegionDefinesMacros
-                ? FindHoistableDefinitions(CurrentSource.Index, end)
-                : null;
+            ImmutableArray<string>? hoistable = reason switch
+            {
+                BothBranchDeclineReason.RegionDefinesMacros => FindHoistableDefinitions(CurrentSource.Index, end),
+                BothBranchDeclineReason.OuterNotMerged => FindEnclosingHoistableMacros(),
+                _ => null,
+            };
 
             if (hoistable is { } macros)
             {
@@ -286,6 +289,51 @@ internal sealed partial class HlslPreprocessor
         }
 
         return condition;
+    }
+
+    /// <summary>
+    /// 囲んでいる並べなかった領域が、どれも巻き上げで補えるかもしれない領域なら、そのマクロを返す。
+    /// </summary>
+    /// <returns>いちばん外側の領域が定義するマクロ。そうでない領域があれば <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>入れ子の <c>#if</c> で書き分けた定義も、使う文を定義ごとに複製して補える。</b>
+    /// <code>
+    /// #ifdef _A
+    /// #define BODY { v = 1; }
+    /// #else
+    ///   #ifdef _B               // 外側を並べていないので、ここも並べない
+    ///   #define BODY v = 2;
+    ///   #else
+    ///   #define BODY v = 3;
+    ///   #endif
+    /// #endif
+    /// </code>
+    /// 定義の条件は、外側と掛け合わせた経路の条件で覚えている (<see cref="RecordConditionalDefinition"/>)。
+    /// 内側の <c>#ifdef _B</c> のシンボルも、外側と同じく、使う文がすべて複製できたかで決める。
+    /// 外側の領域を調べたとき (<see cref="FindHoistableDefinitions"/>) に、入れ子の中まで <c>#define</c> だけだと確かめてある。
+    /// </para>
+    /// </remarks>
+    private ImmutableArray<string>? FindEnclosingHoistableMacros()
+    {
+        ImmutableArray<string>? outermost = null;
+
+        foreach (ConditionalState state in _conditionals)
+        {
+            if (state.KeptCondition is not null || !state.IsConfigurationDependent)
+            {
+                continue;
+            }
+
+            if (!_hoistableRegionMacros.TryGetValue(state.Directive, out ImmutableArray<string> macros))
+            {
+                return null;
+            }
+
+            outermost ??= macros;
+        }
+
+        return outermost;
     }
 
     /// <summary>並べずに展開しているキーワードを、この構成での値で置き換える。</summary>

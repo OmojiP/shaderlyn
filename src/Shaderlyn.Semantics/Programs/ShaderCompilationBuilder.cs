@@ -397,8 +397,10 @@ internal static class ShaderCompilationBuilder
         /// <summary>取り込んだ解析結果。読み飛ばした位置を、別の構成が解析したかを確かめるのに使う。</summary>
         private readonly List<(HlslSyntaxTree Tree, VariantSpace Variants)> _trees = [];
 
-        /// <summary>解析しているファイル自身の非活性領域に現れた識別子。開始位置から名前を引く。</summary>
-        private readonly Dictionary<int, string> _skippedRootIdentifiers = [];
+        /// <summary>
+        /// 解析しているファイル自身と、利用者が書いたヘッダの非活性領域に現れた識別子。ファイルと開始位置から名前を引く。
+        /// </summary>
+        private readonly Dictionary<(string File, int Start), string> _skippedRootIdentifiers = [];
 
         /// <summary>どの構成でも解析されなかった非活性領域に現れた識別子。</summary>
         public HashSet<string> Unanalyzed { get; } = new(StringComparer.Ordinal);
@@ -430,7 +432,16 @@ internal static class ShaderCompilationBuilder
             {
                 foreach (HlslSyntaxToken token in result.SkippedRootIdentifiers)
                 {
-                    _skippedRootIdentifiers[token.Span.Start] = token.Text;
+                    _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
+                }
+            }
+
+            // 利用者が書いたヘッダも位置で持つ。#ifdef _A の中で定義したマクロの本体は、_A の木で検査されている。
+            if (!result.SkippedUserHeaderIdentifiers.IsDefaultOrEmpty)
+            {
+                foreach (HlslSyntaxToken token in result.SkippedUserHeaderIdentifiers)
+                {
+                    _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
             }
 
@@ -459,32 +470,29 @@ internal static class ShaderCompilationBuilder
                     // 「どの構成でも解析しなかった領域の名前」として、どこで使っても宣言済みになる。
                     foreach (MacroDefinition macro in tree.PreprocessResult.Macros.Values)
                     {
-                        if (!macro.NameToken.IsFromMacroExpansion
-                            && string.Equals(macro.NameToken.Source.FilePath, filePath, StringComparison.Ordinal))
+                        if (!macro.NameToken.IsFromMacroExpansion)
                         {
-                            _skippedRootIdentifiers.Remove(macro.NameToken.Span.Start);
+                            _skippedRootIdentifiers.Remove((macro.NameToken.Source.FilePath, macro.NameToken.Span.Start));
                         }
                     }
 
                     foreach (HlslSyntaxToken token in tree.PreprocessResult.Tokens)
                     {
-                        // このファイルが書いたマクロの本体から来たトークンも、
+                        // 利用者が書いたマクロの本体から来たトークンも、
                         // 本体の位置が解析されたことを表す。展開されて初めて中身が検査される。
                         if (token.MacroDefinitionSpan is { } definition)
                         {
-                            // 位置はこのファイルの中のものだけを鍵にしている。ヘッダのマクロの本体の位置は別のファイルを指す。
-                            if (string.Equals(token.MacroDefinitionSource?.FilePath, filePath, StringComparison.Ordinal))
+                            if (token.MacroDefinitionSource is { } source)
                             {
-                                _skippedRootIdentifiers.Remove(definition.Start);
+                                _skippedRootIdentifiers.Remove((source.FilePath, definition.Start));
                             }
 
                             continue;
                         }
 
-                        if (!token.IsFromMacroExpansion
-                            && string.Equals(token.Source.FilePath, filePath, StringComparison.Ordinal))
+                        if (!token.IsFromMacroExpansion)
                         {
-                            _skippedRootIdentifiers.Remove(token.Span.Start);
+                            _skippedRootIdentifiers.Remove((token.Source.FilePath, token.Span.Start));
                         }
                     }
 
@@ -533,9 +541,11 @@ internal static class ShaderCompilationBuilder
 
                     TextSpan span = region.Location.Span;
 
-                    foreach (int start in _skippedRootIdentifiers.Keys.Where(span.Contains).ToList())
+                    foreach ((string File, int Start) key in _skippedRootIdentifiers.Keys
+                                 .Where(key => string.Equals(key.File, filePath, StringComparison.Ordinal) && span.Contains(key.Start))
+                                 .ToList())
                     {
-                        _skippedRootIdentifiers.Remove(start);
+                        _skippedRootIdentifiers.Remove(key);
                     }
                 }
             }
