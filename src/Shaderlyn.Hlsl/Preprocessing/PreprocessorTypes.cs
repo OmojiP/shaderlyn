@@ -182,6 +182,15 @@ public sealed record PreprocessorOptions
     public bool HoistConditionalMacros { get; init; }
 
     /// <summary>
+    /// <c>#pragma once</c> を効かせるかどうか。既定は有効 (DXC / FXC と同じ)。
+    /// </summary>
+    /// <remarks>
+    /// Unity は <c>#pragma once</c> を効かせない (2022.3 / 6.3 / 6.6 で、<c>#include</c> でも <c>#include_with_pragmas</c> でも
+    /// 2 度目の取り込みが再定義のエラーになることを確かめた)。Unity の環境では無効にし、実際と同じく 2 度取り込む。
+    /// </remarks>
+    public bool HonorPragmaOnce { get; init; } = true;
+
+    /// <summary>
     /// 取り込みを切り替えている分岐も、両方の分岐を並べるかどうか。
     /// </summary>
     /// <remarks>

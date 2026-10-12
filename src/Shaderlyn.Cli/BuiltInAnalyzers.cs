@@ -55,6 +55,7 @@ public static class BuiltInAnalyzers
         new ShaderStageAnalyzer(),
         new CompilerPragmaAnalyzer(),
         new Native16BitConstantBufferAnalyzer(),
+        new PragmaOnceAnalyzer(),
         new FunctionDefinitionAnalyzer(),
         new VariableDeclarationPresenceAnalyzer(),
         new MemberAccessAnalyzer(),

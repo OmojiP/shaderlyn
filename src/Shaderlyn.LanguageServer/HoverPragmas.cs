@@ -54,6 +54,9 @@ internal static partial class HoverBuilder
         ["use_dxc"] =
             "DXC (HLSL 2018) でコンパイルする。API を書くとその API だけ (`vulkan`、6.6 から `dx12`。6.5 以前の DX12 は `d3d11`。`d3d12` は無視される)。"
             + "6.5 以前は API を書かないと DX11 も DXC になり、DX11 では使えなくなる。include ファイルの中に書いても、2023.2 以降は効かない。",
+        ["once"] =
+            "このファイルを 1 度だけ取り込む (DXC / FXC)。Unity は効かせない (2022.3 / 6.3 / 6.6 で確かめた)。"
+            + "Unity では `#ifndef` / `#define` / `#endif` のインクルードガードを使う (SL1055)。",
         ["never_use_dxc"] =
             "DXC を使わず、FXC でコンパイルする。6.5 以前は DXC が要る `require` より優先され、6.6 からは `require` に負ける。"
             + "6.6 の Shader Compiler Backend の DXC の設定には勝つ。",

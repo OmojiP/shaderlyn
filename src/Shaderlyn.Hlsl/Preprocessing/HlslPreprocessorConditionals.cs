@@ -83,6 +83,15 @@ internal sealed partial class HlslPreprocessor
         /// </summary>
         public int? InactiveFrom { get; set; }
 
+        /// <summary>今の並べた分岐が始まった出力の位置。並べていない分岐では <see langword="null"/>。</summary>
+        public int? BranchStart { get; set; }
+
+        /// <summary>今の並べた分岐に付く条件 (外側の条件を含む)。</summary>
+        public SymbolCondition BranchCondition { get; set; }
+
+        /// <summary>今の並べた分岐の範囲を、入れ子の <c>#if</c> が区切ったかどうか。</summary>
+        public bool BranchSplit { get; set; }
+
         /// <summary>この連なりの <c>#if</c> / <c>#elif</c> の条件に書かれた名前。</summary>
         public List<string> ConditionSymbols { get; } = [];
 
@@ -580,10 +589,8 @@ internal sealed partial class HlslPreprocessor
     /// <c>#undef</c> がある領域は扱わない。並べた分岐の <c>#undef</c> は、後ろの分岐のマクロ表を変えてしまう。
     /// </para>
     /// <para>
-    /// <b>入れ子の <c>#if</c> がある領域も扱わない。</b>
-    /// HDRP の MotionBlurMotionVecPrep.compute は、<c>#elif</c> の分岐の中で <c>_CameraClampThreshold</c> を入れ子の <c>#if</c> で書き分け、
-    /// 同じ分岐の関数で使う。並べると並べ直しの後戻りでそのシンボルだけが構成ごとの展開に回り、
-    /// 分岐ごとの同じ名前の関数を重複した宣言 (HL0314) と報告した。原因を突き止めるまで、この形は今までどおり並べない。
+    /// 入れ子の <c>#if</c> がある領域も並べる。並べた分岐を入れ子の <c>#if</c> が区切っても、
+    /// 分岐全体の範囲を記録するので、分岐をまたぐノードにも条件が付く (CloseBranchRange)。
     /// </para>
     /// </remarks>
     private bool CanMergeWithHoisting(int start, int end)
@@ -615,7 +622,7 @@ internal sealed partial class HlslPreprocessor
 
             if (i + 1 < tokens.Length
                 && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken
-                && tokens[i + 1].Text is "undef" or "include" or "if" or "ifdef" or "ifndef")
+                && tokens[i + 1].Text is "undef" or "include")
             {
                 return false;
             }

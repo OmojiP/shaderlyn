@@ -76,6 +76,15 @@ internal sealed partial class HlslPreprocessor
         if (_activeIncludePaths.Contains(included.FilePath))
         {
             Report(HlslDescriptors.CircularInclude, directiveToken.GetLocation(), path);
+
+            // 循環かどうかは、そのときの取り込みの連なりで決まる。囲んでいる取り込みの結果は覚えない。
+            // 覚えると、別のファイルを解析したときの連なりで見つけた循環を使い回し、
+            // 解析の順番で報告の位置が変わっていた (ファイルを並列に解析する CLI では、実行のたびに変わりうる)。
+            foreach (IncludeRecording outer in _recordings)
+            {
+                outer.Uncacheable = true;
+            }
+
             return;
         }
 
@@ -95,7 +104,7 @@ internal sealed partial class HlslPreprocessor
         {
             foreach (IncludeRecording outer in _recordings)
             {
-                outer.ContainsUserHeader = true;
+                outer.Uncacheable = true;
             }
 
             PushFileSource(included, included.FilePath);
@@ -206,8 +215,8 @@ internal sealed partial class HlslPreprocessor
 
         // 途中で条件が閉じられていない (ヘッダが #if を開いたまま終わった) 場合、
         // 続きの展開はこのヘッダの外の状態に依存する。覚えない。
-        // 利用者が書いたヘッダを取り込んでいた場合も覚えない (IsUserHeaderInclude)。
-        if (_conditionals.Count > 0 || recording.ContainsUserHeader)
+        // 利用者が書いたヘッダを取り込んでいた場合と、循環を見つけた場合も覚えない (IsUserHeaderInclude)。
+        if (_conditionals.Count > 0 || recording.Uncacheable)
         {
             return;
         }

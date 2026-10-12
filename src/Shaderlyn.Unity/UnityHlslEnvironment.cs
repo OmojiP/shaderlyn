@@ -76,6 +76,9 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
             // 使えない構文の報告 (HL0003) は、Unity のコンパイルでエラーになることを伝える。
             DialectName = "Unity",
+
+            // Unity は #pragma once を効かせない (SL1055)。実際と同じく 2 度取り込む。
+            HonorPragmaOnce = false,
             Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
     }

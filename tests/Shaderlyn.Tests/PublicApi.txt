@@ -616,6 +616,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions <Clone>$()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean HonorPragmaOnce { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean MergeSwitchedIncludes { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean ReportUnresolvedIncludes { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget] CompileTargets { get; set; }

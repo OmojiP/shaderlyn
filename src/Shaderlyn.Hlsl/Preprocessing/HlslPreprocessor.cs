@@ -172,8 +172,8 @@ internal sealed partial class HlslPreprocessor
         /// <summary>この展開の中で、利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
         public List<HlslSyntaxToken> SkippedUserIdentifiers { get; } = [];
 
-        /// <summary>この展開の中で、利用者が書いたヘッダを取り込んだか。取り込んだなら覚えない。</summary>
-        public bool ContainsUserHeader { get; set; }
+        /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
+        public bool Uncacheable { get; set; }
 
         /// <summary>この展開が、書く前に読んだマクロの名前と、読んだときの状態。</summary>
         public Dictionary<string, ulong> MacroReads { get; } = new(StringComparer.Ordinal);

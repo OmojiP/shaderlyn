@@ -1816,6 +1816,43 @@ public sealed class HlslRuleTests
         Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// 本体に <c>#if</c> を書いた関数にも、それを囲む <c>#elif</c> の分岐の条件が付くことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 条件の付く範囲は、入れ子の <c>#if</c> の前・中・後に分かれて記録される。
+    /// 関数はどの範囲にも収まらず条件が付かなかったので、分岐ごとの同じ名前の関数を重複した宣言 (HL0314) と報告していた
+    /// (HDRP の MotionBlurMotionVecPrep.compute)。
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("#define K 3")]
+    [InlineData("#if defined(_C)\n#define K _A\n#else\n#define K 2\n#endif")]
+    public void 本体にifのある関数にもelifの分岐の条件が付く(string? defines)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _A _B _C _D",
+            defines is null ? "#define K 3" : string.Empty,
+            "#ifdef _A",
+            "float F(float v) { return v; }",
+            "#elif defined(_B) || defined(_D)",
+            "float F(float v)",
+            "{",
+            "    float r = v * 2;",
+            "#if defined(_D)",
+            "    r += 1;",
+            "#endif",
+            "    return r;",
+            "}",
+            "#elif defined(_C)",
+            defines ?? string.Empty,
+            "float F(float v) { return v * K; }",
+            "#endif",
+            "half4 frag() : SV_Target { return F(1); }").Split('\n')]));
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0314");
+    }
+
     [Fact]
     public void 条件付きの再定義は条件付きの報告だけを出す()
     {

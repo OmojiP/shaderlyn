@@ -107,6 +107,9 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
             TokenCache = new HlslTokenCache(),
+
+            // CLI と同じく、ヘッダの展開結果を使い回す。結果は変わらない (使い回すかどうかで変わるなら、それは不具合である)。
+            IncludeCache = new HlslIncludeCache(),
         };
 
         AnalyzerDriver driver = new(Cli.BuiltInAnalyzers.All);
@@ -125,26 +128,38 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
                 .Select(p => (fixtures, p)),
         ];
 
-        foreach ((string root, string path) in files.OrderBy(f => f.Path, StringComparer.Ordinal))
-        {
-            string name = Path.GetRelativePath(root, path).Replace('\\', '/');
-            SourceText text = SourceText.From(File.ReadAllText(path), path);
+        // CLI と同じく、ファイルを並列に解析する。並べる順はファイルの順に保つ (AsOrdered)。
+        return files
+            .OrderBy(f => f.Path, StringComparer.Ordinal)
+            .AsParallel()
+            .AsOrdered()
+            .SelectMany(file => Analyze(file.Root, file.Path, options, driver))
+            .ToList();
+    }
 
-            ShaderCompilation compilation = path.EndsWith(".shader", StringComparison.Ordinal)
-                ? UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options)
-                : UnityCompilation.CreateForHlsl(text, options);
+    /// <summary>1 つのファイルを解析し、診断を 1 行ずつ並べる。</summary>
+    /// <param name="root">名前の基準のフォルダー。</param>
+    /// <param name="path">ファイルのパス。</param>
+    /// <param name="options">解析の設定。</param>
+    /// <param name="driver">ルールを走らせる仕組み。</param>
+    /// <returns>位置の順に並べた行。</returns>
+    private static List<string> Analyze(string root, string path, SemanticsOptions options, AnalyzerDriver driver)
+    {
+        string name = Path.GetRelativePath(root, path).Replace('\\', '/');
+        SourceText text = SourceText.From(File.ReadAllText(path), path);
 
-            IEnumerable<string> diagnostics = driver.Analyze(compilation.CreateAnalysisTarget())
+        ShaderCompilation compilation = path.EndsWith(".shader", StringComparison.Ordinal)
+            ? UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options)
+            : UnityCompilation.CreateForHlsl(text, options);
+
+        return
+        [
+            .. driver.Analyze(compilation.CreateAnalysisTarget())
                 .OrderBy(d => d.Location.Span.Start)
                 .ThenBy(d => d.Id, StringComparer.Ordinal)
                 .ThenBy(d => d.GetMessage(), StringComparer.Ordinal)
-                .Select(d => $"{name}{Where(d, path)}({d.Location.LineSpan.Start}-{d.Location.LineSpan.End}) {d.Id} {d.Severity}: {Flatten(d.GetMessage())}");
-
-            foreach (string line in diagnostics)
-            {
-                yield return line;
-            }
-        }
+                .Select(d => $"{name}{Where(d, path)}({d.Location.LineSpan.Start}-{d.Location.LineSpan.End}) {d.Id} {d.Severity}: {Flatten(d.GetMessage())}"),
+        ];
     }
 
     /// <summary>診断の位置が解析したファイルの外 (取り込んだヘッダ) なら、そのファイル名を示す。</summary>

@@ -285,6 +285,11 @@ internal sealed partial class HlslPreprocessor
         if (kept is not null && _conditionals.Any(state => state.KeptCondition is not null))
         {
             CloseConditionalRange();
+
+            foreach (ConditionalState outer in _conditionals)
+            {
+                outer.BranchSplit |= outer.BranchStart is not null;
+            }
         }
 
         _conditionals.Add(new ConditionalState(directive)
@@ -303,6 +308,7 @@ internal sealed partial class HlslPreprocessor
         if (kept is not null)
         {
             OpenConditionalRange();
+            StartBranchRange(_conditionals[^1]);
 
             MergedRegion region = new(directive.Source.FilePath, directive.Span.Start);
 
@@ -498,6 +504,7 @@ internal sealed partial class HlslPreprocessor
     private void EnterFoldedBranch(ConditionalState state, SymbolCondition branch)
     {
         CloseConditionalRange();
+        CloseBranchRange(state);
 
         if (branch.IsNever || !IsPossibleBranch(branch, _conditionals.Count - 1))
         {
@@ -511,6 +518,42 @@ internal sealed partial class HlslPreprocessor
         }
 
         OpenConditionalRange();
+        StartBranchRange(state);
+    }
+
+    /// <summary>並べた分岐の始まりと、その分岐に付く条件を覚える。</summary>
+    /// <param name="state">分岐を始めた連なり。</param>
+    private void StartBranchRange(ConditionalState state)
+    {
+        state.BranchStart = state.KeptCondition is not null ? _output.Count : null;
+        state.BranchCondition = _options.SymbolConstraints.Apply(CurrentCondition);
+        state.BranchSplit = false;
+    }
+
+    /// <summary>
+    /// 入れ子の <c>#if</c> が区切った並べた分岐について、分岐全体の範囲も記録する。
+    /// </summary>
+    /// <param name="state">分岐を終える連なり。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>条件の付く範囲は、入れ子の <c>#if</c> の前・中・後に分かれて記録される。</b>
+    /// ノードに条件を付けるのは、そのノードがどれか 1 つの範囲の内側にあるときである。
+    /// 関数の本体に <c>#if</c> を書くと、関数そのものはどの範囲の内側にも収まらず、条件が付かなかった (「常に」)。
+    /// <c>#if A … #elif B</c> の分岐ごとに同じ名前の関数を書くと、それらを同時に存在すると判断し、
+    /// 重複した宣言 (HL0314) と報告していた (HDRP の MotionBlurMotionVecPrep.compute)。
+    /// 分岐全体の範囲を分岐の条件で足せば、分岐をまたぐノードにも条件が付く。
+    /// 入れ子の中の範囲には、外側の条件を含む条件が付いているので、重ねて掛けても変わらない。
+    /// </para>
+    /// </remarks>
+    private void CloseBranchRange(ConditionalState state)
+    {
+        if (state.BranchStart is { } start && state.BranchSplit && _output.Count > start)
+        {
+            _conditionalRegions.Add(new ConditionalTokenRange(start, _output.Count - start, state.BranchCondition));
+        }
+
+        state.BranchStart = null;
+        state.BranchSplit = false;
     }
 
     /// <summary>
@@ -1201,6 +1244,7 @@ internal sealed partial class HlslPreprocessor
             if (_conditionals[^1].Folded)
             {
                 CloseConditionalRange();
+                CloseBranchRange(_conditionals[^1]);
             }
 
             RecordKeywordRegion(_conditionals[^1], directiveToken);
@@ -1664,7 +1708,7 @@ internal sealed partial class HlslPreprocessor
             _pragmas.Add(new PragmaDirective(line, line[0]));
         }
 
-        if (line.Length == 1 && line[0].Text == "once" && !line[0].IsFromMacroExpansion)
+        if (line.Length == 1 && line[0].Text == "once" && !line[0].IsFromMacroExpansion && _options.HonorPragmaOnce)
         {
             MarkIncludedOnce(line[0]);
         }

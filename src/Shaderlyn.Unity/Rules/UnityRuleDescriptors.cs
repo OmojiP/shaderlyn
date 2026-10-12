@@ -140,6 +140,23 @@ internal static class UnityRuleDescriptors
             + "エラーにはならないが意図と違う結果になりうる指定を伝えます。",
         helpLinkUri: DocumentationLinks.For("SL1051"));
 
+    /// <summary>Unity では効かない <c>#pragma once</c>。</summary>
+    /// <remarks>
+    /// Unity 2022.3 / 6.3 / 6.6 の実測 (ShaderProbePack の INCLUDE/HLSL_Include_PragmaOnce) による。
+    /// マニュアルには「Caching Shader Preprocessor が有効なときに使える」とあるが、
+    /// <c>#include</c> でも <c>#include_with_pragmas</c> でも 2 度目の取り込みが再定義のエラーになった。
+    /// </remarks>
+    public static DiagnosticDescriptor PragmaOnceIgnored { get; } = new(
+        id: "SL1055",
+        title: "Unity では #pragma once が効きません",
+        messageFormat: "Unity は #pragma once を効かせません。このファイルを 2 度取り込むと、中の宣言が再定義のエラーになります。#ifndef / #define / #endif のインクルードガードで囲んでください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "Unity のシェーダーのプリプロセッサは #pragma once を無視します (Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
+            + "同じファイルを 2 か所から取り込むと、関数や構造体が再定義のエラーになります。"
+            + "Unity のヘッダと同じく、#ifndef MY_HEADER_INCLUDED / #define MY_HEADER_INCLUDED / #endif で囲んでください。",
+        helpLinkUri: DocumentationLinks.For("SL1055"));
+
     /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
     /// <remarks>
     /// <c>-enable-16bit-types</c> では <c>half</c> が <c>float16_t</c> になり、定数バッファの中で 2 バイトに詰められる。
