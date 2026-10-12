@@ -1692,6 +1692,107 @@ public sealed class HlslRuleTests
         Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
     }
 
+    /// <summary>
+    /// <c>#elif</c> や別々の <c>#ifdef</c> で 3 通りに書き分けたマクロでも、使う文を定義ごとに複製して条件を追うことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <c>if</c> の本体が、構成によってブロックにも文にもなる形である。
+    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに SL0004 になっていた。
+    /// 複製した分岐の中の誤りは、その定義の条件付きで報告する。
+    /// </remarks>
+    [Theory]
+    [InlineData("#if defined(_MODE_A)", "#elif defined(_MODE_B)", "#else", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#elif defined(_MODE_B)", "#else", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#endif\n#ifdef _MODE_B", "#endif\n#if !defined(_MODE_A) && !defined(_MODE_B)", "#endif")]
+    public void elifで書き分けたマクロも定義ごとに複製して条件を追う(string first, string second, string third, string end)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _ _MODE_A _MODE_B",
+            first,
+            "#define BODY { v = 1; }",
+            second,
+            "#define BODY v = missingB;",
+            third,
+            "#define BODY v = 3;",
+            end,
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    for (int i = 0; i < 2; i++)",
+            "        BODY",
+            "    return v;",
+            "}").Split('\n')]));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+
+        Assert.All(
+            diagnostics.Where(d => d.Id == "HL0310"),
+            d => Assert.Contains("構成：_MODE_B のとき", d.GetMessage(), StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+    }
+
+    /// <summary>
+    /// マクロ自身が文を閉じていて、後ろに指令や外側の <c>}</c> が続いても、使う文を複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 展開前のトークンには <c>;</c> も <c>}</c> も無いので、以前は文の切れ目の候補が見つからず、
+    /// 複製を諦めて SL0004 になっていた。
+    /// </remarks>
+    [Theory]
+    [InlineData("    if (v > 0)\n        BODY\n#ifdef _C\n    v += 1;\n#endif")]
+    [InlineData("    if (v > 0)\n    {\n        BODY\n    }\n#ifdef _C\n    v += 1;\n#endif")]
+    [InlineData("    if (v > 0)\n    {\n        v = 0;\n        BODY\n    }")]
+    public void マクロで終わる文の後ろに指令が続いても複製する(string body)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _C",
+            "#ifdef _A",
+            "#define BODY { v = 1; }",
+            "#else",
+            "#define BODY v = missingB;",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            body,
+            "    return v;",
+            "}").Split('\n')]));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Assert.Contains("構成：!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void elifの分岐にdefine以外があればSL0004を報告する()
+    {
+        // 分岐に関数の宣言もあるので、使う文の複製では補えない。構成ごとに展開して木を突き合わせる。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _MODE_A _MODE_B",
+            "#if defined(_MODE_A)",
+            "#define BODY { v = 1; }",
+            "#elif defined(_MODE_B)",
+            "#define BODY v = 2;",
+            "float G() { return 0; }",
+            "#else",
+            "#define BODY v = 3;",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.True(Has(diagnostics, "SL0004"), Describe(diagnostics));
+    }
+
     // ------------------------------------------------------------------
     // HL0350 / HL0351: 代入・初期化・return の型
     // ------------------------------------------------------------------

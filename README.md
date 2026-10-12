@@ -55,6 +55,12 @@ Assets/Shaders/Lit.shader(5:21): warning SL1003: プロパティ '_BaseColor' �
 ほかにも、スペルミスの可能性があるタグの値や、使われていないシンボルなどを報告します。
 報告する内容の一覧は [ルール](docs/rules/README.md) にあります。
 
+Unity では、パスごと・グラフィックス API ごとに FXC と DXC (HLSL 2018) のどちらでコンパイルされるかを、Unity のバージョンに合わせて判定します。
+`#pragma use_dxc` / `#pragma require` の書き方で DX11 では使えなくなるシェーダー (SL1050) や、
+その構成のコンパイラでは通らない構文 (`int64_t` を FXC で使うなど、HL0003) を報告します。
+判定の表は [Unity 以外の環境で使う](docs/guide/environments.md#unity) にあります。
+Unity 以外にも、DXC で直接コンパイルする HLSL・Unreal Engine・独自エンジンのシェーダーを、設定ファイルで環境を選んで解析できます。
+
 ### 2. variability-aware な設計で `#if` 分岐を考慮して解析
 
 以下のようなコードは `_A かつ _C` が有効なときには動作しますが、 `_B` の時には `a` は存在しませんし、 `_A` の時には `b` は存在しません。

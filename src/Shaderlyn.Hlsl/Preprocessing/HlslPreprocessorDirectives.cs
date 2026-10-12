@@ -185,11 +185,18 @@ internal sealed partial class HlslPreprocessor
 
                 if (kept is null && !isStatic)
                 {
+                    // #define しか無い領域として記録済みなら、巻き上げで補えたかの判断をここで確定させない。
+                    // #if !defined(_A) && !defined(_B) のように、別々の #ifdef で書き分けた定義の残りを受け持つ形である。
+                    ImmutableArray<string>? hoistable = _hoistableRegionMacros.TryGetValue(directiveToken, out ImmutableArray<string> macros)
+                        ? macros
+                        : null;
+
                     DeclineBothBranchSymbolsIn(
                         line,
                         directiveToken,
                         read is null || read.Value.IsUnknown ? BothBranchDeclineReason.UnreadableCondition : null,
-                        _conditionals.Count);
+                        _conditionals.Count,
+                        hoistable);
 
                     NoteMergedMacroConditionUse(line.Where(t => t.Kind == HlslSyntaxKind.IdentifierToken).Select(t => t.Text));
                 }
@@ -349,7 +356,13 @@ internal sealed partial class HlslPreprocessor
         {
             if (!neverTrue)
             {
-                DeclineBothBranchSymbolsIn(line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1);
+                // #define しか無い領域の #elif は、#if と同じく、使う文を定義ごとに複製して補えることがある。
+                ImmutableArray<string>? hoistable = _hoistableRegionMacros.TryGetValue(state.Directive, out ImmutableArray<string> macros)
+                    ? macros
+                    : null;
+
+                DeclineBothBranchSymbolsIn(
+                    line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1, hoistable);
             }
 
             if (!state.IsParentSkipping)
@@ -560,6 +573,10 @@ internal sealed partial class HlslPreprocessor
     /// <param name="outer">
     /// 外側の条件の数。<c>#elif</c> では、その連なり自身を数えない。
     /// </param>
+    /// <param name="hoistableMacros">
+    /// <c>#define</c> しか無い領域の <c>#elif</c> で、その領域が定義するマクロ。
+    /// 使う文がすべて巻き上げで補えたら、シンボルを並べ直す。
+    /// </param>
     /// <remarks>
     /// <para>
     /// <b>まとめなかった条件のシンボルは、まだ構成ごとの展開が要る。</b>
@@ -579,7 +596,8 @@ internal sealed partial class HlslPreprocessor
         ImmutableArray<HlslSyntaxToken> line,
         HlslSyntaxToken directive,
         BothBranchDeclineReason? reason,
-        int outer)
+        int outer,
+        ImmutableArray<string>? hoistableMacros = null)
     {
         // 構成によらない条件のために読み飛ばしている分岐は、どの構成でも読まれない。
         if (_options.BothBranchSymbols.IsEmpty || IsInStaticSkippedBranch(outer))
@@ -592,7 +610,7 @@ internal sealed partial class HlslPreprocessor
             if (token.Kind == HlslSyntaxKind.IdentifierToken
                 && _options.BothBranchSymbols.Contains(token.Text))
             {
-                AddDeclinedSymbol(token.Text, reason, directive);
+                AddDeclinedSymbol(token.Text, reason, directive, hoistableMacros);
             }
         }
 

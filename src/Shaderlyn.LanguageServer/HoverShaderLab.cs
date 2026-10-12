@@ -169,7 +169,7 @@ internal static partial class HoverBuilder
         if (string.Equals(key, "Queue", StringComparison.OrdinalIgnoreCase))
         {
             return "\n\n指定できる値: " + Join(ShaderLabKnownValues.RenderQueues)
-                + " (微調整する場合は 'Geometry+1' のようにオフセットを指定 [queue name] [offset] )";
+                + " ('Geometry+1' のようにオフセットを指定可能 [queue name] [offset] )";
         }
 
         if (ShaderLabKnownValues.BooleanTagKeys.Contains(key))

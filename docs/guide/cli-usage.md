@@ -469,6 +469,13 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
   探したインストール先: C:\Program Files\Unity\Hub\Editor
   インストール済み: 6000.0.60f1
 
+■ シェーダーのコンパイラ
+  Unity のバージョン: 6000.3.0f1 (Unity 2023.2〜6.3 の規則、Unity プロジェクト)
+  グラフィックス API: dx12, dx11 (Unity プロジェクト)
+  Shader Compiler Backend: FXC (既定)
+  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で
+  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。
+
 ■ #include を探す順序
   1. #include を書いているファイルからの相対
   2. /.../
@@ -492,6 +499,7 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
 | 設定ファイル             | 探し始めた場所、見つかった `.shaderlyn.yaml`、その中の誤り、効いているプロファイル     |
 | Unity プロジェクト       | `Library/PackageCache` などがあるか。未指定なら、解析対象の上にあるプロジェクトを示す |
 | Unity Editor             | 使うデータフォルダーと、その決め方（`ProjectVersion.txt` と一致したか、代用したか）   |
+| シェーダーのコンパイラ   | Unity のバージョンとその読み方の区分、対象のグラフィックス API、Shader Compiler Backend、それぞれをどこから決めたか（設定ファイルの `unity:`・Unity プロジェクト・既定）。バージョンが分からなければ、バージョンで変わる判定はどのバージョンの結果も並べる |
 | `#include` を探す順序    | 解析と同じ順序。無いフォルダーには ⚠ が付く                                           |
 | パッケージの解決先       | 解析対象が `Packages/` で参照するパッケージと `manifest.json` の依存が、どこにあったか |
 | 解析対象に書かれた `#include` | 解決できた数と、解決できなかった行                                                |

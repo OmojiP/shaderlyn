@@ -176,10 +176,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 定義を条件付きで覚える領域は #define / #else / #endif だけのものに限る。
+            // #elif の分岐の定義も、それまでの分岐がすべて偽という条件付きで覚えている。04 と同じく使う文を定義ごとに複製する。
             "23 #elif で定義を書き分ける",
             "#pragma multi_compile _ _A _B\n#if defined(_A)\n#define CTYPE float3\n#elif defined(_B)\n#define CTYPE float2\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
-            "_A / _B"
+            ""
         },
         {
             "24 #undef してから定義し直す",

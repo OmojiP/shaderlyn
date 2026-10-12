@@ -47,7 +47,7 @@ rules:
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
-| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます |
+| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`                      |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
 
@@ -99,7 +99,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | --------- | -------------------------------------------------------------------- |
 | `compiler` | コンパイラ: `dxc` (既定) / `fxc`。`fxc` のときは `version` を使わず、DXC のマクロも定義しません |
 | `version` | HLSL の言語のバージョン (DXC の `-HV`): `2016` / `2017` / `2018` / `2021` (既定)。DXC 1.8 は `2015` をコンパイルできないので受け付けません |
-| `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false` |
+| `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false`。`compiler: fxc`、`version` が `2018` より前、`units:` の `target` がシェーダーモデル 6.2 より前のときは使えず、`TOOL0003` を報告します (DXC が受け付けないため) |
 
 使える構文は方言で決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
 

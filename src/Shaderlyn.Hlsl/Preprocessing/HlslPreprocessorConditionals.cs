@@ -271,9 +271,10 @@ internal sealed partial class HlslPreprocessor
                 ? FindHoistableDefinitions(CurrentSource.Index, end)
                 : null;
 
-            if (hoistable is not null)
+            if (hoistable is { } macros)
             {
                 _hoistableRegions[directive] = symbols;
+                _hoistableRegionMacros[directive] = macros;
             }
 
             foreach (string symbol in symbols)

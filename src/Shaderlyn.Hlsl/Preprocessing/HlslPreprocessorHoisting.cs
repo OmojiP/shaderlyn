@@ -76,6 +76,12 @@ internal sealed partial class HlslPreprocessor
     private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegions = [];
 
     /// <summary>
+    /// 巻き上げで補えるかもしれない領域 (開始の指令) が定義するマクロ。
+    /// 同じ領域の <c>#elif</c> のシンボルも、このマクロの巻き上げで補えたかで決める。
+    /// </summary>
+    private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegionMacros = [];
+
+    /// <summary>
     /// 巻き上げで補えるかもしれない領域で求めた、同時に有効にする組。補えなかった場合にだけ記録する。
     /// </summary>
     /// <remarks>
@@ -448,9 +454,17 @@ internal sealed partial class HlslPreprocessor
         }
 
         // どの定義も無い構成があるなら、その分岐も作る。名前がそのまま残る。
+        // #if A / #elif B / #else の 3 通りの書き分けは、条件を足し合わせると「常に」になるが、
+        // 論理和の形のままでは「常に」と分からない。成り立たない分岐を作ると、名前の残った文が文にならず、
+        // 複製を諦めて方法 B に回り、文の種類が構成で変わる箇所は SL0004 になっていた。
         if (!covered.IsAlways && !covered.IsUnknown)
         {
-            branches.Add((covered.Negate(), null));
+            SymbolCondition rest = _options.SymbolConstraints.Apply(covered.Negate());
+
+            if (!rest.IsNever && _options.SymbolConstraints.IsPossible(rest))
+            {
+                branches.Add((rest, null));
+            }
         }
 
         return branches.Count is >= 2 and <= MaxHoistedBranches ? branches : null;
@@ -555,6 +569,13 @@ internal sealed partial class HlslPreprocessor
     /// <para>
     /// 間に指令があれば、そこで打ち切る。複製すると指令まで 2 度処理することになる。
     /// </para>
+    /// <para>
+    /// <b>マクロ自身が文を閉じていることがある。</b>
+    /// <c>if (v &gt; 0) BODY</c> の <c>BODY</c> が <c>{ v = 1; }</c> や <c>v = 2;</c> なら、
+    /// 文は <c>BODY</c> で終わっており、展開前のトークンには <c>;</c> も <c>}</c> も無い。
+    /// 指令の手前と、外側のブロックを閉じる <c>}</c> の手前も候補にする。
+    /// 入れなければ、後ろに <c>#ifdef</c> が続くだけで候補が無くなり、複製を諦めていた。
+    /// </para>
     /// </remarks>
     private static IEnumerable<int> EnumerateUnitEnds(TokenSource source, int start)
     {
@@ -562,6 +583,7 @@ internal sealed partial class HlslPreprocessor
         int paren = 0;
         int bracket = 0;
         int found = 0;
+        int last = start;
 
         for (int i = start; i < source.Tokens.Length && i - start < MaxHoistedUnitTokens; i++)
         {
@@ -569,6 +591,11 @@ internal sealed partial class HlslPreprocessor
 
             if (token.Kind == HlslSyntaxKind.HashToken && token.IsAtLineStart)
             {
+                if (i > last && brace == 0 && paren == 0 && bracket == 0)
+                {
+                    yield return i;
+                }
+
                 yield break;
             }
 
@@ -581,6 +608,19 @@ internal sealed partial class HlslPreprocessor
                 case HlslSyntaxKind.OpenBracketToken: bracket++; break;
                 case HlslSyntaxKind.CloseParenToken: paren--; break;
                 case HlslSyntaxKind.CloseBracketToken: bracket--; break;
+
+                // 外側のブロックを閉じる } なら、文はその手前で終わっているかもしれない。
+                case HlslSyntaxKind.CloseBraceToken when brace == 0 && paren == 0 && bracket == 0 && i > last:
+                    last = i;
+                    yield return i;
+
+                    if (++found >= MaxUnitEndCandidates)
+                    {
+                        yield break;
+                    }
+
+                    boundary = true;
+                    break;
 
                 case HlslSyntaxKind.CloseBraceToken:
                     brace--;
@@ -604,6 +644,7 @@ internal sealed partial class HlslPreprocessor
                 continue;
             }
 
+            last = i + 1;
             yield return i + 1;
 
             // 閉じ括弧が余っていても打ち切らない。
@@ -631,7 +672,8 @@ internal sealed partial class HlslPreprocessor
     /// 使う文を定義ごとに複製すれば、どの構成の展開も 1 本の木に載る。
     /// </para>
     /// <para>
-    /// <c>#elif</c> と入れ子の <c>#if</c>、<c>#undef</c> は扱わない。条件の組み立てが別に要る。
+    /// <c>#elif</c> の分岐は扱う。その分岐の定義は、それまでの分岐がすべて偽という条件付きで覚えている。
+    /// 入れ子の <c>#if</c> と <c>#undef</c> は扱わない。条件の組み立てが別に要る。
     /// 定義を条件付きで覚えるのは解析しているファイルだけなので、ヘッダの領域も扱わない。
     /// </para>
     /// </remarks>
@@ -670,7 +712,9 @@ internal sealed partial class HlslPreprocessor
                     defined.Add(tokens[i + 2].Text);
                     break;
 
-                case "else" or "endif":
+                // #elif で 3 通り以上に書き分けた定義も、使う文を定義ごとに複製して補える。
+                // 定義の条件は「それまでの分岐がすべて偽、かつ自分の条件」で覚えている (EnterPathBranch)。
+                case "elif" or "else" or "endif":
                     break;
 
                 default:

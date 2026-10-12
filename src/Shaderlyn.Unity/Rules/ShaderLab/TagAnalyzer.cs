@@ -320,7 +320,7 @@ internal sealed class TagAnalyzer : DiagnosticAnalyzer
         {
             Report(context, tag,
                 $"指定できる queue name: {string.Join(", ", ShaderLabKnownValues.RenderQueues.Order(StringComparer.Ordinal))} "
-                + "(微調整する場合は 'Geometry+1' のようにオフセットを指定 [queue name] [offset] )");
+                + "('Geometry+1' のようにオフセットを指定可能 [queue name] [offset] )");
             return;
         }
 
