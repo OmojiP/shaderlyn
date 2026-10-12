@@ -36,7 +36,9 @@ Unity の環境で、0.2 から出るようになった指摘です。どれも 
 | [HL0003](../rules/HL0003.md) | FXC に届くコードの `int64_t` / `float32_t` / `float16_t` などの型、interface 型のグローバル変数、DXC に届くエントリ関数の `uniform` 引数。`#pragma use_dxc` のパスが DX11 の FXC にも届くときの `enum` |
 | [HL0346](../rules/HL0346.md) | DXC に届く構造体の `++` / `--` |
 | [HL0348](../rules/HL0348.md) | FXC だけに届く構造体の `++` / `--` (エラーにならず何もしない) |
-| [SL1050](../rules/SL1050.md) | `#pragma use_dxc` / `require` が API やバージョンと合わない (DXC が要る `require` で DX11 が使えなくなるなど) |
+| [SL1050](../rules/SL1050.md) | `#pragma use_dxc` / `require` が無視される (`use_dxc d3d12` など) |
+| [SL1053](../rules/SL1053.md) | DX11 で使えなくなるコンパイラの指定 (キーワードの条件の無い、DXC が要る `require` など) |
+| [SL1054](../rules/SL1054.md) | Unity のバージョンでコンパイラが変わる指定 (`never_use_dxc` と DXC が要る `require`) |
 | [SL1051](../rules/SL1051.md) | コンパイラの指定についての注意 (Unity のバージョンが分かるときだけ) |
 | [SL1052](../rules/SL1052.md) | 16 ビットの型を有効にしたパスの定数バッファの `half` |
 

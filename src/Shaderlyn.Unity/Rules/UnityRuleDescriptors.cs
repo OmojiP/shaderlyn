@@ -83,18 +83,51 @@ internal static class UnityRuleDescriptors
             + "別の SubShader に属していて届いていない場合によく起きます。",
         helpLinkUri: DocumentationLinks.For("HL0302"));
 
-    /// <summary>コンパイラの指定 (<c>#pragma use_dxc</c> / <c>require</c> など) が、対象の API や Unity のバージョンと合わない。</summary>
-    /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
-    public static DiagnosticDescriptor CompilerPragmaMismatch { get; } = new(
+    /// <summary>コンパイラの指定 (<c>#pragma use_dxc</c> / <c>require</c>) が無視され、DXC に切り替わらない。</summary>
+    /// <remarks>
+    /// <para>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</para>
+    /// <para>
+    /// コンパイラの指定の誤りは、直し方の種類で ID を分けてある。
+    /// 無視される指定 (SL1050)、DX11 で使えなくなる指定 (SL1053)、バージョンで結果が変わる組み合わせ (SL1054) である。
+    /// DX12 だけを対象にするプロジェクトは、SL1053 だけを無効にできる。
+    /// 文はどれも「何が起きているか。何でコンパイルされるか。どう直すか。」の 3 文で書く。
+    /// </para>
+    /// </remarks>
+    public static DiagnosticDescriptor CompilerPragmaIgnored { get; } = new(
         id: "SL1050",
-        title: "コンパイラの指定が API や Unity のバージョンと一致しません",
+        title: "コンパイラの指定が無視されます",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "#pragma use_dxc / never_use_dxc / require の扱いは、Unity のバージョンと API で変わります。"
-            + "無視される API 名 (d3d12、6.5 以前の dx12)、DX11 では使えなくなる指定 (DXC が要る require、6.5 以前の API の無い use_dxc)、"
-            + "バージョンで結果が逆になる組み合わせ (never_use_dxc と require)、2023.2 以降で無視される include ファイルの中の指定を報告します。",
+        description: "#pragma use_dxc / require のうち、Unity が認識しない、または効かない場所に書いたために無視されるものです。"
+            + "use_dxc の API 名 d3d12 (どのバージョンでも)、dx12 (6.5 以前)、include ファイルの中の指定 (2023.2 以降)、"
+            + "require inlineraytracing (2022.3) が当たります。DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。",
         helpLinkUri: DocumentationLinks.For("SL1050"));
+
+    /// <summary>コンパイラの指定で、パスが DX11 でも DXC でコンパイルされ、DX11 では使えなくなる。</summary>
+    /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
+    public static DiagnosticDescriptor CompilerPragmaBreaksDx11 { get; } = new(
+        id: "SL1053",
+        title: "DX11 で使えなくなるコンパイラの指定です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "DXC でコンパイルしたシェーダーは DX11 では使えません。"
+            + "キーワードの条件の無い、DXC が要る #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
+            + "DX11 でもパスを DXC でコンパイルさせます。対象の API に DX11 があるときだけ報告します。",
+        helpLinkUri: DocumentationLinks.For("SL1053"));
+
+    /// <summary>Unity のバージョンで、コンパイラが FXC と DXC に分かれる組み合わせ。</summary>
+    /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
+    public static DiagnosticDescriptor CompilerPragmaVersionDependent { get; } = new(
+        id: "SL1054",
+        title: "Unity のバージョンでコンパイラが変わる指定です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "#pragma never_use_dxc と、DXC が要る #pragma require を同じコードブロックに書くと、"
+            + "Unity 6.5 以前は never_use_dxc が勝って FXC、6.6 からは require が勝って DXC でコンパイルされます。",
+        helpLinkUri: DocumentationLinks.For("SL1054"));
 
     /// <summary>コンパイラの指定について、知っておくとよいこと (非推奨の API 名など)。</summary>
     public static DiagnosticDescriptor CompilerPragmaNote { get; } = new(

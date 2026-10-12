@@ -107,15 +107,15 @@ public sealed class CompileTargetRuleTests
     }
 
     [Theory]
-    [InlineData("#pragma use_dxc d3d12", "6.6", "SL1050", "d3d12 は、どのバージョンの Unity でも無視されます")]
-    [InlineData("#pragma use_dxc dx12", "6.3", "SL1050", "Unity 6.5 以前は use_dxc dx12 を無視します")]
+    [InlineData("#pragma use_dxc d3d12", "6.6", "SL1050", "d3d12 は、どのバージョンの Unity でも認識されません。この指定では DXC に切り替わらず")]
+    [InlineData("#pragma use_dxc dx12", "6.3", "SL1050", "Unity 6.5 以前は、use_dxc の API 名 dx12 を認識しません。")]
     [InlineData("#pragma use_dxc d3d11", "6.6", "SL1051", "非推奨")]
-    [InlineData("#pragma use_dxc d3d11", "6.3", "SL1050", "DX11 では使えなくなります")]
-    [InlineData("#pragma use_dxc", "6.3", "SL1050", "API を書かない use_dxc で DX11 も DXC")]
-    [InlineData("#pragma require int64", "6.6", "SL1050", "require int64 は DXC が要るので、このシェーダーは DX11 では使えません (コンパイルされないか、作られても使われません)。DX11 でも使うなら、キーワードで分けてください (require int64 : キーワード)。")]
-    [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "知らないので無視します")]
-    [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "このシェーダーをコンパイルしません")]
-    [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "SL1050", "6.5 以前は FXC、6.6 からは DXC")]
+    [InlineData("#pragma use_dxc d3d11", "6.3", "SL1053", "DX11 でも DXC でコンパイルされ、DXC でコンパイルしたシェーダーは DX11 では使えません。")]
+    [InlineData("#pragma use_dxc", "6.3", "SL1053", "API を書かない use_dxc が DX11 と DX12 の両方に効きます。")]
+    [InlineData("#pragma require int64", "6.6", "SL1053", "require int64 がキーワードの条件なしで書かれています。このパスは DXC でコンパイルされ、DX11 では使えません (コンパイルされないか、作られても使われません)。DX11 でも使うなら、require int64 : キーワード のように条件を付け、DXC が要る構成と FXC でよい構成を分けてください。")]
+    [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "認識しないので、この指定を無視します。")]
+    [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "このシェーダーはコンパイルされず、使われません。")]
+    [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "SL1054", "6.5 以前は FXC、6.6 からは DXC")]
     public void コンパイラの指定を対象のAPIとバージョンに照らして報告する(string pragma, string version, string id, string expected)
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(pragma.Replace("|", "\n", StringComparison.Ordinal), "return 1;", version);
@@ -131,7 +131,7 @@ public sealed class CompileTargetRuleTests
     public void 問題の無いコンパイラの指定は報告しない(string pragma, string? version)
         => Assert.DoesNotContain(
             Analyze(pragma, "return 1;", new UnityOptions { EditorVersion = version }),
-            d => d.Id is "SL1050" or "SL1051");
+            d => d.Id is "SL1050" or "SL1051" or "SL1053" or "SL1054");
 
     [Fact]
     public void require_native16bitのパスで定数バッファのhalfを報告する()
@@ -334,7 +334,7 @@ public sealed class CompileTargetRuleTests
     public void DX11を対象にしなければrequireを報告しない()
         => Assert.DoesNotContain(
             Analyze("#pragma require int64", "return 1;", new UnityOptions { EditorVersion = "6.3", GraphicsApis = [UnityGraphicsApi.Direct3D12] }),
-            d => d.Id is "SL1050");
+            d => d.Id is "SL1053");
 
     private static ImmutableArray<Diagnostic> Analyze(string pragma, string body, string version, string declarations = "")
         => Analyze(pragma, body, new UnityOptions { EditorVersion = version }, declarations);

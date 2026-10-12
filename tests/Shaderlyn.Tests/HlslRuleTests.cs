@@ -1816,6 +1816,22 @@ public sealed class HlslRuleTests
         Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void 条件付きの再定義は条件付きの報告だけを出す()
+    {
+        // 既定の木は「(_A のとき)」を添えて報告する。_A の木が条件の無い文で同じ位置に報告し、2 件になっていた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY 3",
+            "#ifdef _A",
+            "#define BODY 4",
+            "#endif",
+            "half4 frag() : SV_Target { return BODY; }"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0002");
+        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// 1 つの文で条件で中身の変わるマクロを 2 つ使っても、定義の組み合わせごとに複製することを検証する。
     /// </summary>

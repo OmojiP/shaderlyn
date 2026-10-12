@@ -53,7 +53,8 @@ internal sealed partial class HlslPreprocessor
             && _macros.TryGetValue(nameToken.Text, out MacroDefinition? previous)
             && IsInRootSource(previous.NameToken)
             && IsInRootSource(nameToken)
-            && !HasSameBody(previous, definition))
+            && !HasSameBody(previous, definition)
+            && !IsReportedConditionally(nameToken.Text))
         {
             Report(HlslDescriptors.PreprocessorError, nameToken.GetLocation(),
                 $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています。"
@@ -431,6 +432,39 @@ internal sealed partial class HlslPreprocessor
         {
             _writtenDefinitions.Add((definition, condition));
         }
+    }
+
+    /// <summary>
+    /// 中身を変えた再定義を、条件付きで覚えた定義どうしの照合 (<see cref="RecordConditionalDefinition"/>) が報告するかを判定する。
+    /// </summary>
+    /// <param name="name">マクロの名前。</param>
+    /// <returns>条件付きの照合が報告するなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>同じ誤りを 2 つの木が別々に報告していた。</b>
+    /// 既定の木は読み飛ばした分岐の定義も条件付きで覚えて照合し、「(_A のとき)」を添えて報告する。
+    /// <c>_A</c> の木は両方の定義を実際に通るので、ここで条件の無い文で報告していた。
+    /// 条件の分かる側を残し、ここでは報告しない。
+    /// </para>
+    /// <para>
+    /// 条件付きの照合は、どちらの定義の条件も分かっていて、両方が「常に」でないときに報告する。
+    /// </para>
+    /// </remarks>
+    private bool IsReportedConditionally(string name)
+    {
+        if (!_conditionalMacros.TryGetValue(name, out List<ConditionalMacro>? recorded))
+        {
+            return false;
+        }
+
+        SymbolCondition current = _options.SymbolConstraints.Apply(CurrentPathCondition);
+
+        if (current.IsUnknown || recorded.Exists(d => d.Condition.IsUnknown))
+        {
+            return false;
+        }
+
+        return !current.IsAlways || recorded.Exists(d => !d.Condition.IsAlways);
     }
 
     /// <summary>利用者が書いたヘッダの定義で、条件付きで覚えるものかを判定する。</summary>
