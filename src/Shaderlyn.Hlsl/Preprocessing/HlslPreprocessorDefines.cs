@@ -296,7 +296,7 @@ internal sealed partial class HlslPreprocessor
 
         // 定義ごとに複製している最中の展開は、それぞれの定義の条件付きで並ぶ。どれか 1 つの構成のものではない。
         // 利用者が書いたヘッダで書き分けたマクロは、これで構成ごとの展開をしなくて済む。
-        if (atExpansion && _hoisting && string.Equals(name, _hoistingMacro, StringComparison.Ordinal))
+        if (atExpansion && _hoisting && _hoistingMacros.Contains(name))
         {
             return;
         }

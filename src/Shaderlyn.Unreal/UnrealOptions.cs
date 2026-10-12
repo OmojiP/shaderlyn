@@ -46,6 +46,9 @@ public sealed record UnrealOptions
             ["COMPILER_HLSL"] = "1",
             ["COMPILER_DXC"] = "1",
             ["SM6_PROFILE"] = "1",
+
+            // エンジンの C++ がどのシェーダーにも定義する (ShaderCompiler.cpp)。PC の Direct3D は深度を反転している。
+            ["HAS_INVERTED_Z_BUFFER"] = "1",
         }.ToImmutableDictionary(StringComparer.Ordinal);
 
     /// <summary>既定の設定。</summary>
@@ -105,6 +108,20 @@ public sealed record UnrealOptions
             Enable16BitTypes = Enable16BitTypes,
             Variants = variants ?? VariantSpace.Empty,
             GeneratedIncludePrefixes = GeneratedIncludePrefixes,
-            PredefinedMacros = DefaultPredefinedMacros,
+            PredefinedMacros = PredefinedMacros,
         });
+
+    /// <summary>
+    /// この設定で定義するマクロ。既定のマクロ (<see cref="DefaultPredefinedMacros"/>) に、言語のバージョンで決まるものを足す。
+    /// </summary>
+    /// <remarks>
+    /// <b>HLSL 2021 なら <c>COMPILER_SUPPORTS_HLSL2021=1</c> を定義する。</b>
+    /// エンジンは C++ でシェーダーに <c>CFLAG_HLSL2021</c> を立てると、DXC に <c>-HV 2021</c> を渡し、このマクロを定義する
+    /// (<c>ShaderCompiler.cpp</c>)。エンジンのヘッダ (<c>DoubleFloat.ush</c> など) は、このマクロで HLSL 2021 の書き方に切り替える。
+    /// 定義しないと、<c>hlsl: version: 2021</c> にしても 2018 向けの分岐を読むことになる。
+    /// </remarks>
+    public ImmutableDictionary<string, string> PredefinedMacros
+        => Compiler == HlslCompiler.Dxc && LanguageVersion >= HlslLanguageVersion.Hlsl2021
+            ? DefaultPredefinedMacros.SetItem("COMPILER_SUPPORTS_HLSL2021", "1")
+            : DefaultPredefinedMacros;
 }

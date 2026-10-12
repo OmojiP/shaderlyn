@@ -302,6 +302,11 @@ internal sealed class HlslParser
             return ParseTypedef();
         }
 
+        if (IsStaticAssert())
+        {
+            return ParseStaticAssert();
+        }
+
         if (CurrentTextIs("cbuffer") || CurrentTextIs("tbuffer"))
         {
             return ParseConstantBuffer();
@@ -353,6 +358,52 @@ internal sealed class HlslParser
         }
 
         return ParseFunctionOrVariable(attributes, modifiers);
+    }
+
+    /// <summary>今の位置が <c>_Static_assert(...)</c> / <c>static_assert(...)</c> かを判定する。</summary>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private bool IsStaticAssert()
+        => (CurrentTextIs("_Static_assert") || CurrentTextIs("static_assert"))
+           && Peek(1).Kind == HlslSyntaxKind.OpenParenToken;
+
+    /// <summary>
+    /// コンパイル時の表明 (<c>_Static_assert(式, "文")</c>) を読み飛ばす。
+    /// </summary>
+    /// <returns>読み飛ばした宣言。</returns>
+    /// <remarks>
+    /// <para>
+    /// DXC は C11 の <c>_Static_assert</c> を受け付け、HLSL 2021 では <c>static_assert</c> も使える。
+    /// Unreal Engine のシェーダーは <c>HLSL_STATIC_ASSERT</c> マクロを通して、DXC のときにこれを書く
+    /// (<c>Shared/HLSLStaticAssert.h</c>)。読めずにいると、関数の外の表明が構文エラー (HL0001) になっていた。
+    /// </para>
+    /// <para>
+    /// 式は評価しない。何も宣言しないので、名前の引き方にも関わらない。
+    /// </para>
+    /// </remarks>
+    private IncompleteDeclarationSyntax ParseStaticAssert()
+    {
+        ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        skipped.Add(Advance());
+
+        int depth = 0;
+
+        while (!AtEnd)
+        {
+            HlslSyntaxToken token = Advance();
+            skipped.Add(token);
+
+            if (token.Kind == HlslSyntaxKind.OpenParenToken)
+            {
+                depth++;
+            }
+            else if (token.Kind == HlslSyntaxKind.CloseParenToken && --depth == 0)
+            {
+                break;
+            }
+        }
+
+        skipped.Add(Expect(HlslSyntaxKind.SemicolonToken, "';'"));
+        return new IncompleteDeclarationSyntax(skipped.ToImmutable());
     }
 
     /// <summary>修飾子の並びを読み取る。</summary>
@@ -1553,7 +1604,7 @@ internal sealed class HlslParser
             }
         }
 
-        if (LooksLikeDeclaration())
+        if (LooksLikeDeclaration() || IsStaticAssert())
         {
             return new LocalDeclarationStatementSyntax(ParseDeclaration());
         }
@@ -2072,6 +2123,25 @@ internal sealed class HlslParser
                     expression = new PostfixUnaryExpressionSyntax(expression, Advance());
                     break;
 
+                // 型引数を書いた型の静的メンバー (HLSL 2021 の TLaneVector2D<float, 2>::Const(1.0))。
+                // 比較の連なりとして読むと、:: から先が式にならない。
+                case HlslSyntaxKind.LessThanToken
+                    when Features.Templates
+                         && expression is IdentifierExpressionSyntax identifier
+                         && FindTypeArgumentsEnd(HlslSyntaxKind.ColonColonToken) is int qualifiedClose:
+                {
+                    HlslSyntaxToken openAngle = Advance();
+                    ImmutableArray<HlslSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+
+                    for (int i = 1; i < qualifiedClose; i++)
+                    {
+                        typeArguments.Add(Advance());
+                    }
+
+                    expression = new GenericNameExpressionSyntax(identifier.Identifier, openAngle, typeArguments.ToImmutable(), Advance());
+                    break;
+                }
+
                 // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
                 case HlslSyntaxKind.LessThanToken
                     when Features.Templates
@@ -2100,14 +2170,15 @@ internal sealed class HlslParser
     }
 
     /// <summary>
-    /// 現在の <c>&lt;</c> から型引数の並びが始まり、閉じ山括弧の直後に開き括弧が続くかを調べる。
+    /// 現在の <c>&lt;</c> から型引数の並びが始まり、閉じ山括弧の直後に開き括弧 (または <paramref name="following"/>) が続くかを調べる。
     /// </summary>
+    /// <param name="following">閉じ山括弧の直後に続く記号。</param>
     /// <returns>閉じ山括弧の位置 (現在からの距離)。型引数の並びでなければ <see langword="null"/>。</returns>
     /// <remarks>
     /// <c>a &lt; b &gt; (c)</c> という比較の連なりと形が同じになる。
     /// 比較の結果をさらに比べる書き方はまず無いので、型の記述に現れるトークンだけで閉じていれば呼び出しとみなす。
     /// </remarks>
-    private int? FindTypeArgumentsEnd()
+    private int? FindTypeArgumentsEnd(HlslSyntaxKind following = HlslSyntaxKind.OpenParenToken)
     {
         int depth = 0;
 
@@ -2122,7 +2193,7 @@ internal sealed class HlslParser
                 case HlslSyntaxKind.GreaterThanToken:
                     if (--depth == 0)
                     {
-                        return offset > 1 && Peek(offset + 1).Kind == HlslSyntaxKind.OpenParenToken ? offset : null;
+                        return offset > 1 && Peek(offset + 1).Kind == following ? offset : null;
                     }
 
                     break;
@@ -2192,6 +2263,13 @@ internal sealed class HlslParser
                 return new LiteralExpressionSyntax(Advance());
 
             case HlslSyntaxKind.IdentifierToken:
+                return new IdentifierExpressionSyntax(Advance());
+
+            // 大域の名前 (::AddLobeWithMIS(...))。構造体のメソッドから、同じ名前の大域の関数を呼ぶのに使う (HLSL 2021)。
+            // メソッドは大域の関数の候補に入らないので、名前の参照として読めば大域の関数を引く。
+            // 先頭の :: は木に残さない (名前の引き方に関わらない)。
+            case HlslSyntaxKind.ColonColonToken when Peek(1).Kind == HlslSyntaxKind.IdentifierToken:
+                Advance();
                 return new IdentifierExpressionSyntax(Advance());
 
             case HlslSyntaxKind.OpenParenToken:

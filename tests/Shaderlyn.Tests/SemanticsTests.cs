@@ -691,7 +691,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
                     #ifdef _A
                     #define USE_A 1
-                    static const half a = USE_A;   // 中身を変えて 2 度定義し、コードでも使うので、この分岐は並べられない
+                    static const half a = USE_A;   // 中身を変えて 2 度定義し、コードでも使い、#undef もあるので、この分岐は並べられない
                     half4 OnlyA()
                     {
                     #ifdef _B
@@ -700,6 +700,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
                         return 0;
                     }
                     #else
+                    #undef USE_A
                     #define USE_A 0
                     #endif
 

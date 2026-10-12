@@ -135,10 +135,10 @@ public sealed class VariantShapeTests
             "_A / _B"
         },
         {
-            // 定義のほかにコードもある分岐は、並べなかった側のコードがどの木にも載らない。
+            // 定義のほかにコードもある分岐も並べる。マクロを使う文は定義ごとに複製する (04 と同じ)。
             "16 マクロを定義する分岐にコードもある",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\nfloat G() { return 1; }\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
-            "_A"
+            ""
         },
         {
             // 16 の書き換え。定義とコードを別の #ifdef に分ける。
@@ -229,10 +229,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 1 つの文で複製できるのは 1 つのマクロだけである。VTYPE はどちらか 1 つの構成の値でしか展開されない。
+            // 定義の組み合わせ (_A と _B で 4 通り) ごとに複製する。04 と同じく構成は作らない。
             "31 条件で中身が変わるマクロを 1 つの文で 2 つ使う",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE f = VTYPE(1); return f.x; }",
-            "_B"
+            ""
         },
         {
             // 31 の書き換え。文を分ければ、続けて書いた文もそれぞれ複製する。

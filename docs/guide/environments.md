@@ -98,7 +98,15 @@ units:
   その旨を SL0002 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います
 - シェーダーコンパイラのマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   ほかのプラットフォームに合わせるときは `defines` で上書きしてください
-- 言語のバージョンの既定は 2018 です。HLSL 2021 で書いたシェーダーは `hlsl: version: 2021` にしてください
+- 言語のバージョンの既定は 2018 です。HLSL 2021 で書いたシェーダーは `hlsl: version: 2021` にしてください。
+  エンジンは C++ で `CFLAG_HLSL2021` を立てたシェーダーだけを `-HV 2021` でコンパイルし、そのとき `COMPILER_SUPPORTS_HLSL2021=1` を定義します。
+  Shaderlyn も `version: 2021` のときにこのマクロを定義します（TSR・Nanite・`LaneVectorization.ush` などは 2021 が前提です）
+- `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
+- エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
+  プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
+  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください
+- マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は分かりません。
+  マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。`defines` で空に定義すると読めます
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
 > `defines` で上書きしてください。仮想パスは `virtual-paths` で足せます。`--env` で、使っている割り当てとマクロを確かめられます。

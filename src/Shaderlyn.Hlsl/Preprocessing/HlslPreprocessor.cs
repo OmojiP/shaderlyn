@@ -362,7 +362,8 @@ internal sealed partial class HlslPreprocessor
             _pragmas.ToImmutable(),
             [.. _resolvedIncludes],
             [.. _unresolvedIncludes],
-            _macros.ToImmutableDictionary(),
+            _macros.ToImmutableDictionary().RemoveRange(
+                _macros.ToImmutableDictionary().Keys.Where(name => name.StartsWith(OnceMarkerPrefix, StringComparison.Ordinal))),
             [.. _skippedIdentifiers],
             [.. _conditionalIdentifiers],
             [.. _includes],

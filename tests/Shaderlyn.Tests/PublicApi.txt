@@ -780,6 +780,14 @@ Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String OwnerName { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Identifier { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TypeArguments { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseBracket { get; }
@@ -807,6 +815,7 @@ Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.Boolean TryGetInt64(Shaderlyn
 Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetDigits(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetTypeName(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Binary = 5
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Decimal = 1
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Floating = 4
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Hexadecimal = 2

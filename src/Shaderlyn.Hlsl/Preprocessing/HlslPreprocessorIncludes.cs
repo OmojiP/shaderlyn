@@ -65,6 +65,14 @@ internal sealed partial class HlslPreprocessor
 
         _includes.Add(new IncludeReference(path, pathLocation, included.FilePath));
 
+        // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
+        // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
+        if (IsIncludedOnce(included.FilePath))
+        {
+            AddResolvedInclude(included.FilePath);
+            return;
+        }
+
         if (_activeIncludePaths.Contains(included.FilePath))
         {
             Report(HlslDescriptors.CircularInclude, directiveToken.GetLocation(), path);

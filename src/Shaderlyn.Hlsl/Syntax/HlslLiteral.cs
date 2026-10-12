@@ -25,6 +25,9 @@ public enum HlslLiteralKind
 
     /// <summary>小数点または指数を持つ。</summary>
     Floating,
+
+    /// <summary>2 進の整数。<c>0b</c> で始まる (DXC)。</summary>
+    Binary,
 }
 
 /// <summary>
@@ -77,6 +80,11 @@ public static class HlslLiteral
         if (IsHex(digits))
         {
             return HlslLiteralKind.Hexadecimal;
+        }
+
+        if (IsBinary(digits))
+        {
+            return HlslLiteralKind.Binary;
         }
 
         if (IsFloating(digits))
@@ -212,6 +220,19 @@ public static class HlslLiteral
                 digits[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
         }
 
+        if (IsBinary(digits))
+        {
+            try
+            {
+                value = Convert.ToInt64(digits[2..], 2);
+                return true;
+            }
+            catch (Exception e) when (e is FormatException or OverflowException or ArgumentException)
+            {
+                return false;
+            }
+        }
+
         if (IsOctal(digits))
         {
             try
@@ -286,6 +307,12 @@ public static class HlslLiteral
     /// <returns>16 進なら <see langword="true"/>。</returns>
     private static bool IsHex(string digits)
         => digits.Length > 2 && digits[0] == '0' && (digits[1] is 'x' or 'X');
+
+    /// <summary>2 進の表記かどうかを判定する。</summary>
+    /// <param name="digits">接尾辞を除いた表記。</param>
+    /// <returns>2 進なら <see langword="true"/>。</returns>
+    private static bool IsBinary(string digits)
+        => digits.Length > 2 && digits[0] == '0' && (digits[1] is 'b' or 'B') && digits[2..].All(c => c is '0' or '1');
 
     /// <summary>8 進の表記かどうかを判定する。</summary>
     /// <param name="digits">接尾辞を除いた表記。</param>

@@ -273,6 +273,32 @@ public sealed class ProgramTests : IDisposable
         Assert.Contains("SL0004", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 別々のファイルの局所変数を、同じ範囲の重複した宣言 (HL0314) と報告しないことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 範囲を開き波括弧のファイルの中の位置だけで見分けていたので、
+    /// 別のファイルの関数の開き波括弧がたまたま同じ位置にあると、両方の局所変数を突き合わせていた。
+    /// Unreal Engine のエンジンのシェーダー (SobolRandom.ush の Result など) で起きていた。
+    /// </remarks>
+    [Fact]
+    public async Task 別のファイルの局所変数を重複した宣言と報告しない()
+    {
+        // どちらのファイルでも、関数の開き波括弧と局所変数が同じ位置に来るようにする。
+        File.WriteAllText(Path.Combine(_workDirectory, "A.hlsl"), "float A()\n{\n    float r = 1;\n    return r;\n}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "B.hlsl"), "float B()\n{\n    float r = 2;\n    return r;\n}\n");
+        CreateShaderFile(
+            "Test.hlsl",
+            "#include \"A.hlsl\"\n#include \"B.hlsl\"\nfloat4 main() : SV_Target { return A() + B(); }\n");
+        File.WriteAllText(
+            Path.Combine(_workDirectory, ".shaderlyn.yaml"),
+            "version: 1\nenvironment: hlsl\nunits:\n  - files: Test.hlsl\n    entry: main\n    target: ps_6_0\n");
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.hlsl"));
+
+        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+    }
+
     private string CreateShaderFile(string name, string content = "Shader \"Test\" { }")
     {
         string path = Path.Combine(_workDirectory, name);

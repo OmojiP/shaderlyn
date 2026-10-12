@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -88,7 +89,19 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <param name="DeclarationStarts">その木にある宣言の名前の位置。</param>
     private readonly record struct AnalyzedConfiguration(
         ImmutableArray<string> EnabledSymbols,
-        HashSet<int> DeclarationStarts);
+        HashSet<(string File, int Start)> DeclarationStarts);
+
+    /// <summary>宣言の位置を、ファイルとファイルの中の位置の組で表す。</summary>
+    /// <param name="location">宣言の位置。</param>
+    /// <returns>位置の組。</returns>
+    /// <remarks>
+    /// <b>位置だけではファイルを見分けられない。</b>
+    /// 取り込んだヘッダの関数の開き波括弧が、別のファイルの関数と同じ位置にあると、
+    /// 両方の局所変数を同じ範囲のものとして突き合わせてしまう。
+    /// Unreal Engine のシェーダーのように、報告するヘッダが多い環境で起きていた
+    /// (SobolRandom.ush の <c>Result</c> を、別のファイルの関数の <c>Result</c> と重複していると報告した)。
+    /// </remarks>
+    private static (string File, int Start) KeyOf(Location location) => (location.FilePath, location.Span.Start);
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -98,10 +111,14 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
         // Pass ごとに別のコードとして組み立てられ、さらに波括弧ごとに別の範囲になる。
         // 別の Pass に同じ名前の関数があるのも、内側の波括弧で同じ名前を宣言するのも、二重宣言ではない。
         // 範囲はトップレベルを 0、関数の中は開き波括弧の位置で表す。
-        Dictionary<(int Block, int Scope), Dictionary<string, List<Declared>>> byScope = [];
+        // 範囲の位置は、ファイルと位置の組で持つ (KeyOf)。トップレベルはファイルを問わず 1 つの範囲である。
+        Dictionary<(int Block, string ScopeFile, int Scope), Dictionary<string, List<Declared>>> byScope = [];
 
         // 同じ宣言が既定の木とバリアントの木の両方に現れる。位置で 1 つに数える。
-        HashSet<(int Block, int Start)> seen = [];
+        HashSet<(int Block, string File, int Start)> seen = [];
+
+        // 報告の「先に書かれた」を決めるための、ファイルが現れた順。
+        Dictionary<string, int> fileOrder = new(StringComparer.Ordinal);
 
         // バリアントの木は、有効にしたシンボルを固定した構成である (Collides)。
         Dictionary<int, List<AnalyzedConfiguration>> configurationsByBlock = [];
@@ -140,7 +157,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                Collect(declaration, scope: 0);
+                Collect(declaration, (string.Empty, 0));
 
                 // 関数の中は、波括弧ごとに別の範囲として集める。switch の本体も 1 つの範囲である。
                 foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
@@ -160,7 +177,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     // 仮引数は、関数のいちばん外の波括弧と同じ範囲にある。
                     if (node.Parent is FunctionDeclarationSyntax function)
                     {
-                        CollectParameters(function, open.Span.Start);
+                        CollectParameters(function, KeyOf(open.GetLocation()));
                     }
 
                     foreach (HlslStatementSyntax statement in statements)
@@ -168,7 +185,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         if (statement is LocalDeclarationStatementSyntax local
                             && compilation.IsReportable(local.Declaration))
                         {
-                            Collect(local.Declaration, open.Span.Start);
+                            Collect(local.Declaration, KeyOf(open.GetLocation()));
                         }
 
                         // for の初期化の変数は、囲む波括弧へ漏れる。
@@ -177,14 +194,14 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         {
                             foreach (Declared declared in Describe(initializer, condition))
                             {
-                                Add(declared with { IsLoopVariable = true }, open.Span.Start);
+                                Add(declared with { IsLoopVariable = true }, KeyOf(open.GetLocation()));
                             }
                         }
                     }
                 }
             }
 
-            void CollectParameters(FunctionDeclarationSyntax function, int scope)
+            void CollectParameters(FunctionDeclarationSyntax function, (string File, int Start) scope)
             {
                 foreach (ParameterSyntax parameter in function.ParameterList)
                 {
@@ -197,7 +214,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            void Collect(HlslDeclarationSyntax declaration, int scope)
+            void Collect(HlslDeclarationSyntax declaration, (string File, int Start) scope)
             {
                 foreach (Declared declared in Describe(declaration, condition))
                 {
@@ -205,19 +222,22 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            void Add(Declared declared, int scope)
+            void Add(Declared declared, (string File, int Start) scope)
             {
-                configuration?.DeclarationStarts.Add(declared.Location.Span.Start);
+                (string file, int start) = KeyOf(declared.Location);
+                configuration?.DeclarationStarts.Add((file, start));
 
-                if (!seen.Add((block, declared.Location.Span.Start)))
+                if (!seen.Add((block, file, start)))
                 {
                     return;
                 }
 
-                if (!byScope.TryGetValue((block, scope), out Dictionary<string, List<Declared>>? byName))
+                fileOrder.TryAdd(file, fileOrder.Count);
+
+                if (!byScope.TryGetValue((block, scope.File, scope.Start), out Dictionary<string, List<Declared>>? byName))
                 {
                     byName = new Dictionary<string, List<Declared>>(StringComparer.Ordinal);
-                    byScope[(block, scope)] = byName;
+                    byScope[(block, scope.File, scope.Start)] = byName;
                 }
 
                 if (!byName.TryGetValue(declared.Name, out List<Declared>? list))
@@ -232,16 +252,16 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
         // 同じ宣言が複数の Pass から見える (HLSLINCLUDE) 場合、
         // その組は Pass の数だけ見つかる。位置の組で 1 度だけ報告する。
-        HashSet<int> reported = [];
+        HashSet<(string File, int Start)> reported = [];
 
-        foreach (((int block, int _), Dictionary<string, List<Declared>> byName) in byScope)
+        foreach (((int block, string _, int _), Dictionary<string, List<Declared>> byName) in byScope)
         {
             List<AnalyzedConfiguration> configurations =
                 configurationsByBlock.TryGetValue(block, out List<AnalyzedConfiguration>? found) ? found : [];
 
             foreach (List<Declared> declarations in byName.Values)
             {
-                Report(context, condition, declarations, configurations, reported);
+                Report(context, condition, declarations, configurations, fileOrder, reported);
             }
         }
     }
@@ -306,9 +326,11 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <param name="condition">出現条件の索引。</param>
     /// <param name="declarations">同じ名前の宣言。</param>
     /// <param name="configurations">このブロックを構成を決めて展開した木。</param>
+    /// <param name="fileOrder">ファイルが現れた順。別のファイルの宣言は、先に現れたファイルのものを先とする。</param>
     /// <param name="reported">既に報告した位置。</param>
     /// <remarks>
     /// 3 つ以上あるときは、先に書かれたものとの組を 1 つだけ報告する。
+    /// 先の宣言が別のファイルにあれば、行番号にファイル名を添える。
     /// 同じ誤りを組み合わせの数だけ並べても読みにくくなるだけである。
     /// </remarks>
     private static void Report(
@@ -316,14 +338,19 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
         ConditionMap condition,
         List<Declared> declarations,
         List<AnalyzedConfiguration> configurations,
-        HashSet<int> reported)
+        Dictionary<string, int> fileOrder,
+        HashSet<(string File, int Start)> reported)
     {
         if (declarations.Count < 2)
         {
             return;
         }
 
-        declarations.Sort((left, right) => left.Location.Span.Start.CompareTo(right.Location.Span.Start));
+        declarations.Sort((left, right) =>
+        {
+            int byFile = fileOrder[left.Location.FilePath].CompareTo(fileOrder[right.Location.FilePath]);
+            return byFile != 0 ? byFile : left.Location.Span.Start.CompareTo(right.Location.Span.Start);
+        });
 
         for (int i = 1; i < declarations.Count; i++)
         {
@@ -338,16 +365,20 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                if (!reported.Add(later.Location.Span.Start))
+                if (!reported.Add(KeyOf(later.Location)))
                 {
                     break;
                 }
+
+                int line = earlier.Location.LineSpan.Start.Line + 1;
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     HlslRuleDescriptors.Redeclaration,
                     later.Location,
                     later.Name,
-                    earlier.Location.LineSpan.Start.Line + 1));
+                    string.Equals(earlier.Location.FilePath, later.Location.FilePath, StringComparison.Ordinal)
+                        ? line.ToString(CultureInfo.InvariantCulture)
+                        : $"{Path.GetFileName(earlier.Location.FilePath)} の {line}"));
 
                 break;
             }
@@ -414,8 +445,8 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (configuration.DeclarationStarts.Contains(earlier.Location.Span.Start)
-                && configuration.DeclarationStarts.Contains(later.Location.Span.Start))
+            if (configuration.DeclarationStarts.Contains(KeyOf(earlier.Location))
+                && configuration.DeclarationStarts.Contains(KeyOf(later.Location)))
             {
                 return true;
             }

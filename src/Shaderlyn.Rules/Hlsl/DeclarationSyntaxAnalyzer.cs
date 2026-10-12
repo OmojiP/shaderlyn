@@ -220,6 +220,9 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             case HlslLiteralKind.Hexadecimal:
                 return digits[2..].TrimStart('0').Length > 8;
 
+            case HlslLiteralKind.Binary:
+                return digits[2..].TrimStart('0').Length > 32;
+
             case HlslLiteralKind.Octal:
                 string octal = digits.TrimStart('0');
                 return octal.Length > 11 || (octal.Length == 11 && octal[0] > '3');

@@ -1663,7 +1663,44 @@ internal sealed partial class HlslPreprocessor
         {
             _pragmas.Add(new PragmaDirective(line, line[0]));
         }
+
+        if (line.Length == 1 && line[0].Text == "once" && !line[0].IsFromMacroExpansion)
+        {
+            MarkIncludedOnce(line[0]);
+        }
     }
+
+    /// <summary><c>#pragma once</c> を書いたファイルの印の名前に付ける前置き。識別子には書けない形にする。</summary>
+    private const string OnceMarkerPrefix = "#pragma once:";
+
+    /// <summary>
+    /// <c>#pragma once</c> を書いたファイルを、2 度目からは取り込まないものとして覚える。
+    /// </summary>
+    /// <param name="onceToken"><c>once</c> のトークン。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Unreal Engine のヘッダは、インクルードガードではなく <c>#pragma once</c> で 2 度目の取り込みを防ぐ。</b>
+    /// 扱わずにいると、同じヘッダを何度も展開し (同じ宣言の重複 HL0314、同じマクロの再定義)、
+    /// ヘッダどうしが互いを取り込むだけで循環 (HL0320) と報告し、展開の量も膨れ上がっていた。
+    /// DXC と FXC は、2 度目の取り込みを丸ごと飛ばす。
+    /// </para>
+    /// <para>
+    /// <b>印はマクロ表に、識別子には書けない名前で置く。</b>
+    /// 取り込み結果の使い回し (<see cref="HlslIncludeCache"/>) は、マクロ表の状態と、展開が読んだ名前で照合している。
+    /// 印をマクロ表に置けば、どのファイルを取り込み済みかもその照合に入る。
+    /// 結果のマクロ表 (<see cref="PreprocessResult.Macros"/>) からは外す。
+    /// </para>
+    /// </remarks>
+    private void MarkIncludedOnce(HlslSyntaxToken onceToken)
+    {
+        string name = OnceMarkerPrefix + onceToken.Source.FilePath;
+        SetMacro(name, new MacroDefinition(name, onceToken, isFunctionLike: false, [], isVariadic: false, []));
+    }
+
+    /// <summary>そのファイルが <c>#pragma once</c> を書いていて、すでに取り込まれているかを判定する。</summary>
+    /// <param name="filePath">取り込むファイルのパス。</param>
+    /// <returns>取り込み済みなら <see langword="true"/>。</returns>
+    private bool IsIncludedOnce(string filePath) => _macros.ContainsKey(OnceMarkerPrefix + filePath);
 
     // --------------------------------------------------------------------
     // 指令の行の読み取り

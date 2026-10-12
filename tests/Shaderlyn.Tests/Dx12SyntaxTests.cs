@@ -3,6 +3,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
+using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 
@@ -48,6 +49,13 @@ public sealed class Dx12SyntaxTests
         };
         """)]
     [InlineData("float4 f() { float4 c = 0; c += (0.1, 0.1, 0.1, 1); return c; }")]
+    // Unreal Engine の HLSL_STATIC_ASSERT が DXC のときに書く形 (Shared/HLSLStaticAssert.h)。
+    [InlineData("struct S { float4 a; };\n_Static_assert(sizeof(S) == 16, \"S must be 16 bytes\");")]
+    [InlineData("float4 f() { _Static_assert(1 == 1, \"ok\"); static_assert(true, \"ok\"); return 1; }")]
+    // 2 進数のリテラル (Unreal Engine の Nanite のシェーダー)。
+    [InlineData("uint f(uint x) { return (x & 0b1000) > 0 ? 0b0111u : 0B1; }")]
+    // 構造体のメソッドから、同じ名前の大域の関数を呼ぶ (Unreal Engine の PathTracingMaterialCommon.ush)。
+    [InlineData("void Add(inout float a, float b) { a += b; }\nstruct S { float A; void Add(float b) { ::Add(A, b); } };")]
     public void DXCが受け付ける書き方を構文の誤りにしない(string code)
         => HlslHarness.ParseValid(code);
 
@@ -112,15 +120,84 @@ public sealed class Dx12SyntaxTests
         Assert.Equal(reported, diagnostics.Any(d => d.Id == "HL0311"));
     }
 
+    /// <summary>
+    /// Unreal Engine のエンジンのシェーダーで見つけた誤検出を、小さな例として残す。
+    /// </summary>
+    [Fact]
+    public void マクロで作った多重定義を見分ける()
+    {
+        // 同じマクロの本体から作った多重定義は、どれも同じ位置になる (DualPixelVectorization.ush の dpv_min)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            #define MV(TYPE, C) TYPE##C##x2
+            #define VEC(TYPE, C) TYPE##C
+            #define DEFV(TYPE, C)                 MV(TYPE, C) my_min(MV(TYPE, C) a, MV(TYPE, C) b) { return min(a, b); }                 MV(TYPE, C) my_min(MV(TYPE, C) a, VEC(TYPE, C) b) { return a; }
+            #define FOR_ALL(DEF) DEF(float, 2) DEF(float, 3)
+            FOR_ALL(DEFV)
+            float4 main() : SV_Target
+            {
+                float3x2 m = 0;
+                float3x2 q = my_min(m, float3(1, 2, 3));
+                return q[0].xyxy;
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0340" or "HL0341");
+    }
+
+    [Fact]
+    public void マクロを変えて取り込み直したヘッダの別名の関数を見分ける()
+    {
+        // DoubleFloat.ush は DFConstructor を変えながら同じヘッダを取り込み、同じ位置から別の名前の関数を作る。
+        SourceText text = SourceText.From("""
+            #define CTOR MakeA
+            #include "Ops.hlsl"
+            #undef CTOR
+            #define CTOR MakeB
+            #include "Ops.hlsl"
+            float4 main() : SV_Target { return MakeA(1) + MakeB(2); }
+            """, "test.hlsl");
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            text,
+            HlslEnvironment.WholeFile(text),
+            new InMemoryIncludeResolver(new Dictionary<string, string>(StringComparer.Ordinal) { ["Ops.hlsl"] = "float CTOR(float x) { return x; }" }));
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0310");
+    }
+
+    [Fact]
+    public void 型の分からない左辺と構造体の演算は報告しない()
+    {
+        // 左辺の構造体の演算子が使われるかもしれない (TLaneVector2D<float, 2>::Const(1.0) - a)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            template<typename T, uint N>
+            struct TVec
+            {
+                vector<T, N> V;
+                static TVec<T, N> Const(T s) { TVec<T, N> r; r.V = s; return r; }
+                TVec<T, N> operator - (TVec<T, N> b) { TVec<T, N> r; r.V = V - b.V; return r; }
+            };
+            float4 main() : SV_Target
+            {
+                TVec<float, 2> a;
+                a.V = 0;
+                TVec<float, 2> c = TVec<float, 2>::Const(1.0) - a;
+                return c.V.xyxy;
+            }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0346" or "HL0001");
+    }
+
     private static ImmutableArray<Diagnostic> Analyze(string code)
     {
         SourceText text = SourceText.From(code, "test.hlsl");
         return Analyze(text, HlslEnvironment.WholeFile(text));
     }
 
-    private static ImmutableArray<Diagnostic> Analyze(SourceText text, HlslCompilationUnit unit)
+    private static ImmutableArray<Diagnostic> Analyze(SourceText text, HlslCompilationUnit unit, IIncludeResolver? resolver = null)
     {
-        ShaderCompilation compilation = ShaderCompilation.Create(text, [unit], text, new HlslEnvironment(), ShaderSourceInfo.None);
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text, [unit], text, new HlslEnvironment(), ShaderSourceInfo.None, new SemanticsOptions { IncludeResolver = resolver });
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }
 }

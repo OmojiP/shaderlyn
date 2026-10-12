@@ -327,6 +327,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | --------------------------------- | ---------------------------------- |
 | `InvocationExpressionSyntax`      | 呼び出し。`Target` / `Arguments`。型引数を書いた呼び出し (HLSL 2021 の `Twice<float4>(x)`) は `HasTypeArguments` / `TypeArgumentTokens` |
 | `IdentifierExpressionSyntax`      | 名前の参照。`Name`                 |
+| `GenericNameExpressionSyntax`     | 型引数を書いた型の名前 (`TVec<float, 2>::Const(1.0)` の `::` の左、HLSL 2021)。`Name`、`TypeArguments`。型は求めない |
 | `MemberAccessExpressionSyntax`    | `a.b`                              |
 | `ElementAccessExpressionSyntax`   | `a[i]`                             |
 | `LiteralExpressionSyntax`         | リテラル                           |

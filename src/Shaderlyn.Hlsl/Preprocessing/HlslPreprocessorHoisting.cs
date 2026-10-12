@@ -52,8 +52,20 @@ internal sealed partial class HlslPreprocessor
     /// <summary>巻き上げのために展開し直している最中かどうか。</summary>
     private bool _hoisting;
 
-    /// <summary>今、定義ごとに複製しているマクロの名前。</summary>
-    private string? _hoistingMacro;
+    /// <summary>今、定義ごとに複製しているマクロの名前。組み合わせごとに複製しているときは 2 つ以上。</summary>
+    private readonly HashSet<string> _hoistingMacros = new(StringComparer.Ordinal);
+
+    /// <summary>1 つの文で、定義の組み合わせごとに複製するマクロの数の上限。</summary>
+    private const int MaxHoistedMacrosPerUnit = 3;
+
+    /// <summary>
+    /// 組み合わせごとに複製するときの、複製の数の上限。成り立たない組み合わせは数えない。
+    /// </summary>
+    /// <remarks>
+    /// 1 つのマクロの上限 (<see cref="MaxHoistedBranches"/>) より大きくする。
+    /// 2 通りのマクロを 2 つ使えば 4、3 つなら 8 になる。
+    /// </remarks>
+    private const int MaxHoistedCombinations = 8;
 
     /// <summary>
     /// 定義するマクロがコードで使われるために並べなかったシンボルと、その領域で定義したマクロ。
@@ -253,7 +265,6 @@ internal sealed partial class HlslPreprocessor
             return false;
         }
 
-        MacroDefinition? saved = _macros.GetValueOrDefault(hoisted);
         int regionCount = _conditionalRegions.Count;
         int diagnosticCount = _diagnostics.Count;
 
@@ -263,7 +274,9 @@ internal sealed partial class HlslPreprocessor
             _output.RemoveRange(anchor.OutputIndex, _output.Count - anchor.OutputIndex);
             anchor.Source.Index = unitEnd;
 
-            if (TryExpandBranches(hoisted, TakeUnit(anchor, unitEnd), branches, saved))
+            ImmutableArray<HlslSyntaxToken> unit = TakeUnit(anchor, unitEnd);
+
+            if (TryExpandBranches(unit, CombineWithOtherMacros(hoisted, branches, unit)))
             {
                 _hoistedUnits++;
                 MoveUnitAnchorPastUnit(anchor.Source);
@@ -324,27 +337,166 @@ internal sealed partial class HlslPreprocessor
         => [.. anchor.Source.Tokens.Skip(anchor.SourceIndex).Take(end - anchor.SourceIndex)];
 
     /// <summary>
+    /// 文の中にある、ほかの条件で中身の変わるマクロも含めて、定義の組み合わせごとの分岐を作る。
+    /// </summary>
+    /// <param name="hoisted">複製のきっかけになったマクロ。</param>
+    /// <param name="branches">そのマクロの分岐。</param>
+    /// <param name="unit">複製する文のトークン。</param>
+    /// <returns>分岐ごとの条件と、そのとき使う各マクロの定義。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>1 つの文に条件で中身の変わるマクロが 2 つあれば、定義の組み合わせごとに複製する。</b>
+    /// <code>
+    /// VTYPE n = SCALE * v;   // VTYPE は _NORMALMAP で、SCALE は _DETAIL で変わる
+    /// </code>
+    /// 1 つだけ複製すると、もう一方はどれか 1 つの構成の値で展開される。
+    /// そのシンボルは構成ごとの展開に回り、名前 (<c>_DetailScale</c>) と数値 (<c>1.0</c>) のように
+    /// 同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// </para>
+    /// <para>
+    /// 組み合わせの条件は各定義の条件の論理積で、宣言の制約で成り立たない組み合わせは作らない。
+    /// マクロが多すぎるか、組み合わせが <see cref="MaxHoistedCombinations"/> を超えるなら、
+    /// きっかけのマクロだけを複製する (ほかは今までどおり構成ごとの展開に回る)。
+    /// </para>
+    /// </remarks>
+    private List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> CombineWithOtherMacros(
+        string hoisted,
+        List<(SymbolCondition Condition, MacroDefinition? Definition)> branches,
+        ImmutableArray<HlslSyntaxToken> unit)
+    {
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> single =
+            [.. branches.Select(b => (b.Condition, ImmutableArray.Create<(string Name, MacroDefinition? Definition)>((hoisted, b.Definition))))];
+
+        List<string> others = [.. CollectHoistableMacros(unit).Where(name => !string.Equals(name, hoisted, StringComparison.Ordinal))];
+
+        if (others.Count == 0 || others.Count + 1 > MaxHoistedMacrosPerUnit)
+        {
+            return single;
+        }
+
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> combined = single;
+
+        foreach (string other in others)
+        {
+            if (GetHoistableDefinitions(other, checkCallForm: false) is not { } otherBranches)
+            {
+                continue;
+            }
+
+            List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> next = [];
+
+            foreach ((SymbolCondition condition, ImmutableArray<(string Name, MacroDefinition? Definition)> definitions) in combined)
+            {
+                foreach ((SymbolCondition otherCondition, MacroDefinition? otherDefinition) in otherBranches)
+                {
+                    SymbolCondition both = _options.SymbolConstraints.Apply(condition.And(otherCondition));
+
+                    if (both.IsNever || (!both.IsUnknown && !_options.SymbolConstraints.IsPossible(both)))
+                    {
+                        continue;
+                    }
+
+                    next.Add((both, definitions.Add((other, otherDefinition))));
+                }
+            }
+
+            if (next.Count > MaxHoistedCombinations)
+            {
+                return single;
+            }
+
+            combined = next;
+        }
+
+        return combined;
+    }
+
+    /// <summary>文のトークンに現れる、条件で中身の変わるマクロを集める。本体を通して参照するものも含める。</summary>
+    /// <param name="unit">文のトークン。</param>
+    /// <returns>見つかったマクロの名前。現れた順。</returns>
+    private List<string> CollectHoistableMacros(ImmutableArray<HlslSyntaxToken> unit)
+    {
+        List<string> found = [];
+        HashSet<string> visited = new(StringComparer.Ordinal);
+
+        for (int i = 0; i < unit.Length; i++)
+        {
+            HlslSyntaxToken token = unit[i];
+
+            if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+            {
+                continue;
+            }
+
+            if (GetHoistableDefinitions(token.Text, checkCallForm: false) is not null)
+            {
+                found.Add(token.Text);
+                continue;
+            }
+
+            // 関数形式マクロは、呼び出しの形で書かれていなければ展開されない。
+            if (_macros.TryGetValue(token.Text, out MacroDefinition? macro)
+                && (!macro.IsFunctionLike || (i + 1 < unit.Length && unit[i + 1].Kind == HlslSyntaxKind.OpenParenToken)))
+            {
+                Walk(macro, depth: 1);
+            }
+        }
+
+        return found;
+
+        void Walk(MacroDefinition macro, int depth)
+        {
+            if (depth > MaxHoistLookupDepth)
+            {
+                return;
+            }
+
+            foreach (HlslSyntaxToken token in macro.Body)
+            {
+                if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+                {
+                    continue;
+                }
+
+                if (GetHoistableDefinitions(token.Text, checkCallForm: false) is not null)
+                {
+                    found.Add(token.Text);
+                }
+                else if (_macros.TryGetValue(token.Text, out MacroDefinition? inner))
+                {
+                    Walk(inner, depth + 1);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// 定義ごとに展開し、どれも文になったかを返す。
     /// </summary>
-    /// <param name="name">マクロの名前。</param>
     /// <param name="unit">展開するトークン。</param>
-    /// <param name="branches">複製する分岐。</param>
-    /// <param name="saved">元の定義。展開し終えたら戻す。</param>
+    /// <param name="branches">複製する分岐。分岐ごとの条件と、そのとき使う各マクロの定義。</param>
     /// <returns>どの分岐も文になった場合は <see langword="true"/>。</returns>
     private bool TryExpandBranches(
-        string name,
         ImmutableArray<HlslSyntaxToken> unit,
-        List<(SymbolCondition Condition, MacroDefinition? Definition)> branches,
-        MacroDefinition? saved)
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> branches)
     {
         bool complete = true;
 
-        _hoisting = true;
-        _hoistingMacro = name;
+        // 元の定義は、展開し終えたら戻す。
+        List<(string Name, MacroDefinition? Definition)> saved =
+            [.. branches[0].Definitions.Select(d => (d.Name, _macros.GetValueOrDefault(d.Name)))];
 
-        foreach ((SymbolCondition condition, MacroDefinition? definition) in branches)
+        _hoisting = true;
+        _hoistingMacros.Clear();
+        _hoistingMacros.UnionWith(saved.Select(s => s.Name));
+
+        foreach ((SymbolCondition condition, ImmutableArray<(string Name, MacroDefinition? Definition)> definitions) in branches)
         {
-            SetMacro(name, definition);
+            foreach ((string name, MacroDefinition? definition) in definitions)
+            {
+                SetMacro(name, definition);
+            }
+
 
             // 複製ごとに別のトークンを使う。同じインスタンスを並べると、
             // どのノードがどの複製のものかを、位置からもトークンからも引けなくなる。
@@ -361,8 +513,12 @@ internal sealed partial class HlslPreprocessor
         }
 
         _hoisting = false;
-        _hoistingMacro = null;
-        SetMacro(name, saved);
+        _hoistingMacros.Clear();
+
+        foreach ((string name, MacroDefinition? definition) in saved)
+        {
+            SetMacro(name, definition);
+        }
 
         return complete;
     }
@@ -761,7 +917,7 @@ internal sealed partial class HlslPreprocessor
     private void NoteUnhoistedExpansion(string name)
     {
         if (_hoistableMacros.Contains(name)
-            && !(_hoisting && string.Equals(name, _hoistingMacro, StringComparison.Ordinal)))
+            && !(_hoisting && _hoistingMacros.Contains(name)))
         {
             _unhoistedMacros.Add(name);
         }

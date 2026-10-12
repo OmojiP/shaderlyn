@@ -412,7 +412,7 @@ public sealed class HlslLexer
     /// <returns>トークンの種別。</returns>
     /// <remarks>
     /// <para>
-    /// 10 進数・16 進数 (<c>0x</c>)・浮動小数・指数表記・型接尾辞に対応する。
+    /// 10 進数・16 進数 (<c>0x</c>)・2 進数 (<c>0b</c>、DXC)・浮動小数・指数表記・型接尾辞に対応する。
     /// HLSL の接尾辞は <c>f</c> (float)、<c>h</c> (half)、<c>u</c> (uint)、<c>l</c> (long) など。
     /// </para>
     /// <para>
@@ -427,6 +427,20 @@ public sealed class HlslLexer
         {
             _position += 2;
             while (_position < _text.Length && Uri.IsHexDigit(_text[_position]))
+            {
+                _position++;
+            }
+
+            ConsumeNumericSuffix();
+            return HlslSyntaxKind.NumericLiteralToken;
+        }
+
+        // 2 進数。DXC は受け付ける (Unreal Engine の Nanite のシェーダーが 0b1111 のように書く)。
+        // 読まずにいると 0 と b1111 に分かれ、構文エラーになっていた。
+        if (_text[_position] == '0' && (Peek(1) is 'b' or 'B') && (Peek(2) is '0' or '1'))
+        {
+            _position += 2;
+            while (_position < _text.Length && _text[_position] is '0' or '1')
             {
                 _position++;
             }

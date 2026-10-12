@@ -146,6 +146,13 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                         : (binary.OperatorToken, $"構造体 '{left}' の値に演算子 '{symbol}' は使えません。{HintFor(left, symbol)}");
                 }
 
+                // 左辺の型が分からなければ、左辺の構造体の演算子が使われるかもしれない。
+                // TLaneVector2D<float, 2>::Const(1.0) - a の左辺は、型を求めていない式である (HLSL 2021)。
+                if (evaluator!.Evaluate(binary.Left) is null)
+                {
+                    return null;
+                }
+
                 return StructOf(binary.Right) is { } right
                     ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使えません。構造体の中で定義した演算子は、左辺が構造体のときだけ使われます ({right} を左に書いてください)。")
                     : null;

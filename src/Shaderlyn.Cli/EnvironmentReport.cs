@@ -299,7 +299,8 @@ internal static partial class EnvironmentReport
     {
         Section(builder, "Unreal Engine");
 
-        ImmutableDictionary<string, string> mappings = SemanticsSetup.CreateUnreal(settings).GetVirtualPathMappings();
+        Unreal.UnrealOptions unreal = SemanticsSetup.CreateUnreal(settings);
+        ImmutableDictionary<string, string> mappings = unreal.GetVirtualPathMappings();
 
         if (mappings.IsEmpty)
         {
@@ -313,7 +314,7 @@ internal static partial class EnvironmentReport
         }
 
         Line(builder, $"  生成される取り込み (解決せず、HL0321 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
-        Line(builder, $"  既定のマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}");
+        Line(builder, $"  定義するマクロ: {string.Join(", ", unreal.PredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}");
     }
 
     /// <summary>汎用の HLSL 環境の設定 (言語のバージョン・構成の軸・コンパイル単位) を書き出す。</summary>

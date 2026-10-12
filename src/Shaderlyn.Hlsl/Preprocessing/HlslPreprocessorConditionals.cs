@@ -507,7 +507,7 @@ internal sealed partial class HlslPreprocessor
         => layout switch
         {
             ConditionalRegionLayout.Mergeable => true,
-            ConditionalRegionLayout.DefinesMacros => DefinesOnlyConditionMacros(start, end),
+            ConditionalRegionLayout.DefinesMacros => DefinesOnlyConditionMacros(start, end) || CanMergeWithHoisting(start, end),
 
             // 取り込みの中身は、並べるかを決める時点では読んでいない。
             // ヘッダが定義したマクロがコードとして使われたら、そのときに並べ直す。
@@ -551,6 +551,77 @@ internal sealed partial class HlslPreprocessor
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// コードと、コードで使うマクロの書き分けが同じ分岐にある領域を、並べてよいかを判定する。
+    /// </summary>
+    /// <param name="start">領域の開始位置。</param>
+    /// <param name="end">領域の終了位置 (この位置は含まない)。</param>
+    /// <returns>並べてよければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <code>
+    /// #ifdef _ALPHATEST_ON
+    /// #define CLIP_BODY { clip(v - _Cutoff); }
+    /// float _Cutoff;                 // #define 以外のコード
+    /// #else
+    /// #define CLIP_BODY ;
+    /// #endif
+    /// </code>
+    /// <b>並べても、マクロを使う文は定義ごとに複製するので、どれか 1 つの構成の展開にはならない。</b>
+    /// 定義はどの分岐のものも条件付きで覚えてある (<see cref="RecordConditionalDefinition"/>)。
+    /// 複製できない使い方 (別のマクロの本体の中、並べた分岐の中、複製を諦めた文) が見つかれば、
+    /// 展開のときにそのシンボルを並べ直す (<see cref="NoteMergedMacroUse"/>)。以前と同じ構成ごとの展開に戻るだけである。
+    /// </para>
+    /// <para>
+    /// 以前はこの領域を並べず、構成ごとに展開していた。文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// <c>#define</c> しか無い領域は、並べずに巻き上げで補えたかを後で決める (<see cref="FindHoistableDefinitions"/>) ので、ここでは扱わない。
+    /// <c>#undef</c> がある領域は扱わない。並べた分岐の <c>#undef</c> は、後ろの分岐のマクロ表を変えてしまう。
+    /// </para>
+    /// <para>
+    /// <b>入れ子の <c>#if</c> がある領域も扱わない。</b>
+    /// HDRP の MotionBlurMotionVecPrep.compute は、<c>#elif</c> の分岐の中で <c>_CameraClampThreshold</c> を入れ子の <c>#if</c> で書き分け、
+    /// 同じ分岐の関数で使う。並べると並べ直しの後戻りでそのシンボルだけが構成ごとの展開に回り、
+    /// 分岐ごとの同じ名前の関数を重複した宣言 (HL0314) と報告した。原因を突き止めるまで、この形は今までどおり並べない。
+    /// </para>
+    /// </remarks>
+    private bool CanMergeWithHoisting(int start, int end)
+    {
+        TokenSource source = CurrentSource;
+        ImmutableArray<HlslSyntaxToken> tokens = source.Tokens;
+
+        if (!IsHoistingEnabled
+            || start >= tokens.Length
+            || !(IsInRootSource(tokens[start]) || IsUserHeaderDefinition(tokens[start])))
+        {
+            return false;
+        }
+
+        bool hasCode = false;
+
+        for (int i = start; i < end && i < tokens.Length; i = SkipToNextLine(tokens, i))
+        {
+            if (tokens[i].Kind == HlslSyntaxKind.EndOfFileToken)
+            {
+                break;
+            }
+
+            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
+            {
+                hasCode = true;
+                continue;
+            }
+
+            if (i + 1 < tokens.Length
+                && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken
+                && tokens[i + 1].Text is "undef" or "include" or "if" or "ifdef" or "ifndef")
+            {
+                return false;
+            }
+        }
+
+        return hasCode;
     }
 
     /// <summary>そのトークン列の中で、名前ごとに <c>#define</c> した回数を数える。</summary>

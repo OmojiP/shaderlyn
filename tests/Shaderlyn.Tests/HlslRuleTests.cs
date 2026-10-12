@@ -1816,17 +1816,87 @@ public sealed class HlslRuleTests
         Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// 1 つの文で条件で中身の変わるマクロを 2 つ使っても、定義の組み合わせごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前は 1 つだけを複製し、もう一方は構成ごとに展開していた。
+    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// </remarks>
     [Fact]
-    public void elifの分岐にdefine以外があればSL0004を報告する()
+    public void 一つの文で二つのマクロを使っても組み合わせごとに複製する()
     {
-        // 分岐に関数の宣言もあるので、使う文の複製では補えない。構成ごとに展開して木を突き合わせる。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _N",
+            "#pragma multi_compile _ _D",
+            "#ifdef _N",
+            "#define VTYPE float3",
+            "#else",
+            "#define VTYPE float2",
+            "#endif",
+            "#ifdef _D",
+            "#define SCALE missingDetail",
+            "#else",
+            "#define SCALE 1.0",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    VTYPE n = SCALE * v;",
+            "    return n.z;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDetail' は 構成：_D のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0312" && d.GetMessage().Contains("!_N のとき", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 条件と本体をそれぞれマクロで切り替えても組み合わせごとに複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _C",
+            "#ifdef _A",
+            "#define BODY { v = missingA; }",
+            "#else",
+            "#define BODY v = 2;",
+            "#endif",
+            "#ifdef _C",
+            "#define COND (v > missingC)",
+            "#else",
+            "#define COND (v > 0)",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if COND",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingC' は 構成：_C のとき", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// マクロを書き分けた分岐にコードもある領域も並べ、マクロを使う文は定義ごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// 分岐の中のコードは、それぞれの分岐の条件付きで検査する。
+    /// </remarks>
+    [Fact]
+    public void 分岐にdefine以外もある領域を並べてマクロを使う文は複製する()
+    {
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "#pragma multi_compile _ _MODE_A _MODE_B",
             "#if defined(_MODE_A)",
-            "#define BODY { v = 1; }",
+            "#define BODY { v = missingA; }",
             "#elif defined(_MODE_B)",
             "#define BODY v = 2;",
-            "float G() { return 0; }",
+            "float G() { return missingInG; }",
             "#else",
             "#define BODY v = 3;",
             "#endif",
@@ -1838,7 +1908,9 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.True(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_MODE_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingInG' は 構成：_MODE_B のとき", StringComparison.Ordinal));
     }
 
     // ------------------------------------------------------------------

@@ -657,6 +657,41 @@ public sealed class IncludeHandlingTests
                 """))));
     }
 
+    /// <summary>
+    /// <c>#pragma once</c> を書いたファイルを、2 度目からは取り込まないことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine のヘッダは、インクルードガードではなく <c>#pragma once</c> で二重の取り込みを防ぐ。
+    /// 扱わずにいると、同じヘッダを何度も展開し、宣言の重複や再定義を誤って報告し、展開の量も膨れ上がっていた。
+    /// </remarks>
+    [Fact]
+    public void pragma_onceがあれば二重取り込みしない()
+    {
+        Assert.Equal("once", PreprocessorHarness.TextWithoutDiagnostics(
+            """
+            #include "Once.hlsl"
+            #include "Once.hlsl"
+            """,
+            WithFiles(("Once.hlsl", """
+                #pragma once
+                once
+                """))));
+    }
+
+    [Fact]
+    public void pragma_onceがあれば互いを取り込んでも循環にしない()
+    {
+        // Unreal Engine の Platform.ush と BindlessResources.ush がこの形をしている。DXC は 2 度目の取り込みを飛ばす。
+        PreprocessResult result = new HlslPreprocessor(WithFiles(
+                ("A.hlsl", "#pragma once\n#include \"B.hlsl\"\nfromA"),
+                ("B.hlsl", "#pragma once\n#include \"A.hlsl\"\nfromB")))
+            .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0320");
+        Assert.Equal("fromB fromA", string.Join(" ", result.Tokens.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken).Select(t => t.Text)));
+        Assert.DoesNotContain(result.Macros.Keys, name => name.Contains("once", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void 解決できないincludeは既定では報告しない()
     {

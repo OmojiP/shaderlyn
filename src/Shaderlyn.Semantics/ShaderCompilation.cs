@@ -54,11 +54,25 @@ public sealed class ShaderCompilation
     private FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? _functionDeclarations;
 
     /// <summary>関数の宣言の位置から、それが現れたコードブロックへの対応。</summary>
-    private Dictionary<(SourceText Source, int Start), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
+    private Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
     private Dictionary<AnalyzedProgram, ExpressionTypeBinder>? _binders;
 
     /// <summary>木ごとの、位置から関数の宣言への対応。</summary>
-    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start), FunctionDeclarationSyntax>>? _ownFunctions;
+    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>>? _ownFunctions;
+
+    /// <summary>関数の宣言を見分ける鍵。先頭のトークンの位置と、名前と仮引数の型の並び。</summary>
+    /// <param name="function">関数の宣言。</param>
+    /// <param name="first">その先頭のトークン。</param>
+    /// <returns>鍵。</returns>
+    /// <remarks>
+    /// <b>位置だけでは、同じマクロの展開から作られた多重定義を見分けられない。</b>
+    /// 展開で生まれたトークンは呼び出し位置を持つので、
+    /// <c>DEFINE_FOR_ALL(DEFINE_MIN)</c> が作る <c>min2(float2x2, …)</c> と <c>min2(float3x2, …)</c> は同じ位置になる。
+    /// 位置だけで 1 つにまとめると最初の多重定義しか残らず、ほかの多重定義を呼ぶ正しい呼び出しを
+    /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
+    /// </remarks>
+    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, HlslSyntaxToken first)
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.Name)) + ")");
 
     internal ShaderCompilation(
         SourceText text,
@@ -733,7 +747,7 @@ public sealed class ShaderCompilation
 
         _ownFunctions ??= [];
 
-        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start), FunctionDeclarationSyntax>? own))
+        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>? own))
         {
             own = [];
 
@@ -741,7 +755,7 @@ public sealed class ShaderCompilation
             {
                 if (declaration is FunctionDeclarationSyntax function && function.FirstToken is { } first)
                 {
-                    own.TryAdd((first.Source, first.Span.Start), function);
+                    own.TryAdd(FunctionKey(function, first), function);
                 }
             }
 
@@ -754,10 +768,10 @@ public sealed class ShaderCompilation
         [
             .. all.Where(function => function.FirstToken is { } first
                                      && _functionBlocks is { } blocks
-                                     && blocks.TryGetValue((first.Source, first.Span.Start), out HashSet<(int Start, string? Kernel)>? inBlocks)
+                                     && blocks.TryGetValue(FunctionKey(function, first), out HashSet<(int Start, string? Kernel)>? inBlocks)
                                      && inBlocks.Contains(program.BlockKey))
                   .Select(function => function.FirstToken is { } first
-                                      && own.TryGetValue((first.Source, first.Span.Start), out FunctionDeclarationSyntax? mine)
+                                      && own.TryGetValue(FunctionKey(function, first), out FunctionDeclarationSyntax? mine)
                 ? mine
                 : function),
         ];
@@ -872,8 +886,8 @@ public sealed class ShaderCompilation
 
             Dictionary<string, List<FunctionDeclarationSyntax>> byName = new(StringComparer.Ordinal);
             HashSet<string> templates = new(StringComparer.Ordinal);
-            HashSet<(SourceText Source, int Start)> seen = [];
-            Dictionary<(SourceText Source, int Start), HashSet<(int Start, string? Kernel)>> blocks = [];
+            HashSet<(SourceText Source, int Start, string Shape)> seen = [];
+            Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>> blocks = [];
 
             foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
             {
@@ -895,15 +909,17 @@ public sealed class ShaderCompilation
                     }
 
                     // どのコードブロックの木に現れたかを覚える。別の Pass の関数は、そのコードからは呼べない。
-                    if (!blocks.TryGetValue((first.Source, first.Span.Start), out HashSet<(int Start, string? Kernel)>? inBlocks))
+                    (SourceText Source, int Start, string Shape) key = FunctionKey(function, first);
+
+                    if (!blocks.TryGetValue(key, out HashSet<(int Start, string? Kernel)>? inBlocks))
                     {
                         inBlocks = [];
-                        blocks[(first.Source, first.Span.Start)] = inBlocks;
+                        blocks[key] = inBlocks;
                     }
 
                     inBlocks.Add(program.BlockKey);
 
-                    if (!seen.Add((first.Source, first.Span.Start)))
+                    if (!seen.Add(key))
                     {
                         continue;
                     }
@@ -1014,12 +1030,15 @@ public sealed class ShaderCompilation
         // 既定の構成とバリアントは同じマスクしたテキストから作るので、同じ位置に始まる関数でも、
         // 中身は構成によって違う (#ifdef の中のローカル変数はバリアントの側にしか無い)。
         // ファイルはパスで見分ける (IsWrittenHere と同じ)。
-        HashSet<(SourceText Source, int Start)> seenHeaderDeclarations = [];
+        //
+        // 位置には宣言している名前も添える (HeaderDeclarationKey)。マクロを変えて同じヘッダを何度も取り込むと、
+        // 同じ位置から別の名前の宣言ができる。
+        HashSet<(SourceText Source, int Start, string Name)> seenHeaderDeclarations = [];
 
         // ヘッダの宣言ごとの名前。コードブロックごとの集合へ足すときに使い回す。
-        Dictionary<(SourceText Source, int Start), HashSet<string>> headerNamesAt = [];
+        Dictionary<(SourceText Source, int Start, string Name), HashSet<string>> headerNamesAt = [];
         Dictionary<(int Start, string? Kernel), HashSet<string>> headerByBlock = [];
-        HashSet<((int Start, string? Kernel) Block, SourceText Source, int Start)> addedToBlock = [];
+        HashSet<((int Start, string? Kernel) Block, SourceText Source, int Start, string Name)> addedToBlock = [];
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
@@ -1036,9 +1055,9 @@ public sealed class ShaderCompilation
 
                 if (fromHeader)
                 {
-                    (SourceText Source, int Start) at = (declaration.FirstToken!.Source, declaration.FirstToken.Span.Start);
+                    (SourceText Source, int Start, string Name) at = HeaderDeclarationKey(declaration);
 
-                    if (addedToBlock.Add((program.BlockKey, at.Source, at.Start))
+                    if (addedToBlock.Add((program.BlockKey, at.Source, at.Start, at.Name))
                         && headerNamesAt.TryGetValue(at, out HashSet<string>? seenNames))
                     {
                         blockNames.UnionWith(seenNames);
@@ -1067,6 +1086,26 @@ public sealed class ShaderCompilation
             p => p.Key,
             p => p.Value.ToFrozenSet(StringComparer.Ordinal));
     }
+
+    /// <summary>ヘッダの宣言を見分ける鍵。先頭のトークンの位置と、宣言している名前。</summary>
+    /// <param name="declaration">ヘッダの宣言。</param>
+    /// <returns>鍵。</returns>
+    /// <remarks>
+    /// <b>位置だけでは、マクロを変えて同じヘッダを何度も取り込んだ宣言を見分けられない。</b>
+    /// Unreal Engine の DoubleFloat.ush は、<c>DFConstructor</c> を <c>MakeDFScalar</c> / <c>MakeDFVector2</c> / … に変えながら
+    /// <c>DoubleFloatOperations.ush</c> を取り込み、同じ位置から別の名前の関数を作る。
+    /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(HL0310) と報告していた。
+    /// </remarks>
+    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(HlslDeclarationSyntax declaration)
+        => (declaration.FirstToken!.Source,
+            declaration.FirstToken.Span.Start,
+            declaration switch
+            {
+                FunctionDeclarationSyntax function => function.Name,
+                StructDeclarationSyntax structure => structure.Name,
+                VariableDeclarationSyntax variable => string.Join(",", variable.Variables.Select(v => v.Name)),
+                _ => string.Empty,
+            });
 
     /// <summary>
     /// そのコードブロックが取り込んだヘッダの宣言に現れた名前を返す。

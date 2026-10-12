@@ -153,7 +153,7 @@ internal sealed partial class HlslPreprocessor
         bool complete = true;
 
         _hoisting = true;
-        _hoistingMacro = null;
+        _hoistingMacros.Clear();
 
         foreach ((SymbolCondition condition, ImmutableArray<HlslSyntaxToken> body) in branches)
         {
