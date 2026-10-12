@@ -118,6 +118,18 @@ public sealed class HlslTypeSyntax(
         ? Name
         : string.Concat(QualifierTokens.Select(t => t.Text)) + Name;
 
+    /// <summary>
+    /// 多重定義を見分けるための型の形。短い名前 (<see cref="Name"/>) に、それで消える型引数を添える。
+    /// </summary>
+    /// <remarks>
+    /// <c>vector</c> / <c>matrix</c> は短い名前に型引数が入っている。それ以外の template の型
+    /// (<c>TLaneVector2D&lt;half, 3, 2, 2&gt;</c>) は、型引数が違えば別の型である。
+    /// </remarks>
+    public string OverloadShape
+        => TemplateArguments.IsDefaultOrEmpty || Name != NameToken.Text
+            ? Name
+            : Name + "<" + string.Concat(TemplateArguments.Select(t => t.Text)) + ">";
+
     /// <summary>テンプレート引数の開き山括弧。</summary>
     public HlslSyntaxToken? OpenAngle { get; } = openAngle;
 

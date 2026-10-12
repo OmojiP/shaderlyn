@@ -72,7 +72,7 @@ public sealed class ShaderCompilation
     /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
     /// </remarks>
     private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, HlslSyntaxToken first)
-        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.Name)) + ")");
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken)))) + ")");
 
     internal ShaderCompilation(
         SourceText text,

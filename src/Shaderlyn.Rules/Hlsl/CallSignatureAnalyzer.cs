@@ -109,6 +109,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // this. を省いた囲む構造体のメソッドや、関数の中の変数 (関数オブジェクト) の呼び出し。
+        // 大域の同じ名前の関数とは照らさない (HLSL 2021)。
+        if (binder.CallsNonGlobalFunction(invocation, name))
+        {
+            return;
+        }
+
         // template の関数と同じ名前なら、型引数の推論を含めて別に見る (HLSL 2021)。
         if (binder.TryGetTemplateFunctions(name, out ImmutableArray<TemplateFunctionCandidate> templates))
         {
@@ -119,6 +126,14 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         if (compilation.GetFunctionDeclarations(name, binder.Program) is not { IsEmpty: false } all)
         {
             AnalyzeIntrinsicCall(context, compilation, invocation, name, reported);
+            return;
+        }
+
+        // 取り込みを解決できていなければ、見えていない多重定義があるかもしれない (template の関数の呼び出しと同じ)。
+        // Unreal Engine の LumenCardComputeShader.usf は、生成される VertexFactory.ush を通して取り込む多重定義
+        // GetInstanceSceneData(inout FVisibleCluster, bool) を呼んでおり、見えている多重定義と照らして誤りと言っていた。
+        if (!compilation.HasCompleteDependencies)
+        {
             return;
         }
 

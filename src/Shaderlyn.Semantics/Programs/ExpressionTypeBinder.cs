@@ -623,6 +623,39 @@ public sealed class ExpressionTypeBinder
         return evaluator;
     }
 
+    /// <summary>
+    /// 名前だけの呼び出しが、囲む構造体のメソッドの呼び出し (<c>this.</c> を省いた形) かを判定する (HLSL 2021)。
+    /// </summary>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="name">呼ぶ名前。</param>
+    /// <returns>囲むメソッドの構造体に、その名前のメソッドがあれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>float3 GetTransmittanceColor() { return exp(-GetExtinction()); }</c> の <c>GetExtinction</c> は、
+    /// 同じ構造体のメソッドである。大域の同じ名前の関数 (引数の個数が違う) と照らすと、正しい呼び出しを誤りと言うことになる。
+    /// </remarks>
+    internal bool IsEnclosingStructFunction(InvocationExpressionSyntax invocation, string name)
+        => invocation.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+           && OwnerOf(function) is { } owner
+           && TryGetStructFunctions(owner, name, out _);
+
+    /// <summary>
+    /// 名前だけの呼び出しが、同じ名前の大域の関数ではないものを呼んでいるかを判定する。
+    /// </summary>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="name">呼ぶ名前。</param>
+    /// <returns>
+    /// 囲む構造体のメソッド (<see cref="IsEnclosingStructFunction"/>) か、関数の中の変数や仮引数
+    /// (template の関数に渡した関数オブジェクト) を呼んでいれば <see langword="true"/>。決められないときも <see langword="true"/>。
+    /// </returns>
+    /// <remarks>
+    /// Unreal Engine の NaniteRasterizer.ush は、仮引数 <c>FWritePixel WritePixel</c> を <c>WritePixel(...)</c> と呼ぶ。
+    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (HL0340 / HL0341)。
+    /// </remarks>
+    internal bool CallsNonGlobalFunction(InvocationExpressionSyntax invocation, string name)
+        => IsEnclosingStructFunction(invocation, name)
+           || (invocation.Target is IdentifierExpressionSyntax target
+               && ResolveName(target).Kind is DeclaredNameKind.Local or DeclaredNameKind.Undecidable);
+
     /// <summary>メソッドを持つ構造体の名前を求める (<c>this</c> の型)。</summary>
     /// <param name="function">対象の関数。</param>
     /// <returns>構造体の中のメソッドか、構造体の外で定義したメソッドならその構造体の名前。それ以外は <see langword="null"/>。</returns>

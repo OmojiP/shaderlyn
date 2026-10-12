@@ -48,15 +48,30 @@ public sealed class Hlsl2021TemplateTests
     {
         HlslSyntaxTree tree = Parse2021("""
             ByteAddressBuffer raw;
+            template<typename T> T Twice(T x) { return x + x; }
             float4 main() : SV_Target { return Twice<float4>(raw.Load<float4>(0)); }
             """);
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
 
-        InvocationExpressionSyntax[] calls = [.. tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()];
+        InvocationExpressionSyntax[] calls =
+        [
+            .. tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Where(c => c.HasTypeArguments),
+        ];
         Assert.Equal(2, calls.Length);
         Assert.All(calls, c => Assert.True(c.HasTypeArguments));
         Assert.All(calls, c => Assert.Equal("float4", Assert.Single(c.TypeArgumentTokens).Text));
+    }
+
+    [Fact]
+    public void templateでない名前の後ろの山括弧は比較として読む()
+    {
+        // Unreal Engine の VirtualShadowMapDebug.usf の形。OutputPixel を template の名前と読むと、引数が 1 つになる。
+        HlslSyntaxTree tree = Parse2021("bool2 f(uint2 p, uint w, uint d) { return or(p < w, p >(d + w)); }");
+
+        Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+        InvocationExpressionSyntax call = Assert.Single(tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>());
+        Assert.Equal(2, call.ArgumentExpressions.Count());
     }
 
     [Fact]

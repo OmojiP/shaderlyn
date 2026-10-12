@@ -956,6 +956,7 @@ Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableAr
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TemplateArguments { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String AliasOf { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String OverloadShape { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String QualifiedName { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)

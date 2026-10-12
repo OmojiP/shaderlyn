@@ -188,6 +188,32 @@ public sealed class Dx12SyntaxTests
         Assert.DoesNotContain(diagnostics, d => d.Id is "HL0346" or "HL0001");
     }
 
+    [Theory]
+    // 同じ構造体のメソッドを this. 無しで呼ぶ。大域の GetExtinction (引数 1 個) とは別のもの (PathTracingCommon.ush)。
+    [InlineData("""
+        float3 GetExtinction(float3 m) { return m; }
+        struct S { float3 M; float3 GetExtinction() { return M; } float3 T() { return exp(-GetExtinction()); } };
+        float4 main() : SV_Target { S s; s.M = 1; return s.T().xyzz; }
+        """)]
+    // 仮引数の関数オブジェクトを呼ぶ。大域の WritePixel (引数 4 個) とは別のもの (NaniteRasterizer.ush)。
+    [InlineData("""
+        struct FTri { float a; };
+        void WritePixel(uint id, uint2 p, float3 c, float d) { }
+        struct FWriter { void operator()(uint2 p, float3 c, FTri t) { } };
+        template<typename FWritePixel> void Raster(FTri Tri, FWritePixel WritePixel) { WritePixel(uint2(0, 0), float3(0, 0, 0), Tri); }
+        float4 main() : SV_Target { FWriter w; FTri t; t.a = 0; Raster(t, w); return 0; }
+        """)]
+    public void 大域の関数でないものの呼び出しを大域の関数と照らさない(string code)
+        => Assert.DoesNotContain(Analyze(code), d => d.Id is "HL0340" or "HL0341");
+
+    [Theory]
+    // 配列の次元だけが違う多重定義 (GPUFastFourierTransformCore.ush)。
+    [InlineData("void Merge(inout float a[4]) { }\nvoid Merge(inout float a[2][4]) { }\nfloat4 main() : SV_Target { return 0; }")]
+    // 型引数だけが違う多重定義 (TSRShadingAnalysis.ush)。
+    [InlineData("template<typename T, uint N> struct V { vector<T, N> x; };\nV<float, 3> F(V<float, 3> a) { return a; }\nV<float, 1> F(V<float, 1> a) { return a; }\nfloat4 main() : SV_Target { return 0; }")]
+    public void 配列の次元や型引数の違う多重定義を重複と報告しない(string code)
+        => Assert.DoesNotContain(Analyze(code), d => d.Id == "HL0314");
+
     private static ImmutableArray<Diagnostic> Analyze(string code)
     {
         SourceText text = SourceText.From(code, "test.hlsl");

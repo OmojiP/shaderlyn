@@ -243,6 +243,13 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         string name,
         HashSet<int> reported)
     {
+        // 大域の関数の呼び出しでなければ見ない。取り込みを解決できていなければ、見えていない多重定義があるかもしれない
+        // (CallSignatureAnalyzer と同じ)。
+        if (!compilation.HasCompleteDependencies || binder.CallsNonGlobalFunction(invocation, name))
+        {
+            return;
+        }
+
         ImmutableArray<FunctionDeclarationSyntax> declarations = compilation.GetFunctionDeclarations(name, binder.Program);
 
         if (declarations.IsEmpty)

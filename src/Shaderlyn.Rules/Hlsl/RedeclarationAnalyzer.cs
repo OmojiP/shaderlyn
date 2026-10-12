@@ -318,8 +318,12 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <summary>関数を、多重定義として区別する形で表す。</summary>
     /// <param name="function">対象の関数。</param>
     /// <returns>仮引数の型を並べた文字列。</returns>
+    /// <remarks>
+    /// 型引数 (<c>TLaneVector2D&lt;half, 3, …&gt;</c> と <c>&lt;half, 1, …&gt;</c>) と配列の次元 (<c>Complex a[N]</c> と <c>Complex a[2][N]</c>) が
+    /// 違えば別の多重定義である。型の名前だけで比べると、Unreal Engine の TSR や FFT のシェーダーを重複と報告していた。
+    /// </remarks>
     private static string DescribeShape(FunctionDeclarationSyntax function)
-        => string.Join(",", function.ParameterList.Select(p => p.Type.Name));
+        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken))));
 
     /// <summary>同じ名前の宣言をつき合わせて報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

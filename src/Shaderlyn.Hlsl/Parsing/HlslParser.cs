@@ -917,8 +917,29 @@ internal sealed class HlslParser
         HlslSyntaxToken closeAngle = Advance();
         HlslDeclarationSyntax declaration = ParseDeclaration();
 
+        switch (declaration)
+        {
+            case FunctionDeclarationSyntax function:
+                _templateNames.Add(function.Name);
+                break;
+
+            case StructDeclarationSyntax structure:
+                _templateNames.Add(structure.Name);
+                break;
+        }
+
         return new TemplateDeclarationSyntax(keyword, openAngle, parameters.ToImmutable(), closeAngle, declaration);
     }
+
+    /// <summary>ここまでに template として宣言した関数と構造体の名前。</summary>
+    /// <remarks>
+    /// <b>名前の後ろの <c>&lt;</c> を型引数の始まりと読むのは、template の名前のときだけにする。</b>
+    /// <c>a &lt; b, c &gt; (d)</c> は、<c>a</c> が template なら呼び出し、そうでなければ比較の並びである。
+    /// C++ と同じく、名前の宣言を知らないと決められない。
+    /// Unreal Engine の VirtualShadowMapDebug.usf の <c>or(OutputPixel &lt; BorderWidth, OutputPixel &gt;(…))</c> を呼び出しと読み、
+    /// 引数の個数を誤って報告していた (HL0341)。
+    /// </remarks>
+    private readonly HashSet<string> _templateNames = new(StringComparer.Ordinal);
 
     /// <summary><c>enum</c> の宣言を読む (HLSL 2021)。</summary>
     /// <returns>読んだ宣言。</returns>
@@ -2128,6 +2149,7 @@ internal sealed class HlslParser
                 case HlslSyntaxKind.LessThanToken
                     when Features.Templates
                          && expression is IdentifierExpressionSyntax identifier
+                         && _templateNames.Contains(identifier.Name)
                          && FindTypeArgumentsEnd(HlslSyntaxKind.ColonColonToken) is int qualifiedClose:
                 {
                     HlslSyntaxToken openAngle = Advance();
@@ -2143,9 +2165,11 @@ internal sealed class HlslParser
                 }
 
                 // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
+                // 名前だけのときは、template として宣言した名前に限る (_templateNames)。メソッド (buffer.Load<float4>) は問わない。
                 case HlslSyntaxKind.LessThanToken
                     when Features.Templates
-                         && expression is IdentifierExpressionSyntax or MemberAccessExpressionSyntax
+                         && (expression is MemberAccessExpressionSyntax
+                             || (expression is IdentifierExpressionSyntax { Name: var calledName } && _templateNames.Contains(calledName)))
                          && FindTypeArgumentsEnd() is int close:
                 {
                     HlslSyntaxToken openAngle = Advance();
