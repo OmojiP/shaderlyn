@@ -117,6 +117,71 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 宣言する関数が決まっている生成される取り込み (uniform buffer の宣言、GeneratedInstancedStereo.ush) だけが欠けているなら、
+    /// ほかの名前の呼び出しは多重定義と照らす (HL0341)。以前はエンジンのシェーダーのほとんどで検査を止めていた。
+    /// </summary>
+    [Fact]
+    public async Task 宣言する関数が決まっている生成ファイルだけが欠けていれば呼び出しを検査する()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/GeneratedUniformBuffers.ush"
+            #include "/Engine/Generated/UniformBuffers/View.ush"
+            #include "/Engine/Generated/GeneratedInstancedStereo.ush"
+            float Square(float x) { return x * x; }
+            """);
+        Write("Shaders/Private/MyPass.usf", """
+            #include "/Engine/Private/Common.ush"
+
+            float4 MainPS(float4 SvPosition : SV_Position) : SV_Target0
+            {
+                ViewState V = GetPrimaryView(1);
+                return Square(SvPosition.x, 2);
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("関数 'Square' に引数を 2 個", output, StringComparison.Ordinal);
+
+        // GeneratedInstancedStereo.ush が宣言する関数は、見えない多重定義があるかもしれないので照らさない。
+        Assert.DoesNotContain("'GetPrimaryView'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>関数を含みうる生成される取り込み (Material.ush) が欠けていれば、呼び出しは照らさない。</summary>
+    [Fact]
+    public async Task 関数を含みうる生成ファイルが欠けていれば呼び出しを検査しない()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/Material.ush"
+            float Square(float x) { return x * x; }
+            """);
+        Write("Shaders/Private/MyPass.usf", """
+            #include "/Engine/Private/Common.ush"
+            float4 MainPS(float4 SvPosition : SV_Position) : SV_Target0 { return Square(SvPosition.x, 2); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.DoesNotContain("HL0341", output, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task エンジンの場所が無ければUnrealの直し方を案内する()
     {

@@ -449,6 +449,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 | `SymbolVariants`                  | シンボルを 1 つ有効にした構成での解析結果 |
 | `TryGetUniform(name, out _)`       | uniform を引く                              |
 | `HasCompleteDependencies`          | `#include` をすべて解決できたか             |
+| `MayLackOverloadsOf(name)`         | その名前の関数の多重定義が見えていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
 | `AppearsOutsideAnalyzedCode(name)` | 名前が、どの構成でも解析されなかった領域かマクロ定義の本体に現れるか (シェーダー全体) |
 | `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使う。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
 | `UnanalyzedIdentifiers`            | どの構成でも解析されなかった領域に現れた名前 |
@@ -862,6 +863,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | `ReadEntryPoints` | エントリポイント (`HlslEntryPoint`)。HL0301 が見る |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
+| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。HL0340 / HL0341 が見る |
 
 ### `ShaderCompilation.Create`
 

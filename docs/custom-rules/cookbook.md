@@ -458,6 +458,7 @@ Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエン
 | `ReadEntryPoints` | エントリポイント。この名前の関数が無ければ HL0301 |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても HL0321 にしない |
+| `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを HL0340 / HL0341 で検査できる |
 
 ```csharp
 public sealed class MyEngineEnvironment : IHlslEnvironment

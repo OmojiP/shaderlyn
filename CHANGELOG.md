@@ -24,7 +24,10 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   ターゲットから DXC が定義するマクロ (`__SHADER_TARGET_STAGE` など) を決める。言語のバージョンは `hlsl: version` (既定 2021)
 - Unreal Engine の環境 (`environment: unreal`、`Shaderlyn.Unreal` パッケージ)。`.usf` / `.ush` を解析する。
   仮想パス (`/Engine/…` / `/Project/…` / `/Plugin/…`) を設定ファイルの `unreal:` (`engine` / `project` / `virtual-paths`) から解決する。
-  ビルドのときに生成される取り込み (`/Engine/Generated/…`) は誤りにせず、宣言が無いことを根拠にする検査を止めて SL0002 で伝える
+  ビルドのときに生成される取り込み (`/Engine/Generated/…`) は誤りにせず、宣言が無いことを根拠にする検査を止めて SL0002 で伝える。
+  uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) は関数を宣言せず、
+  `GeneratedInstancedStereo.ush` が宣言する関数は 3 つに決まっているので、それらだけが欠けているなら呼び出しの引数 (HL0340 / HL0341) は検査する
+  (環境の `IHlslEnvironment.GetFunctionsDeclaredIn`、`ShaderCompilation.MayLackOverloadsOf`)
 - 値を持つシンボル (`QUALITY ∈ {0, 1, 2}`)。`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、
   指摘に `QUALITY == 2 のとき` を添える。1 つを除くすべての値のときは `QUALITY != 0 のとき` と短く書く
 - HLSL 2021 の構文 (`template`・`enum class`・演算子の多重定義・メンバー関数・ビットフィールド) を、汎用の HLSL 環境では構文エラーにしない

@@ -29,6 +29,27 @@ public sealed record UnrealOptions
     public static ImmutableArray<string> GeneratedIncludePrefixes { get; } = ["/Engine/Generated/"];
 
     /// <summary>
+    /// 生成される取り込みのうち、宣言する関数がエンジンの C++ で決まっているもの。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// uniform buffer の宣言 (<c>ShaderParameters.cpp</c> が作る) は cbuffer と構造体だけで、関数を宣言しない。
+    /// <c>GeneratedInstancedStereo.ush</c> (<c>ShaderCompiler.cpp</c> の <c>GenerateInstancedStereoCode</c>) が宣言する関数は
+    /// <c>FinalizeViewState</c> (前方宣言)・<c>GetPrimaryView</c>・<c>GetInstancedView</c> だけである (UE 5.5 で確かめた)。
+    /// </para>
+    /// <para>
+    /// <c>Material.ush</c> / <c>VertexFactory.ush</c> はマテリアルや頂点ファクトリごとに関数が変わるので入れない。
+    /// </para>
+    /// </remarks>
+    public static ImmutableDictionary<string, ImmutableArray<string>> GeneratedIncludeFunctions { get; } =
+        new Dictionary<string, ImmutableArray<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["/Engine/Generated/GeneratedUniformBuffers.ush"] = [],
+            ["/Engine/Generated/UniformBuffers/"] = [],
+            ["/Engine/Generated/GeneratedInstancedStereo.ush"] = ["FinalizeViewState", "GetPrimaryView", "GetInstancedView"],
+        }.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// シェーダーコンパイラが定義するマクロの既定値。PC の Direct3D 12 (シェーダーモデル 6) を想定する。
     /// </summary>
     /// <remarks>
@@ -108,6 +129,7 @@ public sealed record UnrealOptions
             Enable16BitTypes = Enable16BitTypes,
             Variants = variants ?? VariantSpace.Empty,
             GeneratedIncludePrefixes = GeneratedIncludePrefixes,
+            GeneratedIncludeFunctions = GeneratedIncludeFunctions,
             PredefinedMacros = PredefinedMacros,
         });
 

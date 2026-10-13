@@ -111,4 +111,26 @@ public interface IHlslEnvironment
     /// </para>
     /// </remarks>
     bool IsGeneratedInclude(string path);
+
+    /// <summary>
+    /// 解決できない <c>#include</c> のファイルが宣言しうる関数の名前を返す。
+    /// </summary>
+    /// <param name="path"><c>#include</c> に書かれたパス。</param>
+    /// <returns>
+    /// 宣言しうる関数の名前。関数を宣言しないなら空。分からなければ <see langword="null"/> (既定)。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// ビルドのときに生成されるファイルには、書かれるものがエンジンの C++ で決まっているものがある。
+    /// Unreal の uniform buffer の宣言 (<c>/Engine/Generated/GeneratedUniformBuffers.ush</c> と
+    /// <c>/Engine/Generated/UniformBuffers/…</c>) は cbuffer と構造体だけで、関数を宣言しない。
+    /// <c>GeneratedInstancedStereo.ush</c> が宣言する関数は <c>GetPrimaryView</c> などの 3 つに決まっている。
+    /// </para>
+    /// <para>
+    /// <b>これらが解決できなくても、ほかの名前の関数の多重定義は欠けていない。</b>
+    /// 呼び出しを多重定義と照らす検査 (HL0340 / HL0341) は、その名前の多重定義が欠けていない限り続ける
+    /// (<see cref="ShaderCompilation.MayLackOverloadsOf"/>)。
+    /// </para>
+    /// </remarks>
+    ImmutableArray<string>? GetFunctionsDeclaredIn(string path) => null;
 }

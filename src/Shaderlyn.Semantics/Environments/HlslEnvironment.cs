@@ -52,6 +52,14 @@ public sealed record HlslEnvironmentOptions
     public ImmutableArray<string> GeneratedIncludePrefixes { get; init; } = [];
 
     /// <summary>
+    /// 生成される取り込みのうち、宣言する関数が分かっているもの。キーはパスで、`/` で終わるものはその下のすべてを指す。
+    /// 値は宣言しうる関数の名前 (関数を宣言しないなら空)。
+    /// </summary>
+    /// <remarks><see cref="IHlslEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
+    public ImmutableDictionary<string, ImmutableArray<string>> GeneratedIncludeFunctions { get; init; } =
+        ImmutableDictionary<string, ImmutableArray<string>>.Empty;
+
+    /// <summary>
     /// どの単位にも共通する定義済みマクロ。DXC が定義するものの後、解析の設定で与えたものの前に重ねる。
     /// </summary>
     /// <remarks>エンジンのシェーダーコンパイラが定義するもの (Unreal の <c>COMPILER_HLSL</c> など) を与える。</remarks>
@@ -147,6 +155,26 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
         string normalized = path.Replace('\\', '/');
         return Options.GeneratedIncludePrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <inheritdoc/>
+    public ImmutableArray<string>? GetFunctionsDeclaredIn(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        string normalized = path.Replace('\\', '/');
+
+        foreach ((string entry, ImmutableArray<string> functions) in Options.GeneratedIncludeFunctions)
+        {
+            if (entry.EndsWith('/')
+                    ? normalized.StartsWith(entry, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(normalized, entry, StringComparison.OrdinalIgnoreCase))
+            {
+                return functions;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -245,7 +245,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     {
         // 大域の関数の呼び出しでなければ見ない。取り込みを解決できていなければ、見えていない多重定義があるかもしれない
         // (CallSignatureAnalyzer と同じ)。
-        if (!compilation.HasCompleteDependencies || binder.CallsNonGlobalFunction(invocation, name))
+        if (compilation.MayLackOverloadsOf(name) || binder.CallsNonGlobalFunction(invocation, name))
         {
             return;
         }

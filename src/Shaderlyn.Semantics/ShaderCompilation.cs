@@ -370,6 +370,23 @@ public sealed class ShaderCompilation
         UnresolvedIncludes.IsEmpty && Programs.All(p => p.Diagnostics.IsEmpty);
 
     /// <summary>
+    /// 指定した名前の関数の多重定義が、見えていないかもしれないかを判定する。
+    /// </summary>
+    /// <param name="name">関数の名前。</param>
+    /// <returns>
+    /// 解析が途中で失敗しているか、解決できない取り込みのどれかがその名前の関数を宣言しうるなら <see langword="true"/>。
+    /// </returns>
+    /// <remarks>
+    /// <see cref="HasCompleteDependencies"/> より緩い。解決できない取り込みが宣言する関数が分かっていれば
+    /// (<see cref="Environments.IHlslEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
+    /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (HL0340 / HL0341) はこれを見る。
+    /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
+    /// </remarks>
+    public bool MayLackOverloadsOf(string name)
+        => !Programs.All(p => p.Diagnostics.IsEmpty)
+           || UnresolvedIncludes.Any(path => Environment.GetFunctionsDeclaredIn(path) is not { } functions || functions.Contains(name));
+
+    /// <summary>
     /// 名前から uniform を引く。
     /// </summary>
     /// <param name="name">uniform の名前。</param>
