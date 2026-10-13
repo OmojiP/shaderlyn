@@ -68,7 +68,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -103,7 +103,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             if (missing.IsUnknown
                 || !condition.IsPossible(missing)
                 || identifier.GetLocation() is not { } location
-                || !reported.Add(location.Span.Start))
+                || !reported.Add(location))
             {
                 continue;
             }

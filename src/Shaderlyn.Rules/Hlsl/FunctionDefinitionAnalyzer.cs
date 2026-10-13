@@ -65,7 +65,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
         }
 
         // 同じコードが Pass ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach (AnalyzedProgram program in EnumeratePrograms(compilation))
         {
@@ -120,7 +120,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, SymbolCondition> defined,
         InvocationExpressionSyntax invocation,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
             || !defined.TryGetValue(name, out SymbolCondition definition)
@@ -147,7 +147,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (invocation.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (invocation.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }

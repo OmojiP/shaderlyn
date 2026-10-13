@@ -78,7 +78,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         bool canJudgeDeclarations = !ShaderSourceKinds.IsIncludeFragment(compilation.Text.FilePath);
 
         // 同じ 1 行が複数のパスに入る。報告は書かれた場所ごとに 1 回でよい。
-        HashSet<TextSpan> reported = [];
+        HashSet<(string File, TextSpan Span)> reported = [];
 
         foreach (AnalyzedProgram program in programs)
         {
@@ -110,11 +110,11 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         PreprocessResult result,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
         foreach (NeverTrueCondition condition in result.NeverTrueConditions)
         {
-            if (!compilation.IsWrittenHere(condition.Directive) || !reported.Add(condition.Directive.Span))
+            if (!compilation.IsWrittenHere(condition.Directive) || !reported.Add((condition.Directive.Source.FilePath, condition.Directive.Span)))
             {
                 continue;
             }
@@ -151,7 +151,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         PreprocessResult result,
         HashSet<string> declared,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
         foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
         {
@@ -159,7 +159,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
                 || !compilation.Environment.LooksLikeVariantSymbol(token.Text)
                 || result.Macros.ContainsKey(token.Text)
                 || !compilation.IsWrittenHere(token)
-                || !reported.Add(token.Span))
+                || !reported.Add((token.Source.FilePath, token.Span)))
             {
                 continue;
             }
@@ -186,7 +186,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         VariantSpace variants,
         HashSet<string> referenced,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
         // 名前が書かれていない宣言 (組み込みの宣言が作るもの) は、使うかどうかを利用者が選んでいない。
         foreach (VariantDeclaration declaration in variants.Declarations)
@@ -199,7 +199,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
                 || referenced.Contains(name)
                 || SwitchesCompiler(compilation, name)
                 || !compilation.IsWrittenHere(location)
-                || !reported.Add(location.Span))
+                || !reported.Add((location.FilePath, location.Span)))
             {
                 continue;
             }

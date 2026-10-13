@@ -73,7 +73,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -146,7 +146,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         Receiver receiver,
         HlslExpressionSyntax value,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         string target = receiver.TypeName;
 
@@ -241,7 +241,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         string name,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         // 大域の関数の呼び出しでなければ見ない。取り込みを解決できていなければ、見えていない多重定義があるかもしれない
         // (CallSignatureAnalyzer と同じ)。
@@ -294,7 +294,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         HlslExpressionSyntax expression,
         HlslSyntaxToken operatorToken,
         HlslExpressionSyntax[] operands,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(expression);
         string?[] types = [.. operands.Select(evaluator.Evaluate)];
@@ -369,9 +369,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="node">報告する位置のノード。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    private static void ReportEnum(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, HashSet<int> reported)
+    private static void ReportEnum(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, ReportedLocations reported)
     {
-        if (node.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (node.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }
@@ -392,9 +392,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         HlslExpressionSyntax value,
         string valueType,
         string reason,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        if (value.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (value.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }

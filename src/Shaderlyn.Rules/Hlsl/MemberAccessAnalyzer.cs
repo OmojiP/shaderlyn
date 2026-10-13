@@ -56,7 +56,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<(int Start, string? Kernel), Dictionary<string, StructInfo>> structs = CollectStructs(compilation, condition);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -95,7 +95,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         // メンバー名そのものが書かれたものでなければ見ない。
         // UNITY_SETUP_INSTANCE_ID(v) の v.instanceID は、v は書かれたものだが .instanceID はヘッダのマクロの本体である。
@@ -111,7 +111,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 && binder.TryGetEnum(enumName, out EnumInfo? enumeration)
                 && !enumeration.Members.Contains(access.Name)
                 && access.GetLocation() is { } enumLocation
-                && reported.Add(enumLocation.Span.Start))
+                && reported.Add(enumLocation))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     HlslRuleDescriptors.MemberNotFound,
@@ -170,7 +170,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         StructInfo structure,
         MemberAccessExpressionSyntax access,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (access.GetLocation() is not { } location)
         {
@@ -182,7 +182,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         switch (FindMember(structs, structure, access.Name, depth: 0))
         {
             case MemberLookup.Missing:
-                if (reported.Add(location.Span.Start))
+                if (reported.Add(location))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         HlslRuleDescriptors.MemberNotFound,
@@ -220,7 +220,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         // 参照する条件が成り立ち、かつメンバーがある条件が成り立たない構成があるか。
         SymbolCondition missing = use.And(declared.Negate());
 
-        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location.Span.Start))
+        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location))
         {
             return;
         }
@@ -248,14 +248,14 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, StructInfo> structs,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (access.DotToken.Kind != HlslSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
             || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing
             || access.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -296,7 +296,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         ConditionMap condition,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         foreach (SymbolCondition assumption in binder.EnumerateAssumptions(access, access.Target, condition))
         {
@@ -331,7 +331,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         string typeName,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported,
+        ReportedLocations reported,
         string note = "")
     {
         if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
@@ -345,7 +345,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (error is not { } reason
             || access.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return false;
         }

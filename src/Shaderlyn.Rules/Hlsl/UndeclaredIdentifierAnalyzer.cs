@@ -63,10 +63,12 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 名前空間の修飾 (UnifiedRT::TraceRay の UnifiedRT) の位置。
         // 構文の形はメンバーアクセスと同じなので、左側は識別子の式として現れる。
         // 変数でも関数でもないため、宣言を探しても見つからない。
-        HashSet<int> qualifiers = [];
+        HashSet<(string File, int Start)> qualifiers = [];
 
-        // 同じ位置の使用を、木をまたいで集める (Uses)。
-        Dictionary<int, Uses> uses = [];
+        // 同じ位置の使用を、木をまたいで集める (Uses)。位置はファイルごとに数えるので、ファイルの名前も鍵に入れる。
+        // 入れずにいると、ヘッダの識別子と、解析しているファイルの同じ文字位置の別の識別子を 1 つの使用にまとめ、
+        // 見えている名前を「宣言されていない」と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
+        Dictionary<(string File, int Start), Uses> uses = [];
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
@@ -76,7 +78,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             if (node is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.ColonColonToken } access
                 && access.Target.GetLocation() is { } qualifier)
             {
-                qualifiers.Add(qualifier.Span.Start);
+                qualifiers.Add((qualifier.FilePath, qualifier.Span.Start));
                 continue;
             }
 
@@ -111,8 +113,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         AnalyzedProgram program,
         DeclaredNames declared,
         IdentifierExpressionSyntax identifier,
-        HashSet<int> qualifiers,
-        Dictionary<int, Uses> uses)
+        HashSet<(string File, int Start)> qualifiers,
+        Dictionary<(string File, int Start), Uses> uses)
     {
         // 括弧を付けて呼んだ関数形式マクロの名前が木に残っていれば、その構成ではそのマクロは定義されていない。
         // 定義されていれば展開されて消えている。括弧を付けずに名前だけを書いたものは、今までどおり見ない。
@@ -127,7 +129,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
             || identifier.GetLocation() is not { } location
-            || qualifiers.Contains(location.Span.Start))
+            || qualifiers.Contains((location.FilePath, location.Span.Start)))
         {
             return;
         }
@@ -159,7 +161,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             visible = declared.Contains(identifier.Name, program, invoked);
         }
 
-        if (!uses.TryGetValue(location.Span.Start, out Uses? use))
+        if (!uses.TryGetValue((location.FilePath, location.Span.Start), out Uses? use))
         {
             // 見える木しか無い位置は、覚えておいても報告にならない。条件を求める費用もかけない。
             if (visible && declaredWhen is null && !declared.MayBeHidden)
@@ -168,7 +170,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             }
 
             use = new Uses(location, identifier.Name);
-            uses[location.Span.Start] = use;
+            uses[(location.FilePath, location.Span.Start)] = use;
         }
 
         use.Occurrences.Add(new Occurrence(identifier, program, visible, declaredWhen));

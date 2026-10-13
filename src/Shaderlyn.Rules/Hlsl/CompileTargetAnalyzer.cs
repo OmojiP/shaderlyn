@@ -37,7 +37,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
-        Dictionary<int, (HlslSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
+        Dictionary<(string File, int Start), (HlslSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -62,7 +62,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                int position = construct.Token.Span.Start;
+                (string File, int Start) position = (construct.Token.Source.FilePath, construct.Token.Span.Start);
 
                 if (!found.TryGetValue(position, out var entry))
                 {

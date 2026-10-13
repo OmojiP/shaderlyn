@@ -54,7 +54,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         bool declaresArrays = DeclaresArrays(compilation);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -90,7 +90,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         InvocationExpressionSyntax invocation,
         bool declaresArrays,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (!compilation.IsReportable(invocation))
         {
@@ -229,7 +229,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         if (rejecting.FirstOrDefault(r => CallCompatibility.IsPresentWith(condition, r.Declaration, typeMissing))
                 is not { Declaration: not null } rejected
             || arguments[rejected.Mismatch.Index].GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -258,7 +258,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         bool intrinsicAccepts,
         bool declaresArrays,
         SymbolCondition call,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         List<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
@@ -289,7 +289,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (first is { } found
             && arguments[found.Index].GetLocation() is { } location
-            && reported.Add(location.Span.Start))
+            && reported.Add(location))
         {
             Report(context, found, location, name, call);
         }
@@ -366,7 +366,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         InvocationExpressionSyntax invocation,
         string name,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (compilation.MayLackOverloadsOf(name)
             || !HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity arity)
@@ -381,7 +381,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (arity.Accepts(actual)
             || invocation.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -478,7 +478,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         InvocationExpressionSyntax invocation,
         string name,
         ImmutableArray<TemplateFunctionCandidate> candidates,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (compilation.MayLackOverloadsOf(name)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
@@ -492,7 +492,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         TemplateFunctionCandidate[] pool = invocation.HasTypeArguments ? [.. candidates.Where(c => c.IsTemplate)] : [.. candidates];
         ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
-        if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location.Span.Start))
+        if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location))
         {
             return;
         }
@@ -513,7 +513,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         TemplateDeductionResult deduced = TemplateDeduction.Deduce(
             single, invocation, argument => TemplateDeduction.ArgumentType(evaluator, argument));
 
-        if (!deduced.Fails || !reported.Add(location.Span.Start))
+        if (!deduced.Fails || !reported.Add(location))
         {
             return;
         }
@@ -576,7 +576,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (compilation.MayLackOverloadsOf(access.Name)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
@@ -622,9 +622,9 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         List<FunctionDeclarationSyntax> candidates,
         int actual,
         SymbolCondition call,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        if (invocation.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (invocation.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }

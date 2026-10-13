@@ -49,7 +49,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -99,7 +99,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     private static void AnalyzeDeclaration(
         SyntaxTreeAnalysisContext context,
         FunctionDeclarationSyntax declaration,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         string symbol = string.Concat(declaration.OperatorTokens.Select(t => t.Text));
 
@@ -306,10 +306,10 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         HlslSyntaxToken token,
         string message,
-        HashSet<int> reported,
+        ReportedLocations reported,
         DiagnosticDescriptor? descriptor = null)
     {
-        if (token.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (token.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }

@@ -113,7 +113,7 @@ internal sealed class DuplicateSemanticAnalyzer : SemanticRuleAnalyzer
         }
 
         // 同じ構造体が複数の Pass で解析されるので、同じ位置を重ねて報告しない。
-        if (!reported.Add($"{location.Span.Start}:{semantic.Name}"))
+        if (!reported.Add($"{location.FilePath}:{location.Span.Start}:{semantic.Name}"))
         {
             return;
         }

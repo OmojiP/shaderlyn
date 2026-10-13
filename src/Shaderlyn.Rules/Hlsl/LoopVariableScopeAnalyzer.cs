@@ -28,7 +28,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -45,7 +45,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
             if (binder.LookupLocal(identifier) is not { IsEmpty: false } declarations
                 || !declarations.All(d => LoopOf(d.Declarator) is { } loop && !identifier.Ancestors().Contains(loop))
                 || identifier.Identifier.GetLocation() is not { } location
-                || !reported.Add(location.Span.Start))
+                || !reported.Add(location))
             {
                 continue;
             }

@@ -1082,6 +1082,15 @@ public sealed class ShaderCompilation
 
                     if (!seenHeaderDeclarations.Add(at))
                     {
+                        // 利用者が書いたヘッダの関数は、構成によって本体が違う (#if の中の局所変数はその構成の木にしか無い)。
+                        // 1 度だけ見ると、ほかの木の局所変数の名前が漏れ、関数の中の変数を大域の名前として探して
+                        // 「宣言されていない」(HL0310) と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
+                        // Unity やパッケージのヘッダは報告しない場所なので、今までどおり 1 度だけ見る。
+                        if (IsUserFile(at.Source.FilePath))
+                        {
+                            Absorb(declaration, names, outside);
+                        }
+
                         continue;
                     }
 

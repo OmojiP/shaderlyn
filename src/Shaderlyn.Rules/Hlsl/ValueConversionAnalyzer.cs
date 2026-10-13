@@ -58,7 +58,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
         ConditionMap conditions = compilation.GetConditionMap();
 
         // 構造体の波括弧による初期化は、メンバーを平らにして数える。
@@ -101,7 +101,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         FunctionDeclarationSyntax function,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         foreach (SyntaxNode node in function.DescendantNodesAndSelf())
         {
@@ -155,14 +155,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         AnalyzedProgram program,
         FunctionDeclarationSyntax function,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         string returnType = function.ReturnType.Name;
 
         if (string.Equals(returnType, VoidTypeName, StringComparison.Ordinal)
             || function.Body is not { } body
             || function.NameToken.GetLocation() is not { } location
-            || reported.Contains(location.Span.Start))
+            || reported.Contains(location))
         {
             return;
         }
@@ -172,7 +172,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        reported.Add(location.Span.Start);
+        reported.Add(location);
 
         context.ReportDiagnostic(Diagnostic.Create(
             HlslRuleDescriptors.MissingReturn,
@@ -279,7 +279,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         VariableDeclarationSyntax declaration,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         foreach (VariableDeclaratorSyntax variable in declaration.Variables)
         {
@@ -352,7 +352,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         VariableDeclaratorSyntax variable,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
         string target,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         ConditionMap conditions = compilation.GetConditionMap();
         SymbolCondition declared = conditions.GetCondition(declaration);
@@ -361,7 +361,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             || CountRequiredComponents(conditions, declaration, variable, structs) is not { } required
             || CountWrittenComponents(conditions, binder, list) is not { } written
             || list.GetLocation() is not { } location
-            || reported.Contains(location.Span.Start))
+            || reported.Contains(location))
         {
             return;
         }
@@ -431,7 +431,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         SymbolCondition shown = conditions.Simplify(failed == considered ? declared : mismatched);
         string where = shown.IsAlways ? string.Empty : $" (構成：{shown} のとき)";
 
-        reported.Add(location.Span.Start);
+        reported.Add(location);
         context.ReportDiagnostic(Diagnostic.Create(
             HlslRuleDescriptors.InitializerCountMismatch, location, target, counts.Wrote, counts.Need, where));
 
@@ -654,7 +654,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         AssignmentExpressionSyntax assignment,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (binder.GetEvaluatorFor(assignment).Evaluate(assignment.Left) is not { } targetType)
         {
@@ -688,7 +688,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         AssignmentExpressionSyntax assignment,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (assignment.Right.GetLocation() is not { } location)
         {
@@ -710,7 +710,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
             if (!HlslConversion.IsConvertible(valueType, targetType))
             {
-                if (reported.Add(location.Span.Start))
+                if (reported.Add(location))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         HlslRuleDescriptors.ValueNotConvertible,
@@ -729,7 +729,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        if (truncating is { } finding && reported.Add(location.Span.Start))
+        if (truncating is { } finding && reported.Add(location))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 HlslRuleDescriptors.ConditionalTruncation,
@@ -756,7 +756,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         HlslExpressionSyntax value,
         string targetType,
         string target,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (value.GetLocation() is not { } location)
         {
@@ -766,7 +766,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (binder.GetEvaluatorFor(value).Evaluate(value) is not { } valueType)
         {
             if (FindByConfiguration(conditions, binder, value, targetType) is { } finding
-                && reported.Add(location.Span.Start))
+                && reported.Add(location))
             {
                 context.ReportDiagnostic(finding.Convertible
                     ? Diagnostic.Create(
@@ -787,7 +787,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (HlslConversion.IsConvertible(valueType, targetType) || !reported.Add(location.Span.Start))
+        if (HlslConversion.IsConvertible(valueType, targetType) || !reported.Add(location))
         {
             return;
         }
@@ -901,7 +901,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         FunctionDeclarationSyntax function,
         ReturnStatementSyntax statement,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         string returnType = function.ReturnType.Name;
         bool isVoid = string.Equals(returnType, VoidTypeName, StringComparison.Ordinal);
@@ -914,7 +914,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (statement.Expression is not { } value)
         {
             // 値を返す関数が、値なしで return している。
-            if (!isVoid && reported.Add(location.Span.Start))
+            if (!isVoid && reported.Add(location))
             {
                 Report(context, function.Name, returnType, "値を返していません", location);
             }
@@ -924,7 +924,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (isVoid)
         {
-            if (reported.Add(location.Span.Start))
+            if (reported.Add(location))
             {
                 Report(context, function.Name, returnType, "値を返しています", location);
             }
@@ -941,7 +941,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         }
 
         if (HlslConversion.IsConvertible(valueType, returnType)
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -976,7 +976,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         HlslExpressionSyntax value,
         string returnType,
         Location location,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (FindByConfiguration(conditions, binder, value, returnType) is not { } finding)
         {
@@ -985,7 +985,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (!finding.Convertible)
         {
-            if (reported.Add(location.Span.Start))
+            if (reported.Add(location))
             {
                 Report(
                     context,
@@ -999,7 +999,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (value.GetLocation() is { } valueLocation && reported.Add(valueLocation.Span.Start))
+        if (value.GetLocation() is { } valueLocation && reported.Add(valueLocation))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 HlslRuleDescriptors.ConditionalTruncation,

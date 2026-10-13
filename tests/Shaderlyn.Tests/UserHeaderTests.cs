@@ -122,6 +122,42 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.Single(Findings(output), f => f == ("Common.hlsl", "HL0310"));
     }
 
+    /// <summary>
+    /// 構成によって本体が違うヘッダの関数の局所変数を、宣言されていない (HL0310) と報告しない。
+    /// </summary>
+    /// <remarks>
+    /// 既定の構成 (P_LOW) の木には <c>#if !defined(P_LOW)</c> の中身が無い。ヘッダの関数を位置で 1 度だけ見ていたので、
+    /// P_HIGH の木にだけある局所変数 <c>r</c> の名前が漏れ、大域の名前として探して見つからなかった
+    /// (HDRP の SubpixelMorphologicalAntialiasing.hlsl の <c>leftRight</c> など)。
+    /// </remarks>
+    [Fact]
+    public async Task 構成で本体が変わるヘッダの関数の局所変数を宣言されていないと言わない()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Lib.hlsl"), """
+            #if defined(P_HIGH)
+            #define ROUND 25
+            #else
+            #define ROUND 25
+            #endif
+            void F(inout float2 w, float2 d)
+            {
+                float2 lr = step(d.xy, d.yx);
+            #if !defined(P_LOW)
+                float2 r = (1.0 - ROUND) * lr;
+                w *= r;
+            #endif
+            }
+            """);
+        WriteShader(
+            "A",
+            "#pragma multi_compile_fragment P_LOW P_MED P_HIGH\nhalf4 frag() : SV_Target { float2 w = 1; F(w, 0); return w.x; }",
+            "Lib.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain(("Lib.hlsl", "HL0310"), Findings(output));
+    }
+
     [Fact]
     public async Task ヘッダで定義したマクロの本体の誤りはヘッダの位置に報告する()
     {

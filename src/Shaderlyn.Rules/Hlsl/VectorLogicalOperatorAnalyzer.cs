@@ -27,7 +27,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -52,7 +52,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
 
             if (problem is { } found
                 && found.Token.GetLocation() is { } location
-                && reported.Add(location.Span.Start))
+                && reported.Add(location))
             {
                 context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.VectorLogicalOperator, location, found.Message));
             }

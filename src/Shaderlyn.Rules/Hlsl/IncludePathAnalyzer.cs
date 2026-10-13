@@ -49,7 +49,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
         }
 
         // 同じ 1 行が複数のパスに入る (HLSLINCLUDE)。報告は場所ごとに 1 回でよい。
-        HashSet<TextSpan> reported = [];
+        HashSet<(string File, TextSpan Span)> reported = [];
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
@@ -58,7 +58,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
                 if (include.IsResolved
                     || compilation.Environment.IsGeneratedInclude(include.Path)
                     || !IsWrittenInSource(compilation, include)
-                    || !reported.Add(include.Location.Span))
+                    || !reported.Add((include.Location.FilePath, include.Location.Span)))
                 {
                     continue;
                 }
