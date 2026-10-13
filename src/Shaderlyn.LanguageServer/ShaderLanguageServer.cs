@@ -343,12 +343,38 @@ public sealed partial class ShaderLanguageServer
     /// <returns>処理の完了を表すタスク。</returns>
     private async Task OnDidSaveAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        if (TryReadTextDocument(message, out JsonElement document)
-            && document.GetProperty("uri").GetString() is { } uri
-            && _documents.TryGetValue(uri, out OpenDocument? saved))
+        if (!TryReadTextDocument(message, out JsonElement document)
+            || document.GetProperty("uri").GetString() is not { } uri
+            || !_documents.TryGetValue(uri, out OpenDocument? saved))
         {
-            await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        // 保存したのが取り込まれるヘッダかもしれない。取り込みの読み込み結果と展開結果を捨て、
+        // 開いているスクリプトをすべて新しい中身で解析し直す。
+        // 捨てずにいると、ヘッダを書き換えても古い中身で解析し、ヘッダへの指摘が書き換える前の行に出ていた。
+        ForgetIncludedFiles();
+
+        await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+
+        foreach (OpenDocument other in _documents.Values.Where(d => !string.Equals(d.Uri, uri, StringComparison.Ordinal)).ToList())
+        {
+            await PublishAsync(other, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// 取り込んだファイルについて覚えていることを捨てる。
+    /// </summary>
+    /// <remarks>
+    /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (HlslIncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
+    /// 単位ごと作り直す。設定ファイルも読み直すが、保存のたびに 1 度なので重くはない。
+    /// </remarks>
+    private void ForgetIncludedFiles()
+    {
+        _session = new AnalysisSession(_session.WorkspaceDirectory, _analyzers, _environments);
+        _sessionsByConfiguration.Clear();
+        _models.Clear();
     }
 
     /// <summary>スクリプトが閉じられたときの処理。</summary>
@@ -1197,6 +1223,9 @@ public sealed partial class ShaderLanguageServer
 
                     ImmutableArray<Diagnostic> diagnostics =
                         session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+
+                    // 解析の間に次の編集が届いていたら、この結果は古い。送ると、新しい中身の上で行がずれて見える。
+                    cancellation.Token.ThrowIfCancellationRequested();
 
                     await PublishAnalysisAsync(document, stage, diagnostics, cancellation.Token)
                         .ConfigureAwait(false);

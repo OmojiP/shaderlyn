@@ -134,6 +134,18 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
         });
     }
 
+    /// <summary>スクリプトを保存したことを知らせる。</summary>
+    /// <returns>完了を表すタスク。</returns>
+    public async Task SaveAsync()
+    {
+        await SendAsync(new
+        {
+            jsonrpc = "2.0",
+            method = "textDocument/didSave",
+            @params = new { textDocument = new { uri = Uri } },
+        });
+    }
+
     /// <summary>メッセージを 1 件送る。</summary>
     /// <param name="message">送る内容。</param>
     /// <returns>完了を表すタスク。</returns>
