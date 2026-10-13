@@ -59,6 +59,9 @@ internal sealed class HlslParser
     private int _index;
     private int _reportedErrors;
 
+    /// <summary>最後に構文エラーを報告した位置のトークン。同じ位置で重ねて報告しないために使う。</summary>
+    private HlslSyntaxToken? _lastErrorToken;
+
     /// <summary>
     /// パーサを生成する。
     /// </summary>
@@ -2502,6 +2505,34 @@ internal sealed class HlslParser
             : $"{expectation}{Space(expectation)}が必要ですが '{Current.Text}' がありました。";
 
     /// <summary>
+    /// 今の位置の <c>(</c> が、定義されていない関数形式のマクロの呼び出しに見えるなら、そう伝える文を作る。
+    /// </summary>
+    /// <returns>文。<c>名前(</c> の形でなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 宣言の位置 (ファイルの直下・構造体のメンバー・引数の並び) で <c>NAME(...)</c> が構文エラーになるのは、
+    /// ほとんどが <c>NAME</c> がマクロとして展開されなかったときである
+    /// (定義がこの位置より後にある、使われない #if の分岐にある、定義を含むヘッダを取り込めていない)。
+    /// 「宣言する名前が必要ですが '(' がありました」では、マクロのことだと気付きにくい。
+    /// </remarks>
+    private string? DescribeUndefinedMacroCall()
+    {
+        if (Current.Kind != HlslSyntaxKind.OpenParenToken || _index == 0)
+        {
+            return null;
+        }
+
+        HlslSyntaxToken name = Peek(-1);
+
+        if (name.Kind != HlslSyntaxKind.IdentifierToken || name.IsMissing || HlslKeywords.IsKnownTypeName(name.Text))
+        {
+            return null;
+        }
+
+        return $"'{name.Text}(' を宣言として読めません。'{name.Text}' はここではマクロとして定義されていません。"
+            + $"'{name.Text}' を定義する #define (またはそれを含む #include) がこの位置より前にあり、この構成で有効か確かめてください。";
+    }
+
+    /// <summary>
     /// 要るものの名前と「が」の間の空白。記号や英字 ('}' / HLSLPROGRAM) なら空け、日本語 (式 / 型名) なら詰める。
     /// </summary>
     /// <param name="expectation">要るもの。</param>
@@ -2539,6 +2570,21 @@ internal sealed class HlslParser
         if (_reportedErrors >= MaxReportedErrors)
         {
             return;
+        }
+
+        // 立て直しのために同じ位置で何度もつまずくことがある。読み手に要るのは最初の 1 件だけである。
+        if (_lastErrorToken is not null
+            && ReferenceEquals(_lastErrorToken.Source, Current.Source)
+            && _lastErrorToken.Span.Start == Current.Span.Start)
+        {
+            return;
+        }
+
+        _lastErrorToken = Current;
+
+        if (DescribeUndefinedMacroCall() is { } undefinedMacro)
+        {
+            message = undefinedMacro;
         }
 
         _reportedErrors++;

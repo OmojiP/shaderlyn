@@ -373,4 +373,17 @@ public sealed class ShaderLabErrorRecoveryTests
         Assert.NotNull(tree.Root.Shader);
         Assert.NotEmpty(tree.Diagnostics);
     }
+
+    /// <summary>
+    /// 見た目では分からない先頭の文字 (BOM の無い UTF-16 の NUL、ゼロ幅空白) は、メッセージでその正体を伝える。
+    /// </summary>
+    [Theory]
+    [InlineData("\0S\0h\0a\0d\0e\0r", "NUL 文字")]
+    [InlineData("​Shader \"X\" { }", "U+200B")]
+    public void 先頭の見えない文字はメッセージで伝える(string content, string expected)
+    {
+        ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(SourceText.From(content, "test.shader"));
+
+        Assert.Contains(tree.Diagnostics, d => d.Id == "SL0001" && d.GetMessage().Contains(expected, StringComparison.Ordinal));
+    }
 }

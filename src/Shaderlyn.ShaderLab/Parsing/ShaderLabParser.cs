@@ -142,7 +142,7 @@ internal sealed class ShaderLabParser
             return null;
         }
 
-        ReportError(Current.Span, "ファイルの先頭に 'Shader' 以外の記述があります。");
+        ReportError(Current.Span, DescribeLeadingContent(Current.Text, _text.ToString(new TextSpan(0, Math.Min(16, _text.Length)))));
 
         ImmutableArray<SyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<SyntaxToken>();
         while (!AtEnd && !IsKeyword(Current, "Shader"))
@@ -151,6 +151,31 @@ internal sealed class ShaderLabParser
         }
 
         return new SkippedTokensSyntax(skipped.ToImmutable());
+    }
+
+    /// <summary>ファイルの先頭にある、Shader 以外の記述を説明する。</summary>
+    /// <param name="text">先頭のトークンの文字列。</param>
+    /// <param name="head">ファイルの先頭の数文字。</param>
+    /// <returns>報告する文。</returns>
+    /// <remarks>
+    /// <b>見えない文字は、どの文字かを伝える。</b>
+    /// ゼロ幅スペース (U+200B) や重なった BOM (U+FEFF) が先頭にあると、エディタでは「Shader で始まっている」ように見え、
+    /// 「Shader 以外の記述があります」と言われても何を直せばよいか分からない。
+    /// NUL は、BOM の無い UTF-16 で保存したファイルを UTF-8 として読んだときに現れる。
+    /// </remarks>
+    private static string DescribeLeadingContent(string text, string head)
+    {
+        if (head.Contains('\0') || text.Length > 0 && text[0] == '\0')
+        {
+            return "ファイルの先頭に 'Shader' 以外の記述があります (NUL 文字)。BOM の無い UTF-16 で保存したファイルなら、UTF-8 で保存し直してください。";
+        }
+
+        if (text.Length > 0 && text[0] is '\u200B' or '\u200C' or '\u200D' or '\u2060' or '\uFEFF')
+        {
+            return $"ファイルの先頭に 'Shader' 以外の記述があります (見えない文字 U+{(int)text[0]:X4})。その文字を消してください。";
+        }
+
+        return "ファイルの先頭に 'Shader' 以外の記述があります。";
     }
 
     /// <summary>ファイル終端まで全トークンを読み飛ばす。</summary>

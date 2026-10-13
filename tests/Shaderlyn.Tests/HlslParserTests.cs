@@ -817,4 +817,21 @@ public sealed class HlslRobustnessTests
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
     }
+
+    /// <summary>
+    /// 定義されていない関数形式のマクロは、マクロのことだと分かる 1 件の構文エラーにする。
+    /// 以前は「宣言する名前が必要ですが '(' がありました」などが同じ位置に 3 件出て、原因に気付きにくかった。
+    /// </summary>
+    [Theory]
+    [InlineData("DECLARE_TEX(_Main);", "DECLARE_TEX")]
+    [InlineData("struct V { float4 p : SV_POSITION; DECL_UV(1) };", "DECL_UV")]
+    [InlineData("float4 frag(float4 p : SV_POSITION, FACE_PARAM(face)) : SV_Target { return 1; }", "FACE_PARAM")]
+    public void 定義されていない関数形式のマクロはそう伝える(string content, string macro)
+    {
+        HlslSyntaxTree tree = HlslHarness.Parse(content);
+
+        Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
+        Assert.Equal("HL0001", diagnostic.Id);
+        Assert.StartsWith($"'{macro}(' を宣言として読めません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
+    }
 }
