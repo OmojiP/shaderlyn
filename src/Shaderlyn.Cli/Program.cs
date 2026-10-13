@@ -190,7 +190,10 @@ public static class Program
             return ExitCode.Success;
         }
 
-        string report = FormatReport(options, analyzers, result, output);
+        // 出力は形式ごとの重要度で絞る。終了コードは絞る前のすべての指摘で決める (表示を絞って CI の合否が変わらないように)。
+        AnalysisResult shown = result.OnlyAtOrAbove(
+            settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), settings.ConfigurationDiagnostics);
+        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length);
         await WriteReportAsync(options, report, output, cancellationToken).ConfigureAwait(false);
 
         // 注釈は主たる出力とは別に書く。SARIF をファイルへ書きながら
@@ -200,7 +203,11 @@ public static class Program
             GitHubDiagnosticReporter annotator =
                 new(options.BasePath ?? Directory.GetCurrentDirectory());
 
-            await output.WriteAsync(annotator.Format(result.Diagnostics, result.AnalyzedFileCount))
+            AnalysisResult annotated =
+                result.OnlyAtOrAbove(
+                    settings.GetMinimumReportedSeverity(OutputFormat.GitHub, options.MinSeverity), settings.ConfigurationDiagnostics);
+
+            await output.WriteAsync(annotator.Format(annotated.Diagnostics, annotated.AnalyzedFileCount))
                 .ConfigureAwait(false);
         }
 
@@ -407,12 +414,14 @@ public static class Program
     /// <param name="analyzers">実行したアナライザ。SARIF のルール一覧に使う。</param>
     /// <param name="result">解析結果。</param>
     /// <param name="output">出力先。色付けの可否判定に使う。</param>
+    /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。テキストの要約に添える。</param>
     /// <returns>整形済みのレポート。</returns>
     private static string FormatReport(
         CommandLineOptions options,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         AnalysisResult result,
-        TextWriter output)
+        TextWriter output,
+        int hiddenCount)
     {
         string basePath = options.BasePath ?? Directory.GetCurrentDirectory();
 
@@ -434,7 +443,7 @@ public static class Program
                     useColor: options.OutputPath is null
                         && ReferenceEquals(output, Console.Out)
                         && !Console.IsOutputRedirected)
-                .Format(result.Diagnostics, result.AnalyzedFileCount),
+                .Format(result.Diagnostics, result.AnalyzedFileCount, hiddenCount),
         };
     }
 

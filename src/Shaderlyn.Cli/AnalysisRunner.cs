@@ -27,6 +27,26 @@ internal sealed record AnalysisResult(ImmutableArray<Diagnostic> Diagnostics, in
         => Diagnostics.Any(d => d.Severity >= threshold);
 
     /// <summary>
+    /// 指定した重要度以上の診断だけを残す。
+    /// </summary>
+    /// <param name="threshold">残す最低の重要度。</param>
+    /// <param name="alwaysKept">重要度によらず残す診断 (設定ファイルの問題)。</param>
+    /// <returns>残した結果。出力を絞るためのもので、終了コードの判定には元の結果を使う。</returns>
+    /// <remarks>
+    /// 設定ファイルの問題は絞らない。<c>min-severity</c> の綴りの誤りまで隠すと、設定が効いていないことに気付けない。
+    /// </remarks>
+    public AnalysisResult OnlyAtOrAbove(DiagnosticSeverity threshold, ImmutableArray<Diagnostic> alwaysKept)
+    {
+        if (Diagnostics.All(d => d.Severity >= threshold))
+        {
+            return this;
+        }
+
+        HashSet<Diagnostic> kept = new(alwaysKept.IsDefault ? [] : alwaysKept, ReferenceEqualityComparer.Instance);
+        return this with { Diagnostics = [.. Diagnostics.Where(d => d.Severity >= threshold || kept.Contains(d))] };
+    }
+
+    /// <summary>
     /// 解析以外の経路で得られた診断を加える。
     /// </summary>
     /// <param name="additional">加える診断。</param>

@@ -288,6 +288,14 @@ shaderlyn Assets --error-on error
 shaderlyn Assets --error-on info
 ```
 
+出力する指摘は `--min-severity` で絞れます。絞っても終了コードは変わりません（出力しなかった指摘も含めて `--error-on` で決めます）。
+出力の形式ごとに変えるなら、設定ファイルの [`report: min-severity`](configuration.md#report) に書きます。
+
+```bash
+# エラーだけを表示する（警告があれば終了コードは 1 のまま）
+shaderlyn Assets --min-severity error
+```
+
 ---
 
 ## 5. プロジェクトの解析設定
@@ -540,6 +548,7 @@ shaderlyn <パス...> [オプション]
 | ----------------------- | ----------------------------------------------------------------- |
 | `--format <形式>`       | 出力形式: `text`（既定）/ `json` / `sarif` / `github`             |
 | `--error-on <重要度>`   | この重要度以上で終了コードを `1` にする: `info` / `warning`（既定）/ `error` |
+| `--min-severity <重要度>` | この重要度以上の指摘だけを出力する: `info`（既定）/ `warning` / `error`。終了コードは出力しなかった指摘も含めて `--error-on` で決める。設定ファイルの `report: min-severity` より優先 |
 | `-o`, `--output <パス>` | 出力先ファイル。省略時は標準出力                                  |
 | `--base-path <パス>`    | 出力するパスを相対化する基点。省略時は現在のフォルダー          |
 | `--annotate`            | 主たる出力とは別に、GitHub の注釈も標準出力へ書く                 |

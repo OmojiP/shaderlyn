@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Configuration;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Unity;
@@ -204,6 +205,14 @@ internal static partial class EnvironmentReport
         foreach (string define in options.Defines)
         {
             Line(builder, $"  追加のマクロ: {define} (コマンドライン)");
+        }
+
+        DiagnosticSeverity minimum = settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity);
+
+        if (minimum > DiagnosticSeverity.Info)
+        {
+            string minimumSource = options.MinSeverity is not null ? "コマンドライン" : "設定ファイル";
+            Line(builder, $"  出力する指摘 ({options.Format.ToString().ToLowerInvariant()}): {minimum.ToString().ToLowerInvariant()} 以上 ({minimumSource})");
         }
 
         if (!configuration.RuleSeverities.IsEmpty)

@@ -221,6 +221,15 @@ internal sealed class CommandLineOptions
     /// </summary>
     public DiagnosticSeverity ErrorOn { get; private set; } = DiagnosticSeverity.Warning;
 
+    /// <summary>
+    /// 出力に出す指摘の最低の重要度 (<c>--min-severity</c>)。設定ファイルの <c>report: min-severity</c> より優先する。
+    /// </summary>
+    /// <remarks>
+    /// 出力を絞るだけで、終了コードは <see cref="ErrorOn"/> に従ってすべての指摘で決める。
+    /// 表示を絞ったことで CI の合否が変わらないようにするためである。
+    /// </remarks>
+    public DiagnosticSeverity? MinSeverity { get; private set; }
+
     /// <summary>出力先ファイルのパス。<see langword="null"/> の場合は標準出力へ書く。</summary>
     public string? OutputPath { get; private set; }
 
@@ -266,6 +275,7 @@ internal sealed class CommandLineOptions
         {
             ["--format"] = ReadFormat,
             ["--error-on"] = ReadErrorOn,
+            ["--min-severity"] = ReadMinSeverity,
             ["-o"] = (o, v) => Set(() => o.OutputPath = v),
             ["--output"] = (o, v) => Set(() => o.OutputPath = v),
             ["--profile"] = ReadProfile,
@@ -402,6 +412,22 @@ internal sealed class CommandLineOptions
         return null;
     }
 
+    /// <summary><c>--min-severity</c> の値を読む。</summary>
+    /// <param name="parsed">反映する先。</param>
+    /// <param name="value">指定された値。</param>
+    /// <returns>エラーメッセージ。受け取れた場合は <see langword="null"/>。</returns>
+    private static string? ReadMinSeverity(CommandLineOptions parsed, string value)
+    {
+        if (!Enum.TryParse(value, ignoreCase: true, out DiagnosticSeverity severity)
+            || severity == DiagnosticSeverity.None)
+        {
+            return $"--min-severity の値 '{value}' は不正です。info, warning, error のいずれかを指定してください。";
+        }
+
+        parsed.MinSeverity = severity;
+        return null;
+    }
+
     /// <summary><c>--profile</c> の値を読む。</summary>
     /// <param name="parsed">反映する先。</param>
     /// <param name="value">指定された値。</param>
@@ -456,6 +482,10 @@ internal sealed class CommandLineOptions
           --environment <名前>   解析する環境: unity (既定), hlsl, unreal。設定ファイルの environment より優先します。
           --format <形式>        出力形式: text (既定), json, sarif, github
           --error-on <重要度>    この重要度以上の指摘で終了コード 1 を返す: info, warning (既定), error
+          --min-severity <重要度>
+                                 この重要度以上の指摘だけを出力する: info (既定), warning, error。
+                                 設定ファイルの report: min-severity より優先します。
+                                 終了コードは出力しなかった指摘も含めて --error-on で決めます。
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
           --base-path <パス>     出力するパスを相対化する基点。省略時は現在のフォルダー。
                                  sarif / github 形式では、これがリポジトリのルートを指していないと

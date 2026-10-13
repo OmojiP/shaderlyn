@@ -47,8 +47,9 @@ internal sealed class TextDiagnosticReporter
     /// </summary>
     /// <param name="diagnostics">出力する診断。ソースコード上の出現順に整列済みであることを前提とする。</param>
     /// <param name="analyzedFileCount">解析したファイル数。要約行に表示する。</param>
+    /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。0 より大きければ要約行に添える。</param>
     /// <returns>整形済みのテキスト。</returns>
-    public string Format(ImmutableArray<Diagnostic> diagnostics, int analyzedFileCount)
+    public string Format(ImmutableArray<Diagnostic> diagnostics, int analyzedFileCount, int hiddenCount = 0)
     {
         StringBuilder builder = new();
 
@@ -58,7 +59,7 @@ internal sealed class TextDiagnosticReporter
             builder.AppendLine();
         }
 
-        AppendSummary(builder, diagnostics, analyzedFileCount);
+        AppendSummary(builder, diagnostics, analyzedFileCount, hiddenCount);
         return builder.ToString();
     }
 
@@ -194,7 +195,9 @@ internal sealed class TextDiagnosticReporter
     /// <param name="builder">追記先。</param>
     /// <param name="diagnostics">出力した診断。</param>
     /// <param name="analyzedFileCount">解析したファイル数。</param>
-    private static void AppendSummary(StringBuilder builder, ImmutableArray<Diagnostic> diagnostics, int analyzedFileCount)
+    /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。</param>
+    private static void AppendSummary(
+        StringBuilder builder, ImmutableArray<Diagnostic> diagnostics, int analyzedFileCount, int hiddenCount)
     {
         int errors = diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error);
         int warnings = diagnostics.Count(d => d.Severity == DiagnosticSeverity.Warning);
@@ -202,6 +205,13 @@ internal sealed class TextDiagnosticReporter
 
         builder.Append(CultureInfo.InvariantCulture,
             $"{analyzedFileCount} ファイルを解析: エラー {errors} 件, 警告 {warnings} 件, 情報 {infos} 件");
+
+        // 絞ったことが分からないと、指摘が無いのか見せていないのかを読み手が区別できない。
+        if (hiddenCount > 0)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $" (重要度で絞り、ほかに {hiddenCount} 件を出力していません)");
+        }
+
         builder.AppendLine();
     }
 

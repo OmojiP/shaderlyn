@@ -179,6 +179,7 @@ shaderlyn /.../UnityProject/Assets --unity-project /.../UnityProject
 | `--unity-project <パス>` | Unity プロジェクトのルート。パッケージ配下のヘッダ解決に必須            |
 | `--format <形式>`        | 出力形式: `text` (既定), `json`, `sarif`, `github` |
 | `--error-on <重要度>`     | ジョブを失敗させる閾値: `info`, `warning` (既定), `error` |
+| `--min-severity <重要度>` | 出力する指摘の閾値: `info` (既定), `warning`, `error`。終了コードは変えない |
 | `--config <パス>`        | 設定ファイルの指定（省略時は `.shaderlyn.yaml` を検索）        |
 | `--baseline <パス>`      | ベースラインファイル（既存の指摘を除外）を指定                      |
 | `--cache <パス>`         | 変更のないファイルの解析をスキップするキャッシュファイルを指定              |

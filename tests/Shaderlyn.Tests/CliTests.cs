@@ -299,6 +299,65 @@ public sealed class ProgramTests : IDisposable
         Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
     }
 
+    /// <summary>警告 (SL1021: Cull の不正な値) を 1 件出すシェーダー。</summary>
+    private const string ShaderWithWarning = """
+        Shader "Test/Warning"
+        {
+            SubShader
+            {
+                Tags { "Queue" = "Geometry" }
+                Pass { Cull Sideways }
+            }
+        }
+        """;
+
+    /// <summary>
+    /// <c>--min-severity</c> は出力だけを絞り、終了コードは絞る前のすべての指摘で決める。
+    /// 表示を絞ったことで CI の合否が変わってはならない。
+    /// </summary>
+    [Fact]
+    public async Task 重要度で出力を絞っても終了コードはすべての指摘で決める()
+    {
+        CreateShaderFile("A.shader", ShaderWithWarning);
+
+        (ExitCode code, string output, _) = await RunAsync(_workDirectory, "--no-config", "--min-severity", "error");
+
+        Assert.Equal(ExitCode.DiagnosticsFound, code);
+        Assert.DoesNotContain("SL1021", output, StringComparison.Ordinal);
+        Assert.Contains("ほかに 1 件を出力していません", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 設定ファイルの <c>report: min-severity</c> は形式ごとに書ける。書かなかった形式はすべての指摘を出す。
+    /// 設定ファイルの問題は、絞っても隠さない (綴りの誤りに気付けなくなる)。
+    /// </summary>
+    [Fact]
+    public async Task 設定ファイルで出力の形式ごとに重要度を絞る()
+    {
+        CreateShaderFile("A.shader", ShaderWithWarning);
+        File.WriteAllText(
+            Path.Combine(_workDirectory, ".shaderlyn.yaml"),
+            "report:\n  min-severity:\n    text: error\n    jsn: info\n");
+
+        (_, string text, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"));
+        (_, string json, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"), "--format", "json");
+        (_, string commandLine, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"), "--min-severity", "info");
+
+        Assert.DoesNotContain("SL1021", text, StringComparison.Ordinal);
+        Assert.Contains("'jsn'", text, StringComparison.Ordinal);
+        Assert.Contains("SL1021", json, StringComparison.Ordinal);
+        Assert.Contains("SL1021", commandLine, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("hidden")]
+    public void 出力を絞る重要度にはinfoからerrorを指定する(string value)
+    {
+        Assert.False(CommandLineOptions.TryParse(["x", "--min-severity", value], out _, out string? error));
+        Assert.Contains("--min-severity", error, StringComparison.Ordinal);
+    }
+
     private string CreateShaderFile(string name, string content = "Shader \"Test\" { }")
     {
         string path = Path.Combine(_workDirectory, name);

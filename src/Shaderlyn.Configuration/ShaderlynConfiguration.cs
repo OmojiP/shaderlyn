@@ -133,6 +133,16 @@ internal sealed record ShaderlynConfiguration
             .WithComparers(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// 出力に出す指摘の最低の重要度 (<c>report: min-severity</c>)。
+    /// </summary>
+    /// <remarks>
+    /// キーは出力形式の名前 (<c>text</c> / <c>json</c> / <c>sarif</c> / <c>github</c>)。
+    /// すべての形式に同じ値を書いたときは、空文字のキーに置く。
+    /// </remarks>
+    public ImmutableDictionary<string, DiagnosticSeverity> ReportMinSeverities { get; init; } =
+        ImmutableDictionary<string, DiagnosticSeverity>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// 読み込みで見つかった問題。
     /// </summary>
     /// <remarks>

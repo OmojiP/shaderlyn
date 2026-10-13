@@ -183,6 +183,29 @@ internal sealed class EffectiveSettings
     }
 
     /// <summary>
+    /// 出力に出す指摘の最低の重要度を決める。
+    /// </summary>
+    /// <param name="format">出力形式。</param>
+    /// <param name="commandLine">コマンドラインの <c>--min-severity</c>。指定が無ければ <see langword="null"/>。</param>
+    /// <returns>
+    /// コマンドラインの指定、設定ファイルのその形式の値、設定ファイルのすべての形式の値の順に、最初にあるもの。
+    /// どれも無ければ <see cref="DiagnosticSeverity.Info"/> (すべて出す)。
+    /// </returns>
+    public DiagnosticSeverity GetMinimumReportedSeverity(OutputFormat format, DiagnosticSeverity? commandLine)
+    {
+        if (commandLine is { } severity)
+        {
+            return severity;
+        }
+
+        ImmutableDictionary<string, DiagnosticSeverity> configured = Configuration.ReportMinSeverities;
+
+        return configured.TryGetValue(format.ToString(), out DiagnosticSeverity forFormat) ? forFormat
+            : configured.TryGetValue(string.Empty, out DiagnosticSeverity forAll) ? forAll
+            : DiagnosticSeverity.Info;
+    }
+
+    /// <summary>
     /// フォルダーから上へ辿って、設定ファイルを探す。
     /// </summary>
     /// <param name="directory">探し始めるフォルダー。</param>

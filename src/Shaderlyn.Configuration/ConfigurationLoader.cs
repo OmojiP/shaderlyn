@@ -27,8 +27,14 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "unreal", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules",
+        "version", "environment", "unity", "unreal", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
     ];
+
+    /// <summary><c>report:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownReportKeys = ["min-severity"];
+
+    /// <summary><c>report: min-severity</c> に形式ごとに書くときの、形式の名前。</summary>
+    private static readonly string[] KnownReportFormats = ["text", "json", "sarif", "github"];
 
     /// <summary><c>unity:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownUnityKeys = ["profile", "project", "editor", "version", "graphics-apis", "shader-compiler-backend"];
@@ -223,6 +229,7 @@ internal static class ConfigurationLoader
                 Defines = ReadStringSequence("defines"),
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
                 RuleOptions = options,
+                ReportMinSeverities = ReadReportMinSeverities(),
                 Problems = problems.ToImmutable(),
             };
         }
@@ -964,6 +971,86 @@ internal static class ConfigurationLoader
 
             options = optionBuilder.ToImmutable();
             return severities.ToImmutable();
+        }
+
+        /// <summary>出力に出す指摘の最低の重要度 (<c>report: min-severity</c>) を読む。</summary>
+        /// <returns>出力形式の名前から重要度への対応。すべての形式に同じ値なら空文字のキー。</returns>
+        /// <remarks>
+        /// <code>
+        /// report:
+        ///   min-severity: warning      # すべての形式
+        /// report:
+        ///   min-severity:              # 形式ごと (書かなかった形式はすべての指摘を出す)
+        ///     text: error
+        ///     sarif: info
+        /// </code>
+        /// </remarks>
+        private ImmutableDictionary<string, DiagnosticSeverity> ReadReportMinSeverities()
+        {
+            ImmutableDictionary<string, DiagnosticSeverity>.Builder severities =
+                ImmutableDictionary.CreateBuilder<string, DiagnosticSeverity>(StringComparer.OrdinalIgnoreCase);
+            YamlMapping? report = ReadSection("report");
+
+            if (report is null)
+            {
+                return severities.ToImmutable();
+            }
+
+            ReportUnknownKeys(report, KnownReportKeys, "report:");
+
+            switch (report.Entries.GetValueOrDefault("min-severity"))
+            {
+                case null:
+                case YamlScalar { Value.Length: 0 }:
+                    break;
+
+                case YamlScalar scalar:
+                    AddReportSeverity(severities, string.Empty, scalar);
+                    break;
+
+                case YamlMapping formats:
+                    ReportUnknownKeys(formats, KnownReportFormats, "report: の min-severity ");
+
+                    foreach (string format in formats.Keys.Where(k => KnownReportFormats.Contains(k, StringComparer.Ordinal)))
+                    {
+                        if (formats.Entries[format] is YamlScalar value)
+                        {
+                            AddReportSeverity(severities, format, value);
+                        }
+                        else
+                        {
+                            problems.Add(new ConfigurationProblem(
+                                formats.Entries[format].Line, $"report: の min-severity の {format} には重要度を 1 つ指定してください。"));
+                        }
+                    }
+
+                    break;
+
+                case YamlNode other:
+                    problems.Add(new ConfigurationProblem(
+                        other.Line,
+                        "report: の min-severity には、重要度 (info, warning, error) か、出力形式と重要度の対を指定してください。"));
+                    break;
+            }
+
+            return severities.ToImmutable();
+        }
+
+        private void AddReportSeverity(
+            ImmutableDictionary<string, DiagnosticSeverity>.Builder severities,
+            string format,
+            YamlScalar scalar)
+        {
+            if (TryParseSeverity(scalar.Value, out DiagnosticSeverity severity) && severity != DiagnosticSeverity.None)
+            {
+                severities[format] = severity;
+                return;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                scalar.Line,
+                $"report: の min-severity{(format.Length == 0 ? string.Empty : " の " + format)} の重要度 '{scalar.Value}' を解釈できません。"
+                + "info, warning, error のいずれかを指定してください。"));
         }
 
         private void ReadRuleDetail(
