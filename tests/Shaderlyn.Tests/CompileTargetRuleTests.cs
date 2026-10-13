@@ -107,14 +107,14 @@ public sealed class CompileTargetRuleTests
     }
 
     [Theory]
-    [InlineData("#pragma use_dxc d3d12", "6.6", "SL1050", "d3d12 は、どのバージョンの Unity でも認識されません。この指定では DXC に切り替わらず")]
-    [InlineData("#pragma use_dxc dx12", "6.3", "SL1050", "Unity 6.5 以前は、use_dxc の API 名 dx12 を認識しません。")]
+    [InlineData("#pragma use_dxc d3d12", "6.6", "SL1050", "d3d12 は、どのバージョンの Unity でも認識されず、DXCが使用されません。")]
+    [InlineData("#pragma use_dxc dx12", "6.3", "SL1050", "Unity 6.5 以前は、use_dxc の API 名 dx12 が認識されず、DXCが使用されません。")]
     [InlineData("#pragma use_dxc d3d11", "6.6", "SL1051", "非推奨")]
-    [InlineData("#pragma use_dxc d3d11", "6.3", "SL1053", "DX11 でも DXC でコンパイルされ、DXC でコンパイルしたシェーダーは DX11 では使えません。")]
-    [InlineData("#pragma use_dxc", "6.3", "SL1053", "API を書かない use_dxc が DX11 と DX12 の両方に効きます。")]
-    [InlineData("#pragma require int64", "6.6", "SL1053", "require int64 がキーワードの条件なしで書かれています。このパスは DXC でコンパイルされ、DX11 では使えません (コンパイルされないか、作られても使われません)。DX11 でも使うなら、require int64 : キーワード のように条件を付け、DXC が要る構成と FXC でよい構成を分けてください。")]
-    [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "認識しないので、この指定を無視します。")]
-    [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "このシェーダーはコンパイルされず、使われません。")]
+    [InlineData("#pragma use_dxc d3d11", "6.3", "SL1053", "Unity 6.5 以前の use_dxc d3d11 は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
+    [InlineData("#pragma use_dxc", "6.3", "SL1053", "Unity 6.5 以前は、API名を指定しない use_dxc は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
+    [InlineData("#pragma require int64", "6.6", "SL1053", "require int64 がキーワードの条件なしで書かれています。このパスは DXCコンパイルされるため、Graphics API for Windows: DX11 では動作しません。Graphics API for Windows: DX11 でも使用する場合、require int64 : キーワード のように条件を付け、DXC と FXC の構成を分けてください。")]
+    [InlineData("#pragma require inlineraytracing", "2022.3", "SL1050", "Unity 2022.3 は require の値 inlineraytracing を認識しません。inlineraytracing は Unity 6.4 以降で使用できます。")]
+    [InlineData("#pragma require inlineraytracing", "6.3", "SL1051", "inlineraytracing を満たす GPU が無いと判定され、コンパイルされません。")]
     [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "SL1054", "6.5 以前は FXC、6.6 からは DXC")]
     public void コンパイラの指定を対象のAPIとバージョンに照らして報告する(string pragma, string version, string id, string expected)
     {

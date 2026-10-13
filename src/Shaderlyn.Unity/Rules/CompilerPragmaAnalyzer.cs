@@ -82,8 +82,7 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                         Report(
                             program.GetBlockLocation(),
                             UnityRuleDescriptors.CompilerPragmaIgnored,
-                            $"include ファイル '{Path.GetFileName(path)}' に書いた #pragma {pragma.Name} は、Unity 2023.2 以降では効きません。"
-                            + "この指定では DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。"
+                            $"include ファイル '{Path.GetFileName(path)}' に書いた #pragma {pragma.Name} は、Unity 2023.2 以降では無視されます。"
                             + $"#pragma {pragma.Name} をコードブロックか HLSLINCLUDE に移してください。");
                     }
 
@@ -113,9 +112,8 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                 Report(
                     neverUseDxc.GetLocation(),
                     UnityRuleDescriptors.CompilerPragmaVersionDependent,
-                    $"同じコードブロックに never_use_dxc と、DXC が要る require {dxcRequirement.Text} が書かれています。"
-                    + "Unity 6.5 以前は FXC、6.6 からは DXC でコンパイルされます。"
-                    + "バージョンで結果が変わらないよう、どちらか一方にしてください。");
+                    $"同じコードブロックに never_use_dxc と、DXC を要する require {dxcRequirement.Text} が書かれています。"
+                    + "Unity 6.5 以前は FXC、6.6 からは DXC でコンパイルされます。");
             }
         }
     }
@@ -143,9 +141,9 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                 report(
                     name.GetLocation(),
                     UnityRuleDescriptors.CompilerPragmaBreaksDx11,
-                    "Unity 6.5 以前は、API を書かない use_dxc が DX11 と DX12 の両方に効きます。"
-                    + "DX11 でも DXC でコンパイルされ、DXC でコンパイルしたシェーダーは DX11 では使えません。"
-                    + "DX11 でも使うなら use_dxc を外して FXC で使える書き方にしてください (Unity 6.6 からは、API を書かない use_dxc でも DX11 は FXC でコンパイルされます)。");
+                    "Unity 6.5 以前は、API名を指定しない use_dxc は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。"
+                    + "DXCコンパイルされたシェーダーは Graphics API for Windows: DX11 では動作しません。"
+                    + "Graphics API for Windows: DX11 でもこのシェーダーを使用する場合、 use_dxc を外してください。");
             }
 
             return;
@@ -159,18 +157,20 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     report(
                         argument.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaIgnored,
-                        "use_dxc の API 名 d3d12 は、どのバージョンの Unity でも認識されません。"
-                        + "この指定では DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。"
-                        + "DX12 を DXC にするには、Unity 6.6 以降は dx12、6.5 以前は d3d11 を書いてください (6.5 以前の d3d11 は DX11 にも効きます)。");
+                        "use_dxc の API 名 d3d12 は、どのバージョンの Unity でも認識されず、DXCが使用されません。"
+                        + "ほかに DXC の指定が無ければ FXC でコンパイルされます。"
+                        + "Graphics API for Windows: DX12 で DXC を使用する場合、Unity 6.6 以降は dx12、6.5 以前は d3d11 を指定してください"
+                        + " (d3d11 は Graphics API for Windows: DX11/DX12 どちらもDXCコンパイルするため、DX11 では動作しません)。");
                     break;
 
                 case "dx12" when known && !latest:
                     report(
                         argument.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaIgnored,
-                        "Unity 6.5 以前は、use_dxc の API 名 dx12 を認識しません。"
-                        + "この指定では DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。"
-                        + "6.5 以前で DX12 を DXC にするには d3d11 を書いてください (DX11 にも効くので、このシェーダーは DX11 では使えなくなります)。");
+                        "Unity 6.5 以前は、use_dxc の API 名 dx12 が認識されず、DXCが使用されません。"
+                        + "ほかに DXC の指定が無ければ FXC でコンパイルされます。"
+                        + "6.5 以前で Graphics API for Windows: DX12 を DXC にするには d3d11 を書いてください"
+                        + " (DXCコンパイルされたシェーダーは Graphics API for Windows: DX11 では動作しません)。");
                     break;
 
                 case "d3d11" when latest:
@@ -178,7 +178,6 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                         argument.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaNote,
                         "Unity 6.6 では、use_dxc の API 名 d3d11 は非推奨です。"
-                        + "今は DX12 を DXC にします。"
                         + "dx12 と書いてください。");
                     break;
 
@@ -186,9 +185,9 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     report(
                         argument.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaBreaksDx11,
-                        "Unity 6.5 以前の use_dxc d3d11 は、DX11 と DX12 の両方に効きます。"
-                        + "DX11 でも DXC でコンパイルされ、DXC でコンパイルしたシェーダーは DX11 では使えません。"
-                        + "DX11 でも使うなら use_dxc を外してください (Unity 6.6 からは dx12 で DX12 だけを DXC にできます)。");
+                        "Unity 6.5 以前の use_dxc d3d11 は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。"
+                        + "DXCコンパイルされたシェーダーは Graphics API for Windows: DX11 では動作しません。"
+                        + "Graphics API for Windows: DX11 でもこのシェーダーを使用する場合、 use_dxc を外してください。");
                     break;
             }
         }
@@ -223,18 +222,18 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     report(
                         value.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaIgnored,
-                        "Unity 2022.3 は require の値 inlineraytracing を認識しないので、この指定を無視します。"
-                        + "この指定による切り替えは行われず、FXC でコンパイルされます。"
-                        + "この機能が要るなら Unity 6.4 以降を使い、要らなければ require inlineraytracing を消してください。");
+                        "Unity 2022.3 は require の値 inlineraytracing を認識しません。"
+                        + "inlineraytracing は Unity 6.4 以降で使用できます。");
                 }
                 else if (band == UnityVersionBand.Unity2023_2To6_3)
                 {
                     report(
                         value.GetLocation(),
                         UnityRuleDescriptors.CompilerPragmaNote,
-                        "Unity 2023.2〜6.3 は、inlineraytracing を満たす GPU が無いと判定します。"
-                        + "このシェーダーはコンパイルされず、使われません。"
-                        + "使うなら multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING で分け、キーワードが有効な構成だけを DXC でコンパイルさせてください (6.4 からは require のままで DXC でコンパイルされます)。");
+                        "Unity 2023.2〜6.3 では、inlineraytracing を満たす GPU が無いと判定され、コンパイルされません。"
+                        + "inlineraytracing は Unity 6.4 以降で使用できます。"
+                        + "6.3 以前でもこのシェーダーを使用する場合、multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING で分け、"
+                        + "キーワードが無効な構成にレイトレーシングを使わない処理を書いてください (6.3 以前はこのキーワードが有効になりません)。");
                 }
             }
 
@@ -251,8 +250,8 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     value.GetLocation(),
                     UnityRuleDescriptors.CompilerPragmaBreaksDx11,
                     $"require {value.Text} がキーワードの条件なしで書かれています。"
-                    + "このパスは DXC でコンパイルされ、DX11 では使えません (コンパイルされないか、作られても使われません)。"
-                    + $"DX11 でも使うなら、require {value.Text} : キーワード のように条件を付け、DXC が要る構成と FXC でよい構成を分けてください。");
+                    + "このパスは DXCコンパイルされるため、Graphics API for Windows: DX11 では動作しません。"
+                    + $"Graphics API for Windows: DX11 でも使用する場合、require {value.Text} : キーワード のように条件を付け、DXC と FXC の構成を分けてください。");
             }
         }
 
