@@ -30,6 +30,23 @@ dotnet test
   ```
 
   指摘の一覧は `.work/corpus/report-<名前>.txt` に書き出されます
+- Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使う検証も動きます。時間がかかるので、ふだんの確認では外せます
+
+  ```sh
+  # ふだんの確認 (20 秒ほど)
+  dotnet test --filter "FullyQualifiedName!~CorpusTests&FullyQualifiedName!~AnalysisSnapshotTests"
+
+  # Unity 同梱のシェーダーで誤検出と例外を確かめる (10 分ほど)
+  dotnet test --filter "FullyQualifiedName~CorpusTests&FullyQualifiedName!~ExternalCorpusTests&FullyQualifiedName!~UnityProbeCorpusTests"
+
+  # 指摘の全件を記録と比べる (記録はリポジトリに入れない。違えば <パス>.received に今の結果を書き出す)
+  SHADERLYN_SNAPSHOT=.work/snapshot/unity.txt dotnet test --filter "FullyQualifiedName~AnalysisSnapshotTests"
+
+  # Unity の実測 (ShaderProbePack のレポート) と、コンパイラの判定を比べる
+  SHADERLYN_UNITY_PROBE=<プローブのプロジェクトを置いたフォルダー> dotnet test --filter "FullyQualifiedName~UnityProbeCorpusTests"
+  ```
+
+  記録と違ったときは、指摘の ID と位置が変わっていないこと (文だけの変更なら) を確かめてから、`.received` で記録を置き換えます
 
 ## ルールを足す・直す
 

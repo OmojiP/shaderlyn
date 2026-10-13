@@ -287,7 +287,7 @@ Unity や外部パッケージのヘッダの定義は複製しません。
 
 | コードの形 | 方法 B になる理由 |
 | --- | --- |
-| 定義を書き分けた分岐にコードもあり、さらに `#undef` か入れ子の `#if` もある | 並べた分岐の `#undef` は後ろの分岐のマクロ表を変える。入れ子の `#if` は並べ直しの後戻りと組み合わさると条件が合わなくなる例があった |
+| 定義を書き分けた分岐にコードもあり、さらに `#undef` か `#include` もある | 並べた分岐の `#undef` は後ろの分岐のマクロ表を変える。`#include` の中身は並べるかを決める時点では読んでいない |
 | 定義が 5 通り以上になる（どの定義も当てはまらない構成の分を含む） | 同じ文が何本も並ぶ |
 | `#elif` の条件をシンボルの条件として読めない | その分岐の定義の条件が分からない |
 | マクロを使う文の中に `#if` がある | 複製すると指令を 2 度処理することになる |
@@ -742,7 +742,7 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 | 7 | 5 | **上限に達したときに落ちるシンボルは名前順で決まる。** 重要度は見ない |
 | 8 | 8 | **`SL0003` は、同じシンボルを見ている条件のうち最初の 1 か所にしか出ない。** 2 つ目以降の `#ifdef` の中も読まれていないが、そこには指摘が出ない |
 | 9 | 5 | **`_` の無い `shader_feature` の行は、「どれも無い」構成もあるものとして扱う。** Unity 2019.4 の説明ではそうなっているが、Unity 6 の説明でははっきりしない。違っていれば、実在しない構成の中を検査して誤りを報告する |
-| 10 | 3 | **条件で中身が変わるマクロの複製には上限と例外がある。** 定義が 5 通り以上になる場合、1 つの文で 4 つ以上のマクロを使うか組み合わせが 9 通り以上になる場合、定義を書き分けた分岐にコードがあり `#undef` か入れ子の `#if` もある場合は、そのシンボルは方法 B になる。Unity や外部パッケージのヘッダの定義も複製しない |
+| 10 | 3 | **条件で中身が変わるマクロの複製には上限と例外がある。** 定義が 5 通り以上になる場合、1 つの文で 4 つ以上のマクロを使うか組み合わせが 9 通り以上になる場合、定義を書き分けた分岐にコードがあり `#undef` か `#include` もある場合は、そのシンボルは方法 B になる。Unity や外部パッケージのヘッダの定義も複製しない |
 
 1 は報告もされない「調べていないのに報告しない」形で、「見送ったことは報告する」という原則から外れる唯一の項目です。
 
@@ -881,7 +881,8 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義の無い分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）
 - 文に書かれた名前が、条件で中身が変わるマクロでなくても、その本体を 8 段までたどって条件で中身が変わるマクロをちょうど 1 つ参照していれば、そのマクロの定義ごとに複製する（[FindHoistableThroughMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。たどった結果はマクロの定義ごとに覚え、マクロ表か条件付きの定義が変わったら捨てる
 - 1 つの文に条件で中身の変わるマクロが 2 つ以上あれば、定義の組み合わせごとに複製する（[CombineWithOtherMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。マクロは 3 つまで、組み合わせは 8 通りまで。超えるときは、きっかけのマクロだけを複製する
-- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` / 入れ子の `#if` が無ければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）。マクロを使う文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
+- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` が無ければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）。マクロを使う文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
+- 並べた分岐を入れ子の `#if` が区切ったときは、分岐全体の範囲も分岐の条件付きで記録する（[CloseBranchRange](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs)）。条件の付く範囲は入れ子の前・中・後に分かれ、ノードに条件を付けるのは 1 つの範囲の内側にあるときだけなので、本体に `#if` を持つ関数には条件が付かなかった（「常に」になり、分岐ごとの同じ名前の関数を HL0314 と報告していた）
 - 文の切れ目の候補（[EnumerateUnitEnds](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）は、括弧の釣り合った `;` と `}` の後ろに加え、指令の手前と、外側のブロックを閉じる `}` の手前も含む。マクロ自身が文を閉じる形（`if (v > 0) BODY` の後ろに `#ifdef` が続く、`{ … BODY }`）では、展開前のトークンに `;` も `}` も無いためである
 - 複製は、どれも同じ位置から作られる。位置で条件を引くと `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`HlslSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）
 - `#define` しか無い領域（`#define` / `#undef` / `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。同じ領域の `#elif` のシンボル（`FollowsUnmergedBranch`）、`#if` の行で読み直して並べなかったシンボル、入れ子の `#if` のシンボル（`OuterNotMerged`、[FindEnclosingHoistableMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）も、同じく数え直しの対象にする。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
