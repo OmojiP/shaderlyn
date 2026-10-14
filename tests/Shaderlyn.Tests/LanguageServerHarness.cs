@@ -196,7 +196,20 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
     /// 取り込んだヘッダの指摘は、解析したスクリプトではなくヘッダの URI へ届く。
     /// 送り先を確かめずに受け取ると、どちらに届いたのかを検証できない。
     /// </remarks>
-    public async Task<JsonElement> ReceiveDiagnosticsForAsync(string uri, string ruleId)
+    public Task<JsonElement> ReceiveDiagnosticsForAsync(string uri, string ruleId)
+        => ReceiveDiagnosticsForAsync(uri, diagnostics => diagnostics.EnumerateArray().Any(d => d.GetProperty("code").GetString() == ruleId));
+
+    /// <summary>
+    /// 指定した文書への診断のうち、条件に合うものが届くのを待つ。それより前の通知は読み捨てる。
+    /// </summary>
+    /// <param name="uri">文書の URI。</param>
+    /// <param name="accept">受け取る診断の条件。</param>
+    /// <returns>条件に合った診断の配列。</returns>
+    /// <remarks>
+    /// 1 つの操作で同じ文書への通知が複数届くことがある (開いたときの解析と、保存したときの解析)。
+    /// 届く順は環境で違うので、「次の通知」ではなく「条件に合う通知」を待つ。
+    /// </remarks>
+    public async Task<JsonElement> ReceiveDiagnosticsForAsync(string uri, Func<JsonElement, bool> accept)
     {
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
 
@@ -210,14 +223,14 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
             {
                 JsonElement diagnostics = message.RootElement.GetProperty("params").GetProperty("diagnostics");
 
-                if (diagnostics.EnumerateArray().Any(d => d.GetProperty("code").GetString() == ruleId))
+                if (accept(diagnostics))
                 {
                     return diagnostics.Clone();
                 }
             }
         }
 
-        throw new InvalidOperationException($"{uri} へ {ruleId} を含む診断が届きませんでした。");
+        throw new InvalidOperationException($"{uri} へ条件に合う診断が届きませんでした。");
     }
 
     /// <summary>

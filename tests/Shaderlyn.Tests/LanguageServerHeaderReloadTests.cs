@@ -62,7 +62,12 @@ public sealed class LanguageServerHeaderReloadTests : IDisposable
         File.WriteAllText(header, "// a\n// b\nfloat Lib()\n{\n    return missingName;\n}\n");
         await harness.SaveAsync();
 
-        JsonElement after = await harness.ReceiveDiagnosticsForAsync(headerUri, "HL0310");
+        // 最初の保存で出た通知が後から届くことがある (届く順は環境で違う)。4 行目の指摘が届くのを待つ。
+        // 古い中身で解析していれば、何度届いても 2 行目のままで、待ちきれずに失敗する。
+        JsonElement after = await harness.ReceiveDiagnosticsForAsync(
+            headerUri,
+            diagnostics => diagnostics.EnumerateArray().Any(d => d.GetProperty("code").GetString() == "HL0310")
+                           && LineOf(diagnostics, "HL0310") == 4);
         Assert.Equal(4, LineOf(after, "HL0310"));
     }
 

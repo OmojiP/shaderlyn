@@ -105,6 +105,10 @@ internal sealed class FileSystemIncludeResolver : IIncludeResolver
     /// <returns>候補パスの列。</returns>
     private IEnumerable<string> EnumerateCandidates(string path, string includingFilePath)
     {
+        // Windows で書いたシェーダーは区切りに \ を使う (..\Lib\Lib.hlsl)。Unity は Linux / macOS でもこれを区切りとして読む。
+        // Linux / macOS の Path は \ をファイル名の文字として扱うので、/ に直してから組み立てる (Windows ではどちらでも同じ)。
+        path = path.Replace('\\', '/');
+
         // 解析対象をフォルダーを付けずに渡すと (shaderlyn Main.shader)、ファイルのパスにフォルダーが無い。
         // そのままでは同じフォルダーの "Common.hlsl" も引けないので、作業フォルダーからの絶対パスにしてから見る。
         string? includingDirectory = Path.GetDirectoryName(ToFullPath(includingFilePath));
