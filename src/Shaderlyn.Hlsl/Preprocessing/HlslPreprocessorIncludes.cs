@@ -348,6 +348,34 @@ internal sealed partial class HlslPreprocessor
         _resolvedIncludes.UnionWith(expansion.ResolvedIncludes);
         _unresolvedIncludes.UnionWith(expansion.UnresolvedIncludes);
 
+        // 使い回した結果を、外側で記録中の取り込みにも書き足す。
+        // 書き足さないと、外側の取り込みを覚えたときに、入れ子で使い回した分が抜け落ちる。
+        // 3 度目にその外側を使い回すと、解決できない取り込み (Unreal の生成される取り込み) などが消え、
+        // 宣言が揃っていると誤って判断して検査を行っていた (エンジンのシェーダーで HL0310 が出たり出なかったりした)。
+        // ほかの手続きを通して足しているもの (マクロ、条件の中で定義された名前、コードの名前など) は、そちらが記録している。
+        if (_recordings.Count > 0)
+        {
+            Record(recording =>
+            {
+                recording.SkippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
+                recording.DeclinedBothBranchSymbols.UnionWith(expansion.DeclinedBothBranchSymbols);
+                recording.BothBranchDeclines.UnionWith(expansion.BothBranchDeclines);
+                recording.MergedSymbols.UnionWith(expansion.MergedSymbols);
+                recording.MergedRegions.UnionWith(expansion.MergedRegions);
+                recording.KeywordRegions.AddRange(expansion.KeywordRegions);
+                recording.MacroAffectingSymbols.UnionWith(expansion.MacroAffectingSymbols);
+                recording.UnknownMacroSources.UnionWith(expansion.UnknownMacroSources);
+                recording.MergedMacroConflicts.UnionWith(expansion.MergedMacroConflicts);
+                recording.ResolvedIncludes.UnionWith(expansion.ResolvedIncludes);
+                recording.UnresolvedIncludes.UnionWith(expansion.UnresolvedIncludes);
+
+                foreach ((string name, ImmutableArray<string> symbols) in expansion.MergedMacros)
+                {
+                    recording.MergedMacros[name] = symbols;
+                }
+            });
+        }
+
         // 覚えたときと同じ位置から次の条件付き範囲が始まる。
         _conditionalRangeStart = _output.Count;
     }

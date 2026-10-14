@@ -99,6 +99,33 @@ public sealed class HlslIncludeCacheTests
             string.Join(",", reused.ResolvedIncludes.Select(p => "[" + p + "]")));
     }
 
+    /// <summary>
+    /// 入れ子で使い回した取り込みの結果 (解決できなかった取り込みなど) も、外側の取り込みの記録に入る。
+    /// </summary>
+    /// <remarks>
+    /// 1 度目に once.hlsl を覚え、2 度目に h.hlsl の中で once.hlsl を使い回すと、h.hlsl の記録から once.hlsl の
+    /// 解決できなかった取り込み (missing.hlsl) が抜けていた。3 度目に h.hlsl を使い回すと、解決できなかった取り込みが 0 件になる。
+    /// Unreal Engine の解析で、生成される取り込みが消えて宣言が揃っていると判断し、HL0310 を出したり出さなかったりした。
+    /// </remarks>
+    [Fact]
+    public void 入れ子で使い回した取り込みの結果も外側の記録に入る()
+    {
+        InMemoryIncludeResolver resolver = Resolver(
+            ("inner.hlsl", "float4 _FromInner;\n#include \"missing.hlsl\""),
+            ("outer.hlsl", "#include \"inner.hlsl\"\nfloat4 _FromOuter;"));
+        HlslIncludeCache cache = new();
+
+        _ = Preprocess("#include \"inner.hlsl\"", resolver, cache);
+        _ = Preprocess("#include \"outer.hlsl\"", resolver, cache);
+        PreprocessResult reused = Preprocess("#include \"outer.hlsl\"", resolver, cache);
+        PreprocessResult fresh = Preprocess("#include \"outer.hlsl\"", resolver, cache: null);
+
+        Assert.Equal(TextOf(fresh), TextOf(reused));
+        Assert.Equal("missing.hlsl", Assert.Single(fresh.UnresolvedIncludes));
+        Assert.Equal(fresh.UnresolvedIncludes.ToArray(), reused.UnresolvedIncludes.ToArray());
+        Assert.Equal(fresh.ResolvedIncludes.Order().ToArray(), reused.ResolvedIncludes.Order().ToArray());
+    }
+
     [Fact]
     public void マクロの状態が違えば使い回さない()
     {
