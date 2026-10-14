@@ -40,6 +40,9 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - VS Code 拡張: `.hlsli` / `.usf` / `.ush` も開く。構成の選択で、値を持つシンボルは `QUALITY = 2` のように値を選ぶ
 - `--env` に環境と、その設定 (汎用の HLSL なら構成の軸とコンパイル単位、Unreal なら仮想パスの割り当て) を出す
 - 設定ファイルの `hlsl: compiler` (`dxc` / `fxc`)。`hlsl: version` は `2016` / `2017` も受け付ける。
+- SL1056: Unity は UTF-16 のファイルを読めない (BOM があっても。2022.3 / 6.3 / 6.6 で確かめた)。
+  UTF-16 で保存した `.shader` はファイルの先頭に、取り込むヘッダは `#include` の行に報告する。
+  ファイルは BOM の無い UTF-16 も見分けて読み (`SourceText.Load` / `FromBytes` / `IsUtf16`)、Unity 以外の環境ではそのまま解析する
 - 出力する指摘を重要度で絞る `--min-severity` と、設定ファイルの `report: min-severity`。設定ファイルでは出力の形式
   (`text` / `json` / `sarif` / `github`) ごとに変えられる。終了コードは絞る前のすべての指摘で `--error-on` に従って決める
 - Unity の環境で、パスごと・API ごとに FXC と DXC (HLSL 2018) のどちらでコンパイルされるかを判定する

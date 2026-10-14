@@ -158,6 +158,26 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.DoesNotContain(("Lib.hlsl", "HL0310"), Findings(output));
     }
 
+    /// <summary>
+    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に SL1056 を出す (Unity は読めない)。
+    /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を HL0001 にしていた。BOM 付きは何も言わなかった。
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UTF16のヘッダは取り込む行に報告する(bool bom)
+    {
+        byte[] body = System.Text.Encoding.Unicode.GetBytes("// 共通\nfloat4 Tint(float4 c) { return c * 0.5; }\n");
+        string header = Path.Combine(Shaders, "Common.hlsl");
+        File.WriteAllBytes(header, bom ? [0xFF, 0xFE, .. body] : body);
+        WriteShader("A", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Contains(("A.shader", "SL1056"), Findings(output));
+        Assert.DoesNotContain(Findings(output), f => f.Id is "HL0001" or "HL0310");
+    }
+
     [Fact]
     public async Task ヘッダで定義したマクロの本体の誤りはヘッダの位置に報告する()
     {

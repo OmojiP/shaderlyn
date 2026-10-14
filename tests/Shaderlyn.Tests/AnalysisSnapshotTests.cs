@@ -146,7 +146,7 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
     private static List<string> Analyze(string root, string path, SemanticsOptions options, AnalyzerDriver driver)
     {
         string name = Path.GetRelativePath(root, path).Replace('\\', '/');
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
 
         ShaderCompilation compilation = path.EndsWith(".shader", StringComparison.Ordinal)
             ? UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options)

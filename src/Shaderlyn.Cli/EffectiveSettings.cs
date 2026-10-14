@@ -284,7 +284,7 @@ internal sealed class EffectiveSettings
         SourceText text;
         try
         {
-            text = SourceText.From(File.ReadAllText(filePath), filePath);
+            text = SourceText.Load(filePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

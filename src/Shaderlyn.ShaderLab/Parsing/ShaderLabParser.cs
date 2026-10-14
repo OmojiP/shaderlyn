@@ -161,13 +161,13 @@ internal sealed class ShaderLabParser
     /// <b>見えない文字は、どの文字かを伝える。</b>
     /// ゼロ幅スペース (U+200B) や重なった BOM (U+FEFF) が先頭にあると、エディタでは「Shader で始まっている」ように見え、
     /// 「Shader 以外の記述があります」と言われても何を直せばよいか分からない。
-    /// NUL は、BOM の無い UTF-16 で保存したファイルを UTF-8 として読んだときに現れる。
+    /// UTF-16 で保存したファイルは、BOM が無くても UTF-16 として読む (SourceText.FromBytes)。ここに NUL が来るのは、本当に NUL が書かれたときである。
     /// </remarks>
     private static string DescribeLeadingContent(string text, string head)
     {
         if (head.Contains('\0') || text.Length > 0 && text[0] == '\0')
         {
-            return "ファイルの先頭に 'Shader' 以外の記述があります (NUL 文字)。BOM の無い UTF-16 で保存したファイルなら、UTF-8 で保存し直してください。";
+            return "ファイルの先頭に 'Shader' 以外の記述があります (NUL 文字)。その文字を消してください。";
         }
 
         if (text.Length > 0 && text[0] is '\u200B' or '\u200C' or '\u200D' or '\u2060' or '\uFEFF')

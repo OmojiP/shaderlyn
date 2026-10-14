@@ -63,7 +63,7 @@ internal sealed partial class HlslPreprocessor
             return;
         }
 
-        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath));
+        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16 });
 
         // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
         // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。

@@ -190,7 +190,7 @@ public sealed partial class BothBranchConsistencyTests
     /// <returns>検出した診断。</returns>
     private static ImmutableArray<Diagnostic> Analyze(string path, ImmutableHashSet<string>? bothBranchSymbols)
     {
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
 
         SemanticsOptions options = new()

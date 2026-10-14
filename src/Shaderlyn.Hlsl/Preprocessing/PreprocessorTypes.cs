@@ -613,6 +613,10 @@ public readonly record struct IncludeReference(
     /// 「見つからない」と「あるが読まなかった」では直し方が違う。後者は探索パスを足せば読める。
     /// </remarks>
     public string? OutsideBoundaryPath { get; init; }
+
+    /// <summary>取り込んだファイルを UTF-16 として読んだかどうか (BOM の有無によらない)。</summary>
+    /// <remarks>Unity は UTF-16 のファイルを読めない (SL1056)。DXC は読める。</remarks>
+    public bool IsUtf16 { get; init; }
 }
 
 /// <summary>

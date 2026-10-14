@@ -104,11 +104,113 @@ public sealed class SourceText
     {
         ArgumentNullException.ThrowIfNull(filePath);
 
-        await using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        string content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        return new SourceText(content, filePath, reader.CurrentEncoding);
+        byte[] bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
+        return FromBytes(bytes, filePath);
     }
+
+    /// <summary>
+    /// ファイルを読み込んでソーステキストを生成する (同期版)。
+    /// </summary>
+    /// <param name="filePath">読み込むファイルのパス。</param>
+    /// <returns>生成されたソーステキスト。</returns>
+    /// <exception cref="IOException">ファイルの読み込みに失敗した場合。</exception>
+    /// <remarks>エンコーディングの決め方は <see cref="FromBytes"/> と同じ。取り込んだヘッダを読むのに使う。</remarks>
+    public static SourceText Load(string filePath)
+    {
+        ArgumentNullException.ThrowIfNull(filePath);
+        return FromBytes(File.ReadAllBytes(filePath), filePath);
+    }
+
+    /// <summary>
+    /// ファイルの中身のバイト列からソーステキストを生成する。
+    /// </summary>
+    /// <param name="bytes">ファイルの中身。</param>
+    /// <param name="filePath">出所を示すパス。</param>
+    /// <returns>生成されたソーステキスト。読んだエンコーディングは <see cref="Encoding"/> に入る。</returns>
+    /// <remarks>
+    /// <para>
+    /// BOM があればそれに従う (UTF-8 / UTF-16 LE / UTF-16 BE)。無ければ UTF-8 として読む。
+    /// </para>
+    /// <para>
+    /// <b>BOM の無い UTF-16 も、NUL の並び方から見分けて読む。</b>
+    /// ASCII の多いテキストを UTF-16 で書くと、1 バイトおきに NUL が並ぶ。
+    /// UTF-8 として読むと NUL を挟んだ文字列になり、どの構文も読めない。
+    /// DXC は UTF-16 のファイルを読めるので、汎用の HLSL の環境ではそのまま解析できなければならない。
+    /// Unity は UTF-16 を読めない (BOM の有無によらない) ので、Unity の環境ではそれを規則で伝える (SL1056)。
+    /// </para>
+    /// </remarks>
+    public static SourceText FromBytes(byte[] bytes, string filePath)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        ArgumentNullException.ThrowIfNull(filePath);
+
+        Encoding encoding = DetectEncoding(bytes, out int preamble);
+        string content = encoding.GetString(bytes, preamble, bytes.Length - preamble);
+        return new SourceText(content, filePath, encoding);
+    }
+
+    /// <summary>BOM の無い UTF-16 と見なすのに要る、見るバイト数の上限。</summary>
+    private const int Utf16SniffLength = 512;
+
+    /// <summary>バイト列のエンコーディングを決める。</summary>
+    /// <param name="bytes">ファイルの中身。</param>
+    /// <param name="preamble">BOM のバイト数。</param>
+    /// <returns>エンコーディング。</returns>
+    private static Encoding DetectEncoding(byte[] bytes, out int preamble)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+        {
+            preamble = 3;
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        }
+
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+        {
+            preamble = 2;
+            return Encoding.Unicode;
+        }
+
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+        {
+            preamble = 2;
+            return Encoding.BigEndianUnicode;
+        }
+
+        preamble = 0;
+
+        // 1 バイトおきの NUL を数える。偶数番目にだけ多ければ BE、奇数番目にだけ多ければ LE。
+        // UTF-8 のテキストに NUL はまず現れないので、半分を超える偏りがあれば UTF-16 である。
+        int length = Math.Min(bytes.Length, Utf16SniffLength) & ~1;
+
+        if (length >= 4)
+        {
+            int evenNuls = 0;
+            int oddNuls = 0;
+
+            for (int i = 0; i < length; i += 2)
+            {
+                evenNuls += bytes[i] == 0 ? 1 : 0;
+                oddNuls += bytes[i + 1] == 0 ? 1 : 0;
+            }
+
+            int pairs = length / 2;
+
+            if (oddNuls * 2 > pairs && evenNuls * 10 < pairs)
+            {
+                return new UnicodeEncoding(bigEndian: false, byteOrderMark: false);
+            }
+
+            if (evenNuls * 2 > pairs && oddNuls * 10 < pairs)
+            {
+                return new UnicodeEncoding(bigEndian: true, byteOrderMark: false);
+            }
+        }
+
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    }
+
+    /// <summary>UTF-16 (LE / BE、BOM の有無によらない) で読んだかどうか。</summary>
+    public bool IsUtf16 => Encoding.CodePage is 1200 or 1201;
 
     /// <summary>
     /// 行・桁の位置をオフセットへ変換する。

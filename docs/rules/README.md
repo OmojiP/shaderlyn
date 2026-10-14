@@ -54,6 +54,7 @@
 | [SL1053](SL1053.md) | DX11 で使えなくなるコンパイラの指定 | 警告 |
 | [SL1054](SL1054.md) | Unity のバージョンでコンパイラが変わる指定 | 警告 |
 | [SL1055](SL1055.md) | Unity では #pragma once が効かない | 警告 |
+| [SL1056](SL1056.md) | Unity は UTF-16 のファイルを読めない | エラー |
 
 
 ## ShaderLab と HLSL

@@ -164,7 +164,7 @@ public sealed class RuleFixtureTests
     private static ImmutableArray<Diagnostic> Analyze(string ruleId)
     {
         string path = Path.Combine(FixtureDirectory, $"{ruleId}.shader");
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
 
         SemanticsOptions options = new()

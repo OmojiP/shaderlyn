@@ -174,7 +174,7 @@ public sealed class ShaderCompilation
             {
                 if (File.Exists(path))
                 {
-                    tokens.AddRange(new HlslLexer(SourceText.From(File.ReadAllText(path), path)).Lex(out _));
+                    tokens.AddRange(new HlslLexer(SourceText.Load(path)).Lex(out _));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

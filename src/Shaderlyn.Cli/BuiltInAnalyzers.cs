@@ -56,6 +56,7 @@ public static class BuiltInAnalyzers
         new CompilerPragmaAnalyzer(),
         new Native16BitConstantBufferAnalyzer(),
         new PragmaOnceAnalyzer(),
+        new Utf16FileAnalyzer(),
         new FunctionDefinitionAnalyzer(),
         new VariableDeclarationPresenceAnalyzer(),
         new MemberAccessAnalyzer(),

@@ -222,7 +222,7 @@ internal sealed class UnityPackageIncludeResolver : IIncludeResolver
         {
             try
             {
-                return File.Exists(path) ? SourceText.From(File.ReadAllText(path), path) : null;
+                return File.Exists(path) ? SourceText.Load(path) : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

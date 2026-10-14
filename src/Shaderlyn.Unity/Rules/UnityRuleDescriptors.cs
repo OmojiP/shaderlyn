@@ -157,6 +157,22 @@ internal static class UnityRuleDescriptors
             + "Unity のヘッダと同じく、#ifndef MY_HEADER_INCLUDED / #define MY_HEADER_INCLUDED / #endif で囲んでください。",
         helpLinkUri: DocumentationLinks.For("SL1055"));
 
+    /// <summary>Unity が読めない UTF-16 で保存したファイル。</summary>
+    /// <remarks>
+    /// Unity 2022.3 / 6.3 / 6.6 の実測 (ShaderProbePack の ENCODING) による。UTF-16 は BOM の有無によらず読めず、
+    /// <c>.shader</c> は「Parse error … expecting TOK_SHADER」、取り込んだヘッダは「Unexpected directive」や構文エラーになった。
+    /// </remarks>
+    public static DiagnosticDescriptor Utf16File { get; } = new(
+        id: "SL1056",
+        title: "Unity は UTF-16 のファイルを読めません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "Unity は UTF-16 で保存したシェーダーのファイルを読めません (BOM があっても読めません。Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
+            + ".shader は構文エラーに、取り込んだ .hlsl / .cginc は Unexpected directive や構文エラーになります。"
+            + "UTF-8 (BOM の有無はどちらでもよい) で保存し直してください。",
+        helpLinkUri: DocumentationLinks.For("SL1056"));
+
     /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
     /// <remarks>
     /// <c>-enable-16bit-types</c> では <c>half</c> が <c>float16_t</c> になり、定数バッファの中で 2 バイトに詰められる。

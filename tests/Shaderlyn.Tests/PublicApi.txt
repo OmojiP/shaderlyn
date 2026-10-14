@@ -244,6 +244,7 @@ Shaderlyn.Core.Text.SourceText : sealed class
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.LinePosition GetLinePosition(System.Int32)
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.LinePositionSpan GetLinePositionSpan(Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.TextSpan GetLineSpan(System.Int32)
+Shaderlyn.Core.Text.SourceText :: System.Boolean IsUtf16 { get; }
 Shaderlyn.Core.Text.SourceText :: System.Char Item[System.Int32] { get; }
 Shaderlyn.Core.Text.SourceText :: System.Int32 GetOffset(Shaderlyn.Core.Text.LinePosition)
 Shaderlyn.Core.Text.SourceText :: System.Int32 Length { get; }
@@ -255,6 +256,8 @@ Shaderlyn.Core.Text.SourceText :: System.String GetLineText(System.Int32)
 Shaderlyn.Core.Text.SourceText :: System.String ToString(Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Text.SourceText :: System.Text.Encoding Encoding { get; }
 Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText From(System.String, System.String = <memory>, System.Text.Encoding = null)
+Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText FromBytes(System.Byte[], System.String)
+Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText Load(System.String)
 Shaderlyn.Core.Text.SourceText :: static System.Threading.Tasks.Task`1[Shaderlyn.Core.Text.SourceText] LoadAsync(System.String, System.Threading.CancellationToken = null)
 Shaderlyn.Core.Text.SourceText :: virtual System.String ToString()
 Shaderlyn.Core.Text.TextSpan : struct (System.IComparable`1[Shaderlyn.Core.Text.TextSpan], System.IEquatable`1[Shaderlyn.Core.Text.TextSpan])
@@ -506,6 +509,7 @@ Shaderlyn.Hlsl.Preprocessing.IncludeReference :: .ctor(System.String, Shaderlyn.
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.IncludeReference)
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsResolved { get; }
+Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsUtf16 { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String OutsideBoundaryPath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String Path { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String ResolvedFilePath { get; set; }

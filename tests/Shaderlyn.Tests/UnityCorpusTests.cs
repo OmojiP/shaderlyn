@@ -206,7 +206,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -328,7 +328,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -419,7 +419,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText shaderText;
             try
             {
-                shaderText = SourceText.From(File.ReadAllText(file), file);
+                shaderText = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -522,7 +522,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -610,7 +610,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -744,7 +744,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {
@@ -854,7 +854,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             SourceText text;
             try
             {
-                text = SourceText.From(File.ReadAllText(file), file);
+                text = SourceText.Load(file);
             }
             catch (IOException)
             {

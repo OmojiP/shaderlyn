@@ -190,7 +190,7 @@ public sealed class UnityProbeCorpusTests(ITestOutputHelper output)
     /// <summary>シェーダーをパスごとのコンパイル先にする。</summary>
     private static ImmutableArray<ImmutableArray<HlslCompileTarget>> Analyze(string path, UnityOptions options)
     {
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
         ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text),
             new SemanticsOptions { IncludeResolver = new Hlsl.Preprocessing.FileSystemIncludeResolver([]) },
             options);
