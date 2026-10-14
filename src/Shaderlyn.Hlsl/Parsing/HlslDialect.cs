@@ -54,6 +54,22 @@ public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? Lan
     public bool AcceptsLegacySamplerSyntax { get; init; } = Compiler == HlslCompiler.Fxc;
 
     /// <summary>
+    /// HLSL 2018 で読むが、HLSL 2021 の宣言 (template、演算子の多重定義、ビットフィールド) も受け付けるか。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// コンパイルするバージョンを確かに知れないときに使う。Unreal Engine はプラットフォームの設定でバージョンを決めるが、
+    /// シェーダーの C++ が個別に HLSL 2021 にすることがある (<c>CFLAG_HLSL2021</c>、Nanite・Lumen・パストレーシングなど)。
+    /// C++ を読まずには見分けられないので、2021 の宣言を誤りにしない。
+    /// </para>
+    /// <para>
+    /// 2021 で厳しくなる判定 (暗黙の型変換、ベクトルの <c>&amp;&amp;</c>、<c>for</c> の変数の範囲) は 2018 のまま (許す側) にする。
+    /// どちらでコンパイルされても誤検出にはならない。
+    /// </para>
+    /// </remarks>
+    public bool AcceptsHlsl2021Declarations { get; init; }
+
+    /// <summary>
     /// 画面に出す名前 (<c>dx11 (FXC)</c> など)。<see langword="null"/> ならコンパイラと言語のバージョンから作る。
     /// </summary>
     public string? Label { get; init; }
@@ -139,11 +155,12 @@ public sealed record HlslLanguageFeatures(
 
         int version = (int)(dialect.LanguageVersion ?? HlslLanguageVersion.Hlsl2018);
         bool is2021 = version >= 2021;
+        bool declarations2021 = is2021 || dialect.AcceptsHlsl2021Declarations;
 
         return new HlslLanguageFeatures(
-            Templates: is2021,
-            OperatorOverloading: is2021,
-            Bitfields: is2021,
+            Templates: declarations2021,
+            OperatorOverloading: declarations2021,
+            Bitfields: declarations2021,
             Enums: version >= 2017,
             Int64Types: true,
             ExplicitWidthTypes: version >= 2018,

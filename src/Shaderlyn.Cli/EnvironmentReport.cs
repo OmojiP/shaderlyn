@@ -79,7 +79,7 @@ internal static partial class EnvironmentReport
         else if (environment.HlslEnvironment is not null)
         {
             bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
-            WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021);
+            WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021, versionFromEngine: isUnreal && settings.Configuration.HlslVersion is null);
 
             if (isUnreal)
             {
@@ -323,14 +323,29 @@ internal static partial class EnvironmentReport
         }
 
         Line(builder, $"  生成される取り込み (解決せず、HL0321 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
-        Line(builder, $"  定義するマクロ: {string.Join(", ", unreal.PredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}");
+        Line(builder, $"  定義するマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}"
+                      + " (HLSL 2021 で読むシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
+
+        if (unreal.FollowEngineLanguageVersion && unreal.Compiler == Hlsl.Parsing.HlslCompiler.Dxc)
+        {
+            string decided = unreal.EngineHlsl2021Default switch
+            {
+                null => $"エンジンの設定を読めないので {(int)unreal.LanguageVersion} (既定)",
+                1 => "グローバルシェーダーは 2021、マテリアルのシェーダー (Material.ush を取り込むもの) は 2018",
+                2 => "どのシェーダーも 2021",
+                _ => "どのシェーダーも 2018",
+            };
+
+            Line(builder, $"  言語のバージョン: {decided} (エンジンの {unreal.ShaderPlatform} の EnablesHLSL2021ByDefault から決めた。hlsl: version で固定できます)");
+        }
     }
 
     /// <summary>汎用の HLSL 環境の設定 (言語のバージョン・構成の軸・コンパイル単位) を書き出す。</summary>
     /// <param name="builder">書き出し先。</param>
     /// <param name="configuration">設定ファイルの内容。</param>
     /// <param name="defaultVersion">指定が無いときの言語のバージョン。</param>
-    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration, int defaultVersion)
+    /// <param name="versionFromEngine">言語のバージョンを Unreal Engine の設定から決めるか (Unreal の節に書く)。</param>
+    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration, int defaultVersion, bool versionFromEngine = false)
     {
         Section(builder, "HLSL");
 
@@ -338,7 +353,9 @@ internal static partial class EnvironmentReport
         Line(builder, $"  コンパイラ: {(fxc ? "FXC" : "DXC")}{(configuration.HlslCompiler is null ? " (既定)" : string.Empty)}");
         Line(builder, fxc
             ? "  言語のバージョン: (FXC には無い)"
-            : $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
+            : versionFromEngine
+                ? "  言語のバージョン: Unreal Engine の設定に従う (下記)"
+                : $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
         Line(builder, $"  16 ビットの型 (enable-16bit-types): {(configuration.HlslEnable16BitTypes == true ? "使う (__HLSL_ENABLE_16_BIT=1)" : "使わない")}");
 
         string symbols = string.Join(

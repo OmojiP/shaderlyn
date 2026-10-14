@@ -102,9 +102,19 @@ units:
   `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません
 - シェーダーコンパイラのマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   ほかのプラットフォームに合わせるときは `defines` で上書きしてください
-- 言語のバージョンの既定は 2018 です。HLSL 2021 で書いたシェーダーは `hlsl: version: 2021` にしてください。
-  エンジンは C++ で `CFLAG_HLSL2021` を立てたシェーダーだけを `-HV 2021` でコンパイルし、そのとき `COMPILER_SUPPORTS_HLSL2021=1` を定義します。
-  Shaderlyn も `version: 2021` のときにこのマクロを定義します（TSR・Nanite・`LaneVectorization.ush` などは 2021 が前提です）
+- **言語のバージョンは、エンジンの設定に合わせてシェーダーごとに決めます。** エンジンはプラットフォームの設定
+  (`Engine/Config/<プラットフォーム>/DataDrivenPlatformInfo.ini` の `EnablesHLSL2021ByDefault`) で決めており、
+  Shaderlyn もそれを読みます (既定は PC の `PCD3D_SM6`)。UE 5.5 の PC は `1` で、次のようになります。
+
+  | シェーダー | 言語のバージョン |
+  | --- | --- |
+  | グローバルシェーダー | HLSL 2021 (`COMPILER_SUPPORTS_HLSL2021=1` を定義する) |
+  | マテリアルのシェーダー (`/Engine/Generated/Material.ush` を、ヘッダを経由しても取り込むもの) | HLSL 2018 |
+
+  シェーダーの C++ が `CFLAG_HLSL2021` で個別に 2021 にすることがある (Nanite・Lumen・パストレーシングなど) ので、
+  2018 で読むシェーダーでも、template・演算子の多重定義・ビットフィールドは誤りにしません。
+  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで読みます。エンジンのフォルダーが無いときの既定は 2018 です。
+  `--env` に、どう決めたかを表示します
 - `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
@@ -140,7 +150,7 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 | --- | --- | --- |
 | 構成の軸 | `#pragma multi_compile` / `shader_feature` / `dynamic_branch` | 設定ファイルの `symbols:` |
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
-| コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021、Unreal は DXC の 2018 が既定) |
+| コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021。Unreal はエンジンの設定に合わせてシェーダーごとに決める) |
 | 宣言し忘れたシンボル (HL0330) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
 | Unity だけのルール | SL / URP / HL0302 | 出ない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |

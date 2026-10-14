@@ -319,6 +319,7 @@ Shaderlyn.Hlsl.Parsing.HlslDialect :: .ctor(Shaderlyn.Hlsl.Parsing.HlslCompiler,
 Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslCompiler Compiler { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslDialect <Clone>$()
 Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean AcceptsHlsl2021Declarations { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean AcceptsLegacySamplerSyntax { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean Enable16BitTypes { get; set; }
 Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean Equals(Shaderlyn.Hlsl.Parsing.HlslDialect)
@@ -1306,13 +1307,17 @@ Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: .ctor()
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslCompiler Compiler { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslDialect Dialect { get; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslDialect DialectFor(Shaderlyn.Hlsl.Parsing.HlslLanguageVersion)
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Semantics.Environments.HlslEnvironmentOptions <Clone>$()
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean AcceptHlsl2021DeclarationsIn2018 { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Enable16BitTypes { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableArray`1[System.String] GeneratedIncludePrefixes { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]] GeneratedIncludeFunctions { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] Hlsl2021Macros { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.Hlsl.Preprocessing.IIncludeResolver,Shaderlyn.Hlsl.Parsing.HlslLanguageVersion] SelectUnitLanguageVersion { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.String Name { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: static Shaderlyn.Semantics.Environments.HlslEnvironmentOptions Default { get; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions, Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)

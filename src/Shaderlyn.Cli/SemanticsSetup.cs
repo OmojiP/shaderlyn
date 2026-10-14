@@ -157,6 +157,9 @@ internal static class SemanticsSetup
             VirtualPaths = configuration.UnrealVirtualPaths,
             Compiler = configuration.HlslCompiler == "fxc" ? HlslCompiler.Fxc : HlslCompiler.Dxc,
             LanguageVersion = (HlslLanguageVersion)(configuration.HlslVersion ?? 2018),
+
+            // バージョンを書いていなければ、エンジンの設定に合わせてシェーダーごとに決める (UE 5.5 の PC は、グローバルシェーダーが 2021)。
+            FollowEngineLanguageVersion = configuration.HlslVersion is null,
             Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
         };
     }

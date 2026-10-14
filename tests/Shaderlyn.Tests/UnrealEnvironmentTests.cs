@@ -156,6 +156,111 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.DoesNotContain("'GetPrimaryView'", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <c>hlsl: version</c> を書かなければ、エンジンの設定 (<c>EnablesHLSL2021ByDefault=1</c>) に合わせて、
+    /// グローバルシェーダーは HLSL 2021、マテリアルのシェーダー (ヘッダを経由して Material.ush を取り込むもの) は 2018 で読む。
+    /// </summary>
+    /// <remarks>
+    /// どちらで読んだかは <c>COMPILER_SUPPORTS_HLSL2021</c> の分岐で見分ける (分岐の中にわざと構文エラーを置く)。
+    /// マテリアルのシェーダーでも template は誤りにしない。シェーダーの C++ が個別に 2021 にすることがある (Nanite など)。
+    /// </remarks>
+    [Fact]
+    public async Task エンジンの設定に合わせてシェーダーごとに言語のバージョンを決める()
+    {
+        WriteEngineDefault(1);
+        Write("Engine/Shaders/Private/MaterialCommon.ush", """
+            #pragma once
+            #include "/Engine/Generated/Material.ush"
+            """);
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            #if COMPILER_SUPPORTS_HLSL2021
+            float Marker2021 = ;
+            #else
+            float Marker2018 = ;
+            #endif
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+        Write("Shaders/Private/MaterialPass.usf", """
+            #include "/Engine/Private/MaterialCommon.ush"
+            template<typename T> T Twice(T v) { return v + v; }
+            #if COMPILER_SUPPORTS_HLSL2021
+            float Marker2021 = ;
+            #else
+            float Marker2018 = ;
+            #endif
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("GlobalPass.usf(3:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GlobalPass.usf(5:", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(6:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialPass.usf(4:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary><c>hlsl: version</c> を書けば、エンジンの設定によらず、すべてのシェーダーをそのバージョンで厳しく読む。</summary>
+    [Fact]
+    public async Task 言語のバージョンを書けばエンジンの設定より優先する()
+    {
+        WriteEngineDefault(1, hlslVersion: 2018);
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>エンジンの設定が無ければ、今までどおり HLSL 2018 で読む。</summary>
+    [Fact]
+    public async Task エンジンの設定が無ければHLSL2018で読む()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", "#pragma once\n");
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>エンジンのプラットフォームの設定と、設定ファイルを書く。</summary>
+    /// <param name="enablesHlsl2021ByDefault"><c>PCD3D_SM6</c> の <c>EnablesHLSL2021ByDefault</c>。</param>
+    /// <param name="hlslVersion">設定ファイルの <c>hlsl: version</c>。書かなければ <see langword="null"/>。</param>
+    private void WriteEngineDefault(int enablesHlsl2021ByDefault, int? hlslVersion = null)
+    {
+        Write(".shaderlyn.yaml", $"""
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            {(hlslVersion is { } version ? $"hlsl:\n  version: {version}\n" : string.Empty)}
+            """);
+        Write("Engine/Config/Windows/DataDrivenPlatformInfo.ini", $"""
+            [ShaderPlatform PCD3D_SM5]
+            Language=HLSL
+
+            [ShaderPlatform PCD3D_SM6]
+            Language=HLSL
+            EnablesHLSL2021ByDefault={enablesHlsl2021ByDefault}
+            """);
+    }
+
     /// <summary>関数を含みうる生成される取り込み (Material.ush) が欠けていれば、呼び出しは照らさない。</summary>
     [Fact]
     public async Task 関数を含みうる生成ファイルが欠けていれば呼び出しを検査しない()
@@ -216,7 +321,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("/Engine → ", output, StringComparison.Ordinal);
         Assert.Contains("/Plugin/MyPlugin → ", output, StringComparison.Ordinal);
         Assert.Contains("(ありません)", output, StringComparison.Ordinal);
-        Assert.Contains("言語のバージョン: 2018 (既定)", output, StringComparison.Ordinal);
+        Assert.Contains("言語のバージョン: エンジンの設定を読めないので 2018 (既定)", output, StringComparison.Ordinal);
     }
 
     private void Write(string relativePath, string content)
