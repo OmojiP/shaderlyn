@@ -10,6 +10,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ## [未リリース]
 
+## [0.2.0] - 2026-10-14
+
 Unity 以外の環境 (DXC で直接コンパイルする HLSL、Unreal Engine、独自エンジン) を解析できるようにした。
 そのために Unity 固有の部分を `Shaderlyn.Unity` パッケージへ分けたので、自作ルールの一部は書き換えが要る (下の「破壊的変更」)。
 書き換えの手順は [0.1 から 0.2 へ移行する](docs/guide/migration-0.2.md) にある。
@@ -263,6 +265,7 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/OmojiP/shaderlyn/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/OmojiP/shaderlyn/releases/tag/v0.1.0
