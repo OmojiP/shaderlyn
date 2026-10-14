@@ -239,7 +239,8 @@ public sealed class ConfigurationLoaderTests
         // 仕様として提示した書き方が実際に読めることを確かめる。
         ShaderlynConfiguration configuration = ParseWithoutProblems("""
             version: 1
-            profile: urp
+            unity:
+              profile: urp
             include-paths: [ "Assets/Shaders/Include" ]
             defines: [ "_NORMALMAP" ]
 
@@ -260,6 +261,90 @@ public sealed class ConfigurationLoaderTests
         Assert.Equal(DiagnosticSeverity.Warning, configuration.RuleSeverities["HL0351"]);
         Assert.Equal("8", configuration.RuleOptions["HL0351"]["maxSamplers"]);
 
+    }
+
+    [Fact]
+    public void 環境とunityの節を読む()
+    {
+        ShaderlynConfiguration configuration = ParseWithoutProblems("""
+            environment: unity
+            unity:
+              profile: hdrp
+              project: ../MyGame
+              editor: C:/Unity/Data
+            """);
+
+        Assert.Equal("unity", configuration.Environment);
+        Assert.Equal("hdrp", configuration.Profile);
+
+        // パスは設定ファイルからの相対で解決する。
+        Assert.True(Path.IsPathRooted(configuration.UnityProjectPath));
+        Assert.EndsWith("MyGame", configuration.UnityProjectPath, StringComparison.Ordinal);
+        Assert.NotNull(configuration.UnityEditorPath);
+    }
+
+    /// <summary>
+    /// v0.1 の書き方 (節の外の profile) も読み、unity: の下へ移すよう伝えることを検証する。
+    /// </summary>
+    [Fact]
+    public void 節の外のprofileも警告して読む()
+    {
+        ShaderlynConfiguration configuration = Parse("profile: brp");
+
+        Assert.Equal("brp", configuration.Profile);
+        ConfigurationProblem problem = Assert.Single(configuration.Problems);
+        Assert.Contains("unity:", problem.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void profileが両方にあればunityの節を使う()
+    {
+        ShaderlynConfiguration configuration = Parse("""
+            profile: brp
+            unity:
+              profile: urp
+            """);
+
+        Assert.Equal("urp", configuration.Profile);
+        Assert.Contains(configuration.Problems, p => p.Message.Contains("両方", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void unityのコンパイラの設定を読む()
+    {
+        ShaderlynConfiguration configuration = ParseWithoutProblems("""
+            unity:
+              version: 6.3
+              graphics-apis: [dx12, D3D11, vulkan]
+              shader-compiler-backend: DXC
+            """);
+
+        Assert.Equal("6.3", configuration.UnityVersion);
+        Assert.Equal(["dx12", "dx11", "vulkan"], configuration.UnityGraphicsApis.ToArray());
+        Assert.Equal("dxc", configuration.UnityShaderCompilerBackend);
+    }
+
+    [Theory]
+    [InlineData("version: six", "version")]
+    [InlineData("graphics-apis: [dx13]", "dx13")]
+    [InlineData("shader-compiler-backend: spirv", "shader-compiler-backend")]
+    public void unityのコンパイラの設定の誤りを報告する(string line, string expected)
+    {
+        ShaderlynConfiguration configuration = Parse("unity:\n  " + line + "\n");
+
+        ConfigurationProblem problem = Assert.Single(configuration.Problems);
+        Assert.Contains(expected, problem.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void unityの節の知らないキーを報告する()
+    {
+        ShaderlynConfiguration configuration = Parse("""
+            unity:
+              profle: urp
+            """);
+
+        Assert.Contains(configuration.Problems, p => p.Message.Contains("profle", StringComparison.Ordinal));
     }
 
     [Fact]

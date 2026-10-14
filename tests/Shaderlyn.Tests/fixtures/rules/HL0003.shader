@@ -9,15 +9,13 @@ Shader "Rules/HL0003"
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            interface ILight
-            {
-                half3 Shade(half3 normal);
-            };
+            // FXC (Unity の既定のコンパイラ) は template と演算子の多重定義を拒む。class / interface は使える。
+            template<typename T> T Twice(T x) { return x + x; }
 
-            class PointLight : ILight
+            struct Light
             {
                 half3 color;
-                half3 Shade(half3 normal) { return color * normal; }
+                Light operator+(Light other) { Light r; r.color = color + other.color; return r; }
             };
 
             float4 vert(float4 p : POSITION) : SV_POSITION { return p; }

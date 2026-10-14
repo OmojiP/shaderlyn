@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Unity が読めない UTF-16 のファイルの検査 (SL1056) に使う。改行を変換すると壊れるので、そのまま置く。
+tests/Shaderlyn.Tests/fixtures/rules/SL1056.shader binary

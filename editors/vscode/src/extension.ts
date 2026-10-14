@@ -30,6 +30,8 @@ type SymbolDisplay = "allConfigurations" | "selectedConfiguration";
 interface ConditionSymbolsResponse {
   display?: SymbolDisplay;
   symbols: ConditionSymbol[];
+  /** 同時には有効にならない組ごとの「どれか 1 つが必ず有効か」。番号はシンボルの `groups` と同じ。古いサーバは返さない。 */
+  groups?: { id: number; requiresOne: boolean }[];
 }
 
 /**
@@ -43,9 +45,39 @@ interface ConditionSymbolsResponse {
 interface ConditionSymbol {
   name: string;
   defined: boolean;
+  /** 構成の軸として宣言されたか (Unity の `#pragma multi_compile`、設定ファイルの `symbols:`)。 */
+  declared?: boolean;
+  /** v0.1 のサーバが返す名前。`declared` と同じ意味。 */
   declaredByPragma?: boolean;
+  /** 最初の組の番号。組を 1 つしか知らない古いサーバとの互換のため。 */
   group?: number;
+  /** 最初の組のどれか 1 つが必ず有効か。 */
   requiresOne?: boolean;
+  /**
+   * 属しているすべての組の番号。1 つのシンボルが複数の組に入ることがある
+   * (`at-most-one: [A, B]` と `at-most-one: [B, C]` の `B`)。古いサーバは返さない。
+   */
+  groups?: number[];
+  /** 値を持つシンボルの名前 (`QUALITY`)。`name` は値ごとの名前 (`QUALITY==2`) になる。 */
+  variable?: string;
+  /** 値を持つシンボルの値。 */
+  value?: number;
+}
+
+/** 宣言されたシンボルかどうか。古いサーバの `declaredByPragma` も読む。 */
+function isDeclared(symbol: ConditionSymbol): boolean {
+  return (symbol.declared ?? symbol.declaredByPragma) === true;
+}
+
+/**
+ * 画面に出す名前。値を持つシンボルは `QUALITY = 2` と見せる。
+ *
+ * サーバへ送るのは `name` (`QUALITY==2`) のほうである。
+ */
+function labelOf(symbol: ConditionSymbol): string {
+  return symbol.variable !== undefined && symbol.value !== undefined
+    ? `${symbol.variable} = ${symbol.value}`
+    : symbol.name;
 }
 
 /** workspaceState に覚えておく、ファイルごとの選択。 */
@@ -78,7 +110,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // HLSL だけを編集することも多い。どの言語として開かれるかは入れている拡張で変わる
       // (組み込みの hlsl、Unity 向け拡張の UnityShader など) ので、言語ではなく拡張子で選ぶ。
       // サーバが HLSL 単体として読む拡張子 (ShaderSourceKinds) と揃えること。
-      { scheme: "file", pattern: "**/*.{hlsl,cginc,hlslinc,compute}" },
+      // .hlsli は汎用の HLSL (environment: hlsl)、.usf / .ush は Unreal (environment: unreal) のもの。
+      { scheme: "file", pattern: "**/*.{hlsl,hlsli,cginc,hlslinc,compute,usf,ush}" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。
@@ -250,8 +283,9 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
     return;
   }
 
-  const declared = response.symbols.filter(symbol => symbol.declaredByPragma === true);
-  const others = response.symbols.filter(symbol => symbol.declaredByPragma !== true);
+  const declared = response.symbols.filter(isDeclared);
+  const others = response.symbols.filter(symbol => !isDeclared(symbol));
+  const byLabel = new Map(response.symbols.map(symbol => [labelOf(symbol), symbol]));
 
   // シンボルを 1 つも選ばないときに、すべての構成を合わせるか、シンボルをすべて外した構成にするかを決める項目。
   // `multi_compile _ _FOO` の「_FOO を外した構成」を見る手段は、これを外して確定する以外に無い。
@@ -268,7 +302,7 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
       allConfigurations,
       { label: "シンボル（選ばなかったものは無効として表示）", kind: vscode.QuickPickItemKind.Separator },
       ...declared.map(symbol => ({
-        label: symbol.name,
+        label: labelOf(symbol),
         picked: symbol.defined,
         description: describeGroup(symbol),
       })),
@@ -278,18 +312,25 @@ async function selectConditionSymbols(context: vscode.ExtensionContext): Promise
   if (others.length > 0) {
     items.push(
       { label: "定義されていないシンボル（#define して解析）", kind: vscode.QuickPickItemKind.Separator },
-      ...others.map(symbol => ({ label: symbol.name, picked: symbol.defined })),
+      ...others.map(symbol => ({ label: labelOf(symbol), picked: symbol.defined })),
     );
   }
 
-  const picked = await pickSymbols(items, response.symbols, declared.length > 0 ? allConfigurations : undefined);
+  const picked = await pickSymbols(
+    items,
+    response.symbols,
+    response.groups,
+    declared.length > 0 ? allConfigurations : undefined,
+  );
 
   // 取り消したときは何も変えない。何も選ばずに確定したときは「すべて外す」である。
   if (picked === undefined) {
     return;
   }
 
-  const symbols = picked.filter(item => item !== allConfigurations).map(item => item.label);
+  const symbols = picked
+    .filter(item => item !== allConfigurations)
+    .map(item => byLabel.get(item.label)?.name ?? item.label);
   const declaredNames = new Set(declared.map(symbol => symbol.name));
 
   // シンボルを選んだなら、その構成で表示する。選んでいなければ「すべての構成」の項目に従う。
@@ -316,9 +357,28 @@ function describeGroup(symbol: ConditionSymbol): string | undefined {
     return undefined;
   }
 
+  if (symbol.variable !== undefined) {
+    return `${symbol.variable} の値を 1 つ選びます`;
+  }
+
+  if (groupsOf(symbol).length > 1) {
+    return "複数の組に入っています。どの組でも、ほかのシンボルと同時には有効にできません";
+  }
+
   return symbol.requiresOne === true
     ? "同じ行のどれか 1 つが必ず有効（外せません）"
     : "同じ行では 1 つだけ有効にできます";
+}
+
+/**
+ * シンボルが属している組の番号。古いサーバは `group` だけを返すので、それを 1 つの組として読む。
+ */
+function groupsOf(symbol: ConditionSymbol | undefined): number[] {
+  if (symbol === undefined) {
+    return [];
+  }
+
+  return symbol.groups ?? (symbol.group !== undefined ? [symbol.group] : []);
 }
 
 /**
@@ -335,9 +395,14 @@ function describeGroup(symbol: ConditionSymbol): string | undefined {
 function pickSymbols(
   items: vscode.QuickPickItem[],
   symbols: ConditionSymbol[],
+  groupInfo: ConditionSymbolsResponse["groups"],
   allConfigurations: vscode.QuickPickItem | undefined,
 ): Promise<readonly vscode.QuickPickItem[] | undefined> {
-  const byName = new Map(symbols.map(symbol => [symbol.name, symbol]));
+  // 項目は画面に出す名前で引く (値を持つシンボルは `QUALITY = 2`)。
+  const byName = new Map(symbols.map(symbol => [labelOf(symbol), symbol]));
+
+  // 組ごとの「どれか 1 つが必ず有効か」。古いサーバは返さないので、そのときはシンボルの requiresOne から決める。
+  const requiresOne = new Map((groupInfo ?? []).map(group => [group.id, group.requiresOne]));
 
   const quickPick = vscode.window.createQuickPick();
   quickPick.items = items;
@@ -355,7 +420,7 @@ function pickSymbols(
 
   return new Promise(resolve => {
     quickPick.onDidChangeSelection(selection => {
-      const repaired = repairSelection(selection, previous, items, byName, allConfigurations);
+      const repaired = repairSelection(selection, previous, items, byName, requiresOne, allConfigurations);
 
       if (repaired !== undefined) {
         // 直した結果もこの通知を呼ぶが、そのときは直すところが無く `undefined` が返る。
@@ -397,23 +462,21 @@ function repairSelection(
   previous: Set<vscode.QuickPickItem>,
   items: vscode.QuickPickItem[],
   byName: Map<string, ConditionSymbol>,
+  groupRequiresOne: Map<number, boolean>,
   allConfigurations: vscode.QuickPickItem | undefined,
 ): vscode.QuickPickItem[] | undefined {
   const selected = new Set(selection);
   let changed = false;
 
+  // 組ごとの項目。1 つの項目が複数の組に入ることがある。
   const groups = new Map<number, vscode.QuickPickItem[]>();
 
   for (const item of items) {
-    const group = byName.get(item.label)?.group;
-
-    if (group === undefined) {
-      continue;
+    for (const group of groupsOf(byName.get(item.label))) {
+      const members = groups.get(group) ?? [];
+      members.push(item);
+      groups.set(group, members);
     }
-
-    const members = groups.get(group) ?? [];
-    members.push(item);
-    groups.set(group, members);
   }
 
   // 構成を 1 つに決めているか。決めていなければ、行を空のままにしておける。
@@ -425,7 +488,7 @@ function repairSelection(
     (allConfigurations !== undefined && !selected.has(allConfigurations)) ||
     [...groups.values()].some(members => members.some(item => selected.has(item)));
 
-  for (const members of groups.values()) {
+  for (const [group, members] of groups) {
     const chosen = members.filter(item => selected.has(item));
 
     if (chosen.length > 1) {
@@ -442,7 +505,8 @@ function repairSelection(
       continue;
     }
 
-    const requiresOne = members.some(item => byName.get(item.label)?.requiresOne === true);
+    const requiresOne =
+      groupRequiresOne.get(group) ?? members.some(item => byName.get(item.label)?.requiresOne === true);
 
     if (choosingConfiguration && requiresOne && chosen.length === 0) {
       // 外せない行である。直前に選ばれていたものへ戻す。無ければ先頭を選ぶ。

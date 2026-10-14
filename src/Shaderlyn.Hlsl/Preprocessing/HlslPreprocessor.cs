@@ -169,6 +169,12 @@ internal sealed partial class HlslPreprocessor
         HashSet<string> ConditionallyDefined,
         Dictionary<string, MacroDefinition?> MacroChanges)
     {
+        /// <summary>この展開の中で、利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
+        public List<HlslSyntaxToken> SkippedUserIdentifiers { get; } = [];
+
+        /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
+        public bool Uncacheable { get; set; }
+
         /// <summary>この展開が、書く前に読んだマクロの名前と、読んだときの状態。</summary>
         public Dictionary<string, ulong> MacroReads { get; } = new(StringComparer.Ordinal);
 
@@ -298,6 +304,9 @@ internal sealed partial class HlslPreprocessor
     /// <summary>解析しているファイル自身の非活性領域に現れた識別子。位置を持つ。</summary>
     private readonly List<HlslSyntaxToken> _skippedRootIdentifiers = [];
 
+    /// <summary>利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
+    private readonly List<HlslSyntaxToken> _skippedUserHeaderIdentifiers = [];
+
     /// <summary>このファイルの中で、条件が外れて読み飛ばした分岐。エディタの表示に使う。</summary>
     private readonly List<InactiveRegion> _inactiveRegions = [];
 
@@ -353,7 +362,8 @@ internal sealed partial class HlslPreprocessor
             _pragmas.ToImmutable(),
             [.. _resolvedIncludes],
             [.. _unresolvedIncludes],
-            _macros.ToImmutableDictionary(),
+            _macros.ToImmutableDictionary().RemoveRange(
+                _macros.ToImmutableDictionary().Keys.Where(name => name.StartsWith(OnceMarkerPrefix, StringComparison.Ordinal))),
             [.. _skippedIdentifiers],
             [.. _conditionalIdentifiers],
             [.. _includes],
@@ -372,6 +382,7 @@ internal sealed partial class HlslPreprocessor
             RequiredSymbolCombinations = [.. _requiredSymbolCombinations.Values],
             SkippedIncludedIdentifiers = [.. _skippedIncludedIdentifiers],
             SkippedRootIdentifiers = [.. _skippedRootIdentifiers],
+            SkippedUserHeaderIdentifiers = [.. _skippedUserHeaderIdentifiers],
             MergedMacroConflicts = [.. _mergedMacroConflicts],
             MergedRegions = [.. _mergedRegions.OrderBy(r => r.FilePath, StringComparer.Ordinal).ThenBy(r => r.Start)],
             KeywordRegions = [.. _keywordRegions],
@@ -551,11 +562,10 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary>指令の行から診断の位置を求める。</summary>
     /// <param name="line">指令の行のトークン。</param>
+    /// <param name="directiveToken">指令名のトークン。行が空 (<c>#define</c> だけ) なら、ここを指す。</param>
     /// <returns>診断の位置。</returns>
-    private Location GetDirectiveLocation(ImmutableArray<HlslSyntaxToken> line)
-        => line.IsEmpty
-            ? Location.Create(SourceText.From(string.Empty, "<不明>"), new TextSpan(0, 0))
-            : line[0].GetLocation();
+    private static Location GetDirectiveLocation(ImmutableArray<HlslSyntaxToken> line, HlslSyntaxToken directiveToken)
+        => line.IsEmpty ? directiveToken.GetLocation() : line[0].GetLocation();
 
     /// <summary>診断を記録する。</summary>
     /// <param name="descriptor">報告するルール。</param>

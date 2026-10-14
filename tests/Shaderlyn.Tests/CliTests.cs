@@ -3,6 +3,7 @@ using System.Reflection;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.Tests;
 
@@ -158,6 +159,205 @@ public sealed class ProgramTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// 利用者が書いたヘッダで書き分けたマクロの誤りを、その構成のときとして報告することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 以前は、既定の構成で読み飛ばしたヘッダの分岐の名前を、名前だけで「解析されなかった場所にある名前」としていた。
+    /// 誤った名前そのものがその分岐にあるので、<c>_MODE_A</c> の木で見つけても報告されなかった。
+    /// SL0004 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
+    /// </para>
+    /// <para>
+    /// 今は利用者のヘッダの定義も条件付きで覚え、使う文を定義ごとに複製する (条件の巻き上げ)。
+    /// 文の種類が構成で変わっても SL0004 にならない。
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("#ifdef _MODE_A\n#define BODY { v = missingA; }\n#else\n#define BODY v = 3;\n#endif", "_MODE_A")]
+    [InlineData("#if defined(_MODE_B)\n#define BODY v = 2;\n#elif defined(_MODE_A)\n#define BODY { v = missingA; }\n#else\n#define BODY v = 3;\n#endif", "_MODE_A")]
+    [InlineData("#ifdef _MODE_A\nfloat Helper() { return missingA; }\n#else\nfloat Helper() { return 0; }\n#endif\n#define BODY v = Helper();", "_MODE_A")]
+    public async Task 利用者のヘッダで書き分けたマクロの誤りを構成付きで報告する(string header, string symbol)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "Body.hlsl"), header.Replace("\n", Environment.NewLine, StringComparison.Ordinal));
+        CreateShaderFile(
+            "Test.shader",
+            """
+            Shader "Test"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #pragma multi_compile _ _MODE_A _MODE_B
+                        #include "Body.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target
+                        {
+                            float v = 0;
+                            if (v > 0)
+                                BODY
+                            return v;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
+
+        Assert.Contains($"Body.hlsl", output, StringComparison.Ordinal);
+        Assert.Contains($"'missingA' は 構成：{symbol} のとき宣言されていません", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("SL0004", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、SL0004 で伝えることを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 定義が 5 通りあるので複製しない。Unity やパッケージのヘッダと違い、利用者が直せる。
+    /// </remarks>
+    [Fact]
+    public async Task 利用者のヘッダで条件を追えなかった箇所を報告する()
+    {
+        File.WriteAllText(
+            Path.Combine(_workDirectory, "Body.hlsl"),
+            string.Join(
+                Environment.NewLine,
+                "#if defined(_MODE_A)",
+                "#define BODY { v = 1; }",
+                "#elif defined(_MODE_B)",
+                "#define BODY v = 2;",
+                "#elif defined(_MODE_C)",
+                "#define BODY v = 3;",
+                "#elif defined(_MODE_D)",
+                "#define BODY v = 4;",
+                "#else",
+                "#define BODY v = 5;",
+                "#endif"));
+        CreateShaderFile(
+            "Test.shader",
+            """
+            Shader "Test"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #pragma multi_compile _ _MODE_A _MODE_B _MODE_C _MODE_D
+                        #include "Body.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target
+                        {
+                            float v = 0;
+                            if (v > 0)
+                                BODY
+                            return v;
+                        }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
+
+        Assert.Contains("Body.hlsl", output, StringComparison.Ordinal);
+        Assert.Contains("SL0004", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 別々のファイルの局所変数を、同じ範囲の重複した宣言 (HL0314) と報告しないことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 範囲を開き波括弧のファイルの中の位置だけで見分けていたので、
+    /// 別のファイルの関数の開き波括弧がたまたま同じ位置にあると、両方の局所変数を突き合わせていた。
+    /// Unreal Engine のエンジンのシェーダー (SobolRandom.ush の Result など) で起きていた。
+    /// </remarks>
+    [Fact]
+    public async Task 別のファイルの局所変数を重複した宣言と報告しない()
+    {
+        // どちらのファイルでも、関数の開き波括弧と局所変数が同じ位置に来るようにする。
+        File.WriteAllText(Path.Combine(_workDirectory, "A.hlsl"), "float A()\n{\n    float r = 1;\n    return r;\n}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "B.hlsl"), "float B()\n{\n    float r = 2;\n    return r;\n}\n");
+        CreateShaderFile(
+            "Test.hlsl",
+            "#include \"A.hlsl\"\n#include \"B.hlsl\"\nfloat4 main() : SV_Target { return A() + B(); }\n");
+        File.WriteAllText(
+            Path.Combine(_workDirectory, ".shaderlyn.yaml"),
+            "version: 1\nenvironment: hlsl\nunits:\n  - files: Test.hlsl\n    entry: main\n    target: ps_6_0\n");
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.hlsl"));
+
+        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>警告 (SL1021: Cull の不正な値) を 1 件出すシェーダー。</summary>
+    private const string ShaderWithWarning = """
+        Shader "Test/Warning"
+        {
+            SubShader
+            {
+                Tags { "Queue" = "Geometry" }
+                Pass { Cull Sideways }
+            }
+        }
+        """;
+
+    /// <summary>
+    /// <c>--min-severity</c> は出力だけを絞り、終了コードは絞る前のすべての指摘で決める。
+    /// 表示を絞ったことで CI の合否が変わってはならない。
+    /// </summary>
+    [Fact]
+    public async Task 重要度で出力を絞っても終了コードはすべての指摘で決める()
+    {
+        CreateShaderFile("A.shader", ShaderWithWarning);
+
+        (ExitCode code, string output, _) = await RunAsync(_workDirectory, "--no-config", "--min-severity", "error");
+
+        Assert.Equal(ExitCode.DiagnosticsFound, code);
+        Assert.DoesNotContain("SL1021", output, StringComparison.Ordinal);
+        Assert.Contains("ほかに 1 件を出力していません", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 設定ファイルの <c>report: min-severity</c> は形式ごとに書ける。書かなかった形式はすべての指摘を出す。
+    /// 設定ファイルの問題は、絞っても隠さない (綴りの誤りに気付けなくなる)。
+    /// </summary>
+    [Fact]
+    public async Task 設定ファイルで出力の形式ごとに重要度を絞る()
+    {
+        CreateShaderFile("A.shader", ShaderWithWarning);
+        File.WriteAllText(
+            Path.Combine(_workDirectory, ".shaderlyn.yaml"),
+            "report:\n  min-severity:\n    text: error\n    jsn: info\n");
+
+        (_, string text, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"));
+        (_, string json, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"), "--format", "json");
+        (_, string commandLine, _) = await RunAsync(Path.Combine(_workDirectory, "A.shader"), "--min-severity", "info");
+
+        Assert.DoesNotContain("SL1021", text, StringComparison.Ordinal);
+        Assert.Contains("'jsn'", text, StringComparison.Ordinal);
+        Assert.Contains("SL1021", json, StringComparison.Ordinal);
+        Assert.Contains("SL1021", commandLine, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("hidden")]
+    public void 出力を絞る重要度にはinfoからerrorを指定する(string value)
+    {
+        Assert.False(CommandLineOptions.TryParse(["x", "--min-severity", value], out _, out string? error));
+        Assert.Contains("--min-severity", error, StringComparison.Ordinal);
+    }
+
     private string CreateShaderFile(string name, string content = "Shader \"Test\" { }")
     {
         string path = Path.Combine(_workDirectory, name);
@@ -280,7 +480,7 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Equal(ExitCode.Success, code);
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
-        Assert.Contains("現在解析の対象外のファイルがあります", error, StringComparison.Ordinal);
+        Assert.Contains("解析の対象外のファイルがあります", error, StringComparison.Ordinal);
         Assert.Contains(".shadergraph 1 件", error, StringComparison.Ordinal);
         Assert.Contains(".raytrace 1 件", error, StringComparison.Ordinal);
     }
@@ -294,7 +494,7 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Equal(ExitCode.Success, code);
         Assert.Contains("0 ファイルを解析", output, StringComparison.Ordinal);
-        Assert.Contains("現在解析の対象外です", error, StringComparison.Ordinal);
+        Assert.Contains("解析の対象外です", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -398,7 +598,7 @@ public sealed class ProgramTests : IDisposable
         CreateShaderFile(
             Path.Combine("Assets", "Test.shader"),
             "Shader \"Test\" { SubShader { Pass { HLSLPROGRAM\n#include \"Missing.hlsl\"\nENDHLSL } } }");
-        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "profile: hdrp\n");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "unity:\n  profile: hdrp\n");
         Directory.CreateDirectory(Path.Combine(_workDirectory, "ProjectSettings"));
         File.WriteAllText(
             Path.Combine(_workDirectory, "ProjectSettings", "ProjectVersion.txt"), "m_EditorVersion: 1.0.0f1\n");
@@ -411,8 +611,66 @@ public sealed class ProgramTests : IDisposable
         Assert.Contains("プロファイル: hdrp (設定ファイル)", output, StringComparison.Ordinal);
         Assert.Contains("解決できた: 0 / 1", output, StringComparison.Ordinal);
         Assert.Contains("\"Missing.hlsl\"", output, StringComparison.Ordinal);
-        Assert.Contains("解析対象の上に Unity プロジェクトがあります", output, StringComparison.Ordinal);
+        Assert.Contains("解析対象は Unity プロジェクトの中にあります", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ファイルを解析", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 知らない環境を指定するとエラーにする()
+    {
+        CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+
+        (ExitCode code, _, string error) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--environment", "godot");
+
+        Assert.Equal(ExitCode.ToolError, code);
+        Assert.Contains("環境 'godot' はありません", error, StringComparison.Ordinal);
+        Assert.Contains("unity", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 設定ファイルの知らない環境は書いた行に報告する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: unreel\n");
+
+        Assert.True(CommandLineOptions.TryParse([_workDirectory], out CommandLineOptions? options, out _));
+        EffectiveSettings settings = EffectiveSettings.Create(options);
+
+        Diagnostic diagnostic = Assert.Single(settings.ConfigurationDiagnostics);
+        Assert.Equal("TOOL0003", diagnostic.Id);
+        Assert.Equal(1, diagnostic.Location.LineSpan.Start.Line);
+        Assert.Contains("unreel", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 環境の表示に環境を出す()
+    {
+        CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+
+        (ExitCode code, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--env", "--environment", "unity");
+
+        Assert.Equal(ExitCode.Success, code);
+        Assert.Contains("環境: Unity (コマンドライン)", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 設定ファイルの unity: project を、--unity-project の代わりに使うことを検証する。
+    /// </summary>
+    [Fact]
+    public async Task 設定ファイルのUnityプロジェクトを使う()
+    {
+        CreateShaderFile(
+            Path.Combine("Assets", "Test.shader"),
+            "Shader \"Test\" { SubShader { Pass { HLSLPROGRAM\nENDHLSL } } }");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "unity:\n  project: .\n");
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "ProjectSettings"));
+        File.WriteAllText(
+            Path.Combine(_workDirectory, "ProjectSettings", "ProjectVersion.txt"), "m_EditorVersion: 1.0.0f1\n");
+
+        (ExitCode code, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--env");
+
+        Assert.Equal(ExitCode.Success, code);
+        Assert.Contains($"--unity-project: {Path.GetFullPath(_workDirectory)}", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("解析対象の上に Unity プロジェクトがあります", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -622,8 +880,9 @@ public sealed class BuiltInAnalyzerRegistrationTests
     [Fact]
     public void アセンブリ内の全アナライザがBuiltInAnalyzersに登録されている()
     {
-        IEnumerable<Type> declaredAnalyzers = typeof(Rules.TagAnalyzer).Assembly
-            .GetTypes()
+        // 組み込みのルールは、汎用の HLSL のルールと、Unity の環境のルールの 2 つのアセンブリにある。
+        IEnumerable<Type> declaredAnalyzers = new[] { typeof(Rules.CallSignatureAnalyzer).Assembly, typeof(TagAnalyzer).Assembly }
+            .SelectMany(assembly => assembly.GetTypes())
             .Where(t => t is { IsAbstract: false, IsNested: false } && t.IsSubclassOf(typeof(DiagnosticAnalyzer)));
 
         HashSet<Type> registered = [.. BuiltInAnalyzers.All.Select(a => a.GetType())];

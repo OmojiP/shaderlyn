@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Shaderlyn.Core.Analysis;
@@ -96,7 +97,16 @@ public sealed partial class ShaderLanguageServer
     /// <summary>実行するアナライザ。ワークスペースが決まるたびに新しい設定へ渡す。</summary>
     private readonly ImmutableArray<DiagnosticAnalyzer> _analyzers;
 
+    /// <summary>自前のホストが足した環境。</summary>
+    private readonly ImmutableArray<HostEnvironment> _environments;
+
+    /// <summary>設定ファイルが見つからないファイルに使う設定。ワークスペースのルートから作る。</summary>
     private AnalysisSession _session;
+
+    /// <summary>設定ファイルごとの設定。鍵は設定ファイルのパスで、書き換えられたら作り直す。</summary>
+    private readonly ConcurrentDictionary<string, (DateTime Written, AnalysisSession Session)> _sessionsByConfiguration =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private bool _shutdownRequested;
 
     /// <summary>
@@ -118,13 +128,31 @@ public sealed partial class ShaderLanguageServer
     /// CLI の <c>Program.RunAsync</c> と同じ形で一覧を渡す。
     /// </remarks>
     public ShaderLanguageServer(LspConnection connection, IEnumerable<DiagnosticAnalyzer> analyzers)
+        : this(connection, analyzers, [])
+    {
+    }
+
+    /// <summary>
+    /// 独自エンジンの環境を足したサーバを生成する。
+    /// </summary>
+    /// <param name="connection">エディタとの接続。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">足す環境。CLI の <c>Program.RunAsync</c> に渡すものと同じ。</param>
+    /// <exception cref="ArgumentException">環境の名前が組み込みの環境やほかの環境と重なっている。</exception>
+    public ShaderLanguageServer(
+        LspConnection connection,
+        IEnumerable<DiagnosticAnalyzer> analyzers,
+        IEnumerable<HostEnvironment> environments)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(analyzers);
+        ArgumentNullException.ThrowIfNull(environments);
 
         _connection = connection;
         _analyzers = [.. analyzers];
-        _session = new AnalysisSession(workspaceDirectory: null, _analyzers);
+        _environments = [.. environments];
+        Cli.Environments.AnalysisEnvironments.Validate(_environments);
+        _session = new AnalysisSession(workspaceDirectory: null, _analyzers, _environments);
     }
 
     /// <summary>
@@ -178,7 +206,7 @@ public sealed partial class ShaderLanguageServer
         switch (method)
         {
             case "initialize":
-                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers);
+                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
@@ -315,12 +343,38 @@ public sealed partial class ShaderLanguageServer
     /// <returns>処理の完了を表すタスク。</returns>
     private async Task OnDidSaveAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        if (TryReadTextDocument(message, out JsonElement document)
-            && document.GetProperty("uri").GetString() is { } uri
-            && _documents.TryGetValue(uri, out OpenDocument? saved))
+        if (!TryReadTextDocument(message, out JsonElement document)
+            || document.GetProperty("uri").GetString() is not { } uri
+            || !_documents.TryGetValue(uri, out OpenDocument? saved))
         {
-            await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        // 保存したのが取り込まれるヘッダかもしれない。取り込みの読み込み結果と展開結果を捨て、
+        // 開いているスクリプトをすべて新しい中身で解析し直す。
+        // 捨てずにいると、ヘッダを書き換えても古い中身で解析し、ヘッダへの指摘が書き換える前の行に出ていた。
+        ForgetIncludedFiles();
+
+        await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+
+        foreach (OpenDocument other in _documents.Values.Where(d => !string.Equals(d.Uri, uri, StringComparison.Ordinal)).ToList())
+        {
+            await PublishAsync(other, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// 取り込んだファイルについて覚えていることを捨てる。
+    /// </summary>
+    /// <remarks>
+    /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (HlslIncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
+    /// 単位ごと作り直す。設定ファイルも読み直すが、保存のたびに 1 度なので重くはない。
+    /// </remarks>
+    private void ForgetIncludedFiles()
+    {
+        _session = new AnalysisSession(_session.WorkspaceDirectory, _analyzers, _environments);
+        _sessionsByConfiguration.Clear();
+        _models.Clear();
     }
 
     /// <summary>スクリプトが閉じられたときの処理。</summary>
@@ -562,11 +616,55 @@ public sealed partial class ShaderLanguageServer
         if (!_models.TryGetValue(uri, out (int Version, ShaderCompilation Model) cached)
             || cached.Version != document.Version)
         {
-            cached = (document.Version, _session.CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
+            cached = (document.Version, SessionFor(uri).CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
             _models[uri] = cached;
         }
 
         return cached.Model;
+    }
+
+    /// <summary>
+    /// 開いたファイルの解析に使う設定を返す。
+    /// </summary>
+    /// <param name="uri">ファイルの URI。</param>
+    /// <returns>そのファイルから上へ辿って一番近い設定ファイルの設定。見つからなければワークスペースの設定。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>CLI と同じく、ファイルの場所から設定ファイルを探す。</b>
+    /// ワークスペースのルートからだけ探すと、サブフォルダーに置いた設定 (環境ごとに分けたフォルダーなど) が読まれず、
+    /// 別の環境で解析してしまう (<c>environment: unreal</c> の <c>.usf</c> を Unity の環境で ShaderLab として読むなど)。
+    /// </para>
+    /// <para>
+    /// 設定ファイルが書き換えられたら作り直す。更新日時で見分ける。
+    /// </para>
+    /// </remarks>
+    private AnalysisSession SessionFor(string uri)
+    {
+        if (DocumentUri.ToFilePath(uri) is not { } path
+            || Path.GetDirectoryName(path) is not { Length: > 0 } directory
+            || EffectiveSettings.FindConfigurationFile(directory) is not { } configuration)
+        {
+            return _session;
+        }
+
+        DateTime written;
+
+        try
+        {
+            written = File.GetLastWriteTimeUtc(configuration);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return _session;
+        }
+
+        return _sessionsByConfiguration.AddOrUpdate(
+            configuration,
+            key => (written, CreateSession(key)),
+            (key, existing) => existing.Written == written ? existing : (written, CreateSession(key))).Session;
+
+        AnalysisSession CreateSession(string configurationPath)
+            => new(Path.GetDirectoryName(configurationPath), _analyzers, _environments);
     }
 
     /// <summary>
@@ -788,7 +886,7 @@ public sealed partial class ShaderLanguageServer
                 selectedConfiguration = _selectedConfigurationDisplays.Contains(uri);
 
                 // 定義を足していないモデルから集める。足したモデルでは、選んだシンボルが候補から消える。
-                candidates = ConditionSymbols.Collect(_session.CreateModel(document.Text));
+                candidates = ConditionSymbols.Collect(SessionFor(uri).CreateModel(document.Text));
                 found = true;
             }
         }
@@ -814,7 +912,7 @@ public sealed partial class ShaderLanguageServer
             }
             else
             {
-                HashSet<string> declared = [.. candidates.Where(c => c.DeclaredByPragma).Select(c => c.Name)];
+                HashSet<string> declared = [.. candidates.Where(c => c.Declared).Select(c => c.Name)];
                 Dictionary<string, ConditionSymbol> byName =
                     candidates.ToDictionary(c => c.Name, StringComparer.Ordinal);
 
@@ -829,16 +927,52 @@ public sealed partial class ShaderLanguageServer
                     writer.WriteStartObject();
                     writer.WriteString("name", name);
                     writer.WriteBoolean("defined", defined.Contains(name));
+                    writer.WriteBoolean("declared", declared.Contains(name));
+
+                    // v0.1 の名前。拡張の古い版のために残す。
                     writer.WriteBoolean("declaredByPragma", declared.Contains(name));
 
                     // 同じ行のシンボルは同時に有効にならない。
                     // 画面がそれを守れるよう、行の単位と「外せない行か」を添える。
+                    // group / requiresOne は最初の組だけを表す (組を 1 つしか知らない古い拡張のため)。
+                    // 1 つのシンボルが複数の組に入ることがあるので、groups にすべての組の番号を並べる。
                     if (byName.TryGetValue(name, out ConditionSymbol symbol) && symbol.Group >= 0)
                     {
                         writer.WriteNumber("group", symbol.Group);
                         writer.WriteBoolean("requiresOne", symbol.RequiresOne);
+                        writer.WriteStartArray("groups");
+
+                        foreach (ConditionGroup group in symbol.Groups)
+                        {
+                            writer.WriteNumberValue(group.Id);
+                        }
+
+                        writer.WriteEndArray();
                     }
 
+                    // 値を持つシンボルの原子 (QUALITY==2) は、名前と値を分けて添える。画面は「QUALITY = 2」と見せる。
+                    if (byName.TryGetValue(name, out ConditionSymbol valued) && valued.Variable is { } variable && valued.Value is { } value)
+                    {
+                        writer.WriteString("variable", variable);
+                        writer.WriteNumber("value", value);
+                    }
+
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+
+                // 組ごとの「どれか 1 つが必ず有効か」。番号は symbols の groups と同じ。
+                writer.WriteStartArray("groups");
+
+                foreach (ConditionGroup group in candidates
+                             .SelectMany(c => c.Groups.IsDefault ? [] : c.Groups)
+                             .Distinct()
+                             .OrderBy(g => g.Id))
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("id", group.Id);
+                    writer.WriteBoolean("requiresOne", group.RequiresOne);
                     writer.WriteEndObject();
                 }
 
@@ -950,7 +1084,7 @@ public sealed partial class ShaderLanguageServer
     /// <returns>選ばれたシンボルから、このファイルが宣言したシンボルを除いたもの。</returns>
     /// <remarks>シンボルを除く理由は <see cref="ConditionSymbols.ExcludeDeclaredSymbols"/> を参照。</remarks>
     private ImmutableArray<string> AnalysisSymbolsOf(string uri, OpenDocument document)
-        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri));
+        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), SessionFor(uri).HlslEnvironment);
 
     /// <summary>要求が、選んだ構成での表示を求めているかを読む。</summary>
     /// <param name="message">受け取ったメッセージ。</param>
@@ -984,8 +1118,8 @@ public sealed partial class ShaderLanguageServer
                 ImmutableArray<string> symbols = AnalysisSymbolsOf(uri, document);
 
                 html = AnalysisInspector.BuildHtml(
-                    _session.CreateModel(document.Text, symbols),
-                    _session.Analyze(document.Text, AnalysisDepth.Full, symbols, cancellationToken));
+                    SessionFor(uri).CreateModel(document.Text, symbols),
+                    SessionFor(uri).Analyze(document.Text, AnalysisDepth.Full, symbols, cancellationToken));
             }
         }
         catch (OperationCanceledException)
@@ -1077,6 +1211,7 @@ public sealed partial class ShaderLanguageServer
         ImmutableArray<string> symbols = DefinedSymbolsOf(document.Uri);
         bool selectedConfiguration = _selectedConfigurationDisplays.Contains(document.Uri);
         bool inactiveRegionsRequested = _inactiveRegionsRequested;
+        AnalysisSession session = SessionFor(document.Uri);
 
         _ = Task.Run(
             async () =>
@@ -1084,10 +1219,13 @@ public sealed partial class ShaderLanguageServer
                 try
                 {
                     ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols);
+                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.HlslEnvironment);
 
                     ImmutableArray<Diagnostic> diagnostics =
-                        _session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+                        session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+
+                    // 解析の間に次の編集が届いていたら、この結果は古い。送ると、新しい中身の上で行がずれて見える。
+                    cancellation.Token.ThrowIfCancellationRequested();
 
                     await PublishAnalysisAsync(document, stage, diagnostics, cancellation.Token)
                         .ConfigureAwait(false);
@@ -1098,8 +1236,8 @@ public sealed partial class ShaderLanguageServer
                     {
                         ImmutableArray<InactiveLineRange> regions = selectedConfiguration
                             ? InactiveRegionCollector.CollectSelectedConfiguration(
-                                _session.CreateConfigurationModel(document.Text, symbols))
-                            : InactiveRegionCollector.Collect(_session.CreateModel(document.Text, analysisSymbols));
+                                session.CreateConfigurationModel(document.Text, symbols))
+                            : InactiveRegionCollector.Collect(session.CreateModel(document.Text, analysisSymbols));
 
                         cancellation.Token.ThrowIfCancellationRequested();
 

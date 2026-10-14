@@ -41,31 +41,52 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!HasResolvedAnything(compilation))
+        // 範囲の外で読まなかったものがあるなら、原因は環境ではなく範囲である。1 行ずつ理由を添えて報告する。
+        if (!HasResolvedAnything(compilation) && !HasOutsideBoundary(compilation))
         {
             ReportEnvironment(context, compilation);
             return;
         }
 
         // 同じ 1 行が複数のパスに入る (HLSLINCLUDE)。報告は場所ごとに 1 回でよい。
-        HashSet<TextSpan> reported = [];
+        HashSet<(string File, TextSpan Span)> reported = [];
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             foreach (IncludeReference include in program.Tree.PreprocessResult.Includes)
             {
                 if (include.IsResolved
+                    || compilation.Environment.IsGeneratedInclude(include.Path)
                     || !IsWrittenInSource(compilation, include)
-                    || !reported.Add(include.Location.Span))
+                    || !reported.Add((include.Location.FilePath, include.Location.Span)))
                 {
                     continue;
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path));
+                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path,
+                    compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeOutsideBoundary(include)));
             }
         }
     }
+
+    /// <summary>読んでよい範囲の外にあったために読まなかった include があるかを判定する。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    private static bool HasOutsideBoundary(ShaderCompilation compilation)
+        => compilation.Programs.Any(p => p.Tree.PreprocessResult.Includes.Any(i => i.OutsideBoundaryPath is not null));
+
+    /// <summary>範囲の外にファイルがあったなら、そのことと直し方を伝える文。</summary>
+    /// <param name="include">解決できなかった include。</param>
+    /// <returns>文。無ければ空。</returns>
+    /// <remarks>
+    /// 読んでよい範囲は、ファイルを読ませる 1 行で任意のファイルを読めないようにするためにある
+    /// (<see cref="Hlsl.Preprocessing.IncludeBoundary"/>)。「見つからない」と言うと、利用者はパスの誤りを探してしまう。
+    /// </remarks>
+    private static string DescribeOutsideBoundary(IncludeReference include)
+        => include.OutsideBoundaryPath is { } path
+            ? "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。"
+            : string.Empty;
 
     /// <summary>
     /// この解析で include を 1 件でも解決できたかを判定する。
@@ -100,7 +121,9 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
         [
             .. compilation.Programs
                 .SelectMany(p => p.Tree.PreprocessResult.Includes)
-                .Where(i => !i.IsResolved && IsWrittenInSource(compilation, i)),
+                .Where(i => !i.IsResolved
+                            && !compilation.Environment.IsGeneratedInclude(i.Path)
+                            && IsWrittenInSource(compilation, i)),
         ];
 
         if (unresolved.Count == 0)
@@ -113,8 +136,8 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(
             WellKnownDescriptors.IncludesUnavailable,
             include.Location,
-            $"最初に引けなかったのは '{include.Path}'",
-            DescribeFix(include.Path)));
+            $"'{include.Path}'",
+            compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeFix(include.Path)));
     }
 
     /// <summary>
@@ -138,30 +161,31 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     {
         string normalized = path.Replace('\\', '/');
 
-        if (normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("/Engine/", StringComparison.Ordinal)
+            || normalized.StartsWith("/Plugin/", StringComparison.Ordinal)
+            || normalized.StartsWith("/Project/", StringComparison.Ordinal))
         {
-            return "Unity のパッケージを参照しています。Unity プロジェクトのルートを指定してください"
-                + " (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。"
-                + "CI では Library/PackageCache がキャッシュされているかを確かめてください。";
+            return "Unreal の仮想パスを参照しています。設定ファイルの unreal: に、エンジンの場所 (engine) と"
+                + "プロジェクト・プラグインのフォルダー (project / virtual-paths) を書いてください。";
         }
 
-        if (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
         {
-            return "Unity プロジェクトの中のファイルを参照しています。Unity プロジェクトのルートを指定してください"
-                + " (CLI は --unity-project、VS Code はプロジェクトのルートを開く)。";
+            // CLI は、--unity-project を付けていないなら見つけたプロジェクトを添えた文を作る (DescribeUnresolvedInclude)。
+            // ここに来るのは、付けているのにパッケージを引けない場合か、言語サーバーの場合である。
+            return "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください"
+                + " (指定済みなら、Unity でプロジェクトを 1 度開いて Library/PackageCache を作ってください)。";
         }
 
-        if (!normalized.Contains('/', StringComparison.Ordinal))
+        // Unity 同梱のヘッダ (UnityCG.cginc / Lighting.cginc など) は、フォルダーを付けずに .cginc で書く。
+        if (!normalized.Contains('/', StringComparison.Ordinal)
+            && normalized.EndsWith(".cginc", StringComparison.OrdinalIgnoreCase))
         {
-            return "Unity 同梱のヘッダ (UnityCG.cginc など) なら、Unity Editor が見つかる必要があります"
-                + " (CLI は --unity-editor で場所を指定できます)。"
-                + "自前のヘッダなら、パスの書き方と置き場所を確かめ、探索パスに加えてください"
-                + " (CLI は --include-path、設定ファイルは include-paths)。";
+            return $"{path} は Unity Editor 同梱のヘッダです。Unity Editor が見つかりません。--unity-editor で場所を指定してください。";
         }
 
-        return "パスの書き方と、取り込み元のファイルからの相対位置を確かめてください。"
-            + "別の場所に置いたヘッダなら探索パスに加えてください"
-            + " (CLI は --include-path、設定ファイルは include-paths)。";
+        return "ヘッダの場所を --include-path (設定ファイルは include-paths) に加えてください。";
     }
 
     /// <summary>

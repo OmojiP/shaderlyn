@@ -4,6 +4,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -33,7 +34,7 @@ public sealed class VariantShapeTests
             IncludeResolver = new InMemoryIncludeResolver(headers.ToDictionary(h => h.Path, h => h.Content)),
         };
 
-        return ShaderCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
+        return UnityCompilation.CreateForHlsl(SourceText.From(code, "Shape.hlsl"), options);
     }
 
     /// <summary>条件の巻き上げを切ってコードを解析する。</summary>
@@ -46,7 +47,7 @@ public sealed class VariantShapeTests
     /// まとめた構成や、並べなかった分岐の数え方を確かめるには、その形を方法 B に残す必要がある。
     /// </remarks>
     private static ShaderCompilation CompileWithoutHoisting(string code, SemanticsOptions? options = null)
-        => ShaderCompilation.CreateForHlsl(
+        => UnityCompilation.CreateForHlsl(
             SourceText.From(code, "Shape.hlsl"),
             (options ?? new SemanticsOptions()) with { HoistConditionalMacros = false });
 
@@ -134,10 +135,10 @@ public sealed class VariantShapeTests
             "_A / _B"
         },
         {
-            // 定義のほかにコードもある分岐は、並べなかった側のコードがどの木にも載らない。
+            // 定義のほかにコードもある分岐も並べる。マクロを使う文は定義ごとに複製する (04 と同じ)。
             "16 マクロを定義する分岐にコードもある",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\nfloat G() { return 1; }\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
-            "_A"
+            ""
         },
         {
             // 16 の書き換え。定義とコードを別の #ifdef に分ける。
@@ -175,15 +176,22 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 定義を条件付きで覚える領域は #define / #else / #endif だけのものに限る。
+            // #elif の分岐の定義も、それまでの分岐がすべて偽という条件付きで覚えている。04 と同じく使う文を定義ごとに複製する。
             "23 #elif で定義を書き分ける",
             "#pragma multi_compile _ _A _B\n#if defined(_A)\n#define CTYPE float3\n#elif defined(_B)\n#define CTYPE float2\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
-            "_A / _B"
+            ""
         },
         {
+            // #undef は、それまでの定義の条件を縮める (常に → !_A)。04 と同じく使う文を定義ごとに複製する。
             "24 #undef してから定義し直す",
             "#pragma multi_compile _ _A\n#define CTYPE float4\n#ifdef _A\n#undef CTYPE\n#define CTYPE float3\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
-            "_A"
+            ""
+        },
+        {
+            // 入れ子の #if の定義も、外側と掛け合わせた条件で覚えている。
+            "24b 入れ子の #if で定義を書き分ける",
+            "#pragma multi_compile _ _A _B\n#ifdef _A\n#define CTYPE float3\n#else\n#ifdef _B\n#define CTYPE float2\n#else\n#define CTYPE float4\n#endif\n#endif\nfloat F() { CTYPE d = 1; return d.x; }",
+            ""
         },
         {
             // 外側が文の途中で分かれていると、内側を並べても外側の分岐が片方しか木に載らない。
@@ -221,10 +229,10 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // 1 つの文で複製できるのは 1 つのマクロだけである。VTYPE はどちらか 1 つの構成の値でしか展開されない。
+            // 定義の組み合わせ (_A と _B で 4 通り) ごとに複製する。04 と同じく構成は作らない。
             "31 条件で中身が変わるマクロを 1 つの文で 2 つ使う",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE f = VTYPE(1); return f.x; }",
-            "_B"
+            ""
         },
         {
             // 31 の書き換え。文を分ければ、続けて書いた文もそれぞれ複製する。
@@ -800,8 +808,8 @@ public sealed class VariantShapeTests
             IncludeCache = new HlslIncludeCache(),
         };
 
-        ShaderCompilation first = ShaderCompilation.CreateForHlsl(SourceText.From(code, "First.hlsl"), options);
-        ShaderCompilation second = ShaderCompilation.CreateForHlsl(SourceText.From(code, "Second.hlsl"), options);
+        ShaderCompilation first = UnityCompilation.CreateForHlsl(SourceText.From(code, "First.hlsl"), options);
+        ShaderCompilation second = UnityCompilation.CreateForHlsl(SourceText.From(code, "Second.hlsl"), options);
 
         Assert.Equal(SymbolCondition.Symbol("_A"), ConditionOfDeclaration(first, "_OnlyWithA"));
         Assert.Equal(SymbolCondition.Symbol("_A"), ConditionOfDeclaration(second, "_OnlyWithA"));

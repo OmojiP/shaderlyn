@@ -1,6 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- コーパスとスナップショットは、CLI と同じく並列に大量のメモリを割り当てる。CLI と同じサーバー GC にする。 -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -34,6 +37,14 @@
   -->
   <ItemGroup>
     <None Include="..\..\docs\rules\*.md" CopyToOutputDirectory="PreserveNewest" LinkBase="docs\rules" />
+  </ItemGroup>
+
+  <!--
+    環境ごとの設定ファイルのテンプレート (samples/environments) も複製する。
+    テンプレートが今の設定の書式で読めて、README に書いた指摘が出ることを検証する。
+  -->
+  <ItemGroup>
+    <None Include="..\..\samples\environments\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="samples\environments" />
   </ItemGroup>
 
   <!--

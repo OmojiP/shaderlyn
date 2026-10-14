@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -48,7 +49,7 @@ public sealed class HlslRuleTests
                 new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = urpCoreContent }),
         };
 
-        AnalysisTarget unit = ShaderCompilation.Create(text, tree, options).CreateAnalysisTarget();
+        AnalysisTarget unit = UnityCompilation.Create(text, tree, options).CreateAnalysisTarget();
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(unit);
     }
@@ -1193,7 +1194,7 @@ public sealed class HlslRuleTests
         // c.w は float4 なら読める。c.q はどの型でも読めないので、float4 として報告する。
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
         Assert.Contains("float4", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("'q'", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("成分 q ", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1691,6 +1692,280 @@ public sealed class HlslRuleTests
         Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
     }
 
+    /// <summary>
+    /// <c>#elif</c> や別々の <c>#ifdef</c> で 3 通りに書き分けたマクロでも、使う文を定義ごとに複製して条件を追うことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <c>if</c> の本体が、構成によってブロックにも文にもなる形である。
+    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに SL0004 になっていた。
+    /// 複製した分岐の中の誤りは、その定義の条件付きで報告する。
+    /// </remarks>
+    [Theory]
+    [InlineData("#if defined(_MODE_A)", "#elif defined(_MODE_B)", "#else", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#elif defined(_MODE_B)", "#else", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#endif\n#ifdef _MODE_B", "#endif\n#if !defined(_MODE_A) && !defined(_MODE_B)", "#endif")]
+    [InlineData("#ifdef _MODE_A", "#else\n#ifdef _MODE_B", "#else", "#endif\n#endif")]
+    public void elifで書き分けたマクロも定義ごとに複製して条件を追う(string first, string second, string third, string end)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _ _MODE_A _MODE_B",
+            first,
+            "#define BODY { v = 1; }",
+            second,
+            "#define BODY v = missingB;",
+            third,
+            "#define BODY v = 3;",
+            end,
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    for (int i = 0; i < 2; i++)",
+            "        BODY",
+            "    return v;",
+            "}").Split('\n')]));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+
+        Assert.All(
+            diagnostics.Where(d => d.Id == "HL0310"),
+            d => Assert.Contains("構成：_MODE_B のとき", d.GetMessage(), StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+    }
+
+    /// <summary>
+    /// マクロ自身が文を閉じていて、後ろに指令や外側の <c>}</c> が続いても、使う文を複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 展開前のトークンには <c>;</c> も <c>}</c> も無いので、以前は文の切れ目の候補が見つからず、
+    /// 複製を諦めて SL0004 になっていた。
+    /// </remarks>
+    [Theory]
+    [InlineData("    if (v > 0)\n        BODY\n#ifdef _C\n    v += 1;\n#endif")]
+    [InlineData("    if (v > 0)\n    {\n        BODY\n    }\n#ifdef _C\n    v += 1;\n#endif")]
+    [InlineData("    if (v > 0)\n    {\n        v = 0;\n        BODY\n    }")]
+    public void マクロで終わる文の後ろに指令が続いても複製する(string body)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _C",
+            "#ifdef _A",
+            "#define BODY { v = 1; }",
+            "#else",
+            "#define BODY v = missingB;",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            body,
+            "    return v;",
+            "}").Split('\n')]));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Assert.Contains("構成：!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>#undef</c> してから定義し直したマクロも、使う文を定義ごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// <c>#undef</c> は、それまでの定義の条件を縮める (常に → <c>!_A</c>)。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して SL0004 になっていた。
+    /// </remarks>
+    [Fact]
+    public void undefしてから定義し直したマクロも定義ごとに複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY v = missingDefault;",
+            "#ifdef _A",
+            "#undef BODY",
+            "#define BODY { v = missingA; }",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0002"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 条件付きでundefした後にundefせず定義し直すと報告する()
+    {
+        // _A のときは #undef されているが、!_A のときは前の定義が残っている。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY 3",
+            "#ifdef _A",
+            "#undef BODY",
+            "#endif",
+            "#define BODY 4",
+            "half4 frag() : SV_Target { return BODY; }"));
+
+        Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 本体に <c>#if</c> を書いた関数にも、それを囲む <c>#elif</c> の分岐の条件が付くことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 条件の付く範囲は、入れ子の <c>#if</c> の前・中・後に分かれて記録される。
+    /// 関数はどの範囲にも収まらず条件が付かなかったので、分岐ごとの同じ名前の関数を重複した宣言 (HL0314) と報告していた
+    /// (HDRP の MotionBlurMotionVecPrep.compute)。
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("#define K 3")]
+    [InlineData("#if defined(_C)\n#define K _A\n#else\n#define K 2\n#endif")]
+    public void 本体にifのある関数にもelifの分岐の条件が付く(string? defines)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. string.Join("\n",
+            "#pragma multi_compile _A _B _C _D",
+            defines is null ? "#define K 3" : string.Empty,
+            "#ifdef _A",
+            "float F(float v) { return v; }",
+            "#elif defined(_B) || defined(_D)",
+            "float F(float v)",
+            "{",
+            "    float r = v * 2;",
+            "#if defined(_D)",
+            "    r += 1;",
+            "#endif",
+            "    return r;",
+            "}",
+            "#elif defined(_C)",
+            defines ?? string.Empty,
+            "float F(float v) { return v * K; }",
+            "#endif",
+            "half4 frag() : SV_Target { return F(1); }").Split('\n')]));
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0314");
+    }
+
+    [Fact]
+    public void 条件付きの再定義は条件付きの報告だけを出す()
+    {
+        // 既定の木は「(_A のとき)」を添えて報告する。_A の木が条件の無い文で同じ位置に報告し、2 件になっていた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#define BODY 3",
+            "#ifdef _A",
+            "#define BODY 4",
+            "#endif",
+            "half4 frag() : SV_Target { return BODY; }"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0002");
+        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 1 つの文で条件で中身の変わるマクロを 2 つ使っても、定義の組み合わせごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前は 1 つだけを複製し、もう一方は構成ごとに展開していた。
+    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// </remarks>
+    [Fact]
+    public void 一つの文で二つのマクロを使っても組み合わせごとに複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _N",
+            "#pragma multi_compile _ _D",
+            "#ifdef _N",
+            "#define VTYPE float3",
+            "#else",
+            "#define VTYPE float2",
+            "#endif",
+            "#ifdef _D",
+            "#define SCALE missingDetail",
+            "#else",
+            "#define SCALE 1.0",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    VTYPE n = SCALE * v;",
+            "    return n.z;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDetail' は 構成：_D のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0312" && d.GetMessage().Contains("!_N のとき", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 条件と本体をそれぞれマクロで切り替えても組み合わせごとに複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _A",
+            "#pragma multi_compile _ _C",
+            "#ifdef _A",
+            "#define BODY { v = missingA; }",
+            "#else",
+            "#define BODY v = 2;",
+            "#endif",
+            "#ifdef _C",
+            "#define COND (v > missingC)",
+            "#else",
+            "#define COND (v > 0)",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if COND",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingC' は 構成：_C のとき", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// マクロを書き分けた分岐にコードもある領域も並べ、マクロを使う文は定義ごとに複製することを検証する。
+    /// </summary>
+    /// <remarks>
+    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// 分岐の中のコードは、それぞれの分岐の条件付きで検査する。
+    /// </remarks>
+    [Fact]
+    public void 分岐にdefine以外もある領域を並べてマクロを使う文は複製する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _MODE_A _MODE_B",
+            "#if defined(_MODE_A)",
+            "#define BODY { v = missingA; }",
+            "#elif defined(_MODE_B)",
+            "#define BODY v = 2;",
+            "float G() { return missingInG; }",
+            "#else",
+            "#define BODY v = 3;",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    half v = 0;",
+            "    if (v > 0)",
+            "        BODY",
+            "    return v;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_MODE_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingInG' は 構成：_MODE_B のとき", StringComparison.Ordinal));
+    }
+
     // ------------------------------------------------------------------
     // HL0350 / HL0351: 代入・初期化・return の型
     // ------------------------------------------------------------------
@@ -1918,7 +2193,7 @@ public sealed class HlslRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
 
-        Assert.Contains("float3 に float2 は入りません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("float2 を float3 に変換できません", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -2197,7 +2472,7 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
 
         Assert.Contains("4 個書いていますが、8 個必要です", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("(構成：_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2880,7 +3155,7 @@ public sealed class HlslRuleTests
     // ------------------------------------------------------------------
 
     [Theory]
-    [InlineData("float wrong[2]; fill(wrong);", "要素 2 個")]
+    [InlineData("float wrong[2]; fill(wrong);", "float[2] を渡しています")]
     [InlineData("float2 wrong[4]; fill(wrong);", "float2[4]")]
     public void 形の合わない配列の引数を報告する(string body, string expected)
     {
@@ -2910,7 +3185,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { float arr[4]; fill(arr); return arr[0] + wrong(); }"));
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0344");
-        Assert.Contains("要素 2 個", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("float[2] を渡しています", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -3831,7 +4106,7 @@ public sealed class HlslRuleTests
     /// 指摘が出ないことを「問題が無い」と受け取られてはならない。
     /// </remarks>
     [Fact]
-    public void クラスとインターフェイスを解釈できないことを報告する()
+    public void クラスとインターフェイスはUnityでも使えるので報告しない()
     {
         string source = Shader(
             "#pragma vertex vert",
@@ -3844,7 +4119,9 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.Equal(2, diagnostics.Count(d => d.Id == "HL0003"));
+        // FXC でも Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。以前は HL0003 と報告していた (誤検出)。
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0003");
+        Assert.False(Has(diagnostics, "SL0002"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3862,7 +4139,7 @@ public sealed class HlslRuleTests
         string source = Shader(
             "#pragma vertex vert",
             "#pragma fragment frag",
-            "interface ILight { half3 Shade(half3 n); };",
+            "enum Mode { First, Second };",
             "struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };",
             "Varyings vert(float4 positionOS : POSITION) { Varyings o; o.positionCS = positionOS; o.uv = 0; return o; }",
             "half4 frag(Varyings i) : SV_Target { return i.uv.xyxy; }");

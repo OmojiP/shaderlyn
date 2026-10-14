@@ -83,6 +83,15 @@ internal sealed partial class HlslPreprocessor
         /// </summary>
         public int? InactiveFrom { get; set; }
 
+        /// <summary>今の並べた分岐が始まった出力の位置。並べていない分岐では <see langword="null"/>。</summary>
+        public int? BranchStart { get; set; }
+
+        /// <summary>今の並べた分岐に付く条件 (外側の条件を含む)。</summary>
+        public SymbolCondition BranchCondition { get; set; }
+
+        /// <summary>今の並べた分岐の範囲を、入れ子の <c>#if</c> が区切ったかどうか。</summary>
+        public bool BranchSplit { get; set; }
+
         /// <summary>この連なりの <c>#if</c> / <c>#elif</c> の条件に書かれた名前。</summary>
         public List<string> ConditionSymbols { get; } = [];
 
@@ -267,13 +276,17 @@ internal sealed partial class HlslPreprocessor
         {
             // #define しか無い領域なら、使う文を定義ごとに複製して補えることがある。
             // 補えたかは展開を終えてから決める (RestoreHoistedDeclines)。
-            ImmutableArray<string>? hoistable = reason == BothBranchDeclineReason.RegionDefinesMacros
-                ? FindHoistableDefinitions(CurrentSource.Index, end)
-                : null;
+            ImmutableArray<string>? hoistable = reason switch
+            {
+                BothBranchDeclineReason.RegionDefinesMacros => FindHoistableDefinitions(CurrentSource.Index, end),
+                BothBranchDeclineReason.OuterNotMerged => FindEnclosingHoistableMacros(),
+                _ => null,
+            };
 
-            if (hoistable is not null)
+            if (hoistable is { } macros)
             {
                 _hoistableRegions[directive] = symbols;
+                _hoistableRegionMacros[directive] = macros;
             }
 
             foreach (string symbol in symbols)
@@ -285,6 +298,51 @@ internal sealed partial class HlslPreprocessor
         }
 
         return condition;
+    }
+
+    /// <summary>
+    /// 囲んでいる並べなかった領域が、どれも巻き上げで補えるかもしれない領域なら、そのマクロを返す。
+    /// </summary>
+    /// <returns>いちばん外側の領域が定義するマクロ。そうでない領域があれば <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>入れ子の <c>#if</c> で書き分けた定義も、使う文を定義ごとに複製して補える。</b>
+    /// <code>
+    /// #ifdef _A
+    /// #define BODY { v = 1; }
+    /// #else
+    ///   #ifdef _B               // 外側を並べていないので、ここも並べない
+    ///   #define BODY v = 2;
+    ///   #else
+    ///   #define BODY v = 3;
+    ///   #endif
+    /// #endif
+    /// </code>
+    /// 定義の条件は、外側と掛け合わせた経路の条件で覚えている (<see cref="RecordConditionalDefinition"/>)。
+    /// 内側の <c>#ifdef _B</c> のシンボルも、外側と同じく、使う文がすべて複製できたかで決める。
+    /// 外側の領域を調べたとき (<see cref="FindHoistableDefinitions"/>) に、入れ子の中まで <c>#define</c> だけだと確かめてある。
+    /// </para>
+    /// </remarks>
+    private ImmutableArray<string>? FindEnclosingHoistableMacros()
+    {
+        ImmutableArray<string>? outermost = null;
+
+        foreach (ConditionalState state in _conditionals)
+        {
+            if (state.KeptCondition is not null || !state.IsConfigurationDependent)
+            {
+                continue;
+            }
+
+            if (!_hoistableRegionMacros.TryGetValue(state.Directive, out ImmutableArray<string> macros))
+            {
+                return null;
+            }
+
+            outermost ??= macros;
+        }
+
+        return outermost;
     }
 
     /// <summary>並べずに展開しているキーワードを、この構成での値で置き換える。</summary>
@@ -458,7 +516,7 @@ internal sealed partial class HlslPreprocessor
         => layout switch
         {
             ConditionalRegionLayout.Mergeable => true,
-            ConditionalRegionLayout.DefinesMacros => DefinesOnlyConditionMacros(start, end),
+            ConditionalRegionLayout.DefinesMacros => DefinesOnlyConditionMacros(start, end) || CanMergeWithHoisting(start, end),
 
             // 取り込みの中身は、並べるかを決める時点では読んでいない。
             // ヘッダが定義したマクロがコードとして使われたら、そのときに並べ直す。
@@ -502,6 +560,75 @@ internal sealed partial class HlslPreprocessor
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// コードと、コードで使うマクロの書き分けが同じ分岐にある領域を、並べてよいかを判定する。
+    /// </summary>
+    /// <param name="start">領域の開始位置。</param>
+    /// <param name="end">領域の終了位置 (この位置は含まない)。</param>
+    /// <returns>並べてよければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <code>
+    /// #ifdef _ALPHATEST_ON
+    /// #define CLIP_BODY { clip(v - _Cutoff); }
+    /// float _Cutoff;                 // #define 以外のコード
+    /// #else
+    /// #define CLIP_BODY ;
+    /// #endif
+    /// </code>
+    /// <b>並べても、マクロを使う文は定義ごとに複製するので、どれか 1 つの構成の展開にはならない。</b>
+    /// 定義はどの分岐のものも条件付きで覚えてある (<see cref="RecordConditionalDefinition"/>)。
+    /// 複製できない使い方 (別のマクロの本体の中、並べた分岐の中、複製を諦めた文) が見つかれば、
+    /// 展開のときにそのシンボルを並べ直す (<see cref="NoteMergedMacroUse"/>)。以前と同じ構成ごとの展開に戻るだけである。
+    /// </para>
+    /// <para>
+    /// 以前はこの領域を並べず、構成ごとに展開していた。文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// <c>#define</c> しか無い領域は、並べずに巻き上げで補えたかを後で決める (<see cref="FindHoistableDefinitions"/>) ので、ここでは扱わない。
+    /// <c>#undef</c> がある領域は扱わない。並べた分岐の <c>#undef</c> は、後ろの分岐のマクロ表を変えてしまう。
+    /// </para>
+    /// <para>
+    /// 入れ子の <c>#if</c> がある領域も並べる。並べた分岐を入れ子の <c>#if</c> が区切っても、
+    /// 分岐全体の範囲を記録するので、分岐をまたぐノードにも条件が付く (CloseBranchRange)。
+    /// </para>
+    /// </remarks>
+    private bool CanMergeWithHoisting(int start, int end)
+    {
+        TokenSource source = CurrentSource;
+        ImmutableArray<HlslSyntaxToken> tokens = source.Tokens;
+
+        if (!IsHoistingEnabled
+            || start >= tokens.Length
+            || !(IsInRootSource(tokens[start]) || IsUserHeaderDefinition(tokens[start])))
+        {
+            return false;
+        }
+
+        bool hasCode = false;
+
+        for (int i = start; i < end && i < tokens.Length; i = SkipToNextLine(tokens, i))
+        {
+            if (tokens[i].Kind == HlslSyntaxKind.EndOfFileToken)
+            {
+                break;
+            }
+
+            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
+            {
+                hasCode = true;
+                continue;
+            }
+
+            if (i + 1 < tokens.Length
+                && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken
+                && tokens[i + 1].Text is "undef" or "include")
+            {
+                return false;
+            }
+        }
+
+        return hasCode;
     }
 
     /// <summary>そのトークン列の中で、名前ごとに <c>#define</c> した回数を数える。</summary>
@@ -854,7 +981,7 @@ internal sealed partial class HlslPreprocessor
 
         if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line),
+            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#ifdef / #ifndef にはマクロ名が必要です。");
             return false;
         }
@@ -904,10 +1031,10 @@ internal sealed partial class HlslPreprocessor
         string? expression = expectDefined ? TryJoinAsDefinedExpression(line) : null;
 
         string guidance = expression is not null
-            ? $"'#if {expression}' と書いてください。"
+            ? $"複数シンボル条件を書く場合は次のように書いてください：'#if {expression}'"
             : expectDefined
-                ? "複数の名前を条件にするときは '#if defined(A) || defined(B)' のように書きます。"
-                : "複数の名前を条件にするときは '#if !defined(A) && !defined(B)' のように書きます。";
+                ? "複数シンボル条件を書く場合は次のように書いてください：'#if defined(A) || defined(B)'"
+                : "複数シンボル条件を書く場合は次のように書いてください：'#if !defined(A) && !defined(B)'";
 
         Diagnostic diagnostic = Diagnostic.Create(
             HlslDescriptors.ExtraTokensAfterConditionName, location, directiveToken.Text, ignored, guidance);

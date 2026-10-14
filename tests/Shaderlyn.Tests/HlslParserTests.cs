@@ -2,7 +2,9 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
+using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -284,19 +286,13 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// <c>interface</c> / <c>class</c> を、解釈できない宣言として報告することを検証する。
+    /// 既定の方言 (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
     /// </summary>
     /// <remarks>
-    /// <b>何も伝えずに取り込んでいた。</b>
-    /// この経路が無かったとき、<c>interface IBase { ... };</c> は
-    /// 「<c>interface</c> 型の変数 <c>IBase</c>」として解析され、
-    /// 波括弧の中身は <c>sampler_state { ... }</c> を読み飛ばす経路が捨てていた。
-    /// 診断は 1 件も出ず、中のメソッドもフィールドも無かったことになる。
+    /// FXC は <c>enum</c> も <c>template</c> も "syntax error: unexpected token" で拒む (手元の FXC で確かめた)。
+    /// <c>class</c> / <c>interface</c> は FXC でも使えるので報告しない (<see cref="classとinterfaceは構造体として読む"/>)。
     /// </remarks>
     [Theory]
-    [InlineData("interface IBase { float4 Shade(float4 x); };", "interface")]
-    [InlineData("class Impl : IBase { float4 v; float4 Shade(float4 x) { return x; } };", "class")]
-    [InlineData("class Impl { float4 v; } impl;", "class")]
     [InlineData("enum Mode { First, Second };", "enum")]
     [InlineData("enum class Mode : uint { First, Second };", "enum")]
     [InlineData("template<typename T> T Twice(T x) { return x + x; }", "template")]
@@ -314,14 +310,14 @@ public sealed class HlslDeclarationParsingTests
     /// 解釈できない型宣言を、変数宣言として取り込まないことを検証する。
     /// </summary>
     /// <remarks>
-    /// 取り込むと、<c>interface</c> 型の uniform が一覧に載る。
+    /// 取り込むと、<c>enum</c> 型の uniform が一覧に載る。
     /// 中身を読んでいない以上、名前だけを登録しても根拠にならない。
     /// </remarks>
     [Fact]
     public void 解釈できない型宣言は宣言として取り込まない()
     {
         HlslSyntaxTree tree = HlslHarness.Parse("""
-            interface ILight { half3 Shade(half3 n); };
+            enum Mode { First, Second } mode;
             float4 _BaseColor;
             """);
 
@@ -340,7 +336,6 @@ public sealed class HlslDeclarationParsingTests
     /// 消えたことは診断に現れないため、件数ではなく中身で確かめる。
     /// </remarks>
     [Theory]
-    [InlineData("class Impl { float4 v; float4 Get() { return v; } };")]
     [InlineData("enum Mode { First, Second };")]
 
     // template が導く関数は波括弧で終わる。セミコロンまで読み飛ばすと、後ろの宣言を丸ごと捨てる。
@@ -382,7 +377,30 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("8", diagnostic.Location.Source.ToString(diagnostic.Location.Span));
         Assert.Contains("ビットフィールド", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("Unity", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("FXC では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>class</c> / <c>interface</c> を、どの方言でも構造体と同じ形で読むことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// FXC でも DXC のどの版でも使える。Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。
+    /// 以前は解釈できない宣言として報告していた (誤検出)。
+    /// </remarks>
+    [Fact]
+    public void classとinterfaceは構造体として読む()
+    {
+        HlslSyntaxTree tree = HlslHarness.Parse("""
+            interface IBase { float4 Shade(float4 x); };
+            class Impl : IBase { float4 v; float4 Shade(float4 x) { return x * v; } };
+            class Plain { float4 v; } impl;
+            """);
+
+        Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+        Assert.Equal(
+            ["interface", "class", "class"],
+            tree.Root.Declarations.OfType<StructDeclarationSyntax>().Select(s => s.Keyword.Text));
+        Assert.Equal("IBase", tree.Root.Declarations.OfType<StructDeclarationSyntax>().ElementAt(1).BaseTypeName);
     }
 
     /// <summary>
@@ -412,11 +430,57 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void LineはUnityで使えない構文として報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("#line 100\nfloat4 f(float4 x) { return x; }\n");
+        PreprocessorOptions options = Unity.UnityPreprocessorDirectives.Apply(PreprocessorOptions.Default);
+        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#line 100\nfloat4 f(float4 x) { return x; }\n", "test.hlsl"), options);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
         Assert.Contains("#line", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 環境が受け付けない指令を与えなければ、<c>#line</c> を読み飛ばすことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// プリプロセッサは環境の決まりを持たない。DXC は <c>#line</c> をそのまま受け付ける。
+    /// </remarks>
+    [Fact]
+    public void 環境の指定が無ければLineを読み飛ばす()
+    {
+        HlslSyntaxTree tree = HlslHarness.ParseValid("#line 100\nfloat4 f(float4 x) { return x; }\n");
+
+        Assert.Contains(tree.Root.Declarations, d => d is FunctionDeclarationSyntax { Name: "f" });
+    }
+
+    /// <summary>
+    /// 環境が足した取り込みの指令を、<c>#include</c> と同じく扱うことを検証する。
+    /// </summary>
+    /// <param name="unity">Unity の指令の扱いを重ねるか。</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void 環境が足した取り込みの指令はincludeと同じに扱う(bool unity)
+    {
+        InMemoryIncludeResolver resolver = new(new Dictionary<string, string>
+        {
+            ["Common.hlsl"] = "float4 Shared(float4 x) { return x; }",
+        });
+
+        PreprocessorOptions options = new() { IncludeResolver = resolver };
+
+        if (unity)
+        {
+            options = Unity.UnityPreprocessorDirectives.Apply(options);
+        }
+
+        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#include_with_pragmas \"Common.hlsl\"\n", "test.hlsl"), options);
+
+        Assert.Equal(unity, tree.Root.Declarations.Any(d => d is FunctionDeclarationSyntax { Name: "Shared" }));
+
+        // 知らない指令は、知らない指令として報告する。
+        Assert.Equal(!unity, tree.Diagnostics.Any(d => d.Id == "HL0002"));
     }
 
     /// <summary>
@@ -752,5 +816,22 @@ public sealed class HlslRobustnessTests
         HlslSyntaxTree tree = HlslHarness.Parse(content);
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+    }
+
+    /// <summary>
+    /// 定義されていない関数形式のマクロは、マクロのことだと分かる 1 件の構文エラーにする。
+    /// 以前は「宣言する名前が必要ですが '(' がありました」などが同じ位置に 3 件出て、原因に気付きにくかった。
+    /// </summary>
+    [Theory]
+    [InlineData("DECLARE_TEX(_Main);", "DECLARE_TEX")]
+    [InlineData("struct V { float4 p : SV_POSITION; DECL_UV(1) };", "DECL_UV")]
+    [InlineData("float4 frag(float4 p : SV_POSITION, FACE_PARAM(face)) : SV_Target { return 1; }", "FACE_PARAM")]
+    public void 定義されていない関数形式のマクロはそう伝える(string content, string macro)
+    {
+        HlslSyntaxTree tree = HlslHarness.Parse(content);
+
+        Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
+        Assert.Equal("HL0001", diagnostic.Id);
+        Assert.StartsWith($"'{macro}(' を宣言として読めません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
     }
 }

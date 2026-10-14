@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -195,7 +196,7 @@ public sealed class HlslErrorCoverageTests
                 new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), options);
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }

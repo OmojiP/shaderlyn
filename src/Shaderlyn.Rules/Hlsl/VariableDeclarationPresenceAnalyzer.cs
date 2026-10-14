@@ -68,7 +68,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -103,7 +103,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             if (missing.IsUnknown
                 || !condition.IsPossible(missing)
                 || identifier.GetLocation() is not { } location
-                || !reported.Add(location.Span.Start))
+                || !reported.Add(location))
             {
                 continue;
             }
@@ -112,15 +112,22 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
                 HlslRuleDescriptors.VariableDeclarationNotPresent,
                 location,
                 identifier.Name,
-                Describe(condition.Simplify(missing))));
+                DescribeLeading(condition.Simplify(missing)),
+                DescribeTrailing(condition.Simplify(missing))));
         }
     }
 
     /// <summary>宣言が無い構成を、利用者に読める形にする。</summary>
     /// <param name="missing">宣言が無い構成を表す条件。</param>
     /// <returns>画面に出す文字列。</returns>
-    private static string Describe(SymbolCondition missing)
-        => missing.IsAlways ? "どの構成でも" : $"{missing} のとき";
+    private static string DescribeLeading(SymbolCondition missing)
+        => missing.IsAlways ? string.Empty : $"構成：{missing} のとき、";
+
+    /// <summary>どの構成でも宣言が無いなら、そのことを文の後ろに添える。</summary>
+    /// <param name="missing">宣言が無い構成を表す条件。</param>
+    /// <returns>画面に出す文字列。</returns>
+    private static string DescribeTrailing(SymbolCondition missing)
+        => missing.IsAlways ? "どの構成でも" : string.Empty;
 
     /// <summary>
     /// グローバル変数の名前ごとに「宣言がある条件」を求める。

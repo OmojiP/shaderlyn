@@ -494,7 +494,7 @@ internal static class MinimalYamlParser
                 }
                 else
                 {
-                    errors.Add(new YamlError(lineNumber, $"キー '{key}' に ':' がありません。"));
+                    errors.Add(new YamlError(lineNumber, $"キー '{key}' に ':' が存在しません。"));
                 }
 
                 YamlNode value = ParseValue();

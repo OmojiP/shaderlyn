@@ -118,6 +118,18 @@ public sealed class HlslTypeSyntax(
         ? Name
         : string.Concat(QualifierTokens.Select(t => t.Text)) + Name;
 
+    /// <summary>
+    /// 多重定義を見分けるための型の形。短い名前 (<see cref="Name"/>) に、それで消える型引数を添える。
+    /// </summary>
+    /// <remarks>
+    /// <c>vector</c> / <c>matrix</c> は短い名前に型引数が入っている。それ以外の template の型
+    /// (<c>TLaneVector2D&lt;half, 3, 2, 2&gt;</c>) は、型引数が違えば別の型である。
+    /// </remarks>
+    public string OverloadShape
+        => TemplateArguments.IsDefaultOrEmpty || Name != NameToken.Text
+            ? Name
+            : Name + "<" + string.Concat(TemplateArguments.Select(t => t.Text)) + ">";
+
     /// <summary>テンプレート引数の開き山括弧。</summary>
     public HlslSyntaxToken? OpenAngle { get; } = openAngle;
 
@@ -557,6 +569,13 @@ public sealed class ParameterSyntax(
 /// 構造体の外で書いたメソッドの定義 (<c>uint Wave::GetIndex() { ... }</c>) の、関数名の前の修飾。
 /// <c>Wave</c> と <c>::</c> が交互に並ぶ。ふつうの関数では空。
 /// </param>
+/// <param name="operatorTokens">
+/// 演算子の多重定義 (HLSL 2021 の <c>Complex operator+(Complex other)</c>) の、<c>operator</c> に続く記号。
+/// <paramref name="nameToken"/> は <c>operator</c> になる。ふつうの関数では空。
+/// </param>
+/// <param name="specializationTokens">
+/// 明示的な特殊化 (HLSL 2021 の <c>template&lt;&gt; float Twice&lt;float&gt;(float x)</c>) の、関数名に付く型引数。山括弧を含む。ふつうの関数では空。
+/// </param>
 public sealed class FunctionDeclarationSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
     ImmutableArray<HlslSyntaxToken> modifierTokens,
@@ -568,8 +587,13 @@ public sealed class FunctionDeclarationSyntax(
     ImmutableArray<SemanticSyntax> semantics,
     BlockStatementSyntax? body,
     HlslSyntaxToken? semicolonToken,
-    ImmutableArray<HlslSyntaxToken> qualifierTokens = default) : HlslDeclarationSyntax
+    ImmutableArray<HlslSyntaxToken> qualifierTokens = default,
+    ImmutableArray<HlslSyntaxToken> operatorTokens = default,
+    ImmutableArray<HlslSyntaxToken> specializationTokens = default) : HlslDeclarationSyntax
 {
+    /// <summary>明示的な特殊化の、関数名に付く型引数 (山括弧を含む)。ふつうの関数では空。</summary>
+    public ImmutableArray<HlslSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
+
     /// <summary>
     /// 関数名の前の修飾 (<c>Wave</c> と <c>::</c>)。ふつうの関数では空。
     /// </summary>
@@ -595,11 +619,21 @@ public sealed class FunctionDeclarationSyntax(
     /// <summary>戻り値の型。</summary>
     public HlslTypeSyntax ReturnType { get; } = returnType;
 
-    /// <summary>関数名のトークン。</summary>
+    /// <summary>関数名のトークン。演算子の多重定義では <c>operator</c>。</summary>
     public HlslSyntaxToken NameToken { get; } = nameToken;
 
-    /// <summary>関数名。</summary>
-    public string Name => NameToken.Text;
+    /// <summary>
+    /// 演算子の多重定義の、<c>operator</c> に続く記号 (<c>+</c>、<c>[</c> と <c>]</c> など)。ふつうの関数では空。
+    /// </summary>
+    public ImmutableArray<HlslSyntaxToken> OperatorTokens { get; } = operatorTokens.IsDefault ? [] : operatorTokens;
+
+    /// <summary>演算子の多重定義かどうか。</summary>
+    public bool IsOperator => !OperatorTokens.IsEmpty;
+
+    /// <summary>関数名。演算子の多重定義では <c>operator+</c> のように記号を続けた名前。</summary>
+    public string Name => IsOperator
+        ? NameToken.Text + string.Concat(OperatorTokens.Select(t => t.Text))
+        : NameToken.Text;
 
     /// <summary>開き括弧。</summary>
     public HlslSyntaxToken OpenParen { get; } = openParen;
@@ -647,6 +681,17 @@ public sealed class FunctionDeclarationSyntax(
         }
 
         yield return NameToken;
+
+        foreach (HlslSyntaxToken symbol in OperatorTokens)
+        {
+            yield return symbol;
+        }
+
+        foreach (HlslSyntaxToken token in SpecializationTokens)
+        {
+            yield return token;
+        }
+
         yield return OpenParen;
 
         foreach (HlslNodeOrTokenEntry parameter in Parameters)
@@ -681,6 +726,14 @@ public sealed class FunctionDeclarationSyntax(
 /// <param name="closeBrace">閉じ波括弧。</param>
 /// <param name="declarators">構造体宣言に続く変数宣言子。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
+/// <param name="colonToken">継承 (HLSL 2021 の <c>struct D : B</c>) の <c>:</c>。継承していなければ <see langword="null"/>。</param>
+/// <param name="baseType">継承する構造体の型 (<c>B</c> / <c>Box&lt;T&gt;</c>)。継承していなければ <see langword="null"/>。</param>
+/// <param name="specializationTokens">
+/// 明示的な特殊化 (<c>template&lt;&gt; struct Box&lt;float&gt;</c>) の、構造体名に付く型引数。山括弧を含む。ふつうの構造体では空。
+/// </param>
+/// <remarks>
+/// HLSL 2021 の <c>class</c> と <c>interface</c> も同じ形で表す。<see cref="Keyword"/> がそのキーワードになる。
+/// </remarks>
 public sealed class StructDeclarationSyntax(
     HlslSyntaxToken keyword,
     HlslSyntaxToken? nameToken,
@@ -688,8 +741,24 @@ public sealed class StructDeclarationSyntax(
     ImmutableArray<HlslDeclarationSyntax> members,
     HlslSyntaxToken closeBrace,
     ImmutableArray<HlslNodeOrTokenEntry> declarators,
-    HlslSyntaxToken semicolonToken) : HlslDeclarationSyntax
+    HlslSyntaxToken semicolonToken,
+    HlslSyntaxToken? colonToken = null,
+    HlslTypeSyntax? baseType = null,
+    ImmutableArray<HlslSyntaxToken> specializationTokens = default) : HlslDeclarationSyntax
 {
+    /// <summary>明示的な特殊化の、構造体名に付く型引数 (山括弧を含む)。ふつうの構造体では空。</summary>
+    public ImmutableArray<HlslSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
+
+    /// <summary>継承の <c>:</c>。継承していなければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? ColonToken { get; } = colonToken;
+
+    /// <summary>継承する構造体の型。継承していなければ <see langword="null"/>。</summary>
+    public HlslTypeSyntax? BaseType { get; } = baseType;
+
+    /// <summary>継承する構造体の名前 (型引数を除く)。継承していなければ <see langword="null"/>。</summary>
+    /// <remarks>基底のフィールドとメソッドは、この構造体のメンバーとしても使える。</remarks>
+    public string? BaseTypeName => BaseType?.NameToken.Text;
+
     /// <summary><c>struct</c> キーワード。</summary>
     public HlslSyntaxToken Keyword { get; } = keyword;
 
@@ -725,6 +794,21 @@ public sealed class StructDeclarationSyntax(
         if (NameToken is not null)
         {
             yield return NameToken;
+        }
+
+        foreach (HlslSyntaxToken token in SpecializationTokens)
+        {
+            yield return token;
+        }
+
+        if (ColonToken is not null)
+        {
+            yield return ColonToken;
+        }
+
+        if (BaseType is not null)
+        {
+            yield return BaseType;
         }
 
         yield return OpenBrace;
@@ -923,6 +1007,146 @@ public sealed class NamespaceDeclarationSyntax(
     }
 }
 
+/// <summary>
+/// <c>enum</c> の宣言 (HLSL 2021)。
+/// </summary>
+/// <param name="keyword"><c>enum</c> キーワード。</param>
+/// <param name="scopeKeyword"><c>enum class</c> / <c>enum struct</c> の <c>class</c> / <c>struct</c>。無ければ <see langword="null"/>。</param>
+/// <param name="nameToken">型の名前。無名の場合は <see langword="null"/>。</param>
+/// <param name="baseTypeTokens">基になる型の指定 (<c>: uint</c>) のトークン。無ければ空。</param>
+/// <param name="openBrace">開き波括弧。</param>
+/// <param name="members">列挙子。</param>
+/// <param name="closeBrace">閉じ波括弧。</param>
+/// <param name="semicolonToken">セミコロン。</param>
+/// <remarks>
+/// <para>
+/// <b>スコープの無い列挙子 (<c>enum Mode { A }</c>) は、外側の名前として見える。</b>
+/// <c>A</c> とも <c>Mode::A</c> とも書ける。<c>enum class</c> の列挙子は <c>Mode::A</c> とだけ書ける。
+/// </para>
+/// <para>
+/// HLSL 2018 (Unity) では使えない。パーサーは HLSL 2021 のときだけこのノードを作り、2018 では HL0003 を報告して読み飛ばす。
+/// </para>
+/// </remarks>
+public sealed class EnumDeclarationSyntax(
+    HlslSyntaxToken keyword,
+    HlslSyntaxToken? scopeKeyword,
+    HlslSyntaxToken? nameToken,
+    ImmutableArray<HlslSyntaxToken> baseTypeTokens,
+    HlslSyntaxToken openBrace,
+    ImmutableArray<EnumMemberSyntax> members,
+    HlslSyntaxToken closeBrace,
+    HlslSyntaxToken semicolonToken) : HlslDeclarationSyntax
+{
+    /// <summary><c>enum</c> キーワード。</summary>
+    public HlslSyntaxToken Keyword { get; } = keyword;
+
+    /// <summary><c>enum class</c> / <c>enum struct</c> の後ろのキーワード。無ければ <see langword="null"/>。</summary>
+    public HlslSyntaxToken? ScopeKeyword { get; } = scopeKeyword;
+
+    /// <summary>列挙子が型の名前で修飾しないと見えない (<c>enum class</c>) か。</summary>
+    public bool IsScoped => ScopeKeyword is not null;
+
+    /// <summary>型の名前のトークン。無名の場合は <see langword="null"/>。</summary>
+    public HlslSyntaxToken? NameToken { get; } = nameToken;
+
+    /// <summary>型の名前。無名の場合は空文字列。</summary>
+    public string Name => NameToken?.Text ?? string.Empty;
+
+    /// <summary>基になる型の指定 (<c>: uint</c>) のトークン。</summary>
+    public ImmutableArray<HlslSyntaxToken> BaseTypeTokens { get; } = baseTypeTokens;
+
+    /// <summary>開き波括弧。</summary>
+    public HlslSyntaxToken OpenBrace { get; } = openBrace;
+
+    /// <summary>列挙子。</summary>
+    public ImmutableArray<EnumMemberSyntax> Members { get; } = members;
+
+    /// <summary>閉じ波括弧。</summary>
+    public HlslSyntaxToken CloseBrace { get; } = closeBrace;
+
+    /// <summary>セミコロン。</summary>
+    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return Keyword;
+
+        if (ScopeKeyword is not null)
+        {
+            yield return ScopeKeyword;
+        }
+
+        if (NameToken is not null)
+        {
+            yield return NameToken;
+        }
+
+        foreach (HlslSyntaxToken token in BaseTypeTokens)
+        {
+            yield return token;
+        }
+
+        yield return OpenBrace;
+
+        foreach (EnumMemberSyntax member in Members)
+        {
+            yield return member;
+        }
+
+        yield return CloseBrace;
+        yield return SemicolonToken;
+    }
+}
+
+/// <summary>列挙子 1 つ。</summary>
+/// <param name="nameToken">名前。</param>
+/// <param name="equalsToken">値を与える <c>=</c>。無ければ <see langword="null"/>。</param>
+/// <param name="value">値の式。無ければ <see langword="null"/>。</param>
+/// <param name="commaToken">後ろのカンマ。最後の列挙子では無いことがある。</param>
+public sealed class EnumMemberSyntax(
+    HlslSyntaxToken nameToken,
+    HlslSyntaxToken? equalsToken,
+    HlslExpressionSyntax? value,
+    HlslSyntaxToken? commaToken) : HlslSyntaxNode
+{
+    /// <summary>名前のトークン。</summary>
+    public HlslSyntaxToken NameToken { get; } = nameToken;
+
+    /// <summary>名前。</summary>
+    public string Name => NameToken.Text;
+
+    /// <summary>値を与える <c>=</c>。</summary>
+    public HlslSyntaxToken? EqualsToken { get; } = equalsToken;
+
+    /// <summary>値の式。</summary>
+    public HlslExpressionSyntax? Value { get; } = value;
+
+    /// <summary>後ろのカンマ。</summary>
+    public HlslSyntaxToken? CommaToken { get; } = commaToken;
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return NameToken;
+
+        if (EqualsToken is not null)
+        {
+            yield return EqualsToken;
+        }
+
+        if (Value is not null)
+        {
+            yield return Value;
+        }
+
+        if (CommaToken is not null)
+        {
+            yield return CommaToken;
+        }
+    }
+}
+
 /// <summary>解釈できなかった宣言。</summary>
 /// <param name="tokens">読み飛ばしたトークン。</param>
 public sealed class IncompleteDeclarationSyntax(ImmutableArray<HlslSyntaxToken> tokens) : HlslDeclarationSyntax
@@ -937,5 +1161,112 @@ public sealed class IncompleteDeclarationSyntax(ImmutableArray<HlslSyntaxToken> 
         {
             yield return token;
         }
+    }
+}
+
+/// <summary>
+/// <c>template</c> の宣言 (HLSL 2021)。<c>template&lt;typename T&gt;</c> に続く関数か構造体を持つ。
+/// </summary>
+/// <param name="keyword"><c>template</c> キーワード。</param>
+/// <param name="openAngle">型引数の並びの開き山括弧。</param>
+/// <param name="parameterTokens">型引数の並び (<c>typename T, uint N = 4</c>) のトークン。カンマを含む。</param>
+/// <param name="closeAngle">型引数の並びの閉じ山括弧。</param>
+/// <param name="declaration">型引数を使う宣言 (関数か構造体)。</param>
+/// <remarks>
+/// 型引数 (<c>T</c>) を含む型は、使う側で何に置き換わるかが決まるまで分からない。
+/// 検査はそうした型を「分からない型」として扱う。
+/// </remarks>
+public sealed class TemplateDeclarationSyntax(
+    HlslSyntaxToken keyword,
+    HlslSyntaxToken openAngle,
+    ImmutableArray<HlslSyntaxToken> parameterTokens,
+    HlslSyntaxToken closeAngle,
+    HlslDeclarationSyntax declaration) : HlslDeclarationSyntax
+{
+    /// <summary><c>template</c> キーワード。</summary>
+    public HlslSyntaxToken Keyword { get; } = keyword;
+
+    /// <summary>型引数の並びの開き山括弧。</summary>
+    public HlslSyntaxToken OpenAngle { get; } = openAngle;
+
+    /// <summary>型引数の並びのトークン。カンマを含む。</summary>
+    public ImmutableArray<HlslSyntaxToken> ParameterTokens { get; } = parameterTokens;
+
+    /// <summary>型引数の並びの閉じ山括弧。</summary>
+    public HlslSyntaxToken CloseAngle { get; } = closeAngle;
+
+    /// <summary>型引数を使う宣言 (関数か構造体)。</summary>
+    public HlslDeclarationSyntax Declaration { get; } = declaration;
+
+    /// <summary>型引数の名前 (<c>typename T, uint N</c> の <c>T</c> と <c>N</c>)。</summary>
+    /// <remarks>カンマで区切った 1 つずつの、既定値 (<c>=</c> の後ろ) より前にある最後の名前である。</remarks>
+    public ImmutableArray<string> ParameterNames { get; } = ReadParameterNames(parameterTokens);
+
+    /// <inheritdoc/>
+    public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return Keyword;
+        yield return OpenAngle;
+
+        foreach (HlslSyntaxToken token in ParameterTokens)
+        {
+            yield return token;
+        }
+
+        yield return CloseAngle;
+        yield return Declaration;
+    }
+
+    /// <summary>型引数の並びから、型引数の名前を読む。</summary>
+    /// <param name="tokens">型引数の並びのトークン。</param>
+    /// <returns>型引数の名前。</returns>
+    private static ImmutableArray<string> ReadParameterNames(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        ImmutableArray<string>.Builder names = ImmutableArray.CreateBuilder<string>();
+        string? last = null;
+        bool inDefault = false;
+        int depth = 0;
+
+        foreach (HlslSyntaxToken token in tokens)
+        {
+            switch (token.Kind)
+            {
+                case HlslSyntaxKind.LessThanToken:
+                    depth++;
+                    break;
+
+                case HlslSyntaxKind.GreaterThanToken:
+                    depth--;
+                    break;
+
+                case HlslSyntaxKind.CommaToken when depth == 0:
+                    if (last is not null)
+                    {
+                        names.Add(last);
+                    }
+
+                    last = null;
+                    inDefault = false;
+                    break;
+
+                case HlslSyntaxKind.EqualsToken when depth == 0:
+                    inDefault = true;
+                    break;
+
+                case HlslSyntaxKind.IdentifierToken when depth == 0 && !inDefault:
+                    last = token.Text;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        if (last is not null)
+        {
+            names.Add(last);
+        }
+
+        return names.ToImmutable();
     }
 }

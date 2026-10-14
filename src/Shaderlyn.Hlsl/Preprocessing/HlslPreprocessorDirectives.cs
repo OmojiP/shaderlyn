@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -56,7 +57,10 @@ internal sealed partial class HlslPreprocessor
                 break;
 
             case "include":
-            case "include_with_pragmas":
+                NoteMacroAffectingSymbols();
+                break;
+
+            case var _ when _options.AdditionalIncludeDirectives.Contains(directive):
                 NoteMacroAffectingSymbols();
                 break;
         }
@@ -71,22 +75,32 @@ internal sealed partial class HlslPreprocessor
 
         HlslSyntaxToken directiveToken = TakeToken();
 
+        // 環境が受け付けない指令 (Unity の #line など)。
+        if (_options.UnsupportedDirectives.Contains(directive))
+        {
+            Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), $"#{directive} 指令", _options.DescribeDialect());
+            SkipDirectiveLine();
+            return;
+        }
+
+        // 環境が足した取り込みの指令 (Unity の #include_with_pragmas など)。
+        if (_options.AdditionalIncludeDirectives.Contains(directive))
+        {
+            ProcessInclude(directiveToken);
+            return;
+        }
+
         switch (directive)
         {
             case "define":
-                ProcessDefine();
+                ProcessDefine(directiveToken);
                 break;
 
             case "undef":
-                ProcessUndef();
+                ProcessUndef(directiveToken);
                 break;
 
             case "include":
-
-            // Unity 固有の指令。取り込んだ先の #pragma も呼び出し側へ伝播させる点が
-            // #include と異なるが、構文解析の観点では同じ扱いでよい。
-            // 対応していないと URP のシェーダーの多くが依存関係を取り込めなくなる。
-            case "include_with_pragmas":
                 ProcessInclude(directiveToken);
                 break;
 
@@ -94,21 +108,17 @@ internal sealed partial class HlslPreprocessor
                 ProcessPragma();
                 break;
 
-            // #line は Unity のシェーダーのコンパイルでエラーになる
-            // ("syntax error: unexpected token 'line'")。
-            case "line":
-                Report(HlslDescriptors.UnsupportedDeclaration, directiveToken.GetLocation(), "#line 指令");
-                SkipDirectiveLine();
-                break;
-
             // #error / #warning は解析には影響しないため読み飛ばす。
             // #error を診断として報告しないのは、それが非活性領域に置かれる
             // 「この構成では使えない」という印であることが多く、
             // 単一構成での展開では偽の指摘になりやすいためである。
+            // #line は報告の位置を付け替えるだけで、展開には影響しない。
+            // 受け付けない環境は UnsupportedDirectives で報告する。
             case "error":
             case "warning":
             case "version":
             case "extension":
+            case "line":
                 SkipDirectiveLine();
                 break;
 
@@ -175,11 +185,18 @@ internal sealed partial class HlslPreprocessor
 
                 if (kept is null && !isStatic)
                 {
+                    // #define しか無い領域として記録済みなら、巻き上げで補えたかの判断をここで確定させない。
+                    // #if !defined(_A) && !defined(_B) のように、別々の #ifdef で書き分けた定義の残りを受け持つ形である。
+                    ImmutableArray<string>? hoistable = _hoistableRegionMacros.TryGetValue(directiveToken, out ImmutableArray<string> macros)
+                        ? macros
+                        : null;
+
                     DeclineBothBranchSymbolsIn(
                         line,
                         directiveToken,
                         read is null || read.Value.IsUnknown ? BothBranchDeclineReason.UnreadableCondition : null,
-                        _conditionals.Count);
+                        _conditionals.Count,
+                        hoistable);
 
                     NoteMergedMacroConditionUse(line.Where(t => t.Kind == HlslSyntaxKind.IdentifierToken).Select(t => t.Text));
                 }
@@ -268,6 +285,11 @@ internal sealed partial class HlslPreprocessor
         if (kept is not null && _conditionals.Any(state => state.KeptCondition is not null))
         {
             CloseConditionalRange();
+
+            foreach (ConditionalState outer in _conditionals)
+            {
+                outer.BranchSplit |= outer.BranchStart is not null;
+            }
         }
 
         _conditionals.Add(new ConditionalState(directive)
@@ -286,6 +308,7 @@ internal sealed partial class HlslPreprocessor
         if (kept is not null)
         {
             OpenConditionalRange();
+            StartBranchRange(_conditionals[^1]);
 
             MergedRegion region = new(directive.Source.FilePath, directive.Span.Start);
 
@@ -339,7 +362,13 @@ internal sealed partial class HlslPreprocessor
         {
             if (!neverTrue)
             {
-                DeclineBothBranchSymbolsIn(line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1);
+                // #define しか無い領域の #elif は、#if と同じく、使う文を定義ごとに複製して補えることがある。
+                ImmutableArray<string>? hoistable = _hoistableRegionMacros.TryGetValue(state.Directive, out ImmutableArray<string> macros)
+                    ? macros
+                    : null;
+
+                DeclineBothBranchSymbolsIn(
+                    line, directiveToken, BothBranchDeclineReason.FollowsUnmergedBranch, _conditionals.Count - 1, hoistable);
             }
 
             if (!state.IsParentSkipping)
@@ -475,6 +504,7 @@ internal sealed partial class HlslPreprocessor
     private void EnterFoldedBranch(ConditionalState state, SymbolCondition branch)
     {
         CloseConditionalRange();
+        CloseBranchRange(state);
 
         if (branch.IsNever || !IsPossibleBranch(branch, _conditionals.Count - 1))
         {
@@ -488,6 +518,42 @@ internal sealed partial class HlslPreprocessor
         }
 
         OpenConditionalRange();
+        StartBranchRange(state);
+    }
+
+    /// <summary>並べた分岐の始まりと、その分岐に付く条件を覚える。</summary>
+    /// <param name="state">分岐を始めた連なり。</param>
+    private void StartBranchRange(ConditionalState state)
+    {
+        state.BranchStart = state.KeptCondition is not null ? _output.Count : null;
+        state.BranchCondition = _options.SymbolConstraints.Apply(CurrentCondition);
+        state.BranchSplit = false;
+    }
+
+    /// <summary>
+    /// 入れ子の <c>#if</c> が区切った並べた分岐について、分岐全体の範囲も記録する。
+    /// </summary>
+    /// <param name="state">分岐を終える連なり。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>条件の付く範囲は、入れ子の <c>#if</c> の前・中・後に分かれて記録される。</b>
+    /// ノードに条件を付けるのは、そのノードがどれか 1 つの範囲の内側にあるときである。
+    /// 関数の本体に <c>#if</c> を書くと、関数そのものはどの範囲の内側にも収まらず、条件が付かなかった (「常に」)。
+    /// <c>#if A … #elif B</c> の分岐ごとに同じ名前の関数を書くと、それらを同時に存在すると判断し、
+    /// 重複した宣言 (HL0314) と報告していた (HDRP の MotionBlurMotionVecPrep.compute)。
+    /// 分岐全体の範囲を分岐の条件で足せば、分岐をまたぐノードにも条件が付く。
+    /// 入れ子の中の範囲には、外側の条件を含む条件が付いているので、重ねて掛けても変わらない。
+    /// </para>
+    /// </remarks>
+    private void CloseBranchRange(ConditionalState state)
+    {
+        if (state.BranchStart is { } start && state.BranchSplit && _output.Count > start)
+        {
+            _conditionalRegions.Add(new ConditionalTokenRange(start, _output.Count - start, state.BranchCondition));
+        }
+
+        state.BranchStart = null;
+        state.BranchSplit = false;
     }
 
     /// <summary>
@@ -550,6 +616,10 @@ internal sealed partial class HlslPreprocessor
     /// <param name="outer">
     /// 外側の条件の数。<c>#elif</c> では、その連なり自身を数えない。
     /// </param>
+    /// <param name="hoistableMacros">
+    /// <c>#define</c> しか無い領域の <c>#elif</c> で、その領域が定義するマクロ。
+    /// 使う文がすべて巻き上げで補えたら、シンボルを並べ直す。
+    /// </param>
     /// <remarks>
     /// <para>
     /// <b>まとめなかった条件のシンボルは、まだ構成ごとの展開が要る。</b>
@@ -569,7 +639,8 @@ internal sealed partial class HlslPreprocessor
         ImmutableArray<HlslSyntaxToken> line,
         HlslSyntaxToken directive,
         BothBranchDeclineReason? reason,
-        int outer)
+        int outer,
+        ImmutableArray<string>? hoistableMacros = null)
     {
         // 構成によらない条件のために読み飛ばしている分岐は、どの構成でも読まれない。
         if (_options.BothBranchSymbols.IsEmpty || IsInStaticSkippedBranch(outer))
@@ -582,7 +653,7 @@ internal sealed partial class HlslPreprocessor
             if (token.Kind == HlslSyntaxKind.IdentifierToken
                 && _options.BothBranchSymbols.Contains(token.Text))
             {
-                AddDeclinedSymbol(token.Text, reason, directive);
+                AddDeclinedSymbol(token.Text, reason, directive, hoistableMacros);
             }
         }
 
@@ -861,9 +932,89 @@ internal sealed partial class HlslPreprocessor
         }
 
         return ReadDefinedAtom(line, ref index, reading)
+               ?? ReadValueAtom(line, ref index, reading)
                ?? ReadSymbolAtom(line, ref index, reading)
                ?? ReadConstantOperand(line, ref index);
     }
+
+    /// <summary>
+    /// 値を持つシンボルの比較 (<c>QUALITY == 2</c>、<c>QUALITY &gt;= 1</c>) か、名前そのもの (<c>QUALITY</c>) を読む。
+    /// </summary>
+    /// <param name="line">条件式の行。</param>
+    /// <param name="index">読み取り位置。</param>
+    /// <param name="reading">読み方。</param>
+    /// <returns>
+    /// 比較が成り立つ値の原子の論理和。値を持つシンボルでないか、記号として読めない値があれば <see langword="null"/>。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// 名前だけなら 0 でない値の論理和 (<c>#if QUALITY</c> は <c>QUALITY != 0</c>)。
+    /// 比べる相手は整数のリテラルに限る。左右を入れ替えた形 (<c>2 == QUALITY</c>) は読まない。
+    /// </para>
+    /// <para>
+    /// <b>成り立つ値のどれかが記号として残す名前に入っていなければ、記号としては読まない。</b>
+    /// その原子の構成は別に展開するので、値を解く側へ倒す。
+    /// </para>
+    /// </remarks>
+    private SymbolCondition? ReadValueAtom(ImmutableArray<HlslSyntaxToken> line, ref int index, ConditionReading reading)
+    {
+        if (_options.ValueSymbols.IsEmpty
+            || index >= line.Length
+            || line[index].Kind != HlslSyntaxKind.IdentifierToken
+            || !_options.ValueSymbols.TryGetValue(line[index].Text, out ImmutableArray<int> values))
+        {
+            return null;
+        }
+
+        HlslSyntaxToken name = line[index];
+        int position = index + 1;
+        Func<int, bool> holds = value => value != 0;
+
+        if (position + 1 < line.Length
+            && ComparisonOf(line[position].Kind) is { } compare
+            && line[position + 1].Kind == HlslSyntaxKind.NumericLiteralToken
+            && int.TryParse(line[position + 1].Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int operand))
+        {
+            holds = value => compare(value, operand);
+            position += 2;
+        }
+
+        if (reading.Record)
+        {
+            RecordConditionalIdentifier(name);
+        }
+
+        SymbolCondition condition = SymbolCondition.Never;
+
+        foreach (int value in values.Where(holds))
+        {
+            string atom = VariantValues.Atom(name.Text, value);
+
+            if (!reading.Symbols.Contains(atom))
+            {
+                return null;
+            }
+
+            condition = condition.Or(SymbolCondition.Symbol(atom));
+        }
+
+        index = position;
+        return condition;
+    }
+
+    /// <summary>比較の演算子を、値どうしの比較に直す。</summary>
+    /// <param name="kind">演算子のトークンの種類。</param>
+    /// <returns>比較。比較の演算子でなければ <see langword="null"/>。</returns>
+    private static Func<int, int, bool>? ComparisonOf(HlslSyntaxKind kind) => kind switch
+    {
+        HlslSyntaxKind.EqualsEqualsToken => (a, b) => a == b,
+        HlslSyntaxKind.ExclamationEqualsToken => (a, b) => a != b,
+        HlslSyntaxKind.LessThanToken => (a, b) => a < b,
+        HlslSyntaxKind.LessThanEqualsToken => (a, b) => a <= b,
+        HlslSyntaxKind.GreaterThanToken => (a, b) => a > b,
+        HlslSyntaxKind.GreaterThanEqualsToken => (a, b) => a >= b,
+        _ => null,
+    };
 
     /// <summary>
     /// 構成によって変わる名前を含まない項を、この構成での値に解いて読む。
@@ -1093,6 +1244,7 @@ internal sealed partial class HlslPreprocessor
             if (_conditionals[^1].Folded)
             {
                 CloseConditionalRange();
+                CloseBranchRange(_conditionals[^1]);
             }
 
             RecordKeywordRegion(_conditionals[^1], directiveToken);
@@ -1531,7 +1683,7 @@ internal sealed partial class HlslPreprocessor
         foreach (ConditionalState state in _conditionals)
         {
             Report(HlslDescriptors.PreprocessorError, state.Directive.GetLocation(),
-                "#if に対応する #endif がありません。");
+                "#if に対応する #endif が存在しません。");
         }
     }
 
@@ -1555,7 +1707,44 @@ internal sealed partial class HlslPreprocessor
         {
             _pragmas.Add(new PragmaDirective(line, line[0]));
         }
+
+        if (line.Length == 1 && line[0].Text == "once" && !line[0].IsFromMacroExpansion && _options.HonorPragmaOnce)
+        {
+            MarkIncludedOnce(line[0]);
+        }
     }
+
+    /// <summary><c>#pragma once</c> を書いたファイルの印の名前に付ける前置き。識別子には書けない形にする。</summary>
+    private const string OnceMarkerPrefix = "#pragma once:";
+
+    /// <summary>
+    /// <c>#pragma once</c> を書いたファイルを、2 度目からは取り込まないものとして覚える。
+    /// </summary>
+    /// <param name="onceToken"><c>once</c> のトークン。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Unreal Engine のヘッダは、インクルードガードではなく <c>#pragma once</c> で 2 度目の取り込みを防ぐ。</b>
+    /// 扱わずにいると、同じヘッダを何度も展開し (同じ宣言の重複 HL0314、同じマクロの再定義)、
+    /// ヘッダどうしが互いを取り込むだけで循環 (HL0320) と報告し、展開の量も膨れ上がっていた。
+    /// DXC と FXC は、2 度目の取り込みを丸ごと飛ばす。
+    /// </para>
+    /// <para>
+    /// <b>印はマクロ表に、識別子には書けない名前で置く。</b>
+    /// 取り込み結果の使い回し (<see cref="HlslIncludeCache"/>) は、マクロ表の状態と、展開が読んだ名前で照合している。
+    /// 印をマクロ表に置けば、どのファイルを取り込み済みかもその照合に入る。
+    /// 結果のマクロ表 (<see cref="PreprocessResult.Macros"/>) からは外す。
+    /// </para>
+    /// </remarks>
+    private void MarkIncludedOnce(HlslSyntaxToken onceToken)
+    {
+        string name = OnceMarkerPrefix + onceToken.Source.FilePath;
+        SetMacro(name, new MacroDefinition(name, onceToken, isFunctionLike: false, [], isVariadic: false, []));
+    }
+
+    /// <summary>そのファイルが <c>#pragma once</c> を書いていて、すでに取り込まれているかを判定する。</summary>
+    /// <param name="filePath">取り込むファイルのパス。</param>
+    /// <returns>取り込み済みなら <see langword="true"/>。</returns>
+    private bool IsIncludedOnce(string filePath) => _macros.ContainsKey(OnceMarkerPrefix + filePath);
 
     // --------------------------------------------------------------------
     // 指令の行の読み取り
@@ -1617,15 +1806,15 @@ internal sealed partial class HlslPreprocessor
         // 行の先頭は指令の名前である (読み飛ばす経路では消費していない)。その次がマクロの名前になる。
         if (isDefine && line.Length >= 2 && line[1].Kind == HlslSyntaxKind.IdentifierToken)
         {
-            RecordConditionalDefinition(line[1], [.. line.Skip(1)]);
+            RecordConditionalDefinition(line[1], [.. line.Skip(1)], active: false);
         }
 
         // 読み飛ばす分岐の #undef も、別の構成では効いている。
         // 覚えたままにすると、#undef してから定義し直した中身を「#undef せずに定義し直した」と報告する。
-        // 実行される #undef と同じく、その名前は条件付きで覚えるのをやめる (ForgetConditionalDefinitions)。
+        // 実行される #undef と同じく、それまでの定義の条件を縮める (ForgetConditionalDefinitions)。
         if (line.Length >= 2 && line[0].Text == "undef" && line[1].Kind == HlslSyntaxKind.IdentifierToken)
         {
-            ForgetConditionalDefinitions(line[1].Text);
+            ForgetConditionalDefinitions(line[1], active: false);
         }
 
         // 構成によって変わる条件のために読み飛ばした定義は、別の構成では効いている。

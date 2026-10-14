@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Semantics.Profiles;
+using Shaderlyn.Unity.Profiles;
 
 namespace Shaderlyn.Cli;
 
@@ -39,16 +39,6 @@ internal enum OutputFormat
 /// </remarks>
 internal sealed class CommandLineOptions
 {
-    /// <summary>
-    /// 解析対象として既定で探索するファイル拡張子。
-    /// </summary>
-    /// <remarks>
-    /// 第一マイルストーンでは ShaderLab のファイルのみを対象とする。
-    /// HLSL の単独ファイル (.hlsl / .cginc) は、include 解決を通じて
-    /// ShaderLab 側から辿られる形で解析対象になる。
-    /// </remarks>
-    public static ImmutableArray<string> DefaultExtensions { get; } = [".shader", ".compute"];
-
     /// <summary>既定の設定で作る。外からは <see cref="TryParse"/> を通す。</summary>
     private CommandLineOptions()
     {
@@ -62,6 +52,12 @@ internal sealed class CommandLineOptions
     /// 指定が無い場合は設定ファイルの値を使い、それも無ければ既定値を使う。
     /// </remarks>
     public string? Profile { get; private set; }
+
+    /// <summary>
+    /// 解析する環境の名前 (<c>--environment</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無い場合は設定ファイルの <c>environment</c> を使い、それも無ければ <c>unity</c>。</remarks>
+    public string? Environment { get; private set; }
 
     /// <summary>
     /// 解析の中身を書き出すビューアーの出力先。指定が無い場合は <see langword="null"/>。
@@ -162,6 +158,36 @@ internal sealed class CommandLineOptions
     /// </remarks>
     public string? UnityEditorDataPath { get; private set; }
 
+    /// <summary>
+    /// コマンドラインで指定されていない Unity のパスを、設定ファイルの値で埋める。
+    /// </summary>
+    /// <param name="projectPath">設定ファイルの <c>unity: project</c>。</param>
+    /// <param name="editorDataPath">設定ファイルの <c>unity: editor</c>。</param>
+    /// <remarks>
+    /// <b>コマンドラインの指定が勝つ。</b> 設定ファイルはリポジトリの既定で、コマンドラインはその場の指定である。
+    /// ここで埋めておけば、パスを読む側 (include の解決、環境の表示、キャッシュの鍵) は出どころを区別しなくてよい。
+    /// </remarks>
+    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath)
+    {
+        UnityProjectPath ??= projectPath;
+        UnityEditorDataPath ??= editorDataPath;
+    }
+
+    /// <summary>
+    /// Unity だけの指定 (<c>--profile</c> / <c>--unity-project</c> / <c>--unity-editor</c>) を外す。
+    /// </summary>
+    /// <remarks>
+    /// Unity 以外の環境で、Unity のプロジェクトのパスが探索パスに混ざらないようにする。
+    /// CLI は外す前に指定を覚えておき、エラーにする (<see cref="EffectiveSettings.UnityOnlyCommandLineOptions"/>)。
+    /// 言語サーバーはワークスペースから推定した <c>--unity-project</c> を渡すので、ここで黙って外れる。
+    /// </remarks>
+    internal void ClearUnityOptions()
+    {
+        Profile = null;
+        UnityProjectPath = null;
+        UnityEditorDataPath = null;
+    }
+
     /// <summary><c>#include</c> の探索パス。</summary>
     public ImmutableArray<string> IncludePaths { get; private set; } = [];
 
@@ -194,6 +220,15 @@ internal sealed class CommandLineOptions
     /// この重要度以上の指摘があれば <see cref="ExitCode.DiagnosticsFound"/> を返す、という閾値。
     /// </summary>
     public DiagnosticSeverity ErrorOn { get; private set; } = DiagnosticSeverity.Warning;
+
+    /// <summary>
+    /// 出力に出す指摘の最低の重要度 (<c>--min-severity</c>)。設定ファイルの <c>report: min-severity</c> より優先する。
+    /// </summary>
+    /// <remarks>
+    /// 出力を絞るだけで、終了コードは <see cref="ErrorOn"/> に従ってすべての指摘で決める。
+    /// 表示を絞ったことで CI の合否が変わらないようにするためである。
+    /// </remarks>
+    public DiagnosticSeverity? MinSeverity { get; private set; }
 
     /// <summary>出力先ファイルのパス。<see langword="null"/> の場合は標準出力へ書く。</summary>
     public string? OutputPath { get; private set; }
@@ -240,9 +275,11 @@ internal sealed class CommandLineOptions
         {
             ["--format"] = ReadFormat,
             ["--error-on"] = ReadErrorOn,
+            ["--min-severity"] = ReadMinSeverity,
             ["-o"] = (o, v) => Set(() => o.OutputPath = v),
             ["--output"] = (o, v) => Set(() => o.OutputPath = v),
             ["--profile"] = ReadProfile,
+            ["--environment"] = (o, v) => Set(() => o.Environment = v),
             ["--max-symbol-variants"] = ReadMaxSymbolVariants,
             ["--unity-project"] = (o, v) => Set(() => o.UnityProjectPath = v),
             ["--unity-editor"] = (o, v) => Set(() => o.UnityEditorDataPath = v),
@@ -375,6 +412,22 @@ internal sealed class CommandLineOptions
         return null;
     }
 
+    /// <summary><c>--min-severity</c> の値を読む。</summary>
+    /// <param name="parsed">反映する先。</param>
+    /// <param name="value">指定された値。</param>
+    /// <returns>エラーメッセージ。受け取れた場合は <see langword="null"/>。</returns>
+    private static string? ReadMinSeverity(CommandLineOptions parsed, string value)
+    {
+        if (!Enum.TryParse(value, ignoreCase: true, out DiagnosticSeverity severity)
+            || severity == DiagnosticSeverity.None)
+        {
+            return $"--min-severity の値 '{value}' は不正です。info, warning, error のいずれかを指定してください。";
+        }
+
+        parsed.MinSeverity = severity;
+        return null;
+    }
+
     /// <summary><c>--profile</c> の値を読む。</summary>
     /// <param name="parsed">反映する先。</param>
     /// <param name="value">指定された値。</param>
@@ -426,8 +479,13 @@ internal sealed class CommandLineOptions
                                  探索しません。名前を挙げて指定すれば解析します。
 
         オプション:
+          --environment <名前>   解析する環境: unity (既定), hlsl, unreal。設定ファイルの environment より優先します。
           --format <形式>        出力形式: text (既定), json, sarif, github
           --error-on <重要度>    この重要度以上の指摘で終了コード 1 を返す: info, warning (既定), error
+          --min-severity <重要度>
+                                 この重要度以上の指摘だけを出力する: info (既定), warning, error。
+                                 設定ファイルの report: min-severity より優先します。
+                                 終了コードは出力しなかった指摘も含めて --error-on で決めます。
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
           --base-path <パス>     出力するパスを相対化する基点。省略時は現在のフォルダー。
                                  sarif / github 形式では、これがリポジトリのルートを指していないと
@@ -442,13 +500,13 @@ internal sealed class CommandLineOptions
           -h, --help             このヘルプを表示します。
 
         意味解析のオプション:
-          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います。
-                                 明示的に指定してください。
-          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます。
+          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います (Unity の環境だけ)。
+                                 明示的に指定してください (推定はしません)。
+          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます (Unity の環境だけ)。
                                  省略時は ProjectSettings/ProjectVersion.txt から推定し、
                                  --unity-project も無ければインストール済みの最新バージョンを使います。
           --include-path <パス>  #include の追加探索パス。複数回指定できます。
-          --profile <名前>       レンダーパイプライン: urp (既定), brp, hdrp
+          --profile <名前>       レンダーパイプライン: urp (既定), brp, hdrp (Unity の環境だけ)
           --define <名前[=値]>   定義済みマクロ。複数回指定できます。
           --max-symbol-variants <数>
                                  #pragma shader_feature / multi_compile で宣言された

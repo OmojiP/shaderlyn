@@ -50,21 +50,41 @@ internal sealed partial class HlslPreprocessor
         if (!_options.IncludeResolver.TryResolve(path, includingFilePath, out SourceText? included))
         {
             AddUnresolvedInclude(path);
-            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null));
+            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
+            {
+                OutsideBoundaryPath = _options.IncludeResolver.FindOutsideBoundary(path, includingFilePath),
+            });
 
             if (_options.ReportUnresolvedIncludes)
             {
-                Report(HlslDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path);
+                Report(HlslDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path, string.Empty);
             }
 
             return;
         }
 
-        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath));
+        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16 });
+
+        // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
+        // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
+        if (IsIncludedOnce(included.FilePath))
+        {
+            AddResolvedInclude(included.FilePath);
+            return;
+        }
 
         if (_activeIncludePaths.Contains(included.FilePath))
         {
             Report(HlslDescriptors.CircularInclude, directiveToken.GetLocation(), path);
+
+            // 循環かどうかは、そのときの取り込みの連なりで決まる。囲んでいる取り込みの結果は覚えない。
+            // 覚えると、別のファイルを解析したときの連なりで見つけた循環を使い回し、
+            // 解析の順番で報告の位置が変わっていた (ファイルを並列に解析する CLI では、実行のたびに変わりうる)。
+            foreach (IncludeRecording outer in _recordings)
+            {
+                outer.Uncacheable = true;
+            }
+
             return;
         }
 
@@ -78,6 +98,19 @@ internal sealed partial class HlslPreprocessor
 
         AddResolvedInclude(included.FilePath);
 
+        // 利用者が書いたヘッダは覚えも使い回しもしない。条件付きで覚えた定義 (RecordConditionalDefinition) は
+        // 展開結果に入らないので、使い回すと巻き上げができなくなる。囲んでいる取り込みの記録も覚えない。
+        if (IsUserHeaderInclude(included))
+        {
+            foreach (IncludeRecording outer in _recordings)
+            {
+                outer.Uncacheable = true;
+            }
+
+            PushFileSource(included, included.FilePath);
+            return;
+        }
+
         if (TryReuseExpansion(included))
         {
             return;
@@ -86,6 +119,12 @@ internal sealed partial class HlslPreprocessor
         PushFileSource(included, included.FilePath);
         BeginRecording(included);
     }
+
+    /// <summary>利用者が書いたヘッダで、展開結果を覚えないものかを判定する。</summary>
+    /// <param name="included">取り込んだファイル。</param>
+    /// <returns>覚えないなら <see langword="true"/>。</returns>
+    private bool IsUserHeaderInclude(SourceText included)
+        => IsHoistingEnabled && IsUserFile(included.FilePath);
 
     /// <summary>
     /// 覚えてある展開結果を使えるなら使う。
@@ -176,7 +215,8 @@ internal sealed partial class HlslPreprocessor
 
         // 途中で条件が閉じられていない (ヘッダが #if を開いたまま終わった) 場合、
         // 続きの展開はこのヘッダの外の状態に依存する。覚えない。
-        if (_conditionals.Count > 0)
+        // 利用者が書いたヘッダを取り込んでいた場合と、循環を見つけた場合も覚えない (IsUserHeaderInclude)。
+        if (_conditionals.Count > 0 || recording.Uncacheable)
         {
             return;
         }
@@ -214,6 +254,7 @@ internal sealed partial class HlslPreprocessor
             UnresolvedIncludes: [.. recording.UnresolvedIncludes])
         {
             Reads = ToReadSet(recording),
+            SkippedUserIdentifiers = [.. recording.SkippedUserIdentifiers],
         });
     }
 
@@ -251,6 +292,13 @@ internal sealed partial class HlslPreprocessor
         }
         _skippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
         _skippedIncludedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
+
+        foreach (HlslSyntaxToken token in expansion.SkippedUserIdentifiers)
+        {
+            _skippedIdentifiers.Add(token.Text);
+            _skippedUserHeaderIdentifiers.Add(token);
+            Record(recording => recording.SkippedUserIdentifiers.Add(token));
+        }
 
         // 取り込みの結果を使い回すと、その中の展開はもう一度は行われない。
         // 並べた分岐で定義したマクロが使われていたかどうかは、記録から知る。

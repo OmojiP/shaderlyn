@@ -98,6 +98,9 @@ shaderlyn Assets/Shaders Packages/com.mycompany.shaders
 同じヘッダを取り込むシェーダーが複数あっても 1 件にまとまります。
 Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、直せないので報告しません。
 
+上は Unity の環境の場合です。設定ファイルの `environment` で選んだほかの環境では、フォルダーの指定で探す拡張子が変わります
+(汎用の HLSL は `.hlsl`、Unreal は `.usf`。[Unity 以外の環境で使う](environments.md))。
+
 ### 解析対象は自分のシェーダーに絞る
 
 Unityプロジェクト全体を解析する場合、Assets 以下を指定してください。
@@ -285,9 +288,19 @@ shaderlyn Assets --error-on error
 shaderlyn Assets --error-on info
 ```
 
+出力する指摘は `--min-severity` で絞れます。絞っても終了コードは変わりません（出力しなかった指摘も含めて `--error-on` で決めます）。
+出力の形式ごとに変えるなら、設定ファイルの [`report: min-severity`](configuration.md#report) に書きます。
+
+```bash
+# エラーだけを表示する（警告があれば終了コードは 1 のまま）
+shaderlyn Assets --min-severity error
+```
+
 ---
 
 ## 5. プロジェクトの解析設定
+
+この章は Unity の環境の設定です。汎用の HLSL・Unreal の設定は [Unity 以外の環境で使う](environments.md) にあります。
 
 ### --unity-project
 
@@ -297,15 +310,16 @@ Unityで用意された関数等のヘッダ取得に利用します
 shaderlyn Assets --unity-project .
 ```
 
-指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。
+指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。プロジェクトは推定しません。
+そのため `Assets/...` と `Packages/...` の `#include`、解析対象のフォルダーより上を指す `../...` の `#include` は解決できません。
+これらは [HL0321](../rules/HL0321.md) の文に、引けない理由と、解析対象の上で見つけた Unity プロジェクトを添えて報告します。
+`--env` にも、見つけたプロジェクトと引けないものが出ます。
 
 見つからない場合、次のエラーが発生します。
 
 ```
-Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つも解決できません
-    (最初に引けなかったのは 'Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl')。
-    --unity-project にプロジェクトのルートを渡してください。
-    CI では Library/PackageCache がキャッシュされているかを確かめてください。
+Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つも解決できません ('Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl')。
+    Unity プロジェクトとして解析する場合は --unity-project "C:\Work\MyGame" を指定してください。
 ```
 
 ### Unity Editor の場所
@@ -339,15 +353,26 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 
 - コマンドラインで渡した解析対象
 - `--unity-project` とその `Assets`
+- 設定ファイルを置いたフォルダー
 - `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス
 
-範囲の外を指した場合、[SL0002](../rules/SL0002.md) を報告します。
-意図した取り込みであれば`--include-path` を追加してください。
+範囲の外を指した場合、そのファイルは読まず、[HL0321](../rules/HL0321.md) の文に「読んでよい範囲の外にあるため読みません」と添えます。
+意図した取り込みであれば `--include-path` を追加してください。
 
 ### レンダーパイプライン
 
 既定は `urp` で、`urp` / `brp` / `hdrp` から選べます。
+
+対応の度合いはパイプラインで違います。
+
+| プロファイル | 対応 |
+| --- | --- |
+| `urp` | すべてのルール (URP0001〜URP0003 を含む) |
+| `brp` | 共通のルールだけ。BRP だけのルールは足しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使えます) |
+| `hdrp` | 共通のルールと SRP Batcher の検査 (URP0001 / URP0002) だけ |
+
+どのプロファイルでも、誤検出の報告は直します。
 
 ```bash
 shaderlyn Assets --unity-project . --profile brp
@@ -435,6 +460,7 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
 ■ 設定ファイル (.shaderlyn.yaml)
   探し始めた場所: D:\...\Assets\ (ここから上のフォルダーへ辿ります)
   見つかりませんでした。既定の設定で解析します。
+  環境: Unity (既定)
   プロファイル: urp (既定)
 
 ■ Unity プロジェクト
@@ -450,6 +476,13 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
   CGIncludes: あり
   探したインストール先: C:\Program Files\Unity\Hub\Editor
   インストール済み: 6000.0.60f1
+
+■ シェーダーのコンパイラ
+  Unity のバージョン: 6000.3.0f1 (Unity 2023.2〜6.3 の規則、Unity プロジェクト)
+  グラフィックス API: dx12, dx11 (Unity プロジェクト)
+  Shader Compiler Backend: FXC (既定)
+  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で
+  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。
 
 ■ #include を探す順序
   1. #include を書いているファイルからの相対
@@ -474,6 +507,7 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
 | 設定ファイル             | 探し始めた場所、見つかった `.shaderlyn.yaml`、その中の誤り、効いているプロファイル     |
 | Unity プロジェクト       | `Library/PackageCache` などがあるか。未指定なら、解析対象の上にあるプロジェクトを示す |
 | Unity Editor             | 使うデータフォルダーと、その決め方（`ProjectVersion.txt` と一致したか、代用したか）   |
+| シェーダーのコンパイラ   | Unity のバージョンとその読み方の区分、対象のグラフィックス API、Shader Compiler Backend、それぞれをどこから決めたか（設定ファイルの `unity:`・Unity プロジェクト・既定）。バージョンが分からなければ、バージョンで変わる判定はどのバージョンの結果も並べる |
 | `#include` を探す順序    | 解析と同じ順序。無いフォルダーには ⚠ が付く                                           |
 | パッケージの解決先       | 解析対象が `Packages/` で参照するパッケージと `manifest.json` の依存が、どこにあったか |
 | 解析対象に書かれた `#include` | 解決できた数と、解決できなかった行                                                |
@@ -514,11 +548,12 @@ shaderlyn <パス...> [オプション]
 | ----------------------- | ----------------------------------------------------------------- |
 | `--format <形式>`       | 出力形式: `text`（既定）/ `json` / `sarif` / `github`             |
 | `--error-on <重要度>`   | この重要度以上で終了コードを `1` にする: `info` / `warning`（既定）/ `error` |
+| `--min-severity <重要度>` | この重要度以上の指摘だけを出力する: `info`（既定）/ `warning` / `error`。終了コードは出力しなかった指摘も含めて `--error-on` で決める。設定ファイルの `report: min-severity` より優先 |
 | `-o`, `--output <パス>` | 出力先ファイル。省略時は標準出力                                  |
 | `--base-path <パス>`    | 出力するパスを相対化する基点。省略時は現在のフォルダー          |
 | `--annotate`            | 主たる出力とは別に、GitHub の注釈も標準出力へ書く                 |
 | `--timings`             | 解析の内訳（構文解析・展開・ルール）を標準エラーへ出す            |
-| `--env`                 | 解析はせずに、設定ファイル・Unity・パッケージの解決先を表示する（[8 章](#8-解析の中身を見る)） |
+| `--env`                 | 解析はせずに、環境・設定ファイル・取り込みの解決先 (Unity ならパッケージ、Unreal なら仮想パス) を表示する（[8 章](#8-解析の中身を見る)） |
 | `--inspect <パス>`      | 解析の中身を HTML に書き出す（[8 章](#8-解析の中身を見る)）       |
 | `--list-rules`          | 実装されている全ルールを一覧表示                                  |
 | `--version`             | バージョンを表示                                                  |
@@ -528,10 +563,11 @@ shaderlyn <パス...> [オプション]
 
 | オプション                        | 説明                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です             |
-| `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定              |
+| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal`。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
+| `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です。Unity の環境だけ |
+| `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定。Unity の環境だけ |
 | `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります |
-| `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`            |
+| `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`。Unity の環境だけ |
 | `--define <名前[=値]>`            | 定義済みマクロ。複数回指定できます                                 |
 | `--max-symbol-variants <数>`     | シンボルを 1 つずつ有効にして解析する上限（既定 8）。0 で無効    |
 

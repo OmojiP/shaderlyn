@@ -56,7 +56,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<(int Start, string? Kernel), Dictionary<string, StructInfo>> structs = CollectStructs(compilation, condition);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -95,15 +95,39 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。
         // メンバー名そのものが書かれたものでなければ見ない。
         // UNITY_SETUP_INSTANCE_ID(v) の v.instanceID は、v は書かれたものだが .instanceID はヘッダのマクロの本体である。
-        if (IsMethodCall(access)
-            || !compilation.IsReportable(access)
-            || !compilation.IsReportable(access.NameToken))
+        if (!compilation.IsReportable(access) || !compilation.IsReportable(access.NameToken))
         {
+            return;
+        }
+
+        // 名前の修飾 (Mode::A、名前空間の UnifiedRT::TraceRay)。enum の列挙子だけを見る (HLSL 2021)。
+        if (access.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        {
+            if (access.Target is IdentifierExpressionSyntax { Name: var enumName }
+                && binder.TryGetEnum(enumName, out EnumInfo? enumeration)
+                && !enumeration.Members.Contains(access.Name)
+                && access.GetLocation() is { } enumLocation
+                && reported.Add(enumLocation))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.MemberNotFound,
+                    enumLocation,
+                    $"enum '{enumName}'",
+                    $"列挙子 '{access.Name}' ",
+                    DescribeCandidates(enumeration.Members, "列挙子")));
+            }
+
+            return;
+        }
+
+        // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。構造体のメソッドだけを見る。
+        if (IsMethodCall(access))
+        {
+            AnalyzeMethodCall(context, structs, binder, access, reported);
             return;
         }
 
@@ -122,7 +146,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
-            AnalyzeStructMember(context, condition, typeName, structure, access, analyzed, reported);
+            AnalyzeStructMember(context, condition, structs, typeName, structure, access, analyzed, reported);
             return;
         }
 
@@ -132,6 +156,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <summary>構造体のメンバー参照を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="condition">出現条件の索引。</param>
+    /// <param name="structs">同じコードブロックの構造体。継承した基底を引く。</param>
     /// <param name="typeName">構造体の名前。</param>
     /// <param name="structure">構造体の情報。</param>
     /// <param name="access">検査する参照。</param>
@@ -140,11 +165,12 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     private static void AnalyzeStructMember(
         SyntaxTreeAnalysisContext context,
         ConditionMap condition,
+        Dictionary<string, StructInfo> structs,
         string typeName,
         StructInfo structure,
         MemberAccessExpressionSyntax access,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (access.GetLocation() is not { } location)
         {
@@ -152,19 +178,28 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         // まず「そもそもあるか」。無いものを条件で語っても仕方がない。
-        if (!structure.Members.Contains(access.Name))
+        // 継承した基底 (struct D : B) のメンバーもある。基底を引けなければ「無い」とは言わない。
+        switch (FindMember(structs, structure, access.Name, depth: 0))
         {
-            if (reported.Add(location.Span.Start))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    HlslRuleDescriptors.MemberNotFound,
-                    location,
-                    $"構造体 '{typeName}'",
-                    access.Name,
-                    DescribeCandidates(structure.Members)));
-            }
+            case MemberLookup.Missing:
+                if (reported.Add(location))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HlslRuleDescriptors.MemberNotFound,
+                        location,
+                        $"構造体 '{typeName}'",
+                        $"メンバー '{access.Name}' ",
+                        DescribeCandidates(AllMembers(structs, structure), "メンバー")));
+                }
 
-            return;
+                return;
+
+            // 基底のメンバーの条件は見ない。
+            case MemberLookup.Inherited or MemberLookup.Unknown:
+                return;
+
+            default:
+                break;
         }
 
         // 次に「その構成にあるか」。条件が付いていないメンバーはどの構成にもある。
@@ -185,7 +220,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         // 参照する条件が成り立ち、かつメンバーがある条件が成り立たない構成があるか。
         SymbolCondition missing = use.And(declared.Negate());
 
-        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location.Span.Start))
+        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location))
         {
             return;
         }
@@ -195,7 +230,42 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             location,
             typeName,
             access.Name,
-            missing.IsAlways ? "どの構成でも" : $"{missing} のとき"));
+            missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"));
+    }
+
+    /// <summary>構造体のメソッドの呼び出し (HLSL 2021 の <c>s.Get()</c>) で、そのメソッドがあるかを検査する。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="structs">このシェーダーが書いた構造体のうち、参照と同じコードブロックのもの。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="access">呼び出しの対象の参照。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// フィールドと同じ名前なら報告しない (フィールドを呼ぶ誤りは扱わない)。
+    /// 基底を引けない構造体では「無い」とは言わない。
+    /// </remarks>
+    private static void AnalyzeMethodCall(
+        SyntaxTreeAnalysisContext context,
+        Dictionary<string, StructInfo> structs,
+        ExpressionTypeBinder binder,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        if (access.DotToken.Kind != HlslSyntaxKind.DotToken
+            || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
+            || !structs.TryGetValue(typeName, out StructInfo structure)
+            || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing
+            || access.GetLocation() is not { } location
+            || !reported.Add(location))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.MemberNotFound,
+            location,
+            $"構造体 '{typeName}'",
+            $"メンバー '{access.Name}' ",
+            DescribeCandidates(AllMembers(structs, structure, includeMethods: true), "メンバー")));
     }
 
     /// <summary>
@@ -226,7 +296,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         ConditionMap condition,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         foreach (SymbolCondition assumption in binder.EnumerateAssumptions(access, access.Target, condition))
         {
@@ -237,7 +307,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
             string note = assumption.IsAlways
                 ? string.Empty
-                : $"{assumption} のとき、この式は {typeName} です。";
+                : $"構成：{assumption} のとき、この式は {typeName} です。";
 
             if (AnalyzeSwizzle(context, typeName, access, reported, note))
             {
@@ -261,7 +331,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         string typeName,
         MemberAccessExpressionSyntax access,
-        HashSet<int> reported,
+        ReportedLocations reported,
         string note = "")
     {
         if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
@@ -275,13 +345,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (error is not { } reason
             || access.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return false;
         }
 
         context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.MemberNotFound, location, typeName, access.Name, note + reason));
+            HlslRuleDescriptors.MemberNotFound, location, typeName, $"成分 {access.Name} ", note + reason));
         return true;
     }
 
@@ -401,7 +471,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 || ColorComponents.Contains(c, StringComparison.Ordinal))
                 ? $"位置 ({string.Join(", ", PositionComponents.Select(c => c.ToString()))}) と "
                   + $"色 ({string.Join(", ", ColorComponents.Select(c => c.ToString()))}) は混ぜられません。"
-                : $"{DescribeComponents(PositionComponents, components)} です。";
+                : DescribeComponents(PositionComponents, components);
         }
 
         string set = position ? PositionComponents : ColorComponents;
@@ -410,7 +480,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         {
             if (set.IndexOf(component, StringComparison.Ordinal) >= components)
             {
-                return $"{DescribeComponents(set, components)} までです。";
+                return DescribeComponents(set, components);
             }
         }
 
@@ -422,7 +492,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="components">成分数。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeComponents(string set, int components)
-        => $"使えるのは {string.Join(", ", set[..components].Select(c => c.ToString()))}";
+        => $"使える成分は {string.Join(", ", set[..components].Select(c => c.ToString()))} です。";
 
     /// <summary>構造体にあるメンバーを並べた文字列を返す。</summary>
     /// <param name="members">メンバーの名前。</param>
@@ -431,10 +501,104 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// スペルミスのほとんどは、正しい名前を並べれば自分で気づける。
     /// 多すぎる場合は並べない。読み手の助けにならない。
     /// </remarks>
-    private static string DescribeCandidates(IReadOnlySet<string> members)
+    /// <param name="kind">何を並べるか (<c>メンバー</c> / <c>列挙子</c>)。</param>
+    private static string DescribeCandidates(IReadOnlySet<string> members, string kind)
         => members.Count is 0 or > 12
             ? string.Empty
-            : $"あるのは {string.Join(", ", members.Order(StringComparer.Ordinal))} です。";
+            : $"存在する{kind}は {string.Join(", ", members.Order(StringComparer.Ordinal))} です。";
+
+    /// <summary>継承の深さの上限。循環した継承 (誤ったコード) で止まらなくならないようにする。</summary>
+    private const int MaxInheritanceDepth = 8;
+
+    /// <summary>メンバーを探した結果。</summary>
+    private enum MemberLookup
+    {
+        /// <summary>その構造体自身にある。</summary>
+        Own,
+
+        /// <summary>継承した基底にある。</summary>
+        Inherited,
+
+        /// <summary>どこにも無い。基底もすべて引けた。</summary>
+        Missing,
+
+        /// <summary>基底を引けないので分からない。</summary>
+        Unknown,
+    }
+
+    /// <summary>構造体と、その基底からメンバーを探す。</summary>
+    /// <param name="structs">同じコードブロックの構造体。</param>
+    /// <param name="structure">探し始める構造体。</param>
+    /// <param name="name">メンバーの名前。</param>
+    /// <param name="depth">継承をたどった深さ。</param>
+    /// <param name="includeMethods">メソッドも探すかどうか。</param>
+    /// <returns>探した結果。</returns>
+    private static MemberLookup FindMember(
+        Dictionary<string, StructInfo> structs,
+        StructInfo structure,
+        string name,
+        int depth,
+        bool includeMethods = false)
+    {
+        if (structure.Members.Contains(name) || (includeMethods && structure.Methods.Contains(name)))
+        {
+            return depth == 0 ? MemberLookup.Own : MemberLookup.Inherited;
+        }
+
+        foreach (string baseName in structure.Bases)
+        {
+            if (depth >= MaxInheritanceDepth || !structs.TryGetValue(baseName, out StructInfo baseInfo))
+            {
+                return MemberLookup.Unknown;
+            }
+
+            MemberLookup found = FindMember(structs, baseInfo, name, depth + 1, includeMethods);
+
+            if (found != MemberLookup.Missing)
+            {
+                return found == MemberLookup.Unknown ? found : MemberLookup.Inherited;
+            }
+        }
+
+        return MemberLookup.Missing;
+    }
+
+    /// <summary>構造体と、その基底のメンバーをすべて集める。</summary>
+    /// <param name="structs">同じコードブロックの構造体。</param>
+    /// <param name="structure">集め始める構造体。</param>
+    /// <param name="includeMethods">メソッドも集めるかどうか。</param>
+    /// <returns>メンバーの名前。</returns>
+    private static HashSet<string> AllMembers(Dictionary<string, StructInfo> structs, StructInfo structure, bool includeMethods = false)
+    {
+        HashSet<string> members = new(structure.Members, StringComparer.Ordinal);
+
+        if (includeMethods)
+        {
+            members.UnionWith(structure.Methods);
+        }
+
+        Queue<(StructInfo Info, int Depth)> pending = new([(structure, 0)]);
+
+        while (pending.TryDequeue(out (StructInfo Info, int Depth) current))
+        {
+            foreach (string baseName in current.Info.Bases)
+            {
+                if (current.Depth < MaxInheritanceDepth && structs.TryGetValue(baseName, out StructInfo baseInfo))
+                {
+                    members.UnionWith(baseInfo.Members);
+
+                    if (includeMethods)
+                    {
+                        members.UnionWith(baseInfo.Methods);
+                    }
+
+                    pending.Enqueue((baseInfo, current.Depth + 1));
+                }
+            }
+        }
+
+        return members;
+    }
 
     /// <summary>メソッド呼び出しの対象かどうかを判定する。</summary>
     /// <param name="access">対象の参照。</param>
@@ -446,9 +610,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <summary>構造体 1 つ分の情報。</summary>
     /// <param name="Members">すべてのメンバーの名前。</param>
     /// <param name="Conditions">条件が付いたメンバーの、宣言がある条件。</param>
+    /// <param name="Bases">継承した基底の名前。</param>
+    /// <param name="Methods">メソッドの名前。</param>
     private readonly record struct StructInfo(
         IReadOnlySet<string> Members,
-        Dictionary<string, SymbolCondition> Conditions);
+        Dictionary<string, SymbolCondition> Conditions,
+        HashSet<string> Bases,
+        HashSet<string> Methods);
 
     /// <summary>
     /// このシェーダーが書いた構造体を集める。
@@ -483,7 +651,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 blocks[program.BlockKey] = structs;
             }
 
-            foreach (StructDeclarationSyntax structure in program.Structs)
+            // template の構造体 (HLSL 2021) も、メンバーがあるかどうかは型引数によらない。
+            IEnumerable<StructDeclarationSyntax> declared = program.Structs.Concat(
+                ExpressionTypeBinder.TemplateStructsOf(program.Tree.Root.Declarations).Select(t => t.Structure));
+
+            foreach (StructDeclarationSyntax structure in declared)
             {
                 if (structure.Name.Length == 0 || !compilation.IsReportable(structure))
                 {
@@ -494,7 +666,9 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 {
                     info = new StructInfo(
                         new HashSet<string>(StringComparer.Ordinal),
-                        new Dictionary<string, SymbolCondition>(StringComparer.Ordinal));
+                        new Dictionary<string, SymbolCondition>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal));
 
                     structs[structure.Name] = info;
                 }
@@ -515,6 +689,24 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         StructDeclarationSyntax structure,
         ConditionMap condition)
     {
+        if (structure.BaseTypeName is { } baseName)
+        {
+            info.Bases.Add(baseName);
+        }
+
+        // メソッド (template のメソッドを含む)。演算子は名前で呼ばないので含めない。
+        foreach (HlslDeclarationSyntax member in structure.Members)
+        {
+            if (member is FunctionDeclarationSyntax { IsOperator: false } method)
+            {
+                info.Methods.Add(method.Name);
+            }
+            else if (member is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax { IsOperator: false } generic })
+            {
+                info.Methods.Add(generic.Name);
+            }
+        }
+
         foreach (VariableDeclarationSyntax field in structure.Fields)
         {
             SymbolCondition declared = condition.GetCondition(field);

@@ -65,10 +65,16 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
         }
 
         // 同じコードが Pass ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach (AnalyzedProgram program in EnumeratePrograms(compilation))
         {
+            // ほかのライブラリとリンクする単位 (lib_6_x など) では、定義はほかのライブラリにありうる。宣言だけでも誤りではない。
+            if (program.Unit.AllowsExternalDefinitions)
+            {
+                continue;
+            }
+
             if (!definedByBlock.TryGetValue(program.BlockKey, out Dictionary<string, SymbolCondition>? defined))
             {
                 continue;
@@ -114,7 +120,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, SymbolCondition> defined,
         InvocationExpressionSyntax invocation,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
             || !defined.TryGetValue(name, out SymbolCondition definition)
@@ -141,7 +147,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (invocation.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (invocation.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }
@@ -157,7 +163,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
     /// <param name="missing">定義が無い構成を表す条件。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string Describe(SymbolCondition missing)
-        => missing.IsAlways ? "どの構成でも" : $"{missing} のとき";
+        => missing.IsAlways ? "どの構成でも" : $" 構成：{missing} で";
 
     /// <summary>
     /// 宣言が見えている関数の名前を集める。

@@ -6,6 +6,7 @@ using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Core.Syntax;
 
 namespace Shaderlyn.Rules;
 
@@ -56,7 +57,10 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in programs)
         {
-            declared.UnionWith(ShaderSymbols.CollectDeclared(program.Tree.PreprocessResult.Pragmas));
+            declared.UnionWith(program.Variants.Symbols);
+
+            // 値を持つシンボルは原子 (QUALITY==2) で宣言されるが、条件には名前 (QUALITY) で書く。
+            declared.UnionWith(program.Variants.ValueSymbols.Keys);
 
             foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
             {
@@ -67,14 +71,14 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         // #ifdef だけでは足りない。#pragma dynamic_branch で宣言したシンボルは
         // バリアントを作らず、if (_HDR_OVERLAY) のように実行時の分岐として書かれる。
         // 条件だけを数えると「宣言したのに使っていない」と誤って言うことになる。
-        referenced.UnionWith(ShaderSymbols.CollectRuntimeReferences(compilation.CodeTokens));
+        referenced.UnionWith(CollectRuntimeReferences(compilation.CodeTokens));
 
         // 取り込まれる前提の断片 (.hlsl など) では、シンボルは取り込む側の .shader が宣言する。
         // 断片だけを見て「宣言されていない」とは言えない。
         bool canJudgeDeclarations = !ShaderSourceKinds.IsIncludeFragment(compilation.Text.FilePath);
 
         // 同じ 1 行が複数のパスに入る。報告は書かれた場所ごとに 1 回でよい。
-        HashSet<TextSpan> reported = [];
+        HashSet<(string File, TextSpan Span)> reported = [];
 
         foreach (AnalyzedProgram program in programs)
         {
@@ -85,7 +89,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
                 ReportUndeclared(context, compilation, result, declared, reported);
             }
 
-            ReportUnused(context, compilation, result, referenced, reported);
+            ReportUnused(context, compilation, program.Variants, referenced, reported);
             ReportNeverTrue(context, compilation, result, reported);
         }
     }
@@ -106,11 +110,11 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         PreprocessResult result,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
         foreach (NeverTrueCondition condition in result.NeverTrueConditions)
         {
-            if (!compilation.IsWrittenHere(condition.Directive) || !reported.Add(condition.Directive.Span))
+            if (!compilation.IsWrittenHere(condition.Directive) || !reported.Add((condition.Directive.Source.FilePath, condition.Directive.Span)))
             {
                 continue;
             }
@@ -135,7 +139,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// 利用者に直しようがない。
     /// </para>
     /// <para>
-    /// <b>マテリアルのシンボルの形をしたものだけを報告する。</b>
+    /// <b>環境がシンボルらしいと言う名前だけを報告する (<see cref="Semantics.Environments.IHlslEnvironment.LooksLikeVariantSymbol"/>)。</b>
     /// 条件にはプラットフォームの判定 (<c>SHADER_API_D3D11</c>) や
     /// コンパイラが定義する名前も現れる。それらは宣言されていなくて当然である。
     /// シンボルはアンダースコアで始まる大文字の名前という慣習があり、
@@ -147,15 +151,15 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         PreprocessResult result,
         HashSet<string> declared,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
         foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
         {
             if (declared.Contains(token.Text)
-                || !IsMaterialSymbol(token.Text)
+                || !compilation.Environment.LooksLikeVariantSymbol(token.Text)
                 || result.Macros.ContainsKey(token.Text)
                 || !compilation.IsWrittenHere(token)
-                || !reported.Add(token.Span))
+                || !reported.Add((token.Source.FilePath, token.Span)))
             {
                 continue;
             }
@@ -170,7 +174,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// </summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <param name="result">プリプロセスの結果。</param>
+    /// <param name="variants">木から読んだ構成の空間。</param>
     /// <param name="referenced">シェーダー全体で参照されたシンボル。</param>
     /// <param name="reported">すでに報告した場所。</param>
     /// <remarks>
@@ -180,36 +184,83 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     private static void ReportUnused(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
-        PreprocessResult result,
+        VariantSpace variants,
         HashSet<string> referenced,
-        HashSet<TextSpan> reported)
+        HashSet<(string File, TextSpan Span)> reported)
     {
-        foreach (HlslSyntaxToken declaration in ShaderSymbols.EnumerateDeclared(result.Pragmas))
+        // 名前が書かれていない宣言 (組み込みの宣言が作るもの) は、使うかどうかを利用者が選んでいない。
+        foreach (VariantDeclaration declaration in variants.Declarations)
         {
-            if (referenced.Contains(declaration.Text)
-                || !compilation.IsWrittenHere(declaration)
-                || !reported.Add(declaration.Span))
+            // 値を持つシンボルは、値ごとの原子 (QUALITY==2) として宣言されている。条件に書くのは名前 (QUALITY) である。
+            string name = VariantValues.TryParseAtom(declaration.Name, out string? valueName, out _) ? valueName : declaration.Name;
+
+            if (declaration.IsImplicit
+                || declaration.Location is not { } location
+                || referenced.Contains(name)
+                || SwitchesCompiler(compilation, name)
+                || !compilation.IsWrittenHere(location)
+                || !reported.Add((location.FilePath, location.Span)))
             {
                 continue;
             }
 
             context.ReportDiagnostic(Diagnostic.Create(
-                HlslDescriptors.UnusedSymbol, declaration.GetLocation(), declaration.Text));
+                HlslDescriptors.UnusedSymbol, location, name));
         }
     }
 
     /// <summary>
-    /// 名前がマテリアルのシンボルの形をしているかを判定する。
+    /// そのシンボルが、有効なときにコンパイラ (方言) を切り替えるかを判定する。
     /// </summary>
-    /// <param name="name">調べる名前。</param>
-    /// <returns>シンボルの形であれば <see langword="true"/>。</returns>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="name">シンボル。</param>
+    /// <returns>切り替えるなら <see langword="true"/>。</returns>
     /// <remarks>
-    /// アンダースコアで始まり、小文字を含まない。
-    /// Unity のシンボルはこの慣習に従っており、
-    /// プラットフォーム判定や内部の名前と取り違えずに済む。
+    /// Unity の <c>UNITY_DEVICE_SUPPORTS_NATIVE_16BIT</c> などは、条件に書かなくても、有効な構成を DXC でコンパイルさせる。
+    /// 宣言するだけで意味があるので、「条件のどこにも現れない」とは言わない。
     /// </remarks>
-    private static bool IsMaterialSymbol(string name)
-        => name.Length > 1
-           && name[0] == '_'
-           && !name.Any(char.IsAsciiLetterLower);
+    private static bool SwitchesCompiler(ShaderCompilation compilation, string name)
+        => compilation.Programs.Any(p => p.Tree.CompileTargets.Any(t => t.WhenAnySymbol.Contains(name)));
+
+    /// <summary>
+    /// コードの中で名前として現れた識別子を集める。
+    /// </summary>
+    /// <param name="tokens">対象のトークン列。</param>
+    /// <returns>現れた識別子の名前。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b><c>#ifdef</c> だけを見ていては、使われているかを判定できない。</b>
+    /// <c>#pragma dynamic_branch</c> で宣言したシンボルはバリアントを作らず、
+    /// <c>if (_HDR_OVERLAY)</c> のように実行時の分岐として書かれる。
+    /// 条件だけを数えると「宣言したのに使っていない」と誤って言うことになる。
+    /// </para>
+    /// <para>
+    /// プリプロセッサの行は数えない。
+    /// <c>#pragma</c> の行にはシンボルの名前そのものが並んでおり、
+    /// それを使用と数えると、どのシンボルも使われていることになる。
+    /// </para>
+    /// </remarks>
+    private static HashSet<string> CollectRuntimeReferences(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        HashSet<string> referenced = new(StringComparer.Ordinal);
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            // プリプロセッサの行は飛ばす。
+            // #pragma の行にはシンボルの名前そのものが並んでおり、
+            // それを使用と数えると、どのシンボルも「使われている」ことになる。
+            if (tokens[i].Kind == HlslSyntaxKind.HashToken && tokens[i].IsAtLineStart)
+            {
+                while (i + 1 < tokens.Length && !tokens[i + 1].IsAtLineStart) { i++; }
+                continue;
+            }
+
+            if (tokens[i].Kind == HlslSyntaxKind.IdentifierToken)
+            {
+                referenced.Add(tokens[i].Text);
+            }
+        }
+
+        return referenced;
+    }
 }

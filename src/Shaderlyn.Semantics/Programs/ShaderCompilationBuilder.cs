@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -11,11 +10,9 @@ using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
-using Shaderlyn.Semantics.Profiles;
+using Shaderlyn.Semantics.Environments;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
-using Shaderlyn.ShaderLab;
-using Shaderlyn.ShaderLab.Syntax;
 
 namespace Shaderlyn.Semantics;
 
@@ -42,74 +39,65 @@ internal static class ShaderCompilationBuilder
     /// 取り出したコードブロックからセマンティックモデルを組み立てる。
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
-    /// <param name="shaderLabTree">ShaderLab の構文木。</param>
-    /// <param name="extractions">解析するコードブロック。</param>
+    /// <param name="units">解析するコンパイル単位。</param>
     /// <param name="codeText">利用者が書いた HLSL だけを残したテキスト。</param>
     /// <param name="options">実行時設定。</param>
-    /// <param name="isStandaloneHlsl">HLSL 単体ファイルとして解析しているかどうか。</param>
+    /// <param name="environment">環境。構成の空間の読み方と、単位ごとの設定を与える。</param>
+    /// <param name="source">環境が解析したファイルそのものの情報 (ファイル全体の構文木と、その診断)。</param>
     /// <returns>構築されたセマンティックモデル。</returns>
     /// <remarks>
     /// <c>.shader</c> と HLSL 単体ファイルで違うのは、
-    /// <b>ここへ渡すブロックの取り出し方だけ</b>である。
+    /// <b>ここへ渡す単位の取り出し方だけ</b>である。
     /// 以降の道が分かれていないので、片方だけ検査が抜けることがない。
     /// </remarks>
     internal static ShaderCompilation Build(
         SourceText text,
-        ShaderLabSyntaxTree shaderLabTree,
-        ImmutableArray<ProgramBlockView> extractions,
+        ImmutableArray<HlslCompilationUnit> units,
         SourceText codeText,
         SemanticsOptions? options,
-        bool isStandaloneHlsl = false)
+        IHlslEnvironment environment,
+        ShaderSourceInfo source)
     {
         options ??= SemanticsOptions.Default;
 
-        ImmutableArray<PropertySymbol> properties = CollectProperties(shaderLabTree, text);
-        HashSet<string> shaderLabReferences = CollectShaderLabPropertyReferences(shaderLabTree);
-
-        PreprocessorOptions preprocessorOptions = new()
-        {
-            IncludeResolver = options.IncludeResolver,
-            PredefinedMacros = options.PredefinedMacros,
-            Prelude = options.UseFallbackMacros ? UnityShaderStubs.Prelude : null,
-            TokenCache = options.TokenCache,
-            IncludeCache = options.IncludeCache,
-            IsUserInclude = options.IsUserInclude,
-        };
+        PreprocessorOptions preprocessorOptions = environment.ConfigurePreprocessor(
+            new PreprocessorOptions
+            {
+                IncludeResolver = options.IncludeResolver,
+                PredefinedMacros = options.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty,
+                TokenCache = options.TokenCache,
+                IncludeCache = options.IncludeCache,
+                IsUserInclude = options.IsUserInclude,
+            },
+            options);
 
         ImmutableArray<AnalyzedProgram>.Builder programs = ImmutableArray.CreateBuilder<AnalyzedProgram>();
         ImmutableArray<AnalyzedProgram>.Builder variants = ImmutableArray.CreateBuilder<AnalyzedProgram>();
         SortedSet<string> unexploredSymbols = new(StringComparer.Ordinal);
         SortedDictionary<string, SymbolCombination> unexploredCombinations = new(StringComparer.Ordinal);
 
-        DeclarationIndex index = new(properties);
+        DeclarationIndex index = new();
 
-        foreach (ProgramBlockView extraction in extractions)
+        foreach (HlslCompilationUnit unit in units)
         {
+            // 字句解析の結果は共有しているので、展開の前に読むのは実質ただである
+            // (このあとの展開が同じトークン列を使う)。
+            ImmutableArray<HlslSyntaxToken> unitTokens = options.TokenCache is { } cache
+                ? cache.GetOrLex(unit.Text, out _)
+                : new HlslLexer(unit.Text).Lex(out _);
+
             // どの #ifdef で両方の分岐を残すかは、展開しながら決める。
             // そのため「どれがシンボルか」は展開が始まる前に分かっていなければならない。
-            // 指定があればそれを使い、無ければこのブロック自身の #pragma から拾う。
             // 宣言されたシンボルは、並べるかどうかと関係なく、組の記録にも使う。
-            ImmutableHashSet<string> blockSymbols =
-                CollectBlockSymbols(extraction.MaskedText, options, out SymbolConstraints constraints, out string? shaderTarget, out string? surfaceLighting);
+            VariantSpace declared = environment.ReadDeclaredVariants(unit, unitTokens);
+            ImmutableHashSet<string> blockSymbols = declared.Symbols;
+            SymbolConstraints constraints = declared.Constraints;
 
-            // どの構成も、このブロックのマクロ (#pragma target と #pragma kernel の指定) を重ねて展開する。
+            // どの構成も、この単位のマクロ (Unity なら #pragma kernel の指定) を重ねて展開する。
             // 落とすと、そのカーネルでは決して通らない分岐を読み、誤りとして報告する。
-            // カーネルの指定のほうが具体的なので、同じ名前ならそちらが勝つ。
-            ImmutableDictionary<string, string>? blockMacros = extraction.ExtraMacros;
-
-            if (shaderTarget is not null)
-            {
-                blockMacros = ImmutableDictionary<string, string>.Empty
-                    .Add("SHADER_TARGET", shaderTarget)
-                    .SetItems(blockMacros ?? ImmutableDictionary<string, string>.Empty);
-            }
-
-            PreprocessorOptions baseOptions = WithExtraMacros(preprocessorOptions, blockMacros);
-
-            if (extraction.Block?.Delimiter?.StartKeyword == "CGPROGRAM")
-            {
-                baseOptions = WithCgAutoIncludes(baseOptions, text.FilePath, surfaceLighting);
-            }
+            // 単位の中身で決まる設定 (Unity なら #pragma target、CGPROGRAM が取り込むヘッダ) は環境が与える。
+            PreprocessorOptions baseOptions = environment.PrepareUnit(
+                unit, unitTokens, WithExtraMacros(preprocessorOptions, unit.ExtraMacros), text.FilePath);
 
             // このブロック自身が宣言したシンボル。ヘッダが宣言したものと区別するために覚えておく。
             ImmutableHashSet<string> ownSymbols = blockSymbols;
@@ -118,36 +106,39 @@ internal static class ShaderCompilationBuilder
             PreprocessorOptions blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, []);
 
             HlslSyntaxTree tree = ParseWithoutMergedMacroConflicts(
-                extraction.MaskedText, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
+                unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
-            // 取り込んだヘッダの #pragma は、取り込んでみるまで分からない。
+            VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
+
+            // 取り込んだヘッダの宣言は、取り込んでみるまで分からない。
             // ヘッダが宣言していたなら、その分も並べる対象にして展開し直す。
-            if (TryAddIncludedSymbols(tree, ref blockSymbols, ref constraints))
+            if (TryAddIncludedSymbols(tree, treeVariants, ref blockSymbols, ref constraints))
             {
                 includedSymbols = blockSymbols.Except(ownSymbols);
                 blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, includedSymbols);
 
                 tree = ParseWithoutMergedMacroConflicts(
-                    extraction.MaskedText, blockOptions, options.SyntaxTimings, out macroConflicts);
+                    unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
+                treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
             DeclarationSet declarations = UniformCollector.Collect(tree.Root);
 
-            string? passName = FindPassName(extraction.Pass);
-            AnalyzedProgram program = new(extraction, tree, declarations, passName)
+            AnalyzedProgram program = new(unit, tree, declarations, treeVariants)
             {
                 MacroConflictSymbols = macroConflicts,
+                EntryPoints = environment.ReadEntryPoints(unit, tree.PreprocessResult),
             };
 
             programs.Add(program);
-            index.Absorb(tree, declarations, program.BlockKey);
+            index.Absorb(tree, declarations, program.BlockKey, treeVariants);
 
             // シンボルは C# からも切り替えられる。
             // 有効になっていない分岐のコードも「いつか通る」コードなので、
             // このファイル自身が条件で見ているシンボルは 1 つずつ有効にして展開し直す。
             HashSet<string> defaults = DefaultSymbols(baseOptions.PredefinedMacros, constraints);
             ImmutableArray<ImmutableArray<string>> candidates =
-                SelectVariantSymbols(tree, text, defaults, includedSymbols, macroConflicts);
+                SelectVariantSymbols(tree, treeVariants, text, defaults, includedSymbols, macroConflicts);
 
             PreprocessorOptions variantOptions = blockOptions with
             {
@@ -175,7 +166,7 @@ internal static class ShaderCompilationBuilder
             KeywordRegionIndex baselineRegions = new(tree.PreprocessResult.KeywordRegions);
 
             SymbolExpansion[] expanded = ExpandSymbols(
-                extraction.MaskedText, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
+                unit.Text, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
 
             for (int i = 0; i < expanded.Length; i++)
             {
@@ -202,7 +193,7 @@ internal static class ShaderCompilationBuilder
             ImmutableArray<ImmutableArray<string>> retried = [.. unpacked.Take(Math.Max(0, budget)).Select(s => ImmutableArray.Create(s))];
 
             foreach (SymbolExpansion single in ExpandSymbols(
-                         extraction.MaskedText, retried, variantOptions, constraints, options.SyntaxTimings))
+                         unit.Text, retried, variantOptions, constraints, options.SyntaxTimings))
             {
                 accepted.Add((single, null));
             }
@@ -227,9 +218,10 @@ internal static class ShaderCompilationBuilder
             foreach (((ImmutableArray<string> enabled, HlslSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
-                index.Absorb(variantTree, variantDeclarations, program.BlockKey);
+                VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
+                index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
 
-                variants.Add(new AnalyzedProgram(extraction, variantTree, variantDeclarations, passName)
+                variants.Add(new AnalyzedProgram(unit, variantTree, variantDeclarations, variantSpace)
                 {
                     EnabledSymbols = enabled,
                     PackedMerge = packedMerge,
@@ -243,16 +235,13 @@ internal static class ShaderCompilationBuilder
 
         return new ShaderCompilation(
             text,
-            shaderLabTree,
-            options.Profile,
-            properties,
+            source,
+            environment,
             programs.ToImmutable(),
             index.UniformsByName,
-            index.Occurrences,
             index.DeclarationCounts,
             index.InactiveIdentifiers,
             index.UnanalyzedIdentifiers,
-            shaderLabReferences,
             [.. index.IncludePaths],
             [.. index.UnresolvedIncludes],
             codeText,
@@ -261,8 +250,8 @@ internal static class ShaderCompilationBuilder
             [.. unexploredSymbols],
             [.. unexploredCombinations.Values])
         {
-            IsStandaloneHlsl = isStandaloneHlsl,
             IsUserInclude = options.IsUserInclude,
+            DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToFrozenSet(StringComparer.Ordinal)),
@@ -287,24 +276,8 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private sealed class DeclarationIndex
     {
-        private readonly SearchValues<char> _propertyInitials;
-
-        /// <summary>索引を用意する。</summary>
-        /// <param name="properties"><c>Properties</c> に宣言されたプロパティ。</param>
-        public DeclarationIndex(ImmutableArray<PropertySymbol> properties)
-        {
-            // プロパティ名の先頭文字だけを集めておき、トークン走査の足切りに使う。
-            // URP のヘッダ群を展開すると 1 ブロックあたり数十万トークンになるため、
-            // 全トークンに対して辞書を引くと解析時間がここに吸われる。
-            _propertyInitials = SearchValues.Create(
-                [.. properties.Where(p => p.Name.Length > 0).Select(p => p.Name[0]).Distinct()]);
-        }
-
         /// <summary>名前ごとの uniform 宣言。</summary>
         public Dictionary<string, List<UniformSymbol>> UniformsByName { get; } = new(StringComparer.Ordinal);
-
-        /// <summary>プロパティ名が展開後のコードに現れた回数。</summary>
-        public Dictionary<string, int> Occurrences { get; } = new(StringComparer.Ordinal);
 
         /// <summary>名前ごとの宣言の数。</summary>
         public Dictionary<string, int> DeclarationCounts { get; } = new(StringComparer.Ordinal);
@@ -348,7 +321,8 @@ internal static class ShaderCompilationBuilder
         /// <param name="tree">解析して得た構文木。</param>
         /// <param name="declarations">その構成で見つかった宣言。</param>
         /// <param name="block">その木のコードブロックの鍵 (<see cref="AnalyzedProgram.BlockKey"/>)。</param>
-        public void Absorb(HlslSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block)
+        /// <param name="variants">その木から読んだ構成の空間。</param>
+        public void Absorb(HlslSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block, VariantSpace variants)
         {
             foreach (UniformSymbol uniform in declarations.Uniforms)
             {
@@ -363,9 +337,7 @@ internal static class ShaderCompilationBuilder
                 DeclarationCounts[uniform.Name] = DeclarationCounts.GetValueOrDefault(uniform.Name) + 1;
             }
 
-            CountOccurrences(tree.PreprocessResult.Tokens, _propertyInitials, Occurrences);
-
-            _all.Add(tree);
+            _all.Add(tree, variants);
 
             if (!_byBlock.TryGetValue(block, out SkippedNames? forBlock))
             {
@@ -373,7 +345,7 @@ internal static class ShaderCompilationBuilder
                 _byBlock[block] = forBlock;
             }
 
-            forBlock.Add(tree);
+            forBlock.Add(tree, variants);
 
             IncludePaths.UnionWith(tree.PreprocessResult.ResolvedIncludes);
             IncludePaths.UnionWith(tree.PreprocessResult.UnresolvedIncludes);
@@ -423,10 +395,12 @@ internal static class ShaderCompilationBuilder
     private sealed class SkippedNames
     {
         /// <summary>取り込んだ解析結果。読み飛ばした位置を、別の構成が解析したかを確かめるのに使う。</summary>
-        private readonly List<HlslSyntaxTree> _trees = [];
+        private readonly List<(HlslSyntaxTree Tree, VariantSpace Variants)> _trees = [];
 
-        /// <summary>解析しているファイル自身の非活性領域に現れた識別子。開始位置から名前を引く。</summary>
-        private readonly Dictionary<int, string> _skippedRootIdentifiers = [];
+        /// <summary>
+        /// 解析しているファイル自身と、利用者が書いたヘッダの非活性領域に現れた識別子。ファイルと開始位置から名前を引く。
+        /// </summary>
+        private readonly Dictionary<(string File, int Start), string> _skippedRootIdentifiers = [];
 
         /// <summary>どの構成でも解析されなかった非活性領域に現れた識別子。</summary>
         public HashSet<string> Unanalyzed { get; } = new(StringComparer.Ordinal);
@@ -436,9 +410,10 @@ internal static class ShaderCompilationBuilder
 
         /// <summary>解析結果 1 つ分を取り込む。</summary>
         /// <param name="tree">解析して得た構文木。</param>
-        public void Add(HlslSyntaxTree tree)
+        /// <param name="variants">その木から読んだ構成の空間。</param>
+        public void Add(HlslSyntaxTree tree, VariantSpace variants)
         {
-            _trees.Add(tree);
+            _trees.Add((tree, variants));
 
             // 取り込んだファイルの読み飛ばしは、取り込み結果の使い回しが名前しか持たないので、名前のまま数える。
             // 解析しているファイル自身のものは位置で持ち、Complete で別の構成が解析したかを確かめる。
@@ -449,11 +424,24 @@ internal static class ShaderCompilationBuilder
                 Unanalyzed.UnionWith(result.SkippedIncludedIdentifiers);
             }
 
+            // 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の template など) の名前。
+            // 読み飛ばした分岐の名前と同じく、宣言が無いと言い切る根拠にしない。
+            Unanalyzed.UnionWith(tree.UnanalyzedIdentifiers.Select(token => token.Text));
+
             if (!result.SkippedRootIdentifiers.IsDefaultOrEmpty)
             {
                 foreach (HlslSyntaxToken token in result.SkippedRootIdentifiers)
                 {
-                    _skippedRootIdentifiers[token.Span.Start] = token.Text;
+                    _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
+                }
+            }
+
+            // 利用者が書いたヘッダも位置で持つ。#ifdef _A の中で定義したマクロの本体は、_A の木で検査されている。
+            if (!result.SkippedUserHeaderIdentifiers.IsDefaultOrEmpty)
+            {
+                foreach (HlslSyntaxToken token in result.SkippedUserHeaderIdentifiers)
+                {
+                    _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
             }
 
@@ -474,7 +462,7 @@ internal static class ShaderCompilationBuilder
 
             if (_skippedRootIdentifiers.Count > 0)
             {
-                foreach (HlslSyntaxTree tree in _trees)
+                foreach ((HlslSyntaxTree tree, _) in _trees)
                 {
                     // その構成で処理した #define の名前も、解析された位置である。
                     // #ifdef _B の中の #define EXTRA 1 は、_B の木で定義されている。
@@ -482,32 +470,29 @@ internal static class ShaderCompilationBuilder
                     // 「どの構成でも解析しなかった領域の名前」として、どこで使っても宣言済みになる。
                     foreach (MacroDefinition macro in tree.PreprocessResult.Macros.Values)
                     {
-                        if (!macro.NameToken.IsFromMacroExpansion
-                            && string.Equals(macro.NameToken.Source.FilePath, filePath, StringComparison.Ordinal))
+                        if (!macro.NameToken.IsFromMacroExpansion)
                         {
-                            _skippedRootIdentifiers.Remove(macro.NameToken.Span.Start);
+                            _skippedRootIdentifiers.Remove((macro.NameToken.Source.FilePath, macro.NameToken.Span.Start));
                         }
                     }
 
                     foreach (HlslSyntaxToken token in tree.PreprocessResult.Tokens)
                     {
-                        // このファイルが書いたマクロの本体から来たトークンも、
+                        // 利用者が書いたマクロの本体から来たトークンも、
                         // 本体の位置が解析されたことを表す。展開されて初めて中身が検査される。
                         if (token.MacroDefinitionSpan is { } definition)
                         {
-                            // 位置はこのファイルの中のものだけを鍵にしている。ヘッダのマクロの本体の位置は別のファイルを指す。
-                            if (string.Equals(token.MacroDefinitionSource?.FilePath, filePath, StringComparison.Ordinal))
+                            if (token.MacroDefinitionSource is { } source)
                             {
-                                _skippedRootIdentifiers.Remove(definition.Start);
+                                _skippedRootIdentifiers.Remove((source.FilePath, definition.Start));
                             }
 
                             continue;
                         }
 
-                        if (!token.IsFromMacroExpansion
-                            && string.Equals(token.Source.FilePath, filePath, StringComparison.Ordinal))
+                        if (!token.IsFromMacroExpansion)
                         {
-                            _skippedRootIdentifiers.Remove(token.Span.Start);
+                            _skippedRootIdentifiers.Remove((token.Source.FilePath, token.Span.Start));
                         }
                     }
 
@@ -534,7 +519,7 @@ internal static class ShaderCompilationBuilder
         /// </remarks>
         private void ForgetSymbolExcludedRegions(string filePath)
         {
-            foreach (HlslSyntaxTree tree in _trees)
+            foreach ((HlslSyntaxTree tree, VariantSpace variants) in _trees)
             {
                 PreprocessResult result = tree.PreprocessResult;
 
@@ -543,7 +528,7 @@ internal static class ShaderCompilationBuilder
                     continue;
                 }
 
-                HashSet<string> declared = ShaderSymbols.CollectDeclared(result.Pragmas);
+                ImmutableHashSet<string> declared = variants.Symbols;
 
                 foreach (InactiveRegion region in result.InactiveRegions)
                 {
@@ -556,9 +541,11 @@ internal static class ShaderCompilationBuilder
 
                     TextSpan span = region.Location.Span;
 
-                    foreach (int start in _skippedRootIdentifiers.Keys.Where(span.Contains).ToList())
+                    foreach ((string File, int Start) key in _skippedRootIdentifiers.Keys
+                                 .Where(key => string.Equals(key.File, filePath, StringComparison.Ordinal) && span.Contains(key.Start))
+                                 .ToList())
                     {
-                        _skippedRootIdentifiers.Remove(start);
+                        _skippedRootIdentifiers.Remove(key);
                     }
                 }
             }
@@ -569,6 +556,7 @@ internal static class ShaderCompilationBuilder
     /// 追加で展開するシンボルを選ぶ。
     /// </summary>
     /// <param name="tree">既定の構成での解析結果。</param>
+    /// <param name="variants">その木から読んだ構成の空間。</param>
     /// <param name="text">解析対象のソーステキスト。</param>
     /// <param name="defaults">既定の構成で定義するシンボル。1 つだけ有効にした構成は既定の構成と同じなので作らない。</param>
     /// <param name="includedSymbols">取り込んだヘッダ自身が宣言したシンボル。</param>
@@ -607,6 +595,7 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static ImmutableArray<ImmutableArray<string>> SelectVariantSymbols(
         HlslSyntaxTree tree,
+        VariantSpace variants,
         SourceText text,
         HashSet<string> defaults,
         ImmutableHashSet<string> includedSymbols,
@@ -614,7 +603,7 @@ internal static class ShaderCompilationBuilder
     {
         PreprocessResult result = tree.PreprocessResult;
 
-        HashSet<string> declared = ShaderSymbols.CollectDeclared(result.Pragmas);
+        HashSet<string> declared = [.. variants.Symbols];
 
         // 両方の分岐を 1 つの木に残せたシンボルは、バリアントとして展開し直す必要が無い。
         // 残せたかどうかは展開してみないと分からないので、展開の結果を見て判断する。
@@ -623,27 +612,37 @@ internal static class ShaderCompilationBuilder
         SortedSet<string> singles = new(StringComparer.Ordinal);
         SortedSet<string> fromIncluded = new(StringComparer.Ordinal);
 
+        // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。候補は値ごとの原子 (QUALITY==2) である。
+        ImmutableDictionary<string, ImmutableArray<int>> valueSymbols = variants.ValueSymbols;
+
         foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
         {
-            if (!declared.Contains(token.Text)
-                || alreadyMerged.Contains(token.Text)
-                || defaults.Contains(token.Text)
-                || token.IsFromMacroExpansion)
-            {
-                continue;
-            }
+            IEnumerable<string> symbols = valueSymbols.TryGetValue(token.Text, out ImmutableArray<int> values)
+                ? values.Select(value => VariantValues.Atom(token.Text, value))
+                : [token.Text];
 
-            // このファイルが自分で書いた条件を先に置く。
-            // ヘッダの条件は、そのヘッダ自身が宣言したシンボルのものだけを、後ろに置く。
-            // このファイルが宣言したシンボルの条件はヘッダ側に大量にあり、
-            // 全部を候補にすると 1 ブロックで数十件になる (PreprocessorOptions.IncludedDeclaredSymbols)。
-            if (string.Equals(token.Source.FilePath, text.FilePath, StringComparison.Ordinal))
+            foreach (string symbol in symbols)
             {
-                singles.Add(token.Text);
-            }
-            else if (includedSymbols.Contains(token.Text))
-            {
-                fromIncluded.Add(token.Text);
+                if (!declared.Contains(symbol)
+                    || alreadyMerged.Contains(symbol)
+                    || defaults.Contains(symbol)
+                    || token.IsFromMacroExpansion)
+                {
+                    continue;
+                }
+
+                // このファイルが自分で書いた条件を先に置く。
+                // ヘッダの条件は、そのヘッダ自身が宣言したシンボルのものだけを、後ろに置く。
+                // このファイルが宣言したシンボルの条件はヘッダ側に大量にあり、
+                // 全部を候補にすると 1 ブロックで数十件になる (PreprocessorOptions.IncludedDeclaredSymbols)。
+                if (string.Equals(token.Source.FilePath, text.FilePath, StringComparison.Ordinal))
+                {
+                    singles.Add(symbol);
+                }
+                else if (includedSymbols.Contains(symbol))
+                {
+                    fromIncluded.Add(symbol);
+                }
             }
         }
 
@@ -659,7 +658,7 @@ internal static class ShaderCompilationBuilder
             alreadyMerged,
             defaults,
             [.. singles, .. fromIncluded],
-            ShaderSymbols.CollectConstraints(result.Pragmas),
+            variants.Constraints,
             text.FilePath));
 
         candidates.AddRange(fromIncluded.Select(s => ImmutableArray.Create(s)));
@@ -1162,116 +1161,10 @@ internal static class ShaderCompilationBuilder
         => symbols.Aggregate(SymbolCondition.Always, (condition, symbol) => condition.And(SymbolCondition.Symbol(symbol)));
 
     /// <summary>
-    /// このブロック自身が宣言しているシンボルを、展開の前に拾う。
-    /// </summary>
-    /// <param name="maskedText">対象のコードブロック。</param>
-    /// <param name="options">実行時設定。</param>
-    /// <param name="exclusions">同じ宣言に並べたために、同時には定義されないシンボルの組。</param>
-    /// <param name="shaderTarget"><c>#pragma target</c> から決まる <c>SHADER_TARGET</c> の値。無ければ <see langword="null"/>。</param>
-    /// <param name="surfaceLighting"><c>#pragma surface</c> の照明モデル。サーフェスシェーダーでなければ <see langword="null"/>。</param>
-    /// <returns>拾ったシンボル。</returns>
-    /// <remarks>
-    /// 字句解析の結果は共有しているので、ここで読むのは実質ただである
-    /// (このあとの展開が同じトークン列を使う)。
-    /// </remarks>
-    private static ImmutableHashSet<string> CollectBlockSymbols(
-        SourceText maskedText,
-        SemanticsOptions options,
-        out SymbolConstraints exclusions,
-        out string? shaderTarget,
-        out string? surfaceLighting)
-    {
-        ImmutableArray<HlslSyntaxToken> tokens = options.TokenCache is { } cache
-            ? cache.GetOrLex(maskedText, out _)
-            : new HlslLexer(maskedText).Lex(out _);
-
-        exclusions = ShaderSymbols.CollectConstraintsFromTokens(tokens);
-        shaderTarget = ReadShaderTarget(tokens);
-        surfaceLighting = ReadSurfaceLighting(tokens);
-        return [.. ShaderSymbols.CollectDeclaredFromTokens(tokens)];
-    }
-
-    /// <summary>
-    /// <c>#pragma surface 関数 照明モデル</c> から照明モデルの名前を読む。
-    /// </summary>
-    /// <param name="tokens">字句解析しただけのトークン列。</param>
-    /// <returns>照明モデルの名前。サーフェスシェーダーでなければ <see langword="null"/>。</returns>
-    private static string? ReadSurfaceLighting(ImmutableArray<HlslSyntaxToken> tokens)
-    {
-        for (int i = 0; i + 4 < tokens.Length; i++)
-        {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken
-                && tokens[i].IsAtLineStart
-                && tokens[i + 1].Text == "pragma"
-                && tokens[i + 2].Text == "surface"
-                && !tokens[i + 3].IsAtLineStart
-                && !tokens[i + 4].IsAtLineStart)
-            {
-                return tokens[i + 4].Text;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// <c>#pragma target</c> から、Unity が定義する <c>SHADER_TARGET</c> の値を読む。
-    /// </summary>
-    /// <param name="tokens">字句解析しただけのトークン列。</param>
-    /// <returns>
-    /// <c>SHADER_TARGET</c> の値 (<c>#pragma target 3.5</c> なら <c>35</c>)。
-    /// 指定が無ければ <see langword="null"/>。
-    /// </returns>
-    /// <remarks>
-    /// <para>
-    /// <b>ヘッダは <c>SHADER_TARGET</c> で経路を選ぶ。</b>
-    /// <c>HLSLSupport.cginc</c> の <c>#if (SHADER_TARGET &lt; 30)</c> や
-    /// <c>UNITY_SM40_PLUS_PLATFORM</c> がそうである。既定の 45 のまま読むと、
-    /// <c>#pragma target 2.0</c> のシェーダーでは決して通らない経路を検査する。
-    /// </para>
-    /// <para>
-    /// 複数書かれていれば最も高いものを使う。<c>HLSLINCLUDE</c> と <c>HLSLPROGRAM</c> の両方に書く形がある。
-    /// </para>
-    /// <para>
-    /// <b>指定が無いときは何もしない。</b> Unity の既定値や、<c>#pragma geometry</c> などが
-    /// 引き上げる値は、この環境で確かめられないので推測しない。
-    /// </para>
-    /// </remarks>
-    private static string? ReadShaderTarget(ImmutableArray<HlslSyntaxToken> tokens)
-    {
-        int best = -1;
-
-        for (int i = 0; i + 3 < tokens.Length; i++)
-        {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
-                || !tokens[i].IsAtLineStart
-                || tokens[i + 1].Text != "pragma"
-                || tokens[i + 2].Text != "target"
-                || tokens[i + 3].IsAtLineStart)
-            {
-                continue;
-            }
-
-            // "4.5" は 1 つの数値トークンになる。"4.5" 以外の書き方 ("4.5 compute" の後半など) は無視する。
-            string text = tokens[i + 3].Text;
-            int dot = text.IndexOf('.');
-
-            if (dot > 0
-                && dot + 1 < text.Length
-                && int.TryParse(text.AsSpan(0, dot), out int major)
-                && char.IsAsciiDigit(text[dot + 1]))
-            {
-                best = Math.Max(best, (major * 10) + (text[dot + 1] - '0'));
-            }
-        }
-
-        return best < 0 ? null : best.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    /// <summary>
     /// 取り込んだヘッダが宣言したシンボルを、並べる対象に足す。
     /// </summary>
     /// <param name="tree">1 度目の展開の結果。</param>
+    /// <param name="variants">1 度目の展開の結果から読んだ構成の空間。取り込んだヘッダの宣言も含む。</param>
     /// <param name="blockSymbols">並べる対象のシンボル。足した結果を書き戻す。</param>
     /// <param name="constraints">宣言から分かる構成の制約。ヘッダの宣言も見たものを書き戻す。</param>
     /// <returns>足したものがあり、展開し直す価値があるかどうか。</returns>
@@ -1295,12 +1188,13 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static bool TryAddIncludedSymbols(
         HlslSyntaxTree tree,
+        VariantSpace variants,
         ref ImmutableHashSet<string> blockSymbols,
         ref SymbolConstraints constraints)
     {
         PreprocessResult result = tree.PreprocessResult;
         ImmutableHashSet<string> known = blockSymbols;
-        HashSet<string> declared = ShaderSymbols.CollectDeclared(result.Pragmas);
+        ImmutableHashSet<string> declared = variants.Symbols;
 
         if (declared.All(known.Contains))
         {
@@ -1313,7 +1207,7 @@ internal static class ShaderCompilationBuilder
         }
 
         blockSymbols = known.Union(declared);
-        constraints = ShaderSymbols.CollectConstraints(result.Pragmas);
+        constraints = variants.Constraints;
         return true;
     }
 
@@ -1339,7 +1233,10 @@ internal static class ShaderCompilationBuilder
             options.BothBranchSymbols ?? blockSymbols) with
         {
             DeclaredSymbols = blockSymbols,
-            ConfigurationSymbols = blockSymbols,
+
+            // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。名前も構成によって変わるものとして読む。
+            ConfigurationSymbols = blockSymbols.Union(VariantValues.Collect(blockSymbols).Keys),
+            ValueSymbols = VariantValues.Collect(blockSymbols),
             IncludedDeclaredSymbols = includedSymbols,
             SymbolConstraints = constraints,
             HoistConditionalMacros = options.HoistConditionalMacros,
@@ -1358,90 +1255,6 @@ internal static class ShaderCompilationBuilder
         PreprocessorOptions options,
         ImmutableHashSet<string> kept)
         => options with { BothBranchSymbols = kept };
-
-    /// <summary><c>CGPROGRAM</c> に Unity が自動で取り込むヘッダ。</summary>
-    private static readonly string[] CgAutoIncludes = ["HLSLSupport.cginc", "UnityShaderVariables.cginc"];
-
-    /// <summary>サーフェスシェーダーに Unity が自動で取り込むヘッダ。</summary>
-    private static readonly string[] SurfaceAutoIncludes = ["UnityCG.cginc", "Lighting.cginc"];
-
-    /// <summary>作った先頭のコード。同じヘッダの組には同じテキストを返し、字句解析の結果を使い回す。</summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceText> CgPreludes =
-        new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// <c>CGPROGRAM</c> に Unity が自動で取り込むヘッダを、先頭のコードに足した複製を返す。
-    /// </summary>
-    /// <param name="options">元の設定。</param>
-    /// <param name="filePath">解析しているファイルのパス。取り込むヘッダを探す基点になる。</param>
-    /// <param name="surfaceLighting"><c>#pragma surface</c> の照明モデル。サーフェスシェーダーでなければ <see langword="null"/>。</param>
-    /// <returns>足した設定。ヘッダが 1 つでも見つからなければ元の設定。</returns>
-    /// <remarks>
-    /// <para>
-    /// <b><c>CGPROGRAM</c> は、書いていないヘッダも取り込む。</b>
-    /// Unity のマニュアル (「HLSL in Unity」) によれば、<c>CGPROGRAM</c> には
-    /// <c>HLSLSupport.cginc</c> と <c>UnityShaderVariables.cginc</c> が自動で取り込まれる。
-    /// 取り込まないと、<c>fixed4</c> や <c>unity_ObjectToWorld</c> を使うだけのシェーダーで、
-    /// 宣言されていない名前を読むことになる。<c>HLSLPROGRAM</c> には取り込まれない。
-    /// </para>
-    /// <para>
-    /// <b>見つからなければ何もしない。</b> Unity が無い環境で足すと、利用者が書いていない
-    /// <c>#include</c> が解決できず、依存関係が不完全だとして検査を見送ることになる。
-    /// </para>
-    /// <para>
-    /// 見つけたファイルは絶対パスで取り込む。先頭のコードは実在しないパスを持つので、
-    /// そこからの相対では探せない。
-    /// </para>
-    /// <para>
-    /// <b>サーフェスシェーダーは、さらに照明のヘッダも取り込む。</b>
-    /// Unity の「Standard Surface Shader」の雛形は、<c>#include</c> を 1 行も書かずに
-    /// <c>SurfaceOutputStandard</c> を使う。<c>Lambert</c> の照明関数 <c>LightingLambert</c> も書かずに使う。
-    /// 生成されるコードは <c>UnityCG.cginc</c> と <c>Lighting.cginc</c> を取り込み、
-    /// <c>Standard</c> / <c>StandardSpecular</c> ではさらに <c>UnityPBSLighting.cginc</c> を取り込む。
-    /// </para>
-    /// </remarks>
-    private static PreprocessorOptions WithCgAutoIncludes(
-        PreprocessorOptions options,
-        string filePath,
-        string? surfaceLighting)
-    {
-        if (options.IncludeResolver is not { } resolver)
-        {
-            return options;
-        }
-
-        IEnumerable<string> names = CgAutoIncludes;
-
-        if (surfaceLighting is not null)
-        {
-            names = names.Concat(SurfaceAutoIncludes);
-
-            if (surfaceLighting.StartsWith("Standard", StringComparison.Ordinal))
-            {
-                names = names.Append("UnityPBSLighting.cginc");
-            }
-        }
-
-        System.Text.StringBuilder includes = new();
-
-        foreach (string name in names)
-        {
-            if (!resolver.TryResolve(name, filePath, out SourceText? header) || string.IsNullOrEmpty(header.FilePath))
-            {
-                return options;
-            }
-
-            includes.Append("#include \"").Append(header.FilePath.Replace('\\', '/')).Append("\"\n");
-        }
-
-        string key = (options.Prelude?.ToString() ?? string.Empty) + "\n" + includes;
-        SourceText prelude = CgPreludes.GetOrAdd(
-            key,
-            static (k, path) => SourceText.From(k, path),
-            options.Prelude?.FilePath ?? "<shaderlyn CGPROGRAM>");
-
-        return options with { Prelude = prelude };
-    }
 
     /// <summary>
     /// このブロックだけで定義されるマクロを重ねた複製を返す。
@@ -1600,19 +1413,38 @@ internal static class ShaderCompilationBuilder
 
         foreach (string symbol in enabledSymbols)
         {
-            macros = macros.SetItem(symbol, "1");
+            macros = Define(macros, symbol);
         }
 
         foreach (ImmutableArray<string> group in constraints.RequiredGroups)
         {
-            if (!group.Any(macros.ContainsKey))
+            if (!group.Any(symbol => IsDefinedBy(macros, symbol)))
             {
-                macros = macros.SetItem(group[0], "1");
+                macros = Define(macros, group[0]);
             }
         }
 
         return macros;
     }
+
+    /// <summary>シンボルを有効にするマクロを定義する。</summary>
+    /// <param name="macros">元のマクロ。</param>
+    /// <param name="symbol">シンボル。値を持つシンボルの原子 (<c>QUALITY==2</c>) なら、その値で定義する。</param>
+    /// <returns>定義したマクロ。</returns>
+    /// <remarks>Unity と同じく、値を持たないシンボルは値 1 のマクロとして定義する。</remarks>
+    private static ImmutableDictionary<string, string> Define(ImmutableDictionary<string, string> macros, string symbol)
+        => VariantValues.TryParseAtom(symbol, out string? name, out int value)
+            ? macros.SetItem(name, value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : macros.SetItem(symbol, "1");
+
+    /// <summary>シンボルの値がマクロで決まっているかを判定する。</summary>
+    /// <param name="macros">マクロ。</param>
+    /// <param name="symbol">シンボル。値を持つシンボルの原子なら、その名前が定義されているかを見る。</param>
+    /// <returns>決まっていれば <see langword="true"/>。</returns>
+    private static bool IsDefinedBy(ImmutableDictionary<string, string> macros, string symbol)
+        => VariantValues.TryParseAtom(symbol, out string? name, out _)
+            ? macros.ContainsKey(name)
+            : macros.ContainsKey(symbol);
 
     /// <summary>
     /// 並べた分岐のマクロがコードとして展開されたら、そのシンボルを並べずに展開し直す。
@@ -1674,7 +1506,7 @@ internal static class ShaderCompilationBuilder
     private static HashSet<string> DefaultSymbols(
         ImmutableDictionary<string, string> predefined,
         SymbolConstraints constraints)
-        => [.. constraints.RequiredGroups.Where(g => !g.Any(predefined.ContainsKey)).Select(g => g[0])];
+        => [.. constraints.RequiredGroups.Where(g => !g.Any(symbol => IsDefinedBy(predefined, symbol))).Select(g => g[0])];
 
     /// <summary>指定した構成で展開する。</summary>
     /// <param name="maskedText">対象のコードブロック。</param>
@@ -1722,73 +1554,6 @@ internal static class ShaderCompilationBuilder
         return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
     }
 
-    /// <summary><c>Properties</c> ブロックからプロパティを集める。</summary>
-    /// <param name="tree">ShaderLab の構文木。</param>
-    /// <param name="text">ソーステキスト。</param>
-    /// <returns>見つかったプロパティ。</returns>
-    private static ImmutableArray<PropertySymbol> CollectProperties(ShaderLabSyntaxTree tree, SourceText text)
-    {
-        ImmutableArray<PropertySymbol>.Builder properties = ImmutableArray.CreateBuilder<PropertySymbol>();
-
-        foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
-        {
-            if (node is PropertyDeclarationSyntax declaration
-                && !declaration.NameToken.IsMissing
-                && declaration.Name.Length > 0)
-            {
-                properties.Add(new PropertySymbol(declaration, text));
-            }
-        }
-
-        return properties.ToImmutable();
-    }
-
-    /// <summary>
-    /// ShaderLab 側からプロパティを参照している箇所を集める。
-    /// </summary>
-    /// <param name="tree">ShaderLab の構文木。</param>
-    /// <returns>参照されているプロパティ名。</returns>
-    /// <remarks>
-    /// <c>Cull [_Cull]</c> や <c>SetTexture [_MainTex]</c> の形の参照が対象。
-    /// </remarks>
-    private static HashSet<string> CollectShaderLabPropertyReferences(ShaderLabSyntaxTree tree)
-    {
-        HashSet<string> references = new(StringComparer.Ordinal);
-
-        foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
-        {
-            if (node is PropertyReferenceArgumentSyntax reference && !reference.NameToken.IsMissing)
-            {
-                references.Add(reference.Name);
-            }
-        }
-
-        return references;
-    }
-
-    /// <summary>Pass に付けられた名前を探す。</summary>
-    /// <param name="pass">対象の Pass。<see langword="null"/> の場合は名前も無い。</param>
-    /// <returns>見つかった名前。無い場合は <see langword="null"/>。</returns>
-    private static string? FindPassName(PassSyntax? pass)
-    {
-        if (pass is null)
-        {
-            return null;
-        }
-
-        foreach (ShaderLabStatementSyntax statement in pass.Body.Statements)
-        {
-            if (statement is CommandSyntax command
-                && command.NameIs("Name")
-                && command.ValueArguments.FirstOrDefault() is LiteralArgumentSyntax literal)
-            {
-                return literal.Token.ValueText;
-            }
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// マクロ定義の本体に現れた識別子を集める。
     /// </summary>
@@ -1813,35 +1578,6 @@ internal static class ShaderCompilationBuilder
                     identifiers.Add(token.Text);
                 }
             }
-        }
-    }
-
-    /// <summary>
-    /// トークン列に現れた識別子の回数を数える。
-    /// </summary>
-    /// <param name="tokens">展開済みのトークン列。</param>
-    /// <param name="initials">数える対象の名前の先頭文字。</param>
-    /// <param name="occurrences">回数の集計先。</param>
-    /// <remarks>
-    /// 先頭文字による足切りを先に行う。展開後のトークン列は
-    /// URP のヘッダ群を含めると数十万件になり、
-    /// すべてに対して辞書を引くと解析時間の大半がここに消える。
-    /// </remarks>
-    private static void CountOccurrences(
-        ImmutableArray<HlslSyntaxToken> tokens,
-        SearchValues<char> initials,
-        Dictionary<string, int> occurrences)
-    {
-        foreach (HlslSyntaxToken token in tokens)
-        {
-            if (token.Kind != HlslSyntaxKind.IdentifierToken
-                || token.Text.Length == 0
-                || !initials.Contains(token.Text[0]))
-            {
-                continue;
-            }
-
-            occurrences[token.Text] = occurrences.GetValueOrDefault(token.Text) + 1;
         }
     }
 }

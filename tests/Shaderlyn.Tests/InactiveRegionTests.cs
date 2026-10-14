@@ -3,6 +3,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using LspDocumentUri = Shaderlyn.LanguageServer.DocumentUri;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -100,7 +101,7 @@ public sealed class InactiveRegionTests
     private static (int Start, int End)[] CollectLines(string source, SemanticsOptions options)
     {
         SourceText text = SourceText.From(source, Path.Combine("Assets", "Inactive.hlsl"));
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(text, options);
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, options);
 
         return [.. LanguageServer.InactiveRegionCollector.Collect(compilation).Select(r => (r.StartLine, r.EndLine))];
     }

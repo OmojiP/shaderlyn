@@ -73,6 +73,12 @@ public sealed record IncludeExpansion(
 {
     /// <summary>この展開が読んだ名前と、読んだときの状態。これが同じなら結果も同じである。</summary>
     public IncludeReadSet Reads { get; init; } = IncludeReadSet.Empty;
+
+    /// <summary>
+    /// 利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ (<see cref="PreprocessResult.SkippedUserHeaderIdentifiers"/>)。
+    /// <see cref="SkippedIdentifiers"/> には含まない。
+    /// </summary>
+    public ImmutableArray<HlslSyntaxToken> SkippedUserIdentifiers { get; init; } = [];
 }
 
 /// <summary>

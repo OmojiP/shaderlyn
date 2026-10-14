@@ -32,6 +32,28 @@ public sealed class HlslSyntaxTree
         Diagnostics = diagnostics;
     }
 
+    /// <summary>
+    /// 構文木にせずに読み飛ばした宣言に現れた識別子 (<see cref="HlslParser.UnanalyzedIdentifiers"/>)。
+    /// </summary>
+    /// <remarks>
+    /// 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の <c>template</c> など) の名前である。
+    /// 解析していない場所に現れた名前として扱うこと。
+    /// </remarks>
+    public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
+
+    /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="PreprocessorOptions.LanguageVersion"/>)。</summary>
+    /// <remarks>並べた方言のうち最も新しい DXC の版。方言そのものは <see cref="Dialects"/> にある。</remarks>
+    public HlslLanguageVersion LanguageVersion { get; private init; } = HlslLanguageVersion.Hlsl2018;
+
+    /// <summary>このコードをコンパイルする方言 (<see cref="PreprocessorOptions.Dialects"/>)。</summary>
+    public ImmutableArray<HlslDialect> Dialects { get; private init; } = [HlslDialect.Fxc];
+
+    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。この木はこれで読んだ。</summary>
+    public HlslLanguageFeatures Features { get; private init; } = HlslDialect.Fxc.Features;
+
+    /// <summary>コンパイル先 (<see cref="PreprocessorOptions.CompileTargets"/>)。分からなければ空。</summary>
+    public ImmutableArray<HlslCompileTarget> CompileTargets { get; private init; } = [];
+
     /// <summary>解析対象のソーステキスト。</summary>
     public SourceText Text { get; }
 
@@ -70,7 +92,12 @@ public sealed class HlslSyntaxTree
         PreprocessResult preprocessed = new HlslPreprocessor(options).Preprocess(text);
         start = Record(timings, SyntaxStep.Preprocess, start);
 
-        HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude);
+        PreprocessorOptions effective = options ?? new PreprocessorOptions();
+        HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude)
+        {
+            Features = effective.Features,
+            DialectSubject = effective.DescribeDialect(),
+        };
         HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);
 
@@ -82,7 +109,14 @@ public sealed class HlslSyntaxTree
         diagnostics.AddRange(parseDiagnostics);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
-        return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable());
+        return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
+        {
+            UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
+            LanguageVersion = effective.LanguageVersion,
+            Dialects = effective.Dialects,
+            Features = parser.Features,
+            CompileTargets = effective.CompileTargets,
+        };
     }
 
     /// <summary>1 つの段の時間を記録し、次の段の開始時刻を返す。</summary>

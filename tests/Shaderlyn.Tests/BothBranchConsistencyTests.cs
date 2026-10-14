@@ -7,6 +7,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -189,7 +190,7 @@ public sealed partial class BothBranchConsistencyTests
     /// <returns>検出した診断。</returns>
     private static ImmutableArray<Diagnostic> Analyze(string path, ImmutableHashSet<string>? bothBranchSymbols)
     {
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
 
         SemanticsOptions options = new()
@@ -209,7 +210,7 @@ public sealed partial class BothBranchConsistencyTests
             PackIndependentSymbols = false,
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
         return new AnalyzerDriver(BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }

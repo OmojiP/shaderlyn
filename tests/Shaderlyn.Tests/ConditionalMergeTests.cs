@@ -6,6 +6,7 @@ using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -62,7 +63,7 @@ public sealed class ConditionalMergeTests
             BothBranchSymbols = [],
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, shaderLab, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, shaderLab, options);
 
         AnalyzedProgram baseline = Assert.Single(compilation.Programs);
         LastBaseline = baseline;

@@ -41,7 +41,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         // レジスタは宣言をまたいで衝突する。コードブロックごとに 1 つの表を持つ。
         // 別の Pass は別々にコンパイルされるので、そこで同じ番号を使っても衝突しない。
@@ -109,7 +109,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
             || !HlslTypeClassifier.TryDescribeNumeric(name, out HlslNumericShape shape))
@@ -130,7 +130,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             ? written == 1 || written >= required
             : written == required;
 
-        if (valid || invocation.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (valid || invocation.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }
@@ -140,7 +140,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             required,
-            $"渡しているのは {written} 個です"));
+            written));
     }
 
     /// <summary>
@@ -181,12 +181,12 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     private static void AnalyzeLiteral(
         SyntaxTreeAnalysisContext context,
         LiteralExpressionSyntax literal,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (literal.Token.Kind != HlslSyntaxKind.NumericLiteralToken
             || !IsTruncatedInteger(literal.Token)
             || literal.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -220,6 +220,9 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             case HlslLiteralKind.Hexadecimal:
                 return digits[2..].TrimStart('0').Length > 8;
 
+            case HlslLiteralKind.Binary:
+                return digits[2..].TrimStart('0').Length > 32;
+
             case HlslLiteralKind.Octal:
                 string octal = digits.TrimStart('0');
                 return octal.Length > 11 || (octal.Length == 11 && octal[0] > '3');
@@ -246,7 +249,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         ElementAccessExpressionSyntax access,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         if (access.Target is not IdentifierExpressionSyntax target
             || binder.ResolveName(target) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global } resolution
@@ -255,7 +258,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             || !HlslLiteral.TryGetInt64(literal.Token, out long index)
             || index < length
             || access.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -298,7 +301,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         VariableDeclarationSyntax declaration,
         Dictionary<string, List<RegisterOwner>> registers,
         Func<HashSet<string>> usedNames,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         SymbolCondition? present = null;
 
@@ -336,7 +339,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
 
                 if (conflict is not { } found
                     || annotation.GetLocation() is not { } location
-                    || !reported.Add(location.Span.Start))
+                    || !reported.Add(location))
                 {
                     continue;
                 }

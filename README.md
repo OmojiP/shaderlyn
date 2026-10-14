@@ -6,6 +6,8 @@
 
 Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
 
+DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
+
 CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能
@@ -52,6 +54,12 @@ Assets/Shaders/Lit.shader(5:21): warning SL1003: プロパティ '_BaseColor' �
 
 ほかにも、スペルミスの可能性があるタグの値や、使われていないシンボルなどを報告します。
 報告する内容の一覧は [ルール](docs/rules/README.md) にあります。
+
+Unity では、パスごと・グラフィックス API ごとに FXC と DXC (HLSL 2018) のどちらでコンパイルされるかを、Unity のバージョンに合わせて判定します。
+`#pragma use_dxc` / `#pragma require` の書き方で DX11 では使えなくなるシェーダー (SL1053) や、
+その構成のコンパイラでは通らない構文 (`int64_t` を FXC で使うなど、HL0003) を報告します。
+判定の表は [Unity 以外の環境で使う](docs/guide/environments.md#unity) にあります。
+Unity 以外にも、DXC で直接コンパイルする HLSL・Unreal Engine・独自エンジンのシェーダーを、設定ファイルで環境を選んで解析できます。
 
 ### 2. variability-aware な設計で `#if` 分岐を考慮して解析
 
@@ -171,6 +179,7 @@ shaderlyn /.../UnityProject/Assets --unity-project /.../UnityProject
 | `--unity-project <パス>` | Unity プロジェクトのルート。パッケージ配下のヘッダ解決に必須            |
 | `--format <形式>`        | 出力形式: `text` (既定), `json`, `sarif`, `github` |
 | `--error-on <重要度>`     | ジョブを失敗させる閾値: `info`, `warning` (既定), `error` |
+| `--min-severity <重要度>` | 出力する指摘の閾値: `info` (既定), `warning`, `error`。終了コードは変えない |
 | `--config <パス>`        | 設定ファイルの指定（省略時は `.shaderlyn.yaml` を検索）        |
 | `--baseline <パス>`      | ベースラインファイル（既存の指摘を除外）を指定                      |
 | `--cache <パス>`         | 変更のないファイルの解析をスキップするキャッシュファイルを指定              |
@@ -255,7 +264,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md)                                                         |
+| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md)                                                         |
 | CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |

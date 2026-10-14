@@ -59,7 +59,7 @@ internal sealed partial class HlslPreprocessor
         if (!macro.AcceptsArgumentCount(arguments.Value.Length))
         {
             Report(HlslDescriptors.PreprocessorError, nameToken.GetLocation(),
-                $"マクロ '{macro.Name}' の引数の個数が合いません (期待 {macro.Parameters.Length} 個、実際 {arguments.Value.Length} 個)。");
+                $"マクロ '{macro.Name}' の引数の個数が一致しません (期待 {macro.Parameters.Length} 個、実際 {arguments.Value.Length} 個)。");
             return true;
         }
 

@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules;
 
 /// <summary>
 /// 呼び出しが、その構成に存在する宣言と噛み合っているかを検査する
-/// (HL0340 / HL0341 / HL0342)。
+/// (HL0340 / HL0341 / HL0342 / HL0344 / HL0345)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,6 +41,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         HlslRuleDescriptors.ArgumentCountMismatch,
         HlslRuleDescriptors.ArgumentNotAssignable,
         HlslRuleDescriptors.ArrayArgumentMismatch,
+        HlslRuleDescriptors.TemplateArgumentConflict,
     ];
 
     /// <inheritdoc/>
@@ -53,7 +54,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         bool declaresArrays = DeclaresArrays(compilation);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        HashSet<int> reported = [];
+        ReportedLocations reported = new();
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -89,16 +90,50 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         InvocationExpressionSyntax invocation,
         bool declaresArrays,
         SymbolCondition analyzed,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        if (invocation.TargetName is not { } name || !compilation.IsReportable(invocation))
+        if (!compilation.IsReportable(invocation))
         {
+            return;
+        }
+
+        // 構造体のメソッド (s.Get()、HLSL 2021)。
+        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.DotToken } access)
+        {
+            AnalyzeMethodCall(context, compilation, condition, binder, invocation, access, reported);
+            return;
+        }
+
+        if (invocation.TargetName is not { } name)
+        {
+            return;
+        }
+
+        // this. を省いた囲む構造体のメソッドや、関数の中の変数 (関数オブジェクト) の呼び出し。
+        // 大域の同じ名前の関数とは照らさない (HLSL 2021)。
+        if (binder.CallsNonGlobalFunction(invocation, name))
+        {
+            return;
+        }
+
+        // template の関数と同じ名前なら、型引数の推論を含めて別に見る (HLSL 2021)。
+        if (binder.TryGetTemplateFunctions(name, out ImmutableArray<TemplateFunctionCandidate> templates))
+        {
+            AnalyzeTemplateCall(context, compilation, condition, binder, invocation, name, templates, reported);
             return;
         }
 
         if (compilation.GetFunctionDeclarations(name, binder.Program) is not { IsEmpty: false } all)
         {
             AnalyzeIntrinsicCall(context, compilation, invocation, name, reported);
+            return;
+        }
+
+        // 取り込みを解決できていなければ、見えていない多重定義があるかもしれない (template の関数の呼び出しと同じ)。
+        // Unreal Engine の LumenCardComputeShader.usf は、生成される VertexFactory.ush を通して取り込む多重定義
+        // GetInstanceSceneData(inout FVisibleCluster, bool) を呼んでおり、見えている多重定義と照らして誤りと言っていた。
+        if (compilation.MayLackOverloadsOf(name))
+        {
             return;
         }
 
@@ -194,7 +229,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         if (rejecting.FirstOrDefault(r => CallCompatibility.IsPresentWith(condition, r.Declaration, typeMissing))
                 is not { Declaration: not null } rejected
             || arguments[rejected.Mismatch.Index].GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -223,7 +258,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         bool intrinsicAccepts,
         bool declaresArrays,
         SymbolCondition call,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
         List<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
@@ -254,7 +289,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (first is { } found
             && arguments[found.Index].GetLocation() is { } location
-            && reported.Add(location.Span.Start))
+            && reported.Add(location))
         {
             Report(context, found, location, name, call);
         }
@@ -331,9 +366,9 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ShaderCompilation compilation,
         InvocationExpressionSyntax invocation,
         string name,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        if (!compilation.HasCompleteDependencies
+        if (compilation.MayLackOverloadsOf(name)
             || !HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
@@ -346,7 +381,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (arity.Accepts(actual)
             || invocation.GetLocation() is not { } location
-            || !reported.Add(location.Span.Start))
+            || !reported.Add(location))
         {
             return;
         }
@@ -363,7 +398,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            $"組み込み関数が受け付けるのは {accepted}です",
+            $"必要な引数は {accepted}です",
             string.Empty));
     }
 
@@ -401,7 +436,6 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 name,
                 found.Index + 1,
                 found.ParameterType,
-                location.Source.ToString(location.Span),
                 DescribeCondition(call)));
 
             return;
@@ -416,6 +450,162 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             found.ParameterType,
             DescribeCondition(call)));
     }
+
+    /// <summary>template の関数と同じ名前の関数の呼び出しを検査する (HL0341 / HL0345)。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="condition">出現条件の索引。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="invocation">検査する呼び出し。</param>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="candidates">同じ名前の関数すべて (template でないものを含む)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// <para>
+    /// 候補は宣言の出現条件で絞らない。そのため、宣言にも呼び出しにも条件が付いていないときだけ報告する。
+    /// 取り込みを解決できていなければ、ほかの多重定義があるかもしれないので報告しない。
+    /// </para>
+    /// <para>
+    /// 型引数の食い違い (HL0345) は、同じ名前の関数が template の関数 1 つだけのときに見る。
+    /// 候補が複数あれば、どれが選ばれるかは実引数の型の変換で決まり、その規則は扱わない。
+    /// </para>
+    /// </remarks>
+    private static void AnalyzeTemplateCall(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ConditionMap condition,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        string name,
+        ImmutableArray<TemplateFunctionCandidate> candidates,
+        ReportedLocations reported)
+    {
+        if (compilation.MayLackOverloadsOf(name)
+            || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
+            || !condition.GetCondition(invocation).IsAlways
+            || candidates.Any(c => !condition.GetCondition(c.Declaration).IsAlways))
+        {
+            return;
+        }
+
+        // 型引数を書いた呼び出しは、template の関数だけが候補になる。
+        TemplateFunctionCandidate[] pool = invocation.HasTypeArguments ? [.. candidates.Where(c => c.IsTemplate)] : [.. candidates];
+        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+
+        if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location))
+        {
+            return;
+        }
+
+        if (!pool.Any(c => CallCompatibility.AcceptsArgumentCount(c.Declaration.ParameterList, arguments.Length)))
+        {
+            ReportArity(
+                context, invocation, name, [.. pool.Select(c => c.Declaration)], arguments.Length, SymbolCondition.Always, reported);
+            return;
+        }
+
+        if (pool is not [{ IsTemplate: true } single])
+        {
+            return;
+        }
+
+        ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
+        TemplateDeductionResult deduced = TemplateDeduction.Deduce(
+            single, invocation, argument => TemplateDeduction.ArgumentType(evaluator, argument));
+
+        if (!deduced.Fails || !reported.Add(location))
+        {
+            return;
+        }
+
+        string message;
+
+        if (deduced.Mismatch is { } mismatch)
+        {
+            message = $"template の関数 '{name}' の型引数を推論できません。"
+                      + $"第 {mismatch.ArgumentIndex + 1} 引数 ({mismatch.ArgumentType}) は仮引数 {mismatch.ParameterType} の形と一致しません。"
+                      + "仮引数の形に合う値を渡してください。";
+        }
+        else
+        {
+            TemplateDeductionConflict conflict = deduced.Conflict!.Value;
+            string? literalText = TemplateDeduction.IsLiteral(conflict.FirstType)
+                ? TemplateDeduction.AsLiteral(arguments[conflict.FirstIndex])?.Text
+                : TemplateDeduction.IsLiteral(conflict.SecondType)
+                    ? TemplateDeduction.AsLiteral(arguments[conflict.SecondIndex])?.Text
+                    : null;
+            string? otherType = TemplateDeduction.IsLiteral(conflict.FirstType)
+                ? (TemplateDeduction.IsLiteral(conflict.SecondType) ? null : conflict.SecondType)
+                : conflict.FirstType;
+            string typeArgument = otherType ?? "float";
+
+            // 何ができないか、なぜか、どう直すかを分けて書く。
+            string reason = $"第 {conflict.FirstIndex + 1} 引数 ({DescribeDeduced(conflict.FirstType, arguments[conflict.FirstIndex])}) と"
+                            + $"第 {conflict.SecondIndex + 1} 引数 ({DescribeDeduced(conflict.SecondType, arguments[conflict.SecondIndex])}) で"
+                            + $" {conflict.TypeParameter} の型が一致しません。";
+            string fix = literalText is null
+                ? $"実引数の型を揃えるか、{name}<{typeArgument}>(...) のように型引数を書いてください。"
+                : literalText.Contains('.', StringComparison.Ordinal)
+                    ? $"{literalText} のように f の付かない小数は、float とは別の型として推論されます。"
+                      + $"{literalText}f と書くか、{name}<{typeArgument}>(...) のように型引数を書いてください。"
+                    : $"{literalText} のように接尾辞の付かない整数は、int とは別の型として推論されます。"
+                      + $"{name}<{typeArgument}>(...) のように型引数を書いてください。";
+
+            message = $"template の関数 '{name}' の型引数 {conflict.TypeParameter} を推論できません。{reason}{fix}";
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.TemplateArgumentConflict, location, message));
+    }
+
+    /// <summary>構造体のメソッドの呼び出しで、引数の個数を検査する (HL0341、HLSL 2021)。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="condition">出現条件の索引。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="invocation">検査する呼び出し。</param>
+    /// <param name="access">呼び出しの対象 (<c>s.Get</c>)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// 宣言は出現条件で絞らない。そのため、宣言にも呼び出しにも条件が付いていないときだけ報告する。
+    /// template のメソッドがあれば、型引数で形が変わりうるので見ない。
+    /// </remarks>
+    private static void AnalyzeMethodCall(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ConditionMap condition,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        if (compilation.MayLackOverloadsOf(access.Name)
+            || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
+            || !condition.GetCondition(invocation).IsAlways
+            || binder.GetEvaluatorFor(invocation).Evaluate(access.Target) is not { } receiver
+            || !binder.TryGetStructFunctions(receiver, access.Name, out ImmutableArray<FunctionDeclarationSyntax> overloads)
+            || overloads.Any(o => o.Parent is TemplateDeclarationSyntax || !condition.GetCondition(o).IsAlways))
+        {
+            return;
+        }
+
+        int actual = invocation.ArgumentExpressions.Count();
+
+        if (overloads.Any(o => CallCompatibility.AcceptsArgumentCount(o.ParameterList, actual)))
+        {
+            return;
+        }
+
+        ReportArity(context, invocation, $"{receiver}.{access.Name}", [.. overloads], actual, SymbolCondition.Always, reported);
+    }
+
+    /// <summary>推論に使った実引数の型を、画面に出す形にする。</summary>
+    /// <param name="type">推論に使った型。</param>
+    /// <param name="argument">実引数。</param>
+    /// <returns>画面に出す文字列。</returns>
+    private static string DescribeDeduced(string type, HlslExpressionSyntax argument)
+        => TemplateDeduction.IsLiteral(type)
+            ? TemplateDeduction.AsLiteral(argument)?.Text ?? type
+            : type;
 
     /// <summary>引数の個数が合わないことを報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -432,9 +622,9 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         List<FunctionDeclarationSyntax> candidates,
         int actual,
         SymbolCondition call,
-        HashSet<int> reported)
+        ReportedLocations reported)
     {
-        if (invocation.GetLocation() is not { } location || !reported.Add(location.Span.Start))
+        if (invocation.GetLocation() is not { } location || !reported.Add(location))
         {
             return;
         }
@@ -451,7 +641,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            $"宣言が受け付けるのは {string.Join(" / ", accepted)}です",
+            $"必要な引数は {string.Join(" / ", accepted)}です",
             DescribeCondition(call)));
     }
 
@@ -471,7 +661,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="call">呼び出しの出現条件。</param>
     /// <returns>添える文字列。無条件なら空。</returns>
     private static string DescribeCondition(SymbolCondition call)
-        => call.IsAlways ? string.Empty : $" ({call} のとき)";
+        => call.IsAlways ? string.Empty : $" (構成：{call} のとき)";
 
     /// <summary>食い違いの種類。</summary>
     private enum MismatchKind
@@ -605,7 +795,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         if (argument is not IdentifierExpressionSyntax identifier)
         {
             return declaresArrays && binder.GetEvaluatorFor(argument).Evaluate(argument) is not null
-                ? "配列ではありません"
+                ? "配列ではない値を渡しています"
                 : null;
         }
 
@@ -626,12 +816,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (actualLength != expected)
         {
-            return $"渡しているのは要素 {actualLength} 個の配列です";
+            return $"{elementType}[{actualLength}] を渡しています";
         }
 
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
-            : $"渡しているのは {elementType}[{actualLength}] です";
+            : $"{elementType}[{actualLength}] を渡しています";
     }
 
     /// <summary>構造体のフィールドを配列の仮引数へ渡す実引数を検査する。</summary>
@@ -651,13 +841,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         {
             // 構造体のフィールドでなければ、成分の取り出し (v.xyz) などである。型が分かれば配列ではない。
             return declaresArrays && binder.GetEvaluatorFor(member).Evaluate(member) is not null
-                ? "配列ではありません"
+                ? "配列ではない値を渡しています"
                 : null;
         }
 
         if (!field.IsArray)
         {
-            return declaresArrays ? "配列ではありません" : null;
+            return declaresArrays ? "配列ではない値を渡しています" : null;
         }
 
         if (!field.TryGetArrayLength(out int actualLength) || !parameter.TryGetArrayLength(out int expected))
@@ -667,12 +857,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (actualLength != expected)
         {
-            return $"渡しているのは要素 {actualLength} 個の配列です";
+            return $"{elementType}[{actualLength}] を渡しています";
         }
 
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
-            : $"渡しているのは {elementType}[{actualLength}] です";
+            : $"{elementType}[{actualLength}] を渡しています";
     }
 
     /// <summary>配列の仮引数を表す文字列を返す。</summary>

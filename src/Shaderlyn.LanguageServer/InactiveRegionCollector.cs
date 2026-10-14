@@ -3,6 +3,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -43,7 +44,7 @@ internal static class InactiveRegionCollector
     /// ビルドの対象や段階によって値が変わる、Unity が定義するマクロの名前の先頭。
     /// </summary>
     /// <remarks>
-    /// 解析が仮に選んだ値 (<see cref="SemanticsOptions.DefaultPredefinedMacros"/>) に加えて、
+    /// 解析が仮に選んだ値 (<see cref="UnityOptions.DefaultPredefinedMacros"/>) に加えて、
     /// 解析では定義しないが実際のビルドでは定義される側の名前も含める。
     /// </remarks>
     private static readonly string[] EnvironmentMacroPrefixes =
@@ -152,7 +153,7 @@ internal static class InactiveRegionCollector
     /// <param name="name">条件に書かれた名前。</param>
     /// <returns>変わるものであれば <see langword="true"/>。</returns>
     private static bool IsEnvironmentMacro(string name)
-        => SemanticsOptions.DefaultPredefinedMacros.ContainsKey(name)
+        => UnityOptions.DefaultPredefinedMacros.ContainsKey(name)
            || EnvironmentMacroPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal));
 
     /// <summary>

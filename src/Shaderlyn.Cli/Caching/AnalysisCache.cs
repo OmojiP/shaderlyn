@@ -331,7 +331,7 @@ internal sealed class AnalysisCache
         {
             try
             {
-                return File.Exists(p) ? SourceText.From(File.ReadAllText(p), p) : null;
+                return File.Exists(p) ? SourceText.Load(p) : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {

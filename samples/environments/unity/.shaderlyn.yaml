@@ -1,0 +1,18 @@
+# Unity の環境の設定ファイルのテンプレート。
+# environment を省略すると unity になる。キーの一覧は docs/guide/configuration.md にある。
+version: 1
+environment: unity
+
+unity:
+  profile: urp            # レンダーパイプライン: urp / brp / hdrp
+  # project: .            # Unity プロジェクトのルート (Assets と ProjectSettings があるフォルダー)。
+  #                       # 実際のプロジェクトでは指定する。パッケージのヘッダ (Packages/...) の解決に要る
+  # editor: C:/Program Files/Unity/Hub/Editor/6000.0.0f1/Editor/Data   # 省略時は自動で推定
+
+# include-paths:          # #include の追加探索パス (設定ファイルからの相対)
+#   - Assets/ShaderLibrary
+# defines:                # 定義済みマクロ。NAME または NAME=VALUE
+#   - SHADER_API_D3D11
+
+rules:
+  SL1004: none            # 例: 使われていないプロパティの指摘を止める

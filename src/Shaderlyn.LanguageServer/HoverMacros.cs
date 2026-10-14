@@ -7,6 +7,7 @@ using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -317,9 +318,9 @@ internal static partial class HoverBuilder
         string members = string.Join(
             "\n", buffer.Members.Select(m => $"    {m.TypeName} {m.Name};"));
 
-        string note = compilation.Profile.MaterialConstantBufferName is { } material
+        string note = compilation.GetUnity()?.Profile.MaterialConstantBufferName is { } material
                       && string.Equals(buffer.Name, material, StringComparison.Ordinal)
-            ? $"\n\n{compilation.Profile.DisplayName} がマテリアルの値に使う定数バッファ。"
+            ? $"\n\n{compilation.GetUnity()?.Profile.DisplayName} がマテリアルの値に使う定数バッファ。"
               + "ここに入っていない uniform があると SRP Batcher が無効になる。"
             : string.Empty;
 

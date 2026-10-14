@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -205,7 +206,7 @@ public sealed class ComputeShaderTests : IDisposable
             """,
             Path.Combine(_workDirectory, "Variants.compute"));
 
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(text);
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text);
 
         Assert.Equal(2, compilation.Programs.Length);
         Assert.Equal(["First", "Second"], compilation.Programs.Select(p => p.KernelName));
@@ -334,11 +335,11 @@ public sealed class ComputeShaderTests : IDisposable
             "float3 Tint(float3 c) { return c * 0.5; }\n",
             Path.Combine(_workDirectory, "Fragment.hlsl"));
 
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(text);
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text);
 
         Assert.Single(compilation.Programs);
         Assert.Null(compilation.Programs[0].KernelName);
-        Assert.True(compilation.IsStandaloneHlsl);
+        Assert.True(compilation.GetUnity()!.IsStandaloneHlsl);
     }
 
     /// <summary>
@@ -356,7 +357,7 @@ public sealed class ComputeShaderTests : IDisposable
             "#pragma kernel K\n[numthreads(1,1,1)]\nvoid K() { }\n",
             Path.Combine(_workDirectory, "Blank.compute"));
 
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(text);
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text);
 
         ImmutableArray<Diagnostic> diagnostics = compilation.CreateAnalysisTarget().SyntaxDiagnostics;
 
@@ -376,10 +377,10 @@ public sealed class ComputeShaderTests : IDisposable
             "#pragma kernel K\r\n\r\nvoid K() { }\r\n",
             Path.Combine(_workDirectory, "Length.compute"));
 
-        ShaderCompilation compilation = ShaderCompilation.CreateForHlsl(text);
+        ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text);
 
-        Assert.Equal(text.Length, compilation.ShaderLabTree.Text.Length);
-        Assert.Equal(text.LineCount, compilation.ShaderLabTree.Text.LineCount);
+        Assert.Equal(text.Length, compilation.GetUnity()!.Tree.Text.Length);
+        Assert.Equal(text.LineCount, compilation.GetUnity()!.Tree.Text.LineCount);
     }
 
     [Theory]
@@ -397,7 +398,7 @@ public sealed class ComputeShaderTests : IDisposable
     public void 走査の対象はshaderとcomputeだけ()
     {
         // .hlsl と .cginc は断片であることが多く、走査対象にすると雑音になる。
-        Assert.Equal([".shader", ".compute"], CommandLineOptions.DefaultExtensions.ToArray());
+        Assert.Equal([".shader", ".compute"], new Cli.Environments.UnityAnalysisEnvironment(UnityOptions.Default).DefaultExtensions.ToArray());
     }
 
     [Fact]

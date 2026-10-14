@@ -24,7 +24,7 @@ internal readonly record struct ConfigurationProblem(int Line, string Message);
 /// テストからは設定ファイルを用意せずに任意の設定を注入できる。
 /// </para>
 /// </remarks>
-internal sealed class ShaderlynConfiguration
+internal sealed record ShaderlynConfiguration
 {
     /// <summary>設定ファイルの既定の名前。</summary>
     public const string FileName = ".shaderlyn.yaml";
@@ -43,8 +43,79 @@ internal sealed class ShaderlynConfiguration
     /// <summary>読み込み元のファイルパス。設定ファイルが無い場合は <see langword="null"/>。</summary>
     public string? FilePath { get; init; }
 
-    /// <summary>適用するレンダーパイプラインプロファイルの名前。指定が無い場合は <see langword="null"/>。</summary>
+    /// <summary>解析する環境の名前 (<c>environment</c>)。指定が無い場合は <see langword="null"/>。</summary>
+    public string? Environment { get; init; }
+
+    /// <summary><c>environment</c> を書いた 0 始まりの行。書かれていなければ 0。</summary>
+    /// <remarks>知らない環境の名前を、書いた行に報告するために使う。名前を知っているのは CLI である。</remarks>
+    public int EnvironmentLine { get; init; }
+
+    /// <summary>
+    /// 適用するレンダーパイプラインプロファイルの名前 (<c>unity: profile</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>節の外の <c>profile</c> も読む (警告を出す)。両方あれば <c>unity:</c> の節が勝つ。</remarks>
     public string? Profile { get; init; }
+
+    /// <summary>Unity プロジェクトのルート (<c>unity: project</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnityProjectPath { get; init; }
+
+    /// <summary>Unity Editor のデータフォルダー (<c>unity: editor</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnityEditorPath { get; init; }
+
+    /// <summary>
+    /// Unity のバージョン (<c>unity: version</c>、<c>6.3</c> / <c>6000.3.0f1</c> / <c>2022.3</c> など)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトの <c>ProjectSettings/ProjectVersion.txt</c> から読む。</remarks>
+    public string? UnityVersion { get; init; }
+
+    /// <summary>
+    /// シェーダーをコンパイルするグラフィックス API (<c>unity: graphics-apis</c>、<c>dx11</c> / <c>dx12</c> / <c>vulkan</c> など、小文字)。
+    /// 指定が無い場合は空。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトの <c>ProjectSettings.asset</c> の Windows 向けの API を読む。それも無ければ DX11 と DX12。</remarks>
+    public ImmutableArray<string> UnityGraphicsApis { get; init; } = [];
+
+    /// <summary>
+    /// Shader Compiler Backend (<c>unity: shader-compiler-backend</c>、Unity 6.6 から)。<c>fxc</c> か <c>dxc</c>。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>指定が無ければ、プロジェクトのビルドプロファイルから読む。<c>dxc</c> は DX11 以外の API を DXC にする。</remarks>
+    public string? UnityShaderCompilerBackend { get; init; }
+
+    /// <summary>Unreal のエンジンのフォルダー (<c>unreal: engine</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnrealEngineDirectory { get; init; }
+
+    /// <summary>Unreal のプロジェクトのフォルダー (<c>unreal: project</c>)。設定ファイルからの相対で解決済み。</summary>
+    public string? UnrealProjectDirectory { get; init; }
+
+    /// <summary>Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>)。フォルダーは設定ファイルからの相対で解決済み。</summary>
+    public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
+
+    /// <summary>
+    /// コンパイラ (<c>hlsl: compiler</c>)。<c>dxc</c> か <c>fxc</c>。指定が無い場合は <see langword="null"/> (DXC)。
+    /// </summary>
+    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。FXC のときは <see cref="HlslVersion"/> を使わない。</remarks>
+    public string? HlslCompiler { get; init; }
+
+    /// <summary>
+    /// HLSL の言語のバージョン (<c>hlsl: version</c>、DXC の <c>-HV</c>)。<c>2016</c> / <c>2017</c> / <c>2018</c> / <c>2021</c>。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>汎用の HLSL 環境と Unreal の環境で使う。Unity の環境は Unity が決める (FXC か、DXC の 2018)。</remarks>
+    public int? HlslVersion { get; init; }
+
+    /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>、DXC の <c>-enable-16bit-types</c>)。指定が無い場合は <see langword="null"/>。</summary>
+    public bool? HlslEnable16BitTypes { get; init; }
+
+    /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
+    /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
+    public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];
+
+    /// <summary>同時には有効にならないシンボルの組 (<c>symbols:</c> の <c>one-of</c> / <c>at-most-one</c>)。</summary>
+    public ImmutableArray<ConfiguredSymbolGroup> SymbolGroups { get; init; } = [];
+
+    /// <summary>コンパイル単位 (<c>units:</c>)。</summary>
+    /// <remarks>Unity の環境では使わない (Unity は ShaderLab と <c>#pragma</c> から決める)。</remarks>
+    public ImmutableArray<ConfiguredUnit> Units { get; init; } = [];
 
     /// <summary><c>#include</c> の追加探索パス。設定ファイルからの相対で解決済み。</summary>
     public ImmutableArray<string> IncludePaths { get; init; } = [];
@@ -60,6 +131,16 @@ internal sealed class ShaderlynConfiguration
     public ImmutableDictionary<string, ImmutableDictionary<string, string>> RuleOptions { get; init; } =
         ImmutableDictionary<string, ImmutableDictionary<string, string>>.Empty
             .WithComparers(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 出力に出す指摘の最低の重要度 (<c>report: min-severity</c>)。
+    /// </summary>
+    /// <remarks>
+    /// キーは出力形式の名前 (<c>text</c> / <c>json</c> / <c>sarif</c> / <c>github</c>)。
+    /// すべての形式に同じ値を書いたときは、空文字のキーに置く。
+    /// </remarks>
+    public ImmutableDictionary<string, DiagnosticSeverity> ReportMinSeverities { get; init; } =
+        ImmutableDictionary<string, DiagnosticSeverity>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 読み込みで見つかった問題。

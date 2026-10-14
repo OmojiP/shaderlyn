@@ -1,8 +1,8 @@
 {
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
-  "description": "Unity の ShaderLab / HLSL を編集しながら解析する",
-  "version": "0.1.1",
+  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する",
+  "version": "0.2.0",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -22,7 +22,9 @@
     "onLanguage:hlsl",
     "onLanguage:UnityShader",
     "workspaceContains:**/*.shader",
-    "workspaceContains:**/*.hlsl"
+    "workspaceContains:**/*.hlsl",
+    "workspaceContains:**/*.usf",
+    "workspaceContains:**/.shaderlyn.yaml"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -43,14 +45,14 @@
       "editor/title": [
         {
           "command": "shaderlyn.selectConditionSymbols",
-          "when": "resourceExtname =~ /^\\.(shader|hlsl|cginc|hlslinc|compute)$/i",
+          "when": "resourceExtname =~ /^\\.(shader|hlsl|hlsli|cginc|hlslinc|compute|usf|ush)$/i",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
           "command": "shaderlyn.selectConditionSymbols",
-          "when": "resourceExtname =~ /^\\.(shader|hlsl|cginc|hlslinc|compute)$/i"
+          "when": "resourceExtname =~ /^\\.(shader|hlsl|hlsli|cginc|hlslinc|compute|usf|ush)$/i"
         }
       ]
     },

@@ -22,7 +22,7 @@ namespace Shaderlyn.Rules;
 /// </para>
 /// <para>
 /// <b>呼び出しの対象も見る。</b>
-/// 組み込み関数の名前を <see cref="HlslIntrinsics.IsKnownFunction"/> で除けるので、
+/// 組み込み関数の名前を <see cref="HlslIntrinsics.IsKnownFunction(string?, Hlsl.Parsing.HlslLanguageFeatures)"/> で除けるので、
 /// スペルミスの関数呼び出しも報告できる。
 /// 表に無い名前が出たら、それは表の不足である。報告しないのではなく表へ足す。
 /// </para>
@@ -63,10 +63,12 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 名前空間の修飾 (UnifiedRT::TraceRay の UnifiedRT) の位置。
         // 構文の形はメンバーアクセスと同じなので、左側は識別子の式として現れる。
         // 変数でも関数でもないため、宣言を探しても見つからない。
-        HashSet<int> qualifiers = [];
+        HashSet<(string File, int Start)> qualifiers = [];
 
-        // 同じ位置の使用を、木をまたいで集める (Uses)。
-        Dictionary<int, Uses> uses = [];
+        // 同じ位置の使用を、木をまたいで集める (Uses)。位置はファイルごとに数えるので、ファイルの名前も鍵に入れる。
+        // 入れずにいると、ヘッダの識別子と、解析しているファイルの同じ文字位置の別の識別子を 1 つの使用にまとめ、
+        // 見えている名前を「宣言されていない」と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
+        Dictionary<(string File, int Start), Uses> uses = [];
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
@@ -76,7 +78,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             if (node is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.ColonColonToken } access
                 && access.Target.GetLocation() is { } qualifier)
             {
-                qualifiers.Add(qualifier.Span.Start);
+                qualifiers.Add((qualifier.FilePath, qualifier.Span.Start));
                 continue;
             }
 
@@ -94,7 +96,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     HlslRuleDescriptors.UndeclaredIdentifier,
                     use.Location,
                     use.Name,
-                    missing.IsAlways ? "どこにも" : $" {missing} のとき"));
+                    missing.IsAlways ? "どこにも" : $" 構成：{missing} のとき"));
             }
         }
     }
@@ -111,22 +113,23 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         AnalyzedProgram program,
         DeclaredNames declared,
         IdentifierExpressionSyntax identifier,
-        HashSet<int> qualifiers,
-        Dictionary<int, Uses> uses)
+        HashSet<(string File, int Start)> qualifiers,
+        Dictionary<(string File, int Start), Uses> uses)
     {
         // 括弧を付けて呼んだ関数形式マクロの名前が木に残っていれば、その構成ではそのマクロは定義されていない。
         // 定義されていれば展開されて消えている。括弧を付けずに名前だけを書いたものは、今までどおり見ない。
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (HlslIntrinsics.IsKnownFunction(identifier.Name)
+        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.Features)
             || HlslIntrinsics.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
+            || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
             || identifier.GetLocation() is not { } location
-            || qualifiers.Contains(location.Span.Start))
+            || qualifiers.Contains((location.FilePath, location.Span.Start)))
         {
             return;
         }
@@ -158,7 +161,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             visible = declared.Contains(identifier.Name, program, invoked);
         }
 
-        if (!uses.TryGetValue(location.Span.Start, out Uses? use))
+        if (!uses.TryGetValue((location.FilePath, location.Span.Start), out Uses? use))
         {
             // 見える木しか無い位置は、覚えておいても報告にならない。条件を求める費用もかけない。
             if (visible && declaredWhen is null && !declared.MayBeHidden)
@@ -167,7 +170,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             }
 
             use = new Uses(location, identifier.Name);
-            uses[location.Span.Start] = use;
+            uses[(location.FilePath, location.Span.Start)] = use;
         }
 
         use.Occurrences.Add(new Occurrence(identifier, program, visible, declaredWhen));
@@ -395,8 +398,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         continue;
                     }
 
-                    PreprocessResult result = tree.Tree.PreprocessResult;
-                    names.UnionWith(ShaderSymbols.CollectDeclared(result.Pragmas));
+                    names.UnionWith(tree.Variants.Symbols);
                     names.UnionWith(tree.Uniforms.Select(uniform => uniform.Name));
                     AddWrittenDeclarations(_compilation, tree, names);
                 }
@@ -432,10 +434,25 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
                     case StructDeclarationSyntax structure:
                         declared.Add(structure.Name);
+
+                        // 構造体の宣言に続けて宣言した変数 (struct Light { ... } g_light;)。関数の中のものは除く。
+                        if (!structure.Ancestors().Any(a => a is FunctionDeclarationSyntax))
+                        {
+                            declared.UnionWith(structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().Select(v => v.Name));
+                        }
+
                         break;
 
                     case ConstantBufferDeclarationSyntax { NameToken: { } bufferName }:
                         declared.Add(bufferName.Text);
+                        break;
+
+                    case EnumDeclarationSyntax enumeration:
+                        declared.UnionWith(ShaderCompilation.DeclaredNamesOf(enumeration));
+                        break;
+
+                    case TemplateDeclarationSyntax template:
+                        declared.UnionWith(template.ParameterNames);
                         break;
 
                     case VariableDeclarationSyntax variable when !IsInsideFunction(variable):
@@ -452,6 +469,15 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>
+    /// 構造体のメソッドの中かを判定する。メソッドの中では <c>this</c> が使える (DXC で確かめた)。
+    /// </summary>
+    /// <param name="node">対象のノード。</param>
+    /// <returns>構造体の中のメソッドか、構造体の外で定義したメソッド (<c>uint Wave::GetIndex()</c>) の中なら <see langword="true"/>。</returns>
+    private static bool IsInsideMethod(SyntaxNode node)
+        => node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+           && (function.IsMethodDefinition || function.Ancestors().Any(a => a is StructDeclarationSyntax));
 
     /// <summary>変数の宣言が関数の中の変数かを判定する。構造体のフィールドは変数ではない。</summary>
     /// <param name="declaration">対象の宣言。</param>

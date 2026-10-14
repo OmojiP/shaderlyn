@@ -12,11 +12,8 @@ using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
-using Shaderlyn.Semantics.Profiles;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
-using Shaderlyn.ShaderLab;
-using Shaderlyn.ShaderLab.Syntax;
 
 namespace Shaderlyn.Semantics;
 
@@ -40,10 +37,8 @@ namespace Shaderlyn.Semantics;
 public sealed class ShaderCompilation
 {
     private readonly Dictionary<string, List<UniformSymbol>> _uniformsByName;
-    private readonly Dictionary<string, int> _identifierOccurrences;
     private readonly Dictionary<string, int> _declarationCounts;
     private readonly HashSet<string> _inactiveIdentifiers;
-    private readonly HashSet<string> _shaderLabPropertyReferences;
     private readonly FrozenSet<string> _functionLikeMacroNames;
     private Conditional.ConditionMap? _condition;
     private FrozenSet<string>? _declaredNames;
@@ -59,24 +54,35 @@ public sealed class ShaderCompilation
     private FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? _functionDeclarations;
 
     /// <summary>関数の宣言の位置から、それが現れたコードブロックへの対応。</summary>
-    private Dictionary<(SourceText Source, int Start), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
+    private Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
     private Dictionary<AnalyzedProgram, ExpressionTypeBinder>? _binders;
 
     /// <summary>木ごとの、位置から関数の宣言への対応。</summary>
-    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start), FunctionDeclarationSyntax>>? _ownFunctions;
+    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>>? _ownFunctions;
+
+    /// <summary>関数の宣言を見分ける鍵。先頭のトークンの位置と、名前と仮引数の型の並び。</summary>
+    /// <param name="function">関数の宣言。</param>
+    /// <param name="first">その先頭のトークン。</param>
+    /// <returns>鍵。</returns>
+    /// <remarks>
+    /// <b>位置だけでは、同じマクロの展開から作られた多重定義を見分けられない。</b>
+    /// 展開で生まれたトークンは呼び出し位置を持つので、
+    /// <c>DEFINE_FOR_ALL(DEFINE_MIN)</c> が作る <c>min2(float2x2, …)</c> と <c>min2(float3x2, …)</c> は同じ位置になる。
+    /// 位置だけで 1 つにまとめると最初の多重定義しか残らず、ほかの多重定義を呼ぶ正しい呼び出しを
+    /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
+    /// </remarks>
+    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, HlslSyntaxToken first)
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken)))) + ")");
 
     internal ShaderCompilation(
         SourceText text,
-        ShaderLabSyntaxTree shaderLabTree,
-        IRenderPipelineProfile profile,
-        ImmutableArray<PropertySymbol> properties,
+        Environments.ShaderSourceInfo source,
+        Environments.IHlslEnvironment environment,
         ImmutableArray<AnalyzedProgram> programs,
         Dictionary<string, List<UniformSymbol>> uniformsByName,
-        Dictionary<string, int> identifierOccurrences,
         Dictionary<string, int> declarationCounts,
         HashSet<string> inactiveIdentifiers,
         HashSet<string> unanalyzedIdentifiers,
-        HashSet<string> shaderLabPropertyReferences,
         ImmutableArray<string> allIncludePaths,
         ImmutableArray<string> unresolvedIncludes,
         SourceText codeText,
@@ -89,16 +95,13 @@ public sealed class ShaderCompilation
         UnexploredSymbols = unexploredSymbols;
         UnexploredSymbolCombinations = unexploredSymbolCombinations;
         Text = text;
-        ShaderLabTree = shaderLabTree;
-        Profile = profile;
-        Properties = properties;
+        Source = source;
+        Environment = environment;
         Programs = programs;
         _uniformsByName = uniformsByName;
-        _identifierOccurrences = identifierOccurrences;
         _declarationCounts = declarationCounts;
         _inactiveIdentifiers = inactiveIdentifiers;
         UnanalyzedIdentifiers = unanalyzedIdentifiers.ToFrozenSet(StringComparer.Ordinal);
-        _shaderLabPropertyReferences = shaderLabPropertyReferences;
         AllIncludePaths = allIncludePaths;
         UnresolvedIncludes = unresolvedIncludes;
         CodeText = codeText;
@@ -171,7 +174,7 @@ public sealed class ShaderCompilation
             {
                 if (File.Exists(path))
                 {
-                    tokens.AddRange(new HlslLexer(SourceText.From(File.ReadAllText(path), path)).Lex(out _));
+                    tokens.AddRange(new HlslLexer(SourceText.Load(path)).Lex(out _));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -186,28 +189,12 @@ public sealed class ShaderCompilation
     /// <summary>解析対象の <c>.shader</c> のソーステキスト。</summary>
     public SourceText Text { get; }
 
-    /// <summary>ShaderLab としての構文木。</summary>
-    /// <remarks>
-    /// HLSL 単体ファイルでは、全部を空白でマスクしたテキストから作った空の木である。
-    /// <see cref="IsStandaloneHlsl"/> を参照。
-    /// </remarks>
-    public ShaderLabSyntaxTree ShaderLabTree { get; }
+    /// <summary>環境が解析した、ファイルそのものの情報 (ファイル全体の構文木と、その診断)。</summary>
+    public Environments.ShaderSourceInfo Source { get; }
 
-    /// <summary>
-    /// HLSL 単体ファイル (<c>.compute</c> など) を解析したものかどうか。
-    /// </summary>
-    /// <remarks>
-    /// <b>ShaderLab の構造を持たないので、それを根拠にする検査は対象が無い。</b>
-    /// 「対象が無いので報告しない」は「検査できなかった」とは違うので、
-    /// 見送ったことを報告する必要も無い。
-    /// </remarks>
-    public bool IsStandaloneHlsl { get; internal init; }
-
-    /// <summary>適用するレンダーパイプラインプロファイル。</summary>
-    public IRenderPipelineProfile Profile { get; }
-
-    /// <summary><c>Properties</c> に宣言されたプロパティ。</summary>
-    public ImmutableArray<PropertySymbol> Properties { get; }
+    /// <summary>このモデルを作った環境。</summary>
+    /// <remarks>ルールとエディタ機能が、環境ごとの決まり (シンボルらしい名前など) を尋ねるのに使う。</remarks>
+    public Environments.IHlslEnvironment Environment { get; }
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
@@ -312,9 +299,6 @@ public sealed class ShaderCompilation
     /// <summary>解決できなかった include のパス。</summary>
     public ImmutableArray<string> UnresolvedIncludes { get; }
 
-    /// <summary>シェーダー名。<c>Shader</c> 宣言が無い場合は空文字列。</summary>
-    public string ShaderName => ShaderLabTree.Root.Shader?.Name ?? string.Empty;
-
     /// <summary>HLSL として解析できたコードブロックが 1 つでもあるかどうか。</summary>
     public bool HasHlslPrograms => !Programs.IsEmpty;
 
@@ -384,6 +368,23 @@ public sealed class ShaderCompilation
     /// </remarks>
     public bool HasCompleteDependencies =>
         UnresolvedIncludes.IsEmpty && Programs.All(p => p.Diagnostics.IsEmpty);
+
+    /// <summary>
+    /// 指定した名前の関数の多重定義が、見えていないかもしれないかを判定する。
+    /// </summary>
+    /// <param name="name">関数の名前。</param>
+    /// <returns>
+    /// 解析が途中で失敗しているか、解決できない取り込みのどれかがその名前の関数を宣言しうるなら <see langword="true"/>。
+    /// </returns>
+    /// <remarks>
+    /// <see cref="HasCompleteDependencies"/> より緩い。解決できない取り込みが宣言する関数が分かっていれば
+    /// (<see cref="Environments.IHlslEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
+    /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (HL0340 / HL0341) はこれを見る。
+    /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
+    /// </remarks>
+    public bool MayLackOverloadsOf(string name)
+        => !Programs.All(p => p.Diagnostics.IsEmpty)
+           || UnresolvedIncludes.Any(path => Environment.GetFunctionsDeclaredIn(path) is not { } functions || functions.Contains(name));
 
     /// <summary>
     /// 名前から uniform を引く。
@@ -520,93 +521,13 @@ public sealed class ShaderCompilation
     }
 
     /// <summary>
-    /// 名前が ShaderLab 側から参照されているかどうかを判定する。
-    /// </summary>
-    /// <param name="name">調べる名前。</param>
-    /// <returns>参照されている場合は <see langword="true"/>。</returns>
-    /// <remarks>
-    /// <c>Cull [_Cull]</c> のように、プロパティをレンダーステートの値として使う記法がある。
-    /// この形で使われるプロパティは HLSL 側に uniform を持たないのが正常であり、
-    /// 「対応する宣言が無い」という指摘の対象から外さなければならない。
-    /// </remarks>
-    public bool IsReferencedFromShaderLab(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        return _shaderLabPropertyReferences.Contains(name);
-    }
-
-    /// <summary>
-    /// 名前が HLSL のコード中に現れた回数を返す。
-    /// </summary>
-    /// <param name="name">調べる名前。</param>
-    /// <returns>出現回数。マクロ展開後のトークン列を数えたもの。</returns>
-    /// <remarks>
-    /// <para>
-    /// 「宣言されているが 1 度も読まれていない」を判定するために使う。
-    /// 宣言そのものが 1 回分を占めるため、回数が 1 であれば
-    /// 宣言以外のどこにも現れていないことになる。
-    /// </para>
-    /// <para>
-    /// ブロックが複数ある場合はブロックごとに数えて合算する。
-    /// 同じ共通コード片が複数の Pass へ差し込まれれば、その分だけ回数が増える。
-    /// したがって<b>回数そのものに意味があるのは「1 かどうか」だけ</b>である。
-    /// </para>
-    /// </remarks>
-    public int CountIdentifierOccurrences(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        return _identifierOccurrences.GetValueOrDefault(name);
-    }
-
-    /// <summary>
-    /// 名前が uniform として宣言されているのに、宣言以外のどこにも現れないかを判定する。
-    /// </summary>
-    /// <param name="name">調べる名前。</param>
-    /// <returns>宣言だけで一度も使われていない場合は <see langword="true"/>。</returns>
-    /// <remarks>
-    /// <para>
-    /// 出現回数と宣言の個数を比べる。同じ共通コード片が複数の Pass へ差し込まれると
-    /// 宣言も出現も Pass の数だけ増えるため、単純に「出現が 1 回か」では判定できない。
-    /// </para>
-    /// <para>
-    /// 非活性領域に現れる名前は対象外とする。
-    /// 別の構成では使われている可能性があり、断定できない。
-    /// </para>
-    /// </remarks>
-    public bool IsDeclaredButNeverUsed(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-
-        int declarations = _declarationCounts.GetValueOrDefault(name);
-        return declarations > 0
-               && _identifierOccurrences.GetValueOrDefault(name) <= declarations
-               && !_inactiveIdentifiers.Contains(name);
-    }
-
-    /// <summary>
-    /// プロファイルが指定する、マテリアル用の定数バッファを列挙する。
-    /// </summary>
-    /// <returns>該当する定数バッファ。プロファイルがこの概念を持たない場合は空。</returns>
-    public ImmutableArray<ConstantBufferSymbol> GetMaterialConstantBuffers()
-    {
-        if (Profile.MaterialConstantBufferName is not { } bufferName)
-        {
-            return [];
-        }
-
-        return
-        [
-            .. Programs
-                .SelectMany(p => p.ConstantBuffers)
-                .Where(b => string.Equals(b.Name, bufferName, StringComparison.Ordinal))
-        ];
-    }
-
-    /// <summary>
     /// 取り込んだファイルが利用者のものかを、パスから判定する。<see langword="null"/> なら取り込んだファイルは利用者のものではない。
     /// </summary>
     /// <remarks><see cref="SemanticsOptions.IsUserInclude"/> を受け取る。</remarks>
     internal Func<string, bool>? IsUserInclude { get; init; }
+
+    /// <summary>解決できなかった include の理由を述べる文を作る (<see cref="SemanticsOptions.DescribeUnresolvedInclude"/>)。</summary>
+    internal Func<IncludeReference, string?>? DescribeUnresolvedInclude { get; init; }
 
     /// <summary>パスごとの <see cref="IsUserFile"/> の結果。ルールから並列に引かれる。</summary>
     private readonly ConcurrentDictionary<string, bool> _userFiles = new(StringComparer.Ordinal);
@@ -660,6 +581,21 @@ public sealed class ShaderCompilation
     {
         ArgumentNullException.ThrowIfNull(token);
         return IsWrittenIn(token, path => string.Equals(path, Text.FilePath, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 位置が、解析しているファイルの中かどうかを判定する。
+    /// </summary>
+    /// <param name="location">判定する位置。</param>
+    /// <returns>このファイルの中であれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 構成の空間の宣言 (<see cref="VariantDeclaration.Location"/>) のように、位置だけを持つものに使う。
+    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(HlslSyntaxToken)"/>) と同じ答えになる。
+    /// </remarks>
+    public bool IsWrittenHere(Location location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        return string.Equals(location.FilePath, Text.FilePath, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -828,7 +764,7 @@ public sealed class ShaderCompilation
 
         _ownFunctions ??= [];
 
-        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start), FunctionDeclarationSyntax>? own))
+        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>? own))
         {
             own = [];
 
@@ -836,7 +772,7 @@ public sealed class ShaderCompilation
             {
                 if (declaration is FunctionDeclarationSyntax function && function.FirstToken is { } first)
                 {
-                    own.TryAdd((first.Source, first.Span.Start), function);
+                    own.TryAdd(FunctionKey(function, first), function);
                 }
             }
 
@@ -849,10 +785,10 @@ public sealed class ShaderCompilation
         [
             .. all.Where(function => function.FirstToken is { } first
                                      && _functionBlocks is { } blocks
-                                     && blocks.TryGetValue((first.Source, first.Span.Start), out HashSet<(int Start, string? Kernel)>? inBlocks)
+                                     && blocks.TryGetValue(FunctionKey(function, first), out HashSet<(int Start, string? Kernel)>? inBlocks)
                                      && inBlocks.Contains(program.BlockKey))
                   .Select(function => function.FirstToken is { } first
-                                      && own.TryGetValue((first.Source, first.Span.Start), out FunctionDeclarationSyntax? mine)
+                                      && own.TryGetValue(FunctionKey(function, first), out FunctionDeclarationSyntax? mine)
                 ? mine
                 : function),
         ];
@@ -966,13 +902,20 @@ public sealed class ShaderCompilation
             }
 
             Dictionary<string, List<FunctionDeclarationSyntax>> byName = new(StringComparer.Ordinal);
-            HashSet<(SourceText Source, int Start)> seen = [];
-            Dictionary<(SourceText Source, int Start), HashSet<(int Start, string? Kernel)>> blocks = [];
+            HashSet<string> templates = new(StringComparer.Ordinal);
+            HashSet<(SourceText Source, int Start, string Shape)> seen = [];
+            Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>> blocks = [];
 
             foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
             {
                 foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
                 {
+                    if (declaration is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax template })
+                    {
+                        templates.Add(template.Name);
+                        continue;
+                    }
+
                     // 構造体の外で定義したメソッド (Wave::GetIndex) はグローバルな関数ではない。
                     if (declaration is not FunctionDeclarationSyntax function
                         || function.NameToken.IsMissing
@@ -983,15 +926,17 @@ public sealed class ShaderCompilation
                     }
 
                     // どのコードブロックの木に現れたかを覚える。別の Pass の関数は、そのコードからは呼べない。
-                    if (!blocks.TryGetValue((first.Source, first.Span.Start), out HashSet<(int Start, string? Kernel)>? inBlocks))
+                    (SourceText Source, int Start, string Shape) key = FunctionKey(function, first);
+
+                    if (!blocks.TryGetValue(key, out HashSet<(int Start, string? Kernel)>? inBlocks))
                     {
                         inBlocks = [];
-                        blocks[(first.Source, first.Span.Start)] = inBlocks;
+                        blocks[key] = inBlocks;
                     }
 
                     inBlocks.Add(program.BlockKey);
 
-                    if (!seen.Add((first.Source, first.Span.Start)))
+                    if (!seen.Add(key))
                     {
                         continue;
                     }
@@ -1006,7 +951,9 @@ public sealed class ShaderCompilation
                 }
             }
 
-            _functionDeclarations = byName.ToFrozenDictionary(
+            // template の関数と同じ名前の関数は載せない。どれが呼ばれるかは型引数の推論で決まり、
+            // ふつうの関数の形だけで引数の個数や型を判定すると、template のほうを呼んだ正しいコードを指摘することになる。
+            _functionDeclarations = byName.Where(p => !templates.Contains(p.Key)).ToFrozenDictionary(
                 p => p.Key,
                 p => (ImmutableArray<FunctionDeclarationSyntax>)[.. p.Value],
                 StringComparer.Ordinal);
@@ -1100,12 +1047,15 @@ public sealed class ShaderCompilation
         // 既定の構成とバリアントは同じマスクしたテキストから作るので、同じ位置に始まる関数でも、
         // 中身は構成によって違う (#ifdef の中のローカル変数はバリアントの側にしか無い)。
         // ファイルはパスで見分ける (IsWrittenHere と同じ)。
-        HashSet<(SourceText Source, int Start)> seenHeaderDeclarations = [];
+        //
+        // 位置には宣言している名前も添える (HeaderDeclarationKey)。マクロを変えて同じヘッダを何度も取り込むと、
+        // 同じ位置から別の名前の宣言ができる。
+        HashSet<(SourceText Source, int Start, string Name)> seenHeaderDeclarations = [];
 
         // ヘッダの宣言ごとの名前。コードブロックごとの集合へ足すときに使い回す。
-        Dictionary<(SourceText Source, int Start), HashSet<string>> headerNamesAt = [];
+        Dictionary<(SourceText Source, int Start, string Name), HashSet<string>> headerNamesAt = [];
         Dictionary<(int Start, string? Kernel), HashSet<string>> headerByBlock = [];
-        HashSet<((int Start, string? Kernel) Block, SourceText Source, int Start)> addedToBlock = [];
+        HashSet<((int Start, string? Kernel) Block, SourceText Source, int Start, string Name)> addedToBlock = [];
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
@@ -1122,9 +1072,9 @@ public sealed class ShaderCompilation
 
                 if (fromHeader)
                 {
-                    (SourceText Source, int Start) at = (declaration.FirstToken!.Source, declaration.FirstToken.Span.Start);
+                    (SourceText Source, int Start, string Name) at = HeaderDeclarationKey(declaration);
 
-                    if (addedToBlock.Add((program.BlockKey, at.Source, at.Start))
+                    if (addedToBlock.Add((program.BlockKey, at.Source, at.Start, at.Name))
                         && headerNamesAt.TryGetValue(at, out HashSet<string>? seenNames))
                     {
                         blockNames.UnionWith(seenNames);
@@ -1132,6 +1082,15 @@ public sealed class ShaderCompilation
 
                     if (!seenHeaderDeclarations.Add(at))
                     {
+                        // 利用者が書いたヘッダの関数は、構成によって本体が違う (#if の中の局所変数はその構成の木にしか無い)。
+                        // 1 度だけ見ると、ほかの木の局所変数の名前が漏れ、関数の中の変数を大域の名前として探して
+                        // 「宣言されていない」(HL0310) と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
+                        // Unity やパッケージのヘッダは報告しない場所なので、今までどおり 1 度だけ見る。
+                        if (IsUserFile(at.Source.FilePath))
+                        {
+                            Absorb(declaration, names, outside);
+                        }
+
                         continue;
                     }
 
@@ -1153,6 +1112,26 @@ public sealed class ShaderCompilation
             p => p.Key,
             p => p.Value.ToFrozenSet(StringComparer.Ordinal));
     }
+
+    /// <summary>ヘッダの宣言を見分ける鍵。先頭のトークンの位置と、宣言している名前。</summary>
+    /// <param name="declaration">ヘッダの宣言。</param>
+    /// <returns>鍵。</returns>
+    /// <remarks>
+    /// <b>位置だけでは、マクロを変えて同じヘッダを何度も取り込んだ宣言を見分けられない。</b>
+    /// Unreal Engine の DoubleFloat.ush は、<c>DFConstructor</c> を <c>MakeDFScalar</c> / <c>MakeDFVector2</c> / … に変えながら
+    /// <c>DoubleFloatOperations.ush</c> を取り込み、同じ位置から別の名前の関数を作る。
+    /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(HL0310) と報告していた。
+    /// </remarks>
+    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(HlslDeclarationSyntax declaration)
+        => (declaration.FirstToken!.Source,
+            declaration.FirstToken.Span.Start,
+            declaration switch
+            {
+                FunctionDeclarationSyntax function => function.Name,
+                StructDeclarationSyntax structure => structure.Name,
+                VariableDeclarationSyntax variable => string.Join(",", variable.Variables.Select(v => v.Name)),
+                _ => string.Empty,
+            });
 
     /// <summary>
     /// そのコードブロックが取り込んだヘッダの宣言に現れた名前を返す。
@@ -1209,6 +1188,18 @@ public sealed class ShaderCompilation
                 case StructDeclarationSyntax structure:
                     names.Add(structure.Name);
                     outside.Add(structure.Name);
+
+                    // 構造体の宣言に続けて宣言した変数 (struct Light { ... } g_light;)。
+                    foreach (VariableDeclaratorSyntax declarator in structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                    {
+                        names.Add(declarator.Name);
+
+                        if (!structure.Ancestors().Any(a => a is FunctionDeclarationSyntax))
+                        {
+                            outside.Add(declarator.Name);
+                        }
+                    }
+
                     break;
 
                 case ConstantBufferDeclarationSyntax buffer when buffer.NameToken is { } name:
@@ -1216,8 +1207,55 @@ public sealed class ShaderCompilation
                     outside.Add(name.Text);
                     break;
 
+                // enum の型の名前と、スコープの無い列挙子 (enum Mode { A } の A)。enum class の列挙子は Mode::A とだけ書くので足さない。
+                case EnumDeclarationSyntax enumeration:
+                    foreach (string enumName in DeclaredNamesOf(enumeration))
+                    {
+                        names.Add(enumName);
+                        outside.Add(enumName);
+                    }
+
+                    break;
+
+                // template の型引数 (T / N)。宣言の中でだけ見えるが、関数の中の名前と同じく、どこかで宣言された名前として扱う。
+                case TemplateDeclarationSyntax template:
+                    foreach (string parameterName in template.ParameterNames)
+                    {
+                        names.Add(parameterName);
+                        outside.Add(parameterName);
+                    }
+
+                    break;
+
                 default:
                     break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>enum</c> の宣言が、外側に見せる名前を列挙する。
+    /// </summary>
+    /// <param name="enumeration">対象の宣言。</param>
+    /// <returns>型の名前と、スコープの無い列挙子の名前。</returns>
+    /// <remarks>
+    /// スコープの無い列挙子 (<c>enum Mode { A }</c> の <c>A</c>) は、型の名前で修飾しなくても見える。
+    /// <c>enum class</c> の列挙子は <c>Mode::A</c> とだけ書くので、名前としては見せない。
+    /// </remarks>
+    public static IEnumerable<string> DeclaredNamesOf(EnumDeclarationSyntax enumeration)
+    {
+        ArgumentNullException.ThrowIfNull(enumeration);
+
+        if (enumeration.Name.Length > 0)
+        {
+            yield return enumeration.Name;
+        }
+
+        if (!enumeration.IsScoped)
+        {
+            foreach (EnumMemberSyntax member in enumeration.Members)
+            {
+                yield return member.Name;
             }
         }
     }
@@ -1673,96 +1711,6 @@ public sealed class ShaderCompilation
         }
     }
 
-    /// <summary>
-    /// <c>.shader</c> を解析してセマンティックモデルを作る。
-    /// </summary>
-    /// <param name="text">解析対象のソーステキスト。</param>
-    /// <param name="shaderLabTree">解析済みの ShaderLab 構文木。</param>
-    /// <param name="options">実行時設定。</param>
-    /// <returns>構築されたセマンティックモデル。</returns>
-    /// <remarks>
-    /// <b>このメソッドは入力がどれだけ壊れていても例外を投げない。</b>
-    /// </remarks>
-    public static ShaderCompilation Create(
-        SourceText text,
-        ShaderLabSyntaxTree shaderLabTree,
-        SemanticsOptions? options = null)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(shaderLabTree);
-
-        return ShaderCompilationBuilder.Build(
-            text,
-            shaderLabTree,
-            ProgramBlockExtractor.Extract(shaderLabTree),
-            ProgramBlockExtractor.ExtractAllCode(shaderLabTree),
-            options);
-    }
-
-    /// <summary>
-    /// HLSL 単体ファイル (<c>.compute</c> など) を解析してセマンティックモデルを作る。
-    /// </summary>
-    /// <param name="text">解析対象のソーステキスト。</param>
-    /// <param name="options">実行時設定。</param>
-    /// <returns>構築されたセマンティックモデル。</returns>
-    /// <remarks>
-    /// <para>
-    /// <b>ファイル全体を 1 つの <c>HLSLPROGRAM</c> として扱う。</b>
-    /// 展開・構文解析・セマンティックモデル・HLSL のルール群は、
-    /// 埋め込み HLSL とまったく同じ道を通る。
-    /// </para>
-    /// <para>
-    /// <b>ShaderLab の構文木は、全部を空白でマスクしたテキストから作る。</b>
-    /// セマンティックモデルは ShaderLab の木を持つ前提で組み立てられているので、
-    /// 単体ファイル用に別の型を用意すると、その道だけ検査が抜ける穴ができる。
-    /// 空のテキストではなく<b>同じ長さ</b>のテキストにしているのは、
-    /// 長さが食い違うと位置を扱う処理が「たまたま通る」状態になるためである。
-    /// </para>
-    /// <para>
-    /// <b>このメソッドは入力がどれだけ壊れていても例外を投げない。</b>
-    /// </para>
-    /// </remarks>
-    public static ShaderCompilation CreateForHlsl(SourceText text, SemanticsOptions? options = null)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-
-        options ??= SemanticsOptions.Default;
-
-        SourceText blank = CreateBlankText(text);
-
-        // カーネルは展開が始まる前に分かっていなければならない。
-        // #pragma kernel が並べたマクロが、そのカーネルの展開そのものを変えるためである。
-        ImmutableArray<HlslSyntaxToken> tokens = options.TokenCache is { } cache
-            ? cache.GetOrLex(text, out _)
-            : new HlslLexer(text).Lex(out _);
-
-        return ShaderCompilationBuilder.Build(
-            text,
-            ShaderLabSyntaxTree.Parse(blank),
-            ProgramBlockExtractor.ForStandaloneHlsl(text, ComputeKernels.Collect(tokens)),
-            text,
-            options,
-            isStandaloneHlsl: true);
-    }
-
-    /// <summary>
-    /// 元のテキストと同じ長さ・同じ改行位置を持つ、中身の無いテキストを作る。
-    /// </summary>
-    /// <param name="text">元のテキスト。</param>
-    /// <returns>全部を空白で埋めたテキスト。</returns>
-    private static SourceText CreateBlankText(SourceText text)
-    {
-        char[] blank = new char[text.Length];
-
-        for (int i = 0; i < blank.Length; i++)
-        {
-            char c = text[i];
-            blank[i] = c is '\r' or '\n' ? c : ' ';
-        }
-
-        return SourceText.From(new string(blank), text.FilePath, text.Encoding);
-    }
-
 
     /// <summary>
     /// このモデルを添えた解析単位を作る。
@@ -1777,13 +1725,9 @@ public sealed class ShaderCompilation
     public AnalysisTarget CreateAnalysisTarget()
         => new AnalysisTarget(
                 Text,
-                ShaderLabTree.Root,
+                Source.Root,
                 [
-                    // HLSL 単体ファイルの ShaderLab の木は、
-                    // 全部を空白でマスクしたテキストから作ったダミーである。
-                    // そこから出る構文診断はダミーについての話であって、
-                    // 解析しているファイルについての事実ではない。
-                    .. IsStandaloneHlsl ? [] : ShaderLabTree.Diagnostics,
+                    .. Source.Diagnostics,
                     .. ReportableHlslDiagnostics,
                 ])
             .WithModel(this);
@@ -1855,4 +1799,56 @@ public sealed class ShaderCompilation
         return reportable.ToImmutable();
     }
 
+    /// <summary>
+    /// 名前が uniform として宣言された回数を返す。
+    /// </summary>
+    /// <param name="name">調べる名前。</param>
+    /// <returns>宣言の数。既定の構成とバリアントのすべての木で数えた合計。</returns>
+    /// <remarks>
+    /// 同じ共通コード片が複数の Pass へ差し込まれると、宣言も Pass の数だけ増える。
+    /// 「宣言だけで使われていない」を判定するときは、出現の数とこの数を比べる。
+    /// </remarks>
+    public int CountUniformDeclarations(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _declarationCounts.GetValueOrDefault(name);
+    }
+
+    /// <summary>
+    /// 環境が切り出したコンパイル単位から、セマンティックモデルを作る。
+    /// </summary>
+    /// <param name="text">解析対象のソーステキスト。</param>
+    /// <param name="units">解析するコンパイル単位。環境が作る。</param>
+    /// <param name="codeText">
+    /// 利用者が書いた HLSL だけを残したテキスト。元のファイルと同じ長さ・同じ行構成を持つ。
+    /// HLSL だけのファイルなら <paramref name="text"/> そのもの。
+    /// </param>
+    /// <param name="environment">環境。構成の空間の読み方と、単位ごとの設定を与える。</param>
+    /// <param name="source">環境が解析したファイルそのものの情報。</param>
+    /// <param name="options">実行時設定。</param>
+    /// <returns>構築されたセマンティックモデル。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>環境ごとの作り方 (Unity なら <c>UnityCompilation</c>) は、これを呼ぶ。</b>
+    /// 独自エンジンの環境も、単位を切り出してこれを呼べばよい。
+    /// </para>
+    /// <para>
+    /// <b>このメソッドは入力がどれだけ壊れていても例外を投げない。</b>
+    /// </para>
+    /// </remarks>
+    public static ShaderCompilation Create(
+        SourceText text,
+        ImmutableArray<Environments.HlslCompilationUnit> units,
+        SourceText codeText,
+        Environments.IHlslEnvironment environment,
+        Environments.ShaderSourceInfo source,
+        SemanticsOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(codeText);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(source);
+
+        return ShaderCompilationBuilder.Build(text, units, codeText, options, environment, source);
+    }
 }

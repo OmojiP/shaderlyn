@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -109,18 +111,20 @@ internal static partial class CompletionBuilder
         // 宣言したばかりで、まだどの条件でも使っていないシンボルも書ける。
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (string symbol in ShaderSymbols.CollectDeclared(program.Tree.PreprocessResult.Pragmas))
+            foreach (string symbol in program.Variants.Symbols)
             {
-                items.TryAdd(symbol, new CompletionItem(symbol, KindConstant, "シェーダーのシンボル"));
+                // 値を持つシンボルは原子 (QUALITY==2) ではなく名前を書く。
+                string label = VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : symbol;
+                items.TryAdd(label, new CompletionItem(label, KindConstant, "シェーダーのシンボル"));
             }
         }
 
         foreach (ConditionSymbol symbol in ConditionSymbols.Collect(compilation))
         {
-            items.TryAdd(symbol.Name, new CompletionItem(
-                symbol.Name,
+            items.TryAdd(symbol.Variable ?? symbol.Name, new CompletionItem(
+                symbol.Variable ?? symbol.Name,
                 KindConstant,
-                symbol.DeclaredByPragma ? "シェーダーのシンボル" : "条件で参照している名前"));
+                symbol.Declared ? "シェーダーのシンボル" : "条件で参照している名前"));
         }
 
         AddMacros(compilation, items);

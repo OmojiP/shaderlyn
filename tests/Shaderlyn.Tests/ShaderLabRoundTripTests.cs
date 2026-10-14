@@ -34,7 +34,7 @@ internal static class Fixtures
     public static SourceText Load(string fileName)
     {
         string path = Path.Combine(Directory, fileName);
-        return SourceText.From(File.ReadAllText(path), path);
+        return SourceText.Load(path);
     }
 }
 

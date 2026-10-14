@@ -40,19 +40,27 @@ internal sealed class UnresolvedConditionAnalyzer : SemanticRuleAnalyzer
         }
 
         // 同じ箇所が Pass ごとに現れる。位置で 1 つに寄せる。
-        HashSet<int> reported = [];
+        HashSet<(string File, int Start)> reported = [];
 
         foreach (Location location in condition.UnmergedLocations)
         {
-            // 利用者が書いた行だけを指す。
-            // 取り込んだヘッダの中で条件を追えなくても、直しようがない。
-            if (!string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal)
-                || !reported.Add(location.Span.Start))
+            // 利用者が書いた行 (このファイルと、利用者が書いたヘッダ) だけを指す。
+            // Unity やパッケージのヘッダの中で条件を追えなくても、直しようがない。
+            // 利用者のヘッダで書き分けたマクロの本体は、利用者が直せる。黙って検査を見送ってはならない。
+            if (!compilation.IsUserFile(location.FilePath)
+                || !reported.Add((location.FilePath, location.Span.Start)))
             {
                 continue;
             }
 
-            context.ReportDiagnostic(SemanticRuleDescriptors.UnresolvedCondition, location.Span);
+            if (string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal))
+            {
+                context.ReportDiagnostic(SemanticRuleDescriptors.UnresolvedCondition, location.Span);
+            }
+            else
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SemanticRuleDescriptors.UnresolvedCondition, location));
+            }
         }
     }
 }

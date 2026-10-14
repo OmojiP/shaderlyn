@@ -59,12 +59,15 @@ internal static class HlslDescriptors
     /// </remarks>
     public static DiagnosticDescriptor UnsupportedDeclaration { get; } = new(
         id: "HL0003",
-        title: "Unity のシェーダーでは使えない構文です",
-        messageFormat: "{0} は Unity のシェーダーでは使えません。",
+        title: "この環境では使えない構文です",
+        messageFormat: "{0} は 環境：{1} では使えません。",
         category: "Syntax",
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "class / interface / enum / template の宣言、operator による演算子の多重定義、"
-            + "構造体のビットフィールド、#line 指令は、Unity のシェーダーのコンパイルでエラーになります。"
+        description: "enum / template の宣言、operator による演算子の多重定義、構造体のビットフィールドは、"
+            + "コンパイラ (方言) によってはエラーになります。FXC (Unity の既定) はどれも使えず、DXC は enum を 2017 から、ほかを 2021 から使えます。"
+            + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も方言で使えるかが変わります。"
+            + "1 つのコードが API ごとに別の方言でコンパイルされるときは、使えない API とコンパイラを添えます。"
+            + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどの方言でも使えます。"
             + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (SL0002)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));
@@ -86,7 +89,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor ExtraTokensAfterConditionName { get; } = new(
         id: "HL0004",
         title: "#ifdef / #ifndef の後ろの記述は無視されます",
-        messageFormat: "#{0} はシンボルを 1 つだけ解析します。後ろの '{1}' は無視されます。{2}",
+        messageFormat: "#{0} の後ろに指定できるシンボルは 1 つです。'{1}' は無視されます。{2}",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#ifdef / #ifndef は直後の名前 1 つだけを条件にし、その後ろの記述を無視します。"
@@ -116,7 +119,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UndeclaredSymbol { get; } = new(
         id: "HL0330",
         title: "未宣言のシンボルが使用されています",
-        messageFormat: "シンボル '{0}' はこのシェーダーで宣言されていません。この分岐は有効になりません。",
+        messageFormat: "シンボル '{0}' の宣言が存在しないため、この分岐は常に無効になります。",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#ifdef などで参照しているシンボルが、"
@@ -134,7 +137,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UnusedSymbol { get; } = new(
         id: "HL0331",
         title: "宣言したシンボルが未使用です",
-        messageFormat: "シンボル '{0}' は宣言されていますが、条件のどこにも現れません。",
+        messageFormat: "シンボル '{0}' はプリプロセッサ条件で使用されていません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#pragma shader_feature / multi_compile で宣言したシンボルが、"
@@ -158,7 +161,7 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor NeverTrueCondition { get; } = new(
         id: "HL0332",
         title: "どの構成でも成り立たない条件です",
-        messageFormat: "条件 '{0}' はどの構成でも成り立ちません。この分岐は有効になりません。",
+        messageFormat: "条件 '{0}' はどの構成でも成立しないため、この分岐は常に無効になります。",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#if / #elif の条件が、宣言されたシンボルをどう有効にしても成り立ちません。"
@@ -190,12 +193,13 @@ internal static class HlslDescriptors
     public static DiagnosticDescriptor UnresolvedInclude { get; } = new(
         id: "HL0321",
         title: "include を解決できません",
-        messageFormat: "include '{0}' を解決できませんでした。",
+        messageFormat: "include '{0}' を解決できませんでした。{1}",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "指定されたパスのファイルが見つかりませんでした。"
             + "探索パスの設定が不足しているか、パスの書き方が誤っている可能性があります。"
             + "解決できない include があると、その中で定義されるマクロや型が未知のままになり、"
-            + "その先の検査は根拠を欠いたまま行うことになります。",
+            + "その先の検査は根拠を欠いたまま行うことになります。"
+            + "ファイルがあっても、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なら読みません。",
         helpLinkUri: DocumentationLinks.For("HL0321"));
 }

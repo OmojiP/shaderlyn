@@ -103,15 +103,24 @@ internal static class UniformCollector
         private readonly Dictionary<string, List<FunctionSignature>> _functionSignatures =
             new(StringComparer.Ordinal);
 
+        /// <summary>template の関数の名前。</summary>
+        /// <remarks>
+        /// 型引数 (T) を含む形は、呼ぶ側の型で決まる。同じ名前のふつうの関数があっても、
+        /// どちらが呼ばれるかを決められないので、その名前の形は載せない (型も引数の個数も主張しない)。
+        /// </remarks>
+        private readonly HashSet<string> _templateFunctionNames = new(StringComparer.Ordinal);
+
         public DeclarationSet ToResult() => new(
             _uniforms.ToImmutable(),
             _constantBuffers.ToImmutable(),
             _structs.ToImmutable(),
             _functionNames.ToImmutable(),
-            _functionSignatures.ToImmutableDictionary(
-                pair => pair.Key,
-                pair => pair.Value.ToImmutableArray(),
-                StringComparer.Ordinal));
+            _functionSignatures
+                .Where(pair => !_templateFunctionNames.Contains(pair.Key))
+                .ToImmutableDictionary(
+                    pair => pair.Key,
+                    pair => pair.Value.ToImmutableArray(),
+                    StringComparer.Ordinal));
 
         public void CollectFrom(ImmutableArray<HlslDeclarationSyntax> declarations)
         {
@@ -135,6 +144,12 @@ internal static class UniformCollector
 
                     case StructDeclarationSyntax structDeclaration:
                         CollectStruct(structDeclaration);
+                        break;
+
+                    // template の構造体は、フィールドの型が型引数で決まるので載せない。関数は名前だけを載せる。
+                    case TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax function } when !function.NameToken.IsMissing:
+                        _functionNames.Add(function.Name);
+                        _templateFunctionNames.Add(function.Name);
                         break;
 
                     case NamespaceDeclarationSyntax ns:

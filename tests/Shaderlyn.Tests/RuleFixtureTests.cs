@@ -8,6 +8,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
 
@@ -50,6 +51,20 @@ public sealed class RuleFixtureTests
         // .shader の診断としては SL0002 のメッセージの中に現れる。
         // これは HL0320_の循環はSL0002の中に現れる で確かめている。
         ["HL0320"] = "循環は取り込み先で起きるため、報告が SL0002 のメッセージの中に入る",
+
+        // template は HLSL 2021 の構文で、Unity (HLSL 2018) の .shader では HL0003 になる。
+        // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
+        ["HL0345"] = "HLSL 2021 の template の呼び出しなので、Unity の .shader では起こせない",
+
+        // enum も HLSL 2021 の構文。Hlsl2021EnumTests で確かめている。
+        ["HL0347"] = "HLSL 2021 の enum の値なので、Unity の .shader では起こせない",
+
+        // Unity は HLSL 2021 でコンパイルしないので起こせない。Hlsl2021Tests で、汎用の HLSL 環境の .hlsl として確かめている。
+        ["HL0349"] = "HLSL 2021 だけの規則なので、Unity の .shader では起こせない",
+
+        // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
+        // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。
+        ["SL1051"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",
     };
 
     /// <summary>違反するシェーダーを置いてある規則。</summary>
@@ -149,7 +164,7 @@ public sealed class RuleFixtureTests
     private static ImmutableArray<Diagnostic> Analyze(string ruleId)
     {
         string path = Path.Combine(FixtureDirectory, $"{ruleId}.shader");
-        SourceText text = SourceText.From(File.ReadAllText(path), path);
+        SourceText text = SourceText.Load(path);
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
 
         SemanticsOptions options = new()
@@ -164,7 +179,7 @@ public sealed class RuleFixtureTests
             ]),
         };
 
-        ShaderCompilation compilation = ShaderCompilation.Create(text, tree, options);
+        ShaderCompilation compilation = UnityCompilation.Create(text, tree, options);
 
         return new AnalyzerDriver(BuiltInAnalyzers.All)
             .Analyze(compilation.CreateAnalysisTarget());

@@ -22,6 +22,31 @@ dotnet test
 - **Native AOT で配布しています。** リフレクションに頼るコードはビルドで弾かれます（`IsAotCompatible`）
 - VS Code 拡張を動かすには `editors/vscode` で `npm install` し、VS Code の「実行とデバッグ」から「VS Code 拡張を起動」を選びます
 - Unity がインストールされていなくてもテストは通ります。Unity の実物を使う検証は、見つからなければ飛ばされます
+- DirectX 12 の公開サンプルを使う検証 (誤検出が無いか) は、コーパスを取ってきて環境変数で渡したときだけ動きます。コーパスはリポジトリに入れません (`.work/` は git の対象外)
+
+  ```sh
+  node tools/corpus/fetch.mjs
+  SHADERLYN_HLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~ExternalCorpusTests"
+  ```
+
+  指摘の一覧は `.work/corpus/report-<名前>.txt` に書き出されます
+- Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使う検証も動きます。時間がかかるので、ふだんの確認では外せます
+
+  ```sh
+  # ふだんの確認 (20 秒ほど)
+  dotnet test --filter "FullyQualifiedName!~CorpusTests&FullyQualifiedName!~AnalysisSnapshotTests"
+
+  # Unity 同梱のシェーダーで誤検出と例外を確かめる (10 分ほど)
+  dotnet test --filter "FullyQualifiedName~CorpusTests&FullyQualifiedName!~ExternalCorpusTests&FullyQualifiedName!~UnityProbeCorpusTests"
+
+  # 指摘の全件を記録と比べる (記録はリポジトリに入れない。違えば <パス>.received に今の結果を書き出す)
+  SHADERLYN_SNAPSHOT=.work/snapshot/unity.txt dotnet test --filter "FullyQualifiedName~AnalysisSnapshotTests"
+
+  # Unity の実測 (ShaderProbePack のレポート) と、コンパイラの判定を比べる
+  SHADERLYN_UNITY_PROBE=<プローブのプロジェクトを置いたフォルダー> dotnet test --filter "FullyQualifiedName~UnityProbeCorpusTests"
+  ```
+
+  記録と違ったときは、指摘の ID と位置が変わっていないこと (文だけの変更なら) を確かめてから、`.received` で記録を置き換えます
 
 ## ルールを足す・直す
 
@@ -55,7 +80,7 @@ dotnet test
 
 - 1 つのプルリクエストでは 1 つのことを変えてください
 - `dotnet build` と `dotnet test` が手元で通ることを確かめてください
-- コードのコメントとドキュメントは日本語で、コミットメッセージは英語で書いています。どちらの言語でも受け付けます
+- コードのコメント、ドキュメント、コミットメッセージは日本語で書いています。どちらの言語でも受け付けます
 
 ## リリースする (メンテナー向け)
 

@@ -3,6 +3,8 @@ using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Unity.Profiles;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -19,6 +21,7 @@ internal sealed class EffectiveSettings
 {
     private EffectiveSettings(
         ShaderlynConfiguration configuration,
+        string environment,
         string profile,
         ImmutableArray<string> includePaths,
         ImmutableArray<string> defines,
@@ -26,6 +29,7 @@ internal sealed class EffectiveSettings
         ImmutableArray<Diagnostic> configurationDiagnostics)
     {
         Configuration = configuration;
+        Environment = environment;
         Profile = profile;
         IncludePaths = includePaths;
         Defines = defines;
@@ -40,6 +44,26 @@ internal sealed class EffectiveSettings
     /// 設定ファイルを探し始めたフォルダー。探さなかった場合 (<c>--config</c> / <c>--no-config</c>) は <see langword="null"/>。
     /// </summary>
     public string? ConfigurationSearchDirectory { get; private init; }
+
+    /// <summary>
+    /// コマンドラインで指定した、Unity の環境だけのオプション (<c>--profile</c> など)。
+    /// </summary>
+    /// <remarks>Unity 以外の環境で指定していればエラーにする。黙って無視すると、効いていると思い込ませる。</remarks>
+    public ImmutableArray<string> UnityOnlyCommandLineOptions { get; private init; } = [];
+
+    /// <summary>
+    /// Unity プロジェクトのルート (<c>--unity-project</c>、無ければ設定ファイルの <c>unity: project</c>)。Unity 以外の環境では <see langword="null"/>。
+    /// </summary>
+    public string? UnityProjectPath { get; private init; }
+
+    /// <summary>自前のホストが足した環境。</summary>
+    public ImmutableArray<HostEnvironment> HostEnvironments { get; private init; } = [];
+
+    /// <summary>環境を指定しない場合に使う環境。</summary>
+    public const string DefaultEnvironment = "unity";
+
+    /// <summary>解析する環境の名前 (設定ファイルの <c>environment</c>、無ければ <see cref="DefaultEnvironment"/>)。</summary>
+    public string Environment { get; }
 
     /// <summary>適用するレンダーパイプラインプロファイルの名前。</summary>
     public string Profile { get; }
@@ -67,11 +91,72 @@ internal sealed class EffectiveSettings
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <returns>組み立てた設定。</returns>
-    public static EffectiveSettings Create(CommandLineOptions options)
+    public static EffectiveSettings Create(CommandLineOptions options) => Create(options, []);
+
+    /// <summary>
+    /// コマンドライン引数と、自前のホストが足した環境から実行時の設定を組み立てる。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="hostEnvironments">自前のホストが足した環境。</param>
+    /// <returns>組み立てた設定。</returns>
+    public static EffectiveSettings Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hostEnvironments)
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        hostEnvironments = hostEnvironments.IsDefault ? [] : hostEnvironments;
+
         ShaderlynConfiguration configuration = LoadConfiguration(options, out string? searchDirectory);
+        string environment = options.Environment ?? configuration.Environment ?? DefaultEnvironment;
+        bool isUnity = environment == UnityAnalysisEnvironment.EnvironmentName;
+
+        // Unity だけの指定は、コマンドラインに書かれたものを覚えておく。他の環境で指定していればエラーにする (Program)。
+        // 設定ファイルの unity: の節は、他の環境では読まない。1 つの設定を環境の切り替えで使い回せるように。
+        ImmutableArray<string> unityOnlyOptions =
+        [
+            .. options.Profile is null ? [] : new[] { "--profile" },
+            .. options.UnityProjectPath is null ? [] : new[] { "--unity-project" },
+            .. options.UnityEditorDataPath is null ? [] : new[] { "--unity-editor" },
+        ];
+
+        if (isUnity)
+        {
+            options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+        }
+        else
+        {
+            options.ClearUnityOptions();
+        }
+
+        if (isUnity &&(!configuration.Symbols.IsEmpty || !configuration.SymbolGroups.IsEmpty || !configuration.Units.IsEmpty))
+        {
+            configuration = configuration with
+            {
+                Problems =
+                [
+                    .. configuration.Problems,
+                    new ConfigurationProblem(
+                        0,
+                        "symbols: と units: は Unity の環境では使いません。Unity の構成の軸は #pragma multi_compile などから、"
+                        + "コンパイル単位は ShaderLab から読みます。ほかの環境で使うなら environment を指定してください。"),
+                ],
+            };
+        }
+
+        // 環境の名前を知っているのは CLI である。設定ファイルに書かれた知らない名前は、書いた行に報告する。
+        // コマンドラインの指定はその場でエラーにする (Program)。
+        if (options.Environment is null
+            && configuration.Environment is { } environmentName
+            && !AnalysisEnvironments.Names(hostEnvironments).Contains(environmentName))
+        {
+            configuration = configuration with
+            {
+                Problems =
+                [
+                    .. configuration.Problems,
+                    new ConfigurationProblem(configuration.EnvironmentLine, AnalysisEnvironments.DescribeUnknown(environmentName, hostEnvironments)),
+                ],
+            };
+        }
 
         // 探索パスと定義は積み上げる。設定ファイルの内容を先に置くことで、
         // 同じマクロを両方で定義した場合にコマンドラインの指定が勝つ。
@@ -83,15 +168,50 @@ internal sealed class EffectiveSettings
 
         return new EffectiveSettings(
             configuration,
-            options.Profile ?? configuration.Profile ?? Semantics.Profiles.RenderPipelineProfiles.Default.Name,
+            environment,
+            options.Profile ?? configuration.Profile ?? RenderPipelineProfiles.Default.Name,
             includePaths,
             defines,
             analyzerOptions,
             CreateConfigurationDiagnostics(configuration))
         {
             ConfigurationSearchDirectory = searchDirectory,
+            UnityOnlyCommandLineOptions = unityOnlyOptions,
+            HostEnvironments = hostEnvironments,
+            UnityProjectPath = isUnity ? options.UnityProjectPath : null,
         };
     }
+
+    /// <summary>
+    /// 出力に出す指摘の最低の重要度を決める。
+    /// </summary>
+    /// <param name="format">出力形式。</param>
+    /// <param name="commandLine">コマンドラインの <c>--min-severity</c>。指定が無ければ <see langword="null"/>。</param>
+    /// <returns>
+    /// コマンドラインの指定、設定ファイルのその形式の値、設定ファイルのすべての形式の値の順に、最初にあるもの。
+    /// どれも無ければ <see cref="DiagnosticSeverity.Info"/> (すべて出す)。
+    /// </returns>
+    public DiagnosticSeverity GetMinimumReportedSeverity(OutputFormat format, DiagnosticSeverity? commandLine)
+    {
+        if (commandLine is { } severity)
+        {
+            return severity;
+        }
+
+        ImmutableDictionary<string, DiagnosticSeverity> configured = Configuration.ReportMinSeverities;
+
+        return configured.TryGetValue(format.ToString(), out DiagnosticSeverity forFormat) ? forFormat
+            : configured.TryGetValue(string.Empty, out DiagnosticSeverity forAll) ? forAll
+            : DiagnosticSeverity.Info;
+    }
+
+    /// <summary>
+    /// フォルダーから上へ辿って、設定ファイルを探す。
+    /// </summary>
+    /// <param name="directory">探し始めるフォルダー。</param>
+    /// <returns>見つかった設定ファイルのパス。無ければ <see langword="null"/>。</returns>
+    /// <remarks>言語サーバーが、開いたファイルごとに使う設定を決めるのに使う。CLI と同じ探し方である。</remarks>
+    public static string? FindConfigurationFile(string directory) => ConfigurationLoader.FindConfigurationFile(directory);
 
     /// <summary>
     /// 設定ファイルを読み込む。
@@ -164,7 +284,7 @@ internal sealed class EffectiveSettings
         SourceText text;
         try
         {
-            text = SourceText.From(File.ReadAllText(filePath), filePath);
+            text = SourceText.Load(filePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

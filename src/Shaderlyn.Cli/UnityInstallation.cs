@@ -240,6 +240,41 @@ internal static class UnityInstallation
 
         return null;
     }
+
+    /// <summary>解析対象の上にある Unity プロジェクトを探す。</summary>
+    /// <param name="inputPaths">解析対象のパス。</param>
+    /// <returns>見つかったプロジェクトのルート。無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <c>ProjectSettings/ProjectVersion.txt</c> と <c>Assets</c> があるフォルダーをプロジェクトとみなす。
+    /// 言語サーバーがワークスペースから推定するのと同じく、CLI も <c>--unity-project</c> が無ければこれを使う。
+    /// </remarks>
+    internal static string? FindProjectAbove(ImmutableArray<string> inputPaths)
+    {
+        foreach (string input in inputPaths)
+        {
+            DirectoryInfo? directory;
+            try
+            {
+                string full = Path.GetFullPath(input);
+                directory = new DirectoryInfo(Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full);
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException)
+            {
+                continue;
+            }
+
+            for (; directory is not null; directory = directory.Parent)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, "ProjectSettings", "ProjectVersion.txt"))
+                    && Directory.Exists(Path.Combine(directory.FullName, "Assets")))
+                {
+                    return directory.FullName;
+                }
+            }
+        }
+
+        return null;
+    }
 }
 
 /// <summary>Editor のデータフォルダーをどう決めたか。</summary>

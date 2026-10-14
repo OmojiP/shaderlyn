@@ -3,9 +3,12 @@ using System.Collections.Immutable;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.LanguageServer;
 
@@ -44,6 +47,10 @@ internal sealed class AnalysisSession
     private readonly AnalysisRunner _syntaxOnly;
     private readonly AnalysisRunner _full;
     private readonly SemanticsOptions _semantics;
+    private readonly IAnalysisEnvironment _environment;
+
+    /// <summary>意味解析に渡す HLSL の環境。宣言されたシンボルを、解析せずに読むのに使う。</summary>
+    public Semantics.Environments.IHlslEnvironment? HlslEnvironment => _environment.HlslEnvironment;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
@@ -76,6 +83,20 @@ internal sealed class AnalysisSession
     /// 食い違いが残る (docs/custom-rules/tutorial.md)。
     /// </remarks>
     public AnalysisSession(string? workspaceDirectory, IEnumerable<DiagnosticAnalyzer> analyzers)
+        : this(workspaceDirectory, analyzers, [])
+    {
+    }
+
+    /// <summary>
+    /// 独自エンジンの環境を足して、解析の設定を組み立てる。
+    /// </summary>
+    /// <param name="workspaceDirectory">ワークスペースのルート。設定ファイルの探索に使う。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">自前のホストが足した環境。</param>
+    public AnalysisSession(
+        string? workspaceDirectory,
+        IEnumerable<DiagnosticAnalyzer> analyzers,
+        ImmutableArray<HostEnvironment> environments)
     {
         ArgumentNullException.ThrowIfNull(analyzers);
 
@@ -84,7 +105,7 @@ internal sealed class AnalysisSession
         ImmutableArray<DiagnosticAnalyzer> all = [.. analyzers];
 
         CommandLineOptions options = BuildOptions(workspaceDirectory);
-        EffectiveSettings settings = EffectiveSettings.Create(options);
+        EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
         UnityProjectPath = options.UnityProjectPath;
@@ -92,8 +113,13 @@ internal sealed class AnalysisSession
         _analyzers = all;
         _analyzerOptions = settings.AnalyzerOptions;
         _semantics = SemanticsSetup.Create(options, settings);
-        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions);
-        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics);
+        // 知らない環境の名前は、設定の問題として編集中のファイルにも出る (EffectiveSettings)。
+        // エディタは止めずに、既定の環境 (Unity) で解析を続ける。
+        _environment = AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment)
+            ? environment
+            : new UnityAnalysisEnvironment(SemanticsSetup.CreateUnity(settings));
+        _syntaxOnly = new AnalysisRunner(all, settings.AnalyzerOptions, environment: _environment);
+        _full = new AnalysisRunner(all, settings.AnalyzerOptions, _semantics, environment: _environment);
     }
 
     /// <summary>
@@ -163,14 +189,12 @@ internal sealed class AnalysisSession
     /// <param name="text">対象のテキスト。</param>
     /// <param name="semantics">意味解析の設定。</param>
     /// <returns>組み立てたセマンティックモデル。</returns>
-    private static ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
+    private ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
     {
-        // どの言語として読むかは拡張子だけで決める。
-        // CLI と同じ判断を使う。片方だけ別に判定すると、
+        // どの言語として読むかは環境が決める。CLI と同じ口を通す。片方だけ別に判定すると、
         // 「CLI では見るのにエディタでは見ない」という食い違いが生まれる。
-        return ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-            ? ShaderCompilation.CreateForHlsl(text, semantics)
-            : ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+        return _environment.Prepare(text, semantics, timings: null).Compilation
+            ?? throw new InvalidOperationException($"環境 '{_environment.Name}' は HLSL のセマンティックモデルを作りません。");
     }
 
     /// <summary>ワークスペースのルート。</summary>
@@ -250,20 +274,22 @@ internal sealed class AnalysisSession
         return _withSymbols.GetOrAdd(key, _ =>
         {
             SemanticsOptions semantics = DefineSymbols(definedSymbols);
-            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics));
+            return (semantics, new AnalysisRunner(_analyzers, _analyzerOptions, semantics, environment: _environment));
         });
     }
 
     /// <summary>シンボルを <c>#define 名前 1</c> として足した設定を返す。</summary>
-    /// <param name="symbols">足すシンボル。</param>
+    /// <param name="symbols">足すシンボル。値を持つシンボルの原子 (<c>QUALITY==2</c>) は、その値で定義する。</param>
     /// <returns>足した設定。</returns>
     private SemanticsOptions DefineSymbols(IReadOnlyCollection<string> symbols)
     {
-        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros;
+        ImmutableDictionary<string, string> macros = _semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty;
 
         foreach (string symbol in symbols)
         {
-            macros = macros.SetItem(symbol, "1");
+            macros = VariantValues.TryParseAtom(symbol, out string? name, out int value)
+                ? macros.SetItem(name, value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                : macros.SetItem(symbol, "1");
         }
 
         return _semantics with { PredefinedMacros = macros };

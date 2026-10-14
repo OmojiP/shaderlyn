@@ -31,6 +31,14 @@ public sealed class ExpressionTypeBinder
     private readonly ShaderCompilation _compilation;
     private readonly FrozenDictionary<string, ImmutableArray<FunctionSignature>> _functionSignatures;
     private readonly FrozenDictionary<string, FrozenDictionary<string, ResolvedTypeName>> _structFields;
+    private readonly FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> _structFunctions;
+    private readonly FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> _templateFunctions;
+
+    /// <summary>enum の名前から、その型への対応 (HLSL 2021)。</summary>
+    private readonly FrozenDictionary<string, EnumInfo> _enums;
+
+    /// <summary>template の構造体の名前から、型引数の名前への対応 (HLSL 2021)。</summary>
+    private readonly FrozenDictionary<string, ImmutableArray<string>> _templateStructs;
 
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
@@ -80,13 +88,64 @@ public sealed class ExpressionTypeBinder
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
+        _structFunctions = CollectStructFunctions(program);
+        _templateFunctions = CollectTemplateFunctions(program.Tree.Root.Declarations);
+        _enums = CollectEnums(program.Tree.Root.Declarations);
+        _templateStructs = TemplateStructsOf(program.Tree.Root.Declarations)
+            .GroupBy(t => t.Structure.Name, StringComparer.Ordinal)
+            .ToFrozenDictionary(g => g.Key, g => g.First().Template.ParameterNames, StringComparer.Ordinal);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
         _fileVariables = CollectFileVariables(_globalNames);
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
             TypeAliases = program.Tree.Root.TypeAliases,
+            StructFunctions = _structFunctions,
+            TemplateFunctions = _templateFunctions,
+            TemplateStructs = _templateStructs,
+            Enums = _enums,
         };
+    }
+
+    /// <summary>
+    /// 型を引く対象の構造体を並べる。ふつうの構造体と、template の構造体 (HLSL 2021) である。
+    /// </summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <returns>構造体の宣言。</returns>
+    /// <remarks>
+    /// template の構造体は <see cref="AnalyzedProgram.Structs"/> に載せていない。
+    /// フィールドの型が型引数で決まるので、構造体の形を数える検査 (初期化の要素の数など) には使えないためである。
+    /// 型を引くときは、受け手の型引数で置き換えるか、分からない型にする (<see cref="ExpressionTypeEvaluator"/>)。
+    /// </remarks>
+    private static IEnumerable<StructDeclarationSyntax> AllStructs(AnalyzedProgram program)
+        => program.Structs.Concat(TemplateStructsOf(program.Tree.Root.Declarations).Select(t => t.Structure));
+
+    /// <summary>template の構造体を並べる。名前空間の中のものを含む。</summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>template の宣言と、その構造体。</returns>
+    internal static IEnumerable<(TemplateDeclarationSyntax Template, StructDeclarationSyntax Structure)> TemplateStructsOf(
+        ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        foreach (HlslDeclarationSyntax declaration in declarations)
+        {
+            switch (declaration)
+            {
+                case TemplateDeclarationSyntax { Declaration: StructDeclarationSyntax { Name.Length: > 0 } structure } template:
+                    yield return (template, structure);
+                    break;
+
+                case NamespaceDeclarationSyntax ns:
+                    foreach ((TemplateDeclarationSyntax, StructDeclarationSyntax) inner in TemplateStructsOf(ns.Members))
+                    {
+                        yield return inner;
+                    }
+
+                    break;
+
+                default:
+                    break;
+            }
+        }
     }
 
     /// <summary>
@@ -111,7 +170,7 @@ public sealed class ExpressionTypeBinder
         Dictionary<string, FrozenDictionary<string, ResolvedTypeName>> byStruct = new(StringComparer.Ordinal);
         Dictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> declaratorsByStruct = new(StringComparer.Ordinal);
 
-        foreach (StructDeclarationSyntax declaration in program.Structs)
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
         {
             if (declaration.Name.Length == 0 || byStruct.ContainsKey(declaration.Name))
             {
@@ -143,8 +202,361 @@ public sealed class ExpressionTypeBinder
             declaratorsByStruct[declaration.Name] = fieldDeclarators.ToFrozenDictionary(StringComparer.Ordinal);
         }
 
+        // 継承した基底 (struct D : B) のフィールドも、その構造体のフィールドとして引ける。自身のフィールドを優先する。
+        InheritBaseFields(program, byStruct, declaratorsByStruct);
+
         declarators = declaratorsByStruct.ToFrozenDictionary(StringComparer.Ordinal);
         return byStruct.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// 構造体のメソッドと、多重定義した演算子を集める (HLSL 2021)。
+    /// </summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <returns>構造体の名前から、関数の名前 (<c>Get</c> / <c>operator+</c>) とその宣言への対応。</returns>
+    /// <remarks>
+    /// <para>
+    /// template のメソッド (<c>template&lt;typename U&gt; U As()</c>) も、中の関数の宣言として載せる。
+    /// 戻り値の型を求める側が、親が <see cref="TemplateDeclarationSyntax"/> であることを見て型を主張しない。
+    /// </para>
+    /// <para>
+    /// 継承した基底 (<c>struct D : B</c>) の関数も載せる。派生で同じ名前を宣言していれば、基底の同じ名前の関数は隠れる。
+    /// </para>
+    /// </remarks>
+    private static FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> CollectStructFunctions(
+        AnalyzedProgram program)
+    {
+        Dictionary<string, Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> byStruct = new(StringComparer.Ordinal);
+        Dictionary<string, string> bases = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
+        {
+            if (declaration.Name.Length == 0 || byStruct.ContainsKey(declaration.Name))
+            {
+                continue;
+            }
+
+            Dictionary<string, List<FunctionDeclarationSyntax>> functions = new(StringComparer.Ordinal);
+
+            foreach (HlslDeclarationSyntax member in declaration.Members)
+            {
+                FunctionDeclarationSyntax? function = member switch
+                {
+                    FunctionDeclarationSyntax own => own,
+                    TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax generic } => generic,
+                    _ => null,
+                };
+
+                if (function is null || function.NameToken.IsMissing)
+                {
+                    continue;
+                }
+
+                if (!functions.TryGetValue(function.Name, out List<FunctionDeclarationSyntax>? overloads))
+                {
+                    overloads = [];
+                    functions[function.Name] = overloads;
+                }
+
+                overloads.Add(function);
+            }
+
+            byStruct[declaration.Name] = functions.ToDictionary(
+                p => p.Key, p => (ImmutableArray<FunctionDeclarationSyntax>)[.. p.Value], StringComparer.Ordinal);
+
+            // 型引数を付けた基底 (Box<T>) の関数の型は、その型引数で決まる。型を引けないので継がない。
+            if (declaration.BaseTypeName is { } baseName && declaration.BaseType?.OpenAngle is null)
+            {
+                bases[declaration.Name] = baseName;
+            }
+        }
+
+        Dictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> result = new(StringComparer.Ordinal);
+
+        foreach ((string name, Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>> own) in byStruct)
+        {
+            Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>> merged = new(own, StringComparer.Ordinal);
+            string current = name;
+
+            // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
+            for (int depth = 0; depth < 8 && bases.TryGetValue(current, out string? baseName); depth++)
+            {
+                if (!byStruct.TryGetValue(baseName, out Dictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? inherited))
+                {
+                    break;
+                }
+
+                foreach ((string function, ImmutableArray<FunctionDeclarationSyntax> overloads) in inherited)
+                {
+                    merged.TryAdd(function, overloads);
+                }
+
+                current = baseName;
+            }
+
+            if (merged.Count > 0)
+            {
+                result[name] = merged.ToFrozenDictionary(StringComparer.Ordinal);
+            }
+        }
+
+        return result.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+
+    /// <summary>enum を集める。名前空間の中のものを含む。同じ名前の enum が複数あれば載せない。</summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>enum の名前から、その型への対応。</returns>
+    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        Dictionary<string, EnumInfo?> enums = new(StringComparer.Ordinal);
+
+        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        {
+            foreach (HlslDeclarationSyntax declaration in scope)
+            {
+                switch (declaration)
+                {
+                    case EnumDeclarationSyntax { Name.Length: > 0 } enumeration:
+                        EnumInfo info = new(
+                            enumeration.Name,
+                            enumeration.IsScoped,
+                            enumeration.Members.Select(m => m.Name).ToFrozenSet(StringComparer.Ordinal));
+
+                        // 同じ名前の enum が 2 つあれば (名前空間が違うなど)、どちらか決められない。
+                        enums[enumeration.Name] = enums.TryGetValue(enumeration.Name, out EnumInfo? seen)
+                                                  && (seen is null || !seen.Members.SetEquals(info.Members) || seen.IsScoped != info.IsScoped)
+                            ? null
+                            : info;
+                        break;
+
+                    case NamespaceDeclarationSyntax ns:
+                        Collect(ns.Members);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        Collect(declarations);
+
+        return enums
+            .Where(p => p.Value is not null)
+            .ToFrozenDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+    }
+
+    /// <summary>型名が enum ならその型を引く (HLSL 2021)。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <param name="info">enum の型。</param>
+    /// <returns>enum なら <see langword="true"/>。</returns>
+    internal bool TryGetEnum(string typeName, [NotNullWhen(true)] out EnumInfo? info)
+        => _enums.TryGetValue(typeName, out info);
+
+    /// <summary>型名が、このコードブロックで見える構造体 (template の構造体を含む) の名前かを調べる。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <returns>構造体なら <see langword="true"/>。</returns>
+    internal bool IsStructType(string typeName) => _structFields.ContainsKey(typeName);
+
+    /// <summary>型名が template の構造体 (HLSL 2021) の名前かを調べる。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <returns>template の構造体なら <see langword="true"/>。型引数が違えば別の型だが、名前だけでは区別できない。</returns>
+    internal bool IsTemplateStruct(string typeName) => _templateStructs.ContainsKey(typeName);
+
+    /// <summary>構造体が、もう一方の構造体から (継承をたどって) 派生しているかを調べる (HLSL 2021)。</summary>
+    /// <param name="derived">派生しているかを調べる構造体。</param>
+    /// <param name="baseName">基底の構造体。</param>
+    /// <returns>
+    /// 派生していれば <see langword="true"/>、していなければ <see langword="false"/>。
+    /// 継承の途中に引けない基底や型引数を付けた基底があれば <see langword="null"/>。
+    /// </returns>
+    internal bool? IsDerivedFrom(string derived, string baseName)
+    {
+        _structBases ??= AllStructs(Program)
+            .Where(s => s.Name.Length > 0)
+            .GroupBy(s => s.Name, StringComparer.Ordinal)
+            .ToFrozenDictionary(g => g.Key, g => g.First().BaseType, StringComparer.Ordinal);
+
+        string current = derived;
+
+        // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
+        for (int depth = 0; depth < 8; depth++)
+        {
+            if (!_structBases.TryGetValue(current, out HlslTypeSyntax? baseType))
+            {
+                return null;
+            }
+
+            if (baseType is null)
+            {
+                return false;
+            }
+
+            if (baseType.OpenAngle is not null)
+            {
+                return null;
+            }
+
+            if (baseType.NameToken.Text == baseName)
+            {
+                return true;
+            }
+
+            current = baseType.NameToken.Text;
+        }
+
+        return null;
+    }
+
+    /// <summary>構造体の名前から、継承する基底の型への対応。継承していなければ <see langword="null"/>。</summary>
+    private FrozenDictionary<string, HlslTypeSyntax?>? _structBases;
+
+    /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
+    /// <param name="structName">構造体の名前。</param>
+    /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>
+    /// <param name="overloads">同じ名前の宣言。継承した基底のものを含む。</param>
+    /// <returns>見つかれば <see langword="true"/>。</returns>
+    internal bool TryGetStructFunctions(
+        string structName,
+        string functionName,
+        out ImmutableArray<FunctionDeclarationSyntax> overloads)
+    {
+        overloads = default;
+        return _structFunctions.TryGetValue(structName, out FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? functions)
+               && functions.TryGetValue(functionName, out overloads);
+    }
+
+    /// <summary>
+    /// template の関数と、それと同じ名前の関数の、戻り値の型の決まり方を集める (HLSL 2021)。
+    /// </summary>
+    /// <param name="declarations">トップレベルの宣言。</param>
+    /// <returns>template の関数の名前から、その名前を持つ関数すべての戻り値の決まり方への対応。</returns>
+    /// <remarks>
+    /// 戻り値の型が型引数を含む形 (<c>vector&lt;T, 3&gt;</c>) なら決められない (<see langword="null"/>)。
+    /// 名前空間の中の関数もトップレベルと同じに扱う (<see cref="UniformCollector"/> と揃える)。
+    /// </remarks>
+    private static FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> CollectTemplateFunctions(
+        ImmutableArray<HlslDeclarationSyntax> declarations)
+    {
+        Dictionary<string, List<TemplateFunctionCandidate>> byName = new(StringComparer.Ordinal);
+        HashSet<string> templates = new(StringComparer.Ordinal);
+
+        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        {
+            foreach (HlslDeclarationSyntax declaration in scope)
+            {
+                switch (declaration)
+                {
+                    case TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax function } template:
+                        templates.Add(function.Name);
+
+                        // 明示的な特殊化 (template<>) は、元の template がその型で推論されたときに選ばれる。
+                        // 戻り値の型は元の template から決まるので、候補には足さない。
+                        if (!template.ParameterNames.IsEmpty)
+                        {
+                            Add(function, template.ParameterNames);
+                        }
+
+                        break;
+
+                    case FunctionDeclarationSyntax { IsMethodDefinition: false } function:
+                        Add(function, []);
+                        break;
+
+                    case NamespaceDeclarationSyntax ns:
+                        Collect(ns.Members);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        void Add(FunctionDeclarationSyntax function, ImmutableArray<string> parameters)
+        {
+            HlslTypeSyntax type = function.ReturnType;
+            bool dependsOnParameters = type.TemplateArguments.Any(t => parameters.Contains(t.Text));
+            string? returnType = dependsOnParameters ? null : type.Name;
+
+            if (!byName.TryGetValue(function.Name, out List<TemplateFunctionCandidate>? candidates))
+            {
+                candidates = [];
+                byName[function.Name] = candidates;
+            }
+
+            candidates.Add(new TemplateFunctionCandidate(function, parameters, returnType));
+        }
+
+        Collect(declarations);
+
+        return byName
+            .Where(p => templates.Contains(p.Key))
+            .ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
+    }
+
+    /// <summary>template の関数の名前から、同じ名前の関数すべての候補を引く (HLSL 2021)。</summary>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="candidates">同じ名前の関数 (template でないものを含む)。</param>
+    /// <returns>その名前の template の関数があれば <see langword="true"/>。</returns>
+    internal bool TryGetTemplateFunctions(string name, out ImmutableArray<TemplateFunctionCandidate> candidates)
+        => _templateFunctions.TryGetValue(name, out candidates);
+
+    /// <summary>継承した基底のフィールドを、構造体のフィールドの表へ足す。</summary>
+    /// <param name="program">対象のコードブロック。</param>
+    /// <param name="fields">構造体の名前から、フィールドの型への対応。書き足す。</param>
+    /// <param name="declarators">構造体の名前から、フィールドの宣言子への対応。書き足す。</param>
+    /// <remarks>継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。</remarks>
+    private static void InheritBaseFields(
+        AnalyzedProgram program,
+        Dictionary<string, FrozenDictionary<string, ResolvedTypeName>> fields,
+        Dictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> declarators)
+    {
+        Dictionary<string, string> bases = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax declaration in AllStructs(program))
+        {
+            // 型引数を付けた基底 (Box<T>) のフィールドの型は、その型引数で決まる。型を引けないので継がない。
+            if (declaration.BaseTypeName is { } baseName && declaration.BaseType?.OpenAngle is null && declaration.Name.Length > 0)
+            {
+                bases.TryAdd(declaration.Name, baseName);
+            }
+        }
+
+        foreach (string derived in bases.Keys)
+        {
+            if (!fields.TryGetValue(derived, out FrozenDictionary<string, ResolvedTypeName>? own))
+            {
+                continue;
+            }
+
+            Dictionary<string, ResolvedTypeName> merged = new(own, StringComparer.Ordinal);
+            Dictionary<string, VariableDeclaratorSyntax> mergedDeclarators = new(declarators[derived], StringComparer.Ordinal);
+            string current = derived;
+
+            for (int depth = 0; depth < 8 && bases.TryGetValue(current, out string? baseName); depth++)
+            {
+                if (!fields.TryGetValue(baseName, out FrozenDictionary<string, ResolvedTypeName>? inherited))
+                {
+                    break;
+                }
+
+                foreach ((string name, ResolvedTypeName type) in inherited)
+                {
+                    merged.TryAdd(name, type);
+                }
+
+                foreach ((string name, VariableDeclaratorSyntax declarator) in declarators[baseName])
+                {
+                    mergedDeclarators.TryAdd(name, declarator);
+                }
+
+                current = baseName;
+            }
+
+            fields[derived] = merged.ToFrozenDictionary(StringComparer.Ordinal);
+            declarators[derived] = mergedDeclarators.ToFrozenDictionary(StringComparer.Ordinal);
+        }
     }
 
     /// <summary>構造体のフィールドの宣言子を引く。</summary>
@@ -162,7 +574,9 @@ public sealed class ExpressionTypeBinder
         declarator = null;
         elementType = null;
 
-        if (!_structFieldDeclarators.TryGetValue(structType, out FrozenDictionary<string, VariableDeclaratorSyntax>? fields)
+        // template の構造体のフィールドの型は、型引数で決まる。
+        if (_templateStructs.ContainsKey(structType)
+            || !_structFieldDeclarators.TryGetValue(structType, out FrozenDictionary<string, VariableDeclaratorSyntax>? fields)
             || !fields.TryGetValue(fieldName, out declarator))
         {
             return false;
@@ -189,18 +603,94 @@ public sealed class ExpressionTypeBinder
         if (!_byFunction.TryGetValue(function, out ExpressionTypeEvaluator? evaluator))
         {
             LocalScopes scopes = GetScopes(function);
+            FrozenSet<string> unknown = TemplateParametersOf(function);
 
             evaluator = _byFunction[function] = new ExpressionTypeEvaluator(
-                identifier => Resolve(scopes, identifier, static candidates => candidates),
+                identifier => Hide(Resolve(scopes, identifier, static candidates => candidates), unknown),
                 _functionSignatures,
                 _structFields)
             {
                 TypeAliases = Program.Tree.Root.TypeAliases,
+                StructFunctions = _structFunctions,
+                TemplateFunctions = _templateFunctions,
+                TemplateStructs = _templateStructs,
+                Enums = _enums,
+                UnknownTypeNames = unknown,
+                ThisType = OwnerOf(function),
             };
         }
 
         return evaluator;
     }
+
+    /// <summary>
+    /// 名前だけの呼び出しが、囲む構造体のメソッドの呼び出し (<c>this.</c> を省いた形) かを判定する (HLSL 2021)。
+    /// </summary>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="name">呼ぶ名前。</param>
+    /// <returns>囲むメソッドの構造体に、その名前のメソッドがあれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>float3 GetTransmittanceColor() { return exp(-GetExtinction()); }</c> の <c>GetExtinction</c> は、
+    /// 同じ構造体のメソッドである。大域の同じ名前の関数 (引数の個数が違う) と照らすと、正しい呼び出しを誤りと言うことになる。
+    /// </remarks>
+    internal bool IsEnclosingStructFunction(InvocationExpressionSyntax invocation, string name)
+        => invocation.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+           && OwnerOf(function) is { } owner
+           && TryGetStructFunctions(owner, name, out _);
+
+    /// <summary>
+    /// 名前だけの呼び出しが、同じ名前の大域の関数ではないものを呼んでいるかを判定する。
+    /// </summary>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="name">呼ぶ名前。</param>
+    /// <returns>
+    /// 囲む構造体のメソッド (<see cref="IsEnclosingStructFunction"/>) か、関数の中の変数や仮引数
+    /// (template の関数に渡した関数オブジェクト) を呼んでいれば <see langword="true"/>。決められないときも <see langword="true"/>。
+    /// </returns>
+    /// <remarks>
+    /// Unreal Engine の NaniteRasterizer.ush は、仮引数 <c>FWritePixel WritePixel</c> を <c>WritePixel(...)</c> と呼ぶ。
+    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (HL0340 / HL0341)。
+    /// </remarks>
+    internal bool CallsNonGlobalFunction(InvocationExpressionSyntax invocation, string name)
+        => IsEnclosingStructFunction(invocation, name)
+           || (invocation.Target is IdentifierExpressionSyntax target
+               && ResolveName(target).Kind is DeclaredNameKind.Local or DeclaredNameKind.Undecidable);
+
+    /// <summary>メソッドを持つ構造体の名前を求める (<c>this</c> の型)。</summary>
+    /// <param name="function">対象の関数。</param>
+    /// <returns>構造体の中のメソッドか、構造体の外で定義したメソッドならその構造体の名前。それ以外は <see langword="null"/>。</returns>
+    private static string? OwnerOf(FunctionDeclarationSyntax function)
+    {
+        if (function.OwnerName is { } owner)
+        {
+            return owner;
+        }
+
+        return function.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault() is { Name.Length: > 0 } structure
+            ? structure.Name
+            : null;
+    }
+
+    /// <summary>関数を囲む <c>template</c> の型引数の名前を集める。</summary>
+    /// <param name="function">対象の関数。</param>
+    /// <returns>型引数の名前。template の中でなければ空。</returns>
+    /// <remarks>関数そのものの template と、関数を持つ構造体の template の両方を見る。</remarks>
+    private static FrozenSet<string> TemplateParametersOf(FunctionDeclarationSyntax function)
+    {
+        string[] names = [.. function.Ancestors().OfType<TemplateDeclarationSyntax>().SelectMany(t => t.ParameterNames)];
+        return names.Length == 0 ? FrozenSet<string>.Empty : names.ToFrozenSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>型引数を含む型を、分からない型にする。</summary>
+    /// <param name="type">宣言から引いた型。</param>
+    /// <param name="unknown">型引数の名前。</param>
+    /// <returns>型引数を含まなければ <paramref name="type"/>。含めば <see langword="null"/>。</returns>
+    private static ResolvedTypeName? Hide(ResolvedTypeName? type, FrozenSet<string> unknown)
+        => type is { } known
+           && unknown.Count > 0
+           && (unknown.Contains(known.TypeName) || (known.TemplateArgument is { } argument && unknown.Contains(argument)))
+            ? null
+            : type;
 
     /// <summary>識別子が指す宣言の型を引く。</summary>
     /// <param name="scopes">識別子を囲む関数の範囲。</param>
@@ -479,9 +969,12 @@ public sealed class ExpressionTypeBinder
             => candidates.Where(c => c.Condition is { IsUnknown: false } declared
                                      && conditions.IsPossible(assumption.And(declared)));
 
+        FrozenSet<string> unknown = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosing
+            ? TemplateParametersOf(enclosing)
+            : FrozenSet<string>.Empty;
         Func<IdentifierExpressionSyntax, ResolvedTypeName?> resolve = scopes is null
             ? identifier => LookupGlobal(identifier.Name)
-            : identifier => Resolve(scopes, identifier, Visible);
+            : identifier => Hide(Resolve(scopes, identifier, Visible), unknown);
 
         // 条件によって違う型を返す関数は、その構成で見える宣言だけに絞る。
         // 表を作り直すと関数の数だけ費用がかかるので、変わる名前だけを重ねる。
@@ -510,6 +1003,12 @@ public sealed class ExpressionTypeBinder
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
             TypeAliases = Program.Tree.Root.TypeAliases,
+            StructFunctions = _structFunctions,
+            TemplateFunctions = _templateFunctions,
+            TemplateStructs = _templateStructs,
+            Enums = _enums,
+            UnknownTypeNames = unknown,
+            ThisType = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } method ? OwnerOf(method) : null,
         };
     }
 
@@ -524,7 +1023,8 @@ public sealed class ExpressionTypeBinder
     {
         if (!_scopes.TryGetValue(function, out LocalScopes? scopes))
         {
-            scopes = _scopes[function] = new LocalScopes(function, _compilation.GetConditionMap());
+            scopes = _scopes[function] = new LocalScopes(
+                function, _compilation.GetConditionMap(), Program.Tree.Features.LoopVariableOutsideLoop);
         }
 
         return scopes;
@@ -683,6 +1183,20 @@ public sealed class ExpressionTypeBinder
 
         Collect(declarations);
         return names.ToFrozenDictionary(pair => pair.Key, pair => pair.Value.ToImmutableArray(), StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// 名前が指す局所変数の宣言を引く。
+    /// </summary>
+    /// <param name="identifier">名前。</param>
+    /// <returns>宣言の候補。関数の外の名前か、局所変数でなければ空。判断しない位置なら <see langword="null"/>。</returns>
+    internal ImmutableArray<LocalDeclaration>? LookupLocal(IdentifierExpressionSyntax identifier)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+
+        return identifier.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
+            ? GetScopes(function).Lookup(identifier)
+            : [];
     }
 
     /// <summary>

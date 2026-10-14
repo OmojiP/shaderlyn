@@ -25,6 +25,9 @@ internal static class HlslKeywords
     [
         "bool", "int", "uint", "dword", "half", "float", "double", "fixed",
         "min16float", "min10float", "min16int", "min12int", "min16uint",
+
+        // 明示のビット幅の型 (DXC)。使えるかは方言で決まり、HL0003 が見る。名前としては型である。
+        "int16_t", "uint16_t", "float16_t", "int32_t", "uint32_t", "float32_t", "int64_t", "uint64_t", "float64_t",
     ];
 
     /// <summary>
@@ -52,6 +55,17 @@ internal static class HlslKeywords
         "PointStream", "LineStream", "TriangleStream",
         "InputPatch", "OutputPatch",
         "RaytracingAccelerationStructure", "RayDesc", "BuiltInTriangleIntersectionAttributes",
+        "RayQuery", "FeedbackTexture2D", "FeedbackTexture2DArray",
+        "RasterizerOrderedTexture1D", "RasterizerOrderedTexture1DArray", "RasterizerOrderedTexture2D",
+        "RasterizerOrderedTexture2DArray", "RasterizerOrderedTexture3D",
+        "RasterizerOrderedBuffer", "RasterizerOrderedByteAddressBuffer", "RasterizerOrderedStructuredBuffer",
+
+        // ワークグラフ (シェーダーモデル 6.8) の入出力のレコード。
+        "DispatchNodeInputRecord", "RWDispatchNodeInputRecord",
+        "GroupNodeInputRecords", "RWGroupNodeInputRecords",
+        "ThreadNodeInputRecord", "RWThreadNodeInputRecord", "EmptyNodeInput",
+        "NodeOutput", "NodeOutputArray", "EmptyNodeOutput", "EmptyNodeOutputArray",
+        "ThreadNodeOutputRecords", "GroupNodeOutputRecords",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -87,11 +101,24 @@ internal static class HlslKeywords
         "nointerpolation", "linear", "centroid", "noperspective", "sample",
         "in", "out", "inout", "unsigned", "snorm", "unorm",
 
+        // ライブラリ (lib_6_x) からほかのライブラリへ見せる関数 (export void F())。
+        "export",
+
         // ジオメトリシェーダーの入力プリミティブ種別。
         // 引数の型の前に置かれるため、修飾子として扱わないと
         // triangle VertexToGeometry input[3] のような宣言が解析できない。
         "point", "line", "triangle", "lineadj", "triangleadj",
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// メッシュシェーダーと増幅シェーダーの引数に付く修飾子 (シェーダーモデル 6.5)。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DeclarationModifiers"/> には入れない。<c>vertices</c> や <c>indices</c> は変数名としてもよく使うので、
+    /// どこでも修飾子として読むと <c>indices[i] = 0;</c> を宣言と読み違える。引数の中でだけ読む。
+    /// </remarks>
+    public static FrozenSet<string> MeshParameterModifiers { get; } =
+        new[] { "vertices", "indices", "primitives", "payload" }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>指定した名前が確実に型かどうかを判定する。</summary>
     /// <param name="name">判定する名前。</param>

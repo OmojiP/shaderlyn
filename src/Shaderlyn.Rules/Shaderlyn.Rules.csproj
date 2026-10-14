@@ -2,14 +2,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
-    <ProjectReference Include="..\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
     <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
     <ProjectReference Include="..\Shaderlyn.Configuration\Shaderlyn.Configuration.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
-    <Description>Shaderlyn の組み込みルール。</Description>
+    <Description>Shaderlyn の組み込みルールのうち、どの環境でも使う HLSL のルール。環境に固有のルールは環境のパッケージ (Shaderlyn.Unity など) が持つ。</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -18,6 +17,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Shaderlyn.Cli" />
     <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
+    <InternalsVisibleTo Include="Shaderlyn.Unity" />
   </ItemGroup>
 
 </Project>

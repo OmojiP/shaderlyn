@@ -122,6 +122,62 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.Single(Findings(output), f => f == ("Common.hlsl", "HL0310"));
     }
 
+    /// <summary>
+    /// 構成によって本体が違うヘッダの関数の局所変数を、宣言されていない (HL0310) と報告しない。
+    /// </summary>
+    /// <remarks>
+    /// 既定の構成 (P_LOW) の木には <c>#if !defined(P_LOW)</c> の中身が無い。ヘッダの関数を位置で 1 度だけ見ていたので、
+    /// P_HIGH の木にだけある局所変数 <c>r</c> の名前が漏れ、大域の名前として探して見つからなかった
+    /// (HDRP の SubpixelMorphologicalAntialiasing.hlsl の <c>leftRight</c> など)。
+    /// </remarks>
+    [Fact]
+    public async Task 構成で本体が変わるヘッダの関数の局所変数を宣言されていないと言わない()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Lib.hlsl"), """
+            #if defined(P_HIGH)
+            #define ROUND 25
+            #else
+            #define ROUND 25
+            #endif
+            void F(inout float2 w, float2 d)
+            {
+                float2 lr = step(d.xy, d.yx);
+            #if !defined(P_LOW)
+                float2 r = (1.0 - ROUND) * lr;
+                w *= r;
+            #endif
+            }
+            """);
+        WriteShader(
+            "A",
+            "#pragma multi_compile_fragment P_LOW P_MED P_HIGH\nhalf4 frag() : SV_Target { float2 w = 1; F(w, 0); return w.x; }",
+            "Lib.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain(("Lib.hlsl", "HL0310"), Findings(output));
+    }
+
+    /// <summary>
+    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に SL1056 を出す (Unity は読めない)。
+    /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を HL0001 にしていた。BOM 付きは何も言わなかった。
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UTF16のヘッダは取り込む行に報告する(bool bom)
+    {
+        byte[] body = System.Text.Encoding.Unicode.GetBytes("// 共通\nfloat4 Tint(float4 c) { return c * 0.5; }\n");
+        string header = Path.Combine(Shaders, "Common.hlsl");
+        File.WriteAllBytes(header, bom ? [0xFF, 0xFE, .. body] : body);
+        WriteShader("A", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Contains(("A.shader", "SL1056"), Findings(output));
+        Assert.DoesNotContain(Findings(output), f => f.Id is "HL0001" or "HL0310");
+    }
+
     [Fact]
     public async Task ヘッダで定義したマクロの本体の誤りはヘッダの位置に報告する()
     {

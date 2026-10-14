@@ -10,6 +10,8 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -38,13 +40,36 @@ public static class Program
     /// AOT publish できるようにするためである (Roslyn Analyzer と同じ考え方)。
     /// </para>
     /// </remarks>
-    public static async Task<ExitCode> RunAsync(
+    public static Task<ExitCode> RunAsync(
         string[] args,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         TextWriter output,
         TextWriter errorOutput,
         CancellationToken cancellationToken = default)
+        => RunAsync(args, analyzers, [], output, errorOutput, cancellationToken);
+
+    /// <summary>
+    /// 独自エンジンの環境を足して、解析を実行する。
+    /// </summary>
+    /// <param name="args">コマンドライン引数。</param>
+    /// <param name="analyzers">実行するアナライザ。</param>
+    /// <param name="environments">
+    /// 足す環境。設定ファイルの <c>environment</c> か <c>--environment</c> に名前を書くと選ばれる。
+    /// </param>
+    /// <param name="output">通常の出力先。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>終了コード。</returns>
+    /// <exception cref="ArgumentException">環境の名前が組み込みの環境やほかの環境と重なっている。</exception>
+    public static async Task<ExitCode> RunAsync(
+        string[] args,
+        ImmutableArray<DiagnosticAnalyzer> analyzers,
+        ImmutableArray<HostEnvironment> environments,
+        TextWriter output,
+        TextWriter errorOutput,
+        CancellationToken cancellationToken = default)
     {
+        AnalysisEnvironments.Validate(environments);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(errorOutput);
 
@@ -79,9 +104,26 @@ public static class Program
             return ExitCode.ToolError;
         }
 
+        // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
+        EffectiveSettings settings = EffectiveSettings.Create(options, environments);
+
+        if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
+        {
+            await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment, environments)).ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        if (environment.Name != UnityAnalysisEnvironment.EnvironmentName && !settings.UnityOnlyCommandLineOptions.IsEmpty)
+        {
+            await errorOutput.WriteLineAsync(
+                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使えます (環境: {environment.Name})。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
         ImmutableArray<string> files = ShaderFileDiscovery.Discover(
             options.InputPaths,
-            CommandLineOptions.DefaultExtensions,
+            environment.DefaultExtensions,
             out ImmutableArray<string> missingPaths,
             out ImmutableArray<string> unsupportedFiles);
 
@@ -89,7 +131,7 @@ public static class Program
         if (options.ShowEnvironment)
         {
             await output.WriteAsync(
-                EnvironmentReport.Build(options, EffectiveSettings.Create(options), files, missingPaths, GetVersion()))
+                EnvironmentReport.Build(options, settings, environment, files, missingPaths, GetVersion()))
                 .ConfigureAwait(false);
             return ExitCode.Success;
         }
@@ -106,12 +148,10 @@ public static class Program
 
         await ReportUnsupportedFilesAsync(options, unsupportedFiles, errorOutput).ConfigureAwait(false);
 
-        EffectiveSettings settings = EffectiveSettings.Create(options);
-
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
             return await WriteInspectionAsync(
-                options, settings, analyzers, files, inspectOutputPath, output, errorOutput, cancellationToken)
+                options, settings, environment, analyzers, files, inspectOutputPath, output, errorOutput, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -120,7 +160,7 @@ public static class Program
         AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
 
         AnalysisRunner runner = new(
-            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache);
+            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, environment);
 
         AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
 
@@ -150,7 +190,10 @@ public static class Program
             return ExitCode.Success;
         }
 
-        string report = FormatReport(options, analyzers, result, output);
+        // 出力は形式ごとの重要度で絞る。終了コードは絞る前のすべての指摘で決める (表示を絞って CI の合否が変わらないように)。
+        AnalysisResult shown = result.OnlyAtOrAbove(
+            settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), settings.ConfigurationDiagnostics);
+        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length);
         await WriteReportAsync(options, report, output, cancellationToken).ConfigureAwait(false);
 
         // 注釈は主たる出力とは別に書く。SARIF をファイルへ書きながら
@@ -160,7 +203,11 @@ public static class Program
             GitHubDiagnosticReporter annotator =
                 new(options.BasePath ?? Directory.GetCurrentDirectory());
 
-            await output.WriteAsync(annotator.Format(result.Diagnostics, result.AnalyzedFileCount))
+            AnalysisResult annotated =
+                result.OnlyAtOrAbove(
+                    settings.GetMinimumReportedSeverity(OutputFormat.GitHub, options.MinSeverity), settings.ConfigurationDiagnostics);
+
+            await output.WriteAsync(annotator.Format(annotated.Diagnostics, annotated.AnalyzedFileCount))
                 .ConfigureAwait(false);
         }
 
@@ -266,6 +313,7 @@ public static class Program
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
     /// <param name="files">解析対象のファイル。</param>
     /// <param name="outputPath">出力先。</param>
@@ -281,6 +329,7 @@ public static class Program
     private static async Task<ExitCode> WriteInspectionAsync(
         CommandLineOptions options,
         EffectiveSettings settings,
+        IAnalysisEnvironment environment,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         ImmutableArray<string> files,
         string outputPath,
@@ -308,15 +357,18 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        SemanticsOptions semantics = SemanticsSetup.Create(options, settings);
+        PreparedFile prepared = environment.Prepare(text, SemanticsSetup.Create(options, settings), timings: null);
 
-        ShaderCompilation compilation =
-            ShaderSourceKinds.FromPath(text.FilePath) == ShaderSourceKind.Hlsl
-                ? ShaderCompilation.CreateForHlsl(text, semantics)
-                : ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+        // 中身を見せる画面は HLSL のセマンティックモデルを描く。HLSL ではない言語の環境では、まだ描けない。
+        if (prepared.Compilation is not { } compilation)
+        {
+            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使えません。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(analyzers, settings.AnalyzerOptions)
-            .Analyze(compilation.CreateAnalysisTarget(), cancellationToken);
+            .Analyze(prepared.Target, cancellationToken);
 
         await File.WriteAllTextAsync(
             outputPath, AnalysisInspector.BuildHtml(compilation, diagnostics), cancellationToken)
@@ -362,12 +414,14 @@ public static class Program
     /// <param name="analyzers">実行したアナライザ。SARIF のルール一覧に使う。</param>
     /// <param name="result">解析結果。</param>
     /// <param name="output">出力先。色付けの可否判定に使う。</param>
+    /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。テキストの要約に添える。</param>
     /// <returns>整形済みのレポート。</returns>
     private static string FormatReport(
         CommandLineOptions options,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         AnalysisResult result,
-        TextWriter output)
+        TextWriter output,
+        int hiddenCount)
     {
         string basePath = options.BasePath ?? Directory.GetCurrentDirectory();
 
@@ -389,7 +443,7 @@ public static class Program
                     useColor: options.OutputPath is null
                         && ReferenceEquals(output, Console.Out)
                         && !Console.IsOutputRedirected)
-                .Format(result.Diagnostics, result.AnalyzedFileCount),
+                .Format(result.Diagnostics, result.AnalyzedFileCount, hiddenCount),
         };
     }
 
@@ -477,7 +531,7 @@ public static class Program
 
         foreach (string file in unsupported.Where(direct.Contains))
         {
-            await errorOutput.WriteLineAsync($"現在解析の対象外です: {file}").ConfigureAwait(false);
+            await errorOutput.WriteLineAsync($"解析の対象外です: {file}").ConfigureAwait(false);
         }
 
         string[] counts =
@@ -491,7 +545,7 @@ public static class Program
 
         if (counts.Length > 0)
         {
-            await errorOutput.WriteLineAsync($"現在解析の対象外のファイルがあります: {string.Join(", ", counts)}")
+            await errorOutput.WriteLineAsync($"解析の対象外のファイルがあります: {string.Join(", ", counts)}")
                 .ConfigureAwait(false);
         }
     }

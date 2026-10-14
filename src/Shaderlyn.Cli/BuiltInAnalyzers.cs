@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Rules;
+using Shaderlyn.Unity.Rules;
 
 namespace Shaderlyn.Cli;
 
@@ -51,10 +52,20 @@ public static class BuiltInAnalyzers
         new ShaderSymbolAnalyzer(),
         new IncludePathAnalyzer(),
         new EntryPointAnalyzer(),
+        new ShaderStageAnalyzer(),
+        new CompilerPragmaAnalyzer(),
+        new Native16BitConstantBufferAnalyzer(),
+        new PragmaOnceAnalyzer(),
+        new Utf16FileAnalyzer(),
         new FunctionDefinitionAnalyzer(),
         new VariableDeclarationPresenceAnalyzer(),
         new MemberAccessAnalyzer(),
         new CallSignatureAnalyzer(),
+        new StructOperatorAnalyzer(),
+        new CompileTargetAnalyzer(),
+        new VectorLogicalOperatorAnalyzer(),
+        new LoopVariableScopeAnalyzer(),
+        new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),
         new UndeclaredIdentifierAnalyzer(),
         new RedeclarationAnalyzer(),

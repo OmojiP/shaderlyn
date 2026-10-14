@@ -52,8 +52,20 @@ internal sealed partial class HlslPreprocessor
     /// <summary>巻き上げのために展開し直している最中かどうか。</summary>
     private bool _hoisting;
 
-    /// <summary>今、定義ごとに複製しているマクロの名前。</summary>
-    private string? _hoistingMacro;
+    /// <summary>今、定義ごとに複製しているマクロの名前。組み合わせごとに複製しているときは 2 つ以上。</summary>
+    private readonly HashSet<string> _hoistingMacros = new(StringComparer.Ordinal);
+
+    /// <summary>1 つの文で、定義の組み合わせごとに複製するマクロの数の上限。</summary>
+    private const int MaxHoistedMacrosPerUnit = 3;
+
+    /// <summary>
+    /// 組み合わせごとに複製するときの、複製の数の上限。成り立たない組み合わせは数えない。
+    /// </summary>
+    /// <remarks>
+    /// 1 つのマクロの上限 (<see cref="MaxHoistedBranches"/>) より大きくする。
+    /// 2 通りのマクロを 2 つ使えば 4、3 つなら 8 になる。
+    /// </remarks>
+    private const int MaxHoistedCombinations = 8;
 
     /// <summary>
     /// 定義するマクロがコードで使われるために並べなかったシンボルと、その領域で定義したマクロ。
@@ -74,6 +86,12 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary>巻き上げで補えるかもしれない領域の、開始の指令と、その条件のシンボル。</summary>
     private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegions = [];
+
+    /// <summary>
+    /// 巻き上げで補えるかもしれない領域 (開始の指令) が定義するマクロ。
+    /// 同じ領域の <c>#elif</c> のシンボルも、このマクロの巻き上げで補えたかで決める。
+    /// </summary>
+    private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegionMacros = [];
 
     /// <summary>
     /// 巻き上げで補えるかもしれない領域で求めた、同時に有効にする組。補えなかった場合にだけ記録する。
@@ -247,7 +265,6 @@ internal sealed partial class HlslPreprocessor
             return false;
         }
 
-        MacroDefinition? saved = _macros.GetValueOrDefault(hoisted);
         int regionCount = _conditionalRegions.Count;
         int diagnosticCount = _diagnostics.Count;
 
@@ -257,7 +274,9 @@ internal sealed partial class HlslPreprocessor
             _output.RemoveRange(anchor.OutputIndex, _output.Count - anchor.OutputIndex);
             anchor.Source.Index = unitEnd;
 
-            if (TryExpandBranches(hoisted, TakeUnit(anchor, unitEnd), branches, saved))
+            ImmutableArray<HlslSyntaxToken> unit = TakeUnit(anchor, unitEnd);
+
+            if (TryExpandBranches(unit, CombineWithOtherMacros(hoisted, branches, unit)))
             {
                 _hoistedUnits++;
                 MoveUnitAnchorPastUnit(anchor.Source);
@@ -318,27 +337,166 @@ internal sealed partial class HlslPreprocessor
         => [.. anchor.Source.Tokens.Skip(anchor.SourceIndex).Take(end - anchor.SourceIndex)];
 
     /// <summary>
+    /// 文の中にある、ほかの条件で中身の変わるマクロも含めて、定義の組み合わせごとの分岐を作る。
+    /// </summary>
+    /// <param name="hoisted">複製のきっかけになったマクロ。</param>
+    /// <param name="branches">そのマクロの分岐。</param>
+    /// <param name="unit">複製する文のトークン。</param>
+    /// <returns>分岐ごとの条件と、そのとき使う各マクロの定義。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>1 つの文に条件で中身の変わるマクロが 2 つあれば、定義の組み合わせごとに複製する。</b>
+    /// <code>
+    /// VTYPE n = SCALE * v;   // VTYPE は _NORMALMAP で、SCALE は _DETAIL で変わる
+    /// </code>
+    /// 1 つだけ複製すると、もう一方はどれか 1 つの構成の値で展開される。
+    /// そのシンボルは構成ごとの展開に回り、名前 (<c>_DetailScale</c>) と数値 (<c>1.0</c>) のように
+    /// 同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// </para>
+    /// <para>
+    /// 組み合わせの条件は各定義の条件の論理積で、宣言の制約で成り立たない組み合わせは作らない。
+    /// マクロが多すぎるか、組み合わせが <see cref="MaxHoistedCombinations"/> を超えるなら、
+    /// きっかけのマクロだけを複製する (ほかは今までどおり構成ごとの展開に回る)。
+    /// </para>
+    /// </remarks>
+    private List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> CombineWithOtherMacros(
+        string hoisted,
+        List<(SymbolCondition Condition, MacroDefinition? Definition)> branches,
+        ImmutableArray<HlslSyntaxToken> unit)
+    {
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> single =
+            [.. branches.Select(b => (b.Condition, ImmutableArray.Create<(string Name, MacroDefinition? Definition)>((hoisted, b.Definition))))];
+
+        List<string> others = [.. CollectHoistableMacros(unit).Where(name => !string.Equals(name, hoisted, StringComparison.Ordinal))];
+
+        if (others.Count == 0 || others.Count + 1 > MaxHoistedMacrosPerUnit)
+        {
+            return single;
+        }
+
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> combined = single;
+
+        foreach (string other in others)
+        {
+            if (GetHoistableDefinitions(other, checkCallForm: false) is not { } otherBranches)
+            {
+                continue;
+            }
+
+            List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> next = [];
+
+            foreach ((SymbolCondition condition, ImmutableArray<(string Name, MacroDefinition? Definition)> definitions) in combined)
+            {
+                foreach ((SymbolCondition otherCondition, MacroDefinition? otherDefinition) in otherBranches)
+                {
+                    SymbolCondition both = _options.SymbolConstraints.Apply(condition.And(otherCondition));
+
+                    if (both.IsNever || (!both.IsUnknown && !_options.SymbolConstraints.IsPossible(both)))
+                    {
+                        continue;
+                    }
+
+                    next.Add((both, definitions.Add((other, otherDefinition))));
+                }
+            }
+
+            if (next.Count > MaxHoistedCombinations)
+            {
+                return single;
+            }
+
+            combined = next;
+        }
+
+        return combined;
+    }
+
+    /// <summary>文のトークンに現れる、条件で中身の変わるマクロを集める。本体を通して参照するものも含める。</summary>
+    /// <param name="unit">文のトークン。</param>
+    /// <returns>見つかったマクロの名前。現れた順。</returns>
+    private List<string> CollectHoistableMacros(ImmutableArray<HlslSyntaxToken> unit)
+    {
+        List<string> found = [];
+        HashSet<string> visited = new(StringComparer.Ordinal);
+
+        for (int i = 0; i < unit.Length; i++)
+        {
+            HlslSyntaxToken token = unit[i];
+
+            if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+            {
+                continue;
+            }
+
+            if (GetHoistableDefinitions(token.Text, checkCallForm: false) is not null)
+            {
+                found.Add(token.Text);
+                continue;
+            }
+
+            // 関数形式マクロは、呼び出しの形で書かれていなければ展開されない。
+            if (_macros.TryGetValue(token.Text, out MacroDefinition? macro)
+                && (!macro.IsFunctionLike || (i + 1 < unit.Length && unit[i + 1].Kind == HlslSyntaxKind.OpenParenToken)))
+            {
+                Walk(macro, depth: 1);
+            }
+        }
+
+        return found;
+
+        void Walk(MacroDefinition macro, int depth)
+        {
+            if (depth > MaxHoistLookupDepth)
+            {
+                return;
+            }
+
+            foreach (HlslSyntaxToken token in macro.Body)
+            {
+                if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+                {
+                    continue;
+                }
+
+                if (GetHoistableDefinitions(token.Text, checkCallForm: false) is not null)
+                {
+                    found.Add(token.Text);
+                }
+                else if (_macros.TryGetValue(token.Text, out MacroDefinition? inner))
+                {
+                    Walk(inner, depth + 1);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// 定義ごとに展開し、どれも文になったかを返す。
     /// </summary>
-    /// <param name="name">マクロの名前。</param>
     /// <param name="unit">展開するトークン。</param>
-    /// <param name="branches">複製する分岐。</param>
-    /// <param name="saved">元の定義。展開し終えたら戻す。</param>
+    /// <param name="branches">複製する分岐。分岐ごとの条件と、そのとき使う各マクロの定義。</param>
     /// <returns>どの分岐も文になった場合は <see langword="true"/>。</returns>
     private bool TryExpandBranches(
-        string name,
         ImmutableArray<HlslSyntaxToken> unit,
-        List<(SymbolCondition Condition, MacroDefinition? Definition)> branches,
-        MacroDefinition? saved)
+        List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> branches)
     {
         bool complete = true;
 
-        _hoisting = true;
-        _hoistingMacro = name;
+        // 元の定義は、展開し終えたら戻す。
+        List<(string Name, MacroDefinition? Definition)> saved =
+            [.. branches[0].Definitions.Select(d => (d.Name, _macros.GetValueOrDefault(d.Name)))];
 
-        foreach ((SymbolCondition condition, MacroDefinition? definition) in branches)
+        _hoisting = true;
+        _hoistingMacros.Clear();
+        _hoistingMacros.UnionWith(saved.Select(s => s.Name));
+
+        foreach ((SymbolCondition condition, ImmutableArray<(string Name, MacroDefinition? Definition)> definitions) in branches)
         {
-            SetMacro(name, definition);
+            foreach ((string name, MacroDefinition? definition) in definitions)
+            {
+                SetMacro(name, definition);
+            }
+
 
             // 複製ごとに別のトークンを使う。同じインスタンスを並べると、
             // どのノードがどの複製のものかを、位置からもトークンからも引けなくなる。
@@ -355,8 +513,12 @@ internal sealed partial class HlslPreprocessor
         }
 
         _hoisting = false;
-        _hoistingMacro = null;
-        SetMacro(name, saved);
+        _hoistingMacros.Clear();
+
+        foreach ((string name, MacroDefinition? definition) in saved)
+        {
+            SetMacro(name, definition);
+        }
 
         return complete;
     }
@@ -448,9 +610,17 @@ internal sealed partial class HlslPreprocessor
         }
 
         // どの定義も無い構成があるなら、その分岐も作る。名前がそのまま残る。
+        // #if A / #elif B / #else の 3 通りの書き分けは、条件を足し合わせると「常に」になるが、
+        // 論理和の形のままでは「常に」と分からない。成り立たない分岐を作ると、名前の残った文が文にならず、
+        // 複製を諦めて方法 B に回り、文の種類が構成で変わる箇所は SL0004 になっていた。
         if (!covered.IsAlways && !covered.IsUnknown)
         {
-            branches.Add((covered.Negate(), null));
+            SymbolCondition rest = _options.SymbolConstraints.Apply(covered.Negate());
+
+            if (!rest.IsNever && _options.SymbolConstraints.IsPossible(rest))
+            {
+                branches.Add((rest, null));
+            }
         }
 
         return branches.Count is >= 2 and <= MaxHoistedBranches ? branches : null;
@@ -555,6 +725,13 @@ internal sealed partial class HlslPreprocessor
     /// <para>
     /// 間に指令があれば、そこで打ち切る。複製すると指令まで 2 度処理することになる。
     /// </para>
+    /// <para>
+    /// <b>マクロ自身が文を閉じていることがある。</b>
+    /// <c>if (v &gt; 0) BODY</c> の <c>BODY</c> が <c>{ v = 1; }</c> や <c>v = 2;</c> なら、
+    /// 文は <c>BODY</c> で終わっており、展開前のトークンには <c>;</c> も <c>}</c> も無い。
+    /// 指令の手前と、外側のブロックを閉じる <c>}</c> の手前も候補にする。
+    /// 入れなければ、後ろに <c>#ifdef</c> が続くだけで候補が無くなり、複製を諦めていた。
+    /// </para>
     /// </remarks>
     private static IEnumerable<int> EnumerateUnitEnds(TokenSource source, int start)
     {
@@ -562,6 +739,7 @@ internal sealed partial class HlslPreprocessor
         int paren = 0;
         int bracket = 0;
         int found = 0;
+        int last = start;
 
         for (int i = start; i < source.Tokens.Length && i - start < MaxHoistedUnitTokens; i++)
         {
@@ -569,6 +747,11 @@ internal sealed partial class HlslPreprocessor
 
             if (token.Kind == HlslSyntaxKind.HashToken && token.IsAtLineStart)
             {
+                if (i > last && brace == 0 && paren == 0 && bracket == 0)
+                {
+                    yield return i;
+                }
+
                 yield break;
             }
 
@@ -581,6 +764,19 @@ internal sealed partial class HlslPreprocessor
                 case HlslSyntaxKind.OpenBracketToken: bracket++; break;
                 case HlslSyntaxKind.CloseParenToken: paren--; break;
                 case HlslSyntaxKind.CloseBracketToken: bracket--; break;
+
+                // 外側のブロックを閉じる } なら、文はその手前で終わっているかもしれない。
+                case HlslSyntaxKind.CloseBraceToken when brace == 0 && paren == 0 && bracket == 0 && i > last:
+                    last = i;
+                    yield return i;
+
+                    if (++found >= MaxUnitEndCandidates)
+                    {
+                        yield break;
+                    }
+
+                    boundary = true;
+                    break;
 
                 case HlslSyntaxKind.CloseBraceToken:
                     brace--;
@@ -604,6 +800,7 @@ internal sealed partial class HlslPreprocessor
                 continue;
             }
 
+            last = i + 1;
             yield return i + 1;
 
             // 閉じ括弧が余っていても打ち切らない。
@@ -631,7 +828,9 @@ internal sealed partial class HlslPreprocessor
     /// 使う文を定義ごとに複製すれば、どの構成の展開も 1 本の木に載る。
     /// </para>
     /// <para>
-    /// <c>#elif</c> と入れ子の <c>#if</c>、<c>#undef</c> は扱わない。条件の組み立てが別に要る。
+    /// <c>#elif</c> の分岐は扱う。その分岐の定義は、それまでの分岐がすべて偽という条件付きで覚えている。
+    /// <c>#undef</c> も扱う。それまでの定義の条件を縮める (<see cref="ForgetConditionalDefinitions"/>)。
+    /// 入れ子の <c>#if</c> は扱わない。条件の組み立てが別に要る。
     /// 定義を条件付きで覚えるのは解析しているファイルだけなので、ヘッダの領域も扱わない。
     /// </para>
     /// </remarks>
@@ -670,7 +869,15 @@ internal sealed partial class HlslPreprocessor
                     defined.Add(tokens[i + 2].Text);
                     break;
 
-                case "else" or "endif":
+                // #elif で 3 通り以上に書き分けた定義も、使う文を定義ごとに複製して補える。
+                // 定義の条件は「それまでの分岐がすべて偽、かつ自分の条件」で覚えている (EnterPathBranch)。
+                // 入れ子の #if も、定義の条件は外側と掛け合わせた経路の条件で覚えている。
+                case "if" or "ifdef" or "ifndef" or "elif" or "else" or "endif":
+                    break;
+
+                // #undef してから定義し直す形も、#undef がそれまでの定義の条件を縮める (ForgetConditionalDefinitions)。
+                case "undef" when i + 2 < tokens.Length && tokens[i + 2].Kind == HlslSyntaxKind.IdentifierToken:
+                    defined.Add(tokens[i + 2].Text);
                     break;
 
                 default:
@@ -710,7 +917,7 @@ internal sealed partial class HlslPreprocessor
     private void NoteUnhoistedExpansion(string name)
     {
         if (_hoistableMacros.Contains(name)
-            && !(_hoisting && string.Equals(name, _hoistingMacro, StringComparison.Ordinal)))
+            && !(_hoisting && _hoistingMacros.Contains(name)))
         {
             _unhoistedMacros.Add(name);
         }

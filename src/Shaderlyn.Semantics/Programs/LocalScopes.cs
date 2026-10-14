@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
@@ -61,7 +62,8 @@ internal readonly record struct LocalDeclaration(ResolvedTypeName Type, HlslSynt
 /// Unity (fxc) が通すのはこの読み方である。ループの後でも見え、
 /// 同じ波括弧の前の同じ名前の宣言より優先する (警告 X3078 "most recent declaration will be used")。
 /// 漏れるのは囲む波括弧までで、その外では見えない。
-/// DXC の <c>-HV 2021</c> は C++ と同じく <c>for</c> 文の中に閉じ込めるが、Unity の既定のコンパイルに合わせる。
+/// DXC の <c>-HV 2021</c> は C++ と同じく <c>for</c> 文の中に閉じ込める。コードをコンパイルする方言がどれも 2021 なら、閉じ込める
+/// (<see cref="HlslLanguageFeatures.LoopVariableOutsideLoop"/>)。
 /// </para>
 /// <para>
 /// 波括弧を書かない <c>for</c> / <c>if</c> / <c>while</c> の本体にある <c>for</c> の変数は、
@@ -98,15 +100,22 @@ internal sealed class LocalScopes
 
     private readonly ConditionMap _conditions;
 
+    /// <summary><c>for</c> の初期化の変数を、囲む波括弧の範囲へ漏らすか。</summary>
+    private readonly bool _loopVariablesLeak;
+
     /// <summary>関数の中の宣言を集める。</summary>
     /// <param name="function">対象の関数。</param>
     /// <param name="conditions">出現条件の索引。条件付きの宣言が外側を隠すかどうかを決めるのに使う。</param>
-    public LocalScopes(FunctionDeclarationSyntax function, ConditionMap conditions)
+    /// <param name="loopVariablesLeak">
+    /// <c>for</c> の初期化の変数を、ループの後でも見えるようにするか (FXC と DXC 2021 より前)。
+    /// </param>
+    public LocalScopes(FunctionDeclarationSyntax function, ConditionMap conditions, bool loopVariablesLeak = true)
     {
         ArgumentNullException.ThrowIfNull(function);
         ArgumentNullException.ThrowIfNull(conditions);
 
         _conditions = conditions;
+        _loopVariablesLeak = loopVariablesLeak;
 
         foreach (ParameterSyntax parameter in function.ParameterList)
         {
@@ -350,7 +359,7 @@ internal sealed class LocalScopes
             {
                 AddDeclaration(scope, i, declaration, tracked);
             }
-            else if (statements[i] is ForStatementSyntax { Initializer: VariableDeclarationSyntax initializer })
+            else if (_loopVariablesLeak && statements[i] is ForStatementSyntax { Initializer: VariableDeclarationSyntax initializer })
             {
                 // 初期化の変数は囲む範囲へ漏れる。その for 文より後の文から見える。
                 AddDeclaration(scope, i, initializer, tracked);
@@ -362,7 +371,7 @@ internal sealed class LocalScopes
                 .OfType<ForStatementSyntax>()
                 .Where(loop => !ReferenceEquals(loop, statements[i]));
 
-            foreach (ForStatementSyntax nested in nestedLoops)
+            foreach (ForStatementSyntax nested in _loopVariablesLeak ? nestedLoops : [])
             {
                 if (nested.Initializer is VariableDeclarationSyntax nestedInitializer
                     && !nested.Ancestors()

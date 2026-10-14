@@ -106,11 +106,69 @@ public sealed class ExpressionTypeEvaluator
     public FrozenDictionary<string, string> TypeAliases { get; init; } = FrozenDictionary<string, string>.Empty;
 
     /// <summary>
+    /// 構造体の名前から、そのメソッドと多重定義した演算子 (<c>Get</c> / <c>operator+</c>) の宣言への対応 (HLSL 2021)。
+    /// 継承した基底のものを含む。
+    /// </summary>
+    internal FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>> StructFunctions { get; init; }
+        = FrozenDictionary<string, FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>>.Empty;
+
+    /// <summary>
+    /// template の構造体の名前から、型引数の名前への対応 (HLSL 2021)。
+    /// </summary>
+    /// <remarks>
+    /// フィールドやメソッドの型が型引数そのもの (<c>T v;</c>) なら、受け手の型引数 (<c>Box&lt;float4&gt; b</c> の <c>float4</c>) で置き換える。
+    /// 置き換えられなければ分からない型にする。
+    /// </remarks>
+    internal FrozenDictionary<string, ImmutableArray<string>> TemplateStructs { get; init; }
+        = FrozenDictionary<string, ImmutableArray<string>>.Empty;
+
+    /// <summary>enum の名前から、その型への対応 (HLSL 2021)。</summary>
+    /// <remarks>
+    /// <c>Mode::A</c> は <c>Mode</c>、スコープの無い enum の列挙子 (<c>P0</c>) はその enum の型になる。
+    /// </remarks>
+    internal FrozenDictionary<string, EnumInfo> Enums { get; init; } = FrozenDictionary<string, EnumInfo>.Empty;
+
+    /// <summary>スコープの無い enum の列挙子の名前から、enum の名前への対応。2 つの enum にある名前は載せない。</summary>
+    private FrozenDictionary<string, string> UnscopedEnumerators
+        => _unscopedEnumerators ??= Enums.Values
+            .Where(e => !e.IsScoped)
+            .SelectMany(e => e.Members.Select(m => (Member: m, Enum: e.Name)))
+            .GroupBy(p => p.Member, StringComparer.Ordinal)
+            .Where(g => g.Count() == 1)
+            .ToFrozenDictionary(g => g.Key, g => g.First().Enum, StringComparer.Ordinal);
+
+    private FrozenDictionary<string, string>? _unscopedEnumerators;
+
+    /// <summary>式を囲むメソッドを持つ構造体の名前 (<c>this</c> の型)。メソッドの中でなければ <see langword="null"/>。</summary>
+    internal string? ThisType { get; init; }
+
+    /// <summary>
+    /// 分からない型として扱う型名。式を囲む <c>template</c> の型引数 (<c>T</c>) である (HLSL 2021)。
+    /// </summary>
+    /// <remarks>型引数が何に置き換わるかは使う側で決まるので、その型だと答えると別の型の値について判断することになる。</remarks>
+    internal FrozenSet<string> UnknownTypeNames { get; init; } = FrozenSet<string>.Empty;
+
+    /// <summary>
+    /// template の関数の名前から、その名前を持つ関数 (template でないものを含む) の戻り値の決まり方への対応 (HLSL 2021)。
+    /// </summary>
+    internal FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> TemplateFunctions { get; init; }
+        = FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>>.Empty;
+
+    /// <summary>
     /// 式の型名を求める。
     /// </summary>
     /// <param name="expression">対象の式。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    public string? Evaluate(HlslExpressionSyntax? expression) => expression switch
+    public string? Evaluate(HlslExpressionSyntax? expression)
+    {
+        string? type = EvaluateCore(expression);
+        return type is not null && UnknownTypeNames.Contains(type) ? null : type;
+    }
+
+    /// <summary>式の型名を求める。型引数による絞り込みの前の値。</summary>
+    /// <param name="expression">対象の式。</param>
+    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
+    private string? EvaluateCore(HlslExpressionSyntax? expression) => expression switch
     {
         ParenthesizedExpressionSyntax parenthesized => Evaluate(parenthesized.Expression),
 
@@ -169,12 +227,37 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateInvocation(InvocationExpressionSyntax invocation)
     {
+        if (invocation.TargetName is { } templateName
+            && TemplateFunctions.TryGetValue(templateName, out ImmutableArray<TemplateFunctionCandidate> candidates))
+        {
+            return EvaluateTemplateCall(candidates, invocation);
+        }
+
+        // ほかの型引数を書いた呼び出し (buffer.Load<float4>(i)) の型は主張しない。
+        if (invocation.HasTypeArguments)
+        {
+            return null;
+        }
+
+        int count = invocation.ArgumentExpressions.Count();
+
         if (invocation.TargetName is not { } name)
         {
+            if (invocation.Target is not MemberAccessExpressionSyntax access)
+            {
+                return null;
+            }
+
+            // 構造体のメソッド (s.Get()、HLSL 2021)。
+            if (StructFunctions.Count > 0
+                && access.DotToken.Kind == HlslSyntaxKind.DotToken
+                && AsStruct(Evaluate(access.Target)) is { } receiver)
+            {
+                return EvaluateStructCall(receiver, access.Name, count, access.Target);
+            }
+
             // tex.Sample(...) のように、呼び出しの対象がメンバーの場合。
-            return invocation.Target is MemberAccessExpressionSyntax access
-                ? EvaluateTextureMethod(access)
-                : null;
+            return EvaluateTextureMethod(access);
         }
 
         if (HlslTypeClassifier.Classify(name) != HlslTypeClass.Unknown)
@@ -186,6 +269,15 @@ public sealed class ExpressionTypeEvaluator
         if (TypeAliases.TryGetValue(name, out string? aliasOf))
         {
             return aliasOf;
+        }
+
+        // 構造体の変数を関数のように呼ぶ式 (s(0.5)) は、operator() の呼び出しである (HLSL 2021)。
+        if (StructFunctions.Count > 0
+            && invocation.Target is IdentifierExpressionSyntax callee
+            && _resolve(callee) is { IsArray: false } variable
+            && AsStruct(variable.TypeName) is { } callable)
+        {
+            return EvaluateStructCall(callable, "operator()", count, callee);
         }
 
         ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
@@ -201,6 +293,64 @@ public sealed class ExpressionTypeEvaluator
         }
 
         return EvaluateIntrinsic(name, arguments);
+    }
+
+    /// <summary>
+    /// template の関数の呼び出しの型を求める。
+    /// </summary>
+    /// <param name="candidates">同じ名前の関数すべての、戻り値の決まり方。</param>
+    /// <param name="invocation">呼び出し。</param>
+    /// <returns>当てはまりうる候補のどれでも同じ型になるならその型。それ以外は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 戻り値が型引数そのもの (<c>T Twice(T x)</c>) なら、書いた型引数 (<c>Twice&lt;float4&gt;</c> の <c>float4</c>) か、
+    /// 実引数から推論した型 (<c>Twice(p)</c> の <c>p</c> の型) に置き換える (<see cref="TemplateDeduction"/>)。
+    /// </para>
+    /// <para>
+    /// 引数の個数が合わない候補と、推論で型が食い違う候補は外す。型引数を書いた呼び出しでは template でない関数も外す。
+    /// 残りは実引数の型の変換で選ぶことになるので、残ったすべての候補が同じ型になるときだけ答える。
+    /// </para>
+    /// </remarks>
+    private string? EvaluateTemplateCall(
+        ImmutableArray<TemplateFunctionCandidate> candidates,
+        InvocationExpressionSyntax invocation)
+    {
+        int count = invocation.ArgumentExpressions.Count();
+        string? result = null;
+
+        foreach (TemplateFunctionCandidate candidate in candidates)
+        {
+            if ((invocation.HasTypeArguments && !candidate.IsTemplate)
+                || !CallCompatibility.AcceptsArgumentCount(candidate.Declaration.ParameterList, count))
+            {
+                continue;
+            }
+
+            string? type = candidate.ReturnType;
+
+            if (candidate.IsTemplate)
+            {
+                TemplateDeductionResult deduced = TemplateDeduction.Deduce(
+                    candidate, invocation, argument => TemplateDeduction.ArgumentType(this, argument));
+
+                if (deduced.Fails)
+                {
+                    continue;
+                }
+
+                type = TemplateDeduction.ReturnTypeOf(candidate, deduced);
+            }
+
+            if (type is null || (result is not null && result != type))
+            {
+                return null;
+            }
+
+            result = type;
+        }
+
+        // 型引数に書いた typedef の別名 (Twice<V3>) は元の型にする。
+        return result is null ? null : TypeAliases.GetValueOrDefault(result, result);
     }
 
     /// <summary>
@@ -461,6 +611,9 @@ public sealed class ExpressionTypeEvaluator
         {
             TextureMethodReturnType.Element => texture.TemplateArgument ?? "float4",
             TextureMethodReturnType.Scalar => "float",
+            TextureMethodReturnType.Gathered => HlslTypeClassifier.TryDescribeNumeric(texture.TemplateArgument ?? "float4", out HlslNumericShape element)
+                ? element.BaseName + "4"
+                : "float4",
             _ => null,
         };
     }
@@ -553,12 +706,24 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateIdentifier(IdentifierExpressionSyntax identifier)
     {
+        // 構造体のメソッドの中の this は、その構造体である (HLSL 2021)。
+        if (identifier.Name == "this" && ThisType is { } self)
+        {
+            return self;
+        }
+
         if (_resolve(identifier) is { } resolved)
         {
             return resolved.IsArray ? null : resolved.TypeName;
         }
 
-        return identifier.Name is "true" or "false" ? "bool" : null;
+        if (identifier.Name is "true" or "false")
+        {
+            return "bool";
+        }
+
+        // スコープの無い enum の列挙子 (enum Plain { P0 } の P0) は、その enum の型である (HLSL 2021)。
+        return Enums.Count > 0 ? UnscopedEnumerators.GetValueOrDefault(identifier.Name) : null;
     }
 
     /// <summary>
@@ -603,6 +768,12 @@ public sealed class ExpressionTypeEvaluator
             }
 
             // 次元より多い添字は、要素 (ベクトルや行列) の添字である。下の規則で内側から解く。
+        }
+
+        // operator[] を持つ構造体の添字 (HLSL 2021)。
+        if (StructFunctions.Count > 0 && AsStruct(Evaluate(element.Target)) is { } indexed)
+        {
+            return EvaluateStructCall(indexed, "operator[]", argumentCount: 1, element.Target);
         }
 
         // バッファとテクスチャは、それ自体の型と取り出したものの型が別物である。名前の宣言を先に見る。
@@ -677,16 +848,27 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateSwizzle(MemberAccessExpressionSyntax member)
     {
+        // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。
+        if (member.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        {
+            return member.Target is IdentifierExpressionSyntax { Name: var enumName }
+                   && Enums.TryGetValue(enumName, out EnumInfo? enumeration)
+                   && enumeration.Members.Contains(member.Name)
+                ? enumName
+                : null;
+        }
+
         string? targetType = Evaluate(member.Target);
 
         if (!HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape shape))
         {
             // 数値型でなければ、構造体のフィールドとして引く。配列のフィールドそのものは型を持たない。
+            // template の構造体のフィールドは、受け手の型引数で置き換える。
             return targetType is not null
                    && _structFields.TryGetValue(targetType, out FrozenDictionary<string, ResolvedTypeName>? fields)
                    && fields.TryGetValue(member.Name, out ResolvedTypeName field)
                    && !field.IsArray
-                ? field.TypeName
+                ? Specialize(targetType, field.TypeName, member.Target)
                 : null;
         }
 
@@ -773,9 +955,110 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="binary">対象の演算。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     /// <remarks>
+    /// <para>
     /// 代入は左辺の型になるが、実引数の位置に代入を書くコードは検査の対象として想定していない。
+    /// </para>
+    /// <para>
+    /// 左辺が演算子を多重定義した構造体なら、その演算子の戻り値の型になる (HLSL 2021)。
+    /// 演算子は構造体の中でしか定義できないので、多重定義が効くのは左辺が構造体のときだけである。
+    /// </para>
     /// </remarks>
-    private string? EvaluateBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
+    private string? EvaluateBinary(BinaryExpressionSyntax binary)
+    {
+        if (StructFunctions.Count > 0 && AsStruct(Evaluate(binary.Left)) is { } left)
+        {
+            return EvaluateStructCall(left, "operator" + binary.OperatorToken.Text, argumentCount: 1, binary.Left);
+        }
+
+        return EvaluateBuiltInBinary(binary);
+    }
+
+    /// <summary>型名が、メソッドか演算子を持つ構造体ならその名前を返す。</summary>
+    /// <param name="typeName">型名。</param>
+    /// <returns>構造体の名前 (typedef の別名は元の名前)。当てはまらなければ <see langword="null"/>。</returns>
+    private string? AsStruct(string? typeName)
+        => typeName is not null
+           && TypeAliases.GetValueOrDefault(typeName, typeName) is { } name
+           && StructFunctions.ContainsKey(name)
+            ? name
+            : null;
+
+    /// <summary>構造体のメソッドか演算子を呼んだ結果の型を求める (HLSL 2021)。</summary>
+    /// <param name="structName">構造体の名前。</param>
+    /// <param name="functionName">関数の名前 (<c>Get</c> / <c>operator+</c>)。</param>
+    /// <param name="argumentCount">渡している引数の個数。</param>
+    /// <param name="receiver">呼び出しの受け手の式。template の構造体なら、その型引数で戻り値を置き換える。</param>
+    /// <returns>個数の合う宣言がすべて同じ型を返すならその型。それ以外は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 実引数の型による多重定義の選択はしない。template のメソッドは、型引数で戻り値が変わりうるので答えない。
+    /// </remarks>
+    private string? EvaluateStructCall(string structName, string functionName, int argumentCount, HlslExpressionSyntax receiver)
+    {
+        if (!StructFunctions.TryGetValue(structName, out FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? functions)
+            || !functions.TryGetValue(functionName, out ImmutableArray<FunctionDeclarationSyntax> overloads))
+        {
+            return null;
+        }
+
+        string? result = null;
+
+        foreach (FunctionDeclarationSyntax overload in overloads)
+        {
+            if (!CallCompatibility.AcceptsArgumentCount(overload.ParameterList, argumentCount))
+            {
+                continue;
+            }
+
+            if (overload.Parent is TemplateDeclarationSyntax
+                || (result is not null && result != overload.ReturnType.Name))
+            {
+                return null;
+            }
+
+            result = overload.ReturnType.Name;
+        }
+
+        return result is null ? null : Specialize(structName, TypeAliases.GetValueOrDefault(result, result), receiver);
+    }
+
+    /// <summary>template の構造体のメンバーの型を、受け手の型引数で置き換える (HLSL 2021)。</summary>
+    /// <param name="structName">構造体の名前。</param>
+    /// <param name="type">宣言に書かれたメンバーの型。</param>
+    /// <param name="receiver">受け手の式。</param>
+    /// <returns>
+    /// template の構造体でなければ <paramref name="type"/>。型引数そのものなら置き換えた型。
+    /// 置き換えられなければ <see langword="null"/>。
+    /// </returns>
+    /// <remarks>
+    /// 受け手が名前 (<c>b</c>) で、その宣言の型引数が 1 つの名前 (<c>Box&lt;float4&gt;</c>) のときだけ置き換える。
+    /// 型引数を含む別の形 (<c>vector&lt;T, 3&gt;</c>) は、書かれた名前 (<c>vector</c>) のままで、数値型とは見なされない。
+    /// </remarks>
+    private string? Specialize(string structName, string type, HlslExpressionSyntax receiver)
+    {
+        if (!TemplateStructs.TryGetValue(structName, out ImmutableArray<string> parameters))
+        {
+            return type;
+        }
+
+        int index = parameters.IndexOf(type);
+
+        if (index < 0)
+        {
+            return type;
+        }
+
+        return index == 0
+               && parameters.Length == 1
+               && receiver is IdentifierExpressionSyntax identifier
+               && _resolve(identifier) is { IsArray: false, TemplateArgument: { } argument }
+            ? TypeAliases.GetValueOrDefault(argument, argument)
+            : null;
+    }
+
+    /// <summary>組み込みの二項演算の結果の型を求める。</summary>
+    /// <param name="binary">対象の演算。</param>
+    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
+    private string? EvaluateBuiltInBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
     {
         HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken
             or HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken

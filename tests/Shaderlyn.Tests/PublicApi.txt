@@ -4,7 +4,22 @@ Shaderlyn.Cli.ExitCode : enum (System.IComparable, System.IConvertible, System.I
 Shaderlyn.Cli.ExitCode :: DiagnosticsFound = 1
 Shaderlyn.Cli.ExitCode :: Success = 0
 Shaderlyn.Cli.ExitCode :: ToolError = 2
+Shaderlyn.Cli.HostEnvironment : sealed class (System.IEquatable`1[Shaderlyn.Cli.HostEnvironment])
+Shaderlyn.Cli.HostEnvironment :: .ctor(System.String, System.String, System.Collections.Immutable.ImmutableArray`1[System.String], System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: Shaderlyn.Cli.HostEnvironment <Clone>$()
+Shaderlyn.Cli.HostEnvironment :: System.Boolean Equals(Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: System.Collections.Immutable.ImmutableArray`1[System.String] DefaultExtensions { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment] CreateEnvironment { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.String DisplayName { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.String Name { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.Void Deconstruct(out System.String, out System.String, out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Equality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Inequality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
+Shaderlyn.Cli.HostEnvironment :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Cli.HostEnvironment :: virtual System.Int32 GetHashCode()
+Shaderlyn.Cli.HostEnvironment :: virtual System.String ToString()
 Shaderlyn.Cli.Program : static class
+Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Cli.HostEnvironment], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
 Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
 Shaderlyn.Core.Analysis.AnalysisContext : sealed class
 Shaderlyn.Core.Analysis.AnalysisContext :: System.Void RegisterAnalysisStartAction(System.Action`1[Shaderlyn.Core.Analysis.AnalysisStartContext])
@@ -156,6 +171,51 @@ Shaderlyn.Core.Syntax.SyntaxNode :: abstract System.Collections.Generic.IEnumera
 Shaderlyn.Core.Syntax.SyntaxNode :: protected .ctor()
 Shaderlyn.Core.Syntax.SyntaxNode :: protected virtual System.Void WireChildren(System.Collections.Generic.Stack`1[Shaderlyn.Core.Syntax.SyntaxNode])
 Shaderlyn.Core.Syntax.SyntaxNode :: static System.Void WireParents(Shaderlyn.Core.Syntax.SyntaxNode)
+Shaderlyn.Core.Syntax.VariantDeclaration : sealed class (System.IEquatable`1[Shaderlyn.Core.Syntax.VariantDeclaration])
+Shaderlyn.Core.Syntax.VariantDeclaration :: .ctor(System.String, Shaderlyn.Core.Syntax.VariantSymbolKind, Shaderlyn.Core.Diagnostics.Location, System.Boolean = False)
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Syntax.VariantDeclaration <Clone>$()
+Shaderlyn.Core.Syntax.VariantDeclaration :: Shaderlyn.Core.Syntax.VariantSymbolKind Kind { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Boolean Equals(Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Boolean IsImplicit { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.String Name { get; set; }
+Shaderlyn.Core.Syntax.VariantDeclaration :: System.Void Deconstruct(out System.String, out Shaderlyn.Core.Syntax.VariantSymbolKind, out Shaderlyn.Core.Diagnostics.Location, out System.Boolean)
+Shaderlyn.Core.Syntax.VariantDeclaration :: static System.Boolean op_Equality(Shaderlyn.Core.Syntax.VariantDeclaration, Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: static System.Boolean op_Inequality(Shaderlyn.Core.Syntax.VariantDeclaration, Shaderlyn.Core.Syntax.VariantDeclaration)
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Syntax.VariantDeclaration :: virtual System.String ToString()
+Shaderlyn.Core.Syntax.VariantGroup : sealed class (System.IEquatable`1[Shaderlyn.Core.Syntax.VariantGroup])
+Shaderlyn.Core.Syntax.VariantGroup :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], System.Boolean)
+Shaderlyn.Core.Syntax.VariantGroup :: Shaderlyn.Core.Syntax.VariantGroup <Clone>$()
+Shaderlyn.Core.Syntax.VariantGroup :: System.Boolean Equals(Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: System.Boolean RequiresOne { get; set; }
+Shaderlyn.Core.Syntax.VariantGroup :: System.Collections.Immutable.ImmutableArray`1[System.String] Symbols { get; set; }
+Shaderlyn.Core.Syntax.VariantGroup :: System.Void Deconstruct(out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Boolean)
+Shaderlyn.Core.Syntax.VariantGroup :: static System.Boolean op_Equality(Shaderlyn.Core.Syntax.VariantGroup, Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: static System.Boolean op_Inequality(Shaderlyn.Core.Syntax.VariantGroup, Shaderlyn.Core.Syntax.VariantGroup)
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Syntax.VariantGroup :: virtual System.String ToString()
+Shaderlyn.Core.Syntax.VariantSpace : sealed class
+Shaderlyn.Core.Syntax.VariantSpace :: .ctor(System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantDeclaration], System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.VariantGroup])
+Shaderlyn.Core.Syntax.VariantSpace :: Shaderlyn.Core.Syntax.SymbolConstraints Constraints { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: Shaderlyn.Core.Syntax.VariantSpace Union(Shaderlyn.Core.Syntax.VariantSpace)
+Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsDeclared(System.String)
+Shaderlyn.Core.Syntax.VariantSpace :: System.Boolean IsEmpty { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantDeclaration] Declarations { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.VariantGroup] Groups { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] ValueSymbols { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: System.Collections.Immutable.ImmutableHashSet`1[System.String] Symbols { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: static Shaderlyn.Core.Syntax.VariantSpace Empty { get; }
+Shaderlyn.Core.Syntax.VariantSpace :: static Shaderlyn.Core.Syntax.VariantSpace ForValues(System.String, System.Collections.Generic.IReadOnlyList`1[System.Int32], Shaderlyn.Core.Diagnostics.Location = null)
+Shaderlyn.Core.Syntax.VariantSymbolKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Core.Syntax.VariantSymbolKind :: Compiled = 0
+Shaderlyn.Core.Syntax.VariantSymbolKind :: Runtime = 1
+Shaderlyn.Core.Syntax.VariantValues : static class
+Shaderlyn.Core.Syntax.VariantValues :: static System.Boolean TryParseAtom(System.String, out System.String, out System.Int32)
+Shaderlyn.Core.Syntax.VariantValues :: static System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] Collect(System.Collections.Generic.IEnumerable`1[System.String])
+Shaderlyn.Core.Syntax.VariantValues :: static System.String Atom(System.String, System.Int32)
 Shaderlyn.Core.Text.LinePosition : struct (System.IComparable`1[Shaderlyn.Core.Text.LinePosition], System.IEquatable`1[Shaderlyn.Core.Text.LinePosition])
 Shaderlyn.Core.Text.LinePosition :: .ctor(System.Int32, System.Int32)
 Shaderlyn.Core.Text.LinePosition :: System.Boolean Equals(Shaderlyn.Core.Text.LinePosition)
@@ -184,6 +244,7 @@ Shaderlyn.Core.Text.SourceText : sealed class
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.LinePosition GetLinePosition(System.Int32)
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.LinePositionSpan GetLinePositionSpan(Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.TextSpan GetLineSpan(System.Int32)
+Shaderlyn.Core.Text.SourceText :: System.Boolean IsUtf16 { get; }
 Shaderlyn.Core.Text.SourceText :: System.Char Item[System.Int32] { get; }
 Shaderlyn.Core.Text.SourceText :: System.Int32 GetOffset(Shaderlyn.Core.Text.LinePosition)
 Shaderlyn.Core.Text.SourceText :: System.Int32 Length { get; }
@@ -195,6 +256,8 @@ Shaderlyn.Core.Text.SourceText :: System.String GetLineText(System.Int32)
 Shaderlyn.Core.Text.SourceText :: System.String ToString(Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Text.SourceText :: System.Text.Encoding Encoding { get; }
 Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText From(System.String, System.String = <memory>, System.Text.Encoding = null)
+Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText FromBytes(System.Byte[], System.String)
+Shaderlyn.Core.Text.SourceText :: static Shaderlyn.Core.Text.SourceText Load(System.String)
 Shaderlyn.Core.Text.SourceText :: static System.Threading.Tasks.Task`1[Shaderlyn.Core.Text.SourceText] LoadAsync(System.String, System.Threading.CancellationToken = null)
 Shaderlyn.Core.Text.SourceText :: virtual System.String ToString()
 Shaderlyn.Core.Text.TextSpan : struct (System.IComparable`1[Shaderlyn.Core.Text.TextSpan], System.IEquatable`1[Shaderlyn.Core.Text.TextSpan])
@@ -218,11 +281,90 @@ Shaderlyn.Core.Text.TextSpan :: virtual System.Int32 GetHashCode()
 Shaderlyn.Core.Text.TextSpan :: virtual System.String ToString()
 Shaderlyn.Hlsl.HlslSyntaxTree : sealed class
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Core.Text.SourceText Text { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Preprocessing.PreprocessResult PreprocessResult { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax Root { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget] CompileTargets { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslDialect] Dialects { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective] Pragmas { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] UnanalyzedIdentifiers { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: static Shaderlyn.Hlsl.HlslSyntaxTree Parse(Shaderlyn.Core.Text.SourceText, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions = null, Shaderlyn.Core.Analysis.ISyntaxTimingRecorder = null)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget : sealed class (System.IEquatable`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget])
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: .ctor(System.String, Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Hlsl.Parsing.HlslCompileTarget <Clone>$()
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: Shaderlyn.Hlsl.Parsing.HlslDialect Dialect { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Boolean AppliesTo(System.Collections.Generic.IReadOnlyCollection`1[System.String])
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Boolean Equals(Shaderlyn.Hlsl.Parsing.HlslCompileTarget)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Boolean IsUsable { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Collections.Immutable.ImmutableArray`1[System.String] UnlessAnySymbol { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Collections.Immutable.ImmutableArray`1[System.String] WhenAnySymbol { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Describe()
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Platform { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Reason { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.String Subject { get; }
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: System.Void Deconstruct(out System.String, out Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Parsing.HlslCompileTarget, Shaderlyn.Hlsl.Parsing.HlslCompileTarget)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Parsing.HlslCompileTarget, Shaderlyn.Hlsl.Parsing.HlslCompileTarget)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: virtual System.Int32 GetHashCode()
+Shaderlyn.Hlsl.Parsing.HlslCompileTarget :: virtual System.String ToString()
+Shaderlyn.Hlsl.Parsing.HlslCompiler : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Hlsl.Parsing.HlslCompiler :: Dxc = 0
+Shaderlyn.Hlsl.Parsing.HlslCompiler :: Fxc = 1
+Shaderlyn.Hlsl.Parsing.HlslDialect : sealed class (System.IEquatable`1[Shaderlyn.Hlsl.Parsing.HlslDialect])
+Shaderlyn.Hlsl.Parsing.HlslDialect :: .ctor(Shaderlyn.Hlsl.Parsing.HlslCompiler, System.Nullable`1[Shaderlyn.Hlsl.Parsing.HlslLanguageVersion])
+Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslCompiler Compiler { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslDialect <Clone>$()
+Shaderlyn.Hlsl.Parsing.HlslDialect :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean AcceptsLegacySamplerSyntax { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean Enable16BitTypes { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Boolean Equals(Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Nullable`1[Shaderlyn.Hlsl.Parsing.HlslLanguageVersion] LanguageVersion { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.String DisplayName { get; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.String Label { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: System.Void Deconstruct(out Shaderlyn.Hlsl.Parsing.HlslCompiler, out System.Nullable`1[Shaderlyn.Hlsl.Parsing.HlslLanguageVersion])
+Shaderlyn.Hlsl.Parsing.HlslDialect :: static Shaderlyn.Hlsl.Parsing.HlslDialect Dxc(Shaderlyn.Hlsl.Parsing.HlslLanguageVersion)
+Shaderlyn.Hlsl.Parsing.HlslDialect :: static Shaderlyn.Hlsl.Parsing.HlslDialect Fxc { get; }
+Shaderlyn.Hlsl.Parsing.HlslDialect :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Parsing.HlslDialect, Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslDialect :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Parsing.HlslDialect, Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslDialect :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Hlsl.Parsing.HlslDialect :: virtual System.Int32 GetHashCode()
+Shaderlyn.Hlsl.Parsing.HlslDialect :: virtual System.String ToString()
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures : sealed class (System.IEquatable`1[Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures])
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: .ctor(System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean, System.Boolean)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures <Clone>$()
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean Bitfields { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean Enums { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean Equals(Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean ExplicitWidthTypes { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean ImplicitUserTypeConversion { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean Int64Types { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean LegacySamplerSyntax { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean LogicalIntrinsics { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean LoopVariableOutsideLoop { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean OperatorOverloading { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean SixteenBitTypes { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean StructIncrement { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean Templates { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Boolean VectorLogicalOperators { get; set; }
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: System.Void Deconstruct(out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean, out System.Boolean)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures All(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Parsing.HlslDialect])
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Any(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Parsing.HlslDialect])
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Of(Shaderlyn.Hlsl.Parsing.HlslDialect)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures, Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures, Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: static System.String Describe(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslDialect])
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: virtual System.Int32 GetHashCode()
+Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures :: virtual System.String ToString()
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2016 = 2016
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2017 = 2017
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2018 = 2018
+Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2021 = 2021
 Shaderlyn.Hlsl.Parsing.HlslLexer : sealed class
 Shaderlyn.Hlsl.Parsing.HlslLexer :: .ctor(Shaderlyn.Core.Text.SourceText)
 Shaderlyn.Hlsl.Parsing.HlslLexer :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Lex(out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslLexer+LexerDiagnostic])
@@ -287,6 +429,7 @@ Shaderlyn.Hlsl.Preprocessing.HlslTokenCache :: .ctor()
 Shaderlyn.Hlsl.Preprocessing.HlslTokenCache :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] GetOrLex(Shaderlyn.Core.Text.SourceText, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslLexer+LexerDiagnostic])
 Shaderlyn.Hlsl.Preprocessing.IIncludeResolver : interface
 Shaderlyn.Hlsl.Preprocessing.IIncludeResolver :: abstract System.Boolean TryResolve(System.String, System.String, out Shaderlyn.Core.Text.SourceText)
+Shaderlyn.Hlsl.Preprocessing.IIncludeResolver :: virtual System.String FindOutsideBoundary(System.String, System.String)
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion : struct (System.IEquatable`1[Shaderlyn.Hlsl.Preprocessing.InactiveRegion])
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion :: .ctor(Shaderlyn.Core.Diagnostics.Location, System.Collections.Immutable.ImmutableArray`1[System.String])
 Shaderlyn.Hlsl.Preprocessing.InactiveRegion :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
@@ -323,6 +466,7 @@ Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.Im
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.MergedRegion] MergedRegions { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective] Pragmas { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ConditionalIdentifiers { get; set; }
+Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedUserIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Tokens { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.Hlsl.Preprocessing.MacroDefinition]] MacroChanges { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]]] MergedMacros { get; set; }
@@ -365,6 +509,8 @@ Shaderlyn.Hlsl.Preprocessing.IncludeReference :: .ctor(System.String, Shaderlyn.
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.IncludeReference)
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsResolved { get; }
+Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsUtf16 { get; set; }
+Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String OutsideBoundaryPath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String Path { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String ResolvedFilePath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Void Deconstruct(out System.String, out Shaderlyn.Core.Diagnostics.Location, out System.String)
@@ -441,6 +587,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.Im
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.SymbolCombination] RequiredSymbolCombinations { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ConditionalIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedRootIdentifiers { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SkippedUserHeaderIdentifiers { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] Tokens { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] DeclinedBothBranchSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] MacroAffectingSymbols { get; set; }
@@ -464,6 +611,8 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions : sealed class (System.IEquatab
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: .ctor()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.SymbolConstraints SymbolConstraints { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.HlslIncludeCache IncludeCache { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.HlslTokenCache TokenCache { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.IIncludeResolver IncludeResolver { get; set; }
@@ -471,17 +620,24 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions <Clone>$()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean HonorPragmaOnce { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean MergeSwitchedIncludes { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Boolean ReportUnresolvedIncludes { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget] CompileTargets { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslDialect] Dialects { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] ValueSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] AdditionalIncludeDirectives { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] BothBranchSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] ConfigurationSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] DeclaredSymbols { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] IncludedDeclaredSymbols { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] UnsupportedDirectives { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Func`2[System.String,System.Boolean] IsUserInclude { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 FingerprintForCache { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxExpansionDepth { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxIncludeDepth { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.String DialectName { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions Default { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
@@ -490,19 +646,6 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Int32 DefaultM
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: virtual System.Int32 GetHashCode()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: virtual System.String ToString()
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols : static class
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraints(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraintsFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsDeclaringPragma(Shaderlyn.Hlsl.Preprocessing.PragmaDirective)
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsDeclaringPragmaName(System.String)
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsNoSymbol(System.String)
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Boolean IsRequiredSet(System.String, System.Boolean)
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Generic.HashSet`1[System.String] CollectDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Generic.HashSet`1[System.String] CollectDeclaredFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Generic.HashSet`1[System.String] CollectRuntimeReferences(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] EnumerateDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken,System.String]] EnumerateBuiltInDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
-Shaderlyn.Hlsl.Preprocessing.ShaderSymbols :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.SymbolGroup] CollectGroups(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination : struct (System.IEquatable`1[Shaderlyn.Hlsl.Preprocessing.SymbolCombination])
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
@@ -514,17 +657,6 @@ Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: static System.Boolean op_Inequ
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: virtual System.Int32 GetHashCode()
 Shaderlyn.Hlsl.Preprocessing.SymbolCombination :: virtual System.String ToString()
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup : struct (System.IEquatable`1[Shaderlyn.Hlsl.Preprocessing.SymbolGroup])
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], System.Boolean)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.SymbolGroup)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: System.Boolean RequiresOne { get; set; }
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: System.Collections.Immutable.ImmutableArray`1[System.String] Symbols { get; set; }
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: System.Void Deconstruct(out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Boolean)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Preprocessing.SymbolGroup, Shaderlyn.Hlsl.Preprocessing.SymbolGroup)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Preprocessing.SymbolGroup, Shaderlyn.Hlsl.Preprocessing.SymbolGroup)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: virtual System.Boolean Equals(System.Object)
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: virtual System.Int32 GetHashCode()
-Shaderlyn.Hlsl.Preprocessing.SymbolGroup :: virtual System.String ToString()
 Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
 Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
 Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Left { get; }
@@ -592,6 +724,27 @@ Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax
 Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken SemicolonToken { get; }
 Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.EnumMemberSyntax], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseBrace { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenBrace { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken ScopeKeyword { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken SemicolonToken { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Boolean IsScoped { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.EnumMemberSyntax] Members { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] BaseTypeTokens { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Value { get; }
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CommaToken { get; }
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken EqualsToken { get; }
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
 Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Expression { get; }
@@ -611,7 +764,7 @@ Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.Immutab
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Incrementors { get; }
 Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.BlockStatementSyntax Body { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseParen { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
@@ -620,15 +773,26 @@ Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyn
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax ReturnType { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsDefinition { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsMethodDefinition { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsOperator { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax] ParameterList { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Parameters { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ModifierTokens { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] OperatorTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] QualifierTokens { get; }
+Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String OwnerName { get; }
 Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Identifier { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TypeArguments { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseBracket { get; }
@@ -656,6 +820,7 @@ Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.Boolean TryGetInt64(Shaderlyn
 Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetDigits(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetTypeName(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Binary = 5
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Decimal = 1
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Floating = 4
 Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Hexadecimal = 2
@@ -796,6 +961,7 @@ Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableAr
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TemplateArguments { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String AliasOf { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String Name { get; }
+Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String OverloadShape { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String QualifiedName { get; }
 Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
@@ -833,12 +999,16 @@ Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: Shaderlyn.Hlsl.Syntax.H
 Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Elements { get; }
 Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null)
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Target { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseParen { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenParen { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Boolean HasTypeArguments { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax] ArgumentExpressions { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Arguments { get; }
+Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] TypeArgumentTokens { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.String TargetName { get; }
 Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.JumpStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
@@ -917,15 +1087,19 @@ Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.Collections.Immutable.ImmutableAr
 Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken = null, Shaderlyn.Hlsl.Syntax.HlslTypeSyntax = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] = null)
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseBrace { get; }
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken ColonToken { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken NameToken { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenBrace { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken SemicolonToken { get; }
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax BaseType { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax] Fields { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Members { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] SpecializationTokens { get; }
+Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String Name { get; }
 Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
@@ -945,6 +1119,15 @@ Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxT
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax] Statements { get; }
 Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax Declaration { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken CloseAngle { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken OpenAngle { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] ParameterTokens { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[System.String] ParameterNames { get; }
+Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
 Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxToken Keyword { get; }
@@ -988,6 +1171,7 @@ Shaderlyn.LanguageServer.Protocol.LspConnection :: System.Threading.Tasks.Task`1
 Shaderlyn.LanguageServer.ShaderLanguageServer : sealed class
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection)
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer])
+Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Generic.IEnumerable`1[Shaderlyn.Cli.HostEnvironment])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: System.Threading.Tasks.Task`1[System.Int32] RunAsync(System.Threading.CancellationToken)
 Shaderlyn.Semantics.Analysis.HlslAnalysisContext : sealed class
 Shaderlyn.Semantics.Analysis.HlslAnalysisContext :: .ctor()
@@ -1008,25 +1192,24 @@ Shaderlyn.Semantics.Analysis.HlslRuleAnalyzer :: protected abstract System.Void 
 Shaderlyn.Semantics.AnalyzedProgram : sealed class
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Diagnostics.Location GetBlockLocation()
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.SymbolCondition AnalyzedCondition { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Hlsl.HlslSyntaxTree Tree { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Conditional.ConditionalMergeResult PackedMerge { get; set; }
-Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.ShaderLab.Syntax.PassSyntax Pass { get; }
-Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax Block { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Environments.HlslCompilationUnit Unit { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Boolean IsPacked { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax] Structs { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol] ConstantBuffers { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.UniformSymbol] Uniforms { get; }
-Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax] IncludeBlocks { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[System.String] EnabledSymbols { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[System.String] MacroConflictSymbols { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]] FunctionSignatures { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableHashSet`1[System.String] FunctionNames { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.String KernelName { get; }
-Shaderlyn.Semantics.AnalyzedProgram :: System.String PassName { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.ValueTuple`2[System.Int32,System.String] BlockKey { get; }
 Shaderlyn.Semantics.Conditional.ConditionMap : sealed class
 Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition GetCondition(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
@@ -1071,12 +1254,121 @@ Shaderlyn.Semantics.Conditional.NodeInsertion :: static System.Boolean op_Inequa
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.String ToString()
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile : interface
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile :: abstract System.Boolean AppliesTo(Shaderlyn.Semantics.ShaderCompilation)
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile :: abstract System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ObsoleteApis { get; }
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile :: abstract System.String DisplayName { get; }
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile :: abstract System.String MaterialConstantBufferName { get; }
-Shaderlyn.Semantics.Profiles.IRenderPipelineProfile :: abstract System.String Name { get; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslCompilationUnit])
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: .ctor(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.String = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] = null, System.Object = null, System.Nullable`1[Shaderlyn.Core.Text.TextSpan] = null)
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.SourceText Text { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Semantics.Environments.HlslCompilationUnit <Clone>$()
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean AllowsExternalDefinitions { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslCompilationUnit)
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] MarkerSpan { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget] Target { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Object Data { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Void Deconstruct(out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.String, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.Object, out System.Nullable`1[Shaderlyn.Core.Text.TextSpan])
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Semantics.Environments.HlslCompilationUnit)
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Semantics.Environments.HlslCompilationUnit)
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.String ToString()
+Shaderlyn.Semantics.Environments.HlslEntryPoint : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslEntryPoint])
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: Shaderlyn.Semantics.Environments.HlslEntryPoint <Clone>$()
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslEntryPoint)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.String Origin { get; set; }
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslEntryPoint, Shaderlyn.Semantics.Environments.HlslEntryPoint)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslEntryPoint, Shaderlyn.Semantics.Environments.HlslEntryPoint)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.String ToString()
+Shaderlyn.Semantics.Environments.HlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: .ctor(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions = null)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Semantics.Environments.HlslEnvironmentOptions Options { get; }
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Boolean IsGeneratedInclude(System.String)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Boolean LooksLikeVariantSymbol(System.String)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Nullable`1[System.Collections.Immutable.ImmutableArray`1[System.String]] GetFunctionsDeclaredIn(System.String)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.String Name { get; }
+Shaderlyn.Semantics.Environments.HlslEnvironment :: static Shaderlyn.Semantics.Environments.HlslCompilationUnit WholeFile(Shaderlyn.Core.Text.SourceText)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: static System.String EnvironmentName
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslEnvironmentOptions])
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: .ctor()
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslCompiler Compiler { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslDialect Dialect { get; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: Shaderlyn.Semantics.Environments.HlslEnvironmentOptions <Clone>$()
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Enable16BitTypes { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableArray`1[System.String] GeneratedIncludePrefixes { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]] GeneratedIncludeFunctions { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: static Shaderlyn.Semantics.Environments.HlslEnvironmentOptions Default { get; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions, Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions, Shaderlyn.Semantics.Environments.HlslEnvironmentOptions)
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: virtual System.String ToString()
+Shaderlyn.Semantics.Environments.HlslShaderStage : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Amplification = 14
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Compute = 5
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Domain = 4
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Geometry = 2
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Hull = 3
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Library = 6
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Mesh = 13
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Pixel = 0
+Shaderlyn.Semantics.Environments.HlslShaderStage :: Vertex = 1
+Shaderlyn.Semantics.Environments.HlslShaderTarget : struct (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget])
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: .ctor(Shaderlyn.Semantics.Environments.HlslShaderStage, System.Int32, System.Int32)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: Shaderlyn.Semantics.Environments.HlslShaderStage Stage { get; set; }
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslShaderTarget)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] CreateDxcMacros(Shaderlyn.Hlsl.Parsing.HlslLanguageVersion)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: System.Int32 Major { get; set; }
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: System.Int32 Minor { get; set; }
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: System.Void Deconstruct(out Shaderlyn.Semantics.Environments.HlslShaderStage, out System.Int32, out System.Int32)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: static System.Boolean TryParse(System.String, out System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget])
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslShaderTarget, Shaderlyn.Semantics.Environments.HlslShaderTarget)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslShaderTarget, Shaderlyn.Semantics.Environments.HlslShaderTarget)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: static System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] CreateCommonDxcMacros(Shaderlyn.Hlsl.Parsing.HlslLanguageVersion)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.String ToString()
+Shaderlyn.Semantics.Environments.IHlslEnvironment : interface
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Boolean IsGeneratedInclude(System.String)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Boolean LooksLikeVariantSymbol(System.String)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.String Name { get; }
+Shaderlyn.Semantics.Environments.IHlslEnvironment :: virtual System.Nullable`1[System.Collections.Immutable.ImmutableArray`1[System.String]] GetFunctionsDeclaredIn(System.String)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderSourceInfo])
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: .ctor(Shaderlyn.Core.Syntax.SyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic], System.Object = null)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: Shaderlyn.Core.Syntax.SyntaxNode Root { get; set; }
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: Shaderlyn.Semantics.Environments.ShaderSourceInfo <Clone>$()
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: System.Boolean Equals(Shaderlyn.Semantics.Environments.ShaderSourceInfo)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; set; }
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: System.Object Data { get; set; }
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: System.Void Deconstruct(out Shaderlyn.Core.Syntax.SyntaxNode, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic], out System.Object)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: static Shaderlyn.Semantics.Environments.ShaderSourceInfo None { get; }
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.Environments.ShaderSourceInfo)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.Environments.ShaderSourceInfo)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.String ToString()
 Shaderlyn.Semantics.Programs.CallCompatibility : static class
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean AcceptsArgumentCount(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax], System.Int32)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssignable(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
@@ -1159,22 +1451,20 @@ Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Core.Analysis.ISyntaxTimingRec
 Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Hlsl.Preprocessing.HlslIncludeCache IncludeCache { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Hlsl.Preprocessing.HlslTokenCache TokenCache { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Hlsl.Preprocessing.IIncludeResolver IncludeResolver { get; set; }
-Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Semantics.Profiles.IRenderPipelineProfile Profile { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: Shaderlyn.Semantics.SemanticsOptions <Clone>$()
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean Equals(Shaderlyn.Semantics.SemanticsOptions)
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean FixedSymbolConfiguration { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean HoistConditionalMacros { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean MergeSwitchedIncludes { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Boolean PackIndependentSymbols { get; set; }
-Shaderlyn.Semantics.SemanticsOptions :: System.Boolean UseFallbackMacros { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] BothBranchSymbols { get; set; }
+Shaderlyn.Semantics.SemanticsOptions :: System.Func`2[Shaderlyn.Hlsl.Preprocessing.IncludeReference,System.String] DescribeUnresolvedInclude { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Func`2[System.String,System.Boolean] IsUserInclude { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: System.Int32 MaxSymbolVariants { get; set; }
 Shaderlyn.Semantics.SemanticsOptions :: static Shaderlyn.Semantics.SemanticsOptions Default { get; }
 Shaderlyn.Semantics.SemanticsOptions :: static System.Boolean op_Equality(Shaderlyn.Semantics.SemanticsOptions, Shaderlyn.Semantics.SemanticsOptions)
 Shaderlyn.Semantics.SemanticsOptions :: static System.Boolean op_Inequality(Shaderlyn.Semantics.SemanticsOptions, Shaderlyn.Semantics.SemanticsOptions)
-Shaderlyn.Semantics.SemanticsOptions :: static System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] DefaultPredefinedMacros { get; }
 Shaderlyn.Semantics.SemanticsOptions :: static System.Int32 DefaultMaxSymbolVariants
 Shaderlyn.Semantics.SemanticsOptions :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.SemanticsOptions :: virtual System.Int32 GetHashCode()
@@ -1186,25 +1476,24 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition G
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText CodeText { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Conditional.ConditionMap GetConditionMap()
-Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Profiles.IRenderPipelineProfile Profile { get; }
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IHlslEnvironment Environment { get; }
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.ExpressionTypeBinder GetExpressionTypeBinder(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.OverloadResolution ResolveCall(Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram)
-Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.ShaderLab.ShaderLabSyntaxTree ShaderLabTree { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasCompleteDependencies { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasFunctionDeclarations { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasHlslPrograms { get; }
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsDeclaredButNeverUsed(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFunctionLikeMacro(System.String)
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReferencedFromShaderLab(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsStandaloneHlsl { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsUserFile(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Hlsl.Syntax.HlslSyntaxToken)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean MayLackOverloadsOf(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryEnumerateConfigurations(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxNode], Shaderlyn.Semantics.AnalyzedProgram, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.NodeConfiguration])
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryGetUniform(System.String, out Shaderlyn.Semantics.Symbols.UniformSymbol)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] AllDeclaredNames { get; }
@@ -1225,15 +1514,12 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableA
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] UserIncludeCodeTokens { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] Programs { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] SymbolVariants { get; }
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol] GetMaterialConstantBuffers()
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.PropertySymbol] Properties { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] AllIncludePaths { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnexploredSymbols { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }
-Shaderlyn.Semantics.ShaderCompilation :: System.Int32 CountIdentifierOccurrences(System.String)
-Shaderlyn.Semantics.ShaderCompilation :: System.String ShaderName { get; }
-Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, Shaderlyn.ShaderLab.ShaderLabSyntaxTree, Shaderlyn.Semantics.SemanticsOptions = null)
-Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation CreateForHlsl(Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.SemanticsOptions = null)
+Shaderlyn.Semantics.ShaderCompilation :: System.Int32 CountUniformDeclarations(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslCompilationUnit], Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.Environments.IHlslEnvironment, Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.SemanticsOptions = null)
+Shaderlyn.Semantics.ShaderCompilation :: static System.Collections.Generic.IEnumerable`1[System.String] DeclaredNamesOf(Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Int32 MaxConfigurationSymbols
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol])
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: .ctor(System.String, Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.UniformSymbol])
@@ -1260,6 +1546,7 @@ Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static Shaderlyn.Semantics.Symbols
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static Shaderlyn.Semantics.Symbols.TextureMethodReturnType GetTextureMethodReturnType(System.String)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Boolean IsKnownConstant(System.String)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Boolean IsKnownFunction(System.String)
+Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Boolean IsKnownFunction(System.String, Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Boolean IsTextureSamplingFunction(System.String)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Collections.Generic.IReadOnlyCollection`1[System.String] FunctionNames { get; }
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.String GetFixedBaseType(System.String)
@@ -1317,15 +1604,6 @@ Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: ScalarOfArguments = 2
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: Transpose = 6
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: Unknown = 0
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: Void = 9
-Shaderlyn.Semantics.Symbols.PropertySymbol : sealed class
-Shaderlyn.Semantics.Symbols.PropertySymbol :: .ctor(Shaderlyn.ShaderLab.Syntax.PropertyDeclarationSyntax, Shaderlyn.Core.Text.SourceText)
-Shaderlyn.Semantics.Symbols.PropertySymbol :: Shaderlyn.Core.Diagnostics.Location NameLocation { get; }
-Shaderlyn.Semantics.Symbols.PropertySymbol :: Shaderlyn.Core.Text.SourceText Text { get; }
-Shaderlyn.Semantics.Symbols.PropertySymbol :: Shaderlyn.Semantics.Symbols.ShaderPropertyKind Kind { get; }
-Shaderlyn.Semantics.Symbols.PropertySymbol :: Shaderlyn.ShaderLab.Syntax.PropertyDeclarationSyntax Declaration { get; }
-Shaderlyn.Semantics.Symbols.PropertySymbol :: System.Boolean HasAttribute(System.String)
-Shaderlyn.Semantics.Symbols.PropertySymbol :: System.Boolean IsPerRendererData()
-Shaderlyn.Semantics.Symbols.PropertySymbol :: System.String Name { get; }
 Shaderlyn.Semantics.Symbols.ResolvedTypeName : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ResolvedTypeName])
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: .ctor(System.String, System.Boolean, System.String = null, System.Int32 = 0)
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: System.Boolean Equals(Shaderlyn.Semantics.Symbols.ResolvedTypeName)
@@ -1339,22 +1617,9 @@ Shaderlyn.Semantics.Symbols.ResolvedTypeName :: static System.Boolean op_Inequal
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.String ToString()
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Any = 12
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Color = 1
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Float = 3
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Int = 5
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Integer = 6
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Range = 4
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Texture2D = 7
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Texture2DArray = 10
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Texture3D = 8
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: TextureCube = 9
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: TextureCubeArray = 11
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Unknown = 0
-Shaderlyn.Semantics.Symbols.ShaderPropertyKind :: Vector = 2
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Element = 1
+Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Gathered = 3
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Scalar = 2
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Unknown = 0
 Shaderlyn.Semantics.Symbols.UniformSymbol : sealed class
@@ -1630,3 +1895,187 @@ Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier Wit
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithPredefinedMacros(System.Collections.Generic.IReadOnlyDictionary`2[System.String,System.String])
 Shaderlyn.Testing.ShaderRuleVerifier :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Analyze(System.String, System.String = Assets/Test.shader)
 Shaderlyn.Testing.ShaderRuleVerifier :: static System.String Describe(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic])
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile : interface
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile :: abstract System.Boolean AppliesTo(Shaderlyn.Semantics.ShaderCompilation)
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile :: abstract System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ObsoleteApis { get; }
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile :: abstract System.String DisplayName { get; }
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile :: abstract System.String MaterialConstantBufferName { get; }
+Shaderlyn.Unity.Profiles.IRenderPipelineProfile :: abstract System.String Name { get; }
+Shaderlyn.Unity.PropertySymbol : sealed class
+Shaderlyn.Unity.PropertySymbol :: .ctor(Shaderlyn.ShaderLab.Syntax.PropertyDeclarationSyntax, Shaderlyn.Core.Text.SourceText)
+Shaderlyn.Unity.PropertySymbol :: Shaderlyn.Core.Diagnostics.Location NameLocation { get; }
+Shaderlyn.Unity.PropertySymbol :: Shaderlyn.Core.Text.SourceText Text { get; }
+Shaderlyn.Unity.PropertySymbol :: Shaderlyn.ShaderLab.Syntax.PropertyDeclarationSyntax Declaration { get; }
+Shaderlyn.Unity.PropertySymbol :: Shaderlyn.Unity.ShaderPropertyKind Kind { get; }
+Shaderlyn.Unity.PropertySymbol :: System.Boolean HasAttribute(System.String)
+Shaderlyn.Unity.PropertySymbol :: System.Boolean IsPerRendererData()
+Shaderlyn.Unity.PropertySymbol :: System.String Name { get; }
+Shaderlyn.Unity.ShaderPropertyKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Unity.ShaderPropertyKind :: Any = 12
+Shaderlyn.Unity.ShaderPropertyKind :: Color = 1
+Shaderlyn.Unity.ShaderPropertyKind :: Float = 3
+Shaderlyn.Unity.ShaderPropertyKind :: Int = 5
+Shaderlyn.Unity.ShaderPropertyKind :: Integer = 6
+Shaderlyn.Unity.ShaderPropertyKind :: Range = 4
+Shaderlyn.Unity.ShaderPropertyKind :: Texture2D = 7
+Shaderlyn.Unity.ShaderPropertyKind :: Texture2DArray = 10
+Shaderlyn.Unity.ShaderPropertyKind :: Texture3D = 8
+Shaderlyn.Unity.ShaderPropertyKind :: TextureCube = 9
+Shaderlyn.Unity.ShaderPropertyKind :: TextureCubeArray = 11
+Shaderlyn.Unity.ShaderPropertyKind :: Unknown = 0
+Shaderlyn.Unity.ShaderPropertyKind :: Vector = 2
+Shaderlyn.Unity.ShaderSymbols : static class
+Shaderlyn.Unity.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraints(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.ShaderSymbols :: static Shaderlyn.Core.Syntax.SymbolConstraints CollectConstraintsFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Unity.ShaderSymbols :: static Shaderlyn.Core.Syntax.VariantSpace ReadVariantSpace(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.ShaderSymbols :: static Shaderlyn.Core.Syntax.VariantSpace ReadVariantSpaceFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Unity.ShaderSymbols :: static System.Boolean IsDeclaringPragma(Shaderlyn.Hlsl.Preprocessing.PragmaDirective)
+Shaderlyn.Unity.ShaderSymbols :: static System.Boolean IsDeclaringPragmaName(System.String)
+Shaderlyn.Unity.ShaderSymbols :: static System.Boolean IsNoSymbol(System.String)
+Shaderlyn.Unity.ShaderSymbols :: static System.Boolean IsRequiredSet(System.String, System.Boolean)
+Shaderlyn.Unity.ShaderSymbols :: static System.Collections.Generic.HashSet`1[System.String] CollectDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.ShaderSymbols :: static System.Collections.Generic.HashSet`1[System.String] CollectDeclaredFromTokens(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Unity.ShaderSymbols :: static System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken] EnumerateDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.ShaderSymbols :: static System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken,System.String]] EnumerateBuiltInDeclared(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.ShaderSymbols :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.SymbolGroup] CollectGroups(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Preprocessing.PragmaDirective])
+Shaderlyn.Unity.SymbolGroup : struct (System.IEquatable`1[Shaderlyn.Unity.SymbolGroup])
+Shaderlyn.Unity.SymbolGroup :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], System.Boolean)
+Shaderlyn.Unity.SymbolGroup :: System.Boolean Equals(Shaderlyn.Unity.SymbolGroup)
+Shaderlyn.Unity.SymbolGroup :: System.Boolean RequiresOne { get; set; }
+Shaderlyn.Unity.SymbolGroup :: System.Collections.Immutable.ImmutableArray`1[System.String] Symbols { get; set; }
+Shaderlyn.Unity.SymbolGroup :: System.Void Deconstruct(out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Boolean)
+Shaderlyn.Unity.SymbolGroup :: static System.Boolean op_Equality(Shaderlyn.Unity.SymbolGroup, Shaderlyn.Unity.SymbolGroup)
+Shaderlyn.Unity.SymbolGroup :: static System.Boolean op_Inequality(Shaderlyn.Unity.SymbolGroup, Shaderlyn.Unity.SymbolGroup)
+Shaderlyn.Unity.SymbolGroup :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Unity.SymbolGroup :: virtual System.Int32 GetHashCode()
+Shaderlyn.Unity.SymbolGroup :: virtual System.String ToString()
+Shaderlyn.Unity.UnityCompilation : static class
+Shaderlyn.Unity.UnityCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, Shaderlyn.ShaderLab.ShaderLabSyntaxTree, Shaderlyn.Semantics.SemanticsOptions = null, Shaderlyn.Unity.UnityOptions = null)
+Shaderlyn.Unity.UnityCompilation :: static Shaderlyn.Semantics.ShaderCompilation CreateForHlsl(Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.SemanticsOptions = null, Shaderlyn.Unity.UnityOptions = null)
+Shaderlyn.Unity.UnityCompilationExtensions : static class
+Shaderlyn.Unity.UnityCompilationExtensions :: static Shaderlyn.Unity.UnityProgramBlock GetUnityBlock(Shaderlyn.Semantics.AnalyzedProgram)
+Shaderlyn.Unity.UnityCompilationExtensions :: static Shaderlyn.Unity.UnityShaderModel GetUnity(Shaderlyn.Semantics.ShaderCompilation)
+Shaderlyn.Unity.UnityCompilerPragmas : sealed class
+Shaderlyn.Unity.UnityCompilerPragmas :: .ctor()
+Shaderlyn.Unity.UnityCompilerPragmas :: Shaderlyn.Unity.UnityCompilerPragmas WithIncluded(Shaderlyn.Unity.UnityCompilerPragmas)
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean HasNeverUseDxc { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean HasNoCompilerPragmas { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean HasUseDxc { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean NeverUseDxcApplies(Shaderlyn.Unity.UnityGraphicsApi, Shaderlyn.Unity.UnityVersionBand)
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean NeverUseDxcForAll { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean Requires(System.String)
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean UseDxcApplies(Shaderlyn.Unity.UnityGraphicsApi, Shaderlyn.Unity.UnityVersionBand)
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Boolean UseDxcForAll { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Immutable.ImmutableArray`1[System.String]] AlwaysOnGroups { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.String] DeviceKeywords { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.String] UnconditionalRequirements { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableArray`1[System.ValueTuple`2[System.String,System.String]] ConditionalRequirements { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableHashSet`1[System.String] NeverUseDxcApis { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: System.Collections.Immutable.ImmutableHashSet`1[System.String] UseDxcApis { get; }
+Shaderlyn.Unity.UnityCompilerPragmas :: static Shaderlyn.Unity.UnityCompilerPragmas Read(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Unity.UnityCompilerSelection : static class
+Shaderlyn.Unity.UnityCompilerSelection :: static Shaderlyn.Hlsl.Parsing.HlslDialect Dxc { get; }
+Shaderlyn.Unity.UnityCompilerSelection :: static Shaderlyn.Hlsl.Parsing.HlslDialect Dxc16Bit { get; }
+Shaderlyn.Unity.UnityCompilerSelection :: static System.Collections.Frozen.FrozenSet`1[System.String] DxcRequirements { get; }
+Shaderlyn.Unity.UnityCompilerSelection :: static System.Collections.Frozen.FrozenSet`1[System.String] WaveKeywords { get; }
+Shaderlyn.Unity.UnityCompilerSelection :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget] Select(Shaderlyn.Unity.UnityCompilerPragmas, System.Boolean, Shaderlyn.Unity.UnityOptions, Shaderlyn.Unity.UnityCompilerPragmas = null)
+Shaderlyn.Unity.UnityCompilerSelection :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Parsing.HlslCompileTarget] Select(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], System.Boolean, Shaderlyn.Unity.UnityOptions, Shaderlyn.Unity.UnityCompilerPragmas = null)
+Shaderlyn.Unity.UnityCompilerSelection :: static System.String InlineRayTracingKeyword
+Shaderlyn.Unity.UnityCompilerSelection :: static System.String InlineRayTracingRequirement
+Shaderlyn.Unity.UnityCompilerSelection :: static System.String Native16BitKeyword
+Shaderlyn.Unity.UnityGraphicsApi : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Unity.UnityGraphicsApi :: Direct3D11 = 2
+Shaderlyn.Unity.UnityGraphicsApi :: Direct3D12 = 18
+Shaderlyn.Unity.UnityGraphicsApi :: Metal = 16
+Shaderlyn.Unity.UnityGraphicsApi :: OpenGLCore = 17
+Shaderlyn.Unity.UnityGraphicsApi :: OpenGLES3 = 11
+Shaderlyn.Unity.UnityGraphicsApi :: Vulkan = 21
+Shaderlyn.Unity.UnityGraphicsApis : static class
+Shaderlyn.Unity.UnityGraphicsApis :: static System.Boolean TryFromDeviceType(System.Int32, out System.Nullable`1[Shaderlyn.Unity.UnityGraphicsApi])
+Shaderlyn.Unity.UnityGraphicsApis :: static System.Boolean TryParse(System.String, out Shaderlyn.Unity.UnityGraphicsApi)
+Shaderlyn.Unity.UnityGraphicsApis :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] Default { get; }
+Shaderlyn.Unity.UnityGraphicsApis :: static System.String AcceptedNames { get; }
+Shaderlyn.Unity.UnityGraphicsApis :: static System.String GetName(Shaderlyn.Unity.UnityGraphicsApi)
+Shaderlyn.Unity.UnityHlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment)
+Shaderlyn.Unity.UnityHlslEnvironment :: .ctor(Shaderlyn.Unity.UnityOptions)
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken])
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxToken], Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Unity.UnityHlslEnvironment :: System.Boolean IsGeneratedInclude(System.String)
+Shaderlyn.Unity.UnityHlslEnvironment :: System.Boolean LooksLikeVariantSymbol(System.String)
+Shaderlyn.Unity.UnityHlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Hlsl.Preprocessing.PreprocessResult)
+Shaderlyn.Unity.UnityHlslEnvironment :: System.String Name { get; }
+Shaderlyn.Unity.UnityOptions : sealed class (System.IEquatable`1[Shaderlyn.Unity.UnityOptions])
+Shaderlyn.Unity.UnityOptions :: .ctor()
+Shaderlyn.Unity.UnityOptions :: Shaderlyn.Unity.Profiles.IRenderPipelineProfile Profile { get; set; }
+Shaderlyn.Unity.UnityOptions :: Shaderlyn.Unity.UnityOptions <Clone>$()
+Shaderlyn.Unity.UnityOptions :: System.Boolean Equals(Shaderlyn.Unity.UnityOptions)
+Shaderlyn.Unity.UnityOptions :: System.Boolean UseFallbackMacros { get; set; }
+Shaderlyn.Unity.UnityOptions :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] DxcBackendApis { get; set; }
+Shaderlyn.Unity.UnityOptions :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] GraphicsApis { get; set; }
+Shaderlyn.Unity.UnityOptions :: System.Nullable`1[Shaderlyn.Unity.UnityVersionBand] VersionBand { get; }
+Shaderlyn.Unity.UnityOptions :: System.String EditorVersion { get; set; }
+Shaderlyn.Unity.UnityOptions :: static Shaderlyn.Unity.UnityOptions Default { get; }
+Shaderlyn.Unity.UnityOptions :: static System.Boolean op_Equality(Shaderlyn.Unity.UnityOptions, Shaderlyn.Unity.UnityOptions)
+Shaderlyn.Unity.UnityOptions :: static System.Boolean op_Inequality(Shaderlyn.Unity.UnityOptions, Shaderlyn.Unity.UnityOptions)
+Shaderlyn.Unity.UnityOptions :: static System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] DefaultPredefinedMacros { get; }
+Shaderlyn.Unity.UnityOptions :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Unity.UnityOptions :: virtual System.Int32 GetHashCode()
+Shaderlyn.Unity.UnityOptions :: virtual System.String ToString()
+Shaderlyn.Unity.UnityPreprocessorDirectives : static class
+Shaderlyn.Unity.UnityPreprocessorDirectives :: static Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions Apply(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
+Shaderlyn.Unity.UnityPreprocessorDirectives :: static System.Collections.Immutable.ImmutableHashSet`1[System.String] IncludeDirectives { get; }
+Shaderlyn.Unity.UnityPreprocessorDirectives :: static System.Collections.Immutable.ImmutableHashSet`1[System.String] UnsupportedDirectives { get; }
+Shaderlyn.Unity.UnityProgramBlock : sealed class (System.IEquatable`1[Shaderlyn.Unity.UnityProgramBlock])
+Shaderlyn.Unity.UnityProgramBlock :: .ctor(Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax], Shaderlyn.ShaderLab.Syntax.PassSyntax, Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] = null, System.String = null)
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Core.Text.SourceText MaskedText { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.ShaderLab.Syntax.PassSyntax Pass { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax Block { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Unity.UnityProgramBlock <Clone>$()
+Shaderlyn.Unity.UnityProgramBlock :: System.Boolean Equals(Shaderlyn.Unity.UnityProgramBlock)
+Shaderlyn.Unity.UnityProgramBlock :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax] IncludeBlocks { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: System.String KernelName { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: System.String PassName { get; set; }
+Shaderlyn.Unity.UnityProgramBlock :: System.Void Deconstruct(out Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax], out Shaderlyn.ShaderLab.Syntax.PassSyntax, out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.String)
+Shaderlyn.Unity.UnityProgramBlock :: static System.Boolean op_Equality(Shaderlyn.Unity.UnityProgramBlock, Shaderlyn.Unity.UnityProgramBlock)
+Shaderlyn.Unity.UnityProgramBlock :: static System.Boolean op_Inequality(Shaderlyn.Unity.UnityProgramBlock, Shaderlyn.Unity.UnityProgramBlock)
+Shaderlyn.Unity.UnityProgramBlock :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Unity.UnityProgramBlock :: virtual System.Int32 GetHashCode()
+Shaderlyn.Unity.UnityProgramBlock :: virtual System.String ToString()
+Shaderlyn.Unity.UnityProjectSettings : sealed class (System.IEquatable`1[Shaderlyn.Unity.UnityProjectSettings])
+Shaderlyn.Unity.UnityProjectSettings :: .ctor(System.String, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi])
+Shaderlyn.Unity.UnityProjectSettings :: Shaderlyn.Unity.UnityProjectSettings <Clone>$()
+Shaderlyn.Unity.UnityProjectSettings :: System.Boolean Equals(Shaderlyn.Unity.UnityProjectSettings)
+Shaderlyn.Unity.UnityProjectSettings :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] DxcBackendApis { get; set; }
+Shaderlyn.Unity.UnityProjectSettings :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] GraphicsApis { get; set; }
+Shaderlyn.Unity.UnityProjectSettings :: System.String EditorVersion { get; set; }
+Shaderlyn.Unity.UnityProjectSettings :: System.Void Deconstruct(out System.String, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi], out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi])
+Shaderlyn.Unity.UnityProjectSettings :: static Shaderlyn.Unity.UnityProjectSettings Empty { get; }
+Shaderlyn.Unity.UnityProjectSettings :: static Shaderlyn.Unity.UnityProjectSettings Read(System.String)
+Shaderlyn.Unity.UnityProjectSettings :: static System.Boolean op_Equality(Shaderlyn.Unity.UnityProjectSettings, Shaderlyn.Unity.UnityProjectSettings)
+Shaderlyn.Unity.UnityProjectSettings :: static System.Boolean op_Inequality(Shaderlyn.Unity.UnityProjectSettings, Shaderlyn.Unity.UnityProjectSettings)
+Shaderlyn.Unity.UnityProjectSettings :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Unity.UnityProjectSettings :: virtual System.Int32 GetHashCode()
+Shaderlyn.Unity.UnityProjectSettings :: virtual System.String ToString()
+Shaderlyn.Unity.UnityShaderModel : sealed class
+Shaderlyn.Unity.UnityShaderModel :: Shaderlyn.ShaderLab.ShaderLabSyntaxTree Tree { get; }
+Shaderlyn.Unity.UnityShaderModel :: Shaderlyn.Unity.Profiles.IRenderPipelineProfile Profile { get; }
+Shaderlyn.Unity.UnityShaderModel :: System.Boolean IsDeclaredButNeverUsed(System.String)
+Shaderlyn.Unity.UnityShaderModel :: System.Boolean IsReferencedFromShaderLab(System.String)
+Shaderlyn.Unity.UnityShaderModel :: System.Boolean IsStandaloneHlsl { get; }
+Shaderlyn.Unity.UnityShaderModel :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol] GetMaterialConstantBuffers()
+Shaderlyn.Unity.UnityShaderModel :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.PropertySymbol] Properties { get; }
+Shaderlyn.Unity.UnityShaderModel :: System.Int32 CountIdentifierOccurrences(System.String)
+Shaderlyn.Unity.UnityShaderModel :: System.String ShaderName { get; }
+Shaderlyn.Unity.UnityVersionBand : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Unity.UnityVersionBand :: Unity2022_3 = 0
+Shaderlyn.Unity.UnityVersionBand :: Unity2023_2To6_3 = 1
+Shaderlyn.Unity.UnityVersionBand :: Unity6_4To6_5 = 2
+Shaderlyn.Unity.UnityVersionBand :: Unity6_6OrLater = 3
+Shaderlyn.Unity.UnityVersions : static class
+Shaderlyn.Unity.UnityVersions :: static System.Boolean TryGetBand(System.String, out System.Nullable`1[Shaderlyn.Unity.UnityVersionBand])
+Shaderlyn.Unity.UnityVersions :: static System.Collections.Generic.IReadOnlyList`1[Shaderlyn.Unity.UnityVersionBand] AllBands { get; }
+Shaderlyn.Unity.UnityVersions :: static System.String Describe(Shaderlyn.Unity.UnityVersionBand)

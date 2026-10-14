@@ -13,6 +13,8 @@
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
     <ProjectReference Include="..\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
     <ProjectReference Include="..\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Unity\Shaderlyn.Unity.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Unreal\Shaderlyn.Unreal.csproj" />
   </ItemGroup>
 
   <ItemGroup>

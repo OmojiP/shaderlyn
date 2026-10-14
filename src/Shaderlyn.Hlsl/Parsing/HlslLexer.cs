@@ -375,6 +375,14 @@ public sealed class HlslLexer
         {
             if (_text[_position] == '\\')
             {
+                // 行末のバックスラッシュは行の継続である。文字列は次の行へ続く
+                // (#define ROOT_SIG "CBV(b0), \ の形。ルートシグネチャをマクロに書くときに使う)。
+                if (IsLineBreakAt(_position + 1))
+                {
+                    _position += _text[_position + 1] == '\r' && _position + 2 < _text.Length && _text[_position + 2] == '\n' ? 3 : 2;
+                    continue;
+                }
+
                 _position = Math.Min(_position + 2, _text.Length);
                 continue;
             }
@@ -395,13 +403,16 @@ public sealed class HlslLexer
         return (kind, _text.ToString(TextSpan.FromBounds(Math.Min(start + 1, _position), _position)));
     }
 
+    /// <summary>MSVC 流の、無限大と非数を表す浮動小数の書き方 (<c>1.#INF</c>)。長いものを先に並べる。</summary>
+    private static readonly string[] SpecialFloatSuffixes = ["#QNAN", "#SNAN", "#INF", "#IND"];
+
     /// <summary>
     /// 数値リテラルを読み進める。
     /// </summary>
     /// <returns>トークンの種別。</returns>
     /// <remarks>
     /// <para>
-    /// 10 進数・16 進数 (<c>0x</c>)・浮動小数・指数表記・型接尾辞に対応する。
+    /// 10 進数・16 進数 (<c>0x</c>)・2 進数 (<c>0b</c>、DXC)・浮動小数・指数表記・型接尾辞に対応する。
     /// HLSL の接尾辞は <c>f</c> (float)、<c>h</c> (half)、<c>u</c> (uint)、<c>l</c> (long) など。
     /// </para>
     /// <para>
@@ -424,6 +435,20 @@ public sealed class HlslLexer
             return HlslSyntaxKind.NumericLiteralToken;
         }
 
+        // 2 進数。DXC は受け付ける (Unreal Engine の Nanite のシェーダーが 0b1111 のように書く)。
+        // 読まずにいると 0 と b1111 に分かれ、構文エラーになっていた。
+        if (_text[_position] == '0' && (Peek(1) is 'b' or 'B') && (Peek(2) is '0' or '1'))
+        {
+            _position += 2;
+            while (_position < _text.Length && _text[_position] is '0' or '1')
+            {
+                _position++;
+            }
+
+            ConsumeNumericSuffix();
+            return HlslSyntaxKind.NumericLiteralToken;
+        }
+
         while (_position < _text.Length && char.IsDigit(_text[_position]))
         {
             _position++;
@@ -435,6 +460,16 @@ public sealed class HlslLexer
             while (_position < _text.Length && char.IsDigit(_text[_position]))
             {
                 _position++;
+            }
+
+            // MSVC 流の無限大と非数 (1.#INF / 1.#IND / 1.#QNAN)。FXC と DXC が受け付ける。
+            foreach (string special in SpecialFloatSuffixes)
+            {
+                if (string.CompareOrdinal(_text.ToString(new TextSpan(_position, Math.Min(special.Length, _text.Length - _position))), special) == 0)
+                {
+                    _position += special.Length;
+                    return HlslSyntaxKind.NumericLiteralToken;
+                }
             }
         }
 

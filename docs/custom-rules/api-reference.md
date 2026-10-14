@@ -18,6 +18,7 @@
   - [HLSL のノード型](#hlsl-のノード型)
   - [構文の上の事実を引く](#構文の上の事実を引く)
 - [セマンティックモデル](#セマンティックモデル)
+- [環境](#環境)
 - [テスト](#テスト)
 
 ### 型の索引
@@ -310,11 +311,13 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 | 型                                | 何を指すか                                                           |
 | --------------------------------- | -------------------------------------------------------------------- |
-| `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition` |
+| `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition`。演算子の多重定義 (HLSL 2021) は `IsOperator` が真で、`Name` が `operator+` のようになる。明示的な特殊化の型引数は `SpecializationTokens` |
 | `VariableDeclarationSyntax`       | 変数・uniform。`Type` / `Variables`                                  |
-| `StructDeclarationSyntax`         | 構造体                                                               |
+| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseType` / `BaseTypeName`。HLSL 2021 の `class` / `interface` もこの形 (`Keyword` で区別)。明示的な特殊化の型引数は `SpecializationTokens` |
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
+| `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |
+| `TemplateDeclarationSyntax`       | `template<typename T>` (HLSL 2021)。`ParameterNames` (`T`) / `Declaration` (続く関数か構造体)。明示的な特殊化 (`template<>`) は `ParameterNames` が空 |
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 
@@ -322,8 +325,9 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
-| `InvocationExpressionSyntax`      | 呼び出し。`Target` / `Arguments`   |
+| `InvocationExpressionSyntax`      | 呼び出し。`Target` / `Arguments`。型引数を書いた呼び出し (HLSL 2021 の `Twice<float4>(x)`) は `HasTypeArguments` / `TypeArgumentTokens` |
 | `IdentifierExpressionSyntax`      | 名前の参照。`Name`                 |
+| `GenericNameExpressionSyntax`     | 型引数を書いた型の名前 (`TVec<float, 2>::Const(1.0)` の `::` の左、HLSL 2021)。`Name`、`TypeArguments`。型は求めない |
 | `MemberAccessExpressionSyntax`    | `a.b`                              |
 | `ElementAccessExpressionSyntax`   | `a[i]`                             |
 | `LiteralExpressionSyntax`         | リテラル                           |
@@ -441,11 +445,11 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 
 | メンバー                           |                                             |
 | ---------------------------------- | ------------------------------------------- |
-| `Properties`                       | `Properties` ブロックの宣言                 |
 | `Programs`                         | コードブロックごとの解析結果                |
 | `SymbolVariants`                  | シンボルを 1 つ有効にした構成での解析結果 |
 | `TryGetUniform(name, out _)`       | uniform を引く                              |
 | `HasCompleteDependencies`          | `#include` をすべて解決できたか             |
+| `MayLackOverloadsOf(name)`         | その名前の関数の多重定義が見えていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
 | `AppearsOutsideAnalyzedCode(name)` | 名前が、どの構成でも解析されなかった領域かマクロ定義の本体に現れるか (シェーダー全体) |
 | `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使う。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
 | `UnanalyzedIdentifiers`            | どの構成でも解析されなかった領域に現れた名前 |
@@ -467,11 +471,23 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 | `CodeTokens`                       | このファイルのコードの、マクロ展開前のトークン |
 | `UserIncludeCodeTokens`            | 利用者が書いて取り込んだヘッダの、マクロ展開前のトークン。位置はヘッダを指す |
 | `GetConditionMap()`                | ノードがどのシンボル構成で存在するか      |
-| `IsStandaloneHlsl`                 | `.compute` などの単体ファイルか             |
 | `ResolveCall(invocation, program)` | その呼び出しでどの関数が呼ばれるか          |
 | `GetFunctionDeclarations(name)`    | その名前で宣言されている関数すべて          |
 | `HasFunctionDeclarations`          | 関数の宣言が 1 つでもあるか                 |
 | `GetExpressionTypeBinder(program)` | 式の型を求める `ExpressionTypeBinder`       |
+| `Environment`                      | このモデルを作った環境 (`IHlslEnvironment`。[環境](#環境)) |
+| `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
+
+Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
+`compilation.GetUnity()` (`UnityShaderModel`) から引きます。Unity 以外の環境で作ったモデルでは `null` です。
+
+| `UnityShaderModel` のメンバー      |                                             |
+| ---------------------------------- | ------------------------------------------- |
+| `Properties`                       | `Properties` ブロックの宣言                 |
+| `Tree`                             | ShaderLab の構文木                          |
+| `Profile`                          | レンダーパイプラインのプロファイル          |
+| `IsStandaloneHlsl`                 | `.compute` などの単体ファイルか             |
+| `IsReferencedFromShaderLab(name)`  | その名前が ShaderLab から参照されているか   |
 
 #### 報告してよいノードか
 
@@ -776,9 +792,13 @@ if (conditions.IsPossible(missing))
 | --------------------------------------------------------------- | -------------------------------- |
 | `Tree`                                                          | そのブロックの HLSL 構文木       |
 | `Uniforms` / `Structs` / `FunctionNames` / `FunctionSignatures` | そのブロックから見える宣言       |
-| `PassName`                                                      | 囲む `Pass` の名前               |
-| `KernelName`                                                    | `.compute` のカーネル名          |
-| `Keyword`                                                       | どのシンボルを有効にした構成か |
+| `KernelName`                                                    | 同じ範囲から作った単位を見分ける名前 (`.compute` のカーネル名) |
+| `EnabledSymbols`                                                | どのシンボルを有効にした構成か。既定の構成では空 |
+| `Variants`                                                      | その木から環境が読んだ構成の空間 (`VariantSpace`) |
+| `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
+| `Unit`                                                          | 解析したコンパイル単位 (`HlslCompilationUnit`) |
+
+囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
 
 ### `ConditionalTokenRange` (`Shaderlyn.Hlsl.Preprocessing`)
 
@@ -824,6 +844,42 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 重要度の上書きはドライバが一律に適用します。ルール側で設定を読む必要はありません。
 
 ---
+
+## 環境
+
+ルールを書くだけなら、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使います。
+例は [ルールの実例集「独自エンジンの環境」](cookbook.md#独自エンジンの環境) にあります。
+
+### `IHlslEnvironment` (`Shaderlyn.Semantics.Environments`)
+
+エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
+組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
+セマンティックモデルを作った環境は `compilation.Environment` で引けます。
+
+| メンバー | 役目 |
+| --- | --- |
+| `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
+| `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
+| `ReadEntryPoints` | エントリポイント (`HlslEntryPoint`)。HL0301 が見る |
+| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
+| `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
+| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。HL0340 / HL0341 が見る |
+
+### `ShaderCompilation.Create`
+
+コンパイル単位 (`HlslCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
+ファイル全体を 1 つの単位にするなら `HlslEnvironment.WholeFile(text)` を使います。
+
+### `VariantSpace` / `VariantValues` (`Shaderlyn.Core.Syntax`)
+
+構成の空間です。宣言 (`VariantDeclaration`) と、同時には有効にならない組 (`VariantGroup`) を持ちます。
+値を持つシンボルは `VariantSpace.ForValues("QUALITY", [0, 1, 2])` で作ります。
+値ごとの原子 (`QUALITY==2`) の「ちょうど 1 つ」の組になり、条件の表示は `QUALITY == 2` になります。
+
+### `HostEnvironment` (`Shaderlyn.Cli`)
+
+自前の CLI (`Program.RunAsync`) と言語サーバー (`ShaderLanguageServer`) に環境を足します。
+名前・表示名・フォルダーを指定したときに探す拡張子・環境を作る関数を持ちます。
 
 ## テスト
 

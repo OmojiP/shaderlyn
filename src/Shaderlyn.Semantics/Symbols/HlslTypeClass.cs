@@ -116,6 +116,7 @@ public static class HlslTypeClassifier
     {
         "bool", "int", "uint", "dword", "half", "float", "double", "fixed", "real",
         "min16float", "min10float", "min16int", "min12int", "min16uint",
+        "int16_t", "uint16_t", "float16_t", "int32_t", "uint32_t", "float32_t", "int64_t", "uint64_t", "float64_t",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>テクスチャ・サンプラ・バッファの型名から分類への対応表。</summary>

@@ -42,10 +42,13 @@ public sealed partial class CookbookDocumentTests
         using Shaderlyn.Core.Diagnostics;
         using Shaderlyn.Core.Syntax;
         using Shaderlyn.Core.Text;
+        using Shaderlyn.Hlsl.Parsing;
+        using Shaderlyn.Hlsl.Preprocessing;
         using Shaderlyn.Hlsl.Syntax;
         using Shaderlyn.Semantics;
         using Shaderlyn.Semantics.Analysis;
         using Shaderlyn.Semantics.Conditional;
+        using Shaderlyn.Semantics.Environments;
         using Shaderlyn.Semantics.Programs;
         using Shaderlyn.Semantics.Symbols;
         using Shaderlyn.ShaderLab.Syntax;

@@ -3,8 +3,11 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Configuration;
 using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.Unity;
+using Shaderlyn.Cli.Environments;
 
 namespace Shaderlyn.Cli;
 
@@ -37,6 +40,7 @@ internal static partial class EnvironmentReport
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     /// <param name="version">このツールのバージョン。</param>
@@ -44,33 +48,59 @@ internal static partial class EnvironmentReport
     public static string Build(
         CommandLineOptions options,
         EffectiveSettings settings,
+        IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths,
         string version)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(environment);
 
         StringBuilder builder = new();
 
         Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
 
-        WriteInputs(builder, options, files, missingPaths);
-        WriteConfiguration(builder, options, settings);
+        WriteInputs(builder, options, environment, files, missingPaths);
+        WriteConfiguration(builder, options, settings, environment);
 
-        EditorDataLookup editor = UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath);
+        // Unity のプロジェクト・Editor・パッケージは、Unity の環境でだけ探す。
+        bool isUnity = environment.Name == UnityAnalysisEnvironment.EnvironmentName;
+        EditorDataLookup? editor = isUnity
+            ? UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath)
+            : null;
 
-        WriteProject(builder, options);
-        WriteEditor(builder, editor);
+        if (editor is not null)
+        {
+            WriteProject(builder, options);
+            WriteEditor(builder, editor);
+            WriteUnityCompiler(builder, settings);
+        }
+        else if (environment.HlslEnvironment is not null)
+        {
+            bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
+            WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021);
 
-        UnityPackageIncludeResolver? packages = SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
+            if (isUnreal)
+            {
+                WriteUnreal(builder, settings);
+            }
+        }
 
-        WriteSearchOrder(builder, options, settings, editor.DataPath, packages);
+        UnityPackageIncludeResolver? packages = editor is null
+            ? null
+            : SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
 
-        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor.DataPath);
+        WriteSearchOrder(builder, options, settings, editor?.DataPath, packages, isUnity);
+
+        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor?.DataPath);
         ImmutableArray<IncludeLine> includes = ReadDirectIncludes(files);
 
-        WritePackages(builder, options, packages, includes);
+        if (editor is not null)
+        {
+            WritePackages(builder, options, packages, includes);
+        }
+
         WriteIncludes(builder, resolver, includes);
         WriteMacros(builder, settings);
 
@@ -80,11 +110,13 @@ internal static partial class EnvironmentReport
     /// <summary>解析対象を書き出す。</summary>
     /// <param name="builder">書き出し先。</param>
     /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="environment">解析する環境。</param>
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     private static void WriteInputs(
         StringBuilder builder,
         CommandLineOptions options,
+        IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths)
     {
@@ -101,11 +133,13 @@ internal static partial class EnvironmentReport
             Line(builder, $"  {(kind == "存在しない" ? Warning : string.Empty)}{FullPath(path)} ({kind})");
         }
 
-        Line(builder, $"  見つかったシェーダー: {files.Length} 件 ({string.Join(" / ", CommandLineOptions.DefaultExtensions)})");
+        Line(builder, $"  見つかったシェーダー: {files.Length} 件 ({string.Join(" / ", environment.DefaultExtensions)})");
 
         if (!options.InputPaths.IsEmpty && files.IsEmpty && missingPaths.IsEmpty)
         {
-            Line(builder, $"  {Warning}解析するファイルがありません。.hlsl / .cginc はフォルダーからは探しません。");
+            Line(builder, environment.Name == UnityAnalysisEnvironment.EnvironmentName
+                ? $"  {Warning}解析するファイルがありません。.hlsl / .cginc はフォルダーからは探しません。"
+                : $"  {Warning}解析するファイルがありません。.hlsli はフォルダーからは探しません。");
         }
     }
 
@@ -113,7 +147,12 @@ internal static partial class EnvironmentReport
     /// <param name="builder">書き出し先。</param>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
-    private static void WriteConfiguration(StringBuilder builder, CommandLineOptions options, EffectiveSettings settings)
+    /// <param name="environment">解析する環境。</param>
+    private static void WriteConfiguration(
+        StringBuilder builder,
+        CommandLineOptions options,
+        EffectiveSettings settings,
+        IAnalysisEnvironment environment)
     {
         Section(builder, $"設定ファイル ({ShaderlynConfiguration.FileName})");
 
@@ -146,7 +185,17 @@ internal static partial class EnvironmentReport
             ? "コマンドライン"
             : configuration.Profile is not null ? "設定ファイル" : "既定";
 
-        Line(builder, $"  プロファイル: {settings.Profile} ({profileSource})");
+        string environmentSource = options.Environment is not null
+            ? "コマンドライン"
+            : configuration.Environment is not null ? "設定ファイル" : "既定";
+
+        Line(builder, $"  環境: {environment.DisplayName} ({environmentSource})");
+
+        // レンダーパイプラインのプロファイルは Unity の環境だけのもの。
+        if (environment.Name == UnityAnalysisEnvironment.EnvironmentName)
+        {
+            Line(builder, $"  プロファイル: {settings.Profile} ({profileSource})");
+        }
 
         foreach (string define in configuration.Defines)
         {
@@ -156,6 +205,14 @@ internal static partial class EnvironmentReport
         foreach (string define in options.Defines)
         {
             Line(builder, $"  追加のマクロ: {define} (コマンドライン)");
+        }
+
+        DiagnosticSeverity minimum = settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity);
+
+        if (minimum > DiagnosticSeverity.Info)
+        {
+            string minimumSource = options.MinSeverity is not null ? "コマンドライン" : "設定ファイル";
+            Line(builder, $"  出力する指摘 ({options.Format.ToString().ToLowerInvariant()}): {minimum.ToString().ToLowerInvariant()} 以上 ({minimumSource})");
         }
 
         if (!configuration.RuleSeverities.IsEmpty)
@@ -180,11 +237,12 @@ internal static partial class EnvironmentReport
         {
             Line(builder, "  --unity-project: 指定なし (Editor 同梱のパッケージだけを解決します)");
 
-            // 指定を推定では補わない (解析は明示を求める)。候補があることだけを伝える。
-            if (FindProjectAbove(options.InputPaths) is { } candidate)
+            // 指定を推定では補わない (解析は明示を求める)。候補と、指定しないと何が読めないかを伝える。
+            if (UnityInstallation.FindProjectAbove(options.InputPaths) is { } candidate)
             {
-                Line(builder, $"  {Warning}解析対象の上に Unity プロジェクトがあります: {candidate}");
-                Line(builder, $"     --unity-project \"{candidate}\" を指定すると、Library/PackageCache と Packages のパッケージも解決します。");
+                Line(builder, $"  {Warning}解析対象は Unity プロジェクトの中にあります: {candidate}");
+                Line(builder, $"     --unity-project \"{candidate}\" を指定しないと、Assets/... と Packages/... の #include、");
+                Line(builder, "     解析対象のフォルダーより上を指す相対パス (../...) の #include を解決できません。");
             }
 
             return;
@@ -208,6 +266,99 @@ internal static partial class EnvironmentReport
         if (!Directory.Exists(Path.Combine(project, "Library", "PackageCache")))
         {
             Line(builder, "     Library/PackageCache は Unity でプロジェクトを 1 度開くと作られます。無いとパッケージのヘッダを解決できません。");
+        }
+    }
+
+    /// <summary>Unity がシェーダーをどのコンパイラでコンパイルするかの設定を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <remarks>パスごとの判定 (<c>#pragma use_dxc</c> など) は解析するときに決まるので、ここでは規則だけを書く。</remarks>
+    private static void WriteUnityCompiler(StringBuilder builder, EffectiveSettings settings)
+    {
+        Section(builder, "シェーダーのコンパイラ");
+
+        UnityCompilerSettings compiler = SemanticsSetup.ResolveUnityCompilerSettings(settings);
+
+        if (compiler.EditorVersion is { } version)
+        {
+            string band = UnityVersions.TryGetBand(version, out UnityVersionBand? found)
+                ? UnityVersions.Describe(found.Value)
+                : "知らないバージョン";
+            Line(builder, $"  Unity のバージョン: {version} ({band} の規則、{compiler.EditorVersionSource})");
+        }
+        else
+        {
+            Line(builder, "  Unity のバージョン: 不明 (バージョンで変わる判定は、どのバージョンの結果も並べます。unity: の version で指定できます)");
+        }
+
+        Line(builder, $"  グラフィックス API: {string.Join(", ", compiler.GraphicsApis.Select(UnityGraphicsApis.GetName))} ({compiler.GraphicsApisSource})");
+        Line(builder, compiler.DxcBackendApis.IsEmpty
+            ? $"  Shader Compiler Backend: FXC ({compiler.DxcBackendSource})"
+            : $"  Shader Compiler Backend: DXC ({string.Join(", ", compiler.DxcBackendApis.Select(UnityGraphicsApis.GetName))}、{compiler.DxcBackendSource})");
+        Line(builder, compiler.DxcBackendApis.IsEmpty
+            ? "  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
+            : "  Backend を DXC にした API は、#pragma never_use_dxc の無いパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
+        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。");
+    }
+
+    /// <summary>Unreal の仮想パスの割り当てと、生成される取り込みを書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    private static void WriteUnreal(StringBuilder builder, EffectiveSettings settings)
+    {
+        Section(builder, "Unreal Engine");
+
+        Unreal.UnrealOptions unreal = SemanticsSetup.CreateUnreal(settings);
+        ImmutableDictionary<string, string> mappings = unreal.GetVirtualPathMappings();
+
+        if (mappings.IsEmpty)
+        {
+            Line(builder, $"  {Warning}仮想パスの割り当てがありません。/Engine/... を解決するには unreal: の engine を書いてください。");
+        }
+
+        foreach ((string virtualPath, string directory) in mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            bool exists = Directory.Exists(directory);
+            Line(builder, $"  {(exists ? string.Empty : Warning)}{virtualPath} → {directory}{(exists ? string.Empty : " (ありません)")}");
+        }
+
+        Line(builder, $"  生成される取り込み (解決せず、HL0321 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
+        Line(builder, $"  定義するマクロ: {string.Join(", ", unreal.PredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}");
+    }
+
+    /// <summary>汎用の HLSL 環境の設定 (言語のバージョン・構成の軸・コンパイル単位) を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="configuration">設定ファイルの内容。</param>
+    /// <param name="defaultVersion">指定が無いときの言語のバージョン。</param>
+    private static void WriteHlsl(StringBuilder builder, ShaderlynConfiguration configuration, int defaultVersion)
+    {
+        Section(builder, "HLSL");
+
+        bool fxc = configuration.HlslCompiler == "fxc";
+        Line(builder, $"  コンパイラ: {(fxc ? "FXC" : "DXC")}{(configuration.HlslCompiler is null ? " (既定)" : string.Empty)}");
+        Line(builder, fxc
+            ? "  言語のバージョン: (FXC には無い)"
+            : $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
+        Line(builder, $"  16 ビットの型 (enable-16bit-types): {(configuration.HlslEnable16BitTypes == true ? "使う (__HLSL_ENABLE_16_BIT=1)" : "使わない")}");
+
+        string symbols = string.Join(
+            ", ",
+            configuration.Symbols.Select(s => s.Values.IsEmpty ? s.Name : $"{s.Name} ∈ {{{string.Join(", ", s.Values)}}}")
+                .Concat(configuration.SymbolGroups.Select(g => $"{(g.RequiresOne ? "one-of" : "at-most-one")} [{string.Join(", ", g.Symbols)}]")));
+        Line(builder, $"  構成の軸 (symbols): {(symbols.Length == 0 ? "(なし)" : symbols)}");
+
+        if (configuration.Units.IsEmpty)
+        {
+            Line(builder, "  コンパイル単位 (units): (なし。ファイル全体を 1 つの単位として解析します)");
+            return;
+        }
+
+        Line(builder, "  コンパイル単位 (units):");
+
+        foreach (ConfiguredUnit unit in configuration.Units)
+        {
+            Line(builder, $"    {unit.Files}: entry {unit.Entry ?? "(なし)"}, target {unit.Target ?? "(なし)"}"
+                          + (unit.Symbols is { } used ? $", symbols [{string.Join(", ", used)}]" : string.Empty));
         }
     }
 
@@ -248,12 +399,14 @@ internal static partial class EnvironmentReport
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
     /// <param name="editorData">Editor のデータフォルダー。</param>
     /// <param name="packages">パッケージの解決器。</param>
+    /// <param name="isUnity">Unity の環境かどうか。Packages/ の行は Unity の環境でだけ出す。</param>
     private static void WriteSearchOrder(
         StringBuilder builder,
         CommandLineOptions options,
         EffectiveSettings settings,
         string? editorData,
-        UnityPackageIncludeResolver? packages)
+        UnityPackageIncludeResolver? packages,
+        bool isUnity)
     {
         Section(builder, "#include を探す順序");
 
@@ -264,6 +417,11 @@ internal static partial class EnvironmentReport
         {
             bool exists = Directory.Exists(path);
             Line(builder, $"  {index++}. {(exists ? string.Empty : Warning)}{FullPath(path)}{(exists ? string.Empty : " (ありません)")}");
+        }
+
+        if (!isUnity)
+        {
+            return;
         }
 
         Line(builder, packages is null
@@ -367,7 +525,7 @@ internal static partial class EnvironmentReport
     {
         Section(builder, "定義済みマクロ (展開に使う値)");
 
-        ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Defines);
+        ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Environment, settings.Defines);
 
         foreach ((string name, string value) in macros.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
@@ -462,37 +620,6 @@ internal static partial class EnvironmentReport
         }
 
         return names;
-    }
-
-    /// <summary>解析対象の上にある Unity プロジェクトを探す。</summary>
-    /// <param name="inputPaths">解析対象のパス。</param>
-    /// <returns>見つかったプロジェクトのルート。無ければ <see langword="null"/>。</returns>
-    private static string? FindProjectAbove(ImmutableArray<string> inputPaths)
-    {
-        foreach (string input in inputPaths)
-        {
-            DirectoryInfo? directory;
-            try
-            {
-                string full = Path.GetFullPath(input);
-                directory = new DirectoryInfo(Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full);
-            }
-            catch (Exception ex) when (ex is ArgumentException or IOException)
-            {
-                continue;
-            }
-
-            for (; directory is not null; directory = directory.Parent)
-            {
-                if (File.Exists(Path.Combine(directory.FullName, "ProjectSettings", "ProjectVersion.txt"))
-                    && Directory.Exists(Path.Combine(directory.FullName, "Assets")))
-                {
-                    return directory.FullName;
-                }
-            }
-        }
-
-        return null;
     }
 
     /// <summary>絶対パスにする。できなければそのまま返す。</summary>

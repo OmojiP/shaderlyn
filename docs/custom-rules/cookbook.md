@@ -16,6 +16,7 @@
 - [HLSL / 構文解析ルール](#hlsl--構文解析ルール)
 - [型評価とオーバーロードの解析](#型評価とオーバーロードの解析)
 - [ShaderLab 構文解析ルール](#shaderlab-構文解析ルール)
+- [独自エンジンの環境](#独自エンジンの環境)
 - [そのほかの実装例](#そのほかの実装例)
 - [アナライザ実装時の共通ガイドライン](#アナライザ実装時の共通ガイドライン)
 
@@ -428,6 +429,166 @@ internal sealed class RequiredTagAnalyzer(string tag, params string[] allowedVal
 ```
 
 ---
+
+## 独自エンジンの環境
+
+Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエンジンは、環境を自分で書いて足せます。
+字句解析・プリプロセッサ・型・ルールは組み込みのものがそのまま働きます。書くのは、エンジンの決まりを解析に教える部分だけです。
+
+* **実装参照先**: `samples/Shaderlyn.Cookbook/Environment/MyEngineEnvironment.cs`
+* **テスト参照先**: `HostEnvironmentTests.cs`
+
+### 8. エンジン独自の `#pragma` で構成とエントリポイントを宣言する
+
+架空のエンジン「MyEngine」は、次のように書きます。
+
+```hlsl
+#pragma variant QUALITY 0 1 2     // 値を持つ構成の軸。先頭の値が既定
+#pragma variant USE_FOG           // 定義されるか・されないかの構成の軸
+#pragma entry MainPS ps_6_6       // エントリポイントとコンパイルのターゲット
+```
+
+環境は `IHlslEnvironment` (`Shaderlyn.Semantics.Environments`) を実装します。
+
+| メンバー | 教えること |
+| --- | --- |
+| `ConfigurePreprocessor` | どの単位にも共通する設定。言語のバージョン、エンジンのコンパイラが定義するマクロ |
+| `PrepareUnit` | 単位ごとの設定。ターゲットで決まるマクロ (`HlslShaderTarget.CreateDxcMacros`) |
+| `ReadDeclaredVariants` / `ReadVariants` | 構成の軸。展開の前 (字句解析しただけのトークン) と後 (取り込んだヘッダの指令も含む) の 2 回読む |
+| `ReadEntryPoints` | エントリポイント。この名前の関数が無ければ HL0301 |
+| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
+| `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても HL0321 にしない |
+| `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを HL0340 / HL0341 で検査できる |
+
+```csharp
+public sealed class MyEngineEnvironment : IHlslEnvironment
+{
+    public string Name => "myengine";
+
+    public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
+        => options with
+        {
+            LanguageVersion = HlslLanguageVersion.Hlsl2021,
+            PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(HlslLanguageVersion.Hlsl2021)
+                .SetItem("MYENGINE", "1")
+                .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
+        };
+
+    public PreprocessorOptions PrepareUnit(
+        HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens, PreprocessorOptions options, string filePath)
+    {
+        foreach (PragmaDirective pragma in ReadPragmas(tokens))
+        {
+            if (pragma.Name == "entry"
+                && pragma.Arguments.Skip(1).FirstOrDefault() is { } target
+                && HlslShaderTarget.TryParse(target.Text, out HlslShaderTarget? parsed))
+            {
+                return options with
+                {
+                    PredefinedMacros = parsed.Value.CreateDxcMacros(HlslLanguageVersion.Hlsl2021).SetItems(options.PredefinedMacros),
+                };
+            }
+        }
+
+        return options;
+    }
+
+    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+        => ReadVariantSpace(ReadPragmas(tokens));
+
+    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result)
+        => ReadVariantSpace(result.Pragmas);
+
+    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+        =>
+        [
+            .. result.Pragmas
+                .Where(pragma => pragma.Name == "entry")
+                .Select(pragma => pragma.Arguments.FirstOrDefault())
+                .OfType<HlslSyntaxToken>()
+                .Select(name => new HlslEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
+        ];
+
+    public bool LooksLikeVariantSymbol(string name) => name.StartsWith("USE_", StringComparison.Ordinal);
+
+    public bool IsGeneratedInclude(string path) => path.StartsWith("Generated/", StringComparison.Ordinal);
+
+    private static VariantSpace ReadVariantSpace(IEnumerable<PragmaDirective> pragmas)
+    {
+        VariantSpace space = VariantSpace.Empty;
+
+        foreach (PragmaDirective pragma in pragmas.Where(p => p.Name == "variant"))
+        {
+            ImmutableArray<HlslSyntaxToken> arguments = [.. pragma.Arguments];
+
+            if (arguments.IsEmpty)
+            {
+                continue;
+            }
+
+            HlslSyntaxToken name = arguments[0];
+            List<int> values = [.. arguments.Skip(1).Select(v => int.TryParse(v.Text, out int n) ? n : -1).Where(n => n >= 0)];
+
+            // 宣言の位置を持たせると、使っていない宣言を HL0331 で報告できる。
+            space = space.Union(values.Count >= 2
+                ? VariantSpace.ForValues(name.Text, values, name.GetLocation())
+                : new VariantSpace([new VariantDeclaration(name.Text, VariantSymbolKind.Compiled, name.GetLocation())], []));
+        }
+
+        return space;
+    }
+
+    // 字句解析しただけのトークンから #pragma の行を読む。展開の前に構成の軸を知るために使う。
+    private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart
+                || tokens[i + 1].Text != "pragma" || tokens[i + 2].IsAtLineStart)
+            {
+                continue;
+            }
+
+            int end = i + 2;
+
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            {
+                end++;
+            }
+
+            ImmutableArray<HlslSyntaxToken> line = tokens[(i + 2)..end];
+            yield return new PragmaDirective(line, line[0]);
+            i = end - 1;
+        }
+    }
+}
+```
+
+値を持つシンボル (`VariantSpace.ForValues`) は、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、
+指摘に `QUALITY == 2 のとき` を添えます。
+
+### 9. 自前の CLI と言語サーバーに環境を足す
+
+環境は自作ルールと同じく、ホストを作るときに渡します (Native AOT ではプラグインを読み込めないため)。
+設定ファイルの `environment` (または `--environment`) にこの名前を書くと選ばれます。
+
+```csharp
+HostEnvironment myEngine = new("myengine", "MyEngine", [".fx"], () => new MyEngineEnvironment());
+
+return (int)await Program.RunAsync(args, BuiltInAnalyzers.All, [myEngine], Console.Out, Console.Error);
+```
+
+```yaml
+# .shaderlyn.yaml
+environment: myengine
+```
+
+言語サーバーは `new ShaderLanguageServer(connection, analyzers, [myEngine])` で作ります。
+
+* コンパイル単位は、汎用の HLSL 環境と同じく設定ファイルの `units:` から作ります。当てはまらないファイルは、ファイル全体を 1 つの単位にします
+* 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使うかどうかは環境が決めます
+  (上の例はソースの `#pragma` だけを読みます)
+* 名前は組み込みの環境 (`unity` / `hlsl` / `unreal`) と重ねられません
 
 ## そのほかの実装例
 

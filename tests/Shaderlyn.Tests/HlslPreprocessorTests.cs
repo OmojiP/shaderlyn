@@ -38,6 +38,21 @@ internal static class PreprocessorHarness
 
 public sealed class MacroExpansionTests
 {
+    /// <summary>名前の無い <c>#define</c> / <c>#undef</c> / <c>#ifdef</c> は、そのファイルの指令名を指すことを検証する (以前は「&lt;不明&gt;」を指していた)。</summary>
+    /// <param name="content">指令の行。</param>
+    [Theory]
+    [InlineData("#define\n")]
+    [InlineData("#undef\n")]
+    [InlineData("#ifdef\n#endif\n")]
+    public void 名前の無い指令は指令名を指す(string content)
+    {
+        Diagnostic diagnostic = Assert.Single(PreprocessorHarness.Run(content).Diagnostics, d => d.Id == "HL0002");
+
+        Assert.Equal("test.hlsl", diagnostic.Location.FilePath);
+        Assert.Equal(0, diagnostic.Location.LineSpan.Start.Line);
+        Assert.Equal(1, diagnostic.Location.LineSpan.Start.Character);
+    }
+
     [Fact]
     public void オブジェクト形式マクロを展開する()
     {
@@ -640,6 +655,41 @@ public sealed class IncludeHandlingTests
                 once
                 #endif
                 """))));
+    }
+
+    /// <summary>
+    /// <c>#pragma once</c> を書いたファイルを、2 度目からは取り込まないことを検証する。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine のヘッダは、インクルードガードではなく <c>#pragma once</c> で二重の取り込みを防ぐ。
+    /// 扱わずにいると、同じヘッダを何度も展開し、宣言の重複や再定義を誤って報告し、展開の量も膨れ上がっていた。
+    /// </remarks>
+    [Fact]
+    public void pragma_onceがあれば二重取り込みしない()
+    {
+        Assert.Equal("once", PreprocessorHarness.TextWithoutDiagnostics(
+            """
+            #include "Once.hlsl"
+            #include "Once.hlsl"
+            """,
+            WithFiles(("Once.hlsl", """
+                #pragma once
+                once
+                """))));
+    }
+
+    [Fact]
+    public void pragma_onceがあれば互いを取り込んでも循環にしない()
+    {
+        // Unreal Engine の Platform.ush と BindlessResources.ush がこの形をしている。DXC は 2 度目の取り込みを飛ばす。
+        PreprocessResult result = new HlslPreprocessor(WithFiles(
+                ("A.hlsl", "#pragma once\n#include \"B.hlsl\"\nfromA"),
+                ("B.hlsl", "#pragma once\n#include \"A.hlsl\"\nfromB")))
+            .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0320");
+        Assert.Equal("fromB fromA", string.Join(" ", result.Tokens.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken).Select(t => t.Text)));
+        Assert.DoesNotContain(result.Macros.Keys, name => name.Contains("once", StringComparison.Ordinal));
     }
 
     [Fact]

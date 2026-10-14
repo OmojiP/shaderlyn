@@ -24,6 +24,15 @@ public interface IIncludeResolver
     /// <param name="resolved">解決できたソーステキスト。</param>
     /// <returns>解決できた場合は <see langword="true"/>。</returns>
     bool TryResolve(string path, string includingFilePath, [NotNullWhen(true)] out SourceText? resolved);
+
+    /// <summary>
+    /// 解決できなかった include について、読んでよい範囲の外にならファイルがあるかを調べる。
+    /// </summary>
+    /// <param name="path"><c>#include</c> に書かれたパス。</param>
+    /// <param name="includingFilePath">この include を書いているファイルのパス。</param>
+    /// <returns>範囲の外にあったファイルのパス。無いか、範囲を持たない解決器なら <see langword="null"/>。</returns>
+    /// <remarks>ファイルがあるかだけを見て、中身は読まない。</remarks>
+    string? FindOutsideBoundary(string path, string includingFilePath) => null;
 }
 
 /// <summary>
@@ -96,7 +105,13 @@ internal sealed class FileSystemIncludeResolver : IIncludeResolver
     /// <returns>候補パスの列。</returns>
     private IEnumerable<string> EnumerateCandidates(string path, string includingFilePath)
     {
-        string? includingDirectory = Path.GetDirectoryName(includingFilePath);
+        // Windows で書いたシェーダーは区切りに \ を使う (..\Lib\Lib.hlsl)。Unity は Linux / macOS でもこれを区切りとして読む。
+        // Linux / macOS の Path は \ をファイル名の文字として扱うので、/ に直してから組み立てる (Windows ではどちらでも同じ)。
+        path = path.Replace('\\', '/');
+
+        // 解析対象をフォルダーを付けずに渡すと (shaderlyn Main.shader)、ファイルのパスにフォルダーが無い。
+        // そのままでは同じフォルダーの "Common.hlsl" も引けないので、作業フォルダーからの絶対パスにしてから見る。
+        string? includingDirectory = Path.GetDirectoryName(ToFullPath(includingFilePath));
         if (!string.IsNullOrEmpty(includingDirectory))
         {
             yield return Path.GetFullPath(Path.Combine(includingDirectory, path));
@@ -105,6 +120,36 @@ internal sealed class FileSystemIncludeResolver : IIncludeResolver
         foreach (string searchPath in _searchPaths)
         {
             yield return Path.GetFullPath(Path.Combine(searchPath, path));
+        }
+    }
+
+    /// <inheritdoc/>
+    public string? FindOutsideBoundary(string path, string includingFilePath)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return _boundary.IsRestricted
+            ? EnumerateCandidates(path, includingFilePath).FirstOrDefault(c => !_boundary.Allows(c) && File.Exists(c))
+            : null;
+    }
+
+    /// <summary>パスを絶対パスにする。できなければ (先頭のコードの仮の名前など) そのまま返す。</summary>
+    /// <param name="filePath">パス。</param>
+    /// <returns>絶対パス。</returns>
+    private static string ToFullPath(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || Path.IsPathRooted(filePath))
+        {
+            return filePath;
+        }
+
+        try
+        {
+            return Path.GetFullPath(filePath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return filePath;
         }
     }
 
@@ -133,7 +178,7 @@ internal sealed class FileSystemIncludeResolver : IIncludeResolver
         {
             try
             {
-                return File.Exists(path) ? SourceText.From(File.ReadAllText(path), path) : null;
+                return File.Exists(path) ? SourceText.Load(path) : null;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -214,4 +259,8 @@ internal sealed class CompositeIncludeResolver : IIncludeResolver
         resolved = null;
         return false;
     }
+
+    /// <inheritdoc/>
+    public string? FindOutsideBoundary(string path, string includingFilePath)
+        => _resolvers.Select(r => r.FindOutsideBoundary(path, includingFilePath)).FirstOrDefault(found => found is not null);
 }

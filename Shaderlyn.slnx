@@ -11,6 +11,8 @@
     <Project Path="src/Shaderlyn.Configuration/Shaderlyn.Configuration.csproj" />
     <Project Path="src/Shaderlyn.ShaderLab/Shaderlyn.ShaderLab.csproj" />
     <Project Path="src/Shaderlyn.Testing/Shaderlyn.Testing.csproj" />
+    <Project Path="src/Shaderlyn.Unity/Shaderlyn.Unity.csproj" />
+    <Project Path="src/Shaderlyn.Unreal/Shaderlyn.Unreal.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Shaderlyn.Cookbook/Shaderlyn.Cookbook.csproj" />

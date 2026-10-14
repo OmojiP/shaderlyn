@@ -1,5 +1,6 @@
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cookbook;
 
@@ -16,11 +17,11 @@ internal static class CookbookProgramSpan
     /// <param name="program">対象のコードブロック。</param>
     /// <returns>報告に使う範囲。</returns>
     public static TextSpan Of(AnalyzedProgram program)
-        => program.Block?.Span ?? new TextSpan(0, 0);
+        => program.GetUnityBlock()?.Block?.Span ?? new TextSpan(0, 0);
 
     /// <summary>コードブロックを利用者に示す呼び名を返す。</summary>
     /// <param name="program">対象のコードブロック。</param>
     /// <returns>Pass 名、カーネル名、いずれも無ければ既定の呼び名。</returns>
     public static string Describe(AnalyzedProgram program)
-        => program.PassName ?? program.KernelName ?? "このコードブロック";
+        => program.GetUnityBlock()?.PassName ?? program.KernelName ?? "このコードブロック";
 }

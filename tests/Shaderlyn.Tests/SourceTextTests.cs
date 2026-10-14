@@ -68,6 +68,40 @@ public sealed class SourceTextTests
         Assert.Equal("1:1", new LinePosition(0, 0).ToString());
         Assert.Equal("12:5", new LinePosition(11, 4).ToString());
     }
+
+    /// <summary>
+    /// BOM があればそれに従い、無くても UTF-16 は NUL の並び方で見分けて読む (DXC は UTF-16 を読める)。
+    /// UTF-16 として読んだことは <see cref="SourceText.IsUtf16"/> で分かる (Unity は読めないので SL1056 で伝える)。
+    /// </summary>
+    [Theory]
+    [InlineData("utf8", false)]
+    [InlineData("utf8bom", false)]
+    [InlineData("utf16le", true)]
+    [InlineData("utf16lebom", true)]
+    [InlineData("utf16be", true)]
+    [InlineData("utf16bebom", true)]
+    public void エンコーディングを見分けて読む(string encoding, bool utf16)
+    {
+        const string content = "Shader \"X\" { } // 日本語\n";
+        byte[] body = encoding switch
+        {
+            "utf8" or "utf8bom" => System.Text.Encoding.UTF8.GetBytes(content),
+            "utf16le" or "utf16lebom" => System.Text.Encoding.Unicode.GetBytes(content),
+            _ => System.Text.Encoding.BigEndianUnicode.GetBytes(content),
+        };
+        byte[] bom = encoding switch
+        {
+            "utf8bom" => [0xEF, 0xBB, 0xBF],
+            "utf16lebom" => [0xFF, 0xFE],
+            "utf16bebom" => [0xFE, 0xFF],
+            _ => [],
+        };
+
+        SourceText text = SourceText.FromBytes([.. bom, .. body], "x.shader");
+
+        Assert.Equal(content, text.Content);
+        Assert.Equal(utf16, text.IsUtf16);
+    }
 }
 
 public sealed class TextSpanTests

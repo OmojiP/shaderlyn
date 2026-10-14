@@ -142,7 +142,7 @@ internal sealed class ShaderLabParser
             return null;
         }
 
-        ReportError(Current.Span, "ファイルの先頭に 'Shader' 以外の記述があります。");
+        ReportError(Current.Span, DescribeLeadingContent(Current.Text, _text.ToString(new TextSpan(0, Math.Min(16, _text.Length)))));
 
         ImmutableArray<SyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<SyntaxToken>();
         while (!AtEnd && !IsKeyword(Current, "Shader"))
@@ -151,6 +151,31 @@ internal sealed class ShaderLabParser
         }
 
         return new SkippedTokensSyntax(skipped.ToImmutable());
+    }
+
+    /// <summary>ファイルの先頭にある、Shader 以外の記述を説明する。</summary>
+    /// <param name="text">先頭のトークンの文字列。</param>
+    /// <param name="head">ファイルの先頭の数文字。</param>
+    /// <returns>報告する文。</returns>
+    /// <remarks>
+    /// <b>見えない文字は、どの文字かを伝える。</b>
+    /// ゼロ幅スペース (U+200B) や重なった BOM (U+FEFF) が先頭にあると、エディタでは「Shader で始まっている」ように見え、
+    /// 「Shader 以外の記述があります」と言われても何を直せばよいか分からない。
+    /// UTF-16 で保存したファイルは、BOM が無くても UTF-16 として読む (SourceText.FromBytes)。ここに NUL が来るのは、本当に NUL が書かれたときである。
+    /// </remarks>
+    private static string DescribeLeadingContent(string text, string head)
+    {
+        if (head.Contains('\0') || text.Length > 0 && text[0] == '\0')
+        {
+            return "ファイルの先頭に 'Shader' 以外の記述があります (NUL 文字)。その文字を消してください。";
+        }
+
+        if (text.Length > 0 && text[0] is '\u200B' or '\u200C' or '\u200D' or '\u2060' or '\uFEFF')
+        {
+            return $"ファイルの先頭に 'Shader' 以外の記述があります (見えない文字 U+{(int)text[0]:X4})。その文字を消してください。";
+        }
+
+        return "ファイルの先頭に 'Shader' 以外の記述があります。";
     }
 
     /// <summary>ファイル終端まで全トークンを読み飛ばす。</summary>
@@ -787,8 +812,10 @@ internal sealed class ShaderLabParser
             return Advance();
         }
 
-        string found = Current.Kind == SyntaxKind.EndOfFileToken ? "ファイルの終わり" : $"'{Current.Text}'";
-        ReportError(Current.Span, $"{expectation} が必要ですが {found} がありました。");
+        string space = expectation.Length > 0 && char.IsAscii(expectation[^1]) ? " " : string.Empty;
+        ReportError(Current.Span, Current.Kind == SyntaxKind.EndOfFileToken
+            ? $"ファイルの末尾には {expectation}{space}が必要です。"
+            : $"{expectation}{space}が必要ですが '{Current.Text}' がありました。");
 
         return new SyntaxToken(kind, new TextSpan(Current.Span.Start, 0), string.Empty, isMissing: true);
     }

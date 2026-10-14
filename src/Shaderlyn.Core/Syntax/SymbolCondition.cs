@@ -20,7 +20,13 @@ internal readonly record struct SymbolTerm(string Symbol, bool IsDefined)
 
     /// <summary>条件式としての表記を返す。</summary>
     /// <returns>表示用の文字列。</returns>
-    public override string ToString() => IsDefined ? Symbol : $"!{Symbol}";
+    /// <remarks>
+    /// 値を持つシンボルの原子 (<see cref="VariantValues.Atom"/>) は、<c>QUALITY == 2</c> / <c>QUALITY != 2</c> の形で書く。
+    /// </remarks>
+    public override string ToString()
+        => VariantValues.TryParseAtom(Symbol, out string? name, out int value)
+            ? $"{name} {(IsDefined ? "==" : "!=")} {value}"
+            : IsDefined ? Symbol : $"!{Symbol}";
 }
 
 /// <summary>
@@ -287,6 +293,24 @@ public readonly struct SymbolCondition : IEquatable<SymbolCondition>
         }
 
         return Normalize(terms);
+    }
+
+    /// <summary>
+    /// 項の並び全体を書き換える。項をまとめたり分けたりするのに使う。
+    /// </summary>
+    /// <param name="rewrite">項 (シンボルと真偽の対応) の並びを受け取り、書き換えた並びを返す。</param>
+    /// <returns>書き換えて整えた条件。常に・決して・不明はそのまま返す。</returns>
+    internal SymbolCondition RewriteTermList(Func<List<Dictionary<string, bool>>, List<Dictionary<string, bool>>> rewrite)
+    {
+        if (IsAlways || IsNever || IsUnknown)
+        {
+            return this;
+        }
+
+        List<Dictionary<string, bool>> terms =
+            [.. _terms.Select(term => term.ToDictionary(t => t.Symbol, t => t.IsDefined, StringComparer.Ordinal))];
+
+        return Normalize([.. rewrite(terms).Select(SortTerm)]);
     }
 
     /// <summary>シンボル 1 つだけの条件かどうかを判定する。</summary>

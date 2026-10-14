@@ -1,8 +1,13 @@
 using System.Collections.Immutable;
+using Shaderlyn.Cli.Environments;
+using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
-using Shaderlyn.Semantics.Profiles;
+using Shaderlyn.Unity;
+using Shaderlyn.Unity.Profiles;
+using Shaderlyn.Unreal;
 
 namespace Shaderlyn.Cli;
 
@@ -33,17 +38,14 @@ internal static class SemanticsSetup
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
 
-        string? editorData = ResolveEditorDataPath(options);
+        string? editorData = ResolveEditorDataPath(options, settings);
 
         return new SemanticsOptions
         {
-            Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
-                ? profile
-                : RenderPipelineProfiles.Default,
-
             IncludeResolver = CreateIncludeResolver(options, settings, editorData),
             IsUserInclude = CreateUserIncludePredicate(options, editorData),
-            PredefinedMacros = BuildPredefinedMacros(settings.Defines),
+            DescribeUnresolvedInclude = CreateUnresolvedIncludeDescriber(options, settings),
+            PredefinedMacros = BuildPredefinedMacros(settings.Environment, settings.Defines),
 
             // 指定が無ければ既定値のままにする。
             // ここで 0 を渡すと、既定値を持たせた意味が消える。
@@ -64,10 +66,107 @@ internal static class SemanticsSetup
     }
 
     /// <summary>
+    /// 実行時設定から、Unity の環境の設定を作る。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>Unity の環境の設定。</returns>
+    /// <remarks>知らないプロファイルの名前は既定 (URP) にする。名前の検査は設定を読む側で済ませている。</remarks>
+    public static UnityOptions CreateUnity(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        UnityCompilerSettings compiler = ResolveUnityCompilerSettings(settings);
+
+        return new UnityOptions
+        {
+            Profile = RenderPipelineProfiles.TryGet(settings.Profile, out IRenderPipelineProfile? profile)
+                ? profile
+                : RenderPipelineProfiles.Default,
+            EditorVersion = compiler.EditorVersion,
+            GraphicsApis = compiler.GraphicsApis,
+            DxcBackendApis = compiler.DxcBackendApis,
+        };
+    }
+
+    /// <summary>
+    /// Unity のシェーダーのコンパイラの選び方に関わる設定 (バージョン、API、Shader Compiler Backend) を決める。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>決めた設定と、それぞれをどこから読んだか。</returns>
+    /// <remarks>
+    /// 設定ファイルの <c>unity:</c> の指定が勝つ。無ければ Unity プロジェクトの設定ファイルを読む。
+    /// それも無ければ、バージョンは不明 (どのバージョンの結果も並べる)、API は DX11 と DX12、Backend は FXC。
+    /// </remarks>
+    public static UnityCompilerSettings ResolveUnityCompilerSettings(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        ShaderlynConfiguration configuration = settings.Configuration;
+        UnityProjectSettings project = settings.UnityProjectPath is { } path && Directory.Exists(path)
+            ? UnityProjectSettings.Read(path)
+            : UnityProjectSettings.Empty;
+
+        const string FromConfiguration = "設定ファイル";
+        const string FromProject = "Unity プロジェクト";
+        const string FromDefault = "既定";
+
+        (string? version, string versionSource) = configuration.UnityVersion is { } configuredVersion
+            ? (configuredVersion, FromConfiguration)
+            : project.EditorVersion is { } projectVersion
+                ? (projectVersion, FromProject)
+                : ((string?)null, FromDefault);
+
+        ImmutableArray<UnityGraphicsApi> configuredApis =
+        [
+            .. configuration.UnityGraphicsApis
+                .Select(name => UnityGraphicsApis.TryParse(name, out UnityGraphicsApi api) ? (UnityGraphicsApi?)api : null)
+                .OfType<UnityGraphicsApi>(),
+        ];
+
+        (ImmutableArray<UnityGraphicsApi> apis, string apisSource) = !configuredApis.IsEmpty
+            ? (configuredApis, FromConfiguration)
+            : !project.GraphicsApis.IsEmpty
+                ? (project.GraphicsApis, FromProject)
+                : (UnityGraphicsApis.Default, FromDefault);
+
+        (ImmutableArray<UnityGraphicsApi> dxc, string dxcSource) = configuration.UnityShaderCompilerBackend switch
+        {
+            "dxc" => ([.. apis.Where(api => api != UnityGraphicsApi.Direct3D11)], FromConfiguration),
+            "fxc" => ([], FromConfiguration),
+            _ => !project.DxcBackendApis.IsEmpty ? (project.DxcBackendApis, FromProject) : ([], FromDefault),
+        };
+
+        return new UnityCompilerSettings(version, versionSource, apis, apisSource, dxc, dxcSource);
+    }
+
+    /// <summary>
+    /// 実行時設定から、Unreal の環境の設定を作る。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <returns>Unreal の環境の設定。</returns>
+    public static UnrealOptions CreateUnreal(EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        ShaderlynConfiguration configuration = settings.Configuration;
+
+        return new UnrealOptions
+        {
+            EngineDirectory = configuration.UnrealEngineDirectory,
+            ProjectDirectory = configuration.UnrealProjectDirectory,
+            VirtualPaths = configuration.UnrealVirtualPaths,
+            Compiler = configuration.HlslCompiler == "fxc" ? HlslCompiler.Fxc : HlslCompiler.Dxc,
+            LanguageVersion = (HlslLanguageVersion)(configuration.HlslVersion ?? 2018),
+            Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
+        };
+    }
+
+    /// <summary>
     /// Unity Editor のデータフォルダーを決める。
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <returns>データフォルダー。見つからない場合は <see langword="null"/>。</returns>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。Unity 以外の環境では探さない。</param>
     /// <remarks>
     /// <para>
     /// 明示的な指定を最優先し、無ければプロジェクトから推定する。
@@ -80,9 +179,15 @@ internal static class SemanticsSetup
     /// 指定を変えていなくても解析し直さなければならない。
     /// </para>
     /// </remarks>
-    public static string? ResolveEditorDataPath(CommandLineOptions options)
+    public static string? ResolveEditorDataPath(CommandLineOptions options, EffectiveSettings settings)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (settings.Environment != UnityAnalysisEnvironment.EnvironmentName)
+        {
+            return null;
+        }
 
         return options.UnityEditorDataPath
                ?? UnityInstallation.Lookup(null, options.UnityProjectPath).DataPath;
@@ -185,16 +290,35 @@ internal static class SemanticsSetup
         // 解析対象が分からない場合は制限しない。
         // 「どこまでが対象か」を決められないまま境界を引くと、
         // 対象のすぐ隣にあるヘッダまで読めなくなる。
+        // Unreal の仮想パスの割り当て先も、読んでよい範囲に入れる。探索パスには入れない
+        // (Unreal は #include "Common.ush" をエンジンのフォルダーから探さない)。
+        ImmutableDictionary<string, string> virtualPaths = settings.Environment == UnrealOptions.EnvironmentName
+            ? CreateUnreal(settings).GetVirtualPathMappings()
+            : ImmutableDictionary<string, string>.Empty;
+
         IncludeBoundary boundary = options.InputPaths.IsEmpty
             ? IncludeBoundary.Unrestricted
             : new IncludeBoundary(
             [
                 .. searchPaths,
-                .. options.InputPaths.Select(path =>
-                    Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? path),
+                .. virtualPaths.Values,
+                .. options.InputPaths.Select(InputRoot),
+
+                // 設定ファイルを置いたフォルダーはプロジェクトの根である。解析対象から "../common/..." と上がっても、その中なら読む。
+                .. settings.Configuration.FilePath is { } configurationPath && Path.GetDirectoryName(configurationPath) is { Length: > 0 } configurationDirectory
+                    ? new[] { configurationDirectory }
+                    : [],
             ]);
 
-        List<IIncludeResolver> resolvers = [new FileSystemIncludeResolver(searchPaths, boundary)];
+        List<IIncludeResolver> resolvers = [];
+
+        // 仮想パス (/Engine/...) を先に引く。Windows では /Engine/... がドライブの直下と読まれうる。
+        if (!virtualPaths.IsEmpty)
+        {
+            resolvers.Add(new UnrealVirtualPathResolver(virtualPaths, boundary));
+        }
+
+        resolvers.Add(new FileSystemIncludeResolver(searchPaths, boundary));
 
         // Packages/<パッケージ名>/... の形は実在するフォルダーではないため、
         // 通常のパス探索では解決できない。URP のシェーダーはこの形を多用する。
@@ -204,6 +328,78 @@ internal static class SemanticsSetup
         }
 
         return new CompositeIncludeResolver([.. resolvers]);
+    }
+
+    /// <summary>
+    /// 解決できなかった <c>#include</c> の理由を述べる文を作る関数を作る。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <returns>関数。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Unity プロジェクトは推定しない。</b> 解析は明示した設定で行う。
+    /// 代わりに、指定していないために引けないものには、そのことと、解析対象の上で見つけたプロジェクトを添える。
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>読んでよい範囲の外にあった: その場所と、範囲を広げる指定</item>
+    ///   <item><c>--unity-project</c> が無く、<c>Assets/...</c> / <c>Packages/...</c>: プロジェクトを指定すること</item>
+    /// </list>
+    /// <para>どれでもなければ <see langword="null"/> を返し、ルールの既定の文に任せる。</para>
+    /// </remarks>
+    private static Func<IncludeReference, string?> CreateUnresolvedIncludeDescriber(CommandLineOptions options, EffectiveSettings settings)
+    {
+        bool isUnity = settings.Environment == UnityAnalysisEnvironment.EnvironmentName;
+        string? candidate = isUnity && options.UnityProjectPath is null ? UnityInstallation.FindProjectAbove(options.InputPaths) : null;
+        string projectHint = candidate is null
+            ? "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください。"
+            : $"Unity プロジェクトとして解析する場合は --unity-project \"{candidate}\" を指定してください。";
+
+        return include =>
+        {
+            string normalized = include.Path.Replace('\\', '/');
+
+            if (include.OutsideBoundaryPath is { } outside)
+            {
+                bool inCandidate = candidate is not null
+                    && Path.GetFullPath(outside).StartsWith(Path.GetFullPath(candidate) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+                return inCandidate ? projectHint : "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。";
+            }
+
+            if (isUnity
+                && options.UnityProjectPath is null
+                && (normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                    || normalized.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)))
+            {
+                return projectHint;
+            }
+
+            return null;
+        };
+    }
+
+    /// <summary>解析対象のパスから、読んでよい範囲の根にするフォルダーを決める。</summary>
+    /// <param name="path">解析対象のパス。</param>
+    /// <returns>フォルダーならそのもの、ファイルならそれを置いたフォルダー (絶対パス)。</returns>
+    /// <remarks>
+    /// フォルダーを付けずに渡したファイル (<c>shaderlyn Main.shader</c>) は作業フォルダーにある。
+    /// 絶対パスにせずにフォルダーを取ると空になり、根から外れる。
+    /// </remarks>
+    private static string InputRoot(string path)
+    {
+        string full;
+
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
+
+        return Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full;
     }
 
     /// <summary>
@@ -248,17 +444,28 @@ internal static class SemanticsSetup
     }
 
     /// <summary>
-    /// <c>--define</c> の指定を既定のマクロへ重ねる。
+    /// <c>--define</c> の指定を、環境の既定のマクロへ重ねる。
     /// </summary>
+    /// <param name="environment">環境の名前。Unity なら Unity の既定のマクロに重ね、それ以外は何も無いところに重ねる。</param>
     /// <param name="defines"><c>NAME</c> または <c>NAME=VALUE</c> 形式の指定。</param>
     /// <returns>定義済みマクロの表。</returns>
     /// <remarks>
     /// 値を省略した場合は <c>1</c> とみなす。C コンパイラの <c>-D</c> と同じ規則である。
+    /// 汎用の HLSL 環境の、DXC が定義するマクロは環境が足す。
     /// </remarks>
-    public static ImmutableDictionary<string, string> BuildPredefinedMacros(ImmutableArray<string> defines)
-    {
-        ImmutableDictionary<string, string> macros = SemanticsOptions.DefaultPredefinedMacros;
+    public static ImmutableDictionary<string, string> BuildPredefinedMacros(string environment, ImmutableArray<string> defines)
+        => ApplyDefines(
+            environment == UnityAnalysisEnvironment.EnvironmentName
+                ? UnityOptions.DefaultPredefinedMacros
+                : ImmutableDictionary<string, string>.Empty,
+            defines);
 
+    /// <summary><c>NAME</c> / <c>NAME=VALUE</c> の指定をマクロの表へ重ねる。</summary>
+    /// <param name="macros">元の表。</param>
+    /// <param name="defines">指定。</param>
+    /// <returns>重ねた表。</returns>
+    public static ImmutableDictionary<string, string> ApplyDefines(ImmutableDictionary<string, string> macros, ImmutableArray<string> defines)
+    {
         foreach (string define in defines)
         {
             int separator = define.IndexOf('=', StringComparison.Ordinal);
@@ -276,3 +483,20 @@ internal static class SemanticsSetup
         return macros;
     }
 }
+
+/// <summary>
+/// Unity のシェーダーのコンパイラの選び方に関わる設定と、それぞれをどこから読んだか。
+/// </summary>
+/// <param name="EditorVersion">Unity のバージョン。分からなければ <see langword="null"/>。</param>
+/// <param name="EditorVersionSource">バージョンを読んだ場所。</param>
+/// <param name="GraphicsApis">シェーダーをコンパイルする API。</param>
+/// <param name="GraphicsApisSource">API を読んだ場所。</param>
+/// <param name="DxcBackendApis">Shader Compiler Backend を DXC にした API。</param>
+/// <param name="DxcBackendSource">Backend を読んだ場所。</param>
+internal sealed record UnityCompilerSettings(
+    string? EditorVersion,
+    string EditorVersionSource,
+    ImmutableArray<UnityGraphicsApi> GraphicsApis,
+    string GraphicsApisSource,
+    ImmutableArray<UnityGraphicsApi> DxcBackendApis,
+    string DxcBackendSource);

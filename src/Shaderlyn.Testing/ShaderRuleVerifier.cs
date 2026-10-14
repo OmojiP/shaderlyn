@@ -5,6 +5,7 @@ using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Testing;
 
@@ -101,7 +102,7 @@ public sealed class ShaderRuleVerifier
     /// <param name="macros">名前から値への対応。</param>
     /// <returns>自分自身。続けて呼べる。</returns>
     /// <remarks>
-    /// 指定しない場合は既定のマクロ (<see cref="SemanticsOptions.DefaultPredefinedMacros"/>) を使う。
+    /// 指定しない場合は既定のマクロ (<see cref="UnityOptions.DefaultPredefinedMacros"/>) を使う。
     /// </remarks>
     public ShaderRuleVerifier WithPredefinedMacros(IReadOnlyDictionary<string, string> macros)
     {
@@ -140,13 +141,13 @@ public sealed class ShaderRuleVerifier
         SemanticsOptions semantics = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(_includes),
-            PredefinedMacros = _predefinedMacros ?? SemanticsOptions.DefaultPredefinedMacros,
+            PredefinedMacros = _predefinedMacros ?? UnityOptions.DefaultPredefinedMacros,
         };
 
         ShaderCompilation compilation =
             ShaderSourceKinds.FromPath(filePath) == ShaderSourceKind.Hlsl
-                ? ShaderCompilation.CreateForHlsl(text, semantics)
-                : ShaderCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+                ? UnityCompilation.CreateForHlsl(text, semantics)
+                : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
 
         return new AnalyzerDriver(_analyzers, _options).Analyze(compilation.CreateAnalysisTarget());
     }

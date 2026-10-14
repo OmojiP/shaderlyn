@@ -4,6 +4,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 
 namespace Shaderlyn.Hlsl.Preprocessing;
 
@@ -181,6 +182,15 @@ public sealed record PreprocessorOptions
     public bool HoistConditionalMacros { get; init; }
 
     /// <summary>
+    /// <c>#pragma once</c> を効かせるかどうか。既定は有効 (DXC / FXC と同じ)。
+    /// </summary>
+    /// <remarks>
+    /// Unity は <c>#pragma once</c> を効かせない (2022.3 / 6.3 / 6.6 で、<c>#include</c> でも <c>#include_with_pragmas</c> でも
+    /// 2 度目の取り込みが再定義のエラーになることを確かめた)。Unity の環境では無効にし、実際と同じく 2 度取り込む。
+    /// </remarks>
+    public bool HonorPragmaOnce { get; init; } = true;
+
+    /// <summary>
     /// 取り込みを切り替えている分岐も、両方の分岐を並べるかどうか。
     /// </summary>
     /// <remarks>
@@ -298,6 +308,127 @@ public sealed record PreprocessorOptions
     public Func<string, bool>? IsUserInclude { get; init; }
 
     /// <summary>
+    /// <c>#include</c> と同じく、ファイルを取り込む指令として扱う名前。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 環境が独自に足す指令のためにある。Unity の <c>#include_with_pragmas</c> は、
+    /// 取り込んだ先の <c>#pragma</c> も呼び出し側へ伝える点が <c>#include</c> と違うが、
+    /// 展開の観点では同じである。<c>#pragma</c> はもともとすべて集めている。
+    /// </para>
+    /// <para>
+    /// 既定は空で、<c>#include</c> だけを取り込みとする。ここに無い名前の指令は、知らない指令として報告する。
+    /// </para>
+    /// </remarks>
+    public ImmutableHashSet<string> AdditionalIncludeDirectives { get; init; } =
+        ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 値を持つシンボルと、その値の範囲 (<see cref="VariantSpace.ValueSymbols"/>)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>条件の中の比較を、値の原子 (<see cref="VariantValues.Atom"/>) の論理和として読む。</b>
+    /// <c>QUALITY</c> が 0 / 1 / 2 をとるなら、<c>#if QUALITY &gt;= 1</c> は <c>QUALITY==1 ∨ QUALITY==2</c> である。
+    /// 原子が記号として残す名前 (<see cref="BothBranchSymbols"/> など) に入っていれば記号として、入っていなければ値を解いて読む。
+    /// </para>
+    /// <para>
+    /// 値を持つシンボルは、どの構成でも定義されている (<c>defined(QUALITY)</c> は常に真)。
+    /// 既定は空で、値を持つシンボルは無い (Unity)。
+    /// </para>
+    /// </remarks>
+    public ImmutableDictionary<string, ImmutableArray<int>> ValueSymbols { get; init; } =
+        ImmutableDictionary<string, ImmutableArray<int>>.Empty.WithComparers(StringComparer.Ordinal);
+
+    /// <summary>
+    /// このコードをコンパイルする方言。既定は FXC (Unity の既定のコンパイラ)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) とルールが読む。
+    /// 展開と構文解析の設定を 1 つにまとめて渡しているので、ここに置く。
+    /// </para>
+    /// <para>
+    /// <b>1 つのコードが複数の方言でコンパイルされることがある。</b>
+    /// パーサーは、どれかの方言が受け付ける構文を読む (<see cref="HlslLanguageFeatures.Any"/>)。
+    /// どの方言も受け付けない構文を HL0003 として報告する。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslDialect> Dialects { get; init; } = [HlslDialect.Fxc];
+
+    /// <summary>
+    /// DXC の言語のバージョン。設定すると、方言をその版の DXC 1 つにする (<see cref="Dialects"/> の略記)。
+    /// </summary>
+    /// <remarks>
+    /// 読むと、並べた方言のうち最も新しい DXC の版を返す。DXC が無ければ <see cref="HlslLanguageVersion.Hlsl2018"/>。
+    /// </remarks>
+    public HlslLanguageVersion LanguageVersion
+    {
+        get => Dialects.Where(d => d.Compiler == HlslCompiler.Dxc).Select(d => d.LanguageVersion).Max() ?? HlslLanguageVersion.Hlsl2018;
+        init => Dialects = [HlslDialect.Dxc(value)];
+    }
+
+    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。パーサーはこれで読む。</summary>
+    public HlslLanguageFeatures Features => HlslLanguageFeatures.Any(Dialects);
+
+    /// <summary>
+    /// コンパイル先 (API と方言の組)。環境が分かるときだけ並べる。空なら分からない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 設定すると、方言 (<see cref="Dialects"/>) をコンパイル先の方言にする。
+    /// 使える API のコンパイル先があれば、その方言だけにする。使えない API でのエラーは利用者に見えない。
+    /// </para>
+    /// <para>
+    /// Unity の環境が、パスごとの <c>#pragma use_dxc</c> などから決める。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslCompileTarget> CompileTargets
+    {
+        get;
+        init
+        {
+            field = value.IsDefault ? [] : value;
+
+            if (field.IsEmpty)
+            {
+                return;
+            }
+
+            IEnumerable<HlslCompileTarget> usable = field.Any(t => t.IsUsable) ? field.Where(t => t.IsUsable) : field;
+            Dialects = [.. usable.Select(t => t.Dialect).Distinct()];
+        }
+    } = [];
+
+    /// <summary>
+    /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> なら方言で言う (<c>FXC</c> / <c>HLSL 2018</c>)。
+    /// 環境が与える。Unity の環境は、Unity のコンパイルでエラーになることを伝える。
+    /// </remarks>
+    public string? DialectName { get; init; }
+
+    /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。</summary>
+    /// <returns>名前。</returns>
+    internal string DescribeDialect() => DialectName ?? HlslLanguageFeatures.Describe(Dialects);
+
+    /// <summary>
+    /// 使えない指令として報告する名前。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 環境が受け付けない指令のためにある。Unity のシェーダーのコンパイルは <c>#line</c> をエラーにする
+    /// ("syntax error: unexpected token 'line'")。DXC はそのまま受け付ける。
+    /// </para>
+    /// <para>
+    /// 既定は空で、どれも報告しない。<c>#line</c> は読み飛ばす。
+    /// </para>
+    /// </remarks>
+    public ImmutableHashSet<string> UnsupportedDirectives { get; init; } =
+        ImmutableHashSet<string>.Empty.WithComparer(StringComparer.Ordinal);
+
+    /// <summary>
     /// 展開のしかたを変える設定をまとめた指紋。
     /// </summary>
     /// <remarks>
@@ -367,6 +498,28 @@ public sealed record PreprocessorOptions
 
             // 並べてよい領域が決められていれば、ヘッダの中の判断もそれに従う。
             hash.Add(MergeOnlyRegions?.ContentHash ?? 0);
+
+            // 値を持つシンボルが違えば、ヘッダの条件の読み方が変わる。
+            foreach ((string name, ImmutableArray<int> values) in ValueSymbols.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                hash.Add(name, StringComparer.Ordinal);
+
+                foreach (int value in values)
+                {
+                    hash.Add(value);
+                }
+            }
+
+            // 取り込みとして扱う指令と、報告する指令が違えば、ヘッダの展開結果と診断が変わる。
+            foreach (ImmutableHashSet<string> directives in (ImmutableHashSet<string>[])[AdditionalIncludeDirectives, UnsupportedDirectives])
+            {
+                hash.Add(directives.Count);
+
+                foreach (string directive in directives.Order(StringComparer.Ordinal))
+                {
+                    hash.Add(directive, StringComparer.Ordinal);
+                }
+            }
 
             return hash.ToHashCode();
         }
@@ -452,6 +605,18 @@ public readonly record struct IncludeReference(
 {
     /// <summary>解決できたかどうか。</summary>
     public bool IsResolved => ResolvedFilePath is not null;
+
+    /// <summary>
+    /// 解決できなかったが、読んでよい範囲の外にファイルがあった場合、そのパス。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 「見つからない」と「あるが読まなかった」では直し方が違う。後者は探索パスを足せば読める。
+    /// </remarks>
+    public string? OutsideBoundaryPath { get; init; }
+
+    /// <summary>取り込んだファイルを UTF-16 として読んだかどうか (BOM の有無によらない)。</summary>
+    /// <remarks>Unity は UTF-16 のファイルを読めない (SL1056)。DXC は読める。</remarks>
+    public bool IsUtf16 { get; init; }
 }
 
 /// <summary>
@@ -703,6 +868,20 @@ public readonly record struct PreprocessResult(
     /// </para>
     /// </remarks>
     public ImmutableArray<HlslSyntaxToken> SkippedRootIdentifiers { get; init; }
+
+    /// <summary>
+    /// 利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="SkippedRootIdentifiers"/> と同じく、別の構成がその場所を解析したかを確かめるために位置を持つ。
+    /// <see cref="SkippedIncludedIdentifiers"/> には含まない。
+    /// </para>
+    /// <para>
+    /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<HlslSyntaxToken> SkippedUserHeaderIdentifiers { get; init; }
 
     /// <summary>
     /// 1 つずつ有効にしただけでは通らない、条件に書かれたシンボルの組。
