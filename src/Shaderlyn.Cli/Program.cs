@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Cli.Baseline;
 using Shaderlyn.Cli.Caching;
 using Shaderlyn.Cli.Inspection;
@@ -165,13 +166,17 @@ public static class Program
         AnalysisTimings? timings = options.ReportTimings ? new AnalysisTimings() : null;
         SemanticsOptions semanticsOptions = SemanticsSetup.Create(options, settings, timings);
         AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
+        bool cacheWritable = await CheckCacheWritableAsync(options, errorOutput).ConfigureAwait(false);
 
         AnalysisRunner runner = new(
             analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, environment);
 
         AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
 
-        await SaveCacheAsync(options, cache, errorOutput).ConfigureAwait(false);
+        if (cacheWritable)
+        {
+            await SaveCacheAsync(options, cache, errorOutput).ConfigureAwait(false);
+        }
 
         if (timings is not null)
         {
@@ -257,6 +262,28 @@ public static class Program
         }
 
         return cache;
+    }
+
+    /// <summary>
+    /// キャッシュを書き出せるかを、解析の前に確かめる。書き出せなければ、理由をすぐに伝える。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <returns>書き出せるか (<c>--cache</c> が無ければ <see langword="true"/>)。</returns>
+    /// <remarks>
+    /// 解析の後に書き出すので、確かめずにいると、全件の解析が終わってから書けないことが分かる。
+    /// 書き出せなくても解析結果は正しいので、ツールエラーにはせずに解析を続ける。
+    /// </remarks>
+    private static async Task<bool> CheckCacheWritableAsync(CommandLineOptions options, TextWriter errorOutput)
+    {
+        if (options.CachePath is not { } cachePath || AnalysisCache.CanWrite(cachePath, out string? error))
+        {
+            return true;
+        }
+
+        await errorOutput.WriteLineAsync(
+            $"キャッシュを書き出せません ({cachePath}): {error} 解析は続けますが、キャッシュは残りません。").ConfigureAwait(false);
+        return false;
     }
 
     /// <summary>
@@ -359,7 +386,7 @@ public static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            await errorOutput.WriteLineAsync($"ファイルを読み込めません ({files[0]}): {ex.Message}")
+            await errorOutput.WriteLineAsync($"ファイルを読み込めません ({files[0]}): {FileErrorDescriber.Describe(ex, files[0])}")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -426,7 +453,7 @@ public static class Program
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            await errorOutput.WriteLineAsync($"書き出せませんでした: {exception.Message}").ConfigureAwait(false);
+            await errorOutput.WriteLineAsync($"書き出せませんでした: {FileErrorDescriber.Describe(exception, fullOutput)}").ConfigureAwait(false);
             return ExitCode.ToolError;
         }
 

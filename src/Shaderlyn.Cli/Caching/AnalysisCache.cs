@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Core.Text;
 
 namespace Shaderlyn.Cli.Caching;
@@ -115,7 +116,7 @@ internal sealed class AnalysisCache
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            warning = ex.Message;
+            warning = ex is JsonException ? "中身が壊れているか、キャッシュの形式ではありません。" : FileErrorDescriber.Describe(ex, filePath);
             return new AnalysisCache(key, loaded);
         }
 
@@ -299,27 +300,118 @@ internal sealed class AnalysisCache
                 Index(sources, pair.Key, document.Sources), sources, rules, document));
         }
 
+        return TryWrite(
+            filePath,
+            JsonSerializer.Serialize(document, AnalysisCacheJsonContext.Default.AnalysisCacheDocument),
+            out error);
+    }
+
+    /// <summary>
+    /// キャッシュを書き出せるかを、解析の前に確かめる。
+    /// </summary>
+    /// <param name="filePath">書き出す先のパス。</param>
+    /// <param name="error">書き出せない理由。</param>
+    /// <returns>書き出せるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 書き出すのは解析の後なので、確かめずにいると、全件の解析が終わってから書けないことが分かる。
+    /// 同じ手順 (フォルダーを作り、一時ファイルに書いて置き換える) で、一時ファイルだけを書いて消す。
+    /// </remarks>
+    public static bool CanWrite(string filePath, out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(filePath);
+
+        // 置き換え先がフォルダーなら、置き換え (File.Move) で失敗する。
+        if (Directory.Exists(filePath))
+        {
+            error = "そのパスはフォルダーです。ファイルのパスを指定してください。";
+            return false;
+        }
+
+        string temporary = filePath + ".tmp";
+
+        if (!TryPrepare(filePath, out error))
+        {
+            return false;
+        }
+
+        try
+        {
+            File.WriteAllText(temporary, string.Empty);
+            File.Delete(temporary);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            error = FileErrorDescriber.Describe(ex, temporary);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>一時ファイルに書いてから置き換える。失敗したら一時ファイルを消す。</summary>
+    private static bool TryWrite(string filePath, string content, out string? error)
+    {
+        if (!TryPrepare(filePath, out error))
+        {
+            return false;
+        }
+
+        string temporary = filePath + ".tmp";
+
+        try
+        {
+            File.WriteAllText(temporary, content);
+            File.Move(temporary, filePath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // 置き換えに失敗したとき (置き換え先がフォルダーなど)、一時ファイルが残る。
+            TryDelete(temporary);
+            error = FileErrorDescriber.Describe(ex, filePath);
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    /// <summary>書き出す先のフォルダーを作る。デバイス名 (<c>NUL</c> など) は書き出せないものとする。</summary>
+    private static bool TryPrepare(string filePath, out string? error)
+    {
+        // NUL へ書くと書き込みは成功し、何も残らない。黙って毎回全件を解析することになる。
+        if (FileErrorDescriber.IsDeviceName(filePath))
+        {
+            error = $"'{Path.GetFileName(filePath)}' は Windows のデバイス名で、ファイルとして残りません。別の名前にしてください。";
+            return false;
+        }
+
         try
         {
             if (Path.GetDirectoryName(Path.GetFullPath(filePath)) is { Length: > 0 } directory)
             {
                 Directory.CreateDirectory(directory);
             }
-
-            string temporary = filePath + ".tmp";
-            File.WriteAllText(
-                temporary,
-                JsonSerializer.Serialize(document, AnalysisCacheJsonContext.Default.AnalysisCacheDocument));
-            File.Move(temporary, filePath, overwrite: true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            error = ex.Message;
+            error = FileErrorDescriber.Describe(ex, filePath);
             return false;
         }
 
         error = null;
         return true;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // 消せなくても、書き出せなかったことはすでに伝える。
+        }
     }
 
     /// <summary>取り込んだファイルを読む。同じ実行の中では 1 度しか読まない。</summary>

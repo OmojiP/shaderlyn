@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Cli.Caching;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
@@ -225,7 +226,7 @@ internal sealed class AnalysisRunner
                     WellKnownDescriptors.FileReadFailed,
                     Location.Create(placeholder, new TextSpan(0, 0)),
                     filePath,
-                    ex.Message),
+                    FileErrorDescriber.Describe(ex, filePath)),
             ], false);
         }
 

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Configuration.Yaml;
 using Shaderlyn.Core.Diagnostics;
 
@@ -118,7 +119,7 @@ internal static class ConfigurationLoader
             return new ShaderlynConfiguration
             {
                 FilePath = filePath,
-                Problems = [new ConfigurationProblem(0, $"設定ファイルを読み込めません: {ex.Message}")],
+                Problems = [new ConfigurationProblem(0, $"設定ファイルを読み込めません: {FileErrorDescriber.Describe(ex, filePath)}")],
             };
         }
 
