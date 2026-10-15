@@ -1537,7 +1537,10 @@ internal sealed class HlslParser
     /// </remarks>
     private bool IsFromOwnSource(HlslSyntaxToken token)
     {
-        if (_ownSource is null || ReferenceEquals(token.Source, _ownSource))
+        // 同じファイルを別にマスクしたテキスト (Unity の HLSLINCLUDE を先に読むもの) も、このファイルのものである。
+        if (_ownSource is null
+            || ReferenceEquals(token.Source, _ownSource)
+            || string.Equals(token.Source.FilePath, _ownSource.FilePath, StringComparison.Ordinal))
         {
             return true;
         }

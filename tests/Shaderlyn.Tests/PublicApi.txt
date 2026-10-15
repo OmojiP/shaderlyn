@@ -611,6 +611,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessResult :: virtual System.String ToString(
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions : sealed class (System.IEquatable`1[Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions])
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: .ctor()
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.SymbolConstraints SymbolConstraints { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText LeadingText { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; set; }
@@ -2039,6 +2040,7 @@ Shaderlyn.Unity.UnityPreprocessorDirectives :: static System.Collections.Immutab
 Shaderlyn.Unity.UnityPreprocessorDirectives :: static System.Collections.Immutable.ImmutableHashSet`1[System.String] UnsupportedDirectives { get; }
 Shaderlyn.Unity.UnityProgramBlock : sealed class (System.IEquatable`1[Shaderlyn.Unity.UnityProgramBlock])
 Shaderlyn.Unity.UnityProgramBlock :: .ctor(Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.ShaderLab.Syntax.ProgramBlockSyntax], Shaderlyn.ShaderLab.Syntax.PassSyntax, Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] = null, System.String = null)
+Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Core.Text.SourceText IncludeText { get; set; }
 Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Core.Text.SourceText MaskedText { get; set; }
 Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
 Shaderlyn.Unity.UnityProgramBlock :: Shaderlyn.ShaderLab.Syntax.PassSyntax Pass { get; set; }

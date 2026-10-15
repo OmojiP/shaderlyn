@@ -890,7 +890,8 @@ internal sealed partial class HlslPreprocessor
     /// <param name="token">対象のトークン。</param>
     /// <returns>このファイルのものであれば <see langword="true"/>。</returns>
     private bool IsInRootSource(HlslSyntaxToken token)
-        => _rootSource is { } root && ReferenceEquals(token.Source, root);
+        => _rootSource is { } root
+           && (ReferenceEquals(token.Source, root) || ReferenceEquals(token.Source, _options.LeadingText));
 
     /// <summary>
     /// 2 つのマクロ定義が同じ中身かを判定する。

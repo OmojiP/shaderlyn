@@ -41,6 +41,12 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 修正
 
+- Unity: 共通コード片 (`HLSLINCLUDE` / `CGINCLUDE`) の扱いを Unity 6.6 に合わせる。Unity はファイルの中の同じ種類の共通コード片をすべて
+  ファイルの順につなぎ、どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader や Pass の中のものも)。
+  以前は、囲むブロックのものだけを書いた位置のまま並べていた。Pass より後の共通コード片のマクロが効かず「宣言されていない」(HL0310) と誤って報告し、
+  別の SubShader の共通コード片の関数も見なかった。逆に `CGINCLUDE` を `HLSLPROGRAM` に入れていた (Unity は入れない) ので、その誤りを見逃していた
+- Unity: ほかのヘッダを引けていて、Unity 同梱のヘッダ (`UnityCG.cginc` など) だけを引けないとき、HL0321 に直し方が無かった。
+  Editor が見つからなければ `--unity-editor` の指定を案内する
 - Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) の Editor は、同梱のヘッダ (`UnityCG.cginc` など) を `Data/Resources/CGIncludes` に置いている。
   `Data/CGIncludes` しか見ていなかったので、CGPROGRAM のシェーダーが TOOL0004 になり、Editor の推定もできなかった
 - `.shader` の先頭のノーブレークスペース (U+00A0) を空白として読んでいた。Unity は構文エラーにするので、SL0001 で報告する

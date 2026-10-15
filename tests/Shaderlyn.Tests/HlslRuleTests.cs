@@ -625,6 +625,144 @@ public sealed class HlslRuleTests
         Assert.Contains("14:13", message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 共通コード片は、ファイルの中の同じ種類のものをすべてファイルの順につなぎ、どのコードブロックの前にも置く (Unity 6.6 で確かめた)。
+    /// Pass より後のものも、別の SubShader のものも入る。CGINCLUDE は HLSLPROGRAM に入らない。
+    /// </summary>
+    [Theory]
+    [InlineData("AfterPass")]
+    [InlineData("OtherSubShader")]
+    [InlineData("InsideOtherPass")]
+    public void 共通コード片はどこに書いてもコードブロックの前に置く(string placement)
+    {
+        const string pass = """
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        float4 vert() : SV_POSITION { return 0; }
+                        float4 frag() : SV_Target { return SCALE * Tint(); }
+                        ENDHLSL
+                    }
+            """;
+        const string include = """
+                    HLSLINCLUDE
+                    #define SCALE 2
+                    float4 Tint() { return 1; }
+                    ENDHLSL
+            """;
+
+        string source = placement switch
+        {
+            "AfterPass" => $$"""
+                Shader "Test/Include"
+                {
+                    SubShader
+                    {
+                {{pass}}
+                {{include}}
+                    }
+                }
+                """,
+            "OtherSubShader" => $$"""
+                Shader "Test/Include"
+                {
+                    SubShader
+                    {
+                {{pass}}
+                    }
+                    SubShader
+                    {
+                {{include}}
+                {{pass}}
+                    }
+                }
+                """,
+            _ => $$"""
+                Shader "Test/Include"
+                {
+                    SubShader
+                    {
+                {{pass}}
+                        Pass
+                        {
+                {{include}}
+                        }
+                    }
+                }
+                """,
+        };
+
+        ImmutableArray<Diagnostic> diagnostics = Analyze(source);
+
+        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+    }
+
+    /// <summary>2 つの共通コード片が同じマクロを定義し直していれば、どの Pass も後のほうの値を見る。</summary>
+    [Fact]
+    public void 共通コード片はファイルの順に読む()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            Shader "Test/Order"
+            {
+                SubShader
+                {
+                    HLSLINCLUDE
+                    #define V 1
+                    ENDHLSL
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #if V == 2
+                        #define V_IS_TWO 1
+                        #endif
+                        float4 vert() : SV_POSITION { return 0; }
+                        float4 frag() : SV_Target { return V_IS_TWO; }
+                        ENDHLSL
+                    }
+                    HLSLINCLUDE
+                    #undef V
+                    #define V 2
+                    ENDHLSL
+                }
+            }
+            """);
+
+        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+    }
+
+    /// <summary>CGINCLUDE は HLSLPROGRAM に、HLSLINCLUDE は CGPROGRAM に入らない (Unity 6.6 で確かめた)。</summary>
+    [Fact]
+    public void 共通コード片は同じ種類のコードブロックにだけ入る()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            Shader "Test/Kinds"
+            {
+                SubShader
+                {
+                    CGINCLUDE
+                    float4 FromCg() { return 1; }
+                    ENDCG
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        float4 vert() : SV_POSITION { return 0; }
+                        float4 frag() : SV_Target { return FromCg(); }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("FromCg", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void 共通コード片の構文エラーをPassの数だけ繰り返さない()
     {

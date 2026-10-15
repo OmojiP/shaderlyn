@@ -273,6 +273,22 @@ public sealed record PreprocessorOptions
     public SourceText? Prelude { get; init; }
 
     /// <summary>
+    /// 対象ファイルより先に、対象ファイルの一部として読むコード。<see langword="null"/> の場合は何も読まない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity の <c>HLSLINCLUDE</c> / <c>CGINCLUDE</c> のためにある。Unity はファイルの中の共通コード片をすべてファイルの順につなぎ、
+    /// どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader のものも)。
+    /// 位置を保ったままマスクしたテキストでは、Pass より後の共通コード片がコードブロックの後ろに並んでしまうので、別に読む。
+    /// </para>
+    /// <para>
+    /// <see cref="Prelude"/> と違い、利用者が書いたコードである。対象ファイルのコードとして扱い、指摘も報告する。
+    /// 読む順は <see cref="Prelude"/>、これ、対象ファイルである。
+    /// </para>
+    /// </remarks>
+    public SourceText? LeadingText { get; init; }
+
+    /// <summary>
     /// 字句解析の結果を共有するキャッシュ。<see langword="null"/> の場合は毎回字句解析する。
     /// </summary>
     /// <remarks>
