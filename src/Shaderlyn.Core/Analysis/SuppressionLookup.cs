@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 
 namespace Shaderlyn.Core.Analysis;
@@ -266,8 +265,7 @@ internal sealed class SuppressionLookup
                 break;
             }
 
-            // ID を付け替えたルールは、前の ID で書いても効く (RenamedRuleIds)。
-            ids.Add(RenamedRuleIds.Normalize(token));
+            ids.Add(token);
         }
 
         ruleIds = ids.ToImmutable();

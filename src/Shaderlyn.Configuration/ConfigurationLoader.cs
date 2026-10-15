@@ -946,12 +946,9 @@ internal static class ConfigurationLoader
 
             if (root.TryGet("rules", out YamlNode? node) && node is YamlMapping rules)
             {
-                foreach (string writtenId in rules.Keys)
+                foreach (string ruleId in rules.Keys)
                 {
-                    YamlNode value = rules.Entries[writtenId];
-
-                    // ID を付け替えたルールは、前の ID で書いても効く (RenamedRuleIds)。CI を止めないよう、警告は出さない。
-                    string ruleId = RenamedRuleIds.Normalize(writtenId);
+                    YamlNode value = rules.Entries[ruleId];
 
                     switch (value)
                     {

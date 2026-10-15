@@ -146,9 +146,6 @@ Shaderlyn.Core.Diagnostics.Location :: System.String FilePath { get; }
 Shaderlyn.Core.Diagnostics.Location :: System.String GetLineText()
 Shaderlyn.Core.Diagnostics.Location :: static Shaderlyn.Core.Diagnostics.Location Create(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Diagnostics.Location :: virtual System.String ToString()
-Shaderlyn.Core.Diagnostics.RenamedRuleIds : static class
-Shaderlyn.Core.Diagnostics.RenamedRuleIds :: static System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] Map { get; }
-Shaderlyn.Core.Diagnostics.RenamedRuleIds :: static System.String Normalize(System.String)
 Shaderlyn.Core.Syntax.SymbolCondition : struct (System.IEquatable`1[Shaderlyn.Core.Syntax.SymbolCondition])
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition And(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition Assume(System.Func`2[System.String,System.Nullable`1[System.Boolean]])
