@@ -94,6 +94,95 @@ public sealed partial class UserHeaderTests : IDisposable
     [GeneratedRegex(@"^(.+?)\(\d+:\d+\): \w+ (\w+):", RegexOptions.Multiline)]
     private static partial Regex Finding();
 
+    /// <summary>2 つの Pass が同じヘッダを取り込み、キーワード A は 1 つ目の Pass だけが宣言するシェーダーを書く。</summary>
+    private void WriteTwoPassShader(string name, string header, string frag)
+    {
+        string pass(string pragma) => $$"""
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        {{pragma}}
+                        #include "{{header}}"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        {{frag}}
+                        ENDHLSL
+                    }
+            """;
+
+        Write(Path.Combine("Assets", "Shaders", name + ".shader"), $$"""
+            Shader "Test/{{name}}"
+            {
+                SubShader
+                {
+            {{pass("#pragma multi_compile_local _ A")}}
+            {{pass(string.Empty)}}
+                }
+            }
+            """);
+    }
+
+    /// <summary>
+    /// キーワードを宣言していない Pass には、そのキーワードの分岐の条件を付けない。
+    /// 以前は、宣言している Pass のヘッダの分岐の条件が、同じヘッダを取り込む別の Pass にも付き、
+    /// 「A のとき宣言されていない」(HL0310) や「値を返さない経路がある」(HL0360) と誤って報告していた。
+    /// </summary>
+    [Fact]
+    public async Task キーワードを宣言しないPassにはヘッダの分岐の条件を付けない()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Branches.hlsl"), """
+            #ifndef BRANCHES_INCLUDED
+            #define BRANCHES_INCLUDED
+            float4 Get()
+            {
+            #if defined(A)
+                return float4(1, 1, 1, 1);
+            #else
+                return float4(0, 0, 0, 0);
+            #endif
+            }
+            float4 UseA()
+            {
+            #if defined(A)
+                half a = 1;
+            #else
+                half a = 2;
+            #endif
+                return a;
+            }
+            #endif
+            """);
+        WriteTwoPassShader("TwoPass", "Branches.hlsl", "float4 frag() : SV_Target { return Get() + UseA(); }");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain("HL0360", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>キーワードの分岐で本当に返さない経路は、Pass を分けても報告する。</summary>
+    [Fact]
+    public async Task キーワードの分岐で返さない経路はPassを分けても報告する()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Missing.hlsl"), """
+            #ifndef MISSING_INCLUDED
+            #define MISSING_INCLUDED
+            float4 Get()
+            {
+            #if defined(A)
+                return float4(1, 1, 1, 1);
+            #endif
+            }
+            #endif
+            """);
+        WriteTwoPassShader("TwoPassMissing", "Missing.hlsl", "float4 frag() : SV_Target { return Get(); }");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Contains(("Missing.hlsl", "HL0360"), Findings(output));
+    }
+
     [Fact]
     public async Task 共通のヘッダの誤りをヘッダの位置に報告する()
     {
