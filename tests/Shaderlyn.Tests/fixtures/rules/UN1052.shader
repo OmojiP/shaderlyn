@@ -1,4 +1,4 @@
-Shader "Rules/SL1052"
+Shader "Rules/UN1052"
 {
     Properties
     {

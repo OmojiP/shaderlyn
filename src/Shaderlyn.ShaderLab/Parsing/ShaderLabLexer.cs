@@ -82,7 +82,7 @@ internal sealed class ShaderLabLexer
     /// <list type="bullet">
     ///   <item><description>
     ///     重なった BOM (U+FEFF) は空白として読む。Unity は BOM が 2 つ重なっていても読める
-    ///     (1 つ目は読み込みで取り除いている。重なっていることは SL1057 で伝える)。
+    ///     (1 つ目は読み込みで取り除いている。重なっていることは UN1057 で伝える)。
     ///   </description></item>
     ///   <item><description>
     ///     ノーブレークスペース (U+00A0) は空白として読まない。.NET では空白だが、Unity は「expecting TOK_SHADER」の構文エラーにする。

@@ -6,8 +6,8 @@ namespace Shaderlyn.Unreal.Rules;
 /// Unreal Engine の環境だけのルールの定義。
 /// </summary>
 /// <remarks>
-/// どちらも「検査していない」ことを伝えるルールである (<c>SL0002</c> と同じ考え方)。
-/// 原因と直し方が Unreal に固有なので、<c>SL0002</c> から分けて別の ID にしている。
+/// どちらも「検査していない」ことを伝えるルールである (<c>HL0005</c> と同じ考え方)。
+/// 原因と直し方が Unreal に固有なので、<c>HL0005</c> から分けて別の ID にしている。
 /// 分けておくと、直せないもの (<see cref="MaterialGeneratedFilesUnknown"/>) だけを設定で止められる。
 /// </remarks>
 internal static class UnrealRuleDescriptors

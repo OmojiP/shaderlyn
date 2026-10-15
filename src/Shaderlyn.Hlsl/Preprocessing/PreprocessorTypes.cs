@@ -105,7 +105,7 @@ public sealed record PreprocessorOptions
     /// <b>解析しているファイルが宣言したシンボルは入れない。</b>
     /// URP のシェーダーは 40 を超えるシンボルを宣言し、その条件はほとんどがヘッダ側に書かれている。
     /// すべてを読むと、構成として作る候補が 1 ブロックあたり数十件になり、
-    /// 上限で落ちた分が <c>SL0003</c> として並ぶ。
+    /// 上限で落ちた分が <c>HL0006</c> として並ぶ。
     /// 解析しているファイルが宣言したシンボルは、そのファイルに書かれた条件から構成を決める
     /// (<see cref="DeclaredSymbols"/>)。
     /// </para>
@@ -648,14 +648,14 @@ public readonly record struct IncludeReference(
     public string? OutsideBoundaryPath { get; init; }
 
     /// <summary>取り込んだファイルを UTF-16 として読んだかどうか (BOM の有無によらない)。</summary>
-    /// <remarks>Unity は UTF-16 のファイルを読めない (SL1056)。DXC は読める。</remarks>
+    /// <remarks>Unity は UTF-16 のファイルを読めない (UN1056)。DXC は読める。</remarks>
     public bool IsUtf16 { get; init; }
 
     /// <summary>
     /// 書いたファイルから引けず、解析しているファイルからの相対で引き直して見つけたか
     /// (<see cref="PreprocessorOptions.FallbackIncludingFilePath"/>)。
     /// </summary>
-    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (SL1058)。</remarks>
+    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (UN1058)。</remarks>
     public bool IsResolvedFromFallback { get; init; }
 }
 

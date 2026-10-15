@@ -188,7 +188,7 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
 | コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021。Unreal はエンジンの設定に合わせてシェーダーごとに決める) |
 | 宣言し忘れたシンボル (HL0330) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
-| Unity だけのルール | SL / URP / HL0302 | 出ない |
+| Unity だけのルール | SL / UN / URP | 出ない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |
 | VS Code の構成の選択 | `#pragma` で宣言したシンボル | `symbols:` のシンボル。値を持つシンボルは `QUALITY = 2` のように値を選ぶ |
 
@@ -215,7 +215,7 @@ Shaderlyn はこの組 (方言) ごとの表を持ち、使えない構文を [H
 
 Unity は既定で FXC を使い、パス (コンピュートシェーダーはカーネル) ごと・API ごとに DXC (HLSL 2018) へ切り替えます。
 Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn はこの判定を Unity のバージョンごとに持っています。
-Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめた)。Shaderlyn も Unity の環境では効かせず、書いてあれば [SL1055](../rules/SL1055.md) で伝えます。
+Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめた)。Shaderlyn も Unity の環境では効かせず、書いてあれば [UN1055](../rules/UN1055.md) で伝えます。
 
 | | 2022.3 | 2023.2〜6.3 | 6.4〜6.5 | 6.6〜 |
 | --- | --- | --- | --- | --- |
@@ -234,6 +234,6 @@ Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめ�
 
 - Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから読みます。設定ファイルで上書きできます
   ([設定](configuration.md#unity))。読んだものは `--env` に出ます
-- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (SL1050 / SL1053 の一部と SL1051) は出しません
+- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN1050 / UN1053 の一部と UN1051) は出しません
 - DXC でコンパイルされるパスは DX11 では使えません。使えない API でのエラーは利用者に見えないので、そこでは構文を報告しません
 - この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確かめています

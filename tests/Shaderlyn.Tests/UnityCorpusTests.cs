@@ -1035,12 +1035,12 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// <list type="bullet">
     ///   <item><description><c>SL1001</c> / <c>SL1004</c>: プロパティがどれかの Pass で宣言・使用されているか</description></item>
     ///   <item><description><c>HL0330</c> / <c>HL0331</c>: キーワードがどれかの Pass で宣言・使用されているか</description></item>
-    ///   <item><description><c>SL0002</c> / <c>SL0003</c>: ファイルとして何を調べなかったか</description></item>
+    ///   <item><description><c>HL0005</c> / <c>HL0006</c>: ファイルとして何を調べなかったか</description></item>
     ///   <item><description><c>SL1041</c>: 同じ SubShader の Pass 名の重複。Pass が 2 つ以上なければ起きない</description></item>
     /// </list>
     /// </remarks>
     private static readonly ImmutableHashSet<string> ShaderWideRules =
-        ["SL1001", "SL1004", "HL0330", "HL0331", "SL0002", "SL0003", "SL1041"];
+        ["SL1001", "SL1004", "HL0330", "HL0331", "HL0005", "HL0006", "SL1041"];
 
     /// <summary>
     /// Pass やカーネルを 1 つずつに分けて解析しても、Pass ごとに判定するルールの指摘が変わらないことを確かめる。

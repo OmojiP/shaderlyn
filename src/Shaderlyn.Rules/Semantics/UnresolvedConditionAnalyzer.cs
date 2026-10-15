@@ -7,7 +7,7 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 出現条件を追えなかった箇所があることを報告する (SL0004)。
+/// 出現条件を追えなかった箇所があることを報告する (HL0007)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,7 +18,7 @@ namespace Shaderlyn.Rules;
 /// </para>
 /// <para>
 /// <b>報告は追えなかった箇所そのものに出す。</b>
-/// ファイルの先頭に出す SL0002 / SL0003 と違い、
+/// ファイルの先頭に出す HL0005 / HL0006 と違い、
 /// ここでは原因の場所が分かっている。
 /// 実測では 545 組のうち 2 組でしか起きないので、量の問題にもならない。
 /// </para>

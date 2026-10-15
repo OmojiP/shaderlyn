@@ -107,7 +107,7 @@ public interface IHlslEnvironment
     /// </para>
     /// <para>
     /// <b>解決できないことは変わらないが、誤りとしては報告しない (HL0321)。</b>
-    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (SL0002 で伝える)。
+    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (HL0005 で伝える)。
     /// </para>
     /// </remarks>
     bool IsGeneratedInclude(string path);

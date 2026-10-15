@@ -370,7 +370,7 @@ shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0
 
 多くの用途では `--unity-project` だけで解決できるので、このオプションは要りません。
 
-Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス ([SL1058](../rules/SL1058.md) の警告付き)、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
+Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス ([UN1058](../rules/UN1058.md) の警告付き)、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
 
 ```bash
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
@@ -409,7 +409,7 @@ shaderlyn Assets --unity-project . --profile brp
 
 `#ifdef` で分かれるコードは、どちらの分岐も解析します。
 1 本の構文木に並べられない書き方の分岐は、そのシンボルを有効にした構成を別に展開して解析します。
-この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `SL0003` として報告されます。
+この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `HL0006` として報告されます。
 
 上限は `--max-symbol-variants` で変更できます。
 

@@ -1,4 +1,4 @@
-﻿﻿Shader "Rules/SL1057"
+Shader "Rules/UN1050"
 {
     SubShader
     {
@@ -7,6 +7,7 @@
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma use_dxc d3d12
             float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
             half4 frag() : SV_Target { return 1; }
             ENDHLSL

@@ -110,7 +110,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("HL0312", output, StringComparison.Ordinal);
         Assert.Contains("PERMUTATION_HIGH_QUALITY == 1", output, StringComparison.Ordinal);
 
-        // 生成される取り込みは誤りとして報告しない。中身を知らないことは SL0002 で伝える。
+        // 生成される取り込みは誤りとして報告しない。中身を知らないことは HL0005 で伝える。
         Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
         Assert.Contains("エンジンが生成するファイル", output, StringComparison.Ordinal);
@@ -395,13 +395,13 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("SL0002", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
         Assert.Contains("'Undeclared'", output, StringComparison.Ordinal);
         Assert.Single(output.Split('\n'), line => line.Contains("HL0310", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// 欠けているのが生成されるファイルだけなら、SL0002 ではなく Unreal のルールで伝える。
+    /// 欠けているのが生成されるファイルだけなら、HL0005 ではなく Unreal のルールで伝える。
     /// C++ から作れるものが欠けていれば UE0001、マテリアルごとに作られるものだけなら UE0002。
     /// </summary>
     [Fact]
@@ -440,10 +440,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("--unreal-generate", output, StringComparison.Ordinal);
         Assert.Contains("MaterialPass.usf(1:1): info UE0002", output, StringComparison.Ordinal);
 
-        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので SL0002 で伝える。
-        Assert.Contains("BrokenPass.usf(1:1): info SL0002", output, StringComparison.Ordinal);
+        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので HL0005 で伝える。
+        Assert.Contains("BrokenPass.usf(1:1): info HL0005", output, StringComparison.Ordinal);
         Assert.DoesNotContain("BrokenPass.usf(1:1): info UE", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains(": info SL0002", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains(": info HL0005", StringComparison.Ordinal));
     }
 
     [Fact]

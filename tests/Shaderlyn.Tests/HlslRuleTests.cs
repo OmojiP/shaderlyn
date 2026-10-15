@@ -128,7 +128,7 @@ public sealed class HlslRuleTests
     }
 
     // ------------------------------------------------------------------
-    // HL0301 / HL0302: エントリポイント
+    // HL0301 / UN0302: エントリポイント
     // ------------------------------------------------------------------
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0302");
+        Assert.Single(diagnostics, d => d.Id == "UN0302");
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public sealed class HlslRuleTests
             "struct Input { float2 uv_MainTex; };",
             "void surf(Input IN, inout SurfaceOutputStandard o) { o.Albedo = 1; }"));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0302");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "UN0302");
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
     }
 
@@ -565,7 +565,7 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.True(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
         Assert.False(Has(diagnostics, "HL0301"), Describe(diagnostics));
     }
 
@@ -618,7 +618,7 @@ public sealed class HlslRuleTests
         // 「依存関係を解決できないため」と言われた利用者は --unity-project を疑う。
         // 既に指定してある場合、それは何時間でも溶かせる誤誘導になる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(BrokenShader);
-        string message = diagnostics.First(d => d.Id == "SL0002").GetMessage();
+        string message = diagnostics.First(d => d.Id == "HL0005").GetMessage();
 
         Assert.DoesNotContain("include", message, StringComparison.Ordinal);
         Assert.Contains("HL0001", message, StringComparison.Ordinal);
@@ -820,10 +820,10 @@ public sealed class HlslRuleTests
             urpCoreContent: "float4 ;\nfloat4 _Ok;\n");
 
         Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.True(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
         Assert.Contains(
             "Core.hlsl",
-            diagnostics.First(d => d.Id == "SL0002").GetMessage(),
+            diagnostics.First(d => d.Id == "HL0005").GetMessage(),
             StringComparison.Ordinal);
     }
 
@@ -837,7 +837,7 @@ public sealed class HlslRuleTests
             urpCoreContent: "float4 Provided()\n{\n    return 0\n}\n");
 
         Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
 
         // 中身を読まなくても「実装がある」ことは分かる。
         Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
@@ -1773,7 +1773,7 @@ public sealed class HlslRuleTests
     }
 
     // ------------------------------------------------------------------
-    // SL0004: 条件を追えなかった箇所
+    // HL0007: 条件を追えなかった箇所
     // ------------------------------------------------------------------
 
     /// <summary>条件を追えない箇所があるシェーダー。</summary>
@@ -1816,18 +1816,18 @@ public sealed class HlslRuleTests
         // 指摘が出ないことを「問題が無い」と受け取られる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. UntrackableSource.Split('\n')]));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "SL0004");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0007");
 
         Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
     }
 
     [Fact]
-    public void 条件を追えているときはSL0004を報告しない()
+    public void 条件を追えているときはHL0007を報告しない()
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(ConditionalMemberShader(
             "    return IN.uv.x;"));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -1835,7 +1835,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// <c>if</c> の本体が、構成によってブロックにも文にもなる形である。
-    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに SL0004 になっていた。
+    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに HL0007 になっていた。
     /// 複製した分岐の中の誤りは、その定義の条件付きで報告する。
     /// </remarks>
     [Theory]
@@ -1864,7 +1864,7 @@ public sealed class HlslRuleTests
             "    return v;",
             "}").Split('\n')]));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
         Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
 
         Assert.All(
@@ -1878,7 +1878,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// 展開前のトークンには <c>;</c> も <c>}</c> も無いので、以前は文の切れ目の候補が見つからず、
-    /// 複製を諦めて SL0004 になっていた。
+    /// 複製を諦めて HL0007 になっていた。
     /// </remarks>
     [Theory]
     [InlineData("    if (v > 0)\n        BODY\n#ifdef _C\n    v += 1;\n#endif")]
@@ -1901,7 +1901,7 @@ public sealed class HlslRuleTests
             "    return v;",
             "}").Split('\n')]));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
         Assert.Contains("構成：!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1912,7 +1912,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// <c>#undef</c> は、それまでの定義の条件を縮める (常に → <c>!_A</c>)。
-    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して SL0004 になっていた。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して HL0007 になっていた。
     /// </remarks>
     [Fact]
     public void undefしてから定義し直したマクロも定義ごとに複製する()
@@ -1932,7 +1932,7 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
         Assert.False(Has(diagnostics, "HL0002"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
@@ -2012,7 +2012,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// 以前は 1 つだけを複製し、もう一方は構成ごとに展開していた。
-    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず HL0007 になっていた。
     /// </remarks>
     [Fact]
     public void 一つの文で二つのマクロを使っても組み合わせごとに複製する()
@@ -2037,7 +2037,7 @@ public sealed class HlslRuleTests
             "    return n.z;",
             "}"));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDetail' は 構成：_D のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0312" && d.GetMessage().Contains("!_N のとき", StringComparison.Ordinal));
     }
@@ -2066,7 +2066,7 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingC' は 構成：_C のとき", StringComparison.Ordinal));
     }
@@ -2075,7 +2075,7 @@ public sealed class HlslRuleTests
     /// マクロを書き分けた分岐にコードもある領域も並べ、マクロを使う文は定義ごとに複製することを検証する。
     /// </summary>
     /// <remarks>
-    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は SL0004 になっていた。
+    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は HL0007 になっていた。
     /// 分岐の中のコードは、それぞれの分岐の条件付きで検査する。
     /// </remarks>
     [Fact]
@@ -2099,7 +2099,7 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "SL0004"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_MODE_A のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingInG' は 構成：_MODE_B のとき", StringComparison.Ordinal));
     }
@@ -2776,7 +2776,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { NS::Wave w; w.indexW = 1; return w.GetIndex() + GetIndexTypo(); }"));
 
         Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
         Assert.Single(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("GetIndexTypo", StringComparison.Ordinal));
     }
 
@@ -4259,7 +4259,7 @@ public sealed class HlslRuleTests
 
         // FXC でも Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。以前は HL0003 と報告していた (誤検出)。
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0003");
-        Assert.False(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -4269,7 +4269,7 @@ public sealed class HlslRuleTests
     /// <remarks>
     /// 中身を読んでいない宣言がある以上、uniform の一覧には抜けがある。
     /// その状態で「対応する宣言が無い」と言えば、正しいシェーダーを誤りとして指摘する。
-    /// 見送ったこと自体は <c>SL0002</c> が伝える。
+    /// 見送ったこと自体は <c>HL0005</c> が伝える。
     /// </remarks>
     [Fact]
     public void 解釈できない宣言があるブロックでは対応検査を見送る()
@@ -4284,7 +4284,7 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.True(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
     }
 
     private static bool Has(ImmutableArray<Diagnostic> diagnostics, string ruleId)

@@ -1,4 +1,4 @@
-Shader "Rules/SL1055"
+Shader "Rules/UN1055"
 {
     SubShader
     {

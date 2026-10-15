@@ -56,7 +56,7 @@ internal static partial class HoverBuilder
             + "6.5 以前は API を書かないと DX11 も DXC になり、DX11 では使えなくなる。include ファイルの中に書いても、2023.2 以降は効かない。",
         ["once"] =
             "このファイルを 1 度だけ取り込む (DXC / FXC)。Unity は効かせない (2022.3 / 6.3 / 6.6 で確かめた)。"
-            + "Unity では `#ifndef` / `#define` / `#endif` のインクルードガードを使う (SL1055)。",
+            + "Unity では `#ifndef` / `#define` / `#endif` のインクルードガードを使う (UN1055)。",
         ["never_use_dxc"] =
             "DXC を使わず、FXC でコンパイルする。6.5 以前は DXC が要る `require` より優先され、6.6 からは `require` に負ける。"
             + "6.6 の Shader Compiler Backend の DXC の設定には勝つ。",

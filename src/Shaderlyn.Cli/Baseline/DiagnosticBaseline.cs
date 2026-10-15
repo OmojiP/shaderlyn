@@ -141,7 +141,8 @@ internal sealed class DiagnosticBaseline
 
             foreach (BaselineEntry entry in document.Entries)
             {
-                string key = CreateKey(entry.Rule, entry.File, entry.Snippet);
+                // ID を付け替えたルールは、前の ID で書いた記録も今の ID として照合する (RenamedRuleIds)。
+                string key = CreateKey(RenamedRuleIds.Normalize(entry.Rule), entry.File, entry.Snippet);
                 int count = Math.Max(1, entry.Count);
 
                 remaining[key] = remaining.GetValueOrDefault(key) + count;

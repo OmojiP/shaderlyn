@@ -410,7 +410,7 @@ public sealed class ReportingTests : IDisposable
     [Fact]
     public async Task シンボルごとに並べたか構成ごとに展開したかと原因の指令を書き出す()
     {
-        // 構成ごとの展開は解析を遅くし、上限に届けば SL0003 になる。
+        // 構成ごとの展開は解析を遅くし、上限に届けば HL0006 になる。
         // 書き方を変えれば避けられることが多いが、原因の #if が見えなければ直しようがない。
         string shaderPath = Path.Combine(_workDirectory, "Assets", "Shaders", "Symbols.shader");
         await File.WriteAllTextAsync(shaderPath, """

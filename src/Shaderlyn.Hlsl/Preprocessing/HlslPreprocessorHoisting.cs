@@ -351,7 +351,7 @@ internal sealed partial class HlslPreprocessor
     /// </code>
     /// 1 つだけ複製すると、もう一方はどれか 1 つの構成の値で展開される。
     /// そのシンボルは構成ごとの展開に回り、名前 (<c>_DetailScale</c>) と数値 (<c>1.0</c>) のように
-    /// 同じ位置が別の種類の式になると、木の対応が取れず SL0004 になっていた。
+    /// 同じ位置が別の種類の式になると、木の対応が取れず HL0007 になっていた。
     /// </para>
     /// <para>
     /// 組み合わせの条件は各定義の条件の論理積で、宣言の制約で成り立たない組み合わせは作らない。
@@ -612,7 +612,7 @@ internal sealed partial class HlslPreprocessor
         // どの定義も無い構成があるなら、その分岐も作る。名前がそのまま残る。
         // #if A / #elif B / #else の 3 通りの書き分けは、条件を足し合わせると「常に」になるが、
         // 論理和の形のままでは「常に」と分からない。成り立たない分岐を作ると、名前の残った文が文にならず、
-        // 複製を諦めて方法 B に回り、文の種類が構成で変わる箇所は SL0004 になっていた。
+        // 複製を諦めて方法 B に回り、文の種類が構成で変わる箇所は HL0007 になっていた。
         if (!covered.IsAlways && !covered.IsUnknown)
         {
             SymbolCondition rest = _options.SymbolConstraints.Apply(covered.Negate());

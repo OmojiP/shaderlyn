@@ -44,7 +44,7 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 }
 
 /// <summary>
-/// 依存関係が解決できず対応検査を行えなかったことを報告する (SL0002)。
+/// 依存関係が解決できず対応検査を行えなかったことを報告する (HL0005)。
 /// </summary>
 /// <remarks>
 /// <b>「検査していない」ことを伝えないままにしてはならない。</b>

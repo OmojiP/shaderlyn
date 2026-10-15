@@ -48,7 +48,7 @@ public sealed class StandaloneHlslRuleTests
     [InlineData("Common.cginc")]
     [InlineData("Common.hlslinc")]
     public void 断片ではステージの指定が無いことを報告しない(string fileName)
-        => Assert.DoesNotContain(Analyze(Fragment, fileName), d => d.Id == "HL0302");
+        => Assert.DoesNotContain(Analyze(Fragment, fileName), d => d.Id == "UN0302");
 
     [Theory]
     [InlineData("Common.hlsl")]
@@ -59,7 +59,7 @@ public sealed class StandaloneHlslRuleTests
 
     [Fact]
     public void computeではステージの指定が無いことを報告する()
-        => Assert.Contains(Analyze(Fragment, "Kernel.compute"), d => d.Id == "HL0302");
+        => Assert.Contains(Analyze(Fragment, "Kernel.compute"), d => d.Id == "UN0302");
 
     [Fact]
     public void computeでは宣言されていないシンボルを報告する()

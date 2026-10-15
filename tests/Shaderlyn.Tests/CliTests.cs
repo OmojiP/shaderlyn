@@ -166,11 +166,11 @@ public sealed class ProgramTests : IDisposable
     /// <para>
     /// 以前は、既定の構成で読み飛ばしたヘッダの分岐の名前を、名前だけで「解析されなかった場所にある名前」としていた。
     /// 誤った名前そのものがその分岐にあるので、<c>_MODE_A</c> の木で見つけても報告されなかった。
-    /// SL0004 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
+    /// HL0007 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
     /// </para>
     /// <para>
     /// 今は利用者のヘッダの定義も条件付きで覚え、使う文を定義ごとに複製する (条件の巻き上げ)。
-    /// 文の種類が構成で変わっても SL0004 にならない。
+    /// 文の種類が構成で変わっても HL0007 にならない。
     /// </para>
     /// </remarks>
     [Theory]
@@ -212,11 +212,11 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Contains($"Body.hlsl", output, StringComparison.Ordinal);
         Assert.Contains($"'missingA' は 構成：{symbol} のとき宣言されていません", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("SL0004", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0007", output, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、SL0004 で伝えることを検証する。
+    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、HL0007 で伝えることを検証する。
     /// </summary>
     /// <remarks>
     /// 定義が 5 通りあるので複製しない。Unity やパッケージのヘッダと違い、利用者が直せる。
@@ -270,7 +270,7 @@ public sealed class ProgramTests : IDisposable
         (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
 
         Assert.Contains("Body.hlsl", output, StringComparison.Ordinal);
-        Assert.Contains("SL0004", output, StringComparison.Ordinal);
+        Assert.Contains("HL0007", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -356,6 +356,47 @@ public sealed class ProgramTests : IDisposable
     {
         Assert.False(CommandLineOptions.TryParse(["x", "--min-severity", value], out _, out string? error));
         Assert.Contains("--min-severity", error, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ID を付け替えたルールは、前の ID (SL1055 → UN1055 など) で書いた抑制コメントと設定ファイルの rules: でも効く。
+    /// </summary>
+    [Fact]
+    public async Task 付け替える前のルールIDで書いた抑制と設定も効く()
+    {
+        const string Shader = """
+            Shader "Test/Once"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        {0}
+                        #pragma once
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        half4 frag() : SV_Target { return 1; }
+                        ENDHLSL
+                    }
+                }
+            }
+            """;
+
+        CreateShaderFile("Plain.shader", Shader.Replace("{0}", string.Empty, StringComparison.Ordinal));
+        (_, string reported, _) = await RunAsync(Path.Combine(_workDirectory, "Plain.shader"), "--no-config");
+        Assert.Contains("UN1055", reported, StringComparison.Ordinal);
+
+        CreateShaderFile("Suppressed.shader", Shader.Replace("{0}", "// shaderlyn-disable-next-line SL1055", StringComparison.Ordinal));
+        (_, string suppressed, _) = await RunAsync(Path.Combine(_workDirectory, "Suppressed.shader"), "--no-config");
+        Assert.DoesNotContain("UN1055", suppressed, StringComparison.Ordinal);
+
+        string config = Path.Combine(_workDirectory, "old-ids.yaml");
+        File.WriteAllText(config, "version: 1\nrules:\n  SL1055: none\n");
+        (_, string configured, _) = await RunAsync(Path.Combine(_workDirectory, "Plain.shader"), "--config", config);
+        Assert.DoesNotContain("UN1055", configured, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOOL0003", configured, StringComparison.Ordinal);
     }
 
     private string CreateShaderFile(string name, string content = "Shader \"Test\" { }")

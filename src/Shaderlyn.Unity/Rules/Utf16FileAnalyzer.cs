@@ -9,7 +9,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// Unity が読めない UTF-16 で保存したファイルを報告する (SL1056)。
+/// Unity が読めない UTF-16 で保存したファイルを報告する (UN1056)。
 /// </summary>
 /// <remarks>
 /// <para>

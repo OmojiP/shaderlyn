@@ -10,7 +10,7 @@ using Shaderlyn.Core.Syntax;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 展開しきれなかったシンボルの経路があることを報告する (SL0003)。
+/// 展開しきれなかったシンボルの経路があることを報告する (HL0006)。
 /// </summary>
 /// <remarks>
 /// <para>

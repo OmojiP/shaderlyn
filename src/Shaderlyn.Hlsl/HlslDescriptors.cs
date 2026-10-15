@@ -54,7 +54,7 @@ internal static class HlslDescriptors
     /// <c>ShaderCompilation.HasCompleteDependencies</c> は
     /// ブロックの診断が空であることを条件にしているため、
     /// 「無いこと」を根拠とするルールはこのブロックでは何も報告しなくなり、
-    /// 見送ったことは <c>SL0002</c> が伝える。
+    /// 見送ったことは <c>HL0005</c> が伝える。
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnsupportedDeclaration { get; } = new(
@@ -68,7 +68,7 @@ internal static class HlslDescriptors
             + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も方言で使えるかが変わります。"
             + "1 つのコードが API ごとに別の方言でコンパイルされるときは、使えない API とコンパイラを添えます。"
             + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどの方言でも使えます。"
-            + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (SL0002)。"
+            + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (HL0005)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));
 

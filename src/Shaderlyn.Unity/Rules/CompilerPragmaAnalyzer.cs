@@ -10,7 +10,7 @@ namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
 /// コンパイラの指定 (<c>#pragma use_dxc</c> / <c>never_use_dxc</c> / <c>require</c>) を、対象の API と Unity のバージョンに照らして検査する
-/// (SL1050 / SL1051 / SL1053 / SL1054)。
+/// (UN1050 / UN1051 / UN1053 / UN1054)。
 /// </summary>
 /// <remarks>
 /// <para>規則は Unity 2022.3〜6.6 の実測による (<see cref="UnityCompilerSelection"/>)。</para>

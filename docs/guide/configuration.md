@@ -283,7 +283,7 @@ Cull Sideways
 ...
 // shaderlyn-enable SL1020
 
-// shaderlyn-disable-file HL0302
+// shaderlyn-disable-file UN0302
 ```
 
 ルール ID を省略するとすべてのルールが対象になります。ID はカンマまたは空白で区切って複数書けます。
