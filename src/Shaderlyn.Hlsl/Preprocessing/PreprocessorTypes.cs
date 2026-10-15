@@ -655,7 +655,7 @@ public readonly record struct IncludeReference(
     /// 書いたファイルから引けず、解析しているファイルからの相対で引き直して見つけたか
     /// (<see cref="PreprocessorOptions.FallbackIncludingFilePath"/>)。
     /// </summary>
-    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (HL0322)。</remarks>
+    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (SL1058)。</remarks>
     public bool IsResolvedFromFallback { get; init; }
 }
 

@@ -218,12 +218,12 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
         Assert.DoesNotContain("SL0002", output, StringComparison.Ordinal);
 
-        // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (HL0322)。
-        Assert.Contains(("H.hlsl", "HL0322"), Findings(output));
+        // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (SL1058)。
+        Assert.Contains(("H.hlsl", "SL1058"), Findings(output));
         Assert.Contains("'../../B.hlsl'", output, StringComparison.Ordinal);
     }
 
-    /// <summary>ヘッダから見つかる取り込みには HL0322 を出さない。</summary>
+    /// <summary>ヘッダから見つかる取り込みには SL1058 を出さない。</summary>
     [Fact]
     public async Task ヘッダからの相対で見つかる取り込みには警告を出さない()
     {
@@ -233,7 +233,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.DoesNotContain("HL0322", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("SL1058", output, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -3,12 +3,13 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 
-namespace Shaderlyn.Rules;
+namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけたことを報告する (HL0322)。
+/// ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけたことを報告する (SL1058)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,11 +23,17 @@ namespace Shaderlyn.Rules;
 internal sealed class FallbackIncludeAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [HlslRuleDescriptors.IncludeResolvedFromShader];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [UnityRuleDescriptors.IncludeResolvedFromShader];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
+        // シェーダーから引き直すのは Unity だけである (UnityHlslEnvironment.PrepareUnit)。
+        if (compilation.Environment is not UnityHlslEnvironment)
+        {
+            return;
+        }
+
         // 同じ #include が Pass ごとに現れる。位置で 1 つにまとめる。
         HashSet<(string File, TextSpan Span)> reported = [];
 
@@ -45,7 +52,7 @@ internal sealed class FallbackIncludeAnalyzer : SemanticRuleAnalyzer
                 string relative = RelativePath(include.Location.FilePath, resolved);
 
                 context.ReportDiagnostic(
-                    Diagnostic.Create(HlslRuleDescriptors.IncludeResolvedFromShader, include.Location, include.Path, relative)
+                    Diagnostic.Create(UnityRuleDescriptors.IncludeResolvedFromShader, include.Location, include.Path, relative)
                         .WithSuggestedReplacement($"\"{relative}\""));
             }
         }

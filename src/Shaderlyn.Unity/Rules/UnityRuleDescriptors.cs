@@ -173,6 +173,25 @@ internal static class UnityRuleDescriptors
             + "UTF-8 (BOM の有無はどちらでもよい) で保存し直してください。",
         helpLinkUri: DocumentationLinks.For("SL1056"));
 
+    /// <summary>ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけた。</summary>
+    /// <remarks>
+    /// Unity は、ヘッダの中の <c>#include "..."</c> がヘッダから見つからなければ、解析しているシェーダーからの相対で探し直す
+    /// (Unity 6.6 で確かめた)。そのシェーダーでは通るが、別の場所のシェーダーから取り込むと見つからなくなる。
+    /// </remarks>
+    public static DiagnosticDescriptor IncludeResolvedFromShader { get; } = new(
+        id: "SL1058",
+        title: "取り込みをシェーダーからの相対で見つけています",
+        messageFormat: "'{0}' はこのファイルからは見つからず、取り込んでいるシェーダーからの相対で見つけています。"
+            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に直してください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "ヘッダ (.hlsl など) の中の #include \"...\" が、そのヘッダからの相対では見つからず、"
+            + "ヘッダを取り込んでいるシェーダー (.shader) からの相対で見つかりました。"
+            + "Unity はヘッダから見つからないとシェーダーから探し直すので、このシェーダーではコンパイルできます。"
+            + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
+            + "ヘッダからの相対パスに直してください。",
+        helpLinkUri: DocumentationLinks.For("SL1058"));
+
     /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
     /// <remarks>
     /// <c>-enable-16bit-types</c> では <c>half</c> が <c>float16_t</c> になり、定数バッファの中で 2 バイトに詰められる。
