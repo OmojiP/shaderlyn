@@ -91,9 +91,44 @@ internal static class UnityInstallation
     /// <summary>Editor のデータフォルダーであることを確かめるための目印。</summary>
     /// <remarks>
     /// <c>CGIncludes</c> は Unity のシェーダーヘッダが置かれるフォルダーで、
-    /// Editor のデータフォルダーにのみ存在する。
+    /// Editor のデータフォルダーにのみ存在する。置き場所は <see cref="CgIncludesCandidates"/> のどちらか。
     /// </remarks>
     private const string DataDirectoryMarker = "CGIncludes";
+
+    /// <summary>データフォルダーの中の、<c>CGIncludes</c> の置き場所の候補。前にあるものを先に見る。</summary>
+    /// <remarks>
+    /// Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) は <c>Data/Resources/CGIncludes</c> にあり、<c>Data/CGIncludes</c> は無い
+    /// (2026-10-16 に 6000.3.26f1 / 6000.4.12f1 / 6000.5.11f1 / 6000.6.4f1 で確かめた。6000.2 までは <c>Data/CGIncludes</c>)。
+    /// </remarks>
+    private static readonly string[][] CgIncludesCandidates = [[DataDirectoryMarker], ["Resources", DataDirectoryMarker]];
+
+    /// <summary>
+    /// Editor のデータフォルダーから、Unity のシェーダーヘッダ (<c>UnityCG.cginc</c> など) のフォルダーを求める。
+    /// </summary>
+    /// <param name="editorData">Editor のデータフォルダー。</param>
+    /// <returns>見つかったフォルダー。どこにも無ければ <c>Data/CGIncludes</c> (無いことを伝えるため)。</returns>
+    public static string GetCgIncludesDirectory(string editorData)
+    {
+        ArgumentNullException.ThrowIfNull(editorData);
+
+        foreach (string[] relative in CgIncludesCandidates)
+        {
+            string candidate = Path.Combine([editorData, .. relative]);
+
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Path.Combine(editorData, DataDirectoryMarker);
+    }
+
+    /// <summary>フォルダーが Editor のデータフォルダーかを、<c>CGIncludes</c> があるかで判定する。</summary>
+    /// <param name="candidate">調べるフォルダー。</param>
+    /// <returns>データフォルダーなら <see langword="true"/>。</returns>
+    private static bool IsDataDirectory(string candidate)
+        => Directory.Exists(GetCgIncludesDirectory(candidate));
 
     /// <summary>
     /// プロジェクトが使っている Unity Editor のデータフォルダーを探す。
@@ -232,7 +267,7 @@ internal static class UnityInstallation
 
         foreach (string candidate in candidates)
         {
-            if (Directory.Exists(Path.Combine(candidate, DataDirectoryMarker)))
+            if (IsDataDirectory(candidate))
             {
                 return candidate;
             }

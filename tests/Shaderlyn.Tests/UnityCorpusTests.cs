@@ -96,8 +96,18 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
     /// <summary>Unity のインストール先を探す。</summary>
     /// <returns>見つかった Editor のデータフォルダー。無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 環境変数 <c>SHADERLYN_UNITY_EDITOR</c> にデータフォルダー (<c>…/Editor/Data</c>) を与えればそれを使う
+    /// (Unity Hub の既定とは別の場所に入れた Editor や、記録を取ったときと同じバージョンを使うため)。
+    /// 無ければ Unity Hub の既定の場所から、新しいバージョンを探す。
+    /// </remarks>
     internal static string? FindUnityEditorData()
     {
+        if (Environment.GetEnvironmentVariable("SHADERLYN_UNITY_EDITOR") is { Length: > 0 } explicitData)
+        {
+            return Directory.Exists(Cli.UnityInstallation.GetCgIncludesDirectory(explicitData)) ? explicitData : null;
+        }
+
         string root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Unity", "Hub", "Editor");
 
@@ -110,7 +120,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         foreach (string version in Directory.EnumerateDirectories(root).OrderDescending(StringComparer.Ordinal))
         {
             string data = Path.Combine(version, "Editor", "Data");
-            if (Directory.Exists(Path.Combine(data, "CGIncludes")))
+            if (Directory.Exists(Cli.UnityInstallation.GetCgIncludesDirectory(data)))
             {
                 return data;
             }
@@ -147,7 +157,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     {
         List<string> searchPaths =
         [
-            Path.Combine(editorData, "CGIncludes"),
+            Cli.UnityInstallation.GetCgIncludesDirectory(editorData),
             Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"),
         ];
 

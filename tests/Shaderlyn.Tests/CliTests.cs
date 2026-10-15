@@ -794,6 +794,46 @@ public sealed class ProgramTests : IDisposable
     }
 
     /// <summary>
+    /// Unity 6.3.26f1 以降の Editor (<c>Data/Resources/CGIncludes</c> に同梱のヘッダがある) からも、<c>UnityCG.cginc</c> を引く。
+    /// </summary>
+    [Fact]
+    public async Task Resourcesの下にあるCGIncludesからヘッダを引く()
+    {
+        CreateShaderFile(
+            "Cg.shader",
+            """
+            Shader "Test/Cg"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        CGPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #include "UnityCG.cginc"
+                        float4 vert(float4 position : POSITION) : SV_POSITION { return FromUnityCg(position); }
+                        fixed4 frag() : SV_Target { return 1; }
+                        ENDCG
+                    }
+                }
+            }
+            """);
+
+        string editorData = Path.Combine(_workDirectory, "Editor", "Data");
+        string cgIncludes = Path.Combine(editorData, "Resources", "CGIncludes");
+        Directory.CreateDirectory(cgIncludes);
+        File.WriteAllText(Path.Combine(cgIncludes, "UnityCG.cginc"), "float4 FromUnityCg(float4 p) { return p; }\n");
+
+        Assert.Equal(cgIncludes, Cli.UnityInstallation.GetCgIncludesDirectory(editorData));
+
+        (_, string output, _) = await RunAsync(_workDirectory, "--unity-editor", editorData);
+
+        Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <c>#include</c> を書いていないシェーダーは、ヘッダを引けない環境でも検査されることを検証する。
     /// </summary>
     /// <remarks>

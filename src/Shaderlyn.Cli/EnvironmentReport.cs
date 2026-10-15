@@ -402,7 +402,7 @@ internal static partial class EnvironmentReport
 
         if (editor.DataPath is { } data)
         {
-            bool hasIncludes = Directory.Exists(Path.Combine(data, "CGIncludes"));
+            bool hasIncludes = Directory.Exists(UnityInstallation.GetCgIncludesDirectory(data));
             Line(builder, $"  {(hasIncludes ? string.Empty : Warning)}CGIncludes: {(hasIncludes ? "あり" : "なし (Editor のデータフォルダーではない可能性があります)")}");
         }
 

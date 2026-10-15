@@ -223,7 +223,7 @@ internal static class SemanticsSetup
 
         if (editorData is not null)
         {
-            searchPaths.Add(Path.Combine(editorData, "CGIncludes"));
+            searchPaths.Add(UnityInstallation.GetCgIncludesDirectory(editorData));
             searchPaths.Add(Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"));
         }
 
