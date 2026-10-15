@@ -296,6 +296,29 @@ shaderlyn Assets --error-on info
 shaderlyn Assets --min-severity error
 ```
 
+### ヘッダの指摘がどこから来たか（`--include-trace`）
+
+共通のヘッダ (`.hlsl`) の中の指摘は、ヘッダの位置に出します。どのシェーダーのどの Pass から、
+どの `#include` をたどって取り込んだかを、指摘に添えます。同じ指摘が複数のシェーダーや Pass から出たときは 1 件にまとめ、経路を並べます。
+
+```
+Assets/Shaders/Lib/Inner.hlsl(1:36): error HL0310: 'undefinedTint' はどこにも宣言されていません。
+    取り込み元: Assets/Shaders/A.shader(11:22) Pass "Forward" → Assets/Shaders/Common.hlsl(1:10)
+    ほかに 3 本の経路があります (--include-trace all ですべて出します)。
+```
+
+| 値 | 出すもの |
+| --- | --- |
+| `first`（既定） | 最初の 1 本と、ほかの本数 |
+| `all` | すべての経路 |
+| `none` | 出さない |
+
+- 名前の無い Pass は `HLSLPROGRAM (18 行目)`、コンピュートシェーダーは `カーネル CSMain` のように出します
+- `json` は `includedFrom` に、`sarif` は `relatedLocations` に、`none` でなければすべての経路を書きます。
+  `github` (注釈) は位置を 1 つしか持てないので、本文に足します
+- VS Code (言語サーバー) では、指摘の「関連する場所」として、取り込んだシェーダーの `#include` の行へ飛べます
+- 設定ファイルの [`report: include-trace`](configuration.md#report) にも書けます。コマンドラインの指定が優先します
+
 ---
 
 ## 5. プロジェクトの解析設定
@@ -549,6 +572,7 @@ shaderlyn <パス...> [オプション]
 | `--format <形式>`       | 出力形式: `text`（既定）/ `json` / `sarif` / `github`             |
 | `--error-on <重要度>`   | この重要度以上で終了コードを `1` にする: `info` / `warning`（既定）/ `error` |
 | `--min-severity <重要度>` | この重要度以上の指摘だけを出力する: `info`（既定）/ `warning` / `error`。終了コードは出力しなかった指摘も含めて `--error-on` で決める。設定ファイルの `report: min-severity` より優先 |
+| `--include-trace <範囲>` | ヘッダの中の指摘に、取り込んだ経路を添える: `first`（既定）/ `all` / `none`（[4 章](#ヘッダの指摘がどこから来たか--include-trace)） |
 | `-o`, `--output <パス>` | 出力先ファイル。省略時は標準出力                                  |
 | `--base-path <パス>`    | 出力するパスを相対化する基点。省略時は現在のフォルダー          |
 | `--annotate`            | 主たる出力とは別に、GitHub の注釈も標準出力へ書く                 |

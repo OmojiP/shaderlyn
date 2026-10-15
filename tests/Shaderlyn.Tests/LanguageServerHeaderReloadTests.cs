@@ -71,6 +71,44 @@ public sealed class LanguageServerHeaderReloadTests : IDisposable
         Assert.Equal(4, LineOf(after, "HL0310"));
     }
 
+    /// <summary>ヘッダへの指摘には、取り込んだシェーダーの #include の行を関連する場所として添える。</summary>
+    [Fact]
+    public async Task ヘッダへの指摘に取り込んだシェーダーの行を添える()
+    {
+        string header = Path.Combine(_workspace, "Lib.hlsl");
+        string shader = Path.Combine(_workspace, "Test.shader");
+        string headerUri = LanguageServer.DocumentUri.FromFilePath(header);
+        const string Source = """
+            Shader "Test"
+            {
+                SubShader { Pass { Name "Forward" HLSLPROGRAM
+                #pragma vertex vert
+                #pragma fragment frag
+                #include "Lib.hlsl"
+                float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                half4 frag() : SV_Target { return Lib(); }
+                ENDHLSL } }
+            }
+            """;
+
+        File.WriteAllText(header, "float Lib()\n{\n    return missingName;\n}\n");
+        File.WriteAllText(shader, Source);
+
+        await using LanguageServerHarness harness = new(LanguageServer.DocumentUri.FromFilePath(shader));
+        await harness.InitializeAsync(null, _workspace);
+        await harness.OpenAsync(Source);
+        await harness.SaveAsync();
+
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(headerUri, "HL0310");
+        JsonElement related = diagnostics.EnumerateArray()
+            .First(d => d.GetProperty("code").GetString() == "HL0310")
+            .GetProperty("relatedInformation")[0];
+
+        Assert.Equal(LanguageServer.DocumentUri.FromFilePath(shader), related.GetProperty("location").GetProperty("uri").GetString());
+        Assert.Equal(5, related.GetProperty("location").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
+        Assert.Contains("Pass \"Forward\"", related.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
     private static int LineOf(JsonElement diagnostics, string ruleId)
         => diagnostics.EnumerateArray()
             .First(d => d.GetProperty("code").GetString() == ruleId)

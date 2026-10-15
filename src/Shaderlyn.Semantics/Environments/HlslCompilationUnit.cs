@@ -44,6 +44,12 @@ public sealed record HlslCompilationUnit(
     TextSpan? MarkerSpan = null)
 {
     /// <summary>
+    /// 利用者に見せる単位の呼び名 (Unity なら <c>Pass "Forward"</c>)。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>ヘッダの指摘に、どこから取り込んだか (<see cref="Core.Diagnostics.IncludeRoute"/>) を添えるのに使う。</remarks>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
     /// ソースの外 (設定ファイル) で指定したエントリポイント。無ければ空。
     /// </summary>
     /// <remarks>

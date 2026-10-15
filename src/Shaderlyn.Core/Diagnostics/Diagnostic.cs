@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 
 namespace Shaderlyn.Core.Diagnostics;
@@ -20,8 +21,10 @@ public sealed class Diagnostic
         DiagnosticSeverity severity,
         bool isSeverityExplicit,
         object?[] messageArguments,
-        string? suggestedReplacement)
+        string? suggestedReplacement,
+        ImmutableArray<IncludeRoute> includeRoutes = default)
     {
+        IncludeRoutes = includeRoutes.IsDefault ? [] : includeRoutes;
         Descriptor = descriptor;
         Location = location;
         Severity = severity;
@@ -46,6 +49,18 @@ public sealed class Diagnostic
     /// </para>
     /// </remarks>
     public string? SuggestedReplacement { get; }
+
+    /// <summary>
+    /// 指摘がヘッダの中にあるとき、解析したファイルからそのヘッダを取り込んだ経路。無ければ空。
+    /// </summary>
+    /// <remarks>同じ指摘を複数のシェーダーや Pass から報告したときは、経路が並ぶ (<see cref="IncludeRoute"/>)。</remarks>
+    public ImmutableArray<IncludeRoute> IncludeRoutes { get; }
+
+    /// <summary>取り込みの経路を差し替えた複製を返す。</summary>
+    /// <param name="routes">経路。</param>
+    /// <returns>経路を差し替えた診断。元の診断は変更しない。</returns>
+    public Diagnostic WithIncludeRoutes(ImmutableArray<IncludeRoute> routes)
+        => new(Descriptor, Location, Severity, IsSeverityExplicit, _messageArguments, SuggestedReplacement, routes);
 
     /// <summary>報告元のルール定義。</summary>
     public DiagnosticDescriptor Descriptor { get; }
@@ -115,7 +130,7 @@ public sealed class Diagnostic
     public Diagnostic WithSuggestedReplacement(string replacement)
     {
         ArgumentNullException.ThrowIfNull(replacement);
-        return new Diagnostic(Descriptor, Location, Severity, IsSeverityExplicit, _messageArguments, replacement);
+        return new Diagnostic(Descriptor, Location, Severity, IsSeverityExplicit, _messageArguments, replacement, IncludeRoutes);
     }
 
     /// <summary>
@@ -157,7 +172,7 @@ public sealed class Diagnostic
     public Diagnostic WithSeverity(DiagnosticSeverity severity)
         => severity == Severity
             ? this
-            : new Diagnostic(Descriptor, Location, severity, IsSeverityExplicit, _messageArguments, SuggestedReplacement);
+            : new Diagnostic(Descriptor, Location, severity, IsSeverityExplicit, _messageArguments, SuggestedReplacement, IncludeRoutes);
 
     /// <summary>
     /// 位置だけを差し替えた複製を返す。
@@ -176,7 +191,7 @@ public sealed class Diagnostic
 
         return ReferenceEquals(location, Location)
             ? this
-            : new Diagnostic(Descriptor, location, Severity, IsSeverityExplicit, _messageArguments, SuggestedReplacement);
+            : new Diagnostic(Descriptor, location, Severity, IsSeverityExplicit, _messageArguments, SuggestedReplacement, IncludeRoutes);
     }
 
     /// <summary>

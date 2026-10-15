@@ -35,6 +35,7 @@ internal sealed class SarifDiagnosticReporter
     private readonly ImmutableArray<DiagnosticDescriptor> _rules;
     private readonly string _basePath;
     private readonly string _toolVersion;
+    private readonly IncludeTraceMode _includeTrace;
 
     /// <summary>
     /// SARIF レポータを生成する。
@@ -42,10 +43,14 @@ internal sealed class SarifDiagnosticReporter
     /// <param name="rules">出力に含めるルール定義。</param>
     /// <param name="basePath">ファイルパスを相対化する基点。</param>
     /// <param name="toolVersion">ツールのバージョン。</param>
+    /// <param name="includeTrace">
+    /// ヘッダの中の指摘に、取り込んだ経路を relatedLocations として出すか。<see cref="IncludeTraceMode.None"/> でなければすべて出す。
+    /// </param>
     public SarifDiagnosticReporter(
         ImmutableArray<DiagnosticDescriptor> rules,
         string basePath,
-        string toolVersion)
+        string toolVersion,
+        IncludeTraceMode includeTrace = IncludeTraceMode.First)
     {
         ArgumentNullException.ThrowIfNull(basePath);
         ArgumentNullException.ThrowIfNull(toolVersion);
@@ -53,6 +58,7 @@ internal sealed class SarifDiagnosticReporter
         _rules = rules;
         _basePath = basePath;
         _toolVersion = toolVersion;
+        _includeTrace = includeTrace;
     }
 
     /// <summary>
@@ -206,11 +212,63 @@ internal sealed class SarifDiagnosticReporter
         writer.WriteEndObject();
         writer.WriteEndArray();
 
+        WriteIncludeRoutes(writer, diagnostic);
+
         writer.WriteStartObject("partialFingerprints");
         writer.WriteString("shaderlyn/v1", DiagnosticFingerprint.ComputeSnippetHash(diagnostic));
         writer.WriteEndObject();
 
         writer.WriteEndObject();
+    }
+
+    /// <summary>ヘッダの中の指摘に、取り込んだ経路の <c>#include</c> を relatedLocations として添える。</summary>
+    /// <param name="writer">書き出し先。</param>
+    /// <param name="diagnostic">対象の診断。</param>
+    /// <remarks>GitHub のコードスキャンは、関連する場所としてリンクを出す。</remarks>
+    private void WriteIncludeRoutes(Utf8JsonWriter writer, Diagnostic diagnostic)
+    {
+        if (_includeTrace == IncludeTraceMode.None || diagnostic.IncludeRoutes.IsEmpty)
+        {
+            return;
+        }
+
+        writer.WriteStartArray("relatedLocations");
+        int id = 1;
+
+        for (int r = 0; r < diagnostic.IncludeRoutes.Length; r++)
+        {
+            IncludeRoute route = diagnostic.IncludeRoutes[r];
+
+            for (int s = 0; s < route.Includes.Length; s++)
+            {
+                Location step = route.Includes[s];
+                LinePositionSpan span = step.LineSpan;
+
+                writer.WriteStartObject();
+                writer.WriteNumber("id", id++);
+
+                writer.WriteStartObject("physicalLocation");
+                writer.WriteStartObject("artifactLocation");
+                writer.WriteString("uri", ToRelativeUri(step.FilePath));
+                writer.WriteEndObject();
+                writer.WriteStartObject("region");
+                writer.WriteNumber("startLine", span.Start.Line + 1);
+                writer.WriteNumber("startColumn", span.Start.Character + 1);
+                writer.WriteNumber("endLine", span.End.Line + 1);
+                writer.WriteNumber("endColumn", span.End.Character + 1);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+
+                string origin = s == 0 && route.Origin is { } o ? $" ({o})" : string.Empty;
+                writer.WriteStartObject("message");
+                writer.WriteString("text", $"取り込み元 (経路 {r + 1} の {s + 1} 段目){origin}");
+                writer.WriteEndObject();
+
+                writer.WriteEndObject();
+            }
+        }
+
+        writer.WriteEndArray();
     }
 
     /// <summary>

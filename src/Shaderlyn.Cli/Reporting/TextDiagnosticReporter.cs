@@ -35,12 +35,18 @@ internal sealed class TextDiagnosticReporter
     private const string MessageIndent = "    ";
 
     private readonly bool _useColor;
+    private readonly IncludeTraceMode _includeTrace;
 
     /// <summary>
     /// テキストレポータを生成する。
     /// </summary>
     /// <param name="useColor">ANSI エスケープシーケンスによる色付けを行うかどうか。</param>
-    public TextDiagnosticReporter(bool useColor) => _useColor = useColor;
+    /// <param name="includeTrace">ヘッダの中の指摘に、取り込んだ経路をどこまで出すか。</param>
+    public TextDiagnosticReporter(bool useColor, IncludeTraceMode includeTrace = IncludeTraceMode.First)
+    {
+        _useColor = useColor;
+        _includeTrace = includeTrace;
+    }
 
     /// <summary>
     /// 診断の一覧を整形して返す。
@@ -77,8 +83,34 @@ internal sealed class TextDiagnosticReporter
         builder.Append(Colorize(severityText, SeverityColor(diagnostic.Severity)));
         builder.Append(CultureInfo.InvariantCulture, $" {diagnostic.Id}: ");
         AppendMessage(builder, diagnostic.GetMessage());
+        AppendIncludeRoutes(builder, diagnostic);
 
         AppendSourceSnippet(builder, diagnostic, lineSpan);
+    }
+
+    /// <summary>ヘッダの中の指摘に、取り込んだ経路を添える。</summary>
+    /// <param name="builder">追記先。</param>
+    /// <param name="diagnostic">出力する診断。</param>
+    private void AppendIncludeRoutes(StringBuilder builder, Diagnostic diagnostic)
+    {
+        if (_includeTrace == IncludeTraceMode.None || diagnostic.IncludeRoutes.IsEmpty)
+        {
+            return;
+        }
+
+        IEnumerable<IncludeRoute> shown = _includeTrace == IncludeTraceMode.All ? diagnostic.IncludeRoutes : diagnostic.IncludeRoutes.Take(1);
+
+        foreach (IncludeRoute route in shown)
+        {
+            builder.Append(MessageIndent).Append("取り込み元: ").AppendLine(route.Describe(static path => path));
+        }
+
+        int rest = diagnostic.IncludeRoutes.Length - shown.Count();
+
+        if (rest > 0)
+        {
+            builder.Append(MessageIndent).AppendLine(CultureInfo.InvariantCulture, $"ほかに {rest} 本の経路があります (--include-trace all ですべて出します)。");
+        }
     }
 
     /// <summary>

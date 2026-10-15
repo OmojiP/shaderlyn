@@ -206,6 +206,16 @@ internal sealed class EffectiveSettings
     }
 
     /// <summary>
+    /// ヘッダの中の指摘に、取り込んだ経路をどこまで出すかを決める。
+    /// </summary>
+    /// <param name="commandLine">コマンドラインの <c>--include-trace</c>。指定が無ければ <see langword="null"/>。</param>
+    /// <returns>コマンドラインの指定、設定ファイルの <c>report: include-trace</c> の順に、最初にあるもの。どちらも無ければ最初の 1 本。</returns>
+    public Reporting.IncludeTraceMode GetIncludeTrace(Reporting.IncludeTraceMode? commandLine)
+        => commandLine
+           ?? Reporting.IncludeTraceModes.TryParse(Configuration.ReportIncludeTrace)
+           ?? Reporting.IncludeTraceMode.First;
+
+    /// <summary>
     /// フォルダーから上へ辿って、設定ファイルを探す。
     /// </summary>
     /// <param name="directory">探し始めるフォルダー。</param>

@@ -12,6 +12,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 追加
 
+- 共通のヘッダの中の指摘に、どのシェーダーのどの Pass から、どの `#include` をたどって取り込んだかを添える
+  (`取り込み元: A.shader(11:22) Pass "Forward" → Common.hlsl(1:10)`)。同じ指摘が複数のシェーダーから出たときは 1 件にまとめて経路を並べる。
+  `--include-trace first|all|none` (設定ファイルは `report: include-trace`) で出す範囲を選ぶ。既定は最初の 1 本と、ほかの本数。
+  `json` は `includedFrom`、`sarif` は `relatedLocations` に書き、VS Code では関連する場所としてシェーダーの `#include` の行へ飛べる。
+  キャッシュの形式が変わるので、0.2.0 のキャッシュは使わずに解析し直す
 - Unreal Engine: `--unreal-generate <フォルダー>` で、エンジンとプロジェクトの C++ から、ビルドのときに生成される取り込み
   (uniform buffer の宣言 `/Engine/Generated/UniformBuffers/…`・`GeneratedUniformBuffers.ush`・`GeneratedInstancedStereo.ush`) を書き出す。
   設定ファイルの `unreal: generated` にそのフォルダーを書くと、`/Engine/Generated` に割り当てて解析する。

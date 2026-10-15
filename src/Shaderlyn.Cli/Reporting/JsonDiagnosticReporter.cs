@@ -44,15 +44,20 @@ internal sealed class JsonDiagnosticReporter
     };
 
     private readonly string _basePath;
+    private readonly IncludeTraceMode _includeTrace;
 
     /// <summary>
     /// レポータを生成する。
     /// </summary>
     /// <param name="basePath">ファイルパスを相対化する基点。</param>
-    public JsonDiagnosticReporter(string basePath)
+    /// <param name="includeTrace">
+    /// ヘッダの中の指摘に、取り込んだ経路を出すか。機械が読む形式なので、<see cref="IncludeTraceMode.None"/> でなければすべて出す。
+    /// </param>
+    public JsonDiagnosticReporter(string basePath, IncludeTraceMode includeTrace = IncludeTraceMode.First)
     {
         ArgumentNullException.ThrowIfNull(basePath);
         _basePath = basePath;
+        _includeTrace = includeTrace;
     }
 
     /// <summary>
@@ -110,6 +115,40 @@ internal sealed class JsonDiagnosticReporter
         if (diagnostic.Descriptor.HelpLinkUri is { Length: > 0 } helpLink)
         {
             writer.WriteString("helpUri", helpLink);
+        }
+
+        if (_includeTrace != IncludeTraceMode.None && !diagnostic.IncludeRoutes.IsEmpty)
+        {
+            // ヘッダの中の指摘を、どのシェーダーのどこから取り込んだか。includes の先頭はシェーダーに書いた #include。
+            writer.WriteStartArray("includedFrom");
+
+            foreach (IncludeRoute route in diagnostic.IncludeRoutes)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("file", ToRelativePath(route.FilePath));
+
+                if (route.Origin is { } origin)
+                {
+                    writer.WriteString("origin", origin);
+                }
+
+                writer.WriteStartArray("includes");
+
+                foreach (Location step in route.Includes)
+                {
+                    LinePosition start = step.LineSpan.Start;
+                    writer.WriteStartObject();
+                    writer.WriteString("file", ToRelativePath(step.FilePath));
+                    writer.WriteNumber("line", start.Line + 1);
+                    writer.WriteNumber("column", start.Character + 1);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
         }
 
         writer.WriteEndObject();

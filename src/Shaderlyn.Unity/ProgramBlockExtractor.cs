@@ -387,5 +387,26 @@ public sealed record UnityProgramBlock(
             KernelName,
             ExtraMacros,
             this,
-            new TextSpan(CodeSpan.Start, Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1));
+            new TextSpan(CodeSpan.Start, Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1))
+        {
+            DisplayName = DescribeUnit(),
+        };
+
+    /// <summary>単位の呼び名 (<c>Pass "Forward"</c>、名前の無い Pass は <c>HLSLPROGRAM (12 行目)</c>、カーネルは <c>カーネル CSMain</c>)。</summary>
+    private string? DescribeUnit()
+    {
+        if (KernelName is { } kernel)
+        {
+            return $"カーネル {kernel}";
+        }
+
+        if (PassName is { } pass)
+        {
+            return $"Pass \"{pass}\"";
+        }
+
+        return Block?.Delimiter is { } delimiter
+            ? $"{delimiter.StartKeyword} ({MaskedText.GetLinePositionSpan(CodeSpan).Start.Line + 1} 行目)"
+            : null;
+    }
 }

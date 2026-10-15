@@ -24,15 +24,18 @@ namespace Shaderlyn.Cli.Reporting;
 internal sealed class GitHubDiagnosticReporter
 {
     private readonly string _basePath;
+    private readonly IncludeTraceMode _includeTrace;
 
     /// <summary>
     /// レポータを生成する。
     /// </summary>
     /// <param name="basePath">ファイルパスを相対化する基点。</param>
-    public GitHubDiagnosticReporter(string basePath)
+    /// <param name="includeTrace">ヘッダの中の指摘に、取り込んだ経路をどこまで添えるか。注釈は位置を 1 つしか持てないので、本文に足す。</param>
+    public GitHubDiagnosticReporter(string basePath, IncludeTraceMode includeTrace = IncludeTraceMode.First)
     {
         ArgumentNullException.ThrowIfNull(basePath);
         _basePath = basePath;
+        _includeTrace = includeTrace;
     }
 
     /// <summary>
@@ -78,8 +81,25 @@ internal sealed class GitHubDiagnosticReporter
         builder.Append(",title=");
         builder.Append(EscapeProperty($"{diagnostic.Id}: {diagnostic.Descriptor.Title}"));
         builder.Append("::");
-        builder.Append(EscapeData($"{diagnostic.Id}: {diagnostic.GetMessage()}"));
+        builder.Append(EscapeData($"{diagnostic.Id}: {diagnostic.GetMessage()}{DescribeRoutes(diagnostic)}"));
         builder.AppendLine();
+    }
+
+    /// <summary>本文に足す、取り込んだ経路。</summary>
+    /// <param name="diagnostic">対象の診断。</param>
+    /// <returns>足す文字列。経路が無ければ空。</returns>
+    private string DescribeRoutes(Diagnostic diagnostic)
+    {
+        if (_includeTrace == IncludeTraceMode.None || diagnostic.IncludeRoutes.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        IEnumerable<IncludeRoute> shown = _includeTrace == IncludeTraceMode.All ? diagnostic.IncludeRoutes : diagnostic.IncludeRoutes.Take(1);
+        int rest = diagnostic.IncludeRoutes.Length - shown.Count();
+
+        return string.Concat(shown.Select(route => $"\n取り込み元: {route.Describe(ToRelativePath)}"))
+               + (rest > 0 ? $"\nほかに {rest} 本の経路があります。" : string.Empty);
     }
 
     /// <summary>重要度に対応するワークフローコマンド名を返す。</summary>

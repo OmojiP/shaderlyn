@@ -205,7 +205,8 @@ public static class Program
         // 出力は形式ごとの重要度で絞る。終了コードは絞る前のすべての指摘で決める (表示を絞って CI の合否が変わらないように)。
         AnalysisResult shown = result.OnlyAtOrAbove(
             settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), settings.ConfigurationDiagnostics);
-        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length);
+        IncludeTraceMode includeTrace = settings.GetIncludeTrace(options.IncludeTrace);
+        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length, includeTrace);
         await WriteReportAsync(options, report, output, cancellationToken).ConfigureAwait(false);
 
         // 注釈は主たる出力とは別に書く。SARIF をファイルへ書きながら
@@ -213,7 +214,7 @@ public static class Program
         if (options.Annotate && options.Format != OutputFormat.GitHub)
         {
             GitHubDiagnosticReporter annotator =
-                new(options.BasePath ?? Directory.GetCurrentDirectory());
+                new(options.BasePath ?? Directory.GetCurrentDirectory(), includeTrace);
 
             AnalysisResult annotated =
                 result.OnlyAtOrAbove(
@@ -523,34 +524,37 @@ public static class Program
     /// <param name="result">解析結果。</param>
     /// <param name="output">出力先。色付けの可否判定に使う。</param>
     /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。テキストの要約に添える。</param>
+    /// <param name="includeTrace">ヘッダの中の指摘に、取り込んだ経路をどこまで出すか。</param>
     /// <returns>整形済みのレポート。</returns>
     private static string FormatReport(
         CommandLineOptions options,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         AnalysisResult result,
         TextWriter output,
-        int hiddenCount)
+        int hiddenCount,
+        IncludeTraceMode includeTrace)
     {
         string basePath = options.BasePath ?? Directory.GetCurrentDirectory();
 
         return options.Format switch
         {
             OutputFormat.Json =>
-                new JsonDiagnosticReporter(basePath).Format(result.Diagnostics, result.AnalyzedFileCount),
+                new JsonDiagnosticReporter(basePath, includeTrace).Format(result.Diagnostics, result.AnalyzedFileCount),
 
             OutputFormat.Sarif =>
-                new SarifDiagnosticReporter(RuleCatalog.GetAllRules(analyzers), basePath, GetVersion())
+                new SarifDiagnosticReporter(RuleCatalog.GetAllRules(analyzers), basePath, GetVersion(), includeTrace)
                     .Format(result.Diagnostics),
 
             OutputFormat.GitHub =>
-                new GitHubDiagnosticReporter(basePath).Format(result.Diagnostics, result.AnalyzedFileCount),
+                new GitHubDiagnosticReporter(basePath, includeTrace).Format(result.Diagnostics, result.AnalyzedFileCount),
 
             // 出力をファイルへリダイレクトする場合は色を付けない。
             // ANSI エスケープがそのまま混入したファイルは、後段のツールで扱えなくなるため。
             _ => new TextDiagnosticReporter(
                     useColor: options.OutputPath is null
                         && ReferenceEquals(output, Console.Out)
-                        && !Console.IsOutputRedirected)
+                        && !Console.IsOutputRedirected,
+                    includeTrace)
                 .Format(result.Diagnostics, result.AnalyzedFileCount, hiddenCount),
         };
     }

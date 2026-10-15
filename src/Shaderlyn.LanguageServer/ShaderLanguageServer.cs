@@ -1640,8 +1640,27 @@ public sealed partial class ShaderLanguageServer
             all = all.Concat(bySource.OrderBy(p => p.Key, StringComparer.Ordinal).SelectMany(p => p.Value));
         }
 
-        HashSet<(string Id, TextSpan Span, string Message)> seen = [];
-        return [.. all.Where(d => seen.Add((d.Id, d.Location.Span, d.GetMessage())))];
+        // まとめるときは、取り込みの経路を足し合わせる (どのシェーダーのどの Pass から取り込んだときの指摘か)。
+        Dictionary<(string Id, TextSpan Span, string Message), int> seen = [];
+        List<Diagnostic> merged = [];
+
+        foreach (Diagnostic diagnostic in all)
+        {
+            (string, TextSpan, string) key = (diagnostic.Id, diagnostic.Location.Span, diagnostic.GetMessage());
+
+            if (!seen.TryGetValue(key, out int index))
+            {
+                seen[key] = merged.Count;
+                merged.Add(diagnostic);
+            }
+            else if (!diagnostic.IncludeRoutes.IsEmpty)
+            {
+                merged[index] = merged[index].WithIncludeRoutes(
+                    [.. merged[index].IncludeRoutes.Concat(diagnostic.IncludeRoutes).DistinctBy(r => r.Key)]);
+            }
+        }
+
+        return [.. merged];
     }
 
     /// <summary>
@@ -1675,6 +1694,38 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("codeDescription");
             writer.WriteString("href", helpLink);
             writer.WriteEndObject();
+        }
+
+        // ヘッダの中の指摘は、取り込んだシェーダーの #include の行を関連する場所として添える (エディタでクリックして飛べる)。
+        if (!diagnostic.IncludeRoutes.IsEmpty)
+        {
+            writer.WriteStartArray("relatedInformation");
+
+            foreach (IncludeRoute route in diagnostic.IncludeRoutes)
+            {
+                for (int i = 0; i < route.Includes.Length; i++)
+                {
+                    Location step = route.Includes[i];
+                    LinePositionSpan stepSpan = step.LineSpan;
+
+                    writer.WriteStartObject();
+                    writer.WriteStartObject("location");
+                    writer.WriteString("uri", DocumentUri.FromFilePath(step.FilePath));
+                    writer.WriteStartObject("range");
+                    WritePosition(writer, "start", stepSpan.Start);
+                    WritePosition(writer, "end", stepSpan.End);
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
+                    writer.WriteString(
+                        "message",
+                        i == 0
+                            ? $"{Path.GetFileName(route.FilePath)}{(route.Origin is { } origin ? " の " + origin : string.Empty)} から取り込んでいます"
+                            : "そこから取り込んでいます");
+                    writer.WriteEndObject();
+                }
+            }
+
+            writer.WriteEndArray();
         }
 
         writer.WriteEndObject();

@@ -219,6 +219,40 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.DoesNotContain("SL0002", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// ヘッダの指摘に、どのシェーダーのどの Pass から、どの #include をたどって取り込んだかを添える。
+    /// 同じ指摘を 2 つのシェーダーから報告したら 1 件にまとめ、経路を並べる。キャッシュから使い回しても経路は残る。
+    /// </summary>
+    [Fact]
+    public async Task ヘッダの指摘に取り込んだ経路を添える()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Lib", "Inner.hlsl"), "float4 Tint(float4 c) { return c * undefinedTint; }\n");
+        Write(Path.Combine("Assets", "Shaders", "Common.hlsl"), "#include \"Lib/Inner.hlsl\"\n");
+        WriteShader("A", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+        WriteShader("B", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Single(Findings(output), f => f == ("Inner.hlsl", "HL0310"));
+        Assert.Matches(@"取り込み元: .*A\.shader\(10:22\) .*→ .*Common\.hlsl\(1:10\)", output);
+        Assert.Contains("ほかに 1 本の経路があります", output, StringComparison.Ordinal);
+
+        (_, string all, _) = await RunAsync(null, Shaders, "--include-trace", "all");
+        Assert.Equal(2, all.Split('\n').Count(line => line.Contains("取り込み元:", StringComparison.Ordinal)));
+        Assert.Contains("B.shader(10:22)", all, StringComparison.Ordinal);
+
+        (_, string none, _) = await RunAsync(null, Shaders, "--include-trace", "none");
+        Assert.DoesNotContain("取り込み元", none, StringComparison.Ordinal);
+
+        (_, string json, _) = await RunAsync(null, Shaders, "--format", "json");
+        Assert.Contains("\"includedFrom\"", json, StringComparison.Ordinal);
+
+        string cache = Path.Combine(_project, "cache.json");
+        await RunAsync(null, Shaders, "--cache", cache);
+        (_, string cached, _) = await RunAsync(null, Shaders, "--cache", cache, "--include-trace", "all");
+        Assert.Equal(2, cached.Split('\n').Count(line => line.Contains("取り込み元:", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public async Task 共通のヘッダの誤りをヘッダの位置に報告する()
     {

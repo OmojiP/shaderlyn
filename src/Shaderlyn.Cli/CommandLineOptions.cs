@@ -236,6 +236,12 @@ internal sealed class CommandLineOptions
     /// </remarks>
     public DiagnosticSeverity? MinSeverity { get; private set; }
 
+    /// <summary>
+    /// ヘッダの中の指摘に、どのシェーダーから取り込んだかの経路をどこまで出すか (<c>--include-trace</c>)。
+    /// 設定ファイルの <c>report: include-trace</c> より優先する。指定が無ければ <see langword="null"/>。
+    /// </summary>
+    public Reporting.IncludeTraceMode? IncludeTrace { get; private set; }
+
     /// <summary>出力先ファイルのパス。<see langword="null"/> の場合は標準出力へ書く。</summary>
     public string? OutputPath { get; private set; }
 
@@ -282,6 +288,7 @@ internal sealed class CommandLineOptions
             ["--format"] = ReadFormat,
             ["--error-on"] = ReadErrorOn,
             ["--min-severity"] = ReadMinSeverity,
+            ["--include-trace"] = ReadIncludeTrace,
             ["-o"] = (o, v) => Set(() => o.OutputPath = v),
             ["--output"] = (o, v) => Set(() => o.OutputPath = v),
             ["--profile"] = ReadProfile,
@@ -436,6 +443,21 @@ internal sealed class CommandLineOptions
         return null;
     }
 
+    /// <summary><c>--include-trace</c> の値を読む。</summary>
+    /// <param name="parsed">反映する先。</param>
+    /// <param name="value">指定された値。</param>
+    /// <returns>エラーメッセージ。受け取れた場合は <see langword="null"/>。</returns>
+    private static string? ReadIncludeTrace(CommandLineOptions parsed, string value)
+    {
+        if (Reporting.IncludeTraceModes.TryParse(value) is not { } mode)
+        {
+            return $"--include-trace の値 '{value}' は不正です。none, first, all のいずれかを指定してください。";
+        }
+
+        parsed.IncludeTrace = mode;
+        return null;
+    }
+
     /// <summary><c>--profile</c> の値を読む。</summary>
     /// <param name="parsed">反映する先。</param>
     /// <param name="value">指定された値。</param>
@@ -494,6 +516,10 @@ internal sealed class CommandLineOptions
                                  この重要度以上の指摘だけを出力する: info (既定), warning, error。
                                  設定ファイルの report: min-severity より優先します。
                                  終了コードは出力しなかった指摘も含めて --error-on で決めます。
+          --include-trace <範囲> ヘッダの中の指摘に、どのシェーダーのどの Pass から、どの #include をたどって
+                                 取り込んだかを添える: first (既定。1 本と残りの本数), all, none。
+                                 json / sarif は none でなければすべて出します。
+                                 設定ファイルの report: include-trace より優先します。
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
           --base-path <パス>     出力するパスを相対化する基点。省略時は現在のフォルダー。
                                  sarif / github 形式では、これがリポジトリのルートを指していないと

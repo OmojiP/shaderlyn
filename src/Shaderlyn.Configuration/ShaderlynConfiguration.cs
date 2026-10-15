@@ -149,6 +149,12 @@ internal sealed record ShaderlynConfiguration
         ImmutableDictionary<string, DiagnosticSeverity>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// ヘッダの中の指摘に、どのシェーダーから取り込んだかの経路をどこまで出すか (<c>report: include-trace</c>)。
+    /// <c>none</c> / <c>first</c> / <c>all</c>。書いていなければ <see langword="null"/>。
+    /// </summary>
+    public string? ReportIncludeTrace { get; init; }
+
+    /// <summary>
     /// 読み込みで見つかった問題。
     /// </summary>
     /// <remarks>

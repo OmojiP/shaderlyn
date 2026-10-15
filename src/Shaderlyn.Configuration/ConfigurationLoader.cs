@@ -32,7 +32,7 @@ internal static class ConfigurationLoader
     ];
 
     /// <summary><c>report:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownReportKeys = ["min-severity"];
+    private static readonly string[] KnownReportKeys = ["min-severity", "include-trace"];
 
     /// <summary><c>report: min-severity</c> に形式ごとに書くときの、形式の名前。</summary>
     private static readonly string[] KnownReportFormats = ["text", "json", "sarif", "github"];
@@ -232,6 +232,7 @@ internal static class ConfigurationLoader
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
                 RuleOptions = options,
                 ReportMinSeverities = ReadReportMinSeverities(),
+                ReportIncludeTrace = ReadReportIncludeTrace(),
                 Problems = problems.ToImmutable(),
             };
         }
@@ -987,6 +988,27 @@ internal static class ConfigurationLoader
         ///     sarif: info
         /// </code>
         /// </remarks>
+        /// <summary>ヘッダの中の指摘に、取り込んだ経路をどこまで出すか (<c>report: include-trace</c>) を読む。</summary>
+        /// <returns><c>none</c> / <c>first</c> / <c>all</c>。書いていなければ <see langword="null"/>。</returns>
+        /// <remarks><c>report:</c> の形の誤りは <see cref="ReadReportMinSeverities"/> が伝えるので、ここでは伝えない。</remarks>
+        private string? ReadReportIncludeTrace()
+        {
+            if (!root.TryGet("report", out YamlNode? node)
+                || node is not YamlMapping report
+                || report.Entries.GetValueOrDefault("include-trace") is not { } value)
+            {
+                return null;
+            }
+
+            if (value is YamlScalar { Value: "none" or "first" or "all" } scalar)
+            {
+                return scalar.Value;
+            }
+
+            problems.Add(new ConfigurationProblem(value.Line, "report: の include-trace には none, first, all のいずれかを指定してください。"));
+            return null;
+        }
+
         private ImmutableDictionary<string, DiagnosticSeverity> ReadReportMinSeverities()
         {
             ImmutableDictionary<string, DiagnosticSeverity>.Builder severities =

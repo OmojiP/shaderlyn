@@ -21,6 +21,10 @@ Shaderlyn.Cli.HostEnvironment :: virtual System.String ToString()
 Shaderlyn.Cli.Program : static class
 Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Cli.HostEnvironment], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
 Shaderlyn.Cli.Program :: static System.Threading.Tasks.Task`1[Shaderlyn.Cli.ExitCode] RunAsync(System.String[], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.IO.TextWriter, System.IO.TextWriter, System.Threading.CancellationToken = null)
+Shaderlyn.Cli.Reporting.IncludeTraceMode : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Cli.Reporting.IncludeTraceMode :: All = 2
+Shaderlyn.Cli.Reporting.IncludeTraceMode :: First = 1
+Shaderlyn.Cli.Reporting.IncludeTraceMode :: None = 0
 Shaderlyn.Core.Analysis.AnalysisContext : sealed class
 Shaderlyn.Core.Analysis.AnalysisContext :: System.Void RegisterAnalysisStartAction(System.Action`1[Shaderlyn.Core.Analysis.AnalysisStartContext])
 Shaderlyn.Core.Analysis.AnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Core.Analysis.NodeAnalysisContext`1[TNode]])
@@ -79,6 +83,7 @@ Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Threading.Cancellati
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.Diagnostic)
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
 Shaderlyn.Core.Diagnostics.Diagnostic : sealed class
+Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithIncludeRoutes(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute])
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithLocation(Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithSeverity(Shaderlyn.Core.Diagnostics.DiagnosticSeverity)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithSuggestedReplacement(System.String)
@@ -86,6 +91,7 @@ Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticDe
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity Severity { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Location Location { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Boolean IsSeverityExplicit { get; }
+Shaderlyn.Core.Diagnostics.Diagnostic :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute] IncludeRoutes { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Int32 MessageArgumentCount { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.String GetMessage()
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.String Id { get; }
@@ -117,6 +123,21 @@ Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Error = 3
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Info = 1
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: None = 0
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Warning = 2
+Shaderlyn.Core.Diagnostics.IncludeRoute : sealed class (System.IEquatable`1[Shaderlyn.Core.Diagnostics.IncludeRoute])
+Shaderlyn.Core.Diagnostics.IncludeRoute :: .ctor(System.String, System.String, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location])
+Shaderlyn.Core.Diagnostics.IncludeRoute :: Shaderlyn.Core.Diagnostics.IncludeRoute <Clone>$()
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.Boolean Equals(Shaderlyn.Core.Diagnostics.IncludeRoute)
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location] Includes { get; set; }
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.String Describe(System.Func`2[System.String,System.String])
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.String FilePath { get; set; }
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.String Key { get; }
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.String Origin { get; set; }
+Shaderlyn.Core.Diagnostics.IncludeRoute :: System.Void Deconstruct(out System.String, out System.String, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location])
+Shaderlyn.Core.Diagnostics.IncludeRoute :: static System.Boolean op_Equality(Shaderlyn.Core.Diagnostics.IncludeRoute, Shaderlyn.Core.Diagnostics.IncludeRoute)
+Shaderlyn.Core.Diagnostics.IncludeRoute :: static System.Boolean op_Inequality(Shaderlyn.Core.Diagnostics.IncludeRoute, Shaderlyn.Core.Diagnostics.IncludeRoute)
+Shaderlyn.Core.Diagnostics.IncludeRoute :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Diagnostics.IncludeRoute :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Diagnostics.IncludeRoute :: virtual System.String ToString()
 Shaderlyn.Core.Diagnostics.Location : sealed class
 Shaderlyn.Core.Diagnostics.Location :: Shaderlyn.Core.Text.LinePositionSpan LineSpan { get; }
 Shaderlyn.Core.Diagnostics.Location :: Shaderlyn.Core.Text.SourceText Source { get; }
@@ -1270,6 +1291,7 @@ Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immut
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] MarkerSpan { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget] Target { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Object Data { get; set; }
+Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.String DisplayName { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.String Name { get; set; }
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Void Deconstruct(out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.String, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.Object, out System.Nullable`1[Shaderlyn.Core.Text.TextSpan])
 Shaderlyn.Semantics.Environments.HlslCompilationUnit :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Semantics.Environments.HlslCompilationUnit)
@@ -1380,6 +1402,9 @@ Shaderlyn.Semantics.Environments.ShaderSourceInfo :: static System.Boolean op_In
 Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Environments.ShaderSourceInfo :: virtual System.String ToString()
+Shaderlyn.Semantics.IncludeRouteFinder : static class
+Shaderlyn.Semantics.IncludeRouteFinder :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Attach(Shaderlyn.Semantics.ShaderCompilation, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic])
+Shaderlyn.Semantics.IncludeRouteFinder :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute] Find(Shaderlyn.Semantics.ShaderCompilation, System.String)
 Shaderlyn.Semantics.Programs.CallCompatibility : static class
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean AcceptsArgumentCount(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax], System.Int32)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssignable(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
