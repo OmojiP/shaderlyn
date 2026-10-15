@@ -38,6 +38,7 @@ public static class BuiltInAnalyzers
         new PropertyAttributeAnalyzer(),
         new ShaderNameAnalyzer(),
         new UnanalyzedBlockAnalyzer(),
+        new DuplicatedByteOrderMarkAnalyzer(),
 
         // ShaderLab と HLSL を突き合わせて初めて検査できるルール。
         // セマンティックモデルが渡されていない場合、これらは何も報告しない。

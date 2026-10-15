@@ -139,6 +139,22 @@ internal static class ShaderLabRuleDescriptors
             + "意図した表示にならない原因になります。",
         helpLinkUri: DocumentationLinks.For("SL1031"));
 
+    /// <summary>ファイルの先頭に BOM が重なっている。</summary>
+    /// <remarks>
+    /// Unity 6.6 は BOM (U+FEFF) が 2 つ重なった .shader を読める (2026-10-16 に確かめた)。
+    /// ゼロ幅スペースやノーブレークスペースは読めないので、それらは構文エラー (SL0001) にする。
+    /// </remarks>
+    public static DiagnosticDescriptor DuplicatedByteOrderMark { get; } = new(
+        id: "SL1057",
+        title: "ファイルの先頭に BOM が重なっています",
+        messageFormat: "ファイルの先頭に BOM (U+FEFF) が {0} 個あります。Unity は読めますが、見えない文字が先頭に残っています。重なった BOM を消してください。",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "UTF-8 の BOM が 2 つ以上重なっています。別のエディタやツールで BOM を付けて保存し直すと、こうなることがあります。"
+            + "Unity は読めます (Unity 6.6 で確かめました) が、ほかのツールではファイルの先頭に見えない文字があるものとして扱われ、"
+            + "構文エラーになることがあります。BOM を 1 つにするか、BOM なしの UTF-8 で保存し直してください。",
+        helpLinkUri: DocumentationLinks.For("SL1057"));
+
     /// <summary>解析の対象外のコードブロックがある。</summary>
     /// <remarks>
     /// <b>読んでいないことを伝えるためのルールである。</b>

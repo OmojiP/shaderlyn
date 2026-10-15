@@ -170,7 +170,8 @@ internal sealed class ShaderLabParser
             return "ファイルの先頭に 'Shader' 以外の記述があります (NUL 文字)。その文字を消してください。";
         }
 
-        if (text.Length > 0 && text[0] is '\u200B' or '\u200C' or '\u200D' or '\u2060' or '\uFEFF')
+        // \u30CE\u30FC\u30D6\u30EC\u30FC\u30AF\u30B9\u30DA\u30FC\u30B9 (U+00A0) \u3082\u3001\u30D5\u30A1\u30A4\u30EB\u306E\u5148\u982D\u3067\u306F Unity \u304C\u69CB\u6587\u30A8\u30E9\u30FC\u306B\u3059\u308B (6.6 \u3067\u78BA\u304B\u3081\u305F)\u3002
+        if (text.Length > 0 && text[0] is '\u200B' or '\u200C' or '\u200D' or '\u2060' or '\uFEFF' or '\u00A0')
         {
             return $"ファイルの先頭に 'Shader' 以外の記述があります (見えない文字 U+{(int)text[0]:X4})。その文字を消してください。";
         }
