@@ -48,6 +48,36 @@ internal static class HlslRuleDescriptors
             + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
         helpLinkUri: DocumentationLinks.For("HL0301"));
 
+    /// <summary>cbuffer の中の関数をエントリポイントにしていて、FXC でコンパイルされる。</summary>
+    /// <remarks>
+    /// FXC は cbuffer の中の関数をエントリポイントにできる。DXC はできない (HL0304)。
+    /// Unity 6.6 と、スタンドアロンの FXC / DXC 1.8 で確かめた (2026-10-16)。
+    /// </remarks>
+    public static DiagnosticDescriptor EntryPointInConstantBuffer { get; } = new(
+        id: "HL0303",
+        title: "cbuffer の中の関数をエントリポイントにしています",
+        messageFormat: "{0} が指定する関数 '{1}' は cbuffer '{2}' の中にあります。{3} ではコンパイルできますが、DXC ではエントリポイントにできません。関数を cbuffer の外へ出してください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "cbuffer (CBUFFER_START / CBUFFER_END) の中に関数を書き、それをエントリポイントにしています。"
+            + "FXC はこれをコンパイルできますが、DXC はエントリポイントを見つけられません (Unity の DXC はコンパイラが落ちます)。"
+            + "DX12 などで DXC に切り替えたときに壊れるので、関数は cbuffer の外に書いてください。"
+            + "cbuffer の中に #include を書き、取り込んだファイルに関数があると、こうなります。",
+        helpLinkUri: DocumentationLinks.For("HL0303"));
+
+    /// <summary>cbuffer の中の関数をエントリポイントにしていて、DXC でコンパイルされる。</summary>
+    public static DiagnosticDescriptor EntryPointInConstantBufferWithDxc { get; } = new(
+        id: "HL0304",
+        title: "cbuffer の中の関数は DXC でエントリポイントにできません",
+        messageFormat: "{0} が指定する関数 '{1}' は cbuffer '{2}' の中にあります。{3} では DXC がエントリポイントを見つけられず、コンパイルできません (Unity ではコンパイラが落ちます)。関数を cbuffer の外へ出してください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "cbuffer (CBUFFER_START / CBUFFER_END) の中の関数をエントリポイントにしています。"
+            + "DXC はこれをエントリポイントとして扱えず、「cannot find entry function」になります。"
+            + "Unity では、エラーの行も出ずに「Lost connection with shader compiler process. Suspected crash in DXC.」になります (Unity 6.6 で確かめました)。"
+            + "関数は cbuffer の外に書いてください。",
+        helpLinkUri: DocumentationLinks.For("HL0304"));
+
     /// <summary>呼んでいる関数の定義が、その構成には存在しない。</summary>
     /// <remarks>
     /// <b>「定義があるか」ではなく「その構成に定義があるか」を見る。</b>
