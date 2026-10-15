@@ -1,10 +1,12 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 using Shaderlyn.Cli.Baseline;
 using Shaderlyn.Cli.Caching;
 using Shaderlyn.Cli.Inspection;
 using Shaderlyn.Cli.Reporting;
+using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
@@ -106,6 +108,11 @@ public static class Program
 
         // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
+
+        if (options.UnrealGenerateOutputPath is { } generateOutput)
+        {
+            return await GenerateUnrealAsync(settings, generateOutput, output, errorOutput).ConfigureAwait(false);
+        }
 
         if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
         {
@@ -375,6 +382,80 @@ public static class Program
             .ConfigureAwait(false);
 
         await output.WriteLineAsync($"解析の中身を書き出しました: {outputPath}").ConfigureAwait(false);
+        return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// Unreal のエンジンとプロジェクトの C++ から、生成される取り込みを作って書き出す (<c>--unreal-generate</c>)。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <param name="outputDirectory">書き出す先。</param>
+    /// <param name="output">通常の出力先。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <returns>終了コード。</returns>
+    private static async Task<ExitCode> GenerateUnrealAsync(
+        EffectiveSettings settings,
+        string outputDirectory,
+        TextWriter output,
+        TextWriter errorOutput)
+    {
+        ShaderlynConfiguration configuration = settings.Configuration;
+
+        if (configuration.UnrealEngineDirectory is not { } engine || !Directory.Exists(engine))
+        {
+            await errorOutput.WriteLineAsync(
+                "--unreal-generate には、設定ファイルの unreal: engine にエンジンのフォルダー (…/UE_5.5/Engine) を書いてください。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins")];
+
+        if (configuration.UnrealProjectDirectory is { } project)
+        {
+            roots.Add(Path.Combine(project, "Source"));
+            roots.Add(Path.Combine(project, "Plugins"));
+        }
+
+        string fullOutput = Path.GetFullPath(outputDirectory);
+        Unreal.UnrealUniformBufferGeneration generation;
+
+        try
+        {
+            generation = Unreal.UnrealUniformBufferGenerator.Generate(roots, fullOutput);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            await errorOutput.WriteLineAsync($"書き出せませんでした: {exception.Message}").ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        StringBuilder report = new();
+        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
+
+        if (!generation.Incomplete.IsEmpty)
+        {
+            report.AppendLine("メンバーを読み切れなかった uniform buffer:");
+
+            foreach (string incomplete in generation.Incomplete)
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {incomplete}");
+            }
+        }
+
+        if (!generation.UnknownTypes.IsEmpty)
+        {
+            report.AppendLine(CultureInfo.InvariantCulture, $"知らない C++ の型 (float4 として書いた): {string.Join(", ", generation.UnknownTypes)}");
+        }
+
+        if (!string.Equals(configuration.UnrealGeneratedDirectory is { } configured ? Path.GetFullPath(configured) : null, fullOutput, StringComparison.OrdinalIgnoreCase))
+        {
+            report.AppendLine("解析に使うには、設定ファイルの unreal: に次を書いてください:");
+            report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
+        }
+
+        await output.WriteAsync(report.ToString()).ConfigureAwait(false);
         return ExitCode.Success;
     }
 

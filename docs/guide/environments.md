@@ -93,13 +93,17 @@ units:
 ```
 
 - **パーミュテーションは C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
-- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は解決できません。** その `#include` は誤りとして報告しませんが、
+- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、そのままでは解決できません。** その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません。
   その旨を SL0002 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
   呼び出しの引数の検査 (HL0340 / HL0341) は、欠けているのが関数を宣言しないと分かっているファイル
   (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
   `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
-  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません
+  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません。
+  uniform buffer の宣言は、エンジンの C++ から作れます ([下記](#c-から生成されるファイルを作る))
+- エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す GBuffer の取り込み
+  (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
+- マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
 - シェーダーコンパイラのマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   ほかのプラットフォームに合わせるときは `defines` で上書きしてください
 - **言語のバージョンは、エンジンの設定に合わせてシェーダーごとに決めます。** エンジンはプラットフォームの設定
@@ -118,12 +122,44 @@ units:
 - `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
-  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください
+  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
+  C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (HL0310 にしません)
 - マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は分かりません。
   マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。`defines` で空に定義すると読めます
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
 > `defines` で上書きしてください。仮想パスは `virtual-paths` で足せます。`--env` で、使っている割り当てとマクロを確かめられます。
+
+### C++ から生成されるファイルを作る
+
+エンジンは、C++ に書いた uniform buffer の構造体 (`BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT` など) から、
+シェーダーをコンパイルする直前に `/Engine/Generated/` の宣言をメモリ上で作ります。Shaderlyn は同じ C++ を読んで、これをファイルに書き出せます。
+
+```sh
+shaderlyn --config .shaderlyn.yaml --unreal-generate Intermediate/Shaderlyn/Generated
+```
+
+設定ファイルの `unreal: engine` と `project` の `Source` / `Plugins` の下の C++ を読みます (UE 5.5 のエンジンで 2 分ほどかかります)。
+書き出したフォルダーを `unreal: generated` に書くと、`/Engine/Generated` に割り当てて解析します。
+
+```yaml
+unreal:
+  engine: C:/Program Files/Epic Games/UE_5.5/Engine
+  project: .
+  generated: Intermediate/Shaderlyn/Generated
+```
+
+| 書き出すもの | 中身 |
+| --- | --- |
+| `UniformBuffers/<名前>.ush`、`GeneratedUniformBuffers.ush` | uniform buffer の宣言。`View.ViewSizeAndInvSize` と `View_ViewSizeAndInvSize` のどちらの書き方でも引けます。`Scene` も含みます |
+| `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
+| `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
+
+- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (SL0002)
+- 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
+- 作ったファイルは、エンジンかプロジェクトの C++ を変えたら作り直してください。バージョン管理には入れなくてかまいません
+
+UE 5.5 のエンジンのシェーダー (`Engine/Shaders` の `.usf` 522 個) では、宣言の検査を行えるものが 8 個から 460 個に増えます。
 
 ## 独自エンジン
 

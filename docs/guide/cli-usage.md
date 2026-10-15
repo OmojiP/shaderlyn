@@ -570,6 +570,7 @@ shaderlyn <パス...> [オプション]
 | `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`。Unity の環境だけ |
 | `--define <名前[=値]>`            | 定義済みマクロ。複数回指定できます                                 |
 | `--max-symbol-variants <数>`     | シンボルを 1 つずつ有効にして解析する上限（既定 8）。0 で無効    |
+| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルドのときに生成される uniform buffer の宣言などをこのフォルダーに書き出す。`unreal: generated` に書くと解析に使う（[Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)） |
 
 ### 設定ファイルとベースライン
 

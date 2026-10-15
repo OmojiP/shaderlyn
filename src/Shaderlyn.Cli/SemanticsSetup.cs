@@ -154,6 +154,7 @@ internal static class SemanticsSetup
         {
             EngineDirectory = configuration.UnrealEngineDirectory,
             ProjectDirectory = configuration.UnrealProjectDirectory,
+            GeneratedDirectory = configuration.UnrealGeneratedDirectory,
             VirtualPaths = configuration.UnrealVirtualPaths,
             Compiler = configuration.HlslCompiler == "fxc" ? HlslCompiler.Fxc : HlslCompiler.Dxc,
             LanguageVersion = (HlslLanguageVersion)(configuration.HlslVersion ?? 2018),

@@ -87,6 +87,12 @@ internal sealed record ShaderlynConfiguration
     /// <summary>Unreal のプロジェクトのフォルダー (<c>unreal: project</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnrealProjectDirectory { get; init; }
 
+    /// <summary>
+    /// C++ から作った取り込みのフォルダー (<c>unreal: generated</c>、<c>shaderlyn unreal generate</c> の書き出し先)。
+    /// 設定ファイルからの相対で解決済み。
+    /// </summary>
+    public string? UnrealGeneratedDirectory { get; init; }
+
     /// <summary>Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>)。フォルダーは設定ファイルからの相対で解決済み。</summary>
     public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 

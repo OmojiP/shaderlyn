@@ -62,6 +62,15 @@ public sealed record HlslEnvironmentOptions
     public Func<string, IIncludeResolver?, HlslLanguageVersion>? SelectUnitLanguageVersion { get; init; }
 
     /// <summary>
+    /// 単位ごとに足すマクロを決める手続き。引数は <see cref="SelectUnitLanguageVersion"/> と同じ。
+    /// </summary>
+    /// <remarks>
+    /// 設定で同じ名前を定義していれば、そちらを使う。
+    /// Unreal Engine は、マテリアルのシェーダーに <c>IS_MATERIAL_SHADER=1</c> を定義する。
+    /// </remarks>
+    public Func<string, IIncludeResolver?, ImmutableDictionary<string, string>>? SelectUnitMacros { get; init; }
+
+    /// <summary>
     /// HLSL 2021 で読む単位にだけ定義するマクロ (Unreal Engine の <c>COMPILER_SUPPORTS_HLSL2021</c>)。DXC のときだけ使う。
     /// </summary>
     public ImmutableDictionary<string, string> Hlsl2021Macros { get; init; } = ImmutableDictionary<string, string>.Empty;
@@ -98,6 +107,12 @@ public sealed record HlslEnvironmentOptions
     /// </summary>
     /// <remarks>エンジンのシェーダーコンパイラが定義するもの (Unreal の <c>COMPILER_HLSL</c> など) を与える。</remarks>
     public ImmutableDictionary<string, string> PredefinedMacros { get; init; } = ImmutableDictionary<string, string>.Empty;
+
+    /// <summary>
+    /// エンジンがシェーダーごとに定義するマクロの名前 (値は分からない)。
+    /// </summary>
+    /// <remarks><see cref="IHlslEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
+    public ImmutableHashSet<string> EngineDefinedMacros { get; init; } = ImmutableHashSet<string>.Empty;
 }
 
 /// <summary>
@@ -159,6 +174,21 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
 
+        if (Options.SelectUnitMacros?.Invoke(filePath, options.IncludeResolver) is { Count: > 0 } unitMacros)
+        {
+            ImmutableDictionary<string, string> macros = options.PredefinedMacros;
+
+            foreach ((string name, string value) in unitMacros)
+            {
+                if (!macros.ContainsKey(name))
+                {
+                    macros = macros.Add(name, value);
+                }
+            }
+
+            options = options with { PredefinedMacros = macros };
+        }
+
         if (Options.Compiler != HlslCompiler.Dxc)
         {
             return options;
@@ -213,6 +243,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         string normalized = path.Replace('\\', '/');
         return Options.GeneratedIncludePrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <inheritdoc/>
+    public bool IsDefinedByEngine(string name) => Options.EngineDefinedMacros.Contains(name);
 
     /// <inheritdoc/>
     public ImmutableArray<string>? GetFunctionsDeclaredIn(string path)

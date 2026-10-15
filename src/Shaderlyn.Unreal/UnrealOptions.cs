@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
+using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics.Environments;
 
 namespace Shaderlyn.Unreal;
@@ -81,6 +83,12 @@ public sealed record UnrealOptions
     /// <summary>プロジェクトのフォルダー。<c>/Project</c> を <c>Shaders</c> の下に割り当てる。</summary>
     public string? ProjectDirectory { get; init; }
 
+    /// <summary>
+    /// C++ から作った取り込みのフォルダー (<see cref="UnrealUniformBufferGenerator"/> の書き出し先)。
+    /// <c>/Engine/Generated</c> に割り当て、エンジンが定義するマクロの名前を読む。
+    /// </summary>
+    public string? GeneratedDirectory { get; init; }
+
     /// <summary>そのほかの割り当て (<c>/Plugin/MyPlugin</c> → プラグインの <c>Shaders</c>)。</summary>
     public ImmutableDictionary<string, string> VirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 
@@ -136,9 +144,56 @@ public sealed record UnrealOptions
         if (ProjectDirectory is { } project)
         {
             mappings = mappings.SetItem("/Project", Path.Combine(project, "Shaders"));
+
+            // エディタは GBuffer の書き方を、起動のときにプロジェクトの Intermediate に書き出す (AutogenShaderHeaders.ush)。
+            string autogen = Path.Combine(project, "Intermediate", "ShaderAutogen", ShaderPlatform);
+
+            if (Directory.Exists(autogen) && !mappings.ContainsKey(ShaderAutogenVirtualPath))
+            {
+                mappings = mappings.Add(ShaderAutogenVirtualPath, autogen);
+            }
+        }
+
+        if (GeneratedDirectory is { } generated && !mappings.ContainsKey(GeneratedVirtualPath))
+        {
+            mappings = mappings.Add(GeneratedVirtualPath, generated);
         }
 
         return mappings;
+    }
+
+    /// <summary>生成される取り込みの仮想パス。</summary>
+    private const string GeneratedVirtualPath = "/Engine/Generated";
+
+    /// <summary>エディタが書き出す GBuffer の取り込みの仮想パス。</summary>
+    private const string ShaderAutogenVirtualPath = "/Engine/Generated/ShaderAutogen";
+
+    /// <summary>
+    /// <see cref="GeneratedDirectory"/> にある、エンジンがシェーダーごとに定義するマクロの名前を読む。
+    /// </summary>
+    /// <returns>マクロの名前。フォルダーが無いか、読めなければ空。</returns>
+    public ImmutableHashSet<string> ReadEngineDefinedMacros()
+    {
+        if (GeneratedDirectory is not { } generated)
+        {
+            return ImmutableHashSet<string>.Empty;
+        }
+
+        try
+        {
+            return File.ReadAllLines(Path.Combine(generated, UnrealUniformBufferGenerator.EngineDefinesFileName))
+                .Select(line => line.Trim())
+                .Where(line => line.Length > 0)
+                .ToImmutableHashSet(StringComparer.Ordinal);
+        }
+        catch (IOException)
+        {
+            return ImmutableHashSet<string>.Empty;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return ImmutableHashSet<string>.Empty;
+        }
     }
 
     /// <summary>
@@ -156,6 +211,7 @@ public sealed record UnrealOptions
             Compiler = Compiler,
             LanguageVersion = engineDefault is { } value ? UnrealShaderLanguageVersions.EnvironmentLanguageVersion(value) : LanguageVersion,
             SelectUnitLanguageVersion = engineDefault is { } mode ? UnrealShaderLanguageVersions.CreateSelector(mode) : null,
+            SelectUnitMacros = CreateMaterialMacroSelector(),
 
             // シェーダーの C++ が個別に HLSL 2021 にすることがある (CFLAG_HLSL2021)。C++ を読むまでは見分けられない。
             AcceptHlsl2021DeclarationsIn2018 = engineDefault is not null,
@@ -165,7 +221,26 @@ public sealed record UnrealOptions
             GeneratedIncludePrefixes = GeneratedIncludePrefixes,
             GeneratedIncludeFunctions = GeneratedIncludeFunctions,
             PredefinedMacros = DefaultPredefinedMacros,
+            EngineDefinedMacros = ReadEngineDefinedMacros(),
         });
+    }
+
+    /// <summary>マテリアルのシェーダーにだけ定義するマクロ。</summary>
+    /// <remarks>
+    /// エンジンはマテリアルを翻訳するときに <c>IS_MATERIAL_SHADER=1</c> を定義する (UE 5.5 の <c>HLSLMaterialTranslator.cpp</c>)。
+    /// エンジンのヘッダ (<c>LumenRadianceCacheMarkCommon.ush</c> など) は、このマクロで宣言を切り替える。
+    /// </remarks>
+    public static ImmutableDictionary<string, string> MaterialShaderMacros { get; } =
+        ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal).Add("IS_MATERIAL_SHADER", "1");
+
+    /// <summary>マテリアルのシェーダー (<c>/Engine/Generated/Material.ush</c> を取り込むもの) に、<see cref="MaterialShaderMacros"/> を足す手続きを作る。</summary>
+    private static Func<string, IIncludeResolver?, ImmutableDictionary<string, string>> CreateMaterialMacroSelector()
+    {
+        ConcurrentDictionary<string, bool> materialByFile = new(StringComparer.OrdinalIgnoreCase);
+
+        return (filePath, resolver) => UnrealShaderLanguageVersions.IncludesMaterial(filePath, resolver, materialByFile)
+            ? MaterialShaderMacros
+            : ImmutableDictionary<string, string>.Empty;
     }
 
     /// <summary>

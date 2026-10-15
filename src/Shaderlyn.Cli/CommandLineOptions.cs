@@ -67,6 +67,12 @@ internal sealed class CommandLineOptions
     /// </remarks>
     public string? InspectOutputPath { get; private set; }
 
+    /// <summary>
+    /// Unreal の C++ から、生成される取り込み (uniform buffer の宣言など) を作って書き出すフォルダー (<c>--unreal-generate</c>)。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    public string? UnrealGenerateOutputPath { get; private set; }
+
     /// <summary>設定ファイルのパス。指定が無い場合は <see langword="null"/>。</summary>
     public string? ConfigPath { get; private set; }
 
@@ -291,6 +297,7 @@ internal sealed class CommandLineOptions
             ["--base-path"] = (o, v) => Set(() => o.BasePath = v),
             ["--cache"] = (o, v) => Set(() => o.CachePath = v),
             ["--inspect"] = (o, v) => Set(() => o.InspectOutputPath = v),
+            ["--unreal-generate"] = (o, v) => Set(() => o.UnrealGenerateOutputPath = v),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -321,7 +328,8 @@ internal sealed class CommandLineOptions
             && !parsed.ShowHelp
             && !parsed.ShowVersion
             && !parsed.ListRules
-            && !parsed.ShowEnvironment)
+            && !parsed.ShowEnvironment
+            && parsed.UnrealGenerateOutputPath is null)
         {
             error = "解析対象のパスが指定されていません。ファイルまたはフォルダーを 1 つ以上指定してください。";
         }
@@ -539,6 +547,14 @@ internal sealed class CommandLineOptions
                                  対象は 1 ファイルに限ります。指摘は出力しません。
                                  誤検出の原因が構文解析・マクロ展開・型判定のどれかを
                                  切り分けるための機能です。
+
+        Unreal Engine:
+          --unreal-generate <フォルダー>
+                                 解析はせずに、設定ファイルの unreal: engine と project の C++ を読み、
+                                 ビルドのときに生成される取り込み (uniform buffer の宣言など) を
+                                 このフォルダーに書き出します。設定ファイルの unreal: generated に
+                                 このフォルダーを書くと、/Engine/Generated の宣言を読んで解析します。
+                                 エンジンやプロジェクトの C++ を変えたら作り直してください。
 
         プロパティと HLSL の対応検査 (SL1001 / SL1003 など) は、埋め込みコードの
         依存関係を解決できて初めて働きます。見送ったことは SL0002 として報告されます。

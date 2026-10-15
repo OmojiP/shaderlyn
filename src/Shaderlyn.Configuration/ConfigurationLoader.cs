@@ -43,7 +43,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
 
     /// <summary><c>unreal:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
+    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
@@ -218,6 +218,7 @@ internal static class ConfigurationLoader
                 UnityShaderCompilerBackend = ReadUnityShaderCompilerBackend(unity),
                 UnrealEngineDirectory = ResolvePath(ReadOptionalScalar(unreal, "engine")),
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
+                UnrealGeneratedDirectory = ResolvePath(ReadOptionalScalar(unreal, "generated")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),

@@ -432,6 +432,9 @@ public static class HlslIntrinsics
         "Barrier", "GetGroupWaveIndex", "GetGroupWaveCount", "GetRemainingRecursionLevels",
         "TriangleObjectPositions", "ClusterID", "DebugBreak", "isnormal",
 
+        // DXC の sizeof (1.7 から)。関数ではなく演算子だが、構文の上では呼び出しと同じ形をしている
+        "sizeof",
+
         // レイトレーシング (DXR、シェーダーモデル 6.3)。上の一覧には載っていない
         "TraceRay", "ReportHit", "CallShader", "IgnoreHit", "AcceptHitAndEndSearch",
         "DispatchRaysIndex", "DispatchRaysDimensions",

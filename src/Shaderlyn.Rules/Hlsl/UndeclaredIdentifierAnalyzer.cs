@@ -126,6 +126,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
+            || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
             || identifier.GetLocation() is not { } location
