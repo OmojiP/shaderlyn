@@ -24,6 +24,10 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - Unreal Engine の環境だけのルール [UE0001](docs/rules/UE0001.md) (エンジンが生成するファイルが無いので宣言の検査を見送った。`--unreal-generate` を案内する) と
   [UE0002](docs/rules/UE0002.md) (マテリアルごとに生成される `Material.ush` / `VertexFactory.ush` の中身が分からないので見送った)。
   UE0002 は利用者には直せないので、要らなければ `rules:` で `UE0002: none` にできる
+- [HL0303](docs/rules/HL0303.md) (警告) / [HL0304](docs/rules/HL0304.md) (エラー): cbuffer の中の関数をエントリポイントにしている。
+  cbuffer の中に `#include` を書き、取り込んだファイルに関数があるとこうなる。FXC はコンパイルでき、DXC はエントリポイントを見つけられない
+  (Unity の DXC は「Lost connection with shader compiler process」で落ちる)。FXC でだけコンパイルされるなら HL0303、DXC でコンパイルされるなら HL0304
+- [SL1057](docs/rules/SL1057.md) (警告): `.shader` の先頭に BOM が重なっている。Unity は読めるので、構文エラー (SL0001) ではなくこの警告で伝える
 
 ### 変更
 
@@ -37,6 +41,13 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 修正
 
+- Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) の Editor は、同梱のヘッダ (`UnityCG.cginc` など) を `Data/Resources/CGIncludes` に置いている。
+  `Data/CGIncludes` しか見ていなかったので、CGPROGRAM のシェーダーが TOOL0004 になり、Editor の推定もできなかった
+- `.shader` の先頭のノーブレークスペース (U+00A0) を空白として読んでいた。Unity は構文エラーにするので、SL0001 で報告する
+- cbuffer の中の関数をエントリポイントにしていると、関数が見つからない (HL0301) と報告していた
+- `--cache` に書けないパスを指定すると、解析が終わってから、読めない理由 (`UnauthorizedAccess_IODenied_Path` など) を出していた。
+  解析の前に、権限が無い・フォルダーを指している・ドライブが無いなどの理由を伝える。置き換えに失敗した一時ファイル (`.tmp`) を消し、
+  `NUL` などのデバイス名も書けないと伝える。ファイル・設定ファイル・ベースラインを読めないときの理由も同じように伝える
 - 同じヘッダを複数の Pass が取り込み、キーワードを宣言する Pass と宣言しない Pass が混ざっていると、
   宣言しない Pass でも、ヘッダの `#if` の分岐にそのキーワードの条件を付けていた。
   「構成：A のとき 'a' は宣言されていません」(HL0310) や「値を返さない経路が存在します」(HL0360) を誤って報告していた
