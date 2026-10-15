@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -47,7 +48,7 @@ internal sealed partial class HlslPreprocessor
 
         string includingFilePath = directiveToken.Source.FilePath;
 
-        if (!_options.IncludeResolver.TryResolve(path, includingFilePath, out SourceText? included))
+        if (!TryResolveInclude(_options.IncludeResolver, path, includingFilePath, out SourceText? included))
         {
             AddUnresolvedInclude(path);
             _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
@@ -118,6 +119,36 @@ internal sealed partial class HlslPreprocessor
 
         PushFileSource(included, included.FilePath);
         BeginRecording(included);
+    }
+
+    /// <summary>
+    /// 取り込みを引く。書いたファイルから引けなければ、<see cref="PreprocessorOptions.FallbackIncludingFilePath"/> から引き直す。
+    /// </summary>
+    /// <param name="resolver">取り込みを解決する仕組み。</param>
+    /// <param name="path">書かれたパス。</param>
+    /// <param name="includingFilePath">取り込みを書いたファイル。</param>
+    /// <param name="included">引いたファイル。</param>
+    /// <returns>引けたら <see langword="true"/>。</returns>
+    private bool TryResolveInclude(IIncludeResolver resolver, string path, string includingFilePath, [NotNullWhen(true)] out SourceText? included)
+    {
+        if (resolver.TryResolve(path, includingFilePath, out included))
+        {
+            return true;
+        }
+
+        if (_options.FallbackIncludingFilePath is not { } fallback
+            || string.Equals(Path.GetDirectoryName(fallback), Path.GetDirectoryName(includingFilePath), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // 引き直した結果 (引けたかどうかも) は解析しているファイルの場所で変わる。囲んでいる取り込みの展開結果は覚えない。
+        foreach (IncludeRecording outer in _recordings)
+        {
+            outer.Uncacheable = true;
+        }
+
+        return resolver.TryResolve(path, fallback, out included);
     }
 
     /// <summary>利用者が書いたヘッダで、展開結果を覚えないものかを判定する。</summary>

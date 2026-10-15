@@ -93,6 +93,9 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
 
+        // ヘッダの中の取り込みは、そのヘッダから引けなければ、解析しているシェーダーから引き直す (Unity 6.6 で確かめた)。
+        options = options with { FallbackIncludingFilePath = filePath };
+
         // カーネルの指定のほうが具体的なので、同じ名前ならそちらが勝つ。
         if (ReadShaderTarget(tokens) is { } shaderTarget
             && unit.ExtraMacros?.ContainsKey("SHADER_TARGET") != true)

@@ -183,6 +183,42 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.Contains(("Missing.hlsl", "HL0360"), Findings(output));
     }
 
+    /// <summary>
+    /// ヘッダの中の取り込みは、そのヘッダから引けなければ、解析しているシェーダーから引き直す (Unity 6.6 と同じ)。
+    /// </summary>
+    [Fact]
+    public async Task ヘッダの中の取り込みはシェーダーからの相対でも引く()
+    {
+        Write(Path.Combine("Assets", "Shaders", "B.hlsl"), "float4 FromB() { return 1; }");
+
+        // ヘッダからの相対では Assets/Shaders/Lib/B.hlsl (無い)、シェーダーからの相対では Assets/Shaders/B.hlsl。
+        Write(Path.Combine("Assets", "Shaders", "Lib", "Sub", "H.hlsl"), "#include \"../B.hlsl\"\n");
+        Write(Path.Combine("Assets", "Shaders", "Deep", "Pass.shader"), """
+            Shader "Test/Deep"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #include "../Lib/Sub/H.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target { return FromB(); }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("SL0002", output, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task 共通のヘッダの誤りをヘッダの位置に報告する()
     {

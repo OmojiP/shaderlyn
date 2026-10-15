@@ -238,6 +238,23 @@ public sealed record PreprocessorOptions
     public IIncludeResolver? IncludeResolver { get; init; }
 
     /// <summary>
+    /// 取り込みを書いたファイルから引けなかったときに、代わりに「取り込みを書いたファイル」として引き直すファイル。
+    /// <see langword="null"/> なら引き直さない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity は、ヘッダの中の <c>#include "..."</c> をそのヘッダから引けなければ、解析しているシェーダー (<c>.shader</c>) から引き直す
+    /// (6.6 で確かめた。間にある別のヘッダからは引かない。両方にあればヘッダから引いたほうを使う)。
+    /// シェーダーからの相対で書いた取り込みが、ヘッダの中でも通る。
+    /// </para>
+    /// <para>
+    /// 引き直した結果は解析しているファイルの場所で変わるので、引き直したときは、囲んでいる取り込みの展開結果を覚えない。
+    /// 引き直すのは引けなかったときだけなので、<see cref="FingerprintForCache"/> には入れない。
+    /// </para>
+    /// </remarks>
+    public string? FallbackIncludingFilePath { get; init; }
+
+    /// <summary>
     /// 対象ファイルより先に処理するコード。<see langword="null"/> の場合は何も処理しない。
     /// </summary>
     /// <remarks>

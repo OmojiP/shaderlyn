@@ -639,6 +639,7 @@ Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 FingerprintForC
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxExpansionDepth { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.Int32 MaxIncludeDepth { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.String DialectName { get; set; }
+Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: System.String FallbackIncludingFilePath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions Default { get; }
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Equality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)
 Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions :: static System.Boolean op_Inequality(Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions, Shaderlyn.Hlsl.Preprocessing.PreprocessorOptions)

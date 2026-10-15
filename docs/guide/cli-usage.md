@@ -343,7 +343,7 @@ shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0
 
 多くの用途では `--unity-project` だけで解決できるので、このオプションは要りません。
 
-Unity の解決規則（`#include` を書いたファイルからの相対パス、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
+Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
 
 ```bash
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary

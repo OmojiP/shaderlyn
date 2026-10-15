@@ -442,8 +442,11 @@ internal static partial class EnvironmentReport
         }
 
         Line(builder, packages is null
-            ? $"  {index}. {Warning}Packages/<名前>/... は解決できません (--unity-project も Editor もありません)"
-            : $"  {index}. Packages/<名前>/... はパッケージの置き場所から: {string.Join(", ", packages.PackageRoots.Select(FullPath))}");
+            ? $"  {index++}. {Warning}Packages/<名前>/... は解決できません (--unity-project も Editor もありません)"
+            : $"  {index++}. Packages/<名前>/... はパッケージの置き場所から: {string.Join(", ", packages.PackageRoots.Select(FullPath))}");
+
+        // Unity は、ヘッダの中の取り込みをヘッダから引けなければ、シェーダーから引き直す。
+        Line(builder, $"  {index}. ヘッダの中の #include は、ここまでで見つからなければ、解析しているシェーダーからの相対");
     }
 
     /// <summary>パッケージの解決先を書き出す。</summary>
