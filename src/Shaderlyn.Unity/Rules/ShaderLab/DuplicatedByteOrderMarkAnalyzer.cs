@@ -7,7 +7,7 @@ using Shaderlyn.ShaderLab.Syntax;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// .shader の先頭に重なった BOM を報告する (UN1057)。
+/// .shader の先頭に重なった BOM を報告する (UN0002)。
 /// </summary>
 /// <remarks>
 /// 1 つ目の BOM は読み込みで取り除いているので、テキストの先頭に残っている U+FEFF が重なった分である。

@@ -156,7 +156,7 @@ public sealed class LanguageServerTests
 
         JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("HL0351");
 
-        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "UN0302");
+        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "UN0301");
         Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0330");
     }
 

@@ -9,7 +9,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// 16 ビットの型を有効にした DXC に届く定数バッファのメンバーに、<c>half</c> / <c>min16float</c> などがあれば報告する (UN1052)。
+/// 16 ビットの型を有効にした DXC に届く定数バッファのメンバーに、<c>half</c> / <c>min16float</c> などがあれば報告する (UN0205)。
 /// </summary>
 /// <remarks>
 /// <para>

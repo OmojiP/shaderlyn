@@ -145,7 +145,7 @@ internal static class ShaderLabRuleDescriptors
     /// ゼロ幅スペースやノーブレークスペースは読めないので、それらは構文エラー (SL0001) にする。
     /// </remarks>
     public static DiagnosticDescriptor DuplicatedByteOrderMark { get; } = new(
-        id: "UN1057",
+        id: "UN0002",
         title: "ファイルの先頭に BOM が重なっています",
         messageFormat: "ファイルの先頭に BOM (U+FEFF) が {0} 個あります。Unity は読めますが、見えない文字が先頭に残っています。重なった BOM を消してください。",
         category: UsageCategory,
@@ -153,7 +153,7 @@ internal static class ShaderLabRuleDescriptors
         description: "UTF-8 の BOM が 2 つ以上重なっています。別のエディタやツールで BOM を付けて保存し直すと、こうなることがあります。"
             + "Unity は読めます (Unity 6.6 で確かめました) が、ほかのツールではファイルの先頭に見えない文字があるものとして扱われ、"
             + "構文エラーになることがあります。BOM を 1 つにするか、BOM なしの UTF-8 で保存し直してください。",
-        helpLinkUri: DocumentationLinks.For("UN1057"));
+        helpLinkUri: DocumentationLinks.For("UN0002"));
 
     /// <summary>解析の対象外のコードブロックがある。</summary>
     /// <remarks>

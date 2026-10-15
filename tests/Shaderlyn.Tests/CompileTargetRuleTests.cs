@@ -107,15 +107,15 @@ public sealed class CompileTargetRuleTests
     }
 
     [Theory]
-    [InlineData("#pragma use_dxc d3d12", "6.6", "UN1050", "d3d12 は、どのバージョンの Unity でも認識されず、DXCが使用されません。")]
-    [InlineData("#pragma use_dxc dx12", "6.3", "UN1050", "Unity 6.5 以前は、use_dxc の API 名 dx12 が認識されず、DXCが使用されません。")]
-    [InlineData("#pragma use_dxc d3d11", "6.6", "UN1051", "非推奨")]
-    [InlineData("#pragma use_dxc d3d11", "6.3", "UN1053", "Unity 6.5 以前の use_dxc d3d11 は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
-    [InlineData("#pragma use_dxc", "6.3", "UN1053", "Unity 6.5 以前は、API名を指定しない use_dxc は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
-    [InlineData("#pragma require int64", "6.6", "UN1053", "require int64 がキーワードの条件なしで書かれています。このパスは DXCコンパイルされるため、Graphics API for Windows: DX11 では動作しません。Graphics API for Windows: DX11 でも使用する場合、require int64 : キーワード のように条件を付け、DXC と FXC の構成を分けてください。")]
-    [InlineData("#pragma require inlineraytracing", "2022.3", "UN1050", "Unity 2022.3 は require の値 inlineraytracing を認識しません。inlineraytracing は Unity 6.4 以降で使用できます。")]
-    [InlineData("#pragma require inlineraytracing", "6.3", "UN1051", "inlineraytracing を満たす GPU が無いと判定され、コンパイルされません。")]
-    [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "UN1054", "6.5 以前は FXC、6.6 からは DXC")]
+    [InlineData("#pragma use_dxc d3d12", "6.6", "UN0201", "d3d12 は、どのバージョンの Unity でも認識されず、DXCが使用されません。")]
+    [InlineData("#pragma use_dxc dx12", "6.3", "UN0201", "Unity 6.5 以前は、use_dxc の API 名 dx12 が認識されず、DXCが使用されません。")]
+    [InlineData("#pragma use_dxc d3d11", "6.6", "UN0202", "非推奨")]
+    [InlineData("#pragma use_dxc d3d11", "6.3", "UN0203", "Unity 6.5 以前の use_dxc d3d11 は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
+    [InlineData("#pragma use_dxc", "6.3", "UN0203", "Unity 6.5 以前は、API名を指定しない use_dxc は、Graphics API for Windows: DX11 / DX12 のどちらの環境でもDXCコンパイルを行います。")]
+    [InlineData("#pragma require int64", "6.6", "UN0203", "require int64 がキーワードの条件なしで書かれています。このパスは DXCコンパイルされるため、Graphics API for Windows: DX11 では動作しません。Graphics API for Windows: DX11 でも使用する場合、require int64 : キーワード のように条件を付け、DXC と FXC の構成を分けてください。")]
+    [InlineData("#pragma require inlineraytracing", "2022.3", "UN0201", "Unity 2022.3 は require の値 inlineraytracing を認識しません。inlineraytracing は Unity 6.4 以降で使用できます。")]
+    [InlineData("#pragma require inlineraytracing", "6.3", "UN0202", "inlineraytracing を満たす GPU が無いと判定され、コンパイルされません。")]
+    [InlineData("#pragma never_use_dxc|#pragma require wavebasic", "6.6", "UN0204", "6.5 以前は FXC、6.6 からは DXC")]
     public void コンパイラの指定を対象のAPIとバージョンに照らして報告する(string pragma, string version, string id, string expected)
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(pragma.Replace("|", "\n", StringComparison.Ordinal), "return 1;", version);
@@ -131,7 +131,7 @@ public sealed class CompileTargetRuleTests
     public void 問題の無いコンパイラの指定は報告しない(string pragma, string? version)
         => Assert.DoesNotContain(
             Analyze(pragma, "return 1;", new UnityOptions { EditorVersion = version }),
-            d => d.Id is "UN1050" or "UN1051" or "UN1053" or "UN1054");
+            d => d.Id is "UN0201" or "UN0202" or "UN0203" or "UN0204");
 
     [Fact]
     public void require_native16bitのパスで定数バッファのhalfを報告する()
@@ -142,7 +142,7 @@ public sealed class CompileTargetRuleTests
             "6.3",
             "cbuffer UnityPerMaterial { half4 _BaseColor; float4 _Other; };");
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN1052");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0205");
         Assert.Equal(
             "定数バッファ 'UnityPerMaterial' の _BaseColor は half4 ですが、dx12 (DXC (HLSL 2018、16 ビットの型)) では 16 ビットの型になり、"
             + "Unity が書き込んだ値を正しく読めません。float4 で宣言し、使うところで変換してください。",
@@ -158,7 +158,7 @@ public sealed class CompileTargetRuleTests
             "6.3",
             "cbuffer UnityPerMaterial { min16float4 _BaseColor; };");
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN1052");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0205");
         Assert.Contains("UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成の dx12", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -167,7 +167,7 @@ public sealed class CompileTargetRuleTests
     [InlineData("#pragma require native16bit", "cbuffer UnityPerMaterial { float4 _BaseColor; };")]
     [InlineData("", "cbuffer UnityPerMaterial { half4 _BaseColor; };")]
     public void 十六ビットの型を有効にしないか定数バッファがfloatなら報告しない(string pragma, string declarations)
-        => Assert.DoesNotContain(Analyze(pragma, "return _BaseColor;", "6.3", declarations), d => d.Id == "UN1052");
+        => Assert.DoesNotContain(Analyze(pragma, "return _BaseColor;", "6.3", declarations), d => d.Id == "UN0205");
 
     private const string LightInterface = "interface ILight { float3 Get(); }; ILight g_light;";
 
@@ -305,7 +305,7 @@ public sealed class CompileTargetRuleTests
     public void コンパイラを切り替えるキーワードは条件に無くても使われている(string keyword, bool expected)
         => Assert.Equal(expected, Analyze($"#pragma multi_compile _ {keyword}", "return 1;", "6.3").Any(d => d.Id == "HL0331"));
 
-    /// <summary>カーネルの無いコンピュートシェーダーには、頂点・フラグメントではなく #pragma kernel を求めることを検証する (UN0302)。</summary>
+    /// <summary>カーネルの無いコンピュートシェーダーには、頂点・フラグメントではなく #pragma kernel を求めることを検証する (UN0301)。</summary>
     [Fact]
     public void カーネルの無いコンピュートシェーダーにはkernelを求める()
     {
@@ -313,7 +313,7 @@ public sealed class CompileTargetRuleTests
         ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, new SemanticsOptions(), new UnityOptions());
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0302");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0301");
         Assert.Equal("コードブロックに #pragma kernel が存在しません。", diagnostic.GetMessage());
     }
 
@@ -334,7 +334,7 @@ public sealed class CompileTargetRuleTests
     public void DX11を対象にしなければrequireを報告しない()
         => Assert.DoesNotContain(
             Analyze("#pragma require int64", "return 1;", new UnityOptions { EditorVersion = "6.3", GraphicsApis = [UnityGraphicsApi.Direct3D12] }),
-            d => d.Id is "UN1053");
+            d => d.Id is "UN0203");
 
     private static ImmutableArray<Diagnostic> Analyze(string pragma, string body, string version, string declarations = "")
         => Analyze(pragma, body, new UnityOptions { EditorVersion = version }, declarations);

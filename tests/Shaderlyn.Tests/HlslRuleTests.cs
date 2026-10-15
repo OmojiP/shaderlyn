@@ -128,7 +128,7 @@ public sealed class HlslRuleTests
     }
 
     // ------------------------------------------------------------------
-    // HL0301 / UN0302: エントリポイント
+    // HL0301 / UN0301: エントリポイント
     // ------------------------------------------------------------------
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "UN0302");
+        Assert.Single(diagnostics, d => d.Id == "UN0301");
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public sealed class HlslRuleTests
             "struct Input { float2 uv_MainTex; };",
             "void surf(Input IN, inout SurfaceOutputStandard o) { o.Albedo = 1; }"));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "UN0302");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "UN0301");
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
     }
 

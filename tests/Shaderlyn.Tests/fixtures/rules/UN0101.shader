@@ -1,4 +1,4 @@
-Shader "Rules/UN1053"
+Shader "Rules/UN0101"
 {
     SubShader
     {
@@ -7,7 +7,7 @@ Shader "Rules/UN1053"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma require int64
+            #pragma once
             float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
             half4 frag() : SV_Target { return 1; }
             ENDHLSL

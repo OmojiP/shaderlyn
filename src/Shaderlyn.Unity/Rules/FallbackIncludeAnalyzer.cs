@@ -9,7 +9,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけたことを報告する (UN1058)。
+/// ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけたことを報告する (UN0102)。
 /// </summary>
 /// <remarks>
 /// <para>

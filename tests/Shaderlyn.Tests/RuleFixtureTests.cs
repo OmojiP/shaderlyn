@@ -64,7 +64,7 @@ public sealed class RuleFixtureTests
 
         // fixture は違反シェーダーの隣を探索パスにしているので、ヘッダから見つからない取り込みもシェーダーから引き直さずに見つかる。
         // UserHeaderTests で、Unity プロジェクトの形にして確かめている。
-        ["UN1058"] = "fixture の探索パスで見つかり、シェーダーからの引き直しが起きない",
+        ["UN0102"] = "fixture の探索パスで見つかり、シェーダーからの引き直しが起きない",
 
         // Unreal の環境だけの規則。UnrealEnvironmentTests で、Unreal の .usf として確かめている。
         ["UE0001"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
@@ -72,7 +72,7 @@ public sealed class RuleFixtureTests
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。
-        ["UN1051"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",
+        ["UN0202"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",
     };
 
     /// <summary>違反するシェーダーを置いてある規則。</summary>

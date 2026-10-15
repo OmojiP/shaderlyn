@@ -9,7 +9,7 @@ using Shaderlyn.Rules;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// コードブロックにシェーダーステージの <c>#pragma</c> があるかを検査する (UN0302)。
+/// コードブロックにシェーダーステージの <c>#pragma</c> があるかを検査する (UN0301)。
 /// </summary>
 /// <remarks>
 /// <para>

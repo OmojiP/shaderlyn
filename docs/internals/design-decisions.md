@@ -87,7 +87,7 @@
   中身 (uniform buffer の宣言) を知らないので「宣言が無い」ことを根拠にする検査は止め (Unreal では UE0001 / UE0002、ほかの環境では HL0005 で伝える)、型の検査など取り込んだ先を見なくてよい検査は行う。
   空の中身で解決したことにすると、`View.PreExposure` などがすべて「宣言されていない」になる
 - **ルール ID は環境で分けない。** HL0301 (エントリポイントが無い) は環境が読んだエントリポイントで動く汎用のルールにし、Unity での文は変えなかった。
-  Unity だけのルール (SL / URP / UN0302) は `Shaderlyn.Unity` に置き、Unity の情報 (`compilation.GetUnity()`) が無ければ何もしない
+  Unity だけのルール (SL / URP / UN0301) は `Shaderlyn.Unity` に置き、Unity の情報 (`compilation.GetUnity()`) が無ければ何もしない
 - **Godot の余地: HLSL ではない言語も、解析単位 (`AnalysisTarget`) を返せば CLI の残り (探索・抑制・ベースライン・出力・キャッシュ) はそのまま働く。**
   言語ごとの解析器を引く口は `HostEnvironment.CreateAnalysisEnvironment` の 1 か所 (今は内部) で、テストが作り物の言語でここを通している
   (`NonHlslLanguageTests`)。Godot を入れるときに要るのは、字句解析・プリプロセッサ・構文解析・型・ルールと、この口の公開である。

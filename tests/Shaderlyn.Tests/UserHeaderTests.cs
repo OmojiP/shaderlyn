@@ -218,12 +218,12 @@ public sealed partial class UserHeaderTests : IDisposable
         Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
         Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
 
-        // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (UN1058)。
-        Assert.Contains(("H.hlsl", "UN1058"), Findings(output));
+        // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (UN0102)。
+        Assert.Contains(("H.hlsl", "UN0102"), Findings(output));
         Assert.Contains("'../../B.hlsl'", output, StringComparison.Ordinal);
     }
 
-    /// <summary>ヘッダから見つかる取り込みには UN1058 を出さない。</summary>
+    /// <summary>ヘッダから見つかる取り込みには UN0102 を出さない。</summary>
     [Fact]
     public async Task ヘッダからの相対で見つかる取り込みには警告を出さない()
     {
@@ -233,7 +233,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.DoesNotContain("UN1058", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("UN0102", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public sealed partial class UserHeaderTests : IDisposable
     }
 
     /// <summary>
-    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に UN1056 を出す (Unity は読めない)。
+    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に UN0001 を出す (Unity は読めない)。
     /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を HL0001 にしていた。BOM 付きは何も言わなかった。
     /// </summary>
     [Theory]
@@ -350,7 +350,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Contains(("A.shader", "UN1056"), Findings(output));
+        Assert.Contains(("A.shader", "UN0001"), Findings(output));
         Assert.DoesNotContain(Findings(output), f => f.Id is "HL0001" or "HL0310");
     }
 
