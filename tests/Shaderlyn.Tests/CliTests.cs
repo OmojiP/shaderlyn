@@ -794,6 +794,41 @@ public sealed class ProgramTests : IDisposable
     }
 
     /// <summary>
+    /// ほかのヘッダは引けて、Unity 同梱のヘッダだけを引けないとき (TOOL0004 にならないとき) も、--unity-editor を案内する。
+    /// </summary>
+    [Fact]
+    public async Task 同梱のヘッダだけを引けなければunity_editorを案内する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "Local.hlsl"), "float4 FromLocal(float4 p) { return p; }\n");
+        CreateShaderFile(
+            "CgLocal.shader",
+            """
+            Shader "Test/CgLocal"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        CGPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #include "UnityCG.cginc"
+                        #include "Local.hlsl"
+                        float4 vert(float4 position : POSITION) : SV_POSITION { return FromLocal(position); }
+                        fixed4 frag() : SV_Target { return 1; }
+                        ENDCG
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory, "--unity-editor", Path.Combine(_workDirectory, "no-unity"));
+
+        Assert.Contains("HL0321", output, StringComparison.Ordinal);
+        Assert.Contains("--unity-editor", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Unity 6.3.26f1 以降の Editor (<c>Data/Resources/CGIncludes</c> に同梱のヘッダがある) からも、<c>UnityCG.cginc</c> を引く。
     /// </summary>
     [Fact]
