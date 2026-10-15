@@ -4,6 +4,7 @@
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
     <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

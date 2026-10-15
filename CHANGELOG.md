@@ -21,6 +21,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - Unreal Engine: エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す
   `/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush` を読む
 - `sizeof` を組み込みの名前として扱う (HL0310 にしない)
+- Unreal Engine の環境だけのルール [UE0001](docs/rules/UE0001.md) (エンジンが生成するファイルが無いので宣言の検査を見送った。`--unreal-generate` を案内する) と
+  [UE0002](docs/rules/UE0002.md) (マテリアルごとに生成される `Material.ush` / `VertexFactory.ush` の中身が分からないので見送った)。
+  UE0002 は利用者には直せないので、要らなければ `rules:` で `UE0002: none` にできる
 
 ### 変更
 
@@ -29,6 +32,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   2018 で読むシェーダーでも template などの 2021 の宣言は誤りにしない (C++ が個別に 2021 にすることがある)。
   `hlsl: version` を書けば、今までどおりすべてそのバージョンで読む。エンジンのシェーダーの HL0003 (template) 110 件が無くなる
 - Unreal Engine: マテリアルのシェーダーに、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義する
+- Unreal Engine: 欠けているのがエンジンが生成するファイルだけのとき、SL0002 ではなく UE0001 / UE0002 で伝える。
+  抑制コメントやベースラインに SL0002 を書いていた場合は、UE0001 / UE0002 に書き換える
 
 ### 修正
 

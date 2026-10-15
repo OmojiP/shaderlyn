@@ -400,6 +400,52 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Single(output.Split('\n'), line => line.Contains("HL0310", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// 欠けているのが生成されるファイルだけなら、SL0002 ではなく Unreal のルールで伝える。
+    /// C++ から作れるものが欠けていれば UE0001、マテリアルごとに作られるものだけなら UE0002。
+    /// </summary>
+    [Fact]
+    public async Task 生成されるファイルが欠けていればUnrealのルールで伝える()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/GeneratedUniformBuffers.ush"
+            """);
+        Write("Shaders/Private/GlobalPass.usf", """
+            #include "/Engine/Private/Common.ush"
+            #include "/Engine/Generated/Material.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+        Write("Shaders/Private/MaterialPass.usf", """
+            #include "/Engine/Generated/Material.ush"
+            #include "/Engine/Generated/VertexFactory.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+        Write("Shaders/Private/BrokenPass.usf", """
+            #include "/Engine/Private/Missing.ush"
+            #include "/Engine/Generated/Material.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("GlobalPass.usf(1:1): info UE0001", output, StringComparison.Ordinal);
+        Assert.Contains("--unreal-generate", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(1:1): info UE0002", output, StringComparison.Ordinal);
+
+        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので SL0002 で伝える。
+        Assert.Contains("BrokenPass.usf(1:1): info SL0002", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("BrokenPass.usf(1:1): info UE", output, StringComparison.Ordinal);
+        Assert.Single(output.Split('\n'), line => line.Contains(": info SL0002", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void CPlusPlusの構造体からuniform_bufferの宣言を作る()
     {

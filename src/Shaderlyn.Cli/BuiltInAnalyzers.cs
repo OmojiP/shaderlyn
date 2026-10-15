@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Rules;
 using Shaderlyn.Unity.Rules;
+using Shaderlyn.Unreal.Rules;
 
 namespace Shaderlyn.Cli;
 
@@ -74,6 +75,9 @@ public static class BuiltInAnalyzers
         // レンダーパイプライン固有のルール。
         new SrpBatcherAnalyzer(),
         new ObsoleteApiAnalyzer(),
+
+        // Unreal Engine の環境だけのルール。
+        new GeneratedIncludeAnalyzer(),
 
         // 設定ファイルに書かれたプロジェクト固有のルール。
         // 定義が無ければ何も報告しない。

@@ -52,6 +52,24 @@ public sealed record UnrealOptions
         }.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// 生成される取り込みのうち、マテリアルと頂点ファクトリごとに作られるもの。C++ からは作れない
+    /// (<see cref="UnrealUniformBufferGenerator"/> が作らない)。
+    /// </summary>
+    public static ImmutableArray<string> MaterialGeneratedIncludes { get; } =
+        ["/Engine/Generated/Material.ush", "/Engine/Generated/VertexFactory.ush"];
+
+    /// <summary>取り込みのパスが、マテリアルごとに作られる生成ファイル (<see cref="MaterialGeneratedIncludes"/>) かを判定する。</summary>
+    /// <param name="path"><c>#include</c> に書かれたパス。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    public static bool IsMaterialGeneratedInclude(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        string normalized = path.Replace('\\', '/');
+        return MaterialGeneratedIncludes.Any(include => string.Equals(normalized, include, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// シェーダーコンパイラが定義するマクロの既定値。PC の Direct3D 12 (シェーダーモデル 6) を想定する。
     /// </summary>
     /// <remarks>

@@ -25,12 +25,15 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 同じオプションに `--env` を足して実行すると、解析はせずに、使う Unity Editor・パッケージの解決先・
 解決できない `#include` を表示します（[CLI の使い方 8 章](cli-usage.md#8-解析の中身を見る)）。
 
-### Unreal で SL0002 がすべてのファイルに出る
+### Unreal で UE0001 / UE0002 がすべてのファイルに出る
 
-メッセージに `ビルドのときにエンジンが生成するファイル` と出ていれば、設定の誤りではありません。
-`/Engine/Generated/…` (uniform buffer などの宣言) はビルドのときに作られるので、中身が分かりません。
-宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) だけを止めています。型の検査などは行っています
-([Unity 以外の環境で使う](environments.md#unreal-engine))。
+設定の誤りではありません。`/Engine/Generated/…` (uniform buffer などの宣言) はビルドのときに作られるので、そのままでは中身が分かりません。
+宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) だけを止めています。型の検査などは行っています。
+
+- [UE0001](../rules/UE0001.md) は、`--unreal-generate` で C++ から作って `unreal: generated` に書くと消えます
+  ([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))
+- [UE0002](../rules/UE0002.md) は、マテリアルごとに作られる `Material.ush` / `VertexFactory.ush` のためで、直せません。
+  要らなければ `rules:` で `UE0002: none` にしてください
 
 `/Engine/Private/Common.ush` など、生成されないファイルが解決できないときは `TOOL0004` か `HL0321` が出ます。
 設定ファイルの `unreal:` の `engine` を確かめてください。`--env` で仮想パスの割り当てを表示できます。

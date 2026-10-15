@@ -12,6 +12,7 @@
     <InternalsVisibleTo Include="Shaderlyn.Hlsl" />
     <InternalsVisibleTo Include="Shaderlyn.Rules" />
     <InternalsVisibleTo Include="Shaderlyn.Unity" />
+    <InternalsVisibleTo Include="Shaderlyn.Unreal" />
     <InternalsVisibleTo Include="Shaderlyn.Testing" />
     <InternalsVisibleTo Include="Shaderlyn.Cli" />
   </ItemGroup>

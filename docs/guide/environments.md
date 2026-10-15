@@ -95,7 +95,7 @@ units:
 - **パーミュテーションは C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
 - **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、そのままでは解決できません。** その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません。
-  その旨を SL0002 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
+  その旨を UE0001 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
   呼び出しの引数の検査 (HL0340 / HL0341) は、欠けているのが関数を宣言しないと分かっているファイル
   (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
   `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
@@ -155,7 +155,7 @@ unreal:
 | `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
 | `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
 
-- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (SL0002)
+- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
 - 作ったファイルは、エンジンかプロジェクトの C++ を変えたら作り直してください。バージョン管理には入れなくてかまいません
 
