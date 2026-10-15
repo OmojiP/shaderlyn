@@ -48,7 +48,7 @@ internal sealed partial class HlslPreprocessor
 
         string includingFilePath = directiveToken.Source.FilePath;
 
-        if (!TryResolveInclude(_options.IncludeResolver, path, includingFilePath, out SourceText? included))
+        if (!TryResolveInclude(_options.IncludeResolver, path, includingFilePath, out SourceText? included, out bool fromFallback))
         {
             AddUnresolvedInclude(path);
             _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
@@ -64,7 +64,7 @@ internal sealed partial class HlslPreprocessor
             return;
         }
 
-        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16 });
+        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16, IsResolvedFromFallback = fromFallback });
 
         // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
         // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
@@ -128,9 +128,17 @@ internal sealed partial class HlslPreprocessor
     /// <param name="path">書かれたパス。</param>
     /// <param name="includingFilePath">取り込みを書いたファイル。</param>
     /// <param name="included">引いたファイル。</param>
+    /// <param name="fromFallback">書いたファイルから引けず、<see cref="PreprocessorOptions.FallbackIncludingFilePath"/> から引けたか。</param>
     /// <returns>引けたら <see langword="true"/>。</returns>
-    private bool TryResolveInclude(IIncludeResolver resolver, string path, string includingFilePath, [NotNullWhen(true)] out SourceText? included)
+    private bool TryResolveInclude(
+        IIncludeResolver resolver,
+        string path,
+        string includingFilePath,
+        [NotNullWhen(true)] out SourceText? included,
+        out bool fromFallback)
     {
+        fromFallback = false;
+
         if (resolver.TryResolve(path, includingFilePath, out included))
         {
             return true;
@@ -148,7 +156,8 @@ internal sealed partial class HlslPreprocessor
             outer.Uncacheable = true;
         }
 
-        return resolver.TryResolve(path, fallback, out included);
+        fromFallback = resolver.TryResolve(path, fallback, out included);
+        return fromFallback;
     }
 
     /// <summary>利用者が書いたヘッダで、展開結果を覚えないものかを判定する。</summary>

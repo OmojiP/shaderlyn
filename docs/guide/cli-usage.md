@@ -347,9 +347,13 @@ Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つ�
 
 ### Unity Editor の場所
 
-通常は指定不要です。
+通常は指定不要です。プロジェクトの `ProjectSettings/ProjectVersion.txt` のバージョンを、Unity Hub の既定のインストール先
+(Windows は `C:\Program Files\Unity\Hub\Editor`) から探します。
 
-自動で見つからない場合だけ指定します。
+Unity Hub でインストール先を変えた場合 (別のドライブなど) は見つからないので、`--unity-editor` で Editor のデータフォルダーを指定してください
+(設定ファイルなら `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱のヘッダを引けず、
+[HL0321](../rules/HL0321.md) か [TOOL0004](../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
+Unity 6.3.26f1 以降の Editor は、同梱のヘッダを `Editor/Data/Resources/CGIncludes` に置いています。指定するのはどちらでも `Editor/Data` です。
 
 ```bash
 # Windows
@@ -366,7 +370,7 @@ shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0
 
 多くの用途では `--unity-project` だけで解決できるので、このオプションは要りません。
 
-Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
+Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス ([HL0322](../rules/HL0322.md) の警告付き)、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
 
 ```bash
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
@@ -458,6 +462,12 @@ shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 ```
 
 - キャッシュファイルは絶対パスを参照するため、`.gitignore` へ入れてください
+- 書き出せないパス (権限が無い、フォルダーを指している、ドライブが無い、`NUL` などのデバイス名) なら、解析の前に理由を標準エラーへ出します。
+  解析はそのまま続け、終了コードも変わりません (キャッシュが残らないだけです)
+
+```
+キャッシュを書き出せません (C:/Windows/System32/cache.json): アクセスする権限がありません。 解析は続けますが、キャッシュは残りません。
+```
 
 
 > 解析の内訳を知りたい場合は `--timings` を付けると、構文解析・展開・ルールにかかった時間を標準エラーへ出します。
@@ -511,6 +521,8 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
   1. #include を書いているファイルからの相対
   2. /.../
   3. /.../
+  4. Packages/<名前>/... はパッケージの置き場所から: /.../
+  5. ヘッダの中の #include は、ここまでで見つからなければ、解析しているシェーダーからの相対
 
 ■ パッケージの解決先
   ...

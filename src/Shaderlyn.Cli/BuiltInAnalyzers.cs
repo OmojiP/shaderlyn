@@ -53,6 +53,7 @@ public static class BuiltInAnalyzers
         new DuplicateSemanticAnalyzer(),
         new ShaderSymbolAnalyzer(),
         new IncludePathAnalyzer(),
+        new FallbackIncludeAnalyzer(),
         new EntryPointAnalyzer(),
         new ShaderStageAnalyzer(),
         new CompilerPragmaAnalyzer(),

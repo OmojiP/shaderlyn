@@ -531,6 +531,7 @@ Shaderlyn.Hlsl.Preprocessing.IncludeReference :: .ctor(System.String, Shaderlyn.
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean Equals(Shaderlyn.Hlsl.Preprocessing.IncludeReference)
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsResolved { get; }
+Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsResolvedFromFallback { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.Boolean IsUtf16 { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String OutsideBoundaryPath { get; set; }
 Shaderlyn.Hlsl.Preprocessing.IncludeReference :: System.String Path { get; set; }

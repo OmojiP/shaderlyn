@@ -48,6 +48,25 @@ internal static class HlslRuleDescriptors
             + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
         helpLinkUri: DocumentationLinks.For("HL0301"));
 
+    /// <summary>ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけた。</summary>
+    /// <remarks>
+    /// Unity は、ヘッダの中の <c>#include "..."</c> がヘッダから見つからなければ、解析しているシェーダーからの相対で探し直す
+    /// (Unity 6.6 で確かめた)。そのシェーダーでは通るが、別の場所のシェーダーから取り込むと見つからなくなる。
+    /// </remarks>
+    public static DiagnosticDescriptor IncludeResolvedFromShader { get; } = new(
+        id: "HL0322",
+        title: "取り込みをシェーダーからの相対で見つけています",
+        messageFormat: "'{0}' はこのファイルからは見つからず、取り込んでいるシェーダーからの相対で見つけています。"
+            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に直してください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "ヘッダ (.hlsl など) の中の #include \"...\" が、そのヘッダからの相対では見つからず、"
+            + "ヘッダを取り込んでいるシェーダー (.shader) からの相対で見つかりました。"
+            + "Unity はヘッダから見つからないとシェーダーから探し直すので、このシェーダーではコンパイルできます。"
+            + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
+            + "ヘッダからの相対パスに直してください。",
+        helpLinkUri: DocumentationLinks.For("HL0322"));
+
     /// <summary>cbuffer の中の関数をエントリポイントにしていて、FXC でコンパイルされる。</summary>
     /// <remarks>
     /// FXC は cbuffer の中の関数をエントリポイントにできる。DXC はできない (HL0304)。

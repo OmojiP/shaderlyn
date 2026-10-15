@@ -650,6 +650,13 @@ public readonly record struct IncludeReference(
     /// <summary>取り込んだファイルを UTF-16 として読んだかどうか (BOM の有無によらない)。</summary>
     /// <remarks>Unity は UTF-16 のファイルを読めない (SL1056)。DXC は読める。</remarks>
     public bool IsUtf16 { get; init; }
+
+    /// <summary>
+    /// 書いたファイルから引けず、解析しているファイルからの相対で引き直して見つけたか
+    /// (<see cref="PreprocessorOptions.FallbackIncludingFilePath"/>)。
+    /// </summary>
+    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (HL0322)。</remarks>
+    public bool IsResolvedFromFallback { get; init; }
 }
 
 /// <summary>

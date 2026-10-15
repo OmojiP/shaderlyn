@@ -62,6 +62,10 @@ public sealed class RuleFixtureTests
         // Unity は HLSL 2021 でコンパイルしないので起こせない。Hlsl2021Tests で、汎用の HLSL 環境の .hlsl として確かめている。
         ["HL0349"] = "HLSL 2021 だけの規則なので、Unity の .shader では起こせない",
 
+        // fixture は違反シェーダーの隣を探索パスにしているので、ヘッダから見つからない取り込みもシェーダーから引き直さずに見つかる。
+        // UserHeaderTests で、Unity プロジェクトの形にして確かめている。
+        ["HL0322"] = "fixture の探索パスで見つかり、シェーダーからの引き直しが起きない",
+
         // Unreal の環境だけの規則。UnrealEnvironmentTests で、Unreal の .usf として確かめている。
         ["UE0001"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
         ["UE0002"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
