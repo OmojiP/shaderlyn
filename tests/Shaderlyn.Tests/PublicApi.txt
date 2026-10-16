@@ -1230,22 +1230,22 @@ Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Generic.IEnumerable`1[Shaderlyn.Cli.HostEnvironment])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: System.Threading.Tasks.Task`1[System.Int32] RunAsync(System.Threading.CancellationToken)
-Shaderlyn.Semantics.Analysis.HlslAnalysisContext : sealed class
-Shaderlyn.Semantics.Analysis.HlslAnalysisContext :: .ctor()
-Shaderlyn.Semantics.Analysis.HlslAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1[TNode]])
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 : struct
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: Shaderlyn.Core.Analysis.AnalyzerOptions Options { get; }
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: Shaderlyn.Semantics.AnalyzedProgram Program { get; }
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: Shaderlyn.Semantics.ShaderCompilation Compilation { get; }
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: System.Threading.CancellationToken CancellationToken { get; }
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, System.Object[])
-Shaderlyn.Semantics.Analysis.HlslNodeAnalysisContext`1 :: TNode Node { get; }
-Shaderlyn.Semantics.Analysis.HlslRuleAnalyzer : abstract class (Shaderlyn.Core.Analysis.DiagnosticAnalyzer)
-Shaderlyn.Semantics.Analysis.HlslRuleAnalyzer :: System.Void Initialize(Shaderlyn.Core.Analysis.AnalysisContext)
-Shaderlyn.Semantics.Analysis.HlslRuleAnalyzer :: protected .ctor()
-Shaderlyn.Semantics.Analysis.HlslRuleAnalyzer :: protected abstract System.Void InitializeHlsl(Shaderlyn.Semantics.Analysis.HlslAnalysisContext)
+Shaderlyn.Semantics.Analysis.ShaderAnalysisContext : sealed class
+Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: .ctor()
+Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]])
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 : struct
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Analysis.AnalyzerOptions Options { get; }
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Semantics.AnalyzedProgram Program { get; }
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Semantics.ShaderCompilation Compilation { get; }
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Threading.CancellationToken CancellationToken { get; }
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, System.Object[])
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: TNode Node { get; }
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer : abstract class (Shaderlyn.Core.Analysis.DiagnosticAnalyzer)
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: System.Void Initialize(Shaderlyn.Core.Analysis.AnalysisContext)
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected .ctor()
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected abstract System.Void InitializeShader(Shaderlyn.Semantics.Analysis.ShaderAnalysisContext)
 Shaderlyn.Semantics.AnalyzedProgram : sealed class
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Diagnostics.Location GetBlockLocation()
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.SymbolCondition AnalyzedCondition { get; }

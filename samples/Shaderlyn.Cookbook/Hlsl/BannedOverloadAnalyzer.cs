@@ -33,13 +33,13 @@ namespace Shaderlyn.Cookbook;
 /// 気にする位置だけを書ける。
 /// </para>
 /// </remarks>
-public sealed class BannedOverloadAnalyzer(string function, params string?[] parameterTypes) : HlslRuleAnalyzer
+public sealed class BannedOverloadAnalyzer(string function, params string?[] parameterTypes) : ShaderRuleAnalyzer
 {
     private readonly ImmutableArray<string?> _parameters = [.. parameterTypes];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedOverload];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

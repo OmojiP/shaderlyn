@@ -187,7 +187,7 @@ VS Code からの指し方は [VS Code 拡張の README「自作ルールを使�
 
 1. `SupportedDiagnostics` に入れましたか。入っていないルールはアナライザごと実行されないことがあります
 2. `RegisterNodeAction` に HLSL のノード型を渡していませんか。ShaderLab の木しか歩きません。
-   HLSL を見るときは `HlslRuleAnalyzer` を使います（[自作ルールの作り方 3 章](../custom-rules/tutorial.md#3-ルールを書く)）
+   HLSL を見るときは `ShaderRuleAnalyzer` を使います（[自作ルールの作り方 3 章](../custom-rules/tutorial.md#3-ルールを書く)）
 3. セマンティックモデルが `null` ではありませんか。`--unity-project` を渡していないと構築されないことがあります
 4. `--inspect` で構文木を見て、期待した型のノードがあるか確かめてください
 

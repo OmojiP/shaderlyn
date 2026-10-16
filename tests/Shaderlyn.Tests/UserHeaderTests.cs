@@ -454,7 +454,7 @@ public sealed partial class UserHeaderTests : IDisposable
     [Fact]
     public async Task 自作ルールが範囲で報告したヘッダのノードはヘッダの位置に出る()
     {
-        // HlslRuleAnalyzer の ReportDiagnostic(descriptor, span) は範囲だけを受け取る。
+        // ShaderRuleAnalyzer の ReportDiagnostic(descriptor, span) は範囲だけを受け取る。
         // ヘッダのノードの範囲を解析しているファイルに付けると、別のファイルの同じ位置を指してしまう。
         string header = Write(Path.Combine("Assets", "Shaders", "Common.hlsl"), """
             float4 BadHelper(float4 c) { return c; }
@@ -487,14 +487,14 @@ public sealed partial class UserHeaderTests : IDisposable
     }
 
     /// <summary>名前が Bad で始まる関数を、名前の範囲で報告する自作ルール。</summary>
-    private sealed class BadFunctionNameAnalyzer : HlslRuleAnalyzer
+    private sealed class BadFunctionNameAnalyzer : ShaderRuleAnalyzer
     {
         private static readonly DiagnosticDescriptor Rule = new(
             "TEST0001", "名前が Bad で始まる関数", "関数 '{0}' の名前を変えてください。", "Naming", DiagnosticSeverity.Warning);
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-        protected override void InitializeHlsl(HlslAnalysisContext context)
+        protected override void InitializeShader(ShaderAnalysisContext context)
             => context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
             {
                 if (c.Node.Name.StartsWith("Bad", StringComparison.Ordinal))

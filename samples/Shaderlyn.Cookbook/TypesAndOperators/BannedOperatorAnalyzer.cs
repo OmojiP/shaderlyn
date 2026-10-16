@@ -22,13 +22,13 @@ namespace Shaderlyn.Cookbook;
 /// <see cref="ShaderSyntaxFacts.IsCompoundAssignment"/> が答える。
 /// </para>
 /// </remarks>
-public sealed class BannedOperatorAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedOperatorAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedOperator];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -42,7 +42,7 @@ public sealed class BannedOperatorAnalyzer(params string[] banned) : HlslRuleAna
     /// <typeparam name="TNode">対象ノードの型。</typeparam>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="operatorToken">演算子のトークン。</param>
-    private void Check<TNode>(HlslNodeAnalysisContext<TNode> context, ShaderSyntaxToken operatorToken)
+    private void Check<TNode>(ShaderNodeAnalysisContext<TNode> context, ShaderSyntaxToken operatorToken)
         where TNode : ShaderSyntaxNode
     {
         string text = operatorToken.Text;

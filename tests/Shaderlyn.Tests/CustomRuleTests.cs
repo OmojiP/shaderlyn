@@ -41,7 +41,7 @@ public sealed class CustomRuleTests
         """;
 
     /// <summary>手順書どおりに書いた、最小のルール。</summary>
-    private sealed class HalfIsBannedAnalyzer : HlslRuleAnalyzer
+    private sealed class HalfIsBannedAnalyzer : ShaderRuleAnalyzer
     {
         public static DiagnosticDescriptor Rule { get; } = new(
             id: "TEST0001",
@@ -53,7 +53,7 @@ public sealed class CustomRuleTests
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-        protected override void InitializeHlsl(HlslAnalysisContext context)
+        protected override void InitializeShader(ShaderAnalysisContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
 
@@ -123,7 +123,7 @@ public sealed class CustomRuleTests
     }
 
     /// <summary>識別子 <c>v</c> の型を、そのノードが属する構成で求めて報告するルール。</summary>
-    private sealed class VariableTypeAnalyzer : HlslRuleAnalyzer
+    private sealed class VariableTypeAnalyzer : ShaderRuleAnalyzer
     {
         public static DiagnosticDescriptor Rule { get; } = new(
             id: "TEST0010",
@@ -135,7 +135,7 @@ public sealed class CustomRuleTests
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-        protected override void InitializeHlsl(HlslAnalysisContext context)
+        protected override void InitializeShader(ShaderAnalysisContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
 
@@ -470,7 +470,7 @@ public sealed class CustomRuleTests
     }
 
     /// <summary>申告漏れのルールを、ノードごとに何度も報告するアナライザ。</summary>
-    private sealed class NoisyUndeclaredAnalyzer : HlslRuleAnalyzer
+    private sealed class NoisyUndeclaredAnalyzer : ShaderRuleAnalyzer
     {
         public static DiagnosticDescriptor Declared { get; } = new(
             id: "TEST0006",
@@ -490,7 +490,7 @@ public sealed class CustomRuleTests
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Declared];
 
-        protected override void InitializeHlsl(HlslAnalysisContext context)
+        protected override void InitializeShader(ShaderAnalysisContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
             context.RegisterNodeAction<TypeSyntax>(c => c.ReportDiagnostic(Forgotten));

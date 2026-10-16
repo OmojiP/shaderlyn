@@ -54,11 +54,11 @@ return (int)await Program.RunAsync(args, analyzers, Console.Out, Console.Error);
 実装は `samples/Shaderlyn.Cookbook/Budget/ParameterCountLimitAnalyzer.cs` にあります。
 
 ```csharp
-public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : HlslRuleAnalyzer
+public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
         {
@@ -174,13 +174,13 @@ internal sealed class BannedMacroAnalyzer(params string[] banned) : DiagnosticAn
 構文木上の関数呼び出しノード (`InvocationExpressionSyntax`) から判定します。
 
 ```csharp
-internal sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleAnalyzer
+internal sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             // 関数名（Identifier）のみを指摘範囲とすることで、複数行にわたる波線ハイライトを防止する
@@ -197,11 +197,11 @@ internal sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleA
 HLSLでifを見つけたら報告する例
 
 ```csharp
-internal sealed class NoBranchAnalyzer : HlslRuleAnalyzer
+internal sealed class NoBranchAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<IfStatementSyntax>(
             c => c.ReportDiagnostic(Rule, c.Node.IfKeyword.Span));
 }
@@ -212,11 +212,11 @@ internal sealed class NoBranchAnalyzer : HlslRuleAnalyzer
 `else if` は構文木上「`else` ブロック配下の `if`」として表現されます。多重判定を防ぐため、ネスト連鎖の最先頭ノードでのみ評価を行います。
 
 ```csharp
-internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : HlslRuleAnalyzer
+internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<IfStatementSyntax>(c =>
         {
             // 連鎖の途中の場合は親ノード側の処理に委ねる
@@ -245,11 +245,11 @@ internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : HlslRuleAnalyz
 「特定のシンボルが定義されている場合のみ特定の関数呼び出しを禁じる」といった検査です。
 
 ```csharp
-internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : HlslRuleAnalyzer
+internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             if (c.Node.Target is not IdentifierExpressionSyntax name
@@ -285,11 +285,11 @@ internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function)
 
 ```csharp
 internal sealed class ArgumentTypeAnalyzer(string function, int parameter, string expectedType)
-    : HlslRuleAnalyzer
+    : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             if (c.Node.Target is not IdentifierExpressionSyntax name
@@ -325,13 +325,13 @@ internal sealed class ArgumentTypeAnalyzer(string function, int parameter, strin
 
 ```csharp
 internal sealed class BannedOverloadAnalyzer(string function, params string?[] parameterTypes)
-    : HlslRuleAnalyzer
+    : ShaderRuleAnalyzer
 {
     private readonly ImmutableArray<string?> _parameters = [.. parameterTypes];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             if (c.Node.TargetName is not { } name || !string.Equals(name, function, StringComparison.Ordinal))

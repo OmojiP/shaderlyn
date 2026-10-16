@@ -19,13 +19,13 @@ namespace Shaderlyn.Cookbook;
 /// <c>SV_Target</c> と <c>SV_TARGET</c> はどちらも書かれる。
 /// </para>
 /// </remarks>
-public sealed class BannedSemanticAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedSemanticAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = banned.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedSemantic];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

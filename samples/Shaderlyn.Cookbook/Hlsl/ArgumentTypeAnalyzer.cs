@@ -12,11 +12,11 @@ namespace Shaderlyn.Cookbook;
 /// <b>型が分からない式では報告しない。</b>
 /// 型の判定は完全ではない。分からないものを誤りとして報告してはならない。
 /// </remarks>
-public sealed class ArgumentTypeAnalyzer(string function, int parameter, string expectedType) : HlslRuleAnalyzer
+public sealed class ArgumentTypeAnalyzer(string function, int parameter, string expectedType) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.ArgumentType];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

@@ -39,9 +39,9 @@
 | [`DiagnosticAnalyzer`](#diagnosticanalyzer-shaderlyncoreanalysis) | アナライザ |
 | [`DiagnosticDescriptor`](#diagnosticdescriptor-shaderlyncorediagnostics) | 診断 |
 | [`DiagnosticSeverity`](#diagnosticseverity) | 診断 |
-| [`HlslAnalysisContext`](#hlslanalysiscontext) | アクションを登録する |
+| [`ShaderAnalysisContext`](#shaderanalysiscontext) | アクションを登録する |
 | [`HlslIntrinsics`](#hlslintrinsics--組み込み関数を知る) | 構文木 |
-| [`HlslRuleAnalyzer`](#hlslruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
+| [`ShaderRuleAnalyzer`](#shaderruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
 | [`HlslTypeClassifier`](#hlsltypeclassifier--型名を読み解く) | 構文木 |
 | [`Location`](#location-と-textspan) | 診断 |
 | [`ResolveCall`](#resolvecall) | セマンティックモデル |
@@ -68,13 +68,13 @@
 
 `Initialize` で登録したアクションが、以降すべてのファイルに適用されます。
 
-### `HlslRuleAnalyzer` (`Shaderlyn.Semantics.Analysis`)
+### `ShaderRuleAnalyzer` (`Shaderlyn.Semantics.Analysis`)
 
 埋め込み HLSL のノードを見るアナライザの基底クラスです。
 
 | メンバー                                                    |                           |
 | ----------------------------------------------------------- | ------------------------- |
-| `abstract void InitializeHlsl(HlslAnalysisContext context)` | HLSL ノードへの関心の登録 |
+| `abstract void InitializeShader(ShaderAnalysisContext context)` | HLSL ノードへの関心の登録 |
 | `sealed override void Initialize(...)`                      | 上書き不可                |
 
 この基底クラスが引き受けることは次のとおりです。
@@ -111,13 +111,13 @@
 
 アクションを何個登録しても、構文木の走査は 1 回のままです。
 
-### `HlslAnalysisContext`
+### `ShaderAnalysisContext`
 
-名前空間は `Shaderlyn.Semantics.Analysis` です。`InitializeHlsl` の引数です。
+名前空間は `Shaderlyn.Semantics.Analysis` です。`InitializeShader` の引数です。
 
 | メソッド                                                            |                          |
 | ------------------------------------------------------------------- | ------------------------ |
-| `RegisterNodeAction<TNode>(Action<HlslNodeAnalysisContext<TNode>>)` | ノード型ごとのアクション |
+| `RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>>)` | ノード型ごとのアクション |
 
 `TNode` には [HLSL のノード型](#hlsl-のノード型)を指定します。
 
@@ -137,7 +137,7 @@
 
 登録したアクションには、対象のノードと、報告するためのメソッドを持つ値が渡ります。
 型はアクションの種類ごとに違いますが (`NodeAnalysisContext<TNode>` /
-`SyntaxTreeAnalysisContext` / `AnalysisEndContext` / `HlslNodeAnalysisContext<TNode>`)、
+`SyntaxTreeAnalysisContext` / `AnalysisEndContext` / `ShaderNodeAnalysisContext<TNode>`)、
 次のメンバーは共通です。
 
 | メンバー                                      |                                                       |
@@ -150,7 +150,7 @@
 | `ReportDiagnostic(descriptor, span, args...)` | 範囲を指定して報告                                    |
 | `ReportDiagnostic(diagnostic)`                | 作り込んだ診断をそのまま報告                          |
 
-`HlslNodeAnalysisContext<TNode>` はこれに加えて次を持ちます。
+`ShaderNodeAnalysisContext<TNode>` はこれに加えて次を持ちます。
 
 | メンバー      |                                                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -522,7 +522,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 ノードの一部だけを報告するルールは、報告する部分 (メンバー名のトークンなど) についても `IsReportable(token)` を確かめてください。
 
 **利用者のヘッダのコードは、取り込むシェーダーの文脈で渡ってきます。**
-`HlslRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
+`ShaderRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
 `DiagnosticAnalyzer` を直接継承したルールで範囲だけを渡すと、解析しているファイルの位置になります。
 ヘッダのノードを報告するときは `Diagnostic.Create(descriptor, node.GetLocation(), ...)` で位置ごと渡してください。
 `IsWrittenHere` はエディタの操作 (ホバーや定義へ移動) のための判定で、利用者のヘッダを含みません。報告の判定には使わないでください。

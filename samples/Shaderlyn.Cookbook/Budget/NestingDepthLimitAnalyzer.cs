@@ -20,11 +20,11 @@ namespace Shaderlyn.Cookbook;
 /// 深いところすべてで報告すると、1 つの入れ子に何件も出る。
 /// </para>
 /// </remarks>
-public sealed class NestingDepthLimitAnalyzer(int maxDepth) : HlslRuleAnalyzer
+public sealed class NestingDepthLimitAnalyzer(int maxDepth) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.NestingTooDeep];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

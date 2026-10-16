@@ -20,11 +20,11 @@ namespace Shaderlyn.Cookbook;
 /// <c>static const</c> で書いた上限まで巻き込むので、誤検出を確かめてから入れること。
 /// </para>
 /// </remarks>
-public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
+public sealed class LoopBoundAnalyzer(int maxIterations) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.LoopTooLong];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

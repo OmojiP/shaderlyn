@@ -8,6 +8,7 @@
 - [0.2.1 から 0.3.0 へ移行する](#021-から-030-へ移行する)
   - [目次](#目次)
   - [書き換えが要るか](#書き換えが要るか)
+  - [ルールの基底クラス](#ルールの基底クラス)
   - [C 系の言語に共通の型の置き場所](#c-系の言語に共通の型の置き場所)
     - [型の名前](#型の名前)
     - [名前空間](#名前空間)
@@ -20,6 +21,33 @@
 
 自作ルール・自作の環境・自作の CLI を書いているなら、下の書き換えが要ります。
 構文木のノード (`InvocationExpressionSyntax` など) を使うルールは、`using` を書き換えることになります。
+
+## ルールの基底クラス
+
+自作ルールの基底クラスとその周りの名前から `Hlsl` を外しました。ルールが見るのは C 系の言語に共通の構文木で、HLSL に限らないためです。
+
+| 0.2.1 | 0.3.0 |
+| --- | --- |
+| `HlslRuleAnalyzer` | `ShaderRuleAnalyzer` |
+| `InitializeHlsl(HlslAnalysisContext context)` | `InitializeShader(ShaderAnalysisContext context)` |
+| `HlslAnalysisContext` | `ShaderAnalysisContext` |
+| `HlslNodeAnalysisContext<TNode>` | `ShaderNodeAnalysisContext<TNode>` |
+
+名前空間 (`Shaderlyn.Semantics.Analysis`) と使い方は変わりません。
+
+```csharp
+// 0.2.1
+public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+{
+    protected override void InitializeHlsl(HlslAnalysisContext context) { ... }
+}
+
+// 0.3.0
+public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
+{
+    protected override void InitializeShader(ShaderAnalysisContext context) { ... }
+}
+```
 
 ## C 系の言語に共通の型の置き場所
 

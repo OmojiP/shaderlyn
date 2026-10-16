@@ -43,7 +43,7 @@ public sealed class PassNeedsNameAnalyzer : DiagnosticAnalyzer
 `RegisterNodeAction` が歩くのは ShaderLab の構文木だけです。
 埋め込み HLSL はコードブロックごとに別の構文木になっており、マクロ展開と `#include` の解決を経て
 初めて出来上がるので、ShaderLab の木からは辿れません。
-HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `HlslRuleAnalyzer` を使ってください。
+HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `ShaderRuleAnalyzer` を使ってください。
 
 ---
 
@@ -83,7 +83,7 @@ Roslyn の `RegisterCompilationStartAction` / `RegisterSymbolStartAction` と同
 ## 3. セマンティックモデルを使う
 
 `Properties` と uniform の対応のような、層をまたぐ情報が要るときはセマンティックモデルを引きます。
-`HlslRuleAnalyzer` を使っていれば `c.Compilation` から直接引けます。
+`ShaderRuleAnalyzer` を使っていれば `c.Compilation` から直接引けます。
 
 ```csharp
 context.RegisterSyntaxTreeAction(c =>
@@ -122,7 +122,7 @@ foreach (PropertySymbol property in unity.Properties)
 }
 ```
 
-`HlslRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
+`ShaderRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
 ノードは既定の構成の木とバリアントの木の両方から、それぞれの文脈で渡ってきます (`c.Program`)。
 同じ位置のコードは `Pass` と構成の数だけ渡りますが、同じ内容の報告は 1 度にまとまります。
 
@@ -144,7 +144,7 @@ foreach (PropertySymbol property in unity.Properties)
 アナライザは普通のクラスなので、コンストラクタで受け取ります。
 
 ```csharp
-public sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
     ...

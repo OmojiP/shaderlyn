@@ -23,13 +23,13 @@ namespace Shaderlyn.Cookbook;
 /// マクロが展開した型は、利用者が自分のファイルで直せるものではない。
 /// </para>
 /// </remarks>
-public sealed class BannedTypeAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedTypeAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedType];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

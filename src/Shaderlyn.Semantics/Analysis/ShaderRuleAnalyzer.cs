@@ -20,15 +20,15 @@ namespace Shaderlyn.Semantics.Analysis;
 /// </para>
 /// <para>
 /// この基底クラスは、その間を埋める。
-/// 派生クラスは <see cref="InitializeHlsl"/> で HLSL のノード型に対して登録するだけでよい。
+/// 派生クラスは <see cref="InitializeShader"/> で HLSL のノード型に対して登録するだけでよい。
 /// </para>
 /// <example>
 /// <code>
-/// public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+/// public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 /// {
 ///     public override ImmutableArray&lt;DiagnosticDescriptor&gt; SupportedDiagnostics =&gt; [Rule];
 ///
-///     protected override void InitializeHlsl(HlslAnalysisContext context)
+///     protected override void InitializeShader(ShaderAnalysisContext context)
 ///         =&gt; context.RegisterNodeAction&lt;TypeSyntax&gt;(c =&gt;
 ///         {
 ///             if (c.Node.Name == "half4")
@@ -49,7 +49,7 @@ namespace Shaderlyn.Semantics.Analysis;
 /// <b>ノードは、それが属する構成の文脈で渡ってくる。</b>
 /// 既定の構成の木に加えて、キーワードを有効にした構成 (バリアント) の木も歩く
 /// (<see cref="ShaderCompilation.EnumerateRuleNodes"/>)。
-/// <see cref="HlslNodeAnalysisContext{TNode}.Program"/> はそのノードが属する木であり、
+/// <see cref="ShaderNodeAnalysisContext{TNode}.Program"/> はそのノードが属する木であり、
 /// そこから <see cref="ShaderCompilation.GetExpressionTypeBinder"/> を引けば、その構成の型が得られる。
 /// 形は同じでも構成によって型が変わるコード (マクロの中身を切り替えている場合など) を、構成ごとに検査できる。
 /// </para>
@@ -65,23 +65,23 @@ namespace Shaderlyn.Semantics.Analysis;
 /// 文面が変わる報告 (構成ごとの型の名前を載せるなど) は、それぞれ残る。
 /// </para>
 /// <para>
-/// そのノードが存在する条件は <see cref="HlslNodeAnalysisContext{TNode}.Condition"/> で分かる。
+/// そのノードが存在する条件は <see cref="ShaderNodeAnalysisContext{TNode}.Condition"/> で分かる。
 /// </para>
 /// </remarks>
-public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
+public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     /// <remarks>
     /// <b>派生クラスはこれを上書きしない。</b>
     /// 上書きすると、セマンティックモデルが無い場合に報告しない仕組みが働かなくなる。
-    /// 登録は <see cref="InitializeHlsl"/> で行うこと。
+    /// 登録は <see cref="InitializeShader"/> で行うこと。
     /// </remarks>
     public sealed override void Initialize(AnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        HlslAnalysisContext registrations = new();
-        InitializeHlsl(registrations);
+        ShaderAnalysisContext registrations = new();
+        InitializeShader(registrations);
 
         if (registrations.IsEmpty)
         {
@@ -109,7 +109,7 @@ public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
     /// <see cref="Initialize"/> と同じく、ドライバの生成時に一度だけ呼ばれる。
     /// ファイルごとには呼ばれない。
     /// </remarks>
-    protected abstract void InitializeHlsl(HlslAnalysisContext context);
+    protected abstract void InitializeShader(ShaderAnalysisContext context);
 
     /// <summary>
     /// 自分で書いたコードのノードを歩き、登録されたアクションを発火させる。
@@ -118,7 +118,7 @@ public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="treeContext">報告先。</param>
     private void Walk(
-        HlslAnalysisContext registrations,
+        ShaderAnalysisContext registrations,
         ShaderCompilation compilation,
         SyntaxTreeAnalysisContext treeContext)
     {
@@ -142,7 +142,7 @@ public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
 /// <see cref="AnalysisContext"/> と同じ考え方で、
 /// 何個登録しても構文木の走査は 1 回のままである。
 /// </remarks>
-public sealed class HlslAnalysisContext
+public sealed class ShaderAnalysisContext
 {
     private readonly List<(Type NodeType, Action<ShaderSyntaxNode, ShaderCompilation, AnalyzedProgram, SyntaxTreeAnalysisContext, HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)>> Invoke)> _actions = [];
 
@@ -158,7 +158,7 @@ public sealed class HlslAnalysisContext
     /// 基底型を指定すると、それに代入可能なすべての派生ノードで発火する。
     /// 式の基底型を指定すれば、二項演算・関数呼び出しなど全ての式で呼ばれる。
     /// </remarks>
-    public void RegisterNodeAction<TNode>(Action<HlslNodeAnalysisContext<TNode>> action)
+    public void RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>> action)
         where TNode : ShaderSyntaxNode
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -166,7 +166,7 @@ public sealed class HlslAnalysisContext
         _actions.Add((
             typeof(TNode),
             (node, compilation, program, treeContext, reported) =>
-                action(new HlslNodeAnalysisContext<TNode>((TNode)node, compilation, program, treeContext, reported))));
+                action(new ShaderNodeAnalysisContext<TNode>((TNode)node, compilation, program, treeContext, reported))));
     }
 
     /// <summary>登録されたアクションのうち、そのノードで発火すべきものを呼ぶ。</summary>
@@ -177,7 +177,7 @@ public sealed class HlslAnalysisContext
     /// <param name="treeContext">報告先。</param>
     /// <param name="reported">報告済みの内容。同じ報告を構成の数だけ並べないために使う。</param>
     internal void Invoke(
-        HlslRuleAnalyzer owner,
+        ShaderRuleAnalyzer owner,
         ShaderSyntaxNode node,
         ShaderCompilation compilation,
         AnalyzedProgram program,
@@ -202,13 +202,13 @@ public sealed class HlslAnalysisContext
 /// HLSL のノード 1 つに対するアクションへ渡されるコンテキスト。
 /// </summary>
 /// <typeparam name="TNode">対象ノードの型。</typeparam>
-public readonly struct HlslNodeAnalysisContext<TNode>
+public readonly struct ShaderNodeAnalysisContext<TNode>
     where TNode : ShaderSyntaxNode
 {
     private readonly SyntaxTreeAnalysisContext _treeContext;
     private readonly HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> _reported;
 
-    internal HlslNodeAnalysisContext(
+    internal ShaderNodeAnalysisContext(
         TNode node,
         ShaderCompilation compilation,
         AnalyzedProgram program,

@@ -6,11 +6,11 @@ using Shaderlyn.Semantics.Analysis;
 namespace Shaderlyn.Cookbook;
 
 /// <summary>分岐を禁じる。</summary>
-public sealed class NoBranchAnalyzer : HlslRuleAnalyzer
+public sealed class NoBranchAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.NoBranch];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

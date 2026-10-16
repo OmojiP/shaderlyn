@@ -103,7 +103,7 @@ internal static class MyRules
 
 ### 3-2. アナライザを作成
 
-HLSL のノードを見るので `HlslRuleAnalyzer` を継承します。
+HLSL のノードを見るので `ShaderRuleAnalyzer` を継承します。
 
 解析タイミングと発火条件を指定して処理を登録します。
 
@@ -120,11 +120,11 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics.Analysis;
 
-public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MyRules.NoHalf];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         context.RegisterNodeAction<TypeSyntax>(c =>
         {

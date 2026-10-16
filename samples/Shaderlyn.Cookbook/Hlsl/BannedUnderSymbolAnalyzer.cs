@@ -21,12 +21,12 @@ namespace Shaderlyn.Cookbook;
 /// その呼び出しはシンボルが定義された構成にしか無い。
 /// </para>
 /// </remarks>
-public sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : HlslRuleAnalyzer
+public sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [CookbookRules.BannedUnderSymbol];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

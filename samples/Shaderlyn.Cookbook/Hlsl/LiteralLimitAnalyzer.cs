@@ -6,11 +6,11 @@ using Shaderlyn.Semantics.Analysis;
 namespace Shaderlyn.Cookbook;
 
 /// <summary>数値リテラルの上限を確かめる。</summary>
-public sealed class LiteralLimitAnalyzer(double maximum) : HlslRuleAnalyzer
+public sealed class LiteralLimitAnalyzer(double maximum) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.LiteralTooLarge];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

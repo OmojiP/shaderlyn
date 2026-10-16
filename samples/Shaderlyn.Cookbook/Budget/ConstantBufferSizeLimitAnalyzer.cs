@@ -32,7 +32,7 @@ namespace Shaderlyn.Cookbook;
 /// (<see cref="Semantics.ShaderCompilation.TryEnumerateConfigurations"/>)。
 /// </para>
 /// </remarks>
-public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[] bufferNames) : HlslRuleAnalyzer
+public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[] bufferNames) : ShaderRuleAnalyzer
 {
     /// <summary>スカラー型 1 成分の大きさ。</summary>
     private static readonly ImmutableDictionary<string, int> ScalarSizes =
@@ -57,7 +57,7 @@ public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [CookbookRules.ConstantBufferTooLarge];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

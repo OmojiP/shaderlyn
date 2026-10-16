@@ -21,11 +21,11 @@ namespace Shaderlyn.Cookbook;
 /// (<see cref="Semantics.ShaderCompilation.TryEnumerateConfigurations"/>)。
 /// </para>
 /// </remarks>
-public sealed class FunctionLengthLimitAnalyzer(int maxStatements) : HlslRuleAnalyzer
+public sealed class FunctionLengthLimitAnalyzer(int maxStatements) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.FunctionTooLong];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

@@ -12,11 +12,11 @@ namespace Shaderlyn.Cookbook;
 /// GPU の実行単位 (wave / warp) の倍数でないと、
 /// スレッドが遊んだまま起動されることになる。
 /// </remarks>
-public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
+public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.ThreadGroupSize];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
