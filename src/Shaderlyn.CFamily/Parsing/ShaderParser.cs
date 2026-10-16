@@ -128,6 +128,11 @@ internal abstract class ShaderParser
     /// <summary>ビットフィールドを読むか。</summary>
     protected abstract bool AcceptsBitfields { get; }
 
+    /// <summary>
+    /// 型の側の配列 (GLSL の <c>vec4[3] positions</c>) と、配列のコンストラクタ (<c>float[](0.1, 0.2)</c>) を読むか。既定は読まない。
+    /// </summary>
+    protected virtual bool AcceptsArrayTypes => false;
+
     /// <summary>組み込みの型の名前かを判定する。</summary>
     /// <param name="name">判定する名前。</param>
     /// <returns>組み込みの型なら <see langword="true"/>。</returns>
@@ -160,6 +165,14 @@ internal abstract class ShaderParser
         ShaderSyntaxToken? openAngle,
         ImmutableArray<ShaderSyntaxToken> templateArguments)
         => null;
+
+    /// <summary>
+    /// 1 語ではない修飾 (GLSL の <c>layout(location = 0)</c> など) を、今の位置から読む。
+    /// </summary>
+    /// <param name="modifiers">読んだトークンを足す先。</param>
+    /// <returns>読んだら <see langword="true"/>。今の位置がそうでなければ <see langword="false"/> (何も読まない)。</returns>
+    /// <remarks>宣言の前の修飾子の並びの中で、1 語の修飾子 (<see cref="IsDeclarationModifier"/>) と交互に尋ねる。</remarks>
+    protected virtual bool TryParseModifierGroup(ImmutableArray<ShaderSyntaxToken>.Builder modifiers) => false;
 
     /// <summary>
     /// その言語にだけある宣言 (HLSL の <c>cbuffer</c> など) を読む。
@@ -467,14 +480,20 @@ internal abstract class ShaderParser
 
     /// <summary>修飾子の並びを読み取る。</summary>
     /// <returns>修飾子のトークン。</returns>
-    private ImmutableArray<ShaderSyntaxToken> ParseModifiers()
+    protected ImmutableArray<ShaderSyntaxToken> ParseModifiers()
     {
         ImmutableArray<ShaderSyntaxToken>.Builder modifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == ShaderSyntaxKind.IdentifierToken
-            && IsDeclarationModifier(Current.Text))
+        while (true)
         {
-            modifiers.Add(Advance());
+            if (Current.Kind == ShaderSyntaxKind.IdentifierToken && IsDeclarationModifier(Current.Text))
+            {
+                modifiers.Add(Advance());
+            }
+            else if (!TryParseModifierGroup(modifiers))
+            {
+                break;
+            }
         }
 
         return modifiers.ToImmutable();
@@ -1306,6 +1325,11 @@ internal abstract class ShaderParser
 
         ImmutableArray<ShaderSyntaxToken> arguments = templateArguments.ToImmutable();
 
+        // 型の側の配列 (GLSL の vec4[3] positions)。
+        ImmutableArray<ShaderSyntaxToken> arrayRanks = AcceptsArrayTypes && Current.Kind == ShaderSyntaxKind.OpenBracketToken
+            ? ParseArrayRanks()
+            : [];
+
         return new TypeSyntax(
             modifiers.ToImmutable(),
             name,
@@ -1314,12 +1338,15 @@ internal abstract class ShaderParser
             arguments,
             closeAngle,
             aliasOf,
-            GetCanonicalTypeName(name, openAngle, arguments));
+            GetCanonicalTypeName(name, openAngle, arguments))
+        {
+            ArrayRanks = arrayRanks,
+        };
     }
 
     /// <summary>配列の次元指定を読み取る。</summary>
     /// <returns>角括弧と大きさの式を含むトークン列。</returns>
-    private ImmutableArray<ShaderSyntaxToken> ParseArrayRanks()
+    protected ImmutableArray<ShaderSyntaxToken> ParseArrayRanks()
     {
         ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
@@ -2130,6 +2157,38 @@ internal abstract class ShaderParser
             or ShaderSyntaxKind.OpenParenToken;
     }
 
+    /// <summary>今の位置の <c>[..]</c> (続く <c>[..]</c> も含む) の直後が <c>(</c> かを、読み進めずに判定する。</summary>
+    /// <returns>配列のコンストラクタの形なら <see langword="true"/>。</returns>
+    private bool IsArrayTypeFollowedByCall()
+    {
+        int depth = 0;
+
+        for (int offset = 0; ; offset++)
+        {
+            ShaderSyntaxKind kind = Peek(offset).Kind;
+
+            if (kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                depth++;
+            }
+            else if (kind == ShaderSyntaxKind.CloseBracketToken && --depth == 0)
+            {
+                // 多次元の配列 (float[2][3](...)) は、続く [..] も読む。
+                if (Peek(offset + 1).Kind == ShaderSyntaxKind.OpenBracketToken)
+                {
+                    continue;
+                }
+
+                return Peek(offset + 1).Kind == ShaderSyntaxKind.OpenParenToken;
+            }
+            else if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken
+                or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>後置演算 (呼び出し・添字・メンバーアクセス・増減) を解析する。</summary>
     /// <param name="expression">対象の式。</param>
     /// <returns>解析した式。</returns>
@@ -2141,6 +2200,14 @@ internal abstract class ShaderParser
             {
                 case ShaderSyntaxKind.OpenParenToken:
                     expression = ParseInvocation(expression);
+                    break;
+
+                // 配列のコンストラクタ (GLSL の float[](0.1, 0.2))。名前の後ろの [..] の直後が ( なら、配列の型として読む。
+                case ShaderSyntaxKind.OpenBracketToken
+                    when AcceptsArrayTypes
+                         && expression is IdentifierExpressionSyntax elementType
+                         && IsArrayTypeFollowedByCall():
+                    expression = new ArrayTypeExpressionSyntax(elementType, ParseArrayRanks());
                     break;
 
                 case ShaderSyntaxKind.OpenBracketToken:

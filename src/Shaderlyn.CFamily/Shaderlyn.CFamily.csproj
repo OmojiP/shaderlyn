@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Shaderlyn.Hlsl" />
+    <InternalsVisibleTo Include="Shaderlyn.Glsl" />
     <InternalsVisibleTo Include="Shaderlyn.Semantics" />
     <InternalsVisibleTo Include="Shaderlyn.Unity" />
     <InternalsVisibleTo Include="Shaderlyn.Unreal" />

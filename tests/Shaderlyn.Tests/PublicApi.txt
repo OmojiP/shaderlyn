@@ -289,6 +289,11 @@ Shaderlyn.CFamily.Preprocessing.SymbolCombination :: virtual System.String ToStr
 Shaderlyn.CFamily.Preprocessing.TokenCache : sealed class
 Shaderlyn.CFamily.Preprocessing.TokenCache :: .ctor()
 Shaderlyn.CFamily.Preprocessing.TokenCache :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] GetOrLex(Shaderlyn.Core.Text.SourceText, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
+Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax ElementType { get; }
+Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRanks { get; }
+Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Left { get; }
@@ -753,6 +758,7 @@ Shaderlyn.CFamily.Syntax.TypeSyntax :: .ctor(System.Collections.Immutable.Immuta
 Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
 Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
 Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRanks { get; set; }
 Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
 Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
 Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TemplateArguments { get; }

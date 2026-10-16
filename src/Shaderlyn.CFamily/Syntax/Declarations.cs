@@ -101,6 +101,12 @@ public sealed class TypeSyntax(
     /// <summary>テンプレート引数の閉じ山括弧。</summary>
     public ShaderSyntaxToken? CloseAngle { get; } = closeAngle;
 
+    /// <summary>
+    /// 型の側に書いた配列の指定 (GLSL の <c>vec4[3] positions</c> の <c>[3]</c>)。角括弧と大きさの式を含む。無ければ空。
+    /// </summary>
+    /// <remarks>HLSL では書けないので、HLSL の木では常に空である。名前 (<see cref="Name"/>) には含めない。</remarks>
+    public ImmutableArray<ShaderSyntaxToken> ArrayRanks { get; init; } = [];
+
     /// <inheritdoc/>
     public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
     {
@@ -129,6 +135,11 @@ public sealed class TypeSyntax(
         if (CloseAngle is not null)
         {
             yield return CloseAngle;
+        }
+
+        foreach (ShaderSyntaxToken token in ArrayRanks)
+        {
+            yield return token;
         }
     }
 }

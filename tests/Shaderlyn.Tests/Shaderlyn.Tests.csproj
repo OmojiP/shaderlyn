@@ -68,6 +68,7 @@
     <ProjectReference Include="..\..\src\Shaderlyn.Cli\Shaderlyn.Cli.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Testing\Shaderlyn.Testing.csproj" />

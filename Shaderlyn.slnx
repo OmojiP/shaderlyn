@@ -4,6 +4,7 @@
     <Project Path="src/Shaderlyn.Cli.App/Shaderlyn.Cli.App.csproj" />
     <Project Path="src/Shaderlyn.Core/Shaderlyn.Core.csproj" />
     <Project Path="src/Shaderlyn.CFamily/Shaderlyn.CFamily.csproj" />
+    <Project Path="src/Shaderlyn.Glsl/Shaderlyn.Glsl.csproj" />
     <Project Path="src/Shaderlyn.Hlsl/Shaderlyn.Hlsl.csproj" />
     <Project Path="src/Shaderlyn.LanguageServer/Shaderlyn.LanguageServer.csproj" />
     <Project Path="src/Shaderlyn.LanguageServer.App/Shaderlyn.LanguageServer.App.csproj" />

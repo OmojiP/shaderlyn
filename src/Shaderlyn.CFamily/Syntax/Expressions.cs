@@ -462,6 +462,34 @@ public sealed class InitializerListExpressionSyntax(
     }
 }
 
+/// <summary>
+/// 配列の型を名前として書いた式。GLSL の配列のコンストラクタ (<c>float[](0.1, 0.2)</c>) の呼び出し先になる。
+/// </summary>
+/// <param name="elementType">要素の型の名前 (<c>float</c>)。</param>
+/// <param name="arrayRanks">配列の指定。角括弧と大きさの式を含む (<c>[]</c> / <c>[3]</c>)。</param>
+/// <remarks>HLSL では書けないので、HLSL の木には現れない。</remarks>
+public sealed class ArrayTypeExpressionSyntax(
+    IdentifierExpressionSyntax elementType,
+    ImmutableArray<ShaderSyntaxToken> arrayRanks) : ExpressionSyntax
+{
+    /// <summary>要素の型の名前。</summary>
+    public IdentifierExpressionSyntax ElementType { get; } = elementType;
+
+    /// <summary>配列の指定。</summary>
+    public ImmutableArray<ShaderSyntaxToken> ArrayRanks { get; } = arrayRanks;
+
+    /// <inheritdoc/>
+    public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return ElementType;
+
+        foreach (ShaderSyntaxToken token in ArrayRanks)
+        {
+            yield return token;
+        }
+    }
+}
+
 /// <summary>解釈できなかった式。</summary>
 /// <param name="tokens">読み飛ばしたトークン。</param>
 /// <remarks>

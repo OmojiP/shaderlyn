@@ -298,7 +298,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | 型                          | 何を指すか                                                |
 | --------------------------- | --------------------------------------------------------- |
 | `CompilationUnitSyntax`     | コードブロックの根                                        |
-| `TypeSyntax`                | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments` |
+| `TypeSyntax`                | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments`。型の側に書いた配列 (GLSL の `vec4[3] x`) は `ArrayRanks` |
 | `ParameterSyntax`           | 仮引数                                                    |
 | `VariableDeclaratorSyntax`  | 宣言された変数 1 つ分の名前と初期化子                     |
 | `SemanticSyntax`            | `: SV_Target` のセマンティクス                            |
@@ -339,6 +339,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `CastExpressionSyntax`            | `(float)a`                         |
 | `ParenthesizedExpressionSyntax`   | `( a )`                            |
 | `InitializerListExpressionSyntax` | `{ 1, 2 }`                         |
+| `ArrayTypeExpressionSyntax`       | 配列の型を名前として書いた式 (GLSL の配列のコンストラクタ `float[](0.1, 0.2)` の呼び出し先)。`ElementType` / `ArrayRanks`。HLSL の木には現れない |
 | `IncompleteExpressionSyntax`      | 式として解析しきれなかったトークン |
 
 `StatementSyntax` の派生:
