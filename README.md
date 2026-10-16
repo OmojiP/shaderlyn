@@ -120,11 +120,11 @@ D:\...\Shader.shader(73:24): error HL0310: 'a' は !_A のとき宣言されて�
 `half` 型の使用を禁止する自作ルール例：
 
 ```
-public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MyRules.NoHalf];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         context.RegisterNodeAction<TypeSyntax>(c =>
         {

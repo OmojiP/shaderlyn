@@ -8,6 +8,8 @@
 - [0.2.1 から 0.3.0 へ移行する](#021-から-030-へ移行する)
   - [目次](#目次)
   - [書き換えが要るか](#書き換えが要るか)
+  - [書き換えの手順](#書き換えの手順)
+    - [スクリプトでは置き換えないもの](#スクリプトでは置き換えないもの)
   - [ルールの基底クラス](#ルールの基底クラス)
   - [C 系の言語に共通の型の置き場所](#c-系の言語に共通の型の置き場所)
     - [型の名前](#型の名前)
@@ -22,6 +24,33 @@
 
 自作ルール・自作の環境・自作の CLI を書いているなら、下の書き換えが要ります。
 構文木のノード (`InvocationExpressionSyntax` など) を使うルールは、`using` を書き換えることになります。
+
+## 書き換えの手順
+
+名前の置き換えは、スクリプト [tools/migrate/0.3.0.sed](../../tools/migrate/0.3.0.sed) でまとめて行えます。
+このページの表にある名前の変更を、すべて含んでいます。
+
+1. 自作ルールのプロジェクトをコミットしておく (置き換えはファイルを直接書き換える)
+2. パッケージの参照を 0.3.0 に上げる
+3. プロジェクトのフォルダーで、スクリプトを流す (Windows では Git Bash で動く)
+
+   ```sh
+   find . -name '*.cs' -not -path '*/obj/*' -exec sed -E -i -f path/to/0.3.0.sed {} +
+   ```
+
+4. ビルドし、残ったエラーを下の「[スクリプトでは置き換えないもの](#スクリプトでは置き換えないもの)」を見て直す
+
+0.2.1 の実例集 (`samples/Shaderlyn.Cookbook`) をこのスクリプトで書き換えると、残るエラーは `PreprocessorOptions.LanguageVersion` の 1 件だけです。
+
+### スクリプトでは置き換えないもの
+
+- **`PreprocessorOptions` の HLSL の方言の設定** (`Dialects`・`LanguageVersion`・`CompileTargets`・`DialectName`・`Features`)。
+  同じ名前のプロパティが `HlslEnvironmentOptions` にもあり (こちらは変わらない)、名前だけでは見分けられません。
+  [HLSL の方言の設定](#hlsl-の方言の設定) のとおりに書き換えてください
+- **`tree.Hlsl()` の `using`。** スクリプトは `program.Tree.CompileTargets` を `program.Tree.Hlsl().CompileTargets` に置き換えますが、
+  `Hlsl()` を使うには `using Shaderlyn.Hlsl.Parsing;` が要ります。「`Hlsl` の定義が含まれていません」のエラーが出たら足してください
+- **使わない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を足します。
+  cbuffer と namespace の節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) を使わないファイルでは、`Shaderlyn.Hlsl.Syntax` を消してかまいません
 
 ## ルールの基底クラス
 
