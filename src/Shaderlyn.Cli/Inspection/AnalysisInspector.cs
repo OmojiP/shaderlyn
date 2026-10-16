@@ -6,7 +6,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -166,14 +165,14 @@ internal static partial class AnalysisInspector
         // このファイルが書いたマクロの本体から来たノードは、本体の位置を指す。
         // そこが報告の位置でもある (ShaderSyntaxToken.MacroDefinitionSpan)。
         // 利用者のヘッダで定義したマクロの本体は、このファイルの行では表せないので出さない。
-        if (node is HlslSyntaxNode own
+        if (node is ShaderSyntaxNode own
             && own.FirstToken?.MacroDefinitionSpan is { } definition
             && string.Equals(own.FirstToken.MacroDefinitionSource?.FilePath, text.FilePath, StringComparison.Ordinal))
         {
             writer.WriteString("macroBody", text.GetLinePositionSpan(definition).Start.ToString());
         }
 
-        HlslSyntaxNode? hlsl = node as HlslSyntaxNode;
+        ShaderSyntaxNode? hlsl = node as ShaderSyntaxNode;
         SymbolCondition condition = parent;
 
         // #ifdef で守られたノードには、どの条件のもとで存在するかを添える。
@@ -228,7 +227,7 @@ internal static partial class AnalysisInspector
     /// </remarks>
     private static IEnumerable<SyntaxNode> MergeChildren(
         SyntaxNode node,
-        HlslSyntaxNode? hlsl,
+        ShaderSyntaxNode? hlsl,
         ConditionMap? conditions)
     {
         if (conditions is null || hlsl is null || !conditions.HasInsertedChildren)
@@ -269,7 +268,7 @@ internal static partial class AnalysisInspector
     /// </remarks>
     private static string DescribeText(SyntaxNode node, SourceText text)
     {
-        if (node is not HlslSyntaxNode hlsl)
+        if (node is not ShaderSyntaxNode hlsl)
         {
             return Shorten(text.ToString(node.Span));
         }
@@ -340,7 +339,7 @@ internal static partial class AnalysisInspector
     /// 印を出しておかないと、同じ行が何度も並ぶ理由が読み手に伝わらない。
     /// </remarks>
     private static bool IsFromMacroExpansion(SyntaxNode node)
-        => node is HlslSyntaxNode hlsl
+        => node is ShaderSyntaxNode hlsl
            && hlsl.DescendantTokens().FirstOrDefault() is { IsFromMacroExpansion: true };
 
     /// <summary>ノードの種別を表す名前を返す。</summary>
@@ -410,7 +409,7 @@ internal static partial class AnalysisInspector
                     break;
                 }
 
-                if (child is HlslDeclarationSyntax declaration
+                if (child is DeclarationSyntax declaration
                     && IsWrittenInSource(compilation, declaration))
                 {
                     WriteNode(writer, declaration, compilation.Text, budget, condition);
@@ -438,7 +437,7 @@ internal static partial class AnalysisInspector
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="declaration">判定する宣言。</param>
     /// <returns>このファイルに書かれたものであれば <see langword="true"/>。</returns>
-    private static bool IsWrittenInSource(ShaderCompilation compilation, HlslDeclarationSyntax declaration)
+    private static bool IsWrittenInSource(ShaderCompilation compilation, DeclarationSyntax declaration)
         => declaration.GetLocation() is { } location
            && string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal);
 
@@ -595,7 +594,7 @@ internal static partial class AnalysisInspector
                     break;
                 }
 
-                if (node is not HlslExpressionSyntax expression
+                if (node is not ExpressionSyntax expression
                     || expression.GetLocation() is not { } location
                     || !string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal)
                     || !seen.Add(location.Span))

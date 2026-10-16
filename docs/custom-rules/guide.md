@@ -216,7 +216,7 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 文字列を切り刻んで求めたものは、書き方が増えたときに気づけないまま取りこぼします。
 同じ判定をする仕組みが用意してあるので、そちらを使ってください。
 
-- リテラルの値は `HlslLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
+- リテラルの値は `ShaderLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
   「数字で書かれていない」として検査が素通りします
 - 配列の長さは `TryGetArrayLength` で読んでください。多次元の場合も積で返ります
 - 型名の分解は `HlslTypeClassifier` で行ってください。`Texture2D` の `2D` を成分数と読み違えません

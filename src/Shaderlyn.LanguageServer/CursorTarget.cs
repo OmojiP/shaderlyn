@@ -1,6 +1,5 @@
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.LanguageServer;

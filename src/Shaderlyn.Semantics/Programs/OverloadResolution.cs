@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
 
@@ -180,7 +180,7 @@ internal static class OverloadResolver
             return new OverloadResolution(OverloadResolutionStatus.NotDeclared, null, [], []);
         }
 
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         ImmutableArray<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount(c.ParameterList, arguments.Length))];
@@ -289,7 +289,7 @@ internal static class OverloadResolver
     /// </remarks>
     private static bool Accepts(
         FunctionDeclarationSyntax function,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         ImmutableArray<string?> argumentTypes)
     {
         int index = 0;

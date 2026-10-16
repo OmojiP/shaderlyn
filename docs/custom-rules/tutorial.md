@@ -111,13 +111,13 @@ HLSL のノードを見るので `HlslRuleAnalyzer` を継承します。
 [HLSL のノード型](api-reference.md#hlsl-のノード型) にあります。
 
 基底型で登録すると派生型すべてで発火します。
-「式すべて」を見たいなら `HlslExpressionSyntax`、「文すべて」なら `HlslStatementSyntax` です。
+「式すべて」を見たいなら `ExpressionSyntax`、「文すべて」なら `StatementSyntax` です。
 
 
 ```csharp
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
@@ -126,7 +126,7 @@ public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
 
     protected override void InitializeHlsl(HlslAnalysisContext context)
     {
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             if (c.Node.Name.StartsWith("half", StringComparison.Ordinal))
             {

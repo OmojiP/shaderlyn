@@ -77,7 +77,7 @@ flowchart TD
 ## 4. 字句解析と構文解析
 
 - **ShaderLab:** [ShaderLabSyntaxTree](../../src/Shaderlyn.ShaderLab/ShaderLabSyntaxTree.cs) が [ShaderLabLexer](../../src/Shaderlyn.ShaderLab/Parsing/ShaderLabLexer.cs) と [ShaderLabParser](../../src/Shaderlyn.ShaderLab/Parsing/ShaderLabParser.cs) を通して、トークン、構文木 (`ShaderLabCompilationUnitSyntax`)、構文診断を作ります。
-- **HLSL:** 先にプリプロセッサ ([ShaderPreprocessor](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessor.cs)。字句解析と合わせて C 系の言語に共通の `Shaderlyn.CFamily` にある) がマクロの定義・`#include`・条件付きコンパイルを扱い、[HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs) が展開済みのトークン列から `HlslCompilationUnitSyntax` と構文診断を作ります。
+- **HLSL:** 先にプリプロセッサ ([ShaderPreprocessor](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessor.cs)。字句解析と合わせて C 系の言語に共通の `Shaderlyn.CFamily` にある) がマクロの定義・`#include`・条件付きコンパイルを扱い、[HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs) が展開済みのトークン列から `CompilationUnitSyntax` と構文診断を作ります。読み方の骨組みと式・文・宣言の節は C 系の言語に共通で ([ShaderParser](../../src/Shaderlyn.CFamily/Parsing/ShaderParser.cs))、`HlslParser` は HLSL の方言の違い (組み込みの型、使える構文、`cbuffer` など) だけを答えます。
   `.shader` に埋め込まれた HLSL は、切り出さずに ShaderLab の部分をマスクした複製の上で解析します。
 - **取り込んだヘッダ:** Unity や外部パッケージのヘッダの関数は、速さのために中身を構文木にしません。
   利用者が書いて取り込んだヘッダ (`SemanticsOptions.IsUserInclude` が利用者のものとしたファイル) は、関数の中身まで構文木にします。

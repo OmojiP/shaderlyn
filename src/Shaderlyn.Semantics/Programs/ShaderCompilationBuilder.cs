@@ -843,13 +843,13 @@ internal static class ShaderCompilationBuilder
     /// ヘッダ込みで宣言も連なりも数千になるので、ファイルごとに開始位置で並べて二分探索する。
     /// </remarks>
     private static IEnumerable<HashSet<string>> GroupRegionSymbolsByDeclaration(
-        HlslCompilationUnitSyntax root,
+        CompilationUnitSyntax root,
         ImmutableArray<KeywordRegion> regions)
     {
         Dictionary<string, List<(int Start, int End, int Index)>> declarations = new(StringComparer.Ordinal);
         int index = 0;
 
-        foreach (HlslDeclarationSyntax declaration in root.Declarations)
+        foreach (DeclarationSyntax declaration in root.Declarations)
         {
             string file = declaration.Source?.FilePath ?? string.Empty;
 
@@ -1027,11 +1027,11 @@ internal static class ShaderCompilationBuilder
 
         /// <summary>違いの部分木 1 つを足す。</summary>
         /// <param name="node">部分木の根。</param>
-        public void Add(HlslSyntaxNode node)
+        public void Add(ShaderSyntaxNode node)
         {
-            HlslSyntaxNode top = node;
+            ShaderSyntaxNode top = node;
 
-            while (top.Parent is HlslSyntaxNode parent and not HlslCompilationUnitSyntax)
+            while (top.Parent is ShaderSyntaxNode parent and not CompilationUnitSyntax)
             {
                 top = parent;
             }

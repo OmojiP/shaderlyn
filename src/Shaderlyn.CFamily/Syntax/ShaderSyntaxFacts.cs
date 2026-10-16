@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
-using Shaderlyn.CFamily.Syntax;
 
-namespace Shaderlyn.Hlsl.Syntax;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// 構文の上で決まっている事実を答える。
@@ -12,7 +11,7 @@ namespace Shaderlyn.Hlsl.Syntax;
 /// どれも HLSL の規則であって、ルールごとの判断ではない。
 /// 書き写されたものは、片方だけが直されて食い違う。
 /// </remarks>
-public static class HlslSyntaxFacts
+public static class ShaderSyntaxFacts
 {
     /// <summary>代入演算子かどうかを判定する。</summary>
     /// <param name="kind">判定するトークン種別。</param>
@@ -63,7 +62,7 @@ public static class HlslSyntaxFacts
     /// <b>報告はキーワードだけを指すべきである。</b>
     /// 文全体を指すと、中身が数十行ある <c>for</c> では波線もそれだけ広がる。
     /// </remarks>
-    public static ShaderSyntaxToken? GetKeyword(HlslStatementSyntax statement) => statement switch
+    public static ShaderSyntaxToken? GetKeyword(StatementSyntax statement) => statement switch
     {
         IfStatementSyntax s => s.IfKeyword,
         ForStatementSyntax s => s.ForKeyword,
@@ -110,7 +109,7 @@ public static class HlslSyntaxFacts
         for (int i = 0; i < rankTokens.Length; i += 3)
         {
             if (rankTokens[i].Kind != ShaderSyntaxKind.OpenBracketToken
-                || !HlslLiteral.TryGetInt64(rankTokens[i + 1], out long dimension)
+                || !ShaderLiteral.TryGetInt64(rankTokens[i + 1], out long dimension)
                 || dimension <= 0
                 || dimension > int.MaxValue)
             {

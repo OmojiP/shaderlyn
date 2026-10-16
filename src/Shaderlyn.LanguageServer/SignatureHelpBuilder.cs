@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -59,7 +58,7 @@ internal static class SignatureHelpBuilder
 
         foreach (AnalyzedProgram program in compilation.Programs.Concat(compilation.SymbolVariants))
         {
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 // template の関数 (HLSL 2021) も出す。
                 FunctionDeclarationSyntax? function = declaration switch
@@ -168,7 +167,7 @@ internal static class SignatureHelpBuilder
     {
         int count = 0;
 
-        foreach (HlslNodeOrTokenEntry item in invocation.Arguments)
+        foreach (ShaderNodeOrTokenEntry item in invocation.Arguments)
         {
             if (item.Token is { } token
                 && token.Kind == ShaderSyntaxKind.CommaToken

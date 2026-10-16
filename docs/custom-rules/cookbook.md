@@ -298,12 +298,12 @@ internal sealed class ArgumentTypeAnalyzer(string function, int parameter, strin
                 return;
             }
 
-            ImmutableArray<HlslExpressionSyntax> arguments =
-                [.. c.Node.Arguments.Select(a => a.Node).OfType<HlslExpressionSyntax>()];
+            ImmutableArray<ExpressionSyntax> arguments =
+                [.. c.Node.Arguments.Select(a => a.Node).OfType<ExpressionSyntax>()];
 
             if (parameter >= arguments.Length) return;
 
-            HlslExpressionSyntax argument = arguments[parameter];
+            ExpressionSyntax argument = arguments[parameter];
             string? actual = c.Compilation.GetExpressionTypeBinder(c.Program)
                 .GetEvaluatorFor(argument)
                 .Evaluate(argument);

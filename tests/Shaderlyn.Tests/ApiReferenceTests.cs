@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.ShaderLab.Syntax;
 
 namespace Shaderlyn.Tests;
@@ -36,6 +36,14 @@ public sealed partial class ApiReferenceTests
     [GeneratedRegex("`([A-Za-z]+Syntax(?:Node)?)`")]
     private static partial Regex TypeNameInDocument();
 
+    /// <summary>構文木の型を持つアセンブリ。共通の節 (CFamily) と、言語にだけある節 (HLSL の cbuffer など)。</summary>
+    private static readonly System.Reflection.Assembly[] SyntaxAssemblies =
+    [
+        typeof(ShaderLabSyntaxNode).Assembly,
+        typeof(ShaderSyntaxNode).Assembly,
+        typeof(Hlsl.Syntax.ConstantBufferDeclarationSyntax).Assembly,
+    ];
+
     /// <summary>
     /// 一覧に載っていなければならないノード型。
     /// </summary>
@@ -43,16 +51,17 @@ public sealed partial class ApiReferenceTests
     /// <remarks>
     /// 抽象型も含める。<b>登録先として使うのはむしろ抽象型のほうである。</b>
     /// 基底型を指定すると派生型すべてで発火するため、
-    /// 「式すべて」を見たい人は <see cref="HlslExpressionSyntax"/> を書く。
+    /// 「式すべて」を見たい人は <see cref="ExpressionSyntax"/> を書く。
     /// </remarks>
     private static IReadOnlyList<Type> RequiredNodeTypes()
     {
-        Type[] roots = [typeof(ShaderLabSyntaxNode), typeof(HlslSyntaxNode)];
+        Type[] roots = [typeof(ShaderLabSyntaxNode), typeof(ShaderSyntaxNode)];
 
         return
         [
-            .. roots
-                .SelectMany(root => root.Assembly.GetExportedTypes().Where(root.IsAssignableFrom))
+            .. SyntaxAssemblies
+                .SelectMany(assembly => assembly.GetExportedTypes())
+                .Where(type => roots.Any(root => root.IsAssignableFrom(type)))
                 .Distinct()
                 .OrderBy(type => type.Name, StringComparer.Ordinal),
         ];
@@ -63,16 +72,16 @@ public sealed partial class ApiReferenceTests
     /// </summary>
     /// <returns>公開されている型の名前。</returns>
     /// <remarks>
-    /// ノード型に限らない。<c>HlslTypeSyntax</c> のように
+    /// ノード型に限らない。<c>TypeSyntax</c> のように
     /// ノードではない型の名前もドキュメントには現れる。
     /// </remarks>
     private static HashSet<string> AllPublicTypeNames()
     {
         HashSet<string> names = new(StringComparer.Ordinal);
 
-        foreach (Type root in (Type[])[typeof(ShaderLabSyntaxNode), typeof(HlslSyntaxNode)])
+        foreach (System.Reflection.Assembly assembly in SyntaxAssemblies)
         {
-            foreach (Type type in root.Assembly.GetExportedTypes())
+            foreach (Type type in assembly.GetExportedTypes())
             {
                 names.Add(type.Name);
             }

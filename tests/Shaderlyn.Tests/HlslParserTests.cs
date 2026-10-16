@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
@@ -568,7 +569,7 @@ public sealed class HlslStatementParsingTests
 
 public sealed class HlslExpressionParsingTests
 {
-    private static HlslExpressionSyntax ParseExpression(string expression)
+    private static ExpressionSyntax ParseExpression(string expression)
     {
         HlslSyntaxTree tree = HlslHarness.ParseValid($"void F() {{ x = {expression}; }}");
         BlockStatementSyntax body = Assert.IsType<FunctionDeclarationSyntax>(

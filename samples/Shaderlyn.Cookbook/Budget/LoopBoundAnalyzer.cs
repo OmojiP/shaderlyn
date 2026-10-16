@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -35,7 +34,7 @@ public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
                 || condition.OperatorToken.Kind
                     is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.LessThanEqualsToken)
                 || condition.Right is not LiteralExpressionSyntax literal
-                || !HlslLiteral.TryGetInt64(literal.Token, out long bound))
+                || !ShaderLiteral.TryGetInt64(literal.Token, out long bound))
             {
                 return;
             }

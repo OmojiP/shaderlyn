@@ -6,7 +6,6 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -52,7 +51,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!compilation.IsReportable(node))
             {
@@ -65,14 +64,14 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (node is not HlslExpressionSyntax expression)
+            if (node is not ExpressionSyntax expression)
             {
                 continue;
             }
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 
-            if (IsIncrement(expression, out ShaderSyntaxToken? incrementToken, out HlslExpressionSyntax? operand))
+            if (IsIncrement(expression, out ShaderSyntaxToken? incrementToken, out ExpressionSyntax? operand))
             {
                 if (DescribeIncrement(compilation, binder, expression, operand, incrementToken) is { } increment)
                 {
@@ -124,11 +123,11 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     private static (ShaderSyntaxToken Token, string Message)? Describe(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         ExpressionTypeEvaluator? evaluator = null;
 
-        string? StructOf(HlslExpressionSyntax operand)
+        string? StructOf(ExpressionSyntax operand)
         {
             evaluator ??= binder.GetEvaluatorFor(expression);
             return evaluator.Evaluate(operand) is { } type && binder.IsStructType(type) ? type : null;
@@ -204,16 +203,16 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="operand">増減する値。</param>
     /// <returns>増減なら <see langword="true"/>。</returns>
     private static bool IsIncrement(
-        HlslExpressionSyntax expression,
+        ExpressionSyntax expression,
         [NotNullWhen(true)] out ShaderSyntaxToken? token,
-        [NotNullWhen(true)] out HlslExpressionSyntax? operand)
+        [NotNullWhen(true)] out ExpressionSyntax? operand)
     {
         (token, operand) = expression switch
         {
             PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken } prefix
                 => (prefix.OperatorToken, prefix.Operand),
             PostfixUnaryExpressionSyntax postfix => (postfix.OperatorToken, postfix.Operand),
-            _ => ((ShaderSyntaxToken?)null, (HlslExpressionSyntax?)null),
+            _ => ((ShaderSyntaxToken?)null, (ExpressionSyntax?)null),
         };
 
         return token is not null && operand is not null;
@@ -241,8 +240,8 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     private static (ShaderSyntaxToken Token, string Message, DiagnosticDescriptor Descriptor)? DescribeIncrement(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression,
-        HlslExpressionSyntax operand,
+        ExpressionSyntax expression,
+        ExpressionSyntax operand,
         ShaderSyntaxToken token)
     {
         if (binder.GetEvaluatorFor(expression).Evaluate(operand) is not { } type || !binder.IsStructType(type))

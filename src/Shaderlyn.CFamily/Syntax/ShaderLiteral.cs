@@ -1,7 +1,6 @@
 using System.Globalization;
-using Shaderlyn.CFamily.Syntax;
 
-namespace Shaderlyn.Hlsl.Syntax;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// 数値リテラルの書き方。
@@ -10,7 +9,7 @@ namespace Shaderlyn.Hlsl.Syntax;
 /// 桁の意味が書き方で変わる。
 /// <c>0x1e</c> の <c>e</c> は桁、<c>1e5</c> の <c>e</c> は指数である。
 /// </remarks>
-public enum HlslLiteralKind
+public enum ShaderLiteralKind
 {
     /// <summary>数値リテラルとして読めない。</summary>
     None,
@@ -48,7 +47,7 @@ public enum HlslLiteralKind
 /// 推測した値を返すと、それを根拠にした指摘が出る。
 /// </para>
 /// </remarks>
-public static class HlslLiteral
+public static class ShaderLiteral
 {
     /// <summary>型を決める接尾辞に使える文字。</summary>
     private const string SuffixCharacters = "uUlLfFhH";
@@ -57,48 +56,48 @@ public static class HlslLiteral
     /// リテラルの書き方を求める。
     /// </summary>
     /// <param name="token">対象のトークン。</param>
-    /// <returns>書き方。数値リテラルとして読めない場合は <see cref="HlslLiteralKind.None"/>。</returns>
+    /// <returns>書き方。数値リテラルとして読めない場合は <see cref="ShaderLiteralKind.None"/>。</returns>
     /// <remarks>
     /// 桁の大きさを自分で数えるルール (HL0371 など) が、
     /// 8 進や 16 進の見分け方を書き写さずに済むようにしている。
     /// </remarks>
-    public static HlslLiteralKind GetKind(ShaderSyntaxToken token)
+    public static ShaderLiteralKind GetKind(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
 
         if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
         {
-            return HlslLiteralKind.None;
+            return ShaderLiteralKind.None;
         }
 
         (string digits, _) = Split(token.Text);
 
         if (digits.Length == 0)
         {
-            return HlslLiteralKind.None;
+            return ShaderLiteralKind.None;
         }
 
         if (IsHex(digits))
         {
-            return HlslLiteralKind.Hexadecimal;
+            return ShaderLiteralKind.Hexadecimal;
         }
 
         if (IsBinary(digits))
         {
-            return HlslLiteralKind.Binary;
+            return ShaderLiteralKind.Binary;
         }
 
         if (IsFloating(digits))
         {
-            return HlslLiteralKind.Floating;
+            return ShaderLiteralKind.Floating;
         }
 
         if (IsOctal(digits))
         {
-            return HlslLiteralKind.Octal;
+            return ShaderLiteralKind.Octal;
         }
 
-        return digits.All(char.IsAsciiDigit) ? HlslLiteralKind.Decimal : HlslLiteralKind.None;
+        return digits.All(char.IsAsciiDigit) ? ShaderLiteralKind.Decimal : ShaderLiteralKind.None;
     }
 
     /// <summary>

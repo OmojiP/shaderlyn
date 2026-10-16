@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -30,7 +29,7 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                 return;
             }
 
-            foreach (HlslAttributeSyntax attribute in c.Node.Attributes)
+            foreach (AttributeSyntax attribute in c.Node.Attributes)
             {
                 if (!string.Equals(attribute.Name, "numthreads", StringComparison.OrdinalIgnoreCase))
                 {

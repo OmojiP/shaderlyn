@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
 

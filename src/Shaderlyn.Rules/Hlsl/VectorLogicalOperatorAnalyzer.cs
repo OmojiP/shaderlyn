@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -30,7 +29,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
     {
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (program.Tree.Features.VectorLogicalOperators || !compilation.IsReportable(node))
             {
@@ -66,7 +65,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="expression">式。</param>
     /// <param name="operand">値。</param>
     /// <returns>分かれば <see langword="true"/>。型が分からなければ <see langword="false"/>。</returns>
-    private static bool IsNonScalar(ShaderCompilation compilation, AnalyzedProgram program, HlslExpressionSyntax expression, HlslExpressionSyntax operand)
+    private static bool IsNonScalar(ShaderCompilation compilation, AnalyzedProgram program, ExpressionSyntax expression, ExpressionSyntax operand)
     {
         ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
         string? type = binder.GetEvaluatorFor(expression).Evaluate(operand);

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;

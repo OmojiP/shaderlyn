@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -59,7 +59,7 @@ internal sealed class KeywordRegionIndex
     /// (<c>_ADDITIONAL_LIGHTS</c> を有効にすると、同じ行の <c>_ADDITIONAL_LIGHTS_VERTEX</c> の分岐は並べずに外れる)。
     /// </param>
     /// <returns>1 つに決まればそのキーワード。決まらなければ <see langword="null"/>。</returns>
-    public string? Attribute(HlslSyntaxNode node, Func<string, string?> memberOf)
+    public string? Attribute(ShaderSyntaxNode node, Func<string, string?> memberOf)
     {
         if (node.Source is not { } source || !_byFile.TryGetValue(source.FilePath, out List<KeywordRegion>? regions))
         {
@@ -108,7 +108,7 @@ internal sealed class KeywordRegionIndex
     /// 接している連なりも、ノードの境目を変えうる。HDRP の <c>#if !defined(_DEPTHOFFSET_ON)</c> は
     /// 関数の前の <c>[earlydepthstencil]</c> だけを囲む。有効にすると関数は <c>void</c> から始まり、連なりとは重ならない。
     /// </remarks>
-    private static bool Touches(KeywordRegion region, HlslSyntaxNode node, SourceText source)
+    private static bool Touches(KeywordRegion region, ShaderSyntaxNode node, SourceText source)
     {
         if (region.End > node.Span.Start && node.Span.End > region.Start)
         {

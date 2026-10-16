@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
@@ -67,7 +68,7 @@ public sealed class UniformSymbol
     /// この宣言の位置。
     /// </summary>
     /// <remarks>
-    /// <b><see cref="HlslSyntaxNode.GetLocation"/> を使うこと。</b>
+    /// <b><see cref="ShaderSyntaxNode.GetLocation"/> を使うこと。</b>
     /// uniform は include されたファイルの中で宣言されていることが多く、
     /// 範囲だけではどのファイルの位置なのかが決まらない。
     /// </remarks>

@@ -41,7 +41,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
         Dictionary<(string File, int Start), (ShaderSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (Describe(node, program) is not { } construct || !compilation.IsReportable(node))
             {
@@ -90,10 +90,10 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <param name="node">ノード。</param>
     /// <param name="program">ノードが属する木。</param>
     /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
-    private static Construct? Describe(HlslSyntaxNode node, AnalyzedProgram program) => node switch
+    private static Construct? Describe(ShaderSyntaxNode node, AnalyzedProgram program) => node switch
     {
         EnumDeclarationSyntax enumeration => new Construct(enumeration.NameToken ?? enumeration.Keyword, "enum", static d => d.Features.Enums),
-        HlslTypeSyntax type => DescribeType(type),
+        TypeSyntax type => DescribeType(type),
         VariableDeclarationSyntax variable => DescribeInterfaceVariable(variable, program),
         InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: var name } target } when LegacyTextureIntrinsics.Contains(name)
             => new Construct(target.Identifier, $"DX9 の組み込み関数 {name}", static d => d.AcceptsLegacySamplerSyntax) { CheckWithoutTargets = true },
@@ -154,7 +154,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static Construct? DescribeInterfaceVariable(VariableDeclarationSyntax variable, AnalyzedProgram program)
     {
-        if (variable.Parent is not (HlslCompilationUnitSyntax or NamespaceDeclarationSyntax or ConstantBufferDeclarationSyntax)
+        if (variable.Parent is not (CompilationUnitSyntax or NamespaceDeclarationSyntax or ConstantBufferDeclarationSyntax)
             || variable.HasModifier("static")
             || !InterfaceNames(program).Contains(variable.Type.NameToken.Text))
         {
@@ -215,7 +215,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <summary>型名を見分ける (<c>int64_t</c>、<c>float32_t</c>、<c>float16_t3</c> など)。</summary>
     /// <param name="type">型。</param>
     /// <returns>見分けた型。当てはまらなければ <see langword="null"/>。</returns>
-    private static Construct? DescribeType(HlslTypeSyntax type)
+    private static Construct? DescribeType(TypeSyntax type)
     {
         // vector<uint32_t, 2> は要素の型を見る。
         ShaderSyntaxToken token = type.NameToken.Text is "vector" or "matrix" && !type.TemplateArguments.IsDefaultOrEmpty
@@ -285,7 +285,7 @@ internal static class CompileTargets
     /// ノードの出現条件と、コンパイル先の構成の条件が両立するなら届く。
     /// 出現条件が分からなければ、木を解析した構成で決める。
     /// </remarks>
-    public static IEnumerable<HlslCompileTarget> Reaching(ShaderCompilation compilation, HlslSyntaxNode node, AnalyzedProgram program)
+    public static IEnumerable<HlslCompileTarget> Reaching(ShaderCompilation compilation, ShaderSyntaxNode node, AnalyzedProgram program)
     {
         ImmutableArray<HlslCompileTarget> targets = program.Tree.CompileTargets;
 

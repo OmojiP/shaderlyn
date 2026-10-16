@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Symbols;
 
@@ -75,7 +76,7 @@ internal static class UniformCollector
     /// </summary>
     /// <param name="root">HLSL の構文木の根。</param>
     /// <returns>集めた宣言。</returns>
-    public static DeclarationSet Collect(HlslCompilationUnitSyntax root)
+    public static DeclarationSet Collect(CompilationUnitSyntax root)
     {
         ArgumentNullException.ThrowIfNull(root);
 
@@ -122,9 +123,9 @@ internal static class UniformCollector
                     pair => pair.Value.ToImmutableArray(),
                     StringComparer.Ordinal));
 
-        public void CollectFrom(ImmutableArray<HlslDeclarationSyntax> declarations)
+        public void CollectFrom(ImmutableArray<DeclarationSyntax> declarations)
         {
-            foreach (HlslDeclarationSyntax declaration in declarations)
+            foreach (DeclarationSyntax declaration in declarations)
             {
                 switch (declaration)
                 {
@@ -175,7 +176,7 @@ internal static class UniformCollector
         {
             _structs.Add(declaration);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 if (member is StructDeclarationSyntax nested)
                 {
@@ -227,7 +228,7 @@ internal static class UniformCollector
         {
             ImmutableArray<UniformSymbol>.Builder members = ImmutableArray.CreateBuilder<UniformSymbol>();
 
-            foreach (HlslDeclarationSyntax member in buffer.Members)
+            foreach (DeclarationSyntax member in buffer.Members)
             {
                 if (member is VariableDeclarationSyntax variable)
                 {

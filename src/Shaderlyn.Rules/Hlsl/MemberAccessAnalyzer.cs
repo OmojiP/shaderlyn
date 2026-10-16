@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -59,7 +58,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is MemberAccessExpressionSyntax access)
             {
@@ -289,7 +288,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// #endif
     /// </code>
     /// 構成ごとの型は、使う位置の条件と宣言の条件を掛け合わせて求める
-    /// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。
+    /// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。
     /// 1 つの構成で誤りなら、その構成を添えて報告する。
     /// </remarks>
     private static void AnalyzeSwizzleByAssumption(
@@ -696,7 +695,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         // メソッド (template のメソッドを含む)。演算子は名前で呼ばないので含めない。
-        foreach (HlslDeclarationSyntax member in structure.Members)
+        foreach (DeclarationSyntax member in structure.Members)
         {
             if (member is FunctionDeclarationSyntax { IsOperator: false } method)
             {

@@ -1,5 +1,5 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 
 namespace Shaderlyn.Semantics.Programs;
@@ -77,7 +77,7 @@ public static class CallCompatibility
     /// リテラル、関数の戻り値、演算の結果には書き戻す先が無い。
     /// それ以外は分からないものとして扱う。
     /// </remarks>
-    public static bool IsAssignable(HlslExpressionSyntax expression) => expression switch
+    public static bool IsAssignable(ExpressionSyntax expression) => expression switch
     {
         ParenthesizedExpressionSyntax parenthesized => IsAssignable(parenthesized.Expression),
         LiteralExpressionSyntax => false,
@@ -100,7 +100,7 @@ public static class CallCompatibility
     /// 無いことにすると、追えなかっただけの宣言を候補から外したうえで
     /// 「合う宣言が無い」「1 つに決まった」と言うことになる。
     /// </remarks>
-    public static bool IsPresentWith(ConditionMap conditions, HlslSyntaxNode declaration, SymbolCondition call)
+    public static bool IsPresentWith(ConditionMap conditions, ShaderSyntaxNode declaration, SymbolCondition call)
     {
         ArgumentNullException.ThrowIfNull(conditions);
         ArgumentNullException.ThrowIfNull(declaration);

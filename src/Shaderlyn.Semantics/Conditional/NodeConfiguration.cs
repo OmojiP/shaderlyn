@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -20,12 +20,12 @@ namespace Shaderlyn.Semantics.Conditional;
 /// </remarks>
 public sealed class NodeConfiguration
 {
-    private readonly HashSet<HlslSyntaxNode> _present;
+    private readonly HashSet<ShaderSyntaxNode> _present;
 
     /// <summary>構成を作る。</summary>
     /// <param name="enabledSymbols">有効にしたシンボル。</param>
     /// <param name="present">この構成で存在するノード。</param>
-    internal NodeConfiguration(ImmutableHashSet<string> enabledSymbols, HashSet<HlslSyntaxNode> present)
+    internal NodeConfiguration(ImmutableHashSet<string> enabledSymbols, HashSet<ShaderSyntaxNode> present)
     {
         EnabledSymbols = enabledSymbols;
         _present = present;
@@ -39,5 +39,5 @@ public sealed class NodeConfiguration
     /// <summary>そのノードが、この構成で存在するかを判定する。</summary>
     /// <param name="node">対象のノード。構成を求めるときに渡したものに限る。</param>
     /// <returns>存在すれば <see langword="true"/>。</returns>
-    public bool Contains(HlslSyntaxNode node) => _present.Contains(node);
+    public bool Contains(ShaderSyntaxNode node) => _present.Contains(node);
 }

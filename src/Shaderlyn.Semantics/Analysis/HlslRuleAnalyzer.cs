@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Analysis;
 
@@ -29,7 +29,7 @@ namespace Shaderlyn.Semantics.Analysis;
 ///     public override ImmutableArray&lt;DiagnosticDescriptor&gt; SupportedDiagnostics =&gt; [Rule];
 ///
 ///     protected override void InitializeHlsl(HlslAnalysisContext context)
-///         =&gt; context.RegisterNodeAction&lt;HlslTypeSyntax&gt;(c =&gt;
+///         =&gt; context.RegisterNodeAction&lt;TypeSyntax&gt;(c =&gt;
 ///         {
 ///             if (c.Node.Name == "half4")
 ///             {
@@ -128,7 +128,7 @@ public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
         // まとめるのは報告のほうにする。
         HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported = [];
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             registrations.Invoke(this, node, compilation, program, treeContext, reported);
         }
@@ -144,7 +144,7 @@ public abstract class HlslRuleAnalyzer : DiagnosticAnalyzer
 /// </remarks>
 public sealed class HlslAnalysisContext
 {
-    private readonly List<(Type NodeType, Action<HlslSyntaxNode, ShaderCompilation, AnalyzedProgram, SyntaxTreeAnalysisContext, HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)>> Invoke)> _actions = [];
+    private readonly List<(Type NodeType, Action<ShaderSyntaxNode, ShaderCompilation, AnalyzedProgram, SyntaxTreeAnalysisContext, HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)>> Invoke)> _actions = [];
 
     /// <summary>登録が 1 つも無いかどうか。</summary>
     internal bool IsEmpty => _actions.Count == 0;
@@ -159,7 +159,7 @@ public sealed class HlslAnalysisContext
     /// 式の基底型を指定すれば、二項演算・関数呼び出しなど全ての式で呼ばれる。
     /// </remarks>
     public void RegisterNodeAction<TNode>(Action<HlslNodeAnalysisContext<TNode>> action)
-        where TNode : HlslSyntaxNode
+        where TNode : ShaderSyntaxNode
     {
         ArgumentNullException.ThrowIfNull(action);
 
@@ -178,7 +178,7 @@ public sealed class HlslAnalysisContext
     /// <param name="reported">報告済みの内容。同じ報告を構成の数だけ並べないために使う。</param>
     internal void Invoke(
         HlslRuleAnalyzer owner,
-        HlslSyntaxNode node,
+        ShaderSyntaxNode node,
         ShaderCompilation compilation,
         AnalyzedProgram program,
         SyntaxTreeAnalysisContext treeContext,
@@ -203,7 +203,7 @@ public sealed class HlslAnalysisContext
 /// </summary>
 /// <typeparam name="TNode">対象ノードの型。</typeparam>
 public readonly struct HlslNodeAnalysisContext<TNode>
-    where TNode : HlslSyntaxNode
+    where TNode : ShaderSyntaxNode
 {
     private readonly SyntaxTreeAnalysisContext _treeContext;
     private readonly HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> _reported;

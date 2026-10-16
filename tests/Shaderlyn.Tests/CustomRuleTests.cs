@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Testing;
 
@@ -57,7 +57,7 @@ public sealed class CustomRuleTests
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            context.RegisterNodeAction<HlslTypeSyntax>(c =>
+            context.RegisterNodeAction<TypeSyntax>(c =>
             {
                 if (c.Node.Name == "half4")
                 {
@@ -493,7 +493,7 @@ public sealed class CustomRuleTests
         protected override void InitializeHlsl(HlslAnalysisContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
-            context.RegisterNodeAction<HlslTypeSyntax>(c => c.ReportDiagnostic(Forgotten));
+            context.RegisterNodeAction<TypeSyntax>(c => c.ReportDiagnostic(Forgotten));
         }
     }
 

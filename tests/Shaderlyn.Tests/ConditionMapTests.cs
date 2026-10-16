@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
@@ -305,13 +305,13 @@ public sealed class ConditionMapTests
         Location unmerged = condition.UnmergedLocations[0];
 
         // その範囲に重なるノードを探す。
-        HlslSyntaxNode? inRegion = null;
+        ShaderSyntaxNode? inRegion = null;
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
             {
-                if (node is HlslSyntaxNode hlsl
+                if (node is ShaderSyntaxNode hlsl
                     && ReferenceEquals(hlsl.Source, unmerged.Source)
                     && hlsl.Span.Start < unmerged.Span.End
                     && unmerged.Span.Start < hlsl.Span.End)
@@ -572,7 +572,7 @@ public sealed class ConditionMapTests
             .OfType<EmptyStatementSyntax>()
             .Single();
 
-        HlslSyntaxNode block = (HlslSyntaxNode)empty.Parent!;
+        ShaderSyntaxNode block = (ShaderSyntaxNode)empty.Parent!;
 
         ConditionalNode inserted = Assert.Single(condition.GetInsertedChildren(block));
 
@@ -809,7 +809,7 @@ public sealed class ConditionMapTests
 
         // バリアントの側は、同じ親へ入れるものとして「シンボルが有効なとき」。
         ConditionalNode inserted = Assert.Single(
-            condition.GetInsertedChildren((HlslSyntaxNode)baseline.Parent!),
+            condition.GetInsertedChildren((ShaderSyntaxNode)baseline.Parent!),
             c => c.Node is VariableDeclarationSyntax);
 
         Assert.Equal("_NORMALMAP", inserted.Condition.ToString());

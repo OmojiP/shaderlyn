@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -51,7 +50,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!compilation.IsReportable(node))
             {
@@ -119,7 +118,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         }
 
         int required = shape.Rows * shape.Columns;
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         if (arguments.IsEmpty || CountComponents(binder, arguments) is not { } written)
         {
@@ -152,11 +151,11 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <returns>個数。1 つでも型が分からない引数があれば <see langword="null"/>。</returns>
     private static int? CountComponents(
         ExpressionTypeBinder binder,
-        ImmutableArray<HlslExpressionSyntax> arguments)
+        ImmutableArray<ExpressionSyntax> arguments)
     {
         int total = 0;
 
-        foreach (HlslExpressionSyntax argument in arguments)
+        foreach (ExpressionSyntax argument in arguments)
         {
             if (binder.CountComponents(argument) is not { } components)
             {
@@ -203,7 +202,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <returns>収まらないなら <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
-    /// <b>表記の見分けは <see cref="HlslLiteral"/> に任せる。</b>
+    /// <b>表記の見分けは <see cref="ShaderLiteral"/> に任せる。</b>
     /// 8 進か 16 進かの判定を書き写すと、片方だけが直されて食い違う。
     /// ここに残すのは「何桁を超えたら収まらないか」という、このルール固有の判断だけである。
     /// </para>
@@ -214,21 +213,21 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static bool IsTruncatedInteger(ShaderSyntaxToken token)
     {
-        string digits = HlslLiteral.GetDigits(token);
+        string digits = ShaderLiteral.GetDigits(token);
 
-        switch (HlslLiteral.GetKind(token))
+        switch (ShaderLiteral.GetKind(token))
         {
-            case HlslLiteralKind.Hexadecimal:
+            case ShaderLiteralKind.Hexadecimal:
                 return digits[2..].TrimStart('0').Length > 8;
 
-            case HlslLiteralKind.Binary:
+            case ShaderLiteralKind.Binary:
                 return digits[2..].TrimStart('0').Length > 32;
 
-            case HlslLiteralKind.Octal:
+            case ShaderLiteralKind.Octal:
                 string octal = digits.TrimStart('0');
                 return octal.Length > 11 || (octal.Length == 11 && octal[0] > '3');
 
-            case HlslLiteralKind.Decimal:
+            case ShaderLiteralKind.Decimal:
                 return !ulong.TryParse(digits, out ulong value) || value > uint.MaxValue;
 
             default:
@@ -256,7 +255,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             || binder.ResolveName(target) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global } resolution
             || !resolution.TryGetArrayLength(out int length)
             || access.Index is not LiteralExpressionSyntax literal
-            || !HlslLiteral.TryGetInt64(literal.Token, out long index)
+            || !ShaderLiteral.TryGetInt64(literal.Token, out long index)
             || index < length
             || access.GetLocation() is not { } location
             || !reported.Add(location))

@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -66,7 +66,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 初期化を書いた木と同じ木の宣言だけを見る。
         Dictionary<AnalyzedProgram, Dictionary<string, StructDeclarationSyntax>> structsByProgram = [];
 
-        foreach ((HlslDeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
+        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
         {
             if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
             {
@@ -105,7 +105,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         foreach (SyntaxNode node in function.DescendantNodesAndSelf())
         {
-            if (!compilation.IsReportable((HlslSyntaxNode)node))
+            if (!compilation.IsReportable((ShaderSyntaxNode)node))
             {
                 continue;
             }
@@ -202,12 +202,12 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return ControlFlow.AlwaysExits(body) ? null : SymbolCondition.Always;
         }
 
-        List<HlslSyntaxNode> statements = [.. body.DescendantNodesAndSelf().OfType<HlslStatementSyntax>()];
+        List<ShaderSyntaxNode> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
 
         // 関数がある構成は、関数の先頭 (戻り値の型) の出現条件で代表させる。
         // 出現条件は #if の領域が内側の指令で切れた単位で付くので、関数全体のように複数の切れ目にまたがるノードには付かない。
         // 関数ごと #ifdef _BASE の中にあっても、関数の宣言そのものは「常に」になり、_BASE の無い構成で本体が空に見える。
-        HlslSyntaxNode head = function.ReturnType;
+        ShaderSyntaxNode head = function.ReturnType;
 
         if (!compilation.TryEnumerateConfigurations([head, .. statements], program, out ImmutableArray<NodeConfiguration> configurations)
             || configurations.Length <= 1)
@@ -231,7 +231,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 構成を表す条件を作るために、本体の条件に現れるシンボルを集める。
         SortedSet<string> symbols = new(StringComparer.Ordinal);
 
-        foreach (HlslSyntaxNode statement in statements)
+        foreach (ShaderSyntaxNode statement in statements)
         {
             symbols.UnionWith(compilation.GetEffectiveCondition(statement, program).EnumerateSymbols());
         }
@@ -588,9 +588,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         Dictionary<SymbolCondition, int> counts = [];
 
-        foreach (HlslNodeOrTokenEntry item in list.Elements)
+        foreach (ShaderNodeOrTokenEntry item in list.Elements)
         {
-            if (item.Node is not HlslExpressionSyntax element)
+            if (item.Node is not ExpressionSyntax element)
             {
                 // 区切りのカンマ。
                 continue;
@@ -753,7 +753,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ConditionMap conditions,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string targetType,
         string target,
         ReportedLocations reported)
@@ -830,7 +830,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     private static ConfigurationFinding? FindByConfiguration(
         ConditionMap conditions,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string targetType)
     {
         ConfigurationFinding? truncating = null;
@@ -868,7 +868,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// 長い式をそのまま載せると読めなくなる。名前で指せるときだけ名前を出す。
     /// </remarks>
-    private static string DescribeValue(HlslExpressionSyntax value)
+    private static string DescribeValue(ExpressionSyntax value)
         => value is IdentifierExpressionSyntax identifier ? $"'{identifier.Name}'" : "この値";
 
     /// <summary>
@@ -973,7 +973,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         FunctionDeclarationSyntax function,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string returnType,
         Location location,
         ReportedLocations reported)

@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab;

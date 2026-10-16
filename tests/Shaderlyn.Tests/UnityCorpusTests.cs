@@ -640,7 +640,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
                     // HL0310 が調べる識別子の数。同じ位置は構成の数だけ現れるので 1 度に数える。
                     identifiersChecked += compilation.EnumerateRuleNodes()
                         .Select(pair => pair.Node)
-                        .OfType<Hlsl.Syntax.IdentifierExpressionSyntax>()
+                        .OfType<CFamily.Syntax.IdentifierExpressionSyntax>()
                         .Where(compilation.IsReportable)
                         .Select(identifier => identifier.GetLocation()?.Span.Start ?? -1)
                         .Distinct()

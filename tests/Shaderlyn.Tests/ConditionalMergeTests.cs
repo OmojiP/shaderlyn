@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
@@ -95,7 +95,7 @@ public sealed class ConditionalMergeTests
     /// <param name="node">部分木の根。</param>
     /// <param name="name">探す変数の名前。</param>
     /// <returns>宣言していれば <see langword="true"/>。</returns>
-    private static bool DeclaresVariable(HlslSyntaxNode node, string name)
+    private static bool DeclaresVariable(ShaderSyntaxNode node, string name)
         => node.DescendantNodesAndSelf()
             .OfType<VariableDeclarationSyntax>()
             .Any(d => d.Variables.Any(v => v.Name == name));
@@ -239,7 +239,7 @@ public sealed class ConditionalMergeTests
         // 子孫の条件は親を辿って求める (ConditionMap.GetCondition がそれを行う)。
         Assert.DoesNotContain(
             result.ConditionalNodes,
-            n => n.Node is HlslExpressionSyntax);
+            n => n.Node is ExpressionSyntax);
     }
 
     [Fact]

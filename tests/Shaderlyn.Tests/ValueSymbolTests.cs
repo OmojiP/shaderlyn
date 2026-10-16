@@ -6,7 +6,6 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 using Xunit.Abstractions;

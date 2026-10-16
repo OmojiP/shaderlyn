@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -76,7 +75,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!compilation.IsReportable(node))
             {
@@ -146,7 +145,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         Receiver receiver,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         ReportedLocations reported)
     {
         string target = receiver.TypeName;
@@ -266,7 +265,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         }
 
         ParameterSyntax[] parameters = [.. declarations[0].ParameterList];
-        HlslExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
 
         for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
         {
@@ -292,9 +291,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     private static void CheckOperands(
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression,
+        ExpressionSyntax expression,
         ShaderSyntaxToken operatorToken,
-        HlslExpressionSyntax[] operands,
+        ExpressionSyntax[] operands,
         ReportedLocations reported)
     {
         ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(expression);
@@ -370,7 +369,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="node">報告する位置のノード。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    private static void ReportEnum(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, ReportedLocations reported)
+    private static void ReportEnum(SyntaxTreeAnalysisContext context, ShaderSyntaxNode node, string message, ReportedLocations reported)
     {
         if (node.GetLocation() is not { } location || !reported.Add(location))
         {
@@ -390,7 +389,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     private static void ReportStruct(
         SyntaxTreeAnalysisContext context,
         Receiver receiver,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string valueType,
         string reason,
         ReportedLocations reported)

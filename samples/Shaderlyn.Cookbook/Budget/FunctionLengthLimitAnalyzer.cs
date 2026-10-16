@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -37,10 +37,10 @@ public sealed class FunctionLengthLimitAnalyzer(int maxStatements) : HlslRuleAna
             }
 
             // 波括弧そのものは数えない。中身がいくつあるかを数えたいため。
-            List<HlslStatementSyntax> written =
+            List<StatementSyntax> written =
             [
                 .. body.DescendantNodesAndSelf()
-                    .OfType<HlslStatementSyntax>()
+                    .OfType<StatementSyntax>()
                     .Where(s => s is not BlockStatementSyntax && c.Compilation.IsReportable(s)),
             ];
 

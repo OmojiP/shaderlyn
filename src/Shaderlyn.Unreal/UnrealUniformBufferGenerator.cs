@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Unreal;
 

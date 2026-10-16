@@ -1,5 +1,5 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Programs;
 
 namespace Shaderlyn.Tests;

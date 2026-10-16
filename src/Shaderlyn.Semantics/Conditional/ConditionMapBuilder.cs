@@ -4,7 +4,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -36,8 +35,8 @@ internal static class ConditionMapBuilder
         ImmutableArray<AnalyzedProgram> variants)
     {
 
-        Dictionary<HlslSyntaxNode, SymbolCondition> conditions = [];
-        Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted = [];
+        Dictionary<ShaderSyntaxNode, SymbolCondition> conditions = [];
+        Dictionary<ShaderSyntaxNode, List<ConditionalNode>> inserted = [];
         ImmutableArray<Location>.Builder unmerged = ImmutableArray.CreateBuilder<Location>();
         ImmutableArray<ConditionalRegion>.Builder regions =
             ImmutableArray.CreateBuilder<ConditionalRegion>();
@@ -219,7 +218,7 @@ internal static class ConditionMapBuilder
     /// <param name="node">対象のノード。</param>
     /// <param name="locations">比べる範囲。</param>
     /// <returns>収まっていれば <see langword="true"/>。</returns>
-    private static bool IsInsideAny(HlslSyntaxNode node, List<Location> locations)
+    private static bool IsInsideAny(ShaderSyntaxNode node, List<Location> locations)
     {
         if (locations.Count == 0 || node.Source is not { } source)
         {

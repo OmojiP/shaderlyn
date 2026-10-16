@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -28,15 +28,15 @@ public sealed class ArgumentTypeAnalyzer(string function, int parameter, string 
                 return;
             }
 
-            ImmutableArray<HlslExpressionSyntax> arguments =
-                [.. c.Node.Arguments.Select(a => a.Node).OfType<HlslExpressionSyntax>()];
+            ImmutableArray<ExpressionSyntax> arguments =
+                [.. c.Node.Arguments.Select(a => a.Node).OfType<ExpressionSyntax>()];
 
             if (parameter >= arguments.Length)
             {
                 return;
             }
 
-            HlslExpressionSyntax argument = arguments[parameter];
+            ExpressionSyntax argument = arguments[parameter];
             string? actual = c.Compilation.GetExpressionTypeBinder(c.Program)
                 .GetEvaluatorFor(argument)
                 .Evaluate(argument);

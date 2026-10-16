@@ -1,23 +1,22 @@
-using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 
-namespace Shaderlyn.Hlsl.Syntax;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// HLSL 構文木の子要素。ノードとトークンのどちらかを表す。
 /// </summary>
-public readonly struct HlslNodeOrToken
+public readonly struct ShaderNodeOrToken
 {
-    private HlslNodeOrToken(HlslSyntaxNode? node, ShaderSyntaxToken? token)
+    private ShaderNodeOrToken(ShaderSyntaxNode? node, ShaderSyntaxToken? token)
     {
         Node = node;
         Token = token;
     }
 
     /// <summary>ノードの場合はその参照。</summary>
-    public HlslSyntaxNode? Node { get; }
+    public ShaderSyntaxNode? Node { get; }
 
     /// <summary>トークンの場合はその参照。</summary>
     public ShaderSyntaxToken? Token { get; }
@@ -30,11 +29,11 @@ public readonly struct HlslNodeOrToken
 
     /// <summary>トークンをこの型へ変換する。</summary>
     /// <param name="token">変換元のトークン。</param>
-    public static implicit operator HlslNodeOrToken(ShaderSyntaxToken token) => new(null, token);
+    public static implicit operator ShaderNodeOrToken(ShaderSyntaxToken token) => new(null, token);
 
     /// <summary>ノードをこの型へ変換する。</summary>
     /// <param name="node">変換元のノード。</param>
-    public static implicit operator HlslNodeOrToken(HlslSyntaxNode node) => new(node, null);
+    public static implicit operator ShaderNodeOrToken(ShaderSyntaxNode node) => new(node, null);
 
     /// <summary>内容を表す文字列を返す。</summary>
     /// <returns>デバッグ用の文字列表現。</returns>
@@ -59,7 +58,7 @@ public readonly struct HlslNodeOrToken
 /// 診断の位置には <see cref="GetLocation"/> を使うこと。
 /// </para>
 /// </remarks>
-public abstract class HlslSyntaxNode : SyntaxNode
+public abstract class ShaderSyntaxNode : SyntaxNode
 {
     private TextSpan? _span;
     private ShaderSyntaxToken? _firstToken;
@@ -81,12 +80,12 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// このノードの子要素を、トークン列に現れる順に列挙する。
     /// </summary>
     /// <returns>子のノードとトークンの列。</returns>
-    public abstract IEnumerable<HlslNodeOrToken> ChildNodesAndTokens();
+    public abstract IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens();
 
     /// <inheritdoc/>
     public override IEnumerable<SyntaxNode> ChildNodes()
     {
-        foreach (HlslNodeOrToken child in ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in ChildNodesAndTokens())
         {
             if (child.Node is not null)
             {
@@ -106,7 +105,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     {
         ArgumentNullException.ThrowIfNull(pending);
 
-        foreach (HlslNodeOrToken child in ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in ChildNodesAndTokens())
         {
             if (child.Node is { } node)
             {
@@ -122,7 +121,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// <returns>トークンの列。</returns>
     public IEnumerable<ShaderSyntaxToken> DescendantTokens()
     {
-        foreach (HlslNodeOrToken child in ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in ChildNodesAndTokens())
         {
             if (child.Token is not null)
             {
@@ -223,7 +222,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// </remarks>
     private ShaderSyntaxToken? FindFirstToken()
     {
-        foreach (HlslNodeOrToken child in ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in ChildNodesAndTokens())
         {
             if (child.Token is { } token)
             {
@@ -264,7 +263,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
         int start = -1;
         int end = -1;
 
-        foreach (HlslNodeOrToken child in ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in ChildNodesAndTokens())
         {
             SourceText? childSource;
             TextSpan childSpan;

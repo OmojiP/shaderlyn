@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Symbols;
 
@@ -33,7 +33,7 @@ public sealed class BannedTypeAnalyzer(params string[] banned) : HlslRuleAnalyze
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             string name = c.Node.Name;
 

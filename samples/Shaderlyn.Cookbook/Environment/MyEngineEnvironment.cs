@@ -4,7 +4,6 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 

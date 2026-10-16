@@ -41,15 +41,15 @@
 | [`DiagnosticSeverity`](#diagnosticseverity) | 診断 |
 | [`HlslAnalysisContext`](#hlslanalysiscontext) | アクションを登録する |
 | [`HlslIntrinsics`](#hlslintrinsics--組み込み関数を知る) | 構文木 |
-| [`HlslLiteral`](#hlslliteral--リテラルの値と型) | 構文木 |
 | [`HlslRuleAnalyzer`](#hlslruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
-| [`HlslSyntaxFacts`](#hlslsyntaxfacts--構文の規則) | 構文木 |
 | [`HlslTypeClassifier`](#hlsltypeclassifier--型名を読み解く) | 構文木 |
 | [`Location`](#location-と-textspan) | 診断 |
 | [`ResolveCall`](#resolvecall) | セマンティックモデル |
 | [`ResolveName`](#resolvename) | セマンティックモデル |
 | [`ShaderCompilation`](#shadercompilation-shaderlynsemantics) | セマンティックモデル |
+| [`ShaderLiteral`](#shaderliteral--リテラルの値と型) | 構文木 |
 | [`ShaderRuleVerifier`](#shaderruleverifier-shaderlyntesting) | テスト |
+| [`ShaderSyntaxFacts`](#shadersyntaxfacts--構文の規則) | 構文木 |
 | [`SymbolCondition`](#symbolcondition-shaderlyncoresyntax) | セマンティックモデル |
 | [`TextSpan`](#location-と-textspan) | 診断 |
 
@@ -291,23 +291,23 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 ### HLSL のノード型
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。すべて `HlslSyntaxNode` の派生型です。
+名前空間は `Shaderlyn.CFamily.Syntax` です (C 系の言語に共通の節)。HLSL にだけある節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) は `Shaderlyn.Hlsl.Syntax` にあります。すべて `ShaderSyntaxNode` の派生型です。
 
-`HlslSyntaxNode` の直下:
+`ShaderSyntaxNode` の直下:
 
 | 型                          | 何を指すか                                                |
 | --------------------------- | --------------------------------------------------------- |
-| `HlslCompilationUnitSyntax` | コードブロックの根                                        |
-| `HlslTypeSyntax`            | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments` |
+| `CompilationUnitSyntax`     | コードブロックの根                                        |
+| `TypeSyntax`                | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments` |
 | `ParameterSyntax`           | 仮引数                                                    |
 | `VariableDeclaratorSyntax`  | 宣言された変数 1 つ分の名前と初期化子                     |
 | `SemanticSyntax`            | `: SV_Target` のセマンティクス                            |
-| `HlslAttributeSyntax`       | `[loop]` `[branch]` などの属性                            |
-| `HlslDeclarationSyntax`     | 宣言の基底 (抽象)                                         |
-| `HlslExpressionSyntax`      | 式の基底 (抽象)                                           |
-| `HlslStatementSyntax`       | 文の基底 (抽象)                                           |
+| `AttributeSyntax`           | `[loop]` `[branch]` などの属性                            |
+| `DeclarationSyntax`         | 宣言の基底 (抽象)                                         |
+| `ExpressionSyntax`          | 式の基底 (抽象)                                           |
+| `StatementSyntax`           | 文の基底 (抽象)                                           |
 
-`HlslDeclarationSyntax` の派生:
+`DeclarationSyntax` の派生:
 
 | 型                                | 何を指すか                                                           |
 | --------------------------------- | -------------------------------------------------------------------- |
@@ -321,7 +321,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 
-`HlslExpressionSyntax` の派生:
+`ExpressionSyntax` の派生:
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
@@ -341,7 +341,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `InitializerListExpressionSyntax` | `{ 1, 2 }`                         |
 | `IncompleteExpressionSyntax`      | 式として解析しきれなかったトークン |
 
-`HlslStatementSyntax` の派生:
+`StatementSyntax` の派生:
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
@@ -361,9 +361,9 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 ### 構文の上の事実を引く
 
-#### `HlslLiteral` — リテラルの値と型
+#### `ShaderLiteral` — リテラルの値と型
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。16 進・8 進・接尾辞を読み分けます。
+名前空間は `Shaderlyn.CFamily.Syntax` です。16 進・8 進・接尾辞を読み分けます。
 
 | メンバー                         |                                                           |
 | -------------------------------- | --------------------------------------------------------- |
@@ -374,12 +374,12 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `GetDigits(token)`               | 接尾辞を除いた表記                                        |
 
 ```csharp
-if (HlslLiteral.TryGetInt64(literal.Token, out long index)) { ... }
+if (ShaderLiteral.TryGetInt64(literal.Token, out long index)) { ... }
 ```
 
-#### `HlslSyntaxFacts` — 構文の規則
+#### `ShaderSyntaxFacts` — 構文の規則
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。
+名前空間は `Shaderlyn.CFamily.Syntax` です。
 
 | メンバー                                                    |                                          |
 | ----------------------------------------------------------- | ---------------------------------------- |
@@ -546,7 +546,7 @@ HELPER_DECL
 ```csharp
 HashSet<(string FilePath, int Start)> reported = [];
 
-foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
 {
     if (node is not InvocationExpressionSyntax invocation || !compilation.IsReportable(invocation))
     {
@@ -588,7 +588,7 @@ foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.Enumerate
 `TryEnumerateConfigurations` で構成ごとに存在するノードを絞り、その最大を上限と比べます。
 
 ```csharp
-List<HlslStatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<HlslStatementSyntax>()];
+List<StatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
 
 // 条件が分からないノードがある、シンボルが多すぎる (MaxConfigurationSymbols を超える) なら数えない
 if (!compilation.TryEnumerateConfigurations(statements, program, out var configurations) || configurations.IsEmpty)

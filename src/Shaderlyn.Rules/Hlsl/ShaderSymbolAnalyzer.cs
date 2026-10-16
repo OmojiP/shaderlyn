@@ -7,7 +7,6 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Rules;

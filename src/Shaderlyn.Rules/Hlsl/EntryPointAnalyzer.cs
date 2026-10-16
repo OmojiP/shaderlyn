@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -76,7 +77,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
         AnalyzedProgram program,
         HlslEntryPoint entryPoint)
     {
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             if (declaration is not ConstantBufferDeclarationSyntax buffer
                 || EnumerateFunctions(buffer.Members).FirstOrDefault(f => !f.IsMethodDefinition && f.Name == entryPoint.Name) is not { } function)
@@ -118,9 +119,9 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// <summary>関数の宣言を列挙する。cbuffer の中に書いた関数も含む。</summary>
     /// <param name="declarations">宣言の並び。</param>
     /// <returns>関数の宣言。</returns>
-    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<HlslDeclarationSyntax> declarations)
+    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<DeclarationSyntax> declarations)
     {
-        foreach (HlslDeclarationSyntax declaration in declarations)
+        foreach (DeclarationSyntax declaration in declarations)
         {
             if (declaration is FunctionDeclarationSyntax function)
             {

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -70,7 +71,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
 
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not IdentifierExpressionSyntax identifier
                 || !declaredByBlock.TryGetValue(program.BlockKey, out Dictionary<string, SymbolCondition>? declared)
@@ -191,7 +192,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
 
             foreach (ConditionalNode inserted in condition.GetInsertedChildren(program.Tree.Root))
             {
-                if (inserted.Node is HlslDeclarationSyntax root)
+                if (inserted.Node is DeclarationSyntax root)
                 {
                     foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables([root]))
                     {
@@ -226,9 +227,9 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
     /// <param name="declarations">最上位の宣言。</param>
     /// <returns>変数の宣言。</returns>
     private static IEnumerable<VariableDeclarationSyntax> EnumerateGlobalVariables(
-        IEnumerable<HlslDeclarationSyntax> declarations)
+        IEnumerable<DeclarationSyntax> declarations)
     {
-        foreach (HlslDeclarationSyntax declaration in declarations)
+        foreach (DeclarationSyntax declaration in declarations)
         {
             switch (declaration)
             {

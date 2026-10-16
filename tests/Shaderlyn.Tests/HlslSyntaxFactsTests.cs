@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
 
@@ -46,7 +45,7 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("'r'", "uint")]
     [InlineData("':'", "uint")]
     public void リテラルの型を答える(string text, string expected)
-        => Assert.Equal(expected, HlslLiteral.GetTypeName(Lex(text)));
+        => Assert.Equal(expected, ShaderLiteral.GetTypeName(Lex(text)));
 
     [Theory]
     [InlineData("10", 10)]
@@ -57,7 +56,7 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("7ul", 7)]
     public void 整数リテラルの値を読む(string text, long expected)
     {
-        Assert.True(HlslLiteral.TryGetInt64(Lex(text), out long value));
+        Assert.True(ShaderLiteral.TryGetInt64(Lex(text), out long value));
         Assert.Equal(expected, value);
     }
 
@@ -66,7 +65,7 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("1.0f")]
     [InlineData("1e3")]
     public void 浮動小数は整数として読まない(string text)
-        => Assert.False(HlslLiteral.TryGetInt64(Lex(text), out _));
+        => Assert.False(ShaderLiteral.TryGetInt64(Lex(text), out _));
 
     [Theory]
     [InlineData("1.5", 1.5)]
@@ -76,7 +75,7 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("1e3", 1000)]
     public void 数として読む(string text, double expected)
     {
-        Assert.True(HlslLiteral.TryGetDouble(Lex(text), out double value));
+        Assert.True(ShaderLiteral.TryGetDouble(Lex(text), out double value));
         Assert.Equal(expected, value);
     }
 
@@ -92,27 +91,27 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("0xff", 255)]
     public void 十六進の桁を接尾辞と読み違えない(string text, long expected)
     {
-        Assert.Equal(HlslLiteralKind.Hexadecimal, HlslLiteral.GetKind(Lex(text)));
-        Assert.Equal("int", HlslLiteral.GetTypeName(Lex(text)));
-        Assert.True(HlslLiteral.TryGetInt64(Lex(text), out long value));
+        Assert.Equal(ShaderLiteralKind.Hexadecimal, ShaderLiteral.GetKind(Lex(text)));
+        Assert.Equal("int", ShaderLiteral.GetTypeName(Lex(text)));
+        Assert.True(ShaderLiteral.TryGetInt64(Lex(text), out long value));
         Assert.Equal(expected, value);
     }
 
     [Theory]
-    [InlineData("1", HlslLiteralKind.Decimal)]
-    [InlineData("0x1F", HlslLiteralKind.Hexadecimal)]
-    [InlineData("017", HlslLiteralKind.Octal)]
-    [InlineData("1.5", HlslLiteralKind.Floating)]
-    [InlineData("1e5", HlslLiteralKind.Floating)]
-    public void 書き方を答える(string text, HlslLiteralKind expected)
-        => Assert.Equal(expected, HlslLiteral.GetKind(Lex(text)));
+    [InlineData("1", ShaderLiteralKind.Decimal)]
+    [InlineData("0x1F", ShaderLiteralKind.Hexadecimal)]
+    [InlineData("017", ShaderLiteralKind.Octal)]
+    [InlineData("1.5", ShaderLiteralKind.Floating)]
+    [InlineData("1e5", ShaderLiteralKind.Floating)]
+    public void 書き方を答える(string text, ShaderLiteralKind expected)
+        => Assert.Equal(expected, ShaderLiteral.GetKind(Lex(text)));
 
     [Fact]
     public void 数値でないトークンには答えない()
     {
-        Assert.Null(HlslLiteral.GetTypeName(Lex("name")));
-        Assert.Equal(HlslLiteralKind.None, HlslLiteral.GetKind(Lex("name")));
-        Assert.False(HlslLiteral.TryGetInt64(Lex("name"), out _));
+        Assert.Null(ShaderLiteral.GetTypeName(Lex("name")));
+        Assert.Equal(ShaderLiteralKind.None, ShaderLiteral.GetKind(Lex("name")));
+        Assert.False(ShaderLiteral.TryGetInt64(Lex("name"), out _));
     }
 
     [Theory]
@@ -121,8 +120,8 @@ public sealed class HlslSyntaxFactsTests
     [InlineData(ShaderSyntaxKind.LessThanLessThanEqualsToken, ShaderSyntaxKind.LessThanLessThanToken)]
     public void 複合代入が行う演算を答える(ShaderSyntaxKind compound, ShaderSyntaxKind expected)
     {
-        Assert.True(HlslSyntaxFacts.IsCompoundAssignment(compound));
-        Assert.Equal(expected, HlslSyntaxFacts.GetCompoundAssignmentOperand(compound));
+        Assert.True(ShaderSyntaxFacts.IsCompoundAssignment(compound));
+        Assert.Equal(expected, ShaderSyntaxFacts.GetCompoundAssignmentOperand(compound));
     }
 
     /// <summary>
@@ -135,15 +134,15 @@ public sealed class HlslSyntaxFactsTests
     [InlineData(ShaderSyntaxKind.ExclamationEqualsToken)]
     public void 比較演算子は複合代入ではない(ShaderSyntaxKind kind)
     {
-        Assert.False(HlslSyntaxFacts.IsCompoundAssignment(kind));
-        Assert.Null(HlslSyntaxFacts.GetCompoundAssignmentOperand(kind));
+        Assert.False(ShaderSyntaxFacts.IsCompoundAssignment(kind));
+        Assert.Null(ShaderSyntaxFacts.GetCompoundAssignmentOperand(kind));
     }
 
     [Fact]
     public void 単純な代入も代入演算子である()
     {
-        Assert.True(HlslSyntaxFacts.IsAssignmentOperator(ShaderSyntaxKind.EqualsToken));
-        Assert.False(HlslSyntaxFacts.IsCompoundAssignment(ShaderSyntaxKind.EqualsToken));
+        Assert.True(ShaderSyntaxFacts.IsAssignmentOperator(ShaderSyntaxKind.EqualsToken));
+        Assert.False(ShaderSyntaxFacts.IsCompoundAssignment(ShaderSyntaxKind.EqualsToken));
     }
 
     /// <summary>角括弧のトークンを字句解析で作る。</summary>
@@ -163,7 +162,7 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("[0x10]", 16)]
     public void 配列の要素数を答える(string text, int expected)
     {
-        Assert.True(HlslSyntaxFacts.TryGetArrayLength(LexRank(text), out int length));
+        Assert.True(ShaderSyntaxFacts.TryGetArrayLength(LexRank(text), out int length));
         Assert.Equal(expected, length);
     }
 
@@ -172,5 +171,5 @@ public sealed class HlslSyntaxFactsTests
     [InlineData("[]")]
     [InlineData("[0]")]
     public void 数で書かれていない要素数は答えない(string text)
-        => Assert.False(HlslSyntaxFacts.TryGetArrayLength(LexRank(text), out _));
+        => Assert.False(ShaderSyntaxFacts.TryGetArrayLength(LexRank(text), out _));
 }

@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Environments;
 

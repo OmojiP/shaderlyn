@@ -7,7 +7,6 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Hlsl;
 
@@ -23,7 +22,7 @@ public sealed class HlslSyntaxTree
 {
     private HlslSyntaxTree(
         SourceText text,
-        HlslCompilationUnitSyntax root,
+        CompilationUnitSyntax root,
         PreprocessResult preprocessResult,
         ImmutableArray<Diagnostic> diagnostics)
     {
@@ -34,7 +33,7 @@ public sealed class HlslSyntaxTree
     }
 
     /// <summary>
-    /// 構文木にせずに読み飛ばした宣言に現れた識別子 (<see cref="HlslParser.UnanalyzedIdentifiers"/>)。
+    /// 構文木にせずに読み飛ばした宣言に現れた識別子 (<see cref="CFamily.Parsing.ShaderParser.UnanalyzedIdentifiers"/>)。
     /// </summary>
     /// <remarks>
     /// 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の <c>template</c> など) の名前である。
@@ -59,7 +58,7 @@ public sealed class HlslSyntaxTree
     public SourceText Text { get; }
 
     /// <summary>構文木の根。</summary>
-    public HlslCompilationUnitSyntax Root { get; }
+    public CompilationUnitSyntax Root { get; }
 
     /// <summary>プリプロセスの結果。<c>#pragma</c> や include の情報を含む。</summary>
     public PreprocessResult PreprocessResult { get; }
@@ -107,7 +106,7 @@ public sealed class HlslSyntaxTree
             Features = language.Features,
             DialectSubject = language.DescribeUnavailable(),
         };
-        HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
+        CompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);
 
         SyntaxNode.WireParents(root);

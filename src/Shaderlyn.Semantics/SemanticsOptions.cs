@@ -78,7 +78,7 @@ public sealed record SemanticsOptions
     /// <para>
     /// <b>利用者のファイルは、解析しているファイルと同じく指摘の対象になる。</b>
     /// 共通の <c>.hlsl</c> を取り込むのはよくある書き方であり、その中身も利用者が直すコードである。
-    /// 関数の中身まで構文木にし、取り込む側の文脈で検査する (<see cref="ShaderCompilation.IsReportable(Hlsl.Syntax.HlslSyntaxNode)"/>)。
+    /// 関数の中身まで構文木にし、取り込む側の文脈で検査する (<see cref="ShaderCompilation.IsReportable(CFamily.Syntax.ShaderSyntaxNode)"/>)。
     /// </para>
     /// <para>
     /// 直せないのは Unity や外部パッケージのヘッダ (<c>Library/PackageCache</c> や Unity Editor に同梱のもの) である。

@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -248,7 +247,7 @@ internal static partial class HoverBuilder
         }
 
         // 展開の先頭から始まるノードのうち、最も外側のもの。複製の条件はそこから引く。
-        Dictionary<ShaderSyntaxToken, HlslSyntaxNode?> starts = [];
+        Dictionary<ShaderSyntaxToken, ShaderSyntaxNode?> starts = [];
 
         foreach (List<ShaderSyntaxToken> run in runs)
         {
@@ -257,9 +256,9 @@ internal static partial class HoverBuilder
 
         foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
         {
-            if (node is HlslSyntaxNode hlsl
+            if (node is ShaderSyntaxNode hlsl
                 && hlsl.FirstToken is { } first
-                && starts.TryGetValue(first, out HlslSyntaxNode? found)
+                && starts.TryGetValue(first, out ShaderSyntaxNode? found)
                 && found is null)
             {
                 starts[first] = hlsl;

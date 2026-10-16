@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
 

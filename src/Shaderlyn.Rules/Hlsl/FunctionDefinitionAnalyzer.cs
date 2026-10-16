@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -80,7 +80,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (!compilation.IsReportable(declaration))
                 {
@@ -181,7 +181,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in programs)
         {
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (declaration is FunctionDeclarationSyntax function
                     && !function.NameToken.IsMissing)
@@ -225,7 +225,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in programs)
         {
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (declaration is not FunctionDeclarationSyntax { IsDefinition: true } function
                     || !names.Contains(function.Name))

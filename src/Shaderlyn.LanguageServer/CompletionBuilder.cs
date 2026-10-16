@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
-using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.Unity;
 
@@ -238,7 +238,7 @@ internal static partial class CompletionBuilder
                 }
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 switch (declaration)
                 {

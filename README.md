@@ -126,7 +126,7 @@ public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
 
     protected override void InitializeHlsl(HlslAnalysisContext context)
     {
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             if (c.Node.Name.StartsWith("half", StringComparison.Ordinal))
             {

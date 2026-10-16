@@ -4,7 +4,6 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -57,7 +56,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is InvocationExpressionSyntax invocation)
             {
@@ -156,7 +155,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         List<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
@@ -255,7 +254,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         InvocationExpressionSyntax invocation,
         string name,
         List<FunctionDeclarationSyntax> candidates,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         bool intrinsicAccepts,
         bool declaresArrays,
         SymbolCondition call,
@@ -491,7 +490,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         // 型引数を書いた呼び出しは、template の関数だけが候補になる。
         TemplateFunctionCandidate[] pool = invocation.HasTypeArguments ? [.. candidates.Where(c => c.IsTemplate)] : [.. candidates];
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location))
         {
@@ -603,7 +602,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="type">推論に使った型。</param>
     /// <param name="argument">実引数。</param>
     /// <returns>画面に出す文字列。</returns>
-    private static string DescribeDeduced(string type, HlslExpressionSyntax argument)
+    private static string DescribeDeduced(string type, ExpressionSyntax argument)
         => TemplateDeduction.IsLiteral(type)
             ? TemplateDeduction.AsLiteral(argument)?.Text ?? type
             : type;
@@ -703,7 +702,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static Mismatch? FindMismatch(
         ImmutableArray<ParameterSyntax> parameters,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         string?[] argumentTypes,
         ExpressionTypeBinder binder,
         bool declaresArrays)
@@ -784,7 +783,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string? DescribeArrayMismatch(
         ParameterSyntax parameter,
-        HlslExpressionSyntax argument,
+        ExpressionSyntax argument,
         ExpressionTypeBinder binder,
         bool declaresArrays)
     {
@@ -879,7 +878,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <returns>宣言していれば <see langword="true"/>。</returns>
     private static bool DeclaresArrays(ShaderCompilation compilation)
     {
-        foreach ((HlslSyntaxNode node, AnalyzedProgram _) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram _) in compilation.EnumerateRuleNodes())
         {
             if (node is VariableDeclarationSyntax declaration
                 && compilation.IsReportable(declaration)

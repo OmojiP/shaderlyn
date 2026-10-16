@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -20,7 +19,7 @@ namespace Shaderlyn.Cookbook;
 /// <c>%</c> を渡せば <c>%=</c> も報告する。
 /// <b>末尾の等号を自分で落としてはいけない。</b>
 /// <c>&lt;=</c> まで巻き込む。複合代入かどうかは
-/// <see cref="HlslSyntaxFacts.IsCompoundAssignment"/> が答える。
+/// <see cref="ShaderSyntaxFacts.IsCompoundAssignment"/> が答える。
 /// </para>
 /// </remarks>
 public sealed class BannedOperatorAnalyzer(params string[] banned) : HlslRuleAnalyzer
@@ -44,12 +43,12 @@ public sealed class BannedOperatorAnalyzer(params string[] banned) : HlslRuleAna
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="operatorToken">演算子のトークン。</param>
     private void Check<TNode>(HlslNodeAnalysisContext<TNode> context, ShaderSyntaxToken operatorToken)
-        where TNode : HlslSyntaxNode
+        where TNode : ShaderSyntaxNode
     {
         string text = operatorToken.Text;
 
         // 複合代入なら、それが行う演算の綴りでも照合する。
-        string root = HlslSyntaxFacts.IsCompoundAssignment(operatorToken.Kind) ? text[..^1] : text;
+        string root = ShaderSyntaxFacts.IsCompoundAssignment(operatorToken.Kind) ? text[..^1] : text;
 
         if (!_banned.Contains(text) && !_banned.Contains(root))
         {

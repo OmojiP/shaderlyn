@@ -4,7 +4,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -151,7 +150,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 configurations.Add(configuration.Value);
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (!compilation.IsReportable(declaration))
                 {
@@ -163,7 +162,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 // 関数の中は、波括弧ごとに別の範囲として集める。switch の本体も 1 つの範囲である。
                 foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
                 {
-                    (ShaderSyntaxToken open, ImmutableArray<HlslStatementSyntax> statements) = node switch
+                    (ShaderSyntaxToken open, ImmutableArray<StatementSyntax> statements) = node switch
                     {
                         BlockStatementSyntax body => (body.OpenBrace, body.Statements),
                         SwitchStatementSyntax body => (body.OpenBrace, body.Statements),
@@ -181,7 +180,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         CollectParameters(function, KeyOf(open.GetLocation()));
                     }
 
-                    foreach (HlslStatementSyntax statement in statements)
+                    foreach (StatementSyntax statement in statements)
                     {
                         if (statement is LocalDeclarationStatementSyntax local
                             && compilation.IsReportable(local.Declaration))
@@ -215,7 +214,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            void Collect(HlslDeclarationSyntax declaration, (string File, int Start) scope)
+            void Collect(DeclarationSyntax declaration, (string File, int Start) scope)
             {
                 foreach (Declared declared in Describe(declaration, condition))
                 {
@@ -272,7 +271,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <param name="condition">出現条件の索引。</param>
     /// <returns>分解した宣言。対象外なら空。</returns>
     private static IEnumerable<Declared> Describe(
-        HlslDeclarationSyntax declaration,
+        DeclarationSyntax declaration,
         ConditionMap condition)
     {
         switch (declaration)

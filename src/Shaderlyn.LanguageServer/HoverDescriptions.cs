@@ -278,7 +278,7 @@ internal static partial class HoverBuilder
     /// ただし、そう答える前に構成ごとの型を試す。
     /// 同じ名前を条件ごとに違う型で宣言するのは普通の書き方であり、
     /// 1 本の木では型が決まらなくても、構成を決めれば決まる。
-    /// 診断はすでにそうしている (<see cref="ExpressionTypeBinder.EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。
+    /// 診断はすでにそうしている (<see cref="ExpressionTypeBinder.EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。
     /// ホバーだけが「判定できません」と答えると、
     /// 指摘が出ない理由を調べる利用者を誤った方向へ導く。
     /// </para>
@@ -286,7 +286,7 @@ internal static partial class HoverBuilder
     private static HoverResult DescribeExpression(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         string text = Shorten(compilation.Text.ToString(expression.Span));
 
@@ -321,7 +321,7 @@ internal static partial class HoverBuilder
     private static string? DescribeTypeByConfiguration(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         ConditionMap conditions = compilation.GetConditionMap();
         List<(SymbolCondition Condition, string Type)> found = [];

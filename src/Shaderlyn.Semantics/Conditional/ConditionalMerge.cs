@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -12,7 +11,7 @@ namespace Shaderlyn.Semantics.Conditional;
 /// </summary>
 /// <param name="Node">対象のノード。</param>
 /// <param name="Condition">このノードが存在する条件。</param>
-public readonly record struct ConditionalNode(HlslSyntaxNode Node, SymbolCondition Condition);
+public readonly record struct ConditionalNode(ShaderSyntaxNode Node, SymbolCondition Condition);
 
 /// <summary>
 /// 既定の構成の木には無く、バリアントの木にしか無いノード。
@@ -34,8 +33,8 @@ public readonly record struct ConditionalNode(HlslSyntaxNode Node, SymbolConditi
 /// </para>
 /// </remarks>
 public readonly record struct NodeInsertion(
-    HlslSyntaxNode Parent,
-    HlslSyntaxNode Node,
+    ShaderSyntaxNode Parent,
+    ShaderSyntaxNode Node,
     SymbolCondition Condition);
 
 /// <summary>
@@ -64,7 +63,7 @@ public sealed class ConditionalMergeResult
     /// まとめて有効にした構成で、違いをどのキーワードのものか言えなかった箇所。
     /// </summary>
     /// <remarks>
-    /// 違いごとにキーワードを決める突き合わせ (<see cref="ConditionalMerge.Merge(HlslSyntaxNode, HlslSyntaxNode, ImmutableArray{string}, string?, Func{HlslSyntaxNode, bool, string?})"/>)
+    /// 違いごとにキーワードを決める突き合わせ (<see cref="ConditionalMerge.Merge(ShaderSyntaxNode, ShaderSyntaxNode, ImmutableArray{string}, string?, Func{ShaderSyntaxNode, bool, string?})"/>)
     /// でだけ埋まる。1 つでもあれば、その構成の条件は信用できない。
     /// </remarks>
     public ImmutableArray<Location> UnattributedLocations { get; }
@@ -141,8 +140,8 @@ internal static class ConditionalMerge
     /// </list>
     /// </remarks>
     public static ConditionalMergeResult Merge(
-        HlslSyntaxNode baseline,
-        HlslSyntaxNode variant,
+        ShaderSyntaxNode baseline,
+        ShaderSyntaxNode variant,
         ImmutableArray<string> enabledSymbols,
         string? ownFilePath = null)
         => Merge(baseline, variant, enabledSymbols, ownFilePath, attribute: null);
@@ -172,11 +171,11 @@ internal static class ConditionalMerge
     /// </para>
     /// </remarks>
     public static ConditionalMergeResult Merge(
-        HlslSyntaxNode baseline,
-        HlslSyntaxNode variant,
+        ShaderSyntaxNode baseline,
+        ShaderSyntaxNode variant,
         ImmutableArray<string> enabledSymbols,
         string? ownFilePath,
-        Func<HlslSyntaxNode, bool, string?>? attribute)
+        Func<ShaderSyntaxNode, bool, string?>? attribute)
     {
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(variant);
@@ -207,7 +206,7 @@ internal static class ConditionalMerge
     /// <param name="ownFilePath">解析しているファイルのパス。</param>
     private sealed class MergeState(
         SymbolCondition enabled,
-        Func<HlslSyntaxNode, bool, string?>? attribute,
+        Func<ShaderSyntaxNode, bool, string?>? attribute,
         string? ownFilePath)
     {
         /// <summary>解析しているファイルのパス。</summary>
@@ -229,7 +228,7 @@ internal static class ConditionalMerge
         /// <param name="node">部分木の根。</param>
         /// <param name="fromVariant">バリアントの木のノードかどうか。</param>
         /// <returns>付ける条件。</returns>
-        public SymbolCondition ConditionFor(HlslSyntaxNode node, bool fromVariant)
+        public SymbolCondition ConditionFor(ShaderSyntaxNode node, bool fromVariant)
         {
             if (attribute is not null)
             {
@@ -246,7 +245,7 @@ internal static class ConditionalMerge
 
         /// <summary>どのシンボルのものか言えなかった違いを覚える。</summary>
         /// <param name="node">その違いのノード。</param>
-        public void AddUnattributed(HlslSyntaxNode node)
+        public void AddUnattributed(ShaderSyntaxNode node)
             => Unattributed.Add(node.GetLocation() ?? Location.Create(SourceText.From(string.Empty, "<不明>"), default));
 
         /// <summary>違いごとにシンボルを決めているかどうか。</summary>
@@ -264,7 +263,7 @@ internal static class ConditionalMerge
     /// <param name="baseline">既定の構成のノード。</param>
     /// <param name="variant">バリアントのノード。</param>
     /// <param name="state">突き合わせの状態。</param>
-    private static void Align(HlslSyntaxNode baseline, HlslSyntaxNode variant, MergeState state)
+    private static void Align(ShaderSyntaxNode baseline, ShaderSyntaxNode variant, MergeState state)
     {
         // 木のほとんどの場所では、2 つの構成の子は 1 つずつそのまま対応する。
         // その道では入れ物を 1 つも作らずに進む。
@@ -272,13 +271,13 @@ internal static class ConditionalMerge
         using IEnumerator<SyntaxNode> leftWalk = baseline.ChildNodes().GetEnumerator();
         using IEnumerator<SyntaxNode> rightWalk = variant.ChildNodes().GetEnumerator();
 
-        List<HlslSyntaxNode>? left = null;
-        List<HlslSyntaxNode>? right = null;
+        List<ShaderSyntaxNode>? left = null;
+        List<ShaderSyntaxNode>? right = null;
 
         while (true)
         {
-            HlslSyntaxNode? leftChild = NextHlslNode(leftWalk);
-            HlslSyntaxNode? rightChild = NextHlslNode(rightWalk);
+            ShaderSyntaxNode? leftChild = NextHlslNode(leftWalk);
+            ShaderSyntaxNode? rightChild = NextHlslNode(rightWalk);
 
             if (leftChild is null && rightChild is null)
             {
@@ -428,9 +427,9 @@ internal static class ConditionalMerge
     /// </para>
     /// </remarks>
     private static void AlignOrChoose(
-        HlslSyntaxNode left,
-        HlslSyntaxNode right,
-        HlslSyntaxNode parent,
+        ShaderSyntaxNode left,
+        ShaderSyntaxNode right,
+        ShaderSyntaxNode parent,
         MergeState state)
     {
         if (IsChoiceUnit(left, state.OwnFilePath) && !HasSameTokens(left, right))
@@ -463,9 +462,9 @@ internal static class ConditionalMerge
     /// バリアントの側の断片だけを歩くことになり、囲む式の型が決められない。
     /// </para>
     /// </remarks>
-    private static bool IsChoiceUnit(HlslSyntaxNode node, string? ownFilePath)
+    private static bool IsChoiceUnit(ShaderSyntaxNode node, string? ownFilePath)
         => ownFilePath is not null
-           && node is HlslStatementSyntax or HlslDeclarationSyntax
+           && node is StatementSyntax or DeclarationSyntax
            && node.FirstToken is { } token
            && !token.IsFromMacroExpansion
            && string.Equals(token.Source.FilePath, ownFilePath, StringComparison.Ordinal);
@@ -484,7 +483,7 @@ internal static class ConditionalMerge
     /// <c>if (COND)</c> の条件だけが構成で変わる場合は、
     /// 条件は <c>if</c> 文自身のトークンなので、ここで違いとして見つかる。
     /// </remarks>
-    private static bool HasSameTokens(HlslSyntaxNode left, HlslSyntaxNode right)
+    private static bool HasSameTokens(ShaderSyntaxNode left, ShaderSyntaxNode right)
     {
         using IEnumerator<ShaderSyntaxToken> leftWalk = OwnTokens(left).GetEnumerator();
         using IEnumerator<ShaderSyntaxToken> rightWalk = OwnTokens(right).GetEnumerator();
@@ -511,9 +510,9 @@ internal static class ConditionalMerge
     /// </summary>
     /// <param name="node">対象のノード。</param>
     /// <returns>そのノード自身のトークン。</returns>
-    private static IEnumerable<ShaderSyntaxToken> OwnTokens(HlslSyntaxNode node)
+    private static IEnumerable<ShaderSyntaxToken> OwnTokens(ShaderSyntaxNode node)
     {
-        foreach (HlslNodeOrToken child in node.ChildNodesAndTokens())
+        foreach (ShaderNodeOrToken child in node.ChildNodesAndTokens())
         {
             if (child.Token is { } token)
             {
@@ -521,7 +520,7 @@ internal static class ConditionalMerge
                 continue;
             }
 
-            if (child.Node is not { } inner || inner is HlslStatementSyntax or HlslDeclarationSyntax)
+            if (child.Node is not { } inner || inner is StatementSyntax or DeclarationSyntax)
             {
                 continue;
             }
@@ -556,9 +555,9 @@ internal static class ConditionalMerge
     /// </para>
     /// </remarks>
     private static SymbolCondition AddRoot(
-        HlslSyntaxNode node,
+        ShaderSyntaxNode node,
         bool fromVariant,
-        HlslSyntaxNode? parent,
+        ShaderSyntaxNode? parent,
         MergeState state)
     {
         SymbolCondition condition = state.ConditionFor(node, fromVariant);
@@ -578,11 +577,11 @@ internal static class ConditionalMerge
     /// <summary>次の HLSL のノードまで進める。</summary>
     /// <param name="walk">走査中の列挙子。</param>
     /// <returns>次のノード。終わっていれば <see langword="null"/>。</returns>
-    private static HlslSyntaxNode? NextHlslNode(IEnumerator<SyntaxNode> walk)
+    private static ShaderSyntaxNode? NextHlslNode(IEnumerator<SyntaxNode> walk)
     {
         while (walk.MoveNext())
         {
-            if (walk.Current is HlslSyntaxNode hlsl)
+            if (walk.Current is ShaderSyntaxNode hlsl)
             {
                 return hlsl;
             }
@@ -595,9 +594,9 @@ internal static class ConditionalMerge
     /// <param name="first">食い違った子。無い場合は <see langword="null"/>。</param>
     /// <param name="rest">続きの列挙子。</param>
     /// <returns>集めた並び。</returns>
-    private static List<HlslSyntaxNode> Collect(HlslSyntaxNode? first, IEnumerator<SyntaxNode> rest)
+    private static List<ShaderSyntaxNode> Collect(ShaderSyntaxNode? first, IEnumerator<SyntaxNode> rest)
     {
-        List<HlslSyntaxNode> collected = [];
+        List<ShaderSyntaxNode> collected = [];
 
         if (first is not null)
         {
@@ -621,7 +620,7 @@ internal static class ConditionalMerge
     /// 同じ鍵が 2 度現れた場合は最初の位置を残す。
     /// 位置は「相手の先に現れるか」を見るためだけに使うので、最初のもので足りる。
     /// </remarks>
-    private static Dictionary<NodeKey, int> BuildPositions(List<HlslSyntaxNode> nodes)
+    private static Dictionary<NodeKey, int> BuildPositions(List<ShaderSyntaxNode> nodes)
     {
         Dictionary<NodeKey, int> positions = [];
 
@@ -655,6 +654,6 @@ internal static class ConditionalMerge
         /// <summary>ノードから鍵を作る。</summary>
         /// <param name="node">対象のノード。</param>
         /// <returns>作った鍵。</returns>
-        public static NodeKey For(HlslSyntaxNode node) => new(node.GetType(), node.Source, node.Span);
+        public static NodeKey For(ShaderSyntaxNode node) => new(node.GetType(), node.Source, node.Span);
     }
 }

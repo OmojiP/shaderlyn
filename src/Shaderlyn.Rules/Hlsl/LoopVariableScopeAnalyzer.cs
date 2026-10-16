@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 
@@ -30,7 +30,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
     {
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not IdentifierExpressionSyntax identifier
                 || !program.Tree.Features.LoopVariableOutsideLoop
@@ -57,7 +57,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
     /// <summary>宣言子が for 文の初期化にあれば、その for 文を返す。</summary>
     /// <param name="declarator">宣言子。</param>
     /// <returns>for 文。初期化に無ければ <see langword="null"/>。</returns>
-    private static ForStatementSyntax? LoopOf(HlslSyntaxNode declarator)
+    private static ForStatementSyntax? LoopOf(ShaderSyntaxNode declarator)
         => declarator.Parent is VariableDeclarationSyntax declaration
            && declaration.Parent is ForStatementSyntax loop
            && ReferenceEquals(loop.Initializer, declaration)

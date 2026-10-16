@@ -67,7 +67,7 @@ internal static partial class HoverBuilder
     {
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            List<HlslSyntaxNode> nodes = FindInnermost(compilation, program, offset);
+            List<ShaderSyntaxNode> nodes = FindInnermost(compilation, program, offset);
 
             if (nodes.Count == 0)
             {
@@ -77,7 +77,7 @@ internal static partial class HoverBuilder
             ExpressionTypeBinder binder = new(compilation, program);
             List<(SyntaxNode Node, HoverResult Described)> found = [];
 
-            foreach (HlslSyntaxNode node in nodes)
+            foreach (ShaderSyntaxNode node in nodes)
             {
                 for (SyntaxNode? current = node; current is not null; current = current.Parent)
                 {
@@ -124,17 +124,17 @@ internal static partial class HoverBuilder
     /// 複製ごとに最も内側のものを残す。
     /// </para>
     /// </remarks>
-    private static List<HlslSyntaxNode> FindInnermost(
+    private static List<ShaderSyntaxNode> FindInnermost(
         ShaderCompilation compilation,
         AnalyzedProgram program,
         int offset)
     {
-        List<HlslSyntaxNode> inside = [];
-        List<HlslSyntaxNode> touching = [];
+        List<ShaderSyntaxNode> inside = [];
+        List<ShaderSyntaxNode> touching = [];
 
         foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
         {
-            if (node is not HlslSyntaxNode hlsl
+            if (node is not ShaderSyntaxNode hlsl
                 || hlsl.Span.Length == 0
                 || offset < hlsl.Span.Start
                 || offset > hlsl.Span.End
@@ -158,7 +158,7 @@ internal static partial class HoverBuilder
     /// 短いものが見つかれば入れ替える。同じ長さなら、直前の候補の子孫であれば置き換え
     /// (内側のほうが利用者が指したものに近い)、そうでなければ別の複製として並べる。
     /// </remarks>
-    private static void KeepInnermost(List<HlslSyntaxNode> candidates, HlslSyntaxNode node)
+    private static void KeepInnermost(List<ShaderSyntaxNode> candidates, ShaderSyntaxNode node)
     {
         if (candidates.Count > 0 && node.Span.Length > candidates[0].Span.Length)
         {
@@ -222,7 +222,7 @@ internal static partial class HoverBuilder
 
         foreach ((SyntaxNode node, HoverResult described) in found)
         {
-            SymbolCondition condition = node is HlslSyntaxNode hlsl
+            SymbolCondition condition = node is ShaderSyntaxNode hlsl
                 ? conditions.GetCondition(hlsl)
                 : SymbolCondition.Always;
 
@@ -282,7 +282,7 @@ internal static partial class HoverBuilder
         SyntaxNode node,
         int offset) => node switch
     {
-        HlslTypeSyntax type => DescribeType(type.Name, type.Span),
+        TypeSyntax type => DescribeType(type.Name, type.Span),
 
         // セマンティクスは「何が入ってくるか」「どこへ出るか」を決める。
         // 名前を覚えていないと読めない部分であり、説明する価値が最も高い。
@@ -312,7 +312,7 @@ internal static partial class HoverBuilder
         // 評価しようとして失敗したかのように読めてしまう。
         AssignmentExpressionSyntax or IncompleteExpressionSyntax => null,
 
-        HlslExpressionSyntax expression => DescribeExpression(compilation, binder, expression),
+        ExpressionSyntax expression => DescribeExpression(compilation, binder, expression),
 
         _ => null,
     };
@@ -342,7 +342,7 @@ internal static partial class HoverBuilder
         SyntaxNode node,
         HoverResult described)
     {
-        if (node is not HlslSyntaxNode hlsl)
+        if (node is not ShaderSyntaxNode hlsl)
         {
             return described;
         }

@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
 
@@ -15,7 +15,7 @@ namespace Shaderlyn.Semantics.Programs;
 /// 宣言そのものの出現条件に、内側の同じ名前の宣言が無いことを掛け合わせたもの
 /// (<see cref="LocalScopes.Lookup"/>)。範囲に載せる時点では宣言の出現条件だけを持つ。
 /// </param>
-internal readonly record struct LocalDeclaration(ResolvedTypeName Type, HlslSyntaxNode Declarator, SymbolCondition Condition);
+internal readonly record struct LocalDeclaration(ResolvedTypeName Type, ShaderSyntaxNode Declarator, SymbolCondition Condition);
 
 /// <summary>
 /// 関数 1 つの中で、名前がどの宣言を指すかを決める。
@@ -46,7 +46,7 @@ internal readonly record struct LocalDeclaration(ResolvedTypeName Type, HlslSynt
 /// そこでは外側の <c>float3 a</c> が見える。
 /// 使う位置で確実に存在する宣言が見つかるまで、外側の範囲の宣言も候補に加える。
 /// 候補の型が割れていれば型を決めず、構成ごとに決める仕組みに任せる
-/// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。
+/// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。
 /// </para>
 /// <para>
 /// <b>範囲の規則に載らない場所の宣言は、その名前を判断しない。</b>
@@ -349,7 +349,7 @@ internal sealed class LocalScopes
                && !_conditions.IsPossible(use.And(declared.Negate()));
     }
 
-    private void AddStatements(SyntaxNode scope, ImmutableArray<HlslStatementSyntax> statements, HashSet<VariableDeclarationSyntax> tracked)
+    private void AddStatements(SyntaxNode scope, ImmutableArray<StatementSyntax> statements, HashSet<VariableDeclarationSyntax> tracked)
     {
         for (int i = 0; i < statements.Length; i++)
         {

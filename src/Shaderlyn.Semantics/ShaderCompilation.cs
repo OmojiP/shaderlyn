@@ -545,7 +545,7 @@ public sealed class ShaderCompilation
     /// Unity や外部パッケージのヘッダは当たらない。どれがそうかは <see cref="SemanticsOptions.IsUserInclude"/> が決める。
     /// </para>
     /// <para>
-    /// 指摘を出すかどうかの判定には、これを使う <see cref="IsReportable(HlslSyntaxNode)"/> を使うこと。
+    /// 指摘を出すかどうかの判定には、これを使う <see cref="IsReportable(ShaderSyntaxNode)"/> を使うこと。
     /// </para>
     /// </remarks>
     public bool IsUserFile(string filePath)
@@ -606,11 +606,11 @@ public sealed class ShaderCompilation
     /// <returns>このファイルに書かれたものであれば <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
-    /// 判定のしかたは <see cref="IsReportable(HlslSyntaxNode)"/> と同じで、ファイルをこのファイルに限る点だけが違う。
-    /// エディタの操作が使う。<b>指摘を出すかどうかには <see cref="IsReportable(HlslSyntaxNode)"/> を使うこと。</b>
+    /// 判定のしかたは <see cref="IsReportable(ShaderSyntaxNode)"/> と同じで、ファイルをこのファイルに限る点だけが違う。
+    /// エディタの操作が使う。<b>指摘を出すかどうかには <see cref="IsReportable(ShaderSyntaxNode)"/> を使うこと。</b>
     /// </para>
     /// </remarks>
-    public bool IsWrittenHere(HlslSyntaxNode node)
+    public bool IsWrittenHere(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         return IsWrittenIn(node, path => string.Equals(path, Text.FilePath, StringComparison.Ordinal));
@@ -624,7 +624,7 @@ public sealed class ShaderCompilation
     /// <remarks>
     /// Unity や外部パッケージのヘッダのマクロには印が付かない (<see cref="ShaderSyntaxToken.MacroDefinitionSpan"/>)。
     /// </remarks>
-    public bool IsFromOwnMacro(HlslSyntaxNode node)
+    public bool IsFromOwnMacro(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -652,11 +652,11 @@ public sealed class ShaderCompilation
     /// </para>
     /// <para>
     /// マクロから来たコードの位置は、本体の位置になる
-    /// (<see cref="HlslSyntaxNode.GetLocation"/>)。
+    /// (<see cref="ShaderSyntaxNode.GetLocation"/>)。
     /// そこが直す場所であり、同じマクロを何度使っても報告は 1 か所にまとまる。
     /// </para>
     /// </remarks>
-    public bool IsReportable(HlslSyntaxNode node)
+    public bool IsReportable(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         return IsWrittenIn(node, IsUserFile) || IsFromOwnMacro(node);
@@ -669,7 +669,7 @@ public sealed class ShaderCompilation
     /// <returns>報告してよければ <see langword="true"/>。</returns>
     /// <remarks>
     /// ノードの一部 (メンバー名のトークンなど) だけを報告するルールが使う。
-    /// 判定の範囲は <see cref="IsReportable(HlslSyntaxNode)"/> と同じである。
+    /// 判定の範囲は <see cref="IsReportable(ShaderSyntaxNode)"/> と同じである。
     /// </remarks>
     public bool IsReportable(ShaderSyntaxToken token)
     {
@@ -705,7 +705,7 @@ public sealed class ShaderCompilation
     /// ヘッダの関数形式マクロが作ったコードは、実引数も含めてすべて展開の結果になるので、この判定では拾わない。
     /// </para>
     /// </remarks>
-    private static bool IsWrittenIn(HlslSyntaxNode node, Func<string, bool> isTargetFile)
+    private static bool IsWrittenIn(ShaderSyntaxNode node, Func<string, bool> isTargetFile)
     {
         if (node.FirstToken is not { } first)
         {
@@ -769,7 +769,7 @@ public sealed class ShaderCompilation
         {
             own = [];
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (declaration is FunctionDeclarationSyntax function && function.FirstToken is { } first)
                 {
@@ -909,7 +909,7 @@ public sealed class ShaderCompilation
 
             foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
             {
-                foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+                foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
                 {
                     if (declaration is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax template })
                     {
@@ -1066,7 +1066,7 @@ public sealed class ShaderCompilation
                 headerByBlock[program.BlockKey] = blockNames;
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 bool fromHeader = declaration.FirstToken is { } first
                                   && !string.Equals(first.Source.FilePath, Text.FilePath, StringComparison.Ordinal);
@@ -1123,7 +1123,7 @@ public sealed class ShaderCompilation
     /// <c>DoubleFloatOperations.ush</c> を取り込み、同じ位置から別の名前の関数を作る。
     /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(HL0310) と報告していた。
     /// </remarks>
-    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(HlslDeclarationSyntax declaration)
+    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(DeclarationSyntax declaration)
         => (declaration.FirstToken!.Source,
             declaration.FirstToken.Span.Start,
             declaration switch
@@ -1156,7 +1156,7 @@ public sealed class ShaderCompilation
     /// <param name="declaration">対象の宣言。</param>
     /// <param name="names">名前を足す先。</param>
     /// <param name="outside">関数の中の変数と仮引数を除いた名前を足す先。</param>
-    private static void Absorb(HlslDeclarationSyntax declaration, HashSet<string> names, HashSet<string> outside)
+    private static void Absorb(DeclarationSyntax declaration, HashSet<string> names, HashSet<string> outside)
     {
         foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
         {
@@ -1321,13 +1321,13 @@ public sealed class ShaderCompilation
     /// ノードの出現条件は <see cref="GetEffectiveCondition"/> で求める。
     /// </para>
     /// </remarks>
-    public IEnumerable<(HlslDeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
+    public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
                 if (IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
@@ -1361,7 +1361,7 @@ public sealed class ShaderCompilation
     /// 両方を有効にした構成は作っていないので、その組み合わせでは検査しない。
     /// </para>
     /// </remarks>
-    private bool IsCoveredByVariant(HlslSyntaxNode node, AnalyzedProgram program, Dictionary<(SymbolCondition, AnalyzedProgram), bool> cache)
+    private bool IsCoveredByVariant(ShaderSyntaxNode node, AnalyzedProgram program, Dictionary<(SymbolCondition, AnalyzedProgram), bool> cache)
     {
         if (SymbolVariants.IsEmpty)
         {
@@ -1423,16 +1423,16 @@ public sealed class ShaderCompilation
     /// 宣言の中にあってこのファイル由来でないノード (ヘッダのマクロが作った部分) も含まれる。
     /// 報告の直前に位置を確かめるルールは、その判定を省いてはならない。
     /// </remarks>
-    public IEnumerable<(HlslSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes()
+    public IEnumerable<(ShaderSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes()
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
 
-        foreach ((HlslDeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations())
+        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations())
         {
             foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
             {
                 // バリアントの構成でしか存在しない分岐は、そのバリアントの木で渡る (EnumerateRuleDeclarations)。
-                if (node is HlslSyntaxNode hlsl && !IsCoveredByVariant(hlsl, program, covered))
+                if (node is ShaderSyntaxNode hlsl && !IsCoveredByVariant(hlsl, program, covered))
                 {
                     yield return (hlsl, program);
                 }
@@ -1451,7 +1451,7 @@ public sealed class ShaderCompilation
     /// そのシンボルを有効にした構成の中での話である。
     /// 出現条件に、その木を解析した構成 (<see cref="AnalyzedProgram.AnalyzedCondition"/>) を掛け合わせる。
     /// </remarks>
-    public SymbolCondition GetEffectiveCondition(HlslSyntaxNode node, AnalyzedProgram program)
+    public SymbolCondition GetEffectiveCondition(ShaderSyntaxNode node, AnalyzedProgram program)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(program);
@@ -1542,7 +1542,7 @@ public sealed class ShaderCompilation
     /// </para>
     /// </remarks>
     public bool TryEnumerateConfigurations(
-        IEnumerable<HlslSyntaxNode> nodes,
+        IEnumerable<ShaderSyntaxNode> nodes,
         AnalyzedProgram program,
         out ImmutableArray<Conditional.NodeConfiguration> configurations)
     {
@@ -1551,10 +1551,10 @@ public sealed class ShaderCompilation
 
         configurations = [];
 
-        List<(HlslSyntaxNode Node, SymbolCondition Condition)> conditioned = [];
+        List<(ShaderSyntaxNode Node, SymbolCondition Condition)> conditioned = [];
         SortedSet<string> symbols = new(StringComparer.Ordinal);
 
-        foreach (HlslSyntaxNode node in nodes)
+        foreach (ShaderSyntaxNode node in nodes)
         {
             SymbolCondition condition = GetEffectiveCondition(node, program);
 
@@ -1601,9 +1601,9 @@ public sealed class ShaderCompilation
                 continue;
             }
 
-            HashSet<HlslSyntaxNode> present = [];
+            HashSet<ShaderSyntaxNode> present = [];
 
-            foreach ((HlslSyntaxNode node, SymbolCondition condition) in conditioned)
+            foreach ((ShaderSyntaxNode node, SymbolCondition condition) in conditioned)
             {
                 if (condition.IsSatisfiedBy(enabled.Contains))
                 {
@@ -1636,7 +1636,7 @@ public sealed class ShaderCompilation
     /// **ルールの実行時間が全体の 7 割**を占めていた。
     /// </para>
     /// <para>
-    /// <b>ノードごとに <see cref="IsWrittenHere(HlslSyntaxNode)"/> を呼ぶより速い。</b>
+    /// <b>ノードごとに <see cref="IsWrittenHere(ShaderSyntaxNode)"/> を呼ぶより速い。</b>
     /// あの判定は最初のトークンを取り出すために列挙子を作る。
     /// 数百万ノードで呼ぶと、判定そのものが費用になる。
     /// 宣言の単位で 1 度だけ判定すれば、中のノードは見るまでもない。
@@ -1659,7 +1659,7 @@ public sealed class ShaderCompilation
             yield return node;
         }
 
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
             if (!IsReportable(declaration))
@@ -1673,7 +1673,7 @@ public sealed class ShaderCompilation
 
                 // バリアントの木にしか無いノードも、1 本の木に足したものとして歩く。
                 // 歩かないと、その中のコードだけ検査されない。
-                if (node is not HlslSyntaxNode hlsl)
+                if (node is not ShaderSyntaxNode hlsl)
                 {
                     continue;
                 }
@@ -1696,7 +1696,7 @@ public sealed class ShaderCompilation
     /// このファイルが書いたものだけを返す。
     /// 取り込んだヘッダの中身は、バリアントの側にしか無くても利用者に直しようがない。
     /// </remarks>
-    private IEnumerable<SyntaxNode> EnumerateInserted(ConditionMap conditions, HlslSyntaxNode node)
+    private IEnumerable<SyntaxNode> EnumerateInserted(ConditionMap conditions, ShaderSyntaxNode node)
     {
         foreach (ConditionalNode inserted in conditions.GetInsertedChildren(node))
         {

@@ -289,6 +289,263 @@ Shaderlyn.CFamily.Preprocessing.SymbolCombination :: virtual System.String ToStr
 Shaderlyn.CFamily.Preprocessing.TokenCache : sealed class
 Shaderlyn.CFamily.Preprocessing.TokenCache :: .ctor()
 Shaderlyn.CFamily.Preprocessing.TokenCache :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] GetOrLex(Shaderlyn.Core.Text.SourceText, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Left { get; }
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Right { get; }
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
+Shaderlyn.CFamily.Syntax.AssignmentExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.AttributeSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBracket { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBracket { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArgumentTokens { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.AttributeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Left { get; }
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Right { get; }
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
+Shaderlyn.CFamily.Syntax.BinaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StatementSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StatementSyntax] Statements { get; }
+Shaderlyn.CFamily.Syntax.BlockStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.TypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Operand { get; }
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax Type { get; }
+Shaderlyn.CFamily.Syntax.CastExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EndOfFileToken { get; }
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] TypeAliases { get; set; }
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Declarations { get; }
+Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax WhenFalse { get; }
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax WhenTrue { get; }
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken QuestionToken { get; }
+Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.DeclarationSyntax : abstract class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.DeclarationSyntax :: protected .ctor()
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.StatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken DoKeyword { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken WhileKeyword { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.StatementSyntax Body { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.DoWhileStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Index { get; }
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Target { get; }
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBracket { get; }
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBracket { get; }
+Shaderlyn.CFamily.Syntax.ElementAccessExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.EmptyStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.EmptyStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.EmptyStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.EmptyStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.EnumMemberSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ScopeKeyword { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Boolean IsScoped { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.EnumMemberSyntax] Members { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] BaseTypeTokens { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Value { get; }
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CommaToken { get; }
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.EnumMemberSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ExpressionStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.ExpressionStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ExpressionStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Expression { get; }
+Shaderlyn.CFamily.Syntax.ExpressionStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.ExpressionStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ExpressionSyntax : abstract class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.ExpressionSyntax :: protected .ctor()
+Shaderlyn.CFamily.Syntax.ForStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Initializer { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken FirstSemicolon { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ForKeyword { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SecondSemicolon { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.StatementSyntax Body { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Incrementors { get; }
+Shaderlyn.CFamily.Syntax.ForStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.TypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.BlockStatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null)
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.BlockStatementSyntax Body { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax ReturnType { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsDefinition { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsMethodDefinition { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsOperator { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ParameterSyntax] ParameterList { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax] Semantics { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Parameters { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] OperatorTokens { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.String OwnerName { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Identifier { get; }
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TypeArguments { get; }
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.GenericNameExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Identifier { get; }
+Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.IfStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.StatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ElseKeyword { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken IfKeyword { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.StatementSyntax ElseStatement { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.StatementSyntax ThenStatement { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.IfStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
+Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.IncompleteExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.IncompleteExpressionSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.IncompleteExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
+Shaderlyn.CFamily.Syntax.IncompleteExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.IncompleteStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.IncompleteStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.IncompleteStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
+Shaderlyn.CFamily.Syntax.IncompleteStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Elements { get; }
+Shaderlyn.CFamily.Syntax.InitializerListExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null)
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Target { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: System.Boolean HasTypeArguments { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ExpressionSyntax] ArgumentExpressions { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Arguments { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TypeArgumentTokens { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: System.String TargetName { get; }
+Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.JumpStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.JumpStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.JumpStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.JumpStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.JumpStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.LiteralExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.LiteralExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.LiteralExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
+Shaderlyn.CFamily.Syntax.LiteralExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.LocalDeclarationStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.LocalDeclarationStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.LocalDeclarationStatementSyntax :: Shaderlyn.CFamily.Syntax.DeclarationSyntax Declaration { get; }
+Shaderlyn.CFamily.Syntax.LocalDeclarationStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Target { get; }
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken DotToken { get; }
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.MemberAccessExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ParameterSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.TypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax DefaultValue { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax Type { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Boolean IsArray { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Boolean TryGetArrayLength(out System.Int32)
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax] Semantics { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRankTokens { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.Int32 ArrayDimensions { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.ParameterSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Expression { get; }
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.ParenthesizedExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.PostfixUnaryExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.PostfixUnaryExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.PostfixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Operand { get; }
+Shaderlyn.CFamily.Syntax.PostfixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
+Shaderlyn.CFamily.Syntax.PostfixUnaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.PrefixUnaryExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.PrefixUnaryExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.PrefixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Operand { get; }
+Shaderlyn.CFamily.Syntax.PrefixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
+Shaderlyn.CFamily.Syntax.PrefixUnaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Expression { get; }
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.ReturnStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.SemanticSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: System.Boolean HasArguments { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArgumentTokens { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.ShaderLexer : sealed class
 Shaderlyn.CFamily.Syntax.ShaderLexer :: .ctor(Shaderlyn.Core.Text.SourceText)
 Shaderlyn.CFamily.Syntax.ShaderLexer :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Lex(out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
@@ -303,6 +560,40 @@ Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: static System.Boolean op
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: virtual System.Int32 GetHashCode()
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: virtual System.String ToString()
+Shaderlyn.CFamily.Syntax.ShaderLiteral : static class
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static Shaderlyn.CFamily.Syntax.ShaderLiteralKind GetKind(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.Boolean TryGetDouble(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Double)
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.Boolean TryGetInt64(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Int64)
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.String GetDigits(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.String GetTypeName(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Binary = 5
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Decimal = 1
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Floating = 4
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Hexadecimal = 2
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: None = 0
+Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Octal = 3
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken : struct
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Node { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: System.Boolean IsNode { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: System.Boolean IsToken { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: static Shaderlyn.CFamily.Syntax.ShaderNodeOrToken op_Implicit(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: static Shaderlyn.CFamily.Syntax.ShaderNodeOrToken op_Implicit(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderNodeOrToken :: virtual System.String ToString()
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry : sealed class
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry :: Shaderlyn.CFamily.Syntax.ShaderNodeOrToken ToNodeOrToken()
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Node { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry :: static Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry FromNode(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry :: static Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry FromToken(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts : static class
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static Shaderlyn.CFamily.Syntax.ShaderSyntaxToken GetKeyword(Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static System.Boolean IsAssignmentOperator(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static System.Boolean IsCompoundAssignment(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static System.Boolean TryGetArrayLength(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], out System.Int32)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static System.Int32 CountArrayDimensions(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.ShaderSyntaxFacts :: static System.Nullable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxKind] GetCompoundAssignmentOperand(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: AmpersandAmpersandToken = 37
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: AmpersandEqualsToken = 46
@@ -362,6 +653,17 @@ Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: SlashToken = 21
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: StringLiteralToken = 4
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: TildeToken = 43
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: WhitespaceTrivia = 53
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode : abstract class (Shaderlyn.Core.Syntax.SyntaxNode)
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken FirstToken { get; }
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: Shaderlyn.Core.Diagnostics.Location GetLocation()
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: Shaderlyn.Core.Text.SourceText Source { get; }
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] DescendantTokens()
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: abstract System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: protected .ctor()
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: protected virtual System.Void WireChildren(System.Collections.Generic.Stack`1[Shaderlyn.Core.Syntax.SyntaxNode])
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: virtual Shaderlyn.Core.Text.TextSpan FullSpan { get; }
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: virtual Shaderlyn.Core.Text.TextSpan Span { get; }
+Shaderlyn.CFamily.Syntax.ShaderSyntaxNode :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.SyntaxNode] ChildNodes()
 Shaderlyn.CFamily.Syntax.ShaderSyntaxToken : sealed class
 Shaderlyn.CFamily.Syntax.ShaderSyntaxToken :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind, Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.String, System.Boolean = False, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia] = null, System.String = null, System.Boolean = False, System.Boolean = False, System.Nullable`1[Shaderlyn.Core.Text.TextSpan] = null, System.Nullable`1[Shaderlyn.Core.Text.TextSpan] = null, Shaderlyn.Core.Text.SourceText = null)
 Shaderlyn.CFamily.Syntax.ShaderSyntaxToken :: Shaderlyn.CFamily.Syntax.ShaderSyntaxKind Kind { get; }
@@ -394,6 +696,100 @@ Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia :: static System.Boolean op_Inequali
 Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia :: virtual System.Int32 GetHashCode()
 Shaderlyn.CFamily.Syntax.ShaderSyntaxTrivia :: virtual System.String ToString()
+Shaderlyn.CFamily.Syntax.StatementSyntax : abstract class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.StatementSyntax :: protected .ctor()
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null, Shaderlyn.CFamily.Syntax.TypeSyntax = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null)
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax BaseType { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax] Fields { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Members { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Value { get; }
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StatementSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Expression { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SwitchKeyword { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StatementSyntax] Statements { get; }
+Shaderlyn.CFamily.Syntax.SwitchStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.DeclarationSyntax Declaration { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ParameterTokens { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[System.String] ParameterNames { get; }
+Shaderlyn.CFamily.Syntax.TemplateDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.TypeSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.TypeSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.String = null, System.String = null)
+Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TemplateArguments { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.String AliasOf { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.String CanonicalName { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.String OverloadShape { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: System.String QualifiedName { get; }
+Shaderlyn.CFamily.Syntax.TypeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
+Shaderlyn.CFamily.Syntax.TypedefDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.TypeSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax Type { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: System.Boolean HasModifier(System.String)
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax] Variables { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax : sealed class (Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Initializer { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.Boolean IsArray { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.Boolean TryGetArrayLength(out System.Int32)
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax] Semantics { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRankTokens { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.Int32 ArrayDimensions { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.StatementSyntax)
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken WhileKeyword { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.StatementSyntax Body { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
+Shaderlyn.CFamily.Syntax.WhileStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.Cli.BuiltInAnalyzers : static class
 Shaderlyn.Cli.BuiltInAnalyzers :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer] All { get; }
 Shaderlyn.Cli.ExitCode : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
@@ -698,10 +1094,10 @@ Shaderlyn.Core.Text.TextSpan :: virtual System.Int32 GetHashCode()
 Shaderlyn.Core.Text.TextSpan :: virtual System.String ToString()
 Shaderlyn.Hlsl.HlslSyntaxTree : sealed class
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.CFamily.Preprocessing.PreprocessResult PreprocessResult { get; }
+Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.CFamily.Syntax.CompilationUnitSyntax Root { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Parsing.HlslLanguageFeatures Features { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Parsing.HlslLanguageVersion LanguageVersion { get; }
-Shaderlyn.Hlsl.HlslSyntaxTree :: Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax Root { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.PragmaDirective] Pragmas { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] UnanalyzedIdentifiers { get; }
 Shaderlyn.Hlsl.HlslSyntaxTree :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
@@ -804,422 +1200,27 @@ Shaderlyn.Hlsl.Parsing.HlslLanguageVersion :: Hlsl2021 = 2021
 Shaderlyn.Hlsl.Parsing.HlslPreprocessorOptionsExtensions : static class
 Shaderlyn.Hlsl.Parsing.HlslPreprocessorOptionsExtensions :: static Shaderlyn.CFamily.Preprocessing.PreprocessorOptions WithHlsl(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.Func`2[Shaderlyn.Hlsl.Parsing.HlslLanguageOptions,Shaderlyn.Hlsl.Parsing.HlslLanguageOptions])
 Shaderlyn.Hlsl.Parsing.HlslPreprocessorOptionsExtensions :: static Shaderlyn.Hlsl.Parsing.HlslLanguageOptions Hlsl(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions)
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Left { get; }
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Right { get; }
-Shaderlyn.Hlsl.Syntax.AssignmentExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Left { get; }
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Right { get; }
-Shaderlyn.Hlsl.Syntax.BinaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax] Statements { get; }
-Shaderlyn.Hlsl.Syntax.BlockStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Operand { get; }
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax Type { get; }
-Shaderlyn.Hlsl.Syntax.CastExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken QuestionToken { get; }
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Condition { get; }
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax WhenFalse { get; }
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax WhenTrue { get; }
-Shaderlyn.Hlsl.Syntax.ConditionalExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax] Fields { get; }
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Members { get; }
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax] Fields { get; }
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Members { get; }
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax] Semantics { get; }
 Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslStatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken DoKeyword { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken WhileKeyword { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Condition { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslStatementSyntax Body { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.DoWhileStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBracket { get; }
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBracket { get; }
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Index { get; }
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Target { get; }
-Shaderlyn.Hlsl.Syntax.ElementAccessExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.EmptyStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.EnumMemberSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ScopeKeyword { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Boolean IsScoped { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] BaseTypeTokens { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.EnumMemberSyntax] Members { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CommaToken { get; }
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Value { get; }
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.EnumMemberSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Expression { get; }
-Shaderlyn.Hlsl.Syntax.ExpressionStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken FirstSemicolon { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ForKeyword { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SecondSemicolon { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Condition { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslStatementSyntax Body { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Initializer { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Incrementors { get; }
-Shaderlyn.Hlsl.Syntax.ForStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.Hlsl.Syntax.BlockStatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null)
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.BlockStatementSyntax Body { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax ReturnType { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsDefinition { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsMethodDefinition { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Boolean IsOperator { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax] ParameterList { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] OperatorTokens { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Parameters { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: System.String OwnerName { get; }
-Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Identifier { get; }
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TypeArguments { get; }
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.GenericNameExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBracket { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBracket { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArgumentTokens { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EndOfFileToken { get; }
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax :: System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] TypeAliases { get; set; }
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Declarations { get; }
-Shaderlyn.Hlsl.Syntax.HlslCompilationUnitSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax : abstract class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax :: protected .ctor()
-Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax : abstract class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax :: protected .ctor()
-Shaderlyn.Hlsl.Syntax.HlslLiteral : static class
-Shaderlyn.Hlsl.Syntax.HlslLiteral :: static Shaderlyn.Hlsl.Syntax.HlslLiteralKind GetKind(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.Boolean TryGetDouble(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Double)
-Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.Boolean TryGetInt64(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Int64)
-Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetDigits(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslLiteral :: static System.String GetTypeName(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Binary = 5
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Decimal = 1
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Floating = 4
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Hexadecimal = 2
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: None = 0
-Shaderlyn.Hlsl.Syntax.HlslLiteralKind :: Octal = 3
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken : struct
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Node { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: System.Boolean IsNode { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: System.Boolean IsToken { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: static Shaderlyn.Hlsl.Syntax.HlslNodeOrToken op_Implicit(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: static Shaderlyn.Hlsl.Syntax.HlslNodeOrToken op_Implicit(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslNodeOrToken :: virtual System.String ToString()
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry : sealed class
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry :: Shaderlyn.Hlsl.Syntax.HlslNodeOrToken ToNodeOrToken()
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Node { get; }
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry :: static Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry FromNode(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry :: static Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry FromToken(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.HlslStatementSyntax : abstract class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslStatementSyntax :: protected .ctor()
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts : static class
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static Shaderlyn.CFamily.Syntax.ShaderSyntaxToken GetKeyword(Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static System.Boolean IsAssignmentOperator(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static System.Boolean IsCompoundAssignment(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static System.Boolean TryGetArrayLength(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], out System.Int32)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static System.Int32 CountArrayDimensions(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Hlsl.Syntax.HlslSyntaxFacts :: static System.Nullable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxKind] GetCompoundAssignmentOperand(Shaderlyn.CFamily.Syntax.ShaderSyntaxKind)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode : abstract class (Shaderlyn.Core.Syntax.SyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken FirstToken { get; }
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: Shaderlyn.Core.Diagnostics.Location GetLocation()
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: Shaderlyn.Core.Text.SourceText Source { get; }
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] DescendantTokens()
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: abstract System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: protected .ctor()
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: protected virtual System.Void WireChildren(System.Collections.Generic.Stack`1[Shaderlyn.Core.Syntax.SyntaxNode])
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: virtual Shaderlyn.Core.Text.TextSpan FullSpan { get; }
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: virtual Shaderlyn.Core.Text.TextSpan Span { get; }
-Shaderlyn.Hlsl.Syntax.HlslSyntaxNode :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.SyntaxNode] ChildNodes()
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.String = null)
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TemplateArguments { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String AliasOf { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String OverloadShape { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: System.String QualifiedName { get; }
-Shaderlyn.Hlsl.Syntax.HlslTypeSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Identifier { get; }
-Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslStatementSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ElseKeyword { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken IfKeyword { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Condition { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslStatementSyntax ElseStatement { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslStatementSyntax ThenStatement { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.IfStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.IncompleteDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.IncompleteDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Hlsl.Syntax.IncompleteDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
-Shaderlyn.Hlsl.Syntax.IncompleteDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.IncompleteExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.IncompleteExpressionSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Hlsl.Syntax.IncompleteExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
-Shaderlyn.Hlsl.Syntax.IncompleteExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.IncompleteStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.IncompleteStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Hlsl.Syntax.IncompleteStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
-Shaderlyn.Hlsl.Syntax.IncompleteStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Elements { get; }
-Shaderlyn.Hlsl.Syntax.InitializerListExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null)
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Target { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Boolean HasTypeArguments { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax] ArgumentExpressions { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] TypeArgumentTokens { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Arguments { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: System.String TargetName { get; }
-Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.JumpStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.JumpStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.JumpStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.JumpStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.JumpStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.LiteralExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.LiteralExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.LiteralExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Token { get; }
-Shaderlyn.Hlsl.Syntax.LiteralExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.LocalDeclarationStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.LocalDeclarationStatementSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.LocalDeclarationStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax Declaration { get; }
-Shaderlyn.Hlsl.Syntax.LocalDeclarationStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken DotToken { get; }
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Target { get; }
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.MemberAccessExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
+Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
 Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
 Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
 Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Members { get; }
+Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Members { get; }
 Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ParameterSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax DefaultValue { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax Type { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Boolean IsArray { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Boolean TryGetArrayLength(out System.Int32)
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRankTokens { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.Int32 ArrayDimensions { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.ParameterSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Expression { get; }
-Shaderlyn.Hlsl.Syntax.ParenthesizedExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.PostfixUnaryExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.PostfixUnaryExpressionSyntax :: .ctor(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.PostfixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
-Shaderlyn.Hlsl.Syntax.PostfixUnaryExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Operand { get; }
-Shaderlyn.Hlsl.Syntax.PostfixUnaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.PrefixUnaryExpressionSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.PrefixUnaryExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.PrefixUnaryExpressionSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OperatorToken { get; }
-Shaderlyn.Hlsl.Syntax.PrefixUnaryExpressionSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Operand { get; }
-Shaderlyn.Hlsl.Syntax.PrefixUnaryExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Expression { get; }
-Shaderlyn.Hlsl.Syntax.ReturnStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.SemanticSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.Boolean HasArguments { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArgumentTokens { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken = null, Shaderlyn.Hlsl.Syntax.HlslTypeSyntax = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] = null)
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax BaseType { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax] Fields { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax] Members { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Declarators { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ColonToken { get; }
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Value { get; }
-Shaderlyn.Hlsl.Syntax.SwitchLabelStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseBrace { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenBrace { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SwitchKeyword { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Expression { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslStatementSyntax] Statements { get; }
-Shaderlyn.Hlsl.Syntax.SwitchStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseAngle { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenAngle { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax Declaration { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ParameterTokens { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[System.String] ParameterNames { get; }
-Shaderlyn.Hlsl.Syntax.TemplateDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Keyword { get; }
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
-Shaderlyn.Hlsl.Syntax.TypedefDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax)
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.Hlsl.Syntax.HlslTypeSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: Shaderlyn.Hlsl.Syntax.HlslTypeSyntax Type { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: System.Boolean HasModifier(System.String)
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax] Variables { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrTokenEntry] Declarators { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken EqualsToken { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken NameToken { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Initializer { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.Boolean IsArray { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.Boolean TryGetArrayLength(out System.Int32)
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ArrayRankTokens { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.SemanticSyntax] Semantics { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.Int32 ArrayDimensions { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: System.String Name { get; }
-Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax : sealed class (Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax], Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.Hlsl.Syntax.HlslStatementSyntax)
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken CloseParen { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken OpenParen { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken WhileKeyword { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax Condition { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: Shaderlyn.Hlsl.Syntax.HlslStatementSyntax Body { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslAttributeSyntax] Attributes { get; }
-Shaderlyn.Hlsl.Syntax.WhileStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.Hlsl.Syntax.NamespaceDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.LanguageServer.Protocol.LspConnection : sealed class
 Shaderlyn.LanguageServer.Protocol.LspConnection :: .ctor(System.IO.Stream, System.IO.Stream)
 Shaderlyn.LanguageServer.Protocol.LspConnection :: System.Threading.Tasks.Task WriteAsync(System.Action`1[System.Text.Json.Utf8JsonWriter], System.Threading.CancellationToken)
@@ -1255,8 +1256,8 @@ Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Hlsl.HlslSyntaxTree Tree { get;
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Conditional.ConditionalMergeResult PackedMerge { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Environments.HlslCompilationUnit Unit { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Boolean IsPacked { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StructDeclarationSyntax] Structs { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
-Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.StructDeclarationSyntax] Structs { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol] ConstantBuffers { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.UniformSymbol] Uniforms { get; }
@@ -1268,14 +1269,14 @@ Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableHas
 Shaderlyn.Semantics.AnalyzedProgram :: System.String KernelName { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.ValueTuple`2[System.Int32,System.String] BlockKey { get; }
 Shaderlyn.Semantics.Conditional.ConditionMap : sealed class
-Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition GetCondition(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition GetCondition(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition Simplify(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Conditional.ConditionMap :: System.Boolean HasInsertedChildren { get; }
-Shaderlyn.Semantics.Conditional.ConditionMap :: System.Boolean IsAlwaysPresent(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Semantics.Conditional.ConditionMap :: System.Boolean IsAlwaysPresent(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.Conditional.ConditionMap :: System.Boolean IsComplete { get; }
 Shaderlyn.Semantics.Conditional.ConditionMap :: System.Boolean IsPossible(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Conditional.ConditionMap :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Semantics.Conditional.ConditionalNode] EnumerateConditional()
-Shaderlyn.Semantics.Conditional.ConditionMap :: System.Collections.Generic.IReadOnlyList`1[Shaderlyn.Semantics.Conditional.ConditionalNode] GetInsertedChildren(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Semantics.Conditional.ConditionMap :: System.Collections.Generic.IReadOnlyList`1[Shaderlyn.Semantics.Conditional.ConditionalNode] GetInsertedChildren(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.Conditional.ConditionMap :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location] UnmergedLocations { get; }
 Shaderlyn.Semantics.Conditional.ConditionMap :: static Shaderlyn.Semantics.Conditional.ConditionMap Empty { get; }
 Shaderlyn.Semantics.Conditional.ConditionalMergeResult : sealed class
@@ -1285,26 +1286,26 @@ Shaderlyn.Semantics.Conditional.ConditionalMergeResult :: System.Collections.Imm
 Shaderlyn.Semantics.Conditional.ConditionalMergeResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.ConditionalNode] ConditionalNodes { get; }
 Shaderlyn.Semantics.Conditional.ConditionalMergeResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.NodeInsertion] NodeInsertions { get; }
 Shaderlyn.Semantics.Conditional.ConditionalNode : struct (System.IEquatable`1[Shaderlyn.Semantics.Conditional.ConditionalNode])
-Shaderlyn.Semantics.Conditional.ConditionalNode :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.ConditionalNode :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.ConditionalNode :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Node { get; set; }
 Shaderlyn.Semantics.Conditional.ConditionalNode :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; set; }
-Shaderlyn.Semantics.Conditional.ConditionalNode :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Node { get; set; }
 Shaderlyn.Semantics.Conditional.ConditionalNode :: System.Boolean Equals(Shaderlyn.Semantics.Conditional.ConditionalNode)
-Shaderlyn.Semantics.Conditional.ConditionalNode :: System.Void Deconstruct(out Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, out Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.ConditionalNode :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, out Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Conditional.ConditionalNode :: static System.Boolean op_Equality(Shaderlyn.Semantics.Conditional.ConditionalNode, Shaderlyn.Semantics.Conditional.ConditionalNode)
 Shaderlyn.Semantics.Conditional.ConditionalNode :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Conditional.ConditionalNode, Shaderlyn.Semantics.Conditional.ConditionalNode)
 Shaderlyn.Semantics.Conditional.ConditionalNode :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Conditional.ConditionalNode :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Conditional.ConditionalNode :: virtual System.String ToString()
 Shaderlyn.Semantics.Conditional.NodeConfiguration : sealed class
-Shaderlyn.Semantics.Conditional.NodeConfiguration :: System.Boolean Contains(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Semantics.Conditional.NodeConfiguration :: System.Boolean Contains(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.Conditional.NodeConfiguration :: System.Collections.Immutable.ImmutableHashSet`1[System.String] EnabledSymbols { get; }
 Shaderlyn.Semantics.Conditional.NodeInsertion : struct (System.IEquatable`1[Shaderlyn.Semantics.Conditional.NodeInsertion])
-Shaderlyn.Semantics.Conditional.NodeInsertion :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.NodeInsertion :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.NodeInsertion :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Node { get; set; }
+Shaderlyn.Semantics.Conditional.NodeInsertion :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Parent { get; set; }
 Shaderlyn.Semantics.Conditional.NodeInsertion :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; set; }
-Shaderlyn.Semantics.Conditional.NodeInsertion :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Node { get; set; }
-Shaderlyn.Semantics.Conditional.NodeInsertion :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Parent { get; set; }
 Shaderlyn.Semantics.Conditional.NodeInsertion :: System.Boolean Equals(Shaderlyn.Semantics.Conditional.NodeInsertion)
-Shaderlyn.Semantics.Conditional.NodeInsertion :: System.Void Deconstruct(out Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, out Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, out Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Conditional.NodeInsertion :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, out Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, out Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Conditional.NodeInsertion :: static System.Boolean op_Equality(Shaderlyn.Semantics.Conditional.NodeInsertion, Shaderlyn.Semantics.Conditional.NodeInsertion)
 Shaderlyn.Semantics.Conditional.NodeInsertion :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Conditional.NodeInsertion, Shaderlyn.Semantics.Conditional.NodeInsertion)
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.Boolean Equals(System.Object)
@@ -1438,19 +1439,19 @@ Shaderlyn.Semantics.IncludeRouteFinder : static class
 Shaderlyn.Semantics.IncludeRouteFinder :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Attach(Shaderlyn.Semantics.ShaderCompilation, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic])
 Shaderlyn.Semantics.IncludeRouteFinder :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute] Find(Shaderlyn.Semantics.ShaderCompilation, System.String)
 Shaderlyn.Semantics.Programs.CallCompatibility : static class
-Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean AcceptsArgumentCount(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.ParameterSyntax], System.Int32)
-Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssignable(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
-Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsPresentWith(Shaderlyn.Semantics.Conditional.ConditionMap, Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
-Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWriteback(Shaderlyn.Hlsl.Syntax.ParameterSyntax)
+Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean AcceptsArgumentCount(System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ParameterSyntax], System.Int32)
+Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssignable(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsPresentWith(Shaderlyn.Semantics.Conditional.ConditionMap, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWriteback(Shaderlyn.CFamily.Syntax.ParameterSyntax)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWritebackModifier(System.String)
 Shaderlyn.Semantics.Programs.DeclaredName : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.DeclaredName])
-Shaderlyn.Semantics.Programs.DeclaredName :: .ctor(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Semantics.Symbols.ResolvedTypeName, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Programs.DeclaredName :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Semantics.Symbols.ResolvedTypeName, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Programs.DeclaredName :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Declarator { get; set; }
 Shaderlyn.Semantics.Programs.DeclaredName :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; set; }
-Shaderlyn.Semantics.Programs.DeclaredName :: Shaderlyn.Hlsl.Syntax.HlslSyntaxNode Declarator { get; set; }
 Shaderlyn.Semantics.Programs.DeclaredName :: Shaderlyn.Semantics.Symbols.ResolvedTypeName Type { get; set; }
 Shaderlyn.Semantics.Programs.DeclaredName :: System.Boolean Equals(Shaderlyn.Semantics.Programs.DeclaredName)
 Shaderlyn.Semantics.Programs.DeclaredName :: System.Boolean TryGetArrayLength(out System.Int32)
-Shaderlyn.Semantics.Programs.DeclaredName :: System.Void Deconstruct(out Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, out Shaderlyn.Semantics.Symbols.ResolvedTypeName, out Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Programs.DeclaredName :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, out Shaderlyn.Semantics.Symbols.ResolvedTypeName, out Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Programs.DeclaredName :: static System.Boolean op_Equality(Shaderlyn.Semantics.Programs.DeclaredName, Shaderlyn.Semantics.Programs.DeclaredName)
 Shaderlyn.Semantics.Programs.DeclaredName :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Programs.DeclaredName, Shaderlyn.Semantics.Programs.DeclaredName)
 Shaderlyn.Semantics.Programs.DeclaredName :: virtual System.Boolean Equals(System.Object)
@@ -1464,21 +1465,21 @@ Shaderlyn.Semantics.Programs.DeclaredNameKind :: Undecidable = 3
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder : sealed class
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: .ctor(Shaderlyn.Semantics.ShaderCompilation, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.AnalyzedProgram Program { get; }
-Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Programs.NameResolution ResolveName(Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Programs.NameResolution ResolveName(Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator GetEvaluatorFor(Shaderlyn.Core.Syntax.SyntaxNode)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator GetEvaluatorFor(Shaderlyn.Core.Syntax.SyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Semantics.Conditional.ConditionMap)
-Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Boolean TryGetStructField(System.String, System.String, out Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax, out System.String)
-Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax, Shaderlyn.Semantics.Conditional.ConditionMap)
-Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax], Shaderlyn.Semantics.Conditional.ConditionMap)
-Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Nullable`1[System.Int32] CountComponents(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Boolean TryGetStructField(System.String, System.String, out Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, out System.String)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.Semantics.Conditional.ConditionMap)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ExpressionSyntax], Shaderlyn.Semantics.Conditional.ConditionMap)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Nullable`1[System.Int32] CountComponents(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Programs.FunctionSignature : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.FunctionSignature])
-Shaderlyn.Semantics.Programs.FunctionSignature :: .ctor(System.String, System.Int32, System.Int32, Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax = null)
-Shaderlyn.Semantics.Programs.FunctionSignature :: Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax Declaration { get; set; }
+Shaderlyn.Semantics.Programs.FunctionSignature :: .ctor(System.String, System.Int32, System.Int32, Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax = null)
+Shaderlyn.Semantics.Programs.FunctionSignature :: Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax Declaration { get; set; }
 Shaderlyn.Semantics.Programs.FunctionSignature :: System.Boolean Equals(Shaderlyn.Semantics.Programs.FunctionSignature)
 Shaderlyn.Semantics.Programs.FunctionSignature :: System.Int32 MaximumArguments { get; set; }
 Shaderlyn.Semantics.Programs.FunctionSignature :: System.Int32 MinimumArguments { get; set; }
 Shaderlyn.Semantics.Programs.FunctionSignature :: System.String ReturnType { get; set; }
-Shaderlyn.Semantics.Programs.FunctionSignature :: System.Void Deconstruct(out System.String, out System.Int32, out System.Int32, out Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax)
+Shaderlyn.Semantics.Programs.FunctionSignature :: System.Void Deconstruct(out System.String, out System.Int32, out System.Int32, out Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax)
 Shaderlyn.Semantics.Programs.FunctionSignature :: static System.Boolean op_Equality(Shaderlyn.Semantics.Programs.FunctionSignature, Shaderlyn.Semantics.Programs.FunctionSignature)
 Shaderlyn.Semantics.Programs.FunctionSignature :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Programs.FunctionSignature, Shaderlyn.Semantics.Programs.FunctionSignature)
 Shaderlyn.Semantics.Programs.FunctionSignature :: virtual System.Boolean Equals(System.Object)
@@ -1499,10 +1500,10 @@ Shaderlyn.Semantics.Programs.NameResolution :: virtual System.Boolean Equals(Sys
 Shaderlyn.Semantics.Programs.NameResolution :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Programs.NameResolution :: virtual System.String ToString()
 Shaderlyn.Semantics.Programs.OverloadResolution : sealed class
-Shaderlyn.Semantics.Programs.OverloadResolution :: Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax Declaration { get; }
+Shaderlyn.Semantics.Programs.OverloadResolution :: Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax Declaration { get; }
 Shaderlyn.Semantics.Programs.OverloadResolution :: Shaderlyn.Semantics.Programs.OverloadResolutionStatus Status { get; }
 Shaderlyn.Semantics.Programs.OverloadResolution :: System.Boolean IsResolved { get; }
-Shaderlyn.Semantics.Programs.OverloadResolution :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax] Candidates { get; }
+Shaderlyn.Semantics.Programs.OverloadResolution :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax] Candidates { get; }
 Shaderlyn.Semantics.Programs.OverloadResolution :: System.Collections.Immutable.ImmutableArray`1[System.String] ArgumentTypes { get; }
 Shaderlyn.Semantics.Programs.OverloadResolution :: System.Collections.Immutable.ImmutableArray`1[System.String] ParameterTypes { get; }
 Shaderlyn.Semantics.Programs.OverloadResolutionStatus : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
@@ -1539,7 +1540,7 @@ Shaderlyn.Semantics.SemanticsOptions :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.SemanticsOptions :: virtual System.String ToString()
 Shaderlyn.Semantics.ShaderCompilation : sealed class
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Analysis.AnalysisTarget CreateAnalysisTarget()
-Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition GetEffectiveCondition(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode, Shaderlyn.Semantics.AnalyzedProgram)
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition GetEffectiveCondition(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition GetTreeConfiguration(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText CodeText { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText Text { get; }
@@ -1547,22 +1548,22 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Conditional.Conditi
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IHlslEnvironment Environment { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.ExpressionTypeBinder GetExpressionTypeBinder(Shaderlyn.Semantics.AnalyzedProgram)
-Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.OverloadResolution ResolveCall(Shaderlyn.Hlsl.Syntax.InvocationExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram)
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.OverloadResolution ResolveCall(Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasCompleteDependencies { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasFunctionDeclarations { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasHlslPrograms { get; }
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFunctionLikeMacro(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsUserFile(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Core.Diagnostics.Location)
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Hlsl.Syntax.HlslSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean MayLackOverloadsOf(System.String)
-Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryEnumerateConfigurations(System.Collections.Generic.IEnumerable`1[Shaderlyn.Hlsl.Syntax.HlslSyntaxNode], Shaderlyn.Semantics.AnalyzedProgram, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.NodeConfiguration])
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryEnumerateConfigurations(System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode], Shaderlyn.Semantics.AnalyzedProgram, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.NodeConfiguration])
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryGetUniform(System.String, out Shaderlyn.Semantics.Symbols.UniformSymbol)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] AllDeclaredNames { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] GetHeaderDeclaredNames(System.ValueTuple`2[System.Int32,System.String])
@@ -1570,16 +1571,16 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[S
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] LocalOnlyDeclaredNames { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] UnanalyzedIdentifiers { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.SyntaxNode] EnumerateOwnNodes(Shaderlyn.Semantics.AnalyzedProgram)
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.Hlsl.Syntax.HlslDeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations()
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.Hlsl.Syntax.HlslSyntaxNode,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleNodes()
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.DeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations()
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleNodes()
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IReadOnlyList`1[Shaderlyn.Semantics.Symbols.UniformSymbol] GetUniforms(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.SymbolCombination] UnexploredSymbolCombinations { get; }
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax] GetFunctionDeclarations(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax] GetFunctionDeclarations(System.String, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] CodeTokens { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] UserIncludeCodeTokens { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] HlslDiagnostics { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] ReportableHlslDiagnostics { get; }
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax] GetFunctionDeclarations(System.String)
-Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Hlsl.Syntax.FunctionDeclarationSyntax] GetFunctionDeclarations(System.String, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] Programs { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] SymbolVariants { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] AllIncludePaths { get; }
@@ -1587,7 +1588,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableA
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Int32 CountUniformDeclarations(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslCompilationUnit], Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.Environments.IHlslEnvironment, Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.SemanticsOptions = null)
-Shaderlyn.Semantics.ShaderCompilation :: static System.Collections.Generic.IEnumerable`1[System.String] DeclaredNamesOf(Shaderlyn.Hlsl.Syntax.EnumDeclarationSyntax)
+Shaderlyn.Semantics.ShaderCompilation :: static System.Collections.Generic.IEnumerable`1[System.String] DeclaredNamesOf(Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Int32 MaxConfigurationSymbols
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol])
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: .ctor(System.String, Shaderlyn.Hlsl.Syntax.ConstantBufferDeclarationSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.UniformSymbol])
@@ -1602,9 +1603,9 @@ Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: virtual System.Boolean Equal
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: virtual System.String ToString()
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator : sealed class
-Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: .ctor(System.Func`2[Shaderlyn.Hlsl.Syntax.IdentifierExpressionSyntax,System.Nullable`1[Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Frozen.FrozenDictionary`2[System.String,Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]] = null)
+Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: .ctor(System.Func`2[Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax,System.Nullable`1[Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Frozen.FrozenDictionary`2[System.String,Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]] = null)
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] TypeAliases { get; set; }
-Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: System.String Evaluate(Shaderlyn.Hlsl.Syntax.HlslExpressionSyntax)
+Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: System.String Evaluate(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Symbols.HlslConversion : static class
 Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsConvertible(Shaderlyn.Semantics.Symbols.HlslNumericShape, Shaderlyn.Semantics.Symbols.HlslNumericShape, System.Boolean)
 Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsConvertible(System.String, System.String, System.Boolean = False)
@@ -1691,10 +1692,10 @@ Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Gathered = 3
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Scalar = 2
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Unknown = 0
 Shaderlyn.Semantics.Symbols.UniformSymbol : sealed class
-Shaderlyn.Semantics.Symbols.UniformSymbol :: .ctor(System.String, Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax, Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax, System.String)
+Shaderlyn.Semantics.Symbols.UniformSymbol :: .ctor(System.String, Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax, Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, System.String)
+Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax Declaration { get; }
+Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax Declarator { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Core.Diagnostics.Location GetLocation()
-Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Hlsl.Syntax.VariableDeclarationSyntax Declaration { get; }
-Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Hlsl.Syntax.VariableDeclaratorSyntax Declarator { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Semantics.Symbols.HlslTypeClass TypeClass { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: System.Boolean IsArray { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: System.Boolean IsInBuffer(System.String)

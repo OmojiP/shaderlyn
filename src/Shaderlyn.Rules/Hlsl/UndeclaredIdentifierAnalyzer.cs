@@ -73,7 +73,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             // 行きがけ順なので、修飾は左側の識別子より先に現れる。
             if (node is MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.ColonColonToken } access
@@ -418,7 +418,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// <param name="declared">足す先。</param>
     private static void AddWrittenDeclarations(ShaderCompilation compilation, AnalyzedProgram program, HashSet<string> declared)
     {
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             if (declaration.FirstToken is not { } first
                 || !string.Equals(first.Source.FilePath, compilation.Text.FilePath, StringComparison.Ordinal))

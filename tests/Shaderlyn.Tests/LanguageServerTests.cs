@@ -760,7 +760,7 @@ public sealed class LanguageServerTests
         // 「判断できていない」のか区別が付かない。そこを見えるようにするのが要点である。
         //
         // 宣言の無い関数の戻り値は、規則で型を決めようがない。
-        // 数値リテラルの型は HlslLiteral が答えるので、ここでは使えない。
+        // 数値リテラルの型は ShaderLiteral が答えるので、ここでは使えない。
         string source = TypedShader.Replace(
             "uv.x * _Amount", "Untyped() * Untyped()", StringComparison.Ordinal);
 

@@ -125,9 +125,9 @@ public sealed class ExpressionTypeBinder
     /// <param name="declarations">トップレベルの宣言。</param>
     /// <returns>template の宣言と、その構造体。</returns>
     internal static IEnumerable<(TemplateDeclarationSyntax Template, StructDeclarationSyntax Structure)> TemplateStructsOf(
-        ImmutableArray<HlslDeclarationSyntax> declarations)
+        ImmutableArray<DeclarationSyntax> declarations)
     {
-        foreach (HlslDeclarationSyntax declaration in declarations)
+        foreach (DeclarationSyntax declaration in declarations)
         {
             switch (declaration)
             {
@@ -181,7 +181,7 @@ public sealed class ExpressionTypeBinder
             Dictionary<string, ResolvedTypeName> fields = new(StringComparer.Ordinal);
             Dictionary<string, VariableDeclaratorSyntax> fieldDeclarators = new(StringComparer.Ordinal);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 if (member is not VariableDeclarationSyntax variable)
                 {
@@ -239,7 +239,7 @@ public sealed class ExpressionTypeBinder
 
             Dictionary<string, List<FunctionDeclarationSyntax>> functions = new(StringComparer.Ordinal);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 FunctionDeclarationSyntax? function = member switch
                 {
@@ -307,13 +307,13 @@ public sealed class ExpressionTypeBinder
     /// <summary>enum を集める。名前空間の中のものを含む。同じ名前の enum が複数あれば載せない。</summary>
     /// <param name="declarations">トップレベルの宣言。</param>
     /// <returns>enum の名前から、その型への対応。</returns>
-    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<HlslDeclarationSyntax> declarations)
+    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, EnumInfo?> enums = new(StringComparer.Ordinal);
 
-        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        void Collect(ImmutableArray<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -383,7 +383,7 @@ public sealed class ExpressionTypeBinder
         // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
         for (int depth = 0; depth < 8; depth++)
         {
-            if (!_structBases.TryGetValue(current, out HlslTypeSyntax? baseType))
+            if (!_structBases.TryGetValue(current, out TypeSyntax? baseType))
             {
                 return null;
             }
@@ -410,7 +410,7 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>構造体の名前から、継承する基底の型への対応。継承していなければ <see langword="null"/>。</summary>
-    private FrozenDictionary<string, HlslTypeSyntax?>? _structBases;
+    private FrozenDictionary<string, TypeSyntax?>? _structBases;
 
     /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
     /// <param name="structName">構造体の名前。</param>
@@ -437,14 +437,14 @@ public sealed class ExpressionTypeBinder
     /// 名前空間の中の関数もトップレベルと同じに扱う (<see cref="UniformCollector"/> と揃える)。
     /// </remarks>
     private static FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> CollectTemplateFunctions(
-        ImmutableArray<HlslDeclarationSyntax> declarations)
+        ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, List<TemplateFunctionCandidate>> byName = new(StringComparer.Ordinal);
         HashSet<string> templates = new(StringComparer.Ordinal);
 
-        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        void Collect(ImmutableArray<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -476,7 +476,7 @@ public sealed class ExpressionTypeBinder
 
         void Add(FunctionDeclarationSyntax function, ImmutableArray<string> parameters)
         {
-            HlslTypeSyntax type = function.ReturnType;
+            TypeSyntax type = function.ReturnType;
             bool dependsOnParameters = type.TemplateArguments.Any(t => parameters.Contains(t.Text));
             string? returnType = dependsOnParameters ? null : type.Name;
 
@@ -746,8 +746,8 @@ public sealed class ExpressionTypeBinder
     /// </para>
     /// </remarks>
     public ImmutableArray<SymbolCondition> EnumerateAssumptions(
-        HlslSyntaxNode node,
-        HlslExpressionSyntax expression,
+        ShaderSyntaxNode node,
+        ExpressionSyntax expression,
         ConditionMap conditions)
     {
         ArgumentNullException.ThrowIfNull(expression);
@@ -772,8 +772,8 @@ public sealed class ExpressionTypeBinder
     /// 両方の式に出てくる名前をまとめて仮定を立てれば、1 つの仮定の下で両方の型が決まる。
     /// </remarks>
     public ImmutableArray<SymbolCondition> EnumerateAssumptions(
-        HlslSyntaxNode node,
-        ImmutableArray<HlslExpressionSyntax> expressions,
+        ShaderSyntaxNode node,
+        ImmutableArray<ExpressionSyntax> expressions,
         ConditionMap conditions)
     {
         ArgumentNullException.ThrowIfNull(node);
@@ -943,7 +943,7 @@ public sealed class ExpressionTypeBinder
     /// 仮定の下で、ノードを囲む関数に対応する評価器を返す。
     /// </summary>
     /// <param name="node">対象のノード。</param>
-    /// <param name="assumption">成り立っているとする条件 (<see cref="EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。</param>
+    /// <param name="assumption">成り立っているとする条件 (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。</param>
     /// <param name="conditions">出現条件の索引。</param>
     /// <returns>評価器。</returns>
     /// <remarks>
@@ -1046,7 +1046,7 @@ public sealed class ExpressionTypeBinder
     /// 接尾辞の無い <c>0</c> や <c>0.5</c> の型は文脈で決まるため、型としては判定できない。
     /// </para>
     /// </remarks>
-    public int? CountComponents(HlslExpressionSyntax expression)
+    public int? CountComponents(ExpressionSyntax expression)
     {
         ArgumentNullException.ThrowIfNull(expression);
 
@@ -1144,13 +1144,13 @@ public sealed class ExpressionTypeBinder
     /// 取り込んだヘッダの宣言も入る。関数の中から見える名前であることに変わりはない。
     /// </remarks>
     private static FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>>
-        CollectGlobalNames(ImmutableArray<HlslDeclarationSyntax> declarations)
+        CollectGlobalNames(ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, List<(VariableDeclarationSyntax, VariableDeclaratorSyntax)>> names = new(StringComparer.Ordinal);
 
-        void Collect(IEnumerable<HlslDeclarationSyntax> scope)
+        void Collect(IEnumerable<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -1266,7 +1266,7 @@ public sealed class ExpressionTypeBinder
     /// <c>StructuredBuffer&lt;float4&gt;</c> から要素の型を得るために使う。
     /// 引数が 1 つの単純な形だけを扱う。
     /// </remarks>
-    internal static string? GetTemplateArgument(HlslTypeSyntax type)
+    internal static string? GetTemplateArgument(TypeSyntax type)
         => type.TemplateArguments is [{ Kind: ShaderSyntaxKind.IdentifierToken } single]
             ? single.Text
             : null;
