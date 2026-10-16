@@ -8,7 +8,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Unity.Rules;
 
 /// <summary>
-/// Unity では効かない <c>#pragma once</c> を報告する (SL1055)。
+/// Unity では効かない <c>#pragma once</c> を報告する (UN0101)。
 /// </summary>
 /// <remarks>
 /// <para>

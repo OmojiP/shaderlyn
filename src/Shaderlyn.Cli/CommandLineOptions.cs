@@ -67,6 +67,12 @@ internal sealed class CommandLineOptions
     /// </remarks>
     public string? InspectOutputPath { get; private set; }
 
+    /// <summary>
+    /// Unreal の C++ から、生成される取り込み (uniform buffer の宣言など) を作って書き出すフォルダー (<c>--unreal-generate</c>)。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    public string? UnrealGenerateOutputPath { get; private set; }
+
     /// <summary>設定ファイルのパス。指定が無い場合は <see langword="null"/>。</summary>
     public string? ConfigPath { get; private set; }
 
@@ -141,7 +147,7 @@ internal sealed class CommandLineOptions
     /// ヘッダを参照しており、パッケージの実体はプロジェクト配下にある。
     /// 指定が無い場合に引けるのは、インストール済みの Editor に同梱されたパッケージだけになる。
     /// どちらからも引けなければ uniform の一覧が不完全になり、
-    /// 誤検出を避けるためにルールが自ら検査を見送る (<c>SL0002</c>)。
+    /// 誤検出を避けるためにルールが自ら検査を見送る (<c>HL0005</c>)。
     /// <c>#include</c> を 1 つも解決できなかった場合は <c>TOOL0004</c> のエラーになる。
     /// </remarks>
     public string? UnityProjectPath { get; private set; }
@@ -206,7 +212,7 @@ internal sealed class CommandLineOptions
     /// <b>上げると見落としは減り、解析時間は伸びる。</b>
     /// 宣言されたシンボルはどれも C# から切り替えられるため、
     /// 展開しなかった経路は一度も読まれない。
-    /// 調べきれなかったことは <c>SL0003</c> として報告する。
+    /// 調べきれなかったことは <c>HL0006</c> として報告する。
     /// </remarks>
     public int? MaxSymbolVariants { get; private set; }
 
@@ -229,6 +235,12 @@ internal sealed class CommandLineOptions
     /// 表示を絞ったことで CI の合否が変わらないようにするためである。
     /// </remarks>
     public DiagnosticSeverity? MinSeverity { get; private set; }
+
+    /// <summary>
+    /// ヘッダの中の指摘に、どのシェーダーから取り込んだかの経路をどこまで出すか (<c>--include-trace</c>)。
+    /// 設定ファイルの <c>report: include-trace</c> より優先する。指定が無ければ <see langword="null"/>。
+    /// </summary>
+    public Reporting.IncludeTraceMode? IncludeTrace { get; private set; }
 
     /// <summary>出力先ファイルのパス。<see langword="null"/> の場合は標準出力へ書く。</summary>
     public string? OutputPath { get; private set; }
@@ -276,6 +288,7 @@ internal sealed class CommandLineOptions
             ["--format"] = ReadFormat,
             ["--error-on"] = ReadErrorOn,
             ["--min-severity"] = ReadMinSeverity,
+            ["--include-trace"] = ReadIncludeTrace,
             ["-o"] = (o, v) => Set(() => o.OutputPath = v),
             ["--output"] = (o, v) => Set(() => o.OutputPath = v),
             ["--profile"] = ReadProfile,
@@ -291,6 +304,7 @@ internal sealed class CommandLineOptions
             ["--base-path"] = (o, v) => Set(() => o.BasePath = v),
             ["--cache"] = (o, v) => Set(() => o.CachePath = v),
             ["--inspect"] = (o, v) => Set(() => o.InspectOutputPath = v),
+            ["--unreal-generate"] = (o, v) => Set(() => o.UnrealGenerateOutputPath = v),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -321,7 +335,8 @@ internal sealed class CommandLineOptions
             && !parsed.ShowHelp
             && !parsed.ShowVersion
             && !parsed.ListRules
-            && !parsed.ShowEnvironment)
+            && !parsed.ShowEnvironment
+            && parsed.UnrealGenerateOutputPath is null)
         {
             error = "解析対象のパスが指定されていません。ファイルまたはフォルダーを 1 つ以上指定してください。";
         }
@@ -428,6 +443,21 @@ internal sealed class CommandLineOptions
         return null;
     }
 
+    /// <summary><c>--include-trace</c> の値を読む。</summary>
+    /// <param name="parsed">反映する先。</param>
+    /// <param name="value">指定された値。</param>
+    /// <returns>エラーメッセージ。受け取れた場合は <see langword="null"/>。</returns>
+    private static string? ReadIncludeTrace(CommandLineOptions parsed, string value)
+    {
+        if (Reporting.IncludeTraceModes.TryParse(value) is not { } mode)
+        {
+            return $"--include-trace の値 '{value}' は不正です。none, first, all のいずれかを指定してください。";
+        }
+
+        parsed.IncludeTrace = mode;
+        return null;
+    }
+
     /// <summary><c>--profile</c> の値を読む。</summary>
     /// <param name="parsed">反映する先。</param>
     /// <param name="value">指定された値。</param>
@@ -486,6 +516,10 @@ internal sealed class CommandLineOptions
                                  この重要度以上の指摘だけを出力する: info (既定), warning, error。
                                  設定ファイルの report: min-severity より優先します。
                                  終了コードは出力しなかった指摘も含めて --error-on で決めます。
+          --include-trace <範囲> ヘッダの中の指摘に、どのシェーダーのどの Pass から、どの #include をたどって
+                                 取り込んだかを添える: first (既定。1 本と残りの本数), all, none。
+                                 json / sarif は none でなければすべて出します。
+                                 設定ファイルの report: include-trace より優先します。
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
           --base-path <パス>     出力するパスを相対化する基点。省略時は現在のフォルダー。
                                  sarif / github 形式では、これがリポジトリのルートを指していないと
@@ -512,7 +546,7 @@ internal sealed class CommandLineOptions
                                  #pragma shader_feature / multi_compile で宣言された
                                  シンボルを 1 つずつ有効にして解析する上限 (既定 8)。
                                  上げると見落としは減り、解析時間は伸びます。
-                                 調べきれなかった経路は SL0003 として報告されます。
+                                 調べきれなかった経路は HL0006 として報告されます。
 
         設定ファイルとベースライン:
           --config <パス>        設定ファイル。省略時は解析対象から上へ .shaderlyn.yaml を探します。
@@ -540,8 +574,16 @@ internal sealed class CommandLineOptions
                                  誤検出の原因が構文解析・マクロ展開・型判定のどれかを
                                  切り分けるための機能です。
 
+        Unreal Engine:
+          --unreal-generate <フォルダー>
+                                 解析はせずに、設定ファイルの unreal: engine と project の C++ を読み、
+                                 ビルドのときに生成される取り込み (uniform buffer の宣言など) を
+                                 このフォルダーに書き出します。設定ファイルの unreal: generated に
+                                 このフォルダーを書くと、/Engine/Generated の宣言を読んで解析します。
+                                 エンジンやプロジェクトの C++ を変えたら作り直してください。
+
         プロパティと HLSL の対応検査 (SL1001 / SL1003 など) は、埋め込みコードの
-        依存関係を解決できて初めて働きます。見送ったことは SL0002 として報告されます。
+        依存関係を解決できて初めて働きます。見送ったことは HL0005 として報告されます。
         --unity-project の指定が無く Unity Editor も見つからないなど、ヘッダを
         1 つも解決できない場合は TOOL0004 のエラーになります。
 

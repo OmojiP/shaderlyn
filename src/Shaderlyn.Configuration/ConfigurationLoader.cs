@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Configuration.Yaml;
 using Shaderlyn.Core.Diagnostics;
 
@@ -31,7 +32,7 @@ internal static class ConfigurationLoader
     ];
 
     /// <summary><c>report:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownReportKeys = ["min-severity"];
+    private static readonly string[] KnownReportKeys = ["min-severity", "include-trace"];
 
     /// <summary><c>report: min-severity</c> に形式ごとに書くときの、形式の名前。</summary>
     private static readonly string[] KnownReportFormats = ["text", "json", "sarif", "github"];
@@ -43,7 +44,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
 
     /// <summary><c>unreal:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnrealKeys = ["engine", "project", "virtual-paths"];
+    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
@@ -118,7 +119,7 @@ internal static class ConfigurationLoader
             return new ShaderlynConfiguration
             {
                 FilePath = filePath,
-                Problems = [new ConfigurationProblem(0, $"設定ファイルを読み込めません: {ex.Message}")],
+                Problems = [new ConfigurationProblem(0, $"設定ファイルを読み込めません: {FileErrorDescriber.Describe(ex, filePath)}")],
             };
         }
 
@@ -218,6 +219,7 @@ internal static class ConfigurationLoader
                 UnityShaderCompilerBackend = ReadUnityShaderCompilerBackend(unity),
                 UnrealEngineDirectory = ResolvePath(ReadOptionalScalar(unreal, "engine")),
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
+                UnrealGeneratedDirectory = ResolvePath(ReadOptionalScalar(unreal, "generated")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
@@ -230,6 +232,7 @@ internal static class ConfigurationLoader
                 RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
                 RuleOptions = options,
                 ReportMinSeverities = ReadReportMinSeverities(),
+                ReportIncludeTrace = ReadReportIncludeTrace(),
                 Problems = problems.ToImmutable(),
             };
         }
@@ -985,6 +988,27 @@ internal static class ConfigurationLoader
         ///     sarif: info
         /// </code>
         /// </remarks>
+        /// <summary>ヘッダの中の指摘に、取り込んだ経路をどこまで出すか (<c>report: include-trace</c>) を読む。</summary>
+        /// <returns><c>none</c> / <c>first</c> / <c>all</c>。書いていなければ <see langword="null"/>。</returns>
+        /// <remarks><c>report:</c> の形の誤りは <see cref="ReadReportMinSeverities"/> が伝えるので、ここでは伝えない。</remarks>
+        private string? ReadReportIncludeTrace()
+        {
+            if (!root.TryGet("report", out YamlNode? node)
+                || node is not YamlMapping report
+                || report.Entries.GetValueOrDefault("include-trace") is not { } value)
+            {
+                return null;
+            }
+
+            if (value is YamlScalar { Value: "none" or "first" or "all" } scalar)
+            {
+                return scalar.Value;
+            }
+
+            problems.Add(new ConfigurationProblem(value.Line, "report: の include-trace には none, first, all のいずれかを指定してください。"));
+            return null;
+        }
+
         private ImmutableDictionary<string, DiagnosticSeverity> ReadReportMinSeverities()
         {
             ImmutableDictionary<string, DiagnosticSeverity>.Builder severities =

@@ -94,6 +94,182 @@ public sealed partial class UserHeaderTests : IDisposable
     [GeneratedRegex(@"^(.+?)\(\d+:\d+\): \w+ (\w+):", RegexOptions.Multiline)]
     private static partial Regex Finding();
 
+    /// <summary>2 つの Pass が同じヘッダを取り込み、キーワード A は 1 つ目の Pass だけが宣言するシェーダーを書く。</summary>
+    private void WriteTwoPassShader(string name, string header, string frag)
+    {
+        string pass(string pragma) => $$"""
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        {{pragma}}
+                        #include "{{header}}"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        {{frag}}
+                        ENDHLSL
+                    }
+            """;
+
+        Write(Path.Combine("Assets", "Shaders", name + ".shader"), $$"""
+            Shader "Test/{{name}}"
+            {
+                SubShader
+                {
+            {{pass("#pragma multi_compile_local _ A")}}
+            {{pass(string.Empty)}}
+                }
+            }
+            """);
+    }
+
+    /// <summary>
+    /// キーワードを宣言していない Pass には、そのキーワードの分岐の条件を付けない。
+    /// 以前は、宣言している Pass のヘッダの分岐の条件が、同じヘッダを取り込む別の Pass にも付き、
+    /// 「A のとき宣言されていない」(HL0310) や「値を返さない経路がある」(HL0360) と誤って報告していた。
+    /// </summary>
+    [Fact]
+    public async Task キーワードを宣言しないPassにはヘッダの分岐の条件を付けない()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Branches.hlsl"), """
+            #ifndef BRANCHES_INCLUDED
+            #define BRANCHES_INCLUDED
+            float4 Get()
+            {
+            #if defined(A)
+                return float4(1, 1, 1, 1);
+            #else
+                return float4(0, 0, 0, 0);
+            #endif
+            }
+            float4 UseA()
+            {
+            #if defined(A)
+                half a = 1;
+            #else
+                half a = 2;
+            #endif
+                return a;
+            }
+            #endif
+            """);
+        WriteTwoPassShader("TwoPass", "Branches.hlsl", "float4 frag() : SV_Target { return Get() + UseA(); }");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain("HL0360", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>キーワードの分岐で本当に返さない経路は、Pass を分けても報告する。</summary>
+    [Fact]
+    public async Task キーワードの分岐で返さない経路はPassを分けても報告する()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Missing.hlsl"), """
+            #ifndef MISSING_INCLUDED
+            #define MISSING_INCLUDED
+            float4 Get()
+            {
+            #if defined(A)
+                return float4(1, 1, 1, 1);
+            #endif
+            }
+            #endif
+            """);
+        WriteTwoPassShader("TwoPassMissing", "Missing.hlsl", "float4 frag() : SV_Target { return Get(); }");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Contains(("Missing.hlsl", "HL0360"), Findings(output));
+    }
+
+    /// <summary>
+    /// ヘッダの中の取り込みは、そのヘッダから引けなければ、解析しているシェーダーから引き直す (Unity 6.6 と同じ)。
+    /// </summary>
+    [Fact]
+    public async Task ヘッダの中の取り込みはシェーダーからの相対でも引く()
+    {
+        Write(Path.Combine("Assets", "Shaders", "B.hlsl"), "float4 FromB() { return 1; }");
+
+        // ヘッダからの相対では Assets/Shaders/Lib/B.hlsl (無い)、シェーダーからの相対では Assets/Shaders/B.hlsl。
+        Write(Path.Combine("Assets", "Shaders", "Lib", "Sub", "H.hlsl"), "#include \"../B.hlsl\"\n");
+        Write(Path.Combine("Assets", "Shaders", "Deep", "Pass.shader"), """
+            Shader "Test/Deep"
+            {
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #pragma vertex vert
+                        #pragma fragment frag
+                        #include "../Lib/Sub/H.hlsl"
+                        float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
+                        float4 frag() : SV_Target { return FromB(); }
+                        ENDHLSL
+                    }
+                }
+            }
+            """);
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
+
+        // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (UN0102)。
+        Assert.Contains(("H.hlsl", "UN0102"), Findings(output));
+        Assert.Contains("'../../B.hlsl'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>ヘッダから見つかる取り込みには UN0102 を出さない。</summary>
+    [Fact]
+    public async Task ヘッダからの相対で見つかる取り込みには警告を出さない()
+    {
+        Write(Path.Combine("Assets", "Shaders", "B.hlsl"), "float4 FromB() { return 1; }");
+        Write(Path.Combine("Assets", "Shaders", "Lib", "Sub", "H.hlsl"), "#include \"../../B.hlsl\"\n");
+        WriteShader("Ok", "float4 frag() : SV_Target { return FromB(); }", "Lib/Sub/H.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.DoesNotContain("UN0102", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ヘッダの指摘に、どのシェーダーのどの Pass から、どの #include をたどって取り込んだかを添える。
+    /// 同じ指摘を 2 つのシェーダーから報告したら 1 件にまとめ、経路を並べる。キャッシュから使い回しても経路は残る。
+    /// </summary>
+    [Fact]
+    public async Task ヘッダの指摘に取り込んだ経路を添える()
+    {
+        Write(Path.Combine("Assets", "Shaders", "Lib", "Inner.hlsl"), "float4 Tint(float4 c) { return c * undefinedTint; }\n");
+        Write(Path.Combine("Assets", "Shaders", "Common.hlsl"), "#include \"Lib/Inner.hlsl\"\n");
+        WriteShader("A", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+        WriteShader("B", "float4 frag() : SV_Target { return Tint(1); }", "Common.hlsl");
+
+        (_, string output, _) = await RunAsync(null, Shaders);
+
+        Assert.Single(Findings(output), f => f == ("Inner.hlsl", "HL0310"));
+        Assert.Matches(@"取り込み元: .*A\.shader\(10:22\) .*→ .*Common\.hlsl\(1:10\)", output);
+        Assert.Contains("ほかに 1 本の経路があります", output, StringComparison.Ordinal);
+
+        (_, string all, _) = await RunAsync(null, Shaders, "--include-trace", "all");
+        Assert.Equal(2, all.Split('\n').Count(line => line.Contains("取り込み元:", StringComparison.Ordinal)));
+        Assert.Contains("B.shader(10:22)", all, StringComparison.Ordinal);
+
+        (_, string none, _) = await RunAsync(null, Shaders, "--include-trace", "none");
+        Assert.DoesNotContain("取り込み元", none, StringComparison.Ordinal);
+
+        (_, string json, _) = await RunAsync(null, Shaders, "--format", "json");
+        Assert.Contains("\"includedFrom\"", json, StringComparison.Ordinal);
+
+        string cache = Path.Combine(_project, "cache.json");
+        await RunAsync(null, Shaders, "--cache", cache);
+        (_, string cached, _) = await RunAsync(null, Shaders, "--cache", cache, "--include-trace", "all");
+        Assert.Equal(2, cached.Split('\n').Count(line => line.Contains("取り込み元:", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public async Task 共通のヘッダの誤りをヘッダの位置に報告する()
     {
@@ -159,7 +335,7 @@ public sealed partial class UserHeaderTests : IDisposable
     }
 
     /// <summary>
-    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に SL1056 を出す (Unity は読めない)。
+    /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に UN0001 を出す (Unity は読めない)。
     /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を HL0001 にしていた。BOM 付きは何も言わなかった。
     /// </summary>
     [Theory]
@@ -174,7 +350,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Contains(("A.shader", "SL1056"), Findings(output));
+        Assert.Contains(("A.shader", "UN0001"), Findings(output));
         Assert.DoesNotContain(Findings(output), f => f.Id is "HL0001" or "HL0310");
     }
 

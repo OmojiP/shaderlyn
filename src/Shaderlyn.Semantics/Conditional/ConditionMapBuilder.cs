@@ -120,7 +120,23 @@ internal static class ConditionMapBuilder
             regions.ToImmutable(),
             inserted,
             CollectConstraints(programs),
-            hoisted);
+            hoisted,
+            CollectBlocks([.. programs, .. variants]));
+    }
+
+    /// <summary>木の根から、その木のコードブロックを引く表を作る。</summary>
+    /// <param name="programs">既定の構成とバリアントの木。</param>
+    /// <returns>根からコードブロックへの表。</returns>
+    private static Dictionary<SyntaxNode, (int Start, string? Kernel)> CollectBlocks(ImmutableArray<AnalyzedProgram> programs)
+    {
+        Dictionary<SyntaxNode, (int Start, string? Kernel)> blocks = new(ReferenceEqualityComparer.Instance);
+
+        foreach (AnalyzedProgram program in programs)
+        {
+            blocks[program.Tree.Root] = program.BlockKey;
+        }
+
+        return blocks;
     }
 
     /// <summary>
@@ -309,8 +325,8 @@ internal static class ConditionMapBuilder
     {
         // 同じソース範囲を占める領域は、掛け合わせずに足し合わせる。
         // 既定の木とバリアントの木は、同じ領域を同じ条件で並べている。
-        Dictionary<(SourceText Source, TextSpan Span), SymbolCondition> byLocation = [];
-        List<(SourceText Source, TextSpan Span)> order = [];
+        Dictionary<((int Start, string? Kernel) Block, SourceText Source, TextSpan Span), SymbolCondition> byLocation = [];
+        List<((int Start, string? Kernel) Block, SourceText Source, TextSpan Span)> order = [];
 
         foreach (AnalyzedProgram program in programs)
         {
@@ -344,7 +360,7 @@ internal static class ConditionMapBuilder
                     continue;
                 }
 
-                (SourceText Source, TextSpan Span) key = (location.Source, location.Span);
+                ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
 
                 if (byLocation.TryGetValue(key, out SymbolCondition existing))
                 {
@@ -357,9 +373,9 @@ internal static class ConditionMapBuilder
             }
         }
 
-        foreach ((SourceText Source, TextSpan Span) key in order)
+        foreach (((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key in order)
         {
-            regions.Add(new ConditionalRegion(Location.Create(key.Source, key.Span), byLocation[key]));
+            regions.Add(new ConditionalRegion(Location.Create(key.Source, key.Span), byLocation[key], key.Block));
         }
     }
 

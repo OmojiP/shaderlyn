@@ -156,7 +156,7 @@ public sealed class LanguageServerTests
 
         JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("HL0351");
 
-        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0302");
+        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "UN0301");
         Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0330");
     }
 
@@ -1189,7 +1189,7 @@ public sealed class LanguageServerTests
     [Fact]
     public async Task 解決できないincludeをその行で報告する()
     {
-        // SL0002 は「解決できなかった」ことをファイルの先頭で伝えるが、
+        // HL0005 は「解決できなかった」ことをファイルの先頭で伝えるが、
         // どの行のパスが誤っているかは伝えない。
         await WriteHeaderBesideDocumentAsync("Included.hlsl", "#define M 1\n");
 

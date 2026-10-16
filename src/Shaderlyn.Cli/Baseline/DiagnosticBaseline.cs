@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Core.Diagnostics;
 
 namespace Shaderlyn.Cli.Baseline;
@@ -152,7 +153,7 @@ internal sealed class DiagnosticBaseline
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            error = ex.Message;
+            error = ex is JsonException ? "中身が壊れているか、ベースラインの形式ではありません。" : FileErrorDescriber.Describe(ex, filePath);
             return null;
         }
     }

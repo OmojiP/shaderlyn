@@ -93,27 +93,73 @@ units:
 ```
 
 - **パーミュテーションは C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
-- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は解決できません。** その `#include` は誤りとして報告しませんが、
+- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、そのままでは解決できません。** その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません。
-  その旨を SL0002 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
+  その旨を UE0001 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
   呼び出しの引数の検査 (HL0340 / HL0341) は、欠けているのが関数を宣言しないと分かっているファイル
   (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
   `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
-  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません
+  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません。
+  uniform buffer の宣言は、エンジンの C++ から作れます ([下記](#c-から生成されるファイルを作る))
+- エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す GBuffer の取り込み
+  (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
+- マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
 - シェーダーコンパイラのマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   ほかのプラットフォームに合わせるときは `defines` で上書きしてください
-- 言語のバージョンの既定は 2018 です。HLSL 2021 で書いたシェーダーは `hlsl: version: 2021` にしてください。
-  エンジンは C++ で `CFLAG_HLSL2021` を立てたシェーダーだけを `-HV 2021` でコンパイルし、そのとき `COMPILER_SUPPORTS_HLSL2021=1` を定義します。
-  Shaderlyn も `version: 2021` のときにこのマクロを定義します（TSR・Nanite・`LaneVectorization.ush` などは 2021 が前提です）
+- **言語のバージョンは、エンジンの設定に合わせてシェーダーごとに決めます。** エンジンはプラットフォームの設定
+  (`Engine/Config/<プラットフォーム>/DataDrivenPlatformInfo.ini` の `EnablesHLSL2021ByDefault`) で決めており、
+  Shaderlyn もそれを読みます (既定は PC の `PCD3D_SM6`)。UE 5.5 の PC は `1` で、次のようになります。
+
+  | シェーダー | 言語のバージョン |
+  | --- | --- |
+  | グローバルシェーダー | HLSL 2021 (`COMPILER_SUPPORTS_HLSL2021=1` を定義する) |
+  | マテリアルのシェーダー (`/Engine/Generated/Material.ush` を、ヘッダを経由しても取り込むもの) | HLSL 2018 |
+
+  シェーダーの C++ が `CFLAG_HLSL2021` で個別に 2021 にすることがある (Nanite・Lumen・パストレーシングなど) ので、
+  2018 で読むシェーダーでも、template・演算子の多重定義・ビットフィールドは誤りにしません。
+  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで読みます。エンジンのフォルダーが無いときの既定は 2018 です。
+  `--env` に、どう決めたかを表示します
 - `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
-  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください
+  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
+  C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (HL0310 にしません)
 - マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は分かりません。
   マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。`defines` で空に定義すると読めます
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
 > `defines` で上書きしてください。仮想パスは `virtual-paths` で足せます。`--env` で、使っている割り当てとマクロを確かめられます。
+
+### C++ から生成されるファイルを作る
+
+エンジンは、C++ に書いた uniform buffer の構造体 (`BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT` など) から、
+シェーダーをコンパイルする直前に `/Engine/Generated/` の宣言をメモリ上で作ります。Shaderlyn は同じ C++ を読んで、これをファイルに書き出せます。
+
+```sh
+shaderlyn --config .shaderlyn.yaml --unreal-generate Intermediate/Shaderlyn/Generated
+```
+
+設定ファイルの `unreal: engine` と `project` の `Source` / `Plugins` の下の C++ を読みます (UE 5.5 のエンジンで 2 分ほどかかります)。
+書き出したフォルダーを `unreal: generated` に書くと、`/Engine/Generated` に割り当てて解析します。
+
+```yaml
+unreal:
+  engine: C:/Program Files/Epic Games/UE_5.5/Engine
+  project: .
+  generated: Intermediate/Shaderlyn/Generated
+```
+
+| 書き出すもの | 中身 |
+| --- | --- |
+| `UniformBuffers/<名前>.ush`、`GeneratedUniformBuffers.ush` | uniform buffer の宣言。`View.ViewSizeAndInvSize` と `View_ViewSizeAndInvSize` のどちらの書き方でも引けます。`Scene` も含みます |
+| `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
+| `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
+
+- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
+- 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
+- 作ったファイルは、エンジンかプロジェクトの C++ を変えたら作り直してください。バージョン管理には入れなくてかまいません
+
+UE 5.5 のエンジンのシェーダー (`Engine/Shaders` の `.usf` 522 個) では、宣言の検査を行えるものが 8 個から 460 個に増えます。
 
 ## 独自エンジン
 
@@ -128,7 +174,7 @@ GitHub Action は設定ファイルの `environment` に従います。設定フ
 Unity 以外の環境では Unity のプロジェクト (`Library/`) が要らないので、GitHub のホストランナーで動かせます。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.2.0
+- uses: OmojiP/shaderlyn/action@v0.2.1
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment
@@ -140,9 +186,9 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 | --- | --- | --- |
 | 構成の軸 | `#pragma multi_compile` / `shader_feature` / `dynamic_branch` | 設定ファイルの `symbols:` |
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
-| コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021、Unreal は DXC の 2018 が既定) |
+| コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021。Unreal はエンジンの設定に合わせてシェーダーごとに決める) |
 | 宣言し忘れたシンボル (HL0330) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
-| Unity だけのルール | SL / URP / HL0302 | 出ない |
+| Unity だけのルール | SL / UN / URP | 出ない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |
 | VS Code の構成の選択 | `#pragma` で宣言したシンボル | `symbols:` のシンボル。値を持つシンボルは `QUALITY = 2` のように値を選ぶ |
 
@@ -169,7 +215,7 @@ Shaderlyn はこの組 (方言) ごとの表を持ち、使えない構文を [H
 
 Unity は既定で FXC を使い、パス (コンピュートシェーダーはカーネル) ごと・API ごとに DXC (HLSL 2018) へ切り替えます。
 Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn はこの判定を Unity のバージョンごとに持っています。
-Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめた)。Shaderlyn も Unity の環境では効かせず、書いてあれば [SL1055](../rules/SL1055.md) で伝えます。
+Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめた)。Shaderlyn も Unity の環境では効かせず、書いてあれば [UN0101](../rules/UN0101.md) で伝えます。
 
 | | 2022.3 | 2023.2〜6.3 | 6.4〜6.5 | 6.6〜 |
 | --- | --- | --- | --- | --- |
@@ -188,6 +234,6 @@ Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめ�
 
 - Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから読みます。設定ファイルで上書きできます
   ([設定](configuration.md#unity))。読んだものは `--env` に出ます
-- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (SL1050 / SL1053 の一部と SL1051) は出しません
+- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN0201 / UN0203 の一部と UN0202) は出しません
 - DXC でコンパイルされるパスは DX11 では使えません。使えない API でのエラーは利用者に見えないので、そこでは構文を報告しません
 - この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確かめています

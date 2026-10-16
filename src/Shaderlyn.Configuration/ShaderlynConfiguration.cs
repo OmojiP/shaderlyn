@@ -87,6 +87,12 @@ internal sealed record ShaderlynConfiguration
     /// <summary>Unreal のプロジェクトのフォルダー (<c>unreal: project</c>)。設定ファイルからの相対で解決済み。</summary>
     public string? UnrealProjectDirectory { get; init; }
 
+    /// <summary>
+    /// C++ から作った取り込みのフォルダー (<c>unreal: generated</c>、<c>shaderlyn unreal generate</c> の書き出し先)。
+    /// 設定ファイルからの相対で解決済み。
+    /// </summary>
+    public string? UnrealGeneratedDirectory { get; init; }
+
     /// <summary>Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>)。フォルダーは設定ファイルからの相対で解決済み。</summary>
     public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 
@@ -141,6 +147,12 @@ internal sealed record ShaderlynConfiguration
     /// </remarks>
     public ImmutableDictionary<string, DiagnosticSeverity> ReportMinSeverities { get; init; } =
         ImmutableDictionary<string, DiagnosticSeverity>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ヘッダの中の指摘に、どのシェーダーから取り込んだかの経路をどこまで出すか (<c>report: include-trace</c>)。
+    /// <c>none</c> / <c>first</c> / <c>all</c>。書いていなければ <see langword="null"/>。
+    /// </summary>
+    public string? ReportIncludeTrace { get; init; }
 
     /// <summary>
     /// 読み込みで見つかった問題。

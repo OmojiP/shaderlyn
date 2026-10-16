@@ -303,7 +303,7 @@ internal sealed class AnalysisSession
     /// <remarks>
     /// Unity プロジェクトのルートは <c>Assets</c> と <c>ProjectSettings</c> の
     /// 両方があるフォルダーを上へ辿って探す。
-    /// 指定が無いと対応検査が働かず SL0002 だらけになるため、推定を試みる価値がある。
+    /// 指定が無いと対応検査が働かず HL0005 だらけになるため、推定を試みる価値がある。
     /// </remarks>
     private static CommandLineOptions BuildOptions(string? workspaceDirectory)
     {

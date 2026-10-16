@@ -154,9 +154,13 @@ internal static class SemanticsSetup
         {
             EngineDirectory = configuration.UnrealEngineDirectory,
             ProjectDirectory = configuration.UnrealProjectDirectory,
+            GeneratedDirectory = configuration.UnrealGeneratedDirectory,
             VirtualPaths = configuration.UnrealVirtualPaths,
             Compiler = configuration.HlslCompiler == "fxc" ? HlslCompiler.Fxc : HlslCompiler.Dxc,
             LanguageVersion = (HlslLanguageVersion)(configuration.HlslVersion ?? 2018),
+
+            // バージョンを書いていなければ、エンジンの設定に合わせてシェーダーごとに決める (UE 5.5 の PC は、グローバルシェーダーが 2021)。
+            FollowEngineLanguageVersion = configuration.HlslVersion is null,
             Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
         };
     }
@@ -219,7 +223,7 @@ internal static class SemanticsSetup
 
         if (editorData is not null)
         {
-            searchPaths.Add(Path.Combine(editorData, "CGIncludes"));
+            searchPaths.Add(UnityInstallation.GetCgIncludesDirectory(editorData));
             searchPaths.Add(Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"));
         }
 
@@ -351,6 +355,7 @@ internal static class SemanticsSetup
     {
         bool isUnity = settings.Environment == UnityAnalysisEnvironment.EnvironmentName;
         string? candidate = isUnity && options.UnityProjectPath is null ? UnityInstallation.FindProjectAbove(options.InputPaths) : null;
+        Lazy<string?> editorData = new(() => ResolveEditorDataPath(options, settings));
         string projectHint = candidate is null
             ? "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください。"
             : $"Unity プロジェクトとして解析する場合は --unity-project \"{candidate}\" を指定してください。";
@@ -375,8 +380,23 @@ internal static class SemanticsSetup
                 return projectHint;
             }
 
+            // Unity 同梱のヘッダ (UnityCG.cginc など) はフォルダーを付けずに .cginc で書く。
+            // Editor が見つからなければ、ほかのヘッダを引けていても引けない (TOOL0004 にならず、HL0321 が並ぶ)。
+            if (isUnity
+                && !normalized.Contains('/', StringComparison.Ordinal)
+                && normalized.EndsWith(".cginc", StringComparison.OrdinalIgnoreCase)
+                && !HasEditorHeaders(editorData.Value))
+            {
+                return editorData.Value is null
+                    ? $"{include.Path} は Unity Editor 同梱のヘッダですが、Unity Editor が見つかりません。--unity-editor で Editor のデータフォルダー (…/Editor/Data) を指定してください。"
+                    : $"{include.Path} は Unity Editor 同梱のヘッダですが、Editor のデータフォルダー ({editorData.Value}) に同梱のヘッダがありません。--unity-editor で Editor のデータフォルダー (…/Editor/Data) を指定してください。";
+            }
+
             return null;
         };
+
+        static bool HasEditorHeaders(string? data)
+            => data is not null && Directory.Exists(UnityInstallation.GetCgIncludesDirectory(data));
     }
 
     /// <summary>解析対象のパスから、読んでよい範囲の根にするフォルダーを決める。</summary>

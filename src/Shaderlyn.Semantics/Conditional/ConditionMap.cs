@@ -11,10 +11,11 @@ namespace Shaderlyn.Semantics.Conditional;
 /// </summary>
 /// <param name="Location">その範囲。</param>
 /// <param name="Condition">その範囲が存在する条件。</param>
+/// <param name="Block">その範囲を並べた展開の、コードブロック (<see cref="AnalyzedProgram.BlockKey"/>)。</param>
 /// <remarks>
 /// 展開が両方の分岐を 1 つの木に並べた場合、条件はノードではなく範囲で分かる。
 /// </remarks>
-internal readonly record struct ConditionalRegion(Location Location, SymbolCondition Condition);
+internal readonly record struct ConditionalRegion(Location Location, SymbolCondition Condition, (int Start, string? Kernel) Block);
 
 /// <summary>
 /// 定義ごとに複製した文 (条件の巻き上げ) のトークン 1 つ分の条件。
@@ -41,13 +42,14 @@ public sealed class ConditionMap
 {
     /// <summary>すべてのノードが無条件で、突き合わせも済んでいる索引。</summary>
     /// <remarks>シンボルバリアントが無い場合に使う。条件を引くと必ず「常に」を返す。</remarks>
-    public static ConditionMap Empty { get; } = new([], [], [], [], SymbolConstraints.Empty, []);
+    public static ConditionMap Empty { get; } = new([], [], [], [], SymbolConstraints.Empty, [], []);
 
     private readonly Dictionary<HlslSyntaxNode, SymbolCondition> _conditions;
     private readonly ImmutableArray<ConditionalRegion> _regions;
     private readonly Dictionary<HlslSyntaxNode, List<ConditionalNode>> _inserted;
     private readonly SymbolConstraints _constraints;
     private readonly Dictionary<HlslSyntaxToken, HoistedToken> _hoisted;
+    private readonly Dictionary<SyntaxNode, (int Start, string? Kernel)> _blockByRoot;
 
     internal ConditionMap(
         Dictionary<HlslSyntaxNode, SymbolCondition> conditions,
@@ -55,8 +57,10 @@ public sealed class ConditionMap
         ImmutableArray<ConditionalRegion> regions,
         Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted,
         SymbolConstraints constraints,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<SyntaxNode, (int Start, string? Kernel)> blockByRoot)
     {
+        _blockByRoot = blockByRoot;
         _constraints = constraints;
         _conditions = conditions;
         _regions = regions;
@@ -154,9 +158,15 @@ public sealed class ConditionMap
 
         // 展開が両方の分岐を並べた範囲から出た条件。
         // バリアントが作られていないので、こちらにしか条件が無い。
+        // ノードと同じコードブロック (Pass) の展開が並べた範囲だけを見る。共通のヘッダは Pass の間で同じ位置にあるが、
+        // あるキーワードを宣言していない Pass には、その分岐の条件は無い (その Pass では常に既定の分岐を読む)。
+        // 範囲の位置だけで引くと、キーワードを持つ Pass で付いた条件が持たない Pass の木にも付き、
+        // 「そのキーワードのとき宣言が無い」(HL0310) や「値を返さない経路がある」(HL0360) と誤って報告していた。
+        (int Start, string? Kernel)? block = FindBlock(node);
+
         foreach (ConditionalRegion region in _regions)
         {
-            if (IsInside(node, region.Location))
+            if ((block is null || region.Block == block.Value) && IsInside(node, region.Location))
             {
                 condition = condition.And(region.Condition);
             }
@@ -169,6 +179,26 @@ public sealed class ConditionMap
         }
 
         return _constraints.Apply(condition);
+    }
+
+    /// <summary>ノードがある木のコードブロックを返す。</summary>
+    /// <param name="node">対象のノード。</param>
+    /// <returns>コードブロック。木の根が分からなければ <see langword="null"/> (どのコードブロックの範囲も見る)。</returns>
+    private (int Start, string? Kernel)? FindBlock(HlslSyntaxNode node)
+    {
+        if (_regions.IsEmpty || _blockByRoot.Count == 0)
+        {
+            return null;
+        }
+
+        SyntaxNode root = node;
+
+        while (root.Parent is { } parent)
+        {
+            root = parent;
+        }
+
+        return _blockByRoot.TryGetValue(root, out (int Start, string? Kernel) block) ? block : null;
     }
 
     /// <summary>

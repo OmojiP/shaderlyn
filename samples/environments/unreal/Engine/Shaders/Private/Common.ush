@@ -3,7 +3,7 @@
 
 // 本物の Common.ush と同じく、ビルドのときに生成される uniform buffer の宣言を取り込む。
 // このファイルは、エンジンがシェーダーをコンパイルするときにメモリ上で作るもので、エンジンのフォルダーには無い。
-// そのため解決できないが、誤りとしては報告しない (中身が分からないことを SL0002 で伝える)。
+// そのため解決できないが、誤りとしては報告しない (中身が分からないことを HL0005 で伝える)。
 #include "/Engine/Generated/GeneratedUniformBuffers.ush"
 
 #if COMPILER_HLSL && SM6_PROFILE

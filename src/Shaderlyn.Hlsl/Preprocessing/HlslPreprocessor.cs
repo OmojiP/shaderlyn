@@ -346,6 +346,11 @@ internal sealed partial class HlslPreprocessor
         DefinePredefinedMacros();
         PushFileSource(text);
 
+        if (_options.LeadingText is not null)
+        {
+            PushFileSource(_options.LeadingText);
+        }
+
         if (_options.Prelude is not null)
         {
             PushFileSource(_options.Prelude);

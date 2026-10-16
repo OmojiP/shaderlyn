@@ -48,9 +48,9 @@ public sealed class RuleFixtureTests
         ["TOOL0003"] = "設定ファイルの誤りの報告。シェーダーの内容では起こせない",
 
         // 循環は取り込み先で起きるため、報告は取り込んだファイルの側に出る。
-        // .shader の診断としては SL0002 のメッセージの中に現れる。
-        // これは HL0320_の循環はSL0002の中に現れる で確かめている。
-        ["HL0320"] = "循環は取り込み先で起きるため、報告が SL0002 のメッセージの中に入る",
+        // .shader の診断としては HL0005 のメッセージの中に現れる。
+        // これは HL0320_の循環はHL0005の中に現れる で確かめている。
+        ["HL0320"] = "循環は取り込み先で起きるため、報告が HL0005 のメッセージの中に入る",
 
         // template は HLSL 2021 の構文で、Unity (HLSL 2018) の .shader では HL0003 になる。
         // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
@@ -62,9 +62,17 @@ public sealed class RuleFixtureTests
         // Unity は HLSL 2021 でコンパイルしないので起こせない。Hlsl2021Tests で、汎用の HLSL 環境の .hlsl として確かめている。
         ["HL0349"] = "HLSL 2021 だけの規則なので、Unity の .shader では起こせない",
 
+        // fixture は違反シェーダーの隣を探索パスにしているので、ヘッダから見つからない取り込みもシェーダーから引き直さずに見つかる。
+        // UserHeaderTests で、Unity プロジェクトの形にして確かめている。
+        ["UN0102"] = "fixture の探索パスで見つかり、シェーダーからの引き直しが起きない",
+
+        // Unreal の環境だけの規則。UnrealEnvironmentTests で、Unreal の .usf として確かめている。
+        ["UE0001"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
+        ["UE0002"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
+
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。
-        ["SL1051"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",
+        ["UN0202"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",
     };
 
     /// <summary>違反するシェーダーを置いてある規則。</summary>
@@ -134,13 +142,13 @@ public sealed class RuleFixtureTests
     }
 
     [Fact]
-    public void HL0320_の循環はSL0002の中に現れる()
+    public void HL0320_の循環はHL0005の中に現れる()
     {
         // include の循環は取り込み先で起きるため、.shader 自身の診断にはならない。
-        // 見送った事実は SL0002 が伝える。
+        // 見送った事実は HL0005 が伝える。
         ImmutableArray<Diagnostic> diagnostics = Analyze("HL0320");
 
-        Diagnostic reported = Assert.Single(diagnostics, d => d.Id == "SL0002");
+        Diagnostic reported = Assert.Single(diagnostics, d => d.Id == "HL0005");
 
         Assert.Contains("HL0320", reported.GetMessage(), StringComparison.Ordinal);
     }

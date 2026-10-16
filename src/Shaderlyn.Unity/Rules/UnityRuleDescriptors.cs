@@ -72,7 +72,7 @@ internal static class UnityRuleDescriptors
 
     /// <summary>シェーダーステージの指定が無い。</summary>
     public static DiagnosticDescriptor MissingShaderStage { get; } = new(
-        id: "HL0302",
+        id: "UN0301",
         title: "シェーダーステージが指定されていません",
         messageFormat: "コードブロックに {0} が存在しません。",
         category: CorrectnessCategory,
@@ -81,20 +81,20 @@ internal static class UnityRuleDescriptors
             + "この Pass はコンパイルできません。"
             + "共通コード片 (HLSLINCLUDE) に書いたつもりの #pragma が、"
             + "別の SubShader に属していて届いていない場合によく起きます。",
-        helpLinkUri: DocumentationLinks.For("HL0302"));
+        helpLinkUri: DocumentationLinks.For("UN0301"));
 
     /// <summary>コンパイラの指定 (<c>#pragma use_dxc</c> / <c>require</c>) が無視され、DXC に切り替わらない。</summary>
     /// <remarks>
     /// <para>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</para>
     /// <para>
     /// コンパイラの指定の誤りは、直し方の種類で ID を分けてある。
-    /// 無視される指定 (SL1050)、DX11 で使えなくなる指定 (SL1053)、バージョンで結果が変わる組み合わせ (SL1054) である。
-    /// DX12 だけを対象にするプロジェクトは、SL1053 だけを無効にできる。
+    /// 無視される指定 (UN0201)、DX11 で使えなくなる指定 (UN0203)、バージョンで結果が変わる組み合わせ (UN0204) である。
+    /// DX12 だけを対象にするプロジェクトは、UN0203 だけを無効にできる。
     /// 文はどれも「何が起きているか。何でコンパイルされるか。どう直すか。」の 3 文で書く。
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor CompilerPragmaIgnored { get; } = new(
-        id: "SL1050",
+        id: "UN0201",
         title: "コンパイラの指定が無視されます",
         messageFormat: "{0}",
         category: CorrectnessCategory,
@@ -102,12 +102,12 @@ internal static class UnityRuleDescriptors
         description: "#pragma use_dxc / require のうち、Unity が認識しない、または効かない場所に書いたために無視されるものです。"
             + "use_dxc の API 名 d3d12 (どのバージョンでも)、dx12 (6.5 以前)、include ファイルの中の指定 (2023.2 以降)、"
             + "require inlineraytracing (2022.3) が当たります。DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。",
-        helpLinkUri: DocumentationLinks.For("SL1050"));
+        helpLinkUri: DocumentationLinks.For("UN0201"));
 
     /// <summary>コンパイラの指定で、パスが DX11 でも DXC でコンパイルされ、DX11 では使えなくなる。</summary>
     /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
     public static DiagnosticDescriptor CompilerPragmaBreaksDx11 { get; } = new(
-        id: "SL1053",
+        id: "UN0203",
         title: "DX11 で使えなくなるコンパイラの指定です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
@@ -115,30 +115,30 @@ internal static class UnityRuleDescriptors
         description: "DXC でコンパイルしたシェーダーは DX11 では使えません。"
             + "キーワードの条件の無い、DXC が要る #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
             + "DX11 でもパスを DXC でコンパイルさせます。対象の API に DX11 があるときだけ報告します。",
-        helpLinkUri: DocumentationLinks.For("SL1053"));
+        helpLinkUri: DocumentationLinks.For("UN0203"));
 
     /// <summary>Unity のバージョンで、コンパイラが FXC と DXC に分かれる組み合わせ。</summary>
     /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
     public static DiagnosticDescriptor CompilerPragmaVersionDependent { get; } = new(
-        id: "SL1054",
+        id: "UN0204",
         title: "Unity のバージョンでコンパイラが変わる指定です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#pragma never_use_dxc と、DXC が要る #pragma require を同じコードブロックに書くと、"
             + "Unity 6.5 以前は never_use_dxc が勝って FXC、6.6 からは require が勝って DXC でコンパイルされます。",
-        helpLinkUri: DocumentationLinks.For("SL1054"));
+        helpLinkUri: DocumentationLinks.For("UN0204"));
 
     /// <summary>コンパイラの指定について、知っておくとよいこと (非推奨の API 名など)。</summary>
     public static DiagnosticDescriptor CompilerPragmaNote { get; } = new(
-        id: "SL1051",
+        id: "UN0202",
         title: "コンパイラの指定についての注意",
         messageFormat: "{0}",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "Unity 6.6 で非推奨になった use_dxc d3d11、Unity 2023.2〜6.3 でコンパイルされない require inlineraytracing など、"
             + "エラーにはならないが意図と違う結果になりうる指定を伝えます。",
-        helpLinkUri: DocumentationLinks.For("SL1051"));
+        helpLinkUri: DocumentationLinks.For("UN0202"));
 
     /// <summary>Unity では効かない <c>#pragma once</c>。</summary>
     /// <remarks>
@@ -147,7 +147,7 @@ internal static class UnityRuleDescriptors
     /// <c>#include</c> でも <c>#include_with_pragmas</c> でも 2 度目の取り込みが再定義のエラーになった。
     /// </remarks>
     public static DiagnosticDescriptor PragmaOnceIgnored { get; } = new(
-        id: "SL1055",
+        id: "UN0101",
         title: "Unity では #pragma once が効きません",
         messageFormat: "Unity は #pragma once を効かせません。このファイルを 2 度取り込むと、中の宣言が再定義のエラーになります。#ifndef / #define / #endif のインクルードガードで囲んでください。",
         category: CorrectnessCategory,
@@ -155,7 +155,7 @@ internal static class UnityRuleDescriptors
         description: "Unity のシェーダーのプリプロセッサは #pragma once を無視します (Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
             + "同じファイルを 2 か所から取り込むと、関数や構造体が再定義のエラーになります。"
             + "Unity のヘッダと同じく、#ifndef MY_HEADER_INCLUDED / #define MY_HEADER_INCLUDED / #endif で囲んでください。",
-        helpLinkUri: DocumentationLinks.For("SL1055"));
+        helpLinkUri: DocumentationLinks.For("UN0101"));
 
     /// <summary>Unity が読めない UTF-16 で保存したファイル。</summary>
     /// <remarks>
@@ -163,7 +163,7 @@ internal static class UnityRuleDescriptors
     /// <c>.shader</c> は「Parse error … expecting TOK_SHADER」、取り込んだヘッダは「Unexpected directive」や構文エラーになった。
     /// </remarks>
     public static DiagnosticDescriptor Utf16File { get; } = new(
-        id: "SL1056",
+        id: "UN0001",
         title: "Unity は UTF-16 のファイルを読めません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
@@ -171,7 +171,26 @@ internal static class UnityRuleDescriptors
         description: "Unity は UTF-16 で保存したシェーダーのファイルを読めません (BOM があっても読めません。Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
             + ".shader は構文エラーに、取り込んだ .hlsl / .cginc は Unexpected directive や構文エラーになります。"
             + "UTF-8 (BOM の有無はどちらでもよい) で保存し直してください。",
-        helpLinkUri: DocumentationLinks.For("SL1056"));
+        helpLinkUri: DocumentationLinks.For("UN0001"));
+
+    /// <summary>ヘッダの中の取り込みを、ヘッダからではなく解析しているシェーダーからの相対で見つけた。</summary>
+    /// <remarks>
+    /// Unity は、ヘッダの中の <c>#include "..."</c> がヘッダから見つからなければ、解析しているシェーダーからの相対で探し直す
+    /// (Unity 6.6 で確かめた)。そのシェーダーでは通るが、別の場所のシェーダーから取り込むと見つからなくなる。
+    /// </remarks>
+    public static DiagnosticDescriptor IncludeResolvedFromShader { get; } = new(
+        id: "UN0102",
+        title: "取り込みをシェーダーからの相対で見つけています",
+        messageFormat: "'{0}' はこのファイルからは見つからず、取り込んでいるシェーダーからの相対で見つけています。"
+            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に直してください。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "ヘッダ (.hlsl など) の中の #include \"...\" が、そのヘッダからの相対では見つからず、"
+            + "ヘッダを取り込んでいるシェーダー (.shader) からの相対で見つかりました。"
+            + "Unity はヘッダから見つからないとシェーダーから探し直すので、このシェーダーではコンパイルできます。"
+            + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
+            + "ヘッダからの相対パスに直してください。",
+        helpLinkUri: DocumentationLinks.For("UN0102"));
 
     /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
     /// <remarks>
@@ -180,7 +199,7 @@ internal static class UnityRuleDescriptors
     /// (白 (1, 1, 1, 1) が DX12 で (0, 1.875, 0, 1.875)、Vulkan で 0)。Unity 2022.3〜6.6 で確かめた。
     /// </remarks>
     public static DiagnosticDescriptor HalfInNative16BitConstantBuffer { get; } = new(
-        id: "SL1052",
+        id: "UN0205",
         title: "16 ビットの型を有効にしたパスの定数バッファに half があります",
         messageFormat: "{0}",
         category: CorrectnessCategory,
@@ -188,5 +207,5 @@ internal static class UnityRuleDescriptors
         description: "#pragma require native16bit や UNITY_DEVICE_SUPPORTS_NATIVE_16BIT の構成では、DXC が 16 ビットの型を有効にしてコンパイルし、"
             + "half / min16float は 2 バイトの float16_t になります。定数バッファの配置が変わり、Unity が 32 ビットで書き込んだ値を正しく読めません。"
             + "定数バッファのメンバーは float で宣言し、使うところで half に変換してください。",
-        helpLinkUri: DocumentationLinks.For("SL1052"));
+        helpLinkUri: DocumentationLinks.For("UN0205"));
 }

@@ -1,4 +1,4 @@
-Shader "Rules/SL0003"
+Shader "Rules/HL0006"
 {
     SubShader
     {

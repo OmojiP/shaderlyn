@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Core.Text;
 
 namespace Shaderlyn.Cli.Caching;
@@ -39,7 +40,7 @@ namespace Shaderlyn.Cli.Caching;
 internal sealed class AnalysisCache
 {
     /// <summary>このツールが理解するキャッシュの書式のバージョン。</summary>
-    public const int SupportedVersion = 2;
+    public const int SupportedVersion = 3;
 
     /// <summary>ファイルが存在しない (あるいは読めない) ことを表すハッシュ。</summary>
     /// <remarks>
@@ -115,7 +116,7 @@ internal sealed class AnalysisCache
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            warning = ex.Message;
+            warning = ex is JsonException ? "中身が壊れているか、キャッシュの形式ではありません。" : FileErrorDescriber.Describe(ex, filePath);
             return new AnalysisCache(key, loaded);
         }
 
@@ -186,7 +187,7 @@ internal sealed class AnalysisCache
                 return false;
             }
 
-            restored.Add(diagnostic.Restore(target));
+            restored.Add(diagnostic.Restore(target, file => file is null ? text : LoadIncludedText(file)));
         }
 
         // 次回の書き出しでも残るように、使い回した記録をそのまま持ち越す。
@@ -232,7 +233,7 @@ internal sealed class AnalysisCache
 
             if ((own && diagnostic.Location.Span.End > text.Length)
                 || (!own && !included.Contains(Normalize(path)))
-                || EntryDiagnostic.TryCreate(diagnostic, own ? null : path) is not { } entry)
+                || EntryDiagnostic.TryCreate(diagnostic, own ? null : path, text.FilePath) is not { } entry)
             {
                 return;
             }
@@ -299,27 +300,118 @@ internal sealed class AnalysisCache
                 Index(sources, pair.Key, document.Sources), sources, rules, document));
         }
 
+        return TryWrite(
+            filePath,
+            JsonSerializer.Serialize(document, AnalysisCacheJsonContext.Default.AnalysisCacheDocument),
+            out error);
+    }
+
+    /// <summary>
+    /// キャッシュを書き出せるかを、解析の前に確かめる。
+    /// </summary>
+    /// <param name="filePath">書き出す先のパス。</param>
+    /// <param name="error">書き出せない理由。</param>
+    /// <returns>書き出せるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 書き出すのは解析の後なので、確かめずにいると、全件の解析が終わってから書けないことが分かる。
+    /// 同じ手順 (フォルダーを作り、一時ファイルに書いて置き換える) で、一時ファイルだけを書いて消す。
+    /// </remarks>
+    public static bool CanWrite(string filePath, out string? error)
+    {
+        ArgumentNullException.ThrowIfNull(filePath);
+
+        // 置き換え先がフォルダーなら、置き換え (File.Move) で失敗する。
+        if (Directory.Exists(filePath))
+        {
+            error = "そのパスはフォルダーです。ファイルのパスを指定してください。";
+            return false;
+        }
+
+        string temporary = filePath + ".tmp";
+
+        if (!TryPrepare(filePath, out error))
+        {
+            return false;
+        }
+
+        try
+        {
+            File.WriteAllText(temporary, string.Empty);
+            File.Delete(temporary);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            error = FileErrorDescriber.Describe(ex, temporary);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>一時ファイルに書いてから置き換える。失敗したら一時ファイルを消す。</summary>
+    private static bool TryWrite(string filePath, string content, out string? error)
+    {
+        if (!TryPrepare(filePath, out error))
+        {
+            return false;
+        }
+
+        string temporary = filePath + ".tmp";
+
+        try
+        {
+            File.WriteAllText(temporary, content);
+            File.Move(temporary, filePath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // 置き換えに失敗したとき (置き換え先がフォルダーなど)、一時ファイルが残る。
+            TryDelete(temporary);
+            error = FileErrorDescriber.Describe(ex, filePath);
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    /// <summary>書き出す先のフォルダーを作る。デバイス名 (<c>NUL</c> など) は書き出せないものとする。</summary>
+    private static bool TryPrepare(string filePath, out string? error)
+    {
+        // NUL へ書くと書き込みは成功し、何も残らない。黙って毎回全件を解析することになる。
+        if (FileErrorDescriber.IsDeviceName(filePath))
+        {
+            error = $"'{Path.GetFileName(filePath)}' は Windows のデバイス名で、ファイルとして残りません。別の名前にしてください。";
+            return false;
+        }
+
         try
         {
             if (Path.GetDirectoryName(Path.GetFullPath(filePath)) is { Length: > 0 } directory)
             {
                 Directory.CreateDirectory(directory);
             }
-
-            string temporary = filePath + ".tmp";
-            File.WriteAllText(
-                temporary,
-                JsonSerializer.Serialize(document, AnalysisCacheJsonContext.Default.AnalysisCacheDocument));
-            File.Move(temporary, filePath, overwrite: true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            error = ex.Message;
+            error = FileErrorDescriber.Describe(ex, filePath);
             return false;
         }
 
         error = null;
         return true;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            // 消せなくても、書き出せなかったことはすでに伝える。
+        }
     }
 
     /// <summary>取り込んだファイルを読む。同じ実行の中では 1 度しか読まない。</summary>
@@ -427,7 +519,8 @@ internal sealed class AnalysisCache
                 || EntryDiagnostic.TryRestore(
                     document.Rules[diagnostic.Rule],
                     diagnostic,
-                    diagnostic.File >= 0 ? document.Sources[diagnostic.File] : null) is not { } restored)
+                    diagnostic.File >= 0 ? document.Sources[diagnostic.File] : null,
+                    document.Sources) is not { } restored)
             {
                 return null;
             }
@@ -505,6 +598,17 @@ internal sealed class AnalysisCache
         }
     }
 
+    /// <summary>記録した経路 1 本。</summary>
+    /// <param name="Origin">解析したファイルの中のどこから取り込んだか。</param>
+    /// <param name="Steps">たどった <c>#include</c> の位置。</param>
+    private sealed record EntryRoute(string? Origin, ImmutableArray<EntryRouteStep> Steps);
+
+    /// <summary>記録した経路の <c>#include</c> 1 つの位置。</summary>
+    /// <param name="FilePath">書いたファイル。解析したファイル自身なら <see langword="null"/>。</param>
+    /// <param name="Start">開始位置。</param>
+    /// <param name="Length">長さ。</param>
+    private sealed record EntryRouteStep(string? FilePath, int Start, int Length);
+
     /// <summary>記録された指摘 1 件。</summary>
     /// <param name="Descriptor">
     /// 報告元のルール定義。<see cref="DiagnosticDescriptor.MessageFormat"/> には
@@ -516,6 +620,7 @@ internal sealed class AnalysisCache
     /// <param name="IsSeverityExplicit">報告元が重要度を明示しているかどうか。</param>
     /// <param name="SuggestedReplacement">指摘箇所を置き換える文字列。</param>
     /// <param name="FilePath">指摘箇所がある取り込んだファイル。解析したファイル自身なら <see langword="null"/>。</param>
+    /// <param name="Routes">ヘッダの中の指摘を取り込んだ経路。</param>
     private sealed record EntryDiagnostic(
         DiagnosticDescriptor Descriptor,
         int Start,
@@ -523,13 +628,15 @@ internal sealed class AnalysisCache
         DiagnosticSeverity Severity,
         bool IsSeverityExplicit,
         string? SuggestedReplacement,
-        string? FilePath)
+        string? FilePath,
+        ImmutableArray<EntryRoute> Routes = default)
     {
         /// <summary>診断から記録を作る。</summary>
         /// <param name="diagnostic">対象の診断。</param>
         /// <param name="filePath">指摘箇所がある取り込んだファイル。解析したファイル自身なら <see langword="null"/>。</param>
+        /// <param name="rootPath">解析したファイル。</param>
         /// <returns>作った記録。作れない場合は <see langword="null"/>。</returns>
-        public static EntryDiagnostic? TryCreate(Diagnostic diagnostic, string? filePath)
+        public static EntryDiagnostic? TryCreate(Diagnostic diagnostic, string? filePath, string rootPath)
         {
             string message = diagnostic.GetMessage();
 
@@ -545,15 +652,22 @@ internal sealed class AnalysisCache
                 diagnostic.Severity,
                 diagnostic.IsSeverityExplicit,
                 diagnostic.SuggestedReplacement,
-                filePath);
+                filePath,
+                [.. diagnostic.IncludeRoutes.Select(route => new EntryRoute(
+                    route.Origin,
+                    [.. route.Includes.Select(step => new EntryRouteStep(
+                        string.Equals(step.FilePath, rootPath, StringComparison.Ordinal) ? null : step.FilePath,
+                        step.Span.Start,
+                        step.Span.Length))]))]);
         }
 
         /// <summary>キャッシュファイルの内容から記録を復元する。</summary>
         /// <param name="rule">ルール定義。</param>
         /// <param name="diagnostic">記録された指摘。</param>
         /// <param name="filePath">指摘箇所がある取り込んだファイル。解析したファイル自身なら <see langword="null"/>。</param>
+        /// <param name="sources">ファイルのパスの一覧 (<see cref="AnalysisCacheDocument.Sources"/>)。</param>
         /// <returns>復元した記録。復元できない場合は <see langword="null"/>。</returns>
-        public static EntryDiagnostic? TryRestore(CachedRule rule, CachedDiagnostic diagnostic, string? filePath)
+        public static EntryDiagnostic? TryRestore(CachedRule rule, CachedDiagnostic diagnostic, string? filePath, IReadOnlyList<string> sources)
         {
             if (!Enum.TryParse(rule.DefaultSeverity, out DiagnosticSeverity defaultSeverity)
                 || !Enum.TryParse(diagnostic.Severity, out DiagnosticSeverity severity)
@@ -588,17 +702,36 @@ internal sealed class AnalysisCache
                 severity,
                 diagnostic.IsSeverityExplicit,
                 diagnostic.SuggestedReplacement,
-                filePath);
+                filePath,
+                RestoreRoutes(diagnostic.Routes, sources));
+        }
+
+        /// <summary>記録した経路を復元する。添字が範囲外なら経路は捨てる (指摘は残す)。</summary>
+        private static ImmutableArray<EntryRoute> RestoreRoutes(List<CachedRoute>? routes, IReadOnlyList<string> sources)
+        {
+            if (routes is null
+                || routes.Any(r => r.Steps.Any(s => s.File >= sources.Count || s.Start < 0 || s.Length < 0)))
+            {
+                return [];
+            }
+
+            return
+            [
+                .. routes.Select(r => new EntryRoute(
+                    r.Origin,
+                    [.. r.Steps.Select(s => new EntryRouteStep(s.File >= 0 ? sources[s.File] : null, s.Start, s.Length))])),
+            ];
         }
 
         /// <summary>記録から診断を組み立て直す。</summary>
         /// <param name="text">解析対象のソーステキスト。</param>
+        /// <param name="loadText">経路のファイルを読む手続き。<see langword="null"/> は解析対象。</param>
         /// <returns>組み立て直した診断。</returns>
         /// <remarks>
         /// 位置は今回読み込んだソーステキストの上に作り直す。
         /// 内容が一致していることは呼び出し側が確かめている。
         /// </remarks>
-        public Diagnostic Restore(SourceText text)
+        public Diagnostic Restore(SourceText text, Func<string?, SourceText?> loadText)
         {
             Location location = Location.Create(text, new TextSpan(Start, Length));
 
@@ -606,9 +739,40 @@ internal sealed class AnalysisCache
                 ? Diagnostic.Create(Descriptor, location, Severity)
                 : Diagnostic.Create(Descriptor, location).WithSeverity(Severity);
 
-            return SuggestedReplacement is { } replacement
-                ? diagnostic.WithSuggestedReplacement(replacement)
-                : diagnostic;
+            if (SuggestedReplacement is { } replacement)
+            {
+                diagnostic = diagnostic.WithSuggestedReplacement(replacement);
+            }
+
+            return Routes.IsDefaultOrEmpty ? diagnostic : diagnostic.WithIncludeRoutes(RestoreRoutes(text.FilePath, loadText));
+        }
+
+        /// <summary>経路を、今回読み込んだテキストの上に作り直す。読めないファイルがあれば、その経路は捨てる。</summary>
+        private ImmutableArray<IncludeRoute> RestoreRoutes(string rootPath, Func<string?, SourceText?> loadText)
+        {
+            ImmutableArray<IncludeRoute>.Builder routes = ImmutableArray.CreateBuilder<IncludeRoute>();
+
+            foreach (EntryRoute route in Routes)
+            {
+                ImmutableArray<Location>.Builder steps = ImmutableArray.CreateBuilder<Location>(route.Steps.Length);
+
+                foreach (EntryRouteStep step in route.Steps)
+                {
+                    if (loadText(step.FilePath) is not { } stepText || step.Start + step.Length > stepText.Length)
+                    {
+                        break;
+                    }
+
+                    steps.Add(Location.Create(stepText, new TextSpan(step.Start, step.Length)));
+                }
+
+                if (steps.Count == route.Steps.Length)
+                {
+                    routes.Add(new IncludeRoute(rootPath, route.Origin, steps.MoveToImmutable()));
+                }
+            }
+
+            return routes.ToImmutable();
         }
 
         /// <summary>キャッシュファイルへ書き出す形へ直す。</summary>
@@ -645,6 +809,15 @@ internal sealed class AnalysisCache
                 IsSeverityExplicit = IsSeverityExplicit,
                 Message = Descriptor.MessageFormat,
                 SuggestedReplacement = SuggestedReplacement,
+                Routes = Routes.IsDefaultOrEmpty
+                    ? null
+                    : [
+                        .. Routes.Select(r => new CachedRoute
+                        {
+                            Origin = r.Origin,
+                            Steps = [.. r.Steps.Select(s => new CachedRouteStep { File = s.FilePath is { } p ? Index(sources, p, document.Sources) : -1, Start = s.Start, Length = s.Length })],
+                        }),
+                    ],
             };
         }
 

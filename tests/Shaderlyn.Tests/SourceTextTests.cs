@@ -71,7 +71,7 @@ public sealed class SourceTextTests
 
     /// <summary>
     /// BOM があればそれに従い、無くても UTF-16 は NUL の並び方で見分けて読む (DXC は UTF-16 を読める)。
-    /// UTF-16 として読んだことは <see cref="SourceText.IsUtf16"/> で分かる (Unity は読めないので SL1056 で伝える)。
+    /// UTF-16 として読んだことは <see cref="SourceText.IsUtf16"/> で分かる (Unity は読めないので UN0001 で伝える)。
     /// </summary>
     [Theory]
     [InlineData("utf8", false)]

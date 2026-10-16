@@ -1,10 +1,13 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Cli.Baseline;
 using Shaderlyn.Cli.Caching;
 using Shaderlyn.Cli.Inspection;
 using Shaderlyn.Cli.Reporting;
+using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
@@ -107,6 +110,11 @@ public static class Program
         // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
+        if (options.UnrealGenerateOutputPath is { } generateOutput)
+        {
+            return await GenerateUnrealAsync(settings, generateOutput, output, errorOutput).ConfigureAwait(false);
+        }
+
         if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
         {
             await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment, environments)).ConfigureAwait(false);
@@ -158,13 +166,17 @@ public static class Program
         AnalysisTimings? timings = options.ReportTimings ? new AnalysisTimings() : null;
         SemanticsOptions semanticsOptions = SemanticsSetup.Create(options, settings, timings);
         AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
+        bool cacheWritable = await CheckCacheWritableAsync(options, errorOutput).ConfigureAwait(false);
 
         AnalysisRunner runner = new(
             analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, environment);
 
         AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
 
-        await SaveCacheAsync(options, cache, errorOutput).ConfigureAwait(false);
+        if (cacheWritable)
+        {
+            await SaveCacheAsync(options, cache, errorOutput).ConfigureAwait(false);
+        }
 
         if (timings is not null)
         {
@@ -193,7 +205,8 @@ public static class Program
         // 出力は形式ごとの重要度で絞る。終了コードは絞る前のすべての指摘で決める (表示を絞って CI の合否が変わらないように)。
         AnalysisResult shown = result.OnlyAtOrAbove(
             settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), settings.ConfigurationDiagnostics);
-        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length);
+        IncludeTraceMode includeTrace = settings.GetIncludeTrace(options.IncludeTrace);
+        string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length, includeTrace);
         await WriteReportAsync(options, report, output, cancellationToken).ConfigureAwait(false);
 
         // 注釈は主たる出力とは別に書く。SARIF をファイルへ書きながら
@@ -201,7 +214,7 @@ public static class Program
         if (options.Annotate && options.Format != OutputFormat.GitHub)
         {
             GitHubDiagnosticReporter annotator =
-                new(options.BasePath ?? Directory.GetCurrentDirectory());
+                new(options.BasePath ?? Directory.GetCurrentDirectory(), includeTrace);
 
             AnalysisResult annotated =
                 result.OnlyAtOrAbove(
@@ -250,6 +263,28 @@ public static class Program
         }
 
         return cache;
+    }
+
+    /// <summary>
+    /// キャッシュを書き出せるかを、解析の前に確かめる。書き出せなければ、理由をすぐに伝える。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <returns>書き出せるか (<c>--cache</c> が無ければ <see langword="true"/>)。</returns>
+    /// <remarks>
+    /// 解析の後に書き出すので、確かめずにいると、全件の解析が終わってから書けないことが分かる。
+    /// 書き出せなくても解析結果は正しいので、ツールエラーにはせずに解析を続ける。
+    /// </remarks>
+    private static async Task<bool> CheckCacheWritableAsync(CommandLineOptions options, TextWriter errorOutput)
+    {
+        if (options.CachePath is not { } cachePath || AnalysisCache.CanWrite(cachePath, out string? error))
+        {
+            return true;
+        }
+
+        await errorOutput.WriteLineAsync(
+            $"キャッシュを書き出せません ({cachePath}): {error} 解析は続けますが、キャッシュは残りません。").ConfigureAwait(false);
+        return false;
     }
 
     /// <summary>
@@ -352,7 +387,7 @@ public static class Program
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            await errorOutput.WriteLineAsync($"ファイルを読み込めません ({files[0]}): {ex.Message}")
+            await errorOutput.WriteLineAsync($"ファイルを読み込めません ({files[0]}): {FileErrorDescriber.Describe(ex, files[0])}")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -375,6 +410,80 @@ public static class Program
             .ConfigureAwait(false);
 
         await output.WriteLineAsync($"解析の中身を書き出しました: {outputPath}").ConfigureAwait(false);
+        return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// Unreal のエンジンとプロジェクトの C++ から、生成される取り込みを作って書き出す (<c>--unreal-generate</c>)。
+    /// </summary>
+    /// <param name="settings">設定ファイルとコマンドラインを合わせた設定。</param>
+    /// <param name="outputDirectory">書き出す先。</param>
+    /// <param name="output">通常の出力先。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <returns>終了コード。</returns>
+    private static async Task<ExitCode> GenerateUnrealAsync(
+        EffectiveSettings settings,
+        string outputDirectory,
+        TextWriter output,
+        TextWriter errorOutput)
+    {
+        ShaderlynConfiguration configuration = settings.Configuration;
+
+        if (configuration.UnrealEngineDirectory is not { } engine || !Directory.Exists(engine))
+        {
+            await errorOutput.WriteLineAsync(
+                "--unreal-generate には、設定ファイルの unreal: engine にエンジンのフォルダー (…/UE_5.5/Engine) を書いてください。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins")];
+
+        if (configuration.UnrealProjectDirectory is { } project)
+        {
+            roots.Add(Path.Combine(project, "Source"));
+            roots.Add(Path.Combine(project, "Plugins"));
+        }
+
+        string fullOutput = Path.GetFullPath(outputDirectory);
+        Unreal.UnrealUniformBufferGeneration generation;
+
+        try
+        {
+            generation = Unreal.UnrealUniformBufferGenerator.Generate(roots, fullOutput);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            await errorOutput.WriteLineAsync($"書き出せませんでした: {FileErrorDescriber.Describe(exception, fullOutput)}").ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        StringBuilder report = new();
+        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
+
+        if (!generation.Incomplete.IsEmpty)
+        {
+            report.AppendLine("メンバーを読み切れなかった uniform buffer:");
+
+            foreach (string incomplete in generation.Incomplete)
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {incomplete}");
+            }
+        }
+
+        if (!generation.UnknownTypes.IsEmpty)
+        {
+            report.AppendLine(CultureInfo.InvariantCulture, $"知らない C++ の型 (float4 として書いた): {string.Join(", ", generation.UnknownTypes)}");
+        }
+
+        if (!string.Equals(configuration.UnrealGeneratedDirectory is { } configured ? Path.GetFullPath(configured) : null, fullOutput, StringComparison.OrdinalIgnoreCase))
+        {
+            report.AppendLine("解析に使うには、設定ファイルの unreal: に次を書いてください:");
+            report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
+        }
+
+        await output.WriteAsync(report.ToString()).ConfigureAwait(false);
         return ExitCode.Success;
     }
 
@@ -415,34 +524,37 @@ public static class Program
     /// <param name="result">解析結果。</param>
     /// <param name="output">出力先。色付けの可否判定に使う。</param>
     /// <param name="hiddenCount">重要度で絞って出力しなかった指摘の数。テキストの要約に添える。</param>
+    /// <param name="includeTrace">ヘッダの中の指摘に、取り込んだ経路をどこまで出すか。</param>
     /// <returns>整形済みのレポート。</returns>
     private static string FormatReport(
         CommandLineOptions options,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         AnalysisResult result,
         TextWriter output,
-        int hiddenCount)
+        int hiddenCount,
+        IncludeTraceMode includeTrace)
     {
         string basePath = options.BasePath ?? Directory.GetCurrentDirectory();
 
         return options.Format switch
         {
             OutputFormat.Json =>
-                new JsonDiagnosticReporter(basePath).Format(result.Diagnostics, result.AnalyzedFileCount),
+                new JsonDiagnosticReporter(basePath, includeTrace).Format(result.Diagnostics, result.AnalyzedFileCount),
 
             OutputFormat.Sarif =>
-                new SarifDiagnosticReporter(RuleCatalog.GetAllRules(analyzers), basePath, GetVersion())
+                new SarifDiagnosticReporter(RuleCatalog.GetAllRules(analyzers), basePath, GetVersion(), includeTrace)
                     .Format(result.Diagnostics),
 
             OutputFormat.GitHub =>
-                new GitHubDiagnosticReporter(basePath).Format(result.Diagnostics, result.AnalyzedFileCount),
+                new GitHubDiagnosticReporter(basePath, includeTrace).Format(result.Diagnostics, result.AnalyzedFileCount),
 
             // 出力をファイルへリダイレクトする場合は色を付けない。
             // ANSI エスケープがそのまま混入したファイルは、後段のツールで扱えなくなるため。
             _ => new TextDiagnosticReporter(
                     useColor: options.OutputPath is null
                         && ReferenceEquals(output, Console.Out)
-                        && !Console.IsOutputRedirected)
+                        && !Console.IsOutputRedirected,
+                    includeTrace)
                 .Format(result.Diagnostics, result.AnalyzedFileCount, hiddenCount),
         };
     }

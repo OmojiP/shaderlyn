@@ -1,5 +1,6 @@
-Shader "Rules/SL1055"
+Shader "Rules/HL0005"
 {
+    Properties { _Color ("Color", Color) = (1,1,1,1) }
     SubShader
     {
         Pass
@@ -7,9 +8,9 @@ Shader "Rules/SL1055"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma once
+            #include "definitely/missing.hlsl"
             float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
-            half4 frag() : SV_Target { return 1; }
+            half4 frag() : SV_Target { return 0; }
             ENDHLSL
         }
     }

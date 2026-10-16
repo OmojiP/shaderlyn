@@ -35,7 +35,7 @@ shaderlyn samples/environments/hlsl --env
 | --- | --- |
 | unity | `SL1003` (Color のプロパティを float で受けている)、`HL0330` (`_SHADOWS_SOFTT` の綴り)、`HL0312` (`_SHADOWS_SOFT` のとき float3 に `.w` は無い) |
 | hlsl | `Lit.hlsl`: `HL0301` (entry の `MainPS` が無い。関数は `MainPs`)、`HL0312` (`QUALITY == 2 のとき` float3 に `.a` は無い)。<br>`Hlsl2021.hlsl`: `HL0345` (`MaxOf(1.0, adapt.Scale())` の接尾辞の無い `1.0` と `float` で型引数 `T` が決まらない)、`HL0312` (演算子 `*` の結果の `Rgb` に `.alpha` は無い)。<br>`Blur.hlsl` と `Library/Raytracing.hlsl` には何も出ない (`Raytracing.hlsl` の宣言だけの関数 `SkyColor` は、ライブラリなので誤りにしない) |
-| unreal | `SL0002` (情報。エンジンが生成するファイル `/Engine/Generated/GeneratedUniformBuffers.ush` の中身が分からない)、`HL0312` (`PERMUTATION_HIGH_QUALITY == 1 のとき`)。`View.PreExposure` は報告されない |
+| unreal | `UE0001` (情報。エンジンが生成するファイル `/Engine/Generated/GeneratedUniformBuffers.ush` が無い。`--unreal-generate` で作れる)、`HL0312` (`PERMUTATION_HIGH_QUALITY == 1 のとき`)。`View.PreExposure` は報告されない |
 
 ## VS Code 拡張で確かめる
 

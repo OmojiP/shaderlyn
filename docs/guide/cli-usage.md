@@ -296,6 +296,29 @@ shaderlyn Assets --error-on info
 shaderlyn Assets --min-severity error
 ```
 
+### ヘッダの指摘がどこから来たか（`--include-trace`）
+
+共通のヘッダ (`.hlsl`) の中の指摘は、ヘッダの位置に出します。どのシェーダーのどの Pass から、
+どの `#include` をたどって取り込んだかを、指摘に添えます。同じ指摘が複数のシェーダーや Pass から出たときは 1 件にまとめ、経路を並べます。
+
+```
+Assets/Shaders/Lib/Inner.hlsl(1:36): error HL0310: 'undefinedTint' はどこにも宣言されていません。
+    取り込み元: Assets/Shaders/A.shader(11:22) Pass "Forward" → Assets/Shaders/Common.hlsl(1:10)
+    ほかに 3 本の経路があります (--include-trace all ですべて出します)。
+```
+
+| 値 | 出すもの |
+| --- | --- |
+| `first`（既定） | 最初の 1 本と、ほかの本数 |
+| `all` | すべての経路 |
+| `none` | 出さない |
+
+- 名前の無い Pass は `HLSLPROGRAM (18 行目)`、コンピュートシェーダーは `カーネル CSMain` のように出します
+- `json` は `includedFrom` に、`sarif` は `relatedLocations` に、`none` でなければすべての経路を書きます。
+  `github` (注釈) は位置を 1 つしか持てないので、本文に足します
+- VS Code (言語サーバー) では、指摘の「関連する場所」として、取り込んだシェーダーの `#include` の行へ飛べます
+- 設定ファイルの [`report: include-trace`](configuration.md#report) にも書けます。コマンドラインの指定が優先します
+
 ---
 
 ## 5. プロジェクトの解析設定
@@ -324,9 +347,13 @@ Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つ�
 
 ### Unity Editor の場所
 
-通常は指定不要です。
+通常は指定不要です。プロジェクトの `ProjectSettings/ProjectVersion.txt` のバージョンを、Unity Hub の既定のインストール先
+(Windows は `C:\Program Files\Unity\Hub\Editor`) から探します。
 
-自動で見つからない場合だけ指定します。
+Unity Hub でインストール先を変えた場合 (別のドライブなど) は見つからないので、`--unity-editor` で Editor のデータフォルダーを指定してください
+(設定ファイルなら `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱のヘッダを引けず、
+[HL0321](../rules/HL0321.md) か [TOOL0004](../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
+Unity 6.3.26f1 以降の Editor は、同梱のヘッダを `Editor/Data/Resources/CGIncludes` に置いています。指定するのはどちらでも `Editor/Data` です。
 
 ```bash
 # Windows
@@ -343,7 +370,7 @@ shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0
 
 多くの用途では `--unity-project` だけで解決できるので、このオプションは要りません。
 
-Unity の解決規則（`#include` を書いたファイルからの相対パス、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
+Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダの中ならシェーダーからの相対パス ([UN0102](../rules/UN0102.md) の警告付き)、`Assets/...` 形式、Editor 同梱のヘッダ）では引けない場所にヘッダを置いている場合に渡します。
 
 ```bash
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
@@ -382,7 +409,7 @@ shaderlyn Assets --unity-project . --profile brp
 
 `#ifdef` で分かれるコードは、どちらの分岐も解析します。
 1 本の構文木に並べられない書き方の分岐は、そのシンボルを有効にした構成を別に展開して解析します。
-この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `SL0003` として報告されます。
+この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `HL0006` として報告されます。
 
 上限は `--max-symbol-variants` で変更できます。
 
@@ -435,6 +462,12 @@ shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 ```
 
 - キャッシュファイルは絶対パスを参照するため、`.gitignore` へ入れてください
+- 書き出せないパス (権限が無い、フォルダーを指している、ドライブが無い、`NUL` などのデバイス名) なら、解析の前に理由を標準エラーへ出します。
+  解析はそのまま続け、終了コードも変わりません (キャッシュが残らないだけです)
+
+```
+キャッシュを書き出せません (C:/Windows/System32/cache.json): アクセスする権限がありません。 解析は続けますが、キャッシュは残りません。
+```
 
 
 > 解析の内訳を知りたい場合は `--timings` を付けると、構文解析・展開・ルールにかかった時間を標準エラーへ出します。
@@ -488,6 +521,8 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
   1. #include を書いているファイルからの相対
   2. /.../
   3. /.../
+  4. Packages/<名前>/... はパッケージの置き場所から: /.../
+  5. ヘッダの中の #include は、ここまでで見つからなければ、解析しているシェーダーからの相対
 
 ■ パッケージの解決先
   ...
@@ -549,6 +584,7 @@ shaderlyn <パス...> [オプション]
 | `--format <形式>`       | 出力形式: `text`（既定）/ `json` / `sarif` / `github`             |
 | `--error-on <重要度>`   | この重要度以上で終了コードを `1` にする: `info` / `warning`（既定）/ `error` |
 | `--min-severity <重要度>` | この重要度以上の指摘だけを出力する: `info`（既定）/ `warning` / `error`。終了コードは出力しなかった指摘も含めて `--error-on` で決める。設定ファイルの `report: min-severity` より優先 |
+| `--include-trace <範囲>` | ヘッダの中の指摘に、取り込んだ経路を添える: `first`（既定）/ `all` / `none`（[4 章](#ヘッダの指摘がどこから来たか--include-trace)） |
 | `-o`, `--output <パス>` | 出力先ファイル。省略時は標準出力                                  |
 | `--base-path <パス>`    | 出力するパスを相対化する基点。省略時は現在のフォルダー          |
 | `--annotate`            | 主たる出力とは別に、GitHub の注釈も標準出力へ書く                 |
@@ -570,6 +606,7 @@ shaderlyn <パス...> [オプション]
 | `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`。Unity の環境だけ |
 | `--define <名前[=値]>`            | 定義済みマクロ。複数回指定できます                                 |
 | `--max-symbol-variants <数>`     | シンボルを 1 つずつ有効にして解析する上限（既定 8）。0 で無効    |
+| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルドのときに生成される uniform buffer の宣言などをこのフォルダーに書き出す。`unreal: generated` に書くと解析に使う（[Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)） |
 
 ### 設定ファイルとベースライン
 

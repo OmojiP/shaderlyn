@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Rules;
 using Shaderlyn.Unity.Rules;
+using Shaderlyn.Unreal.Rules;
 
 namespace Shaderlyn.Cli;
 
@@ -37,6 +38,7 @@ public static class BuiltInAnalyzers
         new PropertyAttributeAnalyzer(),
         new ShaderNameAnalyzer(),
         new UnanalyzedBlockAnalyzer(),
+        new DuplicatedByteOrderMarkAnalyzer(),
 
         // ShaderLab と HLSL を突き合わせて初めて検査できるルール。
         // セマンティックモデルが渡されていない場合、これらは何も報告しない。
@@ -51,6 +53,7 @@ public static class BuiltInAnalyzers
         new DuplicateSemanticAnalyzer(),
         new ShaderSymbolAnalyzer(),
         new IncludePathAnalyzer(),
+        new FallbackIncludeAnalyzer(),
         new EntryPointAnalyzer(),
         new ShaderStageAnalyzer(),
         new CompilerPragmaAnalyzer(),
@@ -74,6 +77,9 @@ public static class BuiltInAnalyzers
         // レンダーパイプライン固有のルール。
         new SrpBatcherAnalyzer(),
         new ObsoleteApiAnalyzer(),
+
+        // Unreal Engine の環境だけのルール。
+        new GeneratedIncludeAnalyzer(),
 
         // 設定ファイルに書かれたプロジェクト固有のルール。
         // 定義が無ければ何も報告しない。

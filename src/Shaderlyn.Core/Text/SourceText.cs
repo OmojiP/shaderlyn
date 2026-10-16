@@ -136,7 +136,7 @@ public sealed class SourceText
     /// ASCII の多いテキストを UTF-16 で書くと、1 バイトおきに NUL が並ぶ。
     /// UTF-8 として読むと NUL を挟んだ文字列になり、どの構文も読めない。
     /// DXC は UTF-16 のファイルを読めるので、汎用の HLSL の環境ではそのまま解析できなければならない。
-    /// Unity は UTF-16 を読めない (BOM の有無によらない) ので、Unity の環境ではそれを規則で伝える (SL1056)。
+    /// Unity は UTF-16 を読めない (BOM の有無によらない) ので、Unity の環境ではそれを規則で伝える (UN0001)。
     /// </para>
     /// </remarks>
     public static SourceText FromBytes(byte[] bytes, string filePath)

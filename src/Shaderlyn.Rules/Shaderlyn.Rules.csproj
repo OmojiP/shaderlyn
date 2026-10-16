@@ -18,6 +18,7 @@
     <InternalsVisibleTo Include="Shaderlyn.Cli" />
     <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
     <InternalsVisibleTo Include="Shaderlyn.Unity" />
+    <InternalsVisibleTo Include="Shaderlyn.Unreal" />
   </ItemGroup>
 
 </Project>

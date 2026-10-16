@@ -482,7 +482,7 @@ public sealed class SemanticsTests
 
         // セマンティックモデルを必要とするものは出ない。検査を見送ったことも報告されない。
         Assert.DoesNotContain("SL1001", withoutSemantics);
-        Assert.DoesNotContain("SL0002", withoutSemantics);
+        Assert.DoesNotContain("HL0005", withoutSemantics);
 
         // 同じシェーダーを意味解析つきで見れば、対応検査の結果が加わる。
         Assert.Contains("SL1001", Analyze(source).Select(d => d.Id));
@@ -597,7 +597,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     /// ファイルの先頭に出すと、どのシンボルの話かを名前から探させることになる。
     /// </remarks>
     [Fact]
-    public void 条件がヘッダにしか無いシンボルのSL0003は宣言した行に出す()
+    public void 条件がヘッダにしか無いシンボルのHL0006は宣言した行に出す()
     {
         string source = """
             Shader "Test/HeaderOnly"
@@ -631,7 +631,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "SL0003"));
+        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "HL0006"));
         Assert.Contains("_FOG_ON", reported.GetMessage(), StringComparison.Ordinal);
 
         // #pragma multi_compile の行 (0 始まりで 8 行目)。
@@ -639,7 +639,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     }
 
     [Fact]
-    public void 展開しきれなかったシンボルをSL0003として報告する()
+    public void 展開しきれなかったシンボルをHL0006として報告する()
     {
         // 「調べていない」ことを伝えないままでいると、
         // 指摘が出ないことを「問題が無い」と受け取られる。
@@ -661,7 +661,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "SL0003"));
+        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "HL0006"));
         Assert.Contains("_NORMALMAP", reported.GetMessage(), StringComparison.Ordinal);
 
         // ファイルの先頭ではなく、調べなかった条件の行に出す。
@@ -725,7 +725,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     }
 
     [Fact]
-    public void 展開しきれなかった組は組としてSL0003を報告する()
+    public void 展開しきれなかった組は組としてHL0006を報告する()
     {
         // 1 つずつの構成は作ったので、_A も _B も「調べていない」わけではない。
         // 調べていないのは、両方を同時に有効にした構成だけである。
@@ -745,7 +745,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         Assert.Empty(compilation.UnexploredSymbols);
 
-        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "SL0003"));
+        Diagnostic reported = Assert.Single(diagnostics.Where(d => d.Id == "HL0006"));
         Assert.Equal(
             "シンボル '_A' と '_B' を同時に有効にした構成は未解析です。",
             reported.GetMessage());
@@ -759,10 +759,10 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     }
 
     [Fact]
-    public void すべて展開できたときはSL0003を報告しない()
+    public void すべて展開できたときはHL0006を報告しない()
     {
         // 上限に達していないなら、調べ残しは無い。報告することも無い。
-        Assert.False(Has(Analyze(SymbolGuardedShader), "SL0003"), "調べ残しが無いのに報告している");
+        Assert.False(Has(Analyze(SymbolGuardedShader), "HL0006"), "調べ残しが無いのに報告している");
     }
 
     [Fact]
@@ -851,7 +851,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
         ImmutableArray<Diagnostic> diagnostics = Analyze(source, provideUrpHeaders: false);
 
         // 「検査していない」ことは必ず伝える。何も伝えずに通すと素通りに気づけない。
-        Assert.True(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
 
         // 判断できない状態で「宣言が無い」と報告してはならない。
         Assert.False(Has(diagnostics, "SL1001"), Describe(diagnostics));
@@ -1115,7 +1115,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source, provideUrpHeaders: false);
 
-        Assert.True(Has(diagnostics, "SL0002"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
         Assert.True(Has(diagnostics, "SL1003"), Describe(diagnostics));
     }
 

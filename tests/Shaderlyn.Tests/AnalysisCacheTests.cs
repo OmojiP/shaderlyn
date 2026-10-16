@@ -107,6 +107,45 @@ public sealed class AnalysisCacheTests : IDisposable
     private Task<(string Output, string Error)> RunWithCacheAsync(params string[] extra)
         => RunAsync(["--cache", CachePath, .. extra]);
 
+    /// <summary>
+    /// 書き出せない先を指定したら、解析の前に、直せる理由を伝える。
+    /// 以前は解析の後に例外のメッセージ (配布物ではリソースの名前) を出し、置き換えに失敗した一時ファイルも残していた。
+    /// </summary>
+    [Fact]
+    public async Task 書き出せないキャッシュは理由を伝えて一時ファイルを残さない()
+    {
+        string folder = Path.Combine(_workDirectory, "cache-folder");
+        Directory.CreateDirectory(folder);
+
+        (string output, string error) = await RunAsync("--cache", folder);
+
+        Assert.Contains("キャッシュを書き出せません", error, StringComparison.Ordinal);
+        Assert.Contains("フォルダーです", error, StringComparison.Ordinal);
+        Assert.Single(error.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+        Assert.False(File.Exists(folder + ".tmp"));
+
+        // 解析は続ける。
+        Assert.Contains("ファイルを解析", output, StringComparison.Ordinal);
+
+        // 途中がファイルのパス。
+        (_, string nested) = await RunAsync("--cache", Path.Combine(_workDirectory, "A.shader", "cache.json"));
+        Assert.Contains("フォルダーではなくファイル", nested, StringComparison.Ordinal);
+    }
+
+    /// <summary>Windows のデバイス名 (NUL) は、書き込みが成功しても何も残らない。それを伝える。</summary>
+    [Fact]
+    public async Task デバイス名のキャッシュは書き出せないと伝える()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        (_, string error) = await RunAsync("--cache", "NUL");
+
+        Assert.Contains("デバイス名", error, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task キャッシュを使っても指摘は変わらない()
     {

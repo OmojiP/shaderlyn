@@ -28,9 +28,52 @@ public sealed record HlslEnvironmentOptions
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2021;
 
     /// <summary>このコードをコンパイルする方言。</summary>
-    public HlslDialect Dialect => Compiler == HlslCompiler.Fxc
+    public HlslDialect Dialect => DialectFor(LanguageVersion);
+
+    /// <summary>指定した言語のバージョンでコンパイルするときの方言。</summary>
+    /// <param name="languageVersion">言語のバージョン。FXC のときは使わない。</param>
+    /// <returns>方言。</returns>
+    public HlslDialect DialectFor(HlslLanguageVersion languageVersion) => Compiler == HlslCompiler.Fxc
         ? HlslDialect.Fxc
-        : HlslDialect.Dxc(LanguageVersion) with { Enable16BitTypes = Enable16BitTypes };
+        : HlslDialect.Dxc(languageVersion) with
+        {
+            Enable16BitTypes = Enable16BitTypes,
+            AcceptsHlsl2021Declarations = AcceptHlsl2021DeclarationsIn2018 && languageVersion < HlslLanguageVersion.Hlsl2021,
+        };
+
+    /// <summary>
+    /// HLSL 2018 で読む単位でも、HLSL 2021 の宣言 (template など) を誤りにしないか (<see cref="HlslDialect.AcceptsHlsl2021Declarations"/>)。
+    /// </summary>
+    /// <remarks>Unreal Engine がエンジンの設定に従ってバージョンを決めるときに立てる。C++ が個別に 2021 にするシェーダーがある。</remarks>
+    public bool AcceptHlsl2021DeclarationsIn2018 { get; init; }
+
+    /// <summary>
+    /// 単位ごとに言語のバージョンを決める手続き。<see langword="null"/> なら、どの単位も <see cref="LanguageVersion"/> で読む。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 引数は単位のファイルのパスと、取り込みを解決する手続き (無ければ <see langword="null"/>)。DXC のときだけ使う。
+    /// </para>
+    /// <para>
+    /// Unreal Engine 5.5 の PC (<c>PCD3D_SM6</c>) は、グローバルシェーダーを HLSL 2021、マテリアルのシェーダーを 2018 でコンパイルする
+    /// (<c>DataDrivenPlatformInfo.ini</c> の <c>EnablesHLSL2021ByDefault=1</c>)。どちらかは取り込むファイルで決まる。
+    /// </para>
+    /// </remarks>
+    public Func<string, IIncludeResolver?, HlslLanguageVersion>? SelectUnitLanguageVersion { get; init; }
+
+    /// <summary>
+    /// 単位ごとに足すマクロを決める手続き。引数は <see cref="SelectUnitLanguageVersion"/> と同じ。
+    /// </summary>
+    /// <remarks>
+    /// 設定で同じ名前を定義していれば、そちらを使う。
+    /// Unreal Engine は、マテリアルのシェーダーに <c>IS_MATERIAL_SHADER=1</c> を定義する。
+    /// </remarks>
+    public Func<string, IIncludeResolver?, ImmutableDictionary<string, string>>? SelectUnitMacros { get; init; }
+
+    /// <summary>
+    /// HLSL 2021 で読む単位にだけ定義するマクロ (Unreal Engine の <c>COMPILER_SUPPORTS_HLSL2021</c>)。DXC のときだけ使う。
+    /// </summary>
+    public ImmutableDictionary<string, string> Hlsl2021Macros { get; init; } = ImmutableDictionary<string, string>.Empty;
 
     /// <summary>
     /// 16 ビットの型を使うか (DXC の <c>-enable-16bit-types</c>)。立っていれば <c>__HLSL_ENABLE_16_BIT</c> を 1 で定義する。
@@ -52,7 +95,7 @@ public sealed record HlslEnvironmentOptions
     public ImmutableArray<string> GeneratedIncludePrefixes { get; init; } = [];
 
     /// <summary>
-    /// 生成される取り込みのうち、宣言する関数が分かっているもの。キーはパスで、`/` で終わるものはその下のすべてを指す。
+    /// 生成される取り込みのうち、宣言する関数が分かっているもの。キーはパスで、<c>/</c> で終わるものはその下のすべてを指す。
     /// 値は宣言しうる関数の名前 (関数を宣言しないなら空)。
     /// </summary>
     /// <remarks><see cref="IHlslEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
@@ -64,6 +107,12 @@ public sealed record HlslEnvironmentOptions
     /// </summary>
     /// <remarks>エンジンのシェーダーコンパイラが定義するもの (Unreal の <c>COMPILER_HLSL</c> など) を与える。</remarks>
     public ImmutableDictionary<string, string> PredefinedMacros { get; init; } = ImmutableDictionary<string, string>.Empty;
+
+    /// <summary>
+    /// エンジンがシェーダーごとに定義するマクロの名前 (値は分からない)。
+    /// </summary>
+    /// <remarks><see cref="IHlslEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
+    public ImmutableHashSet<string> EngineDefinedMacros { get; init; } = ImmutableHashSet<string>.Empty;
 }
 
 /// <summary>
@@ -103,7 +152,8 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         ImmutableDictionary<string, string> compilerMacros = Options.Compiler == HlslCompiler.Fxc
             ? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal)
             : HlslShaderTarget.CreateCommonDxcMacros(Options.LanguageVersion)
-                .SetItems(Options.Enable16BitTypes ? [new("__HLSL_ENABLE_16_BIT", "1")] : []);
+                .SetItems(Options.Enable16BitTypes ? [new("__HLSL_ENABLE_16_BIT", "1")] : [])
+                .SetItems(Options.LanguageVersion >= HlslLanguageVersion.Hlsl2021 ? Options.Hlsl2021Macros : []);
 
         return options with
         {
@@ -124,9 +174,46 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
 
+        if (Options.SelectUnitMacros?.Invoke(filePath, options.IncludeResolver) is { Count: > 0 } unitMacros)
+        {
+            ImmutableDictionary<string, string> macros = options.PredefinedMacros;
+
+            foreach ((string name, string value) in unitMacros)
+            {
+                if (!macros.ContainsKey(name))
+                {
+                    macros = macros.Add(name, value);
+                }
+            }
+
+            options = options with { PredefinedMacros = macros };
+        }
+
+        if (Options.Compiler != HlslCompiler.Dxc)
+        {
+            return options;
+        }
+
+        // 単位ごとに言語のバージョンが違えば、方言と、バージョンで決まるマクロを差し替える。
+        HlslLanguageVersion version = Options.SelectUnitLanguageVersion?.Invoke(filePath, options.IncludeResolver)
+                                      ?? Options.LanguageVersion;
+
+        if (version != Options.LanguageVersion)
+        {
+            ImmutableDictionary<string, string> macros = options.PredefinedMacros
+                .SetItem("__HLSL_VERSION", ((int)version).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            foreach ((string name, string value) in Options.Hlsl2021Macros)
+            {
+                macros = version >= HlslLanguageVersion.Hlsl2021 ? macros.SetItem(name, value) : macros.Remove(name);
+            }
+
+            options = options with { Dialects = [Options.DialectFor(version)], PredefinedMacros = macros };
+        }
+
         // ターゲットで決まるマクロは、設定で与えたマクロ (共通・単位ごと) に負ける。
-        return unit.Target is { } target && Options.Compiler == HlslCompiler.Dxc
-            ? options with { PredefinedMacros = target.CreateDxcMacros(Options.LanguageVersion).SetItems(options.PredefinedMacros) }
+        return unit.Target is { } target
+            ? options with { PredefinedMacros = target.CreateDxcMacros(version).SetItems(options.PredefinedMacros) }
             : options;
     }
 
@@ -156,6 +243,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         string normalized = path.Replace('\\', '/');
         return Options.GeneratedIncludePrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <inheritdoc/>
+    public bool IsDefinedByEngine(string name) => Options.EngineDefinedMacros.Contains(name);
 
     /// <inheritdoc/>
     public ImmutableArray<string>? GetFunctionsDeclaredIn(string path)

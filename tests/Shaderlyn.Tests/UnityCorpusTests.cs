@@ -96,8 +96,18 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
     /// <summary>Unity のインストール先を探す。</summary>
     /// <returns>見つかった Editor のデータフォルダー。無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 環境変数 <c>SHADERLYN_UNITY_EDITOR</c> にデータフォルダー (<c>…/Editor/Data</c>) を与えればそれを使う
+    /// (Unity Hub の既定とは別の場所に入れた Editor や、記録を取ったときと同じバージョンを使うため)。
+    /// 無ければ Unity Hub の既定の場所から、新しいバージョンを探す。
+    /// </remarks>
     internal static string? FindUnityEditorData()
     {
+        if (Environment.GetEnvironmentVariable("SHADERLYN_UNITY_EDITOR") is { Length: > 0 } explicitData)
+        {
+            return Directory.Exists(Cli.UnityInstallation.GetCgIncludesDirectory(explicitData)) ? explicitData : null;
+        }
+
         string root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Unity", "Hub", "Editor");
 
@@ -110,7 +120,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         foreach (string version in Directory.EnumerateDirectories(root).OrderDescending(StringComparer.Ordinal))
         {
             string data = Path.Combine(version, "Editor", "Data");
-            if (Directory.Exists(Path.Combine(data, "CGIncludes")))
+            if (Directory.Exists(Cli.UnityInstallation.GetCgIncludesDirectory(data)))
             {
                 return data;
             }
@@ -147,7 +157,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     {
         List<string> searchPaths =
         [
-            Path.Combine(editorData, "CGIncludes"),
+            Cli.UnityInstallation.GetCgIncludesDirectory(editorData),
             Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"),
         ];
 
@@ -1025,12 +1035,12 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// <list type="bullet">
     ///   <item><description><c>SL1001</c> / <c>SL1004</c>: プロパティがどれかの Pass で宣言・使用されているか</description></item>
     ///   <item><description><c>HL0330</c> / <c>HL0331</c>: キーワードがどれかの Pass で宣言・使用されているか</description></item>
-    ///   <item><description><c>SL0002</c> / <c>SL0003</c>: ファイルとして何を調べなかったか</description></item>
+    ///   <item><description><c>HL0005</c> / <c>HL0006</c>: ファイルとして何を調べなかったか</description></item>
     ///   <item><description><c>SL1041</c>: 同じ SubShader の Pass 名の重複。Pass が 2 つ以上なければ起きない</description></item>
     /// </list>
     /// </remarks>
     private static readonly ImmutableHashSet<string> ShaderWideRules =
-        ["SL1001", "SL1004", "HL0330", "HL0331", "SL0002", "SL0003", "SL1041"];
+        ["SL1001", "SL1004", "HL0330", "HL0331", "HL0005", "HL0006", "SL1041"];
 
     /// <summary>
     /// Pass やカーネルを 1 つずつに分けて解析しても、Pass ごとに判定するルールの指摘が変わらないことを確かめる。

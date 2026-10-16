@@ -44,7 +44,7 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 }
 
 /// <summary>
-/// 依存関係が解決できず対応検査を行えなかったことを報告する (SL0002)。
+/// 依存関係が解決できず対応検査を行えなかったことを報告する (HL0005)。
 /// </summary>
 /// <remarks>
 /// <b>「検査していない」ことを伝えないままにしてはならない。</b>
@@ -60,6 +60,16 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private const int MaxListedIncludes = 3;
 
+    /// <summary>Unreal の環境の名前 (<c>UnrealOptions.EnvironmentName</c>)。</summary>
+    private const string UnrealEnvironmentName = "unreal";
+
+    /// <summary>解決できなかった取り込みが、どれもビルドのときにエンジンが生成するファイルかを判定する。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns>どれもそうなら <see langword="true"/>。解決できなかった取り込みが無ければ <see langword="false"/>。</returns>
+    internal static bool IsOnlyGeneratedIncludeMissing(ShaderCompilation compilation)
+        => !compilation.UnresolvedIncludes.IsEmpty
+           && compilation.UnresolvedIncludes.All(compilation.Environment.IsGeneratedInclude);
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.IncompleteAnalysis];
@@ -68,6 +78,13 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         if (!compilation.HasHlslPrograms || compilation.HasCompleteDependencies)
+        {
+            return;
+        }
+
+        // Unreal でエンジンが生成するファイルだけが欠けているなら、Unreal のルール (UE0001 / UE0002) が直し方を添えて伝える。
+        // このアセンブリは Shaderlyn.Unreal を参照できないので、環境は名前で見分ける。
+        if (compilation.Environment.Name == UnrealEnvironmentName && IsOnlyGeneratedIncludeMissing(compilation))
         {
             return;
         }
@@ -113,8 +130,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     private static string DescribeReason(ShaderCompilation compilation)
     {
         // ビルドのときに生成されるファイルだけが無いなら、設定の誤りではない。そう伝えないと、利用者は探索パスを探し回る。
-        if (!compilation.UnresolvedIncludes.IsEmpty
-            && compilation.UnresolvedIncludes.All(compilation.Environment.IsGeneratedInclude))
+        if (IsOnlyGeneratedIncludeMissing(compilation))
         {
             return "ビルドのときにエンジンが生成するファイルの中身が分からないため、宣言の一覧が不完全です。"
                 + $"生成されるファイル: {string.Join(", ", compilation.UnresolvedIncludes.Take(MaxListedIncludes))}"

@@ -77,7 +77,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
             // 使えない構文の報告 (HL0003) は、Unity のコンパイルでエラーになることを伝える。
             DialectName = "Unity",
 
-            // Unity は #pragma once を効かせない (SL1055)。実際と同じく 2 度取り込む。
+            // Unity は #pragma once を効かせない (UN0101)。実際と同じく 2 度取り込む。
             HonorPragmaOnce = false,
             Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
@@ -92,6 +92,17 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
+
+        // ヘッダの中の取り込みは、そのヘッダから引けなければ、解析しているシェーダーから引き直す (Unity 6.6 で確かめた)。
+        options = options with { FallbackIncludingFilePath = filePath };
+
+        // 共通コード片 (HLSLINCLUDE) は、ファイルの中の同じ種類のものをすべてファイルの順につなぎ、コードブロックより先に読む。
+        // その中の #pragma (target / multi_compile / use_dxc など) も、このコードブロックのものとして読む。
+        if (unit.Data is UnityProgramBlock { IncludeText: { } includeText })
+        {
+            options = options with { LeadingText = includeText };
+            tokens = WithIncludeTokens(unit, tokens);
+        }
 
         // カーネルの指定のほうが具体的なので、同じ名前ならそちらが勝つ。
         if (ReadShaderTarget(tokens) is { } shaderTarget
@@ -120,7 +131,22 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
     /// <inheritdoc/>
     public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
-        => ShaderSymbols.ReadVariantSpaceFromTokens(tokens);
+        => ShaderSymbols.ReadVariantSpaceFromTokens(WithIncludeTokens(unit, tokens));
+
+    /// <summary>コードブロックより先に読む共通コード片のトークンを、コードブロックのトークンの前に並べる。</summary>
+    /// <param name="unit">対象の単位。</param>
+    /// <param name="tokens">コードブロックのトークン。</param>
+    /// <returns>並べたトークン。共通コード片が無ければ <paramref name="tokens"/> のまま。</returns>
+    private static ImmutableArray<HlslSyntaxToken> WithIncludeTokens(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    {
+        if (unit.Data is not UnityProgramBlock { IncludeText: { } includeText })
+        {
+            return tokens;
+        }
+
+        ImmutableArray<HlslSyntaxToken> included = new HlslLexer(includeText).Lex(out _);
+        return [.. included.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken), .. tokens];
+    }
 
     /// <inheritdoc/>
     public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => ShaderSymbols.ReadVariantSpace(result.Pragmas);

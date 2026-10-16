@@ -732,7 +732,7 @@ if (resolution.IsResolved)
 | `GetCondition(node)`           | そのノードが存在する条件 (`SymbolCondition`)。入れ子の条件は掛け合わさる |
 | `IsPossible(condition)`        | その条件が成り立つ構成があるか。同じ `#pragma` 行のシンボルは同時に有効にならないこと、`_` の無い `multi_compile` の行はどれか 1 つが必ず有効なことも考える |
 | `EnumerateConditional()`       | 条件が付いているノードの一覧                                             |
-| `UnmergedLocations`            | 条件を追えなかった箇所。`SL0004` として報告される                        |
+| `UnmergedLocations`            | 条件を追えなかった箇所。`HL0007` として報告される                        |
 | `IsComplete`                   | 条件を追えなかった箇所が 1 つも無いか                                    |
 
 **構成によって起きる誤りは、起きる構成を添えて報告してください。** 組み込みルールはこの形で書いています。

@@ -43,7 +43,7 @@ public sealed partial class ConfigurationOracleTests
     /// <remarks>
     /// <list type="bullet">
     ///   <item><description>
-    ///     SL0002 / SL0003 / SL0004 / TOOL0004 は「どこまで調べたか」の報告で、構成を固定すると出方が変わるのが正しい
+    ///     HL0005 / HL0006 / HL0007 / TOOL0004 は「どこまで調べたか」の報告で、構成を固定すると出方が変わるのが正しい
     ///   </description></item>
     ///   <item><description>
     ///     SL1001 / SL1002 / SL1004 / HL0330 / HL0331 は、構成をまたいで「どこにも無い」ことを判断する。
@@ -59,7 +59,7 @@ public sealed partial class ConfigurationOracleTests
     /// </list>
     /// </remarks>
     private static readonly HashSet<string> FamilyRules =
-        ["SL0002", "SL0003", "SL0004", "TOOL0004", "SL1001", "SL1002", "SL1004", "HL0330", "HL0331", "HL0353"];
+        ["HL0005", "HL0006", "HL0007", "TOOL0004", "SL1001", "SL1002", "SL1004", "HL0330", "HL0331", "HL0353"];
 
     /// <summary>構成を固定すると別の ID で出る、同じ誤り。</summary>
     /// <remarks>

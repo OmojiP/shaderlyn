@@ -110,7 +110,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("HL0312", output, StringComparison.Ordinal);
         Assert.Contains("PERMUTATION_HIGH_QUALITY == 1", output, StringComparison.Ordinal);
 
-        // 生成される取り込みは誤りとして報告しない。中身を知らないことは SL0002 で伝える。
+        // 生成される取り込みは誤りとして報告しない。中身を知らないことは HL0005 で伝える。
         Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
         Assert.Contains("エンジンが生成するファイル", output, StringComparison.Ordinal);
@@ -154,6 +154,111 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         // GeneratedInstancedStereo.ush が宣言する関数は、見えない多重定義があるかもしれないので照らさない。
         Assert.DoesNotContain("'GetPrimaryView'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>hlsl: version</c> を書かなければ、エンジンの設定 (<c>EnablesHLSL2021ByDefault=1</c>) に合わせて、
+    /// グローバルシェーダーは HLSL 2021、マテリアルのシェーダー (ヘッダを経由して Material.ush を取り込むもの) は 2018 で読む。
+    /// </summary>
+    /// <remarks>
+    /// どちらで読んだかは <c>COMPILER_SUPPORTS_HLSL2021</c> の分岐で見分ける (分岐の中にわざと構文エラーを置く)。
+    /// マテリアルのシェーダーでも template は誤りにしない。シェーダーの C++ が個別に 2021 にすることがある (Nanite など)。
+    /// </remarks>
+    [Fact]
+    public async Task エンジンの設定に合わせてシェーダーごとに言語のバージョンを決める()
+    {
+        WriteEngineDefault(1);
+        Write("Engine/Shaders/Private/MaterialCommon.ush", """
+            #pragma once
+            #include "/Engine/Generated/Material.ush"
+            """);
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            #if COMPILER_SUPPORTS_HLSL2021
+            float Marker2021 = ;
+            #else
+            float Marker2018 = ;
+            #endif
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+        Write("Shaders/Private/MaterialPass.usf", """
+            #include "/Engine/Private/MaterialCommon.ush"
+            template<typename T> T Twice(T v) { return v + v; }
+            #if COMPILER_SUPPORTS_HLSL2021
+            float Marker2021 = ;
+            #else
+            float Marker2018 = ;
+            #endif
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("GlobalPass.usf(3:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GlobalPass.usf(5:", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(6:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialPass.usf(4:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary><c>hlsl: version</c> を書けば、エンジンの設定によらず、すべてのシェーダーをそのバージョンで厳しく読む。</summary>
+    [Fact]
+    public async Task 言語のバージョンを書けばエンジンの設定より優先する()
+    {
+        WriteEngineDefault(1, hlslVersion: 2018);
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>エンジンの設定が無ければ、今までどおり HLSL 2018 で読む。</summary>
+    [Fact]
+    public async Task エンジンの設定が無ければHLSL2018で読む()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", "#pragma once\n");
+        Write("Shaders/Private/GlobalPass.usf", """
+            template<typename T> T Twice(T v) { return v + v; }
+            float4 MainPS() : SV_Target0 { return Twice(1.0); }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("HL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>エンジンのプラットフォームの設定と、設定ファイルを書く。</summary>
+    /// <param name="enablesHlsl2021ByDefault"><c>PCD3D_SM6</c> の <c>EnablesHLSL2021ByDefault</c>。</param>
+    /// <param name="hlslVersion">設定ファイルの <c>hlsl: version</c>。書かなければ <see langword="null"/>。</param>
+    private void WriteEngineDefault(int enablesHlsl2021ByDefault, int? hlslVersion = null)
+    {
+        Write(".shaderlyn.yaml", $"""
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            {(hlslVersion is { } version ? $"hlsl:\n  version: {version}\n" : string.Empty)}
+            """);
+        Write("Engine/Config/Windows/DataDrivenPlatformInfo.ini", $"""
+            [ShaderPlatform PCD3D_SM5]
+            Language=HLSL
+
+            [ShaderPlatform PCD3D_SM6]
+            Language=HLSL
+            EnablesHLSL2021ByDefault={enablesHlsl2021ByDefault}
+            """);
     }
 
     /// <summary>関数を含みうる生成される取り込み (Material.ush) が欠けていれば、呼び出しは照らさない。</summary>
@@ -216,7 +321,241 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("/Engine → ", output, StringComparison.Ordinal);
         Assert.Contains("/Plugin/MyPlugin → ", output, StringComparison.Ordinal);
         Assert.Contains("(ありません)", output, StringComparison.Ordinal);
-        Assert.Contains("言語のバージョン: 2018 (既定)", output, StringComparison.Ordinal);
+        Assert.Contains("言語のバージョン: エンジンの設定を読めないので 2018 (既定)", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>--unreal-generate</c> で C++ から uniform buffer の宣言とエンジンが定義するマクロの名前を書き出し、
+    /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (HL0310) を行う。
+    /// </summary>
+    [Fact]
+    public async Task CPlusPlusから作った宣言で宣言の検査を行う()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+              generated: Generated
+            """);
+        Write("Engine/Source/Runtime/Renderer/Private/MyView.h", """
+            #pragma once
+            BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMyViewParameters, RENDERER_API)
+                SHADER_PARAMETER(FVector4f, ScreenSize)
+                SHADER_PARAMETER_TEXTURE(Texture2D, MyTexture)
+                SHADER_PARAMETER_SAMPLER(SamplerState, MySampler)
+            END_GLOBAL_SHADER_PARAMETER_STRUCT()
+            """);
+        Write("Engine/Source/Runtime/Renderer/Private/MyView.cpp", """
+            #include "MyView.h"
+            IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FMyViewParameters, "MyView");
+
+            BEGIN_SHADER_PARAMETER_STRUCT(FGPUSceneResourceParameters, )
+                SHADER_PARAMETER(uint32, FrameNumber)
+            END_SHADER_PARAMETER_STRUCT()
+            IMPLEMENT_SCENE_UB_STRUCT(FGPUSceneResourceParameters, GPUScene, ConstructDefault);
+
+            class FMyCS : public FGlobalShader
+            {
+                class FFastDim : SHADER_PERMUTATION_BOOL("DIM_FAST");
+                static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                {
+                    OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), 64);
+                    SET_SHADER_DEFINE(OutEnvironment, MY_SCALE, 2.0f);
+                }
+            };
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/GeneratedUniformBuffers.ush"
+            """);
+        Write("Shaders/Private/MyPass.usf", """
+            #include "/Engine/Private/Common.ush"
+
+            [numthreads(THREADGROUP_SIZE, 1, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            {
+                float2 uv = Id.xy * MyView.ScreenSize.zw * MY_SCALE;
+                float4 c = MyView.MyTexture.SampleLevel(MyView.MySampler, uv, 0);
+                uint frame = Scene.GPUScene.FrameNumber + DIM_FAST;
+                float x = c.x + frame + Undeclared;
+            }
+            """);
+
+        string config = Path.Combine(_workDirectory, ".shaderlyn.yaml");
+        (ExitCode generateCode, string generateOutput, string generateError) =
+            await RunAsync("--config", config, "--unreal-generate", Path.Combine(_workDirectory, "Generated"));
+
+        Assert.True(generateError.Length == 0, generateError);
+        Assert.Equal(ExitCode.Success, generateCode);
+        Assert.Contains("uniform buffer 2 個", generateOutput, StringComparison.Ordinal);
+        Assert.Contains("マクロ 3 個", generateOutput, StringComparison.Ordinal);
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
+        Assert.Contains("'Undeclared'", output, StringComparison.Ordinal);
+        Assert.Single(output.Split('\n'), line => line.Contains("HL0310", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 欠けているのが生成されるファイルだけなら、HL0005 ではなく Unreal のルールで伝える。
+    /// C++ から作れるものが欠けていれば UE0001、マテリアルごとに作られるものだけなら UE0002。
+    /// </summary>
+    [Fact]
+    public async Task 生成されるファイルが欠けていればUnrealのルールで伝える()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/GeneratedUniformBuffers.ush"
+            """);
+        Write("Shaders/Private/GlobalPass.usf", """
+            #include "/Engine/Private/Common.ush"
+            #include "/Engine/Generated/Material.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+        Write("Shaders/Private/MaterialPass.usf", """
+            #include "/Engine/Generated/Material.ush"
+            #include "/Engine/Generated/VertexFactory.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+        Write("Shaders/Private/BrokenPass.usf", """
+            #include "/Engine/Private/Missing.ush"
+            #include "/Engine/Generated/Material.ush"
+            float4 MainPS() : SV_Target0 { return 1; }
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("GlobalPass.usf(1:1): info UE0001", output, StringComparison.Ordinal);
+        Assert.Contains("--unreal-generate", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(1:1): info UE0002", output, StringComparison.Ordinal);
+
+        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので HL0005 で伝える。
+        Assert.Contains("BrokenPass.usf(1:1): info HL0005", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("BrokenPass.usf(1:1): info UE", output, StringComparison.Ordinal);
+        Assert.Single(output.Split('\n'), line => line.Contains(": info HL0005", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CPlusPlusの構造体からuniform_bufferの宣言を作る()
+    {
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGeneration generation = UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Params.h", """
+                #define MAX_ITEMS 4
+                BEGIN_SHADER_PARAMETER_STRUCT(FInner, )
+                    SHADER_PARAMETER(FIntPoint, Size)
+                END_SHADER_PARAMETER_STRUCT()
+                BEGIN_SHADER_PARAMETER_STRUCT(FShared, )
+                    SHADER_PARAMETER(float, Shared)
+                END_SHADER_PARAMETER_STRUCT()
+                BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FOuter, )
+                    SHADER_PARAMETER_ARRAY(FMatrix44f, Matrices, [MAX_ITEMS * 2])
+                    SHADER_PARAMETER_SCALAR_ARRAY(uint32, Flags, [6])
+                    SHADER_PARAMETER_STRUCT(FInner, Inner)
+                    SHADER_PARAMETER_STRUCT_INCLUDE(FShared, SharedParameters)
+                    SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, Items)
+                    RDG_BUFFER_ACCESS(Indirect, ERHIAccess::IndirectArgs)
+                END_GLOBAL_SHADER_PARAMETER_STRUCT()
+                """),
+            ("Params.cpp", """
+                // IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FOuter, "Commented");
+                IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FOuter, "Outer");
+                IMPLEMENT_SCENE_UB_STRUCT(FInner, Zeta, ConstructDefault);
+                IMPLEMENT_SCENE_UB_STRUCT(FShared, Alpha, ConstructDefault);
+                """),
+        ],
+        output);
+
+        Assert.Equal(2, generation.UniformBufferCount);
+        Assert.Empty(generation.Incomplete);
+        Assert.Empty(generation.UnknownTypes);
+
+        string outer = File.ReadAllText(Path.Combine(output, "UniformBuffers", "Outer.ush"));
+        Assert.Contains("float4x4 Outer_Matrices[8];", outer, StringComparison.Ordinal);
+        Assert.Contains("uint4 Outer_Flags[2];", outer, StringComparison.Ordinal);
+        Assert.Contains("int2 Outer_Inner_Size;", outer, StringComparison.Ordinal);
+        Assert.Contains("float Outer_Shared;", outer, StringComparison.Ordinal);
+        Assert.Contains("StructuredBuffer<float4> Outer_Items;", outer, StringComparison.Ordinal);
+        Assert.Contains("FShaderlynUniformBuffer_Outer_Inner Inner;", outer, StringComparison.Ordinal);
+        Assert.Contains("static const FShaderlynUniformBuffer_Outer Outer;", outer, StringComparison.Ordinal);
+        Assert.DoesNotContain("Indirect", outer, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(output, "UniformBuffers", "Commented.ush")));
+
+        // Scene はメンバーの名前の順に並べる。
+        string scene = File.ReadAllText(Path.Combine(output, "UniformBuffers", "Scene.ush"));
+        Assert.True(
+            scene.IndexOf("Scene_Alpha_Shared", StringComparison.Ordinal) < scene.IndexOf("Scene_Zeta_Size", StringComparison.Ordinal),
+            scene);
+
+        Assert.Contains("#include \"/Engine/Generated/UniformBuffers/Outer.ush\"", File.ReadAllText(Path.Combine(output, "GeneratedUniformBuffers.ush")), StringComparison.Ordinal);
+    }
+
+    /// <summary>マテリアルのシェーダーには、エンジンと同じく <c>IS_MATERIAL_SHADER=1</c> を定義する。</summary>
+    [Fact]
+    public async Task マテリアルのシェーダーにはマテリアルの印を定義する()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+            """);
+        Write("Engine/Shaders/Private/MaterialCommon.ush", """
+            #pragma once
+            #include "/Engine/Generated/Material.ush"
+            """);
+        Write("Shaders/Private/MaterialPass.usf", """
+            #include "/Engine/Private/MaterialCommon.ush"
+            #if IS_MATERIAL_SHADER
+            float MarkerMaterial = ;
+            #else
+            float MarkerGlobal = ;
+            #endif
+            """);
+        Write("Shaders/Private/GlobalPass.usf", """
+            #if IS_MATERIAL_SHADER
+            float MarkerMaterial = ;
+            #else
+            float MarkerGlobal = ;
+            #endif
+            """);
+
+        (_, string output, _) = await RunAsync(_workDirectory);
+
+        Assert.Contains("MaterialPass.usf(3:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialPass.usf(5:", output, StringComparison.Ordinal);
+        Assert.Contains("GlobalPass.usf(4:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GlobalPass.usf(2:", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void エディタが書き出したGBufferの取り込みと生成した取り込みを割り当てる()
+    {
+        string autogen = Path.Combine(_workDirectory, "Intermediate", "ShaderAutogen", "PCD3D_SM6");
+        Directory.CreateDirectory(autogen);
+
+        UnrealOptions options = new()
+        {
+            ProjectDirectory = _workDirectory,
+            GeneratedDirectory = Path.Combine(_workDirectory, "Generated"),
+        };
+
+        IReadOnlyDictionary<string, string> mappings = options.GetVirtualPathMappings();
+        Assert.Equal(autogen, mappings["/Engine/Generated/ShaderAutogen"]);
+        Assert.Equal(Path.Combine(_workDirectory, "Generated"), mappings["/Engine/Generated"]);
     }
 
     private void Write(string relativePath, string content)

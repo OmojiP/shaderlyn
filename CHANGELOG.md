@@ -3,12 +3,89 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に従い、
 バージョンの付け方は [セマンティックバージョニング](https://semver.org/lang/ja/) に従う。
 CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージョンで出す。
-0.x の間は、マイナーバージョンを上げるときに公開 API や CLI のオプションを変えることがある。
+0.x の間は、公開 API・CLI のオプション・ルール ID を変えることがある (パッチバージョンでも変えることがある)。
 そうした変更は「変更」「削除」の項目の先頭に **破壊的変更:** と書いて示す。
 
 利用者から見て何が変わるかを書く。実装の変更は、それが挙動か API を変える場合にだけ載せる。
 
 ## [未リリース]
+
+## [0.2.1] - 2026-10-16
+
+Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ から作った宣言で検査できるようにした (`--unreal-generate`)。
+Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include`・ファイルの先頭の見えない文字・cbuffer の中のエントリポイントの扱いを、Unity 6.6 で確かめた振る舞いに合わせた。
+ヘッダの中の指摘には、どのシェーダーのどの Pass から取り込んだかを添える。
+
+**パッチバージョンだが、破壊的変更を含む** (ルール ID の付け替え。下の「変更」)。前の ID は使えないので、抑制コメント・設定ファイル・ベースラインを書き換える。
+手順は [0.2.0 から 0.2.1 へ移行する](docs/guide/migration-0.2.1.md) にある。
+
+### 追加
+
+- 共通のヘッダの中の指摘に、どのシェーダーのどの Pass から、どの `#include` をたどって取り込んだかを添える
+  (`取り込み元: A.shader(11:22) Pass "Forward" → Common.hlsl(1:10)`)。同じ指摘が複数のシェーダーから出たときは 1 件にまとめて経路を並べる。
+  `--include-trace first|all|none` (設定ファイルは `report: include-trace`) で出す範囲を選ぶ。既定は最初の 1 本と、ほかの本数。
+  `json` は `includedFrom`、`sarif` は `relatedLocations` に書き、VS Code では関連する場所としてシェーダーの `#include` の行へ飛べる。
+  キャッシュの形式が変わるので、0.2.0 のキャッシュは使わずに解析し直す
+- Unreal Engine: `--unreal-generate <フォルダー>` で、エンジンとプロジェクトの C++ から、ビルドのときに生成される取り込み
+  (uniform buffer の宣言 `/Engine/Generated/UniformBuffers/…`・`GeneratedUniformBuffers.ush`・`GeneratedInstancedStereo.ush`) を書き出す。
+  設定ファイルの `unreal: generated` にそのフォルダーを書くと、`/Engine/Generated` に割り当てて解析する。
+  C++ がシェーダーに定義するマクロ (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元) の名前も書き出し、HL0310 にしない。
+  UE 5.5 のエンジンのシェーダーでは、宣言の検査を行えるシェーダーが 522 個中 8 個から 460 個に増える
+  ([C++ から生成されるファイルを作る](docs/guide/environments.md#c-から生成されるファイルを作る))
+- Unreal Engine: エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す
+  `/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush` を読む
+- `sizeof` を組み込みの名前として扱う (HL0310 にしない)
+- Unreal Engine の環境だけのルール [UE0001](docs/rules/UE0001.md) (エンジンが生成するファイルが無いので宣言の検査を見送った。`--unreal-generate` を案内する) と
+  [UE0002](docs/rules/UE0002.md) (マテリアルごとに生成される `Material.ush` / `VertexFactory.ush` の中身が分からないので見送った)。
+  UE0002 は利用者には直せないので、要らなければ `rules:` で `UE0002: none` にできる
+- [HL0303](docs/rules/HL0303.md) (警告) / [HL0304](docs/rules/HL0304.md) (エラー): cbuffer の中の関数をエントリポイントにしている。
+  cbuffer の中に `#include` を書き、取り込んだファイルに関数があるとこうなる。FXC はコンパイルでき、DXC はエントリポイントを見つけられない
+  (Unity の DXC は「Lost connection with shader compiler process」で落ちる)。FXC でだけコンパイルされるなら HL0303、DXC でコンパイルされるなら HL0304
+- [UN0002](docs/rules/UN0002.md) (警告): `.shader` の先頭に BOM が重なっている。Unity は読めるので、構文エラー (SL0001) ではなくこの警告で伝える
+
+### 変更
+
+- **破壊的変更:** ルールの ID を、接頭辞の意味 (`HL` は C 系に共通、`SL` は ShaderLab、`UN` は Unity に固有) に合わせて付け替える
+  ([ルール一覧](docs/rules/README.md))。書き換えの手順は [0.2.0 から 0.2.1 へ移行する](docs/guide/migration-0.2.1.md) にある。
+  - どの環境でも出る解析状況の知らせ: SL0002 / SL0003 / SL0004 → HL0005 / HL0006 / HL0007
+  - Unity に固有の振る舞い (接頭辞 UN、上 2 桁で分類): ファイルの読み込み UN00xx (SL1056 → UN0001)、
+    プリプロセッサと取り込み UN01xx (SL1055 → UN0101)、コンパイラの選び方 UN02xx (SL1050 → UN0201、SL1051 → UN0202、
+    SL1053 → UN0203、SL1054 → UN0204、SL1052 → UN0205)、ステージ UN03xx (HL0302 → UN0301)。0.2.1 で足した UN0002 / UN0102 も同じ分類に置く
+  - 前の ID は使えない。抑制コメント・設定ファイルの `rules:`・ベースライン (`--write-baseline` で作り直せる)、
+    ID で絞り込んでいる CI の設定やスクリプトは、今の ID に書き換える
+- Unreal Engine: 言語のバージョンを、エンジンの設定 (`DataDrivenPlatformInfo.ini` の `EnablesHLSL2021ByDefault`) に合わせてシェーダーごとに決める。
+  UE 5.5 の PC は、グローバルシェーダーを HLSL 2021、マテリアルのシェーダー (`Material.ush` を取り込むもの) を 2018 で読む。
+  2018 で読むシェーダーでも template などの 2021 の宣言は誤りにしない (C++ が個別に 2021 にすることがある)。
+  `hlsl: version` を書けば、今までどおりすべてそのバージョンで読む。エンジンのシェーダーの HL0003 (template) 110 件が無くなる
+- Unreal Engine: マテリアルのシェーダーに、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義する
+- Unreal Engine: 欠けているのがエンジンが生成するファイルだけのとき、SL0002 (0.2.1 からは HL0005) ではなく UE0001 / UE0002 で伝える。
+  抑制コメントやベースラインに SL0002 を書いていた場合は、UE0001 / UE0002 に書き換える
+
+### 修正
+
+- Unity: 共通コード片 (`HLSLINCLUDE` / `CGINCLUDE`) の扱いを Unity 6.6 に合わせる。Unity はファイルの中の同じ種類の共通コード片をすべて
+  ファイルの順につなぎ、どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader や Pass の中のものも)。
+  以前は、囲むブロックのものだけを書いた位置のまま並べていた。Pass より後の共通コード片のマクロが効かず「宣言されていない」(HL0310) と誤って報告し、
+  別の SubShader の共通コード片の関数も見なかった。逆に `CGINCLUDE` を `HLSLPROGRAM` に入れていた (Unity は入れない) ので、その誤りを見逃していた
+- Unity: ほかのヘッダを引けていて、Unity 同梱のヘッダ (`UnityCG.cginc` など) だけを引けないとき、HL0321 に直し方が無かった。
+  Editor が見つからなければ `--unity-editor` の指定を案内する
+- Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) の Editor は、同梱のヘッダ (`UnityCG.cginc` など) を `Data/Resources/CGIncludes` に置いている。
+  `Data/CGIncludes` しか見ていなかったので、CGPROGRAM のシェーダーが TOOL0004 になり、Editor の推定もできなかった
+- `.shader` の先頭のノーブレークスペース (U+00A0) を空白として読んでいた。Unity は構文エラーにするので、SL0001 で報告する
+- cbuffer の中の関数をエントリポイントにしていると、関数が見つからない (HL0301) と報告していた
+- `--cache` に書けないパスを指定すると、解析が終わってから、読めない理由 (`UnauthorizedAccess_IODenied_Path` など) を出していた。
+  解析の前に、権限が無い・フォルダーを指している・ドライブが無いなどの理由を伝える。置き換えに失敗した一時ファイル (`.tmp`) を消し、
+  `NUL` などのデバイス名も書けないと伝える。ファイル・設定ファイル・ベースラインを読めないときの理由も同じように伝える
+- 同じヘッダを複数の Pass が取り込み、キーワードを宣言する Pass と宣言しない Pass が混ざっていると、
+  宣言しない Pass でも、ヘッダの `#if` の分岐にそのキーワードの条件を付けていた。
+  「構成：A のとき 'a' は宣言されていません」(HL0310) や「値を返さない経路が存在します」(HL0360) を誤って報告していた
+- Unity: ヘッダの中の `#include "..."` を、そのヘッダから引けなければ、解析しているシェーダーからの相対で引き直す (Unity 6.6 と同じ)。
+  シェーダーからの相対で書いた取り込みを、解決できない (HL0321) と誤って報告していた。
+  引き直して見つけたときは、解析は続けたうえで、別のフォルダーのシェーダーからは見つからなくなることを [UN0102](docs/rules/UN0102.md) (警告) で伝える。
+  直し方 (ヘッダからの相対パス) を添え、VS Code ではそのまま置き換えられる
+- 取り込みの展開結果を使い回すとき、入れ子で使い回した取り込みの「解決できなかった取り込み」などが、外側の取り込みの記録から抜けていた。
+  ファイルを並べて解析すると、解決できない取り込みが消えて宣言が揃っていると判断し、宣言の検査を誤って行うことがあった。
+  結果が解析の順番 (並列の実行) で変わり、Unreal Engine のエンジンのシェーダーで HL0310 が 43 件出ていた
 
 ## [0.2.0] - 2026-10-14
 
@@ -266,7 +343,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/OmojiP/shaderlyn/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/OmojiP/shaderlyn/releases/tag/v0.1.0

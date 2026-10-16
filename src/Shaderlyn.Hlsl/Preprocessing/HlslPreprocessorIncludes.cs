@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -47,7 +48,7 @@ internal sealed partial class HlslPreprocessor
 
         string includingFilePath = directiveToken.Source.FilePath;
 
-        if (!_options.IncludeResolver.TryResolve(path, includingFilePath, out SourceText? included))
+        if (!TryResolveInclude(_options.IncludeResolver, path, includingFilePath, out SourceText? included, out bool fromFallback))
         {
             AddUnresolvedInclude(path);
             _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
@@ -63,7 +64,7 @@ internal sealed partial class HlslPreprocessor
             return;
         }
 
-        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16 });
+        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16, IsResolvedFromFallback = fromFallback });
 
         // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
         // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
@@ -118,6 +119,45 @@ internal sealed partial class HlslPreprocessor
 
         PushFileSource(included, included.FilePath);
         BeginRecording(included);
+    }
+
+    /// <summary>
+    /// 取り込みを引く。書いたファイルから引けなければ、<see cref="PreprocessorOptions.FallbackIncludingFilePath"/> から引き直す。
+    /// </summary>
+    /// <param name="resolver">取り込みを解決する仕組み。</param>
+    /// <param name="path">書かれたパス。</param>
+    /// <param name="includingFilePath">取り込みを書いたファイル。</param>
+    /// <param name="included">引いたファイル。</param>
+    /// <param name="fromFallback">書いたファイルから引けず、<see cref="PreprocessorOptions.FallbackIncludingFilePath"/> から引けたか。</param>
+    /// <returns>引けたら <see langword="true"/>。</returns>
+    private bool TryResolveInclude(
+        IIncludeResolver resolver,
+        string path,
+        string includingFilePath,
+        [NotNullWhen(true)] out SourceText? included,
+        out bool fromFallback)
+    {
+        fromFallback = false;
+
+        if (resolver.TryResolve(path, includingFilePath, out included))
+        {
+            return true;
+        }
+
+        if (_options.FallbackIncludingFilePath is not { } fallback
+            || string.Equals(Path.GetDirectoryName(fallback), Path.GetDirectoryName(includingFilePath), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // 引き直した結果 (引けたかどうかも) は解析しているファイルの場所で変わる。囲んでいる取り込みの展開結果は覚えない。
+        foreach (IncludeRecording outer in _recordings)
+        {
+            outer.Uncacheable = true;
+        }
+
+        fromFallback = resolver.TryResolve(path, fallback, out included);
+        return fromFallback;
     }
 
     /// <summary>利用者が書いたヘッダで、展開結果を覚えないものかを判定する。</summary>
@@ -347,6 +387,34 @@ internal sealed partial class HlslPreprocessor
         _mergedMacroConflicts.UnionWith(expansion.MergedMacroConflicts);
         _resolvedIncludes.UnionWith(expansion.ResolvedIncludes);
         _unresolvedIncludes.UnionWith(expansion.UnresolvedIncludes);
+
+        // 使い回した結果を、外側で記録中の取り込みにも書き足す。
+        // 書き足さないと、外側の取り込みを覚えたときに、入れ子で使い回した分が抜け落ちる。
+        // 3 度目にその外側を使い回すと、解決できない取り込み (Unreal の生成される取り込み) などが消え、
+        // 宣言が揃っていると誤って判断して検査を行っていた (エンジンのシェーダーで HL0310 が出たり出なかったりした)。
+        // ほかの手続きを通して足しているもの (マクロ、条件の中で定義された名前、コードの名前など) は、そちらが記録している。
+        if (_recordings.Count > 0)
+        {
+            Record(recording =>
+            {
+                recording.SkippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
+                recording.DeclinedBothBranchSymbols.UnionWith(expansion.DeclinedBothBranchSymbols);
+                recording.BothBranchDeclines.UnionWith(expansion.BothBranchDeclines);
+                recording.MergedSymbols.UnionWith(expansion.MergedSymbols);
+                recording.MergedRegions.UnionWith(expansion.MergedRegions);
+                recording.KeywordRegions.AddRange(expansion.KeywordRegions);
+                recording.MacroAffectingSymbols.UnionWith(expansion.MacroAffectingSymbols);
+                recording.UnknownMacroSources.UnionWith(expansion.UnknownMacroSources);
+                recording.MergedMacroConflicts.UnionWith(expansion.MergedMacroConflicts);
+                recording.ResolvedIncludes.UnionWith(expansion.ResolvedIncludes);
+                recording.UnresolvedIncludes.UnionWith(expansion.UnresolvedIncludes);
+
+                foreach ((string name, ImmutableArray<string> symbols) in expansion.MergedMacros)
+                {
+                    recording.MergedMacros[name] = symbols;
+                }
+            });
+        }
 
         // 覚えたときと同じ位置から次の条件付き範囲が始まる。
         _conditionalRangeStart = _output.Count;

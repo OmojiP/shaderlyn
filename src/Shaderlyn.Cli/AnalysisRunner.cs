@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.IO;
 using Shaderlyn.Cli.Caching;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
@@ -98,7 +99,7 @@ internal sealed class AnalysisRunner
     /// 意味解析を省略できるようにしているのは、
     /// ShaderLab 単体で完結するルールだけを高速に回したい場合があるためである。
     /// 省略すると、セマンティックモデルを必要とするルールは<b>何も報告しなくなる</b>。
-    /// 検査していないことは <c>SL0002</c> でも報告されないので、
+    /// 検査していないことは <c>HL0005</c> でも報告されないので、
     /// 意図して省略する場合以外は指定すること。
     /// </remarks>
     /// <param name="timings">
@@ -179,15 +180,27 @@ internal sealed class AnalysisRunner
 
         // 利用者が書いた共通のヘッダの指摘は、それを取り込むシェーダーの数だけ出る。
         // 同じ位置の同じ指摘は 1 件にまとめる。取り込む側によって中身が違うものは、別の指摘として残す。
-        HashSet<(string Id, string FilePath, TextSpan Span, string Message)> seen = [];
+        // まとめるときは、取り込みの経路を足し合わせる。どのシェーダーから取り込んだときの指摘かが分かるようにする。
+        Dictionary<(string Id, string FilePath, TextSpan Span, string Message), int> seen = [];
 
         foreach (ImmutableArray<Diagnostic> diagnostics in perFile)
         {
             foreach (Diagnostic diagnostic in diagnostics)
             {
-                if (seen.Add((diagnostic.Id, diagnostic.Location.FilePath, diagnostic.Location.Span, diagnostic.GetMessage())))
+                (string, string, TextSpan, string) key = (diagnostic.Id, diagnostic.Location.FilePath, diagnostic.Location.Span, diagnostic.GetMessage());
+
+                if (!seen.TryGetValue(key, out int index))
                 {
+                    seen[key] = allDiagnostics.Count;
                     allDiagnostics.Add(diagnostic);
+                    continue;
+                }
+
+                if (!diagnostic.IncludeRoutes.IsEmpty)
+                {
+                    Diagnostic first = allDiagnostics[index];
+                    allDiagnostics[index] = first.WithIncludeRoutes(
+                        [.. first.IncludeRoutes.Concat(diagnostic.IncludeRoutes).DistinctBy(r => r.Key)]);
                 }
             }
         }
@@ -225,7 +238,7 @@ internal sealed class AnalysisRunner
                     WellKnownDescriptors.FileReadFailed,
                     Location.Create(placeholder, new TextSpan(0, 0)),
                     filePath,
-                    ex.Message),
+                    FileErrorDescriber.Describe(ex, filePath)),
             ], false);
         }
 
@@ -329,6 +342,7 @@ internal sealed class AnalysisRunner
         ImmutableArray<Diagnostic> diagnostics = _driver.Analyze(unit, cancellationToken);
         _timings?.Add(AnalysisStep.Rules, ruleStart);
 
-        return diagnostics;
+        // ヘッダの中の指摘には、このファイルのどこから取り込んだかを添える。
+        return compilation is null ? diagnostics : IncludeRouteFinder.Attach(compilation, diagnostics);
     }
 }

@@ -26,6 +26,9 @@ internal sealed class ShaderLabLexer
     private readonly List<LexerDiagnostic> _diagnostics = [];
     private int _position;
 
+    /// <summary>まだ最初のトークンを読んでいないか (ファイルの先頭の trivia を読んでいるか)。</summary>
+    private bool _beforeFirstToken = true;
+
     /// <summary>
     /// 字句解析ツールを生成する。
     /// </summary>
@@ -69,6 +72,28 @@ internal sealed class ShaderLabLexer
         return tokens.ToImmutable();
     }
 
+    /// <summary>空白として読み飛ばす文字か。</summary>
+    /// <param name="c">文字。</param>
+    /// <returns>空白なら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>ファイルの先頭 (最初のトークンより前) だけ、Unity に合わせて読み方を変える</b> (Unity 6.6 で確かめた)。
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     重なった BOM (U+FEFF) は空白として読む。Unity は BOM が 2 つ重なっていても読める
+    ///     (1 つ目は読み込みで取り除いている。重なっていることは UN0002 で伝える)。
+    ///   </description></item>
+    ///   <item><description>
+    ///     ノーブレークスペース (U+00A0) は空白として読まない。.NET では空白だが、Unity は「expecting TOK_SHADER」の構文エラーにする。
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    private bool IsWhiteSpaceTrivia(char c)
+        => _beforeFirstToken
+            ? c == '﻿' || (char.IsWhiteSpace(c) && c != ' ')
+            : char.IsWhiteSpace(c);
+
     /// <summary>
     /// 先行 trivia、トークン本体、後続 trivia をこの順に読んで 1 つのトークンを組み立てる。
     /// </summary>
@@ -76,6 +101,7 @@ internal sealed class ShaderLabLexer
     private SyntaxToken LexToken()
     {
         ImmutableArray<SyntaxTrivia> leading = LexTrivia(isTrailing: false);
+        _beforeFirstToken = false;
 
         int start = _position;
         (SyntaxKind kind, string? valueText) = LexTokenCore();
@@ -126,10 +152,10 @@ internal sealed class ShaderLabLexer
                     break;
                 }
             }
-            else if (char.IsWhiteSpace(current))
+            else if (IsWhiteSpaceTrivia(current))
             {
                 int start = _position;
-                while (_position < _text.Length && char.IsWhiteSpace(_text[_position]) && _text[_position] is not ('\r' or '\n'))
+                while (_position < _text.Length && IsWhiteSpaceTrivia(_text[_position]) && _text[_position] is not ('\r' or '\n'))
                 {
                     _position++;
                 }

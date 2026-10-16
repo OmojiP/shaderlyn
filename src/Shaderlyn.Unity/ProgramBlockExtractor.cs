@@ -24,10 +24,10 @@ namespace Shaderlyn.Unity;
 /// 位置の変換処理がそもそも要らない。
 /// </para>
 /// <para>
-/// この方式にはもう 1 つ利点がある。
-/// <c>HLSLINCLUDE</c> の中身と <c>HLSLPROGRAM</c> の中身を<b>同時に</b>残せば、
-/// 「共通コード片を各 Pass の先頭へ差し込む」という Unity の挙動が
-/// 位置を保ったまま自然に再現される。連結も順序の調整も要らない。
+/// 共通コード片 (<c>HLSLINCLUDE</c>) は、ファイルの中の同じ種類のものをすべて残した別のテキストにし
+/// (<see cref="UnityProgramBlock.IncludeText"/>)、コードブロックより先に読む (<c>PreprocessorOptions.LeadingText</c>)。
+/// Unity は共通コード片をすべてファイルの順につなぎ、どのコードブロックの前にも置くので、
+/// コードブロックと同じテキストに位置のまま残すと、コードブロックより後に書いた共通コード片が後ろに並んでしまう。
 /// </para>
 /// </remarks>
 internal static class ProgramBlockExtractor
@@ -57,6 +57,9 @@ internal static class ProgramBlockExtractor
         ImmutableArray<UnityProgramBlock>.Builder results =
             ImmutableArray.CreateBuilder<UnityProgramBlock>();
 
+        // 共通コード片は、種類 (CGINCLUDE / HLSLINCLUDE) ごとにファイル全体で 1 つのテキストにする。どのコードブロックからも同じものを読む。
+        Dictionary<string, (ImmutableArray<ProgramBlockSyntax> Blocks, SourceText? Text)> includesByKind = new(StringComparer.Ordinal);
+
         foreach (SyntaxNode node in tree.Root.DescendantNodesAndSelf())
         {
             if (node is not ProgramBlockSyntax block
@@ -66,22 +69,24 @@ internal static class ProgramBlockExtractor
                 continue;
             }
 
-            ImmutableArray<ProgramBlockSyntax> applicableIncludes = FindApplicableIncludeBlocks(block);
+            string kind = IncludeKeywordFor(block);
 
-            ImmutableArray<TextSpan> visibleSpans =
-            [
-                .. applicableIncludes.Select(i => i.BodySpan),
-                block.BodySpan,
-            ];
+            if (!includesByKind.TryGetValue(kind, out (ImmutableArray<ProgramBlockSyntax> Blocks, SourceText? Text) includes))
+            {
+                ImmutableArray<ProgramBlockSyntax> blocks = FindIncludeBlocks(tree, kind);
+                includes = (blocks, blocks.IsEmpty ? null : CreateMaskedText(tree.Text, [.. blocks.Select(i => i.BodySpan)]));
+                includesByKind[kind] = includes;
+            }
 
             results.Add(new UnityProgramBlock(
                 block,
-                applicableIncludes,
+                includes.Blocks,
                 FindEnclosingPass(block),
-                CreateMaskedText(tree.Text, visibleSpans),
+                CreateMaskedText(tree.Text, [block.BodySpan]),
                 block.Token.Span)
             {
                 PassName = FindPassName(FindEnclosingPass(block)),
+                IncludeText = includes.Text,
             });
         }
 
@@ -209,47 +214,40 @@ internal static class ProgramBlockExtractor
     }
 
     /// <summary>
-    /// 指定したブロックに差し込まれる共通コード片を、ファイル上の出現順に集める。
+    /// コードブロックに差し込まれる共通コード片の開始の語を返す (<c>CGPROGRAM</c> なら <c>CGINCLUDE</c>)。
     /// </summary>
-    /// <param name="block">対象のコードブロック。</param>
-    /// <returns>適用される共通コード片。</returns>
+    /// <param name="block">コードブロック。</param>
+    /// <returns>共通コード片の開始の語。</returns>
+    /// <remarks>
+    /// <c>CGINCLUDE</c> は <c>HLSLPROGRAM</c> に入らず、<c>HLSLINCLUDE</c> は <c>CGPROGRAM</c> に入らない (Unity 6.6 で確かめた)。
+    /// </remarks>
+    private static string IncludeKeywordFor(ProgramBlockSyntax block)
+        => block.Delimiter?.StartKeyword == "CGPROGRAM" ? "CGINCLUDE" : "HLSLINCLUDE";
+
+    /// <summary>
+    /// ファイルの中の、その種類の共通コード片を、ファイル上の出現順にすべて集める。
+    /// </summary>
+    /// <param name="tree">ShaderLab の構文木。</param>
+    /// <param name="keyword">共通コード片の開始の語 (<c>HLSLINCLUDE</c> / <c>CGINCLUDE</c>)。</param>
+    /// <returns>共通コード片。</returns>
     /// <remarks>
     /// <para>
-    /// Unity は <c>CGINCLUDE</c> / <c>HLSLINCLUDE</c> を、
-    /// それが書かれたブロック (<c>Shader</c> 直下、<c>Category</c> 内、<c>SubShader</c> 内) に
-    /// 含まれるすべての <c>*PROGRAM</c> の先頭へ差し込む。
-    /// したがって「対象ブロックの祖先ブロックに書かれた共通コード片」がすべて適用対象になる。
+    /// <b>Unity は、ファイルの中の共通コード片をすべてファイルの順につなぎ、どのコードブロックの前にも置く</b> (Unity 6.6 で確かめた)。
+    /// コードブロックより後に書いたものも、別の SubShader のものも、Pass の中に書いたものも入る。
+    /// 2 つの共通コード片が同じマクロを定義し直していれば、どの Pass も後のほうの値を見る。
     /// </para>
     /// <para>
-    /// 並べ替えは行わない。呼び出し元は位置を保ったままマスクする方式で解析するため、
-    /// ファイル上の順序がそのまま処理順になる。
+    /// 以前は、コードブロックを囲むブロック (Shader / SubShader) に書いたものだけを、その場所のまま並べていた。
+    /// Pass より後の共通コード片はコードブロックの後ろに並び、そのマクロが効かなかった (宣言されていない、と誤って報告していた)。
     /// </para>
     /// </remarks>
-    private static ImmutableArray<ProgramBlockSyntax> FindApplicableIncludeBlocks(ProgramBlockSyntax block)
-    {
-        List<ProgramBlockSyntax> includes = [];
-
-        for (SyntaxNode? ancestor = block.Parent; ancestor is not null; ancestor = ancestor.Parent)
-        {
-            if (ancestor is not BlockSyntax enclosing)
-            {
-                continue;
-            }
-
-            foreach (ShaderLabStatementSyntax statement in enclosing.Statements)
-            {
-                if (statement is ProgramBlockSyntax candidate
-                    && candidate.IsIncludeBlock
-                    && candidate.Language == ProgramBlockLanguage.Hlsl)
-                {
-                    includes.Add(candidate);
-                }
-            }
-        }
-
-        includes.Sort(static (a, b) => a.BodySpan.Start.CompareTo(b.BodySpan.Start));
-        return [.. includes];
-    }
+    private static ImmutableArray<ProgramBlockSyntax> FindIncludeBlocks(ShaderLab.ShaderLabSyntaxTree tree, string keyword)
+        => [
+            .. tree.Root.DescendantNodesAndSelf()
+                .OfType<ProgramBlockSyntax>()
+                .Where(b => b.IsIncludeBlock && b.Language == ProgramBlockLanguage.Hlsl && b.Delimiter?.StartKeyword == keyword)
+                .OrderBy(b => b.BodySpan.Start),
+        ];
 
     /// <summary>ブロックを含む <c>Pass</c> を探す。</summary>
     /// <param name="block">対象のコードブロック。</param>
@@ -368,6 +366,14 @@ public sealed record UnityProgramBlock(
     /// <summary><c>Name "..."</c> で付けられた Pass の名前。無い場合は <see langword="null"/>。</summary>
     public string? PassName { get; init; }
 
+    /// <summary>
+    /// このコードブロックの前に読む共通コード片 (<see cref="IncludeBlocks"/>) だけを残したテキスト。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MaskedText"/> と同じく、元のファイルと同じ位置に置いてある。同じ種類のコードブロックはどれも同じテキストを持つ。
+    /// </remarks>
+    public SourceText? IncludeText { get; init; }
+
     /// <summary>コンパイル単位にする。この切り出し自体を単位の付帯情報として持たせる。</summary>
     /// <returns>コンパイル単位。</returns>
     /// <remarks>
@@ -381,5 +387,26 @@ public sealed record UnityProgramBlock(
             KernelName,
             ExtraMacros,
             this,
-            new TextSpan(CodeSpan.Start, Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1));
+            new TextSpan(CodeSpan.Start, Block?.Delimiter is { } delimiter ? delimiter.StartKeyword.Length : 1))
+        {
+            DisplayName = DescribeUnit(),
+        };
+
+    /// <summary>単位の呼び名 (<c>Pass "Forward"</c>、名前の無い Pass は <c>HLSLPROGRAM (12 行目)</c>、カーネルは <c>カーネル CSMain</c>)。</summary>
+    private string? DescribeUnit()
+    {
+        if (KernelName is { } kernel)
+        {
+            return $"カーネル {kernel}";
+        }
+
+        if (PassName is { } pass)
+        {
+            return $"Pass \"{pass}\"";
+        }
+
+        return Block?.Delimiter is { } delimiter
+            ? $"{delimiter.StartKeyword} ({MaskedText.GetLinePositionSpan(CodeSpan).Start.Line + 1} 行目)"
+            : null;
+    }
 }

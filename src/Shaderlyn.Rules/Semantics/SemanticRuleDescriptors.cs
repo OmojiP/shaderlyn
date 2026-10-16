@@ -35,7 +35,7 @@ internal static class SemanticRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor IncompleteAnalysis { get; } = new(
-        id: "SL0002",
+        id: "HL0005",
         title: "一部の検査を行っていません",
         messageFormat: "{0}を行っていません。{1}",
         category: UsageCategory,
@@ -47,7 +47,7 @@ internal static class SemanticRuleDescriptors
             + "include を解決できていない場合は、Unity プロジェクトのパスを --unity-project で"
             + "指定すると解決できる場合があります。"
             + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを直してください。",
-        helpLinkUri: DocumentationLinks.For("SL0002"));
+        helpLinkUri: DocumentationLinks.For("HL0005"));
 
     /// <summary>シンボルの経路を調べきれていない。</summary>
     /// <remarks>
@@ -64,7 +64,7 @@ internal static class SemanticRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnexploredSymbols { get; } = new(
-        id: "SL0003",
+        id: "HL0006",
         title: "未解析のシンボル構成が存在します",
         messageFormat: "シンボル {0} を{1}有効にした構成は未解析です。",
         category: UsageCategory,
@@ -77,7 +77,7 @@ internal static class SemanticRuleDescriptors
             + "上限を超えた分の経路にあるコードは一度も読んでいないため、"
             + "そこにある構文エラーや、そこでしか使われていないプロパティは報告されません。"
             + "上限を上げると調べられますが、解析時間はシンボルの数に比例して伸びます。",
-        helpLinkUri: DocumentationLinks.For("SL0003"));
+        helpLinkUri: DocumentationLinks.For("HL0006"));
 
     /// <summary>条件を追えなかった箇所がある。</summary>
     /// <remarks>
@@ -94,7 +94,7 @@ internal static class SemanticRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnresolvedCondition { get; } = new(
-        id: "SL0004",
+        id: "HL0007",
         title: "構成によって文の形が変わる箇所があります",
         messageFormat: "この箇所は構成によって別の種類の文になるため、構成をまたいだ検査をしていません。",
         category: UsageCategory,
@@ -105,5 +105,5 @@ internal static class SemanticRuleDescriptors
             + "出現条件を根拠にするルール (HL0311 / HL0313 / HL0340) は、"
             + "誤った指摘を出さないためにこの箇所では何も報告しません。"
             + "#if を関数や文の単位で閉じるように書き換えると、条件を追えるようになります。",
-        helpLinkUri: DocumentationLinks.For("SL0004"));
+        helpLinkUri: DocumentationLinks.For("HL0007"));
 }

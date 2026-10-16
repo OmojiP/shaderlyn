@@ -36,17 +36,17 @@ public sealed partial class BothBranchConsistencyTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>SL0003</c> は「どこまで展開したか」の報告である。
+    /// <c>HL0006</c> は「どこまで展開したか」の報告である。
     /// 並べない経路は展開する構成が増えるので、上限との兼ね合いで出方が変わるのは正しい。
     /// シェーダーの誤りについての答えではないので比べない。
     /// </para>
     /// <para>
-    /// <c>SL0004</c> は「どこまで条件を追えたか」の報告である。
+    /// <c>HL0007</c> は「どこまで条件を追えたか」の報告である。
     /// 並べる経路は、条件によって中身が変わるマクロを使う文を定義ごとに複製して追えるようにする
     /// (条件の巻き上げ)。追えた箇所が増えれば、この報告は減る。
     /// </para>
     /// </remarks>
-    private static readonly string[] ExplorationRules = ["SL0003", "SL0004"];
+    private static readonly string[] ExplorationRules = ["HL0006", "HL0007"];
 
     /// <summary>
     /// 並べる経路のほうが多く見つけるシェーダーと、その理由。

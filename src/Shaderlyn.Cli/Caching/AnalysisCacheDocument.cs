@@ -88,6 +88,38 @@ internal sealed class CachedDiagnostic
     /// <summary>指摘箇所をそのまま置き換えられる文字列。</summary>
     [JsonPropertyName("fix")]
     public string? SuggestedReplacement { get; set; }
+
+    /// <summary>ヘッダの中の指摘を、解析したファイルから取り込んだ経路。無ければ <see langword="null"/>。</summary>
+    [JsonPropertyName("routes")]
+    public List<CachedRoute>? Routes { get; set; }
+}
+
+/// <summary>ヘッダを取り込んだ経路 1 本 (<see cref="Core.Diagnostics.IncludeRoute"/>)。</summary>
+internal sealed class CachedRoute
+{
+    /// <summary>解析したファイルの中のどこから取り込んだか (<c>Pass "Forward"</c> など)。</summary>
+    [JsonPropertyName("origin")]
+    public string? Origin { get; set; }
+
+    /// <summary>たどった <c>#include</c> の位置。</summary>
+    [JsonPropertyName("steps")]
+    public List<CachedRouteStep> Steps { get; set; } = [];
+}
+
+/// <summary>経路の <c>#include</c> 1 つの位置。</summary>
+internal sealed class CachedRouteStep
+{
+    /// <summary>書いたファイルの、<see cref="AnalysisCacheDocument.Sources"/> の添字。解析したファイル自身なら -1。</summary>
+    [JsonPropertyName("file")]
+    public int File { get; set; } = -1;
+
+    /// <summary>開始位置。</summary>
+    [JsonPropertyName("start")]
+    public int Start { get; set; }
+
+    /// <summary>長さ。</summary>
+    [JsonPropertyName("length")]
+    public int Length { get; set; }
 }
 
 /// <summary>

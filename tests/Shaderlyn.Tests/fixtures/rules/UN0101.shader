@@ -1,4 +1,4 @@
-Shader "Rules/SL1054"
+Shader "Rules/UN0101"
 {
     SubShader
     {
@@ -7,9 +7,7 @@ Shader "Rules/SL1054"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma never_use_dxc
-            #pragma require int64 : _USE_INT64
-            #pragma require wavebasic
+            #pragma once
             float4 vert(float4 p : POSITION) : SV_POSITION { return p; }
             half4 frag() : SV_Target { return 1; }
             ENDHLSL

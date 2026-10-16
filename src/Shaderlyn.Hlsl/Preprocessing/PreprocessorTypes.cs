@@ -105,7 +105,7 @@ public sealed record PreprocessorOptions
     /// <b>解析しているファイルが宣言したシンボルは入れない。</b>
     /// URP のシェーダーは 40 を超えるシンボルを宣言し、その条件はほとんどがヘッダ側に書かれている。
     /// すべてを読むと、構成として作る候補が 1 ブロックあたり数十件になり、
-    /// 上限で落ちた分が <c>SL0003</c> として並ぶ。
+    /// 上限で落ちた分が <c>HL0006</c> として並ぶ。
     /// 解析しているファイルが宣言したシンボルは、そのファイルに書かれた条件から構成を決める
     /// (<see cref="DeclaredSymbols"/>)。
     /// </para>
@@ -238,6 +238,23 @@ public sealed record PreprocessorOptions
     public IIncludeResolver? IncludeResolver { get; init; }
 
     /// <summary>
+    /// 取り込みを書いたファイルから引けなかったときに、代わりに「取り込みを書いたファイル」として引き直すファイル。
+    /// <see langword="null"/> なら引き直さない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity は、ヘッダの中の <c>#include "..."</c> をそのヘッダから引けなければ、解析しているシェーダー (<c>.shader</c>) から引き直す
+    /// (6.6 で確かめた。間にある別のヘッダからは引かない。両方にあればヘッダから引いたほうを使う)。
+    /// シェーダーからの相対で書いた取り込みが、ヘッダの中でも通る。
+    /// </para>
+    /// <para>
+    /// 引き直した結果は解析しているファイルの場所で変わるので、引き直したときは、囲んでいる取り込みの展開結果を覚えない。
+    /// 引き直すのは引けなかったときだけなので、<see cref="FingerprintForCache"/> には入れない。
+    /// </para>
+    /// </remarks>
+    public string? FallbackIncludingFilePath { get; init; }
+
+    /// <summary>
     /// 対象ファイルより先に処理するコード。<see langword="null"/> の場合は何も処理しない。
     /// </summary>
     /// <remarks>
@@ -254,6 +271,22 @@ public sealed record PreprocessorOptions
     /// </para>
     /// </remarks>
     public SourceText? Prelude { get; init; }
+
+    /// <summary>
+    /// 対象ファイルより先に、対象ファイルの一部として読むコード。<see langword="null"/> の場合は何も読まない。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity の <c>HLSLINCLUDE</c> / <c>CGINCLUDE</c> のためにある。Unity はファイルの中の共通コード片をすべてファイルの順につなぎ、
+    /// どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader のものも)。
+    /// 位置を保ったままマスクしたテキストでは、Pass より後の共通コード片がコードブロックの後ろに並んでしまうので、別に読む。
+    /// </para>
+    /// <para>
+    /// <see cref="Prelude"/> と違い、利用者が書いたコードである。対象ファイルのコードとして扱い、指摘も報告する。
+    /// 読む順は <see cref="Prelude"/>、これ、対象ファイルである。
+    /// </para>
+    /// </remarks>
+    public SourceText? LeadingText { get; init; }
 
     /// <summary>
     /// 字句解析の結果を共有するキャッシュ。<see langword="null"/> の場合は毎回字句解析する。
@@ -615,8 +648,15 @@ public readonly record struct IncludeReference(
     public string? OutsideBoundaryPath { get; init; }
 
     /// <summary>取り込んだファイルを UTF-16 として読んだかどうか (BOM の有無によらない)。</summary>
-    /// <remarks>Unity は UTF-16 のファイルを読めない (SL1056)。DXC は読める。</remarks>
+    /// <remarks>Unity は UTF-16 のファイルを読めない (UN0001)。DXC は読める。</remarks>
     public bool IsUtf16 { get; init; }
+
+    /// <summary>
+    /// 書いたファイルから引けず、解析しているファイルからの相対で引き直して見つけたか
+    /// (<see cref="PreprocessorOptions.FallbackIncludingFilePath"/>)。
+    /// </summary>
+    /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (UN0102)。</remarks>
+    public bool IsResolvedFromFallback { get; init; }
 }
 
 /// <summary>

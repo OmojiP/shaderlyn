@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -32,7 +33,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslRuleDescriptors.EntryPointNotFound];
+        [HlslRuleDescriptors.EntryPointNotFound, HlslRuleDescriptors.EntryPointInConstantBuffer, HlslRuleDescriptors.EntryPointInConstantBufferWithDxc];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -47,6 +48,90 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
             foreach (HlslEntryPoint entryPoint in program.EntryPoints)
             {
                 CheckEntryPoint(context, compilation, program, entryPoint);
+                CheckConstantBufferEntryPoint(context, compilation, program, entryPoint);
+            }
+        }
+    }
+
+    /// <summary>
+    /// エントリポイントの関数が cbuffer の中にあれば報告する (HL0303 / HL0304)。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">検査するコードブロック。</param>
+    /// <param name="entryPoint">エントリポイント。</param>
+    /// <remarks>
+    /// <para>
+    /// FXC はコンパイルできる。DXC はエントリポイントを見つけられない (Unity の DXC は落ちる)。Unity 6.6 と、スタンドアロンの FXC / DXC 1.8 で確かめた。
+    /// cbuffer の中で呼ぶだけの関数は、FXC も DXC もコンパイルできるので報告しない。
+    /// </para>
+    /// <para>
+    /// 関数に届くコンパイル先に DXC があればエラー (HL0304)、FXC だけなら警告 (HL0303) にする。
+    /// コンパイル先が分からない環境 (汎用の HLSL) は、木の方言で決める。
+    /// </para>
+    /// </remarks>
+    private static void CheckConstantBufferEntryPoint(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
+        HlslEntryPoint entryPoint)
+    {
+        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        {
+            if (declaration is not ConstantBufferDeclarationSyntax buffer
+                || EnumerateFunctions(buffer.Members).FirstOrDefault(f => !f.IsMethodDefinition && f.Name == entryPoint.Name) is not { } function)
+            {
+                continue;
+            }
+
+            ImmutableArray<HlslCompileTarget> targets = [.. CompileTargets.Reaching(compilation, function, program)];
+            string bufferName = buffer.Name.Length > 0 ? buffer.Name : "(名前なし)";
+            Location location = entryPoint.Location ?? program.GetBlockLocation();
+
+            if (targets.IsEmpty)
+            {
+                bool dxc = program.Tree.Dialects.Any(d => d.Compiler == HlslCompiler.Dxc);
+
+                context.ReportDiagnostic(Diagnostic.Create(
+                    dxc ? HlslRuleDescriptors.EntryPointInConstantBufferWithDxc : HlslRuleDescriptors.EntryPointInConstantBuffer,
+                    location,
+                    entryPoint.Origin,
+                    entryPoint.Name,
+                    bufferName,
+                    dxc ? "DXC" : "FXC"));
+                return;
+            }
+
+            ImmutableArray<HlslCompileTarget> dxcTargets = [.. targets.Where(t => t.Dialect.Compiler == HlslCompiler.Dxc)];
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                dxcTargets.IsEmpty ? HlslRuleDescriptors.EntryPointInConstantBuffer : HlslRuleDescriptors.EntryPointInConstantBufferWithDxc,
+                location,
+                entryPoint.Origin,
+                entryPoint.Name,
+                bufferName,
+                string.Join("、", (dxcTargets.IsEmpty ? targets : dxcTargets).Select(t => t.Subject).Distinct(StringComparer.Ordinal))));
+            return;
+        }
+    }
+
+    /// <summary>関数の宣言を列挙する。cbuffer の中に書いた関数も含む。</summary>
+    /// <param name="declarations">宣言の並び。</param>
+    /// <returns>関数の宣言。</returns>
+    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<HlslDeclarationSyntax> declarations)
+    {
+        foreach (HlslDeclarationSyntax declaration in declarations)
+        {
+            if (declaration is FunctionDeclarationSyntax function)
+            {
+                yield return function;
+            }
+            else if (declaration is ConstantBufferDeclarationSyntax buffer)
+            {
+                foreach (FunctionDeclarationSyntax member in EnumerateFunctions(buffer.Members))
+                {
+                    yield return member;
+                }
             }
         }
     }
@@ -128,10 +213,11 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
             bool isDefault = tree.EnabledSymbols.IsDefaultOrEmpty;
             SymbolCondition present = SymbolCondition.Never;
 
-            foreach (HlslDeclarationSyntax declaration in tree.Tree.Root.Declarations)
+            foreach (FunctionDeclarationSyntax function in EnumerateFunctions(tree.Tree.Root.Declarations))
             {
                 // プロトタイプ宣言だけでも「ある」とする。定義がどこにあるかはリンクの問題である。
-                if (declaration is not FunctionDeclarationSyntax { IsMethodDefinition: false } function
+                // cbuffer の中の関数も「ある」とする。FXC はエントリポイントにでき、DXC で使えないことは HL0304 で伝える。
+                if (function.IsMethodDefinition
                     || !string.Equals(function.Name, name, StringComparison.Ordinal))
                 {
                     continue;

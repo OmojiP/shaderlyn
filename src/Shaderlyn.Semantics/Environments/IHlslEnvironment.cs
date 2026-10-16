@@ -107,7 +107,7 @@ public interface IHlslEnvironment
     /// </para>
     /// <para>
     /// <b>解決できないことは変わらないが、誤りとしては報告しない (HL0321)。</b>
-    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (SL0002 で伝える)。
+    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (HL0005 で伝える)。
     /// </para>
     /// </remarks>
     bool IsGeneratedInclude(string path);
@@ -133,4 +133,21 @@ public interface IHlslEnvironment
     /// </para>
     /// </remarks>
     ImmutableArray<string>? GetFunctionsDeclaredIn(string path) => null;
+
+    /// <summary>
+    /// 名前が、エンジンがシェーダーごとに定義するマクロかを判定する。
+    /// </summary>
+    /// <param name="name">識別子。</param>
+    /// <returns>エンジンが定義するマクロなら <see langword="true"/>。既定は <see langword="false"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// Unreal のエンジンは、シェーダーをコンパイルするときに C++ からマクロを定義する
+    /// (<c>SetDefine(TEXT("THREADGROUP_SIZE"), 64)</c>、パーミュテーションの次元 <c>SHADER_PERMUTATION_BOOL("DIM_X")</c>)。
+    /// 値はシェーダーやパーミュテーションごとに変わるので、名前だけが分かる。
+    /// </para>
+    /// <para>
+    /// <b>こうした名前は、シェーダーの中に定義が無くても「宣言されていない」(HL0310) とは言わない。</b>
+    /// </para>
+    /// </remarks>
+    bool IsDefinedByEngine(string name) => false;
 }

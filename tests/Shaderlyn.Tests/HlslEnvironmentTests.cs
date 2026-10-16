@@ -145,7 +145,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     [Fact]
     public void Unityのルールは報告しない()
     {
-        // #pragma を書かない普通の DX12 のシェーダー。Unity なら HL0302 (ステージの指定が無い) になる。
+        // #pragma を書かない普通の DX12 のシェーダー。Unity なら UN0301 (ステージの指定が無い) になる。
         const string code = """
             cbuffer PerFrame : register(b0) { float4x4 ViewProj; };
             Texture2D<float4> Albedo : register(t0);

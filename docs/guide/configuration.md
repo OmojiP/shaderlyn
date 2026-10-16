@@ -119,6 +119,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | --------------- | -------------------------------------------------------------------------------------- |
 | `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
+| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 
 ```yaml
@@ -138,8 +139,8 @@ units:
 ```
 
 - フォルダーを指定したときは `.usf` を探します。`.ush` は名前を挙げたときだけ解析します
-- ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は解決できません。その `#include` は誤りとして報告しませんが、
-  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません (SL0002 で伝えます)。
+- ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
+  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません (UE0001 / UE0002 で伝えます)。
   欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (HL0340 / HL0341) は行います ([Unity 以外の環境で使う](environments.md))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
@@ -224,6 +225,16 @@ report:
 - ベースラインの書き出し (`--write-baseline`) は、絞らずにすべての指摘を書きます
 - コマンドラインの `--min-severity` は、どの形式でもこの設定より優先します
 
+`include-trace` は、共通のヘッダの中の指摘に、どのシェーダーのどの Pass から取り込んだかの経路をどこまで添えるかです。
+`first` (既定。最初の 1 本と、ほかの本数) / `all` / `none` のいずれかです
+([ヘッダの指摘がどこから来たか](cli-usage.md#ヘッダの指摘がどこから来たか--include-trace))。
+コマンドラインの `--include-trace` が優先します。
+
+```yaml
+report:
+  include-trace: all
+```
+
 ## 設定の誤りの報告
 
 設定ファイルに書かれた認識できないキーは `TOOL0003` として報告されます。
@@ -272,7 +283,7 @@ Cull Sideways
 ...
 // shaderlyn-enable SL1020
 
-// shaderlyn-disable-file HL0302
+// shaderlyn-disable-file UN0301
 ```
 
 ルール ID を省略するとすべてのルールが対象になります。ID はカンマまたは空白で区切って複数書けます。
