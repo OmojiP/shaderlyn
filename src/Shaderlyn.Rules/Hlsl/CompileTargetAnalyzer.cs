@@ -51,10 +51,10 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
             // 型 (int64_t など) はパーサーが見ないので、方言が 1 つだけでも見る。
             // コンパイル先が分からなければ (汎用の HLSL)、方言を 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
             // (型は、コンパイルの設定 (-enable-16bit-types など) が分からないと決められない)。
-            IEnumerable<HlslCompileTarget> targets = !program.Tree.CompileTargets.IsDefaultOrEmpty
+            IEnumerable<HlslCompileTarget> targets = !program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty
                 ? CompileTargets.Reaching(compilation, node, program)
                 : construct.CheckWithoutTargets
-                    ? program.Tree.Dialects.Select(d => new HlslCompileTarget(string.Empty, d))
+                    ? program.Tree.Hlsl().Dialects.Select(d => new HlslCompileTarget(string.Empty, d))
                     : [];
 
             foreach (HlslCompileTarget target in targets)
@@ -163,7 +163,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 
         int? shaderModel = program.Unit.Target is { } target
             ? (target.Major * 10) + target.Minor
-            : !program.Tree.CompileTargets.IsDefaultOrEmpty
+            : !program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty
                 ? ReadPragmaTarget(program) ?? 35
                 : null;
 
@@ -188,7 +188,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         ]);
 
     /// <summary>木ごとの interface の名前。</summary>
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HlslSyntaxTree, HashSet<string>> InterfaceCache = [];
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderSyntaxTree, HashSet<string>> InterfaceCache = [];
 
     /// <summary><c>#pragma target</c> のシェーダーモデルを読む (<c>4.5</c> → 45)。複数あれば最も高いもの。</summary>
     /// <param name="program">木。</param>
@@ -287,7 +287,7 @@ internal static class CompileTargets
     /// </remarks>
     public static IEnumerable<HlslCompileTarget> Reaching(ShaderCompilation compilation, ShaderSyntaxNode node, AnalyzedProgram program)
     {
-        ImmutableArray<HlslCompileTarget> targets = program.Tree.CompileTargets;
+        ImmutableArray<HlslCompileTarget> targets = program.Tree.Hlsl().CompileTargets;
 
         if (targets.IsDefaultOrEmpty)
         {

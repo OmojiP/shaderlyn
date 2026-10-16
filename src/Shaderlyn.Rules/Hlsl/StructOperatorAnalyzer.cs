@@ -252,9 +252,9 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         string symbol = token.Text;
         AnalyzedProgram program = binder.Program;
 
-        if (program.Tree.CompileTargets.IsDefaultOrEmpty)
+        if (program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty)
         {
-            return program.Tree.Features.StructIncrement
+            return program.Tree.Hlsl().Features.StructIncrement
                 ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored)
                 : (token, $"構造体 '{type}' の値に演算子 '{symbol}' は使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
         }

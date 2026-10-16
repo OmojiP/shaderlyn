@@ -22,7 +22,7 @@ public sealed class Hlsl2021OperatorTests
     [Fact]
     public void 演算子を関数として構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("""
+        ShaderSyntaxTree tree = Parse2021("""
             struct Complex
             {
                 float re;
@@ -50,7 +50,7 @@ public sealed class Hlsl2021OperatorTests
     [Fact]
     public void HLSL2018では今までどおり使えない構文として報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("struct S { float v; S operator+(S o) { return o; } };");
+        ShaderSyntaxTree tree = HlslHarness.Parse("struct S { float v; S operator+(S o) { return o; } };");
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -128,7 +128,7 @@ public sealed class Hlsl2021OperatorTests
         Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
     }
 
-    private static HlslSyntaxTree Parse2021(string code)
+    private static ShaderSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
             new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });

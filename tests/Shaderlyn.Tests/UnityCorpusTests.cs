@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
@@ -227,7 +228,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
             try
             {
-                HlslSyntaxTree tree = HlslSyntaxTree.Parse(text, options);
+                ShaderSyntaxTree tree = HlslSyntaxTree.Parse(text, options);
                 fileTime.Stop();
 
                 totalDiagnostics += tree.Diagnostics.Length;
@@ -454,7 +455,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
                 try
                 {
-                    HlslSyntaxTree tree = HlslSyntaxTree.Parse(codeText, options);
+                    ShaderSyntaxTree tree = HlslSyntaxTree.Parse(codeText, options);
 
                     if (tree.Diagnostics.IsEmpty)
                     {

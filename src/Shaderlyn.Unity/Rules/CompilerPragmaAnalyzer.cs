@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 
@@ -61,7 +62,7 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             // コンパイル先を決めた単位 (.shader のパスと .compute のカーネル) だけを見る。
-            if (program.Tree.CompileTargets.IsDefaultOrEmpty)
+            if (program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty)
             {
                 continue;
             }

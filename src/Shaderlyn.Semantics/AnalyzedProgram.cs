@@ -22,7 +22,7 @@ public sealed class AnalyzedProgram
 {
     internal AnalyzedProgram(
         Environments.HlslCompilationUnit unit,
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         DeclarationSet declarations,
         VariantSpace variants)
     {
@@ -139,7 +139,7 @@ public sealed class AnalyzedProgram
     /// 分岐の中で定義したマクロがコードとして使われたために、両方の分岐を並べなかったシンボル。
     /// </summary>
     /// <remarks>
-    /// 展開の結果 (<see cref="HlslSyntaxTree.PreprocessResult"/>) の
+    /// 展開の結果 (<see cref="ShaderSyntaxTree.PreprocessResult"/>) の
     /// <c>BothBranchDeclines</c> には現れない。展開し直すときに並べる対象から外すためである。
     /// なぜバリアントが要ったのかを数えるために残す。挙動には使わない。
     /// </remarks>
@@ -186,7 +186,7 @@ public sealed class AnalyzedProgram
     public SourceText Text { get; }
 
     /// <summary>HLSL としての解析結果。</summary>
-    public HlslSyntaxTree Tree { get; }
+    public ShaderSyntaxTree Tree { get; }
 
     /// <summary>このブロックから見える uniform。include されたファイルの分も含む。</summary>
     public ImmutableArray<UniformSymbol> Uniforms { get; }

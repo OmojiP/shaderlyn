@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -31,7 +32,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (program.Tree.Features.VectorLogicalOperators || !compilation.IsReportable(node))
+            if (program.Tree.Hlsl().Features.VectorLogicalOperators || !compilation.IsReportable(node))
             {
                 continue;
             }

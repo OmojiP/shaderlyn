@@ -24,7 +24,7 @@ public sealed class CallCompatibilityTests
         }
         """;
 
-    private static readonly HlslSyntaxTree Tree = HlslHarness.Parse(Source);
+    private static readonly ShaderSyntaxTree Tree = HlslHarness.Parse(Source);
 
     private static FunctionDeclarationSyntax Function(string name)
         => Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>().First(f => f.Name == name);

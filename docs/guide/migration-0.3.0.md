@@ -93,7 +93,17 @@ HLSL に限らない型は、名前から `Hlsl` を外しました。
 | `ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax` (HLSL にだけある節) | `Shaderlyn.Hlsl.Syntax` | 変わらない |
 | `Shaderlyn.Hlsl.Preprocessing` のすべての型 (`PreprocessorOptions`・`PragmaDirective`・`IIncludeResolver` など) | `Shaderlyn.Hlsl.Preprocessing` | `Shaderlyn.CFamily.Preprocessing` |
 
-`HlslSyntaxTree` は、これまでどおり `Shaderlyn.Hlsl` にあります。
+解析済みのコードの型は `ShaderSyntaxTree` (`Shaderlyn.CFamily.Syntax`) になりました。
+`HlslSyntaxTree` は HLSL のコードを読む入口 (`HlslSyntaxTree.Parse`) だけを持つ静的クラスになり、`ShaderSyntaxTree` を返します。
+木の HLSL に固有の値は、`tree.Hlsl()` (`Shaderlyn.Hlsl.Parsing`) から読みます。
+
+| 0.2.1 | 0.3.0 |
+| --- | --- |
+| `HlslSyntaxTree tree = HlslSyntaxTree.Parse(...)` | `ShaderSyntaxTree tree = HlslSyntaxTree.Parse(...)` |
+| `program.Tree.CompileTargets` | `program.Tree.Hlsl().CompileTargets` |
+| `program.Tree.Dialects` / `LanguageVersion` / `Features` | `program.Tree.Hlsl().Dialects` / `LanguageVersion` / `Features` |
+
+`Root`・`PreprocessResult`・`Pragmas`・`Diagnostics`・`Text`・`UnanalyzedIdentifiers` は、これまでどおり木から読めます。
 
 多くのルールは、`using Shaderlyn.Hlsl.Syntax;` を `using Shaderlyn.CFamily.Syntax;` に置き換えれば済みます
 (cbuffer か namespace の節を使うなら、両方を書きます)。

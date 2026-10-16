@@ -16,6 +16,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken`、`HlslSyntaxNode` → `ShaderSyntaxNode`、`HlslExpressionSyntax` → `ExpressionSyntax` など)、
   ノードは `Shaderlyn.CFamily.Syntax`、`Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。
   HLSL にだけある節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) は `Shaderlyn.Hlsl.Syntax` に残る。
+  解析済みのコードは `ShaderSyntaxTree` になり、`HlslSyntaxTree` は HLSL を読む入口 (`HlslSyntaxTree.Parse`) だけになった。
+  木の HLSL に固有の値 (`CompileTargets` など) は `tree.Hlsl()` から読む。
   `PreprocessorOptions` の HLSL の方言の設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
   `PreprocessorOptions.Language` に入れて渡す。
   書き換えの手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある

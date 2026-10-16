@@ -19,7 +19,7 @@ public sealed class Hlsl2021EnumTests
     [Fact]
     public void enumを構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("""
+        ShaderSyntaxTree tree = Parse2021("""
             enum Mode { First, Second = 4, Third };
             enum class Filter : uint { Point, Linear };
             """);
@@ -40,7 +40,7 @@ public sealed class Hlsl2021EnumTests
     [Fact]
     public void HLSL2018では今までどおり使えない構文として報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("enum Mode { First, Second };");
+        ShaderSyntaxTree tree = HlslHarness.Parse("enum Mode { First, Second };");
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -170,7 +170,7 @@ public sealed class Hlsl2021EnumTests
         Assert.Equal(["HL0347", "HL0347"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
     }
 
-    private static HlslSyntaxTree Parse2021(string code)
+    private static ShaderSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
             new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });

@@ -42,7 +42,7 @@ public sealed class Hlsl2021Tests
     [MemberData(nameof(Constructs))]
     public void 既定ではUnityで使えない構文として報告する(string code, string expected)
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(SourceText.From(code, "test.hlsl"));
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(SourceText.From(code, "test.hlsl"));
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -56,7 +56,7 @@ public sealed class Hlsl2021Tests
     {
         _ = unused;
 
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
             new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
@@ -67,7 +67,7 @@ public sealed class Hlsl2021Tests
     [Fact]
     public void 読み飛ばした宣言の名前を残す()
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("template<typename T = vector<float, 3>> T Make() { return (T)0; }", "test.hlsl"),
             new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 

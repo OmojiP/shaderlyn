@@ -29,7 +29,7 @@ public sealed class Hlsl2021StructTests
     [Fact]
     public void 継承した基底の名前を構文木に残す()
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("struct B { float x; }; struct D : B { float y; };", "test.hlsl"),
             new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 

@@ -90,9 +90,9 @@ public sealed record HlslLanguageOptions : ShaderLanguageOptions
 }
 
 /// <summary>
-/// プリプロセッサの設定から HLSL の言語の設定を読み書きする。
+/// プリプロセッサの設定と構文木から、HLSL の言語の設定を読み書きする。
 /// </summary>
-public static class HlslPreprocessorOptionsExtensions
+public static class HlslLanguageExtensions
 {
     /// <summary>HLSL の言語の設定を返す。設定が無ければ既定 (<see cref="HlslLanguageOptions.Default"/>)。</summary>
     /// <param name="options">プリプロセッサの設定。</param>
@@ -111,5 +111,16 @@ public static class HlslPreprocessorOptionsExtensions
     {
         ArgumentNullException.ThrowIfNull(change);
         return options with { Language = change(options.Hlsl()) };
+    }
+
+    /// <summary>
+    /// 木を読んだ HLSL の言語の設定 (方言・言語のバージョン・コンパイル先・使える構文) を返す。
+    /// </summary>
+    /// <param name="tree">構文木。</param>
+    /// <returns>HLSL の言語の設定。HLSL の木でなければ既定 (<see cref="HlslLanguageOptions.Default"/>)。</returns>
+    public static HlslLanguageOptions Hlsl(this ShaderSyntaxTree tree)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        return tree.Language as HlslLanguageOptions ?? HlslLanguageOptions.Default;
     }
 }

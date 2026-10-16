@@ -195,7 +195,7 @@ public sealed class UnityProbeCorpusTests(ITestOutputHelper output)
             new SemanticsOptions { IncludeResolver = new CFamily.Preprocessing.FileSystemIncludeResolver([]) },
             options);
 
-        return [.. compilation.Programs.Select(p => p.Tree.CompileTargets)];
+        return [.. compilation.Programs.Select(p => p.Tree.Hlsl().CompileTargets)];
     }
 
     /// <summary>表の 1 行を欄に分ける。</summary>

@@ -91,7 +91,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 
             if (targets.IsEmpty)
             {
-                bool dxc = program.Tree.Dialects.Any(d => d.Compiler == HlslCompiler.Dxc);
+                bool dxc = program.Tree.Hlsl().Dialects.Any(d => d.Compiler == HlslCompiler.Dxc);
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     dxc ? HlslRuleDescriptors.EntryPointInConstantBufferWithDxc : HlslRuleDescriptors.EntryPointInConstantBuffer,

@@ -11,64 +11,14 @@ using Shaderlyn.Hlsl.Parsing;
 namespace Shaderlyn.Hlsl;
 
 /// <summary>
-/// 解析済みの HLSL コード。構文木、<c>#pragma</c>、診断を保持する。
+/// HLSL のコードを解析して、構文木 (<see cref="ShaderSyntaxTree"/>) を作る入口。
 /// </summary>
 /// <remarks>
-/// プリプロセスと構文解析の手順をこの型に閉じ込めている。
-/// 順序を誤ると (プリプロセスを飛ばして構文解析するなど)
-/// マクロが展開されないまま解析され、実用的なシェーダーが軒並み壊れる。
+/// プリプロセスと構文解析の手順をここに閉じ込めている。
+/// 木の HLSL に固有の値 (方言・言語のバージョン・コンパイル先) は <c>tree.Hlsl()</c> で読む。
 /// </remarks>
-public sealed class HlslSyntaxTree
+public static class HlslSyntaxTree
 {
-    private HlslSyntaxTree(
-        SourceText text,
-        CompilationUnitSyntax root,
-        PreprocessResult preprocessResult,
-        ImmutableArray<Diagnostic> diagnostics)
-    {
-        Text = text;
-        Root = root;
-        PreprocessResult = preprocessResult;
-        Diagnostics = diagnostics;
-    }
-
-    /// <summary>
-    /// 構文木にせずに読み飛ばした宣言に現れた識別子 (<see cref="CFamily.Parsing.ShaderParser.UnanalyzedIdentifiers"/>)。
-    /// </summary>
-    /// <remarks>
-    /// 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の <c>template</c> など) の名前である。
-    /// 解析していない場所に現れた名前として扱うこと。
-    /// </remarks>
-    public ImmutableArray<ShaderSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
-
-    /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="HlslLanguageOptions.LanguageVersion"/>)。</summary>
-    /// <remarks>並べた方言のうち最も新しい DXC の版。方言そのものは <see cref="Dialects"/> にある。</remarks>
-    public HlslLanguageVersion LanguageVersion { get; private init; } = HlslLanguageVersion.Hlsl2018;
-
-    /// <summary>このコードをコンパイルする方言 (<see cref="HlslLanguageOptions.Dialects"/>)。</summary>
-    public ImmutableArray<HlslDialect> Dialects { get; private init; } = [HlslDialect.Fxc];
-
-    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。この木はこれで読んだ。</summary>
-    public HlslLanguageFeatures Features { get; private init; } = HlslDialect.Fxc.Features;
-
-    /// <summary>コンパイル先 (<see cref="HlslLanguageOptions.CompileTargets"/>)。分からなければ空。</summary>
-    public ImmutableArray<HlslCompileTarget> CompileTargets { get; private init; } = [];
-
-    /// <summary>解析対象のソーステキスト。</summary>
-    public SourceText Text { get; }
-
-    /// <summary>構文木の根。</summary>
-    public CompilationUnitSyntax Root { get; }
-
-    /// <summary>プリプロセスの結果。<c>#pragma</c> や include の情報を含む。</summary>
-    public PreprocessResult PreprocessResult { get; }
-
-    /// <summary>プリプロセスと構文解析で検出した診断。</summary>
-    public ImmutableArray<Diagnostic> Diagnostics { get; }
-
-    /// <summary>現れた <c>#pragma</c> 指令。</summary>
-    public ImmutableArray<PragmaDirective> Pragmas => PreprocessResult.Pragmas;
-
     /// <summary>
     /// HLSL コードを解析して構文木を作る。
     /// </summary>
@@ -81,7 +31,7 @@ public sealed class HlslSyntaxTree
     /// <remarks>
     /// <b>このメソッドは入力がどれだけ壊れていても例外を投げない。</b>
     /// </remarks>
-    public static HlslSyntaxTree Parse(
+    public static ShaderSyntaxTree Parse(
         SourceText text,
         PreprocessorOptions? options = null,
         ISyntaxTimingRecorder? timings = null)
@@ -117,14 +67,7 @@ public sealed class HlslSyntaxTree
         diagnostics.AddRange(parseDiagnostics);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
-        return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
-        {
-            UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
-            LanguageVersion = language.LanguageVersion,
-            Dialects = language.Dialects,
-            Features = parser.Features,
-            CompileTargets = language.CompileTargets,
-        };
+        return new ShaderSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable(), language, parser.UnanalyzedIdentifiers);
     }
 
     /// <summary>1 つの段の時間を記録し、次の段の開始時刻を返す。</summary>

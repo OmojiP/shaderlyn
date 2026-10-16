@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
@@ -1025,7 +1026,7 @@ public sealed class ExpressionTypeBinder
         if (!_scopes.TryGetValue(function, out LocalScopes? scopes))
         {
             scopes = _scopes[function] = new LocalScopes(
-                function, _compilation.GetConditionMap(), Program.Tree.Features.LoopVariableOutsideLoop);
+                function, _compilation.GetConditionMap(), Program.Tree.Hlsl().Features.LoopVariableOutsideLoop);
         }
 
         return scopes;

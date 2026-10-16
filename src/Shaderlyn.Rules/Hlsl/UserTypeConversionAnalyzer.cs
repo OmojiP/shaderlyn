@@ -177,7 +177,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (!binder.Program.Tree.Features.ImplicitUserTypeConversion
+        if (!binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion
             && DescribeStructMismatch(binder, target, targetIsNumeric, valueType, valueIsNumeric) is { } reason)
         {
             ReportStruct(context, receiver, value, valueType, reason, reported);

@@ -106,7 +106,7 @@ internal static class ShaderCompilationBuilder
 
             PreprocessorOptions blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, []);
 
-            HlslSyntaxTree tree = ParseWithoutMergedMacroConflicts(
+            ShaderSyntaxTree tree = ParseWithoutMergedMacroConflicts(
                 unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
             VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
@@ -216,7 +216,7 @@ internal static class ShaderCompilationBuilder
                 }
             }
 
-            foreach (((ImmutableArray<string> enabled, HlslSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
+            foreach (((ImmutableArray<string> enabled, ShaderSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
                 VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
@@ -323,7 +323,7 @@ internal static class ShaderCompilationBuilder
         /// <param name="declarations">その構成で見つかった宣言。</param>
         /// <param name="block">その木のコードブロックの鍵 (<see cref="AnalyzedProgram.BlockKey"/>)。</param>
         /// <param name="variants">その木から読んだ構成の空間。</param>
-        public void Absorb(HlslSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block, VariantSpace variants)
+        public void Absorb(ShaderSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block, VariantSpace variants)
         {
             foreach (UniformSymbol uniform in declarations.Uniforms)
             {
@@ -396,7 +396,7 @@ internal static class ShaderCompilationBuilder
     private sealed class SkippedNames
     {
         /// <summary>取り込んだ解析結果。読み飛ばした位置を、別の構成が解析したかを確かめるのに使う。</summary>
-        private readonly List<(HlslSyntaxTree Tree, VariantSpace Variants)> _trees = [];
+        private readonly List<(ShaderSyntaxTree Tree, VariantSpace Variants)> _trees = [];
 
         /// <summary>
         /// 解析しているファイル自身と、利用者が書いたヘッダの非活性領域に現れた識別子。ファイルと開始位置から名前を引く。
@@ -412,7 +412,7 @@ internal static class ShaderCompilationBuilder
         /// <summary>解析結果 1 つ分を取り込む。</summary>
         /// <param name="tree">解析して得た構文木。</param>
         /// <param name="variants">その木から読んだ構成の空間。</param>
-        public void Add(HlslSyntaxTree tree, VariantSpace variants)
+        public void Add(ShaderSyntaxTree tree, VariantSpace variants)
         {
             _trees.Add((tree, variants));
 
@@ -463,7 +463,7 @@ internal static class ShaderCompilationBuilder
 
             if (_skippedRootIdentifiers.Count > 0)
             {
-                foreach ((HlslSyntaxTree tree, _) in _trees)
+                foreach ((ShaderSyntaxTree tree, _) in _trees)
                 {
                     // その構成で処理した #define の名前も、解析された位置である。
                     // #ifdef _B の中の #define EXTRA 1 は、_B の木で定義されている。
@@ -520,7 +520,7 @@ internal static class ShaderCompilationBuilder
         /// </remarks>
         private void ForgetSymbolExcludedRegions(string filePath)
         {
-            foreach ((HlslSyntaxTree tree, VariantSpace variants) in _trees)
+            foreach ((ShaderSyntaxTree tree, VariantSpace variants) in _trees)
             {
                 PreprocessResult result = tree.PreprocessResult;
 
@@ -595,7 +595,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static ImmutableArray<ImmutableArray<string>> SelectVariantSymbols(
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         VariantSpace variants,
         SourceText text,
         HashSet<string> defaults,
@@ -729,7 +729,7 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static ExpansionPlan PlanExpansions(
         ImmutableArray<ImmutableArray<string>> candidates,
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         SymbolConstraints constraints,
         SemanticsOptions options)
     {
@@ -934,7 +934,7 @@ internal static class ShaderCompilationBuilder
     /// まとめた木にしか無いノードはまとめた木の連なりで見る。
     /// </remarks>
     private static ConditionalMergeResult? VerifyPacked(
-        HlslSyntaxTree baseline,
+        ShaderSyntaxTree baseline,
         SymbolExpansion packed,
         KeywordRegionIndex baselineRegions,
         SymbolConstraints constraints,
@@ -1188,7 +1188,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static bool TryAddIncludedSymbols(
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         VariantSpace variants,
         ref ImmutableHashSet<string> blockSymbols,
         ref SymbolConstraints constraints)
@@ -1334,7 +1334,7 @@ internal static class ShaderCompilationBuilder
     /// <param name="Declarations">その構成で見つかった宣言。</param>
     private readonly record struct SymbolExpansion(
         ImmutableArray<string> EnabledSymbols,
-        HlslSyntaxTree Tree,
+        ShaderSyntaxTree Tree,
         DeclarationSet Declarations);
 
     /// <summary>
@@ -1471,14 +1471,14 @@ internal static class ShaderCompilationBuilder
     /// 繰り返しは、外したシンボルが増えなくなるまで。並べる対象は毎回減るので必ず終わる。
     /// </para>
     /// </remarks>
-    private static HlslSyntaxTree ParseWithoutMergedMacroConflicts(
+    private static ShaderSyntaxTree ParseWithoutMergedMacroConflicts(
         SourceText maskedText,
         PreprocessorOptions options,
         ISyntaxTimingRecorder? syntaxTimings,
         out ImmutableArray<string> removed)
     {
         ImmutableHashSet<string> original = options.BothBranchSymbols;
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
 
         while (!tree.PreprocessResult.MergedMacroConflicts.IsDefaultOrEmpty)
         {
@@ -1550,7 +1550,7 @@ internal static class ShaderCompilationBuilder
                 .Except(options.BothBranchSymbols.Where(s => enabledSymbols.Any(e => constraints.AreExclusive(s, e)))),
         };
 
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, variantOptions, syntaxTimings);
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, variantOptions, syntaxTimings);
 
         return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
     }

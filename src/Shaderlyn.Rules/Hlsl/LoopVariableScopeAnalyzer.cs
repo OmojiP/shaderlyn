@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 
@@ -33,7 +34,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not IdentifierExpressionSyntax identifier
-                || !program.Tree.Features.LoopVariableOutsideLoop
+                || !program.Tree.Hlsl().Features.LoopVariableOutsideLoop
                 || !compilation.IsReportable(identifier.Identifier))
             {
                 continue;

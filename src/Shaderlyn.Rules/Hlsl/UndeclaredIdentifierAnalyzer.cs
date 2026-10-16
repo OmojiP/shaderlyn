@@ -4,6 +4,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -122,7 +123,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.Features)
+        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.Hlsl().Features)
             || HlslIntrinsics.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown

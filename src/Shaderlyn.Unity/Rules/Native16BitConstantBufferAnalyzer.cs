@@ -29,7 +29,7 @@ internal sealed class Native16BitConstantBufferAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (compilation.Programs.All(p => !p.Tree.CompileTargets.Any(t => t.Dialect.Enable16BitTypes)))
+        if (compilation.Programs.All(p => !p.Tree.Hlsl().CompileTargets.Any(t => t.Dialect.Enable16BitTypes)))
         {
             return;
         }

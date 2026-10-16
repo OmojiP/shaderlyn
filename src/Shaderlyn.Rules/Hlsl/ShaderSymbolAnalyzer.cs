@@ -7,6 +7,7 @@ using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Rules;
@@ -221,7 +222,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// 宣言するだけで意味があるので、「条件のどこにも現れない」とは言わない。
     /// </remarks>
     private static bool SwitchesCompiler(ShaderCompilation compilation, string name)
-        => compilation.Programs.Any(p => p.Tree.CompileTargets.Any(t => t.WhenAnySymbol.Contains(name)));
+        => compilation.Programs.Any(p => p.Tree.Hlsl().CompileTargets.Any(t => t.WhenAnySymbol.Contains(name)));
 
     /// <summary>
     /// コードの中で名前として現れた識別子を集める。
