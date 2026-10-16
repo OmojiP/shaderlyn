@@ -35,7 +35,7 @@ namespace Shaderlyn.Semantics.Environments;
 /// <b>切り出さずにマスクする。</b> 部分文字列として切り出すと、位置が元のファイルとずれる。
 /// </para>
 /// </remarks>
-public sealed record HlslCompilationUnit(
+public sealed record ShaderCompilationUnit(
     SourceText Text,
     TextSpan CodeSpan,
     string? Name = null,
@@ -54,9 +54,9 @@ public sealed record HlslCompilationUnit(
     /// </summary>
     /// <remarks>
     /// ソースの中の指令で指定する環境 (Unity の <c>#pragma vertex</c>) は、ここではなく展開の結果から読む
-    /// (<see cref="IHlslEnvironment.ReadEntryPoints"/>)。
+    /// (<see cref="IShaderEnvironment.ReadEntryPoints"/>)。
     /// </remarks>
-    public ImmutableArray<HlslEntryPoint> EntryPoints { get; init; } = [];
+    public ImmutableArray<ShaderEntryPoint> EntryPoints { get; init; } = [];
 
     /// <summary>
     /// ソースの外 (設定ファイル) で指定したコンパイルのターゲット (<c>ps_6_6</c>)。無ければ <see langword="null"/>。

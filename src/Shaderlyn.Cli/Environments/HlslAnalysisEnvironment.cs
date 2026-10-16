@@ -28,7 +28,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     private const string EntryOrigin = "設定ファイルの entry";
 
     private readonly ShaderlynConfiguration _configuration;
-    private readonly IHlslEnvironment _environment;
+    private readonly IShaderEnvironment _environment;
 
     /// <summary>設定ファイルから、汎用の HLSL 環境を作る。</summary>
     /// <param name="configuration">設定ファイルの内容。</param>
@@ -54,7 +54,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <param name="defaultExtensions">フォルダーを指定したときに探す拡張子。</param>
     public HlslAnalysisEnvironment(
         ShaderlynConfiguration configuration,
-        IHlslEnvironment environment,
+        IShaderEnvironment environment,
         string displayName,
         ImmutableArray<string> defaultExtensions)
     {
@@ -77,7 +77,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     public ImmutableArray<string> DefaultExtensions { get; }
 
     /// <inheritdoc/>
-    public IHlslEnvironment HlslEnvironment => _environment;
+    public IShaderEnvironment ShaderEnvironment => _environment;
 
     /// <inheritdoc/>
     public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)
@@ -104,10 +104,10 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <summary>ファイルのコンパイル単位を作る。</summary>
     /// <param name="text">ファイル。</param>
     /// <returns>単位。<c>units:</c> に当てはまらなければ、ファイル全体の 1 つ。</returns>
-    private ImmutableArray<HlslCompilationUnit> CreateUnits(SourceText text)
+    private ImmutableArray<ShaderCompilationUnit> CreateUnits(SourceText text)
     {
         // ターゲットが分からない単位では、ほかのライブラリとリンクするかも分からない。宣言だけの関数を誤りにしない (HL0311)。
-        HlslCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
+        ShaderCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
 
         if (string.IsNullOrEmpty(text.FilePath))
         {
@@ -131,7 +131,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
             {
                 Name = matched.Length == 1 ? null : entriesAreUnique ? unit.Entry : $"{unit.Entry ?? "unit"}#{index + 1}",
                 ExtraMacros = unit.Defines.IsEmpty ? null : SemanticsSetup.ApplyDefines(ImmutableDictionary<string, string>.Empty, unit.Defines),
-                EntryPoints = unit.Entry is { } entry ? [new HlslEntryPoint(entry, EntryOrigin)] : [],
+                EntryPoints = unit.Entry is { } entry ? [new ShaderEntryPoint(entry, EntryOrigin)] : [],
                 Target = HlslShaderTarget.TryParse(unit.Target, out HlslShaderTarget? target) ? target : null,
                 AllowsExternalDefinitions = target is null || target.Value.Stage == HlslShaderStage.Library,
                 Variants = unit.Symbols is { } symbols ? BuildVariants(_configuration, symbols) : null,

@@ -78,7 +78,7 @@ public sealed class ShaderCompilation
     internal ShaderCompilation(
         SourceText text,
         Environments.ShaderSourceInfo source,
-        Environments.IHlslEnvironment environment,
+        Environments.IShaderEnvironment environment,
         ImmutableArray<AnalyzedProgram> programs,
         Dictionary<string, List<UniformSymbol>> uniformsByName,
         Dictionary<string, int> declarationCounts,
@@ -195,7 +195,7 @@ public sealed class ShaderCompilation
 
     /// <summary>このモデルを作った環境。</summary>
     /// <remarks>ルールとエディタ機能が、環境ごとの決まり (シンボルらしい名前など) を尋ねるのに使う。</remarks>
-    public Environments.IHlslEnvironment Environment { get; }
+    public Environments.IShaderEnvironment Environment { get; }
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
@@ -379,7 +379,7 @@ public sealed class ShaderCompilation
     /// </returns>
     /// <remarks>
     /// <see cref="HasCompleteDependencies"/> より緩い。解決できない取り込みが宣言する関数が分かっていれば
-    /// (<see cref="Environments.IHlslEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
+    /// (<see cref="Environments.IShaderEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
     /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (HL0340 / HL0341) はこれを見る。
     /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
     /// </remarks>
@@ -1839,9 +1839,9 @@ public sealed class ShaderCompilation
     /// </remarks>
     public static ShaderCompilation Create(
         SourceText text,
-        ImmutableArray<Environments.HlslCompilationUnit> units,
+        ImmutableArray<Environments.ShaderCompilationUnit> units,
         SourceText codeText,
-        Environments.IHlslEnvironment environment,
+        Environments.IShaderEnvironment environment,
         Environments.ShaderSourceInfo source,
         SemanticsOptions? options = null)
     {

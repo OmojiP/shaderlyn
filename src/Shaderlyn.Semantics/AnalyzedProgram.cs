@@ -21,7 +21,7 @@ namespace Shaderlyn.Semantics;
 public sealed class AnalyzedProgram
 {
     internal AnalyzedProgram(
-        Environments.HlslCompilationUnit unit,
+        Environments.ShaderCompilationUnit unit,
         ShaderSyntaxTree tree,
         DeclarationSet declarations,
         VariantSpace variants)
@@ -40,13 +40,13 @@ public sealed class AnalyzedProgram
     }
 
     /// <summary>この木を解析したコンパイル単位。</summary>
-    public Environments.HlslCompilationUnit Unit { get; }
+    public Environments.ShaderCompilationUnit Unit { get; }
 
     /// <summary>
     /// この木から読んだ構成の空間。取り込んだヘッダの宣言も含む。
     /// </summary>
     /// <remarks>
-    /// 環境が展開の結果から読んだもの (<see cref="Environments.IHlslEnvironment.ReadVariants"/>)。
+    /// 環境が展開の結果から読んだもの (<see cref="Environments.IShaderEnvironment.ReadVariants"/>)。
     /// Unity なら、この木に現れた <c>#pragma multi_compile</c> などの宣言である。
     /// </remarks>
     public VariantSpace Variants { get; }
@@ -55,9 +55,9 @@ public sealed class AnalyzedProgram
     /// この単位のエントリポイント。既定の構成の木で読む。バリアントの木では空。
     /// </summary>
     /// <remarks>
-    /// 環境が読んだもの (<see cref="Environments.IHlslEnvironment.ReadEntryPoints"/>)。
+    /// 環境が読んだもの (<see cref="Environments.IShaderEnvironment.ReadEntryPoints"/>)。
     /// </remarks>
-    public ImmutableArray<Environments.HlslEntryPoint> EntryPoints { get; init; } = [];
+    public ImmutableArray<Environments.ShaderEntryPoint> EntryPoints { get; init; } = [];
 
     /// <summary>
     /// このブロックが占めるファイル上の範囲。
@@ -69,7 +69,7 @@ public sealed class AnalyzedProgram
     public TextSpan CodeSpan { get; }
 
     /// <summary>
-    /// 同じ範囲から作られた単位を見分ける名前 (<see cref="Environments.HlslCompilationUnit.Name"/>)。
+    /// 同じ範囲から作られた単位を見分ける名前 (<see cref="Environments.ShaderCompilationUnit.Name"/>)。
     /// Unity ではコンピュートシェーダーのカーネル名。無ければ <see langword="null"/>。
     /// </summary>
     /// <remarks>
@@ -231,7 +231,7 @@ public sealed class AnalyzedProgram
     /// 開始シンボルを指すので、どのブロックの話かが読み手に伝わる。
     /// </para>
     /// <para>
-    /// 位置は環境が単位に持たせる (<see cref="Environments.HlslCompilationUnit.MarkerSpan"/>)。
+    /// 位置は環境が単位に持たせる (<see cref="Environments.ShaderCompilationUnit.MarkerSpan"/>)。
     /// 無ければ単位の先頭の 1 文字を指す。HLSL 単体ファイルではファイルの先頭になる。
     /// </para>
     /// </remarks>

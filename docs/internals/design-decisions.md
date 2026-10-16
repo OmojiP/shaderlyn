@@ -74,7 +74,7 @@
 ## 環境
 
 - **環境 (Unity・汎用の HLSL・Unreal・独自エンジン) の違いは、上の層だけに置く。** 字句解析・プリプロセッサ (`Shaderlyn.CFamily`)・構文解析 (`Shaderlyn.Hlsl`) と
-  意味解析・ルール (`Shaderlyn.Semantics` / `Shaderlyn.Rules`) は環境の決まりを持たず、`IHlslEnvironment` に尋ねる
+  意味解析・ルール (`Shaderlyn.Semantics` / `Shaderlyn.Rules`) は環境の決まりを持たず、`IShaderEnvironment` に尋ねる
   (構成の空間、エントリポイント、定義済みマクロ、シンボルらしい名前、生成される取り込み)。
   Unity の `#pragma multi_compile` も、設定ファイルの `symbols:` も、独自エンジンの `#pragma variant` も、同じ `VariantSpace` になる
 - **CLI は 1 つにまとめる。** 環境ごとの差はコードと表で、バイナリはほとんど大きくならない。分けると配布物・VS Code 拡張・GitHub Action が環境の数だけ増える。

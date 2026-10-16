@@ -53,10 +53,10 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     internal static ShaderCompilation Build(
         SourceText text,
-        ImmutableArray<HlslCompilationUnit> units,
+        ImmutableArray<ShaderCompilationUnit> units,
         SourceText codeText,
         SemanticsOptions? options,
-        IHlslEnvironment environment,
+        IShaderEnvironment environment,
         ShaderSourceInfo source)
     {
         options ??= SemanticsOptions.Default;
@@ -79,7 +79,7 @@ internal static class ShaderCompilationBuilder
 
         DeclarationIndex index = new();
 
-        foreach (HlslCompilationUnit unit in units)
+        foreach (ShaderCompilationUnit unit in units)
         {
             // 字句解析の結果は共有しているので、展開の前に読むのは実質ただである
             // (このあとの展開が同じトークン列を使う)。
@@ -107,7 +107,7 @@ internal static class ShaderCompilationBuilder
             PreprocessorOptions blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, []);
 
             ShaderSyntaxTree tree = ParseWithoutMergedMacroConflicts(
-                unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
+                environment, unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
             VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
 
@@ -119,7 +119,7 @@ internal static class ShaderCompilationBuilder
                 blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, includedSymbols);
 
                 tree = ParseWithoutMergedMacroConflicts(
-                    unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
+                    environment, unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
                 treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
@@ -167,6 +167,7 @@ internal static class ShaderCompilationBuilder
             KeywordRegionIndex baselineRegions = new(tree.PreprocessResult.KeywordRegions);
 
             SymbolExpansion[] expanded = ExpandSymbols(
+                environment,
                 unit.Text, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
 
             for (int i = 0; i < expanded.Length; i++)
@@ -194,6 +195,7 @@ internal static class ShaderCompilationBuilder
             ImmutableArray<ImmutableArray<string>> retried = [.. unpacked.Take(Math.Max(0, budget)).Select(s => ImmutableArray.Create(s))];
 
             foreach (SymbolExpansion single in ExpandSymbols(
+                         environment,
                          unit.Text, retried, variantOptions, constraints, options.SyntaxTimings))
             {
                 accepted.Add((single, null));
@@ -1340,6 +1342,7 @@ internal static class ShaderCompilationBuilder
     /// <summary>
     /// 構成ごとに展開する。
     /// </summary>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
     /// <param name="maskedText">対象のコードブロック。</param>
     /// <param name="configurations">展開する構成。1 件が 1 つの構成で、同時に有効にするシンボルを並べる。</param>
     /// <param name="options">プリプロセッサの設定。</param>
@@ -1364,6 +1367,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static SymbolExpansion[] ExpandSymbols(
+        IShaderEnvironment environment,
         SourceText maskedText,
         ImmutableArray<ImmutableArray<string>> configurations,
         PreprocessorOptions options,
@@ -1379,14 +1383,14 @@ internal static class ShaderCompilationBuilder
 
         if (configurations.Length == 1)
         {
-            results[0] = Expand(maskedText, configurations[0], options, constraints, syntaxTimings);
+            results[0] = Expand(environment, maskedText, configurations[0], options, constraints, syntaxTimings);
             return results;
         }
 
         Parallel.For(
             0,
             configurations.Length,
-            i => results[i] = Expand(maskedText, configurations[i], options, constraints, syntaxTimings));
+            i => results[i] = Expand(environment, maskedText, configurations[i], options, constraints, syntaxTimings));
 
         return results;
     }
@@ -1450,6 +1454,7 @@ internal static class ShaderCompilationBuilder
     /// <summary>
     /// 並べた分岐のマクロがコードとして展開されたら、そのシンボルを並べずに展開し直す。
     /// </summary>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
     /// <param name="maskedText">対象のコードブロック。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="syntaxTimings">段ごとの時間を受け取る先。測らない場合は <see langword="null"/>。</param>
@@ -1472,13 +1477,14 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static ShaderSyntaxTree ParseWithoutMergedMacroConflicts(
+        IShaderEnvironment environment,
         SourceText maskedText,
         PreprocessorOptions options,
         ISyntaxTimingRecorder? syntaxTimings,
         out ImmutableArray<string> removed)
     {
         ImmutableHashSet<string> original = options.BothBranchSymbols;
-        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(maskedText, options, syntaxTimings);
 
         while (!tree.PreprocessResult.MergedMacroConflicts.IsDefaultOrEmpty)
         {
@@ -1490,7 +1496,7 @@ internal static class ShaderCompilationBuilder
             }
 
             options = options with { BothBranchSymbols = kept };
-            tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
+            tree = environment.Parse(maskedText, options, syntaxTimings);
         }
 
         removed = [.. original.Except(options.BothBranchSymbols).Order(StringComparer.Ordinal)];
@@ -1510,6 +1516,7 @@ internal static class ShaderCompilationBuilder
         => [.. constraints.RequiredGroups.Where(g => !g.Any(symbol => IsDefinedBy(predefined, symbol))).Select(g => g[0])];
 
     /// <summary>指定した構成で展開する。</summary>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
     /// <param name="maskedText">対象のコードブロック。</param>
     /// <param name="enabledSymbols">有効にするシンボル。</param>
     /// <param name="options">プリプロセッサの設定。</param>
@@ -1533,6 +1540,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static SymbolExpansion Expand(
+        IShaderEnvironment environment,
         SourceText maskedText,
         ImmutableArray<string> enabledSymbols,
         PreprocessorOptions options,
@@ -1550,7 +1558,7 @@ internal static class ShaderCompilationBuilder
                 .Except(options.BothBranchSymbols.Where(s => enabledSymbols.Any(e => constraints.AreExclusive(s, e)))),
         };
 
-        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, variantOptions, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(maskedText, variantOptions, syntaxTimings);
 
         return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
     }

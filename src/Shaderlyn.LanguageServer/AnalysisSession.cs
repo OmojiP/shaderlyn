@@ -50,7 +50,7 @@ internal sealed class AnalysisSession
     private readonly IAnalysisEnvironment _environment;
 
     /// <summary>意味解析に渡す HLSL の環境。宣言されたシンボルを、解析せずに読むのに使う。</summary>
-    public Semantics.Environments.IHlslEnvironment? HlslEnvironment => _environment.HlslEnvironment;
+    public Semantics.Environments.IShaderEnvironment? ShaderEnvironment => _environment.ShaderEnvironment;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。

@@ -769,7 +769,7 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 ### 付録 2: 宣言の読み取り
 
-宣言をどう読むかは環境が決めます ([IHlslEnvironment](../../src/Shaderlyn.Semantics/Environments/IHlslEnvironment.cs))。
+宣言をどう読むかは環境が決めます ([IShaderEnvironment](../../src/Shaderlyn.Semantics/Environments/IShaderEnvironment.cs))。
 解析とルールは、環境が読んだ構成の空間 ([VariantSpace](../../src/Shaderlyn.Core/Syntax/VariantSpace.cs)) だけを見ます。
 Unity の環境では [ShaderSymbols.cs](../../src/Shaderlyn.Unity/ShaderSymbols.cs) の 1 か所だけが判断します。
 ほかの環境 (汎用の HLSL・Unreal) は設定ファイルの `symbols:` から作ります。

@@ -141,7 +141,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// 利用者に直しようがない。
     /// </para>
     /// <para>
-    /// <b>環境がシンボルらしいと言う名前だけを報告する (<see cref="Semantics.Environments.IHlslEnvironment.LooksLikeVariantSymbol"/>)。</b>
+    /// <b>環境がシンボルらしいと言う名前だけを報告する (<see cref="Semantics.Environments.IShaderEnvironment.LooksLikeVariantSymbol"/>)。</b>
     /// 条件にはプラットフォームの判定 (<c>SHADER_API_D3D11</c>) や
     /// コンパイラが定義する名前も現れる。それらは宣言されていなくて当然である。
     /// シンボルはアンダースコアで始まる大文字の名前という慣習があり、

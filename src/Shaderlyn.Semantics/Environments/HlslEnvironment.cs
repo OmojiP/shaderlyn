@@ -84,21 +84,21 @@ public sealed record HlslEnvironmentOptions
     public bool Enable16BitTypes { get; init; }
 
     /// <summary>
-    /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="HlslCompilationUnit.Variants"/>) があれば、そちらを使う。
+    /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="ShaderCompilationUnit.Variants"/>) があれば、そちらを使う。
     /// </summary>
     public VariantSpace Variants { get; init; } = VariantSpace.Empty;
 
     /// <summary>
     /// ビルドのときに生成される <c>#include</c> のパスの接頭辞 (<c>/Engine/Generated/</c>)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.IsGeneratedInclude"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.IsGeneratedInclude"/> を見ること。</remarks>
     public ImmutableArray<string> GeneratedIncludePrefixes { get; init; } = [];
 
     /// <summary>
     /// 生成される取り込みのうち、宣言する関数が分かっているもの。キーはパスで、<c>/</c> で終わるものはその下のすべてを指す。
     /// 値は宣言しうる関数の名前 (関数を宣言しないなら空)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
     public ImmutableDictionary<string, ImmutableArray<string>> GeneratedIncludeFunctions { get; init; } =
         ImmutableDictionary<string, ImmutableArray<string>>.Empty;
 
@@ -111,7 +111,7 @@ public sealed record HlslEnvironmentOptions
     /// <summary>
     /// エンジンがシェーダーごとに定義するマクロの名前 (値は分からない)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
     public ImmutableHashSet<string> EngineDefinedMacros { get; init; } = ImmutableHashSet<string>.Empty;
 }
 
@@ -122,8 +122,8 @@ public sealed record HlslEnvironmentOptions
 /// <remarks>
 /// <para>
 /// <b>構成の空間・エントリポイント・ターゲットは、ソースの中からは読まない。</b>
-/// どれも設定ファイルで単位ごとに与える (<see cref="HlslCompilationUnit.Variants"/> /
-/// <see cref="HlslCompilationUnit.EntryPoints"/> / <see cref="HlslCompilationUnit.Target"/>)。
+/// どれも設定ファイルで単位ごとに与える (<see cref="ShaderCompilationUnit.Variants"/> /
+/// <see cref="ShaderCompilationUnit.EntryPoints"/> / <see cref="ShaderCompilationUnit.Target"/>)。
 /// <c>#pragma</c> は DXC と同じく読み流す。
 /// </para>
 /// <para>
@@ -166,7 +166,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
-        HlslCompilationUnit unit,
+        ShaderCompilationUnit unit,
         ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
@@ -218,14 +218,14 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => VariantsOf(unit);
 
     /// <inheritdoc/>
-    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => VariantsOf(unit);
+    public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result) => VariantsOf(unit);
 
     /// <inheritdoc/>
-    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
     {
         ArgumentNullException.ThrowIfNull(unit);
         return unit.EntryPoints;
@@ -272,16 +272,16 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     /// </summary>
     /// <param name="text">ファイル。</param>
     /// <returns>単位。構成の空間・エントリポイント・ターゲットは持たない。</returns>
-    public static HlslCompilationUnit WholeFile(SourceText text)
+    public static ShaderCompilationUnit WholeFile(SourceText text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return new HlslCompilationUnit(text, new TextSpan(0, text.Length));
+        return new ShaderCompilationUnit(text, new TextSpan(0, text.Length));
     }
 
     /// <summary>単位の構成の空間。単位の指定が無ければ共通のもの。</summary>
     /// <param name="unit">単位。</param>
     /// <returns>構成の空間。</returns>
-    private VariantSpace VariantsOf(HlslCompilationUnit unit)
+    private VariantSpace VariantsOf(ShaderCompilationUnit unit)
     {
         ArgumentNullException.ThrowIfNull(unit);
         return unit.Variants ?? Options.Variants;

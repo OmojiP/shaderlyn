@@ -49,7 +49,7 @@ internal interface IAnalysisEnvironment
     /// 意味解析に渡す HLSL の環境。HLSL ではない言語の環境では <see langword="null"/>。
     /// </summary>
     /// <remarks>言語サーバーが、解析せずに宣言されたシンボルを読むのに使う。</remarks>
-    Semantics.Environments.IHlslEnvironment? HlslEnvironment { get; }
+    Semantics.Environments.IShaderEnvironment? ShaderEnvironment { get; }
 
     /// <summary>
     /// 1 ファイルを解析単位にする。

@@ -475,7 +475,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 | `GetFunctionDeclarations(name)`    | その名前で宣言されている関数すべて          |
 | `HasFunctionDeclarations`          | 関数の宣言が 1 つでもあるか                 |
 | `GetExpressionTypeBinder(program)` | 式の型を求める `ExpressionTypeBinder`       |
-| `Environment`                      | このモデルを作った環境 (`IHlslEnvironment`。[環境](#環境)) |
+| `Environment`                      | このモデルを作った環境 (`IShaderEnvironment`。[環境](#環境)) |
 | `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
 
 Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
@@ -796,7 +796,7 @@ if (conditions.IsPossible(missing))
 | `EnabledSymbols`                                                | どのシンボルを有効にした構成か。既定の構成では空 |
 | `Variants`                                                      | その木から環境が読んだ構成の空間 (`VariantSpace`) |
 | `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
-| `Unit`                                                          | 解析したコンパイル単位 (`HlslCompilationUnit`) |
+| `Unit`                                                          | 解析したコンパイル単位 (`ShaderCompilationUnit`) |
 
 囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
 
@@ -850,24 +850,26 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ルールを書くだけなら、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使います。
 例は [ルールの実例集「独自エンジンの環境」](cookbook.md#独自エンジンの環境) にあります。
 
-### `IHlslEnvironment` (`Shaderlyn.Semantics.Environments`)
+### `IHlslEnvironment` / `IShaderEnvironment` (`Shaderlyn.Semantics.Environments`)
 
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
+言語に依らない口は `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを足したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
 セマンティックモデルを作った環境は `compilation.Environment` で引けます。
 
 | メンバー | 役目 |
 | --- | --- |
 | `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
+| `Parse` | 単位のコードを環境の言語で読む。`IHlslEnvironment` は HLSL として読む (実装しなくてよい) |
 | `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
-| `ReadEntryPoints` | エントリポイント (`HlslEntryPoint`)。HL0301 が見る |
+| `ReadEntryPoints` | エントリポイント (`ShaderEntryPoint`)。HL0301 が見る |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
 | `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。HL0340 / HL0341 が見る |
 
 ### `ShaderCompilation.Create`
 
-コンパイル単位 (`HlslCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
+コンパイル単位 (`ShaderCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
 ファイル全体を 1 つの単位にするなら `HlslEnvironment.WholeFile(text)` を使います。
 
 ### `VariantSpace` / `VariantValues` (`Shaderlyn.Core.Syntax`)

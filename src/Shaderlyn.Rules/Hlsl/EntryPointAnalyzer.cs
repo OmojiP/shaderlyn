@@ -21,7 +21,7 @@ namespace Shaderlyn.Rules;
 /// 該当のマテリアルを画面に出すまで気づけないことがある。
 /// </para>
 /// <para>
-/// エントリポイントは環境が読む (<see cref="IHlslEnvironment.ReadEntryPoints"/>)。
+/// エントリポイントは環境が読む (<see cref="IShaderEnvironment.ReadEntryPoints"/>)。
 /// Unity なら <c>#pragma vertex</c> などに書いた名前、設定でコンパイル単位を与える環境なら設定に書いた名前である。
 /// </para>
 /// <para>
@@ -46,7 +46,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (HlslEntryPoint entryPoint in program.EntryPoints)
+            foreach (ShaderEntryPoint entryPoint in program.EntryPoints)
             {
                 CheckEntryPoint(context, compilation, program, entryPoint);
                 CheckConstantBufferEntryPoint(context, compilation, program, entryPoint);
@@ -75,7 +75,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        HlslEntryPoint entryPoint)
+        ShaderEntryPoint entryPoint)
     {
         foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
@@ -146,7 +146,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        HlslEntryPoint entryPoint)
+        ShaderEntryPoint entryPoint)
     {
         // 入口の関数が無い構成を求める。
         // 両方の分岐を並べた木では、#ifdef _B の中の関数も木にある。名前があるだけで「ある」とすると、

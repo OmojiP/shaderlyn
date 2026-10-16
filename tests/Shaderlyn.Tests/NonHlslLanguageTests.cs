@@ -119,7 +119,7 @@ public sealed class NonHlslLanguageTests : IDisposable
 
         public ImmutableArray<string> DefaultExtensions => [".toy"];
 
-        public Semantics.Environments.IHlslEnvironment? HlslEnvironment => null;
+        public Semantics.Environments.IShaderEnvironment? ShaderEnvironment => null;
 
         public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)
         {

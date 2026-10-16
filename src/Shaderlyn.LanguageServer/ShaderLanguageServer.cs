@@ -1084,7 +1084,7 @@ public sealed partial class ShaderLanguageServer
     /// <returns>選ばれたシンボルから、このファイルが宣言したシンボルを除いたもの。</returns>
     /// <remarks>シンボルを除く理由は <see cref="ConditionSymbols.ExcludeDeclaredSymbols"/> を参照。</remarks>
     private ImmutableArray<string> AnalysisSymbolsOf(string uri, OpenDocument document)
-        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), SessionFor(uri).HlslEnvironment);
+        => ConditionSymbols.ExcludeDeclaredSymbols(document.Text, DefinedSymbolsOf(uri), SessionFor(uri).ShaderEnvironment);
 
     /// <summary>要求が、選んだ構成での表示を求めているかを読む。</summary>
     /// <param name="message">受け取ったメッセージ。</param>
@@ -1219,7 +1219,7 @@ public sealed partial class ShaderLanguageServer
                 try
                 {
                     ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.HlslEnvironment);
+                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.ShaderEnvironment);
 
                     ImmutableArray<Diagnostic> diagnostics =
                         session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);

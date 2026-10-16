@@ -158,7 +158,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
 
         compilation = ShaderCompilation.Create(
             text,
-            [new HlslCompilationUnit(text, new TextSpan(0, text.Length))],
+            [new ShaderCompilationUnit(text, new TextSpan(0, text.Length))],
             text,
             new QualityEnvironment(),
             ShaderSourceInfo.None);
@@ -186,17 +186,17 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             => options.WithHlsl(h => h with { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
         public PreprocessorOptions PrepareUnit(
-            HlslCompilationUnit unit,
+            ShaderCompilationUnit unit,
             ImmutableArray<ShaderSyntaxToken> tokens,
             PreprocessorOptions options,
             string filePath)
             => options;
 
-        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens) => Space;
+        public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens) => Space;
 
-        public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => Space;
+        public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result) => Space;
 
-        public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
+        public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result) => [];
 
         public bool LooksLikeVariantSymbol(string name) => false;
 

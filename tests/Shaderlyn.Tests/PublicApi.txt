@@ -805,14 +805,14 @@ Shaderlyn.Cli.ExitCode :: DiagnosticsFound = 1
 Shaderlyn.Cli.ExitCode :: Success = 0
 Shaderlyn.Cli.ExitCode :: ToolError = 2
 Shaderlyn.Cli.HostEnvironment : sealed class (System.IEquatable`1[Shaderlyn.Cli.HostEnvironment])
-Shaderlyn.Cli.HostEnvironment :: .ctor(System.String, System.String, System.Collections.Immutable.ImmutableArray`1[System.String], System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: .ctor(System.String, System.String, System.Collections.Immutable.ImmutableArray`1[System.String], System.Func`1[Shaderlyn.Semantics.Environments.IShaderEnvironment])
 Shaderlyn.Cli.HostEnvironment :: Shaderlyn.Cli.HostEnvironment <Clone>$()
 Shaderlyn.Cli.HostEnvironment :: System.Boolean Equals(Shaderlyn.Cli.HostEnvironment)
 Shaderlyn.Cli.HostEnvironment :: System.Collections.Immutable.ImmutableArray`1[System.String] DefaultExtensions { get; set; }
-Shaderlyn.Cli.HostEnvironment :: System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment] CreateEnvironment { get; set; }
+Shaderlyn.Cli.HostEnvironment :: System.Func`1[Shaderlyn.Semantics.Environments.IShaderEnvironment] CreateEnvironment { get; set; }
 Shaderlyn.Cli.HostEnvironment :: System.String DisplayName { get; set; }
 Shaderlyn.Cli.HostEnvironment :: System.String Name { get; set; }
-Shaderlyn.Cli.HostEnvironment :: System.Void Deconstruct(out System.String, out System.String, out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Func`1[Shaderlyn.Semantics.Environments.IHlslEnvironment])
+Shaderlyn.Cli.HostEnvironment :: System.Void Deconstruct(out System.String, out System.String, out System.Collections.Immutable.ImmutableArray`1[System.String], out System.Func`1[Shaderlyn.Semantics.Environments.IShaderEnvironment])
 Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Equality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
 Shaderlyn.Cli.HostEnvironment :: static System.Boolean op_Inequality(Shaderlyn.Cli.HostEnvironment, Shaderlyn.Cli.HostEnvironment)
 Shaderlyn.Cli.HostEnvironment :: virtual System.Boolean Equals(System.Object)
@@ -1253,11 +1253,11 @@ Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.VariantSpace Varian
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Conditional.ConditionalMergeResult PackedMerge { get; set; }
-Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Environments.HlslCompilationUnit Unit { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Semantics.Environments.ShaderCompilationUnit Unit { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Boolean IsPacked { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.StructDeclarationSyntax] Structs { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; }
-Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
+Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] EntryPoints { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol] ConstantBuffers { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Symbols.UniformSymbol] Uniforms { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableArray`1[System.String] EnabledSymbols { get; set; }
@@ -1310,54 +1310,20 @@ Shaderlyn.Semantics.Conditional.NodeInsertion :: static System.Boolean op_Inequa
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Conditional.NodeInsertion :: virtual System.String ToString()
-Shaderlyn.Semantics.Environments.HlslCompilationUnit : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslCompilationUnit])
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: .ctor(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.String = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] = null, System.Object = null, System.Nullable`1[Shaderlyn.Core.Text.TextSpan] = null)
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.SourceText Text { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: Shaderlyn.Semantics.Environments.HlslCompilationUnit <Clone>$()
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean AllowsExternalDefinitions { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslCompilationUnit)
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] EntryPoints { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] MarkerSpan { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget] Target { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Object Data { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.String DisplayName { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.String Name { get; set; }
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: System.Void Deconstruct(out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.String, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.Object, out System.Nullable`1[Shaderlyn.Core.Text.TextSpan])
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Semantics.Environments.HlslCompilationUnit)
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.Semantics.Environments.HlslCompilationUnit)
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.Boolean Equals(System.Object)
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.Int32 GetHashCode()
-Shaderlyn.Semantics.Environments.HlslCompilationUnit :: virtual System.String ToString()
-Shaderlyn.Semantics.Environments.HlslEntryPoint : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslEntryPoint])
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: Shaderlyn.Semantics.Environments.HlslEntryPoint <Clone>$()
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.Boolean Equals(Shaderlyn.Semantics.Environments.HlslEntryPoint)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.String Name { get; set; }
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.String Origin { get; set; }
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.HlslEntryPoint, Shaderlyn.Semantics.Environments.HlslEntryPoint)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.HlslEntryPoint, Shaderlyn.Semantics.Environments.HlslEntryPoint)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.Boolean Equals(System.Object)
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.Int32 GetHashCode()
-Shaderlyn.Semantics.Environments.HlslEntryPoint :: virtual System.String ToString()
-Shaderlyn.Semantics.Environments.HlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment)
+Shaderlyn.Semantics.Environments.HlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment, Shaderlyn.Semantics.Environments.IShaderEnvironment)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: .ctor(Shaderlyn.Semantics.Environments.HlslEnvironmentOptions = null)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
-Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
-Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: Shaderlyn.Semantics.Environments.HlslEnvironmentOptions Options { get; }
 Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Boolean IsDefinedByEngine(System.String)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Boolean IsGeneratedInclude(System.String)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Boolean LooksLikeVariantSymbol(System.String)
-Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: System.Nullable`1[System.Collections.Immutable.ImmutableArray`1[System.String]] GetFunctionsDeclaredIn(System.String)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: System.String Name { get; }
-Shaderlyn.Semantics.Environments.HlslEnvironment :: static Shaderlyn.Semantics.Environments.HlslCompilationUnit WholeFile(Shaderlyn.Core.Text.SourceText)
+Shaderlyn.Semantics.Environments.HlslEnvironment :: static Shaderlyn.Semantics.Environments.ShaderCompilationUnit WholeFile(Shaderlyn.Core.Text.SourceText)
 Shaderlyn.Semantics.Environments.HlslEnvironment :: static System.String EnvironmentName
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.HlslEnvironmentOptions])
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: .ctor()
@@ -1409,17 +1375,53 @@ Shaderlyn.Semantics.Environments.HlslShaderTarget :: static System.Collections.I
 Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Environments.HlslShaderTarget :: virtual System.String ToString()
-Shaderlyn.Semantics.Environments.IHlslEnvironment : interface
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.CFamily.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Boolean IsGeneratedInclude(System.String)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Boolean LooksLikeVariantSymbol(System.String)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: abstract System.String Name { get; }
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: virtual System.Boolean IsDefinedByEngine(System.String)
-Shaderlyn.Semantics.Environments.IHlslEnvironment :: virtual System.Nullable`1[System.Collections.Immutable.ImmutableArray`1[System.String]] GetFunctionsDeclaredIn(System.String)
+Shaderlyn.Semantics.Environments.IHlslEnvironment : interface (Shaderlyn.Semantics.Environments.IShaderEnvironment)
+Shaderlyn.Semantics.Environments.IShaderEnvironment : interface
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.CFamily.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.CFamily.Syntax.ShaderSyntaxTree Parse(Shaderlyn.Core.Text.SourceText, Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Core.Analysis.ISyntaxTimingRecorder)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Boolean IsGeneratedInclude(System.String)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Boolean LooksLikeVariantSymbol(System.String)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.String Name { get; }
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: virtual System.Boolean IsDefinedByEngine(System.String)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: virtual System.Nullable`1[System.Collections.Immutable.ImmutableArray`1[System.String]] GetFunctionsDeclaredIn(System.String)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderCompilationUnit])
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: .ctor(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan, System.String = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] = null, System.Object = null, System.Nullable`1[Shaderlyn.Core.Text.TextSpan] = null)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: Shaderlyn.Core.Text.SourceText Text { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: Shaderlyn.Semantics.Environments.ShaderCompilationUnit <Clone>$()
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Boolean AllowsExternalDefinitions { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Boolean Equals(Shaderlyn.Semantics.Environments.ShaderCompilationUnit)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] EntryPoints { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] MarkerSpan { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget] Target { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Object Data { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String DisplayName { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Void Deconstruct(out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.String, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.Object, out System.Nullable`1[Shaderlyn.Core.Text.TextSpan])
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.Semantics.Environments.ShaderCompilationUnit)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.Semantics.Environments.ShaderCompilationUnit)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.String ToString()
+Shaderlyn.Semantics.Environments.ShaderEntryPoint : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint])
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Semantics.Environments.ShaderEntryPoint <Clone>$()
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Boolean Equals(Shaderlyn.Semantics.Environments.ShaderEntryPoint)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Origin { get; set; }
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: virtual System.String ToString()
 Shaderlyn.Semantics.Environments.ShaderSourceInfo : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderSourceInfo])
 Shaderlyn.Semantics.Environments.ShaderSourceInfo :: .ctor(Shaderlyn.Core.Syntax.SyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic], System.Object = null)
 Shaderlyn.Semantics.Environments.ShaderSourceInfo :: Shaderlyn.Core.Syntax.SyntaxNode Root { get; set; }
@@ -1544,7 +1546,7 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition G
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText CodeText { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Conditional.ConditionMap GetConditionMap()
-Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IHlslEnvironment Environment { get; }
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IShaderEnvironment Environment { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.ExpressionTypeBinder GetExpressionTypeBinder(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.OverloadResolution ResolveCall(Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram)
@@ -1586,7 +1588,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableA
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnexploredSymbols { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Int32 CountUniformDeclarations(System.String)
-Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslCompilationUnit], Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.Environments.IHlslEnvironment, Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.SemanticsOptions = null)
+Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderCompilationUnit], Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.Environments.IShaderEnvironment, Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.SemanticsOptions = null)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Collections.Generic.IEnumerable`1[System.String] DeclaredNamesOf(Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Int32 MaxConfigurationSymbols
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol])
@@ -2064,15 +2066,15 @@ Shaderlyn.Unity.UnityGraphicsApis :: static System.Boolean TryParse(System.Strin
 Shaderlyn.Unity.UnityGraphicsApis :: static System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Unity.UnityGraphicsApi] Default { get; }
 Shaderlyn.Unity.UnityGraphicsApis :: static System.String AcceptedNames { get; }
 Shaderlyn.Unity.UnityGraphicsApis :: static System.String GetName(Shaderlyn.Unity.UnityGraphicsApi)
-Shaderlyn.Unity.UnityHlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment)
+Shaderlyn.Unity.UnityHlslEnvironment : sealed class (Shaderlyn.Semantics.Environments.IHlslEnvironment, Shaderlyn.Semantics.Environments.IShaderEnvironment)
 Shaderlyn.Unity.UnityHlslEnvironment :: .ctor(Shaderlyn.Unity.UnityOptions)
 Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions ConfigurePreprocessor(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Semantics.SemanticsOptions)
-Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
-Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
-Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.CFamily.Preprocessing.PreprocessorOptions PrepareUnit(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, System.String)
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.Unity.UnityHlslEnvironment :: Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
 Shaderlyn.Unity.UnityHlslEnvironment :: System.Boolean IsGeneratedInclude(System.String)
 Shaderlyn.Unity.UnityHlslEnvironment :: System.Boolean LooksLikeVariantSymbol(System.String)
-Shaderlyn.Unity.UnityHlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.HlslEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.HlslCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Unity.UnityHlslEnvironment :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
 Shaderlyn.Unity.UnityHlslEnvironment :: System.String Name { get; }
 Shaderlyn.Unity.UnityOptions : sealed class (System.IEquatable`1[Shaderlyn.Unity.UnityOptions])
 Shaderlyn.Unity.UnityOptions :: .ctor()

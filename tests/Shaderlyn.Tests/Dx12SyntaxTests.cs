@@ -113,7 +113,7 @@ public sealed class Dx12SyntaxTests
             """;
 
         SourceText text = SourceText.From(code, "lib.hlsl");
-        HlslCompilationUnit unit = HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = external };
+        ShaderCompilationUnit unit = HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = external };
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(text, unit);
 
@@ -220,7 +220,7 @@ public sealed class Dx12SyntaxTests
         return Analyze(text, HlslEnvironment.WholeFile(text));
     }
 
-    private static ImmutableArray<Diagnostic> Analyze(SourceText text, HlslCompilationUnit unit, IIncludeResolver? resolver = null)
+    private static ImmutableArray<Diagnostic> Analyze(SourceText text, ShaderCompilationUnit unit, IIncludeResolver? resolver = null)
     {
         ShaderCompilation compilation = ShaderCompilation.Create(
             text, [unit], text, new HlslEnvironment(), ShaderSourceInfo.None, new SemanticsOptions { IncludeResolver = resolver });

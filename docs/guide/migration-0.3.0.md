@@ -13,6 +13,7 @@
     - [型の名前](#型の名前)
     - [名前空間](#名前空間)
     - [HLSL の方言の設定](#hlsl-の方言の設定)
+  - [環境](#環境)
 
 ## 書き換えが要るか
 
@@ -127,3 +128,25 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 
 `options.Hlsl()` は、設定が無ければ既定 (FXC) を返します。
 自作の環境 (`IHlslEnvironment`) で方言を変えるときは、受け取った設定を `WithHlsl` で変えると、ほかの環境が入れた設定 (`DialectName` など) を残せます。
+
+## 環境
+
+自作の環境 (独自エンジン) を書いている人向けです。ルールを書くだけなら関係ありません。
+
+環境の口を、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けました。
+`IHlslEnvironment` は `IShaderEnvironment` に「HLSL として読む」ことを足したもので、これまでどおり実装できます。
+メンバーは変わりません (足した `Parse` は `IHlslEnvironment` が実装しているので、書かなくてかまいません)。
+
+名前の変わった型:
+
+| 0.2.1 | 0.3.0 |
+| --- | --- |
+| `HlslCompilationUnit` | `ShaderCompilationUnit` |
+| `HlslEntryPoint` | `ShaderEntryPoint` |
+
+受け取る側の型も変わりました。
+
+| 0.2.1 | 0.3.0 |
+| --- | --- |
+| `compilation.Environment` (`IHlslEnvironment`) | `compilation.Environment` (`IShaderEnvironment`) |
+| `HostEnvironment` の `Func<IHlslEnvironment>` | `Func<IShaderEnvironment>`。`IHlslEnvironment` を返すラムダはそのまま渡せる |

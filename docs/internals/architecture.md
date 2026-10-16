@@ -92,7 +92,7 @@ flowchart TD
 
 - 入口は `ShaderCompilation.Create(text, units, codeText, environment, source, semantics)` です。
   Unity は [UnityCompilation](../../src/Shaderlyn.Unity/UnityCompilation.cs) の `Create` (ShaderLab) と `CreateForHlsl` (HLSL 単体) が単位を切り出してこれを呼びます
-- 環境の決まり (構成の軸・エントリポイント・定義済みマクロ・生成される取り込み) は [IHlslEnvironment](../../src/Shaderlyn.Semantics/Environments/IHlslEnvironment.cs) から受け取ります。
+- 環境の決まり (構成の軸・エントリポイント・定義済みマクロ・生成される取り込み) は [IShaderEnvironment](../../src/Shaderlyn.Semantics/Environments/IShaderEnvironment.cs) から受け取ります。
   組み立ては環境の決まりを持ちません ([設計判断「環境」](design-decisions.md#環境))
 - Unity のヘッダの解決は、`SemanticsOptions` に渡された include resolver が担います。
   どの取り込み先が利用者のファイルかは `SemanticsOptions.IsUserInclude` が決め、CLI と言語サーバーは `SemanticsSetup.CreateUserIncludePredicate` で作ります

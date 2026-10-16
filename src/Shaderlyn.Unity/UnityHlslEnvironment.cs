@@ -85,7 +85,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
-        HlslCompilationUnit unit,
+        ShaderCompilationUnit unit,
         ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
@@ -129,14 +129,14 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => ShaderSymbols.ReadVariantSpaceFromTokens(WithIncludeTokens(unit, tokens));
 
     /// <summary>コードブロックより先に読む共通コード片のトークンを、コードブロックのトークンの前に並べる。</summary>
     /// <param name="unit">対象の単位。</param>
     /// <param name="tokens">コードブロックのトークン。</param>
     /// <returns>並べたトークン。共通コード片が無ければ <paramref name="tokens"/> のまま。</returns>
-    private static ImmutableArray<ShaderSyntaxToken> WithIncludeTokens(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
+    private static ImmutableArray<ShaderSyntaxToken> WithIncludeTokens(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (unit.Data is not UnityProgramBlock { IncludeText: { } includeText })
         {
@@ -148,7 +148,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => ShaderSymbols.ReadVariantSpace(result.Pragmas);
+    public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result) => ShaderSymbols.ReadVariantSpace(result.Pragmas);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -177,11 +177,11 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     public bool IsGeneratedInclude(string path) => false;
 
     /// <inheritdoc/>
-    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
     {
         ArgumentNullException.ThrowIfNull(unit);
 
-        ImmutableArray<HlslEntryPoint>.Builder entryPoints = ImmutableArray.CreateBuilder<HlslEntryPoint>();
+        ImmutableArray<ShaderEntryPoint>.Builder entryPoints = ImmutableArray.CreateBuilder<ShaderEntryPoint>();
 
         foreach (PragmaDirective pragma in result.Pragmas)
         {
@@ -198,7 +198,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
                 continue;
             }
 
-            entryPoints.Add(new HlslEntryPoint(name.Text, "#pragma " + pragma.Name, name.GetLocation()));
+            entryPoints.Add(new ShaderEntryPoint(name.Text, "#pragma " + pragma.Name, name.GetLocation()));
         }
 
         return entryPoints.ToImmutable();
@@ -298,7 +298,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// <param name="filePath">解析しているファイルのパス。</param>
     /// <param name="isCompute">コンピュートシェーダーなら <see langword="true"/>。</param>
     /// <returns>コンパイルする単位なら <see langword="true"/>。</returns>
-    private static bool IsCompiledShader(HlslCompilationUnit unit, string filePath, out bool isCompute)
+    private static bool IsCompiledShader(ShaderCompilationUnit unit, string filePath, out bool isCompute)
     {
         isCompute = unit.Data is UnityProgramBlock { Block: null }
                     && string.Equals(Path.GetExtension(filePath), ".compute", StringComparison.OrdinalIgnoreCase);

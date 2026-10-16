@@ -57,7 +57,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
-        HlslCompilationUnit unit,
+        ShaderCompilationUnit unit,
         ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
@@ -82,15 +82,15 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => ReadVariantSpace(ReadPragmas(tokens));
 
     /// <inheritdoc/>
-    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result)
+    public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result)
         => ReadVariantSpace(result.Pragmas);
 
     /// <inheritdoc/>
-    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
     {
         return
         [
@@ -99,7 +99,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
                 .Select(pragma => pragma.Arguments.FirstOrDefault())
                 .OfType<ShaderSyntaxToken>()
                 .Where(name => name.Kind == ShaderSyntaxKind.IdentifierToken)
-                .Select(name => new HlslEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
+                .Select(name => new ShaderEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
         ];
     }
 

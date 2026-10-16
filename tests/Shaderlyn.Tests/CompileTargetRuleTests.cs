@@ -221,7 +221,7 @@ public sealed class CompileTargetRuleTests
             """, "test.hlsl");
         ShaderCompilation compilation = ShaderCompilation.Create(
             text,
-            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new HlslEntryPoint("main", "test")] }],
+            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new ShaderEntryPoint("main", "test")] }],
             text,
             new HlslEnvironment(new HlslEnvironmentOptions { Compiler = compiler }),
             ShaderSourceInfo.None);

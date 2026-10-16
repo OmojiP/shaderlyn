@@ -95,9 +95,9 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             float4 MainPs() : SV_Target { return 1; }
             """;
 
-        HlslCompilationUnit unit = Unit(code, "ps_6_6") with
+        ShaderCompilationUnit unit = Unit(code, "ps_6_6") with
         {
-            EntryPoints = [new HlslEntryPoint("MainPS", "設定ファイルの entry")],
+            EntryPoints = [new ShaderEntryPoint("MainPS", "設定ファイルの entry")],
         };
 
         Diagnostic diagnostic = Assert.Single(Analyze(code, unit), d => d.Id == "HL0301");
@@ -112,9 +112,9 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             float4 MainPS() : SV_Target { return 1; }
             """;
 
-        HlslCompilationUnit unit = Unit(code, "ps_6_6") with
+        ShaderCompilationUnit unit = Unit(code, "ps_6_6") with
         {
-            EntryPoints = [new HlslEntryPoint("MainPS", "設定ファイルの entry")],
+            EntryPoints = [new ShaderEntryPoint("MainPS", "設定ファイルの entry")],
         };
 
         Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "HL0301");
@@ -134,7 +134,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             float4 main() : SV_Target { return Get().w; }
             """;
 
-        HlslCompilationUnit unit = Unit(code, "ps_6_6") with
+        ShaderCompilationUnit unit = Unit(code, "ps_6_6") with
         {
             Variants = VariantSpace.ForValues("QUALITY", [0, 1, 2]),
         };
@@ -159,9 +159,9 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             }
             """;
 
-        HlslCompilationUnit unit = Unit(code, "ps_6_6") with
+        ShaderCompilationUnit unit = Unit(code, "ps_6_6") with
         {
-            EntryPoints = [new HlslEntryPoint("MainPS", "設定ファイルの entry")],
+            EntryPoints = [new ShaderEntryPoint("MainPS", "設定ファイルの entry")],
         };
 
         Assert.Empty(Analyze(code, unit, "shader.hlsl"));
@@ -294,7 +294,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             float4 main(float4 c : COLOR) : SV_Target { return select(c.a > 0.5, c, 0); }
             """;
 
-        HlslCompilationUnit unit = Unit(code, "ps_6_6");
+        ShaderCompilationUnit unit = Unit(code, "ps_6_6");
 
         Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "HL0310");
         Assert.DoesNotContain(
@@ -309,7 +309,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     /// <param name="code">コード。</param>
     /// <param name="target">ターゲット。</param>
     /// <returns>単位。</returns>
-    private static HlslCompilationUnit Unit(string code, string target)
+    private static ShaderCompilationUnit Unit(string code, string target)
     {
         Assert.True(HlslShaderTarget.TryParse(target, out HlslShaderTarget? parsed));
         return HlslEnvironment.WholeFile(SourceText.From(code, "shader.hlsl")) with { Target = parsed };
@@ -323,7 +323,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     /// <returns>診断。</returns>
     private ImmutableArray<Diagnostic> Analyze(
         string code,
-        HlslCompilationUnit unit,
+        ShaderCompilationUnit unit,
         string path = "shader.hlsl",
         HlslEnvironment? environment = null)
     {

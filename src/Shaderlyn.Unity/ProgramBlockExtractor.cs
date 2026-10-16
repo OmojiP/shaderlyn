@@ -322,7 +322,7 @@ internal static class ProgramBlockExtractor
 }
 
 /// <summary>
-/// Unity のコードブロック 1 つ分。コンパイル単位 (<see cref="HlslCompilationUnit"/>) に持たせる付帯情報。
+/// Unity のコードブロック 1 つ分。コンパイル単位 (<see cref="ShaderCompilationUnit"/>) に持たせる付帯情報。
 /// </summary>
 /// <param name="Block">
 /// 対象の <c>*PROGRAM</c> ブロック。
@@ -380,7 +380,7 @@ public sealed record UnityProgramBlock(
     /// 単位全体についての指摘は、<c>HLSLPROGRAM</c> などの開始の語を指す。どのブロックの話かが読み手に伝わる。
     /// HLSL 単体ファイルには開始の語が無いので、ファイルの先頭を指す。
     /// </remarks>
-    internal HlslCompilationUnit ToUnit()
+    internal ShaderCompilationUnit ToUnit()
         => new(
             MaskedText,
             CodeSpan,

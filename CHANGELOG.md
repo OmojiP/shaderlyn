@@ -24,6 +24,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - **破壊的変更:** 自作ルールの基底クラスの名前から `Hlsl` を外した。`HlslRuleAnalyzer` → `ShaderRuleAnalyzer`、
   `InitializeHlsl` → `InitializeShader`、`HlslAnalysisContext` → `ShaderAnalysisContext`、
   `HlslNodeAnalysisContext<TNode>` → `ShaderNodeAnalysisContext<TNode>`。名前空間と使い方は変わらない
+- **破壊的変更:** 環境の口を、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けた。
+  `HlslCompilationUnit` → `ShaderCompilationUnit`、`HlslEntryPoint` → `ShaderEntryPoint`。
+  `compilation.Environment` と `HostEnvironment` は `IShaderEnvironment` を受け取る。`IHlslEnvironment` の実装は、型の名前の書き換えだけで動く
 
 ## [0.2.1] - 2026-10-16
 

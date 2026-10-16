@@ -181,14 +181,14 @@ internal static class ConditionSymbols
     /// <c>multi_compile _ A B</c> の A と B が同時に定義された、ありえない構成を検査することになる。
     /// </para>
     /// <para>
-    /// 宣言は展開前のトークンから拾う (環境の <see cref="IHlslEnvironment.ReadDeclaredVariants"/>)。
+    /// 宣言は展開前のトークンから拾う (環境の <see cref="IShaderEnvironment.ReadDeclaredVariants"/>)。
     /// ここでセマンティックモデルを組むと、保存のたびに解析が 1 回増える。
     /// </para>
     /// </remarks>
     public static ImmutableArray<string> ExcludeDeclaredSymbols(
         SourceText text,
         ImmutableArray<string> symbols,
-        IHlslEnvironment? environment)
+        IShaderEnvironment? environment)
     {
         ArgumentNullException.ThrowIfNull(text);
 
