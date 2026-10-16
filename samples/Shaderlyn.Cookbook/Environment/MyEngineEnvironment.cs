@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -48,7 +49,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
         // DXC が定義するマクロと、エンジンのシェーダーコンパイラが定義するマクロ。設定で与えたものが勝つ。
         return options with
         {
-            LanguageVersion = HlslLanguageVersion.Hlsl2021,
+            Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 },
             PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(HlslLanguageVersion.Hlsl2021)
                 .SetItem("MYENGINE", "1")
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
@@ -58,7 +59,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
         HlslCompilationUnit unit,
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
     {
@@ -82,7 +83,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => ReadVariantSpace(ReadPragmas(tokens));
 
     /// <inheritdoc/>
@@ -97,8 +98,8 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
             .. result.Pragmas
                 .Where(pragma => pragma.Name == EntryPragma)
                 .Select(pragma => pragma.Arguments.FirstOrDefault())
-                .OfType<HlslSyntaxToken>()
-                .Where(name => name.Kind == HlslSyntaxKind.IdentifierToken)
+                .OfType<ShaderSyntaxToken>()
+                .Where(name => name.Kind == ShaderSyntaxKind.IdentifierToken)
                 .Select(name => new HlslEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
         ];
     }
@@ -120,17 +121,17 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 
         foreach (PragmaDirective pragma in pragmas.Where(p => p.Name == VariantPragma))
         {
-            ImmutableArray<HlslSyntaxToken> arguments = [.. pragma.Arguments];
+            ImmutableArray<ShaderSyntaxToken> arguments = [.. pragma.Arguments];
 
-            if (arguments.IsEmpty || arguments[0].Kind != HlslSyntaxKind.IdentifierToken)
+            if (arguments.IsEmpty || arguments[0].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }
 
-            HlslSyntaxToken name = arguments[0];
+            ShaderSyntaxToken name = arguments[0];
             List<int> values = [];
 
-            foreach (HlslSyntaxToken value in arguments.Skip(1))
+            foreach (ShaderSyntaxToken value in arguments.Skip(1))
             {
                 if (int.TryParse(value.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int number))
                 {
@@ -151,11 +152,11 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     /// <param name="tokens">トークン。</param>
     /// <returns><c>#pragma</c> の行。</returns>
     /// <remarks>展開の前に構成の軸を知るために使う。展開の後は <see cref="PreprocessResult.Pragmas"/> を読む。</remarks>
-    private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<HlslSyntaxToken> tokens)
+    private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || tokens[i + 1].Text != "pragma"
                 || tokens[i + 2].IsAtLineStart)
@@ -165,12 +166,12 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 
             int end = i + 2;
 
-            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != ShaderSyntaxKind.EndOfFileToken)
             {
                 end++;
             }
 
-            ImmutableArray<HlslSyntaxToken> line = tokens[(i + 2)..end];
+            ImmutableArray<ShaderSyntaxToken> line = tokens[(i + 2)..end];
             yield return new PragmaDirective(line, line[0]);
             i = end - 1;
         }

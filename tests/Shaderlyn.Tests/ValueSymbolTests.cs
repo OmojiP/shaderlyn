@@ -1,10 +1,11 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -183,16 +184,16 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
         public string Name => "test-quality";
 
         public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
-            => options with { LanguageVersion = HlslLanguageVersion.Hlsl2021 };
+            => options.WithHlsl(h => h with { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
         public PreprocessorOptions PrepareUnit(
             HlslCompilationUnit unit,
-            ImmutableArray<HlslSyntaxToken> tokens,
+            ImmutableArray<ShaderSyntaxToken> tokens,
             PreprocessorOptions options,
             string filePath)
             => options;
 
-        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens) => Space;
+        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens) => Space;
 
         public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => Space;
 

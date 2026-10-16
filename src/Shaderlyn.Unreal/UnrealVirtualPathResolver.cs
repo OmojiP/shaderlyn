@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Unreal;
 

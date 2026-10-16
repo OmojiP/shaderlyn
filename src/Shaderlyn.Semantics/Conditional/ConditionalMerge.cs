@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -485,8 +486,8 @@ internal static class ConditionalMerge
     /// </remarks>
     private static bool HasSameTokens(HlslSyntaxNode left, HlslSyntaxNode right)
     {
-        using IEnumerator<HlslSyntaxToken> leftWalk = OwnTokens(left).GetEnumerator();
-        using IEnumerator<HlslSyntaxToken> rightWalk = OwnTokens(right).GetEnumerator();
+        using IEnumerator<ShaderSyntaxToken> leftWalk = OwnTokens(left).GetEnumerator();
+        using IEnumerator<ShaderSyntaxToken> rightWalk = OwnTokens(right).GetEnumerator();
 
         while (true)
         {
@@ -510,7 +511,7 @@ internal static class ConditionalMerge
     /// </summary>
     /// <param name="node">対象のノード。</param>
     /// <returns>そのノード自身のトークン。</returns>
-    private static IEnumerable<HlslSyntaxToken> OwnTokens(HlslSyntaxNode node)
+    private static IEnumerable<ShaderSyntaxToken> OwnTokens(HlslSyntaxNode node)
     {
         foreach (HlslNodeOrToken child in node.ChildNodesAndTokens())
         {
@@ -525,7 +526,7 @@ internal static class ConditionalMerge
                 continue;
             }
 
-            foreach (HlslSyntaxToken nested in OwnTokens(inner))
+            foreach (ShaderSyntaxToken nested in OwnTokens(inner))
             {
                 yield return nested;
             }

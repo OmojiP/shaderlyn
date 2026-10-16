@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Environments;
@@ -157,7 +158,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
         return options with
         {
-            Dialects = [Options.Dialect],
+            Language = options.Hlsl() with { Dialects = [Options.Dialect] },
             PredefinedMacros = compilerMacros
                 .SetItems(Options.PredefinedMacros)
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
@@ -167,7 +168,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
         HlslCompilationUnit unit,
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
     {
@@ -208,7 +209,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
                 macros = version >= HlslLanguageVersion.Hlsl2021 ? macros.SetItem(name, value) : macros.Remove(name);
             }
 
-            options = options with { Dialects = [Options.DialectFor(version)], PredefinedMacros = macros };
+            options = options.WithHlsl(h => h with { Dialects = [Options.DialectFor(version)] }) with { PredefinedMacros = macros };
         }
 
         // ターゲットで決まるマクロは、設定で与えたマクロ (共通・単位ごと) に負ける。
@@ -218,7 +219,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => VariantsOf(unit);
 
     /// <inheritdoc/>

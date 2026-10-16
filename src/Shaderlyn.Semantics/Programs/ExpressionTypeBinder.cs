@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
@@ -1266,7 +1267,7 @@ public sealed class ExpressionTypeBinder
     /// 引数が 1 つの単純な形だけを扱う。
     /// </remarks>
     internal static string? GetTemplateArgument(HlslTypeSyntax type)
-        => type.TemplateArguments is [{ Kind: HlslSyntaxKind.IdentifierToken } single]
+        => type.TemplateArguments is [{ Kind: ShaderSyntaxKind.IdentifierToken } single]
             ? single.Text
             : null;
 }

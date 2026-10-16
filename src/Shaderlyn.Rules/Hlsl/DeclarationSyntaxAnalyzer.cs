@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -183,7 +184,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         LiteralExpressionSyntax literal,
         ReportedLocations reported)
     {
-        if (literal.Token.Kind != HlslSyntaxKind.NumericLiteralToken
+        if (literal.Token.Kind != ShaderSyntaxKind.NumericLiteralToken
             || !IsTruncatedInteger(literal.Token)
             || literal.GetLocation() is not { } location
             || !reported.Add(location))
@@ -211,7 +212,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// 読み取れない形は「収まっている」に倒す。
     /// </para>
     /// </remarks>
-    private static bool IsTruncatedInteger(HlslSyntaxToken token)
+    private static bool IsTruncatedInteger(ShaderSyntaxToken token)
     {
         string digits = HlslLiteral.GetDigits(token);
 
@@ -412,9 +413,9 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string? DescribeRegister(SemanticSyntax annotation)
     {
-        ImmutableArray<HlslSyntaxToken> arguments = annotation.ArgumentTokens;
+        ImmutableArray<ShaderSyntaxToken> arguments = annotation.ArgumentTokens;
 
-        return arguments.Length == 1 && arguments[0].Kind == HlslSyntaxKind.IdentifierToken
+        return arguments.Length == 1 && arguments[0].Kind == ShaderSyntaxKind.IdentifierToken
             ? arguments[0].Text
             : null;
     }

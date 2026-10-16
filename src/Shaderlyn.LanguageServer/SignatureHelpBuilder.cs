@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
@@ -170,7 +171,7 @@ internal static class SignatureHelpBuilder
         foreach (HlslNodeOrTokenEntry item in invocation.Arguments)
         {
             if (item.Token is { } token
-                && token.Kind == HlslSyntaxKind.CommaToken
+                && token.Kind == ShaderSyntaxKind.CommaToken
                 && token.Span.End <= offset)
             {
                 count++;

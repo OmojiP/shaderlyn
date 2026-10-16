@@ -3,13 +3,14 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -71,8 +72,8 @@ public sealed class ShaderCompilation
     /// 位置だけで 1 つにまとめると最初の多重定義しか残らず、ほかの多重定義を呼ぶ正しい呼び出しを
     /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
     /// </remarks>
-    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, HlslSyntaxToken first)
-        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken)))) + ")");
+    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, ShaderSyntaxToken first)
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken)))) + ")");
 
     internal ShaderCompilation(
         SourceText text,
@@ -86,7 +87,7 @@ public sealed class ShaderCompilation
         ImmutableArray<string> allIncludePaths,
         ImmutableArray<string> unresolvedIncludes,
         SourceText codeText,
-        ImmutableArray<HlslSyntaxToken> codeTokens,
+        ImmutableArray<ShaderSyntaxToken> codeTokens,
         ImmutableArray<AnalyzedProgram> symbolVariants,
         ImmutableArray<string> unexploredSymbols,
         ImmutableArray<SymbolCombination> unexploredSymbolCombinations)
@@ -133,7 +134,7 @@ public sealed class ShaderCompilation
     /// Unity のヘッダの中身を指摘しても直しようがない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> CodeTokens { get; }
+    public ImmutableArray<ShaderSyntaxToken> CodeTokens { get; }
 
     /// <summary>
     /// 利用者が書いて取り込んだヘッダ (<see cref="IsUserFile"/>) のコードを字句解析したトークン列。
@@ -148,20 +149,20 @@ public sealed class ShaderCompilation
     /// 初めて引いたときに、取り込んだファイルを読み直して作る。引かないルールには費用が掛からない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> UserIncludeCodeTokens => _userIncludeCodeTokens ??= LexUserIncludes();
+    public ImmutableArray<ShaderSyntaxToken> UserIncludeCodeTokens => _userIncludeCodeTokens ??= LexUserIncludes();
 
-    private ImmutableArray<HlslSyntaxToken>? _userIncludeCodeTokens;
+    private ImmutableArray<ShaderSyntaxToken>? _userIncludeCodeTokens;
 
     /// <summary>利用者が書いて取り込んだヘッダを読み直し、字句解析する。</summary>
     /// <returns>ヘッダごとのトークンを、パスの順に並べたもの。</returns>
-    private ImmutableArray<HlslSyntaxToken> LexUserIncludes()
+    private ImmutableArray<ShaderSyntaxToken> LexUserIncludes()
     {
         if (IsUserInclude is null)
         {
             return [];
         }
 
-        ImmutableArray<HlslSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         foreach (string path in AllIncludePaths.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
@@ -174,7 +175,7 @@ public sealed class ShaderCompilation
             {
                 if (File.Exists(path))
                 {
-                    tokens.AddRange(new HlslLexer(SourceText.Load(path)).Lex(out _));
+                    tokens.AddRange(new ShaderLexer(SourceText.Load(path)).Lex(out _));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -573,11 +574,11 @@ public sealed class ShaderCompilation
     /// カーソルの下にある語とは一致しない。
     /// </para>
     /// <para>
-    /// <b>指摘を出すかどうかには <see cref="IsReportable(HlslSyntaxToken)"/> を使うこと。</b>
+    /// <b>指摘を出すかどうかには <see cref="IsReportable(ShaderSyntaxToken)"/> を使うこと。</b>
     /// こちらは利用者が書いて取り込んだヘッダを含まない。
     /// </para>
     /// </remarks>
-    public bool IsWrittenHere(HlslSyntaxToken token)
+    public bool IsWrittenHere(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
         return IsWrittenIn(token, path => string.Equals(path, Text.FilePath, StringComparison.Ordinal));
@@ -590,7 +591,7 @@ public sealed class ShaderCompilation
     /// <returns>このファイルの中であれば <see langword="true"/>。</returns>
     /// <remarks>
     /// 構成の空間の宣言 (<see cref="VariantDeclaration.Location"/>) のように、位置だけを持つものに使う。
-    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(HlslSyntaxToken)"/>) と同じ答えになる。
+    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(ShaderSyntaxToken)"/>) と同じ答えになる。
     /// </remarks>
     public bool IsWrittenHere(Location location)
     {
@@ -621,7 +622,7 @@ public sealed class ShaderCompilation
     /// <param name="node">判定するノード。</param>
     /// <returns>利用者のマクロが作ったものであれば <see langword="true"/>。</returns>
     /// <remarks>
-    /// Unity や外部パッケージのヘッダのマクロには印が付かない (<see cref="HlslSyntaxToken.MacroDefinitionSpan"/>)。
+    /// Unity や外部パッケージのヘッダのマクロには印が付かない (<see cref="ShaderSyntaxToken.MacroDefinitionSpan"/>)。
     /// </remarks>
     public bool IsFromOwnMacro(HlslSyntaxNode node)
     {
@@ -670,7 +671,7 @@ public sealed class ShaderCompilation
     /// ノードの一部 (メンバー名のトークンなど) だけを報告するルールが使う。
     /// 判定の範囲は <see cref="IsReportable(HlslSyntaxNode)"/> と同じである。
     /// </remarks>
-    public bool IsReportable(HlslSyntaxToken token)
+    public bool IsReportable(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
         return IsWrittenIn(token, IsUserFile) || token.MacroDefinitionSpan is not null;
@@ -680,9 +681,9 @@ public sealed class ShaderCompilation
     /// <param name="token">判定するトークン。</param>
     /// <param name="isTargetFile">対象のファイルかをパスから判定する。</param>
     /// <returns>書かれたものであれば <see langword="true"/>。</returns>
-    private static bool IsWrittenIn(HlslSyntaxToken token, Func<string, bool> isTargetFile)
+    private static bool IsWrittenIn(ShaderSyntaxToken token, Func<string, bool> isTargetFile)
         // マクロの実引数として書かれたトークンは、利用者が呼び出し位置に書いたものである
-        // (HlslSyntaxToken.MacroArgumentSpan)。
+        // (ShaderSyntaxToken.MacroArgumentSpan)。
         => (!token.IsFromMacroExpansion || token.MacroArgumentSpan is not null)
            && isTargetFile(token.Source.FilePath);
 
@@ -723,7 +724,7 @@ public sealed class ShaderCompilation
             return false;
         }
 
-        foreach (HlslSyntaxToken token in node.DescendantTokens())
+        foreach (ShaderSyntaxToken token in node.DescendantTokens())
         {
             if (!token.IsFromMacroExpansion)
             {

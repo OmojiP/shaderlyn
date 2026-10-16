@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// <c>#if</c> / <c>#elif</c> の条件式を評価する。
@@ -31,7 +31,7 @@ internal static class ConditionalExpressionEvaluator
     /// 評価に失敗した場合も例外は投げず、条件を偽として扱えるようにする。
     /// 解釈できない条件式 1 つでファイル全体の解析を諦めるのは避けたい。
     /// </remarks>
-    public static bool Evaluate(ImmutableArray<HlslSyntaxToken> tokens, out string? error)
+    public static bool Evaluate(ImmutableArray<ShaderSyntaxToken> tokens, out string? error)
     {
         Parser parser = new(tokens);
         long value = parser.ParseExpression();
@@ -59,9 +59,9 @@ internal static class ConditionalExpressionEvaluator
     /// 構文木を作らず、解析しながら値を計算する。
     /// 条件式は評価結果しか必要なく、木を保持する用途が無いためである。
     /// </remarks>
-    private sealed class Parser(ImmutableArray<HlslSyntaxToken> tokens)
+    private sealed class Parser(ImmutableArray<ShaderSyntaxToken> tokens)
     {
-        private readonly ImmutableArray<HlslSyntaxToken> _tokens = tokens;
+        private readonly ImmutableArray<ShaderSyntaxToken> _tokens = tokens;
         private int _index;
 
         /// <summary>解析中に発生した最初のエラー。</summary>
@@ -73,7 +73,7 @@ internal static class ConditionalExpressionEvaluator
         /// <summary>現在位置のトークンのテキスト。</summary>
         public string CurrentText => AtEnd ? "<式の終わり>" : _tokens[_index].Text;
 
-        private HlslSyntaxKind CurrentKind => AtEnd ? HlslSyntaxKind.EndOfFileToken : _tokens[_index].Kind;
+        private ShaderSyntaxKind CurrentKind => AtEnd ? ShaderSyntaxKind.EndOfFileToken : _tokens[_index].Kind;
 
         /// <summary>条件式全体を評価する。</summary>
         /// <returns>評価結果。</returns>
@@ -85,7 +85,7 @@ internal static class ConditionalExpressionEvaluator
         {
             long condition = ParseBinary(0);
 
-            if (CurrentKind != HlslSyntaxKind.QuestionToken)
+            if (CurrentKind != ShaderSyntaxKind.QuestionToken)
             {
                 return condition;
             }
@@ -93,7 +93,7 @@ internal static class ConditionalExpressionEvaluator
             _index++;
             long whenTrue = ParseConditional();
 
-            if (CurrentKind != HlslSyntaxKind.ColonToken)
+            if (CurrentKind != ShaderSyntaxKind.ColonToken)
             {
                 Fail("三項演算子に ':' が存在しません。");
                 return 0;
@@ -127,19 +127,19 @@ internal static class ConditionalExpressionEvaluator
                     break;
                 }
 
-                HlslSyntaxKind operatorKind = CurrentKind;
+                ShaderSyntaxKind operatorKind = CurrentKind;
                 _index++;
 
                 // && と || は短絡評価する。
                 // 右辺に 0 除算があっても左辺で結果が決まるなら評価してはならない。
-                if (operatorKind == HlslSyntaxKind.AmpersandAmpersandToken)
+                if (operatorKind == ShaderSyntaxKind.AmpersandAmpersandToken)
                 {
                     long right = ParseBinary(precedence + 1);
                     left = (left != 0 && right != 0) ? 1 : 0;
                     continue;
                 }
 
-                if (operatorKind == HlslSyntaxKind.BarBarToken)
+                if (operatorKind == ShaderSyntaxKind.BarBarToken)
                 {
                     long right = ParseBinary(precedence + 1);
                     left = (left != 0 || right != 0) ? 1 : 0;
@@ -164,28 +164,28 @@ internal static class ConditionalExpressionEvaluator
 
             switch (CurrentKind)
             {
-                case HlslSyntaxKind.ExclamationToken:
+                case ShaderSyntaxKind.ExclamationToken:
                     _index++;
                     return ParseUnary() == 0 ? 1 : 0;
 
-                case HlslSyntaxKind.MinusToken:
+                case ShaderSyntaxKind.MinusToken:
                     _index++;
                     return -ParseUnary();
 
-                case HlslSyntaxKind.PlusToken:
+                case ShaderSyntaxKind.PlusToken:
                     _index++;
                     return ParseUnary();
 
-                case HlslSyntaxKind.TildeToken:
+                case ShaderSyntaxKind.TildeToken:
                     _index++;
                     return ~ParseUnary();
 
-                case HlslSyntaxKind.OpenParenToken:
+                case ShaderSyntaxKind.OpenParenToken:
                 {
                     _index++;
                     long value = ParseConditional();
 
-                    if (CurrentKind != HlslSyntaxKind.CloseParenToken)
+                    if (CurrentKind != ShaderSyntaxKind.CloseParenToken)
                     {
                         Fail("条件式の括弧が閉じられていません。");
                         return 0;
@@ -195,10 +195,10 @@ internal static class ConditionalExpressionEvaluator
                     return value;
                 }
 
-                case HlslSyntaxKind.NumericLiteralToken:
+                case ShaderSyntaxKind.NumericLiteralToken:
                     return ParseNumericLiteral();
 
-                case HlslSyntaxKind.IdentifierToken:
+                case ShaderSyntaxKind.IdentifierToken:
                     // マクロ展開後に残った識別子は 0 とみなす (C の規則)。
                     _index++;
                     return 0;
@@ -249,27 +249,27 @@ internal static class ConditionalExpressionEvaluator
         /// <param name="left">左辺の値。</param>
         /// <param name="right">右辺の値。</param>
         /// <returns>演算結果。</returns>
-        private long Apply(HlslSyntaxKind operatorKind, long left, long right)
+        private long Apply(ShaderSyntaxKind operatorKind, long left, long right)
         {
             switch (operatorKind)
             {
-                case HlslSyntaxKind.BarToken: return left | right;
-                case HlslSyntaxKind.CaretToken: return left ^ right;
-                case HlslSyntaxKind.AmpersandToken: return left & right;
-                case HlslSyntaxKind.EqualsEqualsToken: return left == right ? 1 : 0;
-                case HlslSyntaxKind.ExclamationEqualsToken: return left != right ? 1 : 0;
-                case HlslSyntaxKind.LessThanToken: return left < right ? 1 : 0;
-                case HlslSyntaxKind.GreaterThanToken: return left > right ? 1 : 0;
-                case HlslSyntaxKind.LessThanEqualsToken: return left <= right ? 1 : 0;
-                case HlslSyntaxKind.GreaterThanEqualsToken: return left >= right ? 1 : 0;
-                case HlslSyntaxKind.LessThanLessThanToken: return left << (int)(right & 63);
-                case HlslSyntaxKind.GreaterThanGreaterThanToken: return left >> (int)(right & 63);
-                case HlslSyntaxKind.PlusToken: return left + right;
-                case HlslSyntaxKind.MinusToken: return left - right;
-                case HlslSyntaxKind.AsteriskToken: return left * right;
+                case ShaderSyntaxKind.BarToken: return left | right;
+                case ShaderSyntaxKind.CaretToken: return left ^ right;
+                case ShaderSyntaxKind.AmpersandToken: return left & right;
+                case ShaderSyntaxKind.EqualsEqualsToken: return left == right ? 1 : 0;
+                case ShaderSyntaxKind.ExclamationEqualsToken: return left != right ? 1 : 0;
+                case ShaderSyntaxKind.LessThanToken: return left < right ? 1 : 0;
+                case ShaderSyntaxKind.GreaterThanToken: return left > right ? 1 : 0;
+                case ShaderSyntaxKind.LessThanEqualsToken: return left <= right ? 1 : 0;
+                case ShaderSyntaxKind.GreaterThanEqualsToken: return left >= right ? 1 : 0;
+                case ShaderSyntaxKind.LessThanLessThanToken: return left << (int)(right & 63);
+                case ShaderSyntaxKind.GreaterThanGreaterThanToken: return left >> (int)(right & 63);
+                case ShaderSyntaxKind.PlusToken: return left + right;
+                case ShaderSyntaxKind.MinusToken: return left - right;
+                case ShaderSyntaxKind.AsteriskToken: return left * right;
 
                 // 0 除算で例外を投げてはならない。条件式の書き損じで解析全体が止まる。
-                case HlslSyntaxKind.SlashToken:
+                case ShaderSyntaxKind.SlashToken:
                     if (right == 0)
                     {
                         Fail("条件式で 0 による除算が発生しました。");
@@ -278,7 +278,7 @@ internal static class ConditionalExpressionEvaluator
 
                     return left / right;
 
-                case HlslSyntaxKind.PercentToken:
+                case ShaderSyntaxKind.PercentToken:
                     if (right == 0)
                     {
                         Fail("条件式で 0 による剰余算が発生しました。");
@@ -296,19 +296,19 @@ internal static class ConditionalExpressionEvaluator
         /// <summary>演算子の優先順位を返す。値が大きいほど強く結合する。</summary>
         /// <param name="kind">演算子の種別。</param>
         /// <returns>優先順位。演算子でない場合は負の値。</returns>
-        private static int GetPrecedence(HlslSyntaxKind kind) => kind switch
+        private static int GetPrecedence(ShaderSyntaxKind kind) => kind switch
         {
-            HlslSyntaxKind.BarBarToken => 1,
-            HlslSyntaxKind.AmpersandAmpersandToken => 2,
-            HlslSyntaxKind.BarToken => 3,
-            HlslSyntaxKind.CaretToken => 4,
-            HlslSyntaxKind.AmpersandToken => 5,
-            HlslSyntaxKind.EqualsEqualsToken or HlslSyntaxKind.ExclamationEqualsToken => 6,
-            HlslSyntaxKind.LessThanToken or HlslSyntaxKind.GreaterThanToken
-                or HlslSyntaxKind.LessThanEqualsToken or HlslSyntaxKind.GreaterThanEqualsToken => 7,
-            HlslSyntaxKind.LessThanLessThanToken or HlslSyntaxKind.GreaterThanGreaterThanToken => 8,
-            HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken => 9,
-            HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken or HlslSyntaxKind.PercentToken => 10,
+            ShaderSyntaxKind.BarBarToken => 1,
+            ShaderSyntaxKind.AmpersandAmpersandToken => 2,
+            ShaderSyntaxKind.BarToken => 3,
+            ShaderSyntaxKind.CaretToken => 4,
+            ShaderSyntaxKind.AmpersandToken => 5,
+            ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken => 6,
+            ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+                or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken => 7,
+            ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken => 8,
+            ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken => 9,
+            ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken => 10,
             _ => -1,
         };
 

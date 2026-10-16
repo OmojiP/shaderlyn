@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
@@ -172,7 +173,7 @@ internal static class InactiveRegionCollector
 
         foreach (AnalyzedProgram program in programs)
         {
-            foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.Tokens)
+            foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.Tokens)
             {
                 if (token.Span.Length > 0
                     && string.Equals(token.Source.FilePath, filePath, StringComparison.Ordinal))

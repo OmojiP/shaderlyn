@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 条件領域が、両方の分岐をそのまま並べられる形かどうか。
@@ -20,7 +20,7 @@ internal enum ConditionalRegionLayout
     /// <remarks>
     /// 並べると <c>#define</c> がどの構成でも効くことになる。
     /// 条件でしか使われないマクロなら、その定義がある条件として読めるので並べてよい
-    /// (<c>HlslPreprocessor.CanMergeDefinedMacros</c>)。
+    /// (<c>ShaderPreprocessor.CanMergeDefinedMacros</c>)。
     /// </remarks>
     DefinesMacros,
 
@@ -69,7 +69,7 @@ internal static class ConditionalRegionScanner
     /// <param name="tokens">走査するトークン列。</param>
     /// <param name="start"><c>#if</c> の行の次のトークンの位置。</param>
     /// <returns>領域の形。</returns>
-    public static ConditionalRegionLayout Scan(ImmutableArray<HlslSyntaxToken> tokens, int start)
+    public static ConditionalRegionLayout Scan(ImmutableArray<ShaderSyntaxToken> tokens, int start)
         => Scan(tokens, start, out _);
 
     /// <summary>
@@ -92,7 +92,7 @@ internal static class ConditionalRegionScanner
     /// </para>
     /// </remarks>
     public static ConditionalRegionLayout Scan(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         int start,
         out int end)
     {
@@ -181,19 +181,19 @@ internal static class ConditionalRegionScanner
     /// <para>
     /// <b>指令の行は数えない。</b>
     /// 指令そのものは出力に残らないので、並べたときの構文には現れない。
-    /// 内側の条件は <see cref="Scan(ImmutableArray{HlslSyntaxToken}, int)"/> が別に見ており、
+    /// 内側の条件は <see cref="Scan(ImmutableArray{ShaderSyntaxToken}, int)"/> が別に見ており、
     /// 並べてよい形だと分かっているものだけがここまで来る。
     /// </para>
     /// </remarks>
     private static ConditionalRegionLayout? ClassifyBranch(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         int start,
         int end)
     {
         int brace = 0;
         int paren = 0;
         int bracket = 0;
-        HlslSyntaxToken? last = null;
+        ShaderSyntaxToken? last = null;
 
         for (int i = start; i < end; i++)
         {
@@ -203,16 +203,16 @@ internal static class ConditionalRegionScanner
                 continue;
             }
 
-            HlslSyntaxToken token = tokens[i];
+            ShaderSyntaxToken token = tokens[i];
 
             switch (token.Kind)
             {
-                case HlslSyntaxKind.OpenBraceToken: brace++; break;
-                case HlslSyntaxKind.CloseBraceToken: brace--; break;
-                case HlslSyntaxKind.OpenParenToken: paren++; break;
-                case HlslSyntaxKind.CloseParenToken: paren--; break;
-                case HlslSyntaxKind.OpenBracketToken: bracket++; break;
-                case HlslSyntaxKind.CloseBracketToken: bracket--; break;
+                case ShaderSyntaxKind.OpenBraceToken: brace++; break;
+                case ShaderSyntaxKind.CloseBraceToken: brace--; break;
+                case ShaderSyntaxKind.OpenParenToken: paren++; break;
+                case ShaderSyntaxKind.CloseParenToken: paren--; break;
+                case ShaderSyntaxKind.OpenBracketToken: bracket++; break;
+                case ShaderSyntaxKind.CloseBracketToken: bracket--; break;
                 default: break;
             }
 
@@ -230,7 +230,7 @@ internal static class ConditionalRegionScanner
             return null;
         }
 
-        return last.Kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.CloseBraceToken
+        return last.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken
             ? null
             : ConditionalRegionLayout.NotSelfContained;
     }
@@ -243,19 +243,19 @@ internal static class ConditionalRegionScanner
     /// <param name="name">取り出した指令の名前。</param>
     /// <returns>指令の始まりであれば <see langword="true"/>。</returns>
     private static bool IsDirectiveStart(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         int index,
         out string? name)
     {
         name = null;
 
-        if (tokens[index].Kind != HlslSyntaxKind.HashToken || !tokens[index].IsAtLineStart)
+        if (tokens[index].Kind != ShaderSyntaxKind.HashToken || !tokens[index].IsAtLineStart)
         {
             return false;
         }
 
         if (index + 1 >= tokens.Length
-            || tokens[index + 1].Kind != HlslSyntaxKind.IdentifierToken)
+            || tokens[index + 1].Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return false;
         }
@@ -270,7 +270,7 @@ internal static class ConditionalRegionScanner
     /// <param name="tokens">走査するトークン列。</param>
     /// <param name="start">領域の中の位置。</param>
     /// <returns>対応する <c>#endif</c> の行の次のトークンの位置。見つからなければ末尾。</returns>
-    private static int FindRegionEnd(ImmutableArray<HlslSyntaxToken> tokens, int start)
+    private static int FindRegionEnd(ImmutableArray<ShaderSyntaxToken> tokens, int start)
     {
         int depth = 0;
 
@@ -303,7 +303,7 @@ internal static class ConditionalRegionScanner
     /// <param name="tokens">走査するトークン列。</param>
     /// <param name="index">指令の <c>#</c> の位置。</param>
     /// <returns>次の行の先頭の位置。</returns>
-    private static int SkipDirectiveLine(ImmutableArray<HlslSyntaxToken> tokens, int index)
+    private static int SkipDirectiveLine(ImmutableArray<ShaderSyntaxToken> tokens, int index)
     {
         for (int i = index + 1; i < tokens.Length; i++)
         {

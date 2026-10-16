@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 名前で引くたびに、引いた名前を知らせる表。
@@ -9,7 +9,7 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// <typeparam name="TValue">値の型。</typeparam>
 /// <remarks>
 /// <para>
-/// <b>取り込みの展開結果を使い回す鍵を、そのヘッダが実際に読んだ名前に絞るためにある</b> (<see cref="HlslIncludeCache"/>)。
+/// <b>取り込みの展開結果を使い回す鍵を、そのヘッダが実際に読んだ名前に絞るためにある</b> (<see cref="IncludeCache"/>)。
 /// 展開の結果は、表の中身のうち読んだ名前の状態だけで決まる。
 /// 読む箇所に 1 つずつ記録を足すと、足し忘れた箇所で違う状態の結果を使い回してしまう。
 /// 読む操作をこの型に限れば、読んだことは必ず知らされる。

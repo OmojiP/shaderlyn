@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -98,7 +99,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         }
 
         // 構造体のメソッド (s.Get()、HLSL 2021)。
-        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.DotToken } access)
+        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access)
         {
             AnalyzeMethodCall(context, compilation, condition, binder, invocation, access, reported);
             return;
@@ -747,7 +748,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <returns>修飾の名前。</returns>
     private static string DescribeModifier(ParameterSyntax parameter)
     {
-        foreach (HlslSyntaxToken modifier in parameter.ModifierTokens)
+        foreach (ShaderSyntaxToken modifier in parameter.ModifierTokens)
         {
             if (CallCompatibility.IsWritebackModifier(modifier.Text))
             {

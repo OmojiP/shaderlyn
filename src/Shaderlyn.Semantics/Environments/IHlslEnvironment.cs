@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Environments;
@@ -49,7 +50,7 @@ public interface IHlslEnvironment
     /// </remarks>
     PreprocessorOptions PrepareUnit(
         HlslCompilationUnit unit,
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath);
 
@@ -59,7 +60,7 @@ public interface IHlslEnvironment
     /// <param name="unit">対象の単位。</param>
     /// <param name="tokens">単位のテキストを字句解析しただけのトークン。</param>
     /// <returns>構成の空間。</returns>
-    VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens);
+    VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens);
 
     /// <summary>
     /// 展開の結果から、構成の空間を読む。取り込んだヘッダの宣言も含む。

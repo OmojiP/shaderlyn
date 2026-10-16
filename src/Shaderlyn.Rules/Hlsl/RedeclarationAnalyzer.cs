@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -162,11 +163,11 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 // 関数の中は、波括弧ごとに別の範囲として集める。switch の本体も 1 つの範囲である。
                 foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
                 {
-                    (HlslSyntaxToken open, ImmutableArray<HlslStatementSyntax> statements) = node switch
+                    (ShaderSyntaxToken open, ImmutableArray<HlslStatementSyntax> statements) = node switch
                     {
                         BlockStatementSyntax body => (body.OpenBrace, body.Statements),
                         SwitchStatementSyntax body => (body.OpenBrace, body.Statements),
-                        _ => (default(HlslSyntaxToken)!, []),
+                        _ => (default(ShaderSyntaxToken)!, []),
                     };
 
                     if (statements.IsDefaultOrEmpty)
@@ -323,7 +324,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// 違えば別の多重定義である。型の名前だけで比べると、Unreal Engine の TSR や FFT のシェーダーを重複と報告していた。
     /// </remarks>
     private static string DescribeShape(FunctionDeclarationSyntax function)
-        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken))));
+        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken))));
 
     /// <summary>同じ名前の宣言をつき合わせて報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

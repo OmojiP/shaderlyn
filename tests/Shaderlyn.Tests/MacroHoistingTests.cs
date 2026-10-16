@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
@@ -28,9 +30,10 @@ public sealed class MacroHoistingTests
             BothBranchSymbols = [.. kept],
             DeclaredSymbols = [.. kept],
             HoistConditionalMacros = true,
+            Language = HlslLanguageOptions.Default,
         };
 
-        return new HlslPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
+        return new ShaderPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
     }
 
     /// <summary>展開結果のトークンを 1 つの文字列にする。</summary>
@@ -185,8 +188,8 @@ public sealed class MacroHoistingTests
         Assert.Contains("struct Packed { float pad ; float4 value ; } ;", text, StringComparison.Ordinal);
 
         Assert.True(
-            result.Tokens.Count(t => t.Kind == HlslSyntaxKind.OpenBraceToken)
-                == result.Tokens.Count(t => t.Kind == HlslSyntaxKind.CloseBraceToken),
+            result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBraceToken)
+                == result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.CloseBraceToken),
             text);
 
         Assert.Equal(SymbolCondition.Symbol("_A", false), ConditionOf(result, "pad"));
@@ -271,8 +274,8 @@ public sealed class MacroHoistingTests
         Assert.Contains("i < 8 ;", text, StringComparison.Ordinal);
 
         Assert.True(
-            result.Tokens.Count(t => t.Kind == HlslSyntaxKind.OpenBraceToken)
-                == result.Tokens.Count(t => t.Kind == HlslSyntaxKind.CloseBraceToken),
+            result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBraceToken)
+                == result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.CloseBraceToken),
             text);
     }
 
@@ -459,7 +462,7 @@ public sealed class MacroHoistingTests
             HoistConditionalMacros = false,
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -490,7 +493,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -523,7 +526,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -555,7 +558,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A

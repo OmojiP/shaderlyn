@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -105,7 +106,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         // 名前の修飾 (Mode::A、名前空間の UnifiedRT::TraceRay)。enum の列挙子だけを見る (HLSL 2021)。
-        if (access.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        if (access.DotToken.Kind == ShaderSyntaxKind.ColonColonToken)
         {
             if (access.Target is IdentifierExpressionSyntax { Name: var enumName }
                 && binder.TryGetEnum(enumName, out EnumInfo? enumeration)
@@ -250,7 +251,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
-        if (access.DotToken.Kind != HlslSyntaxKind.DotToken
+        if (access.DotToken.Kind != ShaderSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
             || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing

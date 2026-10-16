@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
@@ -581,10 +581,10 @@ public sealed class VariantShapeTests
 
         SourceText root = SourceText.From("#include \"H.hlsl\"\nfloat4 _Root;\n", "Root.hlsl");
 
-        PreprocessResult free = new HlslPreprocessor(options).Preprocess(root);
-        PreprocessResult same = new HlslPreprocessor(
+        PreprocessResult free = new ShaderPreprocessor(options).Preprocess(root);
+        PreprocessResult same = new ShaderPreprocessor(
             options with { MergeOnlyRegions = new MergedRegionSet(free.MergedRegions) }).Preprocess(root);
-        PreprocessResult none = new HlslPreprocessor(
+        PreprocessResult none = new ShaderPreprocessor(
             options with { MergeOnlyRegions = new MergedRegionSet([]) }).Preprocess(root);
 
         Assert.Contains(free.MergedRegions, r => r.FilePath.EndsWith("H.hlsl", StringComparison.Ordinal));
@@ -805,7 +805,7 @@ public sealed class VariantShapeTests
             {
                 ["Features.hlsl"] = "#ifndef FEATURES_INCLUDED\n#define FEATURES_INCLUDED\n#ifdef _A\n#define USE_A 1\n#endif\n#endif\n",
             }),
-            IncludeCache = new HlslIncludeCache(),
+            IncludeCache = new IncludeCache(),
         };
 
         ShaderCompilation first = UnityCompilation.CreateForHlsl(SourceText.From(code, "First.hlsl"), options);

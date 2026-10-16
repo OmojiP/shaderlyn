@@ -1,15 +1,15 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// トークンソースのスタック。取り込んだファイルと展開中のマクロを積み、読み終えたら外側へ戻る。
 /// </summary>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     // --------------------------------------------------------------------
     // トークンソースのスタック
@@ -23,7 +23,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="MacroName">マクロ展開の場合、その名前。再帰展開の抑止に使う。</param>
     /// <param name="IncludePath">ファイル由来の場合、そのパス。循環 include の検出に使う。</param>
     private sealed record TokenSource(
-        ImmutableArray<HlslSyntaxToken> Tokens,
+        ImmutableArray<ShaderSyntaxToken> Tokens,
         bool IsFile,
         string? MacroName,
         string? IncludePath)
@@ -42,8 +42,8 @@ internal sealed partial class HlslPreprocessor
     /// <param name="includePath">循環検出に使うパス。最上位ファイルでは <see langword="null"/>。</param>
     private void PushFileSource(SourceText text, string? includePath = null)
     {
-        ImmutableArray<HlslSyntaxToken> tokens;
-        ImmutableArray<HlslLexer.LexerDiagnostic> lexerDiagnostics;
+        ImmutableArray<ShaderSyntaxToken> tokens;
+        ImmutableArray<ShaderLexer.LexerDiagnostic> lexerDiagnostics;
 
         if (_options.TokenCache is { } cache)
         {
@@ -51,17 +51,17 @@ internal sealed partial class HlslPreprocessor
         }
         else
         {
-            HlslLexer lexer = new(text);
+            ShaderLexer lexer = new(text);
             tokens = lexer.Lex(out lexerDiagnostics);
         }
 
-        foreach (HlslLexer.LexerDiagnostic diagnostic in lexerDiagnostics)
+        foreach (ShaderLexer.LexerDiagnostic diagnostic in lexerDiagnostics)
         {
-            Report(HlslDescriptors.SyntaxError, Location.Create(text, diagnostic.Span), diagnostic.Message);
+            Report(ShaderDescriptors.SyntaxError, Location.Create(text, diagnostic.Span), diagnostic.Message);
         }
 
         // 終端トークンは取り除く。取り込んだファイルの終端で全体が終わってはならない。
-        ImmutableArray<HlslSyntaxToken> body = tokens.Length > 0 && tokens[^1].Kind == HlslSyntaxKind.EndOfFileToken
+        ImmutableArray<ShaderSyntaxToken> body = tokens.Length > 0 && tokens[^1].Kind == ShaderSyntaxKind.EndOfFileToken
             ? tokens.RemoveAt(tokens.Length - 1)
             : tokens;
 
@@ -76,14 +76,14 @@ internal sealed partial class HlslPreprocessor
     /// <summary>マクロの展開結果をスタックへ積む。</summary>
     /// <param name="tokens">展開結果のトークン。</param>
     /// <param name="macroName">展開したマクロの名前。</param>
-    private void PushExpansionSource(ImmutableArray<HlslSyntaxToken> tokens, string macroName)
+    private void PushExpansionSource(ImmutableArray<ShaderSyntaxToken> tokens, string macroName)
         => _sources.Add(new TokenSource(tokens, IsFile: false, MacroName: macroName, IncludePath: null));
 
     /// <summary>
     /// 次のトークンを取り出さずに見る。読み終えたソースは取り除く。
     /// </summary>
     /// <returns>次のトークン。すべて読み終えた場合は <see langword="null"/>。</returns>
-    private HlslSyntaxToken? PeekToken()
+    private ShaderSyntaxToken? PeekToken()
     {
         while (_sources.Count > 0)
         {
@@ -115,7 +115,7 @@ internal sealed partial class HlslPreprocessor
     /// <b>循環 include の検出が働かず無限ループになる</b>。
     /// </para>
     /// </remarks>
-    private HlslSyntaxToken? PeekInCurrentSource()
+    private ShaderSyntaxToken? PeekInCurrentSource()
     {
         if (_sources.Count == 0)
         {
@@ -128,12 +128,12 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary>次のトークンを取り出す。</summary>
     /// <returns>取り出したトークン。すべて読み終えた場合は終端トークン。</returns>
-    private HlslSyntaxToken TakeToken()
+    private ShaderSyntaxToken TakeToken()
     {
-        HlslSyntaxToken? token = PeekToken();
+        ShaderSyntaxToken? token = PeekToken();
         if (token is null)
         {
-            return CreateSyntheticToken(HlslSyntaxKind.EndOfFileToken, string.Empty);
+            return CreateSyntheticToken(ShaderSyntaxKind.EndOfFileToken, string.Empty);
         }
 
         CurrentSource.Index++;

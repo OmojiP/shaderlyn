@@ -1,4 +1,5 @@
 using System.Globalization;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Hlsl.Syntax;
 
@@ -61,11 +62,11 @@ public static class HlslLiteral
     /// 桁の大きさを自分で数えるルール (HL0371 など) が、
     /// 8 進や 16 進の見分け方を書き写さずに済むようにしている。
     /// </remarks>
-    public static HlslLiteralKind GetKind(HlslSyntaxToken token)
+    public static HlslLiteralKind GetKind(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.Kind != HlslSyntaxKind.NumericLiteralToken)
+        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
         {
             return HlslLiteralKind.None;
         }
@@ -106,11 +107,11 @@ public static class HlslLiteral
     /// <param name="token">対象のトークン。</param>
     /// <returns>接尾辞を除いた表記。数値リテラルでない場合は空文字列。</returns>
     /// <remarks>16 進では末尾の <c>f</c> は桁なので、接尾辞として落とさない。</remarks>
-    public static string GetDigits(HlslSyntaxToken token)
+    public static string GetDigits(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        return token.Kind == HlslSyntaxKind.NumericLiteralToken ? Split(token.Text).Digits : string.Empty;
+        return token.Kind == ShaderSyntaxKind.NumericLiteralToken ? Split(token.Text).Digits : string.Empty;
     }
 
     /// <summary>
@@ -139,16 +140,16 @@ public static class HlslLiteral
     /// この答えで <c>half</c> への代入が誤りになることはない。
     /// </para>
     /// </remarks>
-    public static string? GetTypeName(HlslSyntaxToken token)
+    public static string? GetTypeName(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.Kind == HlslSyntaxKind.CharacterLiteralToken)
+        if (token.Kind == ShaderSyntaxKind.CharacterLiteralToken)
         {
             return "uint";
         }
 
-        if (token.Kind != HlslSyntaxKind.NumericLiteralToken)
+        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
         {
             return null;
         }
@@ -196,13 +197,13 @@ public static class HlslLiteral
     /// 16 進 (<c>0x10</c>)、8 進 (<c>010</c>)、接尾辞付き (<c>2u</c>) を読む。
     /// 小数点や指数を持つものは整数ではないので <see langword="false"/> を返す。
     /// </remarks>
-    public static bool TryGetInt64(HlslSyntaxToken token, out long value)
+    public static bool TryGetInt64(ShaderSyntaxToken token, out long value)
     {
         ArgumentNullException.ThrowIfNull(token);
 
         value = 0;
 
-        if (token.Kind != HlslSyntaxKind.NumericLiteralToken)
+        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
         {
             return false;
         }
@@ -256,13 +257,13 @@ public static class HlslLiteral
     /// <param name="value">読み取った値。</param>
     /// <returns>数として読めた場合は <see langword="true"/>。</returns>
     /// <remarks>整数も読める。閾値との比較にはこちらを使う。</remarks>
-    public static bool TryGetDouble(HlslSyntaxToken token, out double value)
+    public static bool TryGetDouble(ShaderSyntaxToken token, out double value)
     {
         ArgumentNullException.ThrowIfNull(token);
 
         value = 0;
 
-        if (token.Kind != HlslSyntaxKind.NumericLiteralToken)
+        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
         {
             return false;
         }

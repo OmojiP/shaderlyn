@@ -65,7 +65,7 @@ dotnet add MyShaderRules package Shaderlyn.Semantics
 
 | パッケージ                 | 必要な場面                                                          |
 | -------------------------- | ------------------------------------------------------------------- |
-| `Shaderlyn.Semantics`      | ルールを書くとき。`Shaderlyn.Core` と `ShaderLab` / `Hlsl` も入ります |
+| `Shaderlyn.Semantics`      | ルールを書くとき。`Shaderlyn.Core` と `ShaderLab` / `CFamily` / `Hlsl` も入ります |
 | `Shaderlyn.Testing`        | テストを書くとき (テストプロジェクト側で)                          |
 | `Shaderlyn.Cli`            | 自作ルール入りの CLI を作るとき ([5 章](#5-自作ルール入りの-cli-を作る)) |
 | `Shaderlyn.LanguageServer` | 自作ルール入りの言語サーバーを作るとき ([5-1](#5-1-エディタでも働かせる)) |

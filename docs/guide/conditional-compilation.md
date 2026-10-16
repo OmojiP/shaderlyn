@@ -762,7 +762,7 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 | 段階 | 入口 |
 | --- | --- |
-| 1〜4 | [HlslSyntaxTree.Parse](../../src/Shaderlyn.Hlsl/HlslSyntaxTree.cs)（[HlslPreprocessor.Preprocess](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessor.cs) → [HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs)）。字句解析はプリプロセッサがファイルを読むときに行う（[HlslLexer](../../src/Shaderlyn.Hlsl/Parsing/HlslLexer.cs)） |
+| 1〜4 | [HlslSyntaxTree.Parse](../../src/Shaderlyn.Hlsl/HlslSyntaxTree.cs)（[ShaderPreprocessor.Preprocess](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessor.cs) → [HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs)）。字句解析はプリプロセッサがファイルを読むときに行う（[ShaderLexer](../../src/Shaderlyn.CFamily/Syntax/ShaderLexer.cs)） |
 | 2〜5 の繰り返し | [ShaderCompilationBuilder.Build](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | 6 | [ConditionMapBuilder.Build](../../src/Shaderlyn.Semantics/Conditional/ConditionMapBuilder.cs)。ルールが `GetConditionMap()` を初めて呼んだときに作る |
 | 7 | [ExpressionTypeBinder](../../src/Shaderlyn.Semantics/Programs/ExpressionTypeBinder.cs) |
@@ -798,37 +798,37 @@ Unity の `ReadDeclaredVariants` は **解析対象のファイル自身の `#pr
 
 | 経路 | 内容 | コード |
 | --- | --- | --- |
-| `ConditionalIdentifiers` | 条件で参照された名前のトークン | [PreprocessResult.ConditionalIdentifiers](../../src/Shaderlyn.Hlsl/Preprocessing/PreprocessorTypes.cs) |
+| `ConditionalIdentifiers` | 条件で参照された名前のトークン | [PreprocessResult.ConditionalIdentifiers](../../src/Shaderlyn.CFamily/Preprocessing/PreprocessorTypes.cs) |
 | `CollectRuntimeReferences(codeTokens)` | コード中に識別子として現れた名前（`dynamic_branch` のため）。`#` で始まる行は飛ばす | [ShaderSymbolAnalyzer.CollectRuntimeReferences](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 
 ### 付録 3: プリプロセス
 
 #### 条件式の読み取り
 
-[HlslPreprocessorDirectives.cs](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) が条件式を `SymbolCondition` へ変換します。
-入口は [TryReadDefinedCondition](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) で、
+[ShaderPreprocessorDirectives.cs](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) が条件式を `SymbolCondition` へ変換します。
+入口は [TryReadDefinedCondition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) で、
 `||` → `&&` → 単項 → 原子の順に下ります。
 
 | 書き方 | コード |
 | --- | --- |
-| `#ifdef X` / `#ifndef X` | [EvaluateDefinedLine](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs) |
-| `#if defined(X)` / `#if defined X` | [ReadDefinedAtom](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) |
-| `#if X`（宣言されたシンボルのときだけ） | [ReadSymbolAtom](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) |
-| `!`、`&&`、`\|\|`、括弧 | [ReadOrExpression](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs)、[ReadUnaryExpression](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) |
-| `#if X == 1` など値として解く形 | 上記が `null` を返す。X が宣言されたシンボルなら [ReadSymbolAtom](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) が参照として記録する |
+| `#ifdef X` / `#ifndef X` | [EvaluateDefinedLine](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs) |
+| `#if defined(X)` / `#if defined X` | [ReadDefinedAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
+| `#if X`（宣言されたシンボルのときだけ） | [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
+| `!`、`&&`、`\|\|`、括弧 | [ReadOrExpression](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)、[ReadUnaryExpression](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
+| `#if X == 1` など値として解く形 | 上記が `null` を返す。X が宣言されたシンボルなら [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) が参照として記録する |
 
 「宣言されたシンボル」の判定には `BothBranchSymbols`（次の節）を使います。変換できない形は
-[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) を通り、
+[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) を通り、
 その構成での値を解いて片方の分岐だけを残します（理由は `UnreadableCondition`）。
 
-参照の記録（`RecordConditionalIdentifier`、[定義](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）の呼び出しは 4 か所です。
+参照の記録（`RecordConditionalIdentifier`、[定義](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）の呼び出しは 4 か所です。
 
 | 呼び出し元 | 形 |
 | --- | --- |
-| [ReadSymbolAtom](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) | `#if` の条件式に単独の識別子として現れた名前（宣言されたシンボルでなくても記録する） |
-| [ReadDefinedAtom](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs) | `defined(X)` を条件に変換するとき |
-| [EvaluateDefinedLine](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs) | `#ifdef X` / `#ifndef X` |
-| [ResolveDefinedOperators](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs) | `defined` を値として解くとき |
+| [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) | `#if` の条件式に単独の識別子として現れた名前（宣言されたシンボルでなくても記録する） |
+| [ReadDefinedAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) | `defined(X)` を条件に変換するとき |
+| [EvaluateDefinedLine](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs) | `#ifdef X` / `#ifndef X` |
+| [ResolveDefinedOperators](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs) | `defined` を値として解くとき |
 
 #### 方法 A の実装
 
@@ -842,24 +842,24 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 | 言語サーバー（[AnalysisSession.cs](../../src/Shaderlyn.LanguageServer/AnalysisSession.cs)） | エディタで「選んだ構成で表示」するとき、空にして構成を固定する |
 | テスト | 方法 B の経路を確実に通す。[BothBranchConsistencyTests](../../tests/Shaderlyn.Tests/BothBranchConsistencyTests.cs) は既定と空の両方で解析し、指摘が同じことを確かめる |
 
-並べてよい形かは [ConditionalRegionScanner.cs](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs) が領域を先読みして判定します
-（[Scan](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs)、
-[ClassifyBranch](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs)、
-判定の種類は [ConditionalRegionLayout](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs)）。
+並べてよい形かは [ConditionalRegionScanner.cs](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs) が領域を先読みして判定します
+（[Scan](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)、
+[ClassifyBranch](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)、
+判定の種類は [ConditionalRegionLayout](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)）。
 
 | 判定 | 条件 |
 | --- | --- |
 | `Mergeable` | 各分岐で括弧（`{} () []`）が釣り合い、最後のトークンが `;` か `}`。空の分岐も可 |
 | `NotSelfContained` | 上を満たさない（文の途中、仮引数の並び、`,` で終わるなど）。複製する単位にブロックが入らなければ、分岐ごとに文を複製して並べる（次の節） |
-| `DefinesMacros` | 領域の中に `#define` / `#undef` がある。定義した名前が条件の中でしか使われていなければ並べる（[CanMerge](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)） |
-| `SwitchesIncludes` | 領域の中に `#include` がある。領域の中の `#define` については `DefinesMacros` と同じ条件で並べる（`MergeSwitchedIncludes`）。領域の終わりは中身を調べずに求める（[FindRegionEnd](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs)）。求めずに返していたときは、領域の後ろの `#define` まで中身として読み、並べられるものを並べていなかった |
+| `DefinesMacros` | 領域の中に `#define` / `#undef` がある。定義した名前が条件の中でしか使われていなければ並べる（[CanMerge](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)） |
+| `SwitchesIncludes` | 領域の中に `#include` がある。領域の中の `#define` については `DefinesMacros` と同じ条件で並べる（`MergeSwitchedIncludes`）。領域の終わりは中身を調べずに求める（[FindRegionEnd](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)）。求めずに返していたときは、領域の後ろの `#define` まで中身として読み、並べられるものを並べていなかった |
 | `Unterminated` | `#endif` が無い |
 
 補足として、
 
 - 内側の `#if` は同じ規則で先に判定し、`Mergeable` でなければ外側もその理由で返す
 - 指令の行そのものは数えない（出力に残らないため）
-- 入れ子は「**外側も並べているとき**」にだけ並べる（[ChooseKeptCondition](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）
+- 入れ子は「**外側も並べているとき**」にだけ並べる（[ChooseKeptCondition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）
 - バリアントは、既定の構成が並べた領域だけを並べる（`PreprocessorOptions.MergeOnlyRegions`）。並べてよいかはマクロの状態にも依存するので、構成ごとに判断が変わると、既定の木との違いが「そのシンボルで変わる部分」だけではなくなる。領域は指令の（ファイル, 位置）で持ち、取り込んだヘッダの領域も含める。取り込みの記録にも残すので、使い回したヘッダの分も欠けない
 - バリアントは宣言したキーワード (`DeclaredSymbols`) を既定の構成と同じにして展開する。条件付きで覚えるマクロの条件 (`#if !defined(_B)` の中の `#define WNB`) はこれで書くので、空にするとバリアントだけが `#ifdef WNB` を並べず、関係の無いキーワードの否定が条件に付く (HDRP の Lit.shader の `WRITE_NORMAL_BUFFER`)
 - 並べなかった条件が、並べた分岐で定義したマクロを見ていたら、その分岐のシンボルは並べずに展開し直す (`NoteMergedMacroConditionUse`)。並べた `#define` はどの構成でも効くので、その場の定義の有無で分岐を選ぶと、定義の無い構成でも定義のある側を読む
@@ -868,32 +868,32 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - 並べた分岐で定義したマクロがコードとして展開されたら、そのシンボルを並べずにブロックを展開し直す（`PreprocessResult.MergedMacroConflicts`、[ParseWithoutMergedMacroConflicts](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。取り込んだヘッダが使っている場合も、取り込みの記録に残した名前から分かる
 
 並べられなかった領域に現れたシンボルは `DeclinedBothBranchSymbols` に記録され、方法 B の候補になります
-（[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs)、
+（[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)、
 [CollectMergedSymbols](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 1 つの領域でも並べられなければ、そのシンボルは他の領域で並べられていても候補に入ります。
 
 #### 条件の巻き上げ
 
-[HlslPreprocessorHoisting.cs](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs) が行います。
+[ShaderPreprocessorHoisting.cs](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs) が行います。
 
-- 定義は、読み飛ばす分岐のものも条件付きで覚える（[RecordConditionalDefinition](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDefines.cs)）。`#undef` は、読み飛ばす分岐のものも含めて、それまでの定義の条件を「元の条件 ∧ ¬（`#undef` の経路の条件）」に縮める（[ForgetConditionalDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDefines.cs)）。条件が分からないか「常に」なら記録を捨てる。縮めずに残すと、`#undef` してから定義し直した中身を「`#undef` せずに定義し直した」（HL0002）と誤って報告する
-- 利用者が書いたヘッダの定義は、並べた分岐の条件（`CurrentCondition`）付きで覚える。ヘッダの条件は解析しているファイルのシンボルを経路の条件として読まないので、経路の条件は使えない。読み飛ばした分岐の定義は覚えない。複製している最中の展開は、並べた分岐のマクロをコードで使ったこと（`MergedMacroConflicts`）に数えない（[NoteMergedMacroUse](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDefines.cs)）。利用者が書いたヘッダは取り込み結果を覚えも使い回しもしない（条件付きの定義が展開結果に入らないため、`IsUserHeaderInclude`）
-- 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義の無い分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）
-- 文に書かれた名前が、条件で中身が変わるマクロでなくても、その本体を 8 段までたどって条件で中身が変わるマクロをちょうど 1 つ参照していれば、そのマクロの定義ごとに複製する（[FindHoistableThroughMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。たどった結果はマクロの定義ごとに覚え、マクロ表か条件付きの定義が変わったら捨てる
-- 1 つの文に条件で中身の変わるマクロが 2 つ以上あれば、定義の組み合わせごとに複製する（[CombineWithOtherMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。マクロは 3 つまで、組み合わせは 8 通りまで。超えるときは、きっかけのマクロだけを複製する
-- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` が無ければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）。マクロを使う文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
-- 並べた分岐を入れ子の `#if` が区切ったときは、分岐全体の範囲も分岐の条件付きで記録する（[CloseBranchRange](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDirectives.cs)）。条件の付く範囲は入れ子の前・中・後に分かれ、ノードに条件を付けるのは 1 つの範囲の内側にあるときだけなので、本体に `#if` を持つ関数には条件が付かなかった（「常に」になり、分岐ごとの同じ名前の関数を HL0314 と報告していた）
-- 文の切れ目の候補（[EnumerateUnitEnds](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）は、括弧の釣り合った `;` と `}` の後ろに加え、指令の手前と、外側のブロックを閉じる `}` の手前も含む。マクロ自身が文を閉じる形（`if (v > 0) BODY` の後ろに `#ifdef` が続く、`{ … BODY }`）では、展開前のトークンに `;` も `}` も無いためである
-- 複製は、どれも同じ位置から作られる。位置で条件を引くと `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`HlslSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）
-- `#define` しか無い領域（`#define` / `#undef` / `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs)）。同じ領域の `#elif` のシンボル（`FollowsUnmergedBranch`）、`#if` の行で読み直して並べなかったシンボル、入れ子の `#if` のシンボル（`OuterNotMerged`、[FindEnclosingHoistableMacros](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)）も、同じく数え直しの対象にする。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
-- 文の途中で分かれる `#if`（`NotSelfContained`）は、`#if` の手前の文の始まりから、`#endif` の後ろの文の切れ目までを、分岐ごとに複製する（[TryHoistRegion](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorRegionHoisting.cs)）。複製する単位に、初期化のもの（`=` `,` `{` の直後）でない `{` があれば複製しない。分岐の中に `#elif` / `#else` / `#endif` 以外の指令があるとき、`#elif` の条件を読めないとき、分岐が 5 つ以上になるときも複製しない。並べるかの判断（`FindDeclineReason`）と同じく、外側の並べていない条件と、構成によって定義が変わるマクロの呼び出しも見る
+- 定義は、読み飛ばす分岐のものも条件付きで覚える（[RecordConditionalDefinition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。`#undef` は、読み飛ばす分岐のものも含めて、それまでの定義の条件を「元の条件 ∧ ¬（`#undef` の経路の条件）」に縮める（[ForgetConditionalDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。条件が分からないか「常に」なら記録を捨てる。縮めずに残すと、`#undef` してから定義し直した中身を「`#undef` せずに定義し直した」（HL0002）と誤って報告する
+- 利用者が書いたヘッダの定義は、並べた分岐の条件（`CurrentCondition`）付きで覚える。ヘッダの条件は解析しているファイルのシンボルを経路の条件として読まないので、経路の条件は使えない。読み飛ばした分岐の定義は覚えない。複製している最中の展開は、並べた分岐のマクロをコードで使ったこと（`MergedMacroConflicts`）に数えない（[NoteMergedMacroUse](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。利用者が書いたヘッダは取り込み結果を覚えも使い回しもしない（条件付きの定義が展開結果に入らないため、`IsUserHeaderInclude`）
+- 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義の無い分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）
+- 文に書かれた名前が、条件で中身が変わるマクロでなくても、その本体を 8 段までたどって条件で中身が変わるマクロをちょうど 1 つ参照していれば、そのマクロの定義ごとに複製する（[FindHoistableThroughMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。たどった結果はマクロの定義ごとに覚え、マクロ表か条件付きの定義が変わったら捨てる
+- 1 つの文に条件で中身の変わるマクロが 2 つ以上あれば、定義の組み合わせごとに複製する（[CombineWithOtherMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。マクロは 3 つまで、組み合わせは 8 通りまで。超えるときは、きっかけのマクロだけを複製する
+- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` が無ければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）。マクロを使う文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
+- 並べた分岐を入れ子の `#if` が区切ったときは、分岐全体の範囲も分岐の条件付きで記録する（[CloseBranchRange](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)）。条件の付く範囲は入れ子の前・中・後に分かれ、ノードに条件を付けるのは 1 つの範囲の内側にあるときだけなので、本体に `#if` を持つ関数には条件が付かなかった（「常に」になり、分岐ごとの同じ名前の関数を HL0314 と報告していた）
+- 文の切れ目の候補（[EnumerateUnitEnds](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）は、括弧の釣り合った `;` と `}` の後ろに加え、指令の手前と、外側のブロックを閉じる `}` の手前も含む。マクロ自身が文を閉じる形（`if (v > 0) BODY` の後ろに `#ifdef` が続く、`{ … BODY }`）では、展開前のトークンに `;` も `}` も無いためである
+- 複製は、どれも同じ位置から作られる。位置で条件を引くと `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`ShaderSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）
+- `#define` しか無い領域（`#define` / `#undef` / `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。同じ領域の `#elif` のシンボル（`FollowsUnmergedBranch`）、`#if` の行で読み直して並べなかったシンボル、入れ子の `#if` のシンボル（`OuterNotMerged`、[FindEnclosingHoistableMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）も、同じく数え直しの対象にする。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
+- 文の途中で分かれる `#if`（`NotSelfContained`）は、`#if` の手前の文の始まりから、`#endif` の後ろの文の切れ目までを、分岐ごとに複製する（[TryHoistRegion](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorRegionHoisting.cs)）。複製する単位に、初期化のもの（`=` `,` `{` の直後）でない `{` があれば複製しない。分岐の中に `#elif` / `#else` / `#endif` 以外の指令があるとき、`#elif` の条件を読めないとき、分岐が 5 つ以上になるときも複製しない。並べるかの判断（`FindDeclineReason`）と同じく、外側の並べていない条件と、構成によって定義が変わるマクロの呼び出しも見る
 - 文の切れ目の目印（`NoteUnitBoundary`）は、初期化の波括弧を切れ目にしない。切れ目にすると、波括弧の内側からしか複製できない
-- 領域の終わりは、中身を調べ終える前に戻る経路（`#else` / `#elif` で閉じていないと分かった場合、入れ子が並べられない場合、`#include`）でも求める（[ConditionalRegionScanner.Scan](../../src/Shaderlyn.Hlsl/Preprocessing/ConditionalRegionScanner.cs)）。複製は領域の後ろから文の切れ目を探す
+- 領域の終わりは、中身を調べ終える前に戻る経路（`#else` / `#elif` で閉じていないと分かった場合、入れ子が並べられない場合、`#include`）でも求める（[ConditionalRegionScanner.Scan](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)）。複製は領域の後ろから文の切れ目を探す
 - 複製した文の後は、目印を次の文の始まりに置き、括弧の深さを数え直す（`MoveUnitAnchorPastUnit`）
 
 #### 並べなかった理由の記録
 
-[BothBranchDecline](../../src/Shaderlyn.Hlsl/Preprocessing/PreprocessorTypes.cs) に、シンボル・理由（`BothBranchDeclineReason`）・ファイル・指令の位置（`DirectiveSpan`）を残します（[AddDeclinedSymbol](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorDefines.cs)）。
+[BothBranchDecline](../../src/Shaderlyn.CFamily/Preprocessing/PreprocessorTypes.cs) に、シンボル・理由（`BothBranchDeclineReason`）・ファイル・指令の位置（`DirectiveSpan`）を残します（[AddDeclinedSymbol](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。
 挙動には使わず、`--inspect` の「シンボルの扱い」タブと、Unity 同梱シェーダーでの計測（[UnityCorpusTests](../../tests/Shaderlyn.Tests/UnityCorpusTests.cs)）が読みます。
 
 | 理由 | `--inspect` の表示 |
@@ -945,7 +945,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 **(b) 同時に定義されていないと通らない組の構成**（[SelectVariantCombinations](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 
-- 組の元は、両方の分岐を並べなかった分岐ごとに、**外側の分岐の条件をすべて掛け合わせて**拾う（[RecordRequiredCombinations](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorConditionals.cs)、[EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolCondition.cs)）。外側を読み飛ばしていても、入れ子の条件は読む
+- 組の元は、両方の分岐を並べなかった分岐ごとに、**外側の分岐の条件をすべて掛け合わせて**拾う（[RecordRequiredCombinations](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)、[EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolCondition.cs)）。外側を読み飛ばしていても、入れ子の条件は読む
 - 条件の中でシンボルとして読むのは、ブロックが宣言しているシンボルだけ（`PreprocessorOptions.DeclaredSymbols`）。並べる対象（`BothBranchSymbols`）とは別に渡すので、並べない設定で展開しても組は変わらない
 - 組の中のシンボルは**すべて宣言されている**必要がある。方法 A で並べたシンボルが混ざってもよい（並べた `#ifdef _A` の中の、並べなかった `#ifdef _B` は、`_A` の構成でも `_B` の構成でも通らない）。すべて並べたシンボルなら既定の構成の木に載っているので作らない
 - 同じ行どうしの組を作らないこと、方法 A で外側と合わせて成り立たない分岐を並べないことは、[SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)（`PreprocessorOptions.SymbolConstraints`）で判断する。ルールが条件を掛け合わせて「成り立つか」を見るときも `ConditionMap.IsPossible` を通す。全 Pass をまとめた索引では、どの Pass でも同じ行に並んでいる組だけを排他とする
@@ -1027,7 +1027,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 `EnumerateOwnNodes` が返す足すノードには、`IsReportable` を満たすものだけが含まれます。
 利用者のファイル (このファイルと、利用者が書いて取り込んだヘッダ) に直接書かれたノードと、
-**それらのファイルが書いたマクロの本体から来たノード**です（`HlslSyntaxToken.MacroDefinitionSpan` / `MacroDefinitionSource`）。
+**それらのファイルが書いたマクロの本体から来たノード**です（`ShaderSyntaxToken.MacroDefinitionSpan` / `MacroDefinitionSource`）。
 Unity や外部パッケージのヘッダのノードと、それらのマクロが作ったノードは除きます。
 
 「無いこと」を根拠にするルールが使う、解析されなかった場所の名前は
@@ -1040,7 +1040,7 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 | --- | --- | --- |
 | [HL0330](../rules/HL0330.md) | `ConditionalIdentifiers` のうち、宣言に無く、下線+大文字の命名に合い、マクロでもなく、このファイルに書かれたもの。取り込まれる前提の断片 (`.hlsl` など) では報告しない | [ShaderSymbolAnalyzer.ReportUndeclared](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs)、[IsMaterialSymbol](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [HL0331](../rules/HL0331.md) | 宣言のうち、条件でも実行時の参照でも現れないもの。宣言がこのファイルにある場合だけ | [ReportUnused](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
-| [HL0332](../rules/HL0332.md) | `#if` / `#elif` の条件のうち、宣言されたシンボルと定数だけでできていて、宣言の制約で成り立つシンボルの組のどれでも偽になるもの。このファイルに書かれた条件だけ。判定はプリプロセッサが行い（[NoteIfNeverTrue](../../src/Shaderlyn.Hlsl/Preprocessing/HlslPreprocessorNeverTrue.cs)）、その分岐のためのバリアントは作らない | [ReportNeverTrue](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
+| [HL0332](../rules/HL0332.md) | `#if` / `#elif` の条件のうち、宣言されたシンボルと定数だけでできていて、宣言の制約で成り立つシンボルの組のどれでも偽になるもの。このファイルに書かれた条件だけ。判定はプリプロセッサが行い（[NoteIfNeverTrue](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorNeverTrue.cs)）、その分岐のためのバリアントは作らない | [ReportNeverTrue](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [HL0006](../rules/HL0006.md) | `UnexploredSymbols` のシンボルごとに 1 件。位置はそのシンボルを参照する最初の条件（このファイルに書かれたもの）。見つからなければファイルの先頭。`UnexploredSymbolCombinations` の組ごとにも 1 件。位置はその組でしか通らない分岐を始めた指令 | [UnexploredSymbolAnalyzer.cs](../../src/Shaderlyn.Rules/Semantics/UnexploredSymbolAnalyzer.cs) |
 | [HL0314](../rules/HL0314.md) | 2 つの宣言の出現条件を掛け合わせて成り立つとき。ただし、その条件を満たすバリアントを展開していれば、その木に両方があるときだけ | [RedeclarationAnalyzer.Collides](../../src/Shaderlyn.Rules/Hlsl/RedeclarationAnalyzer.cs) |
 | [HL0007](../rules/HL0007.md) | `UnmergedLocations` の各位置 | [UnresolvedConditionAnalyzer.Analyze](../../src/Shaderlyn.Rules/Semantics/UnresolvedConditionAnalyzer.cs) |

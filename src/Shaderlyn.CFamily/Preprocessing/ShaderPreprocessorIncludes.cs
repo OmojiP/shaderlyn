@@ -1,16 +1,17 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// #include。取り込み先の解決、循環の検出、展開結果の使い回し。
 /// </summary>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     // --------------------------------------------------------------------
     // #include
@@ -25,14 +26,14 @@ internal sealed partial class HlslPreprocessor
     /// 山括弧は字句解析では比較演算子に分解されているため、
     /// トークンを結合して元のパスを復元する必要がある。
     /// </remarks>
-    private void ProcessInclude(HlslSyntaxToken directiveToken)
+    private void ProcessInclude(ShaderSyntaxToken directiveToken)
     {
-        ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
+        ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
         string? path = ExtractIncludePath(line);
         if (path is null)
         {
-            Report(HlslDescriptors.PreprocessorError, directiveToken.GetLocation(),
+            Report(ShaderDescriptors.PreprocessorError, directiveToken.GetLocation(),
                 "#include のパスを解釈できません。");
             return;
         }
@@ -58,7 +59,7 @@ internal sealed partial class HlslPreprocessor
 
             if (_options.ReportUnresolvedIncludes)
             {
-                Report(HlslDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path, string.Empty);
+                Report(ShaderDescriptors.UnresolvedInclude, directiveToken.GetLocation(), path, string.Empty);
             }
 
             return;
@@ -76,7 +77,7 @@ internal sealed partial class HlslPreprocessor
 
         if (_activeIncludePaths.Contains(included.FilePath))
         {
-            Report(HlslDescriptors.CircularInclude, directiveToken.GetLocation(), path);
+            Report(ShaderDescriptors.CircularInclude, directiveToken.GetLocation(), path);
 
             // 循環かどうかは、そのときの取り込みの連なりで決まる。囲んでいる取り込みの結果は覚えない。
             // 覚えると、別のファイルを解析したときの連なりで見つけた循環を使い回し、
@@ -92,7 +93,7 @@ internal sealed partial class HlslPreprocessor
         int includeDepth = _sources.Count(source => source.IncludePath is not null);
         if (includeDepth >= _options.MaxIncludeDepth)
         {
-            Report(HlslDescriptors.PreprocessorError, directiveToken.GetLocation(),
+            Report(ShaderDescriptors.PreprocessorError, directiveToken.GetLocation(),
                 $"include の入れ子が深すぎます (上限 {_options.MaxIncludeDepth} 段)。");
             return;
         }
@@ -333,7 +334,7 @@ internal sealed partial class HlslPreprocessor
         _skippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
         _skippedIncludedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
 
-        foreach (HlslSyntaxToken token in expansion.SkippedUserIdentifiers)
+        foreach (ShaderSyntaxToken token in expansion.SkippedUserIdentifiers)
         {
             _skippedIdentifiers.Add(token.Text);
             _skippedUserHeaderIdentifiers.Add(token);
@@ -439,23 +440,23 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// </remarks>
     private static Location GetIncludePathLocation(
-        HlslSyntaxToken directiveToken,
-        ImmutableArray<HlslSyntaxToken> line)
+        ShaderSyntaxToken directiveToken,
+        ImmutableArray<ShaderSyntaxToken> line)
     {
         if (line.IsEmpty)
         {
             return directiveToken.GetLocation();
         }
 
-        HlslSyntaxToken first = line[0];
+        ShaderSyntaxToken first = line[0];
 
-        if (first.Kind == HlslSyntaxKind.StringLiteralToken)
+        if (first.Kind == ShaderSyntaxKind.StringLiteralToken)
         {
             return first.GetLocation();
         }
 
         // 山括弧の閉じが無い場合も、開いた位置までは指せる。
-        HlslSyntaxToken? last = line.LastOrDefault(t => t.Kind == HlslSyntaxKind.GreaterThanToken);
+        ShaderSyntaxToken? last = line.LastOrDefault(t => t.Kind == ShaderSyntaxKind.GreaterThanToken);
 
         return last is not null
                && ReferenceEquals(last.Source, first.Source)
@@ -469,26 +470,26 @@ internal sealed partial class HlslPreprocessor
     /// </summary>
     /// <param name="line">指令の行のトークン。</param>
     /// <returns>取り出したパス。解釈できない場合は <see langword="null"/>。</returns>
-    private static string? ExtractIncludePath(ImmutableArray<HlslSyntaxToken> line)
+    private static string? ExtractIncludePath(ImmutableArray<ShaderSyntaxToken> line)
     {
         if (line.IsEmpty)
         {
             return null;
         }
 
-        if (line[0].Kind == HlslSyntaxKind.StringLiteralToken)
+        if (line[0].Kind == ShaderSyntaxKind.StringLiteralToken)
         {
             return line[0].ValueText;
         }
 
         // 山括弧は < と > に分解されているため、間のトークンのテキストを連結して復元する。
-        if (line[0].Kind == HlslSyntaxKind.LessThanToken)
+        if (line[0].Kind == ShaderSyntaxKind.LessThanToken)
         {
             System.Text.StringBuilder builder = new();
 
             for (int i = 1; i < line.Length; i++)
             {
-                if (line[i].Kind == HlslSyntaxKind.GreaterThanToken)
+                if (line[i].Kind == ShaderSyntaxKind.GreaterThanToken)
                 {
                     return builder.Length > 0 ? builder.ToString() : null;
                 }

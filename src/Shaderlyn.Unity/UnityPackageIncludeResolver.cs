@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Unity;
 
@@ -212,7 +212,7 @@ internal sealed class UnityPackageIncludeResolver : IIncludeResolver
     /// <returns>読み込めたソーステキスト。読み込めない場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// <b>1 つのパスからは 1 つのインスタンスしか作らない。</b>
-    /// 字句解析のキャッシュ (<see cref="HlslTokenCache"/>) はソーステキストの
+    /// 字句解析のキャッシュ (<see cref="TokenCache"/>) はソーステキストの
     /// <b>参照</b>をキーにしているため、
     /// 同じファイルから別々のインスタンスが生まれると、
     /// 同じヘッダを何度も字句解析し直すことになる。

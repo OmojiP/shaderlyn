@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -1472,16 +1473,16 @@ public sealed class HlslTypeClassifierTests
 /// <summary>
 /// 字句解析キャッシュの検証。
 /// </summary>
-public sealed class HlslTokenCacheTests
+public sealed class TokenCacheTests
 {
     [Fact]
     public void 同じテキストには同じトークン列を返す()
     {
-        HlslTokenCache cache = new();
+        TokenCache cache = new();
         SourceText text = SourceText.From("float4 _Color;", "a.hlsl");
 
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> first = cache.GetOrLex(text, out _);
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> second = cache.GetOrLex(text, out _);
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> first = cache.GetOrLex(text, out _);
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> second = cache.GetOrLex(text, out _);
 
         // 同じ配列が返る (字句解析をやり直していない)。
         Assert.True(first.Equals(second));
@@ -1492,11 +1493,11 @@ public sealed class HlslTokenCacheTests
     {
         // キーは参照であって内容ではない。内容をキーにするとハッシュ計算で全文を走査することになり、
         // 字句解析を省いた意味が薄れる。
-        HlslTokenCache cache = new();
+        TokenCache cache = new();
 
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> first =
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> first =
             cache.GetOrLex(SourceText.From("float4 _Color;", "a.hlsl"), out _);
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> second =
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> second =
             cache.GetOrLex(SourceText.From("float4 _Color;", "a.hlsl"), out _);
 
         Assert.False(first.Equals(second));

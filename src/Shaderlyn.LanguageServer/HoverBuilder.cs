@@ -1,3 +1,4 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
@@ -371,7 +372,7 @@ internal static partial class HoverBuilder
     /// <param name="token">対象のトークン。</param>
     /// <param name="offset">カーソルのオフセット。</param>
     /// <returns>下にある場合は <see langword="true"/>。</returns>
-    private static bool Touches(HlslSyntaxToken token, int offset)
+    private static bool Touches(ShaderSyntaxToken token, int offset)
         => CursorTarget.Touches(token.Span, offset);
 
     /// <summary>宣言の中で、カーソルの下にある宣言子を探す。</summary>

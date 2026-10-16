@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Parsing;
@@ -98,7 +99,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
                     break;
 
-                case AssignmentExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.EqualsToken } assignment
+                case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken } assignment
                     when binder.GetEvaluatorFor(assignment).Evaluate(assignment.Left) is { } target:
                     CheckConversion(context, binder, new Receiver(ReceiverKind.Assignment, target, target), assignment.Right, reported);
                     break;
@@ -117,7 +118,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     CheckArguments(context, compilation, binder, invocation, name, reported);
                     break;
 
-                case BinaryExpressionSyntax { OperatorToken.Kind: not HlslSyntaxKind.CommaToken } binary:
+                case BinaryExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.CommaToken } binary:
                     CheckOperands(context, binder, binary, binary.OperatorToken, [binary.Left, binary.Right], reported);
                     break;
 
@@ -292,7 +293,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         HlslExpressionSyntax expression,
-        HlslSyntaxToken operatorToken,
+        ShaderSyntaxToken operatorToken,
         HlslExpressionSyntax[] operands,
         ReportedLocations reported)
     {

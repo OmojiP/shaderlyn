@@ -25,6 +25,7 @@ public sealed class PublicApiTests
     [
         typeof(Core.Analysis.DiagnosticAnalyzer).Assembly,
         typeof(ShaderLab.Syntax.ShaderLabSyntaxNode).Assembly,
+        typeof(CFamily.Syntax.ShaderSyntaxToken).Assembly,
         typeof(Hlsl.Syntax.HlslSyntaxNode).Assembly,
         typeof(Semantics.ShaderCompilation).Assembly,
         typeof(Unity.UnityCompilation).Assembly,

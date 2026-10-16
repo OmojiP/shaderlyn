@@ -1,12 +1,14 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
-using Shaderlyn.Core.Syntax;
 
 namespace Shaderlyn.Rules;
 
@@ -31,7 +33,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslDescriptors.UndeclaredSymbol, HlslDescriptors.UnusedSymbol, HlslDescriptors.NeverTrueCondition];
+        [ShaderDescriptors.UndeclaredSymbol, ShaderDescriptors.UnusedSymbol, ShaderDescriptors.NeverTrueCondition];
 
     /// <inheritdoc/>
     /// <remarks>
@@ -62,7 +64,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             // 値を持つシンボルは原子 (QUALITY==2) で宣言されるが、条件には名前 (QUALITY) で書く。
             declared.UnionWith(program.Variants.ValueSymbols.Keys);
 
-            foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
+            foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
             {
                 referenced.Add(token.Text);
             }
@@ -120,7 +122,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             }
 
             context.ReportDiagnostic(Diagnostic.Create(
-                HlslDescriptors.NeverTrueCondition, condition.Directive.GetLocation(), condition.Text));
+                ShaderDescriptors.NeverTrueCondition, condition.Directive.GetLocation(), condition.Text));
         }
     }
 
@@ -153,7 +155,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
         HashSet<string> declared,
         HashSet<(string File, TextSpan Span)> reported)
     {
-        foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
+        foreach (ShaderSyntaxToken token in result.ConditionalIdentifiers)
         {
             if (declared.Contains(token.Text)
                 || !compilation.Environment.LooksLikeVariantSymbol(token.Text)
@@ -165,7 +167,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             }
 
             context.ReportDiagnostic(Diagnostic.Create(
-                HlslDescriptors.UndeclaredSymbol, token.GetLocation(), token.Text));
+                ShaderDescriptors.UndeclaredSymbol, token.GetLocation(), token.Text));
         }
     }
 
@@ -205,7 +207,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             }
 
             context.ReportDiagnostic(Diagnostic.Create(
-                HlslDescriptors.UnusedSymbol, location, name));
+                ShaderDescriptors.UnusedSymbol, location, name));
         }
     }
 
@@ -240,7 +242,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// それを使用と数えると、どのシンボルも使われていることになる。
     /// </para>
     /// </remarks>
-    private static HashSet<string> CollectRuntimeReferences(ImmutableArray<HlslSyntaxToken> tokens)
+    private static HashSet<string> CollectRuntimeReferences(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         HashSet<string> referenced = new(StringComparer.Ordinal);
 
@@ -249,13 +251,13 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
             // プリプロセッサの行は飛ばす。
             // #pragma の行にはシンボルの名前そのものが並んでおり、
             // それを使用と数えると、どのシンボルも「使われている」ことになる。
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken && tokens[i].IsAtLineStart)
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken && tokens[i].IsAtLineStart)
             {
                 while (i + 1 < tokens.Length && !tokens[i + 1].IsAtLineStart) { i++; }
                 continue;
             }
 
-            if (tokens[i].Kind == HlslSyntaxKind.IdentifierToken)
+            if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 referenced.Add(tokens[i].Text);
             }

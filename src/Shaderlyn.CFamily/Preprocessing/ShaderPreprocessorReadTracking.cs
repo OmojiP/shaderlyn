@@ -1,6 +1,6 @@
 using Shaderlyn.Core.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 取り込みの展開が読んだ名前の記録。展開結果を、読んだ名前の状態が同じなら使い回すためにある。
@@ -18,7 +18,7 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// その取り込み自身が先に書いた名前は残さない。書いたあとの状態は外によらない。
 /// </para>
 /// </remarks>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     /// <summary>「条件の中で定義された名前」の状態を、マクロ表と混ざらないようにずらす値。</summary>
     private const ulong ConditionallyDefinedSalt = 0x5851F42D4C957F2DUL;

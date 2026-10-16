@@ -1,10 +1,9 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 字句解析の結果をソーステキスト単位で覚えておく。
@@ -36,7 +35,7 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// 弱参照にしてもキャッシュから落ちない。
 /// </para>
 /// </remarks>
-public sealed class HlslTokenCache
+public sealed class TokenCache
 {
     private readonly ConditionalWeakTable<SourceText, Entry> _entries = [];
 
@@ -47,8 +46,8 @@ public sealed class HlslTokenCache
     /// 弱参照の表は参照型しか値にできないため、構造体ではなくクラスにしている。
     /// </remarks>
     private sealed record Entry(
-        ImmutableArray<HlslSyntaxToken> Tokens,
-        ImmutableArray<HlslLexer.LexerDiagnostic> Diagnostics);
+        ImmutableArray<ShaderSyntaxToken> Tokens,
+        ImmutableArray<ShaderLexer.LexerDiagnostic> Diagnostics);
 
     /// <summary>
     /// ソーステキストのトークン列を取得する。未解析であればここで字句解析する。
@@ -56,16 +55,16 @@ public sealed class HlslTokenCache
     /// <param name="text">対象のソーステキスト。</param>
     /// <param name="diagnostics">字句解析が検出した問題。</param>
     /// <returns>トークン列。</returns>
-    public ImmutableArray<HlslSyntaxToken> GetOrLex(
+    public ImmutableArray<ShaderSyntaxToken> GetOrLex(
         SourceText text,
-        out ImmutableArray<HlslLexer.LexerDiagnostic> diagnostics)
+        out ImmutableArray<ShaderLexer.LexerDiagnostic> diagnostics)
     {
         ArgumentNullException.ThrowIfNull(text);
 
         Entry entry = _entries.GetValue(text, static source =>
         {
-            HlslLexer lexer = new(source);
-            ImmutableArray<HlslSyntaxToken> tokens = lexer.Lex(out ImmutableArray<HlslLexer.LexerDiagnostic> lexed);
+            ShaderLexer lexer = new(source);
+            ImmutableArray<ShaderSyntaxToken> tokens = lexer.Lex(out ImmutableArray<ShaderLexer.LexerDiagnostic> lexed);
             return new Entry(tokens, lexed);
         });
 

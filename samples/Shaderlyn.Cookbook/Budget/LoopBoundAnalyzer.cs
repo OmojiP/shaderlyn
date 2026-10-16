@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
@@ -32,7 +33,7 @@ public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
         {
             if (c.Node.Condition is not BinaryExpressionSyntax condition
                 || condition.OperatorToken.Kind
-                    is not (HlslSyntaxKind.LessThanToken or HlslSyntaxKind.LessThanEqualsToken)
+                    is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.LessThanEqualsToken)
                 || condition.Right is not LiteralExpressionSyntax literal
                 || !HlslLiteral.TryGetInt64(literal.Token, out long bound))
             {
@@ -40,7 +41,7 @@ public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
             }
 
             long iterations =
-                condition.OperatorToken.Kind == HlslSyntaxKind.LessThanEqualsToken ? bound + 1 : bound;
+                condition.OperatorToken.Kind == ShaderSyntaxKind.LessThanEqualsToken ? bound + 1 : bound;
 
             if (iterations > maxIterations)
             {

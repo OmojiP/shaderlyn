@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
-using Xunit.Abstractions;
 using Shaderlyn.Unity;
+using Xunit.Abstractions;
 
 namespace Shaderlyn.Tests;
 
@@ -599,7 +599,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         {
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
-            TokenCache = new HlslTokenCache(),
+            TokenCache = new TokenCache(),
         };
 
         Core.Analysis.AnalyzerDriver driver = new(Cli.BuiltInAnalyzers.All);
@@ -735,8 +735,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         {
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
-            TokenCache = new HlslTokenCache(),
-            IncludeCache = new HlslIncludeCache(),
+            TokenCache = new TokenCache(),
+            IncludeCache = new IncludeCache(),
 
             // 巻き上げは既定の構成を展開するときに起きる。
             // 構成ごとの展開は、この検証には要らない。
@@ -838,8 +838,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         {
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
-            TokenCache = new HlslTokenCache(),
-            IncludeCache = new HlslIncludeCache(),
+            TokenCache = new TokenCache(),
+            IncludeCache = new IncludeCache(),
         };
 
         const string MacroUsedInCode = "MacroUsedInCode";
@@ -1083,8 +1083,8 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
         {
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
-            TokenCache = new HlslTokenCache(),
-            IncludeCache = new HlslIncludeCache(),
+            TokenCache = new TokenCache(),
+            IncludeCache = new IncludeCache(),
         };
 
         Core.Analysis.AnalyzerDriver driver = new(Cli.BuiltInAnalyzers.All);

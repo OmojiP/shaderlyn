@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
@@ -234,7 +235,7 @@ public sealed class UnityCompilerSelectionTests
         SourceText text = SourceText.From(source, Path.Combine("Assets", "Test.shader"));
         SemanticsOptions semantics = new()
         {
-            IncludeResolver = new Hlsl.Preprocessing.InMemoryIncludeResolver(
+            IncludeResolver = new CFamily.Preprocessing.InMemoryIncludeResolver(
                 new Dictionary<string, string>(StringComparer.Ordinal) { ["Dxc.hlsl"] = "#include \"Inner.hlsl\"\n", ["Inner.hlsl"] = "#pragma use_dxc\n" }),
         };
 
@@ -258,7 +259,7 @@ public sealed class UnityCompilerSelectionTests
     private static ImmutableArray<HlslCompileTarget> Select(string pragmas, UnityOptions options, bool isCompute)
     {
         string code = string.Join("\n", pragmas.Split('|', StringSplitOptions.RemoveEmptyEntries).Select(p => "#pragma " + p)) + "\nfloat4 f() { return 0; }\n";
-        ImmutableArray<HlslSyntaxToken> tokens = new Hlsl.Parsing.HlslLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> tokens = new CFamily.Syntax.ShaderLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
 
         return UnityCompilerSelection.Select(tokens, isCompute, options);
     }

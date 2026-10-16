@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 1 つの <c>#include</c> を展開した結果。
@@ -46,13 +46,13 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// <param name="ResolvedIncludes">解決できた取り込み先のパス。</param>
 /// <param name="UnresolvedIncludes">解決できなかった取り込みのパス。</param>
 public sealed record IncludeExpansion(
-    ImmutableArray<HlslSyntaxToken> Tokens,
+    ImmutableArray<ShaderSyntaxToken> Tokens,
     ImmutableArray<KeyValuePair<string, MacroDefinition?>> MacroChanges,
     ImmutableArray<string> ConditionallyDefined,
     ImmutableArray<PragmaDirective> Pragmas,
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<ConditionalTokenRange> ConditionalRegions,
-    ImmutableArray<HlslSyntaxToken> ConditionalIdentifiers,
+    ImmutableArray<ShaderSyntaxToken> ConditionalIdentifiers,
     ImmutableArray<string> SkippedIdentifiers,
     ImmutableArray<string> ExpandedRootMacros,
     ImmutableArray<string> DeclinedBothBranchSymbols,
@@ -78,7 +78,7 @@ public sealed record IncludeExpansion(
     /// 利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ (<see cref="PreprocessResult.SkippedUserHeaderIdentifiers"/>)。
     /// <see cref="SkippedIdentifiers"/> には含まない。
     /// </summary>
-    public ImmutableArray<HlslSyntaxToken> SkippedUserIdentifiers { get; init; } = [];
+    public ImmutableArray<ShaderSyntaxToken> SkippedUserIdentifiers { get; init; } = [];
 }
 
 /// <summary>
@@ -125,10 +125,10 @@ public sealed record IncludeReadSet(
 /// 覚える中身が「そのヘッダが何を足したか」ではなく
 /// 「そのヘッダより前に何を見たか」に依存していると、
 /// 同じ鍵で中身の違う記録ができあがる。実際にそうなっていた
-/// (<c>HlslPreprocessor.Record</c>)。
+/// (<c>ShaderPreprocessor.Record</c>)。
 /// </para>
 /// </remarks>
-public sealed class HlslIncludeCache
+public sealed class IncludeCache
 {
     private readonly ConcurrentDictionary<IncludeCacheKey, IncludeExpansion> _entries = new();
 
@@ -226,7 +226,7 @@ public sealed class HlslIncludeCache
 /// <param name="OptionsHash">展開の設定 (両方の分岐を残すシンボルなど) のハッシュ。</param>
 /// <remarks>
 /// 取り込みの入れ子の状態は鍵に入れていない。
-/// 覚えるのは条件の外で取り込まれた場合だけであり (<c>HlslPreprocessor</c>)、
+/// 覚えるのは条件の外で取り込まれた場合だけであり (<c>ShaderPreprocessor</c>)、
 /// そこでは同じパスが同時に 2 度現れることがないためである。
 /// </remarks>
 public readonly record struct IncludeCacheKey(string FilePath, ulong MacroTableHash, int OptionsHash);

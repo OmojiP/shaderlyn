@@ -3,8 +3,9 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Unreal;
@@ -203,14 +204,14 @@ public static partial class UnrealUniformBufferGenerator
             return;
         }
 
-        ImmutableArray<HlslSyntaxToken> tokens = Expand(path, text);
+        ImmutableArray<ShaderSyntaxToken> tokens = Expand(path, text);
 
         for (int i = 0; i < tokens.Length; i++)
         {
             if (!StructBeginName().IsMatch(tokens[i].Text)
                 || i + 2 >= tokens.Length
-                || tokens[i + 1].Kind != HlslSyntaxKind.OpenParenToken
-                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken)
+                || tokens[i + 1].Kind != ShaderSyntaxKind.OpenParenToken
+                || tokens[i + 2].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }
@@ -233,7 +234,7 @@ public static partial class UnrealUniformBufferGenerator
     /// <summary>
     /// ファイルの中で定義されたマクロを展開する。<c>#if</c> はすべての分岐を読み、<c>#include</c> は読まない。
     /// </summary>
-    private static ImmutableArray<HlslSyntaxToken> Expand(string path, string text)
+    private static ImmutableArray<ShaderSyntaxToken> Expand(string path, string text)
     {
         StringBuilder kept = new(text.Length);
 
@@ -258,7 +259,7 @@ public static partial class UnrealUniformBufferGenerator
         }
 
         PreprocessorOptions options = new() { HonorPragmaOnce = false };
-        return new HlslPreprocessor(options).Preprocess(SourceText.From(kept.ToString(), path)).Tokens;
+        return new ShaderPreprocessor(options).Preprocess(SourceText.From(kept.ToString(), path)).Tokens;
     }
 
     /// <summary>コメントと、<c>#</c> で始まる行 (マクロの定義など) を消したテキスト。</summary>
@@ -307,7 +308,7 @@ public static partial class UnrealUniformBufferGenerator
     }
 
     private static (ImmutableArray<MemberDefinition> Members, ImmutableArray<string> Unknown) ParseMembers(
-        ImmutableArray<HlslSyntaxToken> tokens, int start, int end)
+        ImmutableArray<ShaderSyntaxToken> tokens, int start, int end)
     {
         ImmutableArray<MemberDefinition>.Builder members = ImmutableArray.CreateBuilder<MemberDefinition>();
         ImmutableArray<string>.Builder unknown = ImmutableArray.CreateBuilder<string>();
@@ -316,9 +317,9 @@ public static partial class UnrealUniformBufferGenerator
 
         while (i < end)
         {
-            HlslSyntaxToken token = tokens[i];
+            ShaderSyntaxToken token = tokens[i];
 
-            if (token.Kind != HlslSyntaxKind.IdentifierToken || i + 1 >= end || tokens[i + 1].Kind != HlslSyntaxKind.OpenParenToken)
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken || i + 1 >= end || tokens[i + 1].Kind != ShaderSyntaxKind.OpenParenToken)
             {
                 i++;
                 continue;
@@ -476,17 +477,17 @@ public static partial class UnrealUniformBufferGenerator
     }
 
     /// <summary>開き括弧の位置から、対応する閉じ括弧の次の位置を返す。</summary>
-    private static int SkipParenthesized(ImmutableArray<HlslSyntaxToken> tokens, int open)
+    private static int SkipParenthesized(ImmutableArray<ShaderSyntaxToken> tokens, int open)
     {
         int depth = 0;
 
         for (int i = open; i < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.OpenParenToken)
+            if (tokens[i].Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 depth++;
             }
-            else if (tokens[i].Kind == HlslSyntaxKind.CloseParenToken && --depth == 0)
+            else if (tokens[i].Kind == ShaderSyntaxKind.CloseParenToken && --depth == 0)
             {
                 return i + 1;
             }
@@ -496,19 +497,19 @@ public static partial class UnrealUniformBufferGenerator
     }
 
     /// <summary>括弧の中を、最上位のカンマで分ける。<c>&lt;&gt;</c> の中のカンマでは分けない。</summary>
-    private static List<string> SplitArguments(ImmutableArray<HlslSyntaxToken> tokens, int start, int end)
+    private static List<string> SplitArguments(ImmutableArray<ShaderSyntaxToken> tokens, int start, int end)
     {
         List<string> arguments = [];
         StringBuilder current = new();
         int parens = 0;
         int angles = 0;
-        HlslSyntaxToken? previous = null;
+        ShaderSyntaxToken? previous = null;
 
         for (int i = start; i < end; i++)
         {
-            HlslSyntaxToken token = tokens[i];
+            ShaderSyntaxToken token = tokens[i];
 
-            if (token.Kind == HlslSyntaxKind.CommaToken && parens == 0 && angles == 0)
+            if (token.Kind == ShaderSyntaxKind.CommaToken && parens == 0 && angles == 0)
             {
                 arguments.Add(current.ToString().Trim());
                 current.Clear();
@@ -516,7 +517,7 @@ public static partial class UnrealUniformBufferGenerator
                 continue;
             }
 
-            parens += token.Kind == HlslSyntaxKind.OpenParenToken ? 1 : token.Kind == HlslSyntaxKind.CloseParenToken ? -1 : 0;
+            parens += token.Kind == ShaderSyntaxKind.OpenParenToken ? 1 : token.Kind == ShaderSyntaxKind.CloseParenToken ? -1 : 0;
             angles += token.Text.Count(c => c == '<') - token.Text.Count(c => c == '>');
             angles = Math.Max(0, angles);
 
@@ -537,8 +538,8 @@ public static partial class UnrealUniformBufferGenerator
 
         return arguments;
 
-        static bool IsWord(HlslSyntaxToken token)
-            => token.Kind is HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.NumericLiteralToken;
+        static bool IsWord(ShaderSyntaxToken token)
+            => token.Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken;
     }
 
     // ------------------------------------------------------------------

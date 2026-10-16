@@ -1,12 +1,11 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Hlsl.Parsing;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// プリプロセッサの実行時設定。
@@ -170,7 +169,7 @@ public sealed record PreprocessorOptions
     /// 同じく分岐ごとに文を複製して並べる。<c>{ }</c> のブロックを含む文は複製しない。
     /// </para>
     /// <para>
-    /// 文の切れ目の候補は字句で出し、採否は構文解析 (<c>HlslParser.IsCompleteUnits</c>) が決める。
+    /// 文の切れ目の候補は字句で出し、採否は構文解析 (<see cref="ShaderLanguageOptions.IsCompleteUnits"/>) が決める。
     /// どの候補でも文として読めなければ複製しない。文の範囲を取り違えると構文木が壊れるためである。
     /// </para>
     /// <para>
@@ -293,18 +292,18 @@ public sealed record PreprocessorOptions
     /// </summary>
     /// <remarks>
     /// 同じヘッダを何度も取り込む場合、解析時間が大きく変わる。
-    /// 詳細は <see cref="HlslTokenCache"/> を参照。
+    /// 詳細は <see cref="TokenCache"/> を参照。
     /// </remarks>
-    public HlslTokenCache? TokenCache { get; init; }
+    public TokenCache? TokenCache { get; init; }
 
     /// <summary>
     /// 取り込みの展開結果を共有するキャッシュ。<see langword="null"/> の場合は毎回展開する。
     /// </summary>
     /// <remarks>
     /// 同じヘッダを同じマクロの状態で取り込んだ場合に使い回す。
-    /// 詳細は <see cref="HlslIncludeCache"/> を参照。
+    /// 詳細は <see cref="IncludeCache"/> を参照。
     /// </remarks>
-    public HlslIncludeCache? IncludeCache { get; init; }
+    public IncludeCache? IncludeCache { get; init; }
 
     /// <summary>include の入れ子の上限。</summary>
     public int MaxIncludeDepth { get; init; } = DefaultMaxIncludeDepth;
@@ -330,7 +329,7 @@ public sealed record PreprocessorOptions
     /// <remarks>
     /// <para>
     /// 利用者のファイルで書いたマクロの本体と実引数には、書かれた位置を残す
-    /// (<see cref="HlslSyntaxToken.MacroDefinitionSpan"/> / <see cref="HlslSyntaxToken.MacroArgumentSpan"/>)。
+    /// (<see cref="ShaderSyntaxToken.MacroDefinitionSpan"/> / <see cref="ShaderSyntaxToken.MacroArgumentSpan"/>)。
     /// 報告の位置と、報告してよいかの判定に使う。
     /// </para>
     /// <para>
@@ -374,77 +373,23 @@ public sealed record PreprocessorOptions
         ImmutableDictionary<string, ImmutableArray<int>>.Empty.WithComparers(StringComparer.Ordinal);
 
     /// <summary>
-    /// このコードをコンパイルする方言。既定は FXC (Unity の既定のコンパイラ)。
+    /// 展開したコードの言語 (HLSL など) の設定。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) とルールが読む。
-    /// 展開と構文解析の設定を 1 つにまとめて渡しているので、ここに置く。
+    /// 展開そのものはほぼ言語に依らない。言語に依るのは、巻き上げで複製した断片が文として読めるかの判定と、
+    /// 使えない指令を報告するときの、どこで使えないかを伝える名前だけである。
+    /// 構文解析とルールも、展開と同じ設定からこれを読む。
     /// </para>
     /// <para>
-    /// <b>1 つのコードが複数の方言でコンパイルされることがある。</b>
-    /// パーサーは、どれかの方言が受け付ける構文を読む (<see cref="HlslLanguageFeatures.Any"/>)。
-    /// どの方言も受け付けない構文を HL0003 として報告する。
+    /// <see langword="null"/> なら、巻き上げをしない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslDialect> Dialects { get; init; } = [HlslDialect.Fxc];
+    public ShaderLanguageOptions? Language { get; init; }
 
-    /// <summary>
-    /// DXC の言語のバージョン。設定すると、方言をその版の DXC 1 つにする (<see cref="Dialects"/> の略記)。
-    /// </summary>
-    /// <remarks>
-    /// 読むと、並べた方言のうち最も新しい DXC の版を返す。DXC が無ければ <see cref="HlslLanguageVersion.Hlsl2018"/>。
-    /// </remarks>
-    public HlslLanguageVersion LanguageVersion
-    {
-        get => Dialects.Where(d => d.Compiler == HlslCompiler.Dxc).Select(d => d.LanguageVersion).Max() ?? HlslLanguageVersion.Hlsl2018;
-        init => Dialects = [HlslDialect.Dxc(value)];
-    }
-
-    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。パーサーはこれで読む。</summary>
-    public HlslLanguageFeatures Features => HlslLanguageFeatures.Any(Dialects);
-
-    /// <summary>
-    /// コンパイル先 (API と方言の組)。環境が分かるときだけ並べる。空なら分からない。
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 設定すると、方言 (<see cref="Dialects"/>) をコンパイル先の方言にする。
-    /// 使える API のコンパイル先があれば、その方言だけにする。使えない API でのエラーは利用者に見えない。
-    /// </para>
-    /// <para>
-    /// Unity の環境が、パスごとの <c>#pragma use_dxc</c> などから決める。
-    /// </para>
-    /// </remarks>
-    public ImmutableArray<HlslCompileTarget> CompileTargets
-    {
-        get;
-        init
-        {
-            field = value.IsDefault ? [] : value;
-
-            if (field.IsEmpty)
-            {
-                return;
-            }
-
-            IEnumerable<HlslCompileTarget> usable = field.Any(t => t.IsUsable) ? field.Where(t => t.IsUsable) : field;
-            Dialects = [.. usable.Select(t => t.Dialect).Distinct()];
-        }
-    } = [];
-
-    /// <summary>
-    /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
-    /// </summary>
-    /// <remarks>
-    /// <see langword="null"/> なら方言で言う (<c>FXC</c> / <c>HLSL 2018</c>)。
-    /// 環境が与える。Unity の環境は、Unity のコンパイルでエラーになることを伝える。
-    /// </remarks>
-    public string? DialectName { get; init; }
-
-    /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。</summary>
-    /// <returns>名前。</returns>
-    internal string DescribeDialect() => DialectName ?? HlslLanguageFeatures.Describe(Dialects);
+    /// <summary>使えない構文を報告するとき (HL0003) に入れる、どこで使えないかを伝える名前。</summary>
+    /// <returns>名前。言語が無ければ空。</returns>
+    internal string DescribeUnavailable() => Language?.DescribeUnavailable() ?? string.Empty;
 
     /// <summary>
     /// 使えない指令として報告する名前。
@@ -467,7 +412,7 @@ public sealed record PreprocessorOptions
     /// <remarks>
     /// <para>
     /// <b>取り込みの展開結果を使い回してよいかの鍵の一部である
-    /// (<see cref="HlslIncludeCache"/>)。</b>
+    /// (<see cref="IncludeCache"/>)。</b>
     /// 同じヘッダでも、両方の分岐を残すシンボルが違えば結果は変わる。
     /// </para>
     /// <para>
@@ -571,14 +516,14 @@ public sealed record PreprocessorOptions
 /// これらはルールが必要とするため、捨てずに残す必要がある。
 /// </remarks>
 public readonly record struct PragmaDirective(
-    ImmutableArray<HlslSyntaxToken> Tokens,
-    HlslSyntaxToken NameToken)
+    ImmutableArray<ShaderSyntaxToken> Tokens,
+    ShaderSyntaxToken NameToken)
 {
     /// <summary>指令名 (<c>vertex</c>、<c>multi_compile</c> など)。</summary>
     public string Name => NameToken.Text;
 
     /// <summary>指令名を除いた引数のトークン。</summary>
-    public IEnumerable<HlslSyntaxToken> Arguments => Tokens.Skip(1);
+    public IEnumerable<ShaderSyntaxToken> Arguments => Tokens.Skip(1);
 }
 
 /// <summary>
@@ -853,14 +798,14 @@ public readonly record struct BothBranchDecline(string Symbol, BothBranchDecline
 /// 1 か所でも残せなかったシンボルは、まだ構成ごとの展開が要る。
 /// </param>
 public readonly record struct PreprocessResult(
-    ImmutableArray<HlslSyntaxToken> Tokens,
+    ImmutableArray<ShaderSyntaxToken> Tokens,
     ImmutableArray<Diagnostic> Diagnostics,
     ImmutableArray<PragmaDirective> Pragmas,
     ImmutableArray<string> ResolvedIncludes,
     ImmutableArray<string> UnresolvedIncludes,
     ImmutableDictionary<string, MacroDefinition> Macros,
     ImmutableArray<string> SkippedIdentifiers,
-    ImmutableArray<HlslSyntaxToken> ConditionalIdentifiers,
+    ImmutableArray<ShaderSyntaxToken> ConditionalIdentifiers,
     ImmutableArray<IncludeReference> Includes,
     ImmutableArray<ConditionalTokenRange> ConditionalRegions,
     ImmutableArray<string> DeclinedBothBranchSymbols)
@@ -907,7 +852,7 @@ public readonly record struct PreprocessResult(
     /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> SkippedRootIdentifiers { get; init; }
+    public ImmutableArray<ShaderSyntaxToken> SkippedRootIdentifiers { get; init; }
 
     /// <summary>
     /// 利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。
@@ -921,7 +866,7 @@ public readonly record struct PreprocessResult(
     /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> SkippedUserHeaderIdentifiers { get; init; }
+    public ImmutableArray<ShaderSyntaxToken> SkippedUserHeaderIdentifiers { get; init; }
 
     /// <summary>
     /// 1 つずつ有効にしただけでは通らない、条件に書かれたシンボルの組。
@@ -1028,7 +973,7 @@ public readonly record struct PreprocessResult(
     /// <b>0 であることは安全の証拠ではない。</b>
     /// 諦めた回数であって、取り違えたまま通した回数ではない。
     /// 取り違えたまま通っていないことは、構文解析で確かめている
-    /// (<c>HlslParser.IsCompleteUnits</c>)。
+    /// (<see cref="ShaderLanguageOptions.IsCompleteUnits"/>)。
     /// </remarks>
     public int HoistGiveUps { get; init; }
 

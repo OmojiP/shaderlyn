@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Hlsl.Syntax;
 
@@ -7,10 +8,10 @@ public abstract class HlslExpressionSyntax : HlslSyntaxNode;
 
 /// <summary>数値・文字列などのリテラル。</summary>
 /// <param name="token">リテラルのトークン。</param>
-public sealed class LiteralExpressionSyntax(HlslSyntaxToken token) : HlslExpressionSyntax
+public sealed class LiteralExpressionSyntax(ShaderSyntaxToken token) : HlslExpressionSyntax
 {
     /// <summary>リテラルのトークン。</summary>
-    public HlslSyntaxToken Token { get; } = token;
+    public ShaderSyntaxToken Token { get; } = token;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -21,10 +22,10 @@ public sealed class LiteralExpressionSyntax(HlslSyntaxToken token) : HlslExpress
 
 /// <summary>変数や関数などの名前参照。</summary>
 /// <param name="identifier">識別子のトークン。</param>
-public sealed class IdentifierExpressionSyntax(HlslSyntaxToken identifier) : HlslExpressionSyntax
+public sealed class IdentifierExpressionSyntax(ShaderSyntaxToken identifier) : HlslExpressionSyntax
 {
     /// <summary>識別子のトークン。</summary>
-    public HlslSyntaxToken Identifier { get; } = identifier;
+    public ShaderSyntaxToken Identifier { get; } = identifier;
 
     /// <summary>識別子の文字列。</summary>
     public string Name => Identifier.Text;
@@ -46,25 +47,25 @@ public sealed class IdentifierExpressionSyntax(HlslSyntaxToken identifier) : Hls
 /// 式としての型は求めない (分からない型として扱う)。
 /// </remarks>
 public sealed class GenericNameExpressionSyntax(
-    HlslSyntaxToken identifier,
-    HlslSyntaxToken openAngle,
-    ImmutableArray<HlslSyntaxToken> typeArguments,
-    HlslSyntaxToken closeAngle) : HlslExpressionSyntax
+    ShaderSyntaxToken identifier,
+    ShaderSyntaxToken openAngle,
+    ImmutableArray<ShaderSyntaxToken> typeArguments,
+    ShaderSyntaxToken closeAngle) : HlslExpressionSyntax
 {
     /// <summary>型の名前のトークン。</summary>
-    public HlslSyntaxToken Identifier { get; } = identifier;
+    public ShaderSyntaxToken Identifier { get; } = identifier;
 
     /// <summary>型の名前。</summary>
     public string Name => Identifier.Text;
 
     /// <summary>開き山括弧。</summary>
-    public HlslSyntaxToken OpenAngle { get; } = openAngle;
+    public ShaderSyntaxToken OpenAngle { get; } = openAngle;
 
     /// <summary>型引数のトークン (区切りのカンマを含む)。</summary>
-    public ImmutableArray<HlslSyntaxToken> TypeArguments { get; } = typeArguments;
+    public ImmutableArray<ShaderSyntaxToken> TypeArguments { get; } = typeArguments;
 
     /// <summary>閉じ山括弧。</summary>
-    public HlslSyntaxToken CloseAngle { get; } = closeAngle;
+    public ShaderSyntaxToken CloseAngle { get; } = closeAngle;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -72,7 +73,7 @@ public sealed class GenericNameExpressionSyntax(
         yield return Identifier;
         yield return OpenAngle;
 
-        foreach (HlslSyntaxToken token in TypeArguments)
+        foreach (ShaderSyntaxToken token in TypeArguments)
         {
             yield return token;
         }
@@ -86,18 +87,18 @@ public sealed class GenericNameExpressionSyntax(
 /// <param name="expression">中の式。</param>
 /// <param name="closeParen">閉じ括弧。</param>
 public sealed class ParenthesizedExpressionSyntax(
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken openParen,
     HlslExpressionSyntax expression,
-    HlslSyntaxToken closeParen) : HlslExpressionSyntax
+    ShaderSyntaxToken closeParen) : HlslExpressionSyntax
 {
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>中の式。</summary>
     public HlslExpressionSyntax Expression { get; } = expression;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -114,14 +115,14 @@ public sealed class ParenthesizedExpressionSyntax(
 /// <param name="right">右辺。</param>
 public sealed class BinaryExpressionSyntax(
     HlslExpressionSyntax left,
-    HlslSyntaxToken operatorToken,
+    ShaderSyntaxToken operatorToken,
     HlslExpressionSyntax right) : HlslExpressionSyntax
 {
     /// <summary>左辺。</summary>
     public HlslExpressionSyntax Left { get; } = left;
 
     /// <summary>演算子のトークン。</summary>
-    public HlslSyntaxToken OperatorToken { get; } = operatorToken;
+    public ShaderSyntaxToken OperatorToken { get; } = operatorToken;
 
     /// <summary>右辺。</summary>
     public HlslExpressionSyntax Right { get; } = right;
@@ -141,14 +142,14 @@ public sealed class BinaryExpressionSyntax(
 /// <param name="right">代入する値。</param>
 public sealed class AssignmentExpressionSyntax(
     HlslExpressionSyntax left,
-    HlslSyntaxToken operatorToken,
+    ShaderSyntaxToken operatorToken,
     HlslExpressionSyntax right) : HlslExpressionSyntax
 {
     /// <summary>代入先。</summary>
     public HlslExpressionSyntax Left { get; } = left;
 
     /// <summary>代入演算子のトークン。</summary>
-    public HlslSyntaxToken OperatorToken { get; } = operatorToken;
+    public ShaderSyntaxToken OperatorToken { get; } = operatorToken;
 
     /// <summary>代入する値。</summary>
     public HlslExpressionSyntax Right { get; } = right;
@@ -166,11 +167,11 @@ public sealed class AssignmentExpressionSyntax(
 /// <param name="operatorToken">演算子。</param>
 /// <param name="operand">被演算子。</param>
 public sealed class PrefixUnaryExpressionSyntax(
-    HlslSyntaxToken operatorToken,
+    ShaderSyntaxToken operatorToken,
     HlslExpressionSyntax operand) : HlslExpressionSyntax
 {
     /// <summary>演算子のトークン。</summary>
-    public HlslSyntaxToken OperatorToken { get; } = operatorToken;
+    public ShaderSyntaxToken OperatorToken { get; } = operatorToken;
 
     /// <summary>被演算子。</summary>
     public HlslExpressionSyntax Operand { get; } = operand;
@@ -188,13 +189,13 @@ public sealed class PrefixUnaryExpressionSyntax(
 /// <param name="operatorToken">演算子。</param>
 public sealed class PostfixUnaryExpressionSyntax(
     HlslExpressionSyntax operand,
-    HlslSyntaxToken operatorToken) : HlslExpressionSyntax
+    ShaderSyntaxToken operatorToken) : HlslExpressionSyntax
 {
     /// <summary>被演算子。</summary>
     public HlslExpressionSyntax Operand { get; } = operand;
 
     /// <summary>演算子のトークン。</summary>
-    public HlslSyntaxToken OperatorToken { get; } = operatorToken;
+    public ShaderSyntaxToken OperatorToken { get; } = operatorToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -212,22 +213,22 @@ public sealed class PostfixUnaryExpressionSyntax(
 /// <param name="whenFalse">偽のときの値。</param>
 public sealed class ConditionalExpressionSyntax(
     HlslExpressionSyntax condition,
-    HlslSyntaxToken questionToken,
+    ShaderSyntaxToken questionToken,
     HlslExpressionSyntax whenTrue,
-    HlslSyntaxToken colonToken,
+    ShaderSyntaxToken colonToken,
     HlslExpressionSyntax whenFalse) : HlslExpressionSyntax
 {
     /// <summary>条件。</summary>
     public HlslExpressionSyntax Condition { get; } = condition;
 
     /// <summary><c>?</c> のトークン。</summary>
-    public HlslSyntaxToken QuestionToken { get; } = questionToken;
+    public ShaderSyntaxToken QuestionToken { get; } = questionToken;
 
     /// <summary>真のときの値。</summary>
     public HlslExpressionSyntax WhenTrue { get; } = whenTrue;
 
     /// <summary><c>:</c> のトークン。</summary>
-    public HlslSyntaxToken ColonToken { get; } = colonToken;
+    public ShaderSyntaxToken ColonToken { get; } = colonToken;
 
     /// <summary>偽のときの値。</summary>
     public HlslExpressionSyntax WhenFalse { get; } = whenFalse;
@@ -260,36 +261,36 @@ public sealed class ConditionalExpressionSyntax(
 /// </remarks>
 public sealed class InvocationExpressionSyntax(
     HlslExpressionSyntax target,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken openParen,
     ImmutableArray<HlslNodeOrTokenEntry> arguments,
-    HlslSyntaxToken closeParen,
-    HlslSyntaxToken? openAngle = null,
-    ImmutableArray<HlslSyntaxToken> typeArgumentTokens = default,
-    HlslSyntaxToken? closeAngle = null) : HlslExpressionSyntax
+    ShaderSyntaxToken closeParen,
+    ShaderSyntaxToken? openAngle = null,
+    ImmutableArray<ShaderSyntaxToken> typeArgumentTokens = default,
+    ShaderSyntaxToken? closeAngle = null) : HlslExpressionSyntax
 {
     /// <summary>呼び出す対象。</summary>
     public HlslExpressionSyntax Target { get; } = target;
 
     /// <summary>型引数の開き山括弧。型引数を書いていなければ <see langword="null"/>。</summary>
-    public HlslSyntaxToken? OpenAngle { get; } = openAngle;
+    public ShaderSyntaxToken? OpenAngle { get; } = openAngle;
 
     /// <summary>型引数のトークン (<c>Twice&lt;float4&gt;(x)</c> の <c>float4</c>)。カンマを含む。書いていなければ空。</summary>
-    public ImmutableArray<HlslSyntaxToken> TypeArgumentTokens { get; } = typeArgumentTokens.IsDefault ? [] : typeArgumentTokens;
+    public ImmutableArray<ShaderSyntaxToken> TypeArgumentTokens { get; } = typeArgumentTokens.IsDefault ? [] : typeArgumentTokens;
 
     /// <summary>型引数の閉じ山括弧。型引数を書いていなければ <see langword="null"/>。</summary>
-    public HlslSyntaxToken? CloseAngle { get; } = closeAngle;
+    public ShaderSyntaxToken? CloseAngle { get; } = closeAngle;
 
     /// <summary>型引数を書いた呼び出しかどうか。</summary>
     public bool HasTypeArguments => OpenAngle is not null;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>引数。区切りのカンマを含む。</summary>
     public ImmutableArray<HlslNodeOrTokenEntry> Arguments { get; } = arguments;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>区切りのカンマを除いた引数の式。</summary>
     public IEnumerable<HlslExpressionSyntax> ArgumentExpressions
@@ -309,7 +310,7 @@ public sealed class InvocationExpressionSyntax(
             yield return OpenAngle;
         }
 
-        foreach (HlslSyntaxToken token in TypeArgumentTokens)
+        foreach (ShaderSyntaxToken token in TypeArgumentTokens)
         {
             yield return token;
         }
@@ -340,17 +341,17 @@ public sealed class InvocationExpressionSyntax(
 /// </remarks>
 public sealed class MemberAccessExpressionSyntax(
     HlslExpressionSyntax target,
-    HlslSyntaxToken dotToken,
-    HlslSyntaxToken nameToken) : HlslExpressionSyntax
+    ShaderSyntaxToken dotToken,
+    ShaderSyntaxToken nameToken) : HlslExpressionSyntax
 {
     /// <summary>対象の式。</summary>
     public HlslExpressionSyntax Target { get; } = target;
 
     /// <summary><c>.</c> のトークン。</summary>
-    public HlslSyntaxToken DotToken { get; } = dotToken;
+    public ShaderSyntaxToken DotToken { get; } = dotToken;
 
     /// <summary>メンバー名のトークン。</summary>
-    public HlslSyntaxToken NameToken { get; } = nameToken;
+    public ShaderSyntaxToken NameToken { get; } = nameToken;
 
     /// <summary>メンバー名。</summary>
     public string Name => NameToken.Text;
@@ -371,21 +372,21 @@ public sealed class MemberAccessExpressionSyntax(
 /// <param name="closeBracket">閉じ角括弧。</param>
 public sealed class ElementAccessExpressionSyntax(
     HlslExpressionSyntax target,
-    HlslSyntaxToken openBracket,
+    ShaderSyntaxToken openBracket,
     HlslExpressionSyntax index,
-    HlslSyntaxToken closeBracket) : HlslExpressionSyntax
+    ShaderSyntaxToken closeBracket) : HlslExpressionSyntax
 {
     /// <summary>対象の式。</summary>
     public HlslExpressionSyntax Target { get; } = target;
 
     /// <summary>開き角括弧。</summary>
-    public HlslSyntaxToken OpenBracket { get; } = openBracket;
+    public ShaderSyntaxToken OpenBracket { get; } = openBracket;
 
     /// <summary>添字の式。</summary>
     public HlslExpressionSyntax Index { get; } = index;
 
     /// <summary>閉じ角括弧。</summary>
-    public HlslSyntaxToken CloseBracket { get; } = closeBracket;
+    public ShaderSyntaxToken CloseBracket { get; } = closeBracket;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -403,19 +404,19 @@ public sealed class ElementAccessExpressionSyntax(
 /// <param name="closeParen">閉じ括弧。</param>
 /// <param name="operand">変換される式。</param>
 public sealed class CastExpressionSyntax(
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken openParen,
     HlslTypeSyntax type,
-    HlslSyntaxToken closeParen,
+    ShaderSyntaxToken closeParen,
     HlslExpressionSyntax operand) : HlslExpressionSyntax
 {
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>変換先の型。</summary>
     public HlslTypeSyntax Type { get; } = type;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>変換される式。</summary>
     public HlslExpressionSyntax Operand { get; } = operand;
@@ -435,18 +436,18 @@ public sealed class CastExpressionSyntax(
 /// <param name="elements">要素。区切りのカンマを含む。</param>
 /// <param name="closeBrace">閉じ波括弧。</param>
 public sealed class InitializerListExpressionSyntax(
-    HlslSyntaxToken openBrace,
+    ShaderSyntaxToken openBrace,
     ImmutableArray<HlslNodeOrTokenEntry> elements,
-    HlslSyntaxToken closeBrace) : HlslExpressionSyntax
+    ShaderSyntaxToken closeBrace) : HlslExpressionSyntax
 {
     /// <summary>開き波括弧。</summary>
-    public HlslSyntaxToken OpenBrace { get; } = openBrace;
+    public ShaderSyntaxToken OpenBrace { get; } = openBrace;
 
     /// <summary>要素。区切りのカンマを含む。</summary>
     public ImmutableArray<HlslNodeOrTokenEntry> Elements { get; } = elements;
 
     /// <summary>閉じ波括弧。</summary>
-    public HlslSyntaxToken CloseBrace { get; } = closeBrace;
+    public ShaderSyntaxToken CloseBrace { get; } = closeBrace;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -469,15 +470,15 @@ public sealed class InitializerListExpressionSyntax(
 /// 木の形が崩れて後続のルールが場合分けを強いられるため、
 /// 「解釈できなかった」ことを表すノードを置く。
 /// </remarks>
-public sealed class IncompleteExpressionSyntax(ImmutableArray<HlslSyntaxToken> tokens) : HlslExpressionSyntax
+public sealed class IncompleteExpressionSyntax(ImmutableArray<ShaderSyntaxToken> tokens) : HlslExpressionSyntax
 {
     /// <summary>読み飛ばしたトークン。</summary>
-    public ImmutableArray<HlslSyntaxToken> Tokens { get; } = tokens;
+    public ImmutableArray<ShaderSyntaxToken> Tokens { get; } = tokens;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
     {
-        foreach (HlslSyntaxToken token in Tokens)
+        foreach (ShaderSyntaxToken token in Tokens)
         {
             yield return token;
         }
@@ -493,7 +494,7 @@ public sealed class IncompleteExpressionSyntax(ImmutableArray<HlslSyntaxToken> t
 /// </remarks>
 public sealed class HlslNodeOrTokenEntry
 {
-    private HlslNodeOrTokenEntry(HlslSyntaxNode? node, HlslSyntaxToken? token)
+    private HlslNodeOrTokenEntry(HlslSyntaxNode? node, ShaderSyntaxToken? token)
     {
         Node = node;
         Token = token;
@@ -503,7 +504,7 @@ public sealed class HlslNodeOrTokenEntry
     public HlslSyntaxNode? Node { get; }
 
     /// <summary>トークンの場合はその参照。</summary>
-    public HlslSyntaxToken? Token { get; }
+    public ShaderSyntaxToken? Token { get; }
 
     /// <summary>ノードを保持する要素を作る。</summary>
     /// <param name="node">保持するノード。</param>
@@ -513,7 +514,7 @@ public sealed class HlslNodeOrTokenEntry
     /// <summary>トークンを保持する要素を作る。</summary>
     /// <param name="token">保持するトークン。</param>
     /// <returns>作成した要素。</returns>
-    public static HlslNodeOrTokenEntry FromToken(HlslSyntaxToken token) => new(null, token);
+    public static HlslNodeOrTokenEntry FromToken(ShaderSyntaxToken token) => new(null, token);
 
     /// <summary>木の走査で使う形式へ変換する。</summary>
     /// <returns>変換した値。</returns>

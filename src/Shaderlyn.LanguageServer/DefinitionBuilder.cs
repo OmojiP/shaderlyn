@@ -1,6 +1,7 @@
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
@@ -162,6 +163,6 @@ internal static partial class DefinitionBuilder
     /// <summary>位置を定義として表す。</summary>
     /// <param name="token">対象のトークン。</param>
     /// <returns>定義。</returns>
-    private static DefinitionTarget ToTarget(HlslSyntaxToken token)
+    private static DefinitionTarget ToTarget(ShaderSyntaxToken token)
         => new(token.Source.FilePath, token.Source.GetLinePositionSpan(token.Span));
 }

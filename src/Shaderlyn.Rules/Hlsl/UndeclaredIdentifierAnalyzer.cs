@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -75,7 +76,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             // 行きがけ順なので、修飾は左側の識別子より先に現れる。
-            if (node is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.ColonColonToken } access
+            if (node is MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.ColonColonToken } access
                 && access.Target.GetLocation() is { } qualifier)
             {
                 qualifiers.Add((qualifier.FilePath, qualifier.Span.Start));

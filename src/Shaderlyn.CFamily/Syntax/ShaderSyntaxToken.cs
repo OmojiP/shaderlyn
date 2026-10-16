@@ -1,14 +1,14 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Text;
 
-namespace Shaderlyn.Hlsl.Syntax;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// HLSL トークンに付随する空白・コメント・行継続。
 /// </summary>
 /// <param name="Kind">trivia の種別。</param>
 /// <param name="Span">ソーステキスト上の範囲。</param>
-public readonly record struct HlslSyntaxTrivia(HlslSyntaxKind Kind, TextSpan Span);
+public readonly record struct ShaderSyntaxTrivia(ShaderSyntaxKind Kind, TextSpan Span);
 
 /// <summary>
 /// HLSL / Cg の字句単位。
@@ -25,7 +25,7 @@ public readonly record struct HlslSyntaxTrivia(HlslSyntaxKind Kind, TextSpan Spa
 /// <c>#</c> が行頭にあるかどうかで指令か文字列化演算子かが決まる。
 /// </para>
 /// </remarks>
-public sealed class HlslSyntaxToken
+public sealed class ShaderSyntaxToken
 {
     /// <summary>
     /// トークンを生成する。
@@ -49,14 +49,14 @@ public sealed class HlslSyntaxToken
     /// <param name="macroDefinitionSource">
     /// <paramref name="macroDefinitionSpan"/> が指すマクロの本体を書いたファイル。
     /// </param>
-    public HlslSyntaxToken(
-        HlslSyntaxKind kind,
+    public ShaderSyntaxToken(
+        ShaderSyntaxKind kind,
         SourceText source,
         TextSpan span,
         string text,
         bool isAtLineStart = false,
-        ImmutableArray<HlslSyntaxTrivia> leadingTrivia = default,
-        ImmutableArray<HlslSyntaxTrivia> trailingTrivia = default,
+        ImmutableArray<ShaderSyntaxTrivia> leadingTrivia = default,
+        ImmutableArray<ShaderSyntaxTrivia> trailingTrivia = default,
         string? valueText = null,
         bool isMissing = false,
         bool isFromMacroExpansion = false,
@@ -80,7 +80,7 @@ public sealed class HlslSyntaxToken
     }
 
     /// <summary>トークンの種別。</summary>
-    public HlslSyntaxKind Kind { get; }
+    public ShaderSyntaxKind Kind { get; }
 
     /// <summary>
     /// このトークンが属するソーステキスト。
@@ -122,10 +122,10 @@ public sealed class HlslSyntaxToken
     public bool IsAtLineStart { get; }
 
     /// <summary>先行 trivia。</summary>
-    public ImmutableArray<HlslSyntaxTrivia> LeadingTrivia { get; }
+    public ImmutableArray<ShaderSyntaxTrivia> LeadingTrivia { get; }
 
     /// <summary>後続 trivia。</summary>
-    public ImmutableArray<HlslSyntaxTrivia> TrailingTrivia { get; }
+    public ImmutableArray<ShaderSyntaxTrivia> TrailingTrivia { get; }
 
     /// <summary>構文エラーからの回復のために合成されたトークンかどうか。</summary>
     /// <remarks>
@@ -235,7 +235,7 @@ public sealed class HlslSyntaxToken
     /// あわせて <see cref="IsFromMacroExpansion"/> を立て、
     /// 位置だけでは失われる「展開の結果である」という事実を残す。
     /// </remarks>
-    public HlslSyntaxToken RelocateToMacroCallSite(
+    public ShaderSyntaxToken RelocateToMacroCallSite(
         SourceText source,
         TextSpan span,
         bool keepDefinition = false,
@@ -257,7 +257,7 @@ public sealed class HlslSyntaxToken
     /// 実引数として埋め込まれたトークンは、利用者が呼び出し位置に書いたものであり、
     /// そちらの位置で報告しなければならない。
     /// </remarks>
-    public HlslSyntaxToken WithMacroDefinitionSpan(TextSpan span, SourceText source)
+    public ShaderSyntaxToken WithMacroDefinitionSpan(TextSpan span, SourceText source)
         => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
             IsFromMacroExpansion, span, MacroArgumentSpan, source);
 
@@ -271,7 +271,7 @@ public sealed class HlslSyntaxToken
     /// インスタンスが違えば、どのトークンがどの複製のものかを引ける
     /// (<see cref="Preprocessing.ConditionalTokenRange.IsHoisted"/>)。
     /// </remarks>
-    internal HlslSyntaxToken Duplicate()
+    internal ShaderSyntaxToken Duplicate()
         => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
             IsFromMacroExpansion, MacroDefinitionSpan, MacroArgumentSpan, MacroDefinitionSource);
 

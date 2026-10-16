@@ -1,10 +1,11 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -163,7 +164,7 @@ internal static partial class AnalysisInspector
         writer.WriteBoolean("expanded", IsFromMacroExpansion(node));
 
         // このファイルが書いたマクロの本体から来たノードは、本体の位置を指す。
-        // そこが報告の位置でもある (HlslSyntaxToken.MacroDefinitionSpan)。
+        // そこが報告の位置でもある (ShaderSyntaxToken.MacroDefinitionSpan)。
         // 利用者のヘッダで定義したマクロの本体は、このファイルの行では表せないので出さない。
         if (node is HlslSyntaxNode own
             && own.FirstToken?.MacroDefinitionSpan is { } definition
@@ -274,9 +275,9 @@ internal static partial class AnalysisInspector
         }
 
         StringBuilder builder = new();
-        HlslSyntaxKind previous = HlslSyntaxKind.BadToken;
+        ShaderSyntaxKind previous = ShaderSyntaxKind.BadToken;
 
-        foreach (HlslSyntaxToken token in hlsl.DescendantTokens())
+        foreach (ShaderSyntaxToken token in hlsl.DescendantTokens())
         {
             if (builder.Length > MaxTextLength)
             {
@@ -306,18 +307,18 @@ internal static partial class AnalysisInspector
     /// 定義側の空白も呼び出し側の空白も失っているためである。
     /// <c>uv . x</c> のように読みにくくならない程度の規則で並べ直す。
     /// </remarks>
-    private static bool NeedsSpace(HlslSyntaxKind previous, HlslSyntaxKind current)
+    private static bool NeedsSpace(ShaderSyntaxKind previous, ShaderSyntaxKind current)
     {
-        if (previous is HlslSyntaxKind.DotToken
-            or HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.OpenBracketToken)
+        if (previous is ShaderSyntaxKind.DotToken
+            or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken)
         {
             return false;
         }
 
-        return current is not (HlslSyntaxKind.DotToken or HlslSyntaxKind.CommaToken
-            or HlslSyntaxKind.SemicolonToken
-            or HlslSyntaxKind.CloseParenToken or HlslSyntaxKind.CloseBracketToken
-            or HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.OpenBracketToken);
+        return current is not (ShaderSyntaxKind.DotToken or ShaderSyntaxKind.CommaToken
+            or ShaderSyntaxKind.SemicolonToken
+            or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken
+            or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken);
     }
 
     /// <summary>表示に使う文字列の上限。</summary>
@@ -540,9 +541,9 @@ internal static partial class AnalysisInspector
     {
         writer.WriteStartArray("tokens");
 
-        foreach (HlslSyntaxToken token in compilation.CodeTokens)
+        foreach (ShaderSyntaxToken token in compilation.CodeTokens)
         {
-            if (token.Kind == HlslSyntaxKind.EndOfFileToken)
+            if (token.Kind == ShaderSyntaxKind.EndOfFileToken)
             {
                 continue;
             }

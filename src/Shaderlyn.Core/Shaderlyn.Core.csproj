@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Shaderlyn.ShaderLab" />
+    <InternalsVisibleTo Include="Shaderlyn.CFamily" />
     <InternalsVisibleTo Include="Shaderlyn.Hlsl" />
     <InternalsVisibleTo Include="Shaderlyn.Rules" />
     <InternalsVisibleTo Include="Shaderlyn.Unity" />

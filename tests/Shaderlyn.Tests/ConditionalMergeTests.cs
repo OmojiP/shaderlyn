@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;

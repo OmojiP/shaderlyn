@@ -1,11 +1,11 @@
 using Shaderlyn.Core.Diagnostics;
 
-namespace Shaderlyn.Hlsl;
+namespace Shaderlyn.CFamily;
 
 /// <summary>
 /// HLSL の字句解析・プリプロセス・構文解析が報告するルール定義。
 /// </summary>
-internal static class HlslDescriptors
+internal static class ShaderDescriptors
 {
     /// <summary>構文エラー。</summary>
     public static DiagnosticDescriptor SyntaxError { get; } = new(

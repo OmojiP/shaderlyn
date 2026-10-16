@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Semantics;
 
@@ -104,7 +104,7 @@ public sealed record SemanticsOptions
     /// <b>複数のファイルを解析する場合は必ず指定すること。</b>
     /// 指定しないと、同じ URP のヘッダ群を Pass ごと・ファイルごとに字句解析し直すことになる。
     /// </remarks>
-    public HlslTokenCache? TokenCache { get; init; }
+    public TokenCache? TokenCache { get; init; }
 
     /// <summary>
     /// 取り込みの展開結果を共有するキャッシュ。
@@ -113,7 +113,7 @@ public sealed record SemanticsOptions
     /// <b>複数のファイルを解析する場合は必ず指定すること。</b>
     /// 指定しないと、同じヘッダを同じ状態で Pass ごと・ファイルごとに展開し直すことになる。
     /// </remarks>
-    public HlslIncludeCache? IncludeCache { get; init; }
+    public IncludeCache? IncludeCache { get; init; }
 
     /// <summary>
     /// 構文木を作る段ごとの時間を受け取る先。<see langword="null"/> の場合は測らない。

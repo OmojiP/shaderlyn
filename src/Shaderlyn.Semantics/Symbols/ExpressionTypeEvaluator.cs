@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Programs;
 
@@ -188,11 +189,11 @@ public sealed class ExpressionTypeEvaluator
         AssignmentExpressionSyntax assignment => Evaluate(assignment.Left),
 
         // 符号の反転は型を変えない。
-        PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken }
+        PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken }
             unary => Evaluate(unary.Operand),
 
         // 論理否定は成分ごとに bool を返す。
-        PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.ExclamationToken }
+        PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.ExclamationToken }
             negation => ToBool(Evaluate(negation.Operand)),
 
         _ => null,
@@ -250,7 +251,7 @@ public sealed class ExpressionTypeEvaluator
 
             // 構造体のメソッド (s.Get()、HLSL 2021)。
             if (StructFunctions.Count > 0
-                && access.DotToken.Kind == HlslSyntaxKind.DotToken
+                && access.DotToken.Kind == ShaderSyntaxKind.DotToken
                 && AsStruct(Evaluate(access.Target)) is { } receiver)
             {
                 return EvaluateStructCall(receiver, access.Name, count, access.Target);
@@ -849,7 +850,7 @@ public sealed class ExpressionTypeEvaluator
     private string? EvaluateSwizzle(MemberAccessExpressionSyntax member)
     {
         // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。
-        if (member.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        if (member.DotToken.Kind == ShaderSyntaxKind.ColonColonToken)
         {
             return member.Target is IdentifierExpressionSyntax { Name: var enumName }
                    && Enums.TryGetValue(enumName, out EnumInfo? enumeration)
@@ -1060,22 +1061,22 @@ public sealed class ExpressionTypeEvaluator
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     private string? EvaluateBuiltInBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
     {
-        HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken
-            or HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken
-            or HlslSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
+        ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken
+            or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken
+            or ShaderSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
 
-        HlslSyntaxKind.EqualsEqualsToken or HlslSyntaxKind.ExclamationEqualsToken
-            or HlslSyntaxKind.LessThanToken or HlslSyntaxKind.GreaterThanToken
-            or HlslSyntaxKind.LessThanEqualsToken or HlslSyntaxKind.GreaterThanEqualsToken
-            or HlslSyntaxKind.AmpersandAmpersandToken or HlslSyntaxKind.BarBarToken
+        ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken
+            or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+            or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken
+            or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken
             => ToBool(Combine(binary.Left, binary.Right)),
 
         // ビット演算は整数どうしに限る。型の揃え方は算術と同じである。
-        HlslSyntaxKind.AmpersandToken or HlslSyntaxKind.BarToken or HlslSyntaxKind.CaretToken
+        ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
             => EvaluateBitwise(binary),
 
         // シフトの結果は左辺の基本型になる。成分数は揃える (1 << uint3(...) は int3)。
-        HlslSyntaxKind.LessThanLessThanToken or HlslSyntaxKind.GreaterThanGreaterThanToken
+        ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken
             => EvaluateShift(binary),
 
         _ => null,

@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -40,7 +41,7 @@ internal static class ConditionMapBuilder
         ImmutableArray<Location>.Builder unmerged = ImmutableArray.CreateBuilder<Location>();
         ImmutableArray<ConditionalRegion>.Builder regions =
             ImmutableArray.CreateBuilder<ConditionalRegion>();
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted = [];
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted = [];
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations = [];
 
         // バリアントが並べた範囲も集める。バリアントにしか無いノードも、その木で並べた分岐の中にあれば条件が付く
@@ -164,7 +165,7 @@ internal static class ConditionMapBuilder
         AnalyzedProgram baseline,
         AnalyzedProgram variant,
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
         List<Location> ambiguous = [];
 
@@ -196,11 +197,11 @@ internal static class ConditionMapBuilder
     /// <param name="hoisted">複製した文のトークン。</param>
     /// <returns>あれば <see langword="true"/>。</returns>
     private static bool HasUncopiedTokens(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         Location location,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
             if (ReferenceEquals(token.Source, location.Source)
                 && location.Span.Start <= token.Span.Start
@@ -320,7 +321,7 @@ internal static class ConditionMapBuilder
     private static void CollectEmittedRegions(
         ImmutableArray<AnalyzedProgram> programs,
         ImmutableArray<ConditionalRegion>.Builder regions,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted,
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations)
     {
         // 同じソース範囲を占める領域は、掛け合わせずに足し合わせる。
@@ -391,9 +392,9 @@ internal static class ConditionMapBuilder
     /// 取り込みの結果を使い回すと、同じトークンが別のブロックの木にも現れる。条件は同じなので、先に覚えたほうを残す。
     /// </remarks>
     private static void AddHoistedRange(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         ConditionalTokenRange range,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
         if (range.Start < 0 || range.Start >= tokens.Length || range.Length <= 0)
         {
@@ -421,7 +422,7 @@ internal static class ConditionMapBuilder
     /// 先頭のトークンと同じ出どころのものだけで範囲を作る。
     /// </remarks>
     private static bool TryGetRegionLocation(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         ConditionalTokenRange range,
         out Location location)
     {
@@ -432,7 +433,7 @@ internal static class ConditionMapBuilder
             return false;
         }
 
-        HlslSyntaxToken first = tokens[range.Start];
+        ShaderSyntaxToken first = tokens[range.Start];
         int end = first.Span.End;
 
         for (int i = range.Start + 1; i < range.Start + range.Length && i < tokens.Length; i++)

@@ -10,6 +10,15 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ## [未リリース]
 
+### 変更
+
+- **破壊的変更:** 字句解析とプリプロセッサを、C 系の言語に共通の新しいパッケージ `Shaderlyn.CFamily` へ移した。
+  HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken` など)、
+  `Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。
+  `PreprocessorOptions` の HLSL の方言の設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
+  `PreprocessorOptions.Language` に入れて渡す。
+  書き換えの手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある
+
 ## [0.2.1] - 2026-10-16
 
 Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ から作った宣言で検査できるようにした (`--unreal-generate`)。

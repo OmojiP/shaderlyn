@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -17,9 +18,9 @@ public sealed class HlslSyntaxFactsTests
     /// <summary>1 つの式を字句解析して、最初のトークンを返す。</summary>
     /// <param name="text">リテラルの表記。</param>
     /// <returns>最初のトークン。</returns>
-    private static HlslSyntaxToken Lex(string text)
+    private static ShaderSyntaxToken Lex(string text)
     {
-        ImmutableArray<HlslSyntaxToken> tokens = new HlslLexer(SourceText.From(text, "Assets/Test.hlsl")).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> tokens = new ShaderLexer(SourceText.From(text, "Assets/Test.hlsl")).Lex(out _);
 
         return tokens[0];
     }
@@ -115,10 +116,10 @@ public sealed class HlslSyntaxFactsTests
     }
 
     [Theory]
-    [InlineData(HlslSyntaxKind.PercentEqualsToken, HlslSyntaxKind.PercentToken)]
-    [InlineData(HlslSyntaxKind.PlusEqualsToken, HlslSyntaxKind.PlusToken)]
-    [InlineData(HlslSyntaxKind.LessThanLessThanEqualsToken, HlslSyntaxKind.LessThanLessThanToken)]
-    public void 複合代入が行う演算を答える(HlslSyntaxKind compound, HlslSyntaxKind expected)
+    [InlineData(ShaderSyntaxKind.PercentEqualsToken, ShaderSyntaxKind.PercentToken)]
+    [InlineData(ShaderSyntaxKind.PlusEqualsToken, ShaderSyntaxKind.PlusToken)]
+    [InlineData(ShaderSyntaxKind.LessThanLessThanEqualsToken, ShaderSyntaxKind.LessThanLessThanToken)]
+    public void 複合代入が行う演算を答える(ShaderSyntaxKind compound, ShaderSyntaxKind expected)
     {
         Assert.True(HlslSyntaxFacts.IsCompoundAssignment(compound));
         Assert.Equal(expected, HlslSyntaxFacts.GetCompoundAssignmentOperand(compound));
@@ -129,10 +130,10 @@ public sealed class HlslSyntaxFactsTests
     /// </summary>
     /// <remarks>末尾の等号を落とす形で自前に求めると、ここを取り違える。</remarks>
     [Theory]
-    [InlineData(HlslSyntaxKind.LessThanEqualsToken)]
-    [InlineData(HlslSyntaxKind.EqualsEqualsToken)]
-    [InlineData(HlslSyntaxKind.ExclamationEqualsToken)]
-    public void 比較演算子は複合代入ではない(HlslSyntaxKind kind)
+    [InlineData(ShaderSyntaxKind.LessThanEqualsToken)]
+    [InlineData(ShaderSyntaxKind.EqualsEqualsToken)]
+    [InlineData(ShaderSyntaxKind.ExclamationEqualsToken)]
+    public void 比較演算子は複合代入ではない(ShaderSyntaxKind kind)
     {
         Assert.False(HlslSyntaxFacts.IsCompoundAssignment(kind));
         Assert.Null(HlslSyntaxFacts.GetCompoundAssignmentOperand(kind));
@@ -141,19 +142,19 @@ public sealed class HlslSyntaxFactsTests
     [Fact]
     public void 単純な代入も代入演算子である()
     {
-        Assert.True(HlslSyntaxFacts.IsAssignmentOperator(HlslSyntaxKind.EqualsToken));
-        Assert.False(HlslSyntaxFacts.IsCompoundAssignment(HlslSyntaxKind.EqualsToken));
+        Assert.True(HlslSyntaxFacts.IsAssignmentOperator(ShaderSyntaxKind.EqualsToken));
+        Assert.False(HlslSyntaxFacts.IsCompoundAssignment(ShaderSyntaxKind.EqualsToken));
     }
 
     /// <summary>角括弧のトークンを字句解析で作る。</summary>
     /// <param name="text">角括弧の並び。</param>
     /// <returns>トークン。終端は含まない。</returns>
-    private static ImmutableArray<HlslSyntaxToken> LexRank(string text)
+    private static ImmutableArray<ShaderSyntaxToken> LexRank(string text)
     {
-        ImmutableArray<HlslSyntaxToken> tokens =
-            new HlslLexer(SourceText.From(text, "Assets/Test.hlsl")).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> tokens =
+            new ShaderLexer(SourceText.From(text, "Assets/Test.hlsl")).Lex(out _);
 
-        return [.. tokens.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken)];
+        return [.. tokens.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken)];
     }
 
     [Theory]

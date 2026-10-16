@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Hlsl.Syntax;
 
@@ -10,18 +11,18 @@ public abstract class HlslStatementSyntax : HlslSyntaxNode;
 /// <param name="statements">中の文。</param>
 /// <param name="closeBrace">閉じ波括弧。</param>
 public sealed class BlockStatementSyntax(
-    HlslSyntaxToken openBrace,
+    ShaderSyntaxToken openBrace,
     ImmutableArray<HlslStatementSyntax> statements,
-    HlslSyntaxToken closeBrace) : HlslStatementSyntax
+    ShaderSyntaxToken closeBrace) : HlslStatementSyntax
 {
     /// <summary>開き波括弧。</summary>
-    public HlslSyntaxToken OpenBrace { get; } = openBrace;
+    public ShaderSyntaxToken OpenBrace { get; } = openBrace;
 
     /// <summary>中の文。</summary>
     public ImmutableArray<HlslStatementSyntax> Statements { get; } = statements;
 
     /// <summary>閉じ波括弧。</summary>
-    public HlslSyntaxToken CloseBrace { get; } = closeBrace;
+    public ShaderSyntaxToken CloseBrace { get; } = closeBrace;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -42,13 +43,13 @@ public sealed class BlockStatementSyntax(
 /// <param name="semicolonToken">終端のセミコロン。</param>
 public sealed class ExpressionStatementSyntax(
     HlslExpressionSyntax expression,
-    HlslSyntaxToken semicolonToken) : HlslStatementSyntax
+    ShaderSyntaxToken semicolonToken) : HlslStatementSyntax
 {
     /// <summary>式。</summary>
     public HlslExpressionSyntax Expression { get; } = expression;
 
     /// <summary>終端のセミコロン。</summary>
-    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+    public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -83,34 +84,34 @@ public sealed class LocalDeclarationStatementSyntax(HlslDeclarationSyntax declar
 /// <param name="elseStatement">偽のときの文。無い場合は <see langword="null"/>。</param>
 public sealed class IfStatementSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
-    HlslSyntaxToken ifKeyword,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken ifKeyword,
+    ShaderSyntaxToken openParen,
     HlslExpressionSyntax condition,
-    HlslSyntaxToken closeParen,
+    ShaderSyntaxToken closeParen,
     HlslStatementSyntax thenStatement,
-    HlslSyntaxToken? elseKeyword,
+    ShaderSyntaxToken? elseKeyword,
     HlslStatementSyntax? elseStatement) : HlslStatementSyntax
 {
     /// <summary>属性。</summary>
     public ImmutableArray<HlslAttributeSyntax> Attributes { get; } = attributes;
 
     /// <summary><c>if</c> キーワード。</summary>
-    public HlslSyntaxToken IfKeyword { get; } = ifKeyword;
+    public ShaderSyntaxToken IfKeyword { get; } = ifKeyword;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>条件式。</summary>
     public HlslExpressionSyntax Condition { get; } = condition;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>真のときの文。</summary>
     public HlslStatementSyntax ThenStatement { get; } = thenStatement;
 
     /// <summary><c>else</c> キーワード。</summary>
-    public HlslSyntaxToken? ElseKeyword { get; } = elseKeyword;
+    public ShaderSyntaxToken? ElseKeyword { get; } = elseKeyword;
 
     /// <summary>偽のときの文。</summary>
     public HlslStatementSyntax? ElseStatement { get; } = elseStatement;
@@ -154,42 +155,42 @@ public sealed class IfStatementSyntax(
 /// <param name="body">本体。</param>
 public sealed class ForStatementSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
-    HlslSyntaxToken forKeyword,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken forKeyword,
+    ShaderSyntaxToken openParen,
     HlslSyntaxNode? initializer,
-    HlslSyntaxToken? firstSemicolon,
+    ShaderSyntaxToken? firstSemicolon,
     HlslExpressionSyntax? condition,
-    HlslSyntaxToken secondSemicolon,
+    ShaderSyntaxToken secondSemicolon,
     ImmutableArray<HlslNodeOrTokenEntry> incrementors,
-    HlslSyntaxToken closeParen,
+    ShaderSyntaxToken closeParen,
     HlslStatementSyntax body) : HlslStatementSyntax
 {
     /// <summary>属性。</summary>
     public ImmutableArray<HlslAttributeSyntax> Attributes { get; } = attributes;
 
     /// <summary><c>for</c> キーワード。</summary>
-    public HlslSyntaxToken ForKeyword { get; } = forKeyword;
+    public ShaderSyntaxToken ForKeyword { get; } = forKeyword;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>初期化部。</summary>
     public HlslSyntaxNode? Initializer { get; } = initializer;
 
     /// <summary>1 つ目のセミコロン。初期化部が宣言の場合はそちらに含まれる。</summary>
-    public HlslSyntaxToken? FirstSemicolon { get; } = firstSemicolon;
+    public ShaderSyntaxToken? FirstSemicolon { get; } = firstSemicolon;
 
     /// <summary>条件式。</summary>
     public HlslExpressionSyntax? Condition { get; } = condition;
 
     /// <summary>2 つ目のセミコロン。</summary>
-    public HlslSyntaxToken SecondSemicolon { get; } = secondSemicolon;
+    public ShaderSyntaxToken SecondSemicolon { get; } = secondSemicolon;
 
     /// <summary>更新部。</summary>
     public ImmutableArray<HlslNodeOrTokenEntry> Incrementors { get; } = incrementors;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>本体。</summary>
     public HlslStatementSyntax Body { get; } = body;
@@ -241,26 +242,26 @@ public sealed class ForStatementSyntax(
 /// <param name="body">本体。</param>
 public sealed class WhileStatementSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
-    HlslSyntaxToken whileKeyword,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken whileKeyword,
+    ShaderSyntaxToken openParen,
     HlslExpressionSyntax condition,
-    HlslSyntaxToken closeParen,
+    ShaderSyntaxToken closeParen,
     HlslStatementSyntax body) : HlslStatementSyntax
 {
     /// <summary>属性。</summary>
     public ImmutableArray<HlslAttributeSyntax> Attributes { get; } = attributes;
 
     /// <summary><c>while</c> キーワード。</summary>
-    public HlslSyntaxToken WhileKeyword { get; } = whileKeyword;
+    public ShaderSyntaxToken WhileKeyword { get; } = whileKeyword;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>条件式。</summary>
     public HlslExpressionSyntax Condition { get; } = condition;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>本体。</summary>
     public HlslStatementSyntax Body { get; } = body;
@@ -292,37 +293,37 @@ public sealed class WhileStatementSyntax(
 /// <param name="semicolonToken">終端のセミコロン。</param>
 public sealed class DoWhileStatementSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
-    HlslSyntaxToken doKeyword,
+    ShaderSyntaxToken doKeyword,
     HlslStatementSyntax body,
-    HlslSyntaxToken whileKeyword,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken whileKeyword,
+    ShaderSyntaxToken openParen,
     HlslExpressionSyntax condition,
-    HlslSyntaxToken closeParen,
-    HlslSyntaxToken semicolonToken) : HlslStatementSyntax
+    ShaderSyntaxToken closeParen,
+    ShaderSyntaxToken semicolonToken) : HlslStatementSyntax
 {
     /// <summary>属性。</summary>
     public ImmutableArray<HlslAttributeSyntax> Attributes { get; } = attributes;
 
     /// <summary><c>do</c> キーワード。</summary>
-    public HlslSyntaxToken DoKeyword { get; } = doKeyword;
+    public ShaderSyntaxToken DoKeyword { get; } = doKeyword;
 
     /// <summary>本体。</summary>
     public HlslStatementSyntax Body { get; } = body;
 
     /// <summary><c>while</c> キーワード。</summary>
-    public HlslSyntaxToken WhileKeyword { get; } = whileKeyword;
+    public ShaderSyntaxToken WhileKeyword { get; } = whileKeyword;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>条件式。</summary>
     public HlslExpressionSyntax Condition { get; } = condition;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>終端のセミコロン。</summary>
-    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+    public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -353,37 +354,37 @@ public sealed class DoWhileStatementSyntax(
 /// <param name="closeBrace">閉じ波括弧。</param>
 public sealed class SwitchStatementSyntax(
     ImmutableArray<HlslAttributeSyntax> attributes,
-    HlslSyntaxToken switchKeyword,
-    HlslSyntaxToken openParen,
+    ShaderSyntaxToken switchKeyword,
+    ShaderSyntaxToken openParen,
     HlslExpressionSyntax expression,
-    HlslSyntaxToken closeParen,
-    HlslSyntaxToken openBrace,
+    ShaderSyntaxToken closeParen,
+    ShaderSyntaxToken openBrace,
     ImmutableArray<HlslStatementSyntax> statements,
-    HlslSyntaxToken closeBrace) : HlslStatementSyntax
+    ShaderSyntaxToken closeBrace) : HlslStatementSyntax
 {
     /// <summary>属性。</summary>
     public ImmutableArray<HlslAttributeSyntax> Attributes { get; } = attributes;
 
     /// <summary><c>switch</c> キーワード。</summary>
-    public HlslSyntaxToken SwitchKeyword { get; } = switchKeyword;
+    public ShaderSyntaxToken SwitchKeyword { get; } = switchKeyword;
 
     /// <summary>開き括弧。</summary>
-    public HlslSyntaxToken OpenParen { get; } = openParen;
+    public ShaderSyntaxToken OpenParen { get; } = openParen;
 
     /// <summary>対象の式。</summary>
     public HlslExpressionSyntax Expression { get; } = expression;
 
     /// <summary>閉じ括弧。</summary>
-    public HlslSyntaxToken CloseParen { get; } = closeParen;
+    public ShaderSyntaxToken CloseParen { get; } = closeParen;
 
     /// <summary>開き波括弧。</summary>
-    public HlslSyntaxToken OpenBrace { get; } = openBrace;
+    public ShaderSyntaxToken OpenBrace { get; } = openBrace;
 
     /// <summary>中の文。</summary>
     public ImmutableArray<HlslStatementSyntax> Statements { get; } = statements;
 
     /// <summary>閉じ波括弧。</summary>
-    public HlslSyntaxToken CloseBrace { get; } = closeBrace;
+    public ShaderSyntaxToken CloseBrace { get; } = closeBrace;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -413,18 +414,18 @@ public sealed class SwitchStatementSyntax(
 /// <param name="value"><c>case</c> の値。<c>default</c> の場合は <see langword="null"/>。</param>
 /// <param name="colonToken"><c>:</c>。</param>
 public sealed class SwitchLabelStatementSyntax(
-    HlslSyntaxToken keyword,
+    ShaderSyntaxToken keyword,
     HlslExpressionSyntax? value,
-    HlslSyntaxToken colonToken) : HlslStatementSyntax
+    ShaderSyntaxToken colonToken) : HlslStatementSyntax
 {
     /// <summary>キーワードのトークン。</summary>
-    public HlslSyntaxToken Keyword { get; } = keyword;
+    public ShaderSyntaxToken Keyword { get; } = keyword;
 
     /// <summary><c>case</c> の値。</summary>
     public HlslExpressionSyntax? Value { get; } = value;
 
     /// <summary><c>:</c> のトークン。</summary>
-    public HlslSyntaxToken ColonToken { get; } = colonToken;
+    public ShaderSyntaxToken ColonToken { get; } = colonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -445,18 +446,18 @@ public sealed class SwitchLabelStatementSyntax(
 /// <param name="expression">戻り値の式。無い場合は <see langword="null"/>。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
 public sealed class ReturnStatementSyntax(
-    HlslSyntaxToken keyword,
+    ShaderSyntaxToken keyword,
     HlslExpressionSyntax? expression,
-    HlslSyntaxToken semicolonToken) : HlslStatementSyntax
+    ShaderSyntaxToken semicolonToken) : HlslStatementSyntax
 {
     /// <summary><c>return</c> キーワード。</summary>
-    public HlslSyntaxToken Keyword { get; } = keyword;
+    public ShaderSyntaxToken Keyword { get; } = keyword;
 
     /// <summary>戻り値の式。</summary>
     public HlslExpressionSyntax? Expression { get; } = expression;
 
     /// <summary>終端のセミコロン。</summary>
-    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+    public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -476,14 +477,14 @@ public sealed class ReturnStatementSyntax(
 /// <param name="keyword">キーワード。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
 public sealed class JumpStatementSyntax(
-    HlslSyntaxToken keyword,
-    HlslSyntaxToken semicolonToken) : HlslStatementSyntax
+    ShaderSyntaxToken keyword,
+    ShaderSyntaxToken semicolonToken) : HlslStatementSyntax
 {
     /// <summary>キーワードのトークン。</summary>
-    public HlslSyntaxToken Keyword { get; } = keyword;
+    public ShaderSyntaxToken Keyword { get; } = keyword;
 
     /// <summary>終端のセミコロン。</summary>
-    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+    public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -495,10 +496,10 @@ public sealed class JumpStatementSyntax(
 
 /// <summary>セミコロンだけの空文。</summary>
 /// <param name="semicolonToken">セミコロン。</param>
-public sealed class EmptyStatementSyntax(HlslSyntaxToken semicolonToken) : HlslStatementSyntax
+public sealed class EmptyStatementSyntax(ShaderSyntaxToken semicolonToken) : HlslStatementSyntax
 {
     /// <summary>セミコロン。</summary>
-    public HlslSyntaxToken SemicolonToken { get; } = semicolonToken;
+    public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
@@ -509,15 +510,15 @@ public sealed class EmptyStatementSyntax(HlslSyntaxToken semicolonToken) : HlslS
 
 /// <summary>解釈できなかった文。</summary>
 /// <param name="tokens">読み飛ばしたトークン。</param>
-public sealed class IncompleteStatementSyntax(ImmutableArray<HlslSyntaxToken> tokens) : HlslStatementSyntax
+public sealed class IncompleteStatementSyntax(ImmutableArray<ShaderSyntaxToken> tokens) : HlslStatementSyntax
 {
     /// <summary>読み飛ばしたトークン。</summary>
-    public ImmutableArray<HlslSyntaxToken> Tokens { get; } = tokens;
+    public ImmutableArray<ShaderSyntaxToken> Tokens { get; } = tokens;
 
     /// <inheritdoc/>
     public override IEnumerable<HlslNodeOrToken> ChildNodesAndTokens()
     {
-        foreach (HlslSyntaxToken token in Tokens)
+        foreach (ShaderSyntaxToken token in Tokens)
         {
             yield return token;
         }

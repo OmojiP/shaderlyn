@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -84,9 +85,9 @@ public static class UnityCompilation
 
         // カーネルは展開が始まる前に分かっていなければならない。
         // #pragma kernel が並べたマクロが、そのカーネルの展開そのものを変えるためである。
-        ImmutableArray<HlslSyntaxToken> tokens = options?.TokenCache is { } cache
+        ImmutableArray<ShaderSyntaxToken> tokens = options?.TokenCache is { } cache
             ? cache.GetOrLex(text, out _)
-            : new HlslLexer(text).Lex(out _);
+            : new ShaderLexer(text).Lex(out _);
 
         ShaderLabSyntaxTree blankTree = ShaderLabSyntaxTree.Parse(CreateBlankText(text));
         UnityShaderModel model = new(text, blankTree, unity.Profile, isStandaloneHlsl: true);

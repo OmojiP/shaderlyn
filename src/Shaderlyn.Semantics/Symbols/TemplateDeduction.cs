@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Programs;
 
@@ -136,7 +137,7 @@ internal static class TemplateDeduction
     /// <summary>実引数が、括弧と符号を除けば数のリテラルかを調べる。</summary>
     /// <param name="argument">実引数。</param>
     /// <returns>リテラルのトークン。リテラルでなければ <see langword="null"/>。</returns>
-    internal static HlslSyntaxToken? AsLiteral(HlslExpressionSyntax argument)
+    internal static ShaderSyntaxToken? AsLiteral(HlslExpressionSyntax argument)
     {
         HlslExpressionSyntax current = argument;
 
@@ -148,11 +149,11 @@ internal static class TemplateDeduction
                     current = parenthesized.Expression;
                     continue;
 
-                case PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken } unary:
+                case PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken } unary:
                     current = unary.Operand;
                     continue;
 
-                case LiteralExpressionSyntax { Token.Kind: HlslSyntaxKind.NumericLiteralToken } literal:
+                case LiteralExpressionSyntax { Token.Kind: ShaderSyntaxKind.NumericLiteralToken } literal:
                     return literal.Token;
 
                 default:
@@ -258,7 +259,7 @@ internal static class TemplateDeduction
 
             // vector<T, N> a。
             if (type.NameToken.Text != "vector"
-                || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+                || type.TemplateArguments is not [var element, { Kind: ShaderSyntaxKind.CommaToken }, var count])
             {
                 continue;
             }
@@ -351,7 +352,7 @@ internal static class TemplateDeduction
         HlslTypeSyntax type = candidate.Declaration.ReturnType;
 
         if (type.NameToken.Text != "vector"
-            || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+            || type.TemplateArguments is not [var element, { Kind: ShaderSyntaxKind.CommaToken }, var count])
         {
             return null;
         }
@@ -379,7 +380,7 @@ internal static class TemplateDeduction
     /// <summary>型引数のトークンを、カンマで区切った 1 つずつの型名にする。</summary>
     /// <param name="tokens">型引数のトークン。</param>
     /// <returns>型名。1 つの名前で書かれていないもの (<c>vector&lt;float, 3&gt;</c> や数) は <see langword="null"/>。</returns>
-    internal static ImmutableArray<string?> SplitTypeArguments(ImmutableArray<HlslSyntaxToken> tokens)
+    internal static ImmutableArray<string?> SplitTypeArguments(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (tokens.IsEmpty)
         {
@@ -387,12 +388,12 @@ internal static class TemplateDeduction
         }
 
         ImmutableArray<string?>.Builder arguments = ImmutableArray.CreateBuilder<string?>();
-        List<HlslSyntaxToken> current = [];
+        List<ShaderSyntaxToken> current = [];
         int depth = 0;
 
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
-            if (token.Kind == HlslSyntaxKind.CommaToken && depth == 0)
+            if (token.Kind == ShaderSyntaxKind.CommaToken && depth == 0)
             {
                 arguments.Add(AsTypeName(current));
                 current.Clear();
@@ -401,8 +402,8 @@ internal static class TemplateDeduction
 
             depth += token.Kind switch
             {
-                HlslSyntaxKind.LessThanToken => 1,
-                HlslSyntaxKind.GreaterThanToken => -1,
+                ShaderSyntaxKind.LessThanToken => 1,
+                ShaderSyntaxKind.GreaterThanToken => -1,
                 _ => 0,
             };
             current.Add(token);
@@ -411,8 +412,8 @@ internal static class TemplateDeduction
         arguments.Add(AsTypeName(current));
         return arguments.ToImmutable();
 
-        static string? AsTypeName(List<HlslSyntaxToken> argument)
-            => argument is [{ Kind: HlslSyntaxKind.IdentifierToken } single] ? single.Text : null;
+        static string? AsTypeName(List<ShaderSyntaxToken> argument)
+            => argument is [{ Kind: ShaderSyntaxKind.IdentifierToken } single] ? single.Text : null;
     }
 
     /// <summary>typedef で同じになる型を、1 つの名前に揃える。</summary>

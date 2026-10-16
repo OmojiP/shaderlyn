@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
@@ -36,13 +37,13 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            (HlslSyntaxToken Token, string Message)? problem = node switch
+            (ShaderSyntaxToken Token, string Message)? problem = node switch
             {
-                BinaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.AmpersandAmpersandToken or HlslSyntaxKind.BarBarToken } binary
+                BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken } binary
                     when IsNonScalar(compilation, program, binary, binary.Left) || IsNonScalar(compilation, program, binary, binary.Right)
                     => (binary.OperatorToken,
                         $"HLSL 2021 では '{binary.OperatorToken.Text}' はベクトルには使用できません。成分ごとに計算するなら "
-                        + $"{(binary.OperatorToken.Kind == HlslSyntaxKind.AmpersandAmpersandToken ? "and" : "or")}() を使ってください。"),
+                        + $"{(binary.OperatorToken.Kind == ShaderSyntaxKind.AmpersandAmpersandToken ? "and" : "or")}() を使ってください。"),
                 ConditionalExpressionSyntax conditional
                     when IsNonScalar(compilation, program, conditional, conditional.Condition)
                     => (conditional.QuestionToken,

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -22,7 +23,7 @@ internal readonly record struct ConditionalRegion(Location Location, SymbolCondi
 /// </summary>
 /// <param name="Copy">その複製の先頭のトークン。どの複製のものかを見分ける。</param>
 /// <param name="Condition">その複製が存在する条件。</param>
-internal readonly record struct HoistedToken(HlslSyntaxToken Copy, SymbolCondition Condition);
+internal readonly record struct HoistedToken(ShaderSyntaxToken Copy, SymbolCondition Condition);
 
 /// <summary>
 /// 構文木のノードが、どのシンボルの組み合わせのもとで存在するか。
@@ -48,7 +49,7 @@ public sealed class ConditionMap
     private readonly ImmutableArray<ConditionalRegion> _regions;
     private readonly Dictionary<HlslSyntaxNode, List<ConditionalNode>> _inserted;
     private readonly SymbolConstraints _constraints;
-    private readonly Dictionary<HlslSyntaxToken, HoistedToken> _hoisted;
+    private readonly Dictionary<ShaderSyntaxToken, HoistedToken> _hoisted;
     private readonly Dictionary<SyntaxNode, (int Start, string? Kernel)> _blockByRoot;
 
     internal ConditionMap(
@@ -57,7 +58,7 @@ public sealed class ConditionMap
         ImmutableArray<ConditionalRegion> regions,
         Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted,
         SymbolConstraints constraints,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted,
         Dictionary<SyntaxNode, (int Start, string? Kernel)> blockByRoot)
     {
         _blockByRoot = blockByRoot;
@@ -220,7 +221,7 @@ public sealed class ConditionMap
             return null;
         }
 
-        HlslSyntaxToken? last = node.DescendantTokens().LastOrDefault();
+        ShaderSyntaxToken? last = node.DescendantTokens().LastOrDefault();
 
         return last is not null
                && _hoisted.TryGetValue(last, out HoistedToken end)

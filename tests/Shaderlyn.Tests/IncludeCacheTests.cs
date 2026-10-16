@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
@@ -15,7 +15,7 @@ namespace Shaderlyn.Tests;
 /// だからここでは「使い回した結果」と「使い回さない結果」を
 /// 突き合わせる形で確かめる。
 /// </remarks>
-public sealed class HlslIncludeCacheTests
+public sealed class IncludeCacheTests
 {
     /// <summary>ヘッダを 1 つ持つ解決器を作る。</summary>
     /// <param name="files">パスと中身。</param>
@@ -32,7 +32,7 @@ public sealed class HlslIncludeCacheTests
     private static PreprocessResult Preprocess(
         string code,
         InMemoryIncludeResolver resolver,
-        HlslIncludeCache? cache,
+        IncludeCache? cache,
         params (string Name, string Value)[] defines)
     {
         PreprocessorOptions options = new()
@@ -43,7 +43,7 @@ public sealed class HlslIncludeCacheTests
                 d => d.Name, d => d.Value, StringComparer.Ordinal),
         };
 
-        return new HlslPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
+        return new ShaderPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
     }
 
     /// <summary>展開結果をトークンの並びとして表す。</summary>
@@ -55,7 +55,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void 同じ状態で取り込んだら使い回す()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(("h.hlsl", "float4 _FromHeader;"));
 
         const string Code = """
@@ -85,7 +85,7 @@ public sealed class HlslIncludeCacheTests
             #endif
             """;
 
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
 
         PreprocessResult withoutCache = Preprocess(Code, resolver, cache: null);
         _ = Preprocess(Code, resolver, cache);            // 覚えさせる
@@ -113,7 +113,7 @@ public sealed class HlslIncludeCacheTests
         InMemoryIncludeResolver resolver = Resolver(
             ("inner.hlsl", "float4 _FromInner;\n#include \"missing.hlsl\""),
             ("outer.hlsl", "#include \"inner.hlsl\"\nfloat4 _FromOuter;"));
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
 
         _ = Preprocess("#include \"inner.hlsl\"", resolver, cache);
         _ = Preprocess("#include \"outer.hlsl\"", resolver, cache);
@@ -130,7 +130,7 @@ public sealed class HlslIncludeCacheTests
     public void マクロの状態が違えば使い回さない()
     {
         // ヘッダが呼び出し側のマクロを見ている。状態が違えば結果も違う。
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(
             ("h.hlsl", "#ifdef ON\nfloat4 _WhenOn;\n#else\nfloat4 _WhenOff;\n#endif"));
 
@@ -154,7 +154,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void ヘッダが読まない名前だけが違うなら使い回す()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(
             ("h.hlsl", "#ifdef ON\nfloat4 _WhenOn;\n#else\nfloat4 _WhenOff;\n#endif"));
 
@@ -179,7 +179,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void 使い回した内側が読んだ名前は外側の鍵にも入る()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(
             ("inner.hlsl", "#ifdef ON\nfloat4 _WhenOn;\n#else\nfloat4 _WhenOff;\n#endif"),
             ("outer.hlsl", "#include \"inner.hlsl\"\nfloat4 _Outer;"));
@@ -199,7 +199,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void ヘッダが定義してから読んだ名前の外の状態は問わない()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(
             ("h.hlsl", "#undef MODE\n#define MODE 1\n#if MODE\nfloat4 _Mode;\n#endif"));
 
@@ -215,7 +215,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void ヘッダが定義したマクロは使い回した側にも効く()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(("h.hlsl", "#define VALUE 42"));
 
         const string Code = """
@@ -233,7 +233,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void 取り込みの中の診断も使い回した側に出る()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(("h.hlsl", "#unknown-directive"));
 
         const string Code = "#include \"h.hlsl\"";
@@ -265,7 +265,7 @@ public sealed class HlslIncludeCacheTests
     [Fact]
     public void 記録の中身は手前に何を見たかで変わらない()
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
         InMemoryIncludeResolver resolver = Resolver(
             ("h.hlsl", "#ifndef H\n#define H\nfloat _InsideHeader;\n#endif\n"));
 
@@ -355,12 +355,12 @@ public sealed class HlslIncludeCacheTests
         const string OuterOnly = "#include \"outer.hlsl\"";
 
         // 先に「inner を取り込み済みの経路」で覚えた場合。
-        HlslIncludeCache innerFirst = new();
+        IncludeCache innerFirst = new();
         _ = Preprocess(WithInnerFirst, resolver, innerFirst);
         PreprocessResult afterInnerFirst = Preprocess(OuterOnly, resolver, innerFirst);
 
         // 先に「outer だけの経路」で覚えた場合。
-        HlslIncludeCache outerFirst = new();
+        IncludeCache outerFirst = new();
         _ = Preprocess(OuterOnly, resolver, outerFirst);
         PreprocessResult afterOuterFirst = Preprocess(OuterOnly, resolver, outerFirst);
 
@@ -391,7 +391,7 @@ public sealed class HlslIncludeCacheTests
         string WarmUp,
         string Target)
     {
-        HlslIncludeCache cache = new();
+        IncludeCache cache = new();
 
         _ = Preprocess(WarmUp, resolver, cache);
 

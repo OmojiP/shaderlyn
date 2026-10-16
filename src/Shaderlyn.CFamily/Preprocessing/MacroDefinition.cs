@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// <c>#define</c> で定義されたマクロ。
@@ -30,11 +30,11 @@ public sealed class MacroDefinition
     /// <param name="body">置換される本体のトークン列。</param>
     public MacroDefinition(
         string name,
-        HlslSyntaxToken nameToken,
+        ShaderSyntaxToken nameToken,
         bool isFunctionLike,
         ImmutableArray<string> parameters,
         bool isVariadic,
-        ImmutableArray<HlslSyntaxToken> body)
+        ImmutableArray<ShaderSyntaxToken> body)
     {
         Name = name;
         NameToken = nameToken;
@@ -48,7 +48,7 @@ public sealed class MacroDefinition
     public string Name { get; }
 
     /// <summary>マクロ名のトークン。</summary>
-    public HlslSyntaxToken NameToken { get; }
+    public ShaderSyntaxToken NameToken { get; }
 
     /// <summary>
     /// 関数形式マクロかどうか。
@@ -67,7 +67,7 @@ public sealed class MacroDefinition
     public bool IsVariadic { get; }
 
     /// <summary>置換される本体のトークン列。</summary>
-    public ImmutableArray<HlslSyntaxToken> Body { get; }
+    public ImmutableArray<ShaderSyntaxToken> Body { get; }
 
     /// <summary>
     /// 指定した実引数の個数を受け付けられるかを判定する。

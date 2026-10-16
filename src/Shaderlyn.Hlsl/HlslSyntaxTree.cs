@@ -1,11 +1,12 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Hlsl;
@@ -39,19 +40,19 @@ public sealed class HlslSyntaxTree
     /// 受け付ける構文だが、まだ構文木にしない宣言 (HLSL 2021 の <c>template</c> など) の名前である。
     /// 解析していない場所に現れた名前として扱うこと。
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
+    public ImmutableArray<ShaderSyntaxToken> UnanalyzedIdentifiers { get; private init; } = [];
 
-    /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="PreprocessorOptions.LanguageVersion"/>)。</summary>
+    /// <summary>この木を読んだ HLSL の言語のバージョン (<see cref="HlslLanguageOptions.LanguageVersion"/>)。</summary>
     /// <remarks>並べた方言のうち最も新しい DXC の版。方言そのものは <see cref="Dialects"/> にある。</remarks>
     public HlslLanguageVersion LanguageVersion { get; private init; } = HlslLanguageVersion.Hlsl2018;
 
-    /// <summary>このコードをコンパイルする方言 (<see cref="PreprocessorOptions.Dialects"/>)。</summary>
+    /// <summary>このコードをコンパイルする方言 (<see cref="HlslLanguageOptions.Dialects"/>)。</summary>
     public ImmutableArray<HlslDialect> Dialects { get; private init; } = [HlslDialect.Fxc];
 
     /// <summary>並べた方言の<b>どれかで</b>使える構文と型。この木はこれで読んだ。</summary>
     public HlslLanguageFeatures Features { get; private init; } = HlslDialect.Fxc.Features;
 
-    /// <summary>コンパイル先 (<see cref="PreprocessorOptions.CompileTargets"/>)。分からなければ空。</summary>
+    /// <summary>コンパイル先 (<see cref="HlslLanguageOptions.CompileTargets"/>)。分からなければ空。</summary>
     public ImmutableArray<HlslCompileTarget> CompileTargets { get; private init; } = [];
 
     /// <summary>解析対象のソーステキスト。</summary>
@@ -88,15 +89,23 @@ public sealed class HlslSyntaxTree
     {
         ArgumentNullException.ThrowIfNull(text);
 
+        // 言語が無ければ HLSL の既定で読む。巻き上げの判定にも要る。
+        PreprocessorOptions effective = options ?? new PreprocessorOptions();
+
+        if (effective.Language is not HlslLanguageOptions)
+        {
+            effective = effective with { Language = effective.Hlsl() };
+        }
+
+        HlslLanguageOptions language = effective.Hlsl();
         long start = timings is null ? 0 : Stopwatch.GetTimestamp();
-        PreprocessResult preprocessed = new HlslPreprocessor(options).Preprocess(text);
+        PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
         start = Record(timings, SyntaxStep.Preprocess, start);
 
-        PreprocessorOptions effective = options ?? new PreprocessorOptions();
         HlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude)
         {
-            Features = effective.Features,
-            DialectSubject = effective.DescribeDialect(),
+            Features = language.Features,
+            DialectSubject = language.DescribeUnavailable(),
         };
         HlslCompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         start = Record(timings, SyntaxStep.Parse, start);
@@ -112,10 +121,10 @@ public sealed class HlslSyntaxTree
         return new HlslSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable())
         {
             UnanalyzedIdentifiers = parser.UnanalyzedIdentifiers,
-            LanguageVersion = effective.LanguageVersion,
-            Dialects = effective.Dialects,
+            LanguageVersion = language.LanguageVersion,
+            Dialects = language.Dialects,
             Features = parser.Features,
-            CompileTargets = effective.CompileTargets,
+            CompileTargets = language.CompileTargets,
         };
     }
 

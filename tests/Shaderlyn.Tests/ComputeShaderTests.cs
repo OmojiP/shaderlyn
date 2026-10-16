@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
 
@@ -412,7 +413,7 @@ public sealed class ComputeShaderTests : IDisposable
             "K.compute");
 
         ImmutableArray<ComputeKernel> kernels =
-            ComputeKernels.Collect(new HlslLexer(text).Lex(out _));
+            ComputeKernels.Collect(new ShaderLexer(text).Lex(out _));
 
         Assert.Equal(2, kernels.Length);
 

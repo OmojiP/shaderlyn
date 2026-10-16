@@ -1,13 +1,14 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Environments;
@@ -82,9 +83,9 @@ internal static class ShaderCompilationBuilder
         {
             // 字句解析の結果は共有しているので、展開の前に読むのは実質ただである
             // (このあとの展開が同じトークン列を使う)。
-            ImmutableArray<HlslSyntaxToken> unitTokens = options.TokenCache is { } cache
+            ImmutableArray<ShaderSyntaxToken> unitTokens = options.TokenCache is { } cache
                 ? cache.GetOrLex(unit.Text, out _)
-                : new HlslLexer(unit.Text).Lex(out _);
+                : new ShaderLexer(unit.Text).Lex(out _);
 
             // どの #ifdef で両方の分岐を残すかは、展開しながら決める。
             // そのため「どれがシンボルか」は展開が始まる前に分かっていなければならない。
@@ -231,7 +232,7 @@ internal static class ShaderCompilationBuilder
 
         index.Complete(text.FilePath, options.FixedSymbolConfiguration);
 
-        ImmutableArray<HlslSyntaxToken> codeTokens = new HlslLexer(codeText).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> codeTokens = new ShaderLexer(codeText).Lex(out _);
 
         return new ShaderCompilation(
             text,
@@ -430,7 +431,7 @@ internal static class ShaderCompilationBuilder
 
             if (!result.SkippedRootIdentifiers.IsDefaultOrEmpty)
             {
-                foreach (HlslSyntaxToken token in result.SkippedRootIdentifiers)
+                foreach (ShaderSyntaxToken token in result.SkippedRootIdentifiers)
                 {
                     _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
@@ -439,7 +440,7 @@ internal static class ShaderCompilationBuilder
             // 利用者が書いたヘッダも位置で持つ。#ifdef _A の中で定義したマクロの本体は、_A の木で検査されている。
             if (!result.SkippedUserHeaderIdentifiers.IsDefaultOrEmpty)
             {
-                foreach (HlslSyntaxToken token in result.SkippedUserHeaderIdentifiers)
+                foreach (ShaderSyntaxToken token in result.SkippedUserHeaderIdentifiers)
                 {
                     _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
@@ -476,7 +477,7 @@ internal static class ShaderCompilationBuilder
                         }
                     }
 
-                    foreach (HlslSyntaxToken token in tree.PreprocessResult.Tokens)
+                    foreach (ShaderSyntaxToken token in tree.PreprocessResult.Tokens)
                     {
                         // 利用者が書いたマクロの本体から来たトークンも、
                         // 本体の位置が解析されたことを表す。展開されて初めて中身が検査される。
@@ -615,7 +616,7 @@ internal static class ShaderCompilationBuilder
         // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。候補は値ごとの原子 (QUALITY==2) である。
         ImmutableDictionary<string, ImmutableArray<int>> valueSymbols = variants.ValueSymbols;
 
-        foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
+        foreach (ShaderSyntaxToken token in result.ConditionalIdentifiers)
         {
             IEnumerable<string> symbols = valueSymbols.TryGetValue(token.Text, out ImmutableArray<int> values)
                 ? values.Select(value => VariantValues.Atom(token.Text, value))
@@ -1037,9 +1038,9 @@ internal static class ShaderCompilationBuilder
 
             _topLevel.Add((top.Source?.FilePath ?? string.Empty, top.Span.Start, top.Span.End));
 
-            foreach (HlslSyntaxToken token in node.DescendantTokens())
+            foreach (ShaderSyntaxToken token in node.DescendantTokens())
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     _identifiers.Add(token.Text);
                 }
@@ -1054,7 +1055,7 @@ internal static class ShaderCompilationBuilder
                     FunctionDeclarationSyntax function => function.Name,
                     StructDeclarationSyntax structure => structure.Name,
                     ConstantBufferDeclarationSyntax buffer => buffer.Name,
-                    TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == HlslSyntaxKind.IdentifierToken)?.Text,
+                    TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text,
                     _ => null,
                 };
 
@@ -1571,9 +1572,9 @@ internal static class ShaderCompilationBuilder
     {
         foreach (MacroDefinition macro in macros.Values)
         {
-            foreach (HlslSyntaxToken token in macro.Body)
+            foreach (ShaderSyntaxToken token in macro.Body)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     identifiers.Add(token.Text);
                 }

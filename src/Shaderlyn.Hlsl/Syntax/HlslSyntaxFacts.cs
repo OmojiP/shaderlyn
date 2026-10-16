@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Hlsl.Syntax;
 
@@ -17,13 +18,13 @@ public static class HlslSyntaxFacts
     /// <param name="kind">判定するトークン種別。</param>
     /// <returns>代入演算子の場合は <see langword="true"/>。</returns>
     /// <remarks>単純な代入 (<c>=</c>) と複合代入の両方を含む。</remarks>
-    public static bool IsAssignmentOperator(HlslSyntaxKind kind)
-        => kind == HlslSyntaxKind.EqualsToken || IsCompoundAssignment(kind);
+    public static bool IsAssignmentOperator(ShaderSyntaxKind kind)
+        => kind == ShaderSyntaxKind.EqualsToken || IsCompoundAssignment(kind);
 
     /// <summary>複合代入かどうかを判定する。</summary>
     /// <param name="kind">判定するトークン種別。</param>
     /// <returns><c>+=</c> のような複合代入の場合は <see langword="true"/>。</returns>
-    public static bool IsCompoundAssignment(HlslSyntaxKind kind)
+    public static bool IsCompoundAssignment(ShaderSyntaxKind kind)
         => GetCompoundAssignmentOperand(kind) is not null;
 
     /// <summary>
@@ -31,25 +32,25 @@ public static class HlslSyntaxFacts
     /// </summary>
     /// <param name="kind">判定するトークン種別。</param>
     /// <returns>
-    /// <c>%=</c> なら <see cref="HlslSyntaxKind.PercentToken"/>。
+    /// <c>%=</c> なら <see cref="ShaderSyntaxKind.PercentToken"/>。
     /// 複合代入でない場合は <see langword="null"/>。
     /// </returns>
     /// <remarks>
     /// 「<c>%</c> を禁じる」ようなルールが <c>%=</c> を取りこぼさないために要る。
     /// 末尾の <c>=</c> を落とす形で自前に求めると、<c>&lt;=</c> のような比較を巻き込む。
     /// </remarks>
-    public static HlslSyntaxKind? GetCompoundAssignmentOperand(HlslSyntaxKind kind) => kind switch
+    public static ShaderSyntaxKind? GetCompoundAssignmentOperand(ShaderSyntaxKind kind) => kind switch
     {
-        HlslSyntaxKind.PlusEqualsToken => HlslSyntaxKind.PlusToken,
-        HlslSyntaxKind.MinusEqualsToken => HlslSyntaxKind.MinusToken,
-        HlslSyntaxKind.AsteriskEqualsToken => HlslSyntaxKind.AsteriskToken,
-        HlslSyntaxKind.SlashEqualsToken => HlslSyntaxKind.SlashToken,
-        HlslSyntaxKind.PercentEqualsToken => HlslSyntaxKind.PercentToken,
-        HlslSyntaxKind.AmpersandEqualsToken => HlslSyntaxKind.AmpersandToken,
-        HlslSyntaxKind.BarEqualsToken => HlslSyntaxKind.BarToken,
-        HlslSyntaxKind.CaretEqualsToken => HlslSyntaxKind.CaretToken,
-        HlslSyntaxKind.LessThanLessThanEqualsToken => HlslSyntaxKind.LessThanLessThanToken,
-        HlslSyntaxKind.GreaterThanGreaterThanEqualsToken => HlslSyntaxKind.GreaterThanGreaterThanToken,
+        ShaderSyntaxKind.PlusEqualsToken => ShaderSyntaxKind.PlusToken,
+        ShaderSyntaxKind.MinusEqualsToken => ShaderSyntaxKind.MinusToken,
+        ShaderSyntaxKind.AsteriskEqualsToken => ShaderSyntaxKind.AsteriskToken,
+        ShaderSyntaxKind.SlashEqualsToken => ShaderSyntaxKind.SlashToken,
+        ShaderSyntaxKind.PercentEqualsToken => ShaderSyntaxKind.PercentToken,
+        ShaderSyntaxKind.AmpersandEqualsToken => ShaderSyntaxKind.AmpersandToken,
+        ShaderSyntaxKind.BarEqualsToken => ShaderSyntaxKind.BarToken,
+        ShaderSyntaxKind.CaretEqualsToken => ShaderSyntaxKind.CaretToken,
+        ShaderSyntaxKind.LessThanLessThanEqualsToken => ShaderSyntaxKind.LessThanLessThanToken,
+        ShaderSyntaxKind.GreaterThanGreaterThanEqualsToken => ShaderSyntaxKind.GreaterThanGreaterThanToken,
         _ => null,
     };
 
@@ -62,7 +63,7 @@ public static class HlslSyntaxFacts
     /// <b>報告はキーワードだけを指すべきである。</b>
     /// 文全体を指すと、中身が数十行ある <c>for</c> では波線もそれだけ広がる。
     /// </remarks>
-    public static HlslSyntaxToken? GetKeyword(HlslStatementSyntax statement) => statement switch
+    public static ShaderSyntaxToken? GetKeyword(HlslStatementSyntax statement) => statement switch
     {
         IfStatementSyntax s => s.IfKeyword,
         ForStatementSyntax s => s.ForKeyword,
@@ -77,8 +78,8 @@ public static class HlslSyntaxFacts
     /// <summary>配列の次元の数を求める。</summary>
     /// <param name="rankTokens">配列の次元を表すトークン列 (<c>[4][8]</c> なら 6 個)。</param>
     /// <returns>次元の数。配列でなければ 0。</returns>
-    public static int CountArrayDimensions(ImmutableArray<HlslSyntaxToken> rankTokens)
-        => rankTokens.Count(token => token.Kind == HlslSyntaxKind.OpenBracketToken);
+    public static int CountArrayDimensions(ImmutableArray<ShaderSyntaxToken> rankTokens)
+        => rankTokens.Count(token => token.Kind == ShaderSyntaxKind.OpenBracketToken);
 
     /// <summary>
     /// 角括弧の並びが表す要素の総数を求める。
@@ -95,7 +96,7 @@ public static class HlslSyntaxFacts
     /// 分からないものを 0 や 1 として扱うと、それを根拠にした指摘が出る。
     /// </para>
     /// </remarks>
-    public static bool TryGetArrayLength(ImmutableArray<HlslSyntaxToken> rankTokens, out int length)
+    public static bool TryGetArrayLength(ImmutableArray<ShaderSyntaxToken> rankTokens, out int length)
     {
         length = 0;
 
@@ -108,7 +109,7 @@ public static class HlslSyntaxFacts
 
         for (int i = 0; i < rankTokens.Length; i += 3)
         {
-            if (rankTokens[i].Kind != HlslSyntaxKind.OpenBracketToken
+            if (rankTokens[i].Kind != ShaderSyntaxKind.OpenBracketToken
                 || !HlslLiteral.TryGetInt64(rankTokens[i + 1], out long dimension)
                 || dimension <= 0
                 || dimension > int.MaxValue)

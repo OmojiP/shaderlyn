@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -173,7 +173,7 @@ public sealed class Hlsl2021EnumTests
     private static HlslSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
     private static ImmutableArray<Diagnostic> Analyze(string code)
     {

@@ -1,4 +1,4 @@
-namespace Shaderlyn.Hlsl.Syntax;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// HLSL / Cg のトークンおよび trivia の種別。
@@ -8,7 +8,7 @@ namespace Shaderlyn.Hlsl.Syntax;
 /// <c>#</c> はトークンとして残し、行頭かどうかの情報とあわせてプリプロセッサが解釈する。
 /// マクロ展開と条件分岐の評価を行うには、指令をトークン列として扱える必要があるためである。
 /// </remarks>
-public enum HlslSyntaxKind
+public enum ShaderSyntaxKind
 {
     /// <summary>どの規則にも当てはまらなかった文字。</summary>
     BadToken,

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
@@ -39,9 +40,9 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                 int total = 1;
                 bool known = true;
 
-                foreach (HlslSyntaxToken token in attribute.ArgumentTokens)
+                foreach (ShaderSyntaxToken token in attribute.ArgumentTokens)
                 {
-                    if (token.Kind == HlslSyntaxKind.NumericLiteralToken)
+                    if (token.Kind == ShaderSyntaxKind.NumericLiteralToken)
                     {
                         if (int.TryParse(token.Text, out int value))
                         {
@@ -52,7 +53,7 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                             known = false;
                         }
                     }
-                    else if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                    else if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                     {
                         // マクロが展開されずに残っている。分からないので報告しない。
                         known = false;

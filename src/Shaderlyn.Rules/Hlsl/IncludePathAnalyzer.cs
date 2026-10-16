@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Rules;
@@ -36,7 +37,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [HlslDescriptors.UnresolvedInclude, WellKnownDescriptors.IncludesUnavailable];
+        [ShaderDescriptors.UnresolvedInclude, WellKnownDescriptors.IncludesUnavailable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -64,7 +65,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnresolvedInclude, include.Location, include.Path,
+                    ShaderDescriptors.UnresolvedInclude, include.Location, include.Path,
                     compilation.DescribeUnresolvedInclude?.Invoke(include) ?? DescribeOutsideBoundary(include)));
             }
         }
@@ -81,7 +82,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// <returns>文。無ければ空。</returns>
     /// <remarks>
     /// 読んでよい範囲は、ファイルを読ませる 1 行で任意のファイルを読めないようにするためにある
-    /// (<see cref="Hlsl.Preprocessing.IncludeBoundary"/>)。「見つからない」と言うと、利用者はパスの誤りを探してしまう。
+    /// (<see cref="CFamily.Preprocessing.IncludeBoundary"/>)。「見つからない」と言うと、利用者はパスの誤りを探してしまう。
     /// </remarks>
     private static string DescribeOutsideBoundary(IncludeReference include)
         => include.OutsideBoundaryPath is { } path

@@ -1,9 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 条件によって中身が変わるマクロを使っている文を、定義ごとに複製する (条件の巻き上げ)。
@@ -33,7 +32,7 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// その間に指令が 1 つも無い場合に限って行う。
 /// </para>
 /// </remarks>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     /// <summary>複製する定義の数の上限。</summary>
     /// <remarks>定義が多いマクロを複製すると、同じ文が何本も並ぶ。読み手にも解析にも重い。</remarks>
@@ -85,13 +84,13 @@ internal sealed partial class HlslPreprocessor
     private readonly HashSet<string> _firmDeclines = new(StringComparer.Ordinal);
 
     /// <summary>巻き上げで補えるかもしれない領域の、開始の指令と、その条件のシンボル。</summary>
-    private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegions = [];
+    private readonly Dictionary<ShaderSyntaxToken, ImmutableArray<string>> _hoistableRegions = [];
 
     /// <summary>
     /// 巻き上げで補えるかもしれない領域 (開始の指令) が定義するマクロ。
     /// 同じ領域の <c>#elif</c> のシンボルも、このマクロの巻き上げで補えたかで決める。
     /// </summary>
-    private readonly Dictionary<HlslSyntaxToken, ImmutableArray<string>> _hoistableRegionMacros = [];
+    private readonly Dictionary<ShaderSyntaxToken, ImmutableArray<string>> _hoistableRegionMacros = [];
 
     /// <summary>
     /// 巻き上げで補えるかもしれない領域で求めた、同時に有効にする組。補えなかった場合にだけ記録する。
@@ -100,7 +99,7 @@ internal sealed partial class HlslPreprocessor
     /// <c>multi_compile _A _B</c> の <c>#ifdef _A</c> の <c>#else</c> は、<c>_B</c> を有効にした構成でしか通らない。
     /// 補えたなら、その構成を作ってもどの木にも新しいものは載らない。
     /// </remarks>
-    private readonly List<(ImmutableArray<string> Symbols, ImmutableArray<string> Combination, HlslSyntaxToken Directive)>
+    private readonly List<(ImmutableArray<string> Symbols, ImmutableArray<string> Combination, ShaderSyntaxToken Directive)>
         _deferredCombinations = [];
 
     /// <summary>定義ごとに複製した回数。</summary>
@@ -148,7 +147,7 @@ internal sealed partial class HlslPreprocessor
     /// <c>;</c> と波括弧で区切る。次の文はこの位置から始まる。
     /// マクロ展開の途中や、条件を付けている途中では目印を置かない。
     /// </remarks>
-    private void NoteUnitBoundary(HlslSyntaxToken token)
+    private void NoteUnitBoundary(ShaderSyntaxToken token)
     {
         if (!IsHoistingEnabled)
         {
@@ -157,20 +156,20 @@ internal sealed partial class HlslPreprocessor
 
         switch (token.Kind)
         {
-            case HlslSyntaxKind.OpenParenToken: _unitParenDepth++; break;
-            case HlslSyntaxKind.CloseParenToken: _unitParenDepth--; break;
-            case HlslSyntaxKind.OpenBracketToken: _unitBracketDepth++; break;
-            case HlslSyntaxKind.CloseBracketToken: _unitBracketDepth--; break;
+            case ShaderSyntaxKind.OpenParenToken: _unitParenDepth++; break;
+            case ShaderSyntaxKind.CloseParenToken: _unitParenDepth--; break;
+            case ShaderSyntaxKind.OpenBracketToken: _unitBracketDepth++; break;
+            case ShaderSyntaxKind.CloseBracketToken: _unitBracketDepth--; break;
 
             // 初期化の波括弧 (float4 c = { 1, 2, 3, 4 };) は文の途中にある。切れ目にしない。
             // 切れ目にすると、条件で足した要素を含む文を、波括弧の内側からしか複製できない。
-            case HlslSyntaxKind.OpenBraceToken
+            case ShaderSyntaxKind.OpenBraceToken
                 when _unitInitializerDepth > 0
-                     || (_output.Count > 0 && _output[^1].Kind is HlslSyntaxKind.EqualsToken or HlslSyntaxKind.CommaToken):
+                     || (_output.Count > 0 && _output[^1].Kind is ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.CommaToken):
                 _unitInitializerDepth++;
                 return;
 
-            case HlslSyntaxKind.CloseBraceToken when _unitInitializerDepth > 0:
+            case ShaderSyntaxKind.CloseBraceToken when _unitInitializerDepth > 0:
                 _unitInitializerDepth--;
                 return;
 
@@ -180,9 +179,9 @@ internal sealed partial class HlslPreprocessor
         // 括弧の中の ; は文の切れ目ではない。for (uint i = 0; i < N; i++) がその形である。
         if (_unitParenDepth != 0
             || _unitBracketDepth != 0
-            || token.Kind is not (HlslSyntaxKind.SemicolonToken
-                or HlslSyntaxKind.OpenBraceToken
-                or HlslSyntaxKind.CloseBraceToken))
+            || token.Kind is not (ShaderSyntaxKind.SemicolonToken
+                or ShaderSyntaxKind.OpenBraceToken
+                or ShaderSyntaxKind.CloseBraceToken))
         {
             return;
         }
@@ -237,7 +236,7 @@ internal sealed partial class HlslPreprocessor
             return false;
         }
 
-        HlslSyntaxToken nameToken = PeekToken()!;
+        ShaderSyntaxToken nameToken = PeekToken()!;
 
         if (_conditionalMacros.Count == 0
             || _unitAnchor is not { } anchor
@@ -274,7 +273,7 @@ internal sealed partial class HlslPreprocessor
             _output.RemoveRange(anchor.OutputIndex, _output.Count - anchor.OutputIndex);
             anchor.Source.Index = unitEnd;
 
-            ImmutableArray<HlslSyntaxToken> unit = TakeUnit(anchor, unitEnd);
+            ImmutableArray<ShaderSyntaxToken> unit = TakeUnit(anchor, unitEnd);
 
             if (TryExpandBranches(unit, CombineWithOtherMacros(hoisted, branches, unit)))
             {
@@ -331,7 +330,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="anchor">文の始まりの目印。</param>
     /// <param name="end">終わりの位置 (この位置は含まない)。</param>
     /// <returns>取り出したトークン。</returns>
-    private static ImmutableArray<HlslSyntaxToken> TakeUnit(
+    private static ImmutableArray<ShaderSyntaxToken> TakeUnit(
         (TokenSource Source, int SourceIndex, int OutputIndex) anchor,
         int end)
         => [.. anchor.Source.Tokens.Skip(anchor.SourceIndex).Take(end - anchor.SourceIndex)];
@@ -362,7 +361,7 @@ internal sealed partial class HlslPreprocessor
     private List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> CombineWithOtherMacros(
         string hoisted,
         List<(SymbolCondition Condition, MacroDefinition? Definition)> branches,
-        ImmutableArray<HlslSyntaxToken> unit)
+        ImmutableArray<ShaderSyntaxToken> unit)
     {
         List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> single =
             [.. branches.Select(b => (b.Condition, ImmutableArray.Create<(string Name, MacroDefinition? Definition)>((hoisted, b.Definition))))];
@@ -414,16 +413,16 @@ internal sealed partial class HlslPreprocessor
     /// <summary>文のトークンに現れる、条件で中身の変わるマクロを集める。本体を通して参照するものも含める。</summary>
     /// <param name="unit">文のトークン。</param>
     /// <returns>見つかったマクロの名前。現れた順。</returns>
-    private List<string> CollectHoistableMacros(ImmutableArray<HlslSyntaxToken> unit)
+    private List<string> CollectHoistableMacros(ImmutableArray<ShaderSyntaxToken> unit)
     {
         List<string> found = [];
         HashSet<string> visited = new(StringComparer.Ordinal);
 
         for (int i = 0; i < unit.Length; i++)
         {
-            HlslSyntaxToken token = unit[i];
+            ShaderSyntaxToken token = unit[i];
 
-            if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken || !visited.Add(token.Text))
             {
                 continue;
             }
@@ -436,7 +435,7 @@ internal sealed partial class HlslPreprocessor
 
             // 関数形式マクロは、呼び出しの形で書かれていなければ展開されない。
             if (_macros.TryGetValue(token.Text, out MacroDefinition? macro)
-                && (!macro.IsFunctionLike || (i + 1 < unit.Length && unit[i + 1].Kind == HlslSyntaxKind.OpenParenToken)))
+                && (!macro.IsFunctionLike || (i + 1 < unit.Length && unit[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)))
             {
                 Walk(macro, depth: 1);
             }
@@ -451,9 +450,9 @@ internal sealed partial class HlslPreprocessor
                 return;
             }
 
-            foreach (HlslSyntaxToken token in macro.Body)
+            foreach (ShaderSyntaxToken token in macro.Body)
             {
-                if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+                if (token.Kind != ShaderSyntaxKind.IdentifierToken || !visited.Add(token.Text))
                 {
                     continue;
                 }
@@ -477,7 +476,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="branches">複製する分岐。分岐ごとの条件と、そのとき使う各マクロの定義。</param>
     /// <returns>どの分岐も文になった場合は <see langword="true"/>。</returns>
     private bool TryExpandBranches(
-        ImmutableArray<HlslSyntaxToken> unit,
+        ImmutableArray<ShaderSyntaxToken> unit,
         List<(SymbolCondition Condition, ImmutableArray<(string Name, MacroDefinition? Definition)> Definitions)> branches)
     {
         bool complete = true;
@@ -540,11 +539,12 @@ internal sealed partial class HlslPreprocessor
     /// <b>判定は構文解析に任せる。</b>
     /// 括弧の数と末尾の記号では足りない。
     /// <c>float v = ;</c> は括弧が釣り合い末尾も <c>;</c> だが、文ではない
-    /// (<see cref="HlslParser.IsCompleteUnits"/>)。
+    /// (<see cref="ShaderLanguageOptions.IsCompleteUnits"/>)。
+    /// 言語 (<see cref="PreprocessorOptions.Language"/>) が無ければ判定できないので、巻き上げを取り消す。
     /// </para>
     /// </remarks>
     private bool IsSelfContained(int start, int end)
-        => HlslParser.IsCompleteUnits([.. _output.Skip(start).Take(end - start)]);
+        => _options.Language?.IsCompleteUnits([.. _output.Skip(start).Take(end - start)]) == true;
 
     /// <summary>
     /// その名前が、定義ごとに複製すべきマクロかを判定する。
@@ -685,9 +685,9 @@ internal sealed partial class HlslPreprocessor
                 return;
             }
 
-            foreach (HlslSyntaxToken token in macro.Body)
+            foreach (ShaderSyntaxToken token in macro.Body)
             {
-                if (token.Kind != HlslSyntaxKind.IdentifierToken || !visited.Add(token.Text))
+                if (token.Kind != ShaderSyntaxKind.IdentifierToken || !visited.Add(token.Text))
                 {
                     continue;
                 }
@@ -743,9 +743,9 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = start; i < source.Tokens.Length && i - start < MaxHoistedUnitTokens; i++)
         {
-            HlslSyntaxToken token = source.Tokens[i];
+            ShaderSyntaxToken token = source.Tokens[i];
 
-            if (token.Kind == HlslSyntaxKind.HashToken && token.IsAtLineStart)
+            if (token.Kind == ShaderSyntaxKind.HashToken && token.IsAtLineStart)
             {
                 if (i > last && brace == 0 && paren == 0 && bracket == 0)
                 {
@@ -759,14 +759,14 @@ internal sealed partial class HlslPreprocessor
 
             switch (token.Kind)
             {
-                case HlslSyntaxKind.OpenBraceToken: brace++; break;
-                case HlslSyntaxKind.OpenParenToken: paren++; break;
-                case HlslSyntaxKind.OpenBracketToken: bracket++; break;
-                case HlslSyntaxKind.CloseParenToken: paren--; break;
-                case HlslSyntaxKind.CloseBracketToken: bracket--; break;
+                case ShaderSyntaxKind.OpenBraceToken: brace++; break;
+                case ShaderSyntaxKind.OpenParenToken: paren++; break;
+                case ShaderSyntaxKind.OpenBracketToken: bracket++; break;
+                case ShaderSyntaxKind.CloseParenToken: paren--; break;
+                case ShaderSyntaxKind.CloseBracketToken: bracket--; break;
 
                 // 外側のブロックを閉じる } なら、文はその手前で終わっているかもしれない。
-                case HlslSyntaxKind.CloseBraceToken when brace == 0 && paren == 0 && bracket == 0 && i > last:
+                case ShaderSyntaxKind.CloseBraceToken when brace == 0 && paren == 0 && bracket == 0 && i > last:
                     last = i;
                     yield return i;
 
@@ -778,7 +778,7 @@ internal sealed partial class HlslPreprocessor
                     boundary = true;
                     break;
 
-                case HlslSyntaxKind.CloseBraceToken:
+                case ShaderSyntaxKind.CloseBraceToken:
                     brace--;
                     boundary = brace <= 0 && paren == 0 && bracket == 0;
 
@@ -787,7 +787,7 @@ internal sealed partial class HlslPreprocessor
                     brace = Math.Max(brace, 0);
                     break;
 
-                case HlslSyntaxKind.SemicolonToken:
+                case ShaderSyntaxKind.SemicolonToken:
                     boundary = brace == 0 && paren == 0 && bracket == 0;
                     break;
 
@@ -845,27 +845,27 @@ internal sealed partial class HlslPreprocessor
             return null;
         }
 
-        ImmutableArray<HlslSyntaxToken> tokens = source.Tokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = source.Tokens;
         List<string> defined = [];
 
         for (int i = start; i < end && i < tokens.Length; i = SkipToNextLine(tokens, i))
         {
-            if (tokens[i].Kind == HlslSyntaxKind.EndOfFileToken)
+            if (tokens[i].Kind == ShaderSyntaxKind.EndOfFileToken)
             {
                 break;
             }
 
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || i + 1 >= tokens.Length
-                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken)
+                || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 return null;
             }
 
             switch (tokens[i + 1].Text)
             {
-                case "define" when i + 2 < tokens.Length && tokens[i + 2].Kind == HlslSyntaxKind.IdentifierToken:
+                case "define" when i + 2 < tokens.Length && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken:
                     defined.Add(tokens[i + 2].Text);
                     break;
 
@@ -876,7 +876,7 @@ internal sealed partial class HlslPreprocessor
                     break;
 
                 // #undef してから定義し直す形も、#undef がそれまでの定義の条件を縮める (ForgetConditionalDefinitions)。
-                case "undef" when i + 2 < tokens.Length && tokens[i + 2].Kind == HlslSyntaxKind.IdentifierToken:
+                case "undef" when i + 2 < tokens.Length && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken:
                     defined.Add(tokens[i + 2].Text);
                     break;
 
@@ -955,7 +955,7 @@ internal sealed partial class HlslPreprocessor
         }
 
         // 補えなかった領域の組は、構成ごとの展開にまだ要る。
-        foreach ((ImmutableArray<string> symbols, ImmutableArray<string> combination, HlslSyntaxToken directive) in _deferredCombinations)
+        foreach ((ImmutableArray<string> symbols, ImmutableArray<string> combination, ShaderSyntaxToken directive) in _deferredCombinations)
         {
             if (!symbols.All(restored.Contains))
             {
@@ -972,7 +972,7 @@ internal sealed partial class HlslPreprocessor
     /// 主ループと同じ処理を、積んだソースを読み終えるまで回す。
     /// 指令は含まれていない (<see cref="EnumerateUnitEnds"/> が確かめている)。
     /// </remarks>
-    private void ExpandTokensAsUnit(ImmutableArray<HlslSyntaxToken> unit)
+    private void ExpandTokensAsUnit(ImmutableArray<ShaderSyntaxToken> unit)
     {
         int depth = _sources.Count;
         PushExpansionSource(unit, "<巻き上げ>");

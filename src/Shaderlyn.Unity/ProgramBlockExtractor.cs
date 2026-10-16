@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab.Syntax;

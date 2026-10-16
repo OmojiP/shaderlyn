@@ -1,15 +1,16 @@
 ﻿using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 条件付きコンパイル。#if / #ifdef / #elif / #else / #endif の状態と、条件式の評価。
 /// </summary>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     // --------------------------------------------------------------------
     // 条件付きコンパイル
@@ -19,7 +20,7 @@ internal sealed partial class HlslPreprocessor
     /// 1 つの <c>#if</c> ブロックの状態。
     /// </summary>
     /// <param name="Directive">この状態を作った指令のトークン。診断の位置に使う。</param>
-    private sealed record ConditionalState(HlslSyntaxToken Directive)
+    private sealed record ConditionalState(ShaderSyntaxToken Directive)
     {
         /// <summary>現在の分岐が有効かどうか。</summary>
         public bool IsBranchActive { get; set; }
@@ -138,7 +139,7 @@ internal sealed partial class HlslPreprocessor
     /// <remarks>
     /// <b>見るのは一番内側だけで足りる。</b>
     /// 両方を残す条件は、外側から途切れずに続く範囲でしか選ばない
-    /// (<see cref="ChooseKeptCondition(SymbolCondition?, HlslSyntaxToken)"/>)。
+    /// (<see cref="ChooseKeptCondition(SymbolCondition?, ShaderSyntaxToken)"/>)。
     /// 片方だけを残す条件が 1 つでも挟まれば、その内側はもう選ばれない。
     /// </remarks>
     private bool IsInKeptBranch
@@ -191,7 +192,7 @@ internal sealed partial class HlslPreprocessor
     /// (<see cref="CurrentCondition"/>)。
     /// </para>
     /// </remarks>
-    private SymbolCondition? ChooseKeptCondition(string? symbol, bool expectDefined, HlslSyntaxToken directive)
+    private SymbolCondition? ChooseKeptCondition(string? symbol, bool expectDefined, ShaderSyntaxToken directive)
     {
         if (symbol is null)
         {
@@ -221,7 +222,7 @@ internal sealed partial class HlslPreprocessor
     /// シンボルを 1 つも含まない条件は残さない。
     /// 単一構成での値が決まっているので、並べる意味が無い。
     /// </remarks>
-    private SymbolCondition? ChooseKeptCondition(SymbolCondition? candidate, HlslSyntaxToken directive)
+    private SymbolCondition? ChooseKeptCondition(SymbolCondition? candidate, ShaderSyntaxToken directive)
     {
         if (candidate is not { } written || _options.BothBranchSymbols.IsEmpty)
         {
@@ -397,14 +398,14 @@ internal sealed partial class HlslPreprocessor
     /// <summary>その行が、構成によって定義が変わる名前を参照しているかを判定する。</summary>
     /// <param name="line">条件式の行か、マクロの本体。</param>
     /// <returns>参照していれば <see langword="true"/>。</returns>
-    private bool ReferencesConfigurationDependentName(IEnumerable<HlslSyntaxToken> line)
-        => line.Any(token => token.Kind == HlslSyntaxKind.IdentifierToken && IsConfigurationDependentName(token.Text));
+    private bool ReferencesConfigurationDependentName(IEnumerable<ShaderSyntaxToken> line)
+        => line.Any(token => token.Kind == ShaderSyntaxKind.IdentifierToken && IsConfigurationDependentName(token.Text));
 
     /// <summary>その行が、構成によって定義が変わるマクロ (宣言されたシンボルを除く) を参照しているかを判定する。</summary>
     /// <param name="line">条件式の行。</param>
     /// <returns>参照していれば <see langword="true"/>。</returns>
-    private bool ReferencesConfigurationDependentMacro(IEnumerable<HlslSyntaxToken> line)
-        => line.Any(token => token.Kind == HlslSyntaxKind.IdentifierToken
+    private bool ReferencesConfigurationDependentMacro(IEnumerable<ShaderSyntaxToken> line)
+        => line.Any(token => token.Kind == ShaderSyntaxKind.IdentifierToken
                              && (_conditionallyDefinedMacros.Contains(token.Text)
                                  || GetDefinedCondition(token.Text) is { IsAlways: false }));
 
@@ -441,7 +442,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="end">領域の終了位置 (この位置は含まない)。</param>
     /// <param name="directive">指令名のトークン。</param>
     /// <returns>並べられない理由。並べてよければ <see langword="null"/>。</returns>
-    private BothBranchDeclineReason? FindDeclineReason(ConditionalRegionLayout layout, int end, HlslSyntaxToken directive)
+    private BothBranchDeclineReason? FindDeclineReason(ConditionalRegionLayout layout, int end, ShaderSyntaxToken directive)
     {
         if (!CurrentSource.IsFile)
         {
@@ -533,18 +534,18 @@ internal sealed partial class HlslPreprocessor
     /// <returns>条件の中でしか使われていなければ <see langword="true"/>。</returns>
     private bool DefinesOnlyConditionMacros(int start, int end)
     {
-        ImmutableArray<HlslSyntaxToken> tokens = CurrentSource.Tokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = CurrentSource.Tokens;
         HashSet<string> usedInCode = GetNamesUsedInCode(tokens);
         Dictionary<string, int> defineCounts = GetDefineCounts(tokens);
 
         for (int i = start; i < end && i < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || i + 2 >= tokens.Length
-                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
                 || tokens[i + 1].Text is not ("define" or "undef")
-                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken)
+                || tokens[i + 2].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }
@@ -596,7 +597,7 @@ internal sealed partial class HlslPreprocessor
     private bool CanMergeWithHoisting(int start, int end)
     {
         TokenSource source = CurrentSource;
-        ImmutableArray<HlslSyntaxToken> tokens = source.Tokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = source.Tokens;
 
         if (!IsHoistingEnabled
             || start >= tokens.Length
@@ -609,19 +610,19 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = start; i < end && i < tokens.Length; i = SkipToNextLine(tokens, i))
         {
-            if (tokens[i].Kind == HlslSyntaxKind.EndOfFileToken)
+            if (tokens[i].Kind == ShaderSyntaxKind.EndOfFileToken)
             {
                 break;
             }
 
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
             {
                 hasCode = true;
                 continue;
             }
 
             if (i + 1 < tokens.Length
-                && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken
+                && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
                 && tokens[i + 1].Text is "undef" or "include")
             {
                 return false;
@@ -634,7 +635,7 @@ internal sealed partial class HlslPreprocessor
     /// <summary>そのトークン列の中で、名前ごとに <c>#define</c> した回数を数える。</summary>
     /// <param name="tokens">対象のトークン列。</param>
     /// <returns>名前と回数。</returns>
-    private Dictionary<string, int> GetDefineCounts(ImmutableArray<HlslSyntaxToken> tokens)
+    private Dictionary<string, int> GetDefineCounts(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (_defineCounts.TryGetValue(tokens, out Dictionary<string, int>? counts))
         {
@@ -645,11 +646,11 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken
                 && tokens[i].IsAtLineStart
-                && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken
+                && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
                 && tokens[i + 1].Text == "define"
-                && tokens[i + 2].Kind == HlslSyntaxKind.IdentifierToken)
+                && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 counts[tokens[i + 2].Text] = counts.GetValueOrDefault(tokens[i + 2].Text) + 1;
             }
@@ -672,7 +673,7 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// <para>1 つのトークン列につき 1 回だけ数える。領域ごとに数え直すと走査が二乗になる。</para>
     /// </remarks>
-    private HashSet<string> GetNamesUsedInCode(ImmutableArray<HlslSyntaxToken> tokens)
+    private HashSet<string> GetNamesUsedInCode(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (_namesUsedInCode.TryGetValue(tokens, out HashSet<string>? names))
         {
@@ -683,10 +684,10 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken
                 && tokens[i].IsAtLineStart
                 && i + 1 < tokens.Length
-                && tokens[i + 1].Kind == HlslSyntaxKind.IdentifierToken)
+                && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 string directive = tokens[i + 1].Text;
 
@@ -705,7 +706,7 @@ internal sealed partial class HlslPreprocessor
                 }
             }
 
-            if (tokens[i].Kind == HlslSyntaxKind.IdentifierToken)
+            if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 names.Add(tokens[i].Text);
             }
@@ -719,7 +720,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="tokens">対象のトークン列。</param>
     /// <param name="index">今の位置。</param>
     /// <returns>次の行の先頭の位置。</returns>
-    private static int SkipToNextLine(ImmutableArray<HlslSyntaxToken> tokens, int index)
+    private static int SkipToNextLine(ImmutableArray<ShaderSyntaxToken> tokens, int index)
     {
         for (int i = index + 1; i < tokens.Length; i++)
         {
@@ -776,7 +777,7 @@ internal sealed partial class HlslPreprocessor
     /// <c>#elif</c> と <c>#else</c> は「それまでの分岐がすべて外れたとき」に通る。
     /// 読めなかった条件は、この分岐の制約にも、残りの分岐の制約にもしない。
     /// </remarks>
-    private void EnterPathBranch(ConditionalState state, HlslSyntaxToken directive, SymbolCondition? condition)
+    private void EnterPathBranch(ConditionalState state, ShaderSyntaxToken directive, SymbolCondition? condition)
     {
         state.PathBranch = state.PathRemaining.And(condition ?? SymbolCondition.Always);
 
@@ -813,7 +814,7 @@ internal sealed partial class HlslPreprocessor
     /// (<c>ShaderCompilationBuilder.SelectVariantCombinations</c>)。
     /// </para>
     /// </remarks>
-    private void RecordRequiredCombinations(ConditionalState state, HlslSyntaxToken directive)
+    private void RecordRequiredCombinations(ConditionalState state, ShaderSyntaxToken directive)
     {
         if (state.KeptCondition is not null || _options.DeclaredSymbols.IsEmpty || directive.IsFromMacroExpansion)
         {
@@ -868,7 +869,7 @@ internal sealed partial class HlslPreprocessor
     /// (<see cref="PreprocessorOptions.IncludedDeclaredSymbols"/>)。
     /// </para>
     /// </remarks>
-    private SymbolCondition? ReadPathSymbol(string? symbol, bool expectDefined, HlslSyntaxToken directive)
+    private SymbolCondition? ReadPathSymbol(string? symbol, bool expectDefined, ShaderSyntaxToken directive)
     {
         if (symbol is null || _options.DeclaredSymbols.IsEmpty || directive.IsFromMacroExpansion)
         {
@@ -926,22 +927,22 @@ internal sealed partial class HlslPreprocessor
     /// 主要なコンパイラはいずれもこれを受け付けており、Unity はそれに依存している。
     /// </para>
     /// </remarks>
-    private bool EvaluateCondition(ImmutableArray<HlslSyntaxToken> line)
+    private bool EvaluateCondition(ImmutableArray<ShaderSyntaxToken> line)
     {
         if (line.IsEmpty)
         {
             return false;
         }
 
-        ImmutableArray<HlslSyntaxToken> withoutDefined = ResolveDefinedOperators(line);
-        ImmutableArray<HlslSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
-        ImmutableArray<HlslSyntaxToken> resolved = ResolveDefinedOperators(expanded);
+        ImmutableArray<ShaderSyntaxToken> withoutDefined = ResolveDefinedOperators(line);
+        ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
+        ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
         bool result = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error);
 
         if (error is not null)
         {
-            Report(HlslDescriptors.PreprocessorError, line[0].GetLocation(), error);
+            Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), error);
         }
 
         return result;
@@ -954,11 +955,11 @@ internal sealed partial class HlslPreprocessor
     /// <remarks>
     /// 行全体は別に評価し、誤りはそちらで報告する。一部を評価して同じ誤りを重ねて出さない。
     /// </remarks>
-    private bool TryEvaluateSilently(ImmutableArray<HlslSyntaxToken> tokens, out bool value)
+    private bool TryEvaluateSilently(ImmutableArray<ShaderSyntaxToken> tokens, out bool value)
     {
-        ImmutableArray<HlslSyntaxToken> withoutDefined = ResolveDefinedOperators(tokens);
-        ImmutableArray<HlslSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
-        ImmutableArray<HlslSyntaxToken> resolved = ResolveDefinedOperators(expanded);
+        ImmutableArray<ShaderSyntaxToken> withoutDefined = ResolveDefinedOperators(tokens);
+        ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
+        ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
         value = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error);
         return error is null;
@@ -974,14 +975,14 @@ internal sealed partial class HlslPreprocessor
     /// <remarks>
     /// シンボルの名前も返すのは、両方の分岐を残すかどうかの判定に要るためである。
     /// </remarks>
-    private bool EvaluateDefinedLine(HlslSyntaxToken directiveToken, bool expectDefined, out string? symbol)
+    private bool EvaluateDefinedLine(ShaderSyntaxToken directiveToken, bool expectDefined, out string? symbol)
     {
-        ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
+        ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
         symbol = null;
 
-        if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
+        if (line.IsEmpty || line[0].Kind != ShaderSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
+            Report(ShaderDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#ifdef / #ifndef にはマクロ名が必要です。");
             return false;
         }
@@ -1018,8 +1019,8 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// </remarks>
     private void ReportExtraTokensAfterConditionName(
-        HlslSyntaxToken directiveToken,
-        ImmutableArray<HlslSyntaxToken> line,
+        ShaderSyntaxToken directiveToken,
+        ImmutableArray<ShaderSyntaxToken> line,
         bool expectDefined)
     {
         // 指令名から行の終わりまでを指す。直しはこの範囲をそのまま置き換える。
@@ -1037,7 +1038,7 @@ internal sealed partial class HlslPreprocessor
                 : "複数シンボル条件を書く場合は次のように書いてください：'#if !defined(A) && !defined(B)'";
 
         Diagnostic diagnostic = Diagnostic.Create(
-            HlslDescriptors.ExtraTokensAfterConditionName, location, directiveToken.Text, ignored, guidance);
+            ShaderDescriptors.ExtraTokensAfterConditionName, location, directiveToken.Text, ignored, guidance);
 
         _diagnostics.Add(expression is not null ? diagnostic.WithSuggestedReplacement($"if {expression}") : diagnostic);
     }
@@ -1047,7 +1048,7 @@ internal sealed partial class HlslPreprocessor
     /// </summary>
     /// <param name="line">指令の行のトークン。</param>
     /// <returns>書き直した式。その形でなければ <see langword="null"/>。</returns>
-    private static string? TryJoinAsDefinedExpression(ImmutableArray<HlslSyntaxToken> line)
+    private static string? TryJoinAsDefinedExpression(ImmutableArray<ShaderSyntaxToken> line)
     {
         if (line.Length < 3 || line.Length % 2 == 0)
         {
@@ -1058,11 +1059,11 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = 0; i < line.Length; i++)
         {
-            HlslSyntaxToken token = line[i];
+            ShaderSyntaxToken token = line[i];
 
             if (i % 2 == 0)
             {
-                if (token.Kind != HlslSyntaxKind.IdentifierToken)
+                if (token.Kind != ShaderSyntaxKind.IdentifierToken)
                 {
                     return null;
                 }
@@ -1071,7 +1072,7 @@ internal sealed partial class HlslPreprocessor
             }
             else
             {
-                if (token.Kind is not (HlslSyntaxKind.BarBarToken or HlslSyntaxKind.AmpersandAmpersandToken))
+                if (token.Kind is not (ShaderSyntaxKind.BarBarToken or ShaderSyntaxKind.AmpersandAmpersandToken))
                 {
                     return null;
                 }
@@ -1098,9 +1099,9 @@ internal sealed partial class HlslPreprocessor
     /// 位置ごと覚えておく。名前だけでは、どこを直せばよいかを示せない。
     /// </para>
     /// </remarks>
-    private void RecordConditionalIdentifier(HlslSyntaxToken token)
+    private void RecordConditionalIdentifier(ShaderSyntaxToken token)
     {
-        if (token.Kind == HlslSyntaxKind.IdentifierToken)
+        if (token.Kind == ShaderSyntaxKind.IdentifierToken)
         {
             _conditionalIdentifiers.Add(token);
         }
@@ -1111,30 +1112,30 @@ internal sealed partial class HlslPreprocessor
     /// </summary>
     /// <param name="tokens">条件式のトークン列。</param>
     /// <returns>置き換え後のトークン列。</returns>
-    private ImmutableArray<HlslSyntaxToken> ResolveDefinedOperators(ImmutableArray<HlslSyntaxToken> tokens)
+    private ImmutableArray<ShaderSyntaxToken> ResolveDefinedOperators(ImmutableArray<ShaderSyntaxToken> tokens)
     {
-        ImmutableArray<HlslSyntaxToken>.Builder result = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder result = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            HlslSyntaxToken token = tokens[i];
+            ShaderSyntaxToken token = tokens[i];
 
-            if (token.Kind != HlslSyntaxKind.IdentifierToken || !token.TextIs("defined"))
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken || !token.TextIs("defined"))
             {
                 result.Add(token);
                 continue;
             }
 
             int index = i + 1;
-            bool parenthesized = index < tokens.Length && tokens[index].Kind == HlslSyntaxKind.OpenParenToken;
+            bool parenthesized = index < tokens.Length && tokens[index].Kind == ShaderSyntaxKind.OpenParenToken;
             if (parenthesized)
             {
                 index++;
             }
 
-            if (index >= tokens.Length || tokens[index].Kind != HlslSyntaxKind.IdentifierToken)
+            if (index >= tokens.Length || tokens[index].Kind != ShaderSyntaxKind.IdentifierToken)
             {
-                Report(HlslDescriptors.PreprocessorError, token.GetLocation(),
+                Report(ShaderDescriptors.PreprocessorError, token.GetLocation(),
                     "defined の後にはマクロ名が必要です。");
                 result.Add(CreateNumericToken(token, 0));
                 i = tokens.Length;
@@ -1148,13 +1149,13 @@ internal sealed partial class HlslPreprocessor
 
             if (parenthesized)
             {
-                if (index < tokens.Length && tokens[index].Kind == HlslSyntaxKind.CloseParenToken)
+                if (index < tokens.Length && tokens[index].Kind == ShaderSyntaxKind.CloseParenToken)
                 {
                     index++;
                 }
                 else
                 {
-                    Report(HlslDescriptors.PreprocessorError, token.GetLocation(),
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(),
                         "defined の括弧が閉じられていません。");
                 }
             }

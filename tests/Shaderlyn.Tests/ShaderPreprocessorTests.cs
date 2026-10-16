@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
@@ -13,15 +14,15 @@ internal static class PreprocessorHarness
 {
     /// <summary>プリプロセスして結果を返す。</summary>
     public static PreprocessResult Run(string content, PreprocessorOptions? options = null)
-        => new HlslPreprocessor(options).Preprocess(SourceText.From(content, "test.hlsl"));
+        => new ShaderPreprocessor(options).Preprocess(SourceText.From(content, "test.hlsl"));
 
     /// <summary>プリプロセス結果のトークンを空白区切りの文字列にする。</summary>
     public static string Text(string content, PreprocessorOptions? options = null)
         => Join(Run(content, options).Tokens);
 
     /// <summary>トークン列を空白区切りの文字列にする。</summary>
-    public static string Join(ImmutableArray<HlslSyntaxToken> tokens)
-        => string.Join(" ", tokens.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken).Select(t => t.Text));
+    public static string Join(ImmutableArray<ShaderSyntaxToken> tokens)
+        => string.Join(" ", tokens.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken).Select(t => t.Text));
 
     /// <summary>診断メッセージを連結する。デバッグ表示用。</summary>
     public static string Describe(PreprocessResult result)
@@ -280,8 +281,8 @@ public sealed class MacroExpansionTests
             BAD_VALUE
             """);
 
-        HlslSyntaxToken token = Assert.Single(
-            result.Tokens.Where(t => t.Kind == HlslSyntaxKind.NumericLiteralToken));
+        ShaderSyntaxToken token = Assert.Single(
+            result.Tokens.Where(t => t.Kind == ShaderSyntaxKind.NumericLiteralToken));
 
         // 2 行目 (0 始まりで 1) にある使用箇所を指していること。
         Assert.Equal(1, token.Source.GetLinePosition(token.Span.Start).Line);
@@ -633,7 +634,7 @@ public sealed class IncludeHandlingTests
     [Fact]
     public void 循環includeを検出して停止する()
     {
-        PreprocessResult result = new HlslPreprocessor(WithFiles(
+        PreprocessResult result = new ShaderPreprocessor(WithFiles(
                 ("A.hlsl", "#include \"B.hlsl\""),
                 ("B.hlsl", "#include \"A.hlsl\"")))
             .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
@@ -682,13 +683,13 @@ public sealed class IncludeHandlingTests
     public void pragma_onceがあれば互いを取り込んでも循環にしない()
     {
         // Unreal Engine の Platform.ush と BindlessResources.ush がこの形をしている。DXC は 2 度目の取り込みを飛ばす。
-        PreprocessResult result = new HlslPreprocessor(WithFiles(
+        PreprocessResult result = new ShaderPreprocessor(WithFiles(
                 ("A.hlsl", "#pragma once\n#include \"B.hlsl\"\nfromA"),
                 ("B.hlsl", "#pragma once\n#include \"A.hlsl\"\nfromB")))
             .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0320");
-        Assert.Equal("fromB fromA", string.Join(" ", result.Tokens.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken).Select(t => t.Text)));
+        Assert.Equal("fromB fromA", string.Join(" ", result.Tokens.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken).Select(t => t.Text)));
         Assert.DoesNotContain(result.Macros.Keys, name => name.Contains("once", StringComparison.Ordinal));
     }
 

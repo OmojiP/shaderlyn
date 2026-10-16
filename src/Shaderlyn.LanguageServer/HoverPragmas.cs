@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
@@ -130,16 +131,16 @@ internal static partial class HoverBuilder
             return null;
         }
 
-        ImmutableArray<HlslSyntaxToken> tokens = compilation.CodeTokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = compilation.CodeTokens;
 
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
-                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
                 || tokens[i + 1].Text != "pragma"
                 || tokens[i + 1].IsAtLineStart
-                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 2].Kind != ShaderSyntaxKind.IdentifierToken
                 || tokens[i + 2].IsAtLineStart)
             {
                 continue;
@@ -149,7 +150,7 @@ internal static partial class HoverBuilder
             int end = i + 3;
             while (end < tokens.Length
                    && !tokens[end].IsAtLineStart
-                   && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+                   && tokens[end].Kind != ShaderSyntaxKind.EndOfFileToken)
             {
                 end++;
             }
@@ -160,8 +161,8 @@ internal static partial class HoverBuilder
                 continue;
             }
 
-            HlslSyntaxToken name = tokens[i + 2];
-            ImmutableArray<HlslSyntaxToken> arguments = tokens[(i + 3)..end];
+            ShaderSyntaxToken name = tokens[i + 2];
+            ImmutableArray<ShaderSyntaxToken> arguments = tokens[(i + 3)..end];
 
             if (Touches(tokens[i + 1], offset) || Touches(name, offset))
             {
@@ -170,7 +171,7 @@ internal static partial class HoverBuilder
 
             for (int j = 0; j < arguments.Length; j++)
             {
-                if (arguments[j].Kind == HlslSyntaxKind.IdentifierToken && Touches(arguments[j], offset))
+                if (arguments[j].Kind == ShaderSyntaxKind.IdentifierToken && Touches(arguments[j], offset))
                 {
                     return DescribePragmaArgument(name.Text, j, arguments[j]);
                 }
@@ -186,7 +187,7 @@ internal static partial class HoverBuilder
     /// <param name="name">名前のトークン。</param>
     /// <param name="arguments">名前に続く引数のトークン。</param>
     /// <returns>説明。</returns>
-    private static HoverResult DescribePragma(HlslSyntaxToken name, ImmutableArray<HlslSyntaxToken> arguments)
+    private static HoverResult DescribePragma(ShaderSyntaxToken name, ImmutableArray<ShaderSyntaxToken> arguments)
     {
         string line = Shorten(string.Join(" ", ["#pragma", name.Text, .. arguments.Select(a => a.Text)]));
 
@@ -252,7 +253,7 @@ internal static partial class HoverBuilder
     /// <param name="index">何番目の引数か (0 始まり)。</param>
     /// <param name="argument">引数のトークン。</param>
     /// <returns>説明。説明することが無い場合は <see langword="null"/>。</returns>
-    private static HoverResult? DescribePragmaArgument(string pragma, int index, HlslSyntaxToken argument)
+    private static HoverResult? DescribePragmaArgument(string pragma, int index, ShaderSyntaxToken argument)
     {
         string? body = pragma switch
         {

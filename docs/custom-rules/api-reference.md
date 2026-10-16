@@ -33,7 +33,7 @@
 | [`AnalyzedProgram`](#analyzedprogram) | セマンティックモデル |
 | [`AnalyzerOptions`](#analyzeroptions) | セマンティックモデル |
 | [`CallCompatibility`](#callcompatibility-shaderlynsemanticsprograms) | セマンティックモデル |
-| [`ConditionalTokenRange`](#conditionaltokenrange-shaderlynhlslpreprocessing) | セマンティックモデル |
+| [`ConditionalTokenRange`](#conditionaltokenrange-shaderlyncfamilypreprocessing) | セマンティックモデル |
 | [`ConditionMap`](#conditionmap-shaderlynsemanticsconditional) | セマンティックモデル |
 | [`Diagnostic`](#diagnostic) | 診断 |
 | [`DiagnosticAnalyzer`](#diagnosticanalyzer-shaderlyncoreanalysis) | アナライザ |
@@ -513,7 +513,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 
 - **マクロの実引数に書いたコード。** `SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv)` の `uv` や
   `HEADER_ID(uv.z)` の `uv.z` は、利用者が呼び出し位置に書いたものです。報告は実引数を書いた位置に出ます
-  (`HlslSyntaxToken.MacroArgumentSpan`)
+  (`ShaderSyntaxToken.MacroArgumentSpan`)
 - **先頭だけがヘッダのマクロのノード。** `fixed4 frag(v2f i) : SV_Target { ... }` の `fixed4` は `HLSLSupport.cginc` のマクロですが、
   `frag` 以降は利用者が書いたコードです
 
@@ -800,7 +800,7 @@ if (conditions.IsPossible(missing))
 
 囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
 
-### `ConditionalTokenRange` (`Shaderlyn.Hlsl.Preprocessing`)
+### `ConditionalTokenRange` (`Shaderlyn.CFamily.Preprocessing`)
 
 プリプロセッサが条件付きで出力したトークンの範囲です。`program.Tree.PreprocessResult.ConditionalRegions` で列挙できます。
 位置は展開後のトークン列 (`PreprocessResult.Tokens`) の添字で表します。

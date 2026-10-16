@@ -192,7 +192,7 @@ public sealed class UnityProbeCorpusTests(ITestOutputHelper output)
     {
         SourceText text = SourceText.Load(path);
         ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text),
-            new SemanticsOptions { IncludeResolver = new Hlsl.Preprocessing.FileSystemIncludeResolver([]) },
+            new SemanticsOptions { IncludeResolver = new CFamily.Preprocessing.FileSystemIncludeResolver([]) },
             options);
 
         return [.. compilation.Programs.Select(p => p.Tree.CompileTargets)];

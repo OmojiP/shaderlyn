@@ -1,11 +1,12 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -58,7 +59,7 @@ public sealed class Hlsl2021Tests
 
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
         Assert.Empty(tree.Diagnostics);
     }
@@ -69,7 +70,7 @@ public sealed class Hlsl2021Tests
     {
         HlslSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("template<typename T = vector<float, 3>> T Make() { return (T)0; }", "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
         Assert.Empty(tree.Diagnostics);
         Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "Make");
@@ -288,16 +289,16 @@ public sealed class Hlsl2021Tests
         public string Name => "test-hlsl2021";
 
         public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
-            => options with { LanguageVersion = HlslLanguageVersion.Hlsl2021 };
+            => options.WithHlsl(h => h with { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
         public PreprocessorOptions PrepareUnit(
             HlslCompilationUnit unit,
-            ImmutableArray<HlslSyntaxToken> tokens,
+            ImmutableArray<ShaderSyntaxToken> tokens,
             PreprocessorOptions options,
             string filePath)
             => options;
 
-        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
             => VariantSpace.Empty;
 
         public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => VariantSpace.Empty;

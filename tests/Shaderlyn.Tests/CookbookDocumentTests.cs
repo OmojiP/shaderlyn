@@ -37,13 +37,14 @@ public sealed partial class CookbookDocumentTests
         using System.IO;
         using System.Linq;
         using System.Threading.Tasks;
+        using Shaderlyn.CFamily.Preprocessing;
+        using Shaderlyn.CFamily.Syntax;
         using Shaderlyn.Cli;
         using Shaderlyn.Core.Analysis;
         using Shaderlyn.Core.Diagnostics;
         using Shaderlyn.Core.Syntax;
         using Shaderlyn.Core.Text;
         using Shaderlyn.Hlsl.Parsing;
-        using Shaderlyn.Hlsl.Preprocessing;
         using Shaderlyn.Hlsl.Syntax;
         using Shaderlyn.Semantics;
         using Shaderlyn.Semantics.Analysis;

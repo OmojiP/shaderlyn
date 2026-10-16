@@ -4,10 +4,11 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -70,23 +71,23 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(semantics);
 
-        return UnityPreprocessorDirectives.Apply(options) with
+        PreprocessorOptions unity = UnityPreprocessorDirectives.Apply(options) with
         {
             PredefinedMacros = semantics.PredefinedMacros ?? UnityOptions.DefaultPredefinedMacros,
-
-            // 使えない構文の報告 (HL0003) は、Unity のコンパイルでエラーになることを伝える。
-            DialectName = "Unity",
 
             // Unity は #pragma once を効かせない (UN0101)。実際と同じく 2 度取り込む。
             HonorPragmaOnce = false,
             Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
+
+        // 使えない構文の報告 (HL0003) は、Unity のコンパイルでエラーになることを伝える。
+        return unity.WithHlsl(h => h with { DialectName = "Unity" });
     }
 
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
         HlslCompilationUnit unit,
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
     {
@@ -120,32 +121,31 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         // include ファイルを単体で読んだときは、どこから取り込まれるかで変わるので決めない。
         if (IsCompiledShader(unit, filePath, out bool isCompute))
         {
-            options = options with
-            {
-                CompileTargets = UnityCompilerSelection.Select(tokens, isCompute, _options, ReadIncludedPragmas(tokens, options, filePath)),
-            };
+            ImmutableArray<HlslCompileTarget> targets =
+                UnityCompilerSelection.Select(tokens, isCompute, _options, ReadIncludedPragmas(tokens, options, filePath));
+            options = options.WithHlsl(h => h with { CompileTargets = targets });
         }
 
         return options;
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => ShaderSymbols.ReadVariantSpaceFromTokens(WithIncludeTokens(unit, tokens));
 
     /// <summary>コードブロックより先に読む共通コード片のトークンを、コードブロックのトークンの前に並べる。</summary>
     /// <param name="unit">対象の単位。</param>
     /// <param name="tokens">コードブロックのトークン。</param>
     /// <returns>並べたトークン。共通コード片が無ければ <paramref name="tokens"/> のまま。</returns>
-    private static ImmutableArray<HlslSyntaxToken> WithIncludeTokens(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    private static ImmutableArray<ShaderSyntaxToken> WithIncludeTokens(HlslCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (unit.Data is not UnityProgramBlock { IncludeText: { } includeText })
         {
             return tokens;
         }
 
-        ImmutableArray<HlslSyntaxToken> included = new HlslLexer(includeText).Lex(out _);
-        return [.. included.Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken), .. tokens];
+        ImmutableArray<ShaderSyntaxToken> included = new ShaderLexer(includeText).Lex(out _);
+        return [.. included.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken), .. tokens];
     }
 
     /// <inheritdoc/>
@@ -187,7 +187,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         foreach (PragmaDirective pragma in result.Pragmas)
         {
             if (!EntryPointPragmas.Contains(pragma.Name)
-                || pragma.Arguments.FirstOrDefault() is not { Kind: HlslSyntaxKind.IdentifierToken } name)
+                || pragma.Arguments.FirstOrDefault() is not { Kind: ShaderSyntaxKind.IdentifierToken } name)
             {
                 continue;
             }
@@ -222,7 +222,7 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// </para>
     /// </remarks>
     private UnityCompilerPragmas? ReadIncludedPragmas(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
     {
@@ -248,9 +248,9 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
             IncludedFile file = _includedFiles.GetValue(header, text =>
             {
-                ImmutableArray<HlslSyntaxToken> headerTokens = options.TokenCache is { } cache
+                ImmutableArray<ShaderSyntaxToken> headerTokens = options.TokenCache is { } cache
                     ? cache.GetOrLex(text, out _)
-                    : new HlslLexer(text).Lex(out _);
+                    : new ShaderLexer(text).Lex(out _);
 
                 return new IncludedFile(UnityCompilerPragmas.Read(headerTokens), ReadIncludeNames(headerTokens));
             });
@@ -272,16 +272,16 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// <summary>トークン列の <c>#include "..."</c> / <c>#include_with_pragmas "..."</c> の名前を集める。</summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>名前 (引用符を外したもの)。</returns>
-    private static ImmutableArray<string> ReadIncludeNames(ImmutableArray<HlslSyntaxToken> tokens)
+    private static ImmutableArray<string> ReadIncludeNames(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         ImmutableArray<string>.Builder names = ImmutableArray.CreateBuilder<string>();
 
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken
                 && tokens[i].IsAtLineStart
                 && tokens[i + 1].Text is "include" or "include_with_pragmas"
-                && tokens[i + 2].Kind == HlslSyntaxKind.StringLiteralToken
+                && tokens[i + 2].Kind == ShaderSyntaxKind.StringLiteralToken
                 && !tokens[i + 2].IsAtLineStart
                 && tokens[i + 2].Text.Length >= 2)
             {
@@ -312,11 +312,11 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// </summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>照明モデルの名前。サーフェスシェーダーでなければ <see langword="null"/>。</returns>
-    private static string? ReadSurfaceLighting(ImmutableArray<HlslSyntaxToken> tokens)
+    private static string? ReadSurfaceLighting(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i + 4 < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken
                 && tokens[i].IsAtLineStart
                 && tokens[i + 1].Text == "pragma"
                 && tokens[i + 2].Text == "surface"
@@ -353,13 +353,13 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
     /// 引き上げる値は、この環境で確かめられないので推測しない。
     /// </para>
     /// </remarks>
-    private static string? ReadShaderTarget(ImmutableArray<HlslSyntaxToken> tokens)
+    private static string? ReadShaderTarget(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         int best = -1;
 
         for (int i = 0; i + 3 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || tokens[i + 1].Text != "pragma"
                 || tokens[i + 2].Text != "target"

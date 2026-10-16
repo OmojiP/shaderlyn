@@ -1,8 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Parsing;
+namespace Shaderlyn.CFamily.Syntax;
 
 /// <summary>
 /// HLSL / Cg のソーステキストをトークン列へ分解する。
@@ -10,16 +9,16 @@ namespace Shaderlyn.Hlsl.Parsing;
 /// <remarks>
 /// <para>
 /// <b>この字句解析ツールは決して例外を投げない。</b>
-/// 未知の文字は <see cref="HlslSyntaxKind.BadToken"/> として 1 文字ずつ返し、
+/// 未知の文字は <see cref="ShaderSyntaxKind.BadToken"/> として 1 文字ずつ返し、
 /// 閉じられていない文字列やコメントはその行またはファイル末尾までを 1 つのトークンとして返す。
 /// </para>
 /// <para>
 /// プリプロセッサ指令は解釈しない。<c>#</c> をトークンとして返し、
 /// 行頭かどうかの情報を各トークンに持たせるところまでが役割である。
-/// 指令の解釈とマクロ展開は <see cref="Preprocessing.HlslPreprocessor"/> が行う。
+/// 指令の解釈とマクロ展開は <see cref="Preprocessing.ShaderPreprocessor"/> が行う。
 /// </para>
 /// </remarks>
-public sealed class HlslLexer
+public sealed class ShaderLexer
 {
     private readonly SourceText _text;
     private readonly List<LexerDiagnostic> _diagnostics = [];
@@ -30,7 +29,7 @@ public sealed class HlslLexer
     /// 字句解析ツールを生成する。
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
-    public HlslLexer(SourceText text)
+    public ShaderLexer(SourceText text)
     {
         ArgumentNullException.ThrowIfNull(text);
         _text = text;
@@ -48,16 +47,16 @@ public sealed class HlslLexer
     /// </summary>
     /// <param name="diagnostics">字句解析の過程で検出した問題。</param>
     /// <returns>トークンの列。末尾には必ず終端トークンが 1 つ含まれる。</returns>
-    public ImmutableArray<HlslSyntaxToken> Lex(out ImmutableArray<LexerDiagnostic> diagnostics)
+    public ImmutableArray<ShaderSyntaxToken> Lex(out ImmutableArray<LexerDiagnostic> diagnostics)
     {
-        ImmutableArray<HlslSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         while (true)
         {
-            HlslSyntaxToken token = LexToken();
+            ShaderSyntaxToken token = LexToken();
             tokens.Add(token);
 
-            if (token.Kind == HlslSyntaxKind.EndOfFileToken)
+            if (token.Kind == ShaderSyntaxKind.EndOfFileToken)
             {
                 break;
             }
@@ -71,24 +70,24 @@ public sealed class HlslLexer
     /// 先行 trivia、トークン本体、後続 trivia をこの順に読んで 1 つのトークンを組み立てる。
     /// </summary>
     /// <returns>読み取ったトークン。</returns>
-    private HlslSyntaxToken LexToken()
+    private ShaderSyntaxToken LexToken()
     {
-        ImmutableArray<HlslSyntaxTrivia> leading = LexTrivia(isTrailing: false);
+        ImmutableArray<ShaderSyntaxTrivia> leading = LexTrivia(isTrailing: false);
         bool atLineStart = _atLineStart;
 
         int start = _position;
-        (HlslSyntaxKind kind, string? valueText) = LexTokenCore();
+        (ShaderSyntaxKind kind, string? valueText) = LexTokenCore();
         TextSpan span = TextSpan.FromBounds(start, _position);
         string text = _text.ToString(span);
 
         // 本体を 1 つ読んだので、次のトークンはもう行頭ではない。
         _atLineStart = false;
 
-        ImmutableArray<HlslSyntaxTrivia> trailing = kind == HlslSyntaxKind.EndOfFileToken
+        ImmutableArray<ShaderSyntaxTrivia> trailing = kind == ShaderSyntaxKind.EndOfFileToken
             ? []
             : LexTrivia(isTrailing: true);
 
-        return new HlslSyntaxToken(kind, _text, span, text, atLineStart, leading, trailing, valueText);
+        return new ShaderSyntaxToken(kind, _text, span, text, atLineStart, leading, trailing, valueText);
     }
 
     /// <summary>
@@ -101,9 +100,9 @@ public sealed class HlslLexer
     /// <b>行継続 (<c>\</c> + 改行) では記録しない。</b>
     /// 複数行にわたるマクロ定義の 2 行目以降が指令として誤解釈されるのを防ぐためである。
     /// </remarks>
-    private ImmutableArray<HlslSyntaxTrivia> LexTrivia(bool isTrailing)
+    private ImmutableArray<ShaderSyntaxTrivia> LexTrivia(bool isTrailing)
     {
-        ImmutableArray<HlslSyntaxTrivia>.Builder trivia = ImmutableArray.CreateBuilder<HlslSyntaxTrivia>();
+        ImmutableArray<ShaderSyntaxTrivia>.Builder trivia = ImmutableArray.CreateBuilder<ShaderSyntaxTrivia>();
 
         while (_position < _text.Length)
         {
@@ -114,8 +113,8 @@ public sealed class HlslLexer
                 int start = _position;
                 _position = SkipHorizontalWhitespaceFrom(_position + 1);
                 ConsumeLineBreak();
-                trivia.Add(new HlslSyntaxTrivia(
-                    HlslSyntaxKind.LineContinuationTrivia, TextSpan.FromBounds(start, _position)));
+                trivia.Add(new ShaderSyntaxTrivia(
+                    ShaderSyntaxKind.LineContinuationTrivia, TextSpan.FromBounds(start, _position)));
                 continue;
             }
 
@@ -123,8 +122,8 @@ public sealed class HlslLexer
             {
                 int start = _position;
                 ConsumeLineBreak();
-                trivia.Add(new HlslSyntaxTrivia(
-                    HlslSyntaxKind.EndOfLineTrivia, TextSpan.FromBounds(start, _position)));
+                trivia.Add(new ShaderSyntaxTrivia(
+                    ShaderSyntaxKind.EndOfLineTrivia, TextSpan.FromBounds(start, _position)));
                 _atLineStart = true;
 
                 if (isTrailing)
@@ -139,8 +138,8 @@ public sealed class HlslLexer
             {
                 int start = _position;
                 _position = SkipHorizontalWhitespaceFrom(_position);
-                trivia.Add(new HlslSyntaxTrivia(
-                    HlslSyntaxKind.WhitespaceTrivia, TextSpan.FromBounds(start, _position)));
+                trivia.Add(new ShaderSyntaxTrivia(
+                    ShaderSyntaxKind.WhitespaceTrivia, TextSpan.FromBounds(start, _position)));
                 continue;
             }
 
@@ -171,7 +170,7 @@ public sealed class HlslLexer
     /// <c>// コメント \</c> と書くと次の行もコメントの一部になり、
     /// これを見落とすと次の行のコードが有効なコードとして解析されてしまう。
     /// </remarks>
-    private HlslSyntaxTrivia LexSingleLineComment()
+    private ShaderSyntaxTrivia LexSingleLineComment()
     {
         int start = _position;
 
@@ -192,12 +191,12 @@ public sealed class HlslLexer
             _position++;
         }
 
-        return new HlslSyntaxTrivia(HlslSyntaxKind.SingleLineCommentTrivia, TextSpan.FromBounds(start, _position));
+        return new ShaderSyntaxTrivia(ShaderSyntaxKind.SingleLineCommentTrivia, TextSpan.FromBounds(start, _position));
     }
 
     /// <summary>複数行コメントを読み進める。</summary>
     /// <returns>読み取った trivia。</returns>
-    private HlslSyntaxTrivia LexMultiLineComment()
+    private ShaderSyntaxTrivia LexMultiLineComment()
     {
         int start = _position;
         _position += 2;
@@ -207,8 +206,8 @@ public sealed class HlslLexer
             if (_text[_position] == '*' && Peek(1) == '/')
             {
                 _position += 2;
-                return new HlslSyntaxTrivia(
-                    HlslSyntaxKind.MultiLineCommentTrivia, TextSpan.FromBounds(start, _position));
+                return new ShaderSyntaxTrivia(
+                    ShaderSyntaxKind.MultiLineCommentTrivia, TextSpan.FromBounds(start, _position));
             }
 
             _position++;
@@ -218,28 +217,28 @@ public sealed class HlslLexer
             TextSpan.FromBounds(start, Math.Min(start + 2, _text.Length)),
             "複数行コメントが '*/' で閉じられていません。"));
 
-        return new HlslSyntaxTrivia(HlslSyntaxKind.MultiLineCommentTrivia, TextSpan.FromBounds(start, _position));
+        return new ShaderSyntaxTrivia(ShaderSyntaxKind.MultiLineCommentTrivia, TextSpan.FromBounds(start, _position));
     }
 
     /// <summary>トークン本体を 1 つ読み進める。</summary>
     /// <returns>読み取ったトークンの種別と、リテラルの場合はその値。</returns>
-    private (HlslSyntaxKind Kind, string? ValueText) LexTokenCore()
+    private (ShaderSyntaxKind Kind, string? ValueText) LexTokenCore()
     {
         if (_position >= _text.Length)
         {
-            return (HlslSyntaxKind.EndOfFileToken, null);
+            return (ShaderSyntaxKind.EndOfFileToken, null);
         }
 
         char current = _text[_position];
 
         if (current == '"')
         {
-            return LexStringLiteral('"', HlslSyntaxKind.StringLiteralToken);
+            return LexStringLiteral('"', ShaderSyntaxKind.StringLiteralToken);
         }
 
         if (current == '\'')
         {
-            return LexStringLiteral('\'', HlslSyntaxKind.CharacterLiteralToken);
+            return LexStringLiteral('\'', ShaderSyntaxKind.CharacterLiteralToken);
         }
 
         if (char.IsDigit(current) || (current == '.' && char.IsDigit(Peek(1))))
@@ -254,7 +253,7 @@ public sealed class HlslLexer
                 _position++;
             }
 
-            return (HlslSyntaxKind.IdentifierToken, null);
+            return (ShaderSyntaxKind.IdentifierToken, null);
         }
 
         return (LexPunctuation(), null);
@@ -269,7 +268,7 @@ public sealed class HlslLexer
     /// <c>&gt;&gt;=</c> を <c>&gt;&gt;</c> と <c>=</c> に分けてしまうと式の意味が変わるため、
     /// 3 文字・2 文字・1 文字の順に試す必要がある。
     /// </remarks>
-    private HlslSyntaxKind LexPunctuation()
+    private ShaderSyntaxKind LexPunctuation()
     {
         char c0 = _text[_position];
         char c1 = Peek(1);
@@ -279,38 +278,38 @@ public sealed class HlslLexer
         if (c0 == '<' && c1 == '<' && c2 == '=')
         {
             _position += 3;
-            return HlslSyntaxKind.LessThanLessThanEqualsToken;
+            return ShaderSyntaxKind.LessThanLessThanEqualsToken;
         }
 
         if (c0 == '>' && c1 == '>' && c2 == '=')
         {
             _position += 3;
-            return HlslSyntaxKind.GreaterThanGreaterThanEqualsToken;
+            return ShaderSyntaxKind.GreaterThanGreaterThanEqualsToken;
         }
 
         // 2 文字の演算子
-        HlslSyntaxKind? twoCharacter = (c0, c1) switch
+        ShaderSyntaxKind? twoCharacter = (c0, c1) switch
         {
-            ('+', '+') => HlslSyntaxKind.PlusPlusToken,
-            ('-', '-') => HlslSyntaxKind.MinusMinusToken,
-            ('+', '=') => HlslSyntaxKind.PlusEqualsToken,
-            ('-', '=') => HlslSyntaxKind.MinusEqualsToken,
-            ('*', '=') => HlslSyntaxKind.AsteriskEqualsToken,
-            ('/', '=') => HlslSyntaxKind.SlashEqualsToken,
-            ('%', '=') => HlslSyntaxKind.PercentEqualsToken,
-            ('=', '=') => HlslSyntaxKind.EqualsEqualsToken,
-            ('!', '=') => HlslSyntaxKind.ExclamationEqualsToken,
-            ('<', '=') => HlslSyntaxKind.LessThanEqualsToken,
-            ('>', '=') => HlslSyntaxKind.GreaterThanEqualsToken,
-            ('&', '&') => HlslSyntaxKind.AmpersandAmpersandToken,
-            ('|', '|') => HlslSyntaxKind.BarBarToken,
-            ('&', '=') => HlslSyntaxKind.AmpersandEqualsToken,
-            ('|', '=') => HlslSyntaxKind.BarEqualsToken,
-            ('^', '=') => HlslSyntaxKind.CaretEqualsToken,
-            ('<', '<') => HlslSyntaxKind.LessThanLessThanToken,
-            ('>', '>') => HlslSyntaxKind.GreaterThanGreaterThanToken,
-            (':', ':') => HlslSyntaxKind.ColonColonToken,
-            ('#', '#') => HlslSyntaxKind.HashHashToken,
+            ('+', '+') => ShaderSyntaxKind.PlusPlusToken,
+            ('-', '-') => ShaderSyntaxKind.MinusMinusToken,
+            ('+', '=') => ShaderSyntaxKind.PlusEqualsToken,
+            ('-', '=') => ShaderSyntaxKind.MinusEqualsToken,
+            ('*', '=') => ShaderSyntaxKind.AsteriskEqualsToken,
+            ('/', '=') => ShaderSyntaxKind.SlashEqualsToken,
+            ('%', '=') => ShaderSyntaxKind.PercentEqualsToken,
+            ('=', '=') => ShaderSyntaxKind.EqualsEqualsToken,
+            ('!', '=') => ShaderSyntaxKind.ExclamationEqualsToken,
+            ('<', '=') => ShaderSyntaxKind.LessThanEqualsToken,
+            ('>', '=') => ShaderSyntaxKind.GreaterThanEqualsToken,
+            ('&', '&') => ShaderSyntaxKind.AmpersandAmpersandToken,
+            ('|', '|') => ShaderSyntaxKind.BarBarToken,
+            ('&', '=') => ShaderSyntaxKind.AmpersandEqualsToken,
+            ('|', '=') => ShaderSyntaxKind.BarEqualsToken,
+            ('^', '=') => ShaderSyntaxKind.CaretEqualsToken,
+            ('<', '<') => ShaderSyntaxKind.LessThanLessThanToken,
+            ('>', '>') => ShaderSyntaxKind.GreaterThanGreaterThanToken,
+            (':', ':') => ShaderSyntaxKind.ColonColonToken,
+            ('#', '#') => ShaderSyntaxKind.HashHashToken,
             _ => null,
         };
 
@@ -321,38 +320,38 @@ public sealed class HlslLexer
         }
 
         // 1 文字の記号
-        HlslSyntaxKind? oneCharacter = c0 switch
+        ShaderSyntaxKind? oneCharacter = c0 switch
         {
-            '{' => HlslSyntaxKind.OpenBraceToken,
-            '}' => HlslSyntaxKind.CloseBraceToken,
-            '(' => HlslSyntaxKind.OpenParenToken,
-            ')' => HlslSyntaxKind.CloseParenToken,
-            '[' => HlslSyntaxKind.OpenBracketToken,
-            ']' => HlslSyntaxKind.CloseBracketToken,
-            ';' => HlslSyntaxKind.SemicolonToken,
-            ',' => HlslSyntaxKind.CommaToken,
-            '.' => HlslSyntaxKind.DotToken,
-            ':' => HlslSyntaxKind.ColonToken,
-            '?' => HlslSyntaxKind.QuestionToken,
-            '+' => HlslSyntaxKind.PlusToken,
-            '-' => HlslSyntaxKind.MinusToken,
-            '*' => HlslSyntaxKind.AsteriskToken,
-            '/' => HlslSyntaxKind.SlashToken,
-            '%' => HlslSyntaxKind.PercentToken,
-            '=' => HlslSyntaxKind.EqualsToken,
-            '<' => HlslSyntaxKind.LessThanToken,
-            '>' => HlslSyntaxKind.GreaterThanToken,
-            '!' => HlslSyntaxKind.ExclamationToken,
-            '&' => HlslSyntaxKind.AmpersandToken,
-            '|' => HlslSyntaxKind.BarToken,
-            '^' => HlslSyntaxKind.CaretToken,
-            '~' => HlslSyntaxKind.TildeToken,
-            '#' => HlslSyntaxKind.HashToken,
+            '{' => ShaderSyntaxKind.OpenBraceToken,
+            '}' => ShaderSyntaxKind.CloseBraceToken,
+            '(' => ShaderSyntaxKind.OpenParenToken,
+            ')' => ShaderSyntaxKind.CloseParenToken,
+            '[' => ShaderSyntaxKind.OpenBracketToken,
+            ']' => ShaderSyntaxKind.CloseBracketToken,
+            ';' => ShaderSyntaxKind.SemicolonToken,
+            ',' => ShaderSyntaxKind.CommaToken,
+            '.' => ShaderSyntaxKind.DotToken,
+            ':' => ShaderSyntaxKind.ColonToken,
+            '?' => ShaderSyntaxKind.QuestionToken,
+            '+' => ShaderSyntaxKind.PlusToken,
+            '-' => ShaderSyntaxKind.MinusToken,
+            '*' => ShaderSyntaxKind.AsteriskToken,
+            '/' => ShaderSyntaxKind.SlashToken,
+            '%' => ShaderSyntaxKind.PercentToken,
+            '=' => ShaderSyntaxKind.EqualsToken,
+            '<' => ShaderSyntaxKind.LessThanToken,
+            '>' => ShaderSyntaxKind.GreaterThanToken,
+            '!' => ShaderSyntaxKind.ExclamationToken,
+            '&' => ShaderSyntaxKind.AmpersandToken,
+            '|' => ShaderSyntaxKind.BarToken,
+            '^' => ShaderSyntaxKind.CaretToken,
+            '~' => ShaderSyntaxKind.TildeToken,
+            '#' => ShaderSyntaxKind.HashToken,
             _ => null,
         };
 
         _position++;
-        return oneCharacter ?? HlslSyntaxKind.BadToken;
+        return oneCharacter ?? ShaderSyntaxKind.BadToken;
     }
 
     /// <summary>
@@ -366,7 +365,7 @@ public sealed class HlslLexer
     /// 改行に達した時点で閉じ忘れとみなすのは、
     /// 閉じ忘れ 1 か所でファイル全体を文字列として飲み込まないためである。
     /// </remarks>
-    private (HlslSyntaxKind Kind, string? ValueText) LexStringLiteral(char quote, HlslSyntaxKind kind)
+    private (ShaderSyntaxKind Kind, string? ValueText) LexStringLiteral(char quote, ShaderSyntaxKind kind)
     {
         int start = _position;
         _position++;
@@ -420,7 +419,7 @@ public sealed class HlslLexer
     /// リテラルとして読めることだけを保証し、意味の検査は後段に委ねる。
     /// </para>
     /// </remarks>
-    private HlslSyntaxKind LexNumericLiteral()
+    private ShaderSyntaxKind LexNumericLiteral()
     {
         // 16 進数
         if (_text[_position] == '0' && (Peek(1) is 'x' or 'X'))
@@ -432,7 +431,7 @@ public sealed class HlslLexer
             }
 
             ConsumeNumericSuffix();
-            return HlslSyntaxKind.NumericLiteralToken;
+            return ShaderSyntaxKind.NumericLiteralToken;
         }
 
         // 2 進数。DXC は受け付ける (Unreal Engine の Nanite のシェーダーが 0b1111 のように書く)。
@@ -446,7 +445,7 @@ public sealed class HlslLexer
             }
 
             ConsumeNumericSuffix();
-            return HlslSyntaxKind.NumericLiteralToken;
+            return ShaderSyntaxKind.NumericLiteralToken;
         }
 
         while (_position < _text.Length && char.IsDigit(_text[_position]))
@@ -468,7 +467,7 @@ public sealed class HlslLexer
                 if (string.CompareOrdinal(_text.ToString(new TextSpan(_position, Math.Min(special.Length, _text.Length - _position))), special) == 0)
                 {
                     _position += special.Length;
-                    return HlslSyntaxKind.NumericLiteralToken;
+                    return ShaderSyntaxKind.NumericLiteralToken;
                 }
             }
         }
@@ -498,7 +497,7 @@ public sealed class HlslLexer
         }
 
         ConsumeNumericSuffix();
-        return HlslSyntaxKind.NumericLiteralToken;
+        return ShaderSyntaxKind.NumericLiteralToken;
     }
 
     /// <summary>数値リテラルの型接尾辞を読み飛ばす。</summary>

@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -31,13 +33,13 @@ namespace Shaderlyn.Rules;
 internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [HlslDescriptors.UnsupportedDeclaration];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [ShaderDescriptors.UnsupportedDeclaration];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
-        Dictionary<(string File, int Start), (HlslSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
+        Dictionary<(string File, int Start), (ShaderSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
         foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -74,12 +76,12 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        foreach ((HlslSyntaxToken token, string name, SortedSet<string> subjects) in found.Values)
+        foreach ((ShaderSyntaxToken token, string name, SortedSet<string> subjects) in found.Values)
         {
             if (token.GetLocation() is { } location)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects)));
+                    ShaderDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects)));
             }
         }
     }
@@ -195,7 +197,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     {
         int? best = null;
 
-        foreach (Hlsl.Preprocessing.PragmaDirective pragma in program.Tree.Pragmas)
+        foreach (CFamily.Preprocessing.PragmaDirective pragma in program.Tree.Pragmas)
         {
             if (pragma.Name == "target"
                 && pragma.Arguments.FirstOrDefault()?.Text is { } text
@@ -216,7 +218,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     private static Construct? DescribeType(HlslTypeSyntax type)
     {
         // vector<uint32_t, 2> は要素の型を見る。
-        HlslSyntaxToken token = type.NameToken.Text is "vector" or "matrix" && !type.TemplateArguments.IsDefaultOrEmpty
+        ShaderSyntaxToken token = type.NameToken.Text is "vector" or "matrix" && !type.TemplateArguments.IsDefaultOrEmpty
             ? type.TemplateArguments[0]
             : type.NameToken;
         string written = token.Text;
@@ -260,7 +262,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <param name="Token">報告する位置。</param>
     /// <param name="Name">文に入れる名前。</param>
     /// <param name="IsAvailable">方言で使えるか。</param>
-    private sealed record Construct(HlslSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
+    private sealed record Construct(ShaderSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
     {
         /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、方言で見るか。</summary>
         public bool CheckWithoutTargets { get; init; }

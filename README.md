@@ -264,7 +264,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md)                                                         |
+| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md)       |
 | CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |

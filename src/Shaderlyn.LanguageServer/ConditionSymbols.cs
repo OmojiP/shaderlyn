@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
@@ -138,7 +139,7 @@ internal static class ConditionSymbols
         {
             PreprocessResult result = program.Tree.PreprocessResult;
 
-            foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
+            foreach (ShaderSyntaxToken token in result.ConditionalIdentifiers)
             {
                 // このファイルに書かれた条件だけを見る。
                 // 取り込んだヘッダの条件を並べても、利用者のファイルのコードは変わらない。
@@ -203,7 +204,7 @@ internal static class ConditionSymbols
         }
 
         VariantSpace declared = environment.ReadDeclaredVariants(
-            HlslEnvironment.WholeFile(text), new HlslLexer(text).Lex(out _));
+            HlslEnvironment.WholeFile(text), new ShaderLexer(text).Lex(out _));
 
         return [.. symbols.Where(symbol => !declared.IsDeclared(symbol))];
     }

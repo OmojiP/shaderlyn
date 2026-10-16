@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
@@ -42,7 +43,7 @@ public sealed class BannedOperatorAnalyzer(params string[] banned) : HlslRuleAna
     /// <typeparam name="TNode">対象ノードの型。</typeparam>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="operatorToken">演算子のトークン。</param>
-    private void Check<TNode>(HlslNodeAnalysisContext<TNode> context, HlslSyntaxToken operatorToken)
+    private void Check<TNode>(HlslNodeAnalysisContext<TNode> context, ShaderSyntaxToken operatorToken)
         where TNode : HlslSyntaxNode
     {
         string text = operatorToken.Text;

@@ -1,11 +1,12 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.Unity;
-using Shaderlyn.Rules;
 
 namespace Shaderlyn.Unity.Rules;
 
@@ -226,9 +227,9 @@ internal sealed class ObsoleteApiAnalyzer : SemanticRuleAnalyzer
         }
 
         // 利用者が書いて取り込んだヘッダの中の呼び出しも、利用者が直すコードである。
-        foreach (HlslSyntaxToken token in compilation.CodeTokens.Concat(compilation.UserIncludeCodeTokens))
+        foreach (ShaderSyntaxToken token in compilation.CodeTokens.Concat(compilation.UserIncludeCodeTokens))
         {
-            if (token.Kind != HlslSyntaxKind.IdentifierToken
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken
                 || !obsolete.TryGetValue(token.Text, out string? replacement))
             {
                 continue;

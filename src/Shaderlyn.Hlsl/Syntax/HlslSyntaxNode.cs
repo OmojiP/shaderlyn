@@ -1,3 +1,4 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -9,7 +10,7 @@ namespace Shaderlyn.Hlsl.Syntax;
 /// </summary>
 public readonly struct HlslNodeOrToken
 {
-    private HlslNodeOrToken(HlslSyntaxNode? node, HlslSyntaxToken? token)
+    private HlslNodeOrToken(HlslSyntaxNode? node, ShaderSyntaxToken? token)
     {
         Node = node;
         Token = token;
@@ -19,7 +20,7 @@ public readonly struct HlslNodeOrToken
     public HlslSyntaxNode? Node { get; }
 
     /// <summary>トークンの場合はその参照。</summary>
-    public HlslSyntaxToken? Token { get; }
+    public ShaderSyntaxToken? Token { get; }
 
     /// <summary>ノードを表しているかどうか。</summary>
     public bool IsNode => Node is not null;
@@ -29,7 +30,7 @@ public readonly struct HlslNodeOrToken
 
     /// <summary>トークンをこの型へ変換する。</summary>
     /// <param name="token">変換元のトークン。</param>
-    public static implicit operator HlslNodeOrToken(HlslSyntaxToken token) => new(null, token);
+    public static implicit operator HlslNodeOrToken(ShaderSyntaxToken token) => new(null, token);
 
     /// <summary>ノードをこの型へ変換する。</summary>
     /// <param name="node">変換元のノード。</param>
@@ -61,7 +62,7 @@ public readonly struct HlslNodeOrToken
 public abstract class HlslSyntaxNode : SyntaxNode
 {
     private TextSpan? _span;
-    private HlslSyntaxToken? _firstToken;
+    private ShaderSyntaxToken? _firstToken;
     private bool _firstTokenComputed;
 
     /// <inheritdoc/>
@@ -119,7 +120,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// このノードに含まれるすべてのトークンを、出現順に列挙する。
     /// </summary>
     /// <returns>トークンの列。</returns>
-    public IEnumerable<HlslSyntaxToken> DescendantTokens()
+    public IEnumerable<ShaderSyntaxToken> DescendantTokens()
     {
         foreach (HlslNodeOrToken child in ChildNodesAndTokens())
         {
@@ -129,7 +130,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
             }
             else if (child.Node is not null)
             {
-                foreach (HlslSyntaxToken token in child.Node.DescendantTokens())
+                foreach (ShaderSyntaxToken token in child.Node.DescendantTokens())
                 {
                     yield return token;
                 }
@@ -144,7 +145,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// 診断の位置と、どのファイル由来かの判定に使う。
     /// 子の分を使い回すので、木全体でもノード数に比例した走査で済む。
     /// </remarks>
-    public HlslSyntaxToken? FirstToken
+    public ShaderSyntaxToken? FirstToken
     {
         get
         {
@@ -172,7 +173,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// </remarks>
     public Location? GetLocation()
     {
-        HlslSyntaxToken? first = FirstToken;
+        ShaderSyntaxToken? first = FirstToken;
 
         if (first is null)
         {
@@ -181,13 +182,13 @@ public abstract class HlslSyntaxNode : SyntaxNode
 
         // 利用者のファイルが書いたマクロから来たコードは、本体の位置を指す。
         // そこが利用者の直す場所であり、同じマクロを何度使っても 1 か所にまとまる
-        // (HlslSyntaxToken.MacroDefinitionSpan)。本体は呼び出しと別のファイルにあることがある。
+        // (ShaderSyntaxToken.MacroDefinitionSpan)。本体は呼び出しと別のファイルにあることがある。
         if (first.MacroDefinitionSpan is { } definition)
         {
             return Location.Create(first.MacroDefinitionSource ?? first.Source, definition);
         }
 
-        // マクロの実引数として書かれたコードは、書かれた位置を指す (HlslSyntaxToken.MacroArgumentSpan)。
+        // マクロの実引数として書かれたコードは、書かれた位置を指す (ShaderSyntaxToken.MacroArgumentSpan)。
         // 終わりも実引数なら、そこまでを含める。
         if (first.MacroArgumentSpan is { } argument)
         {
@@ -204,9 +205,9 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// <returns>書かれた位置。最後のトークンが実引数でなければ <see langword="null"/>。</returns>
     private TextSpan? LastArgumentSpan()
     {
-        HlslSyntaxToken? last = null;
+        ShaderSyntaxToken? last = null;
 
-        foreach (HlslSyntaxToken token in DescendantTokens())
+        foreach (ShaderSyntaxToken token in DescendantTokens())
         {
             last = token;
         }
@@ -220,7 +221,7 @@ public abstract class HlslSyntaxNode : SyntaxNode
     /// 子ノードの先頭トークンは覚えてあるので、子を順に見れば足りる。
     /// 部分木のトークンを毎回すべて歩く必要は無い。
     /// </remarks>
-    private HlslSyntaxToken? FindFirstToken()
+    private ShaderSyntaxToken? FindFirstToken()
     {
         foreach (HlslNodeOrToken child in ChildNodesAndTokens())
         {

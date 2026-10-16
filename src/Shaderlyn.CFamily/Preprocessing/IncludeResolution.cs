@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.Core.Text;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// <c>#include</c> のパスを実際のソーステキストへ解決する。
@@ -166,7 +166,7 @@ internal sealed class FileSystemIncludeResolver : IIncludeResolver
     /// </para>
     /// <para>
     /// <b>1 つのパスからは 1 つのインスタンスしか作らない。</b>
-    /// 字句解析のキャッシュ (<see cref="HlslTokenCache"/>) はソーステキストの
+    /// 字句解析のキャッシュ (<see cref="TokenCache"/>) はソーステキストの
     /// <b>参照</b>をキーにしている。
     /// 「調べてから入れる」書き方だと、複数のスレッドが同時に来たときに
     /// 同じファイルから別々のインスタンスが生まれ、

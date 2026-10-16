@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics.Environments;
 
 namespace Shaderlyn.Unreal;

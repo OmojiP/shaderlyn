@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// HLSL のプリプロセッサ。指令を解釈し、マクロを展開し、include を取り込む。
@@ -28,26 +28,26 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// 可能な限り処理を継続する。
 /// </para>
 /// </remarks>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     private readonly PreprocessorOptions _options;
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly ImmutableArray<PragmaDirective>.Builder _pragmas = ImmutableArray.CreateBuilder<PragmaDirective>();
 
     /// <summary>条件で参照された名前。シンボルの検査に使う。</summary>
-    private readonly List<HlslSyntaxToken> _conditionalIdentifiers = [];
-    private readonly ImmutableArray<HlslSyntaxToken>.Builder _output = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+    private readonly List<ShaderSyntaxToken> _conditionalIdentifiers = [];
+    private readonly ImmutableArray<ShaderSyntaxToken>.Builder _output = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
     private readonly TrackedTable<MacroDefinition> _macros = new();
 
     /// <summary>本体での位置を付けたマクロの本体。展開のたびに作り直さないために覚える。</summary>
-    private readonly Dictionary<MacroDefinition, ImmutableArray<HlslSyntaxToken>> _markedBodies = [];
+    private readonly Dictionary<MacroDefinition, ImmutableArray<ShaderSyntaxToken>> _markedBodies = [];
 
     /// <summary>
     /// マクロ表の内容を表すハッシュ。定義を足し引きするたびに差分で更新する。
     /// </summary>
     /// <remarks>
-    /// <b>取り込みの展開結果を使い回してよいかの鍵である (<see cref="HlslIncludeCache"/>)。</b>
+    /// <b>取り込みの展開結果を使い回してよいかの鍵である (<see cref="IncludeCache"/>)。</b>
     /// 1 つの定義の追加・削除を排他的論理和で足し引きするので、
     /// 表がどれだけ大きくても更新も比較も定数時間で済む。
     /// </remarks>
@@ -66,7 +66,7 @@ internal sealed partial class HlslPreprocessor
     /// <b>この名前は、構成が変われば別のものになりうる。</b>
     /// URP の <c>SAMPLE_GI</c> は 8 通りに定義され、引数の数まで違う。
     /// こういう名前を呼んでいる領域は、両方の分岐を並べられない
-    /// (<see cref="ChooseKeptCondition(SymbolCondition?, HlslSyntaxToken)"/>)。
+    /// (<see cref="ChooseKeptCondition(SymbolCondition?, ShaderSyntaxToken)"/>)。
     /// </remarks>
     private readonly TrackedNameSet _conditionallyDefinedMacros = new();
 
@@ -170,7 +170,7 @@ internal sealed partial class HlslPreprocessor
         Dictionary<string, MacroDefinition?> MacroChanges)
     {
         /// <summary>この展開の中で、利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
-        public List<HlslSyntaxToken> SkippedUserIdentifiers { get; } = [];
+        public List<ShaderSyntaxToken> SkippedUserIdentifiers { get; } = [];
 
         /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
         public bool Uncacheable { get; set; }
@@ -234,10 +234,10 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary>トークン列ごとに、条件以外の場所に現れる名前。</summary>
     /// <remarks>マクロを定義する分岐を並べてよいかの判定に使う。</remarks>
-    private readonly Dictionary<ImmutableArray<HlslSyntaxToken>, HashSet<string>> _namesUsedInCode = [];
+    private readonly Dictionary<ImmutableArray<ShaderSyntaxToken>, HashSet<string>> _namesUsedInCode = [];
 
     /// <summary>トークン列ごとの、<c>#define</c> した回数を名前ごとに数えたもの。</summary>
-    private readonly Dictionary<ImmutableArray<HlslSyntaxToken>, Dictionary<string, int>> _defineCounts = [];
+    private readonly Dictionary<ImmutableArray<ShaderSyntaxToken>, Dictionary<string, int>> _defineCounts = [];
 
     /// <summary>
     /// 並べた分岐で定義したマクロの、定義がある条件と定義の数。
@@ -302,10 +302,10 @@ internal sealed partial class HlslPreprocessor
     private readonly HashSet<string> _skippedIncludedIdentifiers = new(StringComparer.Ordinal);
 
     /// <summary>解析しているファイル自身の非活性領域に現れた識別子。位置を持つ。</summary>
-    private readonly List<HlslSyntaxToken> _skippedRootIdentifiers = [];
+    private readonly List<ShaderSyntaxToken> _skippedRootIdentifiers = [];
 
     /// <summary>利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
-    private readonly List<HlslSyntaxToken> _skippedUserHeaderIdentifiers = [];
+    private readonly List<ShaderSyntaxToken> _skippedUserHeaderIdentifiers = [];
 
     /// <summary>このファイルの中で、条件が外れて読み飛ばした分岐。エディタの表示に使う。</summary>
     private readonly List<InactiveRegion> _inactiveRegions = [];
@@ -314,7 +314,7 @@ internal sealed partial class HlslPreprocessor
     /// プリプロセッサを生成する。
     /// </summary>
     /// <param name="options">実行時設定。</param>
-    public HlslPreprocessor(PreprocessorOptions? options = null)
+    public ShaderPreprocessor(PreprocessorOptions? options = null)
     {
         _options = options ?? PreprocessorOptions.Default;
 
@@ -419,7 +419,7 @@ internal sealed partial class HlslPreprocessor
     private bool ProcessNextToken()
     {
         {
-            HlslSyntaxToken? token = PeekToken();
+            ShaderSyntaxToken? token = PeekToken();
             if (token is null)
             {
                 return false;
@@ -428,7 +428,7 @@ internal sealed partial class HlslPreprocessor
             // 指令として扱ってよいのはファイル由来のトークンだけである。
             // マクロ展開の結果に現れた # を指令と誤認すると、
             // 文字列化演算子を含むマクロで解析が崩れる。
-            if (token.Kind == HlslSyntaxKind.HashToken && token.IsAtLineStart && CurrentSource.IsFile)
+            if (token.Kind == ShaderSyntaxKind.HashToken && token.IsAtLineStart && CurrentSource.IsFile)
             {
                 ProcessDirective();
                 MoveUnitAnchorPastDirective();
@@ -437,13 +437,13 @@ internal sealed partial class HlslPreprocessor
 
             if (IsSkipping)
             {
-                HlslSyntaxToken skipped = TakeToken();
+                ShaderSyntaxToken skipped = TakeToken();
 
                 // 非活性領域の識別子を覚えておく。
                 // 単一構成での展開では「別の構成でのみ宣言される uniform」が見えないため、
                 // 「宣言が見つからない」ことを根拠に診断を出すルールが誤検出を起こす。
                 // ここで名前を残しておけば、ルール側がその誤検出を避けられる。
-                if (skipped.Kind == HlslSyntaxKind.IdentifierToken)
+                if (skipped.Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     AddSkippedIdentifier(skipped);
                 }
@@ -453,7 +453,7 @@ internal sealed partial class HlslPreprocessor
 
             // キーワードで定義の変わるマクロがコードに現れたら、そのキーワードは連なりの外のトークンも変える。
             // 取り込みの記録には名前を残す。使い回したときに、その時点のマクロの記録で数え直す。
-            if (token.Kind == HlslSyntaxKind.IdentifierToken)
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 NoteMacroUseInCode(token.Text);
 
@@ -464,12 +464,12 @@ internal sealed partial class HlslPreprocessor
                 }
             }
 
-            if (token.Kind == HlslSyntaxKind.IdentifierToken && TryHoistConditionalMacro())
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken && TryHoistConditionalMacro())
             {
                 return true;
             }
 
-            if (token.Kind == HlslSyntaxKind.IdentifierToken && TryExpandMacro())
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken && TryExpandMacro())
             {
                 return true;
             }
@@ -478,7 +478,7 @@ internal sealed partial class HlslPreprocessor
 
             // キーワードの名前がコードに残るなら、そのキーワードは連なりの外のトークンも変える
             // (有効にすると 1 に展開される)。まとめた構成に入れない (MacroAffectingSymbols)。
-            if (token.Kind == HlslSyntaxKind.IdentifierToken && _options.ConfigurationSymbols.Contains(token.Text))
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken && _options.ConfigurationSymbols.Contains(token.Text))
             {
                 _macroAffectingSymbols.Add(token.Text);
                 Record(recording => recording.MacroAffectingSymbols.Add(token.Text));
@@ -497,7 +497,7 @@ internal sealed partial class HlslPreprocessor
     /// <param name="left">左のトークン。</param>
     /// <param name="right">右のトークン。</param>
     /// <returns>隣接している場合は <see langword="true"/>。</returns>
-    private static bool IsAdjacent(HlslSyntaxToken left, HlslSyntaxToken right)
+    private static bool IsAdjacent(ShaderSyntaxToken left, ShaderSyntaxToken right)
         => ReferenceEquals(left.Source, right.Source) && left.Span.End == right.Span.Start;
 
     /// <summary>利用者のファイル (解析しているファイルと、利用者が書いたヘッダ) かを判定した結果。</summary>
@@ -534,7 +534,7 @@ internal sealed partial class HlslPreprocessor
     /// <summary>トークンが、利用者のファイルにそのまま書かれたものかを判定する。</summary>
     /// <param name="token">判定するトークン。</param>
     /// <returns>マクロの展開でなく、利用者のファイルにあれば <see langword="true"/>。</returns>
-    private bool IsWrittenInUserFile(HlslSyntaxToken token)
+    private bool IsWrittenInUserFile(ShaderSyntaxToken token)
         => !token.IsFromMacroExpansion && IsUserFile(token.Source.FilePath);
 
     /// <summary>合成トークンを作る。</summary>
@@ -542,34 +542,34 @@ internal sealed partial class HlslPreprocessor
     /// <param name="text">トークンのテキスト。</param>
     /// <param name="location">位置の基準とするトークン。</param>
     /// <returns>作成したトークン。</returns>
-    private HlslSyntaxToken CreateSyntheticToken(HlslSyntaxKind kind, string text, HlslSyntaxToken? location = null)
+    private ShaderSyntaxToken CreateSyntheticToken(ShaderSyntaxKind kind, string text, ShaderSyntaxToken? location = null)
     {
         SourceText source = location?.Source ?? SourceText.From(string.Empty, "<合成>");
         TextSpan span = location?.Span ?? new TextSpan(0, 0);
-        return new HlslSyntaxToken(kind, source, span, text, isMissing: true);
+        return new ShaderSyntaxToken(kind, source, span, text, isMissing: true);
     }
 
     /// <summary>数値リテラルのトークンを作る。</summary>
     /// <param name="location">位置の基準とするトークン。</param>
     /// <param name="value">数値。</param>
     /// <returns>作成したトークン。</returns>
-    private static HlslSyntaxToken CreateNumericToken(HlslSyntaxToken location, int value)
-        => new(HlslSyntaxKind.NumericLiteralToken, location.Source, location.Span,
+    private static ShaderSyntaxToken CreateNumericToken(ShaderSyntaxToken location, int value)
+        => new(ShaderSyntaxKind.NumericLiteralToken, location.Source, location.Span,
             value.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     /// <summary>文字列リテラルのトークンを作る。</summary>
     /// <param name="value">文字列の中身。</param>
     /// <param name="location">位置の基準とするトークン。</param>
     /// <returns>作成したトークン。</returns>
-    private static HlslSyntaxToken CreateStringToken(string value, HlslSyntaxToken location)
-        => new(HlslSyntaxKind.StringLiteralToken, location.Source, location.Span, $"\"{value}\"",
+    private static ShaderSyntaxToken CreateStringToken(string value, ShaderSyntaxToken location)
+        => new(ShaderSyntaxKind.StringLiteralToken, location.Source, location.Span, $"\"{value}\"",
             valueText: value);
 
     /// <summary>指令の行から診断の位置を求める。</summary>
     /// <param name="line">指令の行のトークン。</param>
     /// <param name="directiveToken">指令名のトークン。行が空 (<c>#define</c> だけ) なら、ここを指す。</param>
     /// <returns>診断の位置。</returns>
-    private static Location GetDirectiveLocation(ImmutableArray<HlslSyntaxToken> line, HlslSyntaxToken directiveToken)
+    private static Location GetDirectiveLocation(ImmutableArray<ShaderSyntaxToken> line, ShaderSyntaxToken directiveToken)
         => line.IsEmpty ? directiveToken.GetLocation() : line[0].GetLocation();
 
     /// <summary>診断を記録する。</summary>

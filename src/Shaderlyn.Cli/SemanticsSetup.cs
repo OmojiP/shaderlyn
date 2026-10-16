@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Cli.Environments;
 using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
 using Shaderlyn.Unity.Profiles;
@@ -54,11 +54,11 @@ internal static class SemanticsSetup
             // 複数ファイルを解析するので必ず共有する。
             // 同じ URP のヘッダ群を Pass ごと・ファイルごとに字句解析し直すと、
             // 解析時間の大半がそこに消える。
-            TokenCache = new HlslTokenCache(),
+            TokenCache = new TokenCache(),
 
             // 同じヘッダを同じマクロの状態で取り込んだら使い回す。
             // ブロックごと・ファイルごとの展開の大半がこれに当たる。
-            IncludeCache = new HlslIncludeCache(),
+            IncludeCache = new IncludeCache(),
 
             // 段ごとの内訳を測る先。--timings のときだけ渡される。
             SyntaxTimings = syntaxTimings,

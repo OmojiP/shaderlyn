@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// <c>#include</c> が読んでよい場所を決める。

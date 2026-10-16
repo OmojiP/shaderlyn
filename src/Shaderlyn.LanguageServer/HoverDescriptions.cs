@@ -1,3 +1,4 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
@@ -119,7 +120,7 @@ internal static partial class HoverBuilder
     /// <param name="nameToken">構造体の名前のトークン。</param>
     /// <returns>説明。</returns>
     /// <remarks>フィールドの一覧を出す。型を辿るときに最初に見たいものである。</remarks>
-    private static HoverResult DescribeStruct(StructDeclarationSyntax structure, HlslSyntaxToken nameToken)
+    private static HoverResult DescribeStruct(StructDeclarationSyntax structure, ShaderSyntaxToken nameToken)
     {
         IEnumerable<string> fields = structure.Members
             .OfType<VariableDeclarationSyntax>()
@@ -138,7 +139,7 @@ internal static partial class HoverBuilder
     private static HoverResult DescribeConstantBuffer(
         ShaderCompilation compilation,
         ConstantBufferDeclarationSyntax buffer,
-        HlslSyntaxToken nameToken)
+        ShaderSyntaxToken nameToken)
     {
         int members = buffer.Members.OfType<VariableDeclarationSyntax>().Sum(m => m.Variables.Count());
 

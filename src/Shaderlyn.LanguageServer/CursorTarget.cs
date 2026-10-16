@@ -1,3 +1,4 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
@@ -37,7 +38,7 @@ internal static class CursorTarget
     /// 展開後の構文木では、マクロから生まれた名前が呼び出し位置に重なっており、
     /// カーソルの下にある語と一致しない。マクロの名前そのものも、展開後には消えている。
     /// </remarks>
-    public static HlslSyntaxToken? FindIdentifier(ShaderCompilation compilation, int offset)
+    public static ShaderSyntaxToken? FindIdentifier(ShaderCompilation compilation, int offset)
         => compilation.CodeTokens.FirstOrDefault(
-            t => t.Kind == HlslSyntaxKind.IdentifierToken && Touches(t.Span, offset));
+            t => t.Kind == ShaderSyntaxKind.IdentifierToken && Touches(t.Span, offset));
 }

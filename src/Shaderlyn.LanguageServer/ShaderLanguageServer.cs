@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Text.Json;
+using Shaderlyn.Cli;
+using Shaderlyn.Cli.Inspection;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.LanguageServer.Protocol;
-using Shaderlyn.Cli;
-using Shaderlyn.Cli.Inspection;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.LanguageServer;
@@ -367,7 +367,7 @@ public sealed partial class ShaderLanguageServer
     /// 取り込んだファイルについて覚えていることを捨てる。
     /// </summary>
     /// <remarks>
-    /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (HlslIncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
+    /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (IncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
     /// 単位ごと作り直す。設定ファイルも読み直すが、保存のたびに 1 度なので重くはない。
     /// </remarks>
     private void ForgetIncludedFiles()

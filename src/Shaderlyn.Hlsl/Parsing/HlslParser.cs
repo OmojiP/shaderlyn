@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
@@ -48,7 +50,7 @@ internal sealed class HlslParser
     /// </remarks>
     public const int MaxBinaryOperands = 8192;
 
-    private readonly ImmutableArray<HlslSyntaxToken> _tokens;
+    private readonly ImmutableArray<ShaderSyntaxToken> _tokens;
     private readonly SourceText? _ownSource;
     private readonly Func<string, bool>? _isUserInclude;
     private readonly Dictionary<SourceText, bool> _ownSources = [];
@@ -60,13 +62,13 @@ internal sealed class HlslParser
     private int _reportedErrors;
 
     /// <summary>最後に構文エラーを報告した位置のトークン。同じ位置で重ねて報告しないために使う。</summary>
-    private HlslSyntaxToken? _lastErrorToken;
+    private ShaderSyntaxToken? _lastErrorToken;
 
     /// <summary>
     /// パーサを生成する。
     /// </summary>
     /// <param name="tokens">プリプロセス済みのトークン列。</param>
-    public HlslParser(ImmutableArray<HlslSyntaxToken> tokens)
+    public HlslParser(ImmutableArray<ShaderSyntaxToken> tokens)
         => _tokens = tokens.IsDefault ? [] : tokens;
 
     /// <summary>
@@ -98,7 +100,7 @@ internal sealed class HlslParser
     /// 範囲も括弧から求まる。中の文だけを作らない。
     /// </para>
     /// </remarks>
-    public HlslParser(ImmutableArray<HlslSyntaxToken> tokens, SourceText? ownSource, Func<string, bool>? isUserInclude = null)
+    public HlslParser(ImmutableArray<ShaderSyntaxToken> tokens, SourceText? ownSource, Func<string, bool>? isUserInclude = null)
         : this(tokens)
     {
         _ownSource = ownSource;
@@ -112,7 +114,7 @@ internal sealed class HlslParser
     public HlslLanguageFeatures Features { get; init; } = HlslDialect.Fxc.Features;
 
     /// <summary>
-    /// 使えない構文の報告 (HL0003) に入れる、どこで使えないかを伝える語 (<see cref="Preprocessing.PreprocessorOptions.DescribeDialect"/>)。
+    /// 使えない構文の報告 (HL0003) に入れる、どこで使えないかを伝える語 (<see cref="HlslLanguageOptions.DescribeUnavailable"/>)。
     /// </summary>
     public string DialectSubject { get; init; } = "FXC";
 
@@ -130,9 +132,9 @@ internal sealed class HlslParser
     /// 報告して読み飛ばした宣言 (どの方言でも使えない構文) では、ブロックの解析そのものが不完全になるので集めない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> UnanalyzedIdentifiers => [.. _unanalyzedIdentifiers];
+    public ImmutableArray<ShaderSyntaxToken> UnanalyzedIdentifiers => [.. _unanalyzedIdentifiers];
 
-    private readonly List<HlslSyntaxToken> _unanalyzedIdentifiers = [];
+    private readonly List<ShaderSyntaxToken> _unanalyzedIdentifiers = [];
 
     /// <summary>
     /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する。
@@ -155,7 +157,7 @@ internal sealed class HlslParser
     /// どちらも閉じているならそのまま並べてよい。
     /// </para>
     /// </remarks>
-    public static bool IsCompleteUnits(ImmutableArray<HlslSyntaxToken> tokens)
+    public static bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (tokens.IsDefaultOrEmpty)
         {
@@ -188,7 +190,7 @@ internal sealed class HlslParser
     /// 関数の中なら文、ファイルの直下なら宣言だが、
     /// どちらの位置のトークン列かは呼び出し側にも分からないことがある。
     /// </remarks>
-    public static bool TryParseSingleUnit(ImmutableArray<HlslSyntaxToken> tokens, out int consumed)
+    public static bool TryParseSingleUnit(ImmutableArray<ShaderSyntaxToken> tokens, out int consumed)
     {
         if (TryParseOne(tokens, asStatement: true, out consumed))
         {
@@ -209,7 +211,7 @@ internal sealed class HlslParser
     /// そのため、診断の有無と進んだ量の両方を見る。
     /// </remarks>
     private static bool TryParseOne(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         bool asStatement,
         out int consumed)
     {
@@ -227,9 +229,9 @@ internal sealed class HlslParser
         return true;
     }
 
-    private HlslSyntaxToken Current => Peek(0);
+    private ShaderSyntaxToken Current => Peek(0);
 
-    private bool AtEnd => _index >= _tokens.Length || Current.Kind == HlslSyntaxKind.EndOfFileToken;
+    private bool AtEnd => _index >= _tokens.Length || Current.Kind == ShaderSyntaxKind.EndOfFileToken;
 
     /// <summary>
     /// ファイル全体を解析する。
@@ -275,7 +277,7 @@ internal sealed class HlslParser
     /// </remarks>
     private HlslDeclarationSyntax ParseDeclaration()
     {
-        if (Current.Kind == HlslSyntaxKind.SemicolonToken)
+        if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
             // 余分なセミコロン。誤りではないので、報告せずに読み飛ばす。
             return new IncompleteDeclarationSyntax([Advance()]);
@@ -324,14 +326,14 @@ internal sealed class HlslParser
         // 修飾した名前 (dx::HitObject) は今までどおり読める。
         if (CurrentTextIs("using"))
         {
-            ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+            ImmutableArray<ShaderSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-            while (!AtEnd && Current.Kind != HlslSyntaxKind.SemicolonToken)
+            while (!AtEnd && Current.Kind != ShaderSyntaxKind.SemicolonToken)
             {
                 skipped.Add(Advance());
             }
 
-            if (Current.Kind == HlslSyntaxKind.SemicolonToken)
+            if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
             {
                 skipped.Add(Advance());
             }
@@ -339,12 +341,12 @@ internal sealed class HlslParser
             return new IncompleteDeclarationSyntax(skipped.ToImmutable());
         }
 
-        ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
+        ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
 
         // 前方宣言 (struct Light; / class ObjModelLoader;)。名前を知らせるだけで中身は無い。
         if ((CurrentTextIs("struct") || CurrentTextIs("class") || CurrentTextIs("interface"))
-            && Peek(1).Kind == HlslSyntaxKind.IdentifierToken
-            && Peek(2).Kind == HlslSyntaxKind.SemicolonToken)
+            && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken
+            && Peek(2).Kind == ShaderSyntaxKind.SemicolonToken)
         {
             return new IncompleteDeclarationSyntax([Advance(), Advance(), Advance()]);
         }
@@ -367,7 +369,7 @@ internal sealed class HlslParser
     /// <returns>そうなら <see langword="true"/>。</returns>
     private bool IsStaticAssert()
         => (CurrentTextIs("_Static_assert") || CurrentTextIs("static_assert"))
-           && Peek(1).Kind == HlslSyntaxKind.OpenParenToken;
+           && Peek(1).Kind == ShaderSyntaxKind.OpenParenToken;
 
     /// <summary>
     /// コンパイル時の表明 (<c>_Static_assert(式, "文")</c>) を読み飛ばす。
@@ -385,37 +387,37 @@ internal sealed class HlslParser
     /// </remarks>
     private IncompleteDeclarationSyntax ParseStaticAssert()
     {
-        ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
         skipped.Add(Advance());
 
         int depth = 0;
 
         while (!AtEnd)
         {
-            HlslSyntaxToken token = Advance();
+            ShaderSyntaxToken token = Advance();
             skipped.Add(token);
 
-            if (token.Kind == HlslSyntaxKind.OpenParenToken)
+            if (token.Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 depth++;
             }
-            else if (token.Kind == HlslSyntaxKind.CloseParenToken && --depth == 0)
+            else if (token.Kind == ShaderSyntaxKind.CloseParenToken && --depth == 0)
             {
                 break;
             }
         }
 
-        skipped.Add(Expect(HlslSyntaxKind.SemicolonToken, "';'"));
+        skipped.Add(Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
         return new IncompleteDeclarationSyntax(skipped.ToImmutable());
     }
 
     /// <summary>修飾子の並びを読み取る。</summary>
     /// <returns>修飾子のトークン。</returns>
-    private ImmutableArray<HlslSyntaxToken> ParseModifiers()
+    private ImmutableArray<ShaderSyntaxToken> ParseModifiers()
     {
-        ImmutableArray<HlslSyntaxToken>.Builder modifiers = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder modifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == HlslSyntaxKind.IdentifierToken
+        while (Current.Kind == ShaderSyntaxKind.IdentifierToken
             && HlslKeywords.DeclarationModifiers.Contains(Current.Text))
         {
             modifiers.Add(Advance());
@@ -464,7 +466,7 @@ internal sealed class HlslParser
     /// </remarks>
     private IncompleteDeclarationSyntax ParseUnsupportedTypeDeclaration(bool endsWithSemicolon, bool report)
     {
-        HlslSyntaxToken keyword = Current;
+        ShaderSyntaxToken keyword = Current;
         bool reported = report;
 
         if (reported)
@@ -474,31 +476,31 @@ internal sealed class HlslParser
                 : $"{keyword.Text} 宣言";
 
             _diagnostics.Add(Diagnostic.Create(
-                HlslDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description, DialectSubject));
+                ShaderDescriptors.UnsupportedDeclaration, keyword.GetLocation(), description, DialectSubject));
         }
 
-        ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
         skipped.Add(Advance());
 
         // 波括弧に入るまで (名前と継承指定) を読む。
         while (!AtEnd
-               && Current.Kind != HlslSyntaxKind.OpenBraceToken
-               && Current.Kind != HlslSyntaxKind.SemicolonToken)
+               && Current.Kind != ShaderSyntaxKind.OpenBraceToken
+               && Current.Kind != ShaderSyntaxKind.SemicolonToken)
         {
             skipped.Add(Advance());
         }
 
-        if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+        if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
             int depth = 0;
 
             do
             {
-                if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+                if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
                 {
                     depth++;
                 }
-                else if (Current.Kind == HlslSyntaxKind.CloseBraceToken)
+                else if (Current.Kind == ShaderSyntaxKind.CloseBraceToken)
                 {
                     depth--;
                 }
@@ -509,12 +511,12 @@ internal sealed class HlslParser
         }
 
         // 波括弧の後ろに続く宣言子と、閉じるセミコロン。
-        while (endsWithSemicolon && !AtEnd && Current.Kind != HlslSyntaxKind.SemicolonToken)
+        while (endsWithSemicolon && !AtEnd && Current.Kind != ShaderSyntaxKind.SemicolonToken)
         {
             skipped.Add(Advance());
         }
 
-        if (Current.Kind == HlslSyntaxKind.SemicolonToken)
+        if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
             skipped.Add(Advance());
         }
@@ -522,7 +524,7 @@ internal sealed class HlslParser
         // 報告しない (受け付ける構文だが、まだ構文木にしない) なら、名前を解析していない場所の名前として残す。
         if (!reported)
         {
-            _unanalyzedIdentifiers.AddRange(skipped.Where(t => t.Kind == HlslSyntaxKind.IdentifierToken));
+            _unanalyzedIdentifiers.AddRange(skipped.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken));
         }
 
         return new IncompleteDeclarationSyntax(skipped.ToImmutable());
@@ -540,9 +542,9 @@ internal sealed class HlslParser
     /// </remarks>
     private HlslDeclarationSyntax ParseFunctionOrVariable(
         ImmutableArray<HlslAttributeSyntax> attributes,
-        ImmutableArray<HlslSyntaxToken> modifiers)
+        ImmutableArray<ShaderSyntaxToken> modifiers)
     {
-        if (Current.Kind != HlslSyntaxKind.IdentifierToken)
+        if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return RecoverDeclaration(DescribeExpected("型名"));
         }
@@ -557,32 +559,32 @@ internal sealed class HlslParser
                 : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false, report: true);
         }
 
-        if (Current.Kind != HlslSyntaxKind.IdentifierToken)
+        if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return RecoverDeclaration(DescribeExpected("宣言する名前"));
         }
 
-        HlslSyntaxToken name = Advance();
+        ShaderSyntaxToken name = Advance();
 
         // 構造体の外でのメソッドの定義: uint Wave::GetIndex() { ... }
         // 修飾の後ろは関数名で、必ず関数の宣言になる。
-        if (Current.Kind == HlslSyntaxKind.ColonColonToken && Peek(1).Kind == HlslSyntaxKind.IdentifierToken)
+        if (Current.Kind == ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
-            ImmutableArray<HlslSyntaxToken>.Builder qualifiers = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+            ImmutableArray<ShaderSyntaxToken>.Builder qualifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
             qualifiers.Add(name);
 
-            while (Current.Kind == HlslSyntaxKind.ColonColonToken && Peek(1).Kind == HlslSyntaxKind.IdentifierToken)
+            while (Current.Kind == ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 qualifiers.Add(Advance());
                 name = Advance();
 
-                if (Current.Kind == HlslSyntaxKind.ColonColonToken)
+                if (Current.Kind == ShaderSyntaxKind.ColonColonToken)
                 {
                     qualifiers.Add(name);
                 }
             }
 
-            if (Current.Kind == HlslSyntaxKind.OpenParenToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 return ParseFunctionRest(attributes, modifiers, type, name, qualifiers.ToImmutable());
             }
@@ -592,10 +594,10 @@ internal sealed class HlslParser
 
         // 明示的な特殊化の関数名に付く型引数 (template<> float Twice<float>(float x))。
         if (Features.Templates
-            && Current.Kind == HlslSyntaxKind.LessThanToken
+            && Current.Kind == ShaderSyntaxKind.LessThanToken
             && FindTypeArgumentsEnd() is int close)
         {
-            ImmutableArray<HlslSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+            ImmutableArray<ShaderSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
             for (int i = 0; i <= close; i++)
             {
@@ -605,7 +607,7 @@ internal sealed class HlslParser
             return ParseFunctionRest(attributes, modifiers, type, name, specializationTokens: specialization.ToImmutable());
         }
 
-        return Current.Kind == HlslSyntaxKind.OpenParenToken
+        return Current.Kind == ShaderSyntaxKind.OpenParenToken
             ? ParseFunctionRest(attributes, modifiers, type, name)
             : ParseVariableRest(modifiers, type, name);
     }
@@ -625,23 +627,23 @@ internal sealed class HlslParser
     /// </remarks>
     private FunctionDeclarationSyntax ParseFunctionRest(
         ImmutableArray<HlslAttributeSyntax> attributes,
-        ImmutableArray<HlslSyntaxToken> modifiers,
+        ImmutableArray<ShaderSyntaxToken> modifiers,
         HlslTypeSyntax returnType,
-        HlslSyntaxToken name,
-        ImmutableArray<HlslSyntaxToken> qualifiers = default,
-        ImmutableArray<HlslSyntaxToken> operatorTokens = default,
-        ImmutableArray<HlslSyntaxToken> specializationTokens = default)
+        ShaderSyntaxToken name,
+        ImmutableArray<ShaderSyntaxToken> qualifiers = default,
+        ImmutableArray<ShaderSyntaxToken> operatorTokens = default,
+        ImmutableArray<ShaderSyntaxToken> specializationTokens = default)
     {
-        HlslSyntaxToken openParen = Advance();
+        ShaderSyntaxToken openParen = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder parameters =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseParenToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseParenToken)
         {
             int positionBefore = _index;
             parameters.Add(HlslNodeOrTokenEntry.FromNode(ParseParameter()));
 
-            if (Current.Kind == HlslSyntaxKind.CommaToken)
+            if (Current.Kind == ShaderSyntaxKind.CommaToken)
             {
                 parameters.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
                 continue;
@@ -652,16 +654,16 @@ internal sealed class HlslParser
                 parameters.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
             }
 
-            if (Current.Kind != HlslSyntaxKind.CloseParenToken && Current.Kind != HlslSyntaxKind.CommaToken)
+            if (Current.Kind != ShaderSyntaxKind.CloseParenToken && Current.Kind != ShaderSyntaxKind.CommaToken)
             {
                 break;
             }
         }
 
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
 
-        if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+        if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
             return new FunctionDeclarationSyntax(
@@ -669,7 +671,7 @@ internal sealed class HlslParser
                 parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens, specializationTokens);
         }
 
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new FunctionDeclarationSyntax(
             attributes, modifiers, returnType, name, openParen,
             parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens, specializationTokens);
@@ -688,25 +690,25 @@ internal sealed class HlslParser
     /// </remarks>
     private HlslDeclarationSyntax ParseOperatorFunction(
         ImmutableArray<HlslAttributeSyntax> attributes,
-        ImmutableArray<HlslSyntaxToken> modifiers,
+        ImmutableArray<ShaderSyntaxToken> modifiers,
         HlslTypeSyntax returnType)
     {
-        HlslSyntaxToken keyword = Advance();
-        ImmutableArray<HlslSyntaxToken>.Builder symbols = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ShaderSyntaxToken keyword = Advance();
+        ImmutableArray<ShaderSyntaxToken>.Builder symbols = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if ((Current.Kind == HlslSyntaxKind.OpenBracketToken && Peek(1).Kind == HlslSyntaxKind.CloseBracketToken)
-            || (Current.Kind == HlslSyntaxKind.OpenParenToken && Peek(1).Kind == HlslSyntaxKind.CloseParenToken
-                && Peek(2).Kind == HlslSyntaxKind.OpenParenToken))
+        if ((Current.Kind == ShaderSyntaxKind.OpenBracketToken && Peek(1).Kind == ShaderSyntaxKind.CloseBracketToken)
+            || (Current.Kind == ShaderSyntaxKind.OpenParenToken && Peek(1).Kind == ShaderSyntaxKind.CloseParenToken
+                && Peek(2).Kind == ShaderSyntaxKind.OpenParenToken))
         {
             symbols.Add(Advance());
             symbols.Add(Advance());
         }
-        else if (!AtEnd && Current.Kind is not (HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.IdentifierToken))
+        else if (!AtEnd && Current.Kind is not (ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.IdentifierToken))
         {
             symbols.Add(Advance());
         }
 
-        if (symbols.Count == 0 || Current.Kind != HlslSyntaxKind.OpenParenToken)
+        if (symbols.Count == 0 || Current.Kind != ShaderSyntaxKind.OpenParenToken)
         {
             return RecoverDeclaration(DescribeExpected("演算子と '('"));
         }
@@ -719,36 +721,36 @@ internal sealed class HlslParser
     private ParameterSyntax ParseParameter()
     {
         // 引数に付ける属性 (ワークグラフの [MaxRecords(2)] NodeOutput<T> output)。型の判定には関わらないので読み飛ばす。
-        if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
         {
             _ = ParseAttributes();
         }
 
-        ImmutableArray<HlslSyntaxToken> modifiers = ParseModifiers();
+        ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
 
         // メッシュシェーダーの出力・増幅シェーダーの受け渡し (out vertices Vertex verts[64])。
         // 変数名としてもよく使う語なので、引数の中で、後ろに型と名前が続くときだけ修飾子として読む。
-        if (Current.Kind == HlslSyntaxKind.IdentifierToken
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken
             && HlslKeywords.MeshParameterModifiers.Contains(Current.Text)
-            && Peek(1).Kind == HlslSyntaxKind.IdentifierToken
-            && Peek(2).Kind == HlslSyntaxKind.IdentifierToken)
+            && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken
+            && Peek(2).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             modifiers = modifiers.Add(Advance());
         }
 
         HlslTypeSyntax type = ParseType();
 
-        HlslSyntaxToken name = Current.Kind == HlslSyntaxKind.IdentifierToken
+        ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
             ? Advance()
-            : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
+            : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
 
-        ImmutableArray<HlslSyntaxToken> arrayRanks = ParseArrayRanks();
+        ImmutableArray<ShaderSyntaxToken> arrayRanks = ParseArrayRanks();
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
 
-        HlslSyntaxToken? equals = null;
+        ShaderSyntaxToken? equals = null;
         HlslExpressionSyntax? defaultValue = null;
 
-        if (Current.Kind == HlslSyntaxKind.EqualsToken)
+        if (Current.Kind == ShaderSyntaxKind.EqualsToken)
         {
             equals = Advance();
             defaultValue = ParseExpression();
@@ -766,47 +768,47 @@ internal sealed class HlslParser
     /// 文法: <c>Variable := Type Declarator (',' Declarator)* ';'</c>
     /// </remarks>
     private VariableDeclarationSyntax ParseVariableRest(
-        ImmutableArray<HlslSyntaxToken> modifiers,
+        ImmutableArray<ShaderSyntaxToken> modifiers,
         HlslTypeSyntax type,
-        HlslSyntaxToken firstName)
+        ShaderSyntaxToken firstName)
     {
         ImmutableArray<HlslNodeOrTokenEntry>.Builder declarators =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
         declarators.Add(HlslNodeOrTokenEntry.FromNode(ParseDeclaratorRest(firstName)));
 
-        while (Current.Kind == HlslSyntaxKind.CommaToken)
+        while (Current.Kind == ShaderSyntaxKind.CommaToken)
         {
             declarators.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
 
-            HlslSyntaxToken name = Current.Kind == HlslSyntaxKind.IdentifierToken
+            ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
                 ? Advance()
-                : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
+                : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
 
             declarators.Add(HlslNodeOrTokenEntry.FromNode(ParseDeclaratorRest(name)));
         }
 
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new VariableDeclarationSyntax(modifiers, type, declarators.ToImmutable(), semicolon);
     }
 
     /// <summary>変数名より後の、配列・セマンティクス・初期化子を解析する。</summary>
     /// <param name="name">変数名。</param>
     /// <returns>解析した宣言子。</returns>
-    private VariableDeclaratorSyntax ParseDeclaratorRest(HlslSyntaxToken name)
+    private VariableDeclaratorSyntax ParseDeclaratorRest(ShaderSyntaxToken name)
     {
-        ImmutableArray<HlslSyntaxToken> arrayRanks = ParseArrayRanks();
+        ImmutableArray<ShaderSyntaxToken> arrayRanks = ParseArrayRanks();
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
 
-        HlslSyntaxToken? equals = null;
+        ShaderSyntaxToken? equals = null;
         HlslExpressionSyntax? initializer = null;
 
-        if (Current.Kind == HlslSyntaxKind.EqualsToken)
+        if (Current.Kind == ShaderSyntaxKind.EqualsToken)
         {
             equals = Advance();
 
             // sampler_state { ... } は値ではなくサンプラ状態の指定である。名前として読むと、宣言されていない名前 (HL0310) になる。
-            if (Current.Text == "sampler_state" && Peek(1).Kind == HlslSyntaxKind.OpenBraceToken)
+            if (Current.Text == "sampler_state" && Peek(1).Kind == ShaderSyntaxKind.OpenBraceToken)
             {
                 Advance();
             }
@@ -818,7 +820,7 @@ internal sealed class HlslParser
 
         // sampler_state { ... } のようなサンプラ状態の指定。
         // 中身は Cg 時代の記法であり構文木にする価値が無いため、括弧ごと読み飛ばす。
-        if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+        if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
             SkipBalancedBraces();
         }
@@ -829,22 +831,22 @@ internal sealed class HlslParser
     /// <summary>初期化子を解析する。</summary>
     /// <returns>解析した式。</returns>
     private HlslExpressionSyntax ParseInitializer()
-        => Current.Kind == HlslSyntaxKind.OpenBraceToken ? ParseInitializerList() : ParseExpression();
+        => Current.Kind == ShaderSyntaxKind.OpenBraceToken ? ParseInitializerList() : ParseExpression();
 
     /// <summary>波括弧による初期化子を解析する。</summary>
     /// <returns>解析した式。</returns>
     private InitializerListExpressionSyntax ParseInitializerList()
     {
-        HlslSyntaxToken openBrace = Advance();
+        ShaderSyntaxToken openBrace = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder elements =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             elements.Add(HlslNodeOrTokenEntry.FromNode(ParseInitializer()));
 
-            if (Current.Kind == HlslSyntaxKind.CommaToken)
+            if (Current.Kind == ShaderSyntaxKind.CommaToken)
             {
                 elements.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
                 continue;
@@ -856,7 +858,7 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         return new InitializerListExpressionSyntax(openBrace, elements.ToImmutable(), closeBrace);
     }
 
@@ -874,7 +876,7 @@ internal sealed class HlslParser
     /// </remarks>
     private TemplateDeclarationSyntax? TryParseTemplate()
     {
-        if (Peek(1).Kind != HlslSyntaxKind.LessThanToken)
+        if (Peek(1).Kind != ShaderSyntaxKind.LessThanToken)
         {
             return null;
         }
@@ -887,11 +889,11 @@ internal sealed class HlslParser
         {
             switch (Peek(offset).Kind)
             {
-                case HlslSyntaxKind.LessThanToken:
+                case ShaderSyntaxKind.LessThanToken:
                     depth++;
                     break;
 
-                case HlslSyntaxKind.GreaterThanToken:
+                case ShaderSyntaxKind.GreaterThanToken:
                     if (--depth == 0)
                     {
                         close = offset;
@@ -899,8 +901,8 @@ internal sealed class HlslParser
 
                     break;
 
-                case HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.OpenBraceToken
-                    or HlslSyntaxKind.CloseBraceToken or HlslSyntaxKind.EndOfFileToken:
+                case ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken
+                    or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.EndOfFileToken:
                     return null;
 
                 default:
@@ -908,16 +910,16 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken openAngle = Advance();
-        ImmutableArray<HlslSyntaxToken>.Builder parameters = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken openAngle = Advance();
+        ImmutableArray<ShaderSyntaxToken>.Builder parameters = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         for (int i = 2; i < close; i++)
         {
             parameters.Add(Advance());
         }
 
-        HlslSyntaxToken closeAngle = Advance();
+        ShaderSyntaxToken closeAngle = Advance();
         HlslDeclarationSyntax declaration = ParseDeclaration();
 
         switch (declaration)
@@ -952,36 +954,36 @@ internal sealed class HlslParser
     /// </remarks>
     private EnumDeclarationSyntax ParseEnum()
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken? scope = CurrentTextIs("class") || CurrentTextIs("struct") ? Advance() : null;
-        HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken? scope = CurrentTextIs("class") || CurrentTextIs("struct") ? Advance() : null;
+        ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
 
-        ImmutableArray<HlslSyntaxToken>.Builder baseType = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder baseType = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if (Current.Kind == HlslSyntaxKind.ColonToken)
+        if (Current.Kind == ShaderSyntaxKind.ColonToken)
         {
-            while (!AtEnd && Current.Kind is not (HlslSyntaxKind.OpenBraceToken or HlslSyntaxKind.SemicolonToken))
+            while (!AtEnd && Current.Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
             {
                 baseType.Add(Advance());
             }
         }
 
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<EnumMemberSyntax>.Builder members = ImmutableArray.CreateBuilder<EnumMemberSyntax>();
 
-        while (!AtEnd && Current.Kind == HlslSyntaxKind.IdentifierToken)
+        while (!AtEnd && Current.Kind == ShaderSyntaxKind.IdentifierToken)
         {
-            HlslSyntaxToken memberName = Advance();
-            HlslSyntaxToken? equals = null;
+            ShaderSyntaxToken memberName = Advance();
+            ShaderSyntaxToken? equals = null;
             HlslExpressionSyntax? value = null;
 
-            if (Current.Kind == HlslSyntaxKind.EqualsToken)
+            if (Current.Kind == ShaderSyntaxKind.EqualsToken)
             {
                 equals = Advance();
                 value = ParseExpression();
             }
 
-            HlslSyntaxToken? comma = Current.Kind == HlslSyntaxKind.CommaToken ? Advance() : null;
+            ShaderSyntaxToken? comma = Current.Kind == ShaderSyntaxKind.CommaToken ? Advance() : null;
             members.Add(new EnumMemberSyntax(memberName, equals, value, comma));
 
             if (comma is null)
@@ -990,8 +992,8 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
         return new EnumDeclarationSyntax(keyword, scope, name, baseType.ToImmutable(), openBrace, members.ToImmutable(), closeBrace, semicolon);
     }
@@ -1004,20 +1006,20 @@ internal sealed class HlslParser
     /// </remarks>
     private StructDeclarationSyntax ParseStruct()
     {
-        HlslSyntaxToken keyword = Advance();
+        ShaderSyntaxToken keyword = Advance();
 
         // 構造体に付ける属性 (struct [raypayload] RayPayload)。読み飛ばす。
-        if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
         {
             _ = ParseAttributes();
         }
 
-        HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
+        ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
 
         // 明示的な特殊化の構造体名に付く型引数 (template<> struct Box<float> { ... })。
-        ImmutableArray<HlslSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if (name is not null && Features.Templates && Current.Kind == HlslSyntaxKind.LessThanToken)
+        if (name is not null && Features.Templates && Current.Kind == ShaderSyntaxKind.LessThanToken)
         {
             int depth = 0;
 
@@ -1025,35 +1027,35 @@ internal sealed class HlslParser
             {
                 depth += Current.Kind switch
                 {
-                    HlslSyntaxKind.LessThanToken => 1,
-                    HlslSyntaxKind.GreaterThanToken => -1,
+                    ShaderSyntaxKind.LessThanToken => 1,
+                    ShaderSyntaxKind.GreaterThanToken => -1,
                     _ => 0,
                 };
                 specialization.Add(Advance());
             }
-            while (!AtEnd && depth > 0 && Current.Kind is not (HlslSyntaxKind.OpenBraceToken or HlslSyntaxKind.SemicolonToken));
+            while (!AtEnd && depth > 0 && Current.Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken));
         }
 
         // struct の継承 (HLSL 2021 の struct D : B)。基底のメンバーも使えるので、名前を残す。
         // 基底は型引数を持ちうる (struct Derived : Box<T>)。
-        HlslSyntaxToken? colon = null;
+        ShaderSyntaxToken? colon = null;
         HlslTypeSyntax? baseType = null;
 
-        if (Current.Kind == HlslSyntaxKind.ColonToken)
+        if (Current.Kind == ShaderSyntaxKind.ColonToken)
         {
             colon = Advance();
 
-            if (Current.Kind == HlslSyntaxKind.IdentifierToken)
+            if (Current.Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 baseType = ParseType();
             }
         }
 
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<HlslDeclarationSyntax>.Builder members =
             ImmutableArray.CreateBuilder<HlslDeclarationSyntax>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             members.Add(ParseDeclaration());
@@ -1064,16 +1066,16 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
 
         ImmutableArray<HlslNodeOrTokenEntry>.Builder declarators =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
-        while (Current.Kind == HlslSyntaxKind.IdentifierToken)
+        while (Current.Kind == ShaderSyntaxKind.IdentifierToken)
         {
             declarators.Add(HlslNodeOrTokenEntry.FromNode(ParseDeclaratorRest(Advance())));
 
-            if (Current.Kind != HlslSyntaxKind.CommaToken)
+            if (Current.Kind != ShaderSyntaxKind.CommaToken)
             {
                 break;
             }
@@ -1081,7 +1083,7 @@ internal sealed class HlslParser
             declarators.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
         }
 
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
         return new StructDeclarationSyntax(
             keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
@@ -1092,15 +1094,15 @@ internal sealed class HlslParser
     /// <returns>解析した宣言。</returns>
     private ConstantBufferDeclarationSyntax ParseConstantBuffer()
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
 
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<HlslDeclarationSyntax>.Builder members =
             ImmutableArray.CreateBuilder<HlslDeclarationSyntax>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             members.Add(ParseDeclaration());
@@ -1111,10 +1113,10 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
 
         // cbuffer のセミコロンは省略できる。
-        HlslSyntaxToken? semicolon = Current.Kind == HlslSyntaxKind.SemicolonToken ? Advance() : null;
+        ShaderSyntaxToken? semicolon = Current.Kind == ShaderSyntaxKind.SemicolonToken ? Advance() : null;
 
         return new ConstantBufferDeclarationSyntax(
             keyword, name, semantics, openBrace, members.ToImmutable(), closeBrace, semicolon);
@@ -1128,14 +1130,14 @@ internal sealed class HlslParser
     /// </remarks>
     private NamespaceDeclarationSyntax ParseNamespace()
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken? name = Current.Kind == HlslSyntaxKind.IdentifierToken ? Advance() : null;
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
 
         ImmutableArray<HlslDeclarationSyntax>.Builder members =
             ImmutableArray.CreateBuilder<HlslDeclarationSyntax>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             members.Add(ParseDeclaration());
@@ -1146,7 +1148,7 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         return new NamespaceDeclarationSyntax(keyword, name, openBrace, members.ToImmutable(), closeBrace);
     }
 
@@ -1163,15 +1165,15 @@ internal sealed class HlslParser
     /// </remarks>
     private TypedefDeclarationSyntax ParseTypedef()
     {
-        HlslSyntaxToken keyword = Advance();
+        ShaderSyntaxToken keyword = Advance();
         int start = _index;
-        ImmutableArray<HlslSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        HlslTypeSyntax? target = Current.Kind == HlslSyntaxKind.IdentifierToken ? ParseType() : null;
+        HlslTypeSyntax? target = Current.Kind == ShaderSyntaxKind.IdentifierToken ? ParseType() : null;
 
         if (target is not null
-            && Current.Kind == HlslSyntaxKind.IdentifierToken
-            && Peek(1).Kind == HlslSyntaxKind.SemicolonToken
+            && Current.Kind == ShaderSyntaxKind.IdentifierToken
+            && Peek(1).Kind == ShaderSyntaxKind.SemicolonToken
             && !target.NameToken.IsMissing)
         {
             _typeAliases[Current.Text] = target.Name;
@@ -1182,12 +1184,12 @@ internal sealed class HlslParser
             tokens.Add(_tokens[i]);
         }
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.SemicolonToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.SemicolonToken)
         {
             tokens.Add(Advance());
         }
 
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new TypedefDeclarationSyntax(keyword, tokens.ToImmutable(), semicolon);
     }
 
@@ -1215,60 +1217,60 @@ internal sealed class HlslParser
         // (const int) や (unsigned int) の形で型変換の中にも現れる。
         // 次も識別子であることを条件にするのは、
         // 修飾子と同じ綴りの型名だけが書かれている場合に食べ過ぎないためである。
-        ImmutableArray<HlslSyntaxToken>.Builder modifiers = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder modifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == HlslSyntaxKind.IdentifierToken
+        while (Current.Kind == ShaderSyntaxKind.IdentifierToken
                && HlslKeywords.TypePrefixModifiers.Contains(Current.Text)
-               && Peek(1).Kind == HlslSyntaxKind.IdentifierToken)
+               && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             modifiers.Add(Advance());
         }
 
-        HlslSyntaxToken name = Current.Kind == HlslSyntaxKind.IdentifierToken
+        ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
             ? Advance()
-            : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
+            : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
 
-        ImmutableArray<HlslSyntaxToken>.Builder qualifiers = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder qualifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == HlslSyntaxKind.ColonColonToken)
+        while (Current.Kind == ShaderSyntaxKind.ColonColonToken)
         {
             qualifiers.Add(name);
             qualifiers.Add(Advance());
 
-            name = Current.Kind == HlslSyntaxKind.IdentifierToken
+            name = Current.Kind == ShaderSyntaxKind.IdentifierToken
                 ? Advance()
-                : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
+                : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
         }
 
-        HlslSyntaxToken? openAngle = null;
-        HlslSyntaxToken? closeAngle = null;
-        ImmutableArray<HlslSyntaxToken>.Builder templateArguments =
-            ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ShaderSyntaxToken? openAngle = null;
+        ShaderSyntaxToken? closeAngle = null;
+        ImmutableArray<ShaderSyntaxToken>.Builder templateArguments =
+            ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if (Current.Kind == HlslSyntaxKind.LessThanToken)
+        if (Current.Kind == ShaderSyntaxKind.LessThanToken)
         {
             openAngle = Advance();
             int depth = 0;
 
             while (!AtEnd)
             {
-                if (Current.Kind == HlslSyntaxKind.GreaterThanToken && depth == 0)
+                if (Current.Kind == ShaderSyntaxKind.GreaterThanToken && depth == 0)
                 {
                     break;
                 }
 
-                if (Current.Kind == HlslSyntaxKind.LessThanToken)
+                if (Current.Kind == ShaderSyntaxKind.LessThanToken)
                 {
                     depth++;
                 }
-                else if (Current.Kind == HlslSyntaxKind.GreaterThanToken)
+                else if (Current.Kind == ShaderSyntaxKind.GreaterThanToken)
                 {
                     depth--;
                 }
 
                 // セミコロンや波括弧に達したら、山括弧ではなく比較演算子だったとみなす。
                 // ここで止めないと、閉じられない山括弧がファイル全体を飲み込む。
-                if (Current.Kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.OpenBraceToken)
+                if (Current.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken)
                 {
                     break;
                 }
@@ -1276,9 +1278,9 @@ internal sealed class HlslParser
                 templateArguments.Add(Advance());
             }
 
-            closeAngle = Current.Kind == HlslSyntaxKind.GreaterThanToken
+            closeAngle = Current.Kind == ShaderSyntaxKind.GreaterThanToken
                 ? Advance()
-                : CreateMissingToken(HlslSyntaxKind.GreaterThanToken);
+                : CreateMissingToken(ShaderSyntaxKind.GreaterThanToken);
         }
 
         // typedef の別名は、元の型の名前として扱う。
@@ -1298,21 +1300,21 @@ internal sealed class HlslParser
 
     /// <summary>配列の次元指定を読み取る。</summary>
     /// <returns>角括弧と大きさの式を含むトークン列。</returns>
-    private ImmutableArray<HlslSyntaxToken> ParseArrayRanks()
+    private ImmutableArray<ShaderSyntaxToken> ParseArrayRanks()
     {
-        ImmutableArray<HlslSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        while (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
         {
             int depth = 0;
 
             do
             {
-                if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+                if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
                 {
                     depth++;
                 }
-                else if (Current.Kind == HlslSyntaxKind.CloseBracketToken)
+                else if (Current.Kind == ShaderSyntaxKind.CloseBracketToken)
                 {
                     depth--;
                 }
@@ -1338,32 +1340,32 @@ internal sealed class HlslParser
         ImmutableArray<SemanticSyntax>.Builder semantics = ImmutableArray.CreateBuilder<SemanticSyntax>();
 
         // 構造体のビットフィールド (uint a : 4;) は Unity では使えない。
-        if (Current.Kind == HlslSyntaxKind.ColonToken
-            && Peek(1).Kind == HlslSyntaxKind.NumericLiteralToken)
+        if (Current.Kind == ShaderSyntaxKind.ColonToken
+            && Peek(1).Kind == ShaderSyntaxKind.NumericLiteralToken)
         {
             // Unity も数値を指して拒む ("unexpected integer constant")。コロン自体はセマンティクスの記法として正しい。
             Advance();
-            HlslSyntaxToken width = Advance();
+            ShaderSyntaxToken width = Advance();
 
             // DXC 2021 では正しい書き方である。幅は型の判定に関わらないので、読み飛ばすだけでよい。
             if (!Features.Bitfields)
             {
                 _diagnostics.Add(Diagnostic.Create(
-                    HlslDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド", DialectSubject));
+                    ShaderDescriptors.UnsupportedDeclaration, width.GetLocation(), "ビットフィールド", DialectSubject));
             }
         }
 
-        while (Current.Kind == HlslSyntaxKind.ColonToken
-            && Peek(1).Kind == HlslSyntaxKind.IdentifierToken)
+        while (Current.Kind == ShaderSyntaxKind.ColonToken
+            && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
-            HlslSyntaxToken colon = Advance();
-            HlslSyntaxToken name = Advance();
+            ShaderSyntaxToken colon = Advance();
+            ShaderSyntaxToken name = Advance();
 
-            HlslSyntaxToken? openParen = null;
-            HlslSyntaxToken? closeParen = null;
-            ImmutableArray<HlslSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+            ShaderSyntaxToken? openParen = null;
+            ShaderSyntaxToken? closeParen = null;
+            ImmutableArray<ShaderSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-            if (Current.Kind == HlslSyntaxKind.OpenParenToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 openParen = Advance();
 
@@ -1373,13 +1375,13 @@ internal sealed class HlslParser
                 // 深さを数えないと、内側の閉じ括弧で属性が終わったと読んでしまう。
                 int depth = 0;
 
-                while (!AtEnd && (depth > 0 || Current.Kind != HlslSyntaxKind.CloseParenToken))
+                while (!AtEnd && (depth > 0 || Current.Kind != ShaderSyntaxKind.CloseParenToken))
                 {
-                    if (Current.Kind == HlslSyntaxKind.OpenParenToken)
+                    if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
                     {
                         depth++;
                     }
-                    else if (Current.Kind == HlslSyntaxKind.CloseParenToken)
+                    else if (Current.Kind == ShaderSyntaxKind.CloseParenToken)
                     {
                         depth--;
                     }
@@ -1387,7 +1389,7 @@ internal sealed class HlslParser
                     arguments.Add(Advance());
                 }
 
-                closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+                closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
             }
 
             semantics.Add(new SemanticSyntax(colon, name, openParen, arguments.ToImmutable(), closeParen));
@@ -1403,32 +1405,32 @@ internal sealed class HlslParser
         ImmutableArray<HlslAttributeSyntax>.Builder attributes =
             ImmutableArray.CreateBuilder<HlslAttributeSyntax>();
 
-        while (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+        while (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
         {
             // [[vk::binding(0, 0)]] のような二重角括弧の注釈は読み飛ばす。
             // SPIR-V 向けの割り当てを指示するもので、この解析ツールが見る意味を持たない。
-            if (Peek(1).Kind == HlslSyntaxKind.OpenBracketToken)
+            if (Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
             {
                 SkipDoubleBracketAnnotation();
                 continue;
             }
 
-            HlslSyntaxToken openBracket = Advance();
+            ShaderSyntaxToken openBracket = Advance();
 
-            if (Current.Kind != HlslSyntaxKind.IdentifierToken)
+            if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 // 属性ではなかった。読み過ぎた開き角括弧を戻す。
                 _index--;
                 break;
             }
 
-            HlslSyntaxToken name = Advance();
+            ShaderSyntaxToken name = Advance();
 
-            HlslSyntaxToken? openParen = null;
-            HlslSyntaxToken? closeParen = null;
-            ImmutableArray<HlslSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+            ShaderSyntaxToken? openParen = null;
+            ShaderSyntaxToken? closeParen = null;
+            ImmutableArray<ShaderSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-            if (Current.Kind == HlslSyntaxKind.OpenParenToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 openParen = Advance();
 
@@ -1438,13 +1440,13 @@ internal sealed class HlslParser
                 // 深さを数えないと、内側の閉じ括弧で属性が終わったと読んでしまう。
                 int depth = 0;
 
-                while (!AtEnd && (depth > 0 || Current.Kind != HlslSyntaxKind.CloseParenToken))
+                while (!AtEnd && (depth > 0 || Current.Kind != ShaderSyntaxKind.CloseParenToken))
                 {
-                    if (Current.Kind == HlslSyntaxKind.OpenParenToken)
+                    if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
                     {
                         depth++;
                     }
-                    else if (Current.Kind == HlslSyntaxKind.CloseParenToken)
+                    else if (Current.Kind == ShaderSyntaxKind.CloseParenToken)
                     {
                         depth--;
                     }
@@ -1452,10 +1454,10 @@ internal sealed class HlslParser
                     arguments.Add(Advance());
                 }
 
-                closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+                closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
             }
 
-            HlslSyntaxToken closeBracket = Expect(HlslSyntaxKind.CloseBracketToken, "']'");
+            ShaderSyntaxToken closeBracket = Expect(ShaderSyntaxKind.CloseBracketToken, "']'");
             attributes.Add(new HlslAttributeSyntax(
                 openBracket, name, openParen, arguments.ToImmutable(), closeParen, closeBracket));
         }
@@ -1485,11 +1487,11 @@ internal sealed class HlslParser
 
         do
         {
-            if (Current.Kind == HlslSyntaxKind.OpenBracketToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
             {
                 depth++;
             }
-            else if (Current.Kind == HlslSyntaxKind.CloseBracketToken)
+            else if (Current.Kind == ShaderSyntaxKind.CloseBracketToken)
             {
                 depth--;
             }
@@ -1507,11 +1509,11 @@ internal sealed class HlslParser
     /// <returns>解析したブロック。</returns>
     private BlockStatementSyntax ParseBlock()
     {
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<HlslStatementSyntax>.Builder statements =
             ImmutableArray.CreateBuilder<HlslStatementSyntax>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             statements.Add(ParseStatement());
@@ -1522,7 +1524,7 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         return new BlockStatementSyntax(openBrace, statements.ToImmutable(), closeBrace);
     }
 
@@ -1535,7 +1537,7 @@ internal sealed class HlslParser
     /// 自身のテキストを渡されていない場合 (ヘッダ単体の解析など) は、
     /// すべてを自身のものとして扱う。読み飛ばさない側へ倒す。
     /// </remarks>
-    private bool IsFromOwnSource(HlslSyntaxToken token)
+    private bool IsFromOwnSource(ShaderSyntaxToken token)
     {
         // 同じファイルを別にマスクしたテキスト (Unity の HLSLINCLUDE を先に読むもの) も、このファイルのものである。
         if (_ownSource is null
@@ -1570,16 +1572,16 @@ internal sealed class HlslParser
     /// </remarks>
     private BlockStatementSyntax SkipBlock()
     {
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         int depth = 1;
 
         while (!AtEnd && depth > 0)
         {
-            if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
             {
                 depth++;
             }
-            else if (Current.Kind == HlslSyntaxKind.CloseBraceToken)
+            else if (Current.Kind == ShaderSyntaxKind.CloseBraceToken)
             {
                 depth--;
 
@@ -1592,7 +1594,7 @@ internal sealed class HlslParser
             Advance();
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         return new BlockStatementSyntax(openBrace, [], closeBrace);
     }
 
@@ -1604,14 +1606,14 @@ internal sealed class HlslParser
 
         switch (Current.Kind)
         {
-            case HlslSyntaxKind.OpenBraceToken:
+            case ShaderSyntaxKind.OpenBraceToken:
                 return ParseBlock();
 
-            case HlslSyntaxKind.SemicolonToken:
+            case ShaderSyntaxKind.SemicolonToken:
                 return new EmptyStatementSyntax(Advance());
         }
 
-        if (Current.Kind == HlslSyntaxKind.IdentifierToken)
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken)
         {
             switch (Current.Text)
             {
@@ -1624,7 +1626,7 @@ internal sealed class HlslParser
                 case "break":
                 case "continue":
                 case "discard":
-                    return new JumpStatementSyntax(Advance(), Expect(HlslSyntaxKind.SemicolonToken, "';'"));
+                    return new JumpStatementSyntax(Advance(), Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
                 case "case":
                 case "default":
                     return ParseSwitchLabel();
@@ -1637,7 +1639,7 @@ internal sealed class HlslParser
         }
 
         HlslExpressionSyntax expression = ParseExpression();
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new ExpressionStatementSyntax(expression, semicolon);
     }
 
@@ -1665,7 +1667,7 @@ internal sealed class HlslParser
     /// </remarks>
     private bool LooksLikeDeclaration()
     {
-        if (Current.Kind != HlslSyntaxKind.IdentifierToken)
+        if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return false;
         }
@@ -1680,49 +1682,49 @@ internal sealed class HlslParser
             return true;
         }
 
-        if (Peek(1).Kind == HlslSyntaxKind.IdentifierToken)
+        if (Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             return true;
         }
 
         // 名前空間で修飾された型 (UnifiedRT::InstanceData x) を探す。
-        if (Peek(1).Kind == HlslSyntaxKind.ColonColonToken)
+        if (Peek(1).Kind == ShaderSyntaxKind.ColonColonToken)
         {
             int offset = 1;
 
-            while (Peek(offset).Kind == HlslSyntaxKind.ColonColonToken
-                && Peek(offset + 1).Kind == HlslSyntaxKind.IdentifierToken)
+            while (Peek(offset).Kind == ShaderSyntaxKind.ColonColonToken
+                && Peek(offset + 1).Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 offset += 2;
             }
 
-            return Peek(offset).Kind == HlslSyntaxKind.IdentifierToken;
+            return Peek(offset).Kind == ShaderSyntaxKind.IdentifierToken;
         }
 
         // 識別子 < ... > 識別子 の形 (テンプレート型の宣言) を探す。
-        if (Peek(1).Kind == HlslSyntaxKind.LessThanToken)
+        if (Peek(1).Kind == ShaderSyntaxKind.LessThanToken)
         {
             int depth = 0;
 
             for (int offset = 1; offset < 32; offset++)
             {
-                HlslSyntaxKind kind = Peek(offset).Kind;
+                ShaderSyntaxKind kind = Peek(offset).Kind;
 
-                if (kind == HlslSyntaxKind.LessThanToken)
+                if (kind == ShaderSyntaxKind.LessThanToken)
                 {
                     depth++;
                 }
-                else if (kind == HlslSyntaxKind.GreaterThanToken)
+                else if (kind == ShaderSyntaxKind.GreaterThanToken)
                 {
                     depth--;
 
                     if (depth == 0)
                     {
-                        return Peek(offset + 1).Kind == HlslSyntaxKind.IdentifierToken;
+                        return Peek(offset + 1).Kind == ShaderSyntaxKind.IdentifierToken;
                     }
                 }
-                else if (kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.OpenBraceToken
-                    or HlslSyntaxKind.EndOfFileToken)
+                else if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken
+                    or ShaderSyntaxKind.EndOfFileToken)
                 {
                     return false;
                 }
@@ -1737,13 +1739,13 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private IfStatementSyntax ParseIf(ImmutableArray<HlslAttributeSyntax> attributes)
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken openParen = Expect(HlslSyntaxKind.OpenParenToken, "'('");
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
         HlslExpressionSyntax condition = ParseExpression();
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         HlslStatementSyntax thenStatement = ParseStatement();
 
-        HlslSyntaxToken? elseKeyword = null;
+        ShaderSyntaxToken? elseKeyword = null;
         HlslStatementSyntax? elseStatement = null;
 
         if (CurrentTextIs("else"))
@@ -1761,13 +1763,13 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private ForStatementSyntax ParseFor(ImmutableArray<HlslAttributeSyntax> attributes)
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken openParen = Expect(HlslSyntaxKind.OpenParenToken, "'('");
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
 
         HlslSyntaxNode? initializer = null;
-        HlslSyntaxToken? firstSemicolon = null;
+        ShaderSyntaxToken? firstSemicolon = null;
 
-        if (Current.Kind == HlslSyntaxKind.SemicolonToken)
+        if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
             firstSemicolon = Advance();
         }
@@ -1779,24 +1781,24 @@ internal sealed class HlslParser
         else
         {
             initializer = ParseExpression();
-            firstSemicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+            firstSemicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         }
 
-        HlslExpressionSyntax? condition = Current.Kind == HlslSyntaxKind.SemicolonToken
+        HlslExpressionSyntax? condition = Current.Kind == ShaderSyntaxKind.SemicolonToken
             ? null
             : ParseExpression();
 
-        HlslSyntaxToken secondSemicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken secondSemicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
         ImmutableArray<HlslNodeOrTokenEntry>.Builder incrementors =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseParenToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseParenToken)
         {
             int positionBefore = _index;
             incrementors.Add(HlslNodeOrTokenEntry.FromNode(ParseExpression()));
 
-            if (Current.Kind == HlslSyntaxKind.CommaToken)
+            if (Current.Kind == ShaderSyntaxKind.CommaToken)
             {
                 incrementors.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
                 continue;
@@ -1812,7 +1814,7 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         HlslStatementSyntax body = ParseStatement();
 
         return new ForStatementSyntax(
@@ -1825,10 +1827,10 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private WhileStatementSyntax ParseWhile(ImmutableArray<HlslAttributeSyntax> attributes)
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken openParen = Expect(HlslSyntaxKind.OpenParenToken, "'('");
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
         HlslExpressionSyntax condition = ParseExpression();
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         HlslStatementSyntax body = ParseStatement();
 
         return new WhileStatementSyntax(attributes, keyword, openParen, condition, closeParen, body);
@@ -1839,15 +1841,15 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private DoWhileStatementSyntax ParseDoWhile(ImmutableArray<HlslAttributeSyntax> attributes)
     {
-        HlslSyntaxToken doKeyword = Advance();
+        ShaderSyntaxToken doKeyword = Advance();
         HlslStatementSyntax body = ParseStatement();
-        HlslSyntaxToken whileKeyword = CurrentTextIs("while")
+        ShaderSyntaxToken whileKeyword = CurrentTextIs("while")
             ? Advance()
-            : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
-        HlslSyntaxToken openParen = Expect(HlslSyntaxKind.OpenParenToken, "'('");
+            : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
+        ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
         HlslExpressionSyntax condition = ParseExpression();
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
         return new DoWhileStatementSyntax(
             attributes, doKeyword, body, whileKeyword, openParen, condition, closeParen, semicolon);
@@ -1858,16 +1860,16 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private SwitchStatementSyntax ParseSwitch(ImmutableArray<HlslAttributeSyntax> attributes)
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslSyntaxToken openParen = Expect(HlslSyntaxKind.OpenParenToken, "'('");
+        ShaderSyntaxToken keyword = Advance();
+        ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
         HlslExpressionSyntax expression = ParseExpression();
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
-        HlslSyntaxToken openBrace = Expect(HlslSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
 
         ImmutableArray<HlslStatementSyntax>.Builder statements =
             ImmutableArray.CreateBuilder<HlslStatementSyntax>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseBraceToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
         {
             int positionBefore = _index;
             statements.Add(ParseStatement());
@@ -1878,7 +1880,7 @@ internal sealed class HlslParser
             }
         }
 
-        HlslSyntaxToken closeBrace = Expect(HlslSyntaxKind.CloseBraceToken, "'}'");
+        ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
 
         return new SwitchStatementSyntax(
             attributes, keyword, openParen, expression, closeParen, openBrace, statements.ToImmutable(), closeBrace);
@@ -1888,9 +1890,9 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private SwitchLabelStatementSyntax ParseSwitchLabel()
     {
-        HlslSyntaxToken keyword = Advance();
+        ShaderSyntaxToken keyword = Advance();
         HlslExpressionSyntax? value = keyword.TextIs("case") ? ParseExpression() : null;
-        HlslSyntaxToken colon = Expect(HlslSyntaxKind.ColonToken, "':'");
+        ShaderSyntaxToken colon = Expect(ShaderSyntaxKind.ColonToken, "':'");
         return new SwitchLabelStatementSyntax(keyword, value, colon);
     }
 
@@ -1898,11 +1900,11 @@ internal sealed class HlslParser
     /// <returns>解析した文。</returns>
     private ReturnStatementSyntax ParseReturn()
     {
-        HlslSyntaxToken keyword = Advance();
-        HlslExpressionSyntax? expression = Current.Kind == HlslSyntaxKind.SemicolonToken
+        ShaderSyntaxToken keyword = Advance();
+        HlslExpressionSyntax? expression = Current.Kind == ShaderSyntaxKind.SemicolonToken
             ? null
             : ParseExpression();
-        HlslSyntaxToken semicolon = Expect(HlslSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new ReturnStatementSyntax(keyword, expression, semicolon);
     }
 
@@ -1926,7 +1928,7 @@ internal sealed class HlslParser
             return left;
         }
 
-        HlslSyntaxToken operatorToken = Advance();
+        ShaderSyntaxToken operatorToken = Advance();
         HlslExpressionSyntax right = ParseAssignment();
         return new AssignmentExpressionSyntax(left, operatorToken, right);
     }
@@ -1937,14 +1939,14 @@ internal sealed class HlslParser
     {
         HlslExpressionSyntax condition = ParseBinary(0);
 
-        if (Current.Kind != HlslSyntaxKind.QuestionToken)
+        if (Current.Kind != ShaderSyntaxKind.QuestionToken)
         {
             return condition;
         }
 
-        HlslSyntaxToken question = Advance();
+        ShaderSyntaxToken question = Advance();
         HlslExpressionSyntax whenTrue = ParseAssignment();
-        HlslSyntaxToken colon = Expect(HlslSyntaxKind.ColonToken, "':'");
+        ShaderSyntaxToken colon = Expect(ShaderSyntaxKind.ColonToken, "':'");
         HlslExpressionSyntax whenFalse = ParseAssignment();
 
         return new ConditionalExpressionSyntax(condition, question, whenTrue, colon, whenFalse);
@@ -1976,7 +1978,7 @@ internal sealed class HlslParser
                 break;
             }
 
-            HlslSyntaxToken operatorToken = Advance();
+            ShaderSyntaxToken operatorToken = Advance();
             HlslExpressionSyntax right = ParseBinary(precedence + 1);
             left = new BinaryExpressionSyntax(left, operatorToken, right);
         }
@@ -1988,20 +1990,20 @@ internal sealed class HlslParser
     /// <returns>解析した式。</returns>
     private HlslExpressionSyntax ParseUnary()
     {
-        if (Current.Kind is HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken
-            or HlslSyntaxKind.ExclamationToken or HlslSyntaxKind.TildeToken
-            or HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken)
+        if (Current.Kind is ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken
+            or ShaderSyntaxKind.ExclamationToken or ShaderSyntaxKind.TildeToken
+            or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken)
         {
-            HlslSyntaxToken operatorToken = Advance();
+            ShaderSyntaxToken operatorToken = Advance();
             return new PrefixUnaryExpressionSyntax(operatorToken, ParseUnary());
         }
 
-        if (Current.Kind == HlslSyntaxKind.OpenParenToken && LooksLikeCast())
+        if (Current.Kind == ShaderSyntaxKind.OpenParenToken && LooksLikeCast())
         {
-            HlslSyntaxToken openParen = Advance();
+            ShaderSyntaxToken openParen = Advance();
             HlslTypeSyntax type = ParseType();
             ParseArrayRanks();
-            HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+            ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
             return new CastExpressionSyntax(openParen, type, closeParen, ParseUnary());
         }
 
@@ -2028,7 +2030,7 @@ internal sealed class HlslParser
     /// </remarks>
     private bool LooksLikeCast()
     {
-        if (Peek(1).Kind != HlslSyntaxKind.IdentifierToken)
+        if (Peek(1).Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return false;
         }
@@ -2039,7 +2041,7 @@ internal sealed class HlslParser
         // (const int) や (unsigned int) の形では、型名の前に修飾子が並ぶ。
         // 組み込み型かどうかは、修飾子を越えた先の名前で判定する。
         while (HlslKeywords.TypePrefixModifiers.Contains(Peek(offset).Text)
-               && Peek(offset + 1).Kind == HlslSyntaxKind.IdentifierToken)
+               && Peek(offset + 1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             offset++;
         }
@@ -2049,26 +2051,26 @@ internal sealed class HlslParser
 
         while (offset < 32)
         {
-            HlslSyntaxKind kind = Peek(offset).Kind;
+            ShaderSyntaxKind kind = Peek(offset).Kind;
 
-            if (kind == HlslSyntaxKind.LessThanToken)
+            if (kind == ShaderSyntaxKind.LessThanToken)
             {
                 angleDepth++;
             }
-            else if (kind == HlslSyntaxKind.GreaterThanToken)
+            else if (kind == ShaderSyntaxKind.GreaterThanToken)
             {
                 angleDepth--;
             }
-            else if (kind == HlslSyntaxKind.CloseParenToken && angleDepth == 0)
+            else if (kind == ShaderSyntaxKind.CloseParenToken && angleDepth == 0)
             {
                 break;
             }
-            else if (kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.EndOfFileToken
-                or HlslSyntaxKind.OpenBraceToken)
+            else if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.EndOfFileToken
+                or ShaderSyntaxKind.OpenBraceToken)
             {
                 return false;
             }
-            else if (kind == HlslSyntaxKind.CommaToken)
+            else if (kind == ShaderSyntaxKind.CommaToken)
             {
                 // 山括弧の中のカンマは型引数の区切りである ((vector<float, 3>) x)。外のカンマは型の記述に現れない。
                 if (angleDepth == 0)
@@ -2076,11 +2078,11 @@ internal sealed class HlslParser
                     return false;
                 }
             }
-            else if (kind is not (HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.OpenBracketToken
-                or HlslSyntaxKind.CloseBracketToken or HlslSyntaxKind.NumericLiteralToken
+            else if (kind is not (ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.OpenBracketToken
+                or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.NumericLiteralToken
 
                 // 名前空間で修飾した型 ((AnalyticPrimitive::Enum) x)。
-                or HlslSyntaxKind.ColonColonToken))
+                or ShaderSyntaxKind.ColonColonToken))
             {
                 // 型の記述に現れない記号があれば型変換ではない。
                 return false;
@@ -2089,24 +2091,24 @@ internal sealed class HlslParser
             offset++;
         }
 
-        if (Peek(offset).Kind != HlslSyntaxKind.CloseParenToken)
+        if (Peek(offset).Kind != ShaderSyntaxKind.CloseParenToken)
         {
             return false;
         }
 
-        HlslSyntaxKind following = Peek(offset + 1).Kind;
+        ShaderSyntaxKind following = Peek(offset + 1).Kind;
 
         if (isKnownType)
         {
             // 組み込み型なら、後ろが式を始めうる形かどうかだけを見る。
-            return following is HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.NumericLiteralToken
-                or HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.MinusToken
-                or HlslSyntaxKind.PlusToken or HlslSyntaxKind.ExclamationToken
-                or HlslSyntaxKind.TildeToken;
+            return following is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
+                or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.MinusToken
+                or ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.ExclamationToken
+                or ShaderSyntaxKind.TildeToken;
         }
 
-        return following is HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.NumericLiteralToken
-            or HlslSyntaxKind.OpenParenToken;
+        return following is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
+            or ShaderSyntaxKind.OpenParenToken;
     }
 
     /// <summary>後置演算 (呼び出し・添字・メンバーアクセス・増減) を解析する。</summary>
@@ -2118,48 +2120,48 @@ internal sealed class HlslParser
         {
             switch (Current.Kind)
             {
-                case HlslSyntaxKind.OpenParenToken:
+                case ShaderSyntaxKind.OpenParenToken:
                     expression = ParseInvocation(expression);
                     break;
 
-                case HlslSyntaxKind.OpenBracketToken:
+                case ShaderSyntaxKind.OpenBracketToken:
                 {
-                    HlslSyntaxToken openBracket = Advance();
+                    ShaderSyntaxToken openBracket = Advance();
                     HlslExpressionSyntax index = ParseExpression();
-                    HlslSyntaxToken closeBracket = Expect(HlslSyntaxKind.CloseBracketToken, "']'");
+                    ShaderSyntaxToken closeBracket = Expect(ShaderSyntaxKind.CloseBracketToken, "']'");
                     expression = new ElementAccessExpressionSyntax(expression, openBracket, index, closeBracket);
                     break;
                 }
 
-                case HlslSyntaxKind.DotToken:
+                case ShaderSyntaxKind.DotToken:
 
                 // 名前空間で修飾された関数呼び出し (UnifiedRT::TraceRay(...)) に対応する。
                 // 構文の形はメンバーアクセスと同じなので同じノードで表す。
-                case HlslSyntaxKind.ColonColonToken:
+                case ShaderSyntaxKind.ColonColonToken:
                 {
-                    HlslSyntaxToken separator = Advance();
-                    HlslSyntaxToken name = Current.Kind == HlslSyntaxKind.IdentifierToken
+                    ShaderSyntaxToken separator = Advance();
+                    ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
                         ? Advance()
-                        : CreateMissingToken(HlslSyntaxKind.IdentifierToken);
+                        : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
                     expression = new MemberAccessExpressionSyntax(expression, separator, name);
                     break;
                 }
 
-                case HlslSyntaxKind.PlusPlusToken:
-                case HlslSyntaxKind.MinusMinusToken:
+                case ShaderSyntaxKind.PlusPlusToken:
+                case ShaderSyntaxKind.MinusMinusToken:
                     expression = new PostfixUnaryExpressionSyntax(expression, Advance());
                     break;
 
                 // 型引数を書いた型の静的メンバー (HLSL 2021 の TLaneVector2D<float, 2>::Const(1.0))。
                 // 比較の連なりとして読むと、:: から先が式にならない。
-                case HlslSyntaxKind.LessThanToken
+                case ShaderSyntaxKind.LessThanToken
                     when Features.Templates
                          && expression is IdentifierExpressionSyntax identifier
                          && _templateNames.Contains(identifier.Name)
-                         && FindTypeArgumentsEnd(HlslSyntaxKind.ColonColonToken) is int qualifiedClose:
+                         && FindTypeArgumentsEnd(ShaderSyntaxKind.ColonColonToken) is int qualifiedClose:
                 {
-                    HlslSyntaxToken openAngle = Advance();
-                    ImmutableArray<HlslSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+                    ShaderSyntaxToken openAngle = Advance();
+                    ImmutableArray<ShaderSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
                     for (int i = 1; i < qualifiedClose; i++)
                     {
@@ -2172,21 +2174,21 @@ internal sealed class HlslParser
 
                 // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
                 // 名前だけのときは、template として宣言した名前に限る (_templateNames)。メソッド (buffer.Load<float4>) は問わない。
-                case HlslSyntaxKind.LessThanToken
+                case ShaderSyntaxKind.LessThanToken
                     when Features.Templates
                          && (expression is MemberAccessExpressionSyntax
                              || (expression is IdentifierExpressionSyntax { Name: var calledName } && _templateNames.Contains(calledName)))
                          && FindTypeArgumentsEnd() is int close:
                 {
-                    HlslSyntaxToken openAngle = Advance();
-                    ImmutableArray<HlslSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+                    ShaderSyntaxToken openAngle = Advance();
+                    ImmutableArray<ShaderSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
                     for (int i = 1; i < close; i++)
                     {
                         typeArguments.Add(Advance());
                     }
 
-                    HlslSyntaxToken closeAngle = Advance();
+                    ShaderSyntaxToken closeAngle = Advance();
                     expression = ParseInvocation(expression, openAngle, typeArguments.ToImmutable(), closeAngle);
                     break;
                 }
@@ -2208,7 +2210,7 @@ internal sealed class HlslParser
     /// <c>a &lt; b &gt; (c)</c> という比較の連なりと形が同じになる。
     /// 比較の結果をさらに比べる書き方はまず無いので、型の記述に現れるトークンだけで閉じていれば呼び出しとみなす。
     /// </remarks>
-    private int? FindTypeArgumentsEnd(HlslSyntaxKind following = HlslSyntaxKind.OpenParenToken)
+    private int? FindTypeArgumentsEnd(ShaderSyntaxKind following = ShaderSyntaxKind.OpenParenToken)
     {
         int depth = 0;
 
@@ -2216,11 +2218,11 @@ internal sealed class HlslParser
         {
             switch (Peek(offset).Kind)
             {
-                case HlslSyntaxKind.LessThanToken:
+                case ShaderSyntaxKind.LessThanToken:
                     depth++;
                     break;
 
-                case HlslSyntaxKind.GreaterThanToken:
+                case ShaderSyntaxKind.GreaterThanToken:
                     if (--depth == 0)
                     {
                         return offset > 1 && Peek(offset + 1).Kind == following ? offset : null;
@@ -2228,8 +2230,8 @@ internal sealed class HlslParser
 
                     break;
 
-                case HlslSyntaxKind.IdentifierToken or HlslSyntaxKind.NumericLiteralToken
-                    or HlslSyntaxKind.CommaToken or HlslSyntaxKind.ColonColonToken:
+                case ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
+                    or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.ColonColonToken:
                     break;
 
                 default:
@@ -2248,20 +2250,20 @@ internal sealed class HlslParser
     /// <returns>解析した式。</returns>
     private InvocationExpressionSyntax ParseInvocation(
         HlslExpressionSyntax target,
-        HlslSyntaxToken? openAngle = null,
-        ImmutableArray<HlslSyntaxToken> typeArguments = default,
-        HlslSyntaxToken? closeAngle = null)
+        ShaderSyntaxToken? openAngle = null,
+        ImmutableArray<ShaderSyntaxToken> typeArguments = default,
+        ShaderSyntaxToken? closeAngle = null)
     {
-        HlslSyntaxToken openParen = Advance();
+        ShaderSyntaxToken openParen = Advance();
         ImmutableArray<HlslNodeOrTokenEntry>.Builder arguments =
             ImmutableArray.CreateBuilder<HlslNodeOrTokenEntry>();
 
-        while (!AtEnd && Current.Kind != HlslSyntaxKind.CloseParenToken)
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseParenToken)
         {
             int positionBefore = _index;
             arguments.Add(HlslNodeOrTokenEntry.FromNode(ParseAssignment()));
 
-            if (Current.Kind == HlslSyntaxKind.CommaToken)
+            if (Current.Kind == ShaderSyntaxKind.CommaToken)
             {
                 arguments.Add(HlslNodeOrTokenEntry.FromToken(Advance()));
                 continue;
@@ -2276,7 +2278,7 @@ internal sealed class HlslParser
             break;
         }
 
-        HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+        ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         return new InvocationExpressionSyntax(
             target, openParen, arguments.ToImmutable(), closeParen, openAngle, typeArguments, closeAngle);
     }
@@ -2287,38 +2289,38 @@ internal sealed class HlslParser
     {
         switch (Current.Kind)
         {
-            case HlslSyntaxKind.NumericLiteralToken:
-            case HlslSyntaxKind.StringLiteralToken:
-            case HlslSyntaxKind.CharacterLiteralToken:
+            case ShaderSyntaxKind.NumericLiteralToken:
+            case ShaderSyntaxKind.StringLiteralToken:
+            case ShaderSyntaxKind.CharacterLiteralToken:
                 return new LiteralExpressionSyntax(Advance());
 
-            case HlslSyntaxKind.IdentifierToken:
+            case ShaderSyntaxKind.IdentifierToken:
                 return new IdentifierExpressionSyntax(Advance());
 
             // 大域の名前 (::AddLobeWithMIS(...))。構造体のメソッドから、同じ名前の大域の関数を呼ぶのに使う (HLSL 2021)。
             // メソッドは大域の関数の候補に入らないので、名前の参照として読めば大域の関数を引く。
             // 先頭の :: は木に残さない (名前の引き方に関わらない)。
-            case HlslSyntaxKind.ColonColonToken when Peek(1).Kind == HlslSyntaxKind.IdentifierToken:
+            case ShaderSyntaxKind.ColonColonToken when Peek(1).Kind == ShaderSyntaxKind.IdentifierToken:
                 Advance();
                 return new IdentifierExpressionSyntax(Advance());
 
-            case HlslSyntaxKind.OpenParenToken:
+            case ShaderSyntaxKind.OpenParenToken:
             {
-                HlslSyntaxToken openParen = Advance();
+                ShaderSyntaxToken openParen = Advance();
                 HlslExpressionSyntax inner = ParseExpression();
 
                 // 括弧の中のカンマ演算子 ((0.1, 0.1, 0.1, 1) は 1 になる)。左から順に二項演算として読む。値の型は決めない。
-                while (Current.Kind == HlslSyntaxKind.CommaToken)
+                while (Current.Kind == ShaderSyntaxKind.CommaToken)
                 {
-                    HlslSyntaxToken comma = Advance();
+                    ShaderSyntaxToken comma = Advance();
                     inner = new BinaryExpressionSyntax(inner, comma, ParseExpression());
                 }
 
-                HlslSyntaxToken closeParen = Expect(HlslSyntaxKind.CloseParenToken, "')'");
+                ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
                 return new ParenthesizedExpressionSyntax(openParen, inner, closeParen);
             }
 
-            case HlslSyntaxKind.OpenBraceToken:
+            case ShaderSyntaxKind.OpenBraceToken:
                 return ParseInitializerList();
 
             default:
@@ -2330,24 +2332,24 @@ internal sealed class HlslParser
     /// <summary>代入演算子かどうかを判定する。</summary>
     /// <param name="kind">判定するトークン種別。</param>
     /// <returns>代入演算子の場合は <see langword="true"/>。</returns>
-    private static bool IsAssignmentOperator(HlslSyntaxKind kind) => HlslSyntaxFacts.IsAssignmentOperator(kind);
+    private static bool IsAssignmentOperator(ShaderSyntaxKind kind) => HlslSyntaxFacts.IsAssignmentOperator(kind);
 
     /// <summary>二項演算子の優先順位を返す。値が大きいほど強く結合する。</summary>
     /// <param name="kind">演算子の種別。</param>
     /// <returns>優先順位。二項演算子でない場合は負の値。</returns>
-    private static int GetBinaryPrecedence(HlslSyntaxKind kind) => kind switch
+    private static int GetBinaryPrecedence(ShaderSyntaxKind kind) => kind switch
     {
-        HlslSyntaxKind.BarBarToken => 1,
-        HlslSyntaxKind.AmpersandAmpersandToken => 2,
-        HlslSyntaxKind.BarToken => 3,
-        HlslSyntaxKind.CaretToken => 4,
-        HlslSyntaxKind.AmpersandToken => 5,
-        HlslSyntaxKind.EqualsEqualsToken or HlslSyntaxKind.ExclamationEqualsToken => 6,
-        HlslSyntaxKind.LessThanToken or HlslSyntaxKind.GreaterThanToken
-            or HlslSyntaxKind.LessThanEqualsToken or HlslSyntaxKind.GreaterThanEqualsToken => 7,
-        HlslSyntaxKind.LessThanLessThanToken or HlslSyntaxKind.GreaterThanGreaterThanToken => 8,
-        HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken => 9,
-        HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken or HlslSyntaxKind.PercentToken => 10,
+        ShaderSyntaxKind.BarBarToken => 1,
+        ShaderSyntaxKind.AmpersandAmpersandToken => 2,
+        ShaderSyntaxKind.BarToken => 3,
+        ShaderSyntaxKind.CaretToken => 4,
+        ShaderSyntaxKind.AmpersandToken => 5,
+        ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken => 6,
+        ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+            or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken => 7,
+        ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken => 8,
+        ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken => 9,
+        ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken => 10,
         _ => -1,
     };
 
@@ -2368,16 +2370,16 @@ internal sealed class HlslParser
     {
         ReportError(message);
 
-        ImmutableArray<HlslSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder skipped = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
         int braceDepth = 0;
 
         while (!AtEnd)
         {
-            if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
             {
                 braceDepth++;
             }
-            else if (Current.Kind == HlslSyntaxKind.CloseBraceToken)
+            else if (Current.Kind == ShaderSyntaxKind.CloseBraceToken)
             {
                 if (braceDepth == 0)
                 {
@@ -2394,7 +2396,7 @@ internal sealed class HlslParser
 
                 continue;
             }
-            else if (Current.Kind == HlslSyntaxKind.SemicolonToken && braceDepth == 0)
+            else if (Current.Kind == ShaderSyntaxKind.SemicolonToken && braceDepth == 0)
             {
                 skipped.Add(Advance());
                 break;
@@ -2418,11 +2420,11 @@ internal sealed class HlslParser
 
         do
         {
-            if (Current.Kind == HlslSyntaxKind.OpenBraceToken)
+            if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
             {
                 depth++;
             }
-            else if (Current.Kind == HlslSyntaxKind.CloseBraceToken)
+            else if (Current.Kind == ShaderSyntaxKind.CloseBraceToken)
             {
                 depth--;
             }
@@ -2434,9 +2436,9 @@ internal sealed class HlslParser
 
     /// <summary>現在のトークンを返して 1 つ進む。</summary>
     /// <returns>進む前のトークン。</returns>
-    private HlslSyntaxToken Advance()
+    private ShaderSyntaxToken Advance()
     {
-        HlslSyntaxToken current = Current;
+        ShaderSyntaxToken current = Current;
 
         if (_index < _tokens.Length)
         {
@@ -2448,12 +2450,12 @@ internal sealed class HlslParser
 
     /// <summary>終端でなければ 1 つ進む。</summary>
     /// <returns>進む前のトークン。</returns>
-    private HlslSyntaxToken AdvanceIfPossible() => AtEnd ? Current : Advance();
+    private ShaderSyntaxToken AdvanceIfPossible() => AtEnd ? Current : Advance();
 
     /// <summary>指定した相対位置のトークンを取得する。</summary>
     /// <param name="offset">現在位置からの相対オフセット。</param>
     /// <returns>その位置のトークン。範囲外の場合は終端トークン。</returns>
-    private HlslSyntaxToken Peek(int offset)
+    private ShaderSyntaxToken Peek(int offset)
     {
         int index = _index + offset;
 
@@ -2471,7 +2473,7 @@ internal sealed class HlslParser
     /// <param name="text">比較する文字列。</param>
     /// <returns>一致する場合は <see langword="true"/>。</returns>
     private bool CurrentTextIs(string text)
-        => Current.Kind == HlslSyntaxKind.IdentifierToken && Current.TextIs(text);
+        => Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.TextIs(text);
 
     /// <summary>
     /// 期待する種別のトークンを消費する。無い場合は欠落トークンを合成する。
@@ -2483,7 +2485,7 @@ internal sealed class HlslParser
     /// 期待外れの場合にトークンを消費しない。
     /// 消費してしまうと、本来そのトークンで始まるはずだった後続の構文まで巻き添えで壊れる。
     /// </remarks>
-    private HlslSyntaxToken Expect(HlslSyntaxKind kind, string expectation)
+    private ShaderSyntaxToken Expect(ShaderSyntaxKind kind, string expectation)
     {
         if (Current.Kind == kind)
         {
@@ -2497,13 +2499,13 @@ internal sealed class HlslParser
     /// <summary>現在のトークンを説明する文字列を返す。</summary>
     /// <returns>エラーメッセージに埋め込む文字列。</returns>
     private string DescribeCurrent()
-        => Current.Kind == HlslSyntaxKind.EndOfFileToken ? "ファイルの終わり" : Current.Text;
+        => Current.Kind == ShaderSyntaxKind.EndOfFileToken ? "ファイルの終わり" : Current.Text;
 
     /// <summary>今の位置で何かが要ることを伝える文を作る。</summary>
     /// <param name="expectation">要るもの (<c>';'</c> / <c>式</c> など)。</param>
     /// <returns>文。ファイルの終わりなら「ファイルの末尾には … が必要です。」</returns>
     private string DescribeExpected(string expectation)
-        => Current.Kind == HlslSyntaxKind.EndOfFileToken
+        => Current.Kind == ShaderSyntaxKind.EndOfFileToken
             ? $"ファイルの末尾には {expectation}{Space(expectation)}が必要です。"
             : $"{expectation}{Space(expectation)}が必要ですが '{Current.Text}' がありました。";
 
@@ -2519,14 +2521,14 @@ internal sealed class HlslParser
     /// </remarks>
     private string? DescribeUndefinedMacroCall()
     {
-        if (Current.Kind != HlslSyntaxKind.OpenParenToken || _index == 0)
+        if (Current.Kind != ShaderSyntaxKind.OpenParenToken || _index == 0)
         {
             return null;
         }
 
-        HlslSyntaxToken name = Peek(-1);
+        ShaderSyntaxToken name = Peek(-1);
 
-        if (name.Kind != HlslSyntaxKind.IdentifierToken || name.IsMissing || HlslKeywords.IsKnownTypeName(name.Text))
+        if (name.Kind != ShaderSyntaxKind.IdentifierToken || name.IsMissing || HlslKeywords.IsKnownTypeName(name.Text))
         {
             return null;
         }
@@ -2546,17 +2548,17 @@ internal sealed class HlslParser
     /// <summary>欠落トークンを合成する。</summary>
     /// <param name="kind">合成するトークンの種別。</param>
     /// <returns>合成したトークン。</returns>
-    private HlslSyntaxToken CreateMissingToken(HlslSyntaxKind kind)
+    private ShaderSyntaxToken CreateMissingToken(ShaderSyntaxKind kind)
         => new(kind, Current.Source, new TextSpan(Current.Span.Start, 0), string.Empty, isMissing: true);
 
     /// <summary>終端トークンを合成する。</summary>
     /// <param name="last">直前のトークン。位置の基準に使う。</param>
     /// <returns>合成したトークン。</returns>
-    private static HlslSyntaxToken CreateEndOfFileToken(HlslSyntaxToken? last)
+    private static ShaderSyntaxToken CreateEndOfFileToken(ShaderSyntaxToken? last)
         => last is not null
-            ? new HlslSyntaxToken(HlslSyntaxKind.EndOfFileToken, last.Source,
+            ? new ShaderSyntaxToken(ShaderSyntaxKind.EndOfFileToken, last.Source,
                 new TextSpan(last.Span.End, 0), string.Empty)
-            : new HlslSyntaxToken(HlslSyntaxKind.EndOfFileToken,
+            : new ShaderSyntaxToken(ShaderSyntaxKind.EndOfFileToken,
                 SourceText.From(string.Empty, "<空>"), new TextSpan(0, 0), string.Empty);
 
     /// <summary>
@@ -2592,6 +2594,6 @@ internal sealed class HlslParser
 
         _reportedErrors++;
         _diagnostics.Add(Diagnostic.Create(
-            HlslDescriptors.SyntaxError, Current.GetLocation(), message));
+            ShaderDescriptors.SyntaxError, Current.GetLocation(), message));
     }
 }

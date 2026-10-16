@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// 文の途中で分かれる <c>#if</c> を、分岐ごとに文を複製して並べる (条件の巻き上げ)。
@@ -26,7 +26,7 @@ namespace Shaderlyn.Hlsl.Preprocessing;
 /// 初期化の波括弧 (<c>= {</c>) は単位の中で閉じるので複製する。
 /// </para>
 /// </remarks>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     /// <summary>
     /// 文の途中で分かれる領域なら、分岐ごとに文を複製する。
@@ -38,7 +38,7 @@ internal sealed partial class HlslPreprocessor
     /// 複製できない場合は何も変えずに <see langword="false"/> を返す。
     /// 呼び出し側は今までどおり、並べるか、並べられなかったと記録する。
     /// </remarks>
-    private bool TryHoistRegion(HlslSyntaxToken directive, SymbolCondition? first)
+    private bool TryHoistRegion(ShaderSyntaxToken directive, SymbolCondition? first)
     {
         if (!IsHoistingEnabled
             || _hoisting
@@ -56,7 +56,7 @@ internal sealed partial class HlslPreprocessor
         }
 
         TokenSource source = CurrentSource;
-        ImmutableArray<HlslSyntaxToken> tokens = source.Tokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = source.Tokens;
         int regionStart = source.Index;
 
         if (ConditionalRegionScanner.Scan(tokens, regionStart, out int regionEnd) != ConditionalRegionLayout.NotSelfContained
@@ -67,7 +67,7 @@ internal sealed partial class HlslPreprocessor
             return false;
         }
 
-        ImmutableArray<HlslSyntaxToken> prefix = [.. tokens.Skip(anchor.SourceIndex).Take(hash - anchor.SourceIndex)];
+        ImmutableArray<ShaderSyntaxToken> prefix = [.. tokens.Skip(anchor.SourceIndex).Take(hash - anchor.SourceIndex)];
         ImmutableArray<int> candidates = [.. EnumerateRegionUnitEnds(tokens, prefix, branches[0].Tokens, regionEnd)];
 
         int savedParen = _unitParenDepth;
@@ -79,7 +79,7 @@ internal sealed partial class HlslPreprocessor
 
         foreach (int unitEnd in candidates)
         {
-            ImmutableArray<HlslSyntaxToken> suffix = [.. tokens.Skip(regionEnd).Take(unitEnd - regionEnd)];
+            ImmutableArray<ShaderSyntaxToken> suffix = [.. tokens.Skip(regionEnd).Take(unitEnd - regionEnd)];
 
             // 後ろの候補ほど単位が長くなる。ブロックが入ったら、それより先の候補にも入っている。
             if (branches.Any(b => !HasOnlyInitializerBraces([.. prefix, .. b.Tokens, .. suffix])))
@@ -142,20 +142,20 @@ internal sealed partial class HlslPreprocessor
     /// <param name="suffix"><c>#endif</c> の次から文の終わりまで。</param>
     /// <returns>どの分岐も文になった場合は <see langword="true"/>。</returns>
     /// <remarks>
-    /// 複製ごとに別のトークンを使う (<see cref="HlslSyntaxToken.Duplicate"/>)。
+    /// 複製ごとに別のトークンを使う (<see cref="ShaderSyntaxToken.Duplicate"/>)。
     /// 中で条件で中身が変わるマクロを使っていても、ここでは複製しない (1 つの単位で複製するのは 1 回まで)。
     /// </remarks>
     private bool TryExpandRegionBranches(
-        ImmutableArray<HlslSyntaxToken> prefix,
-        List<(SymbolCondition Condition, ImmutableArray<HlslSyntaxToken> Tokens)> branches,
-        ImmutableArray<HlslSyntaxToken> suffix)
+        ImmutableArray<ShaderSyntaxToken> prefix,
+        List<(SymbolCondition Condition, ImmutableArray<ShaderSyntaxToken> Tokens)> branches,
+        ImmutableArray<ShaderSyntaxToken> suffix)
     {
         bool complete = true;
 
         _hoisting = true;
         _hoistingMacros.Clear();
 
-        foreach ((SymbolCondition condition, ImmutableArray<HlslSyntaxToken> body) in branches)
+        foreach ((SymbolCondition condition, ImmutableArray<ShaderSyntaxToken> body) in branches)
         {
             int start = _output.Count;
             ExpandTokensAsUnit([.. prefix.Concat(body).Concat(suffix).Select(t => t.Duplicate())]);
@@ -193,25 +193,25 @@ internal sealed partial class HlslPreprocessor
     /// 複製すると指令を何度も処理することになる。
     /// </para>
     /// </remarks>
-    private List<(SymbolCondition Condition, ImmutableArray<HlslSyntaxToken> Tokens)>? ReadRegionBranches(
-        ImmutableArray<HlslSyntaxToken> tokens,
+    private List<(SymbolCondition Condition, ImmutableArray<ShaderSyntaxToken> Tokens)>? ReadRegionBranches(
+        ImmutableArray<ShaderSyntaxToken> tokens,
         int start,
         int end,
         SymbolCondition first)
     {
-        List<(SymbolCondition, ImmutableArray<HlslSyntaxToken>)> branches = [];
+        List<(SymbolCondition, ImmutableArray<ShaderSyntaxToken>)> branches = [];
         SymbolCondition remaining = first.Negate();
         SymbolCondition current = first;
         int branchStart = start;
 
         for (int i = start; i < end; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken || !tokens[i].IsAtLineStart)
             {
                 continue;
             }
 
-            if (i + 1 >= tokens.Length || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken)
+            if (i + 1 >= tokens.Length || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 return null;
             }
@@ -243,7 +243,7 @@ internal sealed partial class HlslPreprocessor
             }
             else
             {
-                ImmutableArray<HlslSyntaxToken> line = [.. tokens.Skip(i + 2).Take(lineEnd - i - 2)];
+                ImmutableArray<ShaderSyntaxToken> line = [.. tokens.Skip(i + 2).Take(lineEnd - i - 2)];
                 int recordedBefore = _conditionalIdentifiers.Count;
 
                 if (TryReadDefinedCondition(line) is not { IsUnknown: false } read)
@@ -264,7 +264,7 @@ internal sealed partial class HlslPreprocessor
 
         return branches.Count is >= 2 and <= MaxHoistedBranches ? branches : null;
 
-        void Add(SymbolCondition condition, ImmutableArray<HlslSyntaxToken> source, int from, int to)
+        void Add(SymbolCondition condition, ImmutableArray<ShaderSyntaxToken> source, int from, int to)
         {
             if (!condition.IsUnknown && _options.SymbolConstraints.IsPossible(condition))
             {
@@ -278,13 +278,13 @@ internal sealed partial class HlslPreprocessor
     /// <param name="directive">指令名のトークン。</param>
     /// <param name="from">探し始める位置 (文の始まり)。</param>
     /// <returns><c>#</c> の位置。見つからなければ <see langword="null"/>。</returns>
-    private static int? FindDirectiveHash(ImmutableArray<HlslSyntaxToken> tokens, HlslSyntaxToken directive, int from)
+    private static int? FindDirectiveHash(ImmutableArray<ShaderSyntaxToken> tokens, ShaderSyntaxToken directive, int from)
     {
         for (int i = Math.Max(from, 1); i < tokens.Length; i++)
         {
             if (ReferenceEquals(tokens[i], directive))
             {
-                return tokens[i - 1].Kind == HlslSyntaxKind.HashToken && i - 1 >= from ? i - 1 : null;
+                return tokens[i - 1].Kind == ShaderSyntaxKind.HashToken && i - 1 >= from ? i - 1 : null;
             }
         }
 
@@ -305,14 +305,14 @@ internal sealed partial class HlslPreprocessor
     /// 指令があればそこで打ち切る。
     /// </remarks>
     private static IEnumerable<int> EnumerateRegionUnitEnds(
-        ImmutableArray<HlslSyntaxToken> tokens,
-        ImmutableArray<HlslSyntaxToken> prefix,
-        ImmutableArray<HlslSyntaxToken> firstBranch,
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> prefix,
+        ImmutableArray<ShaderSyntaxToken> firstBranch,
         int from)
     {
         int depth = 0;
 
-        foreach (HlslSyntaxToken token in prefix.Concat(firstBranch))
+        foreach (ShaderSyntaxToken token in prefix.Concat(firstBranch))
         {
             depth += DepthChange(token);
         }
@@ -321,16 +321,16 @@ internal sealed partial class HlslPreprocessor
 
         for (int i = from; i < tokens.Length && i - from < MaxHoistedUnitTokens; i++)
         {
-            HlslSyntaxToken token = tokens[i];
+            ShaderSyntaxToken token = tokens[i];
 
-            if (token.Kind == HlslSyntaxKind.HashToken && token.IsAtLineStart)
+            if (token.Kind == ShaderSyntaxKind.HashToken && token.IsAtLineStart)
             {
                 yield break;
             }
 
             depth += DepthChange(token);
 
-            if (depth == 0 && token.Kind is HlslSyntaxKind.SemicolonToken or HlslSyntaxKind.CloseBraceToken)
+            if (depth == 0 && token.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken)
             {
                 yield return i + 1;
 
@@ -346,10 +346,10 @@ internal sealed partial class HlslPreprocessor
             }
         }
 
-        static int DepthChange(HlslSyntaxToken token) => token.Kind switch
+        static int DepthChange(ShaderSyntaxToken token) => token.Kind switch
         {
-            HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.OpenBracketToken or HlslSyntaxKind.OpenBraceToken => 1,
-            HlslSyntaxKind.CloseParenToken or HlslSyntaxKind.CloseBracketToken or HlslSyntaxKind.CloseBraceToken => -1,
+            ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.OpenBraceToken => 1,
+            ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.CloseBraceToken => -1,
             _ => 0,
         };
     }
@@ -363,12 +363,12 @@ internal sealed partial class HlslPreprocessor
     /// 初期化の波括弧は <c>=</c> / <c>,</c> / <c>{</c> の直後に来る (<c>float4 c = { 1, 2 };</c>)。
     /// それ以外は関数や <c>if</c> の本体、構造体などのブロックであり、複製しない。
     /// </remarks>
-    private static bool HasOnlyInitializerBraces(ImmutableArray<HlslSyntaxToken> tokens)
+    private static bool HasOnlyInitializerBraces(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.OpenBraceToken
-                && (i == 0 || tokens[i - 1].Kind is not (HlslSyntaxKind.EqualsToken or HlslSyntaxKind.CommaToken or HlslSyntaxKind.OpenBraceToken)))
+            if (tokens[i].Kind == ShaderSyntaxKind.OpenBraceToken
+                && (i == 0 || tokens[i - 1].Kind is not (ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.OpenBraceToken)))
             {
                 return false;
             }

@@ -28,7 +28,7 @@ public enum HlslCompiler
 /// </para>
 /// <para>
 /// 1 つのコードが複数の方言でコンパイルされることがある (Unity は DX11 向けを FXC、DX12 向けを DXC でコンパイルしうる)。
-/// その場合は方言を並べて持つ (<see cref="Preprocessing.PreprocessorOptions.Dialects"/>)。
+/// その場合は方言を並べて持つ (<see cref="HlslLanguageOptions.Dialects"/>)。
 /// </para>
 /// </remarks>
 public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? LanguageVersion)

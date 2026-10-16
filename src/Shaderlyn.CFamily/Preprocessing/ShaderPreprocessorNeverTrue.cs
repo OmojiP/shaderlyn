@@ -1,16 +1,16 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// どの構成でも成り立たない <c>#if</c> / <c>#elif</c> の条件。
 /// </summary>
 /// <param name="Directive">指令名のトークン。</param>
 /// <param name="Text">条件式の書かれたとおりの文字列。</param>
-internal readonly record struct NeverTrueCondition(HlslSyntaxToken Directive, string Text);
+internal readonly record struct NeverTrueCondition(ShaderSyntaxToken Directive, string Text);
 
 /// <summary>
 /// どの構成でも成り立たない条件を見つける (HL0332)。
@@ -29,7 +29,7 @@ internal readonly record struct NeverTrueCondition(HlslSyntaxToken Directive, st
 /// 別のマクロを通して書かれた条件も、マクロの中身が構成や環境で変わりうるので見ない。
 /// </para>
 /// </remarks>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     /// <summary>試すシンボルの数の上限。組は 2 のこの数乗になる。</summary>
     private const int MaxNeverTrueSymbols = 10;
@@ -54,7 +54,7 @@ internal sealed partial class HlslPreprocessor
     /// その分岐はどの構成でも読まれないので、中の条件を報告しても直す意味が無い。
     /// </para>
     /// </remarks>
-    private bool NoteIfNeverTrue(ImmutableArray<HlslSyntaxToken> line, HlslSyntaxToken directive, int depth)
+    private bool NoteIfNeverTrue(ImmutableArray<ShaderSyntaxToken> line, ShaderSyntaxToken directive, int depth)
     {
         if (line.IsEmpty
             || _options.DeclaredSymbols.IsEmpty
@@ -102,13 +102,13 @@ internal sealed partial class HlslPreprocessor
     /// </summary>
     /// <param name="line">条件式の行。</param>
     /// <returns>現れるシンボル (名前順)。ほかの名前を含むか、シンボルが無いか多すぎれば <see langword="null"/>。</returns>
-    private ImmutableArray<string>? ReadSymbolsOnly(ImmutableArray<HlslSyntaxToken> line)
+    private ImmutableArray<string>? ReadSymbolsOnly(ImmutableArray<ShaderSyntaxToken> line)
     {
         SortedSet<string> symbols = new(StringComparer.Ordinal);
 
-        foreach (HlslSyntaxToken token in line)
+        foreach (ShaderSyntaxToken token in line)
         {
-            if (token.Kind != HlslSyntaxKind.IdentifierToken || token.TextIs("defined"))
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken || token.TextIs("defined"))
             {
                 continue;
             }
@@ -135,25 +135,25 @@ internal sealed partial class HlslPreprocessor
     /// <c>defined(X)</c> / <c>defined X</c> は定義されているかで 1 か 0 に、<c>X</c> だけなら値 (有効なら 1、無効なら 0) にする。
     /// どちらも同じ値になる。Unity は有効なシンボルを値 1 で定義し、未定義の名前は 0 として解かれる。
     /// </remarks>
-    private static ImmutableArray<HlslSyntaxToken> SubstituteSymbols(
-        ImmutableArray<HlslSyntaxToken> line,
+    private static ImmutableArray<ShaderSyntaxToken> SubstituteSymbols(
+        ImmutableArray<ShaderSyntaxToken> line,
         ImmutableArray<string> symbols,
         int mask)
     {
-        ImmutableArray<HlslSyntaxToken>.Builder result = ImmutableArray.CreateBuilder<HlslSyntaxToken>(line.Length);
+        ImmutableArray<ShaderSyntaxToken>.Builder result = ImmutableArray.CreateBuilder<ShaderSyntaxToken>(line.Length);
 
         for (int i = 0; i < line.Length; i++)
         {
-            HlslSyntaxToken token = line[i];
+            ShaderSyntaxToken token = line[i];
 
             if (token.TextIs("defined"))
             {
                 bool parenthesized = i + 3 < line.Length
-                                     && line[i + 1].Kind == HlslSyntaxKind.OpenParenToken
-                                     && line[i + 3].Kind == HlslSyntaxKind.CloseParenToken;
+                                     && line[i + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                                     && line[i + 3].Kind == ShaderSyntaxKind.CloseParenToken;
                 int operand = parenthesized ? i + 2 : i + 1;
 
-                if (operand < line.Length && line[operand].Kind == HlslSyntaxKind.IdentifierToken)
+                if (operand < line.Length && line[operand].Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     result.Add(CreateNumericToken(token, ValueOf(line[operand].Text)));
                     i = parenthesized ? i + 3 : i + 1;
@@ -161,7 +161,7 @@ internal sealed partial class HlslPreprocessor
                 }
             }
 
-            result.Add(token.Kind == HlslSyntaxKind.IdentifierToken
+            result.Add(token.Kind == ShaderSyntaxKind.IdentifierToken
                 ? CreateNumericToken(token, ValueOf(token.Text))
                 : token);
         }

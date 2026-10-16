@@ -1,15 +1,15 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
-namespace Shaderlyn.Hlsl.Preprocessing;
+namespace Shaderlyn.CFamily.Preprocessing;
 
 /// <summary>
 /// #define と #undef。マクロ表の更新。
 /// </summary>
-internal sealed partial class HlslPreprocessor
+internal sealed partial class ShaderPreprocessor
 {
     // --------------------------------------------------------------------
     // #define / #undef
@@ -27,19 +27,19 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// </remarks>
     /// <param name="directiveToken">指令名のトークン。</param>
-    private void ProcessDefine(HlslSyntaxToken directiveToken)
+    private void ProcessDefine(ShaderSyntaxToken directiveToken)
     {
-        ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
+        ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
-        if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
+        if (line.IsEmpty || line[0].Kind != ShaderSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
+            Report(ShaderDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#define にはマクロ名が必要です。");
             return;
         }
 
         MacroDefinition definition = ParseMacroDefinition(line, report: true);
-        HlslSyntaxToken nameToken = line[0];
+        ShaderSyntaxToken nameToken = line[0];
 
         // 中身の違う再定義は、どちらが使われるかが読み手に分からない。
         // #undef してから定義し直すのが正しい書き方である。
@@ -56,7 +56,7 @@ internal sealed partial class HlslPreprocessor
             && !HasSameBody(previous, definition)
             && !IsReportedConditionally(nameToken.Text))
         {
-            Report(HlslDescriptors.PreprocessorError, nameToken.GetLocation(),
+            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
                 $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています。"
                 + "#undef してから定義してください。");
         }
@@ -94,13 +94,13 @@ internal sealed partial class HlslPreprocessor
     /// 同じ誤りを構成ごとに何度も報告することになる。
     /// </para>
     /// </remarks>
-    private MacroDefinition ParseMacroDefinition(ImmutableArray<HlslSyntaxToken> line, bool report)
+    private MacroDefinition ParseMacroDefinition(ImmutableArray<ShaderSyntaxToken> line, bool report)
     {
-        HlslSyntaxToken nameToken = line[0];
+        ShaderSyntaxToken nameToken = line[0];
         int index = 1;
 
         bool isFunctionLike = index < line.Length
-            && line[index].Kind == HlslSyntaxKind.OpenParenToken
+            && line[index].Kind == ShaderSyntaxKind.OpenParenToken
             && IsAdjacent(nameToken, line[index]);
 
         ImmutableArray<string>.Builder parameters = ImmutableArray.CreateBuilder<string>();
@@ -110,18 +110,18 @@ internal sealed partial class HlslPreprocessor
         {
             index++;
 
-            while (index < line.Length && line[index].Kind != HlslSyntaxKind.CloseParenToken)
+            while (index < line.Length && line[index].Kind != ShaderSyntaxKind.CloseParenToken)
             {
-                if (line[index].Kind == HlslSyntaxKind.CommaToken)
+                if (line[index].Kind == ShaderSyntaxKind.CommaToken)
                 {
                     index++;
                     continue;
                 }
 
-                if (line[index].Kind == HlslSyntaxKind.DotToken)
+                if (line[index].Kind == ShaderSyntaxKind.DotToken)
                 {
                     // 可変長引数の "..." は 3 つのドットとして字句解析される。
-                    while (index < line.Length && line[index].Kind == HlslSyntaxKind.DotToken)
+                    while (index < line.Length && line[index].Kind == ShaderSyntaxKind.DotToken)
                     {
                         index++;
                     }
@@ -130,12 +130,12 @@ internal sealed partial class HlslPreprocessor
                     continue;
                 }
 
-                if (line[index].Kind == HlslSyntaxKind.IdentifierToken)
+                if (line[index].Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     // 同じ名前の仮引数が 2 つあると、どちらに置き換えるか決まらない。
                     if (report && parameters.Contains(line[index].Text, StringComparer.Ordinal))
                     {
-                        Report(HlslDescriptors.PreprocessorError, line[index].GetLocation(),
+                        Report(ShaderDescriptors.PreprocessorError, line[index].GetLocation(),
                             $"マクロ '{nameToken.Text}' の仮引数 '{line[index].Text}' が重複しています。");
                     }
 
@@ -146,7 +146,7 @@ internal sealed partial class HlslPreprocessor
 
                 if (report)
                 {
-                    Report(HlslDescriptors.PreprocessorError, line[index].GetLocation(),
+                    Report(ShaderDescriptors.PreprocessorError, line[index].GetLocation(),
                         $"マクロの仮引数として解釈できません: '{line[index].Text}'");
                 }
 
@@ -159,7 +159,7 @@ internal sealed partial class HlslPreprocessor
             }
             else if (report)
             {
-                Report(HlslDescriptors.PreprocessorError, nameToken.GetLocation(),
+                Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
                     "マクロの仮引数の括弧が閉じられていません。");
             }
         }
@@ -226,7 +226,7 @@ internal sealed partial class HlslPreprocessor
     /// 経路の条件では足りない。
     /// </para>
     /// </remarks>
-    private void RecordHeaderDefinition(HlslSyntaxToken nameToken)
+    private void RecordHeaderDefinition(ShaderSyntaxToken nameToken)
     {
         if (IsInRootFile(nameToken))
         {
@@ -380,7 +380,7 @@ internal sealed partial class HlslPreprocessor
     /// </para>
     /// </remarks>
     /// <param name="active">読んでいる分岐の定義か。読み飛ばした分岐の定義なら <see langword="false"/>。</param>
-    private void RecordConditionalDefinition(HlslSyntaxToken nameToken, ImmutableArray<HlslSyntaxToken> line, bool active = true)
+    private void RecordConditionalDefinition(ShaderSyntaxToken nameToken, ImmutableArray<ShaderSyntaxToken> line, bool active = true)
     {
         bool root = IsInRootFile(nameToken);
 
@@ -416,7 +416,7 @@ internal sealed partial class HlslPreprocessor
 
             SymbolCondition both = _options.SymbolConstraints.Apply(previous.Condition.And(condition));
 
-            Report(HlslDescriptors.PreprocessorError, nameToken.GetLocation(),
+            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
                 $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています"
                 + (both.IsAlways ? string.Empty : $" ({both} のとき)")
                 + "。#undef してから定義してください。");
@@ -470,7 +470,7 @@ internal sealed partial class HlslPreprocessor
     /// <summary>利用者が書いたヘッダの定義で、条件付きで覚えるものかを判定する。</summary>
     /// <param name="nameToken">マクロ名のトークン。</param>
     /// <returns>覚えるなら <see langword="true"/>。</returns>
-    private bool IsUserHeaderDefinition(HlslSyntaxToken nameToken)
+    private bool IsUserHeaderDefinition(ShaderSyntaxToken nameToken)
         => IsHoistingEnabled
            && !nameToken.IsFromMacroExpansion
            && IsUserFile(nameToken.Source.FilePath);
@@ -497,7 +497,7 @@ internal sealed partial class HlslPreprocessor
     /// 条件が分からないか「常に」なら、それまでの記録をすべて捨てる。分からないものを根拠に再定義とは言わない。
     /// </para>
     /// </remarks>
-    private void ForgetConditionalDefinitions(HlslSyntaxToken nameToken, bool active = true)
+    private void ForgetConditionalDefinitions(ShaderSyntaxToken nameToken, bool active = true)
     {
         if (!_conditionalMacros.TryGetValue(nameToken.Text, out List<ConditionalMacro>? definitions))
         {
@@ -557,7 +557,7 @@ internal sealed partial class HlslPreprocessor
     /// その分岐のシンボルは並べずに展開し直す (<see cref="PreprocessResult.MergedMacroConflicts"/>)。
     /// </para>
     /// </remarks>
-    private void ForgetHeaderDefinition(HlslSyntaxToken nameToken)
+    private void ForgetHeaderDefinition(ShaderSyntaxToken nameToken)
     {
         if (IsInRootFile(nameToken))
         {
@@ -631,7 +631,7 @@ internal sealed partial class HlslPreprocessor
     /// Unity やパッケージのヘッダは、取り込み結果の使い回しが多く、利用者も直せないので、名前のまま覚える。
     /// </para>
     /// </remarks>
-    private void AddSkippedIdentifier(HlslSyntaxToken token)
+    private void AddSkippedIdentifier(ShaderSyntaxToken token)
     {
         string name = token.Text;
 
@@ -664,7 +664,7 @@ internal sealed partial class HlslPreprocessor
     private void AddDeclinedSymbol(
         string name,
         BothBranchDeclineReason? reason,
-        HlslSyntaxToken at,
+        ShaderSyntaxToken at,
         ImmutableArray<string>? hoistableMacros = null)
     {
         if (hoistableMacros is { } macros)
@@ -713,7 +713,7 @@ internal sealed partial class HlslPreprocessor
     /// (<see cref="RecordRequiredCombinations"/>)。
     /// ヘッダの条件を満たす構成を作っても、解析しているファイルのコードは変わらない。
     /// </remarks>
-    private void AddRequiredCombination(ImmutableArray<string> combination, HlslSyntaxToken directive)
+    private void AddRequiredCombination(ImmutableArray<string> combination, ShaderSyntaxToken directive)
     {
         ImmutableArray<string> sorted = [.. combination.Order(StringComparer.Ordinal)];
 
@@ -861,7 +861,7 @@ internal sealed partial class HlslPreprocessor
             Fold(ref hash, parameter);
         }
 
-        foreach (HlslSyntaxToken token in definition.Body)
+        foreach (ShaderSyntaxToken token in definition.Body)
         {
             Fold(ref hash, token.Text);
         }
@@ -889,7 +889,7 @@ internal sealed partial class HlslPreprocessor
     /// <summary>そのトークンが、解析しているファイルに書かれたものかを判定する。</summary>
     /// <param name="token">対象のトークン。</param>
     /// <returns>このファイルのものであれば <see langword="true"/>。</returns>
-    private bool IsInRootSource(HlslSyntaxToken token)
+    private bool IsInRootSource(ShaderSyntaxToken token)
         => _rootSource is { } root
            && (ReferenceEquals(token.Source, root) || ReferenceEquals(token.Source, _options.LeadingText));
 
@@ -925,13 +925,13 @@ internal sealed partial class HlslPreprocessor
 
     /// <summary><c>#undef</c> を処理する。</summary>
     /// <param name="directiveToken">指令名のトークン。</param>
-    private void ProcessUndef(HlslSyntaxToken directiveToken)
+    private void ProcessUndef(ShaderSyntaxToken directiveToken)
     {
-        ImmutableArray<HlslSyntaxToken> line = ReadDirectiveLine();
+        ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
-        if (line.IsEmpty || line[0].Kind != HlslSyntaxKind.IdentifierToken)
+        if (line.IsEmpty || line[0].Kind != ShaderSyntaxKind.IdentifierToken)
         {
-            Report(HlslDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
+            Report(ShaderDescriptors.PreprocessorError, GetDirectiveLocation(line, directiveToken),
                 "#undef にはマクロ名が必要です。");
             return;
         }
@@ -953,16 +953,16 @@ internal sealed partial class HlslPreprocessor
         foreach ((string name, string value) in _options.PredefinedMacros)
         {
             SourceText text = SourceText.From($"#define {name} {value}", "<定義済みマクロ>");
-            HlslLexer lexer = new(text);
-            ImmutableArray<HlslSyntaxToken> tokens = lexer.Lex(out _);
+            ShaderLexer lexer = new(text);
+            ImmutableArray<ShaderSyntaxToken> tokens = lexer.Lex(out _);
 
             // "#" "define" "NAME" 以降が本体になる。
-            ImmutableArray<HlslSyntaxToken> body =
-                [.. tokens.Skip(3).Where(t => t.Kind != HlslSyntaxKind.EndOfFileToken)];
+            ImmutableArray<ShaderSyntaxToken> body =
+                [.. tokens.Skip(3).Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken)];
 
-            HlslSyntaxToken nameToken = tokens.Length > 2
+            ShaderSyntaxToken nameToken = tokens.Length > 2
                 ? tokens[2]
-                : new HlslSyntaxToken(HlslSyntaxKind.IdentifierToken, text, new TextSpan(0, 0), name);
+                : new ShaderSyntaxToken(ShaderSyntaxKind.IdentifierToken, text, new TextSpan(0, 0), name);
 
             SetMacro(name, new MacroDefinition(name, nameToken, isFunctionLike: false, [], isVariadic: false, body));
         }
