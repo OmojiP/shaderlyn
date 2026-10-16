@@ -112,7 +112,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
-            || !HlslTypeClassifier.TryDescribeNumeric(name, out HlslNumericShape shape))
+            || !binder.TypeSystem.TryDescribeNumeric(name, out ShaderNumericShape shape))
         {
             return;
         }

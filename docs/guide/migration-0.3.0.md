@@ -16,6 +16,7 @@
     - [名前空間](#名前空間)
     - [HLSL の方言の設定](#hlsl-の方言の設定)
   - [環境](#環境)
+  - [型と組み込み関数](#型と組み込み関数)
 
 ## 書き換えが要るか
 
@@ -179,3 +180,29 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 | --- | --- |
 | `compilation.Environment` (`IHlslEnvironment`) | `compilation.Environment` (`IShaderEnvironment`) |
 | `HostEnvironment` の `Func<IHlslEnvironment>` | `Func<IShaderEnvironment>`。`IHlslEnvironment` を返すラムダはそのまま渡せる |
+
+自作の環境が `IShaderEnvironment` を直接実装しているなら、`TypeSystem` (言語の型と組み込み関数) も実装します。
+`IHlslEnvironment` を実装しているなら、HLSL の型を返すので書かなくてかまいません。
+
+## 型と組み込み関数
+
+言語に依らない型の分類と形の名前から `Hlsl` を外しました (スクリプトで置き換わります)。
+分類の判定 (`IsNumeric`・`IsTexture`・`IsTextureOrSampler`) は `ShaderTypeClassExtensions` に移りました。`typeClass.IsTexture()` の形で呼んでいれば書き換えは要りません。
+
+| 0.2.1 | 0.3.0 |
+| --- | --- |
+| `HlslTypeClass` | `ShaderTypeClass` |
+| `HlslNumericShape` | `ShaderNumericShape` |
+| `HlslNumericKind` | `ShaderNumericKind` |
+
+型の名前・変換・組み込み関数を尋ねる先として、`compilation.TypeSystem` (`ShaderTypeSystem`) を足しました。
+`HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` はこれまでどおり使えますが、HLSL の表そのものです。
+HLSL 以外の言語 (0.3.0 で足す GLSL など) でも働かせたいルールは、`compilation.TypeSystem` から尋ねてください。
+
+```csharp
+// 0.2.1
+HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape);
+
+// 0.3.0 (どの言語でも働く)
+compilation.TypeSystem.TryDescribeNumeric(typeName, out ShaderNumericShape shape);
+```

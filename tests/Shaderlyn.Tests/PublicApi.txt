@@ -1388,6 +1388,7 @@ Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.CFamil
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.CFamily.Syntax.ShaderSyntaxTree Parse(Shaderlyn.Core.Text.SourceText, Shaderlyn.CFamily.Preprocessing.PreprocessorOptions, Shaderlyn.Core.Analysis.ISyntaxTimingRecorder)
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadDeclaredVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.Core.Syntax.VariantSpace ReadVariants(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
+Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract Shaderlyn.Semantics.Symbols.ShaderTypeSystem TypeSystem { get; }
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Boolean IsGeneratedInclude(System.String)
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Boolean LooksLikeVariantSymbol(System.String)
 Shaderlyn.Semantics.Environments.IShaderEnvironment :: abstract System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint] ReadEntryPoints(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.CFamily.Preprocessing.PreprocessResult)
@@ -1475,6 +1476,7 @@ Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Analyze
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Programs.NameResolution ResolveName(Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator GetEvaluatorFor(Shaderlyn.Core.Syntax.SyntaxNode)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator GetEvaluatorFor(Shaderlyn.Core.Syntax.SyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Semantics.Conditional.ConditionMap)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols.ShaderTypeSystem TypeSystem { get; }
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Boolean TryGetStructField(System.String, System.String, out Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, out System.String)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.Semantics.Conditional.ConditionMap)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ExpressionSyntax], Shaderlyn.Semantics.Conditional.ConditionMap)
@@ -1556,6 +1558,7 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IShade
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.ExpressionTypeBinder GetExpressionTypeBinder(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Programs.OverloadResolution ResolveCall(Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram)
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Symbols.ShaderTypeSystem TypeSystem { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean AppearsOutsideAnalyzedCode(System.String, Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasCompleteDependencies { get; }
@@ -1611,10 +1614,11 @@ Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: virtual System.Int32 GetHash
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol :: virtual System.String ToString()
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator : sealed class
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: .ctor(System.Func`2[Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax,System.Nullable`1[Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Frozen.FrozenDictionary`2[System.String,Shaderlyn.Semantics.Symbols.ResolvedTypeName]], System.Collections.Frozen.FrozenDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.FunctionSignature]] = null)
+Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: Shaderlyn.Semantics.Symbols.ShaderTypeSystem TypeSystem { get; set; }
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] TypeAliases { get; set; }
 Shaderlyn.Semantics.Symbols.ExpressionTypeEvaluator :: System.String Evaluate(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Symbols.HlslConversion : static class
-Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsConvertible(Shaderlyn.Semantics.Symbols.HlslNumericShape, Shaderlyn.Semantics.Symbols.HlslNumericShape, System.Boolean)
+Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsConvertible(Shaderlyn.Semantics.Symbols.ShaderNumericShape, Shaderlyn.Semantics.Symbols.ShaderNumericShape, System.Boolean)
 Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsConvertible(System.String, System.String, System.Boolean = False)
 Shaderlyn.Semantics.Symbols.HlslConversion :: static System.Boolean IsTruncating(System.String, System.String)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics : static class
@@ -1627,46 +1631,33 @@ Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Boolean IsTextureSam
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.Collections.Generic.IReadOnlyCollection`1[System.String] FunctionNames { get; }
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.String GetFixedBaseType(System.String)
 Shaderlyn.Semantics.Symbols.HlslIntrinsics :: static System.String GetFixedType(System.String)
-Shaderlyn.Semantics.Symbols.HlslNumericKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
-Shaderlyn.Semantics.Symbols.HlslNumericKind :: Matrix = 3
-Shaderlyn.Semantics.Symbols.HlslNumericKind :: None = 0
-Shaderlyn.Semantics.Symbols.HlslNumericKind :: Scalar = 1
-Shaderlyn.Semantics.Symbols.HlslNumericKind :: Vector = 2
-Shaderlyn.Semantics.Symbols.HlslNumericShape : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.HlslNumericShape])
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: .ctor(Shaderlyn.Semantics.Symbols.HlslNumericKind, System.String, System.Int32, System.Int32)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: Shaderlyn.Semantics.Symbols.HlslNumericKind Kind { get; set; }
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: System.Boolean Equals(Shaderlyn.Semantics.Symbols.HlslNumericShape)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: System.Int32 Columns { get; set; }
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: System.Int32 Rows { get; set; }
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: System.String BaseName { get; set; }
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: System.Void Deconstruct(out Shaderlyn.Semantics.Symbols.HlslNumericKind, out System.String, out System.Int32, out System.Int32)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: static System.Boolean op_Equality(Shaderlyn.Semantics.Symbols.HlslNumericShape, Shaderlyn.Semantics.Symbols.HlslNumericShape)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Symbols.HlslNumericShape, Shaderlyn.Semantics.Symbols.HlslNumericShape)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: virtual System.Boolean Equals(System.Object)
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: virtual System.Int32 GetHashCode()
-Shaderlyn.Semantics.Symbols.HlslNumericShape :: virtual System.String ToString()
-Shaderlyn.Semantics.Symbols.HlslTypeClass : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Buffer = 10
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Matrix = 3
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Sampler = 9
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Scalar = 1
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Texture2D = 4
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Texture2DArray = 7
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Texture3D = 5
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: TextureCube = 6
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: TextureCubeArray = 8
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Unknown = 0
-Shaderlyn.Semantics.Symbols.HlslTypeClass :: Vector = 2
 Shaderlyn.Semantics.Symbols.HlslTypeClassifier : static class
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static Shaderlyn.Semantics.Symbols.HlslTypeClass Classify(System.String)
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean IsNumeric(Shaderlyn.Semantics.Symbols.HlslTypeClass)
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean IsTexture(Shaderlyn.Semantics.Symbols.HlslTypeClass)
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean IsTextureOrSampler(Shaderlyn.Semantics.Symbols.HlslTypeClass)
+Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static Shaderlyn.Semantics.Symbols.ShaderTypeClass Classify(System.String)
 Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean TryDecomposeNumeric(System.String, out System.String, out System.Int32)
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean TryDescribeNumeric(System.String, out Shaderlyn.Semantics.Symbols.HlslNumericShape)
-Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.String Compose(Shaderlyn.Semantics.Symbols.HlslNumericShape)
+Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.Boolean TryDescribeNumeric(System.String, out Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.String Compose(Shaderlyn.Semantics.Symbols.ShaderNumericShape)
 Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.String ComposeNumeric(System.String, System.Int32)
 Shaderlyn.Semantics.Symbols.HlslTypeClassifier :: static System.String GetWiderBaseName(System.String, System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem : sealed class (Shaderlyn.Semantics.Symbols.ShaderTypeSystem)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: static Shaderlyn.Semantics.Symbols.HlslTypeSystem Instance { get; }
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual Shaderlyn.Semantics.Symbols.IntrinsicResultRule GetResultShape(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual Shaderlyn.Semantics.Symbols.ShaderTypeClass Classify(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual Shaderlyn.Semantics.Symbols.TextureMethodReturnType GetTextureMethodReturnType(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsConvertible(Shaderlyn.Semantics.Symbols.ShaderNumericShape, Shaderlyn.Semantics.Symbols.ShaderNumericShape, System.Boolean)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsConvertible(System.String, System.String, System.Boolean = False)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsKnownConstant(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsKnownFunction(System.String, Shaderlyn.CFamily.Syntax.ShaderSyntaxTree)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsTextureSamplingFunction(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean IsTruncating(System.String, System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean TryDecomposeNumeric(System.String, out System.String, out System.Int32)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Boolean TryDescribeNumeric(System.String, out Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Collections.Generic.IReadOnlyCollection`1[System.String] FunctionNames { get; }
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.Collections.Immutable.ImmutableArray`1[System.String] ComponentNameSets { get; }
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.String Compose(Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.String ComposeNumeric(System.String, System.Int32)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.String GetFixedBaseType(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.String GetFixedType(System.String)
+Shaderlyn.Semantics.Symbols.HlslTypeSystem :: virtual System.String GetWiderBaseName(System.String, System.String)
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: Bool = 3
 Shaderlyn.Semantics.Symbols.IntrinsicResultRule :: BoolPerComponent = 4
@@ -1693,17 +1684,71 @@ Shaderlyn.Semantics.Symbols.ResolvedTypeName :: static System.Boolean op_Inequal
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Symbols.ResolvedTypeName :: virtual System.String ToString()
+Shaderlyn.Semantics.Symbols.ShaderNumericKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Semantics.Symbols.ShaderNumericKind :: Matrix = 3
+Shaderlyn.Semantics.Symbols.ShaderNumericKind :: None = 0
+Shaderlyn.Semantics.Symbols.ShaderNumericKind :: Scalar = 1
+Shaderlyn.Semantics.Symbols.ShaderNumericKind :: Vector = 2
+Shaderlyn.Semantics.Symbols.ShaderNumericShape : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ShaderNumericShape])
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: .ctor(Shaderlyn.Semantics.Symbols.ShaderNumericKind, System.String, System.Int32, System.Int32)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: Shaderlyn.Semantics.Symbols.ShaderNumericKind Kind { get; set; }
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: System.Boolean Equals(Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: System.Int32 Columns { get; set; }
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: System.Int32 Rows { get; set; }
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: System.String BaseName { get; set; }
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: System.Void Deconstruct(out Shaderlyn.Semantics.Symbols.ShaderNumericKind, out System.String, out System.Int32, out System.Int32)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: static System.Boolean op_Equality(Shaderlyn.Semantics.Symbols.ShaderNumericShape, Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Symbols.ShaderNumericShape, Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Symbols.ShaderNumericShape :: virtual System.String ToString()
+Shaderlyn.Semantics.Symbols.ShaderTypeClass : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Buffer = 10
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Matrix = 3
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Sampler = 9
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Scalar = 1
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Texture2D = 4
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Texture2DArray = 7
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Texture3D = 5
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: TextureCube = 6
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: TextureCubeArray = 8
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Unknown = 0
+Shaderlyn.Semantics.Symbols.ShaderTypeClass :: Vector = 2
+Shaderlyn.Semantics.Symbols.ShaderTypeClassExtensions : static class
+Shaderlyn.Semantics.Symbols.ShaderTypeClassExtensions :: static System.Boolean IsNumeric(Shaderlyn.Semantics.Symbols.ShaderTypeClass)
+Shaderlyn.Semantics.Symbols.ShaderTypeClassExtensions :: static System.Boolean IsTexture(Shaderlyn.Semantics.Symbols.ShaderTypeClass)
+Shaderlyn.Semantics.Symbols.ShaderTypeClassExtensions :: static System.Boolean IsTextureOrSampler(Shaderlyn.Semantics.Symbols.ShaderTypeClass)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem : abstract class
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract Shaderlyn.Semantics.Symbols.IntrinsicResultRule GetResultShape(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract Shaderlyn.Semantics.Symbols.ShaderTypeClass Classify(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract Shaderlyn.Semantics.Symbols.TextureMethodReturnType GetTextureMethodReturnType(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsConvertible(Shaderlyn.Semantics.Symbols.ShaderNumericShape, Shaderlyn.Semantics.Symbols.ShaderNumericShape, System.Boolean)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsConvertible(System.String, System.String, System.Boolean = False)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsKnownConstant(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsKnownFunction(System.String, Shaderlyn.CFamily.Syntax.ShaderSyntaxTree)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsTextureSamplingFunction(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean IsTruncating(System.String, System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean TryDecomposeNumeric(System.String, out System.String, out System.Int32)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Boolean TryDescribeNumeric(System.String, out Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Collections.Generic.IReadOnlyCollection`1[System.String] FunctionNames { get; }
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.Collections.Immutable.ImmutableArray`1[System.String] ComponentNameSets { get; }
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String Compose(Shaderlyn.Semantics.Symbols.ShaderNumericShape)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String ComposeNumeric(System.String, System.Int32)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetFixedBaseType(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetFixedType(System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetWiderBaseName(System.String, System.String)
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: protected .ctor()
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Element = 1
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Gathered = 3
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Scalar = 2
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Unknown = 0
 Shaderlyn.Semantics.Symbols.UniformSymbol : sealed class
-Shaderlyn.Semantics.Symbols.UniformSymbol :: .ctor(System.String, Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax, Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, System.String)
+Shaderlyn.Semantics.Symbols.UniformSymbol :: .ctor(System.String, Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax, Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, System.String, Shaderlyn.Semantics.Symbols.ShaderTypeSystem = null)
 Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax Declaration { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax Declarator { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Core.Diagnostics.Location GetLocation()
-Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Semantics.Symbols.HlslTypeClass TypeClass { get; }
+Shaderlyn.Semantics.Symbols.UniformSymbol :: Shaderlyn.Semantics.Symbols.ShaderTypeClass TypeClass { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: System.Boolean IsArray { get; }
 Shaderlyn.Semantics.Symbols.UniformSymbol :: System.Boolean IsInBuffer(System.String)
 Shaderlyn.Semantics.Symbols.UniformSymbol :: System.String ContainingBufferName { get; }

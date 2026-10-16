@@ -77,6 +77,11 @@ internal readonly record struct TemplateDeductionResult(
 /// 数値型の基本型が確かめた範囲 (<see cref="ComparableBaseNames"/>) にあるものと、リテラルだけを比べる。
 /// 構造体や 16 ビットの型の別名は、同じ型かどうかを決めきれないので比べない。
 /// </para>
+/// <para>
+/// <b>HLSL の型の表 (<see cref="HlslTypeClassifier"/>) を直接引く。</b>
+/// <c>template</c> は HLSL 2021 にしか無く、ほかの言語の木にこの推論は現れないためである
+/// (言語の型は <see cref="ShaderTypeSystem"/> から尋ねるのが原則)。
+/// </para>
 /// </remarks>
 internal static class TemplateDeduction
 {
@@ -273,7 +278,7 @@ internal static class TemplateDeduction
 
             if (argumentType(arguments[i]) is not { } argument
                 || IsLiteral(argument)
-                || !HlslTypeClassifier.TryDescribeNumeric(argument, out HlslNumericShape shape)
+                || !HlslTypeClassifier.TryDescribeNumeric(argument, out ShaderNumericShape shape)
                 || !ComparableBaseNames.Contains(shape.BaseName))
             {
                 if (deducesElement)
@@ -292,7 +297,7 @@ internal static class TemplateDeduction
             string parameterType = $"vector<{element.Text}, {count.Text}>";
 
             // ベクトルでない値、書かれた基本型や成分の数と違う値は、この仮引数に合わない。
-            if (shape.Kind != HlslNumericKind.Vector
+            if (shape.Kind != ShaderNumericKind.Vector
                 || (!deducesElement && IsComparable(element.Text) && Canonicalize(element.Text) != shape.BaseName)
                 || (!deducesCount && int.TryParse(count.Text, out int columns) && columns != shape.Columns))
             {
@@ -419,7 +424,7 @@ internal static class TemplateDeduction
     /// <param name="type">型名。</param>
     /// <returns>揃えた型名。</returns>
     private static string Canonicalize(string type)
-        => HlslTypeClassifier.TryDescribeNumeric(type, out HlslNumericShape shape)
+        => HlslTypeClassifier.TryDescribeNumeric(type, out ShaderNumericShape shape)
            && Aliases.TryGetValue(shape.BaseName, out string? baseName)
             ? HlslTypeClassifier.Compose(shape with { BaseName = baseName }) ?? type
             : type;
@@ -430,5 +435,5 @@ internal static class TemplateDeduction
     private static bool IsComparable(string type)
         => IsLiteral(type)
            || int.TryParse(type, out _)
-           || (HlslTypeClassifier.TryDescribeNumeric(type, out HlslNumericShape shape) && ComparableBaseNames.Contains(shape.BaseName));
+           || (HlslTypeClassifier.TryDescribeNumeric(type, out ShaderNumericShape shape) && ComparableBaseNames.Contains(shape.BaseName));
 }

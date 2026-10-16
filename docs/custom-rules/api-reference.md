@@ -39,17 +39,18 @@
 | [`DiagnosticAnalyzer`](#diagnosticanalyzer-shaderlyncoreanalysis) | アナライザ |
 | [`DiagnosticDescriptor`](#diagnosticdescriptor-shaderlyncorediagnostics) | 診断 |
 | [`DiagnosticSeverity`](#diagnosticseverity) | 診断 |
-| [`ShaderAnalysisContext`](#shaderanalysiscontext) | アクションを登録する |
-| [`HlslIntrinsics`](#hlslintrinsics--組み込み関数を知る) | 構文木 |
-| [`ShaderRuleAnalyzer`](#shaderruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
-| [`HlslTypeClassifier`](#hlsltypeclassifier--型名を読み解く) | 構文木 |
+| [`HlslIntrinsics`](#hlslintrinsics--hlsl-の組み込み関数を知る) | 構文木 |
+| [`HlslTypeClassifier`](#hlsltypeclassifier--hlsl-の型名を読み解く) | 構文木 |
 | [`Location`](#location-と-textspan) | 診断 |
 | [`ResolveCall`](#resolvecall) | セマンティックモデル |
 | [`ResolveName`](#resolvename) | セマンティックモデル |
+| [`ShaderAnalysisContext`](#shaderanalysiscontext) | アクションを登録する |
 | [`ShaderCompilation`](#shadercompilation-shaderlynsemantics) | セマンティックモデル |
 | [`ShaderLiteral`](#shaderliteral--リテラルの値と型) | 構文木 |
+| [`ShaderRuleAnalyzer`](#shaderruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
 | [`ShaderRuleVerifier`](#shaderruleverifier-shaderlyntesting) | テスト |
 | [`ShaderSyntaxFacts`](#shadersyntaxfacts--構文の規則) | 構文木 |
+| [`ShaderTypeSystem`](#shadertypesystem--言語の型と組み込み関数を尋ねる) | 構文木 |
 | [`SymbolCondition`](#symbolcondition-shaderlyncoresyntax) | セマンティックモデル |
 | [`TextSpan`](#location-と-textspan) | 診断 |
 
@@ -396,26 +397,49 @@ if (variable.TryGetArrayLength(out int length)) { ... }   // VariableDeclaratorS
 if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 ```
 
-#### `HlslTypeClassifier` — 型名を読み解く
+#### `ShaderTypeSystem` — 言語の型と組み込み関数を尋ねる
+
+名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型と組み込み関数を答えます。`compilation.TypeSystem` で引けます。
+**言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として読めます。
+
+| メンバー                                                                   |                                                      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `Classify(typeName)`                                                       | `ShaderTypeClass` への分類                           |
+| `TryDescribeNumeric(typeName, out shape)`                                  | 基底名・行・列への分解 (`ShaderNumericShape`)        |
+| `Compose(shape)` / `ComposeNumeric(baseName, components)`                  | 分解の逆。その言語での型の名前を作る                 |
+| `IsConvertible(valueType, targetType, exact)` / `IsTruncating(...)`        | 組み込みルールと同じ判定で、暗黙の変換の可否         |
+| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。方言 (言語のバージョン) は木から読む |
+| `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読む関数・メソッドかどうか、何を返すか   |
+| `ComponentNameSets`                                                        | ベクトルの成分名の組 (HLSL は `xyzw` と `rgba`)      |
+
+```csharp
+// float4x4 → BaseName "float", Rows 4, Columns 4
+compilation.TypeSystem.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
+```
+
+下の `HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` は、HLSL の表そのものです。
+HLSL にしか無い決まり (定数バッファの詰め方など) を見るルールで使います。
+
+#### `HlslTypeClassifier` — HLSL の型名を読み解く
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。
 
 | メンバー                                                  |                          |
 | --------------------------------------------------------- | ------------------------ |
-| `Classify(typeName)`                                      | `HlslTypeClass` への分類 |
+| `Classify(typeName)`                                      | `ShaderTypeClass` への分類 |
 | `TryDescribeNumeric(typeName, out shape)`                 | 基底名・行・列への分解   |
 | `Compose(shape)` / `ComposeNumeric(baseName, components)` | 分解の逆                 |
 | `GetWiderBaseName(left, right)`                           | 広いほうの基底型         |
 
 ```csharp
 // float4x4 → BaseName "float", Rows 4, Columns 4
-HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
+HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 ```
 
 `HlslConversion.IsConvertible(valueType, targetType, exact)` が、
 組み込みルールと同じ判定で暗黙の変換の可否を答えます。
 
-#### `HlslIntrinsics` — 組み込み関数を知る
+#### `HlslIntrinsics` — HLSL の組み込み関数を知る
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。
 

@@ -60,5 +60,5 @@ public sealed class BannedTypeAnalyzer(params string[] banned) : ShaderRuleAnaly
     /// 分類器に任せれば起こらない。
     /// </remarks>
     private static string BaseName(string name)
-        => HlslTypeClassifier.TryDescribeNumeric(name, out HlslNumericShape shape) ? shape.BaseName : name;
+        => HlslTypeClassifier.TryDescribeNumeric(name, out ShaderNumericShape shape) ? shape.BaseName : name;
 }

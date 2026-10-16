@@ -35,7 +35,7 @@ internal static class ShaderDescriptors
     /// <remarks>
     /// <para>
     /// <b>HLSL の <c>class</c> と <c>interface</c> は、この解析ツールが持っていない概念である。</b>
-    /// 型の評価器が持つのは <c>HlslTypeClass</c> の粗い分類と、
+    /// 型の評価器が持つのは <c>ShaderTypeClass</c> の粗い分類と、
     /// 構造体のフィールド名から型名への対応だけである。
     /// 「インターフェイスが要求するメソッド一式」も「クラスが実装したメソッド一式」も
     /// どこにも作られないため、両者を突き合わせる検査 (HLSL の X3108 / X3126) は行えない。

@@ -18,4 +18,7 @@ public interface IHlslEnvironment : IShaderEnvironment
     /// <inheritdoc/>
     ShaderSyntaxTree IShaderEnvironment.Parse(SourceText text, PreprocessorOptions options, ISyntaxTimingRecorder? timings)
         => HlslSyntaxTree.Parse(text, options, timings);
+
+    /// <inheritdoc/>
+    Symbols.ShaderTypeSystem IShaderEnvironment.TypeSystem => Symbols.HlslTypeSystem.Instance;
 }

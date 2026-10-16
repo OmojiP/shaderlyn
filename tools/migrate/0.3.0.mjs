@@ -52,6 +52,11 @@ const replacements = [
   // 環境
   [/\bHlslCompilationUnit\b/g, "ShaderCompilationUnit"],
   [/\bHlslEntryPoint\b/g, "ShaderEntryPoint"],
+
+  // 型の分類と形 (言語に依らない)
+  [/\bHlslTypeClass\b/g, "ShaderTypeClass"],
+  [/\bHlslNumericShape\b/g, "ShaderNumericShape"],
+  [/\bHlslNumericKind\b/g, "ShaderNumericKind"],
 ];
 
 const skipped = new Set(["bin", "obj", ".git"]);

@@ -150,7 +150,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        AnalyzeSwizzle(context, typeName, access, reported);
+        AnalyzeSwizzle(context, binder.TypeSystem, typeName, access, reported);
     }
 
     /// <summary>構造体のメンバー参照を検査する。</summary>
@@ -309,7 +309,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 ? string.Empty
                 : $"構成：{assumption} のとき、この式は {typeName} です。";
 
-            if (AnalyzeSwizzle(context, typeName, access, reported, note))
+            if (AnalyzeSwizzle(context, binder.TypeSystem, typeName, access, reported, note))
             {
                 return;
             }
@@ -318,6 +318,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>数値型のスウィズルを検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
+    /// <param name="types">型の形を尋ねる先。</param>
     /// <param name="typeName">対象の型名。</param>
     /// <param name="access">検査する参照。</param>
     /// <param name="reported">報告済みの位置。</param>
@@ -326,20 +327,22 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// 行列には <c>_m00</c> 形式 (0 始まり) と <c>_11</c> 形式 (1 始まり) があり、
     /// 規則が違う。混ぜて書くこともできない。
+    /// 成分名の組と行列の書き方は HLSL のもの。GLSL の成分名 (<c>stpq</c>) と行列の列の参照は GL2 で決める。
     /// </remarks>
     private static bool AnalyzeSwizzle(
         SyntaxTreeAnalysisContext context,
+        ShaderTypeSystem types,
         string typeName,
         MemberAccessExpressionSyntax access,
         ReportedLocations reported,
         string note = "")
     {
-        if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
+        if (!types.TryDescribeNumeric(typeName, out ShaderNumericShape shape))
         {
             return false;
         }
 
-        string? error = shape.Kind == HlslNumericKind.Matrix
+        string? error = shape.Kind == ShaderNumericKind.Matrix
             ? DescribeMatrixSwizzleError(access.Name, shape)
             : DescribeSwizzleError(access.Name, shape.Columns);
 
@@ -372,7 +375,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// どちらの形にも当てはまらない名前も誤りである。
     /// </para>
     /// </remarks>
-    private static string? DescribeMatrixSwizzleError(string name, HlslNumericShape shape)
+    private static string? DescribeMatrixSwizzleError(string name, ShaderNumericShape shape)
     {
         bool zeroBased = name.StartsWith("_m", StringComparison.Ordinal);
         int stride = zeroBased ? 4 : 3;

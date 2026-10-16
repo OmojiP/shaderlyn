@@ -73,6 +73,9 @@ public sealed class ExpressionTypeBinder
     /// <summary>型を求める対象の木。</summary>
     public AnalyzedProgram Program { get; }
 
+    /// <summary>解析した言語の型と組み込み関数 (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
+    public ShaderTypeSystem TypeSystem => _compilation.TypeSystem;
+
     /// <summary>
     /// 束縛器を生成する。
     /// </summary>
@@ -101,6 +104,7 @@ public sealed class ExpressionTypeBinder
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
+            TypeSystem = _compilation.TypeSystem,
             TypeAliases = program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -612,6 +616,7 @@ public sealed class ExpressionTypeBinder
                 _functionSignatures,
                 _structFields)
             {
+                TypeSystem = _compilation.TypeSystem,
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
@@ -1004,6 +1009,7 @@ public sealed class ExpressionTypeBinder
             _structFields,
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
+            TypeSystem = _compilation.TypeSystem,
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -1056,8 +1062,8 @@ public sealed class ExpressionTypeBinder
             return 1;
         }
 
-        return HlslTypeClassifier.TryDescribeNumeric(
-                   GetEvaluatorFor(expression).Evaluate(expression), out HlslNumericShape shape)
+        return _compilation.TypeSystem.TryDescribeNumeric(
+                   GetEvaluatorFor(expression).Evaluate(expression), out ShaderNumericShape shape)
             ? shape.Rows * shape.Columns
             : null;
     }

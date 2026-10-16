@@ -282,7 +282,7 @@ internal static partial class HoverBuilder
         SyntaxNode node,
         int offset) => node switch
     {
-        TypeSyntax type => DescribeType(type.Name, type.Span),
+        TypeSyntax type => DescribeType(compilation.TypeSystem, type.Name, type.Span),
 
         // セマンティクスは「何が入ってくるか」「どこへ出るか」を決める。
         // 名前を覚えていないと読めない部分であり、説明する価値が最も高い。
@@ -305,7 +305,7 @@ internal static partial class HoverBuilder
             => DescribeConstantBuffer(compilation, buffer, bufferName),
 
         IdentifierExpressionSyntax identifier when IsCallee(identifier)
-            => DescribeCallee(program, identifier),
+            => DescribeCallee(compilation.TypeSystem, program, identifier),
 
         // 代入と、構文エラーから作られた式は値として評価しない。
         // ここで「型を判定できません」と答えると、

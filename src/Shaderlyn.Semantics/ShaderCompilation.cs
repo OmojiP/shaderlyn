@@ -197,6 +197,10 @@ public sealed class ShaderCompilation
     /// <remarks>ルールとエディタ機能が、環境ごとの決まり (シンボルらしい名前など) を尋ねるのに使う。</remarks>
     public Environments.IShaderEnvironment Environment { get; }
 
+    /// <summary>解析した言語の型と組み込み関数 (環境の <see cref="Environments.IShaderEnvironment.TypeSystem"/>)。</summary>
+    /// <remarks>ルールとエディタ機能は、型の名前・変換・組み込み関数をここから尋ねる。</remarks>
+    public Symbols.ShaderTypeSystem TypeSystem => Environment.TypeSystem;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。

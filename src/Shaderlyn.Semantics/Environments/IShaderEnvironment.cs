@@ -42,6 +42,12 @@ public interface IShaderEnvironment
     ShaderSyntaxTree Parse(SourceText text, PreprocessorOptions options, ISyntaxTimingRecorder? timings);
 
     /// <summary>
+    /// 環境の言語の型と組み込み関数。意味解析とルールは、型の名前や組み込み関数をここから尋ねる。
+    /// </summary>
+    /// <remarks>HLSL を使う環境 (<see cref="IHlslEnvironment"/>) は HLSL の型 (<see cref="Symbols.HlslTypeSystem"/>) を返す。</remarks>
+    Symbols.ShaderTypeSystem TypeSystem { get; }
+
+    /// <summary>
     /// どの単位にも共通するプリプロセッサの設定を重ねる。
     /// </summary>
     /// <param name="options">解析の設定から作った設定。</param>

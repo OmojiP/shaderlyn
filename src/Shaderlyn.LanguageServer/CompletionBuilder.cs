@@ -153,9 +153,9 @@ internal static partial class CompletionBuilder
             return BuildStructMembers(compilation, structure);
         }
 
-        return HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape)
-               && shape.Kind is HlslNumericKind.Scalar or HlslNumericKind.Vector
-            ? BuildSwizzles(shape.Columns)
+        return binder.TypeSystem.TryDescribeNumeric(typeName, out ShaderNumericShape shape)
+               && shape.Kind is ShaderNumericKind.Scalar or ShaderNumericKind.Vector
+            ? BuildSwizzles(binder.TypeSystem, shape.Columns)
             : [];
     }
 
@@ -192,13 +192,14 @@ internal static partial class CompletionBuilder
     }
 
     /// <summary>スウィズルの成分を候補にする。</summary>
+    /// <param name="types">成分の名前の組を尋ねる先。</param>
     /// <param name="components">元の型の成分数。</param>
     /// <returns>候補。</returns>
-    private static ImmutableArray<CompletionItem> BuildSwizzles(int components)
+    private static ImmutableArray<CompletionItem> BuildSwizzles(ShaderTypeSystem types, int components)
     {
         ImmutableArray<CompletionItem>.Builder items = ImmutableArray.CreateBuilder<CompletionItem>();
 
-        foreach (string set in (string[])["xyzw", "rgba"])
+        foreach (string set in types.ComponentNameSets)
         {
             for (int i = 0; i < components && i < set.Length; i++)
             {
@@ -264,7 +265,7 @@ internal static partial class CompletionBuilder
             }
         }
 
-        foreach (string name in HlslIntrinsics.FunctionNames)
+        foreach (string name in compilation.TypeSystem.FunctionNames)
         {
             Add(name, KindFunction, "組み込み関数");
         }

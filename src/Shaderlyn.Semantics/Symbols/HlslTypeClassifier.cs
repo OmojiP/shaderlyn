@@ -3,101 +3,12 @@ using System.Collections.Frozen;
 namespace Shaderlyn.Semantics.Symbols;
 
 /// <summary>
-/// HLSL の型を、プロパティとの対応を判定できる粒度まで丸めた分類。
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>意図的に粗い。</b>
-/// <c>float4</c> と <c>half3</c> を区別しても、プロパティとの対応の観点では意味が無い。
-/// <c>Color</c> のプロパティを <c>half3</c> で受けるのは Unity のシェーダーでも普通に行われており、
-/// 成分数の違いまで報告すると誤検出になる。
-/// </para>
-/// <para>
-/// 逆にスカラーとベクトル、ベクトルとテクスチャの取り違えは、
-/// 「マテリアルで設定した値が届かない」という形で必ず不具合になる。
-/// 報告する価値があるのはこの粒度の食い違いだけである。
-/// </para>
-/// </remarks>
-public enum HlslTypeClass
-{
-    /// <summary>
-    /// このツールが判別できない型。ユーザー定義の構造体や、未解決のマクロなど。
-    /// </summary>
-    /// <remarks>
-    /// <b>この分類に対して型の不一致を報告してはならない。</b>
-    /// 判別できないことは「合っていない」ことの証拠にならない。
-    /// </remarks>
-    Unknown,
-
-    /// <summary><c>float</c> / <c>half</c> / <c>int</c> など 1 成分の数値型。</summary>
-    Scalar,
-
-    /// <summary><c>float4</c> / <c>half3</c> など 2〜4 成分のベクトル型。</summary>
-    Vector,
-
-    /// <summary><c>float4x4</c> などの行列型。</summary>
-    Matrix,
-
-    /// <summary>2 次元テクスチャ。<c>Texture2D</c> と Cg の <c>sampler2D</c> の両方を含む。</summary>
-    Texture2D,
-
-    /// <summary>3 次元テクスチャ。</summary>
-    Texture3D,
-
-    /// <summary>キューブマップ。</summary>
-    TextureCube,
-
-    /// <summary>2 次元テクスチャ配列。</summary>
-    Texture2DArray,
-
-    /// <summary>キューブマップ配列。</summary>
-    TextureCubeArray,
-
-    /// <summary><c>SamplerState</c> などのサンプラ。</summary>
-    Sampler,
-
-    /// <summary><c>StructuredBuffer</c> などのバッファ。</summary>
-    Buffer,
-}
-
-/// <summary>
-/// 数値型の形。
-/// </summary>
-public enum HlslNumericKind
-{
-    /// <summary>数値型ではない。</summary>
-    None,
-
-    /// <summary>1 成分。</summary>
-    Scalar,
-
-    /// <summary>2 から 4 成分のベクトル。</summary>
-    Vector,
-
-    /// <summary>行列。</summary>
-    Matrix,
-}
-
-/// <summary>
-/// 数値型を、基底名と行数・列数に分けて表したもの。
-/// </summary>
-/// <param name="Kind">形。</param>
-/// <param name="BaseName">基底名 (<c>float4x4</c> なら <c>float</c>)。</param>
-/// <param name="Rows">行数。スカラーとベクトルは 1。</param>
-/// <param name="Columns">列数。スカラーは 1、ベクトルは成分数。</param>
-/// <remarks>
-/// ベクトルを 1 行として表すことで、<c>mul</c> の規則を
-/// スカラー・ベクトル・行列で場合分けせずに書ける。
-/// </remarks>
-public readonly record struct HlslNumericShape(HlslNumericKind Kind, string BaseName, int Rows, int Columns);
-
-/// <summary>
-/// HLSL の型名を <see cref="HlslTypeClass"/> へ分類する。
+/// HLSL の型名を <see cref="ShaderTypeClass"/> へ分類する。
 /// </summary>
 /// <remarks>
 /// <para>
 /// 分類は型名の文字列だけで行う。宣言の解決や typedef の追跡は行わない。
-/// 知らない名前はすべて <see cref="HlslTypeClass.Unknown"/> に落ち、
+/// 知らない名前はすべて <see cref="ShaderTypeClass.Unknown"/> に落ち、
 /// その場合ルールは何も報告しない。
 /// <b>知識が足りないときに報告しないのが正しい振る舞いである。</b>
 /// </para>
@@ -120,93 +31,63 @@ public static class HlslTypeClassifier
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>テクスチャ・サンプラ・バッファの型名から分類への対応表。</summary>
-    private static readonly FrozenDictionary<string, HlslTypeClass> ObjectTypeClasses =
-        new Dictionary<string, HlslTypeClass>(StringComparer.Ordinal)
+    private static readonly FrozenDictionary<string, ShaderTypeClass> ObjectTypeClasses =
+        new Dictionary<string, ShaderTypeClass>(StringComparer.Ordinal)
         {
-            ["Texture2D"] = HlslTypeClass.Texture2D,
-            ["Texture2DMS"] = HlslTypeClass.Texture2D,
-            ["RWTexture2D"] = HlslTypeClass.Texture2D,
-            ["Texture2DArray"] = HlslTypeClass.Texture2DArray,
-            ["Texture2DMSArray"] = HlslTypeClass.Texture2DArray,
-            ["RWTexture2DArray"] = HlslTypeClass.Texture2DArray,
-            ["Texture3D"] = HlslTypeClass.Texture3D,
-            ["RWTexture3D"] = HlslTypeClass.Texture3D,
-            ["TextureCube"] = HlslTypeClass.TextureCube,
-            ["TextureCubeArray"] = HlslTypeClass.TextureCubeArray,
+            ["Texture2D"] = ShaderTypeClass.Texture2D,
+            ["Texture2DMS"] = ShaderTypeClass.Texture2D,
+            ["RWTexture2D"] = ShaderTypeClass.Texture2D,
+            ["Texture2DArray"] = ShaderTypeClass.Texture2DArray,
+            ["Texture2DMSArray"] = ShaderTypeClass.Texture2DArray,
+            ["RWTexture2DArray"] = ShaderTypeClass.Texture2DArray,
+            ["Texture3D"] = ShaderTypeClass.Texture3D,
+            ["RWTexture3D"] = ShaderTypeClass.Texture3D,
+            ["TextureCube"] = ShaderTypeClass.TextureCube,
+            ["TextureCubeArray"] = ShaderTypeClass.TextureCubeArray,
 
             // Cg 時代の記法。テクスチャとサンプラが 1 つの型に融合しているが、
             // プロパティとの対応の観点ではテクスチャとして扱えばよい。
-            ["sampler2D"] = HlslTypeClass.Texture2D,
-            ["sampler2D_float"] = HlslTypeClass.Texture2D,
-            ["sampler2D_half"] = HlslTypeClass.Texture2D,
-            ["sampler2D_shadow"] = HlslTypeClass.Texture2D,
-            ["sampler3D"] = HlslTypeClass.Texture3D,
-            ["samplerCUBE"] = HlslTypeClass.TextureCube,
-            ["samplerCUBE_half"] = HlslTypeClass.TextureCube,
-            ["samplerCUBE_shadow"] = HlslTypeClass.TextureCube,
+            ["sampler2D"] = ShaderTypeClass.Texture2D,
+            ["sampler2D_float"] = ShaderTypeClass.Texture2D,
+            ["sampler2D_half"] = ShaderTypeClass.Texture2D,
+            ["sampler2D_shadow"] = ShaderTypeClass.Texture2D,
+            ["sampler3D"] = ShaderTypeClass.Texture3D,
+            ["samplerCUBE"] = ShaderTypeClass.TextureCube,
+            ["samplerCUBE_half"] = ShaderTypeClass.TextureCube,
+            ["samplerCUBE_shadow"] = ShaderTypeClass.TextureCube,
 
-            ["SamplerState"] = HlslTypeClass.Sampler,
-            ["SamplerComparisonState"] = HlslTypeClass.Sampler,
-            ["sampler"] = HlslTypeClass.Sampler,
+            ["SamplerState"] = ShaderTypeClass.Sampler,
+            ["SamplerComparisonState"] = ShaderTypeClass.Sampler,
+            ["sampler"] = ShaderTypeClass.Sampler,
 
-            ["Buffer"] = HlslTypeClass.Buffer,
-            ["RWBuffer"] = HlslTypeClass.Buffer,
-            ["ByteAddressBuffer"] = HlslTypeClass.Buffer,
-            ["RWByteAddressBuffer"] = HlslTypeClass.Buffer,
-            ["StructuredBuffer"] = HlslTypeClass.Buffer,
-            ["RWStructuredBuffer"] = HlslTypeClass.Buffer,
-            ["ConstantBuffer"] = HlslTypeClass.Buffer,
+            ["Buffer"] = ShaderTypeClass.Buffer,
+            ["RWBuffer"] = ShaderTypeClass.Buffer,
+            ["ByteAddressBuffer"] = ShaderTypeClass.Buffer,
+            ["RWByteAddressBuffer"] = ShaderTypeClass.Buffer,
+            ["StructuredBuffer"] = ShaderTypeClass.Buffer,
+            ["RWStructuredBuffer"] = ShaderTypeClass.Buffer,
+            ["ConstantBuffer"] = ShaderTypeClass.Buffer,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
     /// 型名を分類する。
     /// </summary>
     /// <param name="typeName">HLSL の型名。名前空間の修飾は含まない。</param>
-    /// <returns>対応する分類。判別できない場合は <see cref="HlslTypeClass.Unknown"/>。</returns>
-    public static HlslTypeClass Classify(string? typeName)
+    /// <returns>対応する分類。判別できない場合は <see cref="ShaderTypeClass.Unknown"/>。</returns>
+    public static ShaderTypeClass Classify(string? typeName)
     {
         if (string.IsNullOrEmpty(typeName))
         {
-            return HlslTypeClass.Unknown;
+            return ShaderTypeClass.Unknown;
         }
 
-        if (ObjectTypeClasses.TryGetValue(typeName, out HlslTypeClass objectClass))
+        if (ObjectTypeClasses.TryGetValue(typeName, out ShaderTypeClass objectClass))
         {
             return objectClass;
         }
 
         return ClassifyNumeric(typeName);
     }
-
-    /// <summary>
-    /// 分類が値型 (テクスチャやサンプラではない) かどうかを判定する。
-    /// </summary>
-    /// <param name="typeClass">判定する分類。</param>
-    /// <returns>スカラー・ベクトル・行列のいずれかであれば <see langword="true"/>。</returns>
-    /// <remarks>定数バッファへ入れられるかどうかの判定に使う。</remarks>
-    public static bool IsNumeric(this HlslTypeClass typeClass) => typeClass is
-        HlslTypeClass.Scalar or HlslTypeClass.Vector or HlslTypeClass.Matrix;
-
-    /// <summary>
-    /// 分類がテクスチャまたはサンプラかどうかを判定する。
-    /// </summary>
-    /// <param name="typeClass">判定する分類。</param>
-    /// <returns>テクスチャかサンプラであれば <see langword="true"/>。</returns>
-    public static bool IsTextureOrSampler(this HlslTypeClass typeClass)
-        => typeClass.IsTexture() || typeClass == HlslTypeClass.Sampler;
-
-    /// <summary>
-    /// 分類がテクスチャかどうかを判定する。
-    /// </summary>
-    /// <param name="typeClass">判定する分類。</param>
-    /// <returns>テクスチャであれば <see langword="true"/>。</returns>
-    /// <remarks>サンプラは含まない。サンプリングのメソッドを持つのはテクスチャの側である。</remarks>
-    public static bool IsTexture(this HlslTypeClass typeClass) => typeClass is
-        HlslTypeClass.Texture2D
-        or HlslTypeClass.Texture3D
-        or HlslTypeClass.TextureCube
-        or HlslTypeClass.Texture2DArray
-        or HlslTypeClass.TextureCubeArray;
 
     /// <summary>
     /// 基底型の変換の順位。
@@ -270,8 +151,8 @@ public static class HlslTypeClassifier
     /// </remarks>
     public static bool TryDecomposeNumeric(string? typeName, out string baseName, out int components)
     {
-        if (TryDescribeNumeric(typeName, out HlslNumericShape shape)
-            && shape.Kind is HlslNumericKind.Scalar or HlslNumericKind.Vector)
+        if (TryDescribeNumeric(typeName, out ShaderNumericShape shape)
+            && shape.Kind is ShaderNumericKind.Scalar or ShaderNumericKind.Vector)
         {
             baseName = shape.BaseName;
             components = shape.Columns;
@@ -293,11 +174,11 @@ public static class HlslTypeClassifier
     /// ベクトルは 1 行として表す。行と列を持たせておくと、
     /// <c>mul</c> の規則をスカラー・ベクトル・行列で分けずに書ける。
     /// </remarks>
-    public static bool TryDescribeNumeric(string? typeName, out HlslNumericShape shape)
+    public static bool TryDescribeNumeric(string? typeName, out ShaderNumericShape shape)
     {
         shape = default;
 
-        HlslTypeClass typeClass = Classify(typeName);
+        ShaderTypeClass typeClass = Classify(typeName);
 
         if (!typeClass.IsNumeric())
         {
@@ -315,9 +196,9 @@ public static class HlslTypeClassifier
 
         shape = suffix.Length switch
         {
-            0 => new HlslNumericShape(HlslNumericKind.Scalar, baseName, 1, 1),
-            1 => new HlslNumericShape(HlslNumericKind.Vector, baseName, 1, suffix[0] - '0'),
-            _ => new HlslNumericShape(HlslNumericKind.Matrix, baseName, suffix[0] - '0', suffix[2] - '0'),
+            0 => new ShaderNumericShape(ShaderNumericKind.Scalar, baseName, 1, 1),
+            1 => new ShaderNumericShape(ShaderNumericKind.Vector, baseName, 1, suffix[0] - '0'),
+            _ => new ShaderNumericShape(ShaderNumericKind.Matrix, baseName, suffix[0] - '0', suffix[2] - '0'),
         };
 
         return true;
@@ -333,12 +214,12 @@ public static class HlslTypeClassifier
     /// 1 行 1 列の行列も同じで、<c>float1x1</c> と <c>float</c> は
     /// 演算の結果としては区別する意味が無い。
     /// </remarks>
-    public static string? Compose(HlslNumericShape shape) => shape.Kind switch
+    public static string? Compose(ShaderNumericShape shape) => shape.Kind switch
     {
-        HlslNumericKind.Scalar => shape.BaseName,
-        HlslNumericKind.Vector => ComposeNumeric(shape.BaseName, shape.Columns),
-        HlslNumericKind.Matrix when shape.Rows == 1 && shape.Columns == 1 => shape.BaseName,
-        HlslNumericKind.Matrix when IsComponentCount(shape.Rows) && IsComponentCount(shape.Columns)
+        ShaderNumericKind.Scalar => shape.BaseName,
+        ShaderNumericKind.Vector => ComposeNumeric(shape.BaseName, shape.Columns),
+        ShaderNumericKind.Matrix when shape.Rows == 1 && shape.Columns == 1 => shape.BaseName,
+        ShaderNumericKind.Matrix when IsComponentCount(shape.Rows) && IsComponentCount(shape.Columns)
             => $"{shape.BaseName}{shape.Rows}x{shape.Columns}",
         _ => null,
     };
@@ -377,7 +258,7 @@ public static class HlslTypeClassifier
     /// 綴りが規則に合わない名前 (ユーザー定義の構造体など) は分類できない扱いにする。
     /// </para>
     /// </remarks>
-    private static HlslTypeClass ClassifyNumeric(string typeName)
+    private static ShaderTypeClass ClassifyNumeric(string typeName)
     {
         // 末尾から数字と 'x' を取り除いて基底名を得る。
         int baseLength = typeName.Length;
@@ -388,36 +269,36 @@ public static class HlslTypeClassifier
 
         if (baseLength == 0 || !ScalarBaseNames.Contains(typeName[..baseLength]))
         {
-            return HlslTypeClass.Unknown;
+            return ShaderTypeClass.Unknown;
         }
 
         string suffix = typeName[baseLength..];
 
         if (suffix.Length == 0)
         {
-            return HlslTypeClass.Scalar;
+            return ShaderTypeClass.Scalar;
         }
 
         // float4x4 のように 'x' を含むものは行列。
         if (suffix.Contains('x', StringComparison.Ordinal))
         {
             return suffix.Length == 3 && char.IsAsciiDigit(suffix[0]) && suffix[1] == 'x' && char.IsAsciiDigit(suffix[2])
-                ? HlslTypeClass.Matrix
-                : HlslTypeClass.Unknown;
+                ? ShaderTypeClass.Matrix
+                : ShaderTypeClass.Unknown;
         }
 
         if (suffix.Length != 1)
         {
-            return HlslTypeClass.Unknown;
+            return ShaderTypeClass.Unknown;
         }
 
         // float1 は 1 成分なのでスカラーと同じ扱いにする。
         // マテリアル側から見れば float と区別がつかない。
         return suffix[0] switch
         {
-            '1' => HlslTypeClass.Scalar,
-            '2' or '3' or '4' => HlslTypeClass.Vector,
-            _ => HlslTypeClass.Unknown,
+            '1' => ShaderTypeClass.Scalar,
+            '2' or '3' or '4' => ShaderTypeClass.Vector,
+            _ => ShaderTypeClass.Unknown,
         };
     }
 }

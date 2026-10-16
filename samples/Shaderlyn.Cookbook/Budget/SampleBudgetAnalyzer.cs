@@ -39,14 +39,15 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
     private readonly ImmutableHashSet<string> _functions = [.. functions];
 
     /// <summary>その名前を数えるかどうかを判定する。</summary>
+    /// <param name="types">解析した言語の型と組み込み関数 (<c>compilation.TypeSystem</c>)。</param>
     /// <param name="name">関数またはメソッドの名前。</param>
     /// <returns>数えるなら <see langword="true"/>。</returns>
     /// <remarks>
     /// <b>名前を渡さなければ、ツールが知っているサンプリング関数を数える。</b>
     /// 一覧を自分で持つと、新しい読み方が増えたときに古いままになる。
     /// </remarks>
-    private bool Counts(string name)
-        => _functions.IsEmpty ? HlslIntrinsics.IsTextureSamplingFunction(name) : _functions.Contains(name);
+    private bool Counts(ShaderTypeSystem types, string name)
+        => _functions.IsEmpty ? types.IsTextureSamplingFunction(name) : _functions.Contains(name);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.TooManySamples];
 
@@ -68,7 +69,7 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
                     .. compilation.EnumerateOwnNodes(program)
                         .OfType<InvocationExpressionSyntax>()
                         .Select(call => (Call: call, Name: NameToken(call)))
-                        .Where(sample => sample.Name is { } name && Counts(name.Text))
+                        .Where(sample => sample.Name is { } name && Counts(compilation.TypeSystem, name.Text))
                         .Select(sample => (sample.Call, sample.Name!)),
                 ];
 

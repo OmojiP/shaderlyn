@@ -161,7 +161,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
 
         // 組み込み関数と同じ名前で多重定義していれば、組み込み関数の側が受け付けることもある。
-        bool intrinsicAccepts = HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity intrinsic)
+        bool intrinsicAccepts = compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity intrinsic)
                                 && intrinsic.Accepts(arguments.Length);
 
         // 構成ごとに覆えているかを見るのは既定の木だけにする。出現条件は既定の木を基準にしたもので、
@@ -369,10 +369,10 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ReportedLocations reported)
     {
         if (compilation.MayLackOverloadsOf(name)
-            || !HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity arity)
+            || !compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
-            || HlslTypeClassifier.Classify(name) != HlslTypeClass.Unknown)
+            || compilation.TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
         {
             return;
         }
@@ -730,7 +730,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (HlslConversion.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
+            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
             {
                 continue;
             }

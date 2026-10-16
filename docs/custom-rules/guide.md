@@ -219,7 +219,7 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 - リテラルの値は `ShaderLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
   「数字で書かれていない」として検査が素通りします
 - 配列の長さは `TryGetArrayLength` で読んでください。多次元の場合も積で返ります
-- 型名の分解は `HlslTypeClassifier` で行ってください。`Texture2D` の `2D` を成分数と読み違えません
+- 型名の分解は `compilation.TypeSystem` (`ShaderTypeSystem`) で行ってください。`Texture2D` の `2D` を成分数と読み違えず、HLSL 以外の言語 (`vec3` など) も同じ形で読めます
 - 式の型は `GetExpressionTypeBinder(program)` が返すものから求めてください。
   `ExpressionTypeBinder` を自分で `new` すると、ノードごとに宣言と構造体のフィールドを
   集め直すため、走査が二乗になります

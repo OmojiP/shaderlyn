@@ -358,7 +358,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         SymbolCondition declared = conditions.GetCondition(declaration);
 
         if (declared.IsUnknown
-            || CountRequiredComponents(conditions, declaration, variable, structs) is not { } required
+            || CountRequiredComponents(compilation.TypeSystem, conditions, declaration, variable, structs) is not { } required
             || CountWrittenComponents(conditions, binder, list) is not { } written
             || list.GetLocation() is not { } location
             || reported.Contains(location))
@@ -442,18 +442,20 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 代入先が必要とする成分の個数を求める。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="declaration">対象の宣言。</param>
     /// <param name="variable">対象の宣言子。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
     /// <returns>出現条件ごとの必要な個数。求められない場合は <see langword="null"/>。</returns>
     private static Dictionary<SymbolCondition, int>? CountRequiredComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         VariableDeclarationSyntax declaration,
         VariableDeclaratorSyntax variable,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs)
     {
-        if (CountElementComponents(conditions, declaration.Type.Name, structs) is not { } perElement)
+        if (CountElementComponents(types, conditions, declaration.Type.Name, structs) is not { } perElement)
         {
             return null;
         }
@@ -474,6 +476,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 要素 1 つ分の成分の個数を求める。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="typeName">要素の型名。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
@@ -484,12 +487,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// 入れ子の構造体もたどる。たどれない型が 1 つでもあれば数えない。
     /// </remarks>
     private static Dictionary<SymbolCondition, int>? CountElementComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         string typeName,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs)
-        => CountElementComponents(conditions, typeName, structs, depth: 0);
+        => CountElementComponents(types, conditions, typeName, structs, depth: 0);
 
     /// <summary>構造体の入れ子をたどりながら成分を数える。</summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="typeName">要素の型名。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
@@ -506,6 +511,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// </remarks>
     private static Dictionary<SymbolCondition, int>? CountElementComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         string typeName,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
@@ -513,7 +519,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         Dictionary<SymbolCondition, int> counts = [];
 
-        if (HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
+        if (types.TryDescribeNumeric(typeName, out ShaderNumericShape shape))
         {
             counts[SymbolCondition.Always] = shape.Rows * shape.Columns;
             return counts;
@@ -527,7 +533,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 継承した基底 (struct D : B) のフィールドが先に並ぶ。基底を数えられなければ、この構造体も数えない。
         if (structure.BaseTypeName is { } baseName)
         {
-            if (CountElementComponents(conditions, baseName, structs, depth + 1) is not { } inherited)
+            if (CountElementComponents(types, conditions, baseName, structs, depth + 1) is not { } inherited)
             {
                 return null;
             }
@@ -548,7 +554,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 return null;
             }
 
-            if (CountElementComponents(conditions, field.Type.Name, structs, depth + 1) is not { } perMember)
+            if (CountElementComponents(types, conditions, field.Type.Name, structs, depth + 1) is not { } perMember)
             {
                 return null;
             }
@@ -708,7 +714,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!HlslConversion.IsConvertible(valueType, targetType))
+            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
             {
                 if (reported.Add(location))
                 {
@@ -723,7 +729,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
-            if (truncating is null && HlslConversion.IsTruncating(valueType, targetType))
+            if (truncating is null && binder.TypeSystem.IsTruncating(valueType, targetType))
             {
                 truncating = (assumption, targetType, valueType);
             }
@@ -787,7 +793,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (HlslConversion.IsConvertible(valueType, targetType) || !reported.Add(location))
+        if (binder.TypeSystem.IsConvertible(valueType, targetType) || !reported.Add(location))
         {
             return;
         }
@@ -842,12 +848,12 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!HlslConversion.IsConvertible(valueType, targetType))
+            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
             {
                 return new ConfigurationFinding(assumption, valueType, Convertible: false);
             }
 
-            if (truncating is null && HlslConversion.IsTruncating(valueType, targetType))
+            if (truncating is null && binder.TypeSystem.IsTruncating(valueType, targetType))
             {
                 truncating = new ConfigurationFinding(assumption, valueType, Convertible: true);
             }
@@ -940,7 +946,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (HlslConversion.IsConvertible(valueType, returnType)
+        if (binder.TypeSystem.IsConvertible(valueType, returnType)
             || !reported.Add(location))
         {
             return;

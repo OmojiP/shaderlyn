@@ -123,10 +123,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.Hlsl().Features)
-            || HlslIntrinsics.IsKnownConstant(identifier.Name)
+        if (compilation.TypeSystem.IsKnownFunction(identifier.Name, program.Tree)
+            || compilation.TypeSystem.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown
+            || compilation.TypeSystem.Classify(identifier.Name) != ShaderTypeClass.Unknown
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))

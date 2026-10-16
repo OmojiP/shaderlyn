@@ -825,7 +825,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         // TEXTURE2D は既定マクロによって Texture2D の宣言へ展開されている。
         Assert.True(compilation.TryGetUniform("_BaseMap", out UniformSymbol? map));
-        Assert.Equal(HlslTypeClass.Texture2D, map.TypeClass);
+        Assert.Equal(ShaderTypeClass.Texture2D, map.TypeClass);
         Assert.Null(map.ContainingBufferName);
     }
 
@@ -1423,22 +1423,22 @@ public sealed class RenderPipelineProfileTests
 public sealed class HlslTypeClassifierTests
 {
     [Theory]
-    [InlineData("float", HlslTypeClass.Scalar)]
-    [InlineData("half", HlslTypeClass.Scalar)]
-    [InlineData("int", HlslTypeClass.Scalar)]
-    [InlineData("real", HlslTypeClass.Scalar)]
-    [InlineData("float1", HlslTypeClass.Scalar)]
-    [InlineData("float2", HlslTypeClass.Vector)]
-    [InlineData("half4", HlslTypeClass.Vector)]
-    [InlineData("float4x4", HlslTypeClass.Matrix)]
-    [InlineData("real3x3", HlslTypeClass.Matrix)]
-    [InlineData("Texture2D", HlslTypeClass.Texture2D)]
-    [InlineData("sampler2D", HlslTypeClass.Texture2D)]
-    [InlineData("TextureCube", HlslTypeClass.TextureCube)]
-    [InlineData("Texture2DArray", HlslTypeClass.Texture2DArray)]
-    [InlineData("SamplerState", HlslTypeClass.Sampler)]
-    [InlineData("StructuredBuffer", HlslTypeClass.Buffer)]
-    public void 既知の型名を分類できる(string typeName, HlslTypeClass expected)
+    [InlineData("float", ShaderTypeClass.Scalar)]
+    [InlineData("half", ShaderTypeClass.Scalar)]
+    [InlineData("int", ShaderTypeClass.Scalar)]
+    [InlineData("real", ShaderTypeClass.Scalar)]
+    [InlineData("float1", ShaderTypeClass.Scalar)]
+    [InlineData("float2", ShaderTypeClass.Vector)]
+    [InlineData("half4", ShaderTypeClass.Vector)]
+    [InlineData("float4x4", ShaderTypeClass.Matrix)]
+    [InlineData("real3x3", ShaderTypeClass.Matrix)]
+    [InlineData("Texture2D", ShaderTypeClass.Texture2D)]
+    [InlineData("sampler2D", ShaderTypeClass.Texture2D)]
+    [InlineData("TextureCube", ShaderTypeClass.TextureCube)]
+    [InlineData("Texture2DArray", ShaderTypeClass.Texture2DArray)]
+    [InlineData("SamplerState", ShaderTypeClass.Sampler)]
+    [InlineData("StructuredBuffer", ShaderTypeClass.Buffer)]
+    public void 既知の型名を分類できる(string typeName, ShaderTypeClass expected)
         => Assert.Equal(expected, HlslTypeClassifier.Classify(typeName));
 
     [Theory]
@@ -1449,24 +1449,24 @@ public sealed class HlslTypeClassifierTests
     [InlineData("")]
     [InlineData(null)]
     public void 知らない型名は分類しない(string? typeName)
-        => Assert.Equal(HlslTypeClass.Unknown, HlslTypeClassifier.Classify(typeName));
+        => Assert.Equal(ShaderTypeClass.Unknown, HlslTypeClassifier.Classify(typeName));
 
     [Theory]
-    [InlineData(ShaderPropertyKind.Color, HlslTypeClass.Vector, true)]
-    [InlineData(ShaderPropertyKind.Color, HlslTypeClass.Scalar, false)]
-    [InlineData(ShaderPropertyKind.Float, HlslTypeClass.Scalar, true)]
-    [InlineData(ShaderPropertyKind.Float, HlslTypeClass.Vector, false)]
-    [InlineData(ShaderPropertyKind.Texture2D, HlslTypeClass.Texture2D, true)]
-    [InlineData(ShaderPropertyKind.Texture2D, HlslTypeClass.TextureCube, false)]
-    [InlineData(ShaderPropertyKind.Any, HlslTypeClass.Matrix, true)]
-    public void 型の整合性を判定できる(ShaderPropertyKind kind, HlslTypeClass typeClass, bool expected)
+    [InlineData(ShaderPropertyKind.Color, ShaderTypeClass.Vector, true)]
+    [InlineData(ShaderPropertyKind.Color, ShaderTypeClass.Scalar, false)]
+    [InlineData(ShaderPropertyKind.Float, ShaderTypeClass.Scalar, true)]
+    [InlineData(ShaderPropertyKind.Float, ShaderTypeClass.Vector, false)]
+    [InlineData(ShaderPropertyKind.Texture2D, ShaderTypeClass.Texture2D, true)]
+    [InlineData(ShaderPropertyKind.Texture2D, ShaderTypeClass.TextureCube, false)]
+    [InlineData(ShaderPropertyKind.Any, ShaderTypeClass.Matrix, true)]
+    public void 型の整合性を判定できる(ShaderPropertyKind kind, ShaderTypeClass typeClass, bool expected)
         => Assert.Equal(expected, PropertyTypeCompatibility.IsCompatible(kind, typeClass));
 
     [Fact]
     public void 分類できない型に対しては不一致と断定しない()
     {
         // 判別できないことは、合っていないことの証拠にならない。
-        Assert.True(PropertyTypeCompatibility.IsCompatible(ShaderPropertyKind.Color, HlslTypeClass.Unknown));
+        Assert.True(PropertyTypeCompatibility.IsCompatible(ShaderPropertyKind.Color, ShaderTypeClass.Unknown));
     }
 }
 

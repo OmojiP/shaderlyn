@@ -25,11 +25,13 @@ public sealed class UniformSymbol
     /// <param name="containingBufferName">
     /// 含まれている定数バッファの名前。バッファの外で宣言されている場合は <see langword="null"/>。
     /// </param>
+    /// <param name="typeSystem">型を分類する言語の型。省略すると HLSL。</param>
     public UniformSymbol(
         string name,
         VariableDeclarationSyntax declaration,
         VariableDeclaratorSyntax declarator,
-        string? containingBufferName)
+        string? containingBufferName,
+        ShaderTypeSystem? typeSystem = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(declaration);
@@ -40,7 +42,7 @@ public sealed class UniformSymbol
         Declarator = declarator;
         ContainingBufferName = containingBufferName;
         TypeName = declaration.Type.Name;
-        TypeClass = HlslTypeClassifier.Classify(TypeName);
+        TypeClass = (typeSystem ?? HlslTypeSystem.Instance).Classify(TypeName);
     }
 
     /// <summary>変数名。</summary>
@@ -50,7 +52,7 @@ public sealed class UniformSymbol
     public string TypeName { get; }
 
     /// <summary>型の分類。</summary>
-    public HlslTypeClass TypeClass { get; }
+    public ShaderTypeClass TypeClass { get; }
 
     /// <summary>対応する宣言。</summary>
     public VariableDeclarationSyntax Declaration { get; }

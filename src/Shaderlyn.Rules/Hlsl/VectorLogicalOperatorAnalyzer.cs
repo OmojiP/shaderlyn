@@ -72,7 +72,7 @@ internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
         string? type = binder.GetEvaluatorFor(expression).Evaluate(operand);
 
         // 1 成分のベクトル (float1) も、DXC はスカラーとして扱わない。
-        return HlslTypeClassifier.Classify(type) is HlslTypeClass.Vector or HlslTypeClass.Matrix
+        return compilation.TypeSystem.Classify(type) is ShaderTypeClass.Vector or ShaderTypeClass.Matrix
                || type is [.., >= 'a' and <= 'z', '1'];
     }
 }

@@ -27,6 +27,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - **破壊的変更:** 環境の口を、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けた。
   `HlslCompilationUnit` → `ShaderCompilationUnit`、`HlslEntryPoint` → `ShaderEntryPoint`。
   `compilation.Environment` と `HostEnvironment` は `IShaderEnvironment` を受け取る。`IHlslEnvironment` の実装は、型の名前の書き換えだけで動く
+- **破壊的変更:** 型の分類と形の名前から `Hlsl` を外した (`HlslTypeClass` → `ShaderTypeClass`、`HlslNumericShape` → `ShaderNumericShape`、
+  `HlslNumericKind` → `ShaderNumericKind`)。言語の型と組み込み関数を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
+  HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
 
 ## [0.2.1] - 2026-10-16
 

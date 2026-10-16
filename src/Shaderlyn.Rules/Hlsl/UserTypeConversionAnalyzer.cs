@@ -155,8 +155,8 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        bool valueIsNumeric = HlslTypeClassifier.TryDescribeNumeric(valueType, out _);
-        bool targetIsNumeric = HlslTypeClassifier.TryDescribeNumeric(target, out _);
+        bool valueIsNumeric = binder.TypeSystem.TryDescribeNumeric(valueType, out _);
+        bool targetIsNumeric = binder.TypeSystem.TryDescribeNumeric(target, out _);
         bool valueIsEnum = binder.TryGetEnum(valueType, out EnumInfo? valueEnum);
 
         // enum の受け取る側には、同じ enum の値しか入らない。
@@ -323,7 +323,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             {
                 string? other = types[1 - i];
 
-                if (other is null || other == type || !(HlslTypeClassifier.TryDescribeNumeric(other, out _) || binder.TryGetEnum(other, out _)))
+                if (other is null || other == type || !(binder.TypeSystem.TryDescribeNumeric(other, out _) || binder.TryGetEnum(other, out _)))
                 {
                     return;
                 }

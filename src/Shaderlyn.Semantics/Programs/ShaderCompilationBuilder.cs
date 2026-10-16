@@ -123,7 +123,7 @@ internal static class ShaderCompilationBuilder
                 treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
-            DeclarationSet declarations = UniformCollector.Collect(tree.Root);
+            DeclarationSet declarations = UniformCollector.Collect(tree.Root, environment.TypeSystem);
 
             AnalyzedProgram program = new(unit, tree, declarations, treeVariants)
             {
@@ -1560,7 +1560,7 @@ internal static class ShaderCompilationBuilder
 
         ShaderSyntaxTree tree = environment.Parse(maskedText, variantOptions, syntaxTimings);
 
-        return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
+        return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root, environment.TypeSystem));
     }
 
     /// <summary>
