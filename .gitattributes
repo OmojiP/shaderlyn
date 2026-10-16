@@ -3,3 +3,6 @@
 
 # Unity が読めない UTF-16 のファイルの検査 (UN0001) に使う。改行を変換すると壊れるので、そのまま置く。
 tests/Shaderlyn.Tests/fixtures/rules/UN0001.shader binary
+
+# sed のスクリプトは CR を含むと読めない (s/.../.../g の後ろの CR が不正なフラグになる)。
+*.sed text eol=lf
