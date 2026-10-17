@@ -18,7 +18,7 @@ namespace Shaderlyn.Rules;
 /// (<c>operands for short-circuiting logical binary operator must be scalar, for non-scalar types use 'and'</c>)。
 /// 成分ごとの計算は <c>and()</c> / <c>or()</c> / <c>select()</c> で書く。DXC 1.8 で確かめた。
 /// </para>
-/// <para>コードをコンパイルする方言がどれも 2021 のときだけ見る。FXC と DXC 2021 より前は成分ごとに計算する。</para>
+/// <para>コードをコンパイルするコンパイラがどれも DXC の HLSL 2021 のときだけ見る。FXC と DXC 2021 より前は成分ごとに計算する。</para>
 /// </remarks>
 internal sealed class VectorLogicalOperatorAnalyzer : SemanticRuleAnalyzer
 {

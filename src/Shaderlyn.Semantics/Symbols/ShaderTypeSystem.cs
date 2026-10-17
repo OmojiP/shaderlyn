@@ -93,9 +93,9 @@ public abstract class ShaderTypeSystem
     /// <returns>定義済みの定数なら <see langword="true"/>。</returns>
     public abstract bool IsKnownConstant(string? name);
 
-    /// <summary>その名前が、その木の方言で使える組み込み関数かを判定する。</summary>
+    /// <summary>その名前が、その木の言語のバージョンで使える組み込み関数かを判定する。</summary>
     /// <param name="name">名前。</param>
-    /// <param name="tree">名前を使っている木。方言 (言語のバージョンなど) はここから読む。</param>
+    /// <param name="tree">名前を使っている木。言語のバージョン (HLSL ならコンパイラと HLSL のバージョン) はここから読む。</param>
     /// <returns>組み込み関数なら <see langword="true"/>。</returns>
     public abstract bool IsKnownFunction(string? name, ShaderSyntaxTree tree);
 

@@ -8,7 +8,7 @@ namespace Shaderlyn.CFamily.Preprocessing;
 /// </summary>
 /// <remarks>
 /// プリプロセッサは C 系の言語に共通で、言語ごとの違いはここから読む。
-/// 言語ごとの設定 (HLSL の方言など) は、派生した型が持つ。
+/// 言語ごとの設定 (HLSL のコンパイラとバージョンなど) は、派生した型が持つ。
 /// </remarks>
 public abstract record ShaderLanguageOptions
 {

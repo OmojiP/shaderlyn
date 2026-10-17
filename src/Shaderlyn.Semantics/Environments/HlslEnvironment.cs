@@ -27,12 +27,12 @@ public sealed record HlslEnvironmentOptions
     /// </summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2021;
 
-    /// <summary>このコードをコンパイルする方言。</summary>
+    /// <summary>このコードをコンパイルするコンパイラと HLSL のバージョン。</summary>
     public HlslDialect Dialect => DialectFor(LanguageVersion);
 
-    /// <summary>指定した言語のバージョンでコンパイルするときの方言。</summary>
+    /// <summary>指定した HLSL のバージョンでコンパイルするときの、コンパイラと HLSL のバージョンの組。</summary>
     /// <param name="languageVersion">言語のバージョン。FXC のときは使わない。</param>
-    /// <returns>方言。</returns>
+    /// <returns>コンパイラと HLSL のバージョンの組。</returns>
     public HlslDialect DialectFor(HlslLanguageVersion languageVersion) => Compiler == HlslCompiler.Fxc
         ? HlslDialect.Fxc
         : HlslDialect.Dxc(languageVersion) with
@@ -194,7 +194,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
             return options;
         }
 
-        // 単位ごとに言語のバージョンが違えば、方言と、バージョンで決まるマクロを差し替える。
+        // 単位ごとに言語のバージョンが違えば、コンパイラと HLSL のバージョンの組と、バージョンで決まるマクロを差し替える。
         HlslLanguageVersion version = Options.SelectUnitLanguageVersion?.Invoke(filePath, options.IncludeResolver)
                                       ?? Options.LanguageVersion;
 

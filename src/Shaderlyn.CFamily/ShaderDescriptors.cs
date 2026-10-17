@@ -64,10 +64,10 @@ internal static class ShaderDescriptors
         category: "Syntax",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "enum / template の宣言、operator による演算子の多重定義、構造体のビットフィールドは、"
-            + "コンパイラ (方言) によってはエラーになります。FXC (Unity の既定) はどれも使えず、DXC は enum を 2017 から、ほかを 2021 から使えます。"
-            + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も方言で使えるかが変わります。"
-            + "1 つのコードが API ごとに別の方言でコンパイルされるときは、使えない API とコンパイラを添えます。"
-            + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどの方言でも使えます。"
+            + "コンパイラ (FXC / DXC) と HLSL のバージョンによってはエラーになります。FXC (Unity の既定) はどれも使えず、DXC は enum を 2017 から、ほかを 2021 から使えます。"
+            + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も、コンパイラと HLSL のバージョンで使えるかが変わります。"
+            + "1 つのコードが API ごとに別のコンパイラや HLSL のバージョンでコンパイルされるときは、使えない API とコンパイラを添えます。"
+            + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどのコンパイラと HLSL のバージョンでも使えます。"
             + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (HL0005)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));

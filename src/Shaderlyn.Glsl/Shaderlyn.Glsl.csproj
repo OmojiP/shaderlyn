@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <Description>Shaderlyn の GLSL の方言 (構文解析)。</Description>
+    <Description>Shaderlyn の GLSL の構文解析 (GLSL に固有の構文)。</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

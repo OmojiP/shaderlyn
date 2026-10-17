@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace Shaderlyn.Tests;
 
 /// <summary>
-/// GLSL のコーパスを、共通の構文木と GLSL の方言で読めるかの測定 (単位 P2)。
+/// GLSL のコーパスを、共通の構文木と、GLSL に固有の構文の解析で読めるかの測定 (単位 P2)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -112,13 +112,13 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Godot と Slang を、いちばん近い方言 (Godot は GLSL、Slang は HLSL 2021) で読んだときに、何が足りないかを数える。
+    /// Godot と Slang を、いちばん近い言語 (Godot は GLSL、Slang は HLSL 2021) として読んだときに、何が足りないかを数える。
     /// </summary>
     /// <remarks>
     /// D1 (C 系の言語は構文木を共有する) を決める材料。足りないものが構文の追加で済むか、木の形から違うかを見る。
     /// </remarks>
     [Fact]
-    public void GodotとSlangを近い方言で読んだときの構文エラーを数える()
+    public void GodotとSlangを近い言語として読んだときの構文エラーを数える()
     {
         string? root = Environment.GetEnvironmentVariable(CorpusVariable);
 
@@ -128,7 +128,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
             return;
         }
 
-        Measure(root, [".gdshader"], "Godot (GLSL の方言で読む)", text => GlslSyntaxTree.Parse(text));
+        Measure(root, [".gdshader"], "Godot (GLSL として読む)", text => GlslSyntaxTree.Parse(text));
         Measure(root, [".slang"], "Slang (HLSL 2021 で読む)", text => Hlsl.HlslSyntaxTree.Parse(text, new PreprocessorOptions
         {
             Language = new Hlsl.Parsing.HlslLanguageOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2021 },

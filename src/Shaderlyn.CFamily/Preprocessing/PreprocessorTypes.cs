@@ -431,7 +431,7 @@ public sealed record PreprocessorOptions
 
             // 言語で、巻き上げた断片が文として読めるかの判定 (IsCompleteUnits) と、
             // 使えない指令の報告の文 (DescribeUnavailable、HL0003) が変わる。
-            // 言語の設定そのものは入れない。方言の並びを作るたびに別の値になり、使い回しが当たらなくなる。
+            // 言語の設定そのものは入れない。コンパイラと HLSL のバージョンの並びを作るたびに別の値になり、使い回しが当たらなくなる。
             hash.Add(Language?.GetType());
             hash.Add(DescribeUnavailable(), StringComparer.Ordinal);
             hash.Add(ReportUnresolvedIncludes);

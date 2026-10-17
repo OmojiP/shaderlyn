@@ -15,7 +15,7 @@ public enum HlslCompiler
 }
 
 /// <summary>
-/// HLSL の方言。どのコンパイラが、どの言語のバージョンでコンパイルするか。
+/// コンパイラと HLSL のバージョンの組。どのコンパイラが、どの HLSL のバージョンでコンパイルするか。
 /// </summary>
 /// <param name="Compiler">コンパイラ。</param>
 /// <param name="LanguageVersion">
@@ -23,12 +23,12 @@ public enum HlslCompiler
 /// </param>
 /// <remarks>
 /// <para>
-/// 使える構文と型の規則は方言で決まる (<see cref="Features"/>)。
+/// 使える構文と型の規則は、コンパイラと HLSL のバージョンで決まる (<see cref="Features"/>)。
 /// 表は手元の FXC (Windows SDK 10.0.26100) と DXC 1.8 / 1.6 を動かして確かめた結果である。
 /// </para>
 /// <para>
-/// 1 つのコードが複数の方言でコンパイルされることがある (Unity は DX11 向けを FXC、DX12 向けを DXC でコンパイルしうる)。
-/// その場合は方言を並べて持つ (<see cref="HlslLanguageOptions.Dialects"/>)。
+/// 1 つのコードが複数のコンパイラや HLSL のバージョンでコンパイルされることがある (Unity は DX11 向けを FXC、DX12 向けを DXC でコンパイルしうる)。
+/// その場合はコンパイラと HLSL のバージョンの組を並べて持つ (<see cref="HlslLanguageOptions.Dialects"/>)。
 /// </para>
 /// </remarks>
 public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? LanguageVersion)
@@ -38,7 +38,7 @@ public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? Lan
 
     /// <summary>DXC の、指定した言語のバージョン。</summary>
     /// <param name="version">言語のバージョン。</param>
-    /// <returns>方言。</returns>
+    /// <returns>コンパイラと HLSL のバージョンの組。</returns>
     public static HlslDialect Dxc(HlslLanguageVersion version) => new(HlslCompiler.Dxc, version);
 
     /// <summary>16 ビットの型を有効にしてコンパイルするか (DXC の <c>-enable-16bit-types</c>)。</summary>
@@ -74,7 +74,7 @@ public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? Lan
     /// </summary>
     public string? Label { get; init; }
 
-    /// <summary>この方言で使える構文と型。</summary>
+    /// <summary>このコンパイラと HLSL のバージョンで使える構文と型。</summary>
     public HlslLanguageFeatures Features => HlslLanguageFeatures.Of(this);
 
     /// <summary>画面に出す名前。</summary>
@@ -84,11 +84,11 @@ public sealed record HlslDialect(HlslCompiler Compiler, HlslLanguageVersion? Lan
 }
 
 /// <summary>
-/// 方言で使える構文と型の表。
+/// コンパイラと HLSL のバージョンで使える構文と型の表。
 /// </summary>
 /// <remarks>
 /// <para>
-/// どの項目も「使える」の向きで持つ。複数の方言の「どれかで使える」は論理和、「どれでも使える」は論理積になる
+/// どの項目も「使える」の向きで持つ。複数のコンパイラと HLSL のバージョンの「どれかで使える」は論理和、「どれでも使える」は論理積になる
 /// (<see cref="Any"/> / <see cref="All"/>)。
 /// </para>
 /// <para>
@@ -128,8 +128,8 @@ public sealed record HlslLanguageFeatures(
     bool StructIncrement,
     bool LegacySamplerSyntax)
 {
-    /// <summary>1 つの方言の表を作る。</summary>
-    /// <param name="dialect">方言。</param>
+    /// <summary>1 つのコンパイラと HLSL のバージョンの表を作る。</summary>
+    /// <param name="dialect">コンパイラと HLSL のバージョンの組。</param>
     /// <returns>表。</returns>
     public static HlslLanguageFeatures Of(HlslDialect dialect)
     {
@@ -173,23 +173,23 @@ public sealed record HlslLanguageFeatures(
             LegacySamplerSyntax: dialect.AcceptsLegacySamplerSyntax);
     }
 
-    /// <summary>並べた方言の<b>どれかで</b>使えるものを集める (論理和)。</summary>
-    /// <param name="dialects">方言。</param>
-    /// <returns>表。方言が無ければ、どれも使えない表。</returns>
-    /// <remarks>パーサーは、どれかの方言が受け付ける構文を読む。</remarks>
+    /// <summary>並べたコンパイラと HLSL のバージョンの<b>どれかで</b>使えるものを集める (論理和)。</summary>
+    /// <param name="dialects">コンパイラと HLSL のバージョンの組。</param>
+    /// <returns>表。組が無ければ、どれも使えない表。</returns>
+    /// <remarks>パーサーは、どれかのコンパイラと HLSL のバージョンが受け付ける構文を読む。</remarks>
     public static HlslLanguageFeatures Any(IEnumerable<HlslDialect> dialects)
         => Combine(dialects, static (a, b) => a || b, seed: false);
 
-    /// <summary>並べた方言の<b>どれでも</b>使えるものを集める (論理積)。</summary>
-    /// <param name="dialects">方言。</param>
-    /// <returns>表。方言が無ければ、どれも使える表。</returns>
+    /// <summary>並べたコンパイラと HLSL のバージョンの<b>どれでも</b>使えるものを集める (論理積)。</summary>
+    /// <param name="dialects">コンパイラと HLSL のバージョンの組。</param>
+    /// <returns>表。組が無ければ、どれも使える表。</returns>
     public static HlslLanguageFeatures All(IEnumerable<HlslDialect> dialects)
         => Combine(dialects, static (a, b) => a && b, seed: true);
 
-    /// <summary>方言ごとの表を、項目ごとに組み合わせる。</summary>
-    /// <param name="dialects">方言。</param>
+    /// <summary>コンパイラと HLSL のバージョンごとの表を、項目ごとに組み合わせる。</summary>
+    /// <param name="dialects">コンパイラと HLSL のバージョンの組。</param>
     /// <param name="combine">組み合わせ方。</param>
-    /// <param name="seed">方言が無いときの値。</param>
+    /// <param name="seed">組が無いときの値。</param>
     /// <returns>表。</returns>
     private static HlslLanguageFeatures Combine(IEnumerable<HlslDialect> dialects, Func<bool, bool, bool> combine, bool seed)
     {
@@ -219,9 +219,9 @@ public sealed record HlslLanguageFeatures(
     }
 
     /// <summary>
-    /// 並べた方言を、画面に出す 1 つの言葉にする (<c>FXC</c> / <c>HLSL 2018</c> / <c>FXC・HLSL 2018</c>)。
+    /// 並べたコンパイラと HLSL のバージョンを、画面に出す 1 つの言葉にする (<c>FXC</c> / <c>HLSL 2018</c> / <c>FXC・HLSL 2018</c>)。
     /// </summary>
-    /// <param name="dialects">方言。</param>
+    /// <param name="dialects">コンパイラと HLSL のバージョンの組。</param>
     /// <returns>画面に出す名前。</returns>
     public static string Describe(ImmutableArray<HlslDialect> dialects)
         => dialects.IsDefaultOrEmpty

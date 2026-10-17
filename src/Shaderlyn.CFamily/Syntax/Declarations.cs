@@ -12,7 +12,7 @@ namespace Shaderlyn.CFamily.Syntax;
 /// <param name="templateArguments">テンプレート引数のトークン。カンマを含む。</param>
 /// <param name="closeAngle">テンプレート引数の閉じ山括弧。無い場合は <see langword="null"/>。</param>
 /// <param name="aliasOf">typedef の別名で書かれていれば、元の型の名前。</param>
-/// <param name="canonicalName">方言が決めた、同じ型の短い名前 (<see cref="CanonicalName"/>)。</param>
+/// <param name="canonicalName">シェーダー言語が決めた、同じ型の短い名前 (<see cref="CanonicalName"/>)。</param>
 /// <remarks>
 /// <c>Texture2D&lt;float4&gt;</c> や <c>StructuredBuffer&lt;MyStruct&gt;</c> のテンプレート引数は
 /// トークン列として保持する。入れ子のテンプレートや行列型の記述まで構文木にしても、
@@ -49,7 +49,7 @@ public sealed class TypeSyntax(
 
     /// <summary>修飾を除いた型名。</summary>
     /// <remarks>
-    /// 同じ型の別の書き方は、方言が決めた短い名前 (<see cref="CanonicalName"/>) にして返す。
+    /// 同じ型の別の書き方は、シェーダー言語が決めた短い名前 (<see cref="CanonicalName"/>) にして返す。
     /// 型名で比べるすべての判定が、書き方の違いを知らずに済む。
     /// typedef の別名 (<c>typedef float3 V3;</c> の <c>V3</c>) は元の型の名前 (<c>float3</c>) を返す。
     /// 書かれたとおりの名前は <see cref="NameToken"/> にある。
@@ -57,7 +57,7 @@ public sealed class TypeSyntax(
     public string Name => AliasOf ?? CanonicalName ?? NameToken.Text;
 
     /// <summary>
-    /// 方言が決めた、同じ型の短い名前。当てはまらなければ <see langword="null"/>。
+    /// シェーダー言語が決めた、同じ型の短い名前。当てはまらなければ <see langword="null"/>。
     /// </summary>
     /// <remarks>
     /// HLSL の <c>vector&lt;float, 3&gt;</c> と <c>matrix&lt;half, 4, 4&gt;</c> は <c>float3</c> / <c>half4x4</c>、

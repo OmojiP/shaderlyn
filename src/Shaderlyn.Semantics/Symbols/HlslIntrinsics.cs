@@ -497,7 +497,7 @@ public static class HlslIntrinsics
     /// その名前が、その言語のバージョンで使える組み込み関数かどうかを判定する。
     /// </summary>
     /// <param name="name">判定する名前。</param>
-    /// <param name="features">このコードをコンパイルする方言のどれかで使えるもの。</param>
+    /// <param name="features">このコードをコンパイルするコンパイラと HLSL のバージョンのどれかで使えるもの。</param>
     /// <returns>組み込み関数であれば <see langword="true"/>。</returns>
     /// <remarks>
     /// <c>select</c> / <c>and</c> / <c>or</c> は DXC 2021 で入った。それより前と FXC では宣言されていない名前である

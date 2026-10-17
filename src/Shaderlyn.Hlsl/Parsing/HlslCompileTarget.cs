@@ -4,18 +4,18 @@ using Shaderlyn.Core.Syntax;
 namespace Shaderlyn.Hlsl.Parsing;
 
 /// <summary>
-/// コードのコンパイル先 1 つ。どのグラフィックス API 向けに、どの方言でコンパイルされるか。
+/// コードのコンパイル先 1 つ。どのグラフィックス API 向けに、どのコンパイラと HLSL のバージョンでコンパイルされるか。
 /// </summary>
 /// <param name="Platform">グラフィックス API の名前 (<c>dx11</c> / <c>dx12</c> / <c>vulkan</c> など)。</param>
-/// <param name="Dialect">方言。</param>
+/// <param name="Dialect">コンパイラと HLSL のバージョン。</param>
 /// <remarks>
 /// <para>
-/// <b>1 つのコードは、API ごとに別の方言でコンパイルされることがある。</b>
+/// <b>1 つのコードは、API ごとに別のコンパイラや HLSL のバージョンでコンパイルされることがある。</b>
 /// Unity は既定で FXC を使い、<c>#pragma use_dxc</c> や <c>#pragma require</c> で DXC に切り替える。
 /// 切り替わるのは API ごとで、DX11 は FXC のまま、DX12 は DXC ということが起きる。
 /// </para>
 /// <para>
-/// 構成のキーワードで方言が変わることもある。Unity の <c>UNITY_DEVICE_SUPPORTS_NATIVE_16BIT</c> は、
+/// 構成のキーワードでコンパイラの設定が変わることもある。Unity の <c>UNITY_DEVICE_SUPPORTS_NATIVE_16BIT</c> は、
 /// キーワードが有効な構成だけを DXC でコンパイルする。<see cref="WhenAnySymbol"/> / <see cref="UnlessAnySymbol"/> がその条件である。
 /// </para>
 /// </remarks>

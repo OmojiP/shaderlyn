@@ -103,7 +103,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | `version` | HLSL の言語のバージョン (DXC の `-HV`): `2016` / `2017` / `2018` / `2021` (既定)。DXC 1.8 は `2015` をコンパイルできないので受け付けません |
 | `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false`。`compiler: fxc`、`version` が `2018` より前、`units:` の `target` がシェーダーモデル 6.2 より前のときは使えず、`TOOL0003` を報告します (DXC が受け付けないため) |
 
-使える構文は方言で決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
+使える構文はコンパイラと HLSL のバージョンで決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
 
 汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
 `__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。

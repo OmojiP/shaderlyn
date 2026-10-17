@@ -14,7 +14,7 @@
   - [C 系の言語に共通の型の置き場所](#c-系の言語に共通の型の置き場所)
     - [型の名前](#型の名前)
     - [名前空間](#名前空間)
-    - [HLSL の方言の設定](#hlsl-の方言の設定)
+    - [HLSL のコンパイラとバージョンの設定](#hlsl-のコンパイラとバージョンの設定)
   - [環境](#環境)
   - [型と組み込み関数](#型と組み込み関数)
 
@@ -45,9 +45,9 @@
 
 ### スクリプトでは置き換えないもの
 
-- **`PreprocessorOptions` の HLSL の方言の設定** (`Dialects`・`LanguageVersion`・`CompileTargets`・`DialectName`・`Features`)。
+- **`PreprocessorOptions` の HLSL のコンパイラとバージョンの設定** (`Dialects`・`LanguageVersion`・`CompileTargets`・`DialectName`・`Features`)。
   同じ名前のプロパティが `HlslEnvironmentOptions` にもあり (こちらは変わらない)、名前だけでは見分けられません。
-  [HLSL の方言の設定](#hlsl-の方言の設定) のとおりに書き換えてください
+  [HLSL のコンパイラとバージョンの設定](#hlsl-のコンパイラとバージョンの設定) のとおりに書き換えてください
 - **`tree.Hlsl()` の `using`。** スクリプトは `program.Tree.CompileTargets` を `program.Tree.Hlsl().CompileTargets` に置き換えますが、
   `Hlsl()` を使うには `using Shaderlyn.Hlsl.Parsing;` が要ります。「`Hlsl` の定義が含まれていません」のエラーが出たら足してください
 - **使わない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を足します。
@@ -139,9 +139,9 @@ HLSL に限らない型は、名前から `Hlsl` を外しました。
 多くのルールは、`using Shaderlyn.Hlsl.Syntax;` を `using Shaderlyn.CFamily.Syntax;` に置き換えれば済みます
 (cbuffer か namespace の節を使うなら、両方を書きます)。
 
-### HLSL の方言の設定
+### HLSL のコンパイラとバージョンの設定
 
-`PreprocessorOptions` の HLSL の方言の設定 (`Dialects`・`LanguageVersion`・`CompileTargets`・`DialectName`・`Features`) を、
+`PreprocessorOptions` の HLSL のコンパイラとバージョンの設定 (`Dialects`・`LanguageVersion`・`CompileTargets`・`DialectName`・`Features`) を、
 `HlslLanguageOptions` (`Shaderlyn.Hlsl.Parsing`) へ移しました。`PreprocessorOptions.Language` に入れて渡します。
 
 ```csharp
@@ -157,7 +157,7 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 ```
 
 `options.Hlsl()` は、設定が無ければ既定 (FXC) を返します。
-自作の環境 (`IHlslEnvironment`) で方言を変えるときは、受け取った設定を `WithHlsl` で変えると、ほかの環境が入れた設定 (`DialectName` など) を残せます。
+自作の環境 (`IHlslEnvironment`) でコンパイラや HLSL のバージョンを変えるときは、受け取った設定を `WithHlsl` で変えると、ほかの環境が入れた設定 (`DialectName` など) を残せます。
 
 ## 環境
 

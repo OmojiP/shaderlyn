@@ -13,15 +13,15 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// コードが届くコンパイル先 (API と方言) のうち、その構文や型を使えないものがあれば報告する (HL0003)。
+/// コードが届くコンパイル先 (API と、コンパイラと HLSL のバージョン) のうち、その構文や型を使えないものがあれば報告する (HL0003)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>1 つのパスは、API ごとに別の方言でコンパイルされることがある。</b>
+/// <b>1 つのパスは、API ごとに別のコンパイラや HLSL のバージョンでコンパイルされることがある。</b>
 /// Unity で <c>#pragma use_dxc</c> を書いたパスは、DX12 は DXC、DX11 は FXC でコンパイルされうる
-/// (<see cref="HlslCompileTarget"/>)。パーサーはどれかの方言で使える構文を読むので、
+/// (<see cref="HlslCompileTarget"/>)。パーサーはどれかのコンパイラと HLSL のバージョンで使える構文を読むので、
 /// 片方でしか使えない構文 (<c>enum</c> など) は、ここで API を添えて報告する。
-/// どの方言でも使えない構文は、パーサーが HL0003 として報告済みである。
+/// どのコンパイラと HLSL のバージョンでも使えない構文は、パーサーが HL0003 として報告済みである。
 /// </para>
 /// <para>
 /// <b>構成ごとに、そのノードに届くコンパイル先だけを見る。</b>
@@ -48,8 +48,8 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            // 型 (int64_t など) はパーサーが見ないので、方言が 1 つだけでも見る。
-            // コンパイル先が分からなければ (汎用の HLSL)、方言を 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
+            // 型 (int64_t など) はパーサーが見ないので、コンパイラと HLSL のバージョンが 1 つだけでも見る。
+            // コンパイル先が分からなければ (汎用の HLSL)、コンパイラと HLSL のバージョンを 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
             // (型は、コンパイルの設定 (-enable-16bit-types など) が分からないと決められない)。
             IEnumerable<HlslCompileTarget> targets = !program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty
                 ? CompileTargets.Reaching(compilation, node, program)
@@ -86,7 +86,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    /// <summary>方言で使えるかが変わる構文と型を見分ける。</summary>
+    /// <summary>コンパイラと HLSL のバージョンで使えるかが変わる構文と型を見分ける。</summary>
     /// <param name="node">ノード。</param>
     /// <param name="program">ノードが属する木。</param>
     /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
@@ -261,10 +261,10 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <summary>見分けた構文。</summary>
     /// <param name="Token">報告する位置。</param>
     /// <param name="Name">文に入れる名前。</param>
-    /// <param name="IsAvailable">方言で使えるか。</param>
+    /// <param name="IsAvailable">コンパイラと HLSL のバージョンで使えるか。</param>
     private sealed record Construct(ShaderSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
     {
-        /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、方言で見るか。</summary>
+        /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、コンパイラと HLSL のバージョンで見るか。</summary>
         public bool CheckWithoutTargets { get; init; }
     }
 }

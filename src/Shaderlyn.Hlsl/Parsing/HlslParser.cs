@@ -10,9 +10,10 @@ namespace Shaderlyn.Hlsl.Parsing;
 /// プリプロセス済みの HLSL トークン列を構文木へ組み立てるパーサ。
 /// </summary>
 /// <remarks>
-/// C 系の言語に共通の構文解析器 (<see cref="ShaderParser"/>) を使い、ここでは HLSL の方言の違いだけを答える。
-/// 組み込みの型と修飾子、方言ごとに使える構文、<c>cbuffer</c> / <c>tbuffer</c> と <c>namespace</c>、
-/// <c>vector&lt;T, N&gt;</c> / <c>matrix&lt;T, R, C&gt;</c> の短い名前である。
+/// C 系の言語に共通の構文解析器 (<see cref="ShaderParser"/>) を使い、ここでは HLSL に固有の部分
+/// (組み込みの型と修飾子、<c>cbuffer</c> / <c>tbuffer</c> と <c>namespace</c>、
+/// <c>vector&lt;T, N&gt;</c> / <c>matrix&lt;T, R, C&gt;</c> の短い名前) と、
+/// コンパイラと HLSL のバージョンで使える構文の違いを答える。
 /// </remarks>
 internal sealed class HlslParser : ShaderParser
 {
@@ -40,7 +41,7 @@ internal sealed class HlslParser : ShaderParser
     }
 
     /// <summary>
-    /// 受け付ける構文。このコードをコンパイルする方言の<b>どれかで</b>使えるもの (<see cref="HlslLanguageFeatures.Any"/>)。
+    /// 受け付ける構文。このコードをコンパイルするコンパイラと HLSL のバージョンの<b>どれかで</b>使えるもの (<see cref="HlslLanguageFeatures.Any"/>)。
     /// 既定は FXC で使えるもの。
     /// </summary>
     public HlslLanguageFeatures Features { get; init; } = HlslDialect.Fxc.Features;
@@ -66,7 +67,7 @@ internal sealed class HlslParser : ShaderParser
     protected override bool AcceptsBitfields => Features.Bitfields;
 
     /// <summary>
-    /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する (方言は FXC)。
+    /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する (コンパイラは FXC)。
     /// </summary>
     /// <param name="tokens">判定するトークン列。</param>
     /// <returns>閉じていれば <see langword="true"/>。</returns>
@@ -74,7 +75,7 @@ internal sealed class HlslParser : ShaderParser
         => IsCompleteUnits(tokens, static t => new HlslParser(t));
 
     /// <summary>
-    /// トークン列の先頭から、文・宣言を 1 つだけ読む (方言は FXC)。
+    /// トークン列の先頭から、文・宣言を 1 つだけ読む (コンパイラは FXC)。
     /// </summary>
     /// <param name="tokens">読むトークン列。</param>
     /// <param name="consumed">読んだトークンの数。読めなかった場合は 0。</param>

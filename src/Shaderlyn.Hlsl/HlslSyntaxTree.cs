@@ -15,7 +15,7 @@ namespace Shaderlyn.Hlsl;
 /// </summary>
 /// <remarks>
 /// プリプロセスと構文解析の手順をここに閉じ込めている。
-/// 木の HLSL に固有の値 (方言・言語のバージョン・コンパイル先) は <c>tree.Hlsl()</c> で読む。
+/// 木の HLSL に固有の値 (コンパイラと HLSL のバージョン・コンパイル先) は <c>tree.Hlsl()</c> で読む。
 /// </remarks>
 public static class HlslSyntaxTree
 {

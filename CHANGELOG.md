@@ -26,7 +26,7 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   HLSL にだけある節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) は `Shaderlyn.Hlsl.Syntax` に残る。
   解析済みのコードは `ShaderSyntaxTree` になり、`HlslSyntaxTree` は HLSL を読む入口 (`HlslSyntaxTree.Parse`) だけになった。
   木の HLSL に固有の値 (`CompileTargets` など) は `tree.Hlsl()` から読む。
-  `PreprocessorOptions` の HLSL の方言の設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
+  `PreprocessorOptions` の HLSL のコンパイラとバージョンの設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
   `PreprocessorOptions.Language` に入れて渡す。
   書き換えの手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある
 - **破壊的変更:** 自作ルールの基底クラスの名前から `Hlsl` を外した。`HlslRuleAnalyzer` → `ShaderRuleAnalyzer`、
@@ -39,7 +39,7 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   `HlslNumericKind` → `ShaderNumericKind`)。言語の型システム (型と組み込み関数) を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
   HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
 - DXC の HLSL 2021 で `select` / `and` / `or` を呼んだとき、呼び出しの解決 (`ResolveCall`) が、宣言されていない関数ではなく組み込み関数として扱う。
-  使えるかどうかを方言で判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である
+  使えるかどうかをコンパイラと HLSL のバージョンで判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である
 
 ## [0.2.1] - 2026-10-16
 

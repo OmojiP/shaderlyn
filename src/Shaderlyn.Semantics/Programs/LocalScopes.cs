@@ -62,7 +62,7 @@ internal readonly record struct LocalDeclaration(ResolvedTypeName Type, ShaderSy
 /// Unity (fxc) が通すのはこの読み方である。ループの後でも見え、
 /// 同じ波括弧の前の同じ名前の宣言より優先する (警告 X3078 "most recent declaration will be used")。
 /// 漏れるのは囲む波括弧までで、その外では見えない。
-/// DXC の <c>-HV 2021</c> は C++ と同じく <c>for</c> 文の中に閉じ込める。コードをコンパイルする方言がどれも 2021 なら、閉じ込める
+/// DXC の <c>-HV 2021</c> は C++ と同じく <c>for</c> 文の中に閉じ込める。コードをコンパイルするコンパイラがどれも DXC の HLSL 2021 なら、閉じ込める
 /// (<see cref="HlslLanguageFeatures.LoopVariableOutsideLoop"/>)。
 /// </para>
 /// <para>

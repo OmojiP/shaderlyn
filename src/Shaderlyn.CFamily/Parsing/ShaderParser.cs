@@ -20,7 +20,7 @@ namespace Shaderlyn.CFamily.Parsing;
 /// マクロは展開済みで、条件分岐の非活性領域は取り除かれ、指令は存在しない。
 /// </para>
 /// <para>
-/// <b>言語 (方言) ごとの違いは、派生した型が答える。</b>
+/// <b>シェーダー言語ごとの違いは、派生した型が答える。</b>
 /// 組み込みの型の名前、修飾子、使える構文 (enum・template など)、その言語にだけある宣言 (HLSL の cbuffer など) である。
 /// </para>
 /// </remarks>
@@ -192,7 +192,7 @@ internal abstract class ShaderParser
     /// </para>
     /// <para>
     /// 読み飛ばした <c>#if</c> の分岐と同じく、解析していない場所に現れた名前として扱う。
-    /// 報告して読み飛ばした宣言 (どの方言でも使えない構文) では、ブロックの解析そのものが不完全になるので集めない。
+    /// 報告して読み飛ばした宣言 (どのコンパイラと HLSL のバージョンでも使えない構文) では、ブロックの解析そのものが不完全になるので集めない。
     /// </para>
     /// </remarks>
     public ImmutableArray<ShaderSyntaxToken> UnanalyzedIdentifiers => [.. _unanalyzedIdentifiers];
@@ -203,7 +203,7 @@ internal abstract class ShaderParser
     /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する。
     /// </summary>
     /// <param name="tokens">判定するトークン列。</param>
-    /// <param name="create">トークン列を読むパーサを作る (方言ごとの派生した型)。</param>
+    /// <param name="create">トークン列を読むパーサを作る (シェーダー言語ごとの派生した型)。</param>
     /// <returns>閉じていれば <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
@@ -249,7 +249,7 @@ internal abstract class ShaderParser
     /// トークン列の先頭から、文・宣言を 1 つだけ読む。
     /// </summary>
     /// <param name="tokens">読むトークン列。</param>
-    /// <param name="create">トークン列を読むパーサを作る (方言ごとの派生した型)。</param>
+    /// <param name="create">トークン列を読むパーサを作る (シェーダー言語ごとの派生した型)。</param>
     /// <param name="consumed">読んだトークンの数。読めなかった場合は 0。</param>
     /// <returns>誤り無く読めた場合は <see langword="true"/>。</returns>
     /// <remarks>
@@ -272,7 +272,7 @@ internal abstract class ShaderParser
 
     /// <summary>1 つ分を読んでみる。</summary>
     /// <param name="tokens">読むトークン列。</param>
-    /// <param name="create">トークン列を読むパーサを作る (方言ごとの派生した型)。</param>
+    /// <param name="create">トークン列を読むパーサを作る (シェーダー言語ごとの派生した型)。</param>
     /// <param name="asStatement">文として読むなら <see langword="true"/>、宣言なら <see langword="false"/>。</param>
     /// <param name="consumed">読んだトークンの数。</param>
     /// <returns>誤り無く読めた場合は <see langword="true"/>。</returns>
@@ -357,7 +357,7 @@ internal abstract class ShaderParser
 
         ImmutableArray<AttributeSyntax> attributes = ParseAttributes();
 
-        // enum は DXC 2017 から使える。どの方言でも使えなければ、報告して読み飛ばす (FXC / DXC 2016)。
+        // enum は DXC 2017 から使える。どのコンパイラと HLSL のバージョンでも使えなければ、報告して読み飛ばす (FXC / DXC 2016)。
         if (CurrentTextIs("enum"))
         {
             return AcceptsEnums
@@ -365,7 +365,7 @@ internal abstract class ShaderParser
                 : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true, report: true);
         }
 
-        // template は DXC 2021 から使える。どの方言でも使えなければ、報告して読み飛ばす。
+        // template は DXC 2021 から使える。どのコンパイラと HLSL のバージョンでも使えなければ、報告して読み飛ばす。
         // 使えるのに型引数の並びを読めない形 (既定値の中の >>) は、報告せずに読み飛ばす。
         if (CurrentTextIs("template"))
         {
@@ -510,7 +510,7 @@ internal abstract class ShaderParser
     /// 真のまま読み飛ばすと、次のセミコロンまで、つまり後ろの宣言を丸ごと捨ててしまう。
     /// </param>
     /// <param name="report">
-    /// HL0003 として報告するか。どの方言でも使えない構文なら報告する。
+    /// HL0003 として報告するか。どのコンパイラと HLSL のバージョンでも使えない構文なら報告する。
     /// 使えるが読めない形 (型引数の並びを読めない template) なら報告せず、名前を解析していない場所の名前として残す。
     /// </param>
     /// <returns>読み飛ばしたトークンを保持するノード。</returns>

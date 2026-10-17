@@ -68,7 +68,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// 関数に届くコンパイル先に DXC があればエラー (HL0304)、FXC だけなら警告 (HL0303) にする。
-    /// コンパイル先が分からない環境 (汎用の HLSL) は、木の方言で決める。
+    /// コンパイル先が分からない環境 (汎用の HLSL) は、木のコンパイラと HLSL のバージョンで決める。
     /// </para>
     /// </remarks>
     private static void CheckConstantBufferEntryPoint(

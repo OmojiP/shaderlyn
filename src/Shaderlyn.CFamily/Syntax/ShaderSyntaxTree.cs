@@ -57,7 +57,7 @@ public sealed class ShaderSyntaxTree
     /// この木を読んだ言語の設定 (<see cref="PreprocessorOptions.Language"/>)。
     /// </summary>
     /// <remarks>
-    /// 言語に固有の値 (HLSL の方言やコンパイル先) は、ここから読む (HLSL なら <c>tree.Hlsl()</c>)。
+    /// 言語に固有の値 (HLSL のコンパイラとバージョン、コンパイル先) は、ここから読む (HLSL なら <c>tree.Hlsl()</c>)。
     /// </remarks>
     public ShaderLanguageOptions Language { get; }
 

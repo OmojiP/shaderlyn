@@ -287,7 +287,7 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// 既定の方言 (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
+    /// 既定のコンパイラ (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
     /// </summary>
     /// <remarks>
     /// FXC は <c>enum</c> も <c>template</c> も "syntax error: unexpected token" で拒む (手元の FXC で確かめた)。
@@ -382,7 +382,7 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// <c>class</c> / <c>interface</c> を、どの方言でも構造体と同じ形で読むことを検証する。
+    /// <c>class</c> / <c>interface</c> を、どのコンパイラと HLSL のバージョンでも構造体と同じ形で読むことを検証する。
     /// </summary>
     /// <remarks>
     /// FXC でも DXC のどの版でも使える。Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。

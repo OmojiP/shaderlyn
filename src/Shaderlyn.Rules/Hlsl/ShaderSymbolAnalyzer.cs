@@ -212,7 +212,7 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
-    /// そのシンボルが、有効なときにコンパイラ (方言) を切り替えるかを判定する。
+    /// そのシンボルが、有効なときにコンパイラや HLSL のバージョンを切り替えるかを判定する。
     /// </summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="name">シンボル。</param>

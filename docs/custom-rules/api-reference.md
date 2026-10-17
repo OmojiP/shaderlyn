@@ -408,7 +408,7 @@ if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 | `TryDescribeNumeric(typeName, out shape)`                                  | 基底名・行・列への分解 (`ShaderNumericShape`)        |
 | `Compose(shape)` / `ComposeNumeric(baseName, components)`                  | 分解の逆。その言語での型の名前を作る                 |
 | `IsConvertible(valueType, targetType, exact)` / `IsTruncating(...)`        | 組み込みルールと同じ判定で、暗黙の変換の可否         |
-| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。方言 (言語のバージョン) は木から読む |
+| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL ならコンパイラと HLSL のバージョン) は木から読む |
 | `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読む関数・メソッドかどうか、何を返すか   |
 | `ComponentNameSets`                                                        | ベクトルの成分名の組 (HLSL は `xyzw` と `rgba`)      |
 

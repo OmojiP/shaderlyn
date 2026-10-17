@@ -64,7 +64,7 @@ public sealed class HlslTypeSystem : ShaderTypeSystem
     public override bool IsKnownConstant(string? name) => HlslIntrinsics.IsKnownConstant(name);
 
     /// <inheritdoc/>
-    /// <remarks>使えるかは方言で変わる (<c>select</c> などは DXC 2021 から)。方言は木の言語の設定から読む。</remarks>
+    /// <remarks>使えるかはコンパイラと HLSL のバージョンで変わる (<c>select</c> などは DXC 2021 から)。どれでコンパイルするかは木の言語の設定から読む。</remarks>
     public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree)
     {
         ArgumentNullException.ThrowIfNull(tree);

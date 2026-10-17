@@ -5,7 +5,7 @@ using Shaderlyn.CFamily.Syntax;
 namespace Shaderlyn.Hlsl.Parsing;
 
 /// <summary>
-/// HLSL の言語の設定 (<see cref="PreprocessorOptions.Language"/>)。方言とコンパイル先を持つ。
+/// HLSL の言語の設定 (<see cref="PreprocessorOptions.Language"/>)。コンパイラと HLSL のバージョン、コンパイル先を持つ。
 /// </summary>
 /// <remarks>
 /// 展開そのものには関わらない。構文解析 (<see cref="HlslSyntaxTree.Parse"/>) とルールが読む。
@@ -17,22 +17,22 @@ public sealed record HlslLanguageOptions : ShaderLanguageOptions
     public static HlslLanguageOptions Default { get; } = new();
 
     /// <summary>
-    /// このコードをコンパイルする方言。既定は FXC (Unity の既定のコンパイラ)。
+    /// このコードをコンパイルするコンパイラと HLSL のバージョン。既定は FXC (Unity の既定のコンパイラ)。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>1 つのコードが複数の方言でコンパイルされることがある。</b>
-    /// パーサーは、どれかの方言が受け付ける構文を読む (<see cref="HlslLanguageFeatures.Any"/>)。
-    /// どの方言も受け付けない構文を HL0003 として報告する。
+    /// <b>1 つのコードが複数のコンパイラや HLSL のバージョンでコンパイルされることがある。</b>
+    /// パーサーは、どれかのコンパイラと HLSL のバージョンが受け付ける構文を読む (<see cref="HlslLanguageFeatures.Any"/>)。
+    /// どのコンパイラと HLSL のバージョンも受け付けない構文を HL0003 として報告する。
     /// </para>
     /// </remarks>
     public ImmutableArray<HlslDialect> Dialects { get; init; } = [HlslDialect.Fxc];
 
     /// <summary>
-    /// DXC の言語のバージョン。設定すると、方言をその版の DXC 1 つにする (<see cref="Dialects"/> の略記)。
+    /// DXC の言語のバージョン。設定すると、その HLSL のバージョンの DXC 1 つにする (<see cref="Dialects"/> の略記)。
     /// </summary>
     /// <remarks>
-    /// 読むと、並べた方言のうち最も新しい DXC の版を返す。DXC が無ければ <see cref="HlslLanguageVersion.Hlsl2018"/>。
+    /// 読むと、並べたもののうち最も新しい DXC の HLSL のバージョンを返す。DXC が無ければ <see cref="HlslLanguageVersion.Hlsl2018"/>。
     /// </remarks>
     public HlslLanguageVersion LanguageVersion
     {
@@ -40,16 +40,16 @@ public sealed record HlslLanguageOptions : ShaderLanguageOptions
         init => Dialects = [HlslDialect.Dxc(value)];
     }
 
-    /// <summary>並べた方言の<b>どれかで</b>使える構文と型。パーサーはこれで読む。</summary>
+    /// <summary>並べたコンパイラと HLSL のバージョンの<b>どれかで</b>使える構文と型。パーサーはこれで読む。</summary>
     public HlslLanguageFeatures Features => HlslLanguageFeatures.Any(Dialects);
 
     /// <summary>
-    /// コンパイル先 (API と方言の組)。環境が分かるときだけ並べる。空なら分からない。
+    /// コンパイル先 (API と、コンパイラと HLSL のバージョンの組)。環境が分かるときだけ並べる。空なら分からない。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 設定すると、方言 (<see cref="Dialects"/>) をコンパイル先の方言にする。
-    /// 使える API のコンパイル先があれば、その方言だけにする。使えない API でのエラーは利用者に見えない。
+    /// 設定すると、コンパイラと HLSL のバージョン (<see cref="Dialects"/>) をコンパイル先のものにする。
+    /// 使える API のコンパイル先があれば、そのコンパイラと HLSL のバージョンだけにする。使えない API でのエラーは利用者に見えない。
     /// </para>
     /// <para>
     /// Unity の環境が、パスごとの <c>#pragma use_dxc</c> などから決める。
@@ -76,12 +76,12 @@ public sealed record HlslLanguageOptions : ShaderLanguageOptions
     /// 使えない構文を報告するとき (HL0003) に、どこで使えないかを伝える名前 (<c>Unity のシェーダー</c>)。
     /// </summary>
     /// <remarks>
-    /// <see langword="null"/> なら方言で言う (<c>FXC</c> / <c>HLSL 2018</c>)。
+    /// <see langword="null"/> ならコンパイラと HLSL のバージョンで言う (<c>FXC</c> / <c>HLSL 2018</c>)。
     /// 環境が与える。Unity の環境は、Unity のコンパイルでエラーになることを伝える。
     /// </remarks>
     public string? DialectName { get; init; }
 
-    /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。<see cref="DialectName"/> が無ければ方言で言う。</summary>
+    /// <summary>HL0003 の文に入れる、どこで使えないかを伝える名前。<see cref="DialectName"/> が無ければコンパイラと HLSL のバージョンで言う。</summary>
     /// <returns>名前。</returns>
     public override string DescribeUnavailable() => DialectName ?? HlslLanguageFeatures.Describe(Dialects);
 
@@ -114,7 +114,7 @@ public static class HlslLanguageExtensions
     }
 
     /// <summary>
-    /// 木を読んだ HLSL の言語の設定 (方言・言語のバージョン・コンパイル先・使える構文) を返す。
+    /// 木を読んだ HLSL の言語の設定 (コンパイラと HLSL のバージョン・コンパイル先・使える構文) を返す。
     /// </summary>
     /// <param name="tree">構文木。</param>
     /// <returns>HLSL の言語の設定。HLSL の木でなければ既定 (<see cref="HlslLanguageOptions.Default"/>)。</returns>

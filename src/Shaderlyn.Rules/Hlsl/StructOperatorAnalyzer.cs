@@ -234,7 +234,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// コンパイル先が分かれば (Unity)、届くコンパイル先に DXC があるかで決め、その API を文に添える。
-    /// 分からなければ、どれかの方言が受け付けるか (<see cref="HlslLanguageFeatures.StructIncrement"/>) で決める。
+    /// 分からなければ、どれかのコンパイラと HLSL のバージョンが受け付けるか (<see cref="HlslLanguageFeatures.StructIncrement"/>) で決める。
     /// </para>
     /// </remarks>
     private static (ShaderSyntaxToken Token, string Message, DiagnosticDescriptor Descriptor)? DescribeIncrement(
