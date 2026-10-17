@@ -424,7 +424,7 @@ shaderlyn Assets/Shaders --unity-project . --max-symbol-variants 16
 ### 設定ファイル
 
 同じオプションを毎回書く代わりに、リポジトリのルートの `.shaderlyn.yaml` に書けます。
-CLI は解析対象のパスから上のフォルダーへ辿ってこのファイルを探します。
+CLI は解析するファイルごとに、そのファイルから上のフォルダーへ辿って一番近いファイルを使います。
 
 - `--config <パス>` で明示的に指定できます
 - `--no-config` で探さないようにできます

@@ -25,9 +25,14 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 | `unity` (既定) | Unity の ShaderLab と HLSL | `.shader` / `.compute` |
 | `hlsl` | DXC で直接コンパイルする HLSL | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー | `.usf` |
+| `glsl` / `godot` / `slang` / `wgsl` | GLSL / Godot / Slang / WGSL (作っているところ。今は GLSL の構文エラーだけを指摘する) | `.vert` / `.frag` / `.comp` などと `.glsl` / `.gdshader` / `.slang` / `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、名前を挙げたときだけ解析します。
+
+HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) のファイルは、`environment` に関わらず拡張子の環境で解析します。
+ただし `.mesh` (GLSL のメッシュシェーダー) は Unity のメッシュのアセットと重なるので、`environment: glsl` を指定したときだけ読みます。
+たとえば Unity のプロジェクトにある `.wgsl` は WGSL として読みます。
 
 ```sh
 shaderlyn Shaders --env      # どの環境で、何を解析するかを表示する (解析はしない)

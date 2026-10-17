@@ -194,6 +194,35 @@ internal sealed class CommandLineOptions
         UnityEditorDataPath = null;
     }
 
+    /// <summary>
+    /// 使う設定ファイルと環境を決めた写しを作る。ファイルを (設定ファイル, 環境) ごとに分けて解析するためにある。
+    /// </summary>
+    /// <param name="configPath">使う設定ファイル。<see langword="null"/> なら設定ファイルを使わない。</param>
+    /// <param name="environment">環境の名前。<see langword="null"/> なら変えない (コマンドラインか設定ファイルの指定)。</param>
+    /// <returns>写し。</returns>
+    /// <remarks>
+    /// 設定を作る処理 (<see cref="EffectiveSettings.Create(CommandLineOptions, ImmutableArray{HostEnvironment})"/>) は指定を書き換える
+    /// (<see cref="UseConfigurationDefaults"/> / <see cref="ClearUnityOptions"/>)。
+    /// 書き換える前の指定から写しを作ること。書き換えた後から作ると、ほかの設定ファイルの値がコマンドラインの指定として残る。
+    /// </remarks>
+    internal CommandLineOptions For(string? configPath, string? environment)
+    {
+        CommandLineOptions copy = Clone();
+        copy.ConfigPath = configPath;
+        copy.NoConfig = configPath is null;
+
+        if (environment is not null)
+        {
+            copy.Environment = environment;
+        }
+
+        return copy;
+    }
+
+    /// <summary>そのままの写しを作る。設定を作る処理が書き換える前の指定を残すために使う。</summary>
+    /// <returns>写し。</returns>
+    internal CommandLineOptions Clone() => (CommandLineOptions)MemberwiseClone();
+
     /// <summary><c>#include</c> の探索パス。</summary>
     public ImmutableArray<string> IncludePaths { get; private set; } = [];
 
