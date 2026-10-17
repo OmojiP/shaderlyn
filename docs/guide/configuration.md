@@ -41,7 +41,7 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (この 4 つは作っているところで、今は GLSL の構文エラーだけを指摘する) |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |

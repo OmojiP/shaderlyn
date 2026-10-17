@@ -24,6 +24,10 @@ internal static class AnalysisEnvironments
         UnityAnalysisEnvironment.EnvironmentName,
         Semantics.Environments.HlslEnvironment.EnvironmentName,
         Unreal.UnrealOptions.EnvironmentName,
+        SyntaxOnlyAnalysisEnvironment.GlslName,
+        SyntaxOnlyAnalysisEnvironment.GodotName,
+        SyntaxOnlyAnalysisEnvironment.SlangName,
+        SyntaxOnlyAnalysisEnvironment.WgslName,
     ];
 
     /// <summary>指定できる環境の名前。</summary>
@@ -78,6 +82,10 @@ internal static class AnalysisEnvironments
                 SemanticsSetup.CreateUnreal(settings).CreateEnvironment(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)),
                 "Unreal Engine",
                 [".usf"]),
+            SyntaxOnlyAnalysisEnvironment.GlslName => SyntaxOnlyAnalysisEnvironment.CreateGlsl(),
+            SyntaxOnlyAnalysisEnvironment.GodotName => SyntaxOnlyAnalysisEnvironment.CreateGodot(),
+            SyntaxOnlyAnalysisEnvironment.SlangName => SyntaxOnlyAnalysisEnvironment.CreateSlang(),
+            SyntaxOnlyAnalysisEnvironment.WgslName => SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
             _ => settings.HostEnvironments.FirstOrDefault(h => h.Name == settings.Environment) is { } host
                 ? host.CreateAnalysisEnvironment?.Invoke()
                   ?? new HlslAnalysisEnvironment(settings.Configuration, host.CreateEnvironment(), host.DisplayName, host.DefaultExtensions)

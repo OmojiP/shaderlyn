@@ -10,14 +10,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
-    <!-- 単位 P2 の試作。型を公開するか・パッケージにするかは GL1 で決める。それまでは配らない -->
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <!-- パッケージにしないので、src/Directory.Build.props の指定 (パッケージにするものだけ) が掛からない -->
+  <!-- 型は GL1 までは internal にしておく (どれを公開するかは GL1 で決める)。CLI と言語サーバーからは使う -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Shaderlyn.Tests" />
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+    <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
   </ItemGroup>
 
 </Project>

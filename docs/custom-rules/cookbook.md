@@ -588,7 +588,7 @@ environment: myengine
 * コンパイル単位は、汎用の HLSL 環境と同じく設定ファイルの `units:` から作ります。当てはまらないファイルは、ファイル全体を 1 つの単位にします
 * 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使うかどうかは環境が決めます
   (上の例はソースの `#pragma` だけを読みます)
-* 名前は組み込みの環境 (`unity` / `hlsl` / `unreal`) と重ねられません
+* 名前は組み込みの環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`) と重ねられません
 
 ## そのほかの実装例
 

@@ -599,7 +599,7 @@ shaderlyn <パス...> [オプション]
 
 | オプション                        | 説明                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal`。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
+| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`（この 4 つは作っているところで、今は GLSL の構文エラーだけを指摘する）。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
 | `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です。Unity の環境だけ |
 | `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定。Unity の環境だけ |
 | `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります |
