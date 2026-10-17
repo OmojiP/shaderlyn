@@ -59,7 +59,7 @@ public sealed class ExpressionTypeEvaluator
     /// 型の名前・変換・組み込み関数を尋ねる先。既定は HLSL。
     /// </summary>
     /// <remarks>
-    /// 束縛 (<see cref="Programs.ExpressionTypeBinder"/>) が、解析した言語の型 (<c>compilation.TypeSystem</c>) を渡す。
+    /// 束縛 (<see cref="Programs.ExpressionTypeBinder"/>) が、解析した言語の型システム (<c>compilation.TypeSystem</c>) を渡す。
     /// スウィズルの成分名 (位置 xyzw と色 rgba など) もここから読む。組を混ぜられないが、混ざっていても型は変わらない。
     /// </remarks>
     public ShaderTypeSystem TypeSystem { get; init; } = HlslTypeSystem.Instance;

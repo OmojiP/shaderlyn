@@ -50,7 +50,7 @@
 | [`ShaderRuleAnalyzer`](#shaderruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
 | [`ShaderRuleVerifier`](#shaderruleverifier-shaderlyntesting) | テスト |
 | [`ShaderSyntaxFacts`](#shadersyntaxfacts--構文の規則) | 構文木 |
-| [`ShaderTypeSystem`](#shadertypesystem--言語の型と組み込み関数を尋ねる) | 構文木 |
+| [`ShaderTypeSystem`](#shadertypesystem--型システム) | 構文木 |
 | [`SymbolCondition`](#symbolcondition-shaderlyncoresyntax) | セマンティックモデル |
 | [`TextSpan`](#location-と-textspan) | 診断 |
 
@@ -397,9 +397,9 @@ if (variable.TryGetArrayLength(out int length)) { ... }   // VariableDeclaratorS
 if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 ```
 
-#### `ShaderTypeSystem` — 言語の型と組み込み関数を尋ねる
+#### `ShaderTypeSystem` — 型システム
 
-名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型と組み込み関数を答えます。`compilation.TypeSystem` で引けます。
+名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型システム (型と組み込み関数) です。`compilation.TypeSystem` で引けます。
 **言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として読めます。
 
 | メンバー                                                                   |                                                      |
@@ -878,7 +878,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ### `IHlslEnvironment` / `IShaderEnvironment` (`Shaderlyn.Semantics.Environments`)
 
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
-言語に依らない口は `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを足したもの) を実装します。
+言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを足したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
 セマンティックモデルを作った環境は `compilation.Environment` で引けます。
 

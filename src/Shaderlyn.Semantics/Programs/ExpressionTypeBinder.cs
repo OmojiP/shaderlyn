@@ -73,7 +73,7 @@ public sealed class ExpressionTypeBinder
     /// <summary>型を求める対象の木。</summary>
     public AnalyzedProgram Program { get; }
 
-    /// <summary>解析した言語の型と組み込み関数 (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
+    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
     public ShaderTypeSystem TypeSystem => _compilation.TypeSystem;
 
     /// <summary>

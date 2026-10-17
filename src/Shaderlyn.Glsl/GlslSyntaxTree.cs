@@ -12,7 +12,7 @@ namespace Shaderlyn.Glsl;
 /// GLSL のコードを解析して、構文木 (<see cref="ShaderSyntaxTree"/>) を作る入口。
 /// </summary>
 /// <remarks>
-/// 単位 P2 の試作。共通の構文木と骨組みで GLSL を読めるかを確かめるためにある。
+/// 単位 P2 の試作。共通の構文木と共通の構文解析器で GLSL を読めるかを確かめるためにある。
 /// </remarks>
 internal static class GlslSyntaxTree
 {

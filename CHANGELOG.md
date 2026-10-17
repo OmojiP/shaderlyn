@@ -32,11 +32,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - **破壊的変更:** 自作ルールの基底クラスの名前から `Hlsl` を外した。`HlslRuleAnalyzer` → `ShaderRuleAnalyzer`、
   `InitializeHlsl` → `InitializeShader`、`HlslAnalysisContext` → `ShaderAnalysisContext`、
   `HlslNodeAnalysisContext<TNode>` → `ShaderNodeAnalysisContext<TNode>`。名前空間と使い方は変わらない
-- **破壊的変更:** 環境の口を、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けた。
+- **破壊的変更:** 環境のインターフェースを、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けた。
   `HlslCompilationUnit` → `ShaderCompilationUnit`、`HlslEntryPoint` → `ShaderEntryPoint`。
   `compilation.Environment` と `HostEnvironment` は `IShaderEnvironment` を受け取る。`IHlslEnvironment` の実装は、型の名前の書き換えだけで動く
 - **破壊的変更:** 型の分類と形の名前から `Hlsl` を外した (`HlslTypeClass` → `ShaderTypeClass`、`HlslNumericShape` → `ShaderNumericShape`、
-  `HlslNumericKind` → `ShaderNumericKind`)。言語の型と組み込み関数を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
+  `HlslNumericKind` → `ShaderNumericKind`)。言語の型システム (型と組み込み関数) を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
   HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
 - DXC の HLSL 2021 で `select` / `and` / `or` を呼んだとき、呼び出しの解決 (`ResolveCall`) が、宣言されていない関数ではなく組み込み関数として扱う。
   使えるかどうかを方言で判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である

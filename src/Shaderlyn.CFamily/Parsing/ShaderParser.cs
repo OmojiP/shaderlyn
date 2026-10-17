@@ -7,7 +7,7 @@ using Shaderlyn.Core.Text;
 namespace Shaderlyn.CFamily.Parsing;
 
 /// <summary>
-/// プリプロセス済みの C 系の言語のトークン列を構文木へ組み立てる再帰下降パーサの骨組み。
+/// プリプロセス済みの C 系の言語のトークン列を構文木へ組み立てる共通の構文解析器 (再帰下降パーサ)。
 /// </summary>
 /// <remarks>
 /// <para>

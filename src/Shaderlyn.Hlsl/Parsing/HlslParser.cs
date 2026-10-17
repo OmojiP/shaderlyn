@@ -10,7 +10,7 @@ namespace Shaderlyn.Hlsl.Parsing;
 /// プリプロセス済みの HLSL トークン列を構文木へ組み立てるパーサ。
 /// </summary>
 /// <remarks>
-/// 読み方の骨組みは C 系の言語に共通 (<see cref="ShaderParser"/>) で、ここでは HLSL の方言の違いだけを答える。
+/// C 系の言語に共通の構文解析器 (<see cref="ShaderParser"/>) を使い、ここでは HLSL の方言の違いだけを答える。
 /// 組み込みの型と修飾子、方言ごとに使える構文、<c>cbuffer</c> / <c>tbuffer</c> と <c>namespace</c>、
 /// <c>vector&lt;T, N&gt;</c> / <c>matrix&lt;T, R, C&gt;</c> の短い名前である。
 /// </remarks>

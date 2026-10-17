@@ -80,7 +80,7 @@ internal readonly record struct TemplateDeductionResult(
 /// <para>
 /// <b>HLSL の型の表 (<see cref="HlslTypeClassifier"/>) を直接引く。</b>
 /// <c>template</c> は HLSL 2021 にしか無く、ほかの言語の木にこの推論は現れないためである
-/// (言語の型は <see cref="ShaderTypeSystem"/> から尋ねるのが原則)。
+/// (言語の型システムは <see cref="ShaderTypeSystem"/> から尋ねるのが原則)。
 /// </para>
 /// </remarks>
 internal static class TemplateDeduction

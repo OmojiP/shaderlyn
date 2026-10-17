@@ -10,7 +10,7 @@ namespace Shaderlyn.Glsl.Parsing;
 /// プリプロセス済みの GLSL トークン列を構文木へ組み立てるパーサ。
 /// </summary>
 /// <remarks>
-/// 読み方の骨組みは C 系の言語に共通 (<see cref="ShaderParser"/>) で、ここでは GLSL の違いだけを答える。
+/// C 系の言語に共通の構文解析器 (<see cref="ShaderParser"/>) を使い、ここでは GLSL の違いだけを答える。
 /// 組み込みの型と修飾子、<c>layout(...)</c>、インターフェースブロック、<c>precision</c> 文、修飾子だけの宣言である。
 /// HLSL にだけある構文 (template・enum・演算子の多重定義・ビットフィールド) は読まない。
 /// </remarks>

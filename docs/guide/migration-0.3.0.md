@@ -163,7 +163,7 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 
 自作の環境 (独自エンジン) を書いている人向けです。ルールを書くだけなら関係ありません。
 
-環境の口を、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けました。
+環境のインターフェースを、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けました。
 `IHlslEnvironment` は `IShaderEnvironment` に「HLSL として読む」ことを足したもので、これまでどおり実装できます。
 メンバーは変わりません (足した `Parse` は `IHlslEnvironment` が実装しているので、書かなくてかまいません)。
 
@@ -181,7 +181,7 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 | `compilation.Environment` (`IHlslEnvironment`) | `compilation.Environment` (`IShaderEnvironment`) |
 | `HostEnvironment` の `Func<IHlslEnvironment>` | `Func<IShaderEnvironment>`。`IHlslEnvironment` を返すラムダはそのまま渡せる |
 
-自作の環境が `IShaderEnvironment` を直接実装しているなら、`TypeSystem` (言語の型と組み込み関数) も実装します。
+自作の環境が `IShaderEnvironment` を直接実装しているなら、`TypeSystem` (言語の型システム。型と組み込み関数) も実装します。
 `IHlslEnvironment` を実装しているなら、HLSL の型を返すので書かなくてかまいません。
 
 ## 型と組み込み関数

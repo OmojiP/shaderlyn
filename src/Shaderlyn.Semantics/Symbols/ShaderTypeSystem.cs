@@ -4,7 +4,7 @@ using Shaderlyn.CFamily.Syntax;
 namespace Shaderlyn.Semantics.Symbols;
 
 /// <summary>
-/// 言語の型と組み込み関数 (計画の D3)。意味解析・ルール・言語サーバーは、型の名前や組み込み関数をここから尋ねる。
+/// 言語の型システム (型と組み込み関数。計画の D3)。意味解析・ルール・言語サーバーは、型の名前や組み込み関数をここから尋ねる。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -13,7 +13,7 @@ namespace Shaderlyn.Semantics.Symbols;
 /// 言語が答えるのは、名前と形の対応、暗黙の変換、組み込み関数と定数、成分の名前である。
 /// </para>
 /// <para>
-/// 解析の対象の言語の型は、環境 (<c>IShaderEnvironment.TypeSystem</c>) が与え、<c>compilation.TypeSystem</c> で引ける。
+/// 解析の対象の言語の型システムは、環境 (<c>IShaderEnvironment.TypeSystem</c>) が与え、<c>compilation.TypeSystem</c> で引ける。
 /// </para>
 /// </remarks>
 public abstract class ShaderTypeSystem

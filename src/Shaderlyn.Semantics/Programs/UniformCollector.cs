@@ -75,7 +75,7 @@ internal static class UniformCollector
     /// 構文木からトップレベルの宣言を集める。
     /// </summary>
     /// <param name="root">構文木の根。</param>
-    /// <param name="types">uniform の型を分類する言語の型。省略すると HLSL。</param>
+    /// <param name="types">uniform の型を分類する言語の型システム。省略すると HLSL。</param>
     /// <returns>集めた宣言。</returns>
     public static DeclarationSet Collect(CompilationUnitSyntax root, ShaderTypeSystem? types = null)
     {
@@ -87,7 +87,7 @@ internal static class UniformCollector
     }
 
     /// <summary>走査中の状態。</summary>
-    /// <param name="types">uniform の型を分類する言語の型。</param>
+    /// <param name="types">uniform の型を分類する言語の型システム。</param>
     private sealed class Collector(ShaderTypeSystem types)
     {
         private readonly ImmutableArray<UniformSymbol>.Builder _uniforms =

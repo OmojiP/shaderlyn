@@ -25,7 +25,7 @@ public sealed class UniformSymbol
     /// <param name="containingBufferName">
     /// 含まれている定数バッファの名前。バッファの外で宣言されている場合は <see langword="null"/>。
     /// </param>
-    /// <param name="typeSystem">型を分類する言語の型。省略すると HLSL。</param>
+    /// <param name="typeSystem">型を分類する言語の型システム。省略すると HLSL。</param>
     public UniformSymbol(
         string name,
         VariableDeclarationSyntax declaration,
