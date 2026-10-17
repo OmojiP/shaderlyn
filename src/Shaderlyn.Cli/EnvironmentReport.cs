@@ -45,8 +45,8 @@ internal static partial class EnvironmentReport
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     /// <param name="version">このツールのバージョン。</param>
     /// <param name="group">
-    /// まとまり (設定ファイルと環境) が複数あるときの、このまとまりの番号 (1 から) と数。1 つなら <see langword="null"/>。
-    /// 見出し (ツールのバージョン) は最初のまとまりにだけ書き、まとまりごとに区切りを書く。
+    /// 解析設定 (設定ファイルと環境) が複数あるときの、この解析設定の番号 (1 から) と数。1 つなら <see langword="null"/>。
+    /// 見出し (ツールのバージョン) は最初の解析設定にだけ書き、解析設定ごとに区切りを書く。
     /// </param>
     /// <returns>書き出した文字列。</returns>
     public static string Build(
@@ -72,7 +72,7 @@ internal static partial class EnvironmentReport
         if (group is { } current)
         {
             builder.AppendLine();
-            Line(builder, $"━━ まとまり {current.Index}/{current.Count}: 環境 {environment.DisplayName}、設定ファイル {settings.Configuration.FilePath ?? "(なし)"} ━━");
+            Line(builder, $"━━ 解析設定 {current.Index}/{current.Count}: 環境 {environment.DisplayName}、設定ファイル {settings.Configuration.FilePath ?? "(なし)"} ━━");
         }
 
         WriteInputs(builder, options, environment, files, missingPaths);

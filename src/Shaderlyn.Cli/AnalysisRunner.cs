@@ -48,7 +48,7 @@ internal sealed record AnalysisResult(ImmutableArray<Diagnostic> Diagnostics, in
     }
 
     /// <summary>
-    /// ファイルごと (またはまとまりごと) の指摘を 1 つの結果にまとめる。
+    /// ファイルごと (または解析設定ごと) の指摘を 1 つの結果にまとめる。
     /// </summary>
     /// <param name="parts">まとめる指摘の並び。</param>
     /// <param name="analyzedFileCount">解析したファイルの数。</param>
@@ -60,8 +60,8 @@ internal sealed record AnalysisResult(ImmutableArray<Diagnostic> Diagnostics, in
     /// まとめるときは、取り込みの経路を足し合わせる。どのシェーダーから取り込んだときの指摘かが分かるようにする。
     /// </para>
     /// <para>
-    /// 設定ファイルと環境のまとまり (<c>AnalysisGroup</c>) をまたいでも同じにまとめる。
-    /// 同じヘッダを 2 つのまとまりが取り込めば、指摘は 1 件で、経路が 2 本になる。
+    /// 解析設定 (設定ファイルと環境の組。<c>AnalysisSetting</c>) をまたいでも同じにまとめる。
+    /// 同じヘッダを 2 つの解析設定が取り込めば、指摘は 1 件で、経路が 2 本になる。
     /// </para>
     /// </remarks>
     public static AnalysisResult Merge(IEnumerable<ImmutableArray<Diagnostic>> parts, int analyzedFileCount)

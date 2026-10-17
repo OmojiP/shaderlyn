@@ -164,11 +164,11 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     /// <summary>
-    /// まとまり (設定ファイルと環境) をまたいでも、指摘はファイルの順に並ぶ。
-    /// 同じヘッダを 2 つのまとまりが取り込んでも、ヘッダの指摘は 1 件にまとまる。
+    /// 解析設定 (設定ファイルと環境) をまたいでも、指摘はファイルの順に並ぶ。
+    /// 同じヘッダを 2 つの解析設定が取り込んでも、ヘッダの指摘は 1 件にまとまる。
     /// </summary>
     [Fact]
-    public async Task まとまりをまたいでも並び順と重複のまとめ方は変わらない()
+    public async Task 解析設定をまたいでも並び順と重複のまとめ方は変わらない()
     {
         File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
         File.WriteAllText(Path.Combine(_workDirectory, "Common.hlsli"), "float Lib() { return missing; }\n");
@@ -186,12 +186,12 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.True(error.ToString().Length == 0, error.ToString());
         Assert.Contains("3 ファイルを解析", text, StringComparison.Ordinal);
 
-        // GLSL のまとまり (a.frag) は既定のまとまり (z.hlsl) より後に解析するが、出力はファイルの順に並ぶ。
+        // GLSL の解析設定 (a.frag) は既定の解析設定 (z.hlsl) より後に解析するが、出力はファイルの順に並ぶ。
         int frag = text.IndexOf("a.frag(", StringComparison.Ordinal);
         int z = text.IndexOf("z.hlsl(2", StringComparison.Ordinal);
         Assert.True(frag >= 0 && z > frag, text);
 
-        // ヘッダの指摘は、2 つのまとまりから取り込まれても 1 件。
+        // ヘッダの指摘は、2 つの解析設定から取り込まれても 1 件。
         Assert.Single(text.Split('\n'), line => line.Contains("Common.hlsli(", StringComparison.Ordinal) && line.Contains("HL0310", StringComparison.Ordinal));
     }
 
@@ -216,10 +216,10 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     /// <summary>
-    /// まとまりが複数あっても、変わっていなければキャッシュを使い回す。入れ子の設定ファイルを変えたら使い回さない。
+    /// 解析設定が複数あっても、変わっていなければキャッシュを使い回す。入れ子の設定ファイルを変えたら使い回さない。
     /// </summary>
     [Fact]
-    public async Task まとまりが複数あっても設定ファイルを変えたらキャッシュを使い回さない()
+    public async Task 解析設定が複数あっても設定ファイルを変えたらキャッシュを使い回さない()
     {
         string cache = Path.Combine(_workDirectory, "cache.json");
         File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
@@ -260,9 +260,9 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.Contains("HL0001", output.ToString(), StringComparison.Ordinal);
     }
 
-    /// <summary><c>--env</c> は、まとまりが複数あれば見出しを 1 回だけ書き、まとまりごとに区切る。</summary>
+    /// <summary><c>--env</c> は、解析設定が複数あれば見出しを 1 回だけ書き、解析設定ごとに区切る。</summary>
     [Fact]
-    public async Task 環境の表示はまとまりごとに区切り見出しは1回()
+    public async Task 環境の表示は解析設定ごとに区切り見出しは1回()
     {
         File.WriteAllText(Path.Combine(_workDirectory, "Lit.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
         File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nvoid main() {}\n");
@@ -270,8 +270,8 @@ public sealed class LanguageEnvironmentTests : IDisposable
         (_, string output) = await RunAsync("--env");
 
         Assert.Single(output.Split('\n'), line => line.Contains("の解析環境", StringComparison.Ordinal));
-        Assert.Contains("まとまり 1/2", output, StringComparison.Ordinal);
-        Assert.Contains("まとまり 2/2: 環境 GLSL", output, StringComparison.Ordinal);
+        Assert.Contains("解析設定 1/2", output, StringComparison.Ordinal);
+        Assert.Contains("解析設定 2/2: 環境 GLSL", output, StringComparison.Ordinal);
     }
 
     [Theory]

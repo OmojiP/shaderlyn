@@ -5,20 +5,20 @@ using Shaderlyn.Configuration;
 namespace Shaderlyn.Cli.Environments;
 
 /// <summary>
-/// 同じ設定ファイルと同じ環境で解析するファイルのまとまり。
+/// 解析設定。同じ設定ファイルと同じ環境で解析するファイルを、その設定と一緒に持つ。
 /// </summary>
-/// <param name="Options">このまとまりのコマンドラインの指定 (設定ファイルと環境を決めた写し)。</param>
-/// <param name="Settings">このまとまりの設定。</param>
-/// <param name="Environment">このまとまりの環境。</param>
+/// <param name="Options">この解析設定のコマンドラインの指定 (設定ファイルと環境を決めた写し)。</param>
+/// <param name="Settings">この解析設定で使う設定 (設定ファイルとコマンドラインの指定を合わせたもの)。</param>
+/// <param name="Environment">この解析設定の環境。</param>
 /// <param name="Files">解析するファイル。</param>
-internal sealed record AnalysisGroup(
+internal sealed record AnalysisSetting(
     CommandLineOptions Options,
     EffectiveSettings Settings,
     IAnalysisEnvironment Environment,
     ImmutableArray<string> Files);
 
 /// <summary>
-/// 解析するファイルを、設定ファイルと環境ごとのまとまり (<see cref="AnalysisGroup"/>) に分ける。
+/// 解析するファイルを、解析設定 (設定ファイルと環境の組。<see cref="AnalysisSetting"/>) ごとに分ける。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,7 +31,7 @@ internal sealed record AnalysisGroup(
 /// Unity のプロジェクトにある <c>.wgsl</c> は WGSL として読み、<c>.hlsl</c> (Unity では取り込まれる側) は今までどおり単体では読まない。
 /// </para>
 /// </remarks>
-internal static class AnalysisGroups
+internal static class AnalysisSettings
 {
     /// <summary>
     /// ほかの用途と重なる拡張子。拡張子だけでは言語を決めず、その言語の環境を指定したときだけ読む。
@@ -70,19 +70,19 @@ internal static class AnalysisGroups
                 .Distinct(StringComparer.OrdinalIgnoreCase),
         ];
 
-    /// <summary>ファイルをまとまりに分ける。</summary>
+    /// <summary>ファイルを解析設定に分ける。</summary>
     /// <param name="original">設定を作る前のコマンドラインの指定 (写しの元)。</param>
-    /// <param name="primary">最初の解析対象から探した設定ファイルで作ったまとまり (今までの 1 つの設定と環境)。<see cref="AnalysisGroup.Files"/> は使わない。</param>
+    /// <param name="primary">最初の解析対象から探した設定ファイルで作った解析設定 (今までの 1 つの設定と環境)。<see cref="AnalysisSetting.Files"/> は使わない。</param>
     /// <param name="hosts">足した環境。</param>
     /// <param name="files">集めたファイル。</param>
     /// <param name="explicitFiles">コマンドラインで直接指定したファイル。拡張子に関わらず、設定の環境で読む。</param>
     /// <param name="unusableConfigurations">
     /// 環境を作れなかった設定ファイル (知らない環境の名前を書いたものなど) の問題。その設定ファイルの下の HLSL のファイルは解析しないので、理由を伝えるために返す。
     /// </param>
-    /// <returns>まとまり。最初のまとまりの環境のものが先頭に来る。</returns>
-    public static ImmutableArray<AnalysisGroup> Build(
+    /// <returns>解析設定。最初の解析設定の環境のものが先頭に来る。</returns>
+    public static ImmutableArray<AnalysisSetting> Build(
         CommandLineOptions original,
-        AnalysisGroup primary,
+        AnalysisSetting primary,
         ImmutableArray<HostEnvironment> hosts,
         ImmutableArray<string> files,
         IReadOnlySet<string> explicitFiles,
@@ -94,8 +94,8 @@ internal static class AnalysisGroups
         List<Core.Diagnostics.Diagnostic> problems = [];
         string primaryConfig = FullPathOrEmpty(primary.Settings.Configuration.FilePath);
 
-        // 設定ファイルごとの、設定の指定する環境。最初のまとまりの設定ファイルは、作ったものをそのまま使う。
-        Dictionary<string, AnalysisGroup?> byConfig = new(StringComparer.OrdinalIgnoreCase) { [primaryConfig] = primary };
+        // 設定ファイルごとの、設定の指定する環境。最初の解析設定の設定ファイルは、作ったものをそのまま使う。
+        Dictionary<string, AnalysisSetting?> byConfig = new(StringComparer.OrdinalIgnoreCase) { [primaryConfig] = primary };
         Dictionary<(string Config, string Environment), List<string>> assigned = [];
         Dictionary<string, string?> configurationByDirectory = new(StringComparer.OrdinalIgnoreCase);
 
@@ -103,7 +103,7 @@ internal static class AnalysisGroups
         {
             string config = FullPathOrEmpty(ConfigurationFor(original, primary, file, configurationByDirectory));
 
-            if (!byConfig.TryGetValue(config, out AnalysisGroup? configured))
+            if (!byConfig.TryGetValue(config, out AnalysisSetting? configured))
             {
                 configured = byConfig[config] = Create(original.For(config.Length == 0 ? null : config, environment: null), hosts, problems);
             }
@@ -128,14 +128,14 @@ internal static class AnalysisGroups
             list.Add(file);
         }
 
-        ImmutableArray<AnalysisGroup>.Builder groups = ImmutableArray.CreateBuilder<AnalysisGroup>();
+        ImmutableArray<AnalysisSetting>.Builder groups = ImmutableArray.CreateBuilder<AnalysisSetting>();
 
         foreach (((string config, string environment), List<string> list) in assigned
                      .OrderBy(p => p.Key.Config == primaryConfig && p.Key.Environment == primary.Environment.Name ? 0 : 1)
                      .ThenBy(p => p.Key.Config, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(p => p.Key.Environment, StringComparer.Ordinal))
         {
-            AnalysisGroup? group = byConfig[config] is { } configured && configured.Environment.Name == environment
+            AnalysisSetting? group = byConfig[config] is { } configured && configured.Environment.Name == environment
                 ? configured
                 : Create(original.For(config.Length == 0 ? null : config, environment), hosts, problems);
 
@@ -156,11 +156,11 @@ internal static class AnalysisGroups
 
     /// <summary>そのファイルに使う設定ファイルを決める。</summary>
     /// <param name="original">コマンドラインの指定。</param>
-    /// <param name="primary">最初のまとまり。</param>
+    /// <param name="primary">最初の解析設定。</param>
     /// <param name="file">ファイル。</param>
     /// <param name="byDirectory">フォルダーごとに見つけた設定ファイル (覚えておく先)。同じフォルダーのファイルで上へ辿り直さない。</param>
     /// <returns>設定ファイルのパス。使わないなら <see langword="null"/>。</returns>
-    private static string? ConfigurationFor(CommandLineOptions original, AnalysisGroup primary, string file, Dictionary<string, string?> byDirectory)
+    private static string? ConfigurationFor(CommandLineOptions original, AnalysisSetting primary, string file, Dictionary<string, string?> byDirectory)
     {
         if (original.NoConfig || original.ConfigPath is not null)
         {
@@ -184,19 +184,19 @@ internal static class AnalysisGroups
     /// <param name="options">設定ファイルと環境を決めた指定。</param>
     /// <param name="hosts">足した環境。</param>
     /// <param name="problems">環境を作れなかったとき、その設定ファイルの問題を足す先。</param>
-    /// <returns>まとまり (ファイルは空)。環境を作れなければ <see langword="null"/>。</returns>
+    /// <returns>解析設定 (ファイルは空)。環境を作れなければ <see langword="null"/>。</returns>
     /// <remarks>
     /// 環境を作れないのは、設定ファイルに知らない環境の名前を書いたときである。
     /// 設定の問題 (<see cref="EffectiveSettings.ConfigurationDiagnostics"/>) に、書いた行への報告が入っている。
     /// 黙って捨てると、その設定ファイルの下のファイルが理由も無く解析されなくなる。
     /// </remarks>
-    private static AnalysisGroup? Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hosts, List<Core.Diagnostics.Diagnostic> problems)
+    private static AnalysisSetting? Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hosts, List<Core.Diagnostics.Diagnostic> problems)
     {
         EffectiveSettings settings = EffectiveSettings.Create(options, hosts);
 
         if (AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
         {
-            return new AnalysisGroup(options, settings, environment, []);
+            return new AnalysisSetting(options, settings, environment, []);
         }
 
         problems.AddRange(settings.ConfigurationDiagnostics);

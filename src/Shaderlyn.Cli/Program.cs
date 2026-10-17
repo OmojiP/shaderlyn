@@ -107,10 +107,10 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        // 設定を作る処理は指定を書き換える。ファイルごとの設定 (AnalysisGroups) は、書き換える前の指定から作る。
+        // 設定を作る処理は指定を書き換える。ファイルごとの設定 (AnalysisSettings) は、書き換える前の指定から作る。
         CommandLineOptions original = options.Clone();
 
-        // 設定ファイルは最初の解析対象から上へ探す。これが既定のまとまり (今までの 1 つの設定と環境) になる。
+        // 設定ファイルは最初の解析対象から上へ探す。これが既定の解析設定 (今までの 1 つの設定と環境) になる。
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         if (options.UnrealGenerateOutputPath is { } generateOutput)
@@ -134,13 +134,13 @@ public static class Program
 
         ImmutableArray<string> discovered = ShaderFileDiscovery.Discover(
             options.InputPaths,
-            AnalysisGroups.DiscoveryExtensions(environments),
+            AnalysisSettings.DiscoveryExtensions(environments),
             out ImmutableArray<string> missingPaths,
             out ImmutableArray<string> unsupportedFiles);
 
         // ファイルごとに、一番近い設定ファイルとその環境 (HLSL 以外の言語は拡張子の環境) で解析する。
-        AnalysisGroup primary = new(options, settings, environment, []);
-        ImmutableArray<AnalysisGroup> groups = AnalysisGroups.Build(
+        AnalysisSetting primary = new(options, settings, environment, []);
+        ImmutableArray<AnalysisSetting> groups = AnalysisSettings.Build(
             original,
             primary,
             environments,
@@ -148,7 +148,7 @@ public static class Program
             options.InputPaths.Where(File.Exists).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase),
             out ImmutableArray<Diagnostic> unusableConfigurations);
 
-        // 解析するファイルが無くても、既定のまとまりは残す (環境の表示と「0 ファイルを解析」のため)。
+        // 解析するファイルが無くても、既定の解析設定は残す (環境の表示と「0 ファイルを解析」のため)。
         if (groups.IsEmpty)
         {
             groups = [primary];
@@ -161,7 +161,7 @@ public static class Program
         {
             for (int i = 0; i < groups.Length; i++)
             {
-                AnalysisGroup group = groups[i];
+                AnalysisSetting group = groups[i];
                 await output.WriteAsync(
                     EnvironmentReport.Build(
                         group.Options, group.Settings, group.Environment, group.Files, missingPaths, GetVersion(),
@@ -186,14 +186,14 @@ public static class Program
 
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
-            // 調べる出力は 1 つの環境のもの。先頭のまとまり (既定の設定と環境のもの) を書く。
-            AnalysisGroup inspected = groups[0];
+            // 調べる出力は 1 つの環境のもの。先頭の解析設定 (既定の設定と環境のもの) を書く。
+            AnalysisSetting inspected = groups[0];
 
-            // 外したまとまりは黙って捨てない。どのファイルが出力に入っていないかを伝える。
-            foreach (AnalysisGroup skipped in groups.Skip(1))
+            // 外した解析設定は黙って捨てない。どのファイルが出力に入っていないかを伝える。
+            foreach (AnalysisSetting skipped in groups.Skip(1))
             {
                 await errorOutput.WriteLineAsync(
-                    $"--inspect は 1 つのまとまりだけを書きます。次のまとまりは書きません: 環境 {skipped.Environment.DisplayName}、"
+                    $"--inspect は 1 つの解析設定のファイルだけを書きます。次の解析設定のファイルは書きません: 環境 {skipped.Environment.DisplayName}、"
                     + $"設定ファイル {skipped.Settings.Configuration.FilePath ?? "(なし)"}、{skipped.Files.Length} ファイル")
                     .ConfigureAwait(false);
             }
@@ -210,9 +210,9 @@ public static class Program
 
         List<AnalysisResult> perGroup = [];
 
-        foreach (AnalysisGroup group in groups)
+        foreach (AnalysisSetting group in groups)
         {
-            // 既定のまとまりは、上で作った解析の設定をそのまま使う (まとまりが 1 つなら今までと同じ)。
+            // 既定の解析設定は、上で作った解析の設定をそのまま使う (解析設定が 1 つなら今までと同じ)。
             SemanticsOptions groupSemantics = ReferenceEquals(group, primary) || ReferenceEquals(group.Settings, settings)
                 ? semanticsOptions
                 : SemanticsSetup.Create(group.Options, group.Settings, timings);
@@ -224,8 +224,8 @@ public static class Program
             perGroup.Add(groupResult);
         }
 
-        // まとまりをまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つのまとまりが取り込むことがある)。
-        // まとまりが 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
+        // 解析設定をまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つの解析設定が取り込むことがある)。
+        // 解析設定が 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
         AnalysisResult result = perGroup.Count == 1
             ? perGroup[0]
             : AnalysisResult.Merge(perGroup.Select(r => r.Diagnostics), perGroup.Sum(r => r.AnalyzedFileCount));
@@ -241,7 +241,7 @@ public static class Program
             await errorOutput.WriteAsync(timings.Describe(semanticsOptions.IncludeCache, cache))
                 .ConfigureAwait(false);
         }
-        // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数のまとまりが使う)。
+        // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数の解析設定が使う)。
         ImmutableArray<Diagnostic> configurationDiagnostics =
         [
             .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics)
@@ -295,7 +295,7 @@ public static class Program
     /// 結果のキャッシュを読み込む。
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
-    /// <param name="groups">設定ファイルと環境ごとのまとまり。</param>
+    /// <param name="groups">設定ファイルと環境ごとの解析設定。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
     /// <param name="errorOutput">エラーメッセージの出力先。</param>
     /// <returns>読み込んだキャッシュ。<c>--cache</c> の指定が無ければ <see langword="null"/>。</returns>
@@ -308,13 +308,13 @@ public static class Program
     /// 読めなかったことは標準エラーへ伝える。
     /// </para>
     /// <para>
-    /// まとまりが複数あれば、すべてのまとまりの鍵をまとめた鍵にする。どの設定ファイルを変えても使い回さない。
-    /// まとまりが 1 つなら、そのまとまりの鍵そのもの (今までのキャッシュを使い回せる)。
+    /// 解析設定が複数あれば、すべての解析設定の鍵をまとめた鍵にする。どの設定ファイルを変えても使い回さない。
+    /// 解析設定が 1 つなら、その解析設定の鍵そのもの (今までのキャッシュを使い回せる)。
     /// </para>
     /// </remarks>
     private static async Task<AnalysisCache?> LoadCacheAsync(
         CommandLineOptions options,
-        ImmutableArray<AnalysisGroup> groups,
+        ImmutableArray<AnalysisSetting> groups,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         TextWriter errorOutput)
     {
