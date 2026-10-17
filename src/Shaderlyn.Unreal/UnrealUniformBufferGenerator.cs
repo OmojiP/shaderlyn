@@ -95,6 +95,12 @@ public static partial class UnrealUniformBufferGenerator
         /// <summary>エンジンの C++ がシェーダーに定義するマクロの名前。</summary>
         public ConcurrentDictionary<string, byte> EngineDefines { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>シェーダーの登録 (<c>IMPLEMENT_GLOBAL_SHADER</c> など)。</summary>
+        public ConcurrentBag<UnrealShaderRegistration> ShaderRegistrations { get; } = [];
+
+        /// <summary>読めなかったシェーダーの登録のマクロの名前と数。</summary>
+        public ConcurrentDictionary<string, int> UnreadShaderRegistrations { get; } = new(StringComparer.Ordinal);
+
         /// <summary>読んだファイルの数。</summary>
         public int FileCount;
     }
@@ -166,7 +172,8 @@ public static partial class UnrealUniformBufferGenerator
                 && !text.Contains("SCENE_UB_STRUCT", StringComparison.Ordinal)
                 && !text.Contains("SetDefine", StringComparison.Ordinal)
                 && !text.Contains("SET_SHADER_DEFINE", StringComparison.Ordinal)
-                && !text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal))
+                && !text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal)
+                && !text.Contains("IMPLEMENT_", StringComparison.Ordinal))
             {
                 return;
             }
@@ -192,6 +199,8 @@ public static partial class UnrealUniformBufferGenerator
         {
             parsed.SceneMembers.TryAdd(match.Groups["field"].Value, (match.Groups["struct"].Value, path));
         }
+
+        UnrealShaderRegistrations.Collect(path, code, parsed.ShaderRegistrations, parsed.UnreadShaderRegistrations);
 
         foreach (Match match in EngineDefine().Matches(code))
         {
@@ -694,14 +703,17 @@ public static partial class UnrealUniformBufferGenerator
         string defines = Path.Combine(outputDirectory, EngineDefinesFileName);
         File.WriteAllText(defines, string.Concat(parsed.EngineDefines.Keys.Order(StringComparer.Ordinal).Select(name => name + "\n")));
         written.Add(defines);
+        written.Add(UnrealShaderRegistrations.Write(outputDirectory, parsed.ShaderRegistrations));
 
         return new UnrealUniformBufferGeneration(
             parsed.FileCount,
             parsed.UniformBuffers.Count,
             parsed.EngineDefines.Count,
+            parsed.ShaderRegistrations.Distinct().Count(),
             [.. written],
             [.. incomplete],
-            [.. unknownTypes]);
+            [.. unknownTypes],
+            parsed.UnreadShaderRegistrations.ToImmutableSortedDictionary(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -998,10 +1010,14 @@ public static partial class UnrealUniformBufferGenerator
 /// <param name="WrittenFiles">書き出したファイル。</param>
 /// <param name="Incomplete">メンバーを読み切れなかった uniform buffer (定義が無い、別のファイルのマクロでメンバーを書いている)。</param>
 /// <param name="UnknownTypes">知らない C++ の型 (float4 として書いた)。</param>
+/// <param name="ShaderRegistrationCount">見つけたシェーダーの登録 (<c>IMPLEMENT_GLOBAL_SHADER</c> など) の数。</param>
+/// <param name="UnreadShaderRegistrations">読めなかったシェーダーの登録のマクロの名前と数 (パスをマクロの定義の中に書いた独自のマクロなど)。</param>
 public sealed record UnrealUniformBufferGeneration(
     int SourceFileCount,
     int UniformBufferCount,
     int EngineDefineCount,
+    int ShaderRegistrationCount,
     ImmutableArray<string> WrittenFiles,
     ImmutableArray<string> Incomplete,
-    ImmutableArray<string> UnknownTypes);
+    ImmutableArray<string> UnknownTypes,
+    ImmutableSortedDictionary<string, int> UnreadShaderRegistrations);

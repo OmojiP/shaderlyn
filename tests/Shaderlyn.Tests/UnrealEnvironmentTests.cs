@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Shaderlyn.Cli;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Unreal;
@@ -556,6 +557,40 @@ public sealed class UnrealEnvironmentTests : IDisposable
         IReadOnlyDictionary<string, string> mappings = options.GetVirtualPathMappings();
         Assert.Equal(autogen, mappings["/Engine/Generated/ShaderAutogen"]);
         Assert.Equal(Path.Combine(_workDirectory, "Generated"), mappings["/Engine/Generated"]);
+    }
+
+    /// <summary>
+    /// C++ のシェーダーの登録 (3 つの形とヒットグループ) を読み、読めなかった独自のマクロを数える。
+    /// コメントとマクロの定義の中は読まない。シェーダーのパイプラインは登録ではないので数えない。
+    /// </summary>
+    [Fact]
+    public void CPlusPlusのシェーダーの登録を読む()
+    {
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGeneration generation = UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Pass.cpp", """
+                // IMPLEMENT_GLOBAL_SHADER(FCommented, "/Engine/Private/X.usf", "MainPS", SF_Pixel);
+                #define IMPLEMENT_MY_SHADER(Name) IMPLEMENT_GLOBAL_SHADER(Name, "/Engine/Private/Y.usf", "Main", SF_Pixel)
+                IMPLEMENT_GLOBAL_SHADER(FPassPS, "/Engine/Private/Pass.usf", "MainPS", SF_Pixel);
+                IMPLEMENT_SHADER_TYPE(template<>, TPassCS<1>, TEXT( "/Engine/Private/Pass.usf" ), TEXT("MainCS"), SF_Compute);
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FMaterialVS, TEXT("/Engine/Private/Material.usf"), TEXT("MainVS"), SF_Vertex);
+                IMPLEMENT_GLOBAL_SHADER(FHitGroup, "/Engine/Private/RayTracing.usf", "closesthit=MainCHS anyhit=MainAHS", SF_RayHitGroup);
+                IMPLEMENT_MY_SHADER(FFirst);
+                IMPLEMENT_MY_SHADER(FSecond);
+                IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(FPipeline, FMaterialVS, FPassPS, true);
+                """),
+        ],
+        output);
+
+        Assert.Equal(4, generation.ShaderRegistrationCount);
+        Assert.Equal(2, Assert.Single(generation.UnreadShaderRegistrations, p => p.Key == "IMPLEMENT_MY_SHADER").Value);
+        Assert.Single(generation.UnreadShaderRegistrations);
+
+        ImmutableArray<UnrealShaderRegistration> read = UnrealShaderRegistrations.Read(output);
+        Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Pass.usf", EntryPoint: "MainCS", Frequency: "Compute", Macro: "IMPLEMENT_SHADER_TYPE" });
+        Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Material.usf", EntryPoint: "MainVS", Macro: "IMPLEMENT_MATERIAL_SHADER_TYPE" });
+        Assert.Equal(["MainCHS", "MainAHS"], UnrealShaderRegistrations.EntryFunctions(Assert.Single(read, r => r.Frequency == "RayHitGroup").EntryPoint).ToArray());
     }
 
     private void Write(string relativePath, string content)

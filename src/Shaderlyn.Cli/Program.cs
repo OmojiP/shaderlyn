@@ -534,7 +534,19 @@ public static class Program
 
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読みました。");
         report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
+
+        if (!generation.UnreadShaderRegistrations.IsEmpty)
+        {
+            // 独自のマクロで登録したシェーダーは、設定の units: に書けば解析できる。
+            report.AppendLine(CultureInfo.InvariantCulture, $"読めなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントが分からないので、必要なら設定の units: に書いてください):");
+
+            foreach ((string macro, int count) in generation.UnreadShaderRegistrations.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal))
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {macro}: {count} 個");
+            }
+        }
 
         if (!generation.Incomplete.IsEmpty)
         {
