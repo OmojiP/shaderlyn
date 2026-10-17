@@ -539,7 +539,7 @@ public static class Program
 
         if (generation.MissingShaderClassCount > 0)
         {
-            report.AppendLine(CultureInfo.InvariantCulture, $"宣言が見つからなかったクラスが {generation.MissingShaderClassCount} 個あります。これらの単位では、ほかのクラスの値も決めずに両方の分岐を読みます。");
+            report.AppendLine(CultureInfo.InvariantCulture, $"宣言が見つからなかったクラスが {generation.MissingShaderClassCount} 個あります。これらのクラスが登録したシェーダーには、クラスで決まるマクロを定義せずに解析します。");
         }
 
         report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
