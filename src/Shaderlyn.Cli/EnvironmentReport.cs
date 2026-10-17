@@ -44,6 +44,10 @@ internal static partial class EnvironmentReport
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     /// <param name="version">このツールのバージョン。</param>
+    /// <param name="group">
+    /// まとまり (設定ファイルと環境) が複数あるときの、このまとまりの番号 (1 から) と数。1 つなら <see langword="null"/>。
+    /// 見出し (ツールのバージョン) は最初のまとまりにだけ書き、まとまりごとに区切りを書く。
+    /// </param>
     /// <returns>書き出した文字列。</returns>
     public static string Build(
         CommandLineOptions options,
@@ -51,7 +55,8 @@ internal static partial class EnvironmentReport
         IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths,
-        string version)
+        string version,
+        (int Index, int Count)? group = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
@@ -59,7 +64,16 @@ internal static partial class EnvironmentReport
 
         StringBuilder builder = new();
 
-        Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
+        if (group is not { Index: > 1 })
+        {
+            Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
+        }
+
+        if (group is { } current)
+        {
+            builder.AppendLine();
+            Line(builder, $"━━ まとまり {current.Index}/{current.Count}: 環境 {environment.DisplayName}、設定ファイル {settings.Configuration.FilePath ?? "(なし)"} ━━");
+        }
 
         WriteInputs(builder, options, environment, files, missingPaths);
         WriteConfiguration(builder, options, settings, environment);

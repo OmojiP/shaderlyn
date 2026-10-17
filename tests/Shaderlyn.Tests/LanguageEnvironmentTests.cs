@@ -215,6 +215,65 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.Contains(".shaderlyn.yaml(2", text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// まとまりが複数あっても、変わっていなければキャッシュを使い回す。入れ子の設定ファイルを変えたら使い回さない。
+    /// </summary>
+    [Fact]
+    public async Task まとまりが複数あっても設定ファイルを変えたらキャッシュを使い回さない()
+    {
+        string cache = Path.Combine(_workDirectory, "cache.json");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "root.hlsl"), "float4 main() : SV_Target { return 1; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nvoid main() {}\n");
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "sub"));
+        string nested = Path.Combine(_workDirectory, "sub", ".shaderlyn.yaml");
+        File.WriteAllText(nested, "version: 1\nenvironment: hlsl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "sub", "b.hlsl"), "float4 main() : SV_Target { return 1; }\n");
+
+        async Task<string> RunWithCacheAsync()
+        {
+            StringWriter output = new();
+            StringWriter error = new();
+            await Program.RunAsync([_workDirectory, "--cache", cache, "--timings"], BuiltInAnalyzers.All, output, error);
+            return error.ToString();
+        }
+
+        await RunWithCacheAsync();
+        Assert.Contains("前回の結果の使い回し 3 件 / 解析 0 件", await RunWithCacheAsync(), StringComparison.Ordinal);
+
+        File.WriteAllText(nested, "version: 1\nenvironment: hlsl\nrules:\n  HL0301: none\n");
+        Assert.Contains("前回の結果の使い回し 0 件 / 解析 3 件", await RunWithCacheAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>名前を挙げたファイルは、拡張子に関わらず設定の環境で読む (今までどおり)。</summary>
+    [Fact]
+    public async Task 名前を挙げたファイルは拡張子に関わらず設定の環境で読む()
+    {
+        string file = Path.Combine(_workDirectory, "Lib.fx");
+        File.WriteAllText(file, "float Lib( {\n");
+
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([file, "--no-config", "--environment", "hlsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.Contains("1 ファイルを解析", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("HL0001", output.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary><c>--env</c> は、まとまりが複数あれば見出しを 1 回だけ書き、まとまりごとに区切る。</summary>
+    [Fact]
+    public async Task 環境の表示はまとまりごとに区切り見出しは1回()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "Lit.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nvoid main() {}\n");
+
+        (_, string output) = await RunAsync("--env");
+
+        Assert.Single(output.Split('\n'), line => line.Contains("の解析環境", StringComparison.Ordinal));
+        Assert.Contains("まとまり 1/2", output, StringComparison.Ordinal);
+        Assert.Contains("まとまり 2/2: 環境 GLSL", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("godot", "a.gdshader", "shader_type spatial;\nvoid fragment() { ALBEDO = vec3(1.0); }\n")]
     [InlineData("slang", "a.slang", "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n")]

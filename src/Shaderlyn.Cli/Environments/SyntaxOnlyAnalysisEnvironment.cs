@@ -110,8 +110,8 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
     /// 自前の解決器を作ると、<c>#include "C:/Users/.../.ssh/id_rsa"</c> のような外のファイルまで読めてしまう。
     /// </para>
     /// <para>
-    /// 取り込みの使い回し (<see cref="SemanticsOptions.IncludeCache"/>) は渡さない。
-    /// 使い回しの鍵が言語を見ていないので、HLSL の展開結果を使ってしまう (計画の R2 で直す)。
+    /// 取り込みの使い回し (<see cref="SemanticsOptions.IncludeCache"/>) も共有する。
+    /// 使い回しの鍵に言語が入っているので (<see cref="PreprocessorOptions.FingerprintForCache"/>)、HLSL の展開結果を使うことは無い。
     /// </para>
     /// </remarks>
     private static PreprocessorOptions CreatePreprocessorOptions(SemanticsOptions? semantics)
@@ -121,6 +121,8 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
             {
                 IncludeResolver = semantics.IncludeResolver,
                 IsUserInclude = semantics.IsUserInclude,
+                IncludeCache = semantics.IncludeCache,
+                TokenCache = semantics.TokenCache,
                 PredefinedMacros = semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal),
             };
 }

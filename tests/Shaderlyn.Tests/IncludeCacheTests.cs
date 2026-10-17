@@ -423,4 +423,21 @@ public sealed class IncludeCacheTests
 
         Assert.Equal(fresh.Diagnostics.Length, reused.Diagnostics.Length);
     }
+
+    /// <summary>
+    /// 使い回しの鍵には言語が入る。巻き上げの判定と使えない指令の報告が言語で変わるため。
+    /// 同じ値の設定を作り直しても鍵は変わらない (方言の並びを作るたびに別の値になると、使い回しが当たらない)。
+    /// </summary>
+    [Fact]
+    public void 使い回しの鍵は言語を見て同じ値の設定では変わらない()
+    {
+        PreprocessorOptions fxc = new() { Language = new Hlsl.Parsing.HlslLanguageOptions() };
+        PreprocessorOptions fxcAgain = new() { Language = new Hlsl.Parsing.HlslLanguageOptions { Dialects = [Hlsl.Parsing.HlslDialect.Fxc] } };
+        PreprocessorOptions unity = new() { Language = new Hlsl.Parsing.HlslLanguageOptions { DialectName = "Unity" } };
+        PreprocessorOptions none = new();
+
+        Assert.Equal(fxc.FingerprintForCache, fxcAgain.FingerprintForCache);
+        Assert.NotEqual(fxc.FingerprintForCache, unity.FingerprintForCache);
+        Assert.NotEqual(fxc.FingerprintForCache, none.FingerprintForCache);
+    }
 }

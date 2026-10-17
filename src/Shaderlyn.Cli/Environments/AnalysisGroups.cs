@@ -97,10 +97,11 @@ internal static class AnalysisGroups
         // 設定ファイルごとの、設定の指定する環境。最初のまとまりの設定ファイルは、作ったものをそのまま使う。
         Dictionary<string, AnalysisGroup?> byConfig = new(StringComparer.OrdinalIgnoreCase) { [primaryConfig] = primary };
         Dictionary<(string Config, string Environment), List<string>> assigned = [];
+        Dictionary<string, string?> configurationByDirectory = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (string file in files)
         {
-            string config = FullPathOrEmpty(ConfigurationFor(original, primary, file));
+            string config = FullPathOrEmpty(ConfigurationFor(original, primary, file, configurationByDirectory));
 
             if (!byConfig.TryGetValue(config, out AnalysisGroup? configured))
             {
@@ -157,15 +158,26 @@ internal static class AnalysisGroups
     /// <param name="original">コマンドラインの指定。</param>
     /// <param name="primary">最初のまとまり。</param>
     /// <param name="file">ファイル。</param>
+    /// <param name="byDirectory">フォルダーごとに見つけた設定ファイル (覚えておく先)。同じフォルダーのファイルで上へ辿り直さない。</param>
     /// <returns>設定ファイルのパス。使わないなら <see langword="null"/>。</returns>
-    private static string? ConfigurationFor(CommandLineOptions original, AnalysisGroup primary, string file)
+    private static string? ConfigurationFor(CommandLineOptions original, AnalysisGroup primary, string file, Dictionary<string, string?> byDirectory)
     {
         if (original.NoConfig || original.ConfigPath is not null)
         {
             return primary.Settings.Configuration.FilePath;
         }
 
-        return Path.GetDirectoryName(file) is { } directory ? ConfigurationLoader.FindConfigurationFile(directory) : null;
+        if (Path.GetDirectoryName(file) is not { } directory)
+        {
+            return null;
+        }
+
+        if (!byDirectory.TryGetValue(directory, out string? found))
+        {
+            byDirectory[directory] = found = ConfigurationLoader.FindConfigurationFile(directory);
+        }
+
+        return found;
     }
 
     /// <summary>指定から設定と環境を作る。</summary>

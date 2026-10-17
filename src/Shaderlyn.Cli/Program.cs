@@ -159,10 +159,13 @@ public static class Program
         // 環境の表示は、対象のパスが間違っていてもそれを含めて見せる。止めると何が違うのかが分からない。
         if (options.ShowEnvironment)
         {
-            foreach (AnalysisGroup group in groups)
+            for (int i = 0; i < groups.Length; i++)
             {
+                AnalysisGroup group = groups[i];
                 await output.WriteAsync(
-                    EnvironmentReport.Build(group.Options, group.Settings, group.Environment, group.Files, missingPaths, GetVersion()))
+                    EnvironmentReport.Build(
+                        group.Options, group.Settings, group.Environment, group.Files, missingPaths, GetVersion(),
+                        groups.Length == 1 ? null : (i + 1, groups.Length)))
                     .ConfigureAwait(false);
             }
 
@@ -185,6 +188,16 @@ public static class Program
         {
             // 調べる出力は 1 つの環境のもの。先頭のまとまり (既定の設定と環境のもの) を書く。
             AnalysisGroup inspected = groups[0];
+
+            // 外したまとまりは黙って捨てない。どのファイルが出力に入っていないかを伝える。
+            foreach (AnalysisGroup skipped in groups.Skip(1))
+            {
+                await errorOutput.WriteLineAsync(
+                    $"--inspect は 1 つのまとまりだけを書きます。次のまとまりは書きません: 環境 {skipped.Environment.DisplayName}、"
+                    + $"設定ファイル {skipped.Settings.Configuration.FilePath ?? "(なし)"}、{skipped.Files.Length} ファイル")
+                    .ConfigureAwait(false);
+            }
+
             return await WriteInspectionAsync(
                 inspected.Options, inspected.Settings, inspected.Environment, analyzers, inspected.Files, inspectOutputPath, output, errorOutput, cancellationToken)
                 .ConfigureAwait(false);

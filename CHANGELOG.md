@@ -38,6 +38,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - **破壊的変更:** 型の分類と形の名前から `Hlsl` を外した (`HlslTypeClass` → `ShaderTypeClass`、`HlslNumericShape` → `ShaderNumericShape`、
   `HlslNumericKind` → `ShaderNumericKind`)。言語の型と組み込み関数を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
   HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
+- DXC の HLSL 2021 で `select` / `and` / `or` を呼んだとき、呼び出しの解決 (`ResolveCall`) が、宣言されていない関数ではなく組み込み関数として扱う。
+  使えるかどうかを方言で判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である
 
 ## [0.2.1] - 2026-10-16
 
