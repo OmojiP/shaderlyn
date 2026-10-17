@@ -129,6 +129,92 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.DoesNotContain("old.hlsl", text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// GLSL の取り込みも、解析対象の外のファイルは読まない (HLSL と同じ <c>IncludeBoundary</c>)。中のファイルは読む。
+    /// </summary>
+    [Fact]
+    public async Task GLSLの取り込みは解析対象の外を読まない()
+    {
+        string outside = Path.Combine(Path.GetTempPath(), $"shaderlyn-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outside);
+
+        try
+        {
+            // 外のファイルと中のファイルは、どちらも構文エラーを含む。読めば指摘が出る。
+            string secret = Path.Combine(outside, "secret.glsl");
+            File.WriteAllText(secret, "float leaked( {\n");
+            File.WriteAllText(Path.Combine(_workDirectory, "inside.glsl"), "float inside( {\n");
+            File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), $$"""
+                #version 450
+                #include "inside.glsl"
+                #include "{{secret.Replace('\\', '/')}}"
+                void main() {}
+                """);
+
+            (_, string output) = await RunAsync("--environment", "glsl", Path.Combine(_workDirectory, "a.frag"));
+
+            Assert.Contains("inside.glsl", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret.glsl", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("leaked", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// まとまり (設定ファイルと環境) をまたいでも、指摘はファイルの順に並ぶ。
+    /// 同じヘッダを 2 つのまとまりが取り込んでも、ヘッダの指摘は 1 件にまとまる。
+    /// </summary>
+    [Fact]
+    public async Task まとまりをまたいでも並び順と重複のまとめ方は変わらない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "Common.hlsli"), "float Lib() { return missing; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "z.hlsl"), "#include \"Common.hlsli\"\nfloat4 main() : SV_Target { return Lib() + alsoMissing; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nvoid main() { x = ; }\n");
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "sub"));
+        File.WriteAllText(Path.Combine(_workDirectory, "sub", ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\nrules:\n  HL0301: none\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "sub", "b.hlsl"), "#include \"../Common.hlsli\"\nfloat4 main() : SV_Target { return Lib(); }\n");
+
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([_workDirectory], BuiltInAnalyzers.All, output, error);
+        string text = output.ToString();
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Contains("3 ファイルを解析", text, StringComparison.Ordinal);
+
+        // GLSL のまとまり (a.frag) は既定のまとまり (z.hlsl) より後に解析するが、出力はファイルの順に並ぶ。
+        int frag = text.IndexOf("a.frag(", StringComparison.Ordinal);
+        int z = text.IndexOf("z.hlsl(2", StringComparison.Ordinal);
+        Assert.True(frag >= 0 && z > frag, text);
+
+        // ヘッダの指摘は、2 つのまとまりから取り込まれても 1 件。
+        Assert.Single(text.Split('\n'), line => line.Contains("Common.hlsli(", StringComparison.Ordinal) && line.Contains("HL0310", StringComparison.Ordinal));
+    }
+
+    /// <summary>入れ子の設定ファイルに知らない環境を書いたら、黙って飛ばさず、書いた行に報告する。</summary>
+    [Fact]
+    public async Task 入れ子の設定ファイルの知らない環境は報告する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "root.hlsl"), "float4 main() : SV_Target { return 1; }\n");
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "sub"));
+        string nested = Path.Combine(_workDirectory, "sub", ".shaderlyn.yaml");
+        File.WriteAllText(nested, "version: 1\nenvironment: unreel\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "sub", "b.hlsl"), "float4 main() : SV_Target { return 1; }\n");
+
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([_workDirectory], BuiltInAnalyzers.All, output, error);
+        string text = output.ToString();
+
+        Assert.Contains("環境 'unreel' はありません", text, StringComparison.Ordinal);
+        Assert.Contains(".shaderlyn.yaml(2", text, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("godot", "a.gdshader", "shader_type spatial;\nvoid fragment() { ALBEDO = vec3(1.0); }\n")]
     [InlineData("slang", "a.slang", "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n")]

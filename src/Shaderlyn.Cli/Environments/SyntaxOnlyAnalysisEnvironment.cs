@@ -25,12 +25,12 @@ namespace Shaderlyn.Cli.Environments;
 /// <param name="name">環境の名前 (<c>glsl</c> など)。</param>
 /// <param name="displayName">表示用の名前。</param>
 /// <param name="defaultExtensions">設定が無いときに解析する拡張子。</param>
-/// <param name="parse">コードを読んで木を作る。<see langword="null"/> なら読まない。</param>
+/// <param name="parse">コードを、展開の設定で読んで木を作る。<see langword="null"/> なら読まない。</param>
 internal sealed class SyntaxOnlyAnalysisEnvironment(
     string name,
     string displayName,
     ImmutableArray<string> defaultExtensions,
-    Func<SourceText, ShaderSyntaxTree>? parse) : IAnalysisEnvironment
+    Func<SourceText, PreprocessorOptions, ShaderSyntaxTree>? parse) : IAnalysisEnvironment
 {
     /// <summary>GLSL の環境の名前。</summary>
     public const string GlslName = "glsl";
@@ -54,10 +54,7 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
     /// <summary>GLSL の環境を作る。構文だけを読む (単位 P2 の試作のパーサー)。</summary>
     /// <returns>環境。</returns>
     public static SyntaxOnlyAnalysisEnvironment CreateGlsl()
-        => new(GlslName, "GLSL", GlslExtensions, text => GlslSyntaxTree.Parse(text, new PreprocessorOptions
-        {
-            IncludeResolver = new FileSystemIncludeResolver([]),
-        }));
+        => new(GlslName, "GLSL", GlslExtensions, GlslSyntaxTree.Parse);
 
     /// <summary>Godot の環境を作る。まだ読まない (GD1 で読む)。</summary>
     /// <returns>環境。</returns>
@@ -94,7 +91,7 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
         }
 
         long start = AnalysisTimings.Now();
-        ShaderSyntaxTree tree = parse(text);
+        ShaderSyntaxTree tree = parse(text, CreatePreprocessorOptions(semantics));
         timings?.Add(AnalysisStep.Expand, start);
 
         return new PreparedFile(
@@ -102,4 +99,28 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
             tree.PreprocessResult.ResolvedIncludes,
             null);
     }
+
+    /// <summary>解析の設定から、展開の設定を作る。</summary>
+    /// <param name="semantics">解析の設定。<see langword="null"/> なら取り込みを解決しない。</param>
+    /// <returns>展開の設定。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>取り込みの解決器は、解析の設定のものを使う。</b>
+    /// 読んでよい場所が解析対象の根に限られ (<c>IncludeBoundary</c>)、探索パス (<c>--include</c> / <c>include-paths</c>) も効く。
+    /// 自前の解決器を作ると、<c>#include "C:/Users/.../.ssh/id_rsa"</c> のような外のファイルまで読めてしまう。
+    /// </para>
+    /// <para>
+    /// 取り込みの使い回し (<see cref="SemanticsOptions.IncludeCache"/>) は渡さない。
+    /// 使い回しの鍵が言語を見ていないので、HLSL の展開結果を使ってしまう (計画の R2 で直す)。
+    /// </para>
+    /// </remarks>
+    private static PreprocessorOptions CreatePreprocessorOptions(SemanticsOptions? semantics)
+        => semantics is null
+            ? new PreprocessorOptions()
+            : new PreprocessorOptions
+            {
+                IncludeResolver = semantics.IncludeResolver,
+                IsUserInclude = semantics.IsUserInclude,
+                PredefinedMacros = semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal),
+            };
 }

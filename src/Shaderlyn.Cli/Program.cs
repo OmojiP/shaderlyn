@@ -145,7 +145,8 @@ public static class Program
             primary,
             environments,
             discovered,
-            options.InputPaths.Where(File.Exists).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase));
+            options.InputPaths.Where(File.Exists).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            out ImmutableArray<Diagnostic> unusableConfigurations);
 
         // 解析するファイルが無くても、既定のまとまりは残す (環境の表示と「0 ファイルを解析」のため)。
         if (groups.IsEmpty)
@@ -194,8 +195,7 @@ public static class Program
         AnalysisCache? cache = await LoadCacheAsync(options, groups, analyzers, errorOutput).ConfigureAwait(false);
         bool cacheWritable = await CheckCacheWritableAsync(options, errorOutput).ConfigureAwait(false);
 
-        List<Diagnostic> diagnostics = [];
-        int analyzedFiles = 0;
+        List<AnalysisResult> perGroup = [];
 
         foreach (AnalysisGroup group in groups)
         {
@@ -208,11 +208,14 @@ public static class Program
                 analyzers, group.Settings.AnalyzerOptions, groupSemantics, timings, cache, group.Environment);
 
             AnalysisResult groupResult = await runner.RunAsync(group.Files, cancellationToken).ConfigureAwait(false);
-            diagnostics.AddRange(groupResult.Diagnostics);
-            analyzedFiles += groupResult.AnalyzedFileCount;
+            perGroup.Add(groupResult);
         }
 
-        AnalysisResult result = new([.. diagnostics], analyzedFiles);
+        // まとまりをまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つのまとまりが取り込むことがある)。
+        // まとまりが 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
+        AnalysisResult result = perGroup.Count == 1
+            ? perGroup[0]
+            : AnalysisResult.Merge(perGroup.Select(r => r.Diagnostics), perGroup.Sum(r => r.AnalyzedFileCount));
 
         if (cacheWritable)
         {
@@ -229,6 +232,7 @@ public static class Program
         ImmutableArray<Diagnostic> configurationDiagnostics =
         [
             .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics)
+                .Concat(unusableConfigurations)
                 .DistinctBy(d => (d.Id, d.Location.FilePath, d.Location.Span, d.GetMessage())),
         ];
         result = result.WithAdditionalDiagnostics(configurationDiagnostics);

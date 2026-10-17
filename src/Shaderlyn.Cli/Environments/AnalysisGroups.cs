@@ -76,17 +76,22 @@ internal static class AnalysisGroups
     /// <param name="hosts">足した環境。</param>
     /// <param name="files">集めたファイル。</param>
     /// <param name="explicitFiles">コマンドラインで直接指定したファイル。拡張子に関わらず、設定の環境で読む。</param>
+    /// <param name="unusableConfigurations">
+    /// 環境を作れなかった設定ファイル (知らない環境の名前を書いたものなど) の問題。その設定ファイルの下の HLSL のファイルは解析しないので、理由を伝えるために返す。
+    /// </param>
     /// <returns>まとまり。最初のまとまりの環境のものが先頭に来る。</returns>
     public static ImmutableArray<AnalysisGroup> Build(
         CommandLineOptions original,
         AnalysisGroup primary,
         ImmutableArray<HostEnvironment> hosts,
         ImmutableArray<string> files,
-        IReadOnlySet<string> explicitFiles)
+        IReadOnlySet<string> explicitFiles,
+        out ImmutableArray<Core.Diagnostics.Diagnostic> unusableConfigurations)
     {
         ArgumentNullException.ThrowIfNull(original);
         ArgumentNullException.ThrowIfNull(primary);
 
+        List<Core.Diagnostics.Diagnostic> problems = [];
         string primaryConfig = FullPathOrEmpty(primary.Settings.Configuration.FilePath);
 
         // 設定ファイルごとの、設定の指定する環境。最初のまとまりの設定ファイルは、作ったものをそのまま使う。
@@ -99,7 +104,7 @@ internal static class AnalysisGroups
 
             if (!byConfig.TryGetValue(config, out AnalysisGroup? configured))
             {
-                configured = byConfig[config] = Create(original.For(config.Length == 0 ? null : config, environment: null), hosts);
+                configured = byConfig[config] = Create(original.For(config.Length == 0 ? null : config, environment: null), hosts, problems);
             }
 
             string extension = Path.GetExtension(file);
@@ -131,7 +136,7 @@ internal static class AnalysisGroups
         {
             AnalysisGroup? group = byConfig[config] is { } configured && configured.Environment.Name == environment
                 ? configured
-                : Create(original.For(config.Length == 0 ? null : config, environment), hosts);
+                : Create(original.For(config.Length == 0 ? null : config, environment), hosts, problems);
 
             if (group is not null)
             {
@@ -139,6 +144,7 @@ internal static class AnalysisGroups
             }
         }
 
+        unusableConfigurations = [.. problems];
         return groups.ToImmutable();
     }
 
@@ -165,12 +171,23 @@ internal static class AnalysisGroups
     /// <summary>指定から設定と環境を作る。</summary>
     /// <param name="options">設定ファイルと環境を決めた指定。</param>
     /// <param name="hosts">足した環境。</param>
+    /// <param name="problems">環境を作れなかったとき、その設定ファイルの問題を足す先。</param>
     /// <returns>まとまり (ファイルは空)。環境を作れなければ <see langword="null"/>。</returns>
-    private static AnalysisGroup? Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hosts)
+    /// <remarks>
+    /// 環境を作れないのは、設定ファイルに知らない環境の名前を書いたときである。
+    /// 設定の問題 (<see cref="EffectiveSettings.ConfigurationDiagnostics"/>) に、書いた行への報告が入っている。
+    /// 黙って捨てると、その設定ファイルの下のファイルが理由も無く解析されなくなる。
+    /// </remarks>
+    private static AnalysisGroup? Create(CommandLineOptions options, ImmutableArray<HostEnvironment> hosts, List<Core.Diagnostics.Diagnostic> problems)
     {
         EffectiveSettings settings = EffectiveSettings.Create(options, hosts);
-        return AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment)
-            ? new AnalysisGroup(options, settings, environment, [])
-            : null;
+
+        if (AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
+        {
+            return new AnalysisGroup(options, settings, environment, []);
+        }
+
+        problems.AddRange(settings.ConfigurationDiagnostics);
+        return null;
     }
 }
