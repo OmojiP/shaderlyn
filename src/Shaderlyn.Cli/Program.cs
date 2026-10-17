@@ -535,6 +535,13 @@ public static class Program
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
         report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読みました。");
+
+        if (generation.MissingShaderClassCount > 0)
+        {
+            report.AppendLine(CultureInfo.InvariantCulture, $"宣言が見つからなかったクラスが {generation.MissingShaderClassCount} 個あります。これらの単位では、ほかのクラスの値も決めずに両方の分岐を読みます。");
+        }
+
         report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
 
         if (!generation.UnreadShaderRegistrations.IsEmpty)

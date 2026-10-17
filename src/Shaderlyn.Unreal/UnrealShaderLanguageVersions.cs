@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Text;
@@ -44,6 +45,22 @@ public static partial class UnrealShaderLanguageVersions
     /// <returns>値 (0 / 1 / 2)。設定が見つからなければ <see langword="null"/>。節はあるが書いていなければ 0。</returns>
     public static int? ReadEnablesHlsl2021ByDefault(string engineDirectory, string shaderPlatform)
     {
+        if (ReadShaderPlatformSettings(engineDirectory, shaderPlatform) is not { } settings)
+        {
+            return null;
+        }
+
+        return settings.TryGetValue("EnablesHLSL2021ByDefault", out string? text) && int.TryParse(text, out int value) ? value : 0;
+    }
+
+    /// <summary>
+    /// エンジンの設定 (<c>DataDrivenPlatformInfo.ini</c>) から、そのシェーダープラットフォームの節を読む。
+    /// </summary>
+    /// <param name="engineDirectory">エンジンのフォルダー (<c>…/UE_5.5/Engine</c>)。</param>
+    /// <param name="shaderPlatform">シェーダープラットフォームの名前 (<c>PCD3D_SM6</c>)。</param>
+    /// <returns>キーから値 (大文字と小文字を区別しない)。節が見つからなければ <see langword="null"/>。</returns>
+    public static ImmutableDictionary<string, string>? ReadShaderPlatformSettings(string engineDirectory, string shaderPlatform)
+    {
         ArgumentNullException.ThrowIfNull(engineDirectory);
         ArgumentNullException.ThrowIfNull(shaderPlatform);
 
@@ -58,8 +75,7 @@ public static partial class UnrealShaderLanguageVersions
 
         foreach (string file in Directory.EnumerateFiles(config, "DataDrivenPlatformInfo.ini", SearchOption.AllDirectories))
         {
-            bool inSection = false;
-            bool found = false;
+            ImmutableDictionary<string, string>.Builder? section = null;
 
             foreach (string raw in File.ReadLines(file))
             {
@@ -67,27 +83,30 @@ public static partial class UnrealShaderLanguageVersions
 
                 if (line.StartsWith('['))
                 {
-                    if (found)
+                    if (section is not null)
                     {
                         break;
                     }
 
-                    inSection = string.Equals(line, header, StringComparison.OrdinalIgnoreCase);
-                    found = inSection;
+                    if (string.Equals(line, header, StringComparison.OrdinalIgnoreCase))
+                    {
+                        section = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
+                    }
+
                     continue;
                 }
 
-                if (inSection
-                    && line.StartsWith("EnablesHLSL2021ByDefault=", StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(line["EnablesHLSL2021ByDefault=".Length..], out int value))
+                int equals = line.IndexOf('=', StringComparison.Ordinal);
+
+                if (section is not null && equals > 0)
                 {
-                    return value;
+                    section[line[..equals].Trim()] = line[(equals + 1)..].Trim();
                 }
             }
 
-            if (found)
+            if (section is not null)
             {
-                return 0;
+                return section.ToImmutable();
             }
         }
 

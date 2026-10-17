@@ -52,20 +52,28 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <param name="environment">意味解析に渡す環境 (Unreal なら名前と生成される取り込みが違う)。</param>
     /// <param name="displayName">画面に出す名前。</param>
     /// <param name="defaultExtensions">フォルダーを指定したときに探す拡張子。</param>
+    /// <param name="registeredUnits">
+    /// 設定の <c>units:</c> に書いていないファイルの単位を、環境が知っている登録から作るもの
+    /// (Unreal なら C++ のシェーダーの登録)。空を返せば、ファイル全体を 1 つの単位にする。<see langword="null"/> なら使わない。
+    /// </param>
     public HlslAnalysisEnvironment(
         ShaderlynConfiguration configuration,
         IShaderEnvironment environment,
         string displayName,
-        ImmutableArray<string> defaultExtensions)
+        ImmutableArray<string> defaultExtensions,
+        Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? registeredUnits = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
         _configuration = configuration;
         _environment = environment;
+        _registeredUnits = registeredUnits;
         DisplayName = displayName;
         DefaultExtensions = defaultExtensions;
     }
+
+    private readonly Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? _registeredUnits;
 
     /// <inheritdoc/>
     public string Name => _environment.Name;
@@ -118,7 +126,8 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
 
         if (matched.Length == 0)
         {
-            return [whole];
+            // 設定に書いていなければ、環境が知っている単位 (Unreal なら C++ のシェーダーの登録) を使う。
+            return _registeredUnits?.Invoke(whole) is { IsDefaultOrEmpty: false } registered ? registered : [whole];
         }
 
         // 同じ範囲から作る単位は名前で見分ける。エントリポイントの名前が重ならなければそれを使う。

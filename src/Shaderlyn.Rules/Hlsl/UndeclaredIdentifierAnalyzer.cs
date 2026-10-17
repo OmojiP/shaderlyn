@@ -162,6 +162,14 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         else
         {
             visible = declared.Contains(identifier.Name, program, invoked);
+
+            // 別の単位では関数の外の変数として、この単位では仮引数や関数の中の変数として宣言されている名前がある
+            // (Unreal の CapsuleShadowShaders.usf の LightDirection は、構成によって uniform か仮引数になる)。
+            // コードブロックの名前に無くても、その位置で関数の中の宣言が見えれば宣言されている。
+            if (!visible && compilation.GetExpressionTypeBinder(program).ResolveName(identifier).Kind != DeclaredNameKind.NotFound)
+            {
+                visible = true;
+            }
         }
 
         if (!uses.TryGetValue((location.FilePath, location.Span.Start), out Uses? use))

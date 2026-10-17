@@ -56,6 +56,10 @@ public sealed class Dx12SyntaxTests
     [InlineData("uint f(uint x) { return (x & 0b1000) > 0 ? 0b0111u : 0B1; }")]
     // 構造体のメソッドから、同じ名前の大域の関数を呼ぶ (Unreal Engine の PathTracingMaterialCommon.ush)。
     [InlineData("void Add(inout float a, float b) { a += b; }\nstruct S { float A; void Add(float b) { ::Add(A, b); } };")]
+    // globallycoherent を付けた型への型変換 (Unreal Engine の WorkDistribution.ush)。
+    [InlineData("struct Q { RWByteAddressBuffer D; globallycoherent RWByteAddressBuffer Get() { return (globallycoherent RWByteAddressBuffer)D; } };")]
+    // 仮引数の型の前の struct (Unreal Engine の bend_sss_gpu.ush)。
+    [InlineData("struct P { int a; };\nstatic bool F(struct P p, int2 xy) { return p.a > xy.x; }")]
     public void DXCが受け付ける書き方を構文の誤りにしない(string code)
         => HlslHarness.ParseValid(code);
 

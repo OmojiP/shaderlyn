@@ -70,7 +70,7 @@ public static partial class UnrealUniformBufferGenerator
 
         foreach ((string path, string text) in files)
         {
-            ParseFile(path, text, parsed);
+            ParseFile(path, text, parsed, keepText: true);
         }
 
         return Write(parsed, outputDirectory);
@@ -100,6 +100,9 @@ public static partial class UnrealUniformBufferGenerator
 
         /// <summary>読めなかったシェーダーの登録のマクロの名前と数。</summary>
         public ConcurrentDictionary<string, int> UnreadShaderRegistrations { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>シェーダーのクラス (定義するマクロとパーミュテーション) を読むために集めたもの。</summary>
+        public UnrealShaderClasses.Collector Classes { get; } = new();
 
         /// <summary>読んだファイルの数。</summary>
         public int FileCount;
@@ -173,20 +176,25 @@ public static partial class UnrealUniformBufferGenerator
                 && !text.Contains("SetDefine", StringComparison.Ordinal)
                 && !text.Contains("SET_SHADER_DEFINE", StringComparison.Ordinal)
                 && !text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal)
-                && !text.Contains("IMPLEMENT_", StringComparison.Ordinal))
+                && !text.Contains("IMPLEMENT_", StringComparison.Ordinal)
+                && !text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
+                && !text.Contains("PermutationDomain", StringComparison.Ordinal)
+                && !text.Contains("enum class", StringComparison.Ordinal))
             {
                 return;
             }
 
             Interlocked.Increment(ref parsed.FileCount);
-            ParseFile(path, text, parsed);
+            ParseFile(path, text, parsed, keepText: false);
         });
 
         return parsed;
     }
 
-    private static void ParseFile(string path, string text, ParsedSources parsed)
+    private static void ParseFile(string path, string text, ParsedSources parsed, bool keepText)
     {
+        parsed.Classes.Add(path, text, keepText);
+
         // 登録はコメントとマクロの定義の外だけを読む (マクロの説明の例を拾わない)。
         string code = WithoutCommentsAndDefines(text);
 
@@ -242,7 +250,7 @@ public static partial class UnrealUniformBufferGenerator
     /// <summary>
     /// ファイルの中で定義されたマクロを展開する。<c>#if</c> はすべての分岐を読み、<c>#include</c> は読まない。
     /// </summary>
-    private static ImmutableArray<ShaderSyntaxToken> Expand(string path, string text)
+    internal static ImmutableArray<ShaderSyntaxToken> Expand(string path, string text)
     {
         StringBuilder kept = new(text.Length);
 
@@ -705,6 +713,9 @@ public static partial class UnrealUniformBufferGenerator
         written.Add(defines);
         written.Add(UnrealShaderRegistrations.Write(outputDirectory, parsed.ShaderRegistrations));
 
+        ImmutableArray<UnrealShaderClass> classes = parsed.Classes.Resolve(parsed.ShaderRegistrations.Select(r => r.ShaderClass), out int missingClasses);
+        written.Add(UnrealShaderClasses.Write(outputDirectory, classes));
+
         return new UnrealUniformBufferGeneration(
             parsed.FileCount,
             parsed.UniformBuffers.Count,
@@ -713,7 +724,9 @@ public static partial class UnrealUniformBufferGenerator
             [.. written],
             [.. incomplete],
             [.. unknownTypes],
-            parsed.UnreadShaderRegistrations.ToImmutableSortedDictionary(StringComparer.Ordinal));
+            parsed.UnreadShaderRegistrations.ToImmutableSortedDictionary(StringComparer.Ordinal),
+            classes.Length,
+            missingClasses);
     }
 
     /// <summary>
@@ -1012,6 +1025,8 @@ public static partial class UnrealUniformBufferGenerator
 /// <param name="UnknownTypes">知らない C++ の型 (float4 として書いた)。</param>
 /// <param name="ShaderRegistrationCount">見つけたシェーダーの登録 (<c>IMPLEMENT_GLOBAL_SHADER</c> など) の数。</param>
 /// <param name="UnreadShaderRegistrations">読めなかったシェーダーの登録のマクロの名前と数 (パスをマクロの定義の中に書いた独自のマクロなど)。</param>
+/// <param name="ShaderClassCount">定義するマクロとパーミュテーションを読んだ、登録されたシェーダーのクラスの数。</param>
+/// <param name="MissingShaderClassCount">登録されているが、宣言が見つからなかったクラスの数。</param>
 public sealed record UnrealUniformBufferGeneration(
     int SourceFileCount,
     int UniformBufferCount,
@@ -1020,4 +1035,6 @@ public sealed record UnrealUniformBufferGeneration(
     ImmutableArray<string> WrittenFiles,
     ImmutableArray<string> Incomplete,
     ImmutableArray<string> UnknownTypes,
-    ImmutableSortedDictionary<string, int> UnreadShaderRegistrations);
+    ImmutableSortedDictionary<string, int> UnreadShaderRegistrations,
+    int ShaderClassCount,
+    int MissingShaderClassCount);

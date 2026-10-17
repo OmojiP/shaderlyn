@@ -171,4 +171,15 @@ public interface IShaderEnvironment
     /// </para>
     /// </remarks>
     bool IsDefinedByEngine(string name) => false;
+
+    /// <summary>
+    /// 関数が、エンジンのシェーダーコンパイラがシェーダーに足す定義を持つかを判定する。
+    /// </summary>
+    /// <param name="name">関数の名前。</param>
+    /// <returns>エンジンが定義を足すなら <see langword="true"/>。既定は <see langword="false"/>。</returns>
+    /// <remarks>
+    /// Unreal の前処理は、どのシェーダーにも <c>ShaderPrintGetChar</c> などの定義を足す (UE 5.5 の <c>ShaderPreprocessor.cpp</c>)。
+    /// ヘッダは宣言だけを書くので、定義が無いこと (HL0311) を誤りにしない。
+    /// </remarks>
+    bool IsFunctionDefinedByEngine(string name) => false;
 }

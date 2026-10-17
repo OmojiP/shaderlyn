@@ -811,6 +811,16 @@ internal abstract class ShaderParser
             modifiers = modifiers.Add(Advance());
         }
 
+        // 型の前の struct (C の書き方。static bool F(struct P p))。DXC 1.8 と FXC が受け付ける (Unreal の bend_sss_gpu.ush)。
+        // 型は struct の後ろの名前なので、修飾子として読み飛ばす。
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken
+            && Current.Text == "struct"
+            && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken
+            && Peek(2).Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            modifiers = modifiers.Add(Advance());
+        }
+
         TypeSyntax type = ParseType();
 
         ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken

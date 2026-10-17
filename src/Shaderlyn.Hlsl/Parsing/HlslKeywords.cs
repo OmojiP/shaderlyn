@@ -89,6 +89,9 @@ internal static class HlslKeywords
     {
         "const", "unsigned", "signed", "volatile", "precise",
         "row_major", "column_major", "snorm", "unorm",
+
+        // UAV の型に付く。型変換にも書ける ((globallycoherent RWByteAddressBuffer)x。DXC 1.8 で確かめた。Unreal の WorkDistribution.ush)
+        "globallycoherent",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>

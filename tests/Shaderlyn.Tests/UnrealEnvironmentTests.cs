@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.Cli;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Unreal;
 
@@ -591,6 +592,210 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Pass.usf", EntryPoint: "MainCS", Frequency: "Compute", Macro: "IMPLEMENT_SHADER_TYPE" });
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Material.usf", EntryPoint: "MainVS", Macro: "IMPLEMENT_MATERIAL_SHADER_TYPE" });
         Assert.Equal(["MainCHS", "MainAHS"], UnrealShaderRegistrations.EntryFunctions(Assert.Single(read, r => r.Frequency == "RayHitGroup").EntryPoint).ToArray());
+    }
+
+    /// <summary>
+    /// C++ のシェーダーのクラスから、定義するマクロとパーミュテーションを読む。
+    /// 継承をたどり、ほかのクラスの <c>ModifyCompilationEnvironment</c> には引数を渡して追う。
+    /// 引数と定数で決まる <c>if</c> は評価し、決まらないものの中の定義は値を決めない。
+    /// クラスを作るマクロは、ほかのファイルで定義されていても、マクロを呼ぶマクロを通しても展開する。
+    /// </summary>
+    [Fact]
+    public void CPlusPlusのシェーダーのクラスを読む()
+    {
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Common.h", """
+                enum class EDispatch : uint8 { Inline, Pipeline, MAX };
+                enum class EQuality { Low, Medium, High };
+
+                class FTracingBase : public FGlobalShader
+                {
+                public:
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, EDispatch Dispatch, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        OutEnvironment.SetDefine(TEXT("TRACING"), 1);
+                        const bool bInline = Dispatch == EDispatch::Inline;
+                        if (bInline)
+                        {
+                            OutEnvironment.SetDefine(TEXT("INLINE_TRACING"), 1);
+                            OutEnvironment.CompilerFlags.Add(CFLAG_InlineRayTracing);
+                        }
+                        if (CVarSomething.GetValueOnAnyThread() > 0)
+                        {
+                            OutEnvironment.SetDefine(TEXT("FROM_CVAR"), 1);
+                        }
+                    }
+                };
+
+                #define IMPLEMENT_INLINE_SHADER(ShaderClass) \
+                    class ShaderClass##CS : public ShaderClass \
+                    { \
+                        static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) \
+                        { \
+                            ShaderClass::ModifyCompilationEnvironment(Parameters, EDispatch::Inline, OutEnvironment); \
+                        } \
+                    };
+                #define IMPLEMENT_PIPELINE_SHADER(ShaderClass) \
+                    class ShaderClass##RGS : public ShaderClass \
+                    { \
+                        static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) \
+                        { \
+                            ShaderClass::ModifyCompilationEnvironment(Parameters, EDispatch::Pipeline, OutEnvironment); \
+                        } \
+                    };
+                #define IMPLEMENT_BOTH_SHADERS(ShaderClass) IMPLEMENT_INLINE_SHADER(ShaderClass) IMPLEMENT_PIPELINE_SHADER(ShaderClass)
+                """),
+            ("Pass.cpp", """
+                static constexpr int32 MaxSamples = 3;
+
+                class FReflection : public FTracingBase
+                {
+                    class FQuality : SHADER_PERMUTATION_ENUM_CLASS("DIM_QUALITY", EQuality);
+                    class FSamples : SHADER_PERMUTATION_INT("DIM_SAMPLES", MaxSamples);
+                    class FSparse : SHADER_PERMUTATION_SPARSE_INT("DIM_SPARSE", 1, 4, 8);
+                    class FFlag : SHADER_PERMUTATION_BOOL("DIM_FLAG");
+                    using FCommon = TShaderPermutationDomain<FQuality, FSamples>;
+                public:
+                    using FPermutationDomain = TShaderPermutationDomain<FCommon, FSparse, FFlag>;
+                };
+
+                IMPLEMENT_BOTH_SHADERS(FReflection)
+                IMPLEMENT_GLOBAL_SHADER(FReflectionCS, "/Engine/Private/Reflection.usf", "ReflectionCS", SF_Compute);
+                IMPLEMENT_GLOBAL_SHADER(FReflectionRGS, "/Engine/Private/Reflection.usf", "ReflectionRGS", SF_RayGen);
+
+                class FPlainPS : public FGlobalShader
+                {
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+                        OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), 64);
+                        OutEnvironment.SetDefine(TEXT("USE_TEXT"), TEXT("2"));
+                        OutEnvironment.SetDefine(TEXT("ENABLED"), true);
+                        OutEnvironment.SetDefine(TEXT("FROM_FUNCTION"), GetSize());
+                        if (true) { OutEnvironment.SetDefine(TEXT("ALWAYS"), 1); } else { OutEnvironment.SetDefine(TEXT("NEVER"), 1); }
+                    }
+                };
+
+                IMPLEMENT_GLOBAL_SHADER(FPlainPS, "/Engine/Private/Plain.usf", "MainPS", SF_Pixel);
+                """),
+        ],
+        output);
+
+        ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(output);
+
+        UnrealShaderClass compute = classes["FReflectionCS"];
+        Assert.Equal("1", compute.Defines["TRACING"]);
+        Assert.Equal("1", compute.Defines["INLINE_TRACING"]);
+        Assert.Equal("1", compute.CompilerFlags["CFLAG_InlineRayTracing"]);
+        Assert.Null(compute.Defines["FROM_CVAR"]);
+        Assert.Equal([0, 1, 2], compute.Permutations["DIM_QUALITY"]!.Value.ToArray());
+        Assert.Equal([0, 1, 2], compute.Permutations["DIM_SAMPLES"]!.Value.ToArray());
+        Assert.Equal([1, 4, 8], compute.Permutations["DIM_SPARSE"]!.Value.ToArray());
+        Assert.Equal([0, 1], compute.Permutations["DIM_FLAG"]!.Value.ToArray());
+
+        UnrealShaderClass rayGen = classes["FReflectionRGS"];
+        Assert.Equal("1", rayGen.Defines["TRACING"]);
+        Assert.False(rayGen.Defines.ContainsKey("INLINE_TRACING"));
+        Assert.False(rayGen.CompilerFlags.ContainsKey("CFLAG_InlineRayTracing"));
+
+        UnrealShaderClass plain = classes["FPlainPS"];
+        Assert.Equal("64", plain.Defines["THREADGROUP_SIZE"]);
+        Assert.Equal("2", plain.Defines["USE_TEXT"]);
+        Assert.Equal("1", plain.Defines["ENABLED"]);
+        Assert.Null(plain.Defines["FROM_FUNCTION"]);
+        Assert.Equal("1", plain.Defines["ALWAYS"]);
+        Assert.False(plain.Defines.ContainsKey("NEVER"));
+        Assert.Empty(plain.Permutations);
+    }
+
+    /// <summary>
+    /// 同じ単位を登録したクラスの定義を合わせる。どのクラスでも同じ値なら定義し、違えば構成の軸にする。
+    /// </summary>
+    [Fact]
+    public void 同じ単位のクラスの定義を合わせる()
+    {
+        UnrealShaderClass first = new(
+            "FFirst",
+            ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, [new KeyValuePair<string, string?>("SAME", "1"), new("DIFFERENT", "1"), new("UNKNOWN", null)]),
+            ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, [new KeyValuePair<string, ImmutableArray<int>?>("DIM", [0, 1])]),
+            ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, [new KeyValuePair<string, string?>("CFLAG_InlineRayTracing", "1")]));
+        UnrealShaderClass second = new(
+            "FSecond",
+            ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, [new KeyValuePair<string, string?>("SAME", "1"), new("DIFFERENT", "2")]),
+            ImmutableSortedDictionary<string, ImmutableArray<int>?>.Empty.WithComparers(StringComparer.Ordinal),
+            ImmutableSortedDictionary<string, string?>.Empty.WithComparers(StringComparer.Ordinal));
+
+        (ImmutableDictionary<string, string> macros, VariantSpace variants) = UnrealOptions.MergeClasses([first, second]);
+
+        Assert.Equal("1", macros["SAME"]);
+        Assert.Equal("0", macros["PLATFORM_SUPPORTS_REAL_TYPES"]);
+        Assert.False(macros.ContainsKey("DIFFERENT"));
+        Assert.Equal([1, 2], variants.ValueSymbols["DIFFERENT"].ToArray());
+        Assert.Equal([0, 1], variants.ValueSymbols["DIM"].ToArray());
+        Assert.Equal([0, 1], variants.ValueSymbols["PLATFORM_SUPPORTS_INLINE_RAY_TRACING"].ToArray());
+        Assert.Contains("UNKNOWN", variants.Symbols);
+
+        // クラスが見つからなければ、値の決まったマクロも構成の軸にする。
+        (ImmutableDictionary<string, string> withMissing, VariantSpace missingVariants) = UnrealOptions.MergeClasses([first, null]);
+        Assert.False(withMissing.ContainsKey("SAME"));
+        Assert.Contains("SAME", missingVariants.Symbols);
+    }
+
+    /// <summary>
+    /// 設定の <c>units:</c> に書かなくても、C++ の登録からエントリポイントとステージの単位を作って解析する。
+    /// 単位ごとに、ステージのマクロ (<c>PIXELSHADER=1</c> など、ほかは 0) を定義する。
+    /// </summary>
+    [Fact]
+    public async Task CPlusPlusの登録から単位を作って解析する()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+            """);
+
+        // どちらの単位でもコンパイルされない分岐 (PIXELSHADER も COMPUTESHADER も 0) は読まない。
+        // ステージのマクロを定義しなければ、値が分からないので両方の分岐を読み、宣言されていない名前を報告してしまう。
+        Write("Engine/Shaders/Private/Pass.usf", """
+            #if PIXELSHADER
+            float4 MainPS() : SV_Target0 { return 1; }
+            #endif
+
+            #if COMPUTESHADER
+            [numthreads(8, 8, 1)]
+            void MainCS() {}
+            #endif
+
+            #if !PIXELSHADER && !COMPUTESHADER
+            float Unused() { return undeclaredInOtherStages; }
+            #endif
+            """);
+        Write("Engine/Shaders/Private/Missing.usf", "float Helper() { return 1; }\n");
+        Write("Generated/" + UnrealShaderRegistrations.FileName, """
+            # 仮想パス	エントリポイント	ステージ	クラス	マクロ	C++ のファイル
+            /Engine/Private/Pass.usf	MainPS	Pixel	FPassPS	IMPLEMENT_GLOBAL_SHADER	Pass.cpp
+            /Engine/Private/Pass.usf	MainCS	Compute	FPassCS	IMPLEMENT_GLOBAL_SHADER	Pass.cpp
+            /Engine/Private/Missing.usf	MainPS	Pixel	FMissingPS	IMPLEMENT_GLOBAL_SHADER	Missing.cpp
+            """);
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("2 ファイルを解析", output, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("undeclaredInOtherStages", output, StringComparison.Ordinal);
+
+        // 単位ごとに、そのステージのエントリポイントがある (MainPS は PIXELSHADER が 1 の単位、MainCS は COMPUTESHADER が 1 の単位)。
+        Assert.DoesNotContain("Pass.usf(", output, StringComparison.Ordinal);
+
+        // 登録したエントリポイントが無ければ、どの C++ の登録からかを添えて報告する。
+        Assert.Contains("Missing.usf", output, StringComparison.Ordinal);
+        Assert.Contains("HL0301", output, StringComparison.Ordinal);
+        Assert.Contains("IMPLEMENT_GLOBAL_SHADER", output, StringComparison.Ordinal);
     }
 
     private void Write(string relativePath, string content)

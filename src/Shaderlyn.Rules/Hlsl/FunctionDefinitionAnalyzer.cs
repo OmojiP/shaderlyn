@@ -124,7 +124,8 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
     {
         if (invocation.TargetName is not { } name
             || !defined.TryGetValue(name, out SymbolCondition definition)
-            || !compilation.IsReportable(invocation))
+            || !compilation.IsReportable(invocation)
+            || compilation.Environment.IsFunctionDefinedByEngine(name))
         {
             return;
         }

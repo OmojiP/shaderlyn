@@ -16,8 +16,9 @@ namespace Shaderlyn.Unreal;
 /// 「宣言が無いこと」を根拠にする検査を行わない (HL0005 で伝える)。型の誤りなど、取り込んだ先を見なくてよい検査は行う。
 /// </para>
 /// <para>
-/// 構成の軸 (パーミュテーション) は、C++ の <c>SHADER_PERMUTATION_BOOL</c> / <c>SHADER_PERMUTATION_INT</c> に合わせて設定で与える。
-/// C++ を読んで集めることはしない。
+/// <c>--unreal-generate</c> が C++ から書き出した登録とクラスを読み、<c>.usf</c> をエンジンがコンパイルする単位で解析する
+/// (<see cref="CreateRegisteredUnits"/>)。クラスで値が 1 つに決まるマクロは単位に定義する。
+/// 構成の軸 (パーミュテーション) は、まだ C++ から作らない。C++ の <c>SHADER_PERMUTATION_BOOL</c> / <c>SHADER_PERMUTATION_INT</c> に合わせて設定で与える。
 /// </para>
 /// </remarks>
 public sealed record UnrealOptions
@@ -215,6 +216,350 @@ public sealed record UnrealOptions
     }
 
     /// <summary>
+    /// 生成のフォルダーにあるシェーダーの登録 (<see cref="UnrealShaderRegistrations"/>) から、ファイルの単位を作るものを返す。
+    /// </summary>
+    /// <returns>
+    /// ファイル全体の単位を受け取り、登録されたエントリポイントごとの単位を返す。登録が無いファイルは空を返す。
+    /// 生成のフォルダーが無いか、登録の一覧が無ければ <see langword="null"/>。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>エンジンが実際にコンパイルする単位で解析する。</b>
+    /// 単位は、エントリポイントとステージ (シェーダーモデル 6.6) を持ち、ステージのマクロ (<c>PIXELSHADER=1</c> など、ほかのステージは 0) を定義する。
+    /// エンジンの C++ がそうするためである (UE 5.5 の <c>ShaderCompiler.cpp</c>)。
+    /// </para>
+    /// <para>
+    /// 同じエントリポイントとステージを、別のクラス (パーミュテーションの違い) が登録していれば、単位は 1 つにする。
+    /// ファイルのパスは、仮想パスの割り当て (<see cref="GetVirtualPathMappings"/>) で仮想パスにしてから引く。
+    /// </para>
+    /// </remarks>
+    public Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? CreateRegisteredUnits()
+    {
+        if (GeneratedDirectory is not { } generated)
+        {
+            return null;
+        }
+
+        ImmutableArray<UnrealShaderRegistration> registrations = UnrealShaderRegistrations.Read(generated);
+
+        if (registrations.IsEmpty)
+        {
+            return null;
+        }
+
+        ILookup<string, UnrealShaderRegistration> byPath = registrations.ToLookup(r => r.VirtualPath, StringComparer.OrdinalIgnoreCase);
+        ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(generated);
+        ImmutableDictionary<string, string> platformMacros = PlatformMacros;
+
+        // 仮想パスの割り当てを、長いフォルダーから引く (/Engine/Generated は /Engine より先)。
+        (string Virtual, string Directory)[] mappings =
+        [
+            .. GetVirtualPathMappings()
+                .Select(p => (Virtual: p.Key.TrimEnd('/'), Directory: Path.GetFullPath(p.Value).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)))
+                .OrderByDescending(p => p.Directory.Length),
+        ];
+
+        return whole =>
+        {
+            if (string.IsNullOrEmpty(whole.Text.FilePath) || ToVirtualPath(whole.Text.FilePath, mappings) is not { } virtualPath)
+            {
+                return [];
+            }
+
+            IGrouping<(string EntryPoint, string Frequency), UnrealShaderRegistration>[] found =
+            [
+                .. byPath[virtualPath]
+                    .GroupBy(r => (r.EntryPoint, r.Frequency))
+                    .OrderBy(g => g.Key.EntryPoint, StringComparer.Ordinal)
+                    .ThenBy(g => g.Key.Frequency, StringComparer.Ordinal),
+            ];
+
+            return [.. found.Select(g => CreateRegisteredUnit(whole, [.. g], classes, platformMacros, named: found.Length > 1))];
+        };
+    }
+
+    /// <summary>ファイルのパスを仮想パスにする。</summary>
+    /// <param name="filePath">ファイルのパス。</param>
+    /// <param name="mappings">仮想パスの割り当て (長いフォルダーが先)。</param>
+    /// <returns>仮想パス。どの割り当ての下にも無ければ <see langword="null"/>。</returns>
+    private static string? ToVirtualPath(string filePath, (string Virtual, string Directory)[] mappings)
+    {
+        string full = Path.GetFullPath(filePath);
+
+        foreach ((string virtualRoot, string directory) in mappings)
+        {
+            if (full.Length > directory.Length
+                && full.StartsWith(directory, StringComparison.OrdinalIgnoreCase)
+                && (full[directory.Length] == Path.DirectorySeparatorChar || full[directory.Length] == Path.AltDirectorySeparatorChar))
+            {
+                return virtualRoot + full[directory.Length..].Replace('\\', '/');
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>同じエントリポイントとステージの登録から単位を作る。</summary>
+    /// <param name="whole">ファイル全体の単位。</param>
+    /// <param name="group">登録 (同じエントリポイントとステージを、パーミュテーションの違うクラスが登録していることがある)。</param>
+    /// <param name="classes">C++ のシェーダーのクラス。</param>
+    /// <param name="platformMacros">シェーダープラットフォームでエンジンが定義するマクロ。</param>
+    /// <param name="named">同じファイルにほかの単位があり、名前で見分ける必要があるか。</param>
+    /// <returns>単位。</returns>
+    private static ShaderCompilationUnit CreateRegisteredUnit(
+        ShaderCompilationUnit whole,
+        ImmutableArray<UnrealShaderRegistration> group,
+        ImmutableDictionary<string, UnrealShaderClass> classes,
+        ImmutableDictionary<string, string> platformMacros,
+        bool named)
+    {
+        UnrealShaderRegistration registration = group[0];
+        ImmutableArray<UnrealShaderClass?> found = [.. group.Select(r => classes.GetValueOrDefault(UnrealShaderClasses.BareClassName(r.ShaderClass)))];
+        // 値の決まらないマクロとパーミュテーションは、まだ構成の軸にしない (定義しない。以前と同じ)。
+        // 構成の軸にすると、軸で切り替わる #include の中の #pragma once のヘッダで、宣言が片方の構成にしか無いことになる
+        // (前処理の不具合。計画の UE4 の残りを参照)。
+        (ImmutableDictionary<string, string> classMacros, _) = MergeClasses(found);
+
+        ImmutableArray<string> functions = UnrealShaderRegistrations.EntryFunctions(registration.EntryPoint);
+        HlslShaderStage? stage = UnrealShaderRegistrations.ToStage(registration.Frequency);
+        string display = $"{functions.FirstOrDefault() ?? registration.EntryPoint} (SF_{registration.Frequency})";
+        string origin = $"C++ の {registration.Macro} ({Path.GetFileName(registration.SourceFile)} の {registration.ShaderClass})";
+
+        return whole with
+        {
+            Name = named ? display : null,
+            DisplayName = display,
+            ExtraMacros = platformMacros.SetItems(classMacros).SetItems(UnrealShaderRegistrations.CreateStageMacros(registration.Frequency)),
+            EntryPoints = [.. functions.Select(f => new ShaderEntryPoint(f, origin))],
+            Target = stage is { } s ? new HlslShaderTarget(s, 6, 6) : null,
+
+            // ライブラリ (レイトレーシングなど) は、ほかの単位とリンクするので、宣言だけの関数を誤りにしない (HL0311)。
+            AllowsExternalDefinitions = stage is null or HlslShaderStage.Library,
+        };
+    }
+
+    /// <summary>
+    /// 同じ単位を登録したクラスの、定義するマクロとパーミュテーションを合わせる。
+    /// </summary>
+    /// <param name="classes">クラス。見つからなかったクラスは <see langword="null"/>。</param>
+    /// <returns>どのクラスでも同じ値のマクロと、それ以外を構成の軸にした空間。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>値が 1 つに決まるマクロは定義し、決まらないものは構成の軸にする。</b>
+    /// 構成の軸にしたマクロは、両方の分岐を読む (値が分かっていれば、その値のそれぞれを読む)。
+    /// どのクラスも定義しないマクロは定義しない。エンジンもそのマクロを定義しないからである。
+    /// </para>
+    /// <para>
+    /// コンパイラのフラグは、エンジンが定義するマクロにする (<see cref="CompilerFlagMacros"/>)。
+    /// </para>
+    /// </remarks>
+    internal static (ImmutableDictionary<string, string> Macros, VariantSpace Variants) MergeClasses(ImmutableArray<UnrealShaderClass?> classes)
+    {
+        // マクロの名前から、クラスごとの値 (無ければ "0"、決まらなければ null)。
+        Dictionary<string, List<string?>> defines = new(StringComparer.Ordinal);
+        Dictionary<string, List<ImmutableArray<int>?>> permutations = new(StringComparer.Ordinal);
+        bool anyMissing = classes.Any(c => c is null);
+
+        foreach (UnrealShaderClass shaderClass in classes.OfType<UnrealShaderClass>())
+        {
+            foreach ((string name, string? value) in shaderClass.Defines)
+            {
+                defines.TryAdd(name, []);
+            }
+
+            foreach ((string flag, string macro) in CompilerFlagMacros)
+            {
+                defines.TryAdd(macro, []);
+            }
+
+            foreach ((string name, ImmutableArray<int>? values) in shaderClass.Permutations)
+            {
+                permutations.TryAdd(name, []);
+            }
+        }
+
+        foreach (UnrealShaderClass? shaderClass in classes)
+        {
+            foreach ((string name, List<string?> values) in defines)
+            {
+                values.Add(shaderClass is null ? null : ClassDefine(shaderClass, name));
+            }
+
+            foreach ((string name, List<ImmutableArray<int>?> values) in permutations)
+            {
+                values.Add(shaderClass is null ? null : shaderClass.Permutations.TryGetValue(name, out ImmutableArray<int>? found) ? found : [0]);
+            }
+        }
+
+        ImmutableDictionary<string, string>.Builder macros = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+        VariantSpace variants = VariantSpace.Empty;
+
+        foreach ((string name, List<ImmutableArray<int>?> values) in permutations)
+        {
+            variants = variants.Union(values.Any(v => v is null)
+                ? Unknown(name)
+                : VariantSpace.ForValues(name, [.. values.SelectMany(v => v!.Value).Distinct().Order()]));
+        }
+
+        foreach ((string name, List<string?> values) in defines.Where(p => !permutations.ContainsKey(p.Key)))
+        {
+            if (values.All(v => v is not null) && values.Distinct(StringComparer.Ordinal).Count() == 1)
+            {
+                // どのクラスも定義しない ("0" のフラグのマクロ以外) ものは、すでに定義しないことで表している。
+                macros[name] = values[0]!;
+                continue;
+            }
+
+            variants = variants.Union(values.Any(v => v is null) || !values.All(v => int.TryParse(v, out _))
+                ? Unknown(name)
+                : VariantSpace.ForValues(name, [.. values.Select(v => int.Parse(v!, System.Globalization.CultureInfo.InvariantCulture)).GroupBy(v => v).OrderByDescending(g => g.Count()).Select(g => g.Key)]));
+        }
+
+        // クラスが見つからなかった単位は、ほかのクラスの値を使えない。値の決まったマクロも構成の軸にする。
+        if (anyMissing)
+        {
+            foreach (string name in macros.Keys.ToList())
+            {
+                macros.Remove(name);
+                variants = variants.Union(Unknown(name));
+            }
+        }
+
+        return (macros.ToImmutable(), variants);
+
+        static VariantSpace Unknown(string name)
+            => new([new VariantDeclaration(name, VariantSymbolKind.Compiled, null)], []);
+    }
+
+    /// <summary>クラスがマクロに与える値。定義しなければ <c>"0"</c>、決まらなければ <see langword="null"/>。</summary>
+    private static string? ClassDefine(UnrealShaderClass shaderClass, string name)
+    {
+        if (shaderClass.Defines.TryGetValue(name, out string? value))
+        {
+            return value;
+        }
+
+        foreach ((string flag, string macro) in CompilerFlagMacros)
+        {
+            if (macro == name)
+            {
+                return shaderClass.CompilerFlags.TryGetValue(flag, out string? set) ? set : "0";
+            }
+        }
+
+        return "0";
+    }
+
+    /// <summary>
+    /// コンパイラのフラグと、それを見てエンジンが定義するマクロ (UE 5.5 の <c>ShaderFormatD3D.cpp</c>、シェーダーモデル 6.6 以上)。
+    /// </summary>
+    public static ImmutableArray<(string Flag, string Macro)> CompilerFlagMacros { get; } =
+    [
+        ("CFLAG_InlineRayTracing", "PLATFORM_SUPPORTS_INLINE_RAY_TRACING"),
+        ("CFLAG_AllowRealTypes", "PLATFORM_SUPPORTS_REAL_TYPES"),
+    ];
+
+    /// <summary>
+    /// PC の Direct3D 12 (<c>PCD3D_SM6</c>) で、エンジンがどのシェーダーにも定義するマクロ (UE 5.5 の <c>ShaderFormatD3D.cpp</c>)。
+    /// </summary>
+    /// <remarks>
+    /// シェーダーモデル 6.6 でコンパイルする場合の値である。コンパイラのフラグで決まるものは <see cref="CompilerFlagMacros"/> にある。
+    /// </remarks>
+    public static ImmutableDictionary<string, string> PcD3DSm6Macros { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["COMPILER_HLSL"] = "1",
+            ["COMPILER_FXC"] = "0",
+            ["COMPILER_DXC"] = "1",
+            ["PLATFORM_SUPPORTS_ROV"] = "1",
+            ["PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"] = "1",
+            ["PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER"] = "1",
+            ["SM6_PROFILE"] = "1",
+            ["SM5_PROFILE"] = "0",
+            ["ES3_1_PROFILE"] = "0",
+            ["PLATFORM_SUPPORTS_STATIC_SAMPLERS"] = "1",
+            ["PLATFORM_SUPPORTS_CALLABLE_SHADERS"] = "1",
+            ["COMPILER_SUPPORTS_NOINLINE"] = "1",
+            ["__SHADER_TARGET_MAJOR"] = "6",
+            ["__SHADER_TARGET_MINOR"] = "6",
+        }.ToImmutableDictionary(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 登録から作る単位に定義する、シェーダープラットフォームのマクロ。
+    /// </summary>
+    /// <remarks>
+    /// 分かっているのは PC の Direct3D 12 (<c>PCD3D_SM6</c>) を DXC でコンパイルする場合だけである。
+    /// ほかのプラットフォームでは定義しない (設定の <c>defines</c> で与える)。
+    /// </remarks>
+    public ImmutableDictionary<string, string> PlatformMacros
+    {
+        get
+        {
+            ImmutableDictionary<string, string> macros = Compiler == HlslCompiler.Dxc && ShaderPlatform == UnrealShaderLanguageVersions.DefaultShaderPlatform
+                ? PcD3DSm6Macros
+                : ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal);
+
+            return EngineDirectory is { } engine && UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, ShaderPlatform) is { } settings
+                ? macros.SetItems(CreateDataDrivenMacros(settings))
+                : macros;
+        }
+    }
+
+    /// <summary>
+    /// エンジンが、シェーダープラットフォームの設定 (<c>DataDrivenPlatformInfo.ini</c>) からそのまま決めるマクロと、その設定のキー
+    /// (UE 5.5 の <c>ShaderCompiler.cpp</c> の <c>GlobalBeginCompileShader</c>)。
+    /// </summary>
+    /// <remarks>
+    /// プロジェクトの設定 (コンソール変数) で決まるもの (<c>SUBSTRATE_ENABLED</c> など) は含めない。値はプロジェクトごとに違う。
+    /// </remarks>
+    public static ImmutableArray<(string Macro, string Key)> DataDrivenMacroKeys { get; } =
+    [
+        ("PLATFORM_SUPPORTS_CLIP_DISTANCE", "bSupportsClipDistance"),
+        ("PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS", "bSupportsVertexShaderSRVs"),
+        ("PLATFORM_SUPPORTS_VERTEX_SHADER_UAVS", "bSupportsVertexShaderUAVs"),
+        ("SUPPORTS_INDEPENDENT_SAMPLERS", "bSupportsIndependentSamplers"),
+        ("PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS", "bSupportsShaderRootConstants"),
+        ("PLATFORM_SUPPORTS_RENDERTARGET_WRITE_MASK", "bSupportsRenderTargetWriteMask"),
+        ("PLATFORM_SUPPORTS_PER_PIXEL_DBUFFER_MASK", "bSupportsPerPixelDBufferMask"),
+        ("PLATFORM_SUPPORTS_MESH_SHADERS_TIER0", "bSupportsMeshShadersTier0"),
+        ("PLATFORM_SUPPORTS_MESH_SHADERS_TIER1", "bSupportsMeshShadersTier1"),
+        ("PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS", "bSupportsSceneDataCompressedTransforms"),
+        ("PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS", "bSupportsUniformBufferObjects"),
+        ("PLATFORM_SUPPORTS_RAY_TRACING_HIGH_END_EFFECTS", "bSupportsHighEndRayTracingEffects"),
+        ("COMPILER_SUPPORTS_BARYCENTRIC_INTRINSICS", "bSupportsBarycentricsIntrinsics"),
+        ("PLATFORM_SUPPORTS_BARYCENTRICS_SEMANTIC", "SupportsBarycentricsSemantic"),
+    ];
+
+    /// <summary>シェーダープラットフォームの設定から、<see cref="DataDrivenMacroKeys"/> のマクロを作る。</summary>
+    /// <param name="settings">設定の節 (<see cref="UnrealShaderLanguageVersions.ReadShaderPlatformSettings"/>)。</param>
+    /// <returns>マクロ。書いていないキーは 0 (エンジンの既定は「無い」)。</returns>
+    /// <remarks>
+    /// 値は <c>true</c> / <c>false</c> か、機能の有無 (<c>Unsupported</c> / <c>RuntimeDependent</c> / <c>RuntimeGuaranteed</c>) である。
+    /// 機能の有無は、<c>Unsupported</c> 以外を 1 にする (エンジンも <c>!= ERHIFeatureSupport::Unsupported</c> で決める)。
+    /// <c>PLATFORM_MAX_SAMPLERS</c> は書いてあるときだけ定義する。
+    /// </remarks>
+    internal static ImmutableDictionary<string, string> CreateDataDrivenMacros(ImmutableDictionary<string, string> settings)
+    {
+        ImmutableDictionary<string, string>.Builder macros = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+
+        foreach ((string macro, string key) in DataDrivenMacroKeys)
+        {
+            bool enabled = settings.TryGetValue(key, out string? value)
+                           && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                               || value.Equals("RuntimeDependent", StringComparison.OrdinalIgnoreCase)
+                               || value.Equals("RuntimeGuaranteed", StringComparison.OrdinalIgnoreCase));
+            macros[macro] = enabled ? "1" : "0";
+        }
+
+        if (settings.TryGetValue("MaxSamplers", out string? samplers) && int.TryParse(samplers, out int count))
+        {
+            macros["PLATFORM_MAX_SAMPLERS"] = count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return macros.ToImmutable();
+    }
+
+    /// <summary>
     /// この設定の、意味解析に渡す環境を作る。
     /// </summary>
     /// <param name="variants">どの単位にも共通する構成の空間 (パーミュテーション)。</param>
@@ -239,9 +584,27 @@ public sealed record UnrealOptions
             GeneratedIncludePrefixes = GeneratedIncludePrefixes,
             GeneratedIncludeFunctions = GeneratedIncludeFunctions,
             PredefinedMacros = DefaultPredefinedMacros,
-            EngineDefinedMacros = ReadEngineDefinedMacros(),
+            EngineDefinedMacros = ReadEngineDefinedMacros().Union(PreprocessorDefinedNames),
+            EngineDefinedFunctions = EngineDefinedFunctions,
         });
     }
+
+    /// <summary>
+    /// エンジンの前処理が置き換える名前 (UE 5.5 の <c>ShaderPreprocessor.cpp</c>)。
+    /// </summary>
+    /// <remarks>
+    /// <c>TEXT("…")</c> は、ShaderPrint の文字列 (<c>FShaderPrintText</c>) に置き換わる。シェーダーの中に定義は無い。
+    /// </remarks>
+    public static ImmutableHashSet<string> PreprocessorDefinedNames { get; } = ImmutableHashSet.Create(StringComparer.Ordinal, "TEXT");
+
+    /// <summary>
+    /// エンジンの前処理が、どのシェーダーにも定義を足す関数 (UE 5.5 の <c>ShaderPreprocessor.cpp</c>)。
+    /// </summary>
+    /// <remarks>
+    /// シェーダーの中の <c>TEXT("…")</c> の文字を引く関数である。<c>ShaderPrintCommon.ush</c> は宣言だけを書く。
+    /// </remarks>
+    public static ImmutableHashSet<string> EngineDefinedFunctions { get; } =
+        ImmutableHashSet.Create(StringComparer.Ordinal, "ShaderPrintGetChar", "ShaderPrintGetOffset", "ShaderPrintGetHash");
 
     /// <summary>マテリアルのシェーダーにだけ定義するマクロ。</summary>
     /// <remarks>

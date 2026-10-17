@@ -466,6 +466,10 @@ public static class HlslIntrinsics
         "RAY_FLAG_CULL_OPAQUE", "RAY_FLAG_CULL_NON_OPAQUE",
         "RAY_FLAG_SKIP_TRIANGLES", "RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES",
 
+        // DXR 1.1 の RayQuery の CandidateType() と CommittedStatus() の値
+        "CANDIDATE_NON_OPAQUE_TRIANGLE", "CANDIDATE_PROCEDURAL_PRIMITIVE",
+        "COMMITTED_NOTHING", "COMMITTED_TRIANGLE_HIT", "COMMITTED_PROCEDURAL_PRIMITIVE_HIT",
+
         // シェーダーモデル 6.6 の動的リソース。宣言せずに ResourceDescriptorHeap[i] と書く
         "ResourceDescriptorHeap", "SamplerDescriptorHeap",
 

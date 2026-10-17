@@ -17,6 +17,18 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その下のファイルにだけ効く。
   HLSL 以外の言語のファイルは、`environment` に関わらず拡張子の環境で解析する (Unity のプロジェクトにある `.wgsl` は WGSL として読む)。
   `--config` を指定すれば、今までどおりすべてのファイルにその設定ファイルを使う
+- Unreal Engine: `--unreal-generate` が、C++ のシェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など) と、シェーダーのクラスが定義するマクロ
+  (`ModifyCompilationEnvironment` の `SetDefine`) とパーミュテーションも読んで書き出す。読めなかった登録のマクロは名前と数を伝える。
+  解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する。
+  単位には、ステージのマクロ (`PIXELSHADER=1` など)、クラスで値が 1 つに決まるマクロ (Lumen の `LUMEN_HARDWARE_INLINE_RAYTRACING` など)、
+  シェーダープラットフォームのマクロ (PC の Direct3D 12 の `SM6_PROFILE` など。`DataDrivenPlatformInfo.ini` から決まるものを含む) を定義する。
+  パーミュテーションと、値の決まらないマクロは、まだ構成の軸にしない (今までどおり定義しない)
+
+### 修正
+
+- 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
+- DXR 1.1 の `RayQuery` の状態の定数 (`COMMITTED_TRIANGLE_HIT` など) を「宣言されていない」(HL0310) と報告していた
+- `globallycoherent` を付けた型への型変換 (`(globallycoherent RWByteAddressBuffer)x`) と、仮引数の型の前の `struct` (`F(struct P p)`) を構文の誤り (HL0001) にしていた
 
 ### 変更
 

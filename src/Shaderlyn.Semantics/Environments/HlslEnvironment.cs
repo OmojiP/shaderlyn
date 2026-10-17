@@ -113,6 +113,10 @@ public sealed record HlslEnvironmentOptions
     /// </summary>
     /// <remarks><see cref="IShaderEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
     public ImmutableHashSet<string> EngineDefinedMacros { get; init; } = ImmutableHashSet<string>.Empty;
+
+    /// <summary>エンジンのシェーダーコンパイラが、どのシェーダーにも定義を足す関数の名前。</summary>
+    /// <remarks><see cref="IShaderEnvironment.IsFunctionDefinedByEngine"/> を見ること。</remarks>
+    public ImmutableHashSet<string> EngineDefinedFunctions { get; init; } = ImmutableHashSet<string>.Empty;
 }
 
 /// <summary>
@@ -246,6 +250,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
     /// <inheritdoc/>
     public bool IsDefinedByEngine(string name) => Options.EngineDefinedMacros.Contains(name);
+
+    /// <inheritdoc/>
+    public bool IsFunctionDefinedByEngine(string name) => Options.EngineDefinedFunctions.Contains(name);
 
     /// <inheritdoc/>
     public ImmutableArray<string>? GetFunctionsDeclaredIn(string path)

@@ -2802,6 +2802,24 @@ public sealed class HlslRuleTests
     }
 
     [Fact]
+    public void RayQueryの状態の定数は未宣言と報告しない()
+    {
+        // DXR 1.1 の CandidateType() と CommittedStatus() の値 (Unreal Engine の TraceRayInline.ush)。DXC 1.8 で確かめた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "RaytracingAccelerationStructure Scene;",
+            "uint Trace(RayDesc ray)",
+            "{",
+            "    RayQuery<RAY_FLAG_NONE> q;",
+            "    q.TraceRayInline(Scene, 0, 0xff, ray);",
+            "    uint a = q.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE ? 1 : (q.CandidateType() == CANDIDATE_PROCEDURAL_PRIMITIVE ? 2 : 0);",
+            "    uint b = q.CommittedStatus() == COMMITTED_NOTHING ? 0 : (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 1 : (q.CommittedStatus() == COMMITTED_PROCEDURAL_PRIMITIVE_HIT ? 2 : 3));",
+            "    return a + b;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+    }
+
+    [Fact]
     public void 別の関数の局所変数だけにある名前は報告する()
     {
         // helper の scale は frag からは見えない。fxc は X3004 (undeclared identifier) を出す。

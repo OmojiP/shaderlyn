@@ -189,6 +189,46 @@ public sealed class HlslConfigurationTests : IDisposable
         Assert.DoesNotContain("'MainVS'", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// ある単位では関数の外の変数、別の単位では仮引数として宣言される名前を、未宣言と報告しない
+    /// (Unreal Engine の CapsuleShadowShaders.usf の LightDirection)。本当に宣言されていない名前は報告する。
+    /// </summary>
+    [Fact]
+    public async Task 単位によって関数の外の変数か仮引数になる名前を未宣言にしない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: FromCapsule
+                target: cs_6_6
+                defines: [MODE=1]
+              - files: a.hlsl
+                entry: Punctual
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #ifndef MODE
+            #define MODE 0
+            #endif
+            RWBuffer<float> Output;
+            #if MODE == 0
+            float3 LightDirection;
+            [numthreads(1, 1, 1)] void Punctual() { Output[0] = LightDirection.x; }
+            #else
+            void Read(out float3 LightDirection) { LightDirection = 1; }
+            [numthreads(1, 1, 1)] void FromCapsule() { float3 d; Read(d); Output[0] = d.x + Missing; }
+            #endif
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'LightDirection'", output, StringComparison.Ordinal);
+        Assert.Contains("'Missing' はどこにも宣言されていません", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("--profile", "urp")]
     [InlineData("--unity-project", ".")]
