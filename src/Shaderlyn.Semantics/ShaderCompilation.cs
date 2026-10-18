@@ -1328,18 +1328,100 @@ public sealed class ShaderCompilation
     public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
+        FrozenSet<DeclarationSyntax> repeated = RepeatedDeclarations;
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
             foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
-                if (IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
+                if (!repeated.Contains(declaration) && IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
                 {
                     yield return (declaration, program);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 前のコードブロックに、同じ位置から同じトークンの並びで展開した宣言がある宣言。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>単位が多いと、同じヘッダを単位の数だけ検査していた。</b>
+    /// Unreal のシェーダーは、1 つの <c>.usf</c> をエントリポイントとステージごとの単位で解析する。
+    /// エンジンのヘッダも利用者のコードなので、ルールは単位ごとにヘッダのすべての宣言を歩く。
+    /// ほとんどのヘッダはどの単位でも同じに展開されるので、2 つ目からは同じ検査の繰り返しである。
+    /// </para>
+    /// <para>
+    /// 位置と、展開したトークンの並びが同じ宣言は、最初のコードブロックでだけ歩く。
+    /// 並びが同じなら、マクロで書き分けた型も同じである。
+    /// 構成ごとのバリアントの木は対象にしない (その構成の文脈で歩く必要がある。<see cref="EnumerateRuleDeclarations"/>)。
+    /// </para>
+    /// </remarks>
+    private FrozenSet<DeclarationSyntax> RepeatedDeclarations
+    {
+        get
+        {
+            if (_repeatedDeclarations is { } known)
+            {
+                return known;
+            }
+
+            HashSet<DeclarationSyntax> repeated = [];
+
+            if (Programs.Length > 1)
+            {
+                HashSet<(string File, int Start, int Count, ulong Hash)> seen = [];
+
+                foreach (AnalyzedProgram program in Programs)
+                {
+                    foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
+                    {
+                        if (declaration.FirstToken is not { } first)
+                        {
+                            continue;
+                        }
+
+                        ulong hash = 14695981039346656037UL;
+                        int count = 0;
+
+                        foreach (ShaderSyntaxToken token in declaration.DescendantTokens())
+                        {
+                            hash = (hash ^ (ulong)(uint)StringComparer.Ordinal.GetHashCode(token.Text)) * 1099511628211UL;
+                            count++;
+                        }
+
+                        if (!seen.Add((first.Source.FilePath, first.Span.Start, count, hash)))
+                        {
+                            repeated.Add(declaration);
+                        }
+                    }
+                }
+            }
+
+            FrozenSet<DeclarationSyntax> result = repeated.ToFrozenSet();
+            _repeatedDeclarations = result;
+            return result;
+        }
+    }
+
+    private FrozenSet<DeclarationSyntax>? _repeatedDeclarations;
+
+    /// <summary>
+    /// 宣言が、前のコードブロックで同じ位置から同じトークンの並びに展開した宣言の繰り返しかを判定する。
+    /// </summary>
+    /// <param name="declaration">最上位の宣言。</param>
+    /// <returns>繰り返しなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <see cref="EnumerateRuleDeclarations"/> は繰り返しを返さない。コードブロックを自分で回すルールも、
+    /// 宣言の中を検査するところではこれで飛ばす (同じ検査の繰り返しになる)。
+    /// コードブロックごとの宣言の一覧を集めるところでは飛ばさないこと。一覧はコードブロックの文脈である。
+    /// </remarks>
+    public bool IsRepeatedDeclaration(DeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        return RepeatedDeclarations.Contains(declaration);
     }
 
     /// <summary>

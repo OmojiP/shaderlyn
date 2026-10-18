@@ -1569,6 +1569,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasFunctionDeclarations 
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasHlslPrograms { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFunctionLikeMacro(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsRepeatedDeclaration(Shaderlyn.CFamily.Syntax.DeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsUserFile(System.String)

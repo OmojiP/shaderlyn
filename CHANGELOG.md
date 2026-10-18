@@ -24,6 +24,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   シェーダープラットフォームのマクロ (PC の Direct3D 12 の `SM6_PROFILE` など。`DataDrivenPlatformInfo.ini` から決まるものを含む) を定義する。
   パーミュテーションと、値の決まらないマクロは、まだ構成の軸にしない (今までどおり定義しない)
 
+- 自作のルール向けに `ShaderCompilation.IsRepeatedDeclaration` を足した。前のコードブロックと同じに展開した宣言かを判定する。
+  `EnumerateRuleDeclarations` / `EnumerateRuleNodes` はそうした宣言を返さない (下の「変更」)
+
 ### 修正
 
 - 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
@@ -32,6 +35,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 変更
 
+- 1 つのファイルを複数の単位 (Pass、カーネル、設定の `units:`、Unreal の登録) で解析するとき、
+  前の単位と同じ位置から同じトークンの並びに展開した宣言は、最初の単位でだけ検査する。
+  ヘッダを利用者のコードとして扱う環境 (Unreal のエンジン) で、単位の数だけヘッダを検査し直していた。
+  UE 5.5 のエンジン (526 ファイル) を登録の単位で解析すると、これが無い場合の 386 秒に対して 156 秒になる。指摘は変わらない。
+  単位によって文脈 (ほかの宣言) が違うために、後の単位でだけ成り立つ指摘は出なくなることがある
 - **破壊的変更:** 字句解析・プリプロセッサ・構文木の大部分 (式・文・関数・構造体・変数の節) を、C 系の言語に共通の新しいパッケージ `Shaderlyn.CFamily` へ移した。
   HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken`、`HlslSyntaxNode` → `ShaderSyntaxNode`、`HlslExpressionSyntax` → `ExpressionSyntax` など)、
   ノードは `Shaderlyn.CFamily.Syntax`、`Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。
