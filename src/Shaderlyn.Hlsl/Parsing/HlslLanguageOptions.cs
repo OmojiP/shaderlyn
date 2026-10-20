@@ -86,7 +86,7 @@ public sealed record HlslLanguageOptions : ShaderLanguageOptions
     public override string DescribeUnavailable() => DialectName ?? HlslLanguageFeatures.Describe(Dialects);
 
     /// <inheritdoc/>
-    public override bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens) => HlslParser.IsCompleteUnits(tokens);
+    public override bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens) => HlslParser.IsCompleteUnits(tokens, Features);
 }
 
 /// <summary>

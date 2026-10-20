@@ -67,12 +67,20 @@ internal sealed class HlslParser : ShaderParser
     protected override bool AcceptsBitfields => Features.Bitfields;
 
     /// <summary>
-    /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する (コンパイラは FXC)。
+    /// そのトークン列が、文・宣言として過不足なく閉じているかを判定する。
     /// </summary>
     /// <param name="tokens">判定するトークン列。</param>
+    /// <param name="features">受け付ける構文 (コンパイラと HLSL のバージョンで決まる)。<see langword="null"/> なら FXC。</param>
     /// <returns>閉じていれば <see langword="true"/>。</returns>
-    public static bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens)
-        => IsCompleteUnits(tokens, static t => new HlslParser(t));
+    /// <remarks>
+    /// 構文解析と同じ構文で読む。FXC で読むと、HLSL 2021 の構文 (ビットフィールドなど) を含む文を閉じていないと判断し、
+    /// 条件の巻き上げで文を複製できなかった。
+    /// </remarks>
+    public static bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens, HlslLanguageFeatures? features = null)
+    {
+        HlslLanguageFeatures accepted = features ?? HlslDialect.Fxc.Features;
+        return IsCompleteUnits(tokens, t => new HlslParser(t) { Features = accepted });
+    }
 
     /// <summary>
     /// トークン列の先頭から、文・宣言を 1 つだけ読む (コンパイラは FXC)。

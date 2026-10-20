@@ -94,6 +94,39 @@ public sealed class MacroHoistingTests
     }
 
     [Fact]
+    public void 複製する文は設定のコンパイラとHLSLのバージョンで読む()
+    {
+        // ビットフィールドは HLSL 2021 の構文である。FXC として読むと宣言として読めないと判断し、複製しなかった。
+        PreprocessorOptions options = new()
+        {
+            BothBranchSymbols = ["_A"],
+            DeclaredSymbols = ["_A"],
+            HoistConditionalMacros = true,
+            Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 },
+        };
+
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(SourceText.From(
+            """
+            #ifdef _A
+            #define BITS 4
+            #else
+            #define BITS 8
+            #endif
+
+            struct Packed
+            {
+                uint low : BITS;
+            };
+            """,
+            "test.hlsl"));
+
+        string text = TextOf(result);
+
+        Assert.Contains("low : 4", text, StringComparison.Ordinal);
+        Assert.Contains("low : 8", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void 関数形式マクロも引数ごと複製する()
     {
         // 引数は文の単位の中にある。分岐ごとに展開し直せば、その定義の引数として読まれる。
