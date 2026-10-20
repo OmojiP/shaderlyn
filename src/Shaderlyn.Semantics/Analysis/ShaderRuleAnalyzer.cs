@@ -48,7 +48,7 @@ namespace Shaderlyn.Semantics.Analysis;
 /// <para>
 /// <b>ノードは、それが属する構成の文脈で渡ってくる。</b>
 /// 既定の構成の木に加えて、キーワードを有効にした構成 (バリアント) の木も歩く
-/// (<see cref="ShaderCompilation.EnumerateRuleNodes"/>)。
+/// (<see cref="ShaderCompilation.EnumerateRuleNodes()"/>)。
 /// <see cref="ShaderNodeAnalysisContext{TNode}.Program"/> はそのノードが属する木であり、
 /// そこから <see cref="ShaderCompilation.GetExpressionTypeBinder"/> を引けば、その構成の型が得られる。
 /// 形は同じでも構成によって型が変わるコード (マクロの中身を切り替えている場合など) を、構成ごとに検査できる。

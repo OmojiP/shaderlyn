@@ -1326,19 +1326,342 @@ public sealed class ShaderCompilation
     /// </para>
     /// </remarks>
     public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
+        => EnumerateRuleDeclarations(includeRepeated: false);
+
+    /// <summary>
+    /// 規則が検査する、この解析が書いた宣言を列挙する。前のコードブロックの繰り返しも返すかを選べる。
+    /// </summary>
+    /// <param name="includeRepeated">
+    /// 前のコードブロックと同じ文脈で同じに展開した宣言 (<see cref="IsRepeatedDeclaration"/>) も返すか。
+    /// エントリポイントから届くかで結果の変わる検査 (コンパイル先の検査) は <see langword="true"/> にする。
+    /// </param>
+    /// <returns>宣言と、それを含むコードブロック。</returns>
+    /// <remarks><see cref="EnumerateRuleDeclarations()"/> を見ること。</remarks>
+    public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations(bool includeRepeated)
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
+        FrozenSet<DeclarationSyntax> repeated = includeRepeated ? FrozenSet<DeclarationSyntax>.Empty : RepeatedDeclarations;
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
             foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
-                if (IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
+                if (!repeated.Contains(declaration) && IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
                 {
                     yield return (declaration, program);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 宣言が、前のコードブロックで同じ文脈のもとに同じトークンの並びへ展開した宣言の繰り返しかを判定する。
+    /// </summary>
+    /// <param name="declaration">最上位の宣言。</param>
+    /// <returns>繰り返しなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>単位が多いと、同じヘッダを単位の数だけ検査していた。</b>
+    /// Unreal のシェーダーは、1 つの <c>.usf</c> をエントリポイントとステージごとの単位で解析する。
+    /// エンジンのヘッダも利用者のコードなので、規則は単位ごとにヘッダのすべての宣言を歩く。
+    /// </para>
+    /// <para>
+    /// <b>繰り返しとみなすのは、検査の結果が変わりえないときだけである。</b>
+    /// </para>
+    /// <list type="number">
+    ///   <item><description>
+    ///   コードブロックの文脈が同じ。ターゲット、コンパイラと HLSL のバージョン、コンパイル先、有効なシンボル、
+    ///   解析した構成、構成の軸が同じである (<see cref="ContextKey"/>)。
+    ///   </description></item>
+    ///   <item><description>前のコードブロックに、同じ位置から同じトークンの並びに展開した宣言がある。</description></item>
+    ///   <item><description>
+    ///   参照する名前の宣言が変わっていない。2 つのコードブロックで中身の違う宣言が宣言する名前を起点に、
+    ///   その名前を使う宣言とそれが宣言する名前をたどり、どれも使わない宣言だけを繰り返しとする
+    ///   (ヘッダが呼ぶ関数の定義がコードブロックで違えば、ヘッダの呼び出しは繰り返しではない)。
+    ///   </description></item>
+    /// </list>
+    /// <para>
+    /// コードブロックのエントリポイントは文脈に入れない。同じステージの単位でもエントリポイントは違い、入れると繰り返しが無くなる。
+    /// エントリポイントで結果の変わる検査 (エントリ関数の引数の検査) は繰り返しも歩く (<see cref="EnumerateRuleDeclarations(bool)"/>)。
+    /// 構成ごとのバリアントの木は対象にしない。その構成の文脈で歩く必要がある。
+    /// </para>
+    /// </remarks>
+    public bool IsRepeatedDeclaration(DeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        return RepeatedDeclarations.Contains(declaration);
+    }
+
+    /// <summary>前のコードブロックの繰り返しの宣言 (<see cref="IsRepeatedDeclaration"/>)。</summary>
+    private FrozenSet<DeclarationSyntax> RepeatedDeclarations
+        => _repeatedDeclarations ??= FindRepeatedDeclarations();
+
+    private FrozenSet<DeclarationSyntax>? _repeatedDeclarations;
+
+    /// <summary>繰り返しの宣言を求める (<see cref="IsRepeatedDeclaration"/>)。</summary>
+    /// <returns>繰り返しの宣言。</returns>
+    private FrozenSet<DeclarationSyntax> FindRepeatedDeclarations()
+    {
+        if (Programs.Length < 2)
+        {
+            return FrozenSet<DeclarationSyntax>.Empty;
+        }
+
+        HashSet<DeclarationSyntax> repeated = [];
+        Dictionary<string, AnalyzedProgram> firstByContext = new(StringComparer.Ordinal);
+        Dictionary<AnalyzedProgram, Dictionary<DeclarationKey, DeclarationSyntax>> keysByProgram = [];
+
+        foreach (AnalyzedProgram program in Programs)
+        {
+            string context = ContextKey(program);
+
+            if (!firstByContext.TryGetValue(context, out AnalyzedProgram? earlier))
+            {
+                firstByContext[context] = program;
+                continue;
+            }
+
+            Dictionary<DeclarationKey, DeclarationSyntax> earlierKeys = KeysOf(earlier, keysByProgram);
+            Dictionary<DeclarationKey, DeclarationSyntax> keys = KeysOf(program, keysByProgram);
+
+            // 片方にしか無い宣言が宣言する名前から、影響を受ける名前を広げる。
+            HashSet<string> changed = new(StringComparer.Ordinal);
+
+            foreach ((DeclarationKey key, DeclarationSyntax declaration) in keys)
+            {
+                if (!earlierKeys.ContainsKey(key))
+                {
+                    changed.UnionWith(DeclaredNames(declaration));
+                }
+            }
+
+            foreach ((DeclarationKey key, DeclarationSyntax declaration) in earlierKeys)
+            {
+                if (!keys.ContainsKey(key))
+                {
+                    changed.UnionWith(DeclaredNames(declaration));
+                }
+            }
+
+            // マクロの定義が違う名前も変わった名前である。展開した並びが同じでも、残った名前の扱いが変わる
+            // (括弧を付けずに書いた関数形式マクロの名前は、定義されていれば宣言されている)。
+            changed.UnionWith(ChangedMacros(earlier.Tree.PreprocessResult.Macros, program.Tree.PreprocessResult.Macros));
+
+            HashSet<DeclarationSyntax> affected = Affected(program.Tree.Root.Declarations, changed);
+
+            foreach ((DeclarationKey key, DeclarationSyntax declaration) in keys)
+            {
+                if (earlierKeys.ContainsKey(key) && !affected.Contains(declaration))
+                {
+                    repeated.Add(declaration);
+                }
+            }
+        }
+
+        return repeated.ToFrozenSet();
+    }
+
+    /// <summary>2 つのマクロの表で、定義が違うか片方にしか無い名前を求める。</summary>
+    /// <param name="left">一方の表。</param>
+    /// <param name="right">もう一方の表。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> ChangedMacros(ImmutableDictionary<string, MacroDefinition> left, ImmutableDictionary<string, MacroDefinition> right)
+    {
+        static string Shape(MacroDefinition definition)
+            => (definition.IsFunctionLike ? "(" + string.Join(",", definition.Parameters) + (definition.IsVariadic ? "..." : string.Empty) + ")" : string.Empty)
+               + string.Join(" ", definition.Body.Select(t => t.Text));
+
+        foreach ((string name, MacroDefinition definition) in left)
+        {
+            if (!right.TryGetValue(name, out MacroDefinition? other) || Shape(definition) != Shape(other))
+            {
+                yield return name;
+            }
+        }
+
+        foreach (string name in right.Keys.Where(name => !left.ContainsKey(name)))
+        {
+            yield return name;
+        }
+    }
+
+    /// <summary>コードブロックの文脈 (<see cref="IsRepeatedDeclaration"/> の 1)。同じなら、同じ宣言の検査の結果は同じである。</summary>
+    /// <param name="program">コードブロック。</param>
+    /// <returns>文脈を表す文字列。</returns>
+    private static string ContextKey(AnalyzedProgram program)
+    {
+        HlslLanguageOptions hlsl = program.Tree.Hlsl();
+
+        return string.Join(
+            "\u0001",
+            program.Unit.Target?.ToString() ?? string.Empty,
+            program.Unit.AllowsExternalDefinitions ? "external" : string.Empty,
+            string.Join(",", hlsl.Dialects.Select(d => d.ToString())),
+            string.Join(",", hlsl.CompileTargets.Select(t =>
+                $"{t.Platform}/{t.Dialect}/{t.IsUsable}/{string.Join("+", t.WhenAnySymbol)}/{string.Join("+", t.UnlessAnySymbol)}")),
+            program.EnabledSymbols.IsDefault ? string.Empty : string.Join(",", program.EnabledSymbols),
+            program.AnalyzedCondition.ToString(),
+            string.Join(",", program.Variants.Symbols.Order(StringComparer.Ordinal)));
+    }
+
+    /// <summary>宣言を見分ける鍵。位置と、展開したトークンの並び。</summary>
+    /// <param name="File">先頭のトークンのファイル。</param>
+    /// <param name="Start">先頭のトークンの位置。</param>
+    /// <param name="Count">トークンの数。</param>
+    /// <param name="Hash">トークンの文字の並びのハッシュ。</param>
+    private readonly record struct DeclarationKey(string File, int Start, int Count, ulong Hash);
+
+    /// <summary>コードブロックの最上位の宣言の鍵を求める。同じ鍵が 2 つある宣言は、どちらも入れない。</summary>
+    /// <param name="program">コードブロック。</param>
+    /// <param name="cache">求めた鍵を覚える先。</param>
+    /// <returns>鍵から宣言。</returns>
+    private static Dictionary<DeclarationKey, DeclarationSyntax> KeysOf(
+        AnalyzedProgram program,
+        Dictionary<AnalyzedProgram, Dictionary<DeclarationKey, DeclarationSyntax>> cache)
+    {
+        if (cache.TryGetValue(program, out Dictionary<DeclarationKey, DeclarationSyntax>? known))
+        {
+            return known;
+        }
+
+        Dictionary<DeclarationKey, DeclarationSyntax> keys = [];
+        HashSet<DeclarationKey> duplicated = [];
+
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
+        {
+            if (declaration.FirstToken is not { } first)
+            {
+                continue;
+            }
+
+            ulong hash = 14695981039346656037UL;
+            int count = 0;
+
+            foreach (ShaderSyntaxToken token in declaration.DescendantTokens())
+            {
+                hash = (hash ^ (ulong)(uint)StringComparer.Ordinal.GetHashCode(token.Text)) * 1099511628211UL;
+                count++;
+            }
+
+            // マクロが同じ位置に同じ宣言を 2 度作ると、鍵では見分けられない。どちらも繰り返しにしない。
+            DeclarationKey key = new(first.Source.FilePath ?? string.Empty, first.Span.Start, count, hash);
+
+            if (!keys.TryAdd(key, declaration))
+            {
+                duplicated.Add(key);
+            }
+        }
+
+        foreach (DeclarationKey key in duplicated)
+        {
+            keys.Remove(key);
+        }
+
+        cache[program] = keys;
+        return keys;
+    }
+
+    /// <summary>
+    /// 変わった名前を使う宣言を、たどれる限り集める。使う宣言が宣言する名前も、変わった名前に加える。
+    /// </summary>
+    /// <param name="declarations">コードブロックの最上位の宣言。</param>
+    /// <param name="changed">変わった名前。</param>
+    /// <returns>影響を受ける宣言。</returns>
+    private static HashSet<DeclarationSyntax> Affected(ImmutableArray<DeclarationSyntax> declarations, HashSet<string> changed)
+    {
+        HashSet<DeclarationSyntax> affected = [];
+
+        if (changed.Count == 0)
+        {
+            return affected;
+        }
+
+        // 名前から、それを使う宣言。
+        Dictionary<string, List<DeclarationSyntax>> users = new(StringComparer.Ordinal);
+
+        foreach (DeclarationSyntax declaration in declarations)
+        {
+            HashSet<string> names = new(StringComparer.Ordinal);
+
+            foreach (ShaderSyntaxToken token in declaration.DescendantTokens())
+            {
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && names.Add(token.Text))
+                {
+                    if (!users.TryGetValue(token.Text, out List<DeclarationSyntax>? list))
+                    {
+                        list = [];
+                        users[token.Text] = list;
+                    }
+
+                    list.Add(declaration);
+                }
+            }
+        }
+
+        Queue<string> pending = new(changed);
+        HashSet<string> seen = new(changed, StringComparer.Ordinal);
+
+        while (pending.TryDequeue(out string? name))
+        {
+            if (!users.TryGetValue(name, out List<DeclarationSyntax>? list))
+            {
+                continue;
+            }
+
+            foreach (DeclarationSyntax user in list)
+            {
+                if (!affected.Add(user))
+                {
+                    continue;
+                }
+
+                foreach (string declared in DeclaredNames(user))
+                {
+                    if (seen.Add(declared))
+                    {
+                        pending.Enqueue(declared);
+                    }
+                }
+            }
+        }
+
+        return affected;
+    }
+
+    /// <summary>
+    /// 最上位の宣言が外へ見せる名前を求める。分からない種類の宣言は、含む識別子をすべて返す (多めに見る)。
+    /// </summary>
+    /// <param name="declaration">最上位の宣言。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> DeclaredNames(DeclarationSyntax declaration)
+    {
+        switch (declaration)
+        {
+            case FunctionDeclarationSyntax function:
+                return [function.Name];
+
+            case StructDeclarationSyntax structure:
+                return [structure.Name, .. structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().Select(v => v.Name)];
+
+            case VariableDeclarationSyntax variable:
+                return variable.Variables.Select(v => v.Name);
+
+            case ConstantBufferDeclarationSyntax buffer:
+                return
+                [
+                    .. buffer.NameToken is { } name ? [name.Text] : Array.Empty<string>(),
+                    .. buffer.Members.SelectMany(DeclaredNames),
+                ];
+
+            case EnumDeclarationSyntax enumeration:
+                return DeclaredNamesOf(enumeration);
+
+            default:
+                return declaration.DescendantTokens()
+                    .Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken)
+                    .Select(t => t.Text)
+                    .Distinct(StringComparer.Ordinal);
         }
     }
 
@@ -1422,16 +1745,23 @@ public sealed class ShaderCompilation
     /// <summary>
     /// ルールが検査するノードを、それが属する構成とともに列挙する。
     /// </summary>
-    /// <returns><see cref="EnumerateRuleDeclarations"/> の宣言と、その中のノード。</returns>
+    /// <returns><see cref="EnumerateRuleDeclarations()"/> の宣言と、その中のノード。</returns>
     /// <remarks>
     /// 宣言の中にあってこのファイル由来でないノード (ヘッダのマクロが作った部分) も含まれる。
     /// 報告の直前に位置を確かめるルールは、その判定を省いてはならない。
     /// </remarks>
     public IEnumerable<(ShaderSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes()
+        => EnumerateRuleNodes(includeRepeated: false);
+
+    /// <summary>規則が検査するノードを列挙する。前のコードブロックの繰り返しも返すかを選べる。</summary>
+    /// <param name="includeRepeated">繰り返しの宣言 (<see cref="IsRepeatedDeclaration"/>) の中も返すか。</param>
+    /// <returns>ノードと、それを含むコードブロック。</returns>
+    /// <remarks><see cref="EnumerateRuleNodes()"/> を見ること。</remarks>
+    public IEnumerable<(ShaderSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes(bool includeRepeated)
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
 
-        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations())
+        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations(includeRepeated))
         {
             foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
             {
@@ -1629,7 +1959,7 @@ public sealed class ShaderCompilation
     /// <returns>このファイルに書かれた宣言と、その中のノード。突き合わせで足したノードも含む。</returns>
     /// <remarks>
     /// <para>
-    /// <b>ルールが検査のために歩くなら <see cref="EnumerateRuleNodes"/> を使う。</b>
+    /// <b>ルールが検査のために歩くなら <see cref="EnumerateRuleNodes()"/> を使う。</b>
     /// こちらはバリアントにしか無いノードを既定の木の子として返すので、
     /// そのノードの属さない構成の文脈で渡すことになる。1 本の木として見せる用途に向く。
     /// </para>

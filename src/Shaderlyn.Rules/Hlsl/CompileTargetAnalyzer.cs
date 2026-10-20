@@ -41,7 +41,9 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
         Dictionary<(string File, int Start), (ShaderSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
-        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        // エントリ関数の uniform 引数は、そのコードブロックのエントリポイントで決まる。
+        // 同じステージの単位でもエントリポイントは違うので、前のコードブロックの繰り返しも歩く。
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes(includeRepeated: true))
         {
             if (Describe(node, program) is not { } construct || !compilation.IsReportable(node))
             {

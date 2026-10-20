@@ -1572,6 +1572,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasFunctionDeclarations 
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasHlslPrograms { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFunctionLikeMacro(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsRepeatedDeclaration(Shaderlyn.CFamily.Syntax.DeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsUserFile(System.String)
@@ -1588,7 +1589,9 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[S
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] UnanalyzedIdentifiers { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.SyntaxNode] EnumerateOwnNodes(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.DeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations()
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.DeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations(System.Boolean)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleNodes()
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleNodes(System.Boolean)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IReadOnlyList`1[Shaderlyn.Semantics.Symbols.UniformSymbol] GetUniforms(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.SymbolCombination] UnexploredSymbolCombinations { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax] GetFunctionDeclarations(System.String)

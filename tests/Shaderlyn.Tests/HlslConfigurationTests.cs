@@ -230,6 +230,74 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
+    /// 同じ文脈の単位が同じに展開したヘッダの宣言は 1 度だけ検査する。単位によって展開が違う宣言は、それぞれの単位で検査する。
+    /// </summary>
+    [Fact]
+    public async Task 単位が同じに展開したヘッダは一度だけ検査する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainA
+                target: cs_6_6
+                defines: [STAGE_A=1]
+              - files: a.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "Common.hlsli"), """
+            float Twice(float x) { return x * 2; }
+            float Same() { return Twice(1, 2); }
+            #if STAGE_A
+            float OnlyA() { return Twice(); }
+            #endif
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #include "Common.hlsli"
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = Same(); }
+            [numthreads(1, 1, 1)] void MainB() { Output[0] = Same(); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Single(output.Split('\n'), line => line.Contains("Common.hlsli(2:", StringComparison.Ordinal) && line.Contains("HL0341", StringComparison.Ordinal));
+        Assert.Contains("Common.hlsli(4:", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同じステージの単位でもエントリポイントは違う。エントリ関数の uniform 引数の検査は、後の単位でも行う。
+    /// </summary>
+    [Fact]
+    public async Task エントリポイントで変わる検査は後の単位でも行う()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainA
+                target: cs_6_6
+              - files: a.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = 1; }
+            [numthreads(1, 1, 1)] void MainB(uniform float scale) { Output[0] = scale; }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エントリ関数 MainB の uniform 引数 scale", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 同じに展開したヘッダの宣言でも、単位ごとの文脈 (ほかの宣言) で検査する。
     /// ヘッダが呼ぶ関数の定義が単位で違えば、後の単位でだけ成り立つ指摘も出す。
     /// </summary>
