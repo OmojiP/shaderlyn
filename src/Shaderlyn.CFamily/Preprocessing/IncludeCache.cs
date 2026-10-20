@@ -80,12 +80,20 @@ public sealed record IncludeExpansion(
     /// </summary>
     public ImmutableArray<ShaderSyntaxToken> SkippedUserIdentifiers { get; init; } = [];
 
-    /// <summary>この展開の中で初めて取り込んだファイルと、そのときの条件。</summary>
-    public ImmutableArray<KeyValuePair<string, SymbolCondition>> FirstInclusions { get; init; } = [];
+    /// <summary>この展開の中で初めて取り込んだファイルと、取り込んだ側のファイルと、そのときの条件。</summary>
+    public ImmutableArray<FirstInclusion> FirstInclusions { get; init; } = [];
 
     /// <summary>この展開の中で、<c>#pragma once</c> かインクルードガードのために 2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
     public ImmutableArray<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; init; } = [];
 }
+
+/// <summary>
+/// ファイルを初めて取り込んだときの記録。
+/// </summary>
+/// <param name="FilePath">取り込んだファイル。</param>
+/// <param name="IncludingFilePath">取り込みを書いたファイル。</param>
+/// <param name="Condition">そのときの条件。</param>
+public readonly record struct FirstInclusion(string FilePath, string IncludingFilePath, SymbolCondition Condition);
 
 /// <summary>
 /// 1 つの取り込みの展開が、書く前に読んだ名前と、読んだときの状態。

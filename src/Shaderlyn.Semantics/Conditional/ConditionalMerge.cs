@@ -304,6 +304,9 @@ internal static class ConditionalMerge
         Dictionary<NodeKey, int> leftPositions = BuildPositions(left);
         Dictionary<NodeKey, int> rightPositions = BuildPositions(right);
 
+        // 片方にしか無いと見たものは、すぐには入れずに覚えておく (最後に、動いただけのものを突き合わせる)。
+        List<(ShaderSyntaxNode Node, bool FromVariant)> unmatched = [];
+
         int i = 0;
         int j = 0;
 
@@ -327,14 +330,14 @@ internal static class ConditionalMerge
             if (leftMatchable && !rightMatchable)
             {
                 // 左はこの先で対応が取れる。右のこれはバリアントにしか無い。
-                AddRoot(right[j], fromVariant: true, baseline, state);
+                unmatched.Add((right[j], true));
                 j++;
                 continue;
             }
 
             if (!leftMatchable && rightMatchable)
             {
-                AddRoot(left[i], fromVariant: false, null, state);
+                unmatched.Add((left[i], false));
                 i++;
                 continue;
             }
@@ -344,12 +347,12 @@ internal static class ConditionalMerge
                 // どちらもこの先で対応が取れる。間にあるものを近いほうから片付ける。
                 if (inRight - j <= inLeft - i)
                 {
-                    AddRoot(right[j], fromVariant: true, baseline, state);
+                    unmatched.Add((right[j], true));
                     j++;
                 }
                 else
                 {
-                    AddRoot(left[i], fromVariant: false, null, state);
+                    unmatched.Add((left[i], false));
                     i++;
                 }
 
@@ -373,24 +376,97 @@ internal static class ConditionalMerge
 
             if (left[i].Span.Start <= right[j].Span.Start)
             {
-                AddRoot(left[i], fromVariant: false, null, state);
+                unmatched.Add((left[i], false));
                 i++;
             }
             else
             {
-                AddRoot(right[j], fromVariant: true, baseline, state);
+                unmatched.Add((right[j], true));
                 j++;
             }
         }
 
         for (; i < left.Count; i++)
         {
-            AddRoot(left[i], fromVariant: false, null, state);
+            unmatched.Add((left[i], false));
         }
 
         for (; j < right.Count; j++)
         {
-            AddRoot(right[j], fromVariant: true, baseline, state);
+            unmatched.Add((right[j], true));
+        }
+
+        AddUnmatched(unmatched, baseline, state);
+    }
+
+    /// <summary>
+    /// 片方にしか無いと見た子を入れる。両方にあり、並びの中で動いただけのものは突き合わせる。
+    /// </summary>
+    /// <param name="unmatched">片方にしか無いと見た子 (並びの順)。</param>
+    /// <param name="baseline">既定の構成の親。</param>
+    /// <param name="state">突き合わせの状態。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>同じ宣言が、構成によって並びの別の場所に現れることがある。</b>
+    /// <c>#pragma once</c> のヘッダを、ある構成では <c>#if</c> の中で先に取り込み、別の構成では後で取り込むと、
+    /// ヘッダの宣言は並びの中で動く。並びの順に突き合わせると、両方の宣言を「片方にしか無い」と見て、
+    /// それぞれの構成でしか無いことにしていた (Unreal の <c>BRDF.ush</c> の構造体のメンバーで HL0313)。
+    /// 位置 (ファイルと範囲) と種類が同じものは同じ宣言なので、順が違っても突き合わせる。
+    /// </para>
+    /// </remarks>
+    private static void AddUnmatched(List<(ShaderSyntaxNode Node, bool FromVariant)> unmatched, ShaderSyntaxNode baseline, MergeState state)
+    {
+        // 既定の構成の側にしか無いと見た子を、鍵で引けるようにする (同じ鍵が複数あれば並びの先頭から使う)。
+        Dictionary<NodeKey, Queue<ShaderSyntaxNode>> fromVariant = [];
+
+        foreach ((ShaderSyntaxNode node, bool isVariant) in unmatched)
+        {
+            if (isVariant)
+            {
+                NodeKey key = NodeKey.For(node);
+
+                if (!fromVariant.TryGetValue(key, out Queue<ShaderSyntaxNode>? queue))
+                {
+                    queue = new Queue<ShaderSyntaxNode>();
+                    fromVariant[key] = queue;
+                }
+
+                queue.Enqueue(node);
+            }
+        }
+
+        // 先に対を決めてから、並びの順に入れる。バリアントの側が先に並んでいることもある。
+        Dictionary<ShaderSyntaxNode, ShaderSyntaxNode> pairs = [];
+        HashSet<ShaderSyntaxNode> paired = [];
+
+        foreach ((ShaderSyntaxNode node, bool isVariant) in unmatched)
+        {
+            if (!isVariant
+                && fromVariant.TryGetValue(NodeKey.For(node), out Queue<ShaderSyntaxNode>? candidates)
+                && candidates.TryDequeue(out ShaderSyntaxNode? moved))
+            {
+                pairs[node] = moved;
+                paired.Add(moved);
+            }
+        }
+
+        foreach ((ShaderSyntaxNode node, bool isVariant) in unmatched)
+        {
+            if (isVariant)
+            {
+                if (!paired.Contains(node))
+                {
+                    AddRoot(node, fromVariant: true, baseline, state);
+                }
+            }
+            else if (pairs.TryGetValue(node, out ShaderSyntaxNode? moved))
+            {
+                AlignOrChoose(node, moved, baseline, state);
+            }
+            else
+            {
+                AddRoot(node, fromVariant: false, null, state);
+            }
         }
     }
 

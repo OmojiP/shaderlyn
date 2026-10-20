@@ -102,7 +102,7 @@ internal sealed partial class ShaderPreprocessor
         }
 
         AddResolvedInclude(included.FilePath);
-        NoteFirstInclusion(included.FilePath, _options.SymbolConstraints.Apply(CurrentCondition));
+        NoteFirstInclusion(new FirstInclusion(included.FilePath, includingFilePath, _options.SymbolConstraints.Apply(CurrentCondition)));
 
         // 利用者が書いたヘッダは覚えも使い回しもしない。条件付きで覚えた定義 (RecordConditionalDefinition) は
         // 展開結果に入らないので、使い回すと巻き上げができなくなる。囲んでいる取り込みの記録も覚えない。
@@ -340,9 +340,9 @@ internal sealed partial class ShaderPreprocessor
         _skippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
         _skippedIncludedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
 
-        foreach ((string file, SymbolCondition condition) in expansion.FirstInclusions)
+        foreach (FirstInclusion inclusion in expansion.FirstInclusions)
         {
-            NoteFirstInclusion(file, condition);
+            NoteFirstInclusion(inclusion);
         }
 
         foreach ((string file, SymbolCondition condition) in expansion.SkippedReincludes)
@@ -598,14 +598,13 @@ internal sealed partial class ShaderPreprocessor
         return (kept.ToImmutable(), ignored.ToImmutable());
     }
 
-    /// <summary>ファイルを初めて取り込んだときの条件を覚える。2 度目からは覚え直さない。</summary>
-    /// <param name="filePath">取り込んだファイル。</param>
-    /// <param name="condition">そのときの条件。</param>
-    private void NoteFirstInclusion(string filePath, SymbolCondition condition)
+    /// <summary>ファイルを初めて取り込んだときの記録を覚える。2 度目からは覚え直さない。</summary>
+    /// <param name="inclusion">記録。</param>
+    private void NoteFirstInclusion(FirstInclusion inclusion)
     {
-        if (_firstInclusions.TryAdd(filePath, condition))
+        if (_firstInclusions.TryAdd(inclusion.FilePath, inclusion))
         {
-            Record(recording => recording.FirstInclusions.Add(new(filePath, condition)));
+            Record(recording => recording.FirstInclusions.Add(inclusion));
         }
     }
 
@@ -634,6 +633,8 @@ internal sealed partial class ShaderPreprocessor
     /// <remarks>
     /// <para>
     /// 1 度目のヘッダの範囲を写し、1 度目の取り込みの条件を外して、2 度目の条件を掛ける。
+    /// 1 度目の取り込みの中で初めて取り込んだファイル (<c>ShadingModels.ush</c> の中の <c>BRDF.ush</c>) の範囲も写す。
+    /// 2 度目を飛ばすと、それらのファイルも取り込まれないからである。
     /// ヘッダの中の <c>#if</c> の条件は残る。写した範囲は元と同じ位置なので、条件は「または」で足される (<c>ConditionMapBuilder</c>)。
     /// </para>
     /// <para>
@@ -649,11 +650,18 @@ internal sealed partial class ShaderPreprocessor
         }
 
         List<ConditionalTokenRange> added = [];
+        ILookup<string, string> children = _firstInclusions.Values.ToLookup(i => i.IncludingFilePath, i => i.FilePath, StringComparer.OrdinalIgnoreCase);
 
         foreach ((string filePath, SymbolCondition second) in _skippedReincludes)
         {
-            if (!_firstInclusions.TryGetValue(filePath, out SymbolCondition first)
-                || first.IsAlways
+            if (!_firstInclusions.TryGetValue(filePath, out FirstInclusion inclusion))
+            {
+                continue;
+            }
+
+            SymbolCondition first = inclusion.Condition;
+
+            if (first.IsAlways
                 || first.IsUnknown
                 || second.IsUnknown
                 || !_options.SymbolConstraints.IsPossible(second.And(first.Negate()))
@@ -662,12 +670,15 @@ internal sealed partial class ShaderPreprocessor
                 continue;
             }
 
+            HashSet<string> files = Descendants(filePath, children);
+
             foreach (ConditionalTokenRange range in _conditionalRegions)
             {
                 if (range.IsHoisted
                     || range.Start < 0
                     || range.Start >= _output.Count
-                    || !string.Equals(_output[range.Start].Source.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    || _output[range.Start].Source.FilePath is not { } rangeFile
+                    || !files.Contains(rangeFile))
                 {
                     continue;
                 }
@@ -682,6 +693,29 @@ internal sealed partial class ShaderPreprocessor
         }
 
         _conditionalRegions.AddRange(added);
+    }
+
+    /// <summary>ファイルと、その 1 度目の取り込みの中で初めて取り込んだファイルを、たどれる限り集める。</summary>
+    /// <param name="filePath">起点のファイル。</param>
+    /// <param name="children">取り込んだ側のファイルから、初めて取り込んだファイル。</param>
+    /// <returns>ファイル。</returns>
+    private static HashSet<string> Descendants(string filePath, ILookup<string, string> children)
+    {
+        HashSet<string> files = new(StringComparer.OrdinalIgnoreCase) { filePath };
+        Stack<string> pending = new([filePath]);
+
+        while (pending.TryPop(out string? file))
+        {
+            foreach (string child in children[file])
+            {
+                if (files.Add(child))
+                {
+                    pending.Push(child);
+                }
+            }
+        }
+
+        return files;
     }
 
     /// <summary>「かつ」で並べた条件の、シンボルごとの値を求める。</summary>

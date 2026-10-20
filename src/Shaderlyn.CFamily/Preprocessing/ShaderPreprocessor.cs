@@ -90,8 +90,8 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private readonly List<IncludeReference> _includes = [];
 
-    /// <summary>ファイルを初めて取り込んだときの条件 (<see cref="NoteSkippedReinclude"/>)。</summary>
-    private readonly Dictionary<string, SymbolCondition> _firstInclusions = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>ファイルを初めて取り込んだときの記録 (<see cref="NoteSkippedReinclude"/>)。</summary>
+    private readonly Dictionary<string, FirstInclusion> _firstInclusions = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>2 度目の取り込みを飛ばしたファイルと、そのときの条件 (<see cref="NoteSkippedReinclude"/>)。</summary>
     private readonly List<KeyValuePair<string, SymbolCondition>> _skippedReincludes = [];
@@ -178,8 +178,8 @@ internal sealed partial class ShaderPreprocessor
         /// <summary>この展開の中で、利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
         public List<ShaderSyntaxToken> SkippedUserIdentifiers { get; } = [];
 
-        /// <summary>この展開の中で初めて取り込んだファイルと、そのときの条件。</summary>
-        public List<KeyValuePair<string, SymbolCondition>> FirstInclusions { get; } = [];
+        /// <summary>この展開の中で初めて取り込んだファイルと、取り込んだ側のファイルと、そのときの条件。</summary>
+        public List<FirstInclusion> FirstInclusions { get; } = [];
 
         /// <summary>この展開の中で、2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
         public List<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; } = [];

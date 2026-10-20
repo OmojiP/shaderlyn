@@ -35,6 +35,18 @@ Shaderlyn.CFamily.Preprocessing.ConditionalTokenRange :: static System.Boolean o
 Shaderlyn.CFamily.Preprocessing.ConditionalTokenRange :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.CFamily.Preprocessing.ConditionalTokenRange :: virtual System.Int32 GetHashCode()
 Shaderlyn.CFamily.Preprocessing.ConditionalTokenRange :: virtual System.String ToString()
+Shaderlyn.CFamily.Preprocessing.FirstInclusion : struct (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.FirstInclusion])
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: .ctor(System.String, System.String, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; set; }
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.FirstInclusion)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: System.String FilePath { get; set; }
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: System.String IncludingFilePath { get; set; }
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: static System.Boolean op_Equality(Shaderlyn.CFamily.Preprocessing.FirstInclusion, Shaderlyn.CFamily.Preprocessing.FirstInclusion)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: static System.Boolean op_Inequality(Shaderlyn.CFamily.Preprocessing.FirstInclusion, Shaderlyn.CFamily.Preprocessing.FirstInclusion)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: virtual System.Int32 GetHashCode()
+Shaderlyn.CFamily.Preprocessing.FirstInclusion :: virtual System.String ToString()
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver : interface
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver :: abstract System.Boolean TryResolve(System.String, System.String, out Shaderlyn.Core.Text.SourceText)
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver :: virtual System.String FindOutsideBoundary(System.String, System.String)
@@ -76,6 +88,7 @@ Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: Shaderlyn.CFamily.Preprocess
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.IncludeExpansion)
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.BothBranchDecline] BothBranchDeclines { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.ConditionalTokenRange] ConditionalRegions { get; set; }
+Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.FirstInclusion] FirstInclusions { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.IncludeReference] Includes { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.KeywordRegion] KeywordRegions { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.MergedRegion] MergedRegions { get; set; }
@@ -85,7 +98,6 @@ Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.CFamily.Preprocessing.MacroDefinition]] MacroChanges { get; set; }
-Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.Core.Syntax.SymbolCondition]] FirstInclusions { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.Core.Syntax.SymbolCondition]] SkippedReincludes { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]]] MergedMacros { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,System.Nullable`1[Shaderlyn.Core.Syntax.SymbolCondition]]] HeaderDefinitionChanges { get; set; }

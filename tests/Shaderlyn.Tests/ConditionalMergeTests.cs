@@ -31,8 +31,9 @@ public sealed class ConditionalMergeTests
     /// </summary>
     /// <param name="body">HLSLPROGRAM の中身。</param>
     /// <param name="keyword">有効にするシンボル。</param>
+    /// <param name="files">取り込めるファイル (URP の Core.hlsl のほか)。</param>
     /// <returns>突き合わせた結果。</returns>
-    private static ConditionalMergeResult MergeBlock(string body, string keyword)
+    private static ConditionalMergeResult MergeBlock(string body, string keyword, Dictionary<string, string>? files = null)
     {
         string source = $$"""
             Shader "Test/Conditional"
@@ -56,7 +57,7 @@ public sealed class ConditionalMergeTests
         SemanticsOptions options = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(
-                new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+                new Dictionary<string, string>(files ?? [], StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
 
             // ここで見るのは「2 つの木を突き合わせる」機構である。
             // 1 つの木にまとめられるとその機構を通らないので、明示的に切る。
@@ -99,6 +100,29 @@ public sealed class ConditionalMergeTests
         => node.DescendantNodesAndSelf()
             .OfType<VariableDeclarationSyntax>()
             .Any(d => d.Variables.Any(v => v.Name == name));
+
+    [Fact]
+    public void 構成によって並びの中で動いた宣言には条件が付かない()
+    {
+        // インクルードガードのヘッダを、_K のときだけ先に取り込む。2 度目の取り込みはガードで中身が無い。
+        // _K の木では _Moved が _Middle の前に、既定の木では後ろに並ぶ。どちらの構成にもあるので、条件は付かない。
+        ConditionalMergeResult result = MergeBlock(
+            """
+            #ifdef _K
+            #include "Moved.hlsl"
+            #endif
+                        float4 _Middle;
+            #include "Moved.hlsl"
+            """,
+            "_K",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Moved.hlsl"] = "#ifndef MOVED_INCLUDED\n#define MOVED_INCLUDED\nfloat4 _Moved;\n#endif\n",
+            });
+
+        Assert.DoesNotContain(result.ConditionalNodes, n => DeclaresVariable(n.Node, "_Moved"));
+        Assert.DoesNotContain(result.ConditionalNodes, n => DeclaresVariable(n.Node, "_Middle"));
+    }
 
     [Fact]
     public void 条件の外にある宣言には条件が付かない()
