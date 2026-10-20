@@ -26,6 +26,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 修正
 
+- 先頭がマクロの宣言 (Unity の CGPROGRAM の `fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);`) で、
+  構成によって初期化子が変わると、構成をまたいだ検査をしていない (HL0007) と伝え、
+  `INSTANCING_ON` のとき変数の宣言が無い (HL0315) と誤って報告していた
+- 条件で中身が変わるマクロを使う文を複製するかを、常に FXC として判定していた。DXC の HLSL 2021 の構文 (ビットフィールドなど) を含む文は、
+  複製できずに構成ごとの展開で扱っていた (HL0007 になることがあった)
 - 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
 - DXR 1.1 の `RayQuery` の状態の定数 (`COMMITTED_TRIANGLE_HIT` など) を「宣言されていない」(HL0310) と報告していた
 - `globallycoherent` を付けた型への型変換 (`(globallycoherent RWByteAddressBuffer)x`) と、仮引数の型の前の `struct` (`F(struct P p)`) を構文の誤り (HL0001) にしていた
