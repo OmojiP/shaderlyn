@@ -229,6 +229,44 @@ public sealed class HlslConfigurationTests : IDisposable
         Assert.Contains("'Missing' はどこにも宣言されていません", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 同じに展開したヘッダの宣言でも、単位ごとの文脈 (ほかの宣言) で検査する。
+    /// ヘッダが呼ぶ関数の定義が単位で違えば、後の単位でだけ成り立つ指摘も出す。
+    /// </summary>
+    [Fact]
+    public async Task 同じに展開したヘッダの宣言も単位ごとの文脈で検査する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: b.hlsl
+                entry: MainA
+                target: cs_6_6
+                defines: [STAGE_A=1]
+              - files: b.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "Use.hlsli"), "float Use() { return Pick(1.0); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "b.hlsl"), """
+            #if STAGE_A
+            float Pick(float x) { return x; }
+            #else
+            float Pick(float x, float y) { return x + y; }
+            #endif
+            #include "Use.hlsli"
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = Use(); }
+            [numthreads(1, 1, 1)] void MainB() { Output[0] = Use(); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("関数 'Pick' に引数を 1 個渡していますが、必要な引数は 2 個です", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("--profile", "urp")]
     [InlineData("--unity-project", ".")]
