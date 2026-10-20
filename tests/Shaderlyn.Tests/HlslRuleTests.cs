@@ -2802,6 +2802,42 @@ public sealed class HlslRuleTests
     }
 
     [Fact]
+    public void 先頭がマクロの宣言も構成ごとの選択肢にする()
+    {
+        // Unity の CGPROGRAM の fixed4 はマクロである。インスタンシングの有無で初期化子が変わる形 (Animation Rigging の BoneHandles.shader)。
+        // 先頭がマクロの展開だと選択肢にできず、対応が取れなかった (HL0007)。条件が付かず、構成：_M1 のとき '_Color' が無い (HL0315) とも報告していた。
+        // 定義を 5 通りにして、巻き上げではなく構成ごとの展開で扱わせる。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _M1 _M2 _M3 _M4",
+            "#define fixed4 half4",
+            "#if defined(_M1)",
+            "struct PropsData { half4 _Color; };",
+            "StructuredBuffer<PropsData> PropsArray;",
+            "#define ACCESS(v) PropsArray[0].v",
+            "#elif defined(_M2)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 2)",
+            "#elif defined(_M3)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 3)",
+            "#elif defined(_M4)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 4)",
+            "#else",
+            "half4 _Color;",
+            "#define ACCESS(v) v",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    fixed4 col = ACCESS(_Color);",
+            "    return col;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+    }
+
+    [Fact]
     public void RayQueryの状態の定数は未宣言と報告しない()
     {
         // DXR 1.1 の CandidateType() と CommittedStatus() の値 (Unreal Engine の TraceRayInline.ush)。DXC 1.8 で確かめた。

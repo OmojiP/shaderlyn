@@ -466,8 +466,29 @@ internal static class ConditionalMerge
         => ownFilePath is not null
            && node is StatementSyntax or DeclarationSyntax
            && node.FirstToken is { } token
-           && !token.IsFromMacroExpansion
-           && string.Equals(token.Source.FilePath, ownFilePath, StringComparison.Ordinal);
+           && string.Equals(token.Source.FilePath, ownFilePath, StringComparison.Ordinal)
+           && (!token.IsFromMacroExpansion || IsWrittenInFile(node, ownFilePath));
+
+    /// <summary>
+    /// 先頭がマクロの展開でも、ファイルに直接書いたトークンを含む文・宣言かを判定する。
+    /// </summary>
+    /// <param name="node">判定するノード。</param>
+    /// <param name="ownFilePath">解析しているファイルのパス。</param>
+    /// <returns>含んでいれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// Unity の CGPROGRAM では <c>fixed4</c> がマクロである (<c>HLSLSupport.cginc</c>)。
+    /// <c>fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);</c> は先頭がマクロの展開なので選択肢にできず、
+    /// インスタンシングの有無で初期化子が変わると対応が取れなかった (HL0007。条件が付かず HL0315 にもなる)。
+    /// </para>
+    /// <para>
+    /// 文の全体がマクロの本体から来たもの (<c>UNITY_SETUP_INSTANCE_ID(i);</c>) は今までどおり選択肢にしない。
+    /// どれも呼び出しの位置にあり、位置で見分けられない。
+    /// </para>
+    /// </remarks>
+    private static bool IsWrittenInFile(ShaderSyntaxNode node, string ownFilePath)
+        => node.DescendantTokens().Any(t => !t.IsFromMacroExpansion
+                                           && string.Equals(t.Source.FilePath, ownFilePath, StringComparison.Ordinal));
 
     /// <summary>
     /// 2 つのノードが、それ自身の部分では同じトークンの並びでできているかを判定する。
