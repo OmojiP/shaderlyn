@@ -26,6 +26,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 修正
 
+- Unity 2023.2 以降で、`#include` で取り込んだファイルの `#pragma` (`multi_compile`、`vertex` など) を使っていた。
+  Unity は `#include_with_pragmas` の連なりで取り込んだファイルの `#pragma` だけを使う
+  (`#include` の先の `#pragma` は「unknown pragma ignored」になる。2022.3 / 2023.2〜6.6 で確かめた)。
+  2022.3 と、Unity のバージョンが分からない場合は、今までどおりどの取り込みの `#pragma` も使う。
+  プリプロセッサの設定 `PragmaIncludeDirectives` を足し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に入れる
 - 先頭がマクロの宣言 (Unity の CGPROGRAM の `fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);`) で、
   構成によって初期化子が変わると、構成をまたいだ検査をしていない (HL0007) と伝え、
   `INSTANCING_ON` のとき変数の宣言が無い (HL0315) と誤って報告していた

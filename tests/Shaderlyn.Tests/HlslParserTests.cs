@@ -455,6 +455,67 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
+    /// 取り込んだファイルの <c>#pragma</c> は、設定した指令だけでたどれるものだけを伝えることを検証する。
+    /// Unity 2023.2 以降は <c>#include_with_pragmas</c> の連なりだけを使う (2022.3 / 2023.2〜6.6 で確かめた)。
+    /// </summary>
+    /// <param name="onlyWithPragmas">伝える指令を <c>include_with_pragmas</c> に限るか。</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void 取り込んだファイルのpragmaは設定した指令の連なりだけで伝える(bool onlyWithPragmas)
+    {
+        InMemoryIncludeResolver resolver = new(new Dictionary<string, string>
+        {
+            ["With.hlsl"] = "#pragma multi_compile _ KW_WITH\n#include \"WithThenPlain.hlsl\"\n",
+            ["WithThenPlain.hlsl"] = "#pragma multi_compile _ KW_WITH_THEN_PLAIN\n",
+            ["Plain.hlsl"] = "#pragma multi_compile _ KW_PLAIN\n#include_with_pragmas \"PlainThenWith.hlsl\"\n",
+            ["PlainThenWith.hlsl"] = "#pragma multi_compile _ KW_PLAIN_THEN_WITH\n",
+        });
+
+        PreprocessorOptions options = Unity.UnityPreprocessorDirectives.Apply(new PreprocessorOptions { IncludeResolver = resolver }) with
+        {
+            PragmaIncludeDirectives = onlyWithPragmas ? Unity.UnityPreprocessorDirectives.IncludeDirectives : null,
+        };
+
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#pragma multi_compile _ KW_ROOT\n#include_with_pragmas \"With.hlsl\"\n#include \"Plain.hlsl\"\n", "test.hlsl"),
+            options);
+
+        string[] Keywords(ImmutableArray<PragmaDirective> pragmas)
+            => [.. (pragmas.IsDefault ? [] : pragmas).Select(p => p.Arguments.Last().Text).Order(StringComparer.Ordinal)];
+
+        if (onlyWithPragmas)
+        {
+            Assert.Equal(["KW_ROOT", "KW_WITH"], Keywords(tree.Pragmas));
+            Assert.Equal(["KW_PLAIN", "KW_PLAIN_THEN_WITH", "KW_WITH_THEN_PLAIN"], Keywords(tree.PreprocessResult.IgnoredPragmas));
+        }
+        else
+        {
+            Assert.Equal(["KW_PLAIN", "KW_PLAIN_THEN_WITH", "KW_ROOT", "KW_WITH", "KW_WITH_THEN_PLAIN"], Keywords(tree.Pragmas));
+            Assert.Empty(Keywords(tree.PreprocessResult.IgnoredPragmas));
+        }
+    }
+
+    /// <summary>
+    /// Unity の環境は、2023.2 以降でだけ <c>#include_with_pragmas</c> の <c>#pragma</c> に限ることを検証する。
+    /// 2022.3 と、バージョンが分からない場合は、どの取り込みの <c>#pragma</c> も使う。
+    /// </summary>
+    /// <param name="version">Unity のバージョン。<see langword="null"/> なら分からない。</param>
+    /// <param name="limited">限るか。</param>
+    [Theory]
+    [InlineData("2022.3", false)]
+    [InlineData("2023.2", true)]
+    [InlineData("6.6", true)]
+    [InlineData(null, false)]
+    public void Unityのバージョンで取り込んだファイルのpragmaの扱いを変える(string? version, bool limited)
+    {
+        Unity.UnityHlslEnvironment environment = new(new Unity.UnityOptions { EditorVersion = version });
+        PreprocessorOptions options = environment.ConfigurePreprocessor(new PreprocessorOptions(), new Semantics.SemanticsOptions());
+
+        Assert.Equal(limited, options.PragmaIncludeDirectives is not null);
+    }
+
+    /// <summary>
     /// 環境が足した取り込みの指令を、<c>#include</c> と同じく扱うことを検証する。
     /// </summary>
     /// <param name="unity">Unity の指令の扱いを重ねるか。</param>

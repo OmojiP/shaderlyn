@@ -87,7 +87,7 @@ internal sealed partial class ShaderPreprocessor
         // 環境が足した取り込みの指令 (Unity の #include_with_pragmas など)。
         if (_options.AdditionalIncludeDirectives.Contains(directive))
         {
-            ProcessInclude(directiveToken);
+            ProcessInclude(directiveToken, directive);
             return;
         }
 

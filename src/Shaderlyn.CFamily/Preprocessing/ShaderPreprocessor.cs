@@ -361,10 +361,12 @@ internal sealed partial class ShaderPreprocessor
         ReportUnterminatedConditionals();
         RestoreHoistedDeclines();
 
+        (ImmutableArray<PragmaDirective> pragmas, ImmutableArray<PragmaDirective> ignoredPragmas) = PartitionPragmas();
+
         return new PreprocessResult(
             _output.ToImmutable(),
             _diagnostics.ToImmutable(),
-            _pragmas.ToImmutable(),
+            pragmas,
             [.. _resolvedIncludes],
             [.. _unresolvedIncludes],
             _macros.ToImmutableDictionary().RemoveRange(
@@ -376,6 +378,7 @@ internal sealed partial class ShaderPreprocessor
             [.. _declinedBothBranchSymbols])
         {
             InactiveRegions = [.. _inactiveRegions],
+            IgnoredPragmas = ignoredPragmas,
             BothBranchDeclines =
             [
                 .. _bothBranchDeclines

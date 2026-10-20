@@ -127,6 +127,7 @@ Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.Boolean Equals(Shader
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.Boolean IsResolved { get; }
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.Boolean IsResolvedFromFallback { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.Boolean IsUtf16 { get; set; }
+Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.String Directive { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.String OutsideBoundaryPath { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.String Path { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeReference :: System.String ResolvedFilePath { get; set; }
@@ -199,6 +200,7 @@ Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.IncludeReference] Includes { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.KeywordRegion] KeywordRegions { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.MergedRegion] MergedRegions { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.PragmaDirective] IgnoredPragmas { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.PragmaDirective] Pragmas { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.SymbolCombination] RequiredSymbolCombinations { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ConditionalIdentifiers { get; set; }
@@ -247,6 +249,7 @@ Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immuta
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] ConfigurationSymbols { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] DeclaredSymbols { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] IncludedDeclaredSymbols { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] PragmaIncludeDirectives { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] UnsupportedDirectives { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Func`2[System.String,System.Boolean] IsUserInclude { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Int32 FingerprintForCache { get; }

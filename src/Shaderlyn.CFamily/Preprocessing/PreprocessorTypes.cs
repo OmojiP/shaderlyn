@@ -190,6 +190,23 @@ public sealed record PreprocessorOptions
     public bool HonorPragmaOnce { get; init; } = true;
 
     /// <summary>
+    /// 取り込んだファイルの <c>#pragma</c> を呼び出し側へ伝える取り込みの指令。<see langword="null"/> (既定) なら、どの取り込みも伝える。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unity 2023.2 以降は、<c>#include_with_pragmas</c> で取り込んだファイルの <c>#pragma</c> だけを使い、
+    /// <c>#include</c> で取り込んだファイルの <c>#pragma</c> は無視する ("unknown pragma ignored")。
+    /// 伝えるかどうかは、解析しているファイルからその指令だけでたどれるかで決まる
+    /// (<c>#include_with_pragmas</c> の先の <c>#include</c> の先も、<c>#include</c> の先の <c>#include_with_pragmas</c> の先も伝えない)。
+    /// 2022.3 は、どの取り込みの <c>#pragma</c> も使う。2022.3 / 2023.2〜6.6 で確かめた。
+    /// </para>
+    /// <para>
+    /// 伝えない <c>#pragma</c> は <see cref="PreprocessResult.Pragmas"/> に入れず、<see cref="PreprocessResult.IgnoredPragmas"/> に入れる。
+    /// </para>
+    /// </remarks>
+    public ImmutableHashSet<string>? PragmaIncludeDirectives { get; init; }
+
+    /// <summary>
     /// 取り込みを切り替えている分岐も、両方の分岐を並べるかどうか。
     /// </summary>
     /// <remarks>
@@ -608,6 +625,9 @@ public readonly record struct IncludeReference(
     /// </summary>
     /// <remarks>Unity では通るが、別のシェーダーから取り込むと見つからなくなる (UN0102)。</remarks>
     public bool IsResolvedFromFallback { get; init; }
+
+    /// <summary>取り込みに使った指令の名前 (<c>include</c>、Unity の <c>include_with_pragmas</c>)。</summary>
+    public string Directive { get; init; } = "include";
 }
 
 /// <summary>
@@ -824,6 +844,12 @@ public readonly record struct PreprocessResult(
     /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
     /// </remarks>
     public ImmutableArray<InactiveRegion> InactiveRegions { get; init; }
+
+    /// <summary>
+    /// 取り込みの指令が伝えないので、コンパイルで使われない <c>#pragma</c> (<see cref="PreprocessorOptions.PragmaIncludeDirectives"/>)。
+    /// </summary>
+    /// <remarks>既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。</remarks>
+    public ImmutableArray<PragmaDirective> IgnoredPragmas { get; init; }
 
     /// <summary>
     /// 両方の分岐を並べなかった記録。シンボル・理由・ファイルの組ごとに 1 件。

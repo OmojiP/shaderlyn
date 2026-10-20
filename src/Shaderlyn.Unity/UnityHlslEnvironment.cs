@@ -76,6 +76,12 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
 
             // Unity は #pragma once を効かせない (UN0101)。実際と同じく 2 度取り込む。
             HonorPragmaOnce = false,
+
+            // 2023.2 以降は、#include で取り込んだファイルの #pragma を使わない (キーワードもエントリポイントも効かない)。
+            // 2022.3 はどの取り込みの #pragma も使う。バージョンが分からなければ、今までどおりすべて使う。
+            PragmaIncludeDirectives = _options.VersionBand is { } band && band != UnityVersionBand.Unity2022_3
+                ? UnityPreprocessorDirectives.IncludeDirectives
+                : null,
             Prelude = _options.UseFallbackMacros ? UnityShaderStubs.Prelude : options.Prelude,
         };
 

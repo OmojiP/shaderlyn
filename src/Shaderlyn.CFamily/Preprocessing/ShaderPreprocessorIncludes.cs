@@ -21,12 +21,13 @@ internal sealed partial class ShaderPreprocessor
     /// <c>#include</c> を処理する。
     /// </summary>
     /// <param name="directiveToken">指令名のトークン。</param>
+    /// <param name="directive">指令の名前 (<c>include</c>、環境が足した <c>include_with_pragmas</c> など)。取り込みの記録に残す。</param>
     /// <remarks>
     /// パスの記法は <c>"..."</c> と <c>&lt;...&gt;</c> の 2 通りある。
     /// 山括弧は字句解析では比較演算子に分解されているため、
     /// トークンを結合して元のパスを復元する必要がある。
     /// </remarks>
-    private void ProcessInclude(ShaderSyntaxToken directiveToken)
+    private void ProcessInclude(ShaderSyntaxToken directiveToken, string directive = "include")
     {
         ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
@@ -43,7 +44,7 @@ internal sealed partial class ShaderPreprocessor
         if (_options.IncludeResolver is null)
         {
             AddUnresolvedInclude(path);
-            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null));
+            _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null) { Directive = directive });
             return;
         }
 
@@ -54,6 +55,7 @@ internal sealed partial class ShaderPreprocessor
             AddUnresolvedInclude(path);
             _includes.Add(new IncludeReference(path, pathLocation, ResolvedFilePath: null)
             {
+                Directive = directive,
                 OutsideBoundaryPath = _options.IncludeResolver.FindOutsideBoundary(path, includingFilePath),
             });
 
@@ -65,7 +67,7 @@ internal sealed partial class ShaderPreprocessor
             return;
         }
 
-        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16, IsResolvedFromFallback = fromFallback });
+        _includes.Add(new IncludeReference(path, pathLocation, included.FilePath) { IsUtf16 = included.IsUtf16, IsResolvedFromFallback = fromFallback, Directive = directive });
 
         // #pragma once を書いたファイルの 2 度目の取り込みは、丸ごと飛ばす (MarkIncludedOnce)。
         // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
@@ -499,5 +501,85 @@ internal sealed partial class ShaderPreprocessor
         }
 
         return null;
+    }
+    /// <summary>
+    /// <c>#pragma</c> を、呼び出し側へ伝わるものと伝わらないものに分ける (<see cref="PreprocessorOptions.PragmaIncludeDirectives"/>)。
+    /// </summary>
+    /// <returns>伝わるものと、伝わらないもの。</returns>
+    /// <remarks>
+    /// <para>
+    /// 取り込みの記録 (<see cref="IncludeReference"/>) から、取り込みのつながりを組み立てて決める。
+    /// どのファイルにも取り込まれていないファイル (解析しているファイル、Unity の HLSLINCLUDE) から、伝える指令だけでたどれるファイルの
+    /// <c>#pragma</c> が伝わる。
+    /// </para>
+    /// <para>
+    /// 展開しながら決めないのは、取り込みの展開結果を使い回すためである。同じヘッダの展開結果が、
+    /// <c>#include</c> からも <c>#include_with_pragmas</c> からも使われる。記録はどちらの場合も同じ形で残る。
+    /// </para>
+    /// </remarks>
+    private (ImmutableArray<PragmaDirective> Pragmas, ImmutableArray<PragmaDirective> Ignored) PartitionPragmas()
+    {
+        if (_options.PragmaIncludeDirectives is not { } propagating || _includes.Count == 0)
+        {
+            return (_pragmas.ToImmutable(), []);
+        }
+
+        Dictionary<string, List<(string Target, bool Propagates)>> edges = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> included = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (IncludeReference include in _includes)
+        {
+            if (include.ResolvedFilePath is not { } target || include.Location.FilePath is not { } from)
+            {
+                continue;
+            }
+
+            included.Add(target);
+
+            if (!edges.TryGetValue(from, out List<(string Target, bool Propagates)>? list))
+            {
+                list = [];
+                edges[from] = list;
+            }
+
+            list.Add((target, propagating.Contains(include.Directive)));
+        }
+
+        // どこにも取り込まれていないファイルを起点に、伝える指令だけでたどる。
+        HashSet<string> reached = new(StringComparer.OrdinalIgnoreCase);
+        Queue<string> pending = new(edges.Keys.Where(file => !included.Contains(file)));
+
+        foreach (string root in pending)
+        {
+            reached.Add(root);
+        }
+
+        while (pending.TryDequeue(out string? file))
+        {
+            if (!edges.TryGetValue(file, out List<(string Target, bool Propagates)>? targets))
+            {
+                continue;
+            }
+
+            foreach ((string target, bool propagates) in targets)
+            {
+                if (propagates && reached.Add(target))
+                {
+                    pending.Enqueue(target);
+                }
+            }
+        }
+
+        ImmutableArray<PragmaDirective>.Builder kept = ImmutableArray.CreateBuilder<PragmaDirective>();
+        ImmutableArray<PragmaDirective>.Builder ignored = ImmutableArray.CreateBuilder<PragmaDirective>();
+
+        foreach (PragmaDirective pragma in _pragmas)
+        {
+            string? file = pragma.NameToken.Source.FilePath;
+            bool propagates = file is null || !included.Contains(file) || reached.Contains(file);
+            (propagates ? kept : ignored).Add(pragma);
+        }
+
+        return (kept.ToImmutable(), ignored.ToImmutable());
     }
 }
