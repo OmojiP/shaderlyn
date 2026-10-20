@@ -90,6 +90,12 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private readonly List<IncludeReference> _includes = [];
 
+    /// <summary>ファイルを初めて取り込んだときの条件 (<see cref="NoteSkippedReinclude"/>)。</summary>
+    private readonly Dictionary<string, SymbolCondition> _firstInclusions = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>2 度目の取り込みを飛ばしたファイルと、そのときの条件 (<see cref="NoteSkippedReinclude"/>)。</summary>
+    private readonly List<KeyValuePair<string, SymbolCondition>> _skippedReincludes = [];
+
     /// <summary>
     /// 解析しているファイルそのもの。
     /// </summary>
@@ -171,6 +177,12 @@ internal sealed partial class ShaderPreprocessor
     {
         /// <summary>この展開の中で、利用者が書いたヘッダの非活性領域に現れた識別子。位置を持つ。</summary>
         public List<ShaderSyntaxToken> SkippedUserIdentifiers { get; } = [];
+
+        /// <summary>この展開の中で初めて取り込んだファイルと、そのときの条件。</summary>
+        public List<KeyValuePair<string, SymbolCondition>> FirstInclusions { get; } = [];
+
+        /// <summary>この展開の中で、2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
+        public List<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; } = [];
 
         /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
         public bool Uncacheable { get; set; }
@@ -360,6 +372,7 @@ internal sealed partial class ShaderPreprocessor
 
         ReportUnterminatedConditionals();
         RestoreHoistedDeclines();
+        AddSkippedReincludeRanges();
 
         (ImmutableArray<PragmaDirective> pragmas, ImmutableArray<PragmaDirective> ignoredPragmas) = PartitionPragmas();
 

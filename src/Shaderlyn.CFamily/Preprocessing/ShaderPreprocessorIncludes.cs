@@ -73,6 +73,7 @@ internal sealed partial class ShaderPreprocessor
         // 互いを取り込むヘッダ (Platform.ush と BindlessResources.ush) も、これで循環にならない。
         if (IsIncludedOnce(included.FilePath))
         {
+            NoteSkippedReinclude(included.FilePath);
             AddResolvedInclude(included.FilePath);
             return;
         }
@@ -101,6 +102,7 @@ internal sealed partial class ShaderPreprocessor
         }
 
         AddResolvedInclude(included.FilePath);
+        NoteFirstInclusion(included.FilePath, _options.SymbolConstraints.Apply(CurrentCondition));
 
         // 利用者が書いたヘッダは覚えも使い回しもしない。条件付きで覚えた定義 (RecordConditionalDefinition) は
         // 展開結果に入らないので、使い回すと巻き上げができなくなる。囲んでいる取り込みの記録も覚えない。
@@ -298,6 +300,8 @@ internal sealed partial class ShaderPreprocessor
         {
             Reads = ToReadSet(recording),
             SkippedUserIdentifiers = [.. recording.SkippedUserIdentifiers],
+            FirstInclusions = [.. recording.FirstInclusions],
+            SkippedReincludes = [.. recording.SkippedReincludes],
         });
     }
 
@@ -335,6 +339,17 @@ internal sealed partial class ShaderPreprocessor
         }
         _skippedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
         _skippedIncludedIdentifiers.UnionWith(expansion.SkippedIdentifiers);
+
+        foreach ((string file, SymbolCondition condition) in expansion.FirstInclusions)
+        {
+            NoteFirstInclusion(file, condition);
+        }
+
+        foreach ((string file, SymbolCondition condition) in expansion.SkippedReincludes)
+        {
+            _skippedReincludes.Add(new(file, condition));
+            Record(recording => recording.SkippedReincludes.Add(new(file, condition)));
+        }
 
         foreach (ShaderSyntaxToken token in expansion.SkippedUserIdentifiers)
         {
@@ -581,5 +596,122 @@ internal sealed partial class ShaderPreprocessor
         }
 
         return (kept.ToImmutable(), ignored.ToImmutable());
+    }
+
+    /// <summary>ファイルを初めて取り込んだときの条件を覚える。2 度目からは覚え直さない。</summary>
+    /// <param name="filePath">取り込んだファイル。</param>
+    /// <param name="condition">そのときの条件。</param>
+    private void NoteFirstInclusion(string filePath, SymbolCondition condition)
+    {
+        if (_firstInclusions.TryAdd(filePath, condition))
+        {
+            Record(recording => recording.FirstInclusions.Add(new(filePath, condition)));
+        }
+    }
+
+    /// <summary>
+    /// <c>#pragma once</c> かインクルードガードのために、2 度目の取り込みを飛ばしたことを覚える。
+    /// </summary>
+    /// <param name="filePath">飛ばしたファイル。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>1 度目を並べた分岐の中で取り込んでいると、ヘッダの宣言がその分岐の構成にしか無いことになる。</b>
+    /// <c>#if _A</c> の中で取り込み、あとで条件無しにもう一度取り込むと、2 度目は飛ばすので、
+    /// ヘッダの範囲には 1 度目の条件 (<c>_A</c>) しか付かない。<c>!_A</c> の構成で、ヘッダの構造体のメンバーが無いと報告していた (HL0313)。
+    /// 展開の最後に、飛ばした取り込みの条件をヘッダの範囲に足す (<see cref="AddSkippedReincludeRanges"/>)。
+    /// </para>
+    /// </remarks>
+    private void NoteSkippedReinclude(string filePath)
+    {
+        SymbolCondition condition = _options.SymbolConstraints.Apply(CurrentCondition);
+        _skippedReincludes.Add(new(filePath, condition));
+        Record(recording => recording.SkippedReincludes.Add(new(filePath, condition)));
+    }
+
+    /// <summary>
+    /// 飛ばした 2 度目の取り込みの条件を、1 度目のヘッダの範囲に足す (<see cref="NoteSkippedReinclude"/>)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 1 度目のヘッダの範囲を写し、1 度目の取り込みの条件を外して、2 度目の条件を掛ける。
+    /// ヘッダの中の <c>#if</c> の条件は残る。写した範囲は元と同じ位置なので、条件は「または」で足される (<c>ConditionMapBuilder</c>)。
+    /// </para>
+    /// <para>
+    /// 1 度目の条件が「かつ」で並べた形でないと外せない。その場合は足さない (今までどおり)。
+    /// 2 度目の条件が 1 度目の条件に含まれるなら、足しても変わらないので足さない。
+    /// </para>
+    /// </remarks>
+    private void AddSkippedReincludeRanges()
+    {
+        if (_skippedReincludes.Count == 0)
+        {
+            return;
+        }
+
+        List<ConditionalTokenRange> added = [];
+
+        foreach ((string filePath, SymbolCondition second) in _skippedReincludes)
+        {
+            if (!_firstInclusions.TryGetValue(filePath, out SymbolCondition first)
+                || first.IsAlways
+                || first.IsUnknown
+                || second.IsUnknown
+                || !_options.SymbolConstraints.IsPossible(second.And(first.Negate()))
+                || ForcedValues(first) is not { } forced)
+            {
+                continue;
+            }
+
+            foreach (ConditionalTokenRange range in _conditionalRegions)
+            {
+                if (range.IsHoisted
+                    || range.Start < 0
+                    || range.Start >= _output.Count
+                    || !string.Equals(_output[range.Start].Source.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                SymbolCondition inner = range.Condition.Assume(symbol => forced.TryGetValue(symbol, out bool value) ? value : null);
+
+                if (!inner.IsNever && !inner.IsUnknown)
+                {
+                    added.Add(range with { Condition = _options.SymbolConstraints.Apply(inner.And(second)) });
+                }
+            }
+        }
+
+        _conditionalRegions.AddRange(added);
+    }
+
+    /// <summary>「かつ」で並べた条件の、シンボルごとの値を求める。</summary>
+    /// <param name="condition">条件。</param>
+    /// <returns>シンボルから値。「かつ」で並べた形でなければ <see langword="null"/>。</returns>
+    private static Dictionary<string, bool>? ForcedValues(SymbolCondition condition)
+    {
+        Dictionary<string, bool> forced = new(StringComparer.Ordinal);
+
+        foreach (string symbol in condition.EnumerateSymbols())
+        {
+            bool canBeTrue = !condition.Assume(s => s == symbol ? true : null).IsNever;
+            bool canBeFalse = !condition.Assume(s => s == symbol ? false : null).IsNever;
+
+            if (canBeTrue == canBeFalse)
+            {
+                return null;
+            }
+
+            forced[symbol] = canBeTrue;
+        }
+
+        // 値を決めた条件が元の条件と同じなら、「かつ」で並べた形である。
+        SymbolCondition rebuilt = SymbolCondition.Always;
+
+        foreach ((string symbol, bool value) in forced)
+        {
+            rebuilt = rebuilt.And(SymbolCondition.Symbol(symbol, value));
+        }
+
+        return rebuilt == condition ? forced : null;
     }
 }

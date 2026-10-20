@@ -230,6 +230,38 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
+    /// 構成の軸で切り替わる <c>#include</c> で取り込んだヘッダを、あとで条件無しにもう一度取り込んでも、
+    /// ヘッダの宣言はどの構成にもあることを検証する。2 度目の取り込みは <c>#pragma once</c> かインクルードガードで飛ばされる。
+    /// </summary>
+    /// <param name="header">ヘッダの中身。</param>
+    [Theory]
+    [InlineData("#pragma once\nstruct S { float x; };\n")]
+    [InlineData("#ifndef H_INCLUDED\n#define H_INCLUDED\nstruct S { float x; };\n#endif\n")]
+    public async Task 軸で切り替わる取り込みのあとの二度目の取り込みでも宣言はどの構成にもある(string header)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: FOO
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "h.hlsli"), header);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if FOO
+            #include "h.hlsli"
+            #endif
+            #include "h.hlsli"
+            float f(S s) { return s.x; }
+            [numthreads(1, 1, 1)] void main() {}
+            """);
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "a.hlsl"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0313", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 同じ文脈の単位が同じに展開したヘッダの宣言は 1 度だけ検査する。単位によって展開が違う宣言は、それぞれの単位で検査する。
     /// </summary>
     [Fact]

@@ -230,6 +230,20 @@ internal sealed partial class ShaderPreprocessor
 
                 BeginConditional(directiveToken, value, ChooseKeptCondition(symbol, expectDefined, directiveToken));
 
+                // インクルードガード: ヘッダが自分で定義した名前のために、2 度目の取り込みの中身を飛ばした。
+                // #pragma once と同じく、飛ばした取り込みの条件をヘッダの範囲に足す (NoteSkippedReinclude)。
+                if (!expectDefined
+                    && !value
+                    && symbol is not null
+                    && _conditionals[^1].KeptCondition is null
+                    && !IsInRootFile(directiveToken)
+                    && directiveToken.Source.FilePath is { } guardedFile
+                    && _macros.TryGetValue(symbol, out MacroDefinition? guard)
+                    && string.Equals(guard.NameToken.Source.FilePath, guardedFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    NoteSkippedReinclude(guardedFile);
+                }
+
                 // 名前が読めなかった行は、構成によって変わるものとして扱う (並べない側へ倒す)。
                 _conditionals[^1].IsConfigurationDependent = symbol is null || IsConfigurationDependentName(symbol);
 

@@ -79,6 +79,12 @@ public sealed record IncludeExpansion(
     /// <see cref="SkippedIdentifiers"/> には含まない。
     /// </summary>
     public ImmutableArray<ShaderSyntaxToken> SkippedUserIdentifiers { get; init; } = [];
+
+    /// <summary>この展開の中で初めて取り込んだファイルと、そのときの条件。</summary>
+    public ImmutableArray<KeyValuePair<string, SymbolCondition>> FirstInclusions { get; init; } = [];
+
+    /// <summary>この展開の中で、<c>#pragma once</c> かインクルードガードのために 2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
+    public ImmutableArray<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; init; } = [];
 }
 
 /// <summary>
