@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
@@ -55,7 +56,34 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
         }
 
         CheckPropertiesAreInBuffer(context, compilation, bufferName);
-        CheckBufferContainsOnlyNumericValues(context, buffers, bufferName);
+        CheckBufferContainsOnlyNumericValues(context, buffers, bufferName, FailsWithDxcOnMetal(compilation));
+    }
+
+    /// <summary>
+    /// 定数バッファの中のテクスチャがコンパイルエラーになるコンパイル先 (Unity 2022.3 の DXC で Metal 向け) があるかを判定する。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 2022.3 の <c>#pragma use_dxc</c> で Metal 向けにコンパイルすると、
+    /// "generated SPIR-V is invalid: OpTypeStruct must not contain an opaque type" になる。
+    /// 2023.2〜6.6 と、FXC と、ほかの API では通る (実測)。
+    /// Unity のバージョンが分からなければ、エラーにはしない。
+    /// </remarks>
+    private static bool FailsWithDxcOnMetal(ShaderCompilation compilation)
+    {
+        if (compilation.Environment is not UnityHlslEnvironment environment
+            || environment.Options.VersionBand != UnityVersionBand.Unity2022_3)
+        {
+            return false;
+        }
+
+        string metal = UnityGraphicsApis.GetName(UnityGraphicsApi.Metal);
+
+        return compilation.Programs.Any(program => program.Tree.Hlsl().CompileTargets.Any(
+            target => target.IsUsable
+                      && target.Dialect.Compiler == HlslCompiler.Dxc
+                      && string.Equals(target.Platform, metal, StringComparison.Ordinal)));
     }
 
     /// <summary>
@@ -158,10 +186,12 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="buffers">マテリアル用の定数バッファ。</param>
     /// <param name="bufferName">定数バッファの名前。</param>
+    /// <param name="failsOnMetal">Unity 2022.3 の DXC で Metal 向けにコンパイルするか (<see cref="FailsWithDxcOnMetal"/>)。エラーにする。</param>
     private static void CheckBufferContainsOnlyNumericValues(
         SyntaxTreeAnalysisContext context,
         ImmutableArray<ConstantBufferSymbol> buffers,
-        string bufferName)
+        string bufferName,
+        bool failsOnMetal)
     {
         // 同じ定数バッファが複数の Pass に現れるため、同じ uniform を重ねて報告しないようにする。
         HashSet<string> reported = new(StringComparer.Ordinal);
@@ -177,11 +207,20 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
 
                 if (member.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RenderPipelineRuleDescriptors.TextureInConstantBuffer,
-                        location,
-                        member.Name,
-                        bufferName));
+                    context.ReportDiagnostic(failsOnMetal
+                        ? Diagnostic.Create(
+                            RenderPipelineRuleDescriptors.TextureInConstantBuffer,
+                            location,
+                            DiagnosticSeverity.Error,
+                            member.Name,
+                            bufferName,
+                            "Unity 2022.3 の DXC は、Metal 向けのコンパイルでエラーになります。")
+                        : Diagnostic.Create(
+                            RenderPipelineRuleDescriptors.TextureInConstantBuffer,
+                            location,
+                            member.Name,
+                            bufferName,
+                            string.Empty));
                 }
             }
         }

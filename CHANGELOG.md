@@ -42,6 +42,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 変更
 
+- URP0002 (定数バッファの中のテクスチャとサンプラ) の既定の重要度を、警告から情報に下げた。
+  コンパイラが定数バッファの外へ出すので、動作も SRP Batcher との互換も変わらない (Unity 2022.3〜6.6 の URP で、各 API について確かめた)。
+  Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけはエラーになるので、そのコンパイル先があればエラーとして報告する
 - **破壊的変更:** 字句解析・プリプロセッサ・構文木の大部分 (式・文・関数・構造体・変数の節) を、C 系の言語に共通の新しいパッケージ `Shaderlyn.CFamily` へ移した。
   HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken`、`HlslSyntaxNode` → `ShaderSyntaxNode`、`HlslExpressionSyntax` → `ExpressionSyntax` など)、
   ノードは `Shaderlyn.CFamily.Syntax`、`Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。

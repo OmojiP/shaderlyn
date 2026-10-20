@@ -64,7 +64,7 @@ public sealed class SemanticsTests
         float4 TransformObjectToHClip(float3 positionOS) { return float4(positionOS, 1); }
         """;
 
-    private static ShaderCompilation Compile(string source, bool provideUrpHeaders = true)
+    private static ShaderCompilation Compile(string source, bool provideUrpHeaders = true, UnityOptions? unity = null)
     {
         SourceText text = SourceText.From(source, Path.Combine("Assets", "Test.shader"));
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
@@ -74,12 +74,12 @@ public sealed class SemanticsTests
             : [];
 
         SemanticsOptions options = new() { IncludeResolver = new InMemoryIncludeResolver(files) };
-        return UnityCompilation.Create(text, tree, options);
+        return unity is null ? UnityCompilation.Create(text, tree, options) : UnityCompilation.Create(text, tree, options, unity);
     }
 
-    private static ImmutableArray<Diagnostic> Analyze(string source, bool provideUrpHeaders = true)
+    private static ImmutableArray<Diagnostic> Analyze(string source, bool provideUrpHeaders = true, UnityOptions? unity = null)
     {
-        ShaderCompilation compilation = Compile(source, provideUrpHeaders);
+        ShaderCompilation compilation = Compile(source, provideUrpHeaders, unity);
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }
@@ -1321,6 +1321,39 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
+        Assert.True(Has(diagnostics, "URP0002"), Describe(diagnostics));
+    }
+
+    /// <summary>
+    /// 定数バッファの中のテクスチャは、既定では情報にする。Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけエラーにする
+    /// (2022.3〜6.6 の URP で、コンパイルと SRP Batcher との互換を確かめた)。
+    /// </summary>
+    [Theory]
+    [InlineData("2022.3", "metal", "#pragma use_dxc", DiagnosticSeverity.Error)]
+    [InlineData("2022.3", "metal", "", DiagnosticSeverity.Info)]
+    [InlineData("2022.3", "dx11", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    [InlineData("6.6", "metal", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    [InlineData(null, "metal", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    public void 定数バッファに入れたテクスチャの重要度はDXCとMetalで決める(string? version, string api, string pragma, DiagnosticSeverity expected)
+    {
+        string source = CorrectUrpShader.Replace(
+            """
+                        TEXTURE2D(_BaseMap);
+                        SAMPLER(sampler_BaseMap);
+            """,
+            string.Empty,
+            StringComparison.Ordinal).Replace(
+            "float4 _BaseMap_ST;",
+            "float4 _BaseMap_ST;\n                TEXTURE2D(_BaseMap);\n                SAMPLER(sampler_BaseMap);",
+            StringComparison.Ordinal).Replace(
+            "#pragma fragment frag",
+            "#pragma fragment frag\n            " + pragma,
+            StringComparison.Ordinal);
+
+        Assert.True(UnityGraphicsApis.TryParse(api, out UnityGraphicsApi graphicsApi));
+        ImmutableArray<Diagnostic> diagnostics = Analyze(source, unity: new UnityOptions { EditorVersion = version, GraphicsApis = [graphicsApi] });
+
+        Assert.All(diagnostics.Where(d => d.Id == "URP0002"), d => Assert.Equal(expected, d.Severity));
         Assert.True(Has(diagnostics, "URP0002"), Describe(diagnostics));
     }
 
