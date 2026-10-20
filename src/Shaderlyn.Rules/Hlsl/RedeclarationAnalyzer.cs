@@ -159,12 +159,6 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 Collect(declaration, (string.Empty, 0));
 
-                // 関数の中の範囲は宣言の中で閉じている。前のコードブロックと同じに展開した宣言は、そちらで集めた。
-                if (compilation.IsRepeatedDeclaration(declaration))
-                {
-                    continue;
-                }
-
                 // 関数の中は、波括弧ごとに別の範囲として集める。switch の本体も 1 つの範囲である。
                 foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
                 {

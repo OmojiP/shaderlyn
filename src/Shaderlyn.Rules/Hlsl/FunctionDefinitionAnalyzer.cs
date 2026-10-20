@@ -82,8 +82,7 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 
             foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
-                // 前のコードブロックと同じに展開した宣言は、そちらで検査した。
-                if (!compilation.IsReportable(declaration) || compilation.IsRepeatedDeclaration(declaration))
+                if (!compilation.IsReportable(declaration))
                 {
                     continue;
                 }
