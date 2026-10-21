@@ -48,7 +48,9 @@ public static partial class UnrealUniformBufferGenerator
     /// <summary>
     /// C++ を読んで、生成される取り込みを書き出す。
     /// </summary>
-    /// <param name="sourceRoots">C++ を探すフォルダー (エンジンの <c>Source</c> と <c>Plugins</c>、プロジェクトの <c>Source</c> と <c>Plugins</c>)。</param>
+    /// <param name="sourceRoots">
+    /// C++ を探すフォルダー (エンジンの <c>Source</c> と <c>Plugins</c> と <c>Shaders/Shared</c>、プロジェクトの <c>Source</c> と <c>Plugins</c>)。
+    /// </param>
     /// <param name="outputDirectory">書き出す先。<c>/Engine/Generated</c> に割り当てるフォルダー。</param>
     /// <returns>書き出した結果。</returns>
     public static UnrealUniformBufferGeneration Generate(IEnumerable<string> sourceRoots, string outputDirectory)
@@ -179,7 +181,8 @@ public static partial class UnrealUniformBufferGenerator
                 && !text.Contains("IMPLEMENT_", StringComparison.Ordinal)
                 && !text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
                 && !text.Contains("PermutationDomain", StringComparison.Ordinal)
-                && !text.Contains("enum class", StringComparison.Ordinal))
+                && !text.Contains("enum class", StringComparison.Ordinal)
+                && !IsSharedShaderHeader(path))
             {
                 return;
             }
@@ -190,6 +193,12 @@ public static partial class UnrealUniformBufferGenerator
 
         return parsed;
     }
+
+    /// <summary>C++ とシェーダーが共有するヘッダ (<c>Shaders/Shared</c> の下) かを判定する。</summary>
+    /// <param name="path">ファイルのパス。</param>
+    /// <returns>共有するヘッダなら <see langword="true"/>。整数の <c>#define</c> を、クラスの値を読むのに使う。</returns>
+    private static bool IsSharedShaderHeader(string path)
+        => path.Replace('\\', '/').Contains("/Shaders/Shared/", StringComparison.OrdinalIgnoreCase);
 
     private static void ParseFile(string path, string text, ParsedSources parsed, bool keepText)
     {

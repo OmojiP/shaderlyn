@@ -64,6 +64,25 @@ public sealed class Hlsl2021TemplateTests
     }
 
     [Fact]
+    public void 型でないtemplate引数に式を書いた呼び出しを構文木にする()
+    {
+        // Unreal Engine の NaniteRasterizer.usf の形 (SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >)。
+        ShaderSyntaxTree tree = Parse2021("""
+            #define SAMPLES (1 << 8)
+            #define TWO_SIDED 0
+            template<uint N, bool B> float Setup(float x) { return B ? x * N : x; }
+            float main() : SV_Target { return Setup< SAMPLES, !TWO_SIDED >(1.0); }
+            """);
+
+        Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+
+        InvocationExpressionSyntax call = Assert.Single(
+            tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>(),
+            c => c.HasTypeArguments);
+        Assert.Equal("(1<<8),!0", string.Concat(call.TypeArgumentTokens.Select(t => t.Text)));
+    }
+
+    [Fact]
     public void templateでない名前の後ろの山括弧は比較として読む()
     {
         // Unreal Engine の VirtualShadowMapDebug.usf の形。OutputPixel を template の名前と読むと、引数が 1 つになる。

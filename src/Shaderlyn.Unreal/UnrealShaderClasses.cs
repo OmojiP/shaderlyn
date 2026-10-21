@@ -98,7 +98,11 @@ public static partial class UnrealShaderClasses
                 _enums.AddOrUpdate(match.Groups["name"].Value, count, (_, old) => old == count ? old : null);
             }
 
-            foreach (Match match in IntegerConstant().Matches(text))
+            // 整数の定数 (constexpr int32 X = 3;) と、整数に定義したマクロ (#define NANITE_RASTER_BIN_INIT 0)。
+            // マクロは、C++ とシェーダーが共有するヘッダ (Shaders/Shared/NaniteDefinitions.h) に多い。
+            // 読めないと、SetDefine(TEXT("RASTER_BIN_PASS"), NANITE_RASTER_BIN_INIT) の値が分からない。
+            // 同じ名前に違う値があれば、どれとも決めない。
+            foreach (Match match in IntegerConstant().Matches(text).Concat(IntegerDefine().Matches(text)))
             {
                 int? value = int.TryParse(match.Groups["value"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) ? parsed : null;
                 _constants.AddOrUpdate(match.Groups["name"].Value, value, (_, old) => old == value ? old : null);
@@ -1617,4 +1621,8 @@ public static partial class UnrealShaderClasses
 
     [GeneratedRegex("""\b(?:constexpr|const)\s+(?:static\s+)?(?:u?int(?:8|16|32|64)?|unsigned|int)\s+(?<name>[A-Za-z_]\w*)\s*=\s*(?<value>\d+)\s*;""", RegexOptions.CultureInvariant)]
     private static partial Regex IntegerConstant();
+
+    /// <summary>整数に定義したマクロ (<c>#define NAME 0</c>、<c>#define NAME (0)</c>、<c>#define NAME 0u</c>)。</summary>
+    [GeneratedRegex("""^[ \t]*#[ \t]*define[ \t]+(?<name>[A-Za-z_]\w*)[ \t]+\(?[ \t]*(?<value>\d+)[uU]?[ \t]*\)?[ \t]*(?://.*)?\r?$""", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex IntegerDefine();
 }

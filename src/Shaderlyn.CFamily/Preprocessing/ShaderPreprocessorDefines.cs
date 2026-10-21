@@ -350,10 +350,14 @@ internal sealed partial class ShaderPreprocessor
     /// <param name="Body">名前より後ろの記述。仮引数の括弧も含む。</param>
     /// <param name="Condition">その定義に通る条件。</param>
     /// <param name="Definition">読み取った定義。巻き上げに使う。</param>
+    /// <param name="IsUncertain">
+    /// 条件が実際より広いかもしれないか (経路に読めない条件がある。<see cref="ConditionalState.IsPathUnreadable"/>)。
+    /// </param>
     private readonly record struct ConditionalMacro(
         string Body,
         SymbolCondition Condition,
-        MacroDefinition Definition);
+        MacroDefinition Definition,
+        bool IsUncertain = false);
 
     /// <summary>
     /// 解析しているファイルのマクロ定義を、条件付きで覚える。
@@ -410,10 +414,17 @@ internal sealed partial class ShaderPreprocessor
         // FXAA_PRESET == 0 の構成で読んで「定義し直し」(HL0002) と報告していた (Unreal の Fxaa3_11.ush)。
         bool givesDefault = _conditionals.Count > 0 && _conditionals[^1].UndefinedName == nameToken.Text;
 
+        // 経路に読めない条件があれば、条件は実際より広い (#if CONFIG_DOF_ALPHA / #elif DIM_RGB_COLOR_BUFFER の 2 つ目は
+        // DIM_RGB_COLOR_BUFFER だけになる)。広い条件どうしが重なっても、同時に通るとは言えない
+        // (Unreal の DOFReduce.usf で HL0002)。単一構成で通る定義し直しは、展開の側の検査が報告する。
+        bool uncertain = root && _conditionals.Exists(state => state.IsPathUnreadable);
+
         foreach (ConditionalMacro previous in givesDefault ? [] : definitions)
         {
             // どちらも「常に」なら、展開の側の検査が報告している。
-            if (string.Equals(previous.Body, body, StringComparison.Ordinal)
+            if (uncertain
+                || previous.IsUncertain
+                || string.Equals(previous.Body, body, StringComparison.Ordinal)
                 || (previous.Condition.IsAlways && condition.IsAlways)
                 || !_options.SymbolConstraints.IsPossible(previous.Condition.And(condition)))
             {
@@ -431,7 +442,7 @@ internal sealed partial class ShaderPreprocessor
 
         MacroDefinition definition = ParseMacroDefinition(line, report: false);
 
-        definitions.Add(new ConditionalMacro(body, condition, definition));
+        definitions.Add(new ConditionalMacro(body, condition, definition, uncertain));
         ForgetHoistLookups();
 
         if (root)

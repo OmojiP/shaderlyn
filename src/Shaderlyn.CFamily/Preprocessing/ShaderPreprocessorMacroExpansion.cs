@@ -15,6 +15,34 @@ internal sealed partial class ShaderPreprocessor
     // --------------------------------------------------------------------
 
     /// <summary>
+    /// 現在位置の識別子が、コンパイラが定義する <c>__LINE__</c> / <c>__FILE__</c> なら展開する。
+    /// </summary>
+    /// <param name="nameToken">識別子のトークン。</param>
+    /// <returns>展開した場合は <see langword="true"/>。</returns>
+    /// <remarks>
+    /// FXC も DXC も C のプリプロセッサと同じく定義する。展開しないと、宣言されていない名前 (HL0310) になる
+    /// (Unreal の D3DCommon.ush の <c>UE_DEBUG_BREAK</c>)。
+    /// </remarks>
+    private bool TryExpandPredefinedMacro(ShaderSyntaxToken nameToken)
+    {
+        ShaderSyntaxToken? replacement = nameToken.Text switch
+        {
+            "__LINE__" => CreateNumericToken(nameToken, (nameToken.GetLocation()?.LineSpan.Start.Line ?? 0) + 1),
+            "__FILE__" => CreateStringToken(nameToken.Source.FilePath ?? string.Empty, nameToken),
+            _ => null,
+        };
+
+        if (replacement is null)
+        {
+            return false;
+        }
+
+        TakeToken();
+        PushExpansionSource([replacement], nameToken.Text);
+        return true;
+    }
+
+    /// <summary>
     /// 現在位置の識別子がマクロなら展開する。
     /// </summary>
     /// <returns>展開した場合は <see langword="true"/>。</returns>
@@ -24,7 +52,7 @@ internal sealed partial class ShaderPreprocessor
 
         if (!_macros.TryGetValue(nameToken.Text, out MacroDefinition? macro))
         {
-            return false;
+            return TryExpandPredefinedMacro(nameToken);
         }
 
         if (IsMacroBeingExpanded(macro.Name))
@@ -231,6 +259,19 @@ internal sealed partial class ShaderPreprocessor
                 {
                     pasted = Paste(pasted, ResolveOperand(body[i + 2], bindings), callSite);
                     i += 2;
+
+                    // 数字に続けて書いた名前 (Name##1x の 1x) は、C のプリプロセッサでは 1 つのトークン (pp-number) である。
+                    // 字句解析は 1 と x に分けるので、続けて連結する。分けたままだと DstBuffer1 x になる (Unreal の ByteBuffer.usf)。
+                    while (i + 1 < body.Length
+                           && body[i].Kind == ShaderSyntaxKind.NumericLiteralToken
+                           && body[i + 1].Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
+                           && ReferenceEquals(body[i].Source, body[i + 1].Source)
+                           && body[i].Span.End == body[i + 1].Span.Start
+                           && !bindings.ContainsKey(body[i + 1].Text))
+                    {
+                        pasted = Paste(pasted, [body[i + 1]], callSite);
+                        i++;
+                    }
                 }
 
                 result.AddRange(pasted);

@@ -116,6 +116,10 @@ internal sealed partial class ShaderPreprocessor
             // #line は報告の位置を付け替えるだけで、展開には影響しない。
             // 受け付けない環境は UnsupportedDirectives で報告する。
             case "error":
+                NoteErrorDirective(directiveToken);
+                SkipDirectiveLine();
+                break;
+
             case "warning":
             case "version":
             case "extension":
@@ -131,6 +135,33 @@ internal sealed partial class ShaderPreprocessor
                 SkipDirectiveLine();
                 break;
         }
+    }
+
+    /// <summary>読んでいる <c>#error</c> に届いたことを覚える。</summary>
+    /// <param name="directive">指令名のトークン。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>その構成はコンパイルできないかもしれない。</b>
+    /// エンジンは C++ の側でその構成をコンパイルしないように絞っていて
+    /// (Unreal の <c>ShouldCompilePermutation</c>)、シェーダーは <c>#else</c> / <c>#error</c> で念を押していることが多い。
+    /// 構成ごとの木が、既定の木の届かない <c>#error</c> に届いたなら、その木は使わない (<see cref="PreprocessResult.ReachedErrorDirectives"/>)。
+    /// 既定の木も届く <c>#error</c> は、解析のマクロの状態が実際と違うためのことが多いので数えない。
+    /// </para>
+    /// <para>
+    /// 並べた分岐の中のものは数えない。その分岐の条件のときだけ届くので、木の構成全体がコンパイルできないわけではない。
+    /// </para>
+    /// </remarks>
+    private void NoteErrorDirective(ShaderSyntaxToken directive)
+    {
+        if (IsSkipping
+            || _conditionals.Exists(state => state.KeptCondition is not null)
+            || directive.GetLocation() is not { } location)
+        {
+            return;
+        }
+
+        _reachedErrorDirectives.Add(location);
+        Record(recording => recording.ReachedErrorDirectives.Add(location));
     }
 
     /// <summary>条件分岐に関わる指令を処理する。</summary>
@@ -668,10 +699,14 @@ internal sealed partial class ShaderPreprocessor
 
         foreach (ShaderSyntaxToken token in line)
         {
-            if (token.Kind == ShaderSyntaxKind.IdentifierToken
-                && _options.BothBranchSymbols.Contains(token.Text))
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken)
             {
-                AddDeclinedSymbol(token.Text, reason, directive, hoistableMacros);
+                continue;
+            }
+
+            foreach (string symbol in BothBranchSymbolsOf(token.Text))
+            {
+                AddDeclinedSymbol(symbol, reason, directive, hoistableMacros);
             }
         }
 
@@ -721,9 +756,9 @@ internal sealed partial class ShaderPreprocessor
                     continue;
                 }
 
-                if (_options.BothBranchSymbols.Contains(token.Text))
+                if (BothBranchSymbolsOf(token.Text) is { Count: > 0 } symbols)
                 {
-                    found.Add(token.Text);
+                    found.UnionWith(symbols);
                 }
                 else if (_conditionallyDefinedMacros.Contains(token.Text))
                 {
@@ -733,6 +768,29 @@ internal sealed partial class ShaderPreprocessor
         }
 
         return found;
+    }
+
+    /// <summary>条件に書かれた名前が表す、並べる対象のシンボルを求める。</summary>
+    /// <param name="name">条件に書かれた名前。</param>
+    /// <returns>
+    /// 並べる対象のキーワードならその名前。値を持つシンボルの名前なら、並べる対象の原子 (<c>OFFSET==0</c> など)。どちらでもなければ空。
+    /// </returns>
+    /// <remarks>
+    /// <b>値を持つシンボルは、条件には名前で書かれ、並べる対象は原子である。</b>
+    /// 名前で照らすと、読めない条件 (<c>#if (OFFSET == 0) * 1</c>) で並べられなかったことが記録に残らず、
+    /// ほかの値の構成も作られなかった。その連なりのほかの値の側はどの木にも載らず、
+    /// そこにある宣言を使う文を「宣言されていない」(HL0310) と報告していた。
+    /// </remarks>
+    private List<string> BothBranchSymbolsOf(string name)
+    {
+        if (_options.BothBranchSymbols.Contains(name))
+        {
+            return [name];
+        }
+
+        return _options.ValueSymbols.TryGetValue(name, out ImmutableArray<int> values)
+            ? [.. values.Select(value => VariantValues.Atom(name, value)).Where(_options.BothBranchSymbols.Contains)]
+            : [];
     }
 
     /// <summary>
@@ -767,7 +825,9 @@ internal sealed partial class ShaderPreprocessor
     /// </summary>
     /// <param name="line">条件式の行。</param>
     /// <param name="directive">指令名のトークン。</param>
-    /// <returns>読んだ条件。読まない場合や読めない形であれば <see langword="null"/>。</returns>
+    /// <returns>
+    /// 読んだ条件。読まない場合は <see langword="null"/>。読もうとして読めない形なら <see cref="SymbolCondition.Unknown"/>。
+    /// </returns>
     /// <remarks>
     /// <para>
     /// 並べるかどうかの判断 (<see cref="TryReadDefinedCondition"/>) とは読むシンボルが違う。
@@ -798,7 +858,7 @@ internal sealed partial class ShaderPreprocessor
 
         return symbols.IsEmpty
             ? null
-            : TryReadCondition(line, new ConditionReading(symbols, Record: false, UseMacroConditions: true));
+            : TryReadCondition(line, new ConditionReading(symbols, Record: false, UseMacroConditions: true)) ?? SymbolCondition.Unknown;
     }
 
     /// <summary>条件式を読む。</summary>
@@ -968,7 +1028,7 @@ internal sealed partial class ShaderPreprocessor
     /// <para>
     /// 名前だけなら 0 でない値の論理和 (<c>#if QUALITY</c> は <c>QUALITY != 0</c>)。
     /// 比べる相手は、整数のリテラルか、整数のリテラルに展開するマクロ (<see cref="TryReadIntegerOperand"/>) に限る。
-    /// 左右を入れ替えた形 (<c>2 == QUALITY</c>) は読まない。
+    /// 左右を入れ替えた形 (<c>2 == QUALITY</c>、<c>QUALITY_LOW == QUALITY</c>) も読む。
     /// </para>
     /// <para>
     /// <b>成り立つ値のどれかが記号として残す名前に入っていなければ、記号としては読まない。</b>
@@ -977,24 +1037,45 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private SymbolCondition? ReadValueAtom(ImmutableArray<ShaderSyntaxToken> line, ref int index, ConditionReading reading)
     {
-        if (_options.ValueSymbols.IsEmpty
-            || index >= line.Length
-            || line[index].Kind != ShaderSyntaxKind.IdentifierToken
-            || !_options.ValueSymbols.TryGetValue(line[index].Text, out ImmutableArray<int> values))
+        if (_options.ValueSymbols.IsEmpty || index >= line.Length)
         {
             return null;
         }
 
-        ShaderSyntaxToken name = line[index];
-        int position = index + 1;
-        Func<int, bool> holds = value => value != 0;
+        ShaderSyntaxToken name;
+        ImmutableArray<int> values;
+        int position;
+        Func<int, bool> holds;
 
-        if (position + 1 < line.Length
-            && ComparisonOf(line[position].Kind) is { } compare
-            && TryReadIntegerOperand(line[position + 1], out int operand))
+        // 左右を入れ替えた形 (#if STRUCTURED_ELEMENT_SIZE_UINT1 == STRUCTURED_ELEMENT_SIZE。Unreal の ByteBuffer.usf)。
+        if (index + 2 < line.Length
+            && TryReadIntegerOperand(line[index], out int left)
+            && ComparisonOf(line[index + 1].Kind) is { } reversed
+            && line[index + 2].Kind == ShaderSyntaxKind.IdentifierToken
+            && _options.ValueSymbols.TryGetValue(line[index + 2].Text, out values))
         {
-            holds = value => compare(value, operand);
-            position += 2;
+            name = line[index + 2];
+            position = index + 3;
+            holds = value => reversed(left, value);
+        }
+        else if (line[index].Kind == ShaderSyntaxKind.IdentifierToken
+                 && _options.ValueSymbols.TryGetValue(line[index].Text, out values))
+        {
+            name = line[index];
+            position = index + 1;
+            holds = value => value != 0;
+
+            if (position + 1 < line.Length
+                && ComparisonOf(line[position].Kind) is { } compare
+                && TryReadIntegerOperand(line[position + 1], out int operand))
+            {
+                holds = value => compare(value, operand);
+                position += 2;
+            }
+        }
+        else
+        {
+            return null;
         }
 
         if (reading.Record)
@@ -1029,7 +1110,7 @@ internal sealed partial class ShaderPreprocessor
     /// Unreal のシェーダーは、パーミュテーションの値に名前を付けて <c>#if TAA_QUALITY == TAA_QUALITY_LOW</c> と比べる。
     /// 読めないと、条件を記号として扱えず、<c>#elif</c> の連なりのすべての分岐を同じ条件で読んで、
     /// 分岐ごとのマクロの定義を「定義し直し」(HL0002) と報告していた。
-    /// 構成によって定義の変わるマクロは、値が 1 つに決まらないので読まない。
+    /// 構成によって定義の変わるマクロと、構成によって変わる名前 (値を持つシンボルそのものなど) は、値が 1 つに決まらないので読まない。
     /// </remarks>
     private bool TryReadIntegerOperand(ShaderSyntaxToken token, out int value)
     {
@@ -1041,6 +1122,7 @@ internal sealed partial class ShaderPreprocessor
             }
 
             if (token.Kind != ShaderSyntaxKind.IdentifierToken
+                || IsConfigurationDependentName(token.Text)
                 || _conditionallyDefinedMacros.Contains(token.Text)
                 || !_macros.TryGetValue(token.Text, out MacroDefinition? macro)
                 || macro.IsFunctionLike)

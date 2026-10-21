@@ -511,7 +511,8 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins")];
+        // Shaders/Shared は C++ とシェーダーが共有するヘッダで、C++ が値に使うマクロ (NANITE_RASTER_BIN_INIT など) を定義する。
+        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins"), Path.Combine(engine, "Shaders", "Shared")];
 
         if (configuration.UnrealProjectDirectory is { } project)
         {

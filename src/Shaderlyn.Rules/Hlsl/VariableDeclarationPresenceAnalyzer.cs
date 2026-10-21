@@ -61,10 +61,11 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
 
         ConditionMap condition = compilation.GetConditionMap();
 
-        Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> declaredByBlock =
+        (Dictionary<(int Start, string? Kernel), HashSet<string>> namesByBlock,
+         Dictionary<AnalyzedProgram, Dictionary<string, SymbolCondition>> declaredByTree) =
             CollectGlobalDeclarations(compilation, condition);
 
-        if (declaredByBlock.Count == 0)
+        if (namesByBlock.Count == 0)
         {
             return;
         }
@@ -74,8 +75,8 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not IdentifierExpressionSyntax identifier
-                || !declaredByBlock.TryGetValue(program.BlockKey, out Dictionary<string, SymbolCondition>? declared)
-                || !declared.TryGetValue(identifier.Name, out SymbolCondition declaration)
+                || !namesByBlock.TryGetValue(program.BlockKey, out HashSet<string>? names)
+                || !names.Contains(identifier.Name)
                 || compilation.UnanalyzedIdentifiers.Contains(identifier.Name)
                 || !compilation.IsReportable(identifier))
             {
@@ -90,8 +91,16 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            // バリアントの木の中なら、その木を解析した構成も掛け合わせる。
-            SymbolCondition use = compilation.GetEffectiveCondition(identifier, program);
+            // その木が表す構成を掛け合わせる (バリアントの木なら、その木を解析した構成も)。
+            // 宣言はその木のものと比べる。木が表す構成は木どうしで重ならないので、ほかの木の宣言を足す必要は無い
+            // (UndeclaredIdentifierAnalyzer と同じ)。木をまたいで足した条件を否定すると、式が膨れ上がる。
+            SymbolCondition use = compilation.GetEffectiveCondition(identifier, program)
+                .And(compilation.GetTreeConfiguration(program));
+            SymbolCondition declaration =
+                declaredByTree.TryGetValue(program, out Dictionary<string, SymbolCondition>? declared)
+                && declared.TryGetValue(identifier.Name, out SymbolCondition present)
+                    ? present
+                    : SymbolCondition.Never;
 
             if (use.IsUnknown || declaration.IsUnknown)
             {
@@ -100,6 +109,7 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
 
             // 使う条件が成り立ち、かつ宣言がある条件が成り立たない構成があるか。
             SymbolCondition missing = use.And(declaration.Negate());
+
 
             if (missing.IsUnknown
                 || !condition.IsPossible(missing)
@@ -136,58 +146,58 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="condition">出現条件の索引。</param>
     /// <returns>
-    /// コードブロックごとの、名前と、その宣言がある条件。条件が分からない名前は <see cref="SymbolCondition.Unknown"/>。
+    /// コードブロックごとの、グローバル変数として宣言された名前 (どれかの木で)。
     /// 別の Pass やカーネルの宣言は、そのコードからは見えない (<see cref="AnalyzedProgram.BlockKey"/>)。
+    /// それと、木ごとの、名前と、その木で宣言がある条件。条件が分からない名前は <see cref="SymbolCondition.Unknown"/>。
     /// </returns>
     /// <remarks>
     /// <para>
-    /// 既定の木の宣言 (取り込んだヘッダのものも含む) と、バリアントの木から既定の木へ足す宣言を数える。
+    /// 木ごとに、その木の宣言 (取り込んだヘッダのものも含む) を数える。既定の木には、バリアントの木から足す宣言も数える。
     /// 同じ名前の宣言が複数の条件の下にあるなら、その和が宣言のある条件である。
     /// </para>
     /// <para>
-    /// <b>バリアントの木にしか無く、足し先も分からない宣言があれば、その名前の条件は分からない。</b>
-    /// 数えずに済ませると、その構成の宣言を「無い」と取り違える。
+    /// <b>使う側も宣言の側も、木ごとに比べる (使う側にはその木が表す構成を掛ける)。</b>
+    /// 以前は既定の木の宣言とバリアントの木から足す宣言だけを数え、バリアントの木にしか無い宣言は条件を分からないとしていた。
+    /// 既定の値で読んだ連なりの宣言 (<c>#if LIGHT_SOURCE_MODE == 0</c> の側) は木の中で条件を持たないので、
+    /// ほかの値の構成にも宣言があることになるか、その構成の宣言を「無い」と取り違えていた
+    /// (Unreal の CapsuleShadowShaders.usf)。
     /// </para>
     /// </remarks>
-    private static Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> CollectGlobalDeclarations(
+    private static (Dictionary<(int Start, string? Kernel), HashSet<string>> Names, Dictionary<AnalyzedProgram, Dictionary<string, SymbolCondition>> ByTree) CollectGlobalDeclarations(
         ShaderCompilation compilation,
         ConditionMap condition)
     {
-        Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> byBlock = [];
-        HashSet<((int Start, string? Kernel) Block, string File, int Start)> known = [];
+        Dictionary<(int Start, string? Kernel), HashSet<string>> names = [];
+        Dictionary<AnalyzedProgram, Dictionary<string, SymbolCondition>> byTree = [];
 
-        Dictionary<string, SymbolCondition> For((int Start, string? Kernel) block)
+        void Add(AnalyzedProgram program, VariableDeclarationSyntax declaration, SymbolCondition present)
         {
-            if (!byBlock.TryGetValue(block, out Dictionary<string, SymbolCondition>? declared))
+            if (!names.TryGetValue(program.BlockKey, out HashSet<string>? blockNames))
             {
-                declared = new Dictionary<string, SymbolCondition>(StringComparer.Ordinal);
-                byBlock[block] = declared;
+                blockNames = new HashSet<string>(StringComparer.Ordinal);
+                names[program.BlockKey] = blockNames;
             }
 
-            return declared;
-        }
-
-        void Add((int Start, string? Kernel) block, VariableDeclarationSyntax declaration, SymbolCondition present)
-        {
-            Dictionary<string, SymbolCondition> declared = For(block);
+            if (!byTree.TryGetValue(program, out Dictionary<string, SymbolCondition>? declared))
+            {
+                declared = new Dictionary<string, SymbolCondition>(StringComparer.Ordinal);
+                byTree[program] = declared;
+            }
 
             foreach (VariableDeclaratorSyntax variable in declaration.Variables)
             {
-                known.Add((block, variable.NameToken.Source.FilePath, variable.NameToken.Span.Start));
-
+                blockNames.Add(variable.Name);
                 declared[variable.Name] = declared.TryGetValue(variable.Name, out SymbolCondition existing)
                     ? existing.Or(present)
                     : present;
             }
         }
 
-        foreach (AnalyzedProgram program in compilation.Programs)
+        foreach (AnalyzedProgram program in compilation.Programs.Concat(compilation.SymbolVariants))
         {
-            (int Start, string? Kernel) block = program.BlockKey;
-
             foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables(program.Tree.Root.Declarations))
             {
-                Add(block, declaration, condition.GetCondition(declaration));
+                Add(program, declaration, condition.GetCondition(declaration));
             }
 
             foreach (ConditionalNode inserted in condition.GetInsertedChildren(program.Tree.Root))
@@ -196,31 +206,13 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
                 {
                     foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables([root]))
                     {
-                        Add(block, declaration, condition.GetCondition(declaration));
+                        Add(program, declaration, condition.GetCondition(declaration));
                     }
                 }
             }
         }
 
-        // 既定の木にも、足すノードにも無い宣言がバリアントの木にあれば、その名前は条件が分からない。
-        foreach (AnalyzedProgram variant in compilation.SymbolVariants)
-        {
-            (int Start, string? Kernel) block = variant.BlockKey;
-            Dictionary<string, SymbolCondition> declared = For(block);
-
-            foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables(variant.Tree.Root.Declarations))
-            {
-                foreach (VariableDeclaratorSyntax variable in declaration.Variables)
-                {
-                    if (!known.Contains((block, variable.NameToken.Source.FilePath, variable.NameToken.Span.Start)))
-                    {
-                        declared[variable.Name] = SymbolCondition.Unknown;
-                    }
-                }
-            }
-        }
-
-        return byBlock;
+        return (names, byTree);
     }
 
     /// <summary>グローバル変数の宣言を列挙する。定数バッファの中も見る。</summary>

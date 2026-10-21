@@ -675,10 +675,17 @@ public sealed class UnrealEnvironmentTests : IDisposable
                         OutEnvironment.SetDefine(TEXT("ENABLED"), true);
                         OutEnvironment.SetDefine(TEXT("FROM_FUNCTION"), GetSize());
                         if (true) { OutEnvironment.SetDefine(TEXT("ALWAYS"), 1); } else { OutEnvironment.SetDefine(TEXT("NEVER"), 1); }
+                        OutEnvironment.SetDefine(TEXT("BIN_PASS"), BIN_RESERVE);
                     }
                 };
 
                 IMPLEMENT_GLOBAL_SHADER(FPlainPS, "/Engine/Private/Plain.usf", "MainPS", SF_Pixel);
+                """),
+
+            // C++ とシェーダーが共有するヘッダ (Shaders/Shared) の整数のマクロも、値として読む。
+            ("Shared/Definitions.h", """
+                #define BIN_INIT 0
+                #define BIN_RESERVE (2) // reserve
                 """),
         ],
         output);
@@ -707,6 +714,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Null(plain.Defines["FROM_FUNCTION"]);
         Assert.Equal("1", plain.Defines["ALWAYS"]);
         Assert.False(plain.Defines.ContainsKey("NEVER"));
+        Assert.Equal("2", plain.Defines["BIN_PASS"]);
         Assert.Empty(plain.Permutations);
     }
 

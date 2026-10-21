@@ -187,6 +187,28 @@ public sealed class MacroExpansionTests
     }
 
     [Fact]
+    public void 数字に続けて書いた名前を1つのトークンとして連結する()
+    {
+        // C のプリプロセッサでは 1x は 1 つのトークン (pp-number) である。
+        // Unreal の ByteBuffer.usf の #define STRUCTURED_BUFFER_ACCESS(BufferName, Index) BufferName##1x[(Index)]。
+        Assert.Equal("Dst1x [ ( 0 ) ]", PreprocessorHarness.TextWithoutDiagnostics("""
+            #define ACCESS(Name, Index) Name##1x[(Index)]
+            ACCESS(Dst, 0)
+            """));
+    }
+
+    [Fact]
+    public void LINEを行番号に展開する()
+    {
+        // FXC も DXC も __LINE__ を定義する (Unreal の D3DCommon.ush の UE_DEBUG_BREAK)。
+        Assert.Equal("int a = 1 ; int b = 3 ;", PreprocessorHarness.TextWithoutDiagnostics("""
+            int a = __LINE__;
+            #define LINE_OF_USE __LINE__
+            int b = LINE_OF_USE;
+            """));
+    }
+
+    [Fact]
     public void 実引数の中の同名マクロは再帰とみなさない()
     {
         // C の規則では、マクロ名の展開が抑止されるのは自分自身の置換結果の中だけである。

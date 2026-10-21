@@ -97,6 +97,7 @@ Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SkippedUserIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; set; }
+Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location] ReachedErrorDirectives { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.CFamily.Preprocessing.MacroDefinition]] MacroChanges { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,Shaderlyn.Core.Syntax.SymbolCondition]] SkippedReincludes { get; set; }
 Shaderlyn.CFamily.Preprocessing.IncludeExpansion :: System.Collections.Immutable.ImmutableArray`1[System.Collections.Generic.KeyValuePair`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.String]]] MergedMacros { get; set; }
@@ -222,6 +223,7 @@ Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SkippedUserHeaderIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Diagnostics { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Location] ReachedErrorDirectives { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] DeclinedBothBranchSymbols { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] MacroAffectingSymbols { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[System.String] MergedMacroConflicts { get; set; }

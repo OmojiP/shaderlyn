@@ -124,6 +124,15 @@ internal sealed partial class ShaderPreprocessor
         public SymbolCondition PathRemaining { get; set; }
 
         /// <summary>
+        /// この連なりの今までの <c>#if</c> / <c>#elif</c> に、宣言されたシンボルを読めない形で書いた条件があったか。
+        /// </summary>
+        /// <remarks>
+        /// 読めなかった条件は <see cref="PathBranch"/> の制約にしないので、その後ろの分岐の条件は実際より広い。
+        /// 広い条件どうしを照らして、定義し直しと言わないために使う (<see cref="RecordConditionalDefinition"/>)。
+        /// </remarks>
+        public bool IsPathUnreadable { get; set; }
+
+        /// <summary>
         /// 今の分岐が、その名前が定義されていないときだけ通る分岐 (<c>#ifndef X</c> / <c>#if !defined(X)</c> の側) なら、その名前。
         /// </summary>
         /// <remarks>
@@ -807,7 +816,7 @@ internal sealed partial class ShaderPreprocessor
     /// <param name="directive">分岐を始めた指令の名前のトークン。</param>
     /// <param name="condition">
     /// 指令に書かれた条件。<c>#else</c> では <see cref="SymbolCondition.Always"/>。
-    /// 読まない場合や読めなかった場合は <see langword="null"/>。
+    /// 読まない場合は <see langword="null"/>、読めなかった場合は <see cref="SymbolCondition.Unknown"/>。
     /// </param>
     /// <remarks>
     /// <c>#elif</c> と <c>#else</c> は「それまでの分岐がすべて外れたとき」に通る。
@@ -815,6 +824,12 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private void EnterPathBranch(ConditionalState state, ShaderSyntaxToken directive, SymbolCondition? condition)
     {
+        if (condition is { IsUnknown: true })
+        {
+            state.IsPathUnreadable = true;
+            condition = null;
+        }
+
         state.PathBranch = state.PathRemaining.And(condition ?? SymbolCondition.Always);
 
         if (condition is { } written)

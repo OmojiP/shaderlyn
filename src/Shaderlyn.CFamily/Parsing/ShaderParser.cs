@@ -2274,7 +2274,7 @@ internal abstract class ShaderParser
                     when AcceptsTemplates
                          && (expression is MemberAccessExpressionSyntax
                              || (expression is IdentifierExpressionSyntax { Name: var calledName } && _templateNames.Contains(calledName)))
-                         && FindTypeArgumentsEnd() is int close:
+                         && FindTypeArgumentsEnd(allowsValues: expression is IdentifierExpressionSyntax) is int close:
                 {
                     ShaderSyntaxToken openAngle = Advance();
                     ImmutableArray<ShaderSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -2301,12 +2301,16 @@ internal abstract class ShaderParser
     /// 現在の <c>&lt;</c> から型引数の並びが始まり、閉じ山括弧の直後に開き括弧 (または <paramref name="following"/>) が続くかを調べる。
     /// </summary>
     /// <param name="following">閉じ山括弧の直後に続く記号。</param>
+    /// <param name="allowsValues">
+    /// 型でない引数の式 (単項・二項の演算と括弧) も許すか。template として宣言した名前の呼び出しにだけ許す。
+    /// メソッド (<c>buffer.Load&lt;float4&gt;</c>) で許すと、比較の連なり (<c>a.b &lt; (c + d) &gt; (e)</c>) を取り違える。
+    /// </param>
     /// <returns>閉じ山括弧の位置 (現在からの距離)。型引数の並びでなければ <see langword="null"/>。</returns>
     /// <remarks>
     /// <c>a &lt; b &gt; (c)</c> という比較の連なりと形が同じになる。
     /// 比較の結果をさらに比べる書き方はまず無いので、型の記述に現れるトークンだけで閉じていれば呼び出しとみなす。
     /// </remarks>
-    private int? FindTypeArgumentsEnd(ShaderSyntaxKind following = ShaderSyntaxKind.OpenParenToken)
+    private int? FindTypeArgumentsEnd(ShaderSyntaxKind following = ShaderSyntaxKind.OpenParenToken, bool allowsValues = false)
     {
         int depth = 0;
 
@@ -2328,6 +2332,16 @@ internal abstract class ShaderParser
 
                 case ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
                     or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.ColonColonToken:
+                    break;
+
+                // 型でない template 引数の式 (Unreal の SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >(...)。
+                // NANITE_SUBPIXEL_SAMPLES は (1 << NANITE_SUBPIXEL_BITS) に展開する)。
+                case ShaderSyntaxKind.ExclamationToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.TildeToken
+                    or ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken
+                    or ShaderSyntaxKind.PercentToken or ShaderSyntaxKind.LessThanLessThanToken
+                    or ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
+                    or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.CloseParenToken
+                    when allowsValues:
                     break;
 
                 default:

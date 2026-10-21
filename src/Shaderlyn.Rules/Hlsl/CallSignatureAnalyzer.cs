@@ -67,7 +67,11 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                     compilation.GetExpressionTypeBinder(program),
                     invocation,
                     declaresArrays,
-                    program.AnalyzedCondition,
+
+                    // その木が表す構成 (解析した構成と、ほかの木の構成を除いたもの)。実引数の型はその構成のものである。
+                    // 解析した構成だけにすると、既定の木の実引数の型をほかの値の構成にも当てはめ、
+                    // その構成の多重定義と食い違うと報告していた (Unreal の TSRUpdateHistory.usf の DIM_ALPHA_CHANNEL)。
+                    compilation.GetTreeConfiguration(program),
                     reported);
             }
         }
@@ -80,7 +84,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
     /// <param name="declaresArrays">このシェーダーが長さの書かれた配列を 1 つでも宣言しているか。</param>
-    /// <param name="analyzed">この木を解析した構成の条件。</param>
+    /// <param name="analyzed">この木が表す構成の条件 (<see cref="ShaderCompilation.GetTreeConfiguration"/>)。</param>
     /// <param name="reported">報告済みの位置。</param>
     private static void AnalyzeCall(
         SyntaxTreeAnalysisContext context,

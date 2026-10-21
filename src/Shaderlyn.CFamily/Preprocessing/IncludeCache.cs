@@ -85,6 +85,9 @@ public sealed record IncludeExpansion(
 
     /// <summary>この展開の中で、<c>#pragma once</c> かインクルードガードのために 2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
     public ImmutableArray<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; init; } = [];
+
+    /// <summary>この展開の中で届いた、読んでいる <c>#error</c> の位置。</summary>
+    public ImmutableArray<Location> ReachedErrorDirectives { get; init; } = [];
 }
 
 /// <summary>

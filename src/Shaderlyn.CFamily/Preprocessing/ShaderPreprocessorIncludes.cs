@@ -302,6 +302,7 @@ internal sealed partial class ShaderPreprocessor
             SkippedUserIdentifiers = [.. recording.SkippedUserIdentifiers],
             FirstInclusions = [.. recording.FirstInclusions],
             SkippedReincludes = [.. recording.SkippedReincludes],
+            ReachedErrorDirectives = [.. recording.ReachedErrorDirectives],
         });
     }
 
@@ -343,6 +344,13 @@ internal sealed partial class ShaderPreprocessor
         foreach (FirstInclusion inclusion in expansion.FirstInclusions)
         {
             NoteFirstInclusion(inclusion);
+        }
+
+        _reachedErrorDirectives.AddRange(expansion.ReachedErrorDirectives);
+
+        if (!expansion.ReachedErrorDirectives.IsEmpty)
+        {
+            Record(recording => recording.ReachedErrorDirectives.AddRange(expansion.ReachedErrorDirectives));
         }
 
         foreach ((string file, SymbolCondition condition) in expansion.SkippedReincludes)

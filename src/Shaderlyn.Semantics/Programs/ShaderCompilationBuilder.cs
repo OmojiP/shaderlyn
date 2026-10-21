@@ -221,6 +221,18 @@ internal static class ShaderCompilationBuilder
             foreach (((ImmutableArray<string> enabled, ShaderSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
+                // 既定の木の届かない #error に届いた構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
+                // その木を使うと、#else / #error で止めた値の木で宣言が足りないと報告していた (Unreal の SSDInjest.usf)。
+                // 既定の木も届く #error は、解析のマクロの状態が実際と違うためのことが多いので数えない (Unreal の DistortApplyScreenPS.usf)。
+                // 使わない構成は、解析しなかった構成と同じに扱う。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
+                // 外さないと、既定の木がその構成も表すことになり、既定の値の側にしか無い宣言を「その構成では無い」と報告していた
+                // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に届く)。
+                if (ReachesNewError(variantTree.PreprocessResult, tree.PreprocessResult))
+                {
+                    unexploredSymbols.UnionWith(enabled);
+                    continue;
+                }
+
                 VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
                 index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
 
@@ -671,8 +683,14 @@ internal static class ShaderCompilationBuilder
         // .shader で宣言して、共通の .hlsl の機能だけを切り替える書き方である。
         // ヘッダでその分岐を並べられなかったなら、有効にした構成を作らないと、その側はどの木にも載らない。
         // 並べ直しで外したシンボルも同じである。並べる対象でなくなったので、ヘッダの条件は並べられなかったとも記録されない。
+        // 値を持つシンボルの原子を並べられなかったなら、その名前のどの値も構成にする。
+        // 並べられなかった連なりは既定の値の側しか読んでいないが、記録に残る原子は既定の値 (== 0) のことがある
+        // (Unreal の DistanceFieldLightingShared.ush の OFFSET_DATA_STRUCT)。
         SortedSet<string> declinedInHeaders = new(
             result.DeclinedBothBranchSymbols
+                .SelectMany(s => VariantValues.TryParseAtom(s, out string? name, out _) && valueSymbols.TryGetValue(name, out ImmutableArray<int> values)
+                    ? values.Select(value => VariantValues.Atom(name, value))
+                    : [s])
                 .Concat(macroConflicts.Where(s => result.ConditionalIdentifiers.Any(t => t.Text == s)))
                 .Where(s => declared.Contains(s) && !defaults.Contains(s)),
             StringComparer.Ordinal);
@@ -1328,6 +1346,17 @@ internal static class ShaderCompilationBuilder
 
         merged.ExceptWith(result.DeclinedBothBranchSymbols);
 
+        // 値を持つシンボルの原子が 1 つでも並べられなかったなら、その名前のほかの原子も並べられていない。
+        // 並べられなかった #if PROBE_IRRADIANCE_FORMAT == 0 / #elif == 1 の連なりは、既定の値 (0) の側しか読んでいない。
+        // ほかの場所で == 1 を並べていても、== 1 を有効にした構成を作らないと、この連なりの == 1 の側はどの木にも載らず、
+        // そこで使う宣言を「== 1 のときは無い」(HL0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
+        HashSet<string> declinedNames =
+        [
+            .. result.DeclinedBothBranchSymbols.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>(),
+        ];
+
+        merged.RemoveWhere(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) && declinedNames.Contains(name));
+
         return merged;
     }
 
@@ -1457,14 +1486,16 @@ internal static class ShaderCompilationBuilder
         SymbolCondition condition = SymbolCondition.Always;
         ImmutableArray<string> merged = tree.PreprocessResult.MergedSymbols.IsDefault ? [] : tree.PreprocessResult.MergedSymbols;
 
-        // この木で原子を 1 つでも並べた値の名前。その名前は今の値に決まっていない (#if DEBUG は DEBUG==1 だけを並べる)。
-        HashSet<string> mergedValueNames =
-        [
-            .. merged.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>(),
-        ];
+        ImmutableArray<string> treeDeclined = tree.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : tree.PreprocessResult.DeclinedBothBranchSymbols;
+        ImmutableArray<string> baselineDeclined = baseline.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : baseline.PreprocessResult.DeclinedBothBranchSymbols;
 
-        IEnumerable<string> declined = (tree.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : tree.PreprocessResult.DeclinedBothBranchSymbols)
-            .Concat(baseline.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : baseline.PreprocessResult.DeclinedBothBranchSymbols)
+        // この木で原子を 1 つでも並べた値の名前。その名前は今の値に決まっていない (#if DEBUG は DEBUG==1 だけを並べる)。
+        // ただし、どこかで原子を並べられなかった名前は、そこを今の値で読んでいるので入れない (CollectMergedSymbols)。
+        HashSet<string> declinedValueNames = [.. ValueNames(treeDeclined.Concat(baselineDeclined))];
+        HashSet<string> mergedValueNames = [.. ValueNames(merged).Where(name => !declinedValueNames.Contains(name))];
+
+        IEnumerable<string> declined = treeDeclined
+            .Concat(baselineDeclined)
             .Concat(macroConflicts.IsDefault ? [] : macroConflicts)
             .Concat(declared.Where(symbol => !options.BothBranchSymbols.Contains(symbol)))
 
@@ -1516,6 +1547,21 @@ internal static class ShaderCompilationBuilder
 
         return constraints.Apply(condition);
     }
+
+    /// <summary>構成ごとの木が、既定の木の届かない <c>#error</c> に届いたかを判定する。</summary>
+    /// <param name="variant">構成ごとの木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。</param>
+    /// <returns>届いたなら <see langword="true"/>。</returns>
+    private static bool ReachesNewError(PreprocessResult variant, PreprocessResult baseline)
+        => !variant.ReachedErrorDirectives.IsDefaultOrEmpty
+           && variant.ReachedErrorDirectives.Any(location => baseline.ReachedErrorDirectives.IsDefaultOrEmpty
+                                                             || !baseline.ReachedErrorDirectives.Any(b => b.FilePath == location.FilePath && b.Span == location.Span));
+
+    /// <summary>値を持つシンボルの原子から、名前を取り出す。</summary>
+    /// <param name="symbols">シンボル。原子でないものは飛ばす。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> ValueNames(IEnumerable<string> symbols)
+        => symbols.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>();
 
     /// <summary>シンボルを有効にするマクロを定義する。</summary>
     /// <param name="macros">元のマクロ。</param>

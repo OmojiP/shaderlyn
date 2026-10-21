@@ -258,6 +258,172 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void 並べられなかった値の連なりはほかで並べた値でも構成を作る()
+    {
+        // Unreal の LumenScreenProbeFiltering.usf の形。宣言の側の FORMAT の分岐は並べられるが、
+        // 使う側の連なりは並べられない (ここでは外側の条件が読めない)。== 1 をほかで並べたからと == 1 の構成を作らずにいると、
+        // 使う側の == 1 の分岐はどの木にも載らず、== 0 の分岐の使用を「== 1 のときは宣言が無い」(HL0315) と報告していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #if FORMAT == 0
+            RWBuffer<float> Ambient;
+            #elif FORMAT == 1
+            RWBuffer<float> Irradiance;
+            #endif
+
+            #if KIND == 0
+            float3
+            #else
+            float2
+            #endif
+            Get() { return 1; }
+
+            [numthreads(1, 1, 1)]
+            void main()
+            {
+            #if (KIND == 0) * 1
+            #if FORMAT == 0
+                Ambient[0] = Get().x;
+            #else
+                Irradiance[0] = Get().y;
+            #endif
+            #endif
+            }
+            """,
+            VariantSpace.ForValues("FORMAT", [0, 1]).Union(VariantSpace.ForValues("KIND", [0, 1])));
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0315" or "HL0310");
+    }
+
+    [Fact]
+    public void ヘッダで並べられなかった値の連なりもほかの値の構成を作る()
+    {
+        // Unreal の DistanceFieldLightingShared.ush の形。ヘッダの連なりを並べられず、記録に残った原子は既定の値 (== 0) だった。
+        // == 1 の構成を作らずにいると、== 1 の側の宣言はどの木にも載らず、並べた == 0 の側の宣言しか見えないので、
+        // 使う名前を「!= 0 のとき宣言されていない」(HL0310) と報告していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #include "Brick.hlsl"
+
+            float4 main() : SV_Target { return Sample(1); }
+            """,
+            VariantSpace.ForValues("OFFSET", [0, 1]),
+            new(StringComparer.Ordinal)
+            {
+                ["Brick.hlsl"] = """
+                    float Sample(uint Index)
+                    {
+                    #if (OFFSET == 0) * 1
+                        float Unused = Index;
+                    #else
+                        float4 BrickOffset = Index;
+                    #endif
+                    #if OFFSET == 0
+                        float3 BrickOffset = Index;
+                    #endif
+                        return BrickOffset.x;
+                    }
+                    """,
+            });
+
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0310" or "HL0315");
+    }
+
+    [Fact]
+    public void 読めない条件の後ろの分岐の定義を定義し直しと言わない()
+    {
+        // Unreal の DOFReduce.usf の形。#if CONFIG_DOF_ALPHA は読めないので、#elif DIM_RGB の条件は DIM_RGB だけになる。
+        // その広い条件どうしを照らして、1 つ目と 2 つ目の分岐の定義を「定義し直し」(HL0002) と報告していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #include "Common.hlsl"
+
+            #if CONFIG_DOF_ALPHA
+                #define LAYOUT 0
+            #elif DIM_RGB
+                #define LAYOUT 1
+            #else
+                #define LAYOUT 2
+            #endif
+
+            float4 main() : SV_Target { return LAYOUT; }
+            """,
+            VariantSpace.ForValues("DIM_ALPHA", [0, 1]).Union(VariantSpace.ForValues("DIM_RGB", [0, 1])),
+            new(StringComparer.Ordinal)
+            {
+                ["Common.hlsl"] = """
+                    #ifdef DIM_ALPHA
+                        #define CONFIG_DOF_ALPHA (DIM_ALPHA)
+                    #else
+                        #define CONFIG_DOF_ALPHA 0
+                    #endif
+                    """,
+            });
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0002");
+    }
+
+    [Fact]
+    public void 左右を入れ替えた比較も値の条件で読む()
+    {
+        // Unreal の ByteBuffer.usf の形 (#if STRUCTURED_ELEMENT_SIZE_UINT1 == STRUCTURED_ELEMENT_SIZE)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #define SIZE_UINT1 (0)
+            #define SIZE_UINT2 (1)
+
+            #if PASS == 0
+            #if SIZE_UINT1 == ELEMENT_SIZE
+                #define ACCESS(Name) Name##1x[0]
+            #elif SIZE_UINT2 == ELEMENT_SIZE
+                #define ACCESS(Name) Name##2x[0]
+            #endif
+            #endif
+
+            RWStructuredBuffer<uint> Dst1x;
+            RWStructuredBuffer<uint2> Dst2x;
+
+            [numthreads(1, 1, 1)]
+            void main()
+            {
+            #if PASS == 0
+                ACCESS(Dst) = 1;
+            #endif
+            }
+            """,
+            VariantSpace.ForValues("PASS", [0, 1]).Union(VariantSpace.ForValues("ELEMENT_SIZE", [0, 1])));
+
+        Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
+    }
+
+    [Fact]
+    public void errorに届いた構成の木は使わない()
+    {
+        // Unreal の SSDInjest.usf の形。パーミュテーションの値のうち、#else / #error で止めた値の構成はコンパイルできない。
+        // その木を使うと、宣言が足りないと報告していた (HL0310)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #if (PROCESSING == 0) * 1
+                #define ARRAY_SIZE 4
+            #else
+                #error Unknown signal processing.
+            #endif
+
+            float4 main() : SV_Target
+            {
+                float sum = 0;
+                for (uint i = 0; i < ARRAY_SIZE; i++) { sum += i; }
+                return sum;
+            }
+            """,
+            VariantSpace.ForValues("PROCESSING", [0, 1, 2]),
+            out ShaderCompilation compilation);
+
+        Assert.Empty(compilation.SymbolVariants);
+        Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
+    }
+
+    [Fact]
     public void 名前を付けた値と比べる分岐も値の条件で読む()
     {
         // Unreal の TemporalAA.usf の形。値に名前を付けて比べる。
@@ -379,10 +545,23 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     /// <param name="userFiles">取り込める利用者のヘッダ。</param>
     /// <returns>診断。</returns>
     private ImmutableArray<Diagnostic> Analyze(string code, VariantSpace variants, Dictionary<string, string>? userFiles = null)
+        => Analyze(code, variants, out _, userFiles);
+
+    /// <summary>構成の軸を指定した環境で 1 ファイルを解析する。</summary>
+    /// <param name="code">コード。</param>
+    /// <param name="variants">構成の軸。</param>
+    /// <param name="compilation">解析した結果。</param>
+    /// <param name="userFiles">取り込める利用者のヘッダ。</param>
+    /// <returns>診断。</returns>
+    private ImmutableArray<Diagnostic> Analyze(
+        string code,
+        VariantSpace variants,
+        out ShaderCompilation compilation,
+        Dictionary<string, string>? userFiles = null)
     {
         SourceText text = SourceText.From(code, "test.hlsl");
 
-        ShaderCompilation compilation = ShaderCompilation.Create(
+        compilation = ShaderCompilation.Create(
             text,
             [HlslEnvironment.WholeFile(text)],
             text,
