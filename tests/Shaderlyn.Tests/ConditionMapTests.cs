@@ -71,7 +71,12 @@ public sealed class ConditionMapTests
     /// 既定の経路である。#ifdef の両方の分岐が 1 本の木に載り、
     /// 条件は展開が残した範囲から引ける。
     /// </remarks>
-    private static ShaderCompilation CompileFolded(string body, string pragmas, bool hoist = true)
+    /// <param name="userFiles">取り込める利用者のファイル (URP の Core.hlsl のほか)。</param>
+    private static ShaderCompilation CompileFolded(
+        string body,
+        string pragmas,
+        bool hoist = true,
+        Dictionary<string, string>? userFiles = null)
     {
         string source = $$"""
             Shader "Test/Condition"
@@ -94,7 +99,8 @@ public sealed class ConditionMapTests
         SemanticsOptions options = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(
-                new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+                new Dictionary<string, string>(userFiles ?? [], StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+            IsUserInclude = path => userFiles?.ContainsKey(path) == true,
             HoistConditionalMacros = hoist,
         };
 
@@ -406,6 +412,27 @@ public sealed class ConditionMapTests
 
         Assert.Equal("_NORMALMAP", found["_BumpMap"].ToString());
         Assert.True(found["_BaseMap"].IsAlways);
+    }
+
+    [Fact]
+    public void 取り込んだヘッダより後ろの宣言にも条件が付く()
+    {
+        // 指令の無いヘッダを条件の中で取り込むと、ヘッダの中身とその後ろが 1 つの条件付きの範囲になる。
+        // 先頭 (ヘッダ) の出どころの分だけを位置に直していて、後ろの宣言が条件を持たなかった。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _DEBUG
+            #include "Debug.hlsl"
+                float4 _AfterInclude;
+            #endif
+            """,
+            "#pragma shader_feature_local _DEBUG",
+            userFiles: new(StringComparer.Ordinal) { ["Debug.hlsl"] = "float4 _InHeader;\n" });
+
+        Dictionary<string, SymbolCondition> found = WalkDeclarations(compilation);
+
+        Assert.Equal("_DEBUG", found["_InHeader"].ToString());
+        Assert.Equal("_DEBUG", found["_AfterInclude"].ToString());
     }
 
     [Fact]

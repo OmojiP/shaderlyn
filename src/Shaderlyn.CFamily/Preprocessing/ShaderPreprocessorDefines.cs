@@ -404,7 +404,13 @@ internal sealed partial class ShaderPreprocessor
             _conditionalMacros[nameToken.Text] = definitions;
         }
 
-        foreach (ConditionalMacro previous in definitions)
+        // #ifndef X の中の #define X (既定の値を与える書き方) は、定義されていないときにしか働かない。定義し直しにならない。
+        // 条件として読めない #ifndef (ヘッダで、この構成の定義の有無で決めたもの) でも、そう言える。
+        // 照合すると、FXAA_PRESET == 1 の分岐で FXAA_PC を定義するファイルが取り込むヘッダの #ifndef FXAA_PC の既定の値を、
+        // FXAA_PRESET == 0 の構成で読んで「定義し直し」(HL0002) と報告していた (Unreal の Fxaa3_11.ush)。
+        bool givesDefault = _conditionals.Count > 0 && _conditionals[^1].UndefinedName == nameToken.Text;
+
+        foreach (ConditionalMacro previous in givesDefault ? [] : definitions)
         {
             // どちらも「常に」なら、展開の側の検査が報告している。
             if (string.Equals(previous.Body, body, StringComparison.Ordinal)

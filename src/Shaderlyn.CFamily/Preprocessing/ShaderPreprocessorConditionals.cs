@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Globalization;
 using Shaderlyn.CFamily;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
@@ -121,6 +122,15 @@ internal sealed partial class ShaderPreprocessor
 
         /// <summary>まだどの分岐にも当たっていない条件。<see cref="PathBranch"/> と同じ読み方をする。</summary>
         public SymbolCondition PathRemaining { get; set; }
+
+        /// <summary>
+        /// 今の分岐が、その名前が定義されていないときだけ通る分岐 (<c>#ifndef X</c> / <c>#if !defined(X)</c> の側) なら、その名前。
+        /// </summary>
+        /// <remarks>
+        /// この分岐の中のその名前の <c>#define</c> は、定義されていないときにしか働かないので、定義し直しにならない
+        /// (<see cref="RecordConditionalDefinition"/>)。<c>#else</c> と <c>#elif</c> で外す。
+        /// </remarks>
+        public string? UndefinedName { get; set; }
     }
 
     /// <summary>
@@ -354,8 +364,34 @@ internal sealed partial class ShaderPreprocessor
     /// バリアントで有効にしたキーワードや、並べ直しのために外したキーワードがこれにあたる。
     /// </remarks>
     private SymbolCondition FixUnmergedSymbols(SymbolCondition condition)
-        => condition.Assume(
-            symbol => _options.BothBranchSymbols.Contains(symbol) ? null : _options.PredefinedMacros.ContainsKey(symbol));
+        => condition.Assume(symbol => _options.BothBranchSymbols.Contains(symbol) ? null : IsPredefined(symbol));
+
+    /// <summary>並べずに展開しているシンボルが、この構成で成り立つかを判定する。</summary>
+    /// <param name="symbol">シンボル。値を持つシンボルの原子 (<c>QUALITY==1</c>) のこともある。</param>
+    /// <returns>成り立つか。値が整数として読めなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <b>原子は、その名前のマクロの値と比べる。</b>
+    /// <c>QUALITY==1</c> という名前のマクロは無いので、定義されているかで判定するとどの原子も成り立たない。
+    /// <c>QUALITY == 1</c> の木で、その値の分岐の定義を消して、定義の無い名前を残した複製を作り、
+    /// 「宣言されていない」(HL0310) と報告していた (Unreal の <c>TemporalAA.usf</c>)。
+    /// 定義されていない名前は、条件式と同じく 0 と読む。
+    /// </remarks>
+    private bool? IsPredefined(string symbol)
+    {
+        if (!VariantValues.TryParseAtom(symbol, out string? name, out int value))
+        {
+            return _options.PredefinedMacros.ContainsKey(symbol);
+        }
+
+        if (!_options.PredefinedMacros.TryGetValue(name, out string? text))
+        {
+            return value == 0;
+        }
+
+        return int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int defined)
+            ? defined == value
+            : null;
+    }
 
     /// <summary>キーワードが定義されている条件を求める。</summary>
     /// <param name="symbol">宣言されたキーワード。</param>

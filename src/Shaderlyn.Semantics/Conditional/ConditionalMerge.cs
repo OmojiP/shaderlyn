@@ -365,7 +365,7 @@ internal static class ConditionalMerge
             // (AlignOrChoose)。ここへ落ちるのは、そうできなかった場合である。
             // 場所が違うなら、それぞれの構成にしか無いものが並んでいるだけである
             // (#if と #else に別々のものを書いた形が、ちょうどこれになる)。
-            if (ReferenceEquals(left[i].Source, right[j].Source) && left[i].Span == right[j].Span)
+            if (left[i].Span == right[j].Span && NodeKey.SameSource(left[i].Source, right[j].Source, left[i].Span))
             {
                 // 位置はファイルごとに意味を持つ。どのファイルの話かを添えて残す。
                 if (left[i].GetLocation() is { } location) { state.Unmerged.Add(location); }
@@ -752,5 +752,36 @@ internal static class ConditionalMerge
         /// <param name="node">対象のノード。</param>
         /// <returns>作った鍵。</returns>
         public static NodeKey For(ShaderSyntaxNode node) => new(node.GetType(), node.Source, node.Span);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>出どころは、同じインスタンスでなくても、同じファイルの同じ文字の並びなら同じとみなす。</b>
+        /// 取り込みの展開結果を使い回すと、トークンは覚えたとき (別のファイルの解析のこともある) の <see cref="SourceText"/> を持つ。
+        /// 既定の木とバリアントの木で同じヘッダの宣言が別のインスタンスを指し、対応が取れずに、
+        /// それぞれの構成にしか無いことになっていた (Unreal の <c>SubstrateEvaluation.ush</c> の構造体で HL0313)。
+        /// パスだけで比べないのは、Unity の HLSLINCLUDE のように、同じパスで中身の違うテキストがあるからである。
+        /// </remarks>
+        public bool Equals(NodeKey other)
+            => Type == other.Type
+               && Span == other.Span
+               && SameSource(Source, other.Source, Span);
+
+        /// <inheritdoc/>
+        public override int GetHashCode()
+            => HashCode.Combine(Type, Span, Source?.FilePath is { } path ? StringComparer.OrdinalIgnoreCase.GetHashCode(path) : 0);
+
+        /// <summary>2 つの出どころの、その範囲が同じファイルの同じ文字の並びかを判定する。</summary>
+        /// <param name="left">片方の出どころ。</param>
+        /// <param name="right">もう片方の出どころ。</param>
+        /// <param name="span">比べる範囲。</param>
+        /// <returns>同じなら <see langword="true"/>。</returns>
+        public static bool SameSource(SourceText? left, SourceText? right, TextSpan span)
+            => ReferenceEquals(left, right)
+               || (left?.FilePath is { } leftPath
+                   && right?.FilePath is { } rightPath
+                   && string.Equals(leftPath, rightPath, StringComparison.OrdinalIgnoreCase)
+                   && span.End <= left.Length
+                   && span.End <= right.Length
+                   && left.AsSpan(span).SequenceEqual(right.AsSpan(span)));
     }
 }

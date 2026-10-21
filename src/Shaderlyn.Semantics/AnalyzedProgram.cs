@@ -116,6 +116,21 @@ public sealed class AnalyzedProgram
     public ImmutableArray<string> EnabledSymbols { get; init; } = [];
 
     /// <summary>
+    /// このバリアントの木で、両方の分岐を並べられずに既定の値で読んだシンボルの条件。既定の構成の木なら「常に」。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>バリアントの木は、有効にしたシンボルのほかは、並べられなかったシンボルを既定の値で読む。</b>
+    /// <c>THREADGROUP_SIZE == 16</c> を有効にした木で <c>PROBE_IRRADIANCE_FORMAT</c> の分岐を並べられなかったなら、
+    /// その木は <c>PROBE_IRRADIANCE_FORMAT == 0</c> の構成である。有効にしたシンボルだけを木の構成とすると、
+    /// その木の宣言や使用を <c>PROBE_IRRADIANCE_FORMAT == 1</c> のものとも見て、
+    /// 「そのとき宣言が無い」(HL0315) と報告していた (Unreal の <c>LumenScreenProbeFiltering.usf</c>)。
+    /// </para>
+    /// <para><see cref="AnalyzedCondition"/> に掛け合わせる。</para>
+    /// </remarks>
+    public SymbolCondition FixedCondition { get; init; } = SymbolCondition.Always;
+
+    /// <summary>
     /// 互いに関係しないキーワードをまとめて有効にした構成なら、既定の木と突き合わせた結果。
     /// そうでなければ <see langword="null"/>。
     /// </summary>
@@ -164,7 +179,7 @@ public sealed class AnalyzedProgram
     {
         get
         {
-            SymbolCondition condition = SymbolCondition.Always;
+            SymbolCondition condition = FixedCondition;
 
             foreach (string symbol in EnabledSymbols)
             {

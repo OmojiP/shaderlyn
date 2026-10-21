@@ -280,14 +280,27 @@ internal static class ConditionMapBuilder
                          || !block.Declared.Contains(pair.Second)
                          || block.Constraints.AreExclusive(pair.First, pair.Second)));
 
-        // どれか 1 つが必ず定義される集まりは、その中のどれかを宣言しているどのブロックでも、同じ集まりであるものだけ。
+        // どれか 1 つが必ず定義される集まりは、その中のどれかを宣言しているどのブロックでも、その集まりに含まれる集まりがあるものだけ。
+        // 含まれる集まりのどれか 1 つが定義されるなら、その集まりのどれか 1 つも定義される。
+        // 値を持つシンボルは、ブロック (単位) ごとに値が違うことがある (QUALITY が 1 から 4 の単位と 1 から 3 の単位)。
+        // 同じ集まりに限ると、どちらの集まりも残らず、「どの値でもない」構成があることになって、
+        // その構成で宣言が無いと報告していた (Unreal の SSRTReflections.usf で HL0310)。値を合わせた集まりも候補にする。
+        IEnumerable<ImmutableArray<string>> candidates = blocks
+            .SelectMany(block => block.Constraints.RequiredGroups)
+            .Concat(blocks
+                .SelectMany(block => block.Constraints.RequiredGroups)
+                .Where(group => group.All(symbol => VariantValues.TryParseAtom(symbol, out _, out _)))
+                .GroupBy(group => VariantValues.TryParseAtom(group[0], out string? name, out _) ? name : string.Empty, StringComparer.Ordinal)
+                .Where(byName => byName.Skip(1).Any())
+                .Select(byName => byName.SelectMany(group => group).Distinct(StringComparer.Ordinal).ToImmutableArray()));
+
         List<ImmutableArray<string>> groups = [];
 
-        foreach (ImmutableArray<string> group in blocks.SelectMany(block => block.Constraints.RequiredGroups))
+        foreach (ImmutableArray<string> group in candidates)
         {
-            if (groups.Any(g => g.SequenceEqual(group))
+            if (groups.Any(g => g.Length == group.Length && g.All(group.Contains))
                 || !blocks.All(block => !group.Any(block.Declared.Contains)
-                                        || block.Constraints.RequiredGroups.Any(g => g.SequenceEqual(group))))
+                                        || block.Constraints.RequiredGroups.Any(g => g.All(group.Contains))))
             {
                 continue;
             }
@@ -341,7 +354,7 @@ internal static class ConditionMapBuilder
                 {
                     AddHoistedRange(result.Tokens, range, hoisted);
 
-                    if (TryGetRegionLocation(result.Tokens, range, out Location copied))
+                    foreach (Location copied in GetRegionLocations(result.Tokens, range))
                     {
                         if (!hoistedLocations.TryGetValue(program, out List<Location>? locations))
                         {
@@ -355,21 +368,19 @@ internal static class ConditionMapBuilder
                     continue;
                 }
 
-                if (!TryGetRegionLocation(result.Tokens, range, out Location location))
+                foreach (Location location in GetRegionLocations(result.Tokens, range))
                 {
-                    continue;
+                    ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
+
+                    if (byLocation.TryGetValue(key, out SymbolCondition existing))
+                    {
+                        byLocation[key] = existing.Or(range.Condition);
+                        continue;
+                    }
+
+                    byLocation[key] = range.Condition;
+                    order.Add(key);
                 }
-
-                ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
-
-                if (byLocation.TryGetValue(key, out SymbolCondition existing))
-                {
-                    byLocation[key] = existing.Or(range.Condition);
-                    continue;
-                }
-
-                byLocation[key] = range.Condition;
-                order.Add(key);
             }
         }
 
@@ -413,40 +424,50 @@ internal static class ConditionMapBuilder
     /// </summary>
     /// <param name="tokens">展開後のトークン列。</param>
     /// <param name="range">対象の範囲。</param>
-    /// <param name="location">求めた位置。</param>
-    /// <returns>求められた場合は <see langword="true"/>。</returns>
+    /// <returns>出どころの続く区切りごとの位置。</returns>
     /// <remarks>
-    /// マクロ展開で生まれたトークンは出どころが呼び出し位置に移っているため、
-    /// 範囲の中で出どころが変わることがある。
-    /// 先頭のトークンと同じ出どころのものだけで範囲を作る。
+    /// <para>
+    /// <b>範囲の中で出どころが変わるのは、取り込みをまたぐときである。</b>
+    /// マクロ展開で生まれたトークンの出どころは呼び出し位置に揃えてあるので、マクロでは変わらない。
+    /// <code>
+    /// #if DEBUG
+    /// #include "Debug.ush"   // 指令の無いヘッダなら、ヘッダの中身とその後ろが 1 つの範囲になる
+    /// void WriteDebug() { FDebugInfo o; o.Color = 1; }
+    /// #endif
+    /// </code>
+    /// 以前は先頭のトークンと同じ出どころのものだけで範囲を作っていた。
+    /// ヘッダより後ろの文が条件を持たず、ヘッダの構造体のメンバーを「DEBUG でないときは無い」(HL0313) と報告していた
+    /// (Unreal の <c>HairStrandsEnvironmentLighting.usf</c>)。
+    /// </para>
     /// </remarks>
-    private static bool TryGetRegionLocation(
+    private static IEnumerable<Location> GetRegionLocations(
         ImmutableArray<ShaderSyntaxToken> tokens,
-        ConditionalTokenRange range,
-        out Location location)
+        ConditionalTokenRange range)
     {
-        location = null!;
-
         if (range.Start < 0 || range.Start >= tokens.Length || range.Length <= 0)
         {
-            return false;
+            yield break;
         }
 
+        int last = Math.Min(range.Start + range.Length, tokens.Length);
         ShaderSyntaxToken first = tokens[range.Start];
         int end = first.Span.End;
 
-        for (int i = range.Start + 1; i < range.Start + range.Length && i < tokens.Length; i++)
+        for (int i = range.Start + 1; i < last; i++)
         {
             if (!ReferenceEquals(tokens[i].Source, first.Source))
             {
-                break;
+                yield return Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
+
+                first = tokens[i];
+                end = first.Span.End;
+                continue;
             }
 
             end = Math.Max(end, tokens[i].Span.End);
         }
 
-        location = Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
-        return true;
+        yield return Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
     }
 
     /// <summary>バリアントに対応する既定の構成を探す。</summary>

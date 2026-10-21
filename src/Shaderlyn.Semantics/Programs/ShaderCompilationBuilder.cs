@@ -228,6 +228,7 @@ internal static class ShaderCompilationBuilder
                 {
                     EnabledSymbols = enabled,
                     PackedMerge = packedMerge,
+                    FixedCondition = FixedCondition(variantTree, tree, enabled, variantOptions, constraints, macroConflicts, blockSymbols),
                 });
             }
         }
@@ -1430,6 +1431,90 @@ internal static class ShaderCompilationBuilder
         }
 
         return macros;
+    }
+
+    /// <summary>
+    /// バリアントの木で、両方の分岐を並べられずに既定の値で読んだシンボルの条件を求める (<see cref="AnalyzedProgram.FixedCondition"/>)。
+    /// </summary>
+    /// <param name="tree">バリアントの木。</param>
+    /// <param name="baseline">既定の構成の木。バリアントは、既定の木が並べた領域だけを並べる。既定の木が並べなかったシンボルは、バリアントでも既定の値で読む。</param>
+    /// <param name="enabled">有効にしたシンボル。</param>
+    /// <param name="options">バリアントを展開した設定 (有効にする前の定義済みマクロを持つ)。</param>
+    /// <param name="constraints">宣言から分かる構成の制約。</param>
+    /// <param name="macroConflicts">分岐のマクロがコードで使われたために、並べなかったシンボル。</param>
+    /// <param name="declared">このコードブロックのシンボル。並べる対象に入っていないものも、既定の値で読む。</param>
+    /// <returns>条件。</returns>
+    private static SymbolCondition FixedCondition(
+        ShaderSyntaxTree tree,
+        ShaderSyntaxTree baseline,
+        ImmutableArray<string> enabled,
+        PreprocessorOptions options,
+        SymbolConstraints constraints,
+        ImmutableArray<string> macroConflicts,
+        ImmutableHashSet<string> declared)
+    {
+        ImmutableDictionary<string, string> macros = ConfigurationMacros(options.PredefinedMacros, enabled, constraints);
+        SymbolCondition condition = SymbolCondition.Always;
+        ImmutableArray<string> merged = tree.PreprocessResult.MergedSymbols.IsDefault ? [] : tree.PreprocessResult.MergedSymbols;
+
+        // この木で原子を 1 つでも並べた値の名前。その名前は今の値に決まっていない (#if DEBUG は DEBUG==1 だけを並べる)。
+        HashSet<string> mergedValueNames =
+        [
+            .. merged.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>(),
+        ];
+
+        IEnumerable<string> declined = (tree.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : tree.PreprocessResult.DeclinedBothBranchSymbols)
+            .Concat(baseline.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : baseline.PreprocessResult.DeclinedBothBranchSymbols)
+            .Concat(macroConflicts.IsDefault ? [] : macroConflicts)
+            .Concat(declared.Where(symbol => !options.BothBranchSymbols.Contains(symbol)))
+
+            // 値を持つシンボルは、どの木でも値の 1 つを定義して読む (ConfigurationMacros)。#if X == 1 はその値で決まり、
+            // 並べた記録にも並べられなかった記録にも残らない。ほかの値は、その値を有効にしたバリアントで読む。
+            // この木で並べなかった値の原子は、この木で定義した値で決まっている。
+            .Concat(declared.Where(symbol => VariantValues.TryParseAtom(symbol, out _, out _) && !merged.Contains(symbol)))
+            .Distinct(StringComparer.Ordinal);
+
+        foreach (string symbol in declined)
+        {
+            if (enabled.Contains(symbol))
+            {
+                continue;
+            }
+
+            if (VariantValues.TryParseAtom(symbol, out string? name, out int value))
+            {
+                bool isValue = macros.TryGetValue(name, out string? defined)
+                               && defined == value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // 並べなかった原子でも、ほかの原子を並べた名前なら、今の値の原子が成り立つとは限らない。
+                // #if DEBUG の DEBUG==1 を並べた木は、DEBUG==0 のときの中身も持つ。
+                // 成り立つと決めると、DEBUG==1 の側の宣言を使う文を「DEBUG == 0 では無い」と報告していた
+                // (Unreal の HairStrandsEnvironmentLighting.usf で HL0313)。成り立たないほうは決めてよい。
+                if (isValue && mergedValueNames.Contains(name))
+                {
+                    continue;
+                }
+
+                condition = condition.And(SymbolCondition.Symbol(symbol, isValue));
+            }
+            else if (options.ValueSymbols.TryGetValue(symbol, out ImmutableArray<int> values))
+            {
+                // 値を持つシンボルの名前。この木で読んだ値の原子が成り立つ (原子を並べていなければ)。
+                if (!mergedValueNames.Contains(symbol)
+                    && macros.TryGetValue(symbol, out string? defined)
+                    && int.TryParse(defined, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int current)
+                    && values.Contains(current))
+                {
+                    condition = condition.And(SymbolCondition.Symbol(VariantValues.Atom(symbol, current)));
+                }
+            }
+            else if (!enabled.Any(e => constraints.AreExclusive(e, symbol)))
+            {
+                condition = condition.And(SymbolCondition.Symbol(symbol, macros.ContainsKey(symbol)));
+            }
+        }
+
+        return constraints.Apply(condition);
     }
 
     /// <summary>シンボルを有効にするマクロを定義する。</summary>

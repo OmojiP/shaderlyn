@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Hlsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
@@ -396,5 +397,32 @@ public sealed class ConditionalMergeTests
 
         // 突き合わせる相手が違えば条件は出る。上の空は「同じだから」である。
         Assert.NotEmpty(result.ConditionalNodes);
+    }
+
+    [Fact]
+    public void 同じファイルの同じ文字の並びなら別のインスタンスでも同じノードとみなす()
+    {
+        // 取り込みの展開結果を使い回すと、既定の木とバリアントの木で同じヘッダの宣言が
+        // 別の SourceText のインスタンスを指す。インスタンスで比べると対応が取れず、
+        // それぞれの構成にしか無いことになっていた (Unreal の SubstrateEvaluation.ush の構造体で HL0313)。
+        const string Code = """
+            struct Material { float3 Color; };
+            float4 Shade(Material m) { return float4(m.Color, 1); }
+            """;
+
+        ShaderSyntaxTree left = HlslSyntaxTree.Parse(SourceText.From(Code, "Shared.hlsl"), new PreprocessorOptions());
+        ShaderSyntaxTree right = HlslSyntaxTree.Parse(SourceText.From(Code, "Shared.hlsl"), new PreprocessorOptions());
+
+        ConditionalMergeResult result = ConditionalMerge.Merge(left.Root, right.Root, ["_A"]);
+
+        Assert.True(result.IsComplete);
+        Assert.Empty(result.ConditionalNodes);
+
+        // 同じパスでも中身が違えば (Unity の HLSLINCLUDE のように) 別のノードである。
+        ShaderSyntaxTree changed = HlslSyntaxTree.Parse(
+            SourceText.From(Code.Replace("Color", "Albedo", StringComparison.Ordinal), "Shared.hlsl"),
+            new PreprocessorOptions());
+
+        Assert.NotEmpty(ConditionalMerge.Merge(left.Root, changed.Root, ["_A"]).ConditionalNodes);
     }
 }

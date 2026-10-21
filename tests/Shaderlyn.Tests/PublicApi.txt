@@ -1272,6 +1272,7 @@ Shaderlyn.Semantics.AnalyzedProgram : sealed class
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.CFamily.Syntax.ShaderSyntaxTree Tree { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Diagnostics.Location GetBlockLocation()
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.SymbolCondition AnalyzedCondition { get; }
+Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.SymbolCondition FixedCondition { get; set; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Syntax.VariantSpace Variants { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.SourceText Text { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Text.TextSpan CodeSpan { get; }

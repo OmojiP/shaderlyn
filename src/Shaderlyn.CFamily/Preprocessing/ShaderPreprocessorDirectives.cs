@@ -203,6 +203,7 @@ internal sealed partial class ShaderPreprocessor
                 }
 
                 BeginConditional(directiveToken, EvaluateCondition(line), kept);
+                _conditionals[^1].UndefinedName = ReadNotDefinedName(line);
                 _conditionals[^1].IsConfigurationDependent = !isStatic && ReferencesConfigurationDependentName(line);
                 AddConditionSymbols(_conditionals[^1], line);
                 NoteRegionDependencies(_conditionals[^1], line.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text), readsValues: true);
@@ -229,6 +230,7 @@ internal sealed partial class ShaderPreprocessor
                 }
 
                 BeginConditional(directiveToken, value, ChooseKeptCondition(symbol, expectDefined, directiveToken));
+                _conditionals[^1].UndefinedName = expectDefined ? null : symbol;
 
                 // インクルードガード: ヘッダが自分で定義した名前のために、2 度目の取り込みの中身を飛ばした。
                 // #pragma once と同じく、飛ばした取り込みの条件をヘッダの範囲に足す (NoteSkippedReinclude)。
@@ -349,6 +351,7 @@ internal sealed partial class ShaderPreprocessor
         }
 
         ConditionalState state = _conditionals[^1];
+        state.UndefinedName = null;
 
         if (state.SeenElse)
         {
@@ -964,7 +967,8 @@ internal sealed partial class ShaderPreprocessor
     /// <remarks>
     /// <para>
     /// 名前だけなら 0 でない値の論理和 (<c>#if QUALITY</c> は <c>QUALITY != 0</c>)。
-    /// 比べる相手は整数のリテラルに限る。左右を入れ替えた形 (<c>2 == QUALITY</c>) は読まない。
+    /// 比べる相手は、整数のリテラルか、整数のリテラルに展開するマクロ (<see cref="TryReadIntegerOperand"/>) に限る。
+    /// 左右を入れ替えた形 (<c>2 == QUALITY</c>) は読まない。
     /// </para>
     /// <para>
     /// <b>成り立つ値のどれかが記号として残す名前に入っていなければ、記号としては読まない。</b>
@@ -987,8 +991,7 @@ internal sealed partial class ShaderPreprocessor
 
         if (position + 1 < line.Length
             && ComparisonOf(line[position].Kind) is { } compare
-            && line[position + 1].Kind == ShaderSyntaxKind.NumericLiteralToken
-            && int.TryParse(line[position + 1].Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int operand))
+            && TryReadIntegerOperand(line[position + 1], out int operand))
         {
             holds = value => compare(value, operand);
             position += 2;
@@ -1016,6 +1019,67 @@ internal sealed partial class ShaderPreprocessor
         index = position;
         return condition;
     }
+
+    /// <summary>値を持つシンボルと比べる相手を、整数として読む。</summary>
+    /// <param name="token">比べる相手のトークン。</param>
+    /// <param name="value">読んだ値。</param>
+    /// <returns>読めれば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <b>整数のリテラルに展開するマクロ (<c>#define TAA_QUALITY_LOW 0</c>) も読む。</b>
+    /// Unreal のシェーダーは、パーミュテーションの値に名前を付けて <c>#if TAA_QUALITY == TAA_QUALITY_LOW</c> と比べる。
+    /// 読めないと、条件を記号として扱えず、<c>#elif</c> の連なりのすべての分岐を同じ条件で読んで、
+    /// 分岐ごとのマクロの定義を「定義し直し」(HL0002) と報告していた。
+    /// 構成によって定義の変わるマクロは、値が 1 つに決まらないので読まない。
+    /// </remarks>
+    private bool TryReadIntegerOperand(ShaderSyntaxToken token, out int value)
+    {
+        for (int depth = 0; depth < 8; depth++)
+        {
+            if (token.Kind == ShaderSyntaxKind.NumericLiteralToken)
+            {
+                return int.TryParse(token.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+            }
+
+            if (token.Kind != ShaderSyntaxKind.IdentifierToken
+                || _conditionallyDefinedMacros.Contains(token.Text)
+                || !_macros.TryGetValue(token.Text, out MacroDefinition? macro)
+                || macro.IsFunctionLike)
+            {
+                break;
+            }
+
+            // 括弧で囲んだもの (#define LOW (0)) も読む。
+            ImmutableArray<ShaderSyntaxToken> body = macro.Body;
+
+            if (body.Length == 3
+                && body[0].Kind == ShaderSyntaxKind.OpenParenToken
+                && body[2].Kind == ShaderSyntaxKind.CloseParenToken)
+            {
+                body = [body[1]];
+            }
+
+            if (body.Length != 1)
+            {
+                break;
+            }
+
+            token = body[0];
+        }
+
+        value = 0;
+        return false;
+    }
+
+    /// <summary><c>!defined(X)</c> と <c>!defined X</c> だけの条件から、名前を読む。</summary>
+    /// <param name="line">条件式の行。</param>
+    /// <returns>名前。この形でなければ <see langword="null"/>。</returns>
+    private static string? ReadNotDefinedName(ImmutableArray<ShaderSyntaxToken> line)
+        => line switch
+        {
+            [{ Kind: ShaderSyntaxKind.ExclamationToken }, { Text: "defined" }, { Kind: ShaderSyntaxKind.IdentifierToken } name] => name.Text,
+            [{ Kind: ShaderSyntaxKind.ExclamationToken }, { Text: "defined" }, { Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.IdentifierToken } name, { Kind: ShaderSyntaxKind.CloseParenToken }] => name.Text,
+            _ => null,
+        };
 
     /// <summary>比較の演算子を、値どうしの比較に直す。</summary>
     /// <param name="kind">演算子のトークンの種類。</param>
@@ -1217,6 +1281,7 @@ internal sealed partial class ShaderPreprocessor
         }
 
         ConditionalState state = _conditionals[^1];
+        state.UndefinedName = null;
 
         if (state.SeenElse)
         {

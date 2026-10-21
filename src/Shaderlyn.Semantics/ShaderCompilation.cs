@@ -1813,6 +1813,20 @@ public sealed class ShaderCompilation
     /// <para>
     /// 両方の分岐を 1 本の木に並べたシンボルは掛けない。並べた木はその両方の構成を表している。
     /// </para>
+    /// <para>
+    /// <b>値を持つシンボルの値は、単位ごとに違うことがある。</b>
+    /// その木の単位に無い値の原子 (ほかの単位にだけある値) は、成り立たないとして掛ける。
+    /// 掛けないと、値が 0 から 3 の単位の木を、ほかの単位にだけある 4 の構成についても見ていることになり、
+    /// その単位では読まない <c>#else</c> (4 のときの宣言) が無いと報告していた
+    /// (Unreal の <c>SSRTReflections.usf</c> で HL0310。ステンシルの単位の <c>SSR_QUALITY</c> は 0 から 3)。
+    /// </para>
+    /// <para>
+    /// <b>その単位で値を持たない名前は、その木のマクロの値で決まっている。</b>
+    /// ほかの単位がパーミュテーションにしている名前を、ヘッダが <c>#ifndef</c> で既定の値に定義していれば、その値の原子だけが成り立つ。
+    /// 定義されていなければ、条件式と同じく 0 と読む。整数でない定義なら決めない。
+    /// 決めないと、その木の宣言をほかの値の構成でも見ていることになり、ほかの値の分岐の宣言が無いと報告していた
+    /// (Unreal の <c>DistanceFieldLightingShared.ush</c> の <c>OFFSET_DATA_STRUCT</c> で HL0310)。
+    /// </para>
     /// </remarks>
     public SymbolCondition GetTreeConfiguration(AnalyzedProgram program)
     {
@@ -1840,9 +1854,69 @@ public sealed class ShaderCompilation
             condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: false));
         }
 
+        ImmutableDictionary<string, ImmutableArray<int>> own = program.Variants.ValueSymbols;
+
+        foreach (string atom in AllValueAtoms)
+        {
+            if (!VariantValues.TryParseAtom(atom, out string? name, out int value))
+            {
+                continue;
+            }
+
+            if (own.TryGetValue(name, out ImmutableArray<int> values))
+            {
+                if (!values.Contains(value))
+                {
+                    condition = condition.And(SymbolCondition.Symbol(atom, isDefined: false));
+                }
+            }
+            else if (MacroValue(program, name) is { } fixedValue)
+            {
+                condition = condition.And(SymbolCondition.Symbol(atom, isDefined: fixedValue == value));
+            }
+        }
+
         _treeConfigurations[program] = condition;
         return condition;
     }
+
+    /// <summary>その木を展開し終えたときのマクロの、整数としての値。</summary>
+    /// <param name="program">木。</param>
+    /// <param name="name">マクロの名前。</param>
+    /// <returns>値。定義されていなければ 0。整数のリテラル (括弧で囲んだものも) でなければ <see langword="null"/>。</returns>
+    private static int? MacroValue(AnalyzedProgram program, string name)
+    {
+        if (!program.Tree.PreprocessResult.Macros.TryGetValue(name, out MacroDefinition? macro))
+        {
+            return 0;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> body = macro.Body;
+
+        if (body is [{ Kind: ShaderSyntaxKind.OpenParenToken }, var inner, { Kind: ShaderSyntaxKind.CloseParenToken }])
+        {
+            body = [inner];
+        }
+
+        return !macro.IsFunctionLike
+               && body is [{ Kind: ShaderSyntaxKind.NumericLiteralToken } literal]
+               && int.TryParse(literal.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int value)
+            ? value
+            : null;
+    }
+
+    /// <summary>どれかの木の構成の空間にある、値を持つシンボルの原子。</summary>
+    private ImmutableArray<string> AllValueAtoms
+        => _allValueAtoms ??=
+        [
+            .. Programs.Concat(SymbolVariants)
+                .SelectMany(p => p.Variants.Symbols)
+                .Where(symbol => VariantValues.TryParseAtom(symbol, out _, out _))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal),
+        ];
+
+    private ImmutableArray<string>? _allValueAtoms;
 
     /// <summary><see cref="GetTreeConfiguration"/> の結果。</summary>
     private Dictionary<AnalyzedProgram, SymbolCondition>? _treeConfigurations;
