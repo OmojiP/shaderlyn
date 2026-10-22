@@ -531,6 +531,9 @@ public sealed class ShaderCompilation
     /// <remarks><see cref="SemanticsOptions.IsUserInclude"/> を受け取る。</remarks>
     internal Func<string, bool>? IsUserInclude { get; init; }
 
+    /// <summary>構成を 1 つに固定した解析か (<see cref="SemanticsOptions.FixedSymbolConfiguration"/>)。</summary>
+    internal bool IsFixedSymbolConfiguration { get; init; }
+
     /// <summary>解決できなかった include の理由を述べる文を作る (<see cref="SemanticsOptions.DescribeUnresolvedInclude"/>)。</summary>
     internal Func<IncludeReference, string?>? DescribeUnresolvedInclude { get; init; }
 
@@ -1851,7 +1854,10 @@ public sealed class ShaderCompilation
 
         foreach (string symbol in others)
         {
-            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: false));
+            // 構成を固定した解析の木は、固定したシンボルを定義した構成である。それを無効とすると、
+            // 必ずどれかが有効な組 (multi_compile MODE_A MODE_B) と矛盾し、その木の報告がすべて消えていた。
+            bool defined = IsFixedSymbolConfiguration && program.Tree.PreprocessResult.Macros.ContainsKey(symbol);
+            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: defined));
         }
 
         ImmutableDictionary<string, ImmutableArray<int>> own = program.Variants.ValueSymbols;
@@ -1878,6 +1884,27 @@ public sealed class ShaderCompilation
 
         _treeConfigurations[program] = condition;
         return condition;
+    }
+
+    /// <summary>その木の構成として、条件の成り立つ構成がありうるかを判定する。</summary>
+    /// <param name="program">木。</param>
+    /// <param name="condition">条件。</param>
+    /// <returns>ありうるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 索引の制約 (<see cref="Conditional.ConditionMap.IsPossible"/>) に加えて、その木の単位の制約でも確かめる。
+    /// </para>
+    /// <para>
+    /// <b>索引の制約は、どの単位でも成り立つものだけである。</b>
+    /// 単位ごとに違う制約 (Unreal のクラスで、同時にはコンパイルされないパーミュテーションの値の組) は入っていない。
+    /// それを使わないと、その単位では実在しない組み合わせで宣言が無いと報告していた
+    /// (Unreal の SingleLayerWaterComposite.usf の GENERATE_FROXELS と USE_WATER_PRE_PASS_STENCIL)。
+    /// </para>
+    /// </remarks>
+    public bool IsPossibleIn(AnalyzedProgram program, SymbolCondition condition)
+    {
+        ArgumentNullException.ThrowIfNull(program);
+        return GetConditionMap().IsPossible(condition) && program.Variants.Constraints.IsPossible(condition);
     }
 
     /// <summary>その木を展開し終えたときのマクロの、整数としての値。</summary>

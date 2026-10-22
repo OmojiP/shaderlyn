@@ -162,6 +162,7 @@ internal static class SemanticsSetup
             // バージョンを書いていなければ、エンジンの設定に合わせてシェーダーごとに決める (UE 5.5 の PC は、グローバルシェーダーが 2021)。
             FollowEngineLanguageVersion = configuration.HlslVersion is null,
             Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
+            PermutationAxes = configuration.UnrealPermutations == true,
         };
     }
 

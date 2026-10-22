@@ -85,4 +85,13 @@ public sealed record ShaderCompilationUnit(
     /// </para>
     /// </remarks>
     public bool AllowsExternalDefinitions { get; init; }
+
+    /// <summary>
+    /// この単位で 16 ビットの型を使うか (DXC の <c>-enable-16bit-types</c>)。<see langword="null"/> なら環境の設定に従う。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine は、シェーダーのクラスごとにコンパイラのフラグ (<c>CFLAG_AllowRealTypes</c>) で決める。
+    /// 使わない単位では <c>half</c> は <c>float</c> と同じ型なので、<c>half</c> と <c>float</c> の多重定義は二重の定義になる。
+    /// </remarks>
+    public bool? Enable16BitTypes { get; init; }
 }

@@ -106,7 +106,7 @@ internal static class AnalysisEnvironments
             unreal.CreateEnvironment(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)),
             "Unreal Engine",
             [".usf"],
-            unreal.CreateRegisteredUnits());
+            unreal.CreateRegisteredUnits(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)));
     }
 
     /// <summary>知らない環境の名前を伝える文。</summary>

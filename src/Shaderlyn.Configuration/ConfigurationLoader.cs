@@ -44,7 +44,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
 
     /// <summary><c>unreal:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths"];
+    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths", "permutations"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
@@ -221,6 +221,7 @@ internal static class ConfigurationLoader
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
                 UnrealGeneratedDirectory = ResolvePath(ReadOptionalScalar(unreal, "generated")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
+                UnrealPermutations = ReadOptionalBoolean(unreal, "permutations", "unreal:"),
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
@@ -416,6 +417,28 @@ internal static class ConfigurationLoader
             => hlsl is not null && hlsl.TryGetScalar("enable-16bit-types", out YamlScalar? value) && value.TryGetBoolean(out bool enabled)
                 ? enabled
                 : null;
+
+        /// <summary>節の中の真偽の値を読む。</summary>
+        /// <param name="section">節。無ければ <see langword="null"/>。</param>
+        /// <param name="key">キー。</param>
+        /// <param name="sectionName">報告に書く節の名前 (<c>unreal:</c>)。</param>
+        /// <returns>値。書いていないか、真偽でなければ <see langword="null"/>。</returns>
+        private bool? ReadOptionalBoolean(YamlMapping? section, string key, string sectionName)
+        {
+            if (section is null || !section.TryGetScalar(key, out YamlScalar? value) || value.Value.Length == 0)
+            {
+                return null;
+            }
+
+            if (!value.TryGetBoolean(out bool result))
+            {
+                problems.Add(new ConfigurationProblem(
+                    value.Line, $"{sectionName} の {key} には true か false を指定してください ('{value.Value}')。"));
+                return null;
+            }
+
+            return result;
+        }
 
         /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>) を読む。</summary>
         /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>

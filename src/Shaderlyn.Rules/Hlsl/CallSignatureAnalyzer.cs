@@ -183,7 +183,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 宣言が 1 つも無い構成は HL0311 の担当である。宣言のある構成だけで比べる。
         if (!intrinsicAccepts
             && PresentCondition(condition, candidates) is { } anyPresent
-            && FindUncovered(condition, call.And(anyPresent), fitting) is { } arityMissing)
+            && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
         {
             ReportArity(
                 context,
@@ -224,7 +224,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 受け付ける宣言が、呼び出しのあるすべての構成に存在するか。個数と同じ理由で、1 つあれば通すのでは足りない。
         // 個数の合う宣言がある構成だけで比べる。個数の合わない構成は上で報告している。
         if (PresentCondition(condition, fitting) is not { } fittingPresent
-            || FindUncovered(condition, call.And(fittingPresent), accepting) is not { } typeMissing)
+            || FindUncovered(compilation, binder.Program, condition, call.And(fittingPresent), accepting) is not { } typeMissing)
         {
             return;
         }
@@ -302,6 +302,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 呼び出しのある構成のうち、受け付ける宣言がどれも存在しない構成を求める。
     /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">呼び出しのある木。その単位の制約でも、構成がありうるかを確かめる。</param>
     /// <param name="condition">出現条件の索引。</param>
     /// <param name="call">呼び出しの出現条件。</param>
     /// <param name="accepting">受け付ける宣言。</param>
@@ -310,6 +312,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// 条件の分からない宣言は、どの構成にもあるものとして扱う。分からないものを根拠に報告しない。
     /// </remarks>
     private static SymbolCondition? FindUncovered(
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
         ConditionMap condition,
         SymbolCondition call,
         List<FunctionDeclarationSyntax> accepting)
@@ -321,7 +325,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         SymbolCondition missing = call.And(covered.Negate());
 
-        return !missing.IsUnknown && condition.IsPossible(missing)
+        return !missing.IsUnknown && compilation.IsPossibleIn(program, missing)
             ? condition.Simplify(missing)
             : null;
     }

@@ -122,6 +122,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
 | `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
+| `permutations`  | `true` で、`generated` に書き出したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
 ```yaml
 environment: unreal
@@ -145,7 +146,12 @@ units:
   欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (HL0340 / HL0341) は行います ([Unity 以外の環境で使う](environments.md))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
-- パーミュテーションは C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
+- パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
+- `permutations: true` にすると、`--unreal-generate` が C++ から読んだパーミュテーションを構成の軸にします。
+  生成のときは、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、
+  コンパイルされない組を除きます。組で値の変わる定義 (`SetDefine`) とフラグ (`CFLAG_AllowRealTypes` など) は軸にして、同時には現れない値の組を記録します。
+  プラットフォームを問う関数は PC の Direct3D 12 (SM6) として答えます。読めなかった式があれば、その組は除きません。
+  エントリポイントとステージが同じでも、定義するものが違うクラスは別のコンパイル単位にします
 
 ## symbols
 

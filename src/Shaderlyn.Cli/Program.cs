@@ -525,7 +525,10 @@ public static class Program
 
         try
         {
-            generation = Unreal.UnrealUniformBufferGenerator.Generate(roots, fullOutput);
+            generation = Unreal.UnrealUniformBufferGenerator.Generate(
+                roots,
+                fullOutput,
+                Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

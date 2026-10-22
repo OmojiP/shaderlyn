@@ -98,6 +98,8 @@ internal static class ConditionalRegionScanner
     {
         int branchStart = start;
         bool definesMacros = false;
+        bool? allowed = null;
+        bool BlockAllowed() => allowed ??= AllowsBlockBranch(tokens, start);
         end = tokens.Length;
 
         for (int i = start; i < tokens.Length; i++)
@@ -142,7 +144,7 @@ internal static class ConditionalRegionScanner
                     return ConditionalRegionLayout.SwitchesIncludes;
 
                 case "else" or "elif":
-                    if (ClassifyBranch(tokens, branchStart, i) is { } branchShape)
+                    if (ClassifyBranch(tokens, branchStart, i, BlockAllowed) is { } branchShape)
                     {
                         // 分岐ごとに文を複製するとき (条件の巻き上げ) は、領域の後ろから文の切れ目を探す。
                         end = FindRegionEnd(tokens, i + 1);
@@ -155,7 +157,7 @@ internal static class ConditionalRegionScanner
                 case "endif":
                     end = SkipDirectiveLine(tokens, i);
 
-                    return ClassifyBranch(tokens, branchStart, i)
+                    return ClassifyBranch(tokens, branchStart, i, BlockAllowed)
                         ?? (definesMacros ? ConditionalRegionLayout.DefinesMacros : ConditionalRegionLayout.Mergeable);
 
                 default:
@@ -172,6 +174,7 @@ internal static class ConditionalRegionScanner
     /// <param name="tokens">走査するトークン列。</param>
     /// <param name="start">分岐の開始位置。</param>
     /// <param name="end">分岐の終了位置 (この位置は含まない)。</param>
+    /// <param name="blockAllowed"><c>{</c> で始まる分岐を並べてよいかを求める (<see cref="AllowsBlockBranch"/>)。前を数えるので、要るときだけ呼ぶ。</param>
     /// <returns>並べられない理由。並べられる場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// <para>
@@ -184,15 +187,30 @@ internal static class ConditionalRegionScanner
     /// 内側の条件は <see cref="Scan(ImmutableArray{ShaderSyntaxToken}, int)"/> が別に見ており、
     /// 並べてよい形だと分かっているものだけがここまで来る。
     /// </para>
+    /// <para>
+    /// <b><c>{</c> で始まる分岐は、前のコードが文の切れ目で終わっているときだけ並べる</b> (<paramref name="blockAllowed"/>)。
+    /// 関数の本体を値ごとに書き分けていると、並べた本体が 2 つ続いて構文として通らない (Unreal の HairStrandsCoverage.usf)。
+    /// </para>
+    /// <code>
+    /// void MainCS(uint3 Id : SV_DispatchThreadID)
+    /// #if PERMUTATION_INPUT_TYPE == 0
+    /// { … }
+    /// #endif
+    /// #if PERMUTATION_INPUT_TYPE == 1
+    /// { … }
+    /// #endif
+    /// </code>
     /// </remarks>
     private static ConditionalRegionLayout? ClassifyBranch(
         ImmutableArray<ShaderSyntaxToken> tokens,
         int start,
-        int end)
+        int end,
+        Func<bool> blockAllowed)
     {
         int brace = 0;
         int paren = 0;
         int bracket = 0;
+        ShaderSyntaxToken? first = null;
         ShaderSyntaxToken? last = null;
 
         for (int i = start; i < end; i++)
@@ -216,10 +234,12 @@ internal static class ConditionalRegionScanner
                 default: break;
             }
 
+            first ??= token;
             last = token;
         }
 
-        if (brace != 0 || paren != 0 || bracket != 0)
+        if (brace != 0 || paren != 0 || bracket != 0
+            || (first?.Kind == ShaderSyntaxKind.OpenBraceToken && !blockAllowed()))
         {
             return ConditionalRegionLayout.NotSelfContained;
         }
@@ -233,6 +253,92 @@ internal static class ConditionalRegionScanner
         return last.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken
             ? null
             : ConditionalRegionLayout.NotSelfContained;
+    }
+
+    /// <summary>
+    /// <c>{</c> で始まる分岐を、ブロックの文として並べてよいかを判定する。
+    /// </summary>
+    /// <param name="tokens">走査するトークン列。</param>
+    /// <param name="start"><c>#if</c> の行の次のトークンの位置。</param>
+    /// <returns>
+    /// <c>#if</c> より前のコード (指令の行を除く) が無いか、<c>;</c> か <c>{</c> で終わっていれば <see langword="true"/>。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <c>)</c> や <c>else</c> の後なら、分岐は関数の本体か文の一部である。
+    /// </para>
+    /// <para>
+    /// <c>}</c> の後は、波括弧の中 (関数の中) にいるときだけ並べる。トップレベルの <c>{</c> は関数の本体であり、
+    /// その <c>}</c> は前の <c>#if</c> で書き分けた本体の終わりかもしれない。
+    /// 関数の中で <c>{ … }</c> のブロックを続けて書き分けるのはよくある書き方なので (URP の UberPost.shader)、
+    /// 一律に並べないと、構成ごとの展開が増えて上限を超える。
+    /// </para>
+    /// </remarks>
+    private static bool AllowsBlockBranch(ImmutableArray<ShaderSyntaxToken> tokens, int start)
+    {
+        // #if の行の # まで戻る。
+        int i = start - 1;
+
+        while (i >= 0 && !IsDirectiveStart(tokens, i, out _))
+        {
+            i--;
+        }
+
+        for (i--; i >= 0; i--)
+        {
+            int lineStart = i;
+
+            while (lineStart > 0 && !tokens[lineStart].IsAtLineStart)
+            {
+                lineStart--;
+            }
+
+            if (IsDirectiveStart(tokens, lineStart, out _))
+            {
+                i = lineStart;
+                continue;
+            }
+
+            return tokens[i].Kind switch
+            {
+                ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken => true,
+                ShaderSyntaxKind.CloseBraceToken => BraceDepth(tokens, i) > 0,
+                _ => false,
+            };
+        }
+
+        return true;
+    }
+
+    /// <summary>その位置の直後の、波括弧の深さを数える。</summary>
+    /// <param name="tokens">走査するトークン列。</param>
+    /// <param name="index">数え終える位置 (含む)。</param>
+    /// <returns>深さ。トップレベルなら 0。</returns>
+    /// <remarks>
+    /// 指令の行は数えない。<c>#if</c> の分岐はどれも数えるので、分岐ごとに開き方の違う書き方では狂う。
+    /// 狂って 0 以下になれば、並べない側に倒れる。
+    /// </remarks>
+    private static int BraceDepth(ImmutableArray<ShaderSyntaxToken> tokens, int index)
+    {
+        int depth = 0;
+
+        for (int i = 0; i <= index; i++)
+        {
+            if (IsDirectiveStart(tokens, i, out _))
+            {
+                i = SkipDirectiveLine(tokens, i) - 1;
+                continue;
+            }
+
+            depth += tokens[i].Kind switch
+            {
+                ShaderSyntaxKind.OpenBraceToken => 1,
+                ShaderSyntaxKind.CloseBraceToken => -1,
+                _ => 0,
+            };
+        }
+
+        return depth;
     }
 
     /// <summary>

@@ -415,11 +415,56 @@ public sealed class SymbolConstraints
             }
         }
 
+        // どれか 1 つが必ず定義される集まりで、1 つを除いて「定義されていない」なら、残りの 1 つは定義されている。
+        // それも同時には定義されない組と照らす (QUALITY != 1 は、値が 0 と 1 なら QUALITY == 0 である)。
+        List<string>? implied = null;
+
         foreach (ImmutableArray<string> group in _requiredGroups)
         {
-            if (group.All(symbol => term.Contains(new SymbolTerm(symbol, IsDefined: false))))
+            string? remaining = null;
+            int open = 0;
+
+            foreach (string symbol in group)
+            {
+                if (!term.Contains(new SymbolTerm(symbol, IsDefined: false)))
+                {
+                    remaining = symbol;
+                    open++;
+                }
+            }
+
+            if (open == 0)
             {
                 return true;
+            }
+
+            if (open == 1 && !term.Contains(new SymbolTerm(remaining!, IsDefined: true)))
+            {
+                (implied ??= []).Add(remaining!);
+            }
+        }
+
+        if (implied is null || _exclusivePairs.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (string symbol in implied)
+        {
+            foreach (SymbolTerm other in term)
+            {
+                if (other.IsDefined && AreExclusive(symbol, other.Symbol))
+                {
+                    return true;
+                }
+            }
+
+            foreach (string another in implied)
+            {
+                if (!ReferenceEquals(symbol, another) && AreExclusive(symbol, another))
+                {
+                    return true;
+                }
             }
         }
 

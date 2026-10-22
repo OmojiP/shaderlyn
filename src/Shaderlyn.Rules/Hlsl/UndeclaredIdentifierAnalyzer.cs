@@ -300,7 +300,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     ? use.And(occurrence.DeclaredWhen!.Value.Negate())
                     : use;
 
-                if (!hidden.IsUnknown && map.IsPossible(hidden))
+                if (!hidden.IsUnknown && compilation.IsPossibleIn(occurrence.Program, hidden))
                 {
                     missing = missing.Or(hidden);
                 }

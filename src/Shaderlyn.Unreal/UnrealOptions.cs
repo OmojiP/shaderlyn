@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics.Environments;
 
@@ -21,7 +24,7 @@ namespace Shaderlyn.Unreal;
 /// 構成の軸 (パーミュテーション) は、まだ C++ から作らない。C++ の <c>SHADER_PERMUTATION_BOOL</c> / <c>SHADER_PERMUTATION_INT</c> に合わせて設定で与える。
 /// </para>
 /// </remarks>
-public sealed record UnrealOptions
+public sealed partial record UnrealOptions
 {
     /// <summary>環境の名前。</summary>
     public const string EnvironmentName = "unreal";
@@ -148,6 +151,22 @@ public sealed record UnrealOptions
     public bool Enable16BitTypes { get; init; }
 
     /// <summary>
+    /// パーミュテーションと、値の決まらないマクロを構成の軸にするか (<c>unreal: permutations</c>)。既定は <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 立てると、C++ の登録の単位ごとに、パーミュテーションの値のそれぞれと、組で値の変わる定義を読む。
+    /// エンジンがコンパイルしない組み合わせ (<c>ShouldCompilePermutation</c>) は、同時には有効にならない組にする。
+    /// 単位はクラスの定義するものごとに分ける (同じエントリポイントでも、定義の違うクラスは別の単位)。
+    /// </para>
+    /// <para>
+    /// 立てなければ、値が 1 つに決まるマクロだけを定義し、パーミュテーションは定義しない (既定の値 0 の分岐だけを読む)。
+    /// 解析は数倍速い。
+    /// </para>
+    /// </remarks>
+    public bool PermutationAxes { get; init; }
+
+    /// <summary>
     /// 仮想パスの割り当てをすべて集める。
     /// </summary>
     /// <returns>仮想パスからディスクのフォルダーへの割り当て。</returns>
@@ -218,6 +237,7 @@ public sealed record UnrealOptions
     /// <summary>
     /// 生成のフォルダーにあるシェーダーの登録 (<see cref="UnrealShaderRegistrations"/>) から、ファイルの単位を作るものを返す。
     /// </summary>
+    /// <param name="variants">設定の構成の軸。単位の構成の軸 (パーミュテーションなど) に重ねる。</param>
     /// <returns>
     /// ファイル全体の単位を受け取り、登録されたエントリポイントごとの単位を返す。登録が無いファイルは空を返す。
     /// 生成のフォルダーが無いか、登録の一覧が無ければ <see langword="null"/>。
@@ -229,11 +249,12 @@ public sealed record UnrealOptions
     /// エンジンの C++ がそうするためである (UE 5.5 の <c>ShaderCompiler.cpp</c>)。
     /// </para>
     /// <para>
-    /// 同じエントリポイントとステージを、別のクラス (パーミュテーションの違い) が登録していれば、単位は 1 つにする。
+    /// 同じエントリポイントとステージを、定義するもの (マクロ・パーミュテーション・フラグ) が同じ別のクラスが登録していれば、単位は 1 つにする。
+    /// 定義するものが違えば、クラスごとに単位を作る。
     /// ファイルのパスは、仮想パスの割り当て (<see cref="GetVirtualPathMappings"/>) で仮想パスにしてから引く。
     /// </para>
     /// </remarks>
-    public Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? CreateRegisteredUnits()
+    public Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? CreateRegisteredUnits(VariantSpace? variants = null)
     {
         if (GeneratedDirectory is not { } generated)
         {
@@ -250,6 +271,7 @@ public sealed record UnrealOptions
         ILookup<string, UnrealShaderRegistration> byPath = registrations.ToLookup(r => r.VirtualPath, StringComparer.OrdinalIgnoreCase);
         ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(generated);
         ImmutableDictionary<string, string> platformMacros = PlatformMacros;
+        VariantSpace baseVariants = variants ?? VariantSpace.Empty;
 
         // 仮想パスの割り当てを、長いフォルダーから引く (/Engine/Generated は /Engine より先)。
         (string Virtual, string Directory)[] mappings =
@@ -266,15 +288,35 @@ public sealed record UnrealOptions
                 return [];
             }
 
-            IGrouping<(string EntryPoint, string Frequency), UnrealShaderRegistration>[] found =
+            // 同じエントリポイントとステージでも、別のクラス (定義するマクロの違う、別のシェーダー) なら別の単位にする。
+            // まとめると、クラスをまたいだ実在しない組み合わせ (片方のクラスのマクロと、もう片方のパーミュテーション) を読んでしまう。
+            // 定義するものが同じクラス (パーミュテーションを C++ のテンプレートで分けたものなど) は 1 つにまとめる。
+            IGrouping<(string EntryPoint, string Frequency, string Shape), UnrealShaderRegistration>[] found =
             [
                 .. byPath[virtualPath]
-                    .GroupBy(r => (r.EntryPoint, r.Frequency))
+                    .GroupBy(r => (r.EntryPoint, r.Frequency, PermutationAxes ? ClassShape(classes, r.ShaderClass) : string.Empty))
                     .OrderBy(g => g.Key.EntryPoint, StringComparer.Ordinal)
-                    .ThenBy(g => g.Key.Frequency, StringComparer.Ordinal),
+                    .ThenBy(g => g.Key.Frequency, StringComparer.Ordinal)
+                    .ThenBy(g => g.Min(r => r.ShaderClass), StringComparer.Ordinal),
             ];
 
-            return [.. found.Select(g => CreateRegisteredUnit(whole, [.. g], classes, platformMacros, named: found.Length > 1))];
+            // 同じエントリポイントとステージに単位が複数あれば、クラスの名前で見分ける。
+            HashSet<(string, string)> shared =
+            [
+                .. found.GroupBy(g => (g.Key.EntryPoint, g.Key.Frequency)).Where(g => g.Count() > 1).Select(g => g.Key),
+            ];
+
+            return
+            [
+                .. found.Select(g => CreateRegisteredUnit(
+                    whole,
+                    [.. g],
+                    classes,
+                    platformMacros,
+                    PermutationAxes ? baseVariants : null,
+                    named: found.Length > 1,
+                    distinguisher: shared.Contains((g.Key.EntryPoint, g.Key.Frequency)) ? g.Min(r => r.ShaderClass) : null)),
+            ];
         };
     }
 
@@ -299,30 +341,54 @@ public sealed record UnrealOptions
         return null;
     }
 
-    /// <summary>同じエントリポイントとステージの登録から単位を作る。</summary>
+    /// <summary>クラスが定義するもの (マクロ・パーミュテーション・フラグ) を表す文字列。同じなら、同じ単位にまとめられる。</summary>
+    /// <param name="classes">C++ のシェーダーのクラス。</param>
+    /// <param name="className">登録のクラスの名前。</param>
+    /// <returns>文字列。クラスが見つからなければ、クラスごとに違う文字列。</returns>
+    private static string ClassShape(ImmutableDictionary<string, UnrealShaderClass> classes, string className)
+    {
+        if (FindClass(classes, className) is not { } shaderClass)
+        {
+            return "?" + className;
+        }
+
+        return string.Join(
+            ";",
+            shaderClass.Defines.Select(p => $"d:{p.Key}={p.Value ?? "?"}")
+                .Concat(shaderClass.Permutations.Select(p => $"p:{p.Key}={(p.Value is { } v ? string.Join(",", v) : "?")}"))
+                .Concat(shaderClass.CompilerFlags.Select(p => $"f:{p.Key}={p.Value ?? "?"}"))
+                .Concat(shaderClass.Varying.Select(p => $"v:{p.Key}={string.Join(",", p.Value)}"))
+                .Concat(shaderClass.Exclusions.Select(p => $"x:{p.Key}/{p.Value}")));
+    }
+
+    /// <summary>同じエントリポイントとステージで、定義するものが同じクラスの登録から単位を作る。</summary>
     /// <param name="whole">ファイル全体の単位。</param>
-    /// <param name="group">登録 (同じエントリポイントとステージを、パーミュテーションの違うクラスが登録していることがある)。</param>
+    /// <param name="group">登録 (パーミュテーションを C++ のテンプレートで分けたクラスなど、定義するものが同じクラスのもの)。</param>
     /// <param name="classes">C++ のシェーダーのクラス。</param>
     /// <param name="platformMacros">シェーダープラットフォームでエンジンが定義するマクロ。</param>
+    /// <param name="baseVariants">設定の構成の軸。パーミュテーションを構成の軸にしないなら <see langword="null"/> (環境の構成の軸を使う)。</param>
     /// <param name="named">同じファイルにほかの単位があり、名前で見分ける必要があるか。</param>
+    /// <param name="distinguisher">同じエントリポイントとステージのほかの単位と見分けるために、名前に添える語 (クラスの名前)。</param>
     /// <returns>単位。</returns>
     private static ShaderCompilationUnit CreateRegisteredUnit(
         ShaderCompilationUnit whole,
         ImmutableArray<UnrealShaderRegistration> group,
         ImmutableDictionary<string, UnrealShaderClass> classes,
         ImmutableDictionary<string, string> platformMacros,
-        bool named)
+        VariantSpace? baseVariants,
+        bool named,
+        string? distinguisher)
     {
         UnrealShaderRegistration registration = group[0];
-        ImmutableArray<UnrealShaderClass?> found = [.. group.Select(r => classes.GetValueOrDefault(UnrealShaderClasses.BareClassName(r.ShaderClass)))];
-        // 値の決まらないマクロとパーミュテーションは、まだ構成の軸にしない (定義しない。以前と同じ)。
-        // 構成の軸にすると、軸で切り替わる #include の中の #pragma once のヘッダで、宣言が片方の構成にしか無いことになる
-        // (前処理の不具合。計画の UE4 の残りを参照)。
-        (ImmutableDictionary<string, string> classMacros, _) = MergeClasses(found);
+        ImmutableArray<UnrealShaderClass?> found = [.. group.Select(r => FindClass(classes, r.ShaderClass))];
+        // 値の決まらないマクロとパーミュテーションは構成の軸にする。両方の分岐を読み、値の分かるものはその値のそれぞれを読む。
+        (ImmutableDictionary<string, string> classMacros, VariantSpace classVariants) =
+            MergeClasses(found, name => ComparedValues(whole.Text, name));
 
         ImmutableArray<string> functions = UnrealShaderRegistrations.EntryFunctions(registration.EntryPoint);
         HlslShaderStage? stage = UnrealShaderRegistrations.ToStage(registration.Frequency);
-        string display = $"{functions.FirstOrDefault() ?? registration.EntryPoint} (SF_{registration.Frequency})";
+        string display = $"{functions.FirstOrDefault() ?? registration.EntryPoint} (SF_{registration.Frequency}"
+                         + (distinguisher is null ? ")" : $", {distinguisher})");
         string origin = $"C++ の {registration.Macro} ({Path.GetFileName(registration.SourceFile)} の {registration.ShaderClass})";
 
         return whole with
@@ -330,18 +396,38 @@ public sealed record UnrealOptions
             Name = named ? display : null,
             DisplayName = display,
             ExtraMacros = platformMacros.SetItems(classMacros).SetItems(UnrealShaderRegistrations.CreateStageMacros(registration.Frequency)),
+            Variants = baseVariants?.Union(classVariants),
             EntryPoints = [.. functions.Select(f => new ShaderEntryPoint(f, origin))],
             Target = stage is { } s ? new HlslShaderTarget(s, 6, 6) : null,
 
             // ライブラリ (レイトレーシングなど) は、ほかの単位とリンクするので、宣言だけの関数を誤りにしない (HL0311)。
             AllowsExternalDefinitions = stage is null or HlslShaderStage.Library,
+
+            // CFLAG_AllowRealTypes を立てる組があれば、16 ビットの型を使う (DXC の -enable-16bit-types)。
+            // 使わないと half は float と同じ型になり、half と float の多重定義を二重の定義と報告していた (Unreal の TSRCommon.ush)。
+            Enable16BitTypes = found.Any(c => c is not null
+                                              && (c.CompilerFlags.GetValueOrDefault("CFLAG_AllowRealTypes") == "1"
+                                                  || c.Varying.ContainsKey("CFLAG_AllowRealTypes")))
+                ? true
+                : null,
         };
     }
+
+    /// <summary>登録のクラスを引く。テンプレートのクラスは引数ごとに読んであるので、まず引数を含めて引く。</summary>
+    /// <param name="classes">C++ のシェーダーのクラス。</param>
+    /// <param name="className">登録のクラスの名前。</param>
+    /// <returns>クラス。見つからなければ <see langword="null"/>。</returns>
+    private static UnrealShaderClass? FindClass(ImmutableDictionary<string, UnrealShaderClass> classes, string className)
+        => classes.GetValueOrDefault(UnrealShaderClasses.ClassKey(className))
+           ?? classes.GetValueOrDefault(UnrealShaderClasses.BareClassName(className));
 
     /// <summary>
     /// 同じ単位を登録したクラスの、定義するマクロとパーミュテーションを合わせる。
     /// </summary>
     /// <param name="classes">クラス。見つからなかったクラスは <see langword="null"/>。</param>
+    /// <param name="comparedValues">
+    /// 値の分からないマクロについて、シェーダーが比べている整数を返すもの。比べていなければ空を返す。
+    /// </param>
     /// <returns>どのクラスでも同じ値のマクロと、それ以外を構成の軸にした空間。</returns>
     /// <remarks>
     /// <para>
@@ -352,8 +438,17 @@ public sealed record UnrealOptions
     /// <para>
     /// コンパイラのフラグは、エンジンが定義するマクロにする (<see cref="CompilerFlagMacros"/>)。
     /// </para>
+    /// <para>
+    /// <b>値の分からないマクロは、シェーダーが比べている整数を値にする。</b>
+    /// <c>#if RESOURCE_TYPE == 0</c> / <c>#elif RESOURCE_TYPE == 1</c> と書き分けたマクロを、
+    /// 定義されているか・いないかの軸にすると、どの比べ方も同じ条件 (定義されている) で読み、
+    /// 分岐ごとの定義を「定義し直し」(HL0002) と報告していた (Unreal の <c>ClearReplacementShaders.usf</c>)。
+    /// 比べていなければ、定義されているか・いないかの軸にする (<c>#if NAME</c> の書き方)。
+    /// </para>
     /// </remarks>
-    internal static (ImmutableDictionary<string, string> Macros, VariantSpace Variants) MergeClasses(ImmutableArray<UnrealShaderClass?> classes)
+    internal static (ImmutableDictionary<string, string> Macros, VariantSpace Variants) MergeClasses(
+        ImmutableArray<UnrealShaderClass?> classes,
+        Func<string, ImmutableArray<int>>? comparedValues = null)
     {
         // マクロの名前から、クラスごとの値 (無ければ "0"、決まらなければ null)。
         Dictionary<string, List<string?>> defines = new(StringComparer.Ordinal);
@@ -376,6 +471,15 @@ public sealed record UnrealOptions
             {
                 permutations.TryAdd(name, []);
             }
+
+            // パーミュテーションの組で値の変わる定義とフラグも、構成の軸にする。フラグは、エンジンが定義するマクロにする。
+            foreach (string name in shaderClass.Varying.Keys)
+            {
+                if (AxisName(name) is { } axis)
+                {
+                    permutations.TryAdd(axis, []);
+                }
+            }
         }
 
         foreach (UnrealShaderClass? shaderClass in classes)
@@ -387,7 +491,7 @@ public sealed record UnrealOptions
 
             foreach ((string name, List<ImmutableArray<int>?> values) in permutations)
             {
-                values.Add(shaderClass is null ? null : shaderClass.Permutations.TryGetValue(name, out ImmutableArray<int>? found) ? found : [0]);
+                values.Add(shaderClass is null ? null : AxisValues(shaderClass, name));
             }
         }
 
@@ -424,11 +528,180 @@ public sealed record UnrealOptions
                 variants = variants.Union(Unknown(name));
             }
         }
+        else
+        {
+            variants = variants.Union(Exclusions(classes, variants));
+        }
 
         return (macros.ToImmutable(), variants);
 
-        static VariantSpace Unknown(string name)
-            => new([new VariantDeclaration(name, VariantSymbolKind.Compiled, null)], []);
+        VariantSpace Unknown(string name)
+            => comparedValues?.Invoke(name) is { IsEmpty: false } values
+                ? VariantSpace.ForValues(name, values)
+                : new([new VariantDeclaration(name, VariantSymbolKind.Compiled, null)], []);
+    }
+
+    /// <summary>シェーダーの <c>#if</c> / <c>#elif</c> で、その名前と比べている整数を集める。</summary>
+    /// <param name="text">シェーダーのファイル。</param>
+    /// <param name="name">マクロの名前。</param>
+    /// <returns>比べている整数と 0 (小さい順)。比べていなければ空。</returns>
+    /// <remarks>
+    /// <para>取り込んだヘッダは見ない。単位を作る時点では、ファイルのテキストしか無いからである。</para>
+    /// <para>
+    /// 比べる相手は、整数のリテラルか、そのファイルで整数に定義したマクロ
+    /// (<c>#define LIGHT_SOURCE_PUNCTUAL 0</c>、<c>#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_PUNCTUAL</c>。Unreal の <c>CapsuleShadowShaders.usf</c>) である。
+    /// </para>
+    /// <para>
+    /// <b>比べた値のどれでもないときの分岐 (<c>#if MIXED_RADIX == 1</c> の <c>#else</c>) も読めるよう、0 も入れる。</b>
+    /// ただし、その名前を比べた条件の直後に <c>#error</c> があれば (<c>#if MAX_VECTOR_FIELDS != 4 &amp;&amp; MAX_VECTOR_FIELDS != 1</c>)、
+    /// 比べた値のほかはエンジンがコンパイルしない値なので入れない。
+    /// 入れると、その値でしか通らない分岐を読み、宣言されていない名前を報告していた
+    /// (Unreal の <c>ParticleSimulationShader.usf</c> で HL0315)。
+    /// </para>
+    /// </remarks>
+    internal static ImmutableArray<int> ComparedValues(SourceText text, string name)
+    {
+        string content = text.ToString();
+
+        if (!content.Contains(name, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        // 1 行に複数の比較がある (#if X == 1 || X == 2) ので、条件の行ごとに続けて探す。
+        // 左右を入れ替えた形 (#if STRUCTURED_ELEMENT_SIZE_UINT1 == STRUCTURED_ELEMENT_SIZE。Unreal の ByteBuffer.usf) も読む。
+        Regex operand = new(
+            $@"\b{Regex.Escape(name)}[ \t]*(?:==|!=|<=|>=|<|>)[ \t]*(\w+)\b|\b(\w+)[ \t]*(?:==|!=|<=|>=|<|>)[ \t]*{Regex.Escape(name)}\b",
+            RegexOptions.CultureInvariant);
+        Dictionary<string, int> named = new(StringComparer.Ordinal);
+
+        foreach (Match definition in IntegerDefinition().Matches(content))
+        {
+            if (int.TryParse(definition.Groups[2].ValueSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out int defined))
+            {
+                named.TryAdd(definition.Groups[1].Value, defined);
+            }
+        }
+
+        SortedSet<int> values = [];
+        bool guarded = false;
+
+        foreach (Match directive in ConditionDirective().Matches(content))
+        {
+            bool compared = false;
+
+            foreach (Match match in operand.Matches(directive.Groups[1].Value))
+            {
+                Group other = match.Groups[1].Success ? match.Groups[1] : match.Groups[2];
+
+                if (int.TryParse(other.ValueSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
+                    || named.TryGetValue(other.Value, out value))
+                {
+                    values.Add(value);
+                    compared = true;
+                }
+            }
+
+            guarded |= compared && ErrorDirective().IsMatch(content, directive.Index + directive.Length);
+        }
+
+        if (values.Count > 0 && !guarded)
+        {
+            values.Add(0);
+        }
+
+        return [.. values];
+    }
+
+    /// <summary><c>#if</c> と <c>#elif</c> の行。条件を 1 番目のグループに取る。</summary>
+    /// <returns>正規表現。</returns>
+    [GeneratedRegex(@"^[ \t]*#[ \t]*(?:el)?if\b(.*)$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex ConditionDirective();
+
+    /// <summary>整数に定義したマクロ (<c>#define NAME 0</c>、<c>#define NAME (0)</c>)。名前と値をグループに取る。</summary>
+    /// <returns>正規表現。</returns>
+    [GeneratedRegex(@"^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+\(?[ \t]*(\d+)[ \t]*\)?[ \t]*(?://.*)?\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex IntegerDefinition();
+
+    /// <summary>次の行 (空行を除く) が <c>#error</c> であること。条件の行の終わりから当てる。</summary>
+    /// <returns>正規表現。</returns>
+    [GeneratedRegex(@"\G\r?\n(?:[ \t]*\r?\n)*[ \t]*#[ \t]*error\b", RegexOptions.CultureInvariant)]
+    private static partial Regex ErrorDirective();
+
+    /// <summary>定義かフラグの名前から、構成の軸の名前を求める。フラグはエンジンが定義するマクロにする。</summary>
+    /// <param name="name">定義かフラグの名前。</param>
+    /// <returns>軸の名前。マクロにならないフラグなら <see langword="null"/>。</returns>
+    private static string? AxisName(string name)
+        => name.StartsWith("CFLAG_", StringComparison.Ordinal)
+            ? CompilerFlagMacros.FirstOrDefault(p => p.Flag == name).Macro
+            : name;
+
+    /// <summary>クラスで、その構成の軸がとる値。</summary>
+    /// <param name="shaderClass">クラス。</param>
+    /// <param name="axis">軸の名前 (パーミュテーション、定義、フラグのマクロ)。</param>
+    /// <returns>値。決まらなければ <see langword="null"/>。そのクラスが定義しなければ 0。</returns>
+    private static ImmutableArray<int>? AxisValues(UnrealShaderClass shaderClass, string axis)
+    {
+        if (shaderClass.Permutations.TryGetValue(axis, out ImmutableArray<int>? permutation))
+        {
+            return permutation;
+        }
+
+        foreach ((string name, ImmutableArray<int> values) in shaderClass.Varying)
+        {
+            if (AxisName(name) == axis)
+            {
+                return values;
+            }
+        }
+
+        return ClassDefine(shaderClass, axis) is { } value && int.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out int number)
+            ? [number]
+            : ClassDefine(shaderClass, axis) is null ? null : [0];
+    }
+
+    /// <summary>
+    /// どのクラスでも同時には現れない値の組を、同時には有効にならない組 (<see cref="VariantGroup"/>) にする。
+    /// </summary>
+    /// <param name="classes">クラス (どれも見つかっている)。</param>
+    /// <param name="variants">構成の軸。両方の値が軸にある組だけを使う。</param>
+    /// <returns>組の制約だけを持つ空間。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>エンジンがコンパイルしない組み合わせを、構成として読まない。</b>
+    /// <c>ShouldCompilePermutation</c> で除かれる組 (Lumen の Inline の HitLighting など) や、組から決まる 2 つの定義
+    /// (<c>CapsuleShadowShaders</c> の <c>LIGHT_SOURCE_MODE</c> と <c>APPLY_TO_BENT_NORMAL</c>) の、実在しない組み合わせである。
+    /// 読むと、その組み合わせで宣言が無いと報告していた。
+    /// </para>
+    /// <para>同じ単位のクラスは定義するものが同じなので、どのクラスにもある組だけを使えば足りる。</para>
+    /// </remarks>
+    private static VariantSpace Exclusions(ImmutableArray<UnrealShaderClass?> classes, VariantSpace variants)
+    {
+        HashSet<(string, string)>? common = null;
+
+        foreach (UnrealShaderClass shaderClass in classes.OfType<UnrealShaderClass>())
+        {
+            HashSet<(string, string)> own = [];
+
+            foreach ((string left, string right) in shaderClass.Exclusions)
+            {
+                if (AxisAtom(left) is { } a && AxisAtom(right) is { } b && variants.Symbols.Contains(a) && variants.Symbols.Contains(b))
+                {
+                    own.Add((a, b));
+                }
+            }
+
+            common = common is null ? own : [.. common.Intersect(own)];
+        }
+
+        return common is null or { Count: 0 }
+            ? VariantSpace.Empty
+            : new VariantSpace([], [.. common.Order().Select(p => new VariantGroup([p.Item1, p.Item2], RequiresOne: false))]);
+
+        static string? AxisAtom(string atom)
+            => VariantValues.TryParseAtom(atom, out string? name, out int value) && AxisName(name) is { } axis
+                ? VariantValues.Atom(axis, value)
+                : null;
     }
 
     /// <summary>クラスがマクロに与える値。定義しなければ <c>"0"</c>、決まらなければ <see langword="null"/>。</summary>

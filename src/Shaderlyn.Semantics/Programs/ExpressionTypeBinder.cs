@@ -45,6 +45,9 @@ public sealed class ExpressionTypeBinder
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
 
+    /// <summary>この木で、条件ごとに違う型で宣言された uniform の名前。型は 1 つに決まらない。</summary>
+    private readonly FrozenSet<string> _ambiguousUniforms;
+
     /// <summary>構造体の名前から、フィールド名とその宣言子への対応。配列の長さを読むのに使う。</summary>
     private readonly FrozenDictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> _structFieldDeclarators;
     private readonly FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>> _globalNames;
@@ -91,6 +94,11 @@ public sealed class ExpressionTypeBinder
         _ownUniforms = program.Uniforms
             .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        _ambiguousUniforms = program.Uniforms
+            .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
+            .Where(group => group.Select(UniformType).Distinct().Skip(1).Any())
+            .Select(group => group.Key)
+            .ToFrozenSet(StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structFunctions = CollectStructFunctions(program);
@@ -1083,16 +1091,33 @@ public sealed class ExpressionTypeBinder
     /// シェーダー全体で最初に見つかった宣言を使うと、別のカーネルの型で判定する。
     /// この木に無ければ、これまでどおりシェーダー全体から引く。
     /// </para>
+    /// <para>
+    /// <b>この木の中で条件ごとに違う型で宣言した uniform は、型を不明にする。</b>
+    /// <c>#if FORMAT == 0</c> の <c>RWTexture2D&lt;float2&gt;</c> と <c>#else</c> の <c>RWTexture2D&lt;float4&gt;</c> を
+    /// 両方並べた木で、最初の宣言の型を使うと、float4 を書く構成で成分が落ちると報告していた
+    /// (Unreal の HairStrandsVelocity.usf)。static の変数と同じ扱いである (<see cref="CollectFileVariables"/>)。
+    /// </para>
     /// </remarks>
     private ResolvedTypeName? LookupGlobal(string name)
     {
+        if (_ambiguousUniforms.Contains(name))
+        {
+            return null;
+        }
+
         if (_ownUniforms.TryGetValue(name, out UniformSymbol? uniform) || _compilation.TryGetUniform(name, out uniform))
         {
-            return new ResolvedTypeName(uniform.TypeName, uniform.IsArray, GetTemplateArgument(uniform.Declaration.Type), uniform.Declarator.ArrayDimensions);
+            return UniformType(uniform);
         }
 
         return _fileVariables.TryGetValue(name, out ResolvedTypeName? variable) ? variable : null;
     }
+
+    /// <summary>uniform の宣言の型。</summary>
+    /// <param name="uniform">対象の uniform。</param>
+    /// <returns>型。</returns>
+    private static ResolvedTypeName UniformType(UniformSymbol uniform)
+        => new(uniform.TypeName, uniform.IsArray, GetTemplateArgument(uniform.Declaration.Type), uniform.Declarator.ArrayDimensions);
 
     /// <summary>
     /// 関数の外で宣言された、uniform ではない変数の型を集める。

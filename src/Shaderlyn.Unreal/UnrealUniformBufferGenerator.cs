@@ -52,23 +52,36 @@ public static partial class UnrealUniformBufferGenerator
     /// C++ を探すフォルダー (エンジンの <c>Source</c> と <c>Plugins</c> と <c>Shaders/Shared</c>、プロジェクトの <c>Source</c> と <c>Plugins</c>)。
     /// </param>
     /// <param name="outputDirectory">書き出す先。<c>/Engine/Generated</c> に割り当てるフォルダー。</param>
+    /// <param name="platformSettings">
+    /// 解析するシェーダープラットフォームの設定 (<see cref="UnrealShaderLanguageVersions.ReadShaderPlatformSettings"/>)。
+    /// パーミュテーションを読むとき、<c>FDataDrivenShaderPlatformInfo</c> の問い合わせに答えるのに使う。
+    /// </param>
     /// <returns>書き出した結果。</returns>
-    public static UnrealUniformBufferGeneration Generate(IEnumerable<string> sourceRoots, string outputDirectory)
+    public static UnrealUniformBufferGeneration Generate(
+        IEnumerable<string> sourceRoots,
+        string outputDirectory,
+        ImmutableDictionary<string, string>? platformSettings = null)
     {
         ArgumentNullException.ThrowIfNull(sourceRoots);
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
         ParsedSources parsed = Parse(sourceRoots);
+        parsed.Classes.PlatformSettings = platformSettings;
         return Write(parsed, outputDirectory);
     }
 
     /// <summary>C++ のテキストから、構造体の定義と uniform buffer の登録を読む (テスト用)。</summary>
     /// <param name="files">ファイルのパスと中身。</param>
     /// <param name="outputDirectory">書き出す先。</param>
+    /// <param name="platformSettings">解析するシェーダープラットフォームの設定。</param>
     /// <returns>書き出した結果。</returns>
-    internal static UnrealUniformBufferGeneration GenerateFromTexts(IEnumerable<(string Path, string Text)> files, string outputDirectory)
+    internal static UnrealUniformBufferGeneration GenerateFromTexts(
+        IEnumerable<(string Path, string Text)> files,
+        string outputDirectory,
+        ImmutableDictionary<string, string>? platformSettings = null)
     {
         ParsedSources parsed = new();
+        parsed.Classes.PlatformSettings = platformSettings;
 
         foreach ((string path, string text) in files)
         {

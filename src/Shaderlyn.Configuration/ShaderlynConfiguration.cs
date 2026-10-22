@@ -93,6 +93,11 @@ internal sealed record ShaderlynConfiguration
     /// </summary>
     public string? UnrealGeneratedDirectory { get; init; }
 
+    /// <summary>
+    /// パーミュテーションと、値の決まらないマクロを構成の軸にするか (<c>unreal: permutations</c>)。書いていなければ <see langword="null"/> (しない)。
+    /// </summary>
+    public bool? UnrealPermutations { get; init; }
+
     /// <summary>Unreal の仮想パスの割り当て (<c>unreal: virtual-paths</c>)。フォルダーは設定ファイルからの相対で解決済み。</summary>
     public ImmutableDictionary<string, string> UnrealVirtualPaths { get; init; } = ImmutableDictionary<string, string>.Empty;
 

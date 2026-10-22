@@ -53,6 +53,8 @@ public sealed class HlslConfigurationTests : IDisposable
 
         Assert.Equal(2018, configuration.HlslVersion);
         Assert.True(configuration.HlslEnable16BitTypes);
+        Assert.Null(configuration.UnrealPermutations);
+        Assert.True(ParseWithoutProblems("unreal:\n  permutations: true\n").UnrealPermutations);
         Assert.Equal(["QUALITY", "USE_FOG"], configuration.Symbols.Select(s => s.Name));
         Assert.Equal([0, 1, 2], configuration.Symbols[0].Values.ToArray());
         Assert.True(configuration.Symbols[1].Values.IsEmpty);
@@ -85,6 +87,7 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    stage: pixel\n", "'stage'")]
     [InlineData("unreal:\n  virtual-paths:\n    Plugin/A: x\n", "/ で始めて")]
     [InlineData("unreal:\n  engines: x\n", "'engines'")]
+    [InlineData("unreal:\n  permutations: maybe\n", "unreal: の permutations には true か false")]
     [InlineData("hlsl:\n  enable-16bit-types: yes-please\n", "true か false")]
     [InlineData("hlsl:\n  compiler: fxc\n  enable-16bit-types: true\n", "compiler が fxc では使えません")]
     [InlineData("hlsl:\n  version: 2017\n  enable-16bit-types: true\n", "HLSL 2018 から使えます")]
@@ -187,6 +190,99 @@ public sealed class HlslConfigurationTests : IDisposable
         // 取り込まれる断片 (.hlsli) はフォルダーの指定では探さない。頂点シェーダーの入口は見つかる。
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'MainVS'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 関数の本体を値ごとの <c>#if</c> で書き分けても、本体を 2 つ並べて構文の誤りにしない
+    /// (Unreal Engine の HairStrandsCoverage.usf)。
+    /// </summary>
+    [Fact]
+    public async Task 値ごとに書き分けた関数の本体を並べない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: INPUT_TYPE
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            RWTexture2D<float> Output;
+            [numthreads(8, 8, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            #if INPUT_TYPE == 0
+            {
+                Output[Id.xy] = 0;
+            }
+            #endif
+            #if INPUT_TYPE == 1
+            {
+                Output[Id.xy] = Missing;
+            }
+            #endif
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+        Assert.Contains("'Missing'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 既定の値では読まない <c>#if</c> の中で、別の値の軸で書き分けた宣言を、二重の宣言と報告しない
+    /// (Unreal Engine の HairStrandsVelocity.usf)。その変数へ代入する値の成分が落ちるとも報告しない。本当に二重の宣言は報告する。
+    /// </summary>
+    [Fact]
+    public async Task 値の軸の中で書き分けた宣言を二重の宣言にしない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: VELOCITY
+                values: [0, 1, 2]
+              - name: FORMAT
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if VELOCITY != 0
+              #if FORMAT == 0
+                RWTexture2D<float2> OutVelocity;
+              #else
+                RWTexture2D<float4> OutVelocity;
+              #endif
+              uint Twice;
+              uint Twice;
+            #endif
+            #if FORMAT == 0
+            float2 ToOutput(float4 v) { return v.xy; }
+            #else
+            float4 ToOutput(float4 v) { return v; }
+            #endif
+            [numthreads(8, 8, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            {
+            #if VELOCITY != 0
+                OutVelocity[Id.xy] = ToOutput(Twice);
+            #endif
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'OutVelocity'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0353", output, StringComparison.Ordinal);
+        Assert.Contains("'Twice'", output, StringComparison.Ordinal);
     }
 
     /// <summary>

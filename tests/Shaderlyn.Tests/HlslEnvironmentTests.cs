@@ -73,6 +73,27 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void 単位ごとに十六ビットの型を使える()
+    {
+        // Unreal は、クラスのフラグ (CFLAG_AllowRealTypes) で単位ごとに 16 ビットの型を使うかを決める。
+        // 使う単位では、環境の設定によらず __HLSL_ENABLE_16_BIT を定義し、half を float と別の型として読む。
+        const string code = """
+            float4 main() : SV_Target
+            {
+            #if __HLSL_ENABLE_16_BIT
+                float3 c = 1;
+                return c.w;
+            #else
+                return 0;
+            #endif
+            }
+            """;
+
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "HL0312");
+        Assert.Contains(Analyze(code, Unit(code, "ps_6_2") with { Enable16BitTypes = true }), d => d.Id == "HL0312");
+    }
+
+    [Fact]
     public void ターゲットのマクロで分岐を選ぶ()
     {
         // ピクセルシェーダーのときだけ誤りがある。コンピュートのターゲットでは通らない分岐。

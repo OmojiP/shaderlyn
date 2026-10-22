@@ -24,6 +24,13 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   シェーダープラットフォームのマクロ (PC の Direct3D 12 の `SM6_PROFILE` など。`DataDrivenPlatformInfo.ini` から決まるものを含む) を定義する。
   パーミュテーションと、値の決まらないマクロは、まだ構成の軸にしない (今までどおり定義しない)。
   クラスの値には、C++ とシェーダーが共有するヘッダ (`Engine/Shaders/Shared`) の整数の `#define` も使う (`NANITE_RASTER_BIN_INIT` など)
+- Unreal Engine: 設定 `unreal: permutations: true` で、C++ から読んだパーミュテーションを構成の軸にする (既定は `false`)。
+  `--unreal-generate` は、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、
+  コンパイルされない組を除き、組で値の変わる定義とフラグ (`CFLAG_AllowRealTypes` など) と、同時には現れない値の組を書き出す。
+  テンプレートのクラスは、登録に書かれた引数ごとに読む。プラットフォームを問う関数 (`FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders` など) には、
+  PC の Direct3D 12 (SM6) の設定 (`DataDrivenPlatformInfo.ini`) で答える。`CFLAG_AllowRealTypes` が付く構成は 16 ビットの型を有効にして解析する。
+  公開 API に `UnrealShaderClass.Varying` / `Exclusions`、`ShaderCompilationUnit.Enable16BitTypes`、
+  `ShaderCompilation.IsPossibleIn`、`ShaderlynConfiguration.UnrealPermutations` を足した
 
 ### 修正
 
@@ -59,6 +66,13 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   - 左右を入れ替えた比較 (`#if SIZE_UINT1 == ELEMENT_SIZE`) を値の条件として読む
   - 値の原子を 1 つでも並べられなかったら、その名前のほかの値の構成も作る。並べられなかった連なりのほかの値の側がどの木にも載らなかった
   - 既定の木の届かない `#error` に届く構成の木は使わない (その構成はコンパイルできない)。解析しなかった構成として扱う (HL0006)
+  - 関数の本体を値ごとの `#if` で書き分けると (`void MainCS(…)` の後に `#if X == 0 { … } #endif #if X == 1 { … } #endif`)、
+    本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるときだけ並べる
+  - 既定の値では読まない `#if` の中で別の値の軸で書き分けた宣言を、二重の宣言 (HL0314) と報告していた。
+    構成ごとの木で並べた範囲の条件を、その木を解析した構成を掛けずに足していた。
+    また、そうした uniform に代入すると、最初の宣言の型で成分が落ちる (HL0353) と報告していた。同じ木の中で型が 1 つに決まらない uniform は、型を不明にする
+  - 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの
+    宣言の無い名前 (HL0310 など) を報告していなかった。固定したシンボルを、木の構成で無効として扱っていた
 
 ### 変更
 

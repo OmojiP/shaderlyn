@@ -1430,6 +1430,7 @@ Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Collections.Imm
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] ExtraMacros { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[Shaderlyn.Core.Text.TextSpan] MarkerSpan { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderTarget] Target { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[System.Boolean] Enable16BitTypes { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Object Data { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String DisplayName { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String Name { get; set; }
@@ -1589,6 +1590,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasFunctionDeclarations 
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean HasHlslPrograms { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFromOwnMacro(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsFunctionLikeMacro(System.String)
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsPossibleIn(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsRepeatedDeclaration(Shaderlyn.CFamily.Syntax.DeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsReportable(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)

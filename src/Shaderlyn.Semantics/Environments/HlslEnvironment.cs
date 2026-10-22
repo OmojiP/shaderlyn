@@ -198,11 +198,12 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
             return options;
         }
 
-        // 単位ごとに言語のバージョンが違えば、コンパイラと HLSL のバージョンの組と、バージョンで決まるマクロを差し替える。
+        // 単位ごとに言語のバージョンか 16 ビットの型の設定が違えば、コンパイラと HLSL のバージョンの組と、それで決まるマクロを差し替える。
         HlslLanguageVersion version = Options.SelectUnitLanguageVersion?.Invoke(filePath, options.IncludeResolver)
                                       ?? Options.LanguageVersion;
+        bool sixteenBit = unit.Enable16BitTypes ?? Options.Enable16BitTypes;
 
-        if (version != Options.LanguageVersion)
+        if (version != Options.LanguageVersion || sixteenBit != Options.Enable16BitTypes)
         {
             ImmutableDictionary<string, string> macros = options.PredefinedMacros
                 .SetItem("__HLSL_VERSION", ((int)version).ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -212,7 +213,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
                 macros = version >= HlslLanguageVersion.Hlsl2021 ? macros.SetItem(name, value) : macros.Remove(name);
             }
 
-            options = options.WithHlsl(h => h with { Dialects = [Options.DialectFor(version)] }) with { PredefinedMacros = macros };
+            macros = sixteenBit ? macros.SetItem("__HLSL_ENABLE_16_BIT", "1") : macros.Remove("__HLSL_ENABLE_16_BIT");
+            HlslDialect dialect = Options.DialectFor(version) with { Enable16BitTypes = sixteenBit };
+            options = options.WithHlsl(h => h with { Dialects = [dialect] }) with { PredefinedMacros = macros };
         }
 
         // ターゲットで決まるマクロは、設定で与えたマクロ (共通・単位ごと) に負ける。

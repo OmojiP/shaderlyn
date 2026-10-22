@@ -345,6 +345,12 @@ internal static class ConditionMapBuilder
         {
             PreprocessResult result = program.Tree.PreprocessResult;
 
+            // バリアントの木の条件は、その木を解析した構成の中での話である。その構成を掛けてから足す。
+            // 掛けないと、F == 1 の木で外側の #if V だけが付いた宣言と、既定の木で内側の #else (F != 0) も付いた宣言が
+            // 同じ範囲になり、足すと内側の条件が消える。値で書き分けた宣言どうしを二重の宣言と報告していた
+            // (Unreal の HairStrandsVelocity.usf の OutVelocityTexture)。
+            SymbolCondition analyzed = program.AnalyzedCondition;
+
             foreach (ConditionalTokenRange range in result.ConditionalRegions)
             {
                 // 定義ごとに複製した文 (条件の巻き上げ) は、どれも同じ位置から作られる。
@@ -372,13 +378,15 @@ internal static class ConditionMapBuilder
                 {
                     ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
 
+                    SymbolCondition present = range.Condition.And(analyzed);
+
                     if (byLocation.TryGetValue(key, out SymbolCondition existing))
                     {
-                        byLocation[key] = existing.Or(range.Condition);
+                        byLocation[key] = existing.Or(present);
                         continue;
                     }
 
-                    byLocation[key] = range.Condition;
+                    byLocation[key] = present;
                     order.Add(key);
                 }
             }

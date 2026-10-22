@@ -719,6 +719,150 @@ public sealed class UnrealEnvironmentTests : IDisposable
     }
 
     /// <summary>
+    /// パーミュテーションの値の組ごとに、エンジンと同じく <c>ShouldCompilePermutation</c> と <c>ModifyCompilationEnvironment</c> を実行する。
+    /// コンパイルされない組の値は除き、組で値の変わる定義は軸にして、同時には現れない値の組を書き出す。
+    /// テンプレートのクラスは、登録に書かれた引数ごとに読む。
+    /// </summary>
+    [Fact]
+    public void CPlusPlusのクラスをパーミュテーションの組ごとに読む()
+    {
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Pass.cpp", """
+                enum class ELightSourceMode
+                {
+                    // シェーダーと合わせる
+                    Punctual = 0,
+                    FromReceiver = 2,
+                };
+
+                enum class EShadowType : uint8 { Directional, Point, Receiver, MAX };
+
+                enum ECollisionMode { PCM_None, PCM_DepthBuffer };
+
+                class FShadowCS : public FGlobalShader
+                {
+                    static constexpr int32 MaxBatch = 2;
+                    class FShadowType : SHADER_PERMUTATION_ENUM_CLASS("SHADOW_TYPE", EShadowType);
+                    class FInline : SHADER_PERMUTATION_BOOL("DIM_INLINE");
+                    class FBatch : SHADER_PERMUTATION_RANGE_INT("BATCH_SIZE", 1, FShadowCS::MaxBatch);
+                    using FPermutationDomain = TShaderPermutationDomain<FShadowType, FInline, FBatch>;
+
+                    static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+                    {
+                        if (PermutationVector.Get<FShadowType>() == EShadowType::Directional)
+                        {
+                            PermutationVector.Set<FBatch>(1);
+                        }
+                        return PermutationVector;
+                    }
+
+                    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                    {
+                        FPermutationDomain PermutationVector(Parameters.PermutationId);
+                        if (RemapPermutation(PermutationVector) != PermutationVector)
+                        {
+                            return false;
+                        }
+                        if (PermutationVector.Get<FInline>() && PermutationVector.Get<FShadowType>() == EShadowType::Receiver)
+                        {
+                            return false;
+                        }
+                        return !IsMobilePlatform(Parameters.Platform);
+                    }
+
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        FPermutationDomain PermutationVector(Parameters.PermutationId);
+                        EShadowType ShadowType = PermutationVector.Get<FShadowType>();
+                        ELightSourceMode Mode = (ELightSourceMode)0;
+                        if (ShadowType == EShadowType::Receiver)
+                        {
+                            Mode = ELightSourceMode::FromReceiver;
+                        }
+                        OutEnvironment.SetDefine(TEXT("LIGHT_SOURCE_MODE"), (uint32)Mode);
+                        OutEnvironment.SetDefine(TEXT("TILE_VERTEX_SHADER"), 1.0f);
+                        if (PermutationVector.Get<FInline>())
+                        {
+                            OutEnvironment.CompilerFlags.Add(CFLAG_AllowRealTypes);
+                        }
+                    }
+                };
+
+                template <ECollisionMode CollisionMode>
+                class TSimulationPS : public FGlobalShader
+                {
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        OutEnvironment.SetDefine(TEXT("DEPTH_BUFFER_COLLISION"), CollisionMode == PCM_DepthBuffer);
+                    }
+                };
+
+                class FRasterizeVS : public FGlobalShader
+                {
+                    class FPrimShaderDim : SHADER_PERMUTATION_BOOL("NANITE_PRIM_SHADER");
+                    class FMeshShaderDim : SHADER_PERMUTATION_BOOL("NANITE_MESH_SHADER");
+                    using FPermutationDomain = TShaderPermutationDomain<FPrimShaderDim, FMeshShaderDim>;
+
+                    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                    {
+                        FPermutationDomain PermutationVector(Parameters.PermutationId);
+                        if (PermutationVector.Get<FPrimShaderDim>() && !FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders(Parameters.Platform))
+                        {
+                            return false;
+                        }
+                        return !PermutationVector.Get<FMeshShaderDim>() || FDataDrivenShaderPlatformInfo::GetSupportsMeshShadersTier1(Parameters.Platform);
+                    }
+                };
+
+                IMPLEMENT_GLOBAL_SHADER(FShadowCS, "/Engine/Private/Shadow.usf", "MainCS", SF_Compute);
+                IMPLEMENT_GLOBAL_SHADER(FRasterizeVS, "/Engine/Private/Rasterize.usf", "MainVS", SF_Vertex);
+                IMPLEMENT_SHADER_TYPE(template<>, TSimulationPS<PCM_DepthBuffer>, TEXT("/Engine/Private/Simulation.usf"), TEXT("MainPS"), SF_Pixel);
+                IMPLEMENT_SHADER_TYPE(template<>, TSimulationPS<PCM_None>, TEXT("/Engine/Private/Simulation.usf"), TEXT("MainPS"), SF_Pixel);
+                """),
+        ],
+        output,
+        ImmutableDictionary<string, string>.Empty.Add("bSupportsMeshShadersTier1", "true"));
+
+        ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(output);
+
+        UnrealShaderClass shadow = classes["FShadowCS"];
+        Assert.Equal([0, 1, 2], shadow.Permutations["SHADOW_TYPE"]!.Value.ToArray());
+        Assert.Equal([1, 2], shadow.Permutations["BATCH_SIZE"]!.Value.ToArray());
+        Assert.Equal([0, 2], shadow.Varying["LIGHT_SOURCE_MODE"].ToArray());
+        Assert.Equal([0, 1], shadow.Varying["CFLAG_AllowRealTypes"].ToArray());
+        Assert.Equal("1.000000", shadow.Defines["TILE_VERTEX_SHADER"]);
+
+        // ShouldCompilePermutation が除く組 (Inline の Receiver) と、RemapPermutation が書き換える組 (Directional の BATCH_SIZE 2)。
+        Assert.Contains(new KeyValuePair<string, string>("DIM_INLINE==1", "SHADOW_TYPE==2"), shadow.Exclusions);
+        Assert.Contains(new KeyValuePair<string, string>("BATCH_SIZE==2", "SHADOW_TYPE==0"), shadow.Exclusions);
+
+        // 組から決まる定義どうし、組と定義の組み合わせ。
+        Assert.Contains(new KeyValuePair<string, string>("LIGHT_SOURCE_MODE==0", "SHADOW_TYPE==2"), shadow.Exclusions);
+        Assert.Contains(new KeyValuePair<string, string>("CFLAG_AllowRealTypes==0", "DIM_INLINE==1"), shadow.Exclusions);
+
+        Assert.Equal("1", classes["TSimulationPS<PCM_DepthBuffer>"].Defines["DEPTH_BUFFER_COLLISION"]);
+        Assert.Equal("0", classes["TSimulationPS<PCM_None>"].Defines["DEPTH_BUFFER_COLLISION"]);
+
+        // シェーダープラットフォームを問う関数には、プラットフォームの設定で答える。節に無い設定は既定値 (false) である。
+        Assert.Equal([0], classes["FRasterizeVS"].Permutations["NANITE_PRIM_SHADER"]!.Value.ToArray());
+        Assert.Equal([0, 1], classes["FRasterizeVS"].Permutations["NANITE_MESH_SHADER"]!.Value.ToArray());
+
+        // 解析では、同時には現れない値の組を、同時には有効にならない組にする。フラグはエンジンが定義するマクロにする。
+        (_, VariantSpace variants) = UnrealOptions.MergeClasses([shadow]);
+        Assert.True(variants.Constraints.AreExclusive("DIM_INLINE==1", "SHADOW_TYPE==2"));
+        Assert.True(variants.Constraints.AreExclusive("DIM_INLINE==1", "PLATFORM_SUPPORTS_REAL_TYPES==0"));
+        Assert.Equal([0, 2], variants.ValueSymbols["LIGHT_SOURCE_MODE"].ToArray());
+
+        // 1 つを除いて「無い」とした値は、残りの値である。DIM_INLINE == 1 と SHADOW_TYPE が 0 でも 1 でもないことは、同時には成り立たない。
+        SymbolCondition receiverInline = SymbolCondition.Symbol("DIM_INLINE==1")
+            .And(SymbolCondition.Symbol("SHADOW_TYPE==0", isDefined: false))
+            .And(SymbolCondition.Symbol("SHADOW_TYPE==1", isDefined: false));
+        Assert.False(variants.Constraints.IsPossible(receiverInline));
+    }
+
+    /// <summary>
     /// 同じ単位を登録したクラスの定義を合わせる。どのクラスでも同じ値なら定義し、違えば構成の軸にする。
     /// </summary>
     [Fact]
@@ -744,6 +888,51 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal([0, 1], variants.ValueSymbols["DIM"].ToArray());
         Assert.Equal([0, 1], variants.ValueSymbols["PLATFORM_SUPPORTS_INLINE_RAY_TRACING"].ToArray());
         Assert.Contains("UNKNOWN", variants.Symbols);
+
+        // 値の分からないマクロも、シェーダーが整数と比べていれば、その整数を値にする。
+        SourceText shader = SourceText.From(
+            """
+            #if UNKNOWN == 0
+            #elif UNKNOWN == 3 || UNKNOWN != 5
+            #endif
+            #if UNKNOWNER == 9
+            #endif
+            int x = UNKNOWN == 7;
+            """,
+            "Pass.usf");
+        Assert.Equal([0, 3, 5], UnrealOptions.ComparedValues(shader, "UNKNOWN").ToArray());
+
+        // 比べた値のどれでもないときの分岐 (#else) も読めるよう、0 も値にする。
+        Assert.Equal([0, 9], UnrealOptions.ComparedValues(shader, "UNKNOWNER").ToArray());
+        Assert.Empty(UnrealOptions.ComparedValues(shader, "NOT_COMPARED"));
+
+        // 比べた値のほかを #error で止めていれば、0 は入れない。
+        SourceText guarded = SourceText.From(
+            """
+            #if MAX_FIELDS != 4 && MAX_FIELDS != 1
+
+            #error This must match MAX_FIELDS in C++ land
+            #endif
+            #if MAX_FIELDS > 1
+            #endif
+            """,
+            "Particles.usf");
+        Assert.Equal([1, 4], UnrealOptions.ComparedValues(guarded, "MAX_FIELDS").ToArray());
+
+        // 比べる相手は、ファイルで整数に定義したマクロでもよく、左右を入れ替えて書いてもよい。
+        SourceText named = SourceText.From(
+            """
+            #define SIZE_UINT1 (0)
+            #define SIZE_UINT4 2 // comment
+            #if SIZE_UINT1 == ELEMENT_SIZE
+            #elif ELEMENT_SIZE == SIZE_UINT4
+            #endif
+            """,
+            "ByteBuffer.usf");
+        Assert.Equal([0, 2], UnrealOptions.ComparedValues(named, "ELEMENT_SIZE").ToArray());
+
+        (_, VariantSpace compared) = UnrealOptions.MergeClasses([first, second], name => UnrealOptions.ComparedValues(shader, name));
+        Assert.Equal([0, 3, 5], compared.ValueSymbols["UNKNOWN"].ToArray());
 
         // クラスが見つからなければ、値の決まったマクロも構成の軸にする。
         (ImmutableDictionary<string, string> withMissing, VariantSpace missingVariants) = UnrealOptions.MergeClasses([first, null]);
@@ -804,6 +993,66 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("Missing.usf", output, StringComparison.Ordinal);
         Assert.Contains("HL0301", output, StringComparison.Ordinal);
         Assert.Contains("IMPLEMENT_GLOBAL_SHADER", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同じエントリポイントとステージでも、定義するものの違うクラスの登録は別の単位にする。
+    /// まとめると、片方のクラスのマクロともう片方のパーミュテーションの、実在しない組み合わせを読んでしまう。
+    /// </summary>
+    [Fact]
+    public async Task 定義するものの違うクラスは別の単位にする()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+              permutations: true
+            """);
+
+        // FWide は MODE=2 だけを定義し、DIM_X を持たない。DIM_X を持つのは MODE=1 の FNarrow だけである。
+        Write("Engine/Shaders/Private/Shared.usf", """
+            #if MODE == 2 && DIM_X
+            float Cross() { return onlyAcrossClasses; }
+            #endif
+
+            float4 MainPS() : SV_Target0 { return MODE; }
+            """);
+
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Shared.cpp", """
+                class FNarrowPS : public FGlobalShader
+                {
+                    class FX : SHADER_PERMUTATION_BOOL("DIM_X");
+                public:
+                    using FPermutationDomain = TShaderPermutationDomain<FX>;
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        OutEnvironment.SetDefine(TEXT("MODE"), 1);
+                    }
+                };
+
+                class FWidePS : public FGlobalShader
+                {
+                    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                    {
+                        OutEnvironment.SetDefine(TEXT("MODE"), 2);
+                    }
+                };
+
+                IMPLEMENT_GLOBAL_SHADER(FNarrowPS, "/Engine/Private/Shared.usf", "MainPS", SF_Pixel);
+                IMPLEMENT_GLOBAL_SHADER(FWidePS, "/Engine/Private/Shared.usf", "MainPS", SF_Pixel);
+                """),
+        ],
+        Path.Combine(_workDirectory, "Generated"));
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("onlyAcrossClasses", output, StringComparison.Ordinal);
     }
 
     private void Write(string relativePath, string content)

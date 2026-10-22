@@ -110,9 +110,8 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             // 使う条件が成り立ち、かつ宣言がある条件が成り立たない構成があるか。
             SymbolCondition missing = use.And(declaration.Negate());
 
-
             if (missing.IsUnknown
-                || !condition.IsPossible(missing)
+                || !compilation.IsPossibleIn(program, missing)
                 || identifier.GetLocation() is not { } location
                 || !reported.Add(location))
             {
