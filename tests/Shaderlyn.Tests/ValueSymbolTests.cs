@@ -176,7 +176,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の FXAAShader.usf と Fxaa3_11.ush の形。ファイルが値ごとに FXAA_PC を定義し、
         // ヘッダは #ifndef FXAA_PC で既定の値を与える。FXAA_PRESET == 0 の構成で読んだヘッダの定義を、
-        // FXAA_PRESET == 1 の分岐の定義と照合して「定義し直し」(HL0002) と報告していた。
+        // FXAA_PRESET == 1 の分岐の定義と照合して「定義し直し」(HL0008) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if FXAA_PRESET == 0
@@ -207,7 +207,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
                     """,
             });
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0002");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     public void 読めない条件の後ろの分岐の定義を定義し直しと言わない()
     {
         // Unreal の DOFReduce.usf の形。#if CONFIG_DOF_ALPHA は読めないので、#elif DIM_RGB の条件は DIM_RGB だけになる。
-        // その広い条件どうしを照らして、1 つ目と 2 つ目の分岐の定義を「定義し直し」(HL0002) と報告していた。
+        // その広い条件どうしを照らして、1 つ目と 2 つ目の分岐の定義を「定義し直し」(HL0008) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #include "Common.hlsl"
@@ -360,7 +360,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
                     """,
             });
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0002");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
     }
 
     [Fact]
@@ -397,7 +397,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void errorに届いた構成の木は使わない()
+    public void errorに到達した構成の木は使わない()
     {
         // Unreal の SSDInjest.usf の形。パーミュテーションの値のうち、#else / #error で止めた値の構成はコンパイルできない。
         // その木を使うと、宣言が足りないと報告していた (HL0310)。
@@ -428,7 +428,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の TemporalAA.usf の形。値に名前を付けて比べる。
         // 比べる相手を読めないと、#elif の連なりのすべての分岐を同じ条件で読み、
-        // 分岐ごとの定義を「定義し直し」(HL0002) と報告していた。
+        // 分岐ごとの定義を「定義し直し」(HL0008) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #define QUALITY_LOW 0

@@ -852,7 +852,7 @@ public readonly record struct PreprocessResult(
     public ImmutableArray<PragmaDirective> IgnoredPragmas { get; init; }
 
     /// <summary>
-    /// 届いた、読んでいる <c>#error</c> の位置。並べた分岐の中のものは数えない。
+    /// 到達した、読んでいる <c>#error</c> の位置。並べた分岐の中のものは数えない。
     /// </summary>
     /// <remarks>既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。</remarks>
     public ImmutableArray<Location> ReachedErrorDirectives { get; init; }

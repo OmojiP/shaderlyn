@@ -57,7 +57,7 @@ public sealed class HlslErrorCoverageTests
         { "1518", "HL0002", "#if \"text\"\n#endif" },
 
         { "1501", "HL0002", "#if 1\n#endif _STRAY" },
-        { "1519", "HL0002", "#define M 1\n#define M 2" },
+        { "1519", "HL0008", "#define M 1\n#define M 2" },
 
         // 解析・意味 (3000-3999)
         { "3000", "HL0001", "half4 broken() : SV_Target { return 1 +* ; }" },
@@ -139,7 +139,7 @@ public sealed class HlslErrorCoverageTests
         // 書き手の意図どおりなので何も言わない。
         ImmutableArray<Diagnostic> diagnostics = Analyze("#define SAME 3\n#define SAME 3");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0002");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class HlslErrorCoverageTests
 
         Assert.DoesNotContain(
             diagnostics,
-            d => d.Id == "HL0002"
+            d => d.Id == "HL0008"
                  && d.GetMessage().Contains("定義し直しています", StringComparison.Ordinal));
     }
 

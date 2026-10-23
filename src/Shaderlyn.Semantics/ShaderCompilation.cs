@@ -377,7 +377,21 @@ public sealed class ShaderCompilation
     /// </para>
     /// </remarks>
     public bool HasCompleteDependencies =>
-        UnresolvedIncludes.IsEmpty && Programs.All(p => p.Diagnostics.IsEmpty);
+        UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+
+    /// <summary>プリプロセスか構文解析の診断のうち、解析の結果を信用できなくするもの (既定の重要度がエラーのもの) か。</summary>
+    /// <param name="diagnostic">診断。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 警告 (<c>#ifdef A || B</c> の HL0004、マクロの定義し直しの HL0008) は、コンパイルも解析も止めない。
+    /// これらでブロックの検査を止めると、正しく読めたコードの誤りまで見送ることになる。
+    /// 利用者が重要度を変えても、解析が壊れているかどうかは変わらないので、既定の重要度で決める。
+    /// </remarks>
+    public static bool BreaksAnalysis(Diagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        return diagnostic.Descriptor.DefaultSeverity == DiagnosticSeverity.Error;
+    }
 
     /// <summary>
     /// 指定した名前の関数の多重定義が、見えていないかもしれないかを判定する。
@@ -393,7 +407,7 @@ public sealed class ShaderCompilation
     /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
     /// </remarks>
     public bool MayLackOverloadsOf(string name)
-        => !Programs.All(p => p.Diagnostics.IsEmpty)
+        => Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis))
            || UnresolvedIncludes.Any(path => Environment.GetFunctionsDeclaredIn(path) is not { } functions || functions.Contains(name));
 
     /// <summary>

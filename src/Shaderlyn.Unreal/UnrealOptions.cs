@@ -454,7 +454,7 @@ public sealed partial record UnrealOptions
     /// <b>値の分からないマクロは、シェーダーが比べている整数を値にする。</b>
     /// <c>#if RESOURCE_TYPE == 0</c> / <c>#elif RESOURCE_TYPE == 1</c> と書き分けたマクロを、
     /// 定義されているか・いないかの軸にすると、どの比べ方も同じ条件 (定義されている) で読み、
-    /// 分岐ごとの定義を「定義し直し」(HL0002) と報告していた (Unreal の <c>ClearReplacementShaders.usf</c>)。
+    /// 分岐ごとの定義を「定義し直し」(HL0008) と報告していた (Unreal の <c>ClearReplacementShaders.usf</c>)。
     /// 比べていなければ、定義されているか・いないかの軸にする (<c>#if NAME</c> の書き方)。
     /// </para>
     /// </remarks>
@@ -831,7 +831,7 @@ public sealed partial record UnrealOptions
         {
             // 書いていないキーはエンジンの既定値にする。bSupportsVertexShaderSRVs などは既定が true である。
             // 0 にすると、PC で PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS が 0 になり、
-            // InstanceCullingOcclusionQuery.usf などが #error に届いていた。
+            // InstanceCullingOcclusionQuery.usf などが #error に到達していた。
             bool enabled = settings.TryGetValue(key, out string? value)
                 ? value.Equals("true", StringComparison.OrdinalIgnoreCase)
                   || value.Equals("RuntimeDependent", StringComparison.OrdinalIgnoreCase)

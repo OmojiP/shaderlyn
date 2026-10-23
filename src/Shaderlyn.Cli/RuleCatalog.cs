@@ -34,6 +34,7 @@ internal static class RuleCatalog
         CFamily.ShaderDescriptors.PreprocessorError,
         CFamily.ShaderDescriptors.UnsupportedDeclaration,
         CFamily.ShaderDescriptors.ExtraTokensAfterConditionName,
+        CFamily.ShaderDescriptors.MacroRedefinition,
         CFamily.ShaderDescriptors.CircularInclude,
         CFamily.ShaderDescriptors.UnresolvedInclude,
     ];

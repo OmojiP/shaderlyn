@@ -56,7 +56,7 @@ internal sealed partial class ShaderPreprocessor
             && !HasSameBody(previous, definition)
             && !IsReportedConditionally(nameToken.Text))
         {
-            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
+            Report(ShaderDescriptors.MacroRedefinition, nameToken.GetLocation(),
                 $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています。"
                 + "#undef してから定義してください。");
         }
@@ -411,12 +411,12 @@ internal sealed partial class ShaderPreprocessor
         // #ifndef X の中の #define X (既定の値を与える書き方) は、定義されていないときにしか働かない。定義し直しにならない。
         // 条件として読めない #ifndef (ヘッダで、この構成の定義の有無で決めたもの) でも、そう言える。
         // 照合すると、FXAA_PRESET == 1 の分岐で FXAA_PC を定義するファイルが取り込むヘッダの #ifndef FXAA_PC の既定の値を、
-        // FXAA_PRESET == 0 の構成で読んで「定義し直し」(HL0002) と報告していた (Unreal の Fxaa3_11.ush)。
+        // FXAA_PRESET == 0 の構成で読んで「定義し直し」(HL0008) と報告していた (Unreal の Fxaa3_11.ush)。
         bool givesDefault = _conditionals.Count > 0 && _conditionals[^1].UndefinedName == nameToken.Text;
 
         // 経路に読めない条件があれば、条件は実際より広い (#if CONFIG_DOF_ALPHA / #elif DIM_RGB_COLOR_BUFFER の 2 つ目は
         // DIM_RGB_COLOR_BUFFER だけになる)。広い条件どうしが重なっても、同時に通るとは言えない
-        // (Unreal の DOFReduce.usf で HL0002)。単一構成で通る定義し直しは、展開の側の検査が報告する。
+        // (Unreal の DOFReduce.usf で HL0008)。単一構成で通る定義し直しは、展開の側の検査が報告する。
         bool uncertain = root && _conditionals.Exists(state => state.IsPathUnreadable);
 
         foreach (ConditionalMacro previous in givesDefault ? [] : definitions)
@@ -433,7 +433,7 @@ internal sealed partial class ShaderPreprocessor
 
             SymbolCondition both = _options.SymbolConstraints.Apply(previous.Condition.And(condition));
 
-            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
+            Report(ShaderDescriptors.MacroRedefinition, nameToken.GetLocation(),
                 $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています"
                 + (both.IsAlways ? string.Empty : $" ({both} のとき)")
                 + "。#undef してから定義してください。");

@@ -198,7 +198,7 @@ public sealed class HlslConfigurationTests : IDisposable
     /// <c>#error</c> の文の中のアポストロフィ (<c>doesn't</c>) を、閉じていない文字のリテラルにしない。
     /// </summary>
     [Fact]
-    public async Task error指令に届く関数を値を返さないと報告しない()
+    public async Task error指令に到達する関数を値を返さないと報告しない()
     {
         File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
             version: 1

@@ -1633,6 +1633,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableA
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Int32 CountUniformDeclarations(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: static Shaderlyn.Semantics.ShaderCompilation Create(Shaderlyn.Core.Text.SourceText, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderCompilationUnit], Shaderlyn.Core.Text.SourceText, Shaderlyn.Semantics.Environments.IShaderEnvironment, Shaderlyn.Semantics.Environments.ShaderSourceInfo, Shaderlyn.Semantics.SemanticsOptions = null)
+Shaderlyn.Semantics.ShaderCompilation :: static System.Boolean BreaksAnalysis(Shaderlyn.Core.Diagnostics.Diagnostic)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Collections.Generic.IEnumerable`1[System.String] DeclaredNamesOf(Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax)
 Shaderlyn.Semantics.ShaderCompilation :: static System.Int32 MaxConfigurationSymbols
 Shaderlyn.Semantics.Symbols.ConstantBufferSymbol : struct (System.IEquatable`1[Shaderlyn.Semantics.Symbols.ConstantBufferSymbol])

@@ -97,6 +97,24 @@ internal static class ShaderDescriptors
             + "複数の名前を条件にするときは #if defined(A) || defined(B) と書いてください。",
         helpLinkUri: DocumentationLinks.For("HL0004"));
 
+    /// <summary>マクロを中身を変えて定義し直している。</summary>
+    /// <remarks>
+    /// <b>コンパイラは警告にするだけで、後の定義を使ってコンパイルを続ける。</b>
+    /// DXC は <c>-Wmacro-redefined</c>、FXC は X1519 の警告である。
+    /// 以前はプリプロセッサ指令の誤り (HL0002、エラー) として報告し、そのブロックの検査を止めていた。
+    /// </remarks>
+    public static DiagnosticDescriptor MacroRedefinition { get; } = new(
+        id: "HL0008",
+        title: "マクロを中身を変えて定義し直しています",
+        messageFormat: "{0}",
+        category: "Correctness",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "定義済みのマクロを、#undef せずに中身を変えて定義し直しています。"
+            + "コンパイラは警告を出したうえで後の定義を使うので、コンパイルは通ります。"
+            + "ただし、取り込む順序や構成によって、どちらの定義が使われるかが読み手に分かりにくくなります。"
+            + "意図したものなら、#undef してから定義してください。",
+        helpLinkUri: DocumentationLinks.For("HL0008"));
+
     /// <summary>include の循環参照。</summary>
     public static DiagnosticDescriptor CircularInclude { get; } = new(
         id: "HL0320",

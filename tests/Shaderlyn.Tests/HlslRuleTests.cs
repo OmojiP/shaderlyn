@@ -1933,7 +1933,7 @@ public sealed class HlslRuleTests
             "}"));
 
         Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0002"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0008"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
     }
@@ -1951,7 +1951,7 @@ public sealed class HlslRuleTests
             "#define BODY 4",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0008" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -2003,7 +2003,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0002");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0008");
         Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 

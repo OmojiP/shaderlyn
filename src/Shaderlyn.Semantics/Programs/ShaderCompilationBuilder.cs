@@ -229,12 +229,12 @@ internal static class ShaderCompilationBuilder
             foreach (((ImmutableArray<string> enabled, ShaderSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
-                // 既定の木の届かない #error に届いた構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
+                // 既定の木の到達しない #error に到達した構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
                 // その木を使うと、#else / #error で止めた値の木で宣言が足りないと報告していた (Unreal の SSDInjest.usf)。
-                // 既定の木も届く #error は、解析のマクロの状態が実際と違うためのことが多いので数えない (Unreal の DistortApplyScreenPS.usf)。
+                // 既定の木も到達する #error は、解析のマクロの状態が実際と違うためのことが多いので数えない (Unreal の DistortApplyScreenPS.usf)。
                 // 使わない構成は、解析しなかった構成と同じに扱う。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
                 // 外さないと、既定の木がその構成も表すことになり、既定の値の側にしか無い宣言を「その構成では無い」と報告していた
-                // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に届く)。
+                // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に到達する)。
                 if (ReachesNewError(variantTree.PreprocessResult, tree.PreprocessResult))
                 {
                     unexploredSymbols.UnionWith(enabled);
@@ -1558,7 +1558,7 @@ internal static class ShaderCompilationBuilder
         return constraints.Apply(condition);
     }
 
-    /// <summary>構成ごとの木が、既定の木の届かない <c>#error</c> に届いたかを判定する。</summary>
+    /// <summary>構成ごとの木が、既定の木の到達しない <c>#error</c> に到達したかを判定する。</summary>
     /// <param name="variant">構成ごとの木の展開の結果。</param>
     /// <param name="baseline">既定の木の展開の結果。</param>
     /// <returns>届いたなら <see langword="true"/>。</returns>

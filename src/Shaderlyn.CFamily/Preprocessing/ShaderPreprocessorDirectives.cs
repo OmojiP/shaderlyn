@@ -137,15 +137,15 @@ internal sealed partial class ShaderPreprocessor
         }
     }
 
-    /// <summary>読んでいる <c>#error</c> に届いたことを覚える。</summary>
+    /// <summary>読んでいる <c>#error</c> に到達したことを覚える。</summary>
     /// <param name="directive">指令名のトークン。</param>
     /// <remarks>
     /// <para>
     /// <b>その構成はコンパイルできないかもしれない。</b>
     /// エンジンは C++ の側でその構成をコンパイルしないように絞っていて
     /// (Unreal の <c>ShouldCompilePermutation</c>)、シェーダーは <c>#else</c> / <c>#error</c> で念を押していることが多い。
-    /// 構成ごとの木が、既定の木の届かない <c>#error</c> に届いたなら、その木は使わない (<see cref="PreprocessResult.ReachedErrorDirectives"/>)。
-    /// 既定の木も届く <c>#error</c> は、解析のマクロの状態が実際と違うためのことが多いので数えない。
+    /// 構成ごとの木が、既定の木の到達しない <c>#error</c> に到達したなら、その木は使わない (<see cref="PreprocessResult.ReachedErrorDirectives"/>)。
+    /// 既定の木も到達する <c>#error</c> は、解析のマクロの状態が実際と違うためのことが多いので数えない。
     /// </para>
     /// <para>
     /// 並べた分岐の中のものは数えない。その分岐の条件のときだけ届くので、木の構成全体がコンパイルできないわけではない。
@@ -1109,7 +1109,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>整数のリテラルに展開するマクロ (<c>#define TAA_QUALITY_LOW 0</c>) も読む。</b>
     /// Unreal のシェーダーは、パーミュテーションの値に名前を付けて <c>#if TAA_QUALITY == TAA_QUALITY_LOW</c> と比べる。
     /// 読めないと、条件を記号として扱えず、<c>#elif</c> の連なりのすべての分岐を同じ条件で読んで、
-    /// 分岐ごとのマクロの定義を「定義し直し」(HL0002) と報告していた。
+    /// 分岐ごとのマクロの定義を「定義し直し」(HL0008) と報告していた。
     /// 構成によって定義の変わるマクロと、構成によって変わる名前 (値を持つシンボルそのものなど) は、値が 1 つに決まらないので読まない。
     /// </remarks>
     private bool TryReadIntegerOperand(ShaderSyntaxToken token, out int value)

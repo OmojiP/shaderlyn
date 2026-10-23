@@ -80,7 +80,7 @@ internal sealed partial class ShaderPreprocessor
     private readonly List<TokenSource> _sources = [];
     private readonly List<ConditionalState> _conditionals = [];
 
-    /// <summary>届いた、読んでいる <c>#error</c> の位置 (<see cref="NoteErrorDirective"/>)。</summary>
+    /// <summary>到達した、読んでいる <c>#error</c> の位置 (<see cref="NoteErrorDirective"/>)。</summary>
     private readonly List<Location> _reachedErrorDirectives = [];
     private readonly HashSet<string> _activeIncludePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SortedSet<string> _resolvedIncludes = new(StringComparer.OrdinalIgnoreCase);
@@ -187,7 +187,7 @@ internal sealed partial class ShaderPreprocessor
         /// <summary>この展開の中で、2 度目の取り込みを飛ばしたファイルと、そのときの条件。</summary>
         public List<KeyValuePair<string, SymbolCondition>> SkippedReincludes { get; } = [];
 
-        /// <summary>この展開の中で届いた、読んでいる <c>#error</c> の位置。</summary>
+        /// <summary>この展開の中で到達した、読んでいる <c>#error</c> の位置。</summary>
         public List<Location> ReachedErrorDirectives { get; } = [];
 
         /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
