@@ -162,7 +162,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (string.Equals(returnType, VoidTypeName, StringComparison.Ordinal)
             || function.Body is not { } body
             || function.NameToken.GetLocation() is not { } location
-            || reported.Contains(location))
+            || reported.Contains(location)
+            || ReachesErrorInside(program, body))
         {
             return;
         }
@@ -180,6 +181,29 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             function.Name,
             returnType,
             missing.IsAlways ? string.Empty : $" (構成：{missing} のとき)"));
+    }
+
+    /// <summary>この木の展開が、関数の本体の中の <c>#error</c> に届いたかを判定する。</summary>
+    /// <param name="program">関数がある木。</param>
+    /// <param name="body">関数の本体。</param>
+    /// <returns>届いたなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>#error</c> に届いた構成はコンパイルできない。その分岐に <c>return</c> が無いのは当たり前である。
+    /// <c>#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error #endif</c> を、値を決めずに読んだ既定の構成で
+    /// 「値を返さない経路がある」と報告していた (Unreal の DOFPostfiltering.usf の PostfilterInput)。
+    /// </remarks>
+    private static bool ReachesErrorInside(AnalyzedProgram program, BlockStatementSyntax body)
+    {
+        ImmutableArray<Location> errors = program.Tree.PreprocessResult.ReachedErrorDirectives;
+
+        if (errors.IsDefaultOrEmpty || body.GetLocation() is not { } location)
+        {
+            return false;
+        }
+
+        return errors.Any(error => string.Equals(error.FilePath, location.FilePath, StringComparison.OrdinalIgnoreCase)
+                                   && location.Span.Start <= error.Span.Start
+                                   && error.Span.End <= location.Span.End);
     }
 
     /// <summary>値を返さずに終わる経路がある構成を求める。</summary>

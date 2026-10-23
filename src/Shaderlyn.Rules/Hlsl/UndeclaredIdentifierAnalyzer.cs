@@ -103,6 +103,16 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// 型引数を書いた組み込みの型の値の作成 (<c>vector&lt;float, 2&gt;(x, y)</c>、<c>matrix&lt;T, 2, 2&gt;(…)</c>) の型の名前か。
+    /// </summary>
+    /// <param name="identifier">識別子。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsBuiltInTemplateConstruction(IdentifierExpressionSyntax identifier)
+        => identifier.Name is "vector" or "matrix"
+           && identifier.Parent is InvocationExpressionSyntax { OpenAngle: not null } invocation
+           && ReferenceEquals(invocation.Target, identifier);
+
     /// <summary>識別子 1 つを、それがある木で見えるかどうかとともに覚える。</summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="program">識別子がある木。</param>
@@ -127,6 +137,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || compilation.TypeSystem.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || compilation.TypeSystem.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))

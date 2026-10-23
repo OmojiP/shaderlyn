@@ -12,6 +12,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 追加
 
+- 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
+  ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
+  `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
+- 自作ルールを AI のコーディングエージェントに書かせるための Skill (`skills/shaderlyn-custom-rule/SKILL.md`) を足した。
+  組み込みのルールで足りないかを先に確かめさせ、ソースを文字列で調べずに構文木とセマンティックモデルで判定させる
 - 環境 `glsl` / `godot` / `slang` / `wgsl` を足した (作っているところ)。拡張子でファイルを集めて解析する。
   今は構文だけを読み、指摘するのは GLSL の構文エラーだけ (ほかの 3 つは何も指摘しない)
 - CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その下のファイルにだけ効く。
@@ -31,6 +36,12 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   PC の Direct3D 12 (SM6) の設定 (`DataDrivenPlatformInfo.ini`) で答える。`CFLAG_AllowRealTypes` が付く構成は 16 ビットの型を有効にして解析する。
   公開 API に `UnrealShaderClass.Varying` / `Exclusions`、`ShaderCompilationUnit.Enable16BitTypes`、
   `ShaderCompilation.IsPossibleIn`、`ShaderlynConfiguration.UnrealPermutations` を足した
+- Unreal Engine: `--unreal-generate` が、登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) を展開して登録を読む。
+  展開した中の `typedef` から、クラスのテンプレートの引数も読む (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。
+  RHI のヘッダの、プラットフォームの設定を返すだけの関数 (`RHISupportsRenderTargetWriteMask` など) は、本体の式を読んで答える
+- Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
+  (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
+  公開 API に `UnrealShaderClass.NeverCompiled`、`ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
 
 ### 修正
 
@@ -67,12 +78,17 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   - 値の原子を 1 つでも並べられなかったら、その名前のほかの値の構成も作る。並べられなかった連なりのほかの値の側がどの木にも載らなかった
   - 既定の木の届かない `#error` に届く構成の木は使わない (その構成はコンパイルできない)。解析しなかった構成として扱う (HL0006)
   - 関数の本体を値ごとの `#if` で書き分けると (`void MainCS(…)` の後に `#if X == 0 { … } #endif #if X == 1 { … } #endif`)、
-    本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるときだけ並べる
+    本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるか、関数の中で `}` で終わるときだけ並べる
   - 既定の値では読まない `#if` の中で別の値の軸で書き分けた宣言を、二重の宣言 (HL0314) と報告していた。
     構成ごとの木で並べた範囲の条件を、その木を解析した構成を掛けずに足していた。
     また、そうした uniform に代入すると、最初の宣言の型で成分が落ちる (HL0353) と報告していた。同じ木の中で型が 1 つに決まらない uniform は、型を不明にする
+  - 解析した構成で `#error` に届く関数を、値を返さない経路がある (HL0360) と報告していた
+    (`#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error … #endif`)
   - 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの
     宣言の無い名前 (HL0310 など) を報告していなかった。固定したシンボルを、木の構成で無効として扱っていた
+- `#error` / `#warning` の文の中のアポストロフィ (`doesn't`) を、閉じていない文字のリテラル (HL0001) と報告していた
+- 組み込みの型の値の作成 `vector<T, N>(x)` / `matrix<T, R, C>(…)` を比較の連なりとして読み、構文の誤りや引数の数の誤り (HL0341) にしていた
+- 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた
 
 ### 変更
 

@@ -78,9 +78,17 @@ internal static class ShaderCompilationBuilder
         SortedDictionary<string, SymbolCombination> unexploredCombinations = new(StringComparer.Ordinal);
 
         DeclarationIndex index = new();
+        ImmutableArray<ShaderCompilationUnit>.Builder notCompiled = ImmutableArray.CreateBuilder<ShaderCompilationUnit>();
 
         foreach (ShaderCompilationUnit unit in units)
         {
+            // このプラットフォームではコンパイルされない単位は読まない。読んでも、実在しない構成の話になる。
+            if (unit.NotCompiledReason is not null)
+            {
+                notCompiled.Add(unit);
+                continue;
+            }
+
             // 字句解析の結果は共有しているので、展開の前に読むのは実質ただである
             // (このあとの展開が同じトークン列を使う)。
             ImmutableArray<ShaderSyntaxToken> unitTokens = options.TokenCache is { } cache
@@ -269,6 +277,7 @@ internal static class ShaderCompilationBuilder
             IsUserInclude = options.IsUserInclude,
             DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
             IsFixedSymbolConfiguration = options.FixedSymbolConfiguration,
+            NotCompiledUnits = notCompiled.ToImmutable(),
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToFrozenSet(StringComparer.Ordinal)),

@@ -875,7 +875,7 @@ Shaderlyn.Core.Analysis.AnalysisTarget :: System.Collections.Immutable.Immutable
 Shaderlyn.Core.Analysis.AnalysisTarget :: System.String FilePath { get; }
 Shaderlyn.Core.Analysis.AnalysisTarget :: TModel GetModel<TModel>()
 Shaderlyn.Core.Analysis.AnalyzerOptions : sealed class
-Shaderlyn.Core.Analysis.AnalyzerOptions :: .ctor(System.Collections.Immutable.ImmutableDictionary`2[System.String,Shaderlyn.Core.Diagnostics.DiagnosticSeverity] = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String]] = null)
+Shaderlyn.Core.Analysis.AnalyzerOptions :: .ctor(System.Collections.Immutable.ImmutableDictionary`2[System.String,Shaderlyn.Core.Diagnostics.DiagnosticSeverity] = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String]] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.RuleSeverityPattern] = null)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: Shaderlyn.Core.Analysis.AnalyzerOptions WithExtension<TExtension>(TExtension)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity GetEffectiveSeverity(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Boolean IsEnabled(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor)
@@ -897,6 +897,11 @@ Shaderlyn.Core.Analysis.NodeAnalysisContext`1 :: System.Void ReportDiagnostic(Sh
 Shaderlyn.Core.Analysis.NodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
 Shaderlyn.Core.Analysis.NodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, System.Object[])
 Shaderlyn.Core.Analysis.NodeAnalysisContext`1 :: TNode Node { get; }
+Shaderlyn.Core.Analysis.RuleSeverityPattern : sealed class
+Shaderlyn.Core.Analysis.RuleSeverityPattern :: .ctor(System.String, Shaderlyn.Core.Diagnostics.DiagnosticSeverity)
+Shaderlyn.Core.Analysis.RuleSeverityPattern :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity Severity { get; }
+Shaderlyn.Core.Analysis.RuleSeverityPattern :: System.Boolean Matches(System.String)
+Shaderlyn.Core.Analysis.RuleSeverityPattern :: System.String Pattern { get; }
 Shaderlyn.Core.Analysis.SyntaxStep : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Core.Analysis.SyntaxStep :: Parse = 1
 Shaderlyn.Core.Analysis.SyntaxStep :: Preprocess = 0
@@ -1434,6 +1439,7 @@ Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Nullable`1[Syst
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Object Data { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String DisplayName { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String Name { get; set; }
+Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.String NotCompiledReason { get; set; }
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: System.Void Deconstruct(out Shaderlyn.Core.Text.SourceText, out Shaderlyn.Core.Text.TextSpan, out System.String, out System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String], out System.Object, out System.Nullable`1[Shaderlyn.Core.Text.TextSpan])
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.Semantics.Environments.ShaderCompilationUnit)
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderCompilationUnit, Shaderlyn.Semantics.Environments.ShaderCompilationUnit)
@@ -1621,6 +1627,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableA
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] ReportableHlslDiagnostics { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] Programs { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.AnalyzedProgram] SymbolVariants { get; }
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Environments.ShaderCompilationUnit] NotCompiledUnits { get; set; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] AllIncludePaths { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnexploredSymbols { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Immutable.ImmutableArray`1[System.String] UnresolvedIncludes { get; }

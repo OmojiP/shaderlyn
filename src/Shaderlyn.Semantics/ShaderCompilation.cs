@@ -307,6 +307,11 @@ public sealed class ShaderCompilation
     /// <summary>HLSL として解析できたコードブロックが 1 つでもあるかどうか。</summary>
     public bool HasHlslPrograms => !Programs.IsEmpty;
 
+    /// <summary>
+    /// 解析するプラットフォームではコンパイルされないので、読まなかった単位 (<see cref="Environments.ShaderCompilationUnit.NotCompiledReason"/>)。
+    /// </summary>
+    public ImmutableArray<Environments.ShaderCompilationUnit> NotCompiledUnits { get; init; } = [];
+
     /// <summary>埋め込みコードの解析で出た診断。</summary>
     /// <remarks>
     /// include 先のヘッダで出たものも、Pass ごとに重複したものも、すべてそのまま含む。

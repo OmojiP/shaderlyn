@@ -35,6 +35,12 @@ public sealed record UnrealShaderClass(
     /// <c>ShouldCompilePermutation</c> で除かれた組と、組から決まる定義の値の組み合わせから求める。
     /// </summary>
     public ImmutableArray<KeyValuePair<string, string>> Exclusions { get; init; } = [];
+
+    /// <summary>
+    /// どの値の組も <c>ShouldCompilePermutation</c> で除かれ、解析するプラットフォーム (PC の Direct3D 12、SM6) ではコンパイルされないか。
+    /// 組ごとに読めて、どの組でも <c>false</c> と決まったときだけ <see langword="true"/> にする。
+    /// </summary>
+    public bool NeverCompiled { get; init; }
 }
 
 /// <summary>
@@ -94,6 +100,12 @@ public static partial class UnrealShaderClasses
 
         /// <summary>列挙のメンバー (<c>E::Member</c>) から値 (同じ名前で値が違うか、読めなければ <see langword="null"/>)。</summary>
         private readonly ConcurrentDictionary<string, int?> _enumMembers = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// シェーダープラットフォームを問う小さな関数 (<c>inline bool RHISupportsRenderTargetWriteMask(const FStaticShaderPlatform Platform)</c>) の
+        /// 名前から、<c>return</c> の式 (同じ名前で式が違えば <see langword="null"/>)。
+        /// </summary>
+        private readonly ConcurrentDictionary<string, string?> _platformHelpers = new(StringComparer.Ordinal);
 
         /// <summary>ファイルを 1 つ見る。並行して呼んでよい。</summary>
         /// <param name="path">ファイルのパス。</param>
@@ -180,6 +192,21 @@ public static partial class UnrealShaderClasses
                 _constants.AddOrUpdate(match.Groups["name"].Value, value, (_, old) => old == value ? old : null);
             }
 
+            // RHI のヘッダ (DataDrivenShaderPlatformInfo.h) の、プラットフォームの設定を返すだけの関数。
+            // ShouldCompilePermutation が RHISupportsRenderTargetWriteMask(Parameters.Platform) のように呼ぶ。
+            // 式を読めば FDataDrivenShaderPlatformInfo の設定に行き着くので、名前ごとに答えを書かずに済む。
+            if (text.Contains("FStaticShaderPlatform", StringComparison.Ordinal))
+            {
+                foreach (Match match in PlatformHelper().Matches(text))
+                {
+                    if (PlatformHelperReturn().Match(Comment().Replace(match.Groups["body"].Value, " ")) is { Success: true } body)
+                    {
+                        string expression = body.Groups["expression"].Value.Trim();
+                        _platformHelpers.AddOrUpdate(match.Groups["name"].Value, expression, (_, old) => old == expression ? old : null);
+                    }
+                }
+            }
+
             if (text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
                 || text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal)
                 || text.Contains("PermutationDomain", StringComparison.Ordinal)
@@ -195,7 +222,7 @@ public static partial class UnrealShaderClasses
         /// <returns>見つかったクラス。</returns>
         public ImmutableArray<UnrealShaderClass> Resolve(IEnumerable<string> classNames, out int missing)
         {
-            Model model = new(_enums, _constants, _enumMembers, PlatformSettings);
+            Model model = new(_enums, _constants, _enumMembers, PlatformSettings, _platformHelpers);
             _classMacros = FindClassMacros();
 
             Parallel.ForEach(_files, file =>
@@ -406,7 +433,8 @@ public static partial class UnrealShaderClasses
         ConcurrentDictionary<string, int?> enums,
         ConcurrentDictionary<string, int?> constants,
         ConcurrentDictionary<string, int?> enumMembers,
-        ImmutableDictionary<string, string>? platformSettings)
+        ImmutableDictionary<string, string>? platformSettings,
+        ConcurrentDictionary<string, string?> platformHelpers)
     {
         private readonly ConcurrentDictionary<string, ConcurrentBag<ClassDeclaration>> _classes = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, ConcurrentBag<Dimension>> _dimensions = new(StringComparer.Ordinal);
@@ -750,10 +778,25 @@ public static partial class UnrealShaderClasses
             (ModifyFunction Function, ClassDeclaration Class)? modify = FindEntryFunction(declaration, _functions, 2, 0);
 
             if (axes.All(a => a.Values is { IsEmpty: false })
-                && axes.Aggregate(1L, (product, a) => Math.Min(product * a.Values!.Value.Length, MaxEnumeratedPermutations + 1L)) <= MaxEnumeratedPermutations
-                && Enumerate(declaration, modify, axes, templateBindings) is { Count: > 0 } results)
+                && axes.Aggregate(1L, (product, a) => Math.Min(product * a.Values!.Value.Length, MaxEnumeratedPermutations + 1L)) <= MaxEnumeratedPermutations)
             {
-                return Summarize(key, axes, results);
+                List<(Dictionary<string, long> Vector, Environment Environment)> results = Enumerate(declaration, modify, axes, templateBindings);
+
+                if (results.Count > 0)
+                {
+                    return Summarize(key, axes, results);
+                }
+
+                // どの組も ShouldCompilePermutation が false と決めた。このプラットフォームではコンパイルされない
+                // (RTWriteMaskDecode.usf。RHISupportsRenderTargetWriteMask は PC で false)。
+                return new UnrealShaderClass(
+                    key,
+                    ImmutableSortedDictionary<string, string?>.Empty.WithComparers(StringComparer.Ordinal),
+                    permutations.ToImmutableSortedDictionary(StringComparer.Ordinal),
+                    ImmutableSortedDictionary<string, string?>.Empty.WithComparers(StringComparer.Ordinal))
+                {
+                    NeverCompiled = true,
+                };
             }
 
             Environment environment = new();
@@ -1413,6 +1456,14 @@ public static partial class UnrealShaderClasses
                 && PlatformSetting(name) is { } setting)
             {
                 return setting;
+            }
+
+            // RHISupportsRenderTargetWriteMask(Platform) など。式を評価する (中で FDataDrivenShaderPlatformInfo の設定を引く)。
+            if (arguments.Count == 1
+                && platformHelpers.TryGetValue(name, out string? helper) && helper is not null
+                && context.Depth < MaxCallDepth)
+            {
+                return Evaluate(Lex(helper), context with { Depth = context.Depth + 1 }, context.Depth + 1);
             }
 
             // PC の Direct3D 12 (SM6) では、16 ビットの型は実行時に決まる (DataDrivenPlatformInfo の bSupportsRealTypes = RuntimeDependent)。
@@ -2122,6 +2173,11 @@ public static partial class UnrealShaderClasses
             // 定義もパーミュテーションも無いクラスも書く (見つかったことを残す)。
             text.Append(CultureInfo.InvariantCulture, $"{shaderClass.Name}\tclass\t\t\n");
 
+            if (shaderClass.NeverCompiled)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"{shaderClass.Name}\tnever\t\t\n");
+            }
+
             foreach ((string name, string? value) in shaderClass.Defines)
             {
                 text.Append(CultureInfo.InvariantCulture, $"{shaderClass.Name}\tdefine\t{name}\t{value ?? UnknownValue}\n");
@@ -2179,6 +2235,7 @@ public static partial class UnrealShaderClasses
         Dictionary<string, (SortedDictionary<string, string?> Defines, SortedDictionary<string, ImmutableArray<int>?> Permutations, SortedDictionary<string, string?> Flags,
             SortedDictionary<string, ImmutableArray<int>> Varying, List<KeyValuePair<string, string>> Exclusions)> classes =
             new(StringComparer.Ordinal);
+        HashSet<string> never = new(StringComparer.Ordinal);
 
         foreach (string[] parts in lines.Where(l => l.Length > 0 && l[0] != '#').Select(l => l.Split('\t')).Where(p => p.Length >= 4))
         {
@@ -2209,6 +2266,9 @@ public static partial class UnrealShaderClasses
                 case "exclude":
                     entry.Exclusions.Add(new(parts[2], parts[3]));
                     break;
+                case "never":
+                    never.Add(parts[0]);
+                    break;
             }
         }
 
@@ -2222,6 +2282,7 @@ public static partial class UnrealShaderClasses
             {
                 Varying = p.Value.Varying.ToImmutableSortedDictionary(StringComparer.Ordinal),
                 Exclusions = [.. p.Value.Exclusions],
+                NeverCompiled = never.Contains(p.Key),
             },
             StringComparer.Ordinal);
     }
@@ -2477,6 +2538,14 @@ public static partial class UnrealShaderClasses
     /// <summary>列挙の宣言 (<c>enum class E : uint8 { … }</c> と、修飾の無い <c>enum E { … }</c>)。<c>scoped</c> は <c>class</c> があること。</summary>
     [GeneratedRegex("""\benum\s+(?<scoped>(?:class|struct)\s+)?(?<name>\w+)\s*(?::\s*[\w:]+\s*)?\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
     private static partial Regex EnumClass();
+
+    /// <summary>シェーダープラットフォームだけを受け取る、本体が 1 段の <c>inline bool</c> 関数。</summary>
+    [GeneratedRegex("""\binline\s+bool\s+(?<name>[A-Za-z_]\w*)\s*\(\s*(?:const\s+)?(?:FStaticShaderPlatform|EShaderPlatform)\s+\w+\s*\)\s*\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
+    private static partial Regex PlatformHelper();
+
+    /// <summary><see cref="PlatformHelper"/> の本体が、<c>return 式;</c> だけであること。</summary>
+    [GeneratedRegex("""^\s*return\s+(?<expression>[^;]+);\s*$""", RegexOptions.CultureInvariant)]
+    private static partial Regex PlatformHelperReturn();
 
     /// <summary>C++ のコメント (<c>// …</c> と <c>/* … */</c>)。</summary>
     [GeneratedRegex("""//[^\n]*|/\*.*?\*/""", RegexOptions.Singleline | RegexOptions.CultureInvariant)]

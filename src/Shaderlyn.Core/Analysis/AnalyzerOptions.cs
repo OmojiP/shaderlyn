@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Shaderlyn.Core.Diagnostics;
 
@@ -16,29 +17,40 @@ namespace Shaderlyn.Core.Analysis;
 public sealed class AnalyzerOptions
 {
     private readonly ImmutableDictionary<string, DiagnosticSeverity> _severityOverrides;
+    private readonly ImmutableArray<RuleSeverityPattern> _severityPatterns;
     private readonly ImmutableDictionary<string, ImmutableDictionary<string, string>> _ruleOptions;
     private readonly ImmutableDictionary<Type, object> _extensions;
+
+    /// <summary>ルール ID から、正規表現で決まった重要度 (当たらなければ <see langword="null"/>)。</summary>
+    private readonly ConcurrentDictionary<string, DiagnosticSeverity?> _patternCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 実行時設定を生成する。
     /// </summary>
     /// <param name="severityOverrides">ルール ID から重要度への上書き表。</param>
     /// <param name="ruleOptions">ルール ID からオプション名・値への表。</param>
+    /// <param name="severityPatterns">
+    /// ルール ID の正規表現と重要度。ID をそのまま書いた上書き (<paramref name="severityOverrides"/>) が無いときに使い、
+    /// 複数が当たれば後のものを使う。
+    /// </param>
     public AnalyzerOptions(
         ImmutableDictionary<string, DiagnosticSeverity>? severityOverrides = null,
-        ImmutableDictionary<string, ImmutableDictionary<string, string>>? ruleOptions = null)
-        : this(severityOverrides, ruleOptions, ImmutableDictionary<Type, object>.Empty)
+        ImmutableDictionary<string, ImmutableDictionary<string, string>>? ruleOptions = null,
+        ImmutableArray<RuleSeverityPattern> severityPatterns = default)
+        : this(severityOverrides, ruleOptions, severityPatterns, ImmutableDictionary<Type, object>.Empty)
     {
     }
 
     private AnalyzerOptions(
         ImmutableDictionary<string, DiagnosticSeverity>? severityOverrides,
         ImmutableDictionary<string, ImmutableDictionary<string, string>>? ruleOptions,
+        ImmutableArray<RuleSeverityPattern> severityPatterns,
         ImmutableDictionary<Type, object> extensions)
     {
         // ルール ID の大文字小文字は区別しない。設定ファイルに sl1003 と書かれても意図どおり効かせたい。
         _severityOverrides = severityOverrides ?? ImmutableDictionary<string, DiagnosticSeverity>.Empty
             .WithComparers(StringComparer.OrdinalIgnoreCase);
+        _severityPatterns = severityPatterns.IsDefault ? [] : severityPatterns;
         _ruleOptions = ruleOptions ?? ImmutableDictionary<string, ImmutableDictionary<string, string>>.Empty
             .WithComparers(StringComparer.OrdinalIgnoreCase);
         _extensions = extensions;
@@ -62,7 +74,7 @@ public sealed class AnalyzerOptions
     {
         ArgumentNullException.ThrowIfNull(extension);
         return new AnalyzerOptions(
-            _severityOverrides, _ruleOptions, _extensions.SetItem(typeof(TExtension), extension));
+            _severityOverrides, _ruleOptions, _severityPatterns, _extensions.SetItem(typeof(TExtension), extension));
     }
 
     /// <summary>
@@ -90,12 +102,41 @@ public sealed class AnalyzerOptions
     /// 設定による上書きがあればその値、無ければ <see cref="DiagnosticDescriptor.DefaultSeverity"/>。
     /// <see cref="DiagnosticSeverity.None"/> はそのルールが無効であることを意味する。
     /// </returns>
+    /// <remarks>
+    /// ID をそのまま書いた上書きを、正規表現より先に見る。<c>/SL.*/: error</c> と書いたうえで
+    /// <c>SL1003: warning</c> と書けば、SL1003 だけを warning にできる。
+    /// </remarks>
     public DiagnosticSeverity GetEffectiveSeverity(DiagnosticDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
-        return _severityOverrides.TryGetValue(descriptor.Id, out DiagnosticSeverity severity)
-            ? severity
-            : descriptor.DefaultSeverity;
+
+        if (_severityOverrides.TryGetValue(descriptor.Id, out DiagnosticSeverity severity))
+        {
+            return severity;
+        }
+
+        if (_severityPatterns.IsEmpty)
+        {
+            return descriptor.DefaultSeverity;
+        }
+
+        return _patternCache.GetOrAdd(descriptor.Id, MatchPatterns) ?? descriptor.DefaultSeverity;
+    }
+
+    /// <summary>後に書かれた正規表現から順に、ルール ID に当たるものを探す。</summary>
+    /// <param name="ruleId">ルール ID。</param>
+    /// <returns>当たった重要度。無ければ <see langword="null"/>。</returns>
+    private DiagnosticSeverity? MatchPatterns(string ruleId)
+    {
+        for (int i = _severityPatterns.Length - 1; i >= 0; i--)
+        {
+            if (_severityPatterns[i].Matches(ruleId))
+            {
+                return _severityPatterns[i].Severity;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

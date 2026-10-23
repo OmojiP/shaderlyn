@@ -119,6 +119,9 @@ public static partial class UnrealUniformBufferGenerator
         /// <summary>シェーダーのクラス (定義するマクロとパーミュテーション) を読むために集めたもの。</summary>
         public UnrealShaderClasses.Collector Classes { get; } = new();
 
+        /// <summary>登録を包んだ独自のマクロの定義と呼び出し。すべてのファイルを読んでから展開する。</summary>
+        public UnrealShaderRegistrations.MacroRegistrations RegistrationMacros { get; } = new();
+
         /// <summary>読んだファイルの数。</summary>
         public int FileCount;
     }
@@ -231,6 +234,7 @@ public static partial class UnrealUniformBufferGenerator
         }
 
         UnrealShaderRegistrations.Collect(path, code, parsed.ShaderRegistrations, parsed.UnreadShaderRegistrations);
+        UnrealShaderRegistrations.CollectMacros(path, text, code, parsed.RegistrationMacros);
 
         foreach (Match match in EngineDefine().Matches(code))
         {
@@ -659,6 +663,7 @@ public static partial class UnrealUniformBufferGenerator
     private static UnrealUniformBufferGeneration Write(ParsedSources parsed, string outputDirectory)
     {
         AddSceneUniformBuffer(parsed);
+        UnrealShaderRegistrations.ExpandMacros(parsed.RegistrationMacros, parsed.ShaderRegistrations, parsed.UnreadShaderRegistrations);
 
         string uniformBuffers = Path.Combine(outputDirectory, "UniformBuffers");
         Directory.CreateDirectory(uniformBuffers);

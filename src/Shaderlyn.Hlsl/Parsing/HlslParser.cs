@@ -152,6 +152,9 @@ internal sealed class HlslParser : ShaderParser
     }
 
     /// <inheritdoc/>
+    protected override bool IsBuiltInTemplateTypeName(string name) => name is "vector" or "matrix";
+
+    /// <inheritdoc/>
     protected override DeclarationSyntax? TryParseLanguageDeclaration()
     {
         if (CurrentTextIs("cbuffer") || CurrentTextIs("tbuffer"))

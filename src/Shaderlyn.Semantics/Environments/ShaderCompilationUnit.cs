@@ -94,4 +94,13 @@ public sealed record ShaderCompilationUnit(
     /// 使わない単位では <c>half</c> は <c>float</c> と同じ型なので、<c>half</c> と <c>float</c> の多重定義は二重の定義になる。
     /// </remarks>
     public bool? Enable16BitTypes { get; init; }
+
+    /// <summary>
+    /// この単位が、解析するプラットフォームではコンパイルされない理由。<see langword="null"/> ならコンパイルされる。
+    /// </summary>
+    /// <remarks>
+    /// 理由がある単位は展開も検査もせず、<see cref="ShaderCompilation.NotCompiledUnits"/> に残す。
+    /// 環境のルールが、検査していないことを伝える (Unreal なら、どのパーミュテーションも <c>ShouldCompilePermutation</c> が除くクラスの登録)。
+    /// </remarks>
+    public string? NotCompiledReason { get; init; }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 
 namespace Shaderlyn.Configuration;
@@ -137,6 +138,12 @@ internal sealed record ShaderlynConfiguration
     /// <summary>ルール ID から重要度への上書き。</summary>
     public ImmutableDictionary<string, DiagnosticSeverity> RuleSeverities { get; init; } =
         ImmutableDictionary<string, DiagnosticSeverity>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ルール ID の正規表現と重要度 (<c>rules:</c> の <c>/SL.*/: error</c>)。書いた順。
+    /// ID をそのまま書いた <see cref="RuleSeverities"/> が先に効き、複数が当たれば後のものが効く。
+    /// </summary>
+    public ImmutableArray<RuleSeverityPattern> RuleSeverityPatterns { get; init; } = [];
 
     /// <summary>ルール ID からオプション名・値への対応。</summary>
     public ImmutableDictionary<string, ImmutableDictionary<string, string>> RuleOptions { get; init; } =

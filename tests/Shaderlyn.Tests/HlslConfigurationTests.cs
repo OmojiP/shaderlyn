@@ -193,6 +193,113 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
+    /// 既定の構成では <c>#error</c> の分岐に入る関数を、値を返さない (HL0360) と報告しない
+    /// (Unreal Engine の DOFPostfiltering.usf)。本当に値を返さない関数は報告する。
+    /// <c>#error</c> の文の中のアポストロフィ (<c>doesn't</c>) を、閉じていない文字のリテラルにしない。
+    /// </summary>
+    [Fact]
+    public async Task error指令に届く関数を値を返さないと報告しない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if METHOD > 4
+                #error This method doesn't exist.
+            #endif
+
+            float4 Pick(float4 a)
+            {
+            #if METHOD == 1
+                return a;
+            #elif METHOD == 2
+                return a * 2;
+            #else
+                #error Unknown method.
+            #endif
+            }
+
+            float4 Broken(float4 a)
+            {
+            #if METHOD == 1
+                return a;
+            #endif
+            }
+
+            RWBuffer<float4> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS() { Output[0] = Pick(1) + Broken(1); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'Pick'", output, StringComparison.Ordinal);
+        Assert.Contains("'Broken'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 組み込みの型の値の作成 (<c>vector&lt;float, 2&gt;(x, y)</c>) と、型でない引数の式を書いた型の静的メンバー
+    /// (<c>FLayout&lt;T, X * Y&gt;::RowSize</c>) を読む (Unreal Engine の LaneVectorization.ush)。
+    /// </summary>
+    [Fact]
+    public async Task 型引数を書いた組み込みの型と静的メンバーを読む()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            hlsl:
+              version: 2021
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            template<typename T, uint N>
+            struct FLayout
+            {
+                static const uint RowSize = N;
+            };
+
+            template<typename T, uint X, uint Y>
+            struct TVector
+            {
+                static const uint RowSize = FLayout<T, X * Y>::RowSize;
+                vector<T, X> V;
+                void Set(uint I, vector<T, X> E) { V = E; }
+
+                static TVector<T, X, Y> From(T Value)
+                {
+                    TVector<T, X, Y> R;
+                    R.Set(0, vector<T, X>(Value));
+                    return R;
+                }
+            };
+
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS()
+            {
+                TVector<float, 2, 3> A = TVector<float, 2, 3>::From(1.0);
+                float2 B = vector<float, 2>(3.0, 4.0);
+                Output[0] = A.V.x + B.y + TVector<float, 2, 3>::RowSize;
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 関数の本体を値ごとの <c>#if</c> で書き分けても、本体を 2 つ並べて構文の誤りにしない
     /// (Unreal Engine の HairStrandsCoverage.usf)。
     /// </summary>

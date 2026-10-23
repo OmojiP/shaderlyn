@@ -167,6 +167,13 @@ internal abstract class ShaderParser
         => null;
 
     /// <summary>
+    /// 型引数を書いて値を作れる組み込みの型 (HLSL の <c>vector&lt;float, 2&gt;(x, y)</c> の <c>vector</c>) かを判定する。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>そうなら <see langword="true"/>。言語のバージョンに関わらず、式の中で型引数付きの呼び出しとして読む。</returns>
+    protected virtual bool IsBuiltInTemplateTypeName(string name) => false;
+
+    /// <summary>
     /// 1 語ではない修飾 (GLSL の <c>layout(location = 0)</c> など) を、今の位置から読む。
     /// </summary>
     /// <param name="modifiers">読んだトークンを足す先。</param>
@@ -2250,11 +2257,13 @@ internal abstract class ShaderParser
 
                 // 型引数を書いた型の静的メンバー (HLSL 2021 の TLaneVector2D<float, 2>::Const(1.0))。
                 // 比較の連なりとして読むと、:: から先が式にならない。
+                // 型でない引数の式 (Unreal の LaneVectorization.ush の TENSOR_REGISTER_LAYOUT<T, N, X * Y>::RegisterRowSize) も許す。
+                // > の直後に :: が続く比較は書けないので、比較の連なりと取り違えない。
                 case ShaderSyntaxKind.LessThanToken
                     when AcceptsTemplates
                          && expression is IdentifierExpressionSyntax identifier
                          && _templateNames.Contains(identifier.Name)
-                         && FindTypeArgumentsEnd(ShaderSyntaxKind.ColonColonToken) is int qualifiedClose:
+                         && FindTypeArgumentsEnd(ShaderSyntaxKind.ColonColonToken, allowsValues: true) is int qualifiedClose:
                 {
                     ShaderSyntaxToken openAngle = Advance();
                     ImmutableArray<ShaderSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -2270,10 +2279,13 @@ internal abstract class ShaderParser
 
                 // 型引数を書いた呼び出し (HLSL 2021 の Twice<float4>(x)、buffer.Load<float4>(i))。
                 // 名前だけのときは、template として宣言した名前に限る (_templateNames)。メソッド (buffer.Load<float4>) は問わない。
+                // 組み込みの型の値の作成 (vector<ScalarType, VectorSize>(x)) は、HLSL 2021 より前でも書ける。
+                // 比較の連なりとして読むと、カンマで引数が割れる (Unreal の LaneVectorization.ush)。
                 case ShaderSyntaxKind.LessThanToken
-                    when AcceptsTemplates
-                         && (expression is MemberAccessExpressionSyntax
-                             || (expression is IdentifierExpressionSyntax { Name: var calledName } && _templateNames.Contains(calledName)))
+                    when ((AcceptsTemplates
+                           && (expression is MemberAccessExpressionSyntax
+                               || (expression is IdentifierExpressionSyntax { Name: var calledName } && _templateNames.Contains(calledName))))
+                          || expression is IdentifierExpressionSyntax { Name: var typeName } && IsBuiltInTemplateTypeName(typeName))
                          && FindTypeArgumentsEnd(allowsValues: expression is IdentifierExpressionSyntax) is int close:
                 {
                     ShaderSyntaxToken openAngle = Advance();

@@ -291,14 +291,26 @@ public sealed partial record UnrealOptions
             // 同じエントリポイントとステージでも、別のクラス (定義するマクロの違う、別のシェーダー) なら別の単位にする。
             // まとめると、クラスをまたいだ実在しない組み合わせ (片方のクラスのマクロと、もう片方のパーミュテーション) を読んでしまう。
             // 定義するものが同じクラス (パーミュテーションを C++ のテンプレートで分けたものなど) は 1 つにまとめる。
+            // どの組も ShouldCompilePermutation で除かれるクラスは、このプラットフォームではコンパイルされない。単位にしない
+            // (RTWriteMaskDecode.usf。RHISupportsRenderTargetWriteMask は PC で false。エントリポイントはコンソールのヘッダにある)。
+            // パーミュテーションを軸にしない設定でも使う。どの組でも false と決まったときだけ印が付く。
             IGrouping<(string EntryPoint, string Frequency, string Shape), UnrealShaderRegistration>[] found =
             [
                 .. byPath[virtualPath]
+                    .Where(r => FindClass(classes, r.ShaderClass) is not { NeverCompiled: true })
                     .GroupBy(r => (r.EntryPoint, r.Frequency, PermutationAxes ? ClassShape(classes, r.ShaderClass) : string.Empty))
                     .OrderBy(g => g.Key.EntryPoint, StringComparer.Ordinal)
                     .ThenBy(g => g.Key.Frequency, StringComparer.Ordinal)
                     .ThenBy(g => g.Min(r => r.ShaderClass), StringComparer.Ordinal),
             ];
+
+            // 登録はあるが、どれもこのプラットフォームではコンパイルされない。ファイル全体を既定の構成で読むと、
+            // コンパイルされないコードの誤りを報告することになる (OcclusionFeedbackShaders.usf はモバイルだけ)。読まずに、そのことを伝える (UE0003)。
+            if (found.Length == 0 && byPath[virtualPath].Any())
+            {
+                string notCompiled = string.Join(", ", byPath[virtualPath].Select(r => r.ShaderClass).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+                return [whole with { NotCompiledReason = notCompiled }];
+            }
 
             // 同じエントリポイントとステージに単位が複数あれば、クラスの名前で見分ける。
             HashSet<(string, string)> shared =

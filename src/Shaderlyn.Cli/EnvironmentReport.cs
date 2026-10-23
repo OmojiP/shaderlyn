@@ -234,6 +234,11 @@ internal static partial class EnvironmentReport
             Line(builder, $"  重要度を変えたルール: {string.Join(", ", configuration.RuleSeverities.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value.ToString().ToLowerInvariant()}"))}");
         }
 
+        if (!configuration.RuleSeverityPatterns.IsEmpty)
+        {
+            Line(builder, $"  正規表現で重要度を変えたルール: {string.Join(", ", configuration.RuleSeverityPatterns.Select(p => $"/{p.Pattern}/={p.Severity.ToString().ToLowerInvariant()}"))}");
+        }
+
         if (!configuration.RuleOptions.IsEmpty)
         {
             Line(builder, $"  オプションを設定したルール: {string.Join(", ", configuration.RuleOptions.Keys.Order(StringComparer.Ordinal))}");

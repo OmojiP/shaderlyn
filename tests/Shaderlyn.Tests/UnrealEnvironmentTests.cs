@@ -563,6 +563,8 @@ public sealed class UnrealEnvironmentTests : IDisposable
     /// <summary>
     /// C++ のシェーダーの登録 (3 つの形とヒットグループ) を読み、読めなかった独自のマクロを数える。
     /// コメントとマクロの定義の中は読まない。シェーダーのパイプラインは登録ではないので数えない。
+    /// 登録を包んだ独自のマクロは、定義が見つかれば呼び出しを展開して読む (マクロを呼ぶマクロも、<c>#</c> と <c>##</c> も)。
+    /// 展開した中の <c>typedef</c> の名前で登録したクラスは、テンプレートの引数を書いたクラスにする。
     /// </summary>
     [Fact]
     public void CPlusPlusのシェーダーの登録を読む()
@@ -570,28 +572,42 @@ public sealed class UnrealEnvironmentTests : IDisposable
         string output = Path.Combine(_workDirectory, "Generated");
         UnrealUniformBufferGeneration generation = UnrealUniformBufferGenerator.GenerateFromTexts(
         [
+            ("Macros.h", """
+                #define IMPLEMENT_MY_SHADER(Name) IMPLEMENT_GLOBAL_SHADER(Name, "/Engine/Private/Y.usf", "Main", SF_Pixel)
+                #define IMPLEMENT_RESOLVE_SHADER(Width, MSAA) \
+                	typedef TResolvePS<Width, MSAA> FResolve##Width##_##MSAA##PS; \
+                	IMPLEMENT_SHADER_TYPE(template<>, FResolve##Width##_##MSAA##PS, TEXT("/Engine/Private/Resolve.usf"), TEXT("ResolvePS"), SF_Pixel)
+                #define IMPLEMENT_RESOLVE_SHADERS(Width) \
+                	IMPLEMENT_RESOLVE_SHADER(Width, 0) \
+                	IMPLEMENT_RESOLVE_SHADER(Width, 1)
+                """),
             ("Pass.cpp", """
                 // IMPLEMENT_GLOBAL_SHADER(FCommented, "/Engine/Private/X.usf", "MainPS", SF_Pixel);
-                #define IMPLEMENT_MY_SHADER(Name) IMPLEMENT_GLOBAL_SHADER(Name, "/Engine/Private/Y.usf", "Main", SF_Pixel)
                 IMPLEMENT_GLOBAL_SHADER(FPassPS, "/Engine/Private/Pass.usf", "MainPS", SF_Pixel);
                 IMPLEMENT_SHADER_TYPE(template<>, TPassCS<1>, TEXT( "/Engine/Private/Pass.usf" ), TEXT("MainCS"), SF_Compute);
                 IMPLEMENT_MATERIAL_SHADER_TYPE(, FMaterialVS, TEXT("/Engine/Private/Material.usf"), TEXT("MainVS"), SF_Vertex);
                 IMPLEMENT_GLOBAL_SHADER(FHitGroup, "/Engine/Private/RayTracing.usf", "closesthit=MainCHS anyhit=MainAHS", SF_RayHitGroup);
                 IMPLEMENT_MY_SHADER(FFirst);
                 IMPLEMENT_MY_SHADER(FSecond);
+                IMPLEMENT_RESOLVE_SHADERS(2);
+                IMPLEMENT_UNKNOWN_SHADER(FThird);
                 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(FPipeline, FMaterialVS, FPassPS, true);
                 """),
         ],
         output);
 
-        Assert.Equal(4, generation.ShaderRegistrationCount);
-        Assert.Equal(2, Assert.Single(generation.UnreadShaderRegistrations, p => p.Key == "IMPLEMENT_MY_SHADER").Value);
-        Assert.Single(generation.UnreadShaderRegistrations);
+        Assert.Equal(8, generation.ShaderRegistrationCount);
+        Assert.Equal(1, Assert.Single(generation.UnreadShaderRegistrations).Value);
+        Assert.Contains("IMPLEMENT_UNKNOWN_SHADER", generation.UnreadShaderRegistrations.Keys);
 
         ImmutableArray<UnrealShaderRegistration> read = UnrealShaderRegistrations.Read(output);
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Pass.usf", EntryPoint: "MainCS", Frequency: "Compute", Macro: "IMPLEMENT_SHADER_TYPE" });
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Material.usf", EntryPoint: "MainVS", Macro: "IMPLEMENT_MATERIAL_SHADER_TYPE" });
         Assert.Equal(["MainCHS", "MainAHS"], UnrealShaderRegistrations.EntryFunctions(Assert.Single(read, r => r.Frequency == "RayHitGroup").EntryPoint).ToArray());
+        Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Y.usf", ShaderClass: "FSecond", Macro: "IMPLEMENT_MY_SHADER" });
+        Assert.Equal(
+            ["TResolvePS<2,0>", "TResolvePS<2,1>"],
+            read.Where(r => r.VirtualPath == "/Engine/Private/Resolve.usf").Select(r => r.ShaderClass).Order(StringComparer.Ordinal).ToArray());
     }
 
     /// <summary>
@@ -1053,6 +1069,87 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.True(error.Length == 0, error);
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
         Assert.DoesNotContain("onlyAcrossClasses", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 登録したクラスがどれも PC ではコンパイルされないファイルは解析せず、そのことを伝える (UE0003)。
+    /// プラットフォームを問う小さな関数 (RHI のヘッダの <c>RHISupportsRenderTargetWriteMask</c>) は、
+    /// 本体の式を読んでプラットフォームの設定で答える。PC でもコンパイルされるクラスがあれば、そのクラスで解析する。
+    /// </summary>
+    [Fact]
+    public async Task PCでコンパイルされないシェーダーは解析しない()
+    {
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("RHI.h", """
+                inline bool RHISupportsRenderTargetWriteMask(const FStaticShaderPlatform Platform)
+                {
+                	// コメントがあってもよい
+                	return FDataDrivenShaderPlatformInfo::GetSupportsRenderTargetWriteMask(Platform);
+                }
+                """),
+            ("Pass.cpp", """
+                class FDecodeCS : public FGlobalShader
+                {
+                    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                    {
+                        return RHISupportsRenderTargetWriteMask(Parameters.Platform);
+                    }
+                };
+
+                class FMobilePS : public FGlobalShader
+                {
+                    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                    {
+                        return IsMobilePlatform(Parameters.Platform);
+                    }
+                };
+
+                class FDesktopPS : public FGlobalShader
+                {
+                };
+
+                IMPLEMENT_GLOBAL_SHADER(FDecodeCS, "/Engine/Private/Decode.usf", "DecodeCS", SF_Compute);
+                IMPLEMENT_GLOBAL_SHADER(FMobilePS, "/Engine/Private/Feedback.usf", "MainPS", SF_Pixel);
+                IMPLEMENT_GLOBAL_SHADER(FMobilePS, "/Engine/Private/Both.usf", "MobilePS", SF_Pixel);
+                IMPLEMENT_GLOBAL_SHADER(FDesktopPS, "/Engine/Private/Both.usf", "DesktopPS", SF_Pixel);
+                """),
+        ],
+        Path.Combine(_workDirectory, "Generated"),
+        ImmutableDictionary<string, string>.Empty.Add("bIsPC", "true"));
+
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+            """);
+
+        // エントリポイントはコンソールのヘッダにある。PC で読むと HL0301 になっていた。
+        Write("Engine/Shaders/Private/Decode.usf", "float Helper() { return 1; }\n");
+
+        // モバイルでない構成では宣言されない名前を使う。
+        Write("Engine/Shaders/Private/Feedback.usf", """
+            #if SHADING_PATH_MOBILE
+            float4 Buffer;
+            #endif
+            float4 MainPS() : SV_Target0 { return Buffer; }
+            """);
+
+        // PC でもコンパイルされるクラスがあれば、そのクラスの登録だけで解析する (MobilePS は無くてよい)。
+        Write("Engine/Shaders/Private/Both.usf", "float4 DesktopPS() : SV_Target0 { return undeclaredOnDesktop; }\n");
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("Decode.usf(1:1): info UE0003", output, StringComparison.Ordinal);
+        Assert.Contains("FDecodeCS", output, StringComparison.Ordinal);
+        Assert.Contains("Feedback.usf(1:1): info UE0003", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0301", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("'Buffer'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Both.usf(1:1): info UE0003", output, StringComparison.Ordinal);
+        Assert.Contains("'undeclaredOnDesktop'", output, StringComparison.Ordinal);
     }
 
     private void Write(string relativePath, string content)

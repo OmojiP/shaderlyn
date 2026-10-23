@@ -22,6 +22,12 @@ public sealed class ShaderLexer
 {
     private readonly SourceText _text;
     private readonly List<LexerDiagnostic> _diagnostics = [];
+
+    /// <summary>直前のトークンが、行頭の <c>#</c> か。</summary>
+    private bool _afterDirectiveHash;
+
+    /// <summary>今の行が <c>#error</c> / <c>#warning</c> の行か。後ろは文なので、閉じていないリテラルを誤りにしない。</summary>
+    private bool _inMessageDirective;
     private int _position;
     private bool _atLineStart = true;
 
@@ -75,10 +81,23 @@ public sealed class ShaderLexer
         ImmutableArray<ShaderSyntaxTrivia> leading = LexTrivia(isTrailing: false);
         bool atLineStart = _atLineStart;
 
+        if (atLineStart)
+        {
+            _inMessageDirective = false;
+        }
+
         int start = _position;
         (ShaderSyntaxKind kind, string? valueText) = LexTokenCore();
         TextSpan span = TextSpan.FromBounds(start, _position);
         string text = _text.ToString(span);
+
+        // #error / #warning の後ろは文である。英語の doesn't のアポストロフィを、閉じていない文字のリテラルとして報告しない。
+        if (_afterDirectiveHash && kind == ShaderSyntaxKind.IdentifierToken && text is "error" or "warning")
+        {
+            _inMessageDirective = true;
+        }
+
+        _afterDirectiveHash = atLineStart && kind == ShaderSyntaxKind.HashToken;
 
         // 本体を 1 つ読んだので、次のトークンはもう行頭ではない。
         _atLineStart = false;
@@ -395,9 +414,12 @@ public sealed class ShaderLexer
             _position++;
         }
 
-        _diagnostics.Add(new LexerDiagnostic(
-            TextSpan.FromBounds(start, _position),
-            $"リテラルが '{quote}' で閉じられていません。"));
+        if (!_inMessageDirective)
+        {
+            _diagnostics.Add(new LexerDiagnostic(
+                TextSpan.FromBounds(start, _position),
+                $"リテラルが '{quote}' で閉じられていません。"));
+        }
 
         return (kind, _text.ToString(TextSpan.FromBounds(Math.Min(start + 1, _position), _position)));
     }

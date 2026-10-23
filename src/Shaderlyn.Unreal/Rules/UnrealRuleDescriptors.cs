@@ -42,4 +42,18 @@ internal static class UnrealRuleDescriptors
             + "「宣言が無い」ことを根拠にする検査 (HL0301 / HL0310 など) を見送ります。"
             + "利用者には直せないので、知らせが要らなければ設定ファイルの rules で無効にしてください。",
         helpLinkUri: DocumentationLinks.For("UE0002"));
+
+    /// <summary>登録したシェーダーがどれも、解析するプラットフォームではコンパイルされないので、解析していない。</summary>
+    public static DiagnosticDescriptor NotCompiledOnPlatform { get; } = new(
+        id: "UE0003",
+        title: "このプラットフォームではコンパイルされないシェーダーのため、解析していません",
+        messageFormat: "このファイルを解析していません。登録した C++ のクラス ({0}) は、どのパーミュテーションも "
+            + "ShouldCompilePermutation が PC の Direct3D 12 (SM6) では除きます。",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "--unreal-generate は、C++ の ShouldCompilePermutation を PC の Direct3D 12 (SM6) として読みます。"
+            + "ファイルを登録したクラスがどれも、どのパーミュテーションでもコンパイルされないと分かったファイル "
+            + "(モバイルだけ、コンソールだけのシェーダーなど) は、エンジンも PC ではコンパイルしません。"
+            + "既定の構成で読むと、実在しない構成の誤りを報告することになるので、解析しません。",
+        helpLinkUri: DocumentationLinks.For("UE0003"));
 }
