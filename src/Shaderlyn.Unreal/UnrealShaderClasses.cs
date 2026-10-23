@@ -1560,27 +1560,11 @@ public static partial class UnrealShaderClasses
             if (key.StartsWith("Supports", StringComparison.Ordinal) || key.StartsWith("Is", StringComparison.Ordinal)
                 || key.StartsWith("Requires", StringComparison.Ordinal))
             {
-                return Value.FromBool(DefaultTrueSettings.Contains("b" + key));
+                return Value.FromBool(UnrealShaderLanguageVersions.DefaultTrueSettings.Contains("b" + key));
             }
 
             return null;
         }
-
-        /// <summary>エンジンの既定値が <c>true</c> の、プラットフォームの設定 (UE 5.5 の <c>FGenericDataDrivenShaderPlatformInfo::SetDefaultValues</c>)。</summary>
-        private static readonly HashSet<string> DefaultTrueSettings = new(StringComparer.Ordinal)
-        {
-            "bSupportsMSAA",
-            "bSupportsUnrestrictedHalfFloatBuffers",
-            "bSupportsDOFHybridScattering",
-            "bSupportsHZBOcclusion",
-            "bSupportsWaterIndirectDraw",
-            "bSupportsAsyncPipelineCompilation",
-            "bSupportsVertexShaderSRVs",
-            "bSupportsManualVertexFetch",
-            "bSupportsVolumeTextureAtomics",
-            "bSupportsClipDistance",
-            "bSupportsShaderPipelines",
-        };
 
         /// <summary>値の組を、比べられる値にする。</summary>
         private static Value VectorValue(Dictionary<string, long> vector)
@@ -2539,8 +2523,12 @@ public static partial class UnrealShaderClasses
     [GeneratedRegex("""\benum\s+(?<scoped>(?:class|struct)\s+)?(?<name>\w+)\s*(?::\s*[\w:]+\s*)?\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
     private static partial Regex EnumClass();
 
-    /// <summary>シェーダープラットフォームだけを受け取る、本体が 1 段の <c>inline bool</c> 関数。</summary>
-    [GeneratedRegex("""\binline\s+bool\s+(?<name>[A-Za-z_]\w*)\s*\(\s*(?:const\s+)?(?:FStaticShaderPlatform|EShaderPlatform)\s+\w+\s*\)\s*\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
+    /// <summary>
+    /// シェーダープラットフォームだけを受け取る、本体が 1 段の <c>bool</c> 関数
+    /// (<c>inline</c>、<c>FORCEINLINE</c>、<c>static</c>、<c>RENDERCORE_API</c> などが付いてもよい。RenderUtils.cpp の <c>IsMobileAmbientOcclusionEnabled</c>)。
+    /// 行頭から書いた定義だけを読む (呼び出しや宣言の中の一部を拾わない)。
+    /// </summary>
+    [GeneratedRegex("""^[ \t]*(?:(?:inline|FORCEINLINE|static|[A-Z][A-Z0-9]*_API)\s+)*bool\s+(?<name>[A-Za-z_]\w*)\s*\(\s*(?:const\s+)?(?:FStaticShaderPlatform|EShaderPlatform)\s+\w+\s*\)\s*\{(?<body>[^{}]*)\}""", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex PlatformHelper();
 
     /// <summary><see cref="PlatformHelper"/> の本体が、<c>return 式;</c> だけであること。</summary>

@@ -86,6 +86,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
     (`#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error … #endif`)
   - 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの
     宣言の無い名前 (HL0310 など) を報告していなかった。固定したシンボルを、木の構成で無効として扱っていた
+- Unreal Engine: プラットフォームの設定 (`DataDrivenPlatformInfo.ini`) に書いていない項目を、エンジンの既定値ではなく常に 0 にしていた。
+  既定が有効な `bSupportsVertexShaderSRVs` / `bSupportsClipDistance` から作る `PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS` /
+  `PLATFORM_SUPPORTS_CLIP_DISTANCE` が PC で 0 になり、`InstanceCullingOcclusionQuery.usf` などを `#error` に届く構成で読んでいた
 - `#error` / `#warning` の文の中のアポストロフィ (`doesn't`) を、閉じていない文字のリテラル (HL0001) と報告していた
 - 組み込みの型の値の作成 `vector<T, N>(x)` / `matrix<T, R, C>(…)` を比較の連なりとして読み、構文の誤りや引数の数の誤り (HL0341) にしていた
 - 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた

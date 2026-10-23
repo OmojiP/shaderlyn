@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
@@ -33,6 +34,25 @@ public static partial class UnrealShaderLanguageVersions
 
     /// <summary>既定のシェーダープラットフォーム (PC の Direct3D 12、シェーダーモデル 6)。</summary>
     public const string DefaultShaderPlatform = "PCD3D_SM6";
+
+    /// <summary>
+    /// エンジンの既定値が <c>true</c> の、プラットフォームの設定 (UE 5.5 の <c>FGenericDataDrivenShaderPlatformInfo::SetDefaultValues</c>)。
+    /// <c>DataDrivenPlatformInfo.ini</c> の節に書いていなければ、これらは <c>true</c>、ほかの真偽の設定は <c>false</c> である。
+    /// </summary>
+    internal static FrozenSet<string> DefaultTrueSettings { get; } = new[]
+    {
+        "bSupportsMSAA",
+        "bSupportsUnrestrictedHalfFloatBuffers",
+        "bSupportsDOFHybridScattering",
+        "bSupportsHZBOcclusion",
+        "bSupportsWaterIndirectDraw",
+        "bSupportsAsyncPipelineCompilation",
+        "bSupportsVertexShaderSRVs",
+        "bSupportsManualVertexFetch",
+        "bSupportsVolumeTextureAtomics",
+        "bSupportsClipDistance",
+        "bSupportsShaderPipelines",
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>取り込みをたどる深さの上限。</summary>
     private const int MaxIncludeDepth = 64;

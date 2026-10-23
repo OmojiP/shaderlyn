@@ -198,6 +198,7 @@ public static partial class UnrealUniformBufferGenerator
                 && !text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
                 && !text.Contains("PermutationDomain", StringComparison.Ordinal)
                 && !text.Contains("enum class", StringComparison.Ordinal)
+                && !text.Contains("FStaticShaderPlatform", StringComparison.Ordinal)
                 && !IsSharedShaderHeader(path))
             {
                 return;

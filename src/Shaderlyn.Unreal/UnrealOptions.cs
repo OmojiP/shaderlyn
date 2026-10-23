@@ -817,7 +817,7 @@ public sealed partial record UnrealOptions
 
     /// <summary>シェーダープラットフォームの設定から、<see cref="DataDrivenMacroKeys"/> のマクロを作る。</summary>
     /// <param name="settings">設定の節 (<see cref="UnrealShaderLanguageVersions.ReadShaderPlatformSettings"/>)。</param>
-    /// <returns>マクロ。書いていないキーは 0 (エンジンの既定は「無い」)。</returns>
+    /// <returns>マクロ。書いていないキーはエンジンの既定値 (<see cref="UnrealShaderLanguageVersions.DefaultTrueSettings"/> は 1、ほかは 0)。</returns>
     /// <remarks>
     /// 値は <c>true</c> / <c>false</c> か、機能の有無 (<c>Unsupported</c> / <c>RuntimeDependent</c> / <c>RuntimeGuaranteed</c>) である。
     /// 機能の有無は、<c>Unsupported</c> 以外を 1 にする (エンジンも <c>!= ERHIFeatureSupport::Unsupported</c> で決める)。
@@ -829,10 +829,14 @@ public sealed partial record UnrealOptions
 
         foreach ((string macro, string key) in DataDrivenMacroKeys)
         {
+            // 書いていないキーはエンジンの既定値にする。bSupportsVertexShaderSRVs などは既定が true である。
+            // 0 にすると、PC で PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS が 0 になり、
+            // InstanceCullingOcclusionQuery.usf などが #error に届いていた。
             bool enabled = settings.TryGetValue(key, out string? value)
-                           && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
-                               || value.Equals("RuntimeDependent", StringComparison.OrdinalIgnoreCase)
-                               || value.Equals("RuntimeGuaranteed", StringComparison.OrdinalIgnoreCase));
+                ? value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                  || value.Equals("RuntimeDependent", StringComparison.OrdinalIgnoreCase)
+                  || value.Equals("RuntimeGuaranteed", StringComparison.OrdinalIgnoreCase)
+                : UnrealShaderLanguageVersions.DefaultTrueSettings.Contains(key);
             macros[macro] = enabled ? "1" : "0";
         }
 

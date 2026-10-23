@@ -240,6 +240,24 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("HL0003", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// プラットフォームの設定から作るマクロで、節に書いていないキーはエンジンの既定値にする。
+    /// <c>bSupportsVertexShaderSRVs</c> と <c>bSupportsClipDistance</c> は既定が true なので 1、ほかは 0。
+    /// </summary>
+    [Fact]
+    public void プラットフォームの設定に無いキーはエンジンの既定値にする()
+    {
+        ImmutableDictionary<string, string> macros = UnrealOptions.CreateDataDrivenMacros(
+            ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase)
+                .Add("bSupportsMeshShadersTier1", "true")
+                .Add("bSupportsClipDistance", "false"));
+
+        Assert.Equal("1", macros["PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS"]);
+        Assert.Equal("0", macros["PLATFORM_SUPPORTS_CLIP_DISTANCE"]);
+        Assert.Equal("1", macros["PLATFORM_SUPPORTS_MESH_SHADERS_TIER1"]);
+        Assert.Equal("0", macros["PLATFORM_SUPPORTS_MESH_SHADERS_TIER0"]);
+    }
+
     /// <summary>エンジンのプラットフォームの設定と、設定ファイルを書く。</summary>
     /// <param name="enablesHlsl2021ByDefault"><c>PCD3D_SM6</c> の <c>EnablesHLSL2021ByDefault</c>。</param>
     /// <param name="hlslVersion">設定ファイルの <c>hlsl: version</c>。書かなければ <see langword="null"/>。</param>
