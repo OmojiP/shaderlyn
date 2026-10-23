@@ -245,6 +245,48 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
+    /// プラグマ演算子 <c>_Pragma("…")</c> を、<c>#pragma</c> と同じくコードに残さない (Unreal Engine の <c>SHADER_PUSH_WARNINGS_STATE</c>)。
+    /// </summary>
+    [Fact]
+    public async Task プラグマ演算子をコードに残さない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #define SHADER_PUSH_WARNINGS_STATE _Pragma("dxc diagnostic push")
+            #define SHADER_DISABLE_WARNINGS \
+            	_Pragma("dxc diagnostic ignored \"-Wall\"") \
+            	_Pragma("dxc diagnostic ignored \"-Wconversion\"")
+            #define SHADER_POP_WARNINGS_STATE _Pragma("dxc diagnostic pop")
+
+            SHADER_PUSH_WARNINGS_STATE
+            SHADER_DISABLE_WARNINGS
+            float Get(float x)
+            {
+            SHADER_PUSH_WARNINGS_STATE
+            	return x;
+            SHADER_POP_WARNINGS_STATE
+            }
+            SHADER_POP_WARNINGS_STATE
+
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS() { _Pragma("message(\"hi\")") Output[0] = Get(1); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 組み込みの型の値の作成 (<c>vector&lt;float, 2&gt;(x, y)</c>) と、型でない引数の式を書いた型の静的メンバー
     /// (<c>FLayout&lt;T, X * Y&gt;::RowSize</c>) を読む (Unreal Engine の LaneVectorization.ush)。
     /// </summary>

@@ -56,17 +56,22 @@ public static partial class UnrealUniformBufferGenerator
     /// 解析するシェーダープラットフォームの設定 (<see cref="UnrealShaderLanguageVersions.ReadShaderPlatformSettings"/>)。
     /// パーミュテーションを読むとき、<c>FDataDrivenShaderPlatformInfo</c> の問い合わせに答えるのに使う。
     /// </param>
+    /// <param name="consoleVariableOverrides">
+    /// ini に書かれたコンソール変数の値 (<see cref="UnrealConsoleVariables.ReadOverrides"/>)。C++ に書いた既定値より優先する。
+    /// </param>
     /// <returns>書き出した結果。</returns>
     public static UnrealUniformBufferGeneration Generate(
         IEnumerable<string> sourceRoots,
         string outputDirectory,
-        ImmutableDictionary<string, string>? platformSettings = null)
+        ImmutableDictionary<string, string>? platformSettings = null,
+        ImmutableDictionary<string, string>? consoleVariableOverrides = null)
     {
         ArgumentNullException.ThrowIfNull(sourceRoots);
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
         ParsedSources parsed = Parse(sourceRoots);
         parsed.Classes.PlatformSettings = platformSettings;
+        parsed.Classes.ConsoleVariableOverrides = consoleVariableOverrides;
         return Write(parsed, outputDirectory);
     }
 
@@ -74,14 +79,17 @@ public static partial class UnrealUniformBufferGenerator
     /// <param name="files">ファイルのパスと中身。</param>
     /// <param name="outputDirectory">書き出す先。</param>
     /// <param name="platformSettings">解析するシェーダープラットフォームの設定。</param>
+    /// <param name="consoleVariableOverrides">ini に書かれたコンソール変数の値。</param>
     /// <returns>書き出した結果。</returns>
     internal static UnrealUniformBufferGeneration GenerateFromTexts(
         IEnumerable<(string Path, string Text)> files,
         string outputDirectory,
-        ImmutableDictionary<string, string>? platformSettings = null)
+        ImmutableDictionary<string, string>? platformSettings = null,
+        ImmutableDictionary<string, string>? consoleVariableOverrides = null)
     {
         ParsedSources parsed = new();
         parsed.Classes.PlatformSettings = platformSettings;
+        parsed.Classes.ConsoleVariableOverrides = consoleVariableOverrides;
 
         foreach ((string path, string text) in files)
         {
@@ -742,7 +750,7 @@ public static partial class UnrealUniformBufferGenerator
         written.Add(UnrealShaderRegistrations.Write(outputDirectory, parsed.ShaderRegistrations));
 
         ImmutableArray<UnrealShaderClass> classes = parsed.Classes.Resolve(parsed.ShaderRegistrations.Select(r => r.ShaderClass), out int missingClasses);
-        written.Add(UnrealShaderClasses.Write(outputDirectory, classes));
+        written.Add(UnrealShaderClasses.Write(outputDirectory, classes, parsed.Classes.GlobalDefines));
 
         return new UnrealUniformBufferGeneration(
             parsed.FileCount,

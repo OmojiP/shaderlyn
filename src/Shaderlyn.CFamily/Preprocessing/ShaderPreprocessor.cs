@@ -497,6 +497,14 @@ internal sealed partial class ShaderPreprocessor
                 return true;
             }
 
+            // プラグマ演算子 (_Pragma("dxc diagnostic push")) は #pragma と同じで、コードには残らない。
+            // Unreal は警告の抑制をこれで書いたマクロ (SHADER_PUSH_WARNINGS_STATE) にしている。残すと構文の誤りになる。
+            if (TrySkipPragmaOperator(token))
+            {
+                TakeToken();
+                return true;
+            }
+
             NoteUnitBoundary(token);
 
             // キーワードの名前がコードに残るなら、そのキーワードは連なりの外のトークンも変える
@@ -510,6 +518,32 @@ internal sealed partial class ShaderPreprocessor
             _output.Add(TakeToken());
             return true;
         }
+    }
+
+    /// <summary>プラグマ演算子のどこまでを読み飛ばしたか (0 なら読んでいない、1 は <c>_Pragma</c>、2 は <c>(</c>、3 は文字列)。</summary>
+    private int _pragmaOperatorState;
+
+    /// <summary>
+    /// 展開した後のトークンが、プラグマ演算子 <c>_Pragma("…")</c> の一部なら、読み飛ばすことにする。
+    /// </summary>
+    /// <param name="token">次に出力するトークン。</param>
+    /// <returns>読み飛ばすなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// トークンは 1 つずつ届くので、どこまで読んだかを覚える。形が崩れていれば、そこで読み飛ばすのをやめ、
+    /// そのトークンからは普通に出力する (構文の誤りとして報告される)。
+    /// </remarks>
+    private bool TrySkipPragmaOperator(ShaderSyntaxToken token)
+    {
+        (bool matches, int next) = _pragmaOperatorState switch
+        {
+            0 => (token.Kind == ShaderSyntaxKind.IdentifierToken && token.Text == "_Pragma", 1),
+            1 => (token.Kind == ShaderSyntaxKind.OpenParenToken, 2),
+            2 => (token.Kind == ShaderSyntaxKind.StringLiteralToken, 3),
+            _ => (token.Kind == ShaderSyntaxKind.CloseParenToken, 0),
+        };
+
+        _pragmaOperatorState = matches ? next : 0;
+        return matches;
     }
 
     // --------------------------------------------------------------------

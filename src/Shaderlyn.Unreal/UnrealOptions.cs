@@ -780,9 +780,18 @@ public sealed partial record UnrealOptions
     {
         get
         {
-            ImmutableDictionary<string, string> macros = Compiler == HlslCompiler.Dxc && ShaderPlatform == UnrealShaderLanguageVersions.DefaultShaderPlatform
+            bool pc = Compiler == HlslCompiler.Dxc && ShaderPlatform == UnrealShaderLanguageVersions.DefaultShaderPlatform;
+            ImmutableDictionary<string, string> macros = pc
                 ? PcD3DSm6Macros
                 : ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal);
+
+            // エンジンがどのシェーダーにも定義するマクロ (--unreal-generate が GlobalBeginCompileShader とコンソール変数から求めたもの。
+            // SUBSTRATE_ENABLED など)。PC の Direct3D 12 として求めたものなので、そのときだけ使う。
+            // 上の表と、プラットフォームの設定から直接決めたものを優先する。
+            if (pc && GeneratedDirectory is { } generated)
+            {
+                macros = UnrealShaderClasses.ReadGlobalDefines(generated).WithComparers(StringComparer.Ordinal).SetItems(macros);
+            }
 
             return EngineDirectory is { } engine && UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, ShaderPlatform) is { } settings
                 ? macros.SetItems(CreateDataDrivenMacros(settings))

@@ -73,6 +73,9 @@ public static partial class UnrealShaderClasses
     /// <summary>呼び出しを追う深さの上限。</summary>
     private const int MaxCallDepth = 16;
 
+    /// <summary>評価する式のトークンの数の上限。ローカル変数を置き換えて膨らんだ式を読まない。</summary>
+    private const int MaxExpressionTokens = 4096;
+
     /// <summary>クラスを作るマクロや、評価に要る定義を集める。</summary>
     internal sealed class Collector
     {
@@ -106,6 +109,31 @@ public static partial class UnrealShaderClasses
         /// 名前から、<c>return</c> の式 (同じ名前で式が違えば <see langword="null"/>)。
         /// </summary>
         private readonly ConcurrentDictionary<string, string?> _platformHelpers = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// コンソール変数を返すだけの、引数の無い小さな関数 (<c>bool IsSubstrateEnabled() { return CVarSubstrate.GetValueOnAnyThread() &gt; 0; }</c>) の
+        /// 名前から、<c>return</c> の式 (同じ名前で式が違えば <see langword="null"/>)。
+        /// </summary>
+        private readonly ConcurrentDictionary<string, string?> _consoleHelpers = new(StringComparer.Ordinal);
+
+        /// <summary>コンソール変数を指す C++ の変数 (<c>CVarSubstrate</c>) から、コンソール変数の名前 (<c>r.Substrate</c>)。同じ名前で違えば <see langword="null"/>。</summary>
+        private readonly ConcurrentDictionary<string, string?> _consoleVariableNames = new(StringComparer.Ordinal);
+
+        /// <summary>コンソール変数の名前から、C++ に書いた既定値。同じ名前で違えば <see langword="null"/>。</summary>
+        private readonly ConcurrentDictionary<string, string?> _consoleVariableDefaults = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// ini で上書きしたコンソール変数の値 (<see cref="UnrealConsoleVariables.ReadOverrides"/>)。
+        /// C++ に書いた既定値より優先する。<see langword="null"/> なら既定値だけを使う。
+        /// </summary>
+        public ImmutableDictionary<string, string>? ConsoleVariableOverrides { get; set; }
+
+        /// <summary>
+        /// エンジンがどのシェーダーにも定義するマクロ (<c>GlobalBeginCompileShader</c> を実行して、値が決まったもの)。
+        /// <see cref="Resolve"/> のあとに引ける。
+        /// </summary>
+        public ImmutableSortedDictionary<string, string> GlobalDefines { get; private set; } =
+            ImmutableSortedDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal);
 
         /// <summary>ファイルを 1 つ見る。並行して呼んでよい。</summary>
         /// <param name="path">ファイルのパス。</param>
@@ -207,7 +235,36 @@ public static partial class UnrealShaderClasses
                 }
             }
 
-            if (text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
+            // コンソール変数の宣言と既定値。ShouldCompilePermutation と GlobalBeginCompileShader が値を読む。
+            if (text.Contains("ConsoleVariable", StringComparison.Ordinal))
+            {
+                foreach (Match match in AutoConsoleVariable().Matches(text))
+                {
+                    AddConsoleVariable(match.Groups["variable"].Value, match.Groups["name"].Value, match.Groups["default"].Value.Trim());
+                }
+
+                foreach (Match match in ConsoleVariableRef().Matches(text))
+                {
+                    // 値は、参照する変数の初期値 (static int32 GFoo = 1;)。
+                    Match target = Regex.Match(text, $@"\b{Regex.Escape(match.Groups["target"].Value)}\s*=\s*(?<value>[^;,)]+);", RegexOptions.CultureInvariant);
+                    AddConsoleVariable(match.Groups["variable"].Value, match.Groups["name"].Value, target.Success ? target.Groups["value"].Value.Trim() : null);
+                }
+            }
+
+            if (text.Contains("GetValueOn", StringComparison.Ordinal))
+            {
+                foreach (Match match in ConsoleHelper().Matches(text))
+                {
+                    if (PlatformHelperReturn().Match(Comment().Replace(match.Groups["body"].Value, " ")) is { Success: true } body)
+                    {
+                        string expression = body.Groups["expression"].Value.Trim();
+                        _consoleHelpers.AddOrUpdate(match.Groups["name"].Value, expression, (_, old) => old == expression ? old : null);
+                    }
+                }
+            }
+
+            if (text.Contains("GlobalBeginCompileShader", StringComparison.Ordinal)
+                || text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
                 || text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal)
                 || text.Contains("PermutationDomain", StringComparison.Ordinal)
                 || text.Contains("IMPLEMENT_", StringComparison.Ordinal))
@@ -216,13 +273,50 @@ public static partial class UnrealShaderClasses
             }
         }
 
+        /// <summary>コンソール変数の宣言を 1 つ覚える。</summary>
+        /// <param name="variable">C++ の変数の名前。</param>
+        /// <param name="name">コンソール変数の名前。</param>
+        /// <param name="defaultValue">既定値の式。読めなければ <see langword="null"/>。</param>
+        private void AddConsoleVariable(string variable, string name, string? defaultValue)
+        {
+            _consoleVariableNames.AddOrUpdate(variable, name, (_, old) => old == name ? old : null);
+            _consoleVariableDefaults.AddOrUpdate(name, defaultValue, (_, old) => old == defaultValue ? old : null);
+        }
+
+        /// <summary>コンソール変数の値 (ini の値か、C++ の既定値)。</summary>
+        /// <returns>名前から値の式。</returns>
+        private Dictionary<string, string> ConsoleValues()
+        {
+            Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach ((string name, string? value) in _consoleVariableDefaults)
+            {
+                if (value is not null)
+                {
+                    values[name] = value;
+                }
+            }
+
+            foreach ((string name, string value) in ConsoleVariableOverrides ?? ImmutableDictionary<string, string>.Empty)
+            {
+                values[name] = value;
+            }
+
+            return values;
+        }
+
         /// <summary>集めたファイルからクラスを読み、登録されたクラスのマクロとパーミュテーションを求める。</summary>
         /// <param name="classNames">求めるクラスの名前 (登録に書かれたもの)。</param>
         /// <param name="missing">見つからなかったクラスの数。</param>
         /// <returns>見つかったクラス。</returns>
         public ImmutableArray<UnrealShaderClass> Resolve(IEnumerable<string> classNames, out int missing)
         {
-            Model model = new(_enums, _constants, _enumMembers, PlatformSettings, _platformHelpers);
+            Model model = new(_enums, _constants, _enumMembers, PlatformSettings, _platformHelpers)
+            {
+                ConsoleHelpers = _consoleHelpers,
+                ConsoleVariableNames = _consoleVariableNames,
+                ConsoleValues = ConsoleValues(),
+            };
             _classMacros = FindClassMacros();
 
             Parallel.ForEach(_files, file =>
@@ -264,6 +358,7 @@ public static partial class UnrealShaderClasses
                 }
             }
 
+            GlobalDefines = model.EvaluateGlobalDefines();
             return [.. found];
         }
 
@@ -404,7 +499,12 @@ public static partial class UnrealShaderClasses
         public static Value FromBool(bool value) => new(ValueKind.Number, value ? 1 : 0, null);
 
         /// <summary>真偽。決まらなければ <see langword="null"/>。</summary>
-        public bool? AsBool => Kind == ValueKind.Number ? Number != 0 : null;
+        public bool? AsBool => Kind switch
+        {
+            ValueKind.Number => Number != 0,
+            ValueKind.ConsoleVariable => true,
+            _ => null,
+        };
 
         /// <summary>マクロの値として書く文字列。決まらなければ <see langword="null"/>。</summary>
         public string? AsDefine => Kind switch
@@ -426,6 +526,12 @@ public static partial class UnrealShaderClasses
 
         /// <summary>パーミュテーションの値の組 (<c>FPermutationDomain</c>)。<see cref="Value.Text"/> に値を並べた文字列を持ち、それで比べる。</summary>
         Vector,
+
+        /// <summary>
+        /// コンソール変数 (<c>CVarSubstrate</c>、<c>FindTConsoleVariableDataInt(TEXT("r.Substrate"))</c> の結果)。
+        /// <see cref="Value.Text"/> に変数の名前 (<c>r.Substrate</c>) を持つ。真偽としては真 (見つかった) である。
+        /// </summary>
+        ConsoleVariable,
     }
 
     /// <summary>集めた宣言と、クラスの評価。</summary>
@@ -446,6 +552,30 @@ public static partial class UnrealShaderClasses
 
         /// <summary>クラスの名前から、<c>RemapPermutation</c> の定義。</summary>
         private readonly ConcurrentDictionary<string, ConcurrentBag<ModifyFunction>> _remap = new(StringComparer.Ordinal);
+
+        /// <summary><c>GlobalBeginCompileShader</c> の定義 (エンジンがどのシェーダーにも定義するマクロを決める)。</summary>
+        private readonly ConcurrentDictionary<string, ConcurrentBag<ModifyFunction>> _global = new(StringComparer.Ordinal);
+
+        /// <summary><c>GlobalBeginCompileShader</c> を入れておく所有者の名前。</summary>
+        private const string GlobalOwner = "$Global";
+
+        /// <summary>
+        /// <c>bool</c> を返す関数 (クラスの static 関数と、クラスの外の関数)。鍵は <c>所有者::名前</c> (クラスの外は <c>$Free::名前</c>)。
+        /// <c>ShouldCompilePermutation</c> が呼ぶ <c>IsSupported(Parameters.Platform)</c> のような関数を実行するのに使う。
+        /// </summary>
+        private readonly ConcurrentDictionary<string, ConcurrentBag<ModifyFunction>> _boolFunctions = new(StringComparer.Ordinal);
+
+        /// <summary>クラスの外の関数の所有者の名前。</summary>
+        private const string FreeOwner = "$Free";
+
+        /// <summary>コンソール変数を返すだけの、引数の無い関数の名前から、<c>return</c> の式。</summary>
+        public IReadOnlyDictionary<string, string?> ConsoleHelpers { get; init; } = new Dictionary<string, string?>();
+
+        /// <summary>コンソール変数を指す C++ の変数から、コンソール変数の名前。</summary>
+        public IReadOnlyDictionary<string, string?> ConsoleVariableNames { get; init; } = new Dictionary<string, string?>();
+
+        /// <summary>コンソール変数の名前から、値の式 (ini の値か、C++ の既定値)。</summary>
+        public IReadOnlyDictionary<string, string> ConsoleValues { get; init; } = new Dictionary<string, string>();
 
         /// <summary>マクロを展開したファイルから、クラス・次元・組・<c>ModifyCompilationEnvironment</c> を読む。</summary>
         public void ParseFile(string path, string text)
@@ -519,6 +649,25 @@ public static partial class UnrealShaderClasses
                 else if (word == "RemapPermutation" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
                 {
                     ReadFunction(path, tokens, match, i, owner, _remap);
+                }
+                else if (word == "GlobalBeginCompileShader" && owner is null && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    ReadFunction(path, tokens, match, i, GlobalOwner, _global);
+                }
+                else if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && i >= 1 && tokens[i - 1].Text == "bool"
+                         && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    // 名前ごとに引けるよう、所有者と名前を鍵にする。
+                    ConcurrentDictionary<string, ConcurrentBag<ModifyFunction>> byOwner = new(StringComparer.Ordinal);
+                    ReadFunction(path, tokens, match, i, owner ?? FreeOwner, byOwner);
+
+                    foreach ((string functionOwner, ConcurrentBag<ModifyFunction> functions) in byOwner)
+                    {
+                        foreach (ModifyFunction function in functions)
+                        {
+                            _boolFunctions.GetOrAdd(functionOwner + "::" + word, _ => []).Add(function);
+                        }
+                    }
                 }
             }
         }
@@ -1466,6 +1615,38 @@ public static partial class UnrealShaderClasses
                 return Evaluate(Lex(helper), context with { Depth = context.Depth + 1 }, context.Depth + 1);
             }
 
+            // Substrate::IsSubstrateEnabled() など、コンソール変数を返すだけの関数。
+            if (arguments is [[]] or []
+                && ConsoleHelpers.TryGetValue(name, out string? consoleHelper) && consoleHelper is not null
+                && context.Depth < MaxCallDepth)
+            {
+                return Evaluate(Lex(consoleHelper), context with { Depth = context.Depth + 1 }, context.Depth + 1);
+            }
+
+            // ほかの bool を返す関数 (IsSupported(Parameters.Platform) など)。同じクラス、修飾に書いた名前、クラスの外の順に探して実行する。
+            if (context.Depth < MaxCallDepth
+                && name is not ("ShouldCompilePermutation" or "RemapPermutation" or "ModifyCompilationEnvironment")
+                && FindBoolFunction(tokens, at, name, arguments, context) is { } boolFunction)
+            {
+                int count = arguments is [[]] ? 0 : arguments.Count;
+                Dictionary<string, ShaderSyntaxToken[]> bindings = new(StringComparer.Ordinal);
+
+                for (int k = 0; k < count && k < boolFunction.Parameters.Length; k++)
+                {
+                    bindings[boolFunction.Parameters[k]] = ResolvePermutationGets(Substitute(arguments[k], context.Bindings, 0), context);
+                }
+
+                ClassDeclaration functionOwner = new(boolFunction.Owner, boolFunction.File, []);
+                Context called = Execute(boolFunction, functionOwner, bindings, new Environment(), certain: true, context.Depth + 1, context.Vector);
+                return called.State.Return ?? Value.Unknown;
+            }
+
+            // IConsoleManager::Get()。続く FindConsoleVariable(…) の相手になる。
+            if (name == "Get" && at >= 2 && tokens[at - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[at - 2].Text == "IConsoleManager")
+            {
+                return new Value(ValueKind.Symbol, 0, "IConsoleManager");
+            }
+
             // PC の Direct3D 12 (SM6) では、16 ビットの型は実行時に決まる (DataDrivenPlatformInfo の bSupportsRealTypes = RuntimeDependent)。
             if (name is "Supports16BitVALU" or "GetSupportsRealTypes"
                 && enumMembers.TryGetValue("ERHIFeatureSupport::RuntimeDependent", out int? dependent) && dependent is { } support)
@@ -1564,6 +1745,137 @@ public static partial class UnrealShaderClasses
             }
 
             return null;
+        }
+
+        /// <summary><c>bool</c> を返す関数を、呼び出しから探す。</summary>
+        /// <returns>見つかった関数。見つからないか、引数の数の合う定義が 1 つに決まらなければ <see langword="null"/>。</returns>
+        private ModifyFunction? FindBoolFunction(ShaderSyntaxToken[] tokens, int at, string name, List<ShaderSyntaxToken[]> arguments, Context context)
+        {
+            int count = arguments is [[]] ? 0 : arguments.Count;
+            string? qualifier = at >= 2 && tokens[at - 1].Kind == ShaderSyntaxKind.ColonColonToken ? tokens[at - 2].Text : null;
+
+            foreach (string owner in new[] { qualifier, context.Owner.Name, FreeOwner }.OfType<string>())
+            {
+                if (!_boolFunctions.TryGetValue(owner + "::" + name, out ConcurrentBag<ModifyFunction>? found))
+                {
+                    continue;
+                }
+
+                // 既定値のある引数は省略されることがあるので、引数の数以上の仮引数を持つものを選ぶ。同じファイルの定義を先にする。
+                ModifyFunction[] candidates =
+                [
+                    .. found.Where(f => f.Parameters.Length >= count)
+                        .OrderBy(f => f.File == context.Owner.File ? 0 : 1)
+                        .ThenBy(f => f.Parameters.Length),
+                ];
+
+                if (candidates.Length > 0)
+                {
+                    return candidates[0];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// メンバーの呼び出しを評価する。コンソール変数を探す呼び出し (<c>FindTConsoleVariableDataInt(TEXT("r.X"))</c>) と、
+        /// その値を読む呼び出し (<c>GetValueOnAnyThread()</c> など) だけに答える。
+        /// </summary>
+        /// <param name="receiver">呼ぶ相手の値。</param>
+        /// <param name="method">関数の名前。</param>
+        /// <param name="arguments">引数。</param>
+        /// <param name="context">実行の文脈。</param>
+        /// <returns>値。評価しない呼び出しなら <see langword="null"/>。</returns>
+        private Value? EvaluateMemberCall(Value receiver, string method, List<ShaderSyntaxToken[]> arguments, Context context)
+        {
+            if (receiver is { Kind: ValueKind.Symbol, Text: "IConsoleManager" }
+                && (method.StartsWith("FindTConsoleVariableData", StringComparison.Ordinal) || method == "FindConsoleVariable")
+                && arguments.Count >= 1
+                && Evaluate(arguments[0], context, context.Depth + 1) is { Kind: ValueKind.String, Text: { } name })
+            {
+                return ConsoleValues.ContainsKey(name) ? new Value(ValueKind.ConsoleVariable, 0, name) : Value.Unknown;
+            }
+
+            if (receiver is { Kind: ValueKind.ConsoleVariable, Text: { } variable }
+                && method is "GetValueOnAnyThread" or "GetValueOnGameThread" or "GetValueOnRenderThread" or "GetInt" or "GetBool" or "GetFloat" or "Get")
+            {
+                return ConsoleValue(variable);
+            }
+
+            return null;
+        }
+
+        /// <summary>コンソール変数の値。</summary>
+        /// <param name="name">コンソール変数の名前。</param>
+        /// <returns>整数と真偽は数、小数は文字列 (エンジンの %f の形)。読めなければ決まらないもの。</returns>
+        private Value ConsoleValue(string name)
+        {
+            if (!ConsoleValues.TryGetValue(name, out string? text))
+            {
+                return Value.Unknown;
+            }
+
+            string trimmed = text.Trim().Trim('"');
+
+            if (bool.TryParse(trimmed, out bool flag))
+            {
+                return Value.FromBool(flag);
+            }
+
+            if (TryParseInteger(trimmed, out long number))
+            {
+                return new Value(ValueKind.Number, number, null);
+            }
+
+            if (double.TryParse(trimmed.TrimEnd('f', 'F'), NumberStyles.Float, CultureInfo.InvariantCulture, out double real))
+            {
+                return real == Math.Floor(real) && Math.Abs(real) < int.MaxValue
+                    ? new Value(ValueKind.Number, (long)real, null)
+                    : new Value(ValueKind.String, 0, real.ToString("F6", CultureInfo.InvariantCulture));
+            }
+
+            return Value.Unknown;
+        }
+
+        /// <summary>
+        /// エンジンがどのシェーダーにも定義するマクロを求める。<c>GlobalBeginCompileShader</c> を実行し、値が決まったものだけを返す。
+        /// </summary>
+        /// <returns>マクロの名前から値。</returns>
+        /// <remarks>
+        /// <para>
+        /// エンジンは、プロジェクトの設定 (コンソール変数) とプラットフォームの設定から、どのシェーダーにもマクロを定義する
+        /// (<c>SUBSTRATE_ENABLED</c>、<c>USE_HAIR_TRIANGLE_STRIP</c> など)。シェーダーは、無ければ <c>#error</c> にすることが多い
+        /// (<c>Substrate.ush</c> の <c>#ifndef SUBSTRATE_ENABLED</c>)。
+        /// </para>
+        /// <para>
+        /// ステージやシェーダーの種類で変わるもの (<c>PIXELSHADER</c> など) は、条件が決まらないので値が決まらず、返さない。
+        /// <c>#</c> で始まる値 (<c>COMPILER_DEFINE</c> の <c>#define</c>) は、マクロにすると読み取りが崩れるので返さない。
+        /// </para>
+        /// </remarks>
+        public ImmutableSortedDictionary<string, string> EvaluateGlobalDefines()
+        {
+            ImmutableSortedDictionary<string, string>.Builder defines = ImmutableSortedDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+
+            if (!_global.TryGetValue(GlobalOwner, out ConcurrentBag<ModifyFunction>? functions)
+                || functions.OrderByDescending(f => f.Body.Length).FirstOrDefault() is not { } function)
+            {
+                return defines.ToImmutable();
+            }
+
+            ClassDeclaration owner = new(GlobalOwner, function.File, []);
+            Environment environment = new();
+            Execute(function, owner, new(StringComparer.Ordinal), environment, certain: true, depth: 0, vector: null);
+
+            foreach ((string name, string? value) in environment.Defines)
+            {
+                if (value is not null && !value.StartsWith('#'))
+                {
+                    defines[name] = value;
+                }
+            }
+
+            return defines.ToImmutable();
         }
 
         /// <summary>値の組を、比べられる値にする。</summary>
@@ -1683,11 +1995,21 @@ public static partial class UnrealShaderClasses
             }
 
             ShaderSyntaxToken[] substituted = ResolvePermutationGets(Substitute(tokens, context.Bindings, 0), context);
+
+            // ローカル変数を式に置き換えると、代入が重なった式は入れ子になって膨らむ。大きすぎる式は読まない。
+            if (substituted.Length > MaxExpressionTokens)
+            {
+                return Value.Unknown;
+            }
+
             ExpressionReader reader = new(substituted, constants, enumMembers)
             {
                 PreferredFile = context.Function.File,
                 CallHook = (callTokens, at, arguments) => EvaluateCall(callTokens, at, arguments, context),
-                IdentifierHook = name => context.Vector is { } vector && context.VectorNames.Contains(name) ? VectorValue(vector) : null,
+                IdentifierHook = name => context.Vector is { } vector && context.VectorNames.Contains(name) ? VectorValue(vector)
+                    : ConsoleVariableNames.TryGetValue(name, out string? console) && console is not null ? new Value(ValueKind.ConsoleVariable, 0, console)
+                    : null,
+                MemberCallHook = (receiver, method, arguments) => EvaluateMemberCall(receiver, method, arguments, context),
             };
 
             Value value = reader.ReadConditional();
@@ -1844,11 +2166,23 @@ public static partial class UnrealShaderClasses
     {
         private int _position;
 
+        /// <summary>今読んでいる括弧の深さ。</summary>
+        private int _nesting;
+
+        /// <summary>読む括弧の深さの上限。</summary>
+        private const int MaxNesting = 64;
+
         /// <summary>関数の呼び出しを評価するもの (式のトークン、名前の位置、引数)。評価しないなら <see langword="null"/> を返す。</summary>
         public Func<ShaderSyntaxToken[], int, List<ShaderSyntaxToken[]>, Value?>? CallHook { get; init; }
 
         /// <summary>修飾の無い名前を評価するもの (値の組を指す名前)。評価しないなら <see langword="null"/> を返す。</summary>
         public Func<string, Value?>? IdentifierHook { get; init; }
+
+        /// <summary>
+        /// メンバーの呼び出し (<c>CVar.GetValueOnAnyThread()</c>、<c>Manager.FindConsoleVariable(…)</c>) を評価するもの
+        /// (呼ぶ相手の値、関数の名前、引数)。評価しないなら <see langword="null"/> を返す。
+        /// </summary>
+        public Func<Value, string, List<ShaderSyntaxToken[]>, Value?>? MemberCallHook { get; init; }
 
         /// <summary>列挙を先に探すファイル (式を書いた関数のファイル)。</summary>
         public string? PreferredFile { get; init; }
@@ -1920,13 +2254,13 @@ public static partial class UnrealShaderClasses
 
         private Value ReadEquality()
         {
-            Value left = ReadUnary();
+            Value left = ReadRelational();
 
             while (Peek?.Kind is ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken)
             {
                 bool equals = Peek!.Kind == ShaderSyntaxKind.EqualsEqualsToken;
                 _position++;
-                Value right = ReadUnary();
+                Value right = ReadRelational();
 
                 bool? same = (left.Kind, right.Kind) switch
                 {
@@ -1938,6 +2272,32 @@ public static partial class UnrealShaderClasses
                 };
 
                 left = same is { } s ? Value.FromBool(s == equals) : Value.Unknown;
+            }
+
+            return left;
+        }
+
+        /// <summary>大小の比較 (<c>CVarSubstrate.GetValueOnAnyThread() &gt; 0</c>)。整数どうしだけを比べる。</summary>
+        private Value ReadRelational()
+        {
+            Value left = ReadUnary();
+
+            while (Peek?.Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+                   or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken)
+            {
+                ShaderSyntaxKind comparison = Peek!.Kind;
+                _position++;
+                Value right = ReadUnary();
+
+                left = left.Kind == ValueKind.Number && right.Kind == ValueKind.Number
+                    ? Value.FromBool(comparison switch
+                    {
+                        ShaderSyntaxKind.LessThanToken => left.Number < right.Number,
+                        ShaderSyntaxKind.GreaterThanToken => left.Number > right.Number,
+                        ShaderSyntaxKind.LessThanEqualsToken => left.Number <= right.Number,
+                        _ => left.Number >= right.Number,
+                    })
+                    : Value.Unknown;
             }
 
             return left;
@@ -1970,13 +2330,20 @@ public static partial class UnrealShaderClasses
 
             if (token.Kind == ShaderSyntaxKind.OpenParenToken)
             {
+                // 深すぎる入れ子は読まない (再帰が深くなりすぎる)。
+                if (++_nesting > MaxNesting)
+                {
+                    return Abandon();
+                }
+
                 _position++;
                 Value inner = ReadConditional();
+                _nesting--;
 
                 if (Peek?.Kind == ShaderSyntaxKind.CloseParenToken)
                 {
                     _position++;
-                    return inner;
+                    return ReadMemberCalls(inner);
                 }
 
                 _position = tokens.Length + 1;
@@ -2051,12 +2418,29 @@ public static partial class UnrealShaderClasses
                 if (call(tokens, nameAt, arguments) is { } called)
                 {
                     _position = close;
-                    return called;
+                    return ReadMemberCalls(called);
                 }
             }
 
-            // ほかの呼び出しやメンバーは評価しない。
-            if (Peek?.Kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenBracketToken
+            // メンバーの呼び出し (CVarSubstrate.GetValueOnAnyThread())。呼ぶ相手が評価できる名前のときだけ読む。
+            if (IsMemberAccess() && MemberCallHook is not null
+                && !name.ToString().Contains("::", StringComparison.Ordinal)
+                && IdentifierHook?.Invoke(name.ToString()) is { } receiver)
+            {
+                return ReadMemberCalls(receiver);
+            }
+
+            // ほかの呼び出しは評価しない。呼び出しだけを決まらない値として読み飛ばし、式の残りは読む。
+            // 残りまで捨てると、bSubstrate = IsSubstrateEnabled() && IsSupported(Input) の前半が false でも、
+            // (…) ? 1 : 0 の括弧が閉じずに全体が決まらなくなる (GlobalBeginCompileShader の SUBSTRATE_ENABLED)。
+            if (Peek?.Kind == ShaderSyntaxKind.OpenParenToken)
+            {
+                _position = SkipParens(tokens, _position);
+                return SkipMemberCalls() ? Value.Unknown : Abandon();
+            }
+
+            // ほかのメンバーは評価しない。
+            if (Peek?.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenBracketToken
                 || (Peek?.Kind == ShaderSyntaxKind.MinusToken && _position + 1 < tokens.Length && tokens[_position + 1].Kind == ShaderSyntaxKind.GreaterThanToken))
             {
                 _position = tokens.Length + 1;
@@ -2091,6 +2475,75 @@ public static partial class UnrealShaderClasses
             return full.Contains("::", StringComparison.Ordinal)
                 ? new Value(ValueKind.Symbol, 0, full)
                 : Value.Unknown;
+        }
+
+        /// <summary>決まらない値に続くメンバーの呼び出し (<c>Get().Value()</c>) を読み飛ばす。</summary>
+        /// <returns>形どおりに読み飛ばせたら <see langword="true"/>。</returns>
+        private bool SkipMemberCalls()
+        {
+            while (IsMemberAccess())
+            {
+                int nameAt = _position + (Peek!.Kind == ShaderSyntaxKind.DotToken ? 1 : 2);
+
+                if (nameAt >= tokens.Length || tokens[nameAt].Kind != ShaderSyntaxKind.IdentifierToken)
+                {
+                    return false;
+                }
+
+                _position = nameAt + 1;
+
+                if (Peek?.Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    _position = SkipParens(tokens, _position);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>残りを読まずに、決まらない値にする。</summary>
+        private Value Abandon()
+        {
+            _position = tokens.Length + 1;
+            return Value.Unknown;
+        }
+
+        /// <summary>今の位置が <c>.</c> か <c>-&gt;</c> か。</summary>
+        private bool IsMemberAccess()
+            => Peek?.Kind == ShaderSyntaxKind.DotToken
+               || (Peek?.Kind == ShaderSyntaxKind.MinusToken && _position + 1 < tokens.Length && tokens[_position + 1].Kind == ShaderSyntaxKind.GreaterThanToken);
+
+        /// <summary>値に続くメンバーの呼び出しを、続く限り評価する (<c>IConsoleManager::Get().FindConsoleVariable(…)-&gt;GetInt()</c>)。</summary>
+        /// <param name="value">呼ぶ相手の値。</param>
+        /// <returns>評価した値。評価できない呼び出しがあれば、残りを読まずに決まらないものにする。</returns>
+        private Value ReadMemberCalls(Value value)
+        {
+            while (IsMemberAccess())
+            {
+                int nameAt = _position + (Peek!.Kind == ShaderSyntaxKind.DotToken ? 1 : 2);
+
+                if (MemberCallHook is not { } member
+                    || nameAt + 1 >= tokens.Length
+                    || tokens[nameAt].Kind != ShaderSyntaxKind.IdentifierToken
+                    || tokens[nameAt + 1].Kind != ShaderSyntaxKind.OpenParenToken)
+                {
+                    _position = tokens.Length + 1;
+                    return Value.Unknown;
+                }
+
+                int close = SkipParens(tokens, nameAt + 1);
+
+                if (member(value, tokens[nameAt].Text, SplitTokens(tokens, nameAt + 2, close - 1)) is not { } result)
+                {
+                    _position = tokens.Length + 1;
+                    return Value.Unknown;
+                }
+
+                _position = close;
+                value = result;
+            }
+
+            return value;
         }
 
         /// <summary>型の変換の括弧 (<c>(uint32)</c>、<c>(Lumen::EMode)</c>) なら読み飛ばす。</summary>
@@ -2145,12 +2598,22 @@ public static partial class UnrealShaderClasses
     /// <summary>クラスの一覧を書き出す。</summary>
     /// <param name="outputDirectory">書き出す先 (生成のフォルダー)。</param>
     /// <param name="classes">クラス。</param>
+    /// <param name="globalDefines">エンジンがどのシェーダーにも定義するマクロ。</param>
     /// <returns>書き出したファイル。</returns>
-    internal static string Write(string outputDirectory, IEnumerable<UnrealShaderClass> classes)
+    internal static string Write(
+        string outputDirectory,
+        IEnumerable<UnrealShaderClass> classes,
+        IReadOnlyDictionary<string, string>? globalDefines = null)
     {
         StringBuilder text = new();
-        text.Append("# Shaderlyn が C++ のシェーダーのクラスから作った。クラス\t種類 (define / permutation / flag / varies / exclude)\t名前\t値 (? は決まらない)\n");
+        text.Append("# Shaderlyn が C++ のシェーダーのクラスから作った。クラス\t種類 (define / permutation / flag / varies / exclude / never / global)\t名前\t値 (? は決まらない)\n");
         text.Append("# varies はパーミュテーションの組で値の変わる定義とフラグ。exclude は、コンパイルされる組では同時に現れない 2 つの値。\n");
+        text.Append("# global (クラスは *) は、エンジンがどのシェーダーにも定義するマクロ (GlobalBeginCompileShader)。\n");
+
+        foreach ((string name, string value) in (globalDefines ?? new Dictionary<string, string>()).OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            text.Append(CultureInfo.InvariantCulture, $"{GlobalClassName}\tglobal\t{name}\t{value}\n");
+        }
 
         foreach (UnrealShaderClass shaderClass in classes.OrderBy(c => c.Name, StringComparer.Ordinal))
         {
@@ -2194,6 +2657,30 @@ public static partial class UnrealShaderClasses
         return file;
     }
 
+    /// <summary>エンジンがどのシェーダーにも定義するマクロを書く行の、クラスの欄。</summary>
+    private const string GlobalClassName = "*";
+
+    /// <summary>書き出した、エンジンがどのシェーダーにも定義するマクロ (<c>GlobalBeginCompileShader</c> で値が決まったもの) を読む。</summary>
+    /// <param name="generatedDirectory">生成のフォルダー。</param>
+    /// <returns>マクロの名前から値。一覧が無ければ空。</returns>
+    public static ImmutableDictionary<string, string> ReadGlobalDefines(string generatedDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(generatedDirectory);
+
+        try
+        {
+            return File.ReadLines(Path.Combine(generatedDirectory, FileName))
+                .Select(line => line.Split('\t'))
+                .Where(parts => parts.Length >= 4 && parts[0] == GlobalClassName && parts[1] == "global")
+                .GroupBy(parts => parts[2], StringComparer.Ordinal)
+                .ToImmutableDictionary(group => group.Key, group => group.Last()[3], StringComparer.Ordinal);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return ImmutableDictionary<string, string>.Empty;
+        }
+    }
+
     /// <summary>書き出したクラスの一覧を読む。</summary>
     /// <param name="generatedDirectory">生成のフォルダー。</param>
     /// <returns>クラスの名前からクラス。一覧が無ければ空。</returns>
@@ -2221,7 +2708,7 @@ public static partial class UnrealShaderClasses
             new(StringComparer.Ordinal);
         HashSet<string> never = new(StringComparer.Ordinal);
 
-        foreach (string[] parts in lines.Where(l => l.Length > 0 && l[0] != '#').Select(l => l.Split('\t')).Where(p => p.Length >= 4))
+        foreach (string[] parts in lines.Where(l => l.Length > 0 && l[0] != '#').Select(l => l.Split('\t')).Where(p => p.Length >= 4 && p[0] != GlobalClassName))
         {
             if (!classes.TryGetValue(parts[0], out var entry))
             {
@@ -2530,6 +3017,18 @@ public static partial class UnrealShaderClasses
     /// </summary>
     [GeneratedRegex("""^[ \t]*(?:(?:inline|FORCEINLINE|static|[A-Z][A-Z0-9]*_API)\s+)*bool\s+(?<name>[A-Za-z_]\w*)\s*\(\s*(?:const\s+)?(?:FStaticShaderPlatform|EShaderPlatform)\s+\w+\s*\)\s*\{(?<body>[^{}]*)\}""", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex PlatformHelper();
+
+    /// <summary>引数の無い、本体が 1 段の <c>bool</c> 関数 (<c>bool IsSubstrateEnabled() { return …; }</c>)。行頭から書いた定義だけを読む。</summary>
+    [GeneratedRegex("""^[ \t]*(?:(?:inline|FORCEINLINE|static|[A-Z][A-Z0-9]*_API)\s+)*bool\s+(?<name>[A-Za-z_]\w*)\s*\(\s*(?:void)?\s*\)\s*\{(?<body>[^{}]*)\}""", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleHelper();
+
+    /// <summary>コンソール変数の宣言 (<c>TAutoConsoleVariable&lt;int32&gt; CVarSubstrate(TEXT("r.Substrate"), 0, …)</c>)。</summary>
+    [GeneratedRegex("""\bTAutoConsoleVariable\s*<\s*[\w:]+\s*>\s+(?<variable>[A-Za-z_]\w*)\s*\(\s*TEXT\s*\(\s*"(?<name>[^"]+)"\s*\)\s*,\s*(?<default>[^,()]+?)\s*,""", RegexOptions.CultureInvariant)]
+    private static partial Regex AutoConsoleVariable();
+
+    /// <summary>変数を参照するコンソール変数の宣言 (<c>FAutoConsoleVariableRef CVarFoo(TEXT("r.Foo"), GFoo, …)</c>)。</summary>
+    [GeneratedRegex("""\bFAutoConsoleVariableRef\s+(?<variable>[A-Za-z_]\w*)\s*\(\s*TEXT\s*\(\s*"(?<name>[^"]+)"\s*\)\s*,\s*(?<target>[A-Za-z_]\w*)\s*,""", RegexOptions.CultureInvariant)]
+    private static partial Regex ConsoleVariableRef();
 
     /// <summary><see cref="PlatformHelper"/> の本体が、<c>return 式;</c> だけであること。</summary>
     [GeneratedRegex("""^\s*return\s+(?<expression>[^;]+);\s*$""", RegexOptions.CultureInvariant)]

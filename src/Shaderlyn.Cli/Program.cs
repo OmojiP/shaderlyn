@@ -528,7 +528,8 @@ public static class Program
             generation = Unreal.UnrealUniformBufferGenerator.Generate(
                 roots,
                 fullOutput,
-                Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform));
+                Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform),
+                Unreal.UnrealConsoleVariables.ReadOverrides(engine, configuration.UnrealProjectDirectory));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

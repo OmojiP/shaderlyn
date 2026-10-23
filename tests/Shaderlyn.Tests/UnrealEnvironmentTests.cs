@@ -1170,6 +1170,165 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("'undeclaredOnDesktop'", output, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// コンソール変数の値 (C++ の既定値と、ini の値) で、<c>GlobalBeginCompileShader</c> がどのシェーダーにも定義するマクロを求め、
+    /// <c>ShouldCompilePermutation</c> にも答える。引数の無い 1 段の関数 (<c>Substrate::IsSubstrateEnabled()</c>) と、
+    /// クラスの <c>bool</c> を返す関数 (<c>IsSupported</c>) も実行する。答えられない呼び出しがあっても、式の残りは読む。
+    /// </summary>
+    [Fact]
+    public void コンソール変数の値でエンジンが定義するマクロとコンパイルされる組を求める()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("RenderUtils.cpp", """
+                static TAutoConsoleVariable<int32> CVarSubstrate(
+                	TEXT("r.Substrate"),
+                	0,
+                	TEXT("Enable Substrate materials (Beta)."),
+                	ECVF_ReadOnly);
+                static int32 GHairStrips = 1;
+                static FAutoConsoleVariableRef CVarHairStrips(TEXT("r.HairStrands.Strips"), GHairStrips, TEXT(""));
+
+                namespace Substrate
+                {
+                	bool IsSubstrateEnabled()
+                	{
+                		return CVarSubstrate.GetValueOnAnyThread() > 0;
+                	}
+                }
+                """),
+            ("ShaderCompiler.cpp", """
+                void GlobalBeginCompileShader(const FString& DebugGroupName, FShaderTarget Target, FShaderCompilerInput& Input)
+                {
+                	const bool bSubstrate = Substrate::IsSubstrateEnabled() && IsSubstrateSupportForShaderPipeline(Input);
+                	{
+                		SET_SHADER_DEFINE(Input.Environment, SUBSTRATE_ENABLED, bSubstrate ? 1 : 0);
+                	}
+                	{
+                		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HairStrands.Strips"));
+                		SET_SHADER_DEFINE(Input.Environment, USE_HAIR_STRIPS, CVar ? (CVar->GetValueOnAnyThread() != 0) : 0);
+                	}
+                	SET_SHADER_DEFINE(Input.Environment, PIXELSHADER, Target.Frequency == SF_Pixel);
+                }
+                """),
+            ("Pass.cpp", """
+                static bool IsVisualizeSupported(EShaderPlatform InPlatform)
+                {
+                	return Substrate::IsSubstrateEnabled() && GetMaxSupportedFeatureLevel(InPlatform) >= ERHIFeatureLevel::SM5;
+                }
+
+                class FVisualizeCS : public FGlobalShader
+                {
+                	static bool IsSupported(EShaderPlatform InPlatform)
+                	{
+                		return IsVisualizeSupported(InPlatform);
+                	}
+
+                	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                	{
+                		return IsSupported(Parameters.Platform);
+                	}
+                };
+
+                IMPLEMENT_GLOBAL_SHADER(FVisualizeCS, "/Engine/Private/Visualize.usf", "MainCS", SF_Compute);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, string> defines = UnrealShaderClasses.ReadGlobalDefines(output);
+        Assert.Equal("0", defines["SUBSTRATE_ENABLED"]);
+        Assert.Equal("1", defines["USE_HAIR_STRIPS"]);
+
+        // ステージで変わるものは、値が決まらないので書かない。
+        Assert.False(defines.ContainsKey("PIXELSHADER"));
+        Assert.True(UnrealShaderClasses.Read(output)["FVisualizeCS"].NeverCompiled);
+
+        // ini の値が C++ の既定値より優先する。Substrate を有効にすると、SUBSTRATE_ENABLED は決まらない
+        // (IsSubstrateSupportForShaderPipeline に答えられない)。クラスはコンパイルされうる。
+        string enabled = Path.Combine(_workDirectory, "Enabled");
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+            sources,
+            enabled,
+            consoleVariableOverrides: ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase).Add("r.Substrate", "True"));
+
+        Assert.False(UnrealShaderClasses.ReadGlobalDefines(enabled).ContainsKey("SUBSTRATE_ENABLED"));
+        Assert.False(UnrealShaderClasses.Read(enabled)["FVisualizeCS"].NeverCompiled);
+    }
+
+    /// <summary>
+    /// ini のコンソール変数を、エンジンの ini、プロジェクトの ini の順に読み、後のものを優先する。
+    /// コンソール変数の節だけを読み、名前に点の無い設定の項目と配列の書き方は読まない。
+    /// </summary>
+    [Fact]
+    public void iniのコンソール変数を読む()
+    {
+        Write("Engine/Config/BaseEngine.ini", """
+            [/Script/Engine.RendererSettings]
+            r.Substrate=False
+            r.Lumen.Enabled=1
+            MaxSkinBones=(Default=65536)
+            +r.Array=1
+
+            [/Script/Engine.OtherSettings]
+            r.Other=1
+            """);
+        Write("Project/Config/DefaultEngine.ini", """
+            [/Script/Engine.RendererSettings]
+            r.Substrate=True
+            [SystemSettings]
+            r.HairStrands.Strips="0"
+            """);
+
+        ImmutableDictionary<string, string> values = UnrealConsoleVariables.ReadOverrides(
+            Path.Combine(_workDirectory, "Engine"), Path.Combine(_workDirectory, "Project"));
+
+        Assert.Equal("True", values["r.substrate"]);
+        Assert.Equal("1", values["r.Lumen.Enabled"]);
+        Assert.Equal("0", values["r.HairStrands.Strips"]);
+        Assert.False(values.ContainsKey("MaxSkinBones"));
+        Assert.False(values.ContainsKey("r.Array"));
+        Assert.False(values.ContainsKey("r.Other"));
+    }
+
+    /// <summary>
+    /// 生成した、エンジンがどのシェーダーにも定義するマクロ (SUBSTRATE_ENABLED など) を、登録から作る単位に定義する。
+    /// 定義しないと、Substrate.ush の <c>#ifndef SUBSTRATE_ENABLED</c> の見張りで 1 にされ、<c>#error</c> に到達したまま読んでいた。
+    /// </summary>
+    [Fact]
+    public async Task エンジンがどのシェーダーにも定義するマクロを単位に定義する()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+            """);
+        Write("Engine/Shaders/Private/Pass.usf", """
+            #ifndef SUBSTRATE_ENABLED
+            	#define SUBSTRATE_ENABLED 1
+            	#error SUBSTRATE_ENABLED needs to be defined
+            #endif
+            #if SUBSTRATE_ENABLED
+            float4 Value() { return undeclaredWithSubstrate; }
+            #endif
+            [numthreads(8, 8, 1)]
+            void MainCS() {}
+            """);
+        Write("Generated/" + UnrealShaderRegistrations.FileName, """
+            # 仮想パス	エントリポイント	ステージ	クラス	マクロ	C++ のファイル
+            /Engine/Private/Pass.usf	MainCS	Compute	FPassCS	IMPLEMENT_GLOBAL_SHADER	Pass.cpp
+            """);
+        Write("Generated/" + UnrealShaderClasses.FileName, "*\tglobal\tSUBSTRATE_ENABLED\t0\nFPassCS\tclass\t\t\n");
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("undeclaredWithSubstrate", output, StringComparison.Ordinal);
+    }
+
     private void Write(string relativePath, string content)
     {
         string path = Path.Combine(_workDirectory, relativePath);

@@ -39,6 +39,13 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - Unreal Engine: `--unreal-generate` が、登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) を展開して登録を読む。
   展開した中の `typedef` から、クラスのテンプレートの引数も読む (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。
   RHI のヘッダの、プラットフォームの設定を返すだけの関数 (`RHISupportsRenderTargetWriteMask` など) は、本体の式を読んで答える
+- Unreal Engine: `--unreal-generate` がプロジェクトの設定 (コンソール変数) を読む。C++ の既定値 (`TAutoConsoleVariable` の宣言) を、
+  エンジンとプロジェクトの ini (`DefaultEngine.ini` など) が上書きする。`GlobalBeginCompileShader` を実行して、
+  エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED`、`USE_HAIR_TRIANGLE_STRIP` など) を求め、登録から作る単位に定義する。
+  `ShouldCompilePermutation` が呼ぶ `Substrate::IsSubstrateEnabled()` や、クラスの `bool` を返す関数 (`IsSupported`) も実行する。
+  定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` の見張りで 1 にされ、`#error` に到達したまま読んでいた
+  (UE 5.5 のエンジンで、既定の構成が `#error` に到達する単位の大半がこれだった)。
+  公開 API に `UnrealConsoleVariables` と `UnrealShaderClasses.ReadGlobalDefines` を足した
 - Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
   (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
   公開 API に `UnrealShaderClass.NeverCompiled`、`ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
@@ -89,6 +96,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - Unreal Engine: プラットフォームの設定 (`DataDrivenPlatformInfo.ini`) に書いていない項目を、エンジンの既定値ではなく常に 0 にしていた。
   既定が有効な `bSupportsVertexShaderSRVs` / `bSupportsClipDistance` から作る `PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS` /
   `PLATFORM_SUPPORTS_CLIP_DISTANCE` が PC で 0 になり、`InstanceCullingOcclusionQuery.usf` などを `#error` に到達する構成で読んでいた
+- プラグマ演算子 `_Pragma("…")` をコードに残し、構文の誤り (HL0001) にしていた。`#pragma` と同じくコードに残さない
+  (Unreal Engine の `SHADER_PUSH_WARNINGS_STATE`)
 - `#error` / `#warning` の文の中のアポストロフィ (`doesn't`) を、閉じていない文字のリテラル (HL0001) と報告していた
 - 組み込みの型の値の作成 `vector<T, N>(x)` / `matrix<T, R, C>(…)` を比較の連なりとして読み、構文の誤りや引数の数の誤り (HL0341) にしていた
 - 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた
