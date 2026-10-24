@@ -26,12 +26,12 @@
 ## 全体の流れ
 
 1. 自作ルールと自作ルール入りの CLI のプロジェクトを置いた private リポジトリ (my-shaderlyn) で、CLI ツールをビルドする。
-   Shaderlyn 本体は NuGet パッケージとして参照するので、このリポジトリを fork や clone する必要はない
-2. my-shaderlyn のリリースにビルドしたCLIツールを置く
-   1. バージョンタグをpushしたときにリリースを作成するワークフローを組む
-3. 解析したいUnityプロジェクトのリポジトリにセルフホストランナーを設定する
-4. 解析したいUnityプロジェクトのPR作成のタイミングでツールを実行するワークフローを組む
-5. 動いたら、前回の解析結果を使い回すキャッシュを有効にする
+   Shaderlyn 本体は NuGet パッケージとして参照するため、このリポジトリを fork や clone する必要はありません。
+2. my-shaderlyn のリリースに、ビルドした CLI ツールを置く
+   - バージョンタグを push したときにリリースを作成するワークフローを組みます。
+3. 解析したい Unity プロジェクトのリポジトリに、セルフホストランナーを設定する
+4. Unity プロジェクトの PR を対象に、ツールを実行するワークフローを組む
+5. ワークフローが動いたら、前回の解析結果を使い回すキャッシュを有効にする
 
 自作ルール入りの CLI の作り方は [自作ルールの作り方](../custom-rules/tutorial.md) にあります。
 
@@ -39,7 +39,7 @@
 
 ## 1. バイナリをリリースする
 
-`.github/workflows/release.yml` を置き換え、バージョンタグをpushしたときにリリースを作成するワークフローを組みます。
+`.github/workflows/release.yml` を置き換え、バージョンタグを push したときにリリースを作成するワークフローを組みます。
 
 ```yaml
 name: Release
@@ -93,7 +93,7 @@ jobs:
           fail_on_unmatched_files: true
 ```
 
-タグを push して、リリースに `my-shaderlyn-win-x64.zip` が置かれることを確認
+タグを push し、リリースに `my-shaderlyn-win-x64.zip` が置かれることを確認します。
 
 ```bash
 git tag v1.0.0-r1
@@ -115,24 +115,26 @@ git push origin v1.0.0-r1
 
 ### 2-2. マシンをランナーに登録する
 
-1. Unity プロジェクトリポジトリのGitHubページから `Settings → Actions → Runners → New self-hosted runner` を開く
-2. マシンの構成を選択し、表示されるコマンドをマシンで順に実行（要管理者権限）
-3. configを実行するとランナー登録が開始する
-   1. マシンに `unity` ラベルを付ける
-      1. `This runner will have the following labels: 'self-hosted', 'Windows', 'X64'
-Enter any additional labels (ex. label-1,label-2):` で `unity` を入力します。
-   1. サービスとして常駐させる
-      1. `config.cmd` の途中の質問 `run the runner as service?` に `Y`
-1. Runners の画面で **Idle** になれば完了（明示的に起動する場合、`.\run.cmd`）
+1. Unity プロジェクトのリポジトリで、`Settings → Actions → Runners → New self-hosted runner` を開く
+2. マシンの構成を選び、表示されたコマンドを管理者権限で順に実行する
+3. `config.cmd` を実行してランナーを登録する
+   - ラベルを入力する画面で `unity` を追加します。次の表示が出たら、`Enter any additional labels` に `unity` と入力してください。
 
-失敗した場合は `Settings → Actions → Runners` から失敗したマシンのランナーの Remove runner を選択し、表示されるコマンドを入力してランナーを削除して、再度登録します。
+     ```text
+     This runner will have the following labels: 'self-hosted', 'Windows', 'X64'
+     Enter any additional labels (ex. label-1,label-2):
+     ```
+
+   - `config.cmd` の途中で `run the runner as service?` と聞かれたら、`Y` と入力します。
+4. Runners の画面で **Idle** と表示されたら登録完了です。手動で起動する場合は `.\run.cmd` を実行します。
+
+ランナーの登録に失敗した場合は、`Settings → Actions → Runners` で該当するランナーの **Remove runner** を選びます。表示されたコマンドでランナーを削除してから、再度登録してください。
 
 ### 2-3. マシンに GitHub CLI(`gh`) を導入
 
-[こちら](https://github.com/cli/cli?ref_product=cli&ref_type=engagement&ref_style=text#installation)を参考にマシンに導入する
+[GitHub CLI のインストール手順](https://github.com/cli/cli?ref_product=cli&ref_type=engagement&ref_style=text#installation)を参考に、マシンへインストールします。
 
-導入後、ランナーのサービスを再起動
-（`services.msc` で `GitHub Actions Runner (...)` を再起動）
+インストール後、ランナーのサービスを再起動します。`services.msc` を開き、`GitHub Actions Runner (...)` を再起動してください。
 
 ---
 
@@ -143,12 +145,12 @@ Enter any additional labels (ex. label-1,label-2):` で `unity` を入力しま�
 ツールのリポジトリは private なので、`GITHUB_TOKEN` ではリリースを取得できません。
 そのため、Fine-grained PAT 等を使用してリポジトリへのアクセスを可能にします。
 
-1. `Profile > Settings > Developer Settings > Personal access tokens` から ツールリポジトリへの `Contents: Read-only` を持つ Fine-grained PAT を作成
-2. 1 で作成したトークンを Unity プロジェクトのリポジトリの `Settings > Secrets and variables > Actions > Secrets > New repository secret` から `SHADERLYN_TOKEN` として登録
+1. `Profile > Settings > Developer Settings > Personal access tokens` を開き、ツールリポジトリに `Contents: Read-only` の権限を持つ Fine-grained PAT を作成します。
+2. 作成したトークンを Unity プロジェクトのリポジトリで `Settings > Secrets and variables > Actions > Secrets > New repository secret` から `SHADERLYN_TOKEN` として登録します。
 
 ### 3-2. ワークフロー
 
-Unity プロジェクトのリポジトリに `.github/workflows/shaders.yml` を作成
+Unity プロジェクトのリポジトリに `.github/workflows/shaders.yml` を作成します。
 
 ```yaml
 name: Shaders

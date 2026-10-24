@@ -4,17 +4,21 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 環境ごとの違いは設定ファイルに書き、ルールと出力 (CLI・VS Code 拡張・GitHub Actions) はどの環境でも同じです。
 
 環境ごとの設定ファイルのテンプレートと、試すためのシェーダーが [samples/environments](../../samples/environments/) にあります。
-写して書き換えると早く始められます。
+テンプレートをコピーし、環境に合わせて編集すると、すぐに試せます。
 
 ## 目次
 
-- [環境の選び方](#環境の選び方)
-- [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
-- [Unreal Engine](#unreal-engine)
-- [独自エンジン](#独自エンジン)
-- [CI で使う](#ci-で使う)
-- [環境によって変わること](#環境によって変わること)
-- [コンパイラと言語のバージョン](#コンパイラと言語のバージョン)
+- [Unity 以外の環境で使う](#unity-以外の環境で使う)
+  - [目次](#目次)
+  - [環境の選び方](#環境の選び方)
+  - [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
+  - [Unreal Engine](#unreal-engine)
+    - [C++ から生成されるファイルを作る](#c-から生成されるファイルを作る)
+  - [独自エンジン](#独自エンジン)
+  - [CI で使う](#ci-で使う)
+  - [環境によって変わること](#環境によって変わること)
+  - [コンパイラと言語のバージョン](#コンパイラと言語のバージョン)
+    - [Unity](#unity)
 
 ## 環境の選び方
 
@@ -98,14 +102,20 @@ units:
 ```
 
 - **パーミュテーションは C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
-- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、そのままでは解決できません。** その `#include` は誤りとして報告しませんが、
-  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません。
-  その旨を UE0001 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
-  呼び出しの引数の検査 (HL0340 / HL0341) は、欠けているのが関数を宣言しないと分かっているファイル
-  (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
-  `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
-  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません。
-  uniform buffer の宣言と、`Material.ush` / `VertexFactory.ush` の代わりは、エンジンの C++ とシェーダーから作れます ([下記](#c-から生成されるファイルを作る))
+### 生成ファイルがない場合
+
+ビルド時にエンジンが生成するファイル (`/Engine/Generated/…`) は、生成していないと解決できません。該当する `#include` はエラーとして報告しませんが、
+uniform buffer などの宣言も読み取れないため、宣言の有無を調べる検査 (HL0301 / HL0310 など) を行いません。この状態は UE0001 (情報) で知らせます。
+型の誤りなど、取り込んだ先の宣言を必要としない検査は行います。
+
+関数呼び出しの引数を調べる検査 (HL0340 / HL0341) は、関数を宣言しないと分かっているファイルだけが欠けている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら検査します。
+
+- `GeneratedInstancedStereo.ush` は `GetPrimaryView` など 3 つの関数だけを宣言するため、これらの関数呼び出しは検査しません
+- `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数の宣言が欠けている可能性があるため、引数の検査を行いません
+
+uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりとなるファイルは、エンジンの C++ とシェーダーから作れます ([下記](#c-から生成されるファイルを作る))。
+
+### 解析時の前提
 - エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す GBuffer の取り込み
   (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
 - マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
@@ -184,7 +194,7 @@ unreal:
   (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
   そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
 - 作っていなければ、マテリアルのシェーダーでは今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
-- **既知の誤報告があります** (0.3.1 で直す予定)。マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないため、
+- **既知の誤報告があります** (0.3.1 で修正予定)。マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないため、
   UE 5.5 のエンジンでは `DeferredDecal.usf` などに数件残ります。一覧は [CHANGELOG](../../CHANGELOG.md) の 0.3.0 の「既知の問題」にあります
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
 - 作ったファイルは、エンジンかプロジェクトの C++ や ini を変えたら作り直してください。バージョン管理には入れなくてかまいません。

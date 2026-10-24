@@ -461,7 +461,7 @@ shaderlyn Assets --unity-project . --baseline .shaderlyn-baseline.json
 shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 ```
 
-- キャッシュファイルは絶対パスを参照するため、`.gitignore` へ入れてください
+- キャッシュには絶対パスが記録されるため、`.gitignore` へ追加してください
 - 書き出せないパス (権限が無い、フォルダーを指している、ドライブが無い、`NUL` などのデバイス名) なら、解析の前に理由を標準エラーへ出します。
   解析はそのまま続け、終了コードも変わりません (キャッシュが残らないだけです)
 

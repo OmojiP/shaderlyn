@@ -198,7 +198,7 @@ Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ �
 
 ### 既知の問題
 
-0.3.1 で直す予定。UE 5.5 のエンジンを生成ファイルありで解析したときに残る誤報告である。
+0.3.1 で修正予定。UE 5.5 のエンジンを生成ファイルありで解析したときに残る誤報告である。
 マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないことによる。
 
 - `DeferredDecal.usf`: `FDeferredDecalAmbientOcclusionPS` / `FDeferredDecalMobilePS` の `MainPS` が見つからない (HL0301)
