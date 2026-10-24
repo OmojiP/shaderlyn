@@ -148,15 +148,28 @@ internal sealed partial class ShaderPreprocessor
     /// 既定の木も到達する <c>#error</c> は、解析のマクロの状態が実際と違うためのことが多いので数えない。
     /// </para>
     /// <para>
-    /// 並べた分岐の中のものは数えない。その分岐の条件のときだけ届くので、木の構成全体がコンパイルできないわけではない。
+    /// 並べた分岐の中のものは、木の構成全体がコンパイルできないわけではないので、その分岐の条件と一緒に別に覚える
+    /// (<see cref="PreprocessResult.ConditionalErrorDirectives"/>)。条件が制約で起こりえないなら覚えない。
     /// </para>
     /// </remarks>
     private void NoteErrorDirective(ShaderSyntaxToken directive)
     {
-        if (IsSkipping
-            || _conditionals.Exists(state => state.KeptCondition is not null)
-            || directive.GetLocation() is not { } location)
+        if (IsSkipping || directive.GetLocation() is not { } location)
         {
+            return;
+        }
+
+        if (_conditionals.Exists(state => state.KeptCondition is not null))
+        {
+            SymbolCondition condition = _options.SymbolConstraints.Apply(CurrentCondition);
+
+            if (!condition.IsNever && !condition.IsUnknown)
+            {
+                KeyValuePair<Location, SymbolCondition> entry = new(location, condition);
+                _conditionalErrorDirectives.Add(entry);
+                Record(recording => recording.ConditionalErrorDirectives.Add(entry));
+            }
+
             return;
         }
 

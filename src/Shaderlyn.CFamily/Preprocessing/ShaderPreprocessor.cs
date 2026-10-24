@@ -82,6 +82,9 @@ internal sealed partial class ShaderPreprocessor
 
     /// <summary>到達した、読んでいる <c>#error</c> の位置 (<see cref="NoteErrorDirective"/>)。</summary>
     private readonly List<Location> _reachedErrorDirectives = [];
+
+    /// <summary>並べた分岐の中で到達した <c>#error</c> の位置と、その分岐の条件 (<see cref="NoteErrorDirective"/>)。</summary>
+    private readonly List<KeyValuePair<Location, SymbolCondition>> _conditionalErrorDirectives = [];
     private readonly HashSet<string> _activeIncludePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SortedSet<string> _resolvedIncludes = new(StringComparer.OrdinalIgnoreCase);
     private readonly SortedSet<string> _unresolvedIncludes = new(StringComparer.Ordinal);
@@ -189,6 +192,9 @@ internal sealed partial class ShaderPreprocessor
 
         /// <summary>この展開の中で到達した、読んでいる <c>#error</c> の位置。</summary>
         public List<Location> ReachedErrorDirectives { get; } = [];
+
+        /// <summary>この展開の中で、並べた分岐の中で到達した <c>#error</c> の位置と、その分岐の条件。</summary>
+        public List<KeyValuePair<Location, SymbolCondition>> ConditionalErrorDirectives { get; } = [];
 
         /// <summary>この展開を覚えてはいけないか。利用者が書いたヘッダを取り込んだときと、循環を見つけたときに立てる。</summary>
         public bool Uncacheable { get; set; }
@@ -421,6 +427,7 @@ internal sealed partial class ShaderPreprocessor
             WrittenDefinitions = [.. _writtenDefinitions],
             NeverTrueConditions = [.. _neverTrueConditions],
             ReachedErrorDirectives = [.. _reachedErrorDirectives.Distinct()],
+            ConditionalErrorDirectives = [.. _conditionalErrorDirectives.Distinct()],
         };
     }
 

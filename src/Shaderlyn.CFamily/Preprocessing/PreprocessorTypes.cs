@@ -858,6 +858,15 @@ public readonly record struct PreprocessResult(
     public ImmutableArray<Location> ReachedErrorDirectives { get; init; }
 
     /// <summary>
+    /// 並べた分岐の中で到達した、読んでいる <c>#error</c> の位置と、その分岐の条件 (宣言されたシンボルで表す)。
+    /// </summary>
+    /// <remarks>
+    /// その条件の構成はコンパイルできない。構成ごとの木を作らずに並べた分岐なので、<see cref="ReachedErrorDirectives"/> とは分けて持つ。
+    /// 既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。
+    /// </remarks>
+    public ImmutableArray<KeyValuePair<Location, SymbolCondition>> ConditionalErrorDirectives { get; init; }
+
+    /// <summary>
     /// 両方の分岐を並べなかった記録。シンボル・理由・ファイルの組ごとに 1 件。
     /// </summary>
     /// <remarks>

@@ -335,6 +335,59 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
         return null;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// <b>キーワードを添えた <c>#pragma target</c> は、そのキーワードを有効にした構成だけのシェーダーモデルである。</b>
+    /// URP の <c>DOTS.hlsl</c> は <c>#pragma target 4.5 DOTS_INSTANCING_ON</c> と書く。読まないと、DOTS の構成も
+    /// 低いシェーダーモデルで読み、<c>UnityInstancing.hlsl</c> の「4.5 以上が要る」<c>#error</c> に到達していた。
+    /// </para>
+    /// <para>
+    /// 添えたキーワードのどれかを有効にした構成で、<c>SHADER_TARGET</c> を引き上げる (下げはしない)。
+    /// 取り込んだヘッダに書いたもの (<c>#include_with_pragmas</c>) も、既定の構成の展開の結果から読む。
+    /// </para>
+    /// </remarks>
+    public ImmutableDictionary<string, string> PrepareVariant(
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
+        ImmutableArray<string> enabledSymbols,
+        ImmutableDictionary<string, string> macros)
+    {
+        ArgumentNullException.ThrowIfNull(macros);
+
+        int current = macros.TryGetValue("SHADER_TARGET", out string? text) && int.TryParse(text, CultureInfo.InvariantCulture, out int value) ? value : -1;
+        int best = current;
+
+        foreach (PragmaDirective pragma in baseline.Pragmas)
+        {
+            ShaderSyntaxToken[] arguments = [.. pragma.Arguments];
+
+            if (pragma.Name != "target"
+                || arguments.Length < 2
+                || ParseShaderModel(arguments[0].Text) is not { } model
+                || !arguments.Skip(1).Any(keyword => enabledSymbols.Contains(keyword.Text)))
+            {
+                continue;
+            }
+
+            best = Math.Max(best, model);
+        }
+
+        return best > current ? macros.SetItem("SHADER_TARGET", best.ToString(CultureInfo.InvariantCulture)) : macros;
+    }
+
+    /// <summary>シェーダーモデルの書き方 (<c>4.5</c>) を、<c>SHADER_TARGET</c> の値 (<c>45</c>) にする。</summary>
+    /// <param name="text">数値トークンの文字列。</param>
+    /// <returns>値。読めなければ <see langword="null"/>。</returns>
+    private static int? ParseShaderModel(string text)
+    {
+        int dot = text.IndexOf('.', StringComparison.Ordinal);
+
+        return dot > 0 && dot + 1 < text.Length && int.TryParse(text.AsSpan(0, dot), out int major) && char.IsAsciiDigit(text[dot + 1])
+            ? (major * 10) + (text[dot + 1] - '0')
+            : null;
+    }
+
     /// <summary>
     /// <c>#pragma target</c> から、Unity が定義する <c>SHADER_TARGET</c> の値を読む。
     /// </summary>
@@ -369,6 +422,12 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
                 || tokens[i + 1].Text != "pragma"
                 || tokens[i + 2].Text != "target"
                 || tokens[i + 3].IsAtLineStart)
+            {
+                continue;
+            }
+
+            // キーワードを添えた指定 (#pragma target 4.5 DOTS_INSTANCING_ON) は、そのキーワードの構成だけのもの (PrepareVariant)。
+            if (i + 4 < tokens.Length && !tokens[i + 4].IsAtLineStart && tokens[i + 4].Kind == ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }

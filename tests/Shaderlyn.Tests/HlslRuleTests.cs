@@ -2802,6 +2802,56 @@ public sealed class HlslRuleTests
     }
 
     [Fact]
+    public void キーワードの構成がerrorに到達するとエラーにしその構成の宣言の不足は報告しない()
+    {
+        // Unity はキーワードの構成をすべてコンパイルするので、#error に到達するとシェーダーが使えなくなる (UN0103)。
+        // その構成のコードは考えない。#else の中でだけ宣言した '_Tint' を、構成：_A のとき無い (HL0315) と報告していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma shader_feature_local _ _A",
+            "#if defined(_A)",
+            "#error _A is not supported",
+            "#else",
+            "float4 _Tint;",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return _Tint; }"));
+
+        Diagnostic error = Assert.Single(diagnostics, d => d.Id == "UN0103");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("構成：_A は", error.GetMessage(), StringComparison.Ordinal);
+        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void キーワードを付けたtargetはそのキーワードの構成のSHADER_TARGETにする()
+    {
+        // URP の #pragma target 4.5 DOTS_INSTANCING_ON の形。キーワードの構成を既定の target (3.5) で読み、
+        // UnityInstancing.hlsl の SHADER_TARGET < 45 の #error に到達していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma target 3.5",
+            "#pragma target 4.5 _DOTS",
+            "#pragma multi_compile _ _DOTS",
+            "#if defined(_DOTS)",
+            "#if SHADER_TARGET < 45",
+            "#error _DOTS requires shader model 4.5",
+            "#endif",
+            "#define SCALE 2",
+            "#else",
+            "#define SCALE 1",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p * SCALE; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Assert.False(Has(diagnostics, "UN0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+    }
+
+    [Fact]
     public void 先頭がマクロの宣言も構成ごとの選択肢にする()
     {
         // Unity の CGPROGRAM の fixed4 はマクロである。インスタンシングの有無で初期化子が変わる形 (Animation Rigging の BoneHandles.shader)。

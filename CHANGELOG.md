@@ -12,6 +12,10 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 追加
 
+- `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成が到達することを伝える UN0103 (エラー) を足した。
+  Unity は宣言したキーワードの構成をすべてコンパイルするので、到達するとシェーダーが使えなくなる (Unity 6.6 で、`multi_compile` ならシェーダー全体がピンクになった)。
+  公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、
+  `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を足した
 - 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
   ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
   `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
@@ -83,7 +87,11 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - 値を持つシンボルの誤検出を、さらに直した
   - 左右を入れ替えた比較 (`#if SIZE_UINT1 == ELEMENT_SIZE`) を値の条件として読む
   - 値の原子を 1 つでも並べられなかったら、その名前のほかの値の構成も作る。並べられなかった連なりのほかの値の側がどの木にも載らなかった
-  - 既定の木の到達しない `#error` に到達する構成の木は使わない (その構成はコンパイルできない)。解析しなかった構成として扱う (HL0006)
+  - `#error` に到達する構成は、宣言の有無を見る検査 (HL0315 など) で考えない (その構成はコンパイルできない)。
+    `#if defined(_A)` / `#error` / `#else` の中でだけ宣言した名前を、`_A` の構成で宣言が無いと報告していた。
+    到達したことは新しい HL0009 (情報) で伝える。Unity のキーワードの構成なら、コンパイルに失敗するので新しい UN0103 (エラー) で伝える
+  - Unity: キーワードを付けた `#pragma target 4.5 DOTS_INSTANCING_ON` を、そのキーワードの構成の `SHADER_TARGET` に使う。
+    URP の DOTS_INSTANCING_ON の構成を `SHADER_TARGET` 3.5 で読み、`UnityInstancing.hlsl` の `#error` に到達していた
   - 関数の本体を値ごとの `#if` で書き分けると (`void MainCS(…)` の後に `#if X == 0 { … } #endif #if X == 1 { … } #endif`)、
     本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるか、関数の中で `}` で終わるときだけ並べる
   - 既定の値では読まない `#if` の中で別の値の軸で書き分けた宣言を、二重の宣言 (HL0314) と報告していた。

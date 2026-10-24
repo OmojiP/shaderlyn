@@ -312,6 +312,60 @@ public sealed class ShaderCompilation
     /// </summary>
     public ImmutableArray<Environments.ShaderCompilationUnit> NotCompiledUnits { get; init; } = [];
 
+    /// <summary>
+    /// 展開が <c>#error</c> に到達した構成。その構成はコンパイルできないので、宣言の有無を見る検査は考えない (<see cref="IsPossibleIn"/>)。
+    /// </summary>
+    public ImmutableArray<ErrorConfiguration> ErrorConfigurations { get; init; } = [];
+
+    /// <summary>
+    /// <c>#error</c> に到達した構成を表す条件を返す。
+    /// </summary>
+    /// <param name="configuration">対象の構成。</param>
+    /// <returns>
+    /// 既定の構成なら、その木が表す構成 (<see cref="GetTreeConfiguration"/>)。
+    /// 構成ごとの木なら、有効にしたシンボルと、同じコードブロックのほかのシンボルを無効にした条件。
+    /// </returns>
+    public SymbolCondition GetErrorConfigurationCondition(ErrorConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        SymbolCondition branch = configuration.BranchCondition ?? SymbolCondition.Always;
+
+        if (configuration.IsBaseline)
+        {
+            return Programs.FirstOrDefault(p => p.BlockKey == configuration.BlockKey) is { } baseline
+                ? GetTreeConfiguration(baseline).And(branch)
+                : SymbolCondition.Unknown;
+        }
+
+        SymbolCondition condition = branch;
+
+        foreach (string symbol in configuration.EnabledSymbols)
+        {
+            condition = condition.And(SymbolCondition.Symbol(symbol));
+        }
+
+        foreach (string symbol in OtherSymbols(configuration.BlockKey, configuration.EnabledSymbols))
+        {
+            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: false));
+        }
+
+        return condition;
+    }
+
+    /// <summary>コードブロックで、構成ごとの木にしたシンボルと、調べきれなかったシンボルのうち、有効にしたもの以外。</summary>
+    private IEnumerable<string> OtherSymbols((int Start, string? Kernel) block, ImmutableArray<string> enabled)
+        => SymbolVariants
+            .Where(v => v.BlockKey == block && !v.EnabledSymbols.IsDefault)
+            .SelectMany(v => v.EnabledSymbols)
+            .Concat(ErrorConfigurations.Where(e => e.BlockKey == block && !e.IsBaseline && e.BranchCondition is null).SelectMany(e => e.EnabledSymbols))
+            .Concat(UnexploredSymbols)
+            .Where(s => !enabled.Contains(s))
+            .Distinct(StringComparer.Ordinal);
+
+    /// <summary>コードブロックごとの、<c>#error</c> に到達しない構成の条件 (<see cref="IsPossibleIn"/>)。</summary>
+    private Dictionary<(int Start, string? Kernel), SymbolCondition>? _compilableConditions;
+
     /// <summary>埋め込みコードの解析で出た診断。</summary>
     /// <remarks>
     /// include 先のヘッダで出たものも、Pass ごとに重複したものも、すべてそのまま含む。
@@ -1868,6 +1922,7 @@ public sealed class ShaderCompilation
             .Where(v => v.BlockKey == program.BlockKey && !v.EnabledSymbols.IsDefault)
             .SelectMany(v => v.EnabledSymbols)
             .Concat(UnexploredSymbols)
+            .Concat(ErrorConfigurations.Where(e => e.BlockKey == program.BlockKey && !e.IsBaseline && e.BranchCondition is null).SelectMany(e => e.EnabledSymbols))
             .Where(s => !enabled.Contains(s))
             .Distinct(StringComparer.Ordinal);
 
@@ -1923,7 +1978,45 @@ public sealed class ShaderCompilation
     public bool IsPossibleIn(AnalyzedProgram program, SymbolCondition condition)
     {
         ArgumentNullException.ThrowIfNull(program);
+
+        // #error に到達する構成はコンパイルされない。その構成についての結論は出さない。
+        if (!ErrorConfigurations.IsEmpty && CompilableCondition(program.BlockKey) is { IsAlways: false } compilable)
+        {
+            condition = condition.And(compilable);
+        }
+
         return GetConditionMap().IsPossible(condition) && program.Variants.Constraints.IsPossible(condition);
+    }
+
+    /// <summary>コードブロックの、<c>#error</c> に到達しない構成の条件。</summary>
+    private SymbolCondition CompilableCondition((int Start, string? Kernel) block)
+    {
+        _compilableConditions ??= [];
+
+        lock (_compilableConditions)
+        {
+            if (_compilableConditions.TryGetValue(block, out SymbolCondition cached))
+            {
+                return cached;
+            }
+        }
+
+        SymbolCondition compilable = SymbolCondition.Always;
+
+        foreach (ErrorConfiguration configuration in ErrorConfigurations.Where(e => e.BlockKey == block))
+        {
+            if (GetErrorConfigurationCondition(configuration) is { IsUnknown: false } excluded)
+            {
+                compilable = compilable.And(excluded.Negate());
+            }
+        }
+
+        lock (_compilableConditions)
+        {
+            _compilableConditions[block] = compilable;
+        }
+
+        return compilable;
     }
 
     /// <summary>その木を展開し終えたときのマクロの、整数としての値。</summary>

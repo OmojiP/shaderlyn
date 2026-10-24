@@ -173,6 +173,24 @@ public interface IShaderEnvironment
     bool IsDefinedByEngine(string name) => false;
 
     /// <summary>
+    /// 構成 1 つ分の定義済みマクロを、環境が調整する。
+    /// </summary>
+    /// <param name="unit">対象の単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果。取り込んだヘッダの指令も含む。</param>
+    /// <param name="enabledSymbols">この構成で有効にしたシンボル。</param>
+    /// <param name="macros">シンボルを定義したあとのマクロ。</param>
+    /// <returns>この構成の展開に使うマクロ。</returns>
+    /// <remarks>
+    /// キーワードによって変わる環境のマクロを足す。Unity の <c>#pragma target 4.5 DOTS_INSTANCING_ON</c> は、
+    /// <c>DOTS_INSTANCING_ON</c> を有効にした構成だけをシェーダーモデル 4.5 (<c>SHADER_TARGET</c> 45) でコンパイルする。
+    /// </remarks>
+    ImmutableDictionary<string, string> PrepareVariant(
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
+        ImmutableArray<string> enabledSymbols,
+        ImmutableDictionary<string, string> macros) => macros;
+
+    /// <summary>
     /// 関数が、エンジンのシェーダーコンパイラがシェーダーに足す定義を持つかを判定する。
     /// </summary>
     /// <param name="name">関数の名前。</param>

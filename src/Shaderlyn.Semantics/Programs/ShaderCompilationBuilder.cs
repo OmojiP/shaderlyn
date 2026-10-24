@@ -79,6 +79,7 @@ internal static class ShaderCompilationBuilder
 
         DeclarationIndex index = new();
         ImmutableArray<ShaderCompilationUnit>.Builder notCompiled = ImmutableArray.CreateBuilder<ShaderCompilationUnit>();
+        ImmutableArray<ErrorConfiguration>.Builder errorConfigurations = ImmutableArray.CreateBuilder<ErrorConfiguration>();
 
         foreach (ShaderCompilationUnit unit in units)
         {
@@ -142,6 +143,15 @@ internal static class ShaderCompilationBuilder
             programs.Add(program);
             index.Absorb(tree, declarations, program.BlockKey, treeVariants);
 
+            // 既定の構成が #error に到達した。その構成 (既定の木が表す構成) はコンパイルできない。
+            if (!tree.PreprocessResult.ReachedErrorDirectives.IsDefaultOrEmpty)
+            {
+                errorConfigurations.Add(new ErrorConfiguration(program.BlockKey, [], tree.PreprocessResult.ReachedErrorDirectives, IsBaseline: true));
+            }
+
+            // 並べた分岐の中の #error は、その分岐の条件の構成だけがコンパイルできない (Unity の #if defined(_KEYWORD) / #error)。
+            AddBranchErrors(errorConfigurations, program.BlockKey, [], tree.PreprocessResult, baseline: null);
+
             // シンボルは C# からも切り替えられる。
             // 有効になっていない分岐のコードも「いつか通る」コードなので、
             // このファイル自身が条件で見ているシンボルは 1 つずつ有効にして展開し直す。
@@ -176,7 +186,7 @@ internal static class ShaderCompilationBuilder
 
             SymbolExpansion[] expanded = ExpandSymbols(
                 environment,
-                unit.Text, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
+                unit, tree.PreprocessResult, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
 
             for (int i = 0; i < expanded.Length; i++)
             {
@@ -204,7 +214,7 @@ internal static class ShaderCompilationBuilder
 
             foreach (SymbolExpansion single in ExpandSymbols(
                          environment,
-                         unit.Text, retried, variantOptions, constraints, options.SyntaxTimings))
+                         unit, tree.PreprocessResult, retried, variantOptions, constraints, options.SyntaxTimings))
             {
                 accepted.Add((single, null));
             }
@@ -231,15 +241,18 @@ internal static class ShaderCompilationBuilder
             {
                 // 既定の木の到達しない #error に到達した構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
                 // その木を使うと、#else / #error で止めた値の木で宣言が足りないと報告していた (Unreal の SSDInjest.usf)。
-                // 既定の木も到達する #error は、解析のマクロの状態が実際と違うためのことが多いので数えない (Unreal の DistortApplyScreenPS.usf)。
-                // 使わない構成は、解析しなかった構成と同じに扱う。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
+                // 既定の木も到達する #error は、ここでは数えない (既定の構成として別に記録する)。
+                // 使わない構成は ErrorConfigurations に記録し、到達したことを伝える (HL0009 / UN0103)。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
                 // 外さないと、既定の木がその構成も表すことになり、既定の値の側にしか無い宣言を「その構成では無い」と報告していた
                 // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に到達する)。
                 if (ReachesNewError(variantTree.PreprocessResult, tree.PreprocessResult))
                 {
-                    unexploredSymbols.UnionWith(enabled);
+                    errorConfigurations.Add(new ErrorConfiguration(
+                        program.BlockKey, enabled, NewErrors(variantTree.PreprocessResult, tree.PreprocessResult), IsBaseline: false));
                     continue;
                 }
+
+                AddBranchErrors(errorConfigurations, program.BlockKey, enabled, variantTree.PreprocessResult, tree.PreprocessResult);
 
                 VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
                 index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
@@ -278,6 +291,7 @@ internal static class ShaderCompilationBuilder
             DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
             IsFixedSymbolConfiguration = options.FixedSymbolConfiguration,
             NotCompiledUnits = notCompiled.ToImmutable(),
+            ErrorConfigurations = errorConfigurations.ToImmutable(),
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToFrozenSet(StringComparer.Ordinal)),
@@ -1383,7 +1397,8 @@ internal static class ShaderCompilationBuilder
     /// 構成ごとに展開する。
     /// </summary>
     /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
-    /// <param name="maskedText">対象のコードブロック。</param>
+    /// <param name="unit">展開する単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果 (環境が構成ごとのマクロを決めるのに使う)。</param>
     /// <param name="configurations">展開する構成。1 件が 1 つの構成で、同時に有効にするシンボルを並べる。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="constraints">宣言から分かる構成の制約。どれか 1 つが必ず有効な行の既定を決めるのに使う。</param>
@@ -1408,7 +1423,8 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static SymbolExpansion[] ExpandSymbols(
         IShaderEnvironment environment,
-        SourceText maskedText,
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
         ImmutableArray<ImmutableArray<string>> configurations,
         PreprocessorOptions options,
         SymbolConstraints constraints,
@@ -1423,14 +1439,14 @@ internal static class ShaderCompilationBuilder
 
         if (configurations.Length == 1)
         {
-            results[0] = Expand(environment, maskedText, configurations[0], options, constraints, syntaxTimings);
+            results[0] = Expand(environment, unit, baseline, configurations[0], options, constraints, syntaxTimings);
             return results;
         }
 
         Parallel.For(
             0,
             configurations.Length,
-            i => results[i] = Expand(environment, maskedText, configurations[i], options, constraints, syntaxTimings));
+            i => results[i] = Expand(environment, unit, baseline, configurations[i], options, constraints, syntaxTimings));
 
         return results;
     }
@@ -1558,6 +1574,48 @@ internal static class ShaderCompilationBuilder
         return constraints.Apply(condition);
     }
 
+    /// <summary>並べた分岐の中で到達した <c>#error</c> を、その分岐の条件の構成として記録する。</summary>
+    /// <param name="errorConfigurations">記録先。</param>
+    /// <param name="block">コードブロック。</param>
+    /// <param name="enabled">木の構成で有効にしたシンボル。既定の木なら空。</param>
+    /// <param name="result">木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。構成ごとの木なら、既定の木も到達したものは記録しない。</param>
+    private static void AddBranchErrors(
+        ImmutableArray<ErrorConfiguration>.Builder errorConfigurations,
+        (int Start, string? Kernel) block,
+        ImmutableArray<string> enabled,
+        PreprocessResult result,
+        PreprocessResult? baseline)
+    {
+        if (result.ConditionalErrorDirectives.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach ((Location location, SymbolCondition condition) in result.ConditionalErrorDirectives)
+        {
+            if (baseline is { } reference
+                && !reference.ConditionalErrorDirectives.IsDefaultOrEmpty
+                && reference.ConditionalErrorDirectives.Any(b => b.Key.FilePath == location.FilePath && b.Key.Span == location.Span))
+            {
+                continue;
+            }
+
+            errorConfigurations.Add(new ErrorConfiguration(block, enabled, [location], IsBaseline: enabled.IsEmpty, condition));
+        }
+    }
+
+    /// <summary>構成ごとの木が到達した <c>#error</c> のうち、既定の木の到達しないもの。</summary>
+    /// <param name="variant">構成ごとの木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。</param>
+    /// <returns>位置。</returns>
+    private static ImmutableArray<Location> NewErrors(PreprocessResult variant, PreprocessResult baseline)
+        =>
+        [
+            .. variant.ReachedErrorDirectives.Where(location => baseline.ReachedErrorDirectives.IsDefaultOrEmpty
+                                                               || !baseline.ReachedErrorDirectives.Any(b => b.FilePath == location.FilePath && b.Span == location.Span)),
+        ];
+
     /// <summary>構成ごとの木が、既定の木の到達しない <c>#error</c> に到達したかを判定する。</summary>
     /// <param name="variant">構成ごとの木の展開の結果。</param>
     /// <param name="baseline">既定の木の展開の結果。</param>
@@ -1658,7 +1716,8 @@ internal static class ShaderCompilationBuilder
 
     /// <summary>指定した構成で展開する。</summary>
     /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
-    /// <param name="maskedText">対象のコードブロック。</param>
+    /// <param name="unit">展開する単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果 (環境が構成ごとのマクロを決めるのに使う)。</param>
     /// <param name="enabledSymbols">有効にするシンボル。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="constraints">宣言から分かる構成の制約。どれか 1 つが必ず有効な行の既定を決めるのに使う。</param>
@@ -1682,7 +1741,8 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static SymbolExpansion Expand(
         IShaderEnvironment environment,
-        SourceText maskedText,
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
         ImmutableArray<string> enabledSymbols,
         PreprocessorOptions options,
         SymbolConstraints constraints,
@@ -1693,13 +1753,15 @@ internal static class ShaderCompilationBuilder
         // 既定の木で並べた分岐がまるごと「このシンボルのときは無い」と読まれてしまう。
         PreprocessorOptions variantOptions = options with
         {
-            PredefinedMacros = ConfigurationMacros(options.PredefinedMacros, enabledSymbols, constraints),
+            // 構成で変わる環境のマクロ (Unity の #pragma target 4.5 DOTS_INSTANCING_ON の SHADER_TARGET) は、環境が足す。
+            PredefinedMacros = environment.PrepareVariant(
+                unit, baseline, enabledSymbols, ConfigurationMacros(options.PredefinedMacros, enabledSymbols, constraints)),
             BothBranchSymbols = options.BothBranchSymbols
                 .Except(enabledSymbols)
                 .Except(options.BothBranchSymbols.Where(s => enabledSymbols.Any(e => constraints.AreExclusive(s, e)))),
         };
 
-        ShaderSyntaxTree tree = environment.Parse(maskedText, variantOptions, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(unit.Text, variantOptions, syntaxTimings);
 
         return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root, environment.TypeSystem));
     }

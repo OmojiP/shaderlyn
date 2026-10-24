@@ -424,6 +424,32 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void errorに到達した構成を情報として伝える()
+    {
+        // Unreal と汎用の HLSL では、その構成はコンパイルされない (ShouldCompilePermutation が除く)。誤りではないので情報にする (HL0009)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            #if PROCESSING == 0
+                #define ARRAY_SIZE 4
+            #elif PROCESSING == 1
+                #define ARRAY_SIZE 8
+            #else
+                #error Unknown signal processing.
+            #endif
+
+            float4 main() : SV_Target { return ARRAY_SIZE; }
+            """,
+            VariantSpace.ForValues("PROCESSING", [0, 1, 2]),
+            out ShaderCompilation compilation);
+
+        Assert.NotEmpty(compilation.ErrorConfigurations);
+        Diagnostic info = Assert.Single(diagnostics, d => d.Id == "HL0009");
+        Assert.Equal(DiagnosticSeverity.Info, info.Severity);
+        Assert.Contains("PROCESSING", info.GetMessage(), StringComparison.Ordinal);
+        Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
+    }
+
+    [Fact]
     public void 名前を付けた値と比べる分岐も値の条件で読む()
     {
         // Unreal の TemporalAA.usf の形。値に名前を付けて比べる。

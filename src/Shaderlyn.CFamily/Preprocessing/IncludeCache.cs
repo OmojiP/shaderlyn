@@ -88,6 +88,9 @@ public sealed record IncludeExpansion(
 
     /// <summary>この展開の中で到達した、読んでいる <c>#error</c> の位置。</summary>
     public ImmutableArray<Location> ReachedErrorDirectives { get; init; } = [];
+
+    /// <summary>この展開の中で、並べた分岐の中で到達した <c>#error</c> の位置と、その分岐の条件。</summary>
+    public ImmutableArray<KeyValuePair<Location, SymbolCondition>> ConditionalErrorDirectives { get; init; } = [];
 }
 
 /// <summary>

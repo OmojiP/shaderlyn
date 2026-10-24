@@ -191,6 +191,23 @@ internal static class UnityRuleDescriptors
             + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
             + "ヘッダからの相対パスに直してください。",
         helpLinkUri: DocumentationLinks.For("UN0102"));
+    /// <summary>キーワードの構成が <c>#error</c> に到達する。</summary>
+    /// <remarks>
+    /// Unity 6.6 (FXC、DX12) の実測 (ShaderProbePack の ERROR) による。<c>multi_compile</c> の構成が <c>#error</c> に到達すると、
+    /// インポートがエラーになり、キーワードを有効にしていないマテリアルも含めてシェーダー全体がピンクになった。
+    /// <c>shader_feature</c> では、キーワードを有効にしたマテリアルだけがピンクになった。
+    /// </remarks>
+    public static DiagnosticDescriptor ErrorReachedByKeywords { get; } = new(
+        id: "UN0103",
+        title: "キーワードの構成が #error に到達します",
+        messageFormat: "{0}#error ({1} の {2} 行目) に到達するため、コンパイルに失敗します。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "Unity は宣言したキーワードの構成をすべてコンパイルします。その構成の展開が #error に到達すると、コンパイルに失敗します。"
+            + "multi_compile ではシェーダー全体が使えなくなり (キーワードを有効にしていないマテリアルもピンクになります)、"
+            + "shader_feature ではキーワードを有効にしたマテリアルがピンクになります。"
+            + "その構成を宣言から除くか、#error の条件を見直してください。",
+        helpLinkUri: DocumentationLinks.For("UN0103"));
 
     /// <summary>16 ビットの型を有効にした DXC でコンパイルされる定数バッファに、half などを置いている。</summary>
     /// <remarks>

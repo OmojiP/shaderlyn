@@ -303,6 +303,7 @@ internal sealed partial class ShaderPreprocessor
             FirstInclusions = [.. recording.FirstInclusions],
             SkippedReincludes = [.. recording.SkippedReincludes],
             ReachedErrorDirectives = [.. recording.ReachedErrorDirectives],
+            ConditionalErrorDirectives = [.. recording.ConditionalErrorDirectives],
         });
     }
 
@@ -351,6 +352,13 @@ internal sealed partial class ShaderPreprocessor
         if (!expansion.ReachedErrorDirectives.IsEmpty)
         {
             Record(recording => recording.ReachedErrorDirectives.AddRange(expansion.ReachedErrorDirectives));
+        }
+
+        _conditionalErrorDirectives.AddRange(expansion.ConditionalErrorDirectives);
+
+        if (!expansion.ConditionalErrorDirectives.IsEmpty)
+        {
+            Record(recording => recording.ConditionalErrorDirectives.AddRange(expansion.ConditionalErrorDirectives));
         }
 
         foreach ((string file, SymbolCondition condition) in expansion.SkippedReincludes)
