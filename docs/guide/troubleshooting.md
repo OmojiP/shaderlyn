@@ -30,10 +30,11 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 設定の誤りではありません。`/Engine/Generated/…` (uniform buffer などの宣言) はビルドのときに作られるので、そのままでは中身が分かりません。
 宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) だけを止めています。型の検査などは行っています。
 
-- [UE0001](../rules/UE0001.md) は、`--unreal-generate` で C++ から作って `unreal: generated` に書くと消えます
-  ([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))
-- [UE0002](../rules/UE0002.md) は、マテリアルごとに作られる `Material.ush` / `VertexFactory.ush` のためで、直せません。
-  要らなければ `rules:` で `UE0002: none` にしてください
+どちらも、`--unreal-generate` で生成ファイルを作って `unreal: generated` に書くと消えます
+([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))。
+
+- [UE0001](../rules/UE0001.md) は、uniform buffer の宣言などのためです
+- [UE0002](../rules/UE0002.md) は、マテリアルのシェーダーが取り込む `Material.ush` / `VertexFactory.ush` のためです
 
 `/Engine/Private/Common.ush` など、生成されないファイルが解決できないときは `TOOL0004` か `HL0321` が出ます。
 設定ファイルの `unreal:` の `engine` を確かめてください。`--env` で仮想パスの割り当てを表示できます。
