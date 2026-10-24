@@ -183,6 +183,7 @@ public static class Program
         }
 
         await ReportUnsupportedFilesAsync(options, unsupportedFiles, errorOutput).ConfigureAwait(false);
+        await ReportStaleUnrealGenerationAsync(groups, errorOutput).ConfigureAwait(false);
 
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
@@ -530,6 +531,9 @@ public static class Program
                 fullOutput,
                 Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform),
                 Unreal.UnrealConsoleVariables.ReadOverrides(engine, configuration.UnrealProjectDirectory));
+
+            // 生成した後に ini や C++ を変えたら、解析を始めるときに伝える (ReportStaleUnrealGenerationAsync)。
+            Unreal.UnrealGenerationStamp.Write(fullOutput, engine, configuration.UnrealProjectDirectory, roots);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -757,6 +761,32 @@ public static class Program
         {
             await errorOutput.WriteLineAsync($"解析の対象外のファイルがあります: {string.Join(", ", counts)}")
                 .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Unreal の生成物を作った後に、ini や C++ が変わったことを伝える。</summary>
+    /// <param name="groups">解析設定。</param>
+    /// <param name="errorOutput">標準エラー。解析結果 (JSON や SARIF) には混ぜない。</param>
+    /// <returns>非同期操作。</returns>
+    /// <remarks>
+    /// C++ の一覧と更新日時を読むので、エンジンだけで約 2 秒かかる (<see cref="Unreal.UnrealGenerationStamp"/>)。
+    /// 解析するファイルのある Unreal の解析設定だけで、生成物のフォルダーごとに 1 度だけ確かめる。
+    /// </remarks>
+    private static async Task ReportStaleUnrealGenerationAsync(ImmutableArray<AnalysisSetting> groups, TextWriter errorOutput)
+    {
+        IEnumerable<string> directories = groups
+            .Where(g => !g.Files.IsEmpty && g.Settings.Environment == Unreal.UnrealOptions.EnvironmentName)
+            .Select(g => g.Settings.Configuration.UnrealGeneratedDirectory)
+            .OfType<string>()
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string directory in directories)
+        {
+            if (Unreal.UnrealGenerationStamp.Check(directory)?.Describe() is { } message)
+            {
+                await errorOutput.WriteLineAsync(message).ConfigureAwait(false);
+            }
         }
     }
 

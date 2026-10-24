@@ -49,7 +49,10 @@ public static class UnrealConsoleVariables
     }
 
     /// <summary>読む ini を、優先の低い順に並べる。</summary>
-    private static IEnumerable<string> IniFiles(string engineDirectory, string? projectDirectory)
+    /// <param name="engineDirectory">エンジンのフォルダー。</param>
+    /// <param name="projectDirectory">プロジェクトのフォルダー。無ければ <see langword="null"/>。</param>
+    /// <returns>ini のパス。無いファイルも含む。</returns>
+    internal static IEnumerable<string> IniFiles(string engineDirectory, string? projectDirectory)
     {
         yield return Path.Combine(engineDirectory, "Config", "BaseEngine.ini");
         yield return Path.Combine(engineDirectory, "Config", "Windows", "BaseWindowsEngine.ini");

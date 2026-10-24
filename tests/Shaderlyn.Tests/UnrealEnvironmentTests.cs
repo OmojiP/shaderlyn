@@ -1013,6 +1013,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
             /Engine/Private/Missing.usf	MainPS	Pixel	FMissingPS	IMPLEMENT_GLOBAL_SHADER	Missing.cpp
             """);
 
+        WriteGenerationStamp();
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
@@ -1082,6 +1083,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         ],
         Path.Combine(_workDirectory, "Generated"));
 
+        WriteGenerationStamp();
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
@@ -1158,6 +1160,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         // PC でもコンパイルされるクラスがあれば、そのクラスの登録だけで解析する (MobilePS は無くてよい)。
         Write("Engine/Shaders/Private/Both.usf", "float4 DesktopPS() : SV_Target0 { return undeclaredOnDesktop; }\n");
 
+        WriteGenerationStamp();
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
@@ -1323,10 +1326,56 @@ public sealed class UnrealEnvironmentTests : IDisposable
             """);
         Write("Generated/" + UnrealShaderClasses.FileName, "*\tglobal\tSUBSTRATE_ENABLED\t0\nFPassCS\tclass\t\t\n");
 
+        WriteGenerationStamp();
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
         Assert.DoesNotContain("undeclaredWithSubstrate", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 生成した後にiniとCppが変わったことを伝える()
+    {
+        Write("Engine/Config/BaseEngine.ini", "[/Script/Engine.RendererSettings]\nr.Substrate=False\n");
+        Write("Engine/Source/Runtime/A.h", "// a");
+        Write("Engine/Source/Runtime/B.cpp", "// b");
+        Write("Engine/Source/Runtime/Readme.txt", "C++ ではないので数えない");
+        string engine = Path.Combine(_workDirectory, "Engine");
+        string generated = Path.Combine(_workDirectory, "Generated");
+        Directory.CreateDirectory(generated);
+
+        UnrealGenerationStamp.Write(generated, engine, projectDirectory: null, [Path.Combine(engine, "Source")]);
+
+        UnrealGenerationStaleness fresh = UnrealGenerationStamp.Check(generated)!;
+        Assert.False(fresh.IsStale);
+        Assert.Null(fresh.Describe());
+
+        Write("Engine/Config/BaseEngine.ini", "[/Script/Engine.RendererSettings]\nr.Substrate=True\n");
+        Write("Engine/Source/Runtime/C.h", "// c");
+        File.Delete(Path.Combine(engine, "Source", "Runtime", "B.cpp"));
+        File.SetLastWriteTimeUtc(Path.Combine(engine, "Source", "Runtime", "A.h"), DateTime.UtcNow.AddMinutes(1));
+        Write("Engine/Source/Runtime/Readme.txt", "変えても数えない");
+
+        UnrealGenerationStaleness stale = UnrealGenerationStamp.Check(generated)!;
+        Assert.True(stale.IsStale);
+        Assert.Equal("BaseEngine.ini", Path.GetFileName(Assert.Single(stale.ChangedIniFiles)));
+        Assert.Equal(1, stale.ChangedSourceFiles);
+        Assert.Equal(1, stale.AddedSourceFiles);
+        Assert.Equal(1, stale.RemovedSourceFiles);
+        Assert.Contains("--unreal-generate をやり直してください", stale.Describe(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 記録の無い生成物は記録が無いことを伝える()
+    {
+        string generated = Path.Combine(_workDirectory, "Generated");
+        Directory.CreateDirectory(generated);
+
+        UnrealGenerationStaleness result = UnrealGenerationStamp.Check(generated)!;
+
+        Assert.False(result.HasRecord);
+        Assert.Contains("記録がありません", result.Describe(), StringComparison.Ordinal);
+        Assert.Null(UnrealGenerationStamp.Check(Path.Combine(_workDirectory, "Missing")));
     }
 
     private void Write(string relativePath, string content)
@@ -1335,6 +1384,14 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }
+
+    /// <summary>手で作った生成物のフォルダーに、--unreal-generate が書く記録を足す (無いと、記録が無いことを標準エラーに出す)。</summary>
+    private void WriteGenerationStamp()
+        => UnrealGenerationStamp.Write(
+            Path.Combine(_workDirectory, "Generated"),
+            Path.Combine(_workDirectory, "Engine"),
+            projectDirectory: null,
+            [Path.Combine(_workDirectory, "Engine", "Source")]);
 
     private static async Task<(ExitCode Code, string Output, string Error)> RunAsync(params string[] args)
     {

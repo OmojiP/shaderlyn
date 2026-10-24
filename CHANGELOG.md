@@ -50,6 +50,10 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` の見張りで 1 にされ、`#error` に到達したまま読んでいた
   (UE 5.5 のエンジンで、既定の構成が `#error` に到達する単位の大半がこれだった)。
   公開 API に `UnrealConsoleVariables` と `UnrealShaderClasses.ReadGlobalDefines` を足した
+- Unreal Engine: `--unreal-generate` が、読んだ ini の中身のハッシュと C++ のファイルの一覧・更新日時・大きさを記録する
+  (`ShaderlynGenerationStamp.tsv`)。解析を始めるときに比べ、生成した後に ini や C++ が変わっていたら、作り直すよう伝える
+  (CLI は標準エラー、VS Code 拡張は通知)。UE 5.5 のエンジンで、確かめるのに約 2 秒かかる。
+  公開 API に `UnrealGenerationStamp` と `UnrealGenerationStaleness` を足した
 - Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
   (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
   公開 API に `UnrealShaderClass.NeverCompiled`、`ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した

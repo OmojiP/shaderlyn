@@ -66,6 +66,12 @@ public sealed partial class ShaderLanguageServer
     /// <summary><c>window/logMessage</c> の <c>type</c> で、誤りを表す値 (LSP の <c>MessageType.Error</c>)。</summary>
     private const int LogMessageTypeError = 1;
 
+    /// <summary><c>window/showMessage</c> の <c>type</c> で、警告を表す値 (LSP の <c>MessageType.Warning</c>)。</summary>
+    private const int MessageTypeWarning = 2;
+
+    /// <summary>古くなっていないかを確かめた、Unreal の生成物のフォルダー (<see cref="CheckUnrealGeneration"/>)。</summary>
+    private readonly HashSet<string> _checkedGeneratedDirectories = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// 直近に送った指摘。直しの提示に使う。
     /// </summary>
@@ -621,6 +627,49 @@ public sealed partial class ShaderLanguageServer
         }
 
         return cached.Model;
+    }
+
+    /// <summary>
+    /// Unreal の生成物を作った後に ini や C++ が変わっていたら、通知で伝える。
+    /// </summary>
+    /// <param name="session">解析に使う単位。</param>
+    /// <remarks>
+    /// 生成物のフォルダーごとに、サーバーが動いている間に 1 度だけ確かめる。
+    /// C++ の一覧と更新日時を読むので約 2 秒かかる (<see cref="Unreal.UnrealGenerationStamp"/>)。解析を待たせないよう、裏で行う。
+    /// </remarks>
+    private void CheckUnrealGeneration(AnalysisSession session)
+    {
+        if (session.UnrealGeneratedDirectory is not { } directory || !_checkedGeneratedDirectories.Add(Path.GetFullPath(directory)))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (Unreal.UnrealGenerationStamp.Check(directory)?.Describe() is { } message)
+                {
+                    await _connection.WriteAsync(writer =>
+                    {
+                        writer.WriteStartObject();
+                        writer.WriteString("jsonrpc", "2.0");
+                        writer.WriteString("method", "window/showMessage");
+
+                        writer.WriteStartObject("params");
+                        writer.WriteNumber("type", MessageTypeWarning);
+                        writer.WriteString("message", message);
+                        writer.WriteEndObject();
+
+                        writer.WriteEndObject();
+                    }, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                await LogFailureAsync("Unreal の生成物の確認", exception).ConfigureAwait(false);
+            }
+        });
     }
 
     /// <summary>
@@ -1212,6 +1261,7 @@ public sealed partial class ShaderLanguageServer
         bool selectedConfiguration = _selectedConfigurationDisplays.Contains(document.Uri);
         bool inactiveRegionsRequested = _inactiveRegionsRequested;
         AnalysisSession session = SessionFor(document.Uri);
+        CheckUnrealGeneration(session);
 
         _ = Task.Run(
             async () =>

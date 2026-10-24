@@ -108,6 +108,9 @@ internal sealed class AnalysisSession
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
+        UnrealGeneratedDirectory = settings.Environment == Unreal.UnrealOptions.EnvironmentName
+            ? SemanticsSetup.CreateUnreal(settings).GeneratedDirectory
+            : null;
         UnityProjectPath = options.UnityProjectPath;
 
         _analyzers = all;
@@ -202,6 +205,9 @@ internal sealed class AnalysisSession
 
     /// <summary>見つかった Unity プロジェクトのルート。無い場合は <see langword="null"/>。</summary>
     public string? UnityProjectPath { get; }
+
+    /// <summary>Unreal の環境で使う生成物のフォルダー。Unreal の環境でなければ <see langword="null"/>。</summary>
+    public string? UnrealGeneratedDirectory { get; }
 
     /// <summary>設定ファイルの読み込みで見つかった問題。</summary>
     /// <remarks>

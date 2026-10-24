@@ -167,6 +167,14 @@ public static partial class UnrealUniformBufferGenerator
         Included,
     }
 
+    /// <summary>読む C++ のファイルか (<c>.h</c> / <c>.cpp</c> / <c>.inl</c>)。</summary>
+    /// <param name="path">パス。</param>
+    /// <returns>読むなら <see langword="true"/>。</returns>
+    internal static bool IsSourceFile(string path)
+        => path.EndsWith(".h", StringComparison.OrdinalIgnoreCase)
+           || path.EndsWith(".cpp", StringComparison.OrdinalIgnoreCase)
+           || path.EndsWith(".inl", StringComparison.OrdinalIgnoreCase);
+
     private static ParsedSources Parse(IEnumerable<string> sourceRoots)
     {
         ParsedSources parsed = new();
@@ -175,9 +183,7 @@ public static partial class UnrealUniformBufferGenerator
         IEnumerable<string> files = sourceRoots
             .Where(Directory.Exists)
             .SelectMany(root => Directory.EnumerateFiles(root, "*.*", options))
-            .Where(path => path.EndsWith(".h", StringComparison.OrdinalIgnoreCase)
-                           || path.EndsWith(".cpp", StringComparison.OrdinalIgnoreCase)
-                           || path.EndsWith(".inl", StringComparison.OrdinalIgnoreCase));
+            .Where(IsSourceFile);
 
         Parallel.ForEach(files, path =>
         {
