@@ -71,6 +71,15 @@ public sealed record HlslEnvironmentOptions
     public Func<string, IIncludeResolver?, ImmutableDictionary<string, string>>? SelectUnitMacros { get; init; }
 
     /// <summary>
+    /// 単位ごとに取り込みの解決を差し替える手続き。引数は単位のファイルのパスと、取り込みを解決する手続き。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine は、uniform buffer の宣言を取り込む生成ファイル (<c>GeneratedUniformBuffers.ush</c>) の中身を、
+    /// 単位が名前で参照する uniform buffer だけにする。
+    /// </remarks>
+    public Func<string, IIncludeResolver, IIncludeResolver>? SelectUnitIncludeResolver { get; init; }
+
+    /// <summary>
     /// HLSL 2021 で読む単位にだけ定義するマクロ (Unreal Engine の <c>COMPILER_SUPPORTS_HLSL2021</c>)。DXC のときだけ使う。
     /// </summary>
     public ImmutableDictionary<string, string> Hlsl2021Macros { get; init; } = ImmutableDictionary<string, string>.Empty;
@@ -177,6 +186,11 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
+
+        if (Options.SelectUnitIncludeResolver is { } selectResolver && options.IncludeResolver is { } resolver)
+        {
+            options = options with { IncludeResolver = selectResolver(filePath, resolver) };
+        }
 
         if (Options.SelectUnitMacros?.Invoke(filePath, options.IncludeResolver) is { Count: > 0 } unitMacros)
         {

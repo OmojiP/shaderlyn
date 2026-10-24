@@ -436,6 +436,7 @@ public sealed record PreprocessorOptions
     /// 定義済みマクロと <c>Prelude</c> はマクロ表に入るので、
     /// マクロ表のハッシュ側で見ている。ここでは見ない。
     /// 解決器は指紋に入れず、キャッシュを解析 1 回分の寿命にすることで揃えている。
+    /// ただし、単位ごとに中身を変える解決器は、その違いを指紋に出す (<see cref="IIncludeResolver.CacheFingerprint"/>)。
     /// </para>
     /// </remarks>
     public int FingerprintForCache
@@ -445,6 +446,10 @@ public sealed record PreprocessorOptions
             HashCode hash = default;
 
             hash.Add(MaxIncludeDepth);
+
+            // 単位ごとに取り込みの中身が変わる (Unreal の GeneratedUniformBuffers.ush)。
+            // 入れないと、その取り込みを含むヘッダ (Common.ush) の展開結果を、別の単位の中身のまま使い回す。
+            hash.Add(IncludeResolver?.CacheFingerprint, StringComparer.Ordinal);
 
             // 言語で、巻き上げた断片が文として読めるかの判定 (IsCompleteUnits) と、
             // 使えない指令の報告の文 (DescribeUnavailable、HL0003) が変わる。

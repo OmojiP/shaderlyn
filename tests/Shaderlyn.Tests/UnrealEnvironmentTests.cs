@@ -348,6 +348,79 @@ public sealed class UnrealEnvironmentTests : IDisposable
     /// <c>--unreal-generate</c> で C++ から uniform buffer の宣言とエンジンが定義するマクロの名前を書き出し、
     /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (HL0310) を行う。
     /// </summary>
+    /// <summary>
+    /// エンジンと同じく、単位が名前で参照する uniform buffer だけを取り込む。
+    /// すべてを取り込むと、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
+    /// 二重の宣言 (HL0314) と報告していた (Unreal の HairStrandsTangent.usf の HairStrandsVF_CullingIndexBuffer)。
+    /// </summary>
+    [Fact]
+    public async Task 名前で参照するuniform_bufferだけを取り込む()
+    {
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              project: .
+              generated: Generated
+            """);
+        Write("Engine/Source/Runtime/Renderer/Private/Params.h", """
+            #pragma once
+            BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMyViewParameters, RENDERER_API)
+                SHADER_PARAMETER(FVector4f, ScreenSize)
+            END_GLOBAL_SHADER_PARAMETER_STRUCT()
+            BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FHairParameters, RENDERER_API)
+                SHADER_PARAMETER_SRV(Buffer<uint>, CullingIndexBuffer)
+            END_GLOBAL_SHADER_PARAMETER_STRUCT()
+            """);
+        Write("Engine/Source/Runtime/Renderer/Private/Params.cpp", """
+            #include "Params.h"
+            IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FMyViewParameters, "MyView");
+            IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FHairParameters, "HairVF");
+            """);
+        Write("Engine/Shaders/Private/Common.ush", """
+            #pragma once
+            #include "/Engine/Generated/GeneratedUniformBuffers.ush"
+            float2 ScreenScale() { return MyView.ScreenSize.zw; }
+            """);
+
+        // HairVF を名前で参照しないので、HairVF は取り込まれない。自分で宣言した同じ名前は二重の宣言ではない。
+        Write("Shaders/Private/Own.usf", """
+            #include "/Engine/Private/Common.ush"
+            Buffer<uint> HairVF_CullingIndexBuffer;
+            [numthreads(64, 1, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            {
+                float x = HairVF_CullingIndexBuffer[Id.x] * ScreenScale().x;
+            }
+            """);
+
+        // HairVF を名前で参照するので取り込まれる。同じ名前を宣言すれば二重の宣言である。
+        Write("Shaders/Private/Both.usf", """
+            #include "/Engine/Private/Common.ush"
+            Buffer<uint> HairVF_CullingIndexBuffer;
+            [numthreads(64, 1, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            {
+                float x = HairVF.CullingIndexBuffer[Id.x] * ScreenScale().x;
+            }
+            """);
+
+        string config = Path.Combine(_workDirectory, ".shaderlyn.yaml");
+        (ExitCode generateCode, _, string generateError) =
+            await RunAsync("--config", config, "--unreal-generate", Path.Combine(_workDirectory, "Generated"));
+
+        Assert.True(generateError.Length == 0, generateError);
+        Assert.Equal(ExitCode.Success, generateCode);
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Own.usf(2:", output, StringComparison.Ordinal);
+        Assert.Single(output.Split('\n'), line => line.Contains("Both.usf(2:", StringComparison.Ordinal) && line.Contains("HL0314", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task CPlusPlusから作った宣言で宣言の検査を行う()
     {

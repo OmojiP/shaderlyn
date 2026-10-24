@@ -865,6 +865,7 @@ public sealed partial record UnrealOptions
     public HlslEnvironment CreateEnvironment(VariantSpace? variants = null)
     {
         int? engineDefault = EngineHlsl2021Default;
+        UnrealUniformBufferSelection? uniformBuffers = UnrealUniformBufferSelection.Create(GeneratedDirectory);
 
         return new(new HlslEnvironmentOptions
         {
@@ -873,6 +874,9 @@ public sealed partial record UnrealOptions
             LanguageVersion = engineDefault is { } value ? UnrealShaderLanguageVersions.EnvironmentLanguageVersion(value) : LanguageVersion,
             SelectUnitLanguageVersion = engineDefault is { } mode ? UnrealShaderLanguageVersions.CreateSelector(mode) : null,
             SelectUnitMacros = CreateMaterialMacroSelector(),
+
+            // エンジンと同じく、単位が名前で参照する uniform buffer だけを取り込む (UnrealUniformBufferSelection)。
+            SelectUnitIncludeResolver = uniformBuffers is null ? null : uniformBuffers.Wrap,
 
             // シェーダーの C++ が個別に HLSL 2021 にすることがある (CFLAG_HLSL2021)。C++ を読むまでは見分けられない。
             AcceptHlsl2021DeclarationsIn2018 = engineDefault is not null,

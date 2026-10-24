@@ -105,6 +105,10 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   - マクロの定義を条件ごとに複製した関数 (`#if` で書き分けた `RADIX` を使う `void F(inout float2 L[2][RADIX])`) を、
     呼び出しの候補として 1 つしか残していなかった。複製はどれも元の位置が同じで、宣言を位置で 1 つに寄せていた。
     残った複製の条件の構成でしか比べられず、ほかの構成の呼び出しを「配列の長さが合わない」(HL0344) と報告していた (Unreal の GPUFastFourierTransform.usf)
+- Unreal Engine: すべての uniform buffer を取り込んでいたので、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
+  二重の宣言 (HL0314) と報告していた (HairStrandsTangent.usf の `HairStrandsVF_CullingIndexBuffer`)。
+  エンジンと同じく、単位のファイルから取り込みをすべてたどり、本文に `名前.` か `名前 .` を書いた uniform buffer だけを取り込む。
+  取り込みの展開結果を、取り込む uniform buffer の違う単位どうしでは使い回せないので、UE 5.5 のエンジンで解析が 1 割ほど長くなる
   - 解析した構成で `#error` に到達する関数を、値を返さない経路がある (HL0360) と報告していた
     (`#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error … #endif`)
   - 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの

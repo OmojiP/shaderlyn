@@ -33,6 +33,14 @@ public interface IIncludeResolver
     /// <returns>範囲の外にあったファイルのパス。無いか、範囲を持たない解決器なら <see langword="null"/>。</returns>
     /// <remarks>ファイルがあるかだけを見て、中身は読まない。</remarks>
     string? FindOutsideBoundary(string path, string includingFilePath) => null;
+
+    /// <summary>
+    /// 解決の結果を変える状態の指紋。取り込みの展開結果を使い回してよいかの鍵に入る (<see cref="PreprocessorOptions.FingerprintForCache"/>)。
+    /// </summary>
+    /// <remarks>
+    /// 同じパスを、使う単位によって別の中身に解決する解決器だけが返す。既定は <see langword="null"/> (どの単位でも同じ)。
+    /// </remarks>
+    string? CacheFingerprint => null;
 }
 
 /// <summary>
