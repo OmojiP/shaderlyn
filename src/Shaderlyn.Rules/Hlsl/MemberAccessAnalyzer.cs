@@ -623,11 +623,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="Conditions">条件が付いたメンバーの、宣言がある条件。</param>
     /// <param name="Bases">継承した基底の名前。</param>
     /// <param name="Methods">メソッドの名前。</param>
+    /// <param name="Unconditional">どれかの木で、条件の付かない宣言があったメンバーの名前。</param>
     private readonly record struct StructInfo(
         IReadOnlySet<string> Members,
         Dictionary<string, SymbolCondition> Conditions,
         HashSet<string> Bases,
-        HashSet<string> Methods);
+        HashSet<string> Methods,
+        HashSet<string> Unconditional);
 
     /// <summary>
     /// このシェーダーが書いた構造体を集める。
@@ -679,6 +681,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                         new HashSet<string>(StringComparer.Ordinal),
                         new Dictionary<string, SymbolCondition>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal));
 
                     structs[structure.Name] = info;
@@ -726,9 +729,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             {
                 ((HashSet<string>)info.Members).Add(variable.Name);
 
-                if (declared.IsAlways)
+                // 無条件で現れたなら、条件は付いていない。ほかの木で条件付きで現れても付けない。
+                // 付けると、後から読んだ木の条件だけが残り、ほかの構成でメンバーが無いと報告していた
+                // (Unreal の頂点ファクトリごとの木。LocalVertexFactory.ush の FVertexFactoryInput.Position)。
+                // 構成ごとの木の構成を掛けて和をとると正確だが、木が多いと条件が膨らみ、その否定に時間がかかりすぎる。
+                if (declared.IsAlways || info.Unconditional.Contains(variable.Name))
                 {
-                    // 無条件で現れたなら、条件は付いていない。
+                    info.Unconditional.Add(variable.Name);
                     info.Conditions.Remove(variable.Name);
                     continue;
                 }
