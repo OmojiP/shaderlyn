@@ -95,6 +95,19 @@ public static partial class UnrealShaderClasses
         /// </summary>
         public ImmutableDictionary<string, string>? PlatformSettings { get; set; }
 
+        /// <summary>マテリアルと使う頂点ファクトリ (<see cref="UnrealVertexFactories.Order"/>)。メッシュに描くマテリアルのシェーダーで、頂点ファクトリを軸にする。</summary>
+        public ImmutableArray<UnrealVertexFactory> VertexFactories { get; set; } = [];
+
+        /// <summary>
+        /// 頂点ファクトリの名前から、その <c>ModifyCompilationEnvironment</c> が定義するマクロ (値の決まったもの)。<see cref="Resolve"/> で求める。
+        /// </summary>
+        public ImmutableDictionary<string, ImmutableSortedDictionary<string, string>> VertexFactoryDefines { get; private set; } =
+            ImmutableDictionary<string, ImmutableSortedDictionary<string, string>>.Empty;
+
+        /// <summary>クラスの名前から、登録したステージ (<c>Vertex</c>、<c>Pixel</c> など)。頂点ファクトリの側の <c>ShouldCompilePermutation</c> に答える。</summary>
+        public ImmutableDictionary<string, ImmutableHashSet<string>> ClassFrequencies { get; set; } =
+            ImmutableDictionary<string, ImmutableHashSet<string>>.Empty;
+
         /// <summary>列挙 (<c>enum class</c>) の名前から、メンバーの数 (値を書いたメンバーがあれば <see langword="null"/>)。</summary>
         private readonly ConcurrentDictionary<string, int?> _enums = new(StringComparer.Ordinal);
 
@@ -316,6 +329,8 @@ public static partial class UnrealShaderClasses
                 ConsoleHelpers = _consoleHelpers,
                 ConsoleVariableNames = _consoleVariableNames,
                 ConsoleValues = ConsoleValues(),
+                VertexFactories = VertexFactories,
+                ClassFrequencies = ClassFrequencies,
             };
             _classMacros = FindClassMacros();
 
@@ -359,6 +374,7 @@ public static partial class UnrealShaderClasses
             }
 
             GlobalDefines = model.EvaluateGlobalDefines();
+            VertexFactoryDefines = VertexFactories.ToImmutableDictionary(f => f.Name, model.EvaluateVertexFactoryDefines, StringComparer.Ordinal);
             return [.. found];
         }
 
@@ -576,6 +592,191 @@ public static partial class UnrealShaderClasses
 
         /// <summary>コンソール変数の名前から、値の式 (ini の値か、C++ の既定値)。</summary>
         public IReadOnlyDictionary<string, string> ConsoleValues { get; init; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// マテリアルと使う頂点ファクトリ。この順の番号が <see cref="UnrealVertexFactories.Macro"/> の値である。
+        /// メッシュに描くマテリアルのシェーダーでは、頂点ファクトリをパーミュテーションと同じく軸にする (<see cref="IsMeshMaterialShader"/>)。
+        /// </summary>
+        public ImmutableArray<UnrealVertexFactory> VertexFactories
+        {
+            get => _vertexFactories;
+            init
+            {
+                _vertexFactories = value;
+                _vertexFactoryFlags = [.. value.SelectMany(f => f.Flags)];
+            }
+        }
+
+        private readonly ImmutableArray<UnrealVertexFactory> _vertexFactories = [];
+
+        /// <summary>クラスの名前から、登録したステージ。</summary>
+        public ImmutableDictionary<string, ImmutableHashSet<string>> ClassFrequencies { get; init; } =
+            ImmutableDictionary<string, ImmutableHashSet<string>>.Empty;
+
+        /// <summary>ステージごとの、使える頂点ファクトリの番号 (<see cref="CompatibleVertexFactories(string)"/>)。</summary>
+        private readonly ConcurrentDictionary<string, ImmutableArray<int>> _compatibleVertexFactories = new(StringComparer.Ordinal);
+
+        /// <summary><c>Parameters.ShaderType</c> を置き換える名前。</summary>
+        private const string ShaderTypeIdentifier = "__ShaderlynShaderType";
+
+        /// <summary>シェーダーのステージの次元の名前 (値の組の鍵)。値は <see cref="Frequencies"/> の番号。</summary>
+        private const string FrequencyDimension = "$ShaderFrequency";
+
+        /// <summary>ステージの名前 (<see cref="FrequencyDimension"/> の値の順)。</summary>
+        private static readonly ImmutableArray<string> Frequencies =
+            ["Vertex", "Pixel", "Compute", "Geometry", "Mesh", "Amplification", "RayGen", "RayMiss", "RayHitGroup", "RayCallable", "WorkGraphRoot", "WorkGraphComputeNode"];
+
+        /// <summary>
+        /// クラスとコンパイルされうる頂点ファクトリの番号。頂点ファクトリの側の <c>ShouldCompilePermutation</c> を、クラスのステージで実行する
+        /// (<c>FNaniteVertexFactory</c> はコンピュートとレイトレーシングのシェーダーとだけ)。決まらなければ、使えるものとする。
+        /// </summary>
+        private ImmutableArray<int> CompatibleVertexFactories(ClassDeclaration declaration)
+        {
+            if (!ClassFrequencies.TryGetValue(declaration.Name, out ImmutableHashSet<string>? frequencies) || frequencies.IsEmpty)
+            {
+                return [.. Enumerable.Range(0, _vertexFactories.Length)];
+            }
+
+            HashSet<int> compatible = [];
+
+            foreach (string frequency in frequencies)
+            {
+                compatible.UnionWith(_compatibleVertexFactories.GetOrAdd(frequency, CompatibleVertexFactories));
+            }
+
+            return [.. compatible.Order()];
+        }
+
+        /// <summary>頂点ファクトリの C++ のクラスの名前。スキンメッシュの頂点ファクトリは、骨の影響数ごとの型 (…Default / …Unlimited) が同じクラスの関数を使う。</summary>
+        private static string VertexFactoryOwner(string name)
+            => name.EndsWith("Default", StringComparison.Ordinal) ? name[..^"Default".Length]
+                : name.EndsWith("Unlimited", StringComparison.Ordinal) ? name[..^"Unlimited".Length]
+                : name;
+
+        /// <summary>
+        /// 頂点ファクトリの <c>ModifyCompilationEnvironment</c> を実行し、値の決まったマクロを返す
+        /// (<c>FParticleSpriteVertexFactory</c> の <c>PARTICLE_SPRITE_FACTORY=1</c> など)。
+        /// </summary>
+        /// <param name="factory">頂点ファクトリ。</param>
+        /// <returns>マクロの名前から値。</returns>
+        /// <remarks>
+        /// エンジンは、頂点ファクトリごとにこれを実行してからシェーダーをコンパイルする。シェーダーはこのマクロで頂点ファクトリごとのコードを書き分ける。
+        /// </remarks>
+        public ImmutableSortedDictionary<string, string> EvaluateVertexFactoryDefines(UnrealVertexFactory factory)
+        {
+            string owner = VertexFactoryOwner(factory.Name);
+            Environment environment = new();
+
+            if ((_functions.TryGetValue(owner, out ConcurrentBag<ModifyFunction>? found) || _functions.TryGetValue(factory.Name, out found))
+                && found.FirstOrDefault(f => f.Parameters.Length == 2) is { } modify)
+            {
+                Execute(modify, new ClassDeclaration(owner, modify.File, ["FVertexFactory"]), new(StringComparer.Ordinal), environment, certain: true, depth: 0, vector: null);
+            }
+
+            return environment.Defines
+                .Where(p => p.Value is not null)
+                .ToImmutableSortedDictionary(p => p.Key, p => p.Value!, StringComparer.Ordinal);
+        }
+
+        /// <summary>そのステージのシェーダーとコンパイルされうる頂点ファクトリの番号。</summary>
+        private ImmutableArray<int> CompatibleVertexFactories(string frequency)
+        {
+            int index = Frequencies.IndexOf(frequency);
+            List<int> compatible = [];
+
+            for (int i = 0; i < _vertexFactories.Length; i++)
+            {
+                string name = _vertexFactories[i].Name;
+                string owner = VertexFactoryOwner(name);
+
+                bool compiles = true;
+
+                if (index >= 0
+                    && (_shouldCompile.TryGetValue(owner, out ConcurrentBag<ModifyFunction>? found) || _shouldCompile.TryGetValue(name, out found))
+                    && found.FirstOrDefault(f => f.Parameters.Length == 1) is { } should)
+                {
+                    Dictionary<string, long> vector = new(StringComparer.Ordinal) { [FrequencyDimension] = index };
+                    ClassDeclaration owned = new(owner, should.File, []);
+                    compiles = Execute(should, owned, new(StringComparer.Ordinal), new Environment(), certain: true, depth: 0, vector).State.Return?.AsBool != false;
+                }
+
+                if (compiles)
+                {
+                    compatible.Add(i);
+                }
+            }
+
+            return [.. compatible];
+        }
+
+        /// <summary>どれかの頂点ファクトリの登録に書かれたフラグ。これに無い <c>Supports…</c> は、フラグでは答えない。</summary>
+        private readonly ImmutableHashSet<string> _vertexFactoryFlags = [];
+
+        /// <summary>頂点ファクトリの次元の名前 (値の組の鍵)。C++ のクラスの名前と重ならない。</summary>
+        private const string VertexFactoryDimension = "$VertexFactory";
+
+        /// <summary><c>Parameters.VertexFactoryType</c> を置き換える名前。</summary>
+        private const string VertexFactoryIdentifier = "__ShaderlynVertexFactoryType";
+
+        /// <summary>頂点ファクトリを表す値の印 (<see cref="Value.Text"/> の頭)。</summary>
+        private const string VertexFactoryPrefix = "VertexFactory:";
+
+        /// <summary>
+        /// <c>ShouldCompilePermutation</c> が頂点ファクトリを見るかもしれないかを判定する。
+        /// 本体に <c>VertexFactoryType</c> を書いているか、引数をほかの関数へ渡している (渡した先で見るかもしれない) ときである。
+        /// </summary>
+        private bool ChecksVertexFactory(ClassDeclaration declaration)
+        {
+            if (FindEntryFunction(declaration, _shouldCompile, 1, 0) is not { } entry)
+            {
+                return false;
+            }
+
+            ShaderSyntaxToken[] body = entry.Function.Body;
+            string parameter = entry.Function.Parameters.IsDefaultOrEmpty ? "Parameters" : entry.Function.Parameters[0];
+
+            for (int i = 0; i < body.Length; i++)
+            {
+                if (body[i].Text == "VertexFactoryType"
+                    || (body[i].Text == parameter && i > 0
+                        && body[i - 1].Kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.CommaToken
+                        && i + 1 < body.Length && body[i + 1].Kind is ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CommaToken))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// メッシュに描くマテリアルのシェーダー (<c>FMeshMaterialShader</c> の派生) かを判定する。頂点ファクトリごとにコンパイルされる。
+        /// </summary>
+        private bool IsMeshMaterialShader(ClassDeclaration declaration, int depth = 0)
+        {
+            if (depth > MaxCallDepth)
+            {
+                return false;
+            }
+
+            foreach (string baseName in declaration.Bases)
+            {
+                string bare = BareClassName(baseName);
+
+                if (bare == "FMeshMaterialShader")
+                {
+                    return true;
+                }
+
+                if (_classes.TryGetValue(bare, out ConcurrentBag<ClassDeclaration>? bases)
+                    && bases.Any(b => IsMeshMaterialShader(b, depth + 1)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>マクロを展開したファイルから、クラス・次元・組・<c>ModifyCompilationEnvironment</c> を読む。</summary>
         public void ParseFile(string path, string text)
@@ -902,6 +1103,48 @@ public static partial class UnrealShaderClasses
         /// </remarks>
         public UnrealShaderClass? Evaluate(string key)
         {
+            UnrealShaderClass? evaluated = EvaluateWithoutVertexFactories(key, out bool vertexFactoryAxis, out ImmutableArray<int> vertexFactoryValues);
+
+            if (evaluated is not null && vertexFactoryAxis)
+            {
+                evaluated = evaluated with
+                {
+                    Permutations = evaluated.Permutations.SetItem(UnrealVertexFactories.Macro, vertexFactoryValues),
+                };
+            }
+
+            // パーミュテーションを軸にしない解析では、頂点ファクトリを 1 つに決めて読む。
+            // そのクラスが LocalVertexFactory とコンパイルされないなら、コンパイルされるものの最初を使う
+            // (髪の頂点ファクトリとだけコンパイルされる HairStrandsMaterialVS.usf を、静的メッシュの頂点ファクトリで読まない)。
+            if (evaluated is not null
+                && evaluated.Permutations.TryGetValue(UnrealVertexFactories.Macro, out ImmutableArray<int>? allowed)
+                && allowed is { IsEmpty: false } values)
+            {
+                int local = _vertexFactories.IndexOf(_vertexFactories.FirstOrDefault(f => f.Name == UnrealVertexFactories.DefaultName)!);
+                int fallback = values.Contains(local) ? local : values[0];
+                evaluated = evaluated with
+                {
+                    Defines = evaluated.Defines.SetItem(UnrealVertexFactories.DefaultMacro, fallback.ToString(CultureInfo.InvariantCulture)),
+                };
+            }
+
+            return evaluated;
+        }
+
+        /// <summary>クラスのマクロとパーミュテーションを求める (<see cref="Evaluate(string)"/>)。</summary>
+        /// <param name="key">クラスの鍵。</param>
+        /// <param name="vertexFactoryAxis">
+        /// 頂点ファクトリの軸を、組ごとには評価せず、すべての値で足すか。
+        /// メッシュに描くマテリアルのシェーダーで、<c>ShouldCompilePermutation</c> が頂点ファクトリを見ないときである。
+        /// 組ごとに評価すると、頂点ファクトリの数だけ実行することになる。
+        /// </param>
+        /// <param name="vertexFactoryValues">頂点ファクトリの軸をすべての値で足すときの、使える頂点ファクトリの番号。</param>
+        /// <returns>求めたもの。クラスが見つからなければ <see langword="null"/>。</returns>
+        private UnrealShaderClass? EvaluateWithoutVertexFactories(string key, out bool vertexFactoryAxis, out ImmutableArray<int> vertexFactoryValues)
+        {
+            vertexFactoryAxis = false;
+            vertexFactoryValues = [];
+
             if (!_classes.TryGetValue(BareClassName(key), out ConcurrentBag<ClassDeclaration>? declarations))
             {
                 return null;
@@ -918,6 +1161,23 @@ public static partial class UnrealShaderClasses
             }
 
             SortedDictionary<string, ImmutableArray<int>?> permutations = new(StringComparer.Ordinal);
+
+            // 頂点ファクトリも軸にする。ShouldCompilePermutation が頂点ファクトリを見るなら、組ごとに、使える頂点ファクトリを決める。
+            // 見ないなら、どの頂点ファクトリともコンパイルされるので、組ごとには評価せずに足す。
+            if (!_vertexFactories.IsEmpty && IsMeshMaterialShader(declaration))
+            {
+                ImmutableArray<int> compatible = CompatibleVertexFactories(declaration);
+
+                if (ChecksVertexFactory(declaration))
+                {
+                    axes.Add((VertexFactoryDimension, UnrealVertexFactories.Macro, compatible));
+                }
+                else
+                {
+                    vertexFactoryAxis = true;
+                    vertexFactoryValues = compatible;
+                }
+            }
 
             foreach ((_, string macro, ImmutableArray<int>? values) in axes)
             {
@@ -1472,6 +1732,18 @@ public static partial class UnrealShaderClasses
                     context.Environment.Set(context.Environment.Defines, name, certain ? value.AsDefine : null);
                     i = close - 1;
                 }
+
+                // まだ定義していなければ定義する (FGeometryCollectionVertexFactory の MANUAL_VERTEX_FETCH)。
+                else if (text == "SetDefineIfUnset" && arguments.Count == 2 && DefineName(arguments[0]) is { } unsetName)
+                {
+                    if (!context.Environment.Defines.ContainsKey(unsetName))
+                    {
+                        Value value = Evaluate(arguments[1], context, 0);
+                        context.Environment.Set(context.Environment.Defines, unsetName, certain ? value.AsDefine : null);
+                    }
+
+                    i = close - 1;
+                }
                 else if (text == "SET_SHADER_DEFINE" && arguments.Count == 3 && arguments[1] is [{ Kind: ShaderSyntaxKind.IdentifierToken } macro])
                 {
                     Value value = Evaluate(arguments[2], context, 0);
@@ -1602,6 +1874,20 @@ public static partial class UnrealShaderClasses
             if (PlatformFunctions.TryGetValue(name, out bool answer))
             {
                 return Value.FromBool(answer);
+            }
+
+            // 描画の方式 (FSceneInterface::GetShadingPath(GetMaxSupportedFeatureLevel(Platform)))。PC の SM6 は遅延シェーディングである。
+            // GlobalBeginCompileShader は、これで SHADING_PATH_DEFERRED を定義する。
+            if (name == "GetShadingPath")
+            {
+                return new Value(ValueKind.Symbol, 0, "EShadingPath::Deferred");
+            }
+
+            // FName(TEXT("FLocalVertexFactory")) は名前の文字列、FindVertexFactoryType(…) はその頂点ファクトリにする。
+            if (name is "FName" or "FindVertexFactoryType" && arguments.Count >= 1
+                && Evaluate(arguments[0], context, context.Depth + 1) is { Kind: ValueKind.String, Text: { } text })
+            {
+                return name == "FName" ? new Value(ValueKind.String, 0, text) : new Value(ValueKind.Symbol, 0, VertexFactoryPrefix + text);
             }
 
             if (at >= 2
@@ -1802,6 +2088,37 @@ public static partial class UnrealShaderClasses
                 return ConsoleValues.ContainsKey(name) ? new Value(ValueKind.ConsoleVariable, 0, name) : Value.Unknown;
             }
 
+            // シェーダーの型のステージ (Parameters.ShaderType->GetFrequency())。SF_Compute などと比べる。
+            if (receiver is { Kind: ValueKind.Symbol, Text: { } shaderType } && shaderType.StartsWith(ShaderTypePrefix, StringComparison.Ordinal))
+            {
+                if (method != "GetFrequency")
+                {
+                    return Value.Unknown;
+                }
+
+                // 列挙 (EShaderFrequency) を読めていれば、SF_Compute は数になる。比べられるよう、同じく数で返す。
+                string frequency = "SF_" + shaderType[ShaderTypePrefix.Length..];
+                return enumMembers.TryGetValue(frequency, out int? number) && number is { } value
+                    ? new Value(ValueKind.Number, value, null)
+                    : new Value(ValueKind.Symbol, 0, frequency);
+            }
+
+            // 頂点ファクトリの型のメソッド (Parameters.VertexFactoryType->GetFName()、->SupportsLumenMeshCards())。
+            if (receiver is { Kind: ValueKind.Symbol, Text: { } symbol } && symbol.StartsWith(VertexFactoryPrefix, StringComparison.Ordinal))
+            {
+                string factoryName = symbol[VertexFactoryPrefix.Length..];
+
+                if (method is "GetFName" or "GetName")
+                {
+                    return new Value(ValueKind.String, 0, factoryName);
+                }
+
+                return _vertexFactoryFlags.Contains(method == "IsUsedWithMaterials" ? "UsedWithMaterials" : method)
+                       && _vertexFactories.FirstOrDefault(f => f.Name == factoryName)?.Answer(method) is { } answered
+                    ? Value.FromBool(answered)
+                    : Value.Unknown;
+            }
+
             if (receiver is { Kind: ValueKind.ConsoleVariable, Text: { } variable }
                 && method is "GetValueOnAnyThread" or "GetValueOnGameThread" or "GetValueOnRenderThread" or "GetInt" or "GetBool" or "GetFloat" or "Get")
             {
@@ -1999,7 +2316,7 @@ public static partial class UnrealShaderClasses
                 return Value.Unknown;
             }
 
-            ShaderSyntaxToken[] substituted = ResolvePermutationGets(Substitute(tokens, context.Bindings, 0), context);
+            ShaderSyntaxToken[] substituted = ReplaceVertexFactoryType(ResolvePermutationGets(Substitute(tokens, context.Bindings, 0), context));
 
             // ローカル変数を式に置き換えると、代入が重なった式は入れ子になって膨らむ。大きすぎる式は読まない。
             if (substituted.Length > MaxExpressionTokens)
@@ -2011,7 +2328,13 @@ public static partial class UnrealShaderClasses
             {
                 PreferredFile = context.Function.File,
                 CallHook = (callTokens, at, arguments) => EvaluateCall(callTokens, at, arguments, context),
-                IdentifierHook = name => context.Vector is { } vector && context.VectorNames.Contains(name) ? VectorValue(vector)
+                IdentifierHook = name => name == VertexFactoryIdentifier ? VertexFactoryValue(context)
+                    : name == ShaderTypeIdentifier ? ShaderTypeValue(context)
+
+                    // シェーダーのステージ (EShaderFrequency の SF_Compute など) は、GetFrequency() の値と名前で比べる。
+                    // 列挙を宣言したヘッダ (RHIDefinitions.h) は読まないので、値では比べられない。
+                    : name.StartsWith("SF_", StringComparison.Ordinal) ? new Value(ValueKind.Symbol, 0, name)
+                    : context.Vector is { } vector && context.VectorNames.Contains(name) ? VectorValue(vector)
                     : ConsoleVariableNames.TryGetValue(name, out string? console) && console is not null ? new Value(ValueKind.ConsoleVariable, 0, console)
                     : null,
                 MemberCallHook = (receiver, method, arguments) => EvaluateMemberCall(receiver, method, arguments, context),
@@ -2019,6 +2342,57 @@ public static partial class UnrealShaderClasses
 
             Value value = reader.ReadConditional();
             return reader.AtEnd ? value : Value.Unknown;
+        }
+
+        /// <summary>今のシェーダーの型 (<c>Parameters.ShaderType</c>)。ステージを決めて実行しているときだけ決まる。</summary>
+        private static Value ShaderTypeValue(Context context)
+            => context.Vector is { } vector
+               && vector.TryGetValue(FrequencyDimension, out long index)
+               && index >= 0 && index < Frequencies.Length
+                ? new Value(ValueKind.Symbol, 0, ShaderTypePrefix + Frequencies[(int)index])
+                : Value.Unknown;
+
+        /// <summary>シェーダーの型を表す値の印 (<see cref="Value.Text"/> の頭)。</summary>
+        private const string ShaderTypePrefix = "ShaderType:";
+
+        /// <summary>今の組の頂点ファクトリ。頂点ファクトリを軸にしていなければ決まらない。</summary>
+        private Value VertexFactoryValue(Context context)
+            => context.Vector is { } vector
+               && vector.TryGetValue(VertexFactoryDimension, out long index)
+               && index >= 0 && index < _vertexFactories.Length
+                ? new Value(ValueKind.Symbol, 0, VertexFactoryPrefix + _vertexFactories[(int)index].Name)
+                : Value.Unknown;
+
+        /// <summary><c>Parameters.VertexFactoryType</c> (<c>.</c> でも <c>-&gt;</c> でも) を、1 つの名前に置き換える (<see cref="VertexFactoryIdentifier"/>)。</summary>
+        private static ShaderSyntaxToken[] ReplaceVertexFactoryType(ShaderSyntaxToken[] tokens)
+        {
+            if (!tokens.Any(t => t.Text is "VertexFactoryType" or "ShaderType"))
+            {
+                return tokens;
+            }
+
+            List<ShaderSyntaxToken> result = new(tokens.Length);
+
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && i + 2 < tokens.Length)
+                {
+                    int name = tokens[i + 1].Kind == ShaderSyntaxKind.DotToken ? i + 2
+                        : tokens[i + 1].Kind == ShaderSyntaxKind.MinusToken && i + 3 < tokens.Length && tokens[i + 2].Kind == ShaderSyntaxKind.GreaterThanToken ? i + 3
+                        : -1;
+
+                    if (name > 0 && tokens[name].Text is "VertexFactoryType" or "ShaderType")
+                    {
+                        result.Add(Lex(tokens[name].Text == "ShaderType" ? ShaderTypeIdentifier : VertexFactoryIdentifier)[0]);
+                        i = name;
+                        continue;
+                    }
+                }
+
+                result.Add(tokens[i]);
+            }
+
+            return [.. result];
         }
 
         /// <summary>組の次元を集める。入れ子の組もたどる。</summary>
@@ -2273,6 +2647,7 @@ public static partial class UnrealShaderClasses
                     (ValueKind.Vector, ValueKind.Vector) => left.Text == right.Text,
                     // 修飾の書き方は違いうる (Lumen::E::Inline と E::Inline)。最後の名前で比べる。
                     (ValueKind.Symbol, ValueKind.Symbol) => LastSegment(left.Text!) == LastSegment(right.Text!),
+                    (ValueKind.String, ValueKind.String) => left.Text == right.Text,
                     _ => null,
                 };
 
@@ -2444,7 +2819,15 @@ public static partial class UnrealShaderClasses
                 return SkipMemberCalls() ? Value.Unknown : Abandon();
             }
 
-            // ほかのメンバーは評価しない。
+            // 評価できないメンバー (シェーダーに渡される引数の Parameters.MaterialParameters.MaterialDomain、
+            // 関数の中の static な変数の CVarCompileMaterialAHS.Get(Parameters.Platform) など) は、その部分だけを決まらない値にして、式の残りは読む。
+            // 残りまで捨てると、Domain == MD_Surface && VertexFactoryType->SupportsLumenMeshCards() の後半が false でも全体が決まらなくなる
+            // (UE 5.5 の TMaterialCHS。交差シェーダーを使うクラスを、プロシージャルなプリミティブを扱わない頂点ファクトリで読んでいた)。
+            if (IsMemberAccess())
+            {
+                return SkipMemberCalls() ? Value.Unknown : Abandon();
+            }
+
             if (Peek?.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenBracketToken
                 || (Peek?.Kind == ShaderSyntaxKind.MinusToken && _position + 1 < tokens.Length && tokens[_position + 1].Kind == ShaderSyntaxKind.GreaterThanToken))
             {

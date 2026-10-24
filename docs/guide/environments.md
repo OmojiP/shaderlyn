@@ -105,7 +105,7 @@ units:
   (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
   `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
   `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません。
-  uniform buffer の宣言は、エンジンの C++ から作れます ([下記](#c-から生成されるファイルを作る))
+  uniform buffer の宣言と、`Material.ush` / `VertexFactory.ush` の代わりは、エンジンの C++ とシェーダーから作れます ([下記](#c-から生成されるファイルを作る))
 - エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す GBuffer の取り込み
   (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
 - マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
@@ -129,8 +129,9 @@ units:
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
   パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
   C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (HL0310 にしません)
-- マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は分かりません。
-  マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。`defines` で空に定義すると読めます
+- マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は、
+  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。
+  C++ から生成されるファイルを作れば、その `Material.ush` が定義します ([下記](#c-から生成されるファイルを作る))
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
 > `defines` で上書きしてください。仮想パスは `virtual-paths` で足せます。`--env` で、使っている割り当てとマクロを確かめられます。
@@ -161,6 +162,9 @@ unreal:
 | `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
 | `ShaderlynShaderRegistrations.tsv` | シェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など。登録を包んだ独自のマクロも展開して読みます)。`.usf` ごとのエントリポイントとステージ |
 | `ShaderlynShaderClasses.tsv` | シェーダーのクラスが定義するマクロとパーミュテーション、どの組もコンパイルされないクラス、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED` など) |
+| `Material.ush`、`UniformBuffers/Material.ush` | マテリアルの代わり。エンジンの `MaterialTemplate.ush` の、マテリアルごとに埋まる穴を、何もしない中身で埋めたもの (下記) |
+| `VertexFactory.ush` | 頂点ファクトリ (`IMPLEMENT_VERTEX_FACTORY_TYPE`) の `.ush` を、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込むもの |
+| `ShaderlynVertexFactoryDefines.ush` | 頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロを、`SHADERLYN_VERTEX_FACTORY` の値で選んで定義するもの |
 | `ShaderlynGenerationStamp.tsv` | 読んだ ini の中身のハッシュと、C++ のファイルの一覧・更新日時・大きさ。生成した後に変わったかを確かめるのに使います |
 
 - **プロジェクトの設定 (コンソール変数) を読みます。** エンジンはプロジェクトの設定から、どのシェーダーにもマクロを定義し (`GlobalBeginCompileShader`)、
@@ -169,7 +173,17 @@ unreal:
   プロジェクトの設定を変えたら作り直してください
 - プラットフォームを問う関数 (`IsMobilePlatform`、`FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders` など) には、PC の Direct3D 12 (SM6) として答えます。
   どのパーミュテーションでもコンパイルされないクラスだけが登録したファイルは解析せず、UE0003 で伝えます
-- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
+- **マテリアルのシェーダーも、宣言を検査します。** エンジンは `Material.ush` を、マテリアルごとに `MaterialTemplate.ush` の穴 (`%{num_material_texcoords}` など) を埋めて作ります。
+  Shaderlyn は、どのマテリアルでもない代わりを作ります。数を表す穴は `0`、値を返す関数は `0` を返すもの、
+  `FPixelMaterialInputs` のメンバーは C++ のマテリアルの属性の一覧から埋め、ほかは空にします。
+  マテリアルのノードが書くコード (カスタムノードなど) は分からないので、それに関わる誤りは見つけられません。
+  作った `Material.ush` の中は、利用者のコードとしては検査しません
+- **頂点ファクトリは、シェーダーのクラスに合わせて選びます。** メッシュに描くマテリアルのシェーダー (`FMeshMaterialShader` の派生) は、
+  頂点ファクトリごとにコンパイルされます。`ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読みます
+  (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ読みます)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
+  (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
+  そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
+- 作っていなければ、マテリアルのシェーダーでは今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
 - 作ったファイルは、エンジンかプロジェクトの C++ や ini を変えたら作り直してください。バージョン管理には入れなくてかまいません。
   **作り直しが要るときは、解析を始めるときに伝えます** (CLI は標準エラー、VS Code 拡張は通知)。

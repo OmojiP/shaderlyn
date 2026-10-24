@@ -33,6 +33,15 @@ internal sealed partial class UnrealUniformBufferSelection
     /// <summary>uniform buffer を取り込む生成ファイルの仮想パス。</summary>
     public const string IncludePath = "/Engine/Generated/GeneratedUniformBuffers.ush";
 
+    /// <summary>マテリアルのシェーダーが取り込む生成ファイル。</summary>
+    private const string MaterialInclude = "/Engine/Generated/Material.ush";
+
+    /// <summary><see cref="MaterialInclude"/> の元のテンプレート。</summary>
+    private const string MaterialTemplate = "/Engine/Private/MaterialTemplate.ush";
+
+    /// <summary>頂点ファクトリを取り込む生成ファイル。</summary>
+    private const string VertexFactoryInclude = "/Engine/Generated/VertexFactory.ush";
+
     /// <summary>取り込みをたどる深さの上限。</summary>
     private const int MaxIncludeDepth = 64;
 
@@ -68,7 +77,12 @@ internal sealed partial class UnrealUniformBufferSelection
 
         return new UnrealUniformBufferSelection(
             generatedDirectory!,
-            Directory.EnumerateFiles(folder, "*.ush").Select(Path.GetFileNameWithoutExtension).OfType<string>());
+            Directory.EnumerateFiles(folder, "*.ush")
+                .Select(Path.GetFileNameWithoutExtension)
+                .OfType<string>()
+
+                // マテリアルの uniform buffer はテンプレートが直接取り込む (UnrealMaterialGenerator)。名前で選ぶものではない。
+                .Where(name => name != UnrealMaterialGenerator.UniformBufferName));
     }
 
     /// <summary>単位の取り込みを、この単位の uniform buffer だけを取り込むものに差し替える。</summary>
@@ -103,11 +117,21 @@ internal sealed partial class UnrealUniformBufferSelection
             FileReferences references = _files.GetOrAdd(text.FilePath, _ => Read(text));
             selected.UnionWith(references.UniformBuffers);
 
-            foreach (string path in references.Includes)
+            foreach (string written in references.Includes)
             {
-                // 生成されるファイルは、エンジンが探すときにはまだ無い。
-                if (path.StartsWith("/Engine/Generated/", StringComparison.OrdinalIgnoreCase))
+                string path = written;
+
+                // マテリアルのシェーダーの Material.ush は、エンジンもテンプレート (MaterialTemplate.ush) を読む (ShaderCore.cpp)。
+                // 頂点ファクトリの VertexFactory.ush は、代わりのファイル (UnrealVertexFactories) が取り込むものをたどる。
+                // エンジンは頂点ファクトリの参照する uniform buffer を、頂点ファクトリの側で足す。
+                if (string.Equals(path, MaterialInclude, StringComparison.OrdinalIgnoreCase))
                 {
+                    path = MaterialTemplate;
+                }
+                else if (!string.Equals(path, VertexFactoryInclude, StringComparison.OrdinalIgnoreCase)
+                         && path.StartsWith("/Engine/Generated/", StringComparison.OrdinalIgnoreCase))
+                {
+                    // ほかの生成されるファイルは、エンジンが探すときにはまだ無い。
                     continue;
                 }
 

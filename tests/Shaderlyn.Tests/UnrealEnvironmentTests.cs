@@ -656,6 +656,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
     /// コメントとマクロの定義の中は読まない。シェーダーのパイプラインは登録ではないので数えない。
     /// 登録を包んだ独自のマクロは、定義が見つかれば呼び出しを展開して読む (マクロを呼ぶマクロも、<c>#</c> と <c>##</c> も)。
     /// 展開した中の <c>typedef</c> の名前で登録したクラスは、テンプレートの引数を書いたクラスにする。
+    /// ファイルに直接書いた <c>using</c> の別名で登録したクラスも同じ。
     /// </summary>
     [Fact]
     public void CPlusPlusのシェーダーの登録を読む()
@@ -683,22 +684,25 @@ public sealed class UnrealEnvironmentTests : IDisposable
                 IMPLEMENT_RESOLVE_SHADERS(2);
                 IMPLEMENT_UNKNOWN_SHADER(FThird);
                 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(FPipeline, FMaterialVS, FPassPS, true);
+                using FHitIS = THit<false, true>;
+                IMPLEMENT_MATERIAL_SHADER_TYPE(template <>, FHitIS, TEXT("/Engine/Private/Hit.usf"), TEXT("closesthit=MainCHS intersection=MainIS"), SF_RayHitGroup);
                 """),
         ],
         output);
 
-        Assert.Equal(8, generation.ShaderRegistrationCount);
+        Assert.Equal(9, generation.ShaderRegistrationCount);
         Assert.Equal(1, Assert.Single(generation.UnreadShaderRegistrations).Value);
         Assert.Contains("IMPLEMENT_UNKNOWN_SHADER", generation.UnreadShaderRegistrations.Keys);
 
         ImmutableArray<UnrealShaderRegistration> read = UnrealShaderRegistrations.Read(output);
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Pass.usf", EntryPoint: "MainCS", Frequency: "Compute", Macro: "IMPLEMENT_SHADER_TYPE" });
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Material.usf", EntryPoint: "MainVS", Macro: "IMPLEMENT_MATERIAL_SHADER_TYPE" });
-        Assert.Equal(["MainCHS", "MainAHS"], UnrealShaderRegistrations.EntryFunctions(Assert.Single(read, r => r.Frequency == "RayHitGroup").EntryPoint).ToArray());
+        Assert.Equal(["MainCHS", "MainAHS"], UnrealShaderRegistrations.EntryFunctions(Assert.Single(read, r => r is { Frequency: "RayHitGroup", VirtualPath: "/Engine/Private/RayTracing.usf" }).EntryPoint).ToArray());
         Assert.Contains(read, r => r is { VirtualPath: "/Engine/Private/Y.usf", ShaderClass: "FSecond", Macro: "IMPLEMENT_MY_SHADER" });
         Assert.Equal(
             ["TResolvePS<2,0>", "TResolvePS<2,1>"],
             read.Where(r => r.VirtualPath == "/Engine/Private/Resolve.usf").Select(r => r.ShaderClass).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("THit<false,true>", Assert.Single(read, r => r.VirtualPath == "/Engine/Private/Hit.usf").ShaderClass);
     }
 
     /// <summary>
@@ -1285,6 +1289,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
                 		SET_SHADER_DEFINE(Input.Environment, USE_HAIR_STRIPS, CVar ? (CVar->GetValueOnAnyThread() != 0) : 0);
                 	}
                 	SET_SHADER_DEFINE(Input.Environment, PIXELSHADER, Target.Frequency == SF_Pixel);
+                	if (FSceneInterface::GetShadingPath(GetMaxSupportedFeatureLevel(ShaderPlatform)) == EShadingPath::Deferred)
+                	{
+                		SET_SHADER_DEFINE(Input.Environment, SHADING_PATH_DEFERRED, 1);
+                	}
                 }
                 """),
             ("Pass.cpp", """
@@ -1317,6 +1325,9 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal("0", defines["SUBSTRATE_ENABLED"]);
         Assert.Equal("1", defines["USE_HAIR_STRIPS"]);
 
+        // PC の SM6 は遅延シェーディングである。
+        Assert.Equal("1", defines["SHADING_PATH_DEFERRED"]);
+
         // ステージで変わるものは、値が決まらないので書かない。
         Assert.False(defines.ContainsKey("PIXELSHADER"));
         Assert.True(UnrealShaderClasses.Read(output)["FVisualizeCS"].NeverCompiled);
@@ -1334,9 +1345,300 @@ public sealed class UnrealEnvironmentTests : IDisposable
     }
 
     /// <summary>
-    /// ini のコンソール変数を、エンジンの ini、プロジェクトの ini の順に読み、後のものを優先する。
-    /// コンソール変数の節だけを読み、名前に点の無い設定の項目と配列の書き方は読まない。
+    /// メッシュに描くマテリアルのシェーダーは、頂点ファクトリを構成の軸にする。
+    /// シェーダーのクラスの <c>ShouldCompilePermutation</c> と、頂点ファクトリの側の <c>ShouldCompilePermutation</c> (ステージで答える) で、
+    /// 組み合わせる頂点ファクトリを絞る。
     /// </summary>
+    [Fact]
+    public void 頂点ファクトリを軸にしてクラスごとに絞る()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("VertexFactories.cpp", """
+                bool FNaniteVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
+                {
+                	return Parameters.ShaderType->GetFrequency() == SF_Compute && Parameters.MaterialParameters.bIsUsedWithNanite;
+                }
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FLocalVertexFactory, "/Engine/Private/LocalVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsLumenMeshCards);
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FHairStrandsVertexFactory, "/Engine/Private/HairStrands/HairStrandsVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsRayTracingProceduralPrimitive);
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FNaniteVertexFactory, "/Engine/Private/Nanite/NaniteVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsLumenMeshCards);
+                """),
+            ("Passes.cpp", """
+                class FHairVS : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		return Parameters.VertexFactoryType->GetFName() == FName(TEXT("FHairStrandsVertexFactory"));
+                	}
+                };
+                class FCardVS : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		return Parameters.MaterialParameters.MaterialDomain == MD_Surface && Parameters.VertexFactoryType->SupportsLumenMeshCards();
+                	}
+                };
+                class FAnyVS : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		return true;
+                	}
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FHairVS, TEXT("/Engine/Private/Hair.usf"), TEXT("Main"), SF_Vertex);
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FCardVS, TEXT("/Engine/Private/Card.usf"), TEXT("Main"), SF_Vertex);
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FAnyVS, TEXT("/Engine/Private/Any.usf"), TEXT("Main"), SF_Vertex);
+                template<bool UseAnyHitShader, bool UseIntersectionShader>
+                class THitCHS : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		static FShaderPlatformCachedIniValue<int32> CVarCompileMaterialAHS(TEXT("r.RayTracing.CompileMaterialAHS"));
+                		const bool bWantAnyHitShader = ((CVarCompileMaterialAHS.Get(Parameters.Platform) != 0) && Parameters.MaterialParameters.bIsMasked);
+                		const bool bSupportProceduralPrimitive = Parameters.VertexFactoryType->SupportsRayTracingProceduralPrimitive() && FDataDrivenShaderPlatformInfo::GetSupportsRayTracingProceduralPrimitive(Parameters.Platform);
+                		return (bWantAnyHitShader == UseAnyHitShader)
+                			&& (UseIntersectionShader == bSupportProceduralPrimitive);
+                	}
+                };
+                using FHitCHS_IS = THitCHS<false, true>;
+                IMPLEMENT_MATERIAL_SHADER_TYPE(template <>, FHitCHS_IS, TEXT("/Engine/Private/Hit.usf"), TEXT("closesthit=MainCHS intersection=MainIS"), SF_RayHitGroup);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        // 名前の順: 0 FHairStrandsVertexFactory、1 FLocalVertexFactory、2 FNaniteVertexFactory。
+        string[] classes = File.ReadAllLines(Path.Combine(output, UnrealShaderClasses.FileName));
+        Assert.Contains("FHairVS\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0", classes);
+        Assert.Contains("FHairVS\tdefine\tSHADERLYN_DEFAULT_VERTEX_FACTORY\t0", classes);
+
+        // MaterialDomain は分からないが、頂点ファクトリの答えで決まる。Nanite は頂点シェーダーとはコンパイルされない。
+        Assert.Contains("FCardVS\tpermutation\tSHADERLYN_VERTEX_FACTORY\t1", classes);
+        Assert.Contains("FAnyVS\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0 1", classes);
+        Assert.Contains("FAnyVS\tdefine\tSHADERLYN_DEFAULT_VERTEX_FACTORY\t1", classes);
+
+        // 交差シェーダーを使うクラスは、プロシージャルなプリミティブを扱える頂点ファクトリとだけコンパイルされる。
+        Assert.Contains("THitCHS<false,true>\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0", classes);
+
+        string vertexFactory = File.ReadAllText(Path.Combine(output, UnrealVertexFactories.FileName));
+        Assert.Contains("#include \"/Engine/Private/HairStrands/HairStrandsVertexFactory.ush\"", vertexFactory, StringComparison.Ordinal);
+        Assert.Contains("#include \"/Engine/Generated/ShaderlynVertexFactoryDefines.ush\"", vertexFactory, StringComparison.Ordinal);
+        string vertexFactoryDefines = File.ReadAllText(Path.Combine(output, UnrealVertexFactories.DefinesFileName));
+        Assert.Contains("#define SHADERLYN_VERTEX_FACTORY SHADERLYN_DEFAULT_VERTEX_FACTORY", vertexFactoryDefines, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 列挙のメンバーを 1 つずつマクロにするループ (<c>SetDefine(XToString(static_cast&lt;EX&gt;(i)), i)</c>) のメンバーを、
+    /// エンジンが定義するマクロの名前に足す (UE 5.5 の <c>DebugViewModeRendering.cpp</c> の <c>DVSM_*</c>)。
+    /// </summary>
+    [Fact]
+    public void 列挙のメンバーを1つずつマクロにするループを読む()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("DebugViewModeHelpers.h", """
+                enum EDebugViewShaderMode
+                {
+                	DVSM_None,		// No debug view, with a comma.
+                	DVSM_QuadComplexity,
+                	DVSM_MAX
+                };
+                """),
+            ("DebugViewModeRendering.cpp", """
+                void FDebugViewModePS::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                {
+                	for (int i = 0; i < DVSM_MAX; ++i)
+                	{
+                		OutEnvironment.SetDefine(DebugViewShaderModeToString(static_cast<EDebugViewShaderMode>(i)), i);
+                	}
+                }
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        string[] defines = File.ReadAllLines(Path.Combine(output, UnrealUniformBufferGenerator.EngineDefinesFileName));
+        Assert.Contains("DVSM_None", defines);
+        Assert.Contains("DVSM_QuadComplexity", defines);
+        Assert.DoesNotContain("DVSM_MAX", defines);
+    }
+
+    /// <summary>
+    /// 頂点ファクトリの <c>ModifyCompilationEnvironment</c> が定義するマクロを、エンジンのコマンドラインと同じく、どのファイルよりも先に定義する。
+    /// 定義されているかで分けるコード (<c>#ifdef HAIR_CARD_MESH_FACTORY</c>) も、その頂点ファクトリでだけ通る。
+    /// パーミュテーションを軸にしてもしなくても同じ。
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 頂点ファクトリのマクロを単位の先頭で定義する(bool permutations)
+    {
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("VertexFactories.cpp", """
+                void FHairCardsVertexFactory::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                {
+                	OutEnvironment.SetDefine(TEXT("HAIR_CARD_MESH_FACTORY"), TEXT("1"));
+                	OutEnvironment.SetDefineIfUnset(TEXT("MANUAL_VERTEX_FETCH"), TEXT("1"));
+                	OutEnvironment.SetDefineIfUnset(TEXT("HAIR_CARD_MESH_FACTORY"), TEXT("2"));
+                }
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FLocalVertexFactory, "/Engine/Private/LocalVertexFactory.ush", EVertexFactoryFlags::UsedWithMaterials);
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FHairCardsVertexFactory, "/Engine/Private/HairCardsVertexFactory.ush", EVertexFactoryFlags::UsedWithMaterials);
+                """),
+            ("Passes.cpp", """
+                class FHairPS : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		return Parameters.VertexFactoryType->GetFName() == FName(TEXT("FHairCardsVertexFactory"));
+                	}
+                };
+                class FAnyPS : public FMeshMaterialShader
+                {
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FHairPS, TEXT("/Engine/Private/Hair.usf"), TEXT("MainPS"), SF_Pixel);
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FAnyPS, TEXT("/Engine/Private/Any.usf"), TEXT("MainPS"), SF_Pixel);
+                """),
+        ],
+        Path.Combine(_workDirectory, "Generated"));
+
+        Write(".shaderlyn.yaml", $"""
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+              permutations: {(permutations ? "true" : "false")}
+            """);
+
+        // 定義されていなければ、C++ が定義する名前なので値の分からないマクロとして読み、#error に到達する構成があると伝える (HL0009)。
+        Write("Engine/Shaders/Private/Hair.usf", """
+            #if HAIR_CARD_MESH_FACTORY != 1
+            #error Hair cards only.
+            #endif
+            float4 MainPS() : SV_Target0 { return HAIR_CARD_MESH_FACTORY; }
+            """);
+
+        // 静的メッシュの頂点ファクトリでは定義されない。
+        Write("Engine/Shaders/Private/Any.usf", """
+            #ifdef HAIR_CARD_MESH_FACTORY
+            float4 MainPS() : SV_Target0 { return 1; }
+            #else
+            float4 MainPS() : SV_Target0 { return 0; }
+            #endif
+            """);
+
+        WriteGenerationStamp();
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0009", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+
+        // まだ定義していなければ定義する (SetDefineIfUnset)。定義してあれば、そのまま。
+        string defines = File.ReadAllText(Path.Combine(_workDirectory, "Generated", UnrealVertexFactories.DefinesFileName));
+        Assert.Contains("#define MANUAL_VERTEX_FETCH 1", defines, StringComparison.Ordinal);
+        Assert.DoesNotContain("#define HAIR_CARD_MESH_FACTORY 2", defines, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 最初のエントリ関数とステージが同じで登録の文字列が違う単位 (<c>closesthit=A</c> と <c>closesthit=A anyhit=B</c>) は、クラスの名前で見分ける。
+    /// 見分けないと単位の名前 (コードブロックの鍵) が重なり、ほかの単位の分岐の宣言と重なると報告していた (HL0314)。
+    /// </summary>
+    [Fact]
+    public async Task 最初のエントリ関数が同じ単位をクラスの名前で見分ける()
+    {
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+        [
+            ("Passes.cpp", """
+                class FOpaqueCHS : public FGlobalShader
+                {
+                	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		OutEnvironment.SetDefine(TEXT("USE_ANY_HIT"), 0);
+                	}
+                };
+                class FMaskedCHS : public FGlobalShader
+                {
+                	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		OutEnvironment.SetDefine(TEXT("USE_ANY_HIT"), 1);
+                	}
+                };
+                IMPLEMENT_GLOBAL_SHADER(FOpaqueCHS, "/Engine/Private/Hit.usf", "closesthit=MainCHS", SF_RayHitGroup);
+                IMPLEMENT_GLOBAL_SHADER(FMaskedCHS, "/Engine/Private/Hit.usf", "closesthit=MainCHS anyhit=MainAHS", SF_RayHitGroup);
+                """),
+        ],
+        Path.Combine(_workDirectory, "Generated"));
+
+        Write(".shaderlyn.yaml", """
+            version: 1
+            environment: unreal
+            unreal:
+              engine: Engine
+              generated: Generated
+            """);
+
+        Write("Engine/Shaders/Private/Hit.usf", """
+            #if USE_ANY_HIT
+            struct FPayload { float Opacity; };
+            void MainAHS() {}
+            #else
+            struct FPayload { float Depth; };
+            #endif
+            void MainCHS() {}
+            """);
+
+        WriteGenerationStamp();
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// マテリアルのシェーダーの代わりの <c>Material.ush</c> は、テンプレートの穴を既定値で埋め、
+    /// <c>FPixelMaterialInputs</c> のメンバーをエンジンと同じく C++ の属性から作る。
+    /// </summary>
+    [Fact]
+    public void マテリアルのテンプレートの穴を埋める()
+    {
+        string members = UnrealMaterialGenerator.PixelMaterialInputs(
+            """
+            Add(FGuid(0x1, 0x2, 0x3, 0x4), TEXT("BaseColor"), MP_BaseColor, MCT_Float3, FVector4(0,0,0,0), SF_Pixel);
+            Add(FGuid(0x1, 0x2, 0x3, 0x5), TEXT("SubsurfaceColor"), MP_SubsurfaceColor, MCT_Float3, FVector4(1,1,1,0), SF_Pixel);
+            Add(FGuid(0x1, 0x2, 0x3, 0x6), TEXT("ShadingModel"), MP_ShadingModel, MCT_ShadingModel, FVector4(0,0,0,0), SF_Pixel);
+            Add(FGuid(0x1, 0x2, 0x3, 0x7), TEXT("WorldPositionOffset"), MP_WorldPositionOffset, MCT_Float3, FVector4(0,0,0,0), SF_Vertex);
+            """,
+            """
+            SharedPixelProperties[MP_BaseColor] = true;
+            SharedPixelProperties[MP_SubsurfaceColor] = true;
+            SharedPixelProperties[MP_ShadingModel] = true;
+            """);
+
+        Assert.Contains("MaterialFloat3 BaseColor;", members, StringComparison.Ordinal);
+        Assert.Contains("MaterialFloat4 Subsurface;", members, StringComparison.Ordinal);
+        Assert.Contains("uint ShadingModel;", members, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorldPositionOffset", members, StringComparison.Ordinal);
+
+        string filled = UnrealMaterialGenerator.Fill(
+            "#line %{line_number}\n#define NUM_MATERIAL_TEXCOORDS %{num_material_texcoords}\nstruct FPixelMaterialInputs\n{\n%{pixel_material_inputs}\n};\nfloat GetMaterialCustomData0() { %{get_material_custom_data0}; }\n%{material_declarations}\n",
+            members);
+
+        Assert.DoesNotContain("%{", filled, StringComparison.Ordinal);
+        Assert.DoesNotContain("#line", filled, StringComparison.Ordinal);
+        Assert.Contains("#define NUM_MATERIAL_TEXCOORDS 0", filled, StringComparison.Ordinal);
+        Assert.Contains("{ return 0; }", filled, StringComparison.Ordinal);
+        Assert.Contains("MaterialFloat3 BaseColor;", filled, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// ブロックごとに同じ名前で宣言したポインタの局所変数 (<c>static IConsoleVariable* CVar = …;</c>) を、それぞれの宣言の値で読む。
     /// 読まずにいると、前のブロックの <c>static const auto CVar</c> (別のコンソール変数) の値を使っていた
@@ -1376,6 +1678,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal("1", defines["PROJECT_SUPPORTS_LUMEN"]);
     }
 
+    /// <summary>
+    /// ini のコンソール変数を、エンジンの ini、プロジェクトの ini の順に読み、後のものを優先する。
+    /// コンソール変数の節だけを読み、名前に点の無い設定の項目と配列の書き方は読まない。
+    /// </summary>
     [Fact]
     public void iniのコンソール変数を読む()
     {

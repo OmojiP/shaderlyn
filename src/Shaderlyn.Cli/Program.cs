@@ -523,6 +523,7 @@ public static class Program
 
         string fullOutput = Path.GetFullPath(outputDirectory);
         Unreal.UnrealUniformBufferGeneration generation;
+        string? materialTemplate;
 
         try
         {
@@ -530,7 +531,13 @@ public static class Program
                 roots,
                 fullOutput,
                 Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform),
-                Unreal.UnrealConsoleVariables.ReadOverrides(engine, configuration.UnrealProjectDirectory));
+                Unreal.UnrealConsoleVariables.ReadOverrides(engine, configuration.UnrealProjectDirectory),
+
+                // 解析で解決できない頂点ファクトリ (仮想パスを割り当てていないプラグインのもの) は、構成の軸に入れない。
+                ShaderFileResolver(settings));
+
+            // マテリアルのシェーダーが取り込む Material.ush / VertexFactory.ush の代わり。
+            materialTemplate = Unreal.UnrealMaterialGenerator.Write(fullOutput, engine);
 
             // 生成した後に ini や C++ を変えたら、解析を始めるときに伝える (ReportStaleUnrealGenerationAsync)。
             Unreal.UnrealGenerationStamp.Write(fullOutput, engine, configuration.UnrealProjectDirectory, roots);
@@ -551,6 +558,9 @@ public static class Program
             report.AppendLine(CultureInfo.InvariantCulture, $"宣言が見つからなかったクラスが {generation.MissingShaderClassCount} 個あります。これらのクラスが登録したシェーダーには、クラスで決まるマクロを定義せずに解析します。");
         }
 
+        report.AppendLine(materialTemplate is null
+            ? "MaterialTemplate.ush か、マテリアルの属性を書いた C++ が見つからないので、マテリアルのシェーダーの代わりの Material.ush は作りませんでした。"
+            : "マテリアルのシェーダーの代わりの Material.ush を作りました (実際のマテリアルの中身ではなく、既定値で埋めたもの)。");
         report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
 
         if (!generation.UnreadShaderRegistrations.IsEmpty)
@@ -762,6 +772,15 @@ public static class Program
             await errorOutput.WriteLineAsync($"解析の対象外のファイルがあります: {string.Join(", ", counts)}")
                 .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>シェーダーのファイルの仮想パスを、解析と同じ割り当てで解決できるかを判定する手続きを作る。</summary>
+    /// <param name="settings">設定。</param>
+    /// <returns>手続き。</returns>
+    private static Func<string, bool> ShaderFileResolver(EffectiveSettings settings)
+    {
+        Unreal.UnrealVirtualPathResolver resolver = new(SemanticsSetup.CreateUnreal(settings).GetVirtualPathMappings());
+        return path => resolver.TryResolve(path, string.Empty, out _);
     }
 
     /// <summary>Unreal の生成物を作った後に、ini や C++ が変わったことを伝える。</summary>

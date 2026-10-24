@@ -59,12 +59,17 @@ public static partial class UnrealUniformBufferGenerator
     /// <param name="consoleVariableOverrides">
     /// ini に書かれたコンソール変数の値 (<see cref="UnrealConsoleVariables.ReadOverrides"/>)。C++ に書いた既定値より優先する。
     /// </param>
+    /// <param name="shaderFileExists">
+    /// シェーダーのファイルの仮想パスを、解析で解決できるかを判定する手続き。解決できない頂点ファクトリ (割り当てていないプラグインのもの) は軸に入れない。
+    /// <see langword="null"/> なら判定しない。
+    /// </param>
     /// <returns>書き出した結果。</returns>
     public static UnrealUniformBufferGeneration Generate(
         IEnumerable<string> sourceRoots,
         string outputDirectory,
         ImmutableDictionary<string, string>? platformSettings = null,
-        ImmutableDictionary<string, string>? consoleVariableOverrides = null)
+        ImmutableDictionary<string, string>? consoleVariableOverrides = null,
+        Func<string, bool>? shaderFileExists = null)
     {
         ArgumentNullException.ThrowIfNull(sourceRoots);
         ArgumentNullException.ThrowIfNull(outputDirectory);
@@ -72,6 +77,7 @@ public static partial class UnrealUniformBufferGenerator
         ParsedSources parsed = Parse(sourceRoots);
         parsed.Classes.PlatformSettings = platformSettings;
         parsed.Classes.ConsoleVariableOverrides = consoleVariableOverrides;
+        parsed.ShaderFileExists = shaderFileExists;
         return Write(parsed, outputDirectory);
     }
 
@@ -129,6 +135,20 @@ public static partial class UnrealUniformBufferGenerator
 
         /// <summary>登録を包んだ独自のマクロの定義と呼び出し。すべてのファイルを読んでから展開する。</summary>
         public UnrealShaderRegistrations.MacroRegistrations RegistrationMacros { get; } = new();
+
+        /// <summary>
+        /// メンバーを 1 つずつマクロとして定義する列挙の名前 (<c>SetDefine(DebugViewShaderModeToString(static_cast&lt;EDebugViewShaderMode&gt;(i)), i)</c>)。
+        /// </summary>
+        public ConcurrentDictionary<string, byte> EnumsDefinedAsMacros { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>列挙の名前からメンバーの名前 (宣言の順)。<see cref="EnumsDefinedAsMacros"/> のメンバーを引く。</summary>
+        public ConcurrentDictionary<string, ImmutableArray<string>> EnumMembers { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>頂点ファクトリの名前から登録 (<c>IMPLEMENT_VERTEX_FACTORY_TYPE</c>)。</summary>
+        public ConcurrentDictionary<string, UnrealVertexFactory> VertexFactories { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>シェーダーのファイルを解析で解決できるかを判定する手続き (<see cref="Generate"/>)。</summary>
+        public Func<string, bool>? ShaderFileExists { get; set; }
 
         /// <summary>読んだファイルの数。</summary>
         public int FileCount;
@@ -215,6 +235,12 @@ public static partial class UnrealUniformBufferGenerator
                 && !text.Contains("FStaticShaderPlatform", StringComparison.Ordinal)
                 && !IsSharedShaderHeader(path))
             {
+                // ほかのファイルの列挙は、メンバーを 1 つずつマクロにするものがあるので、宣言だけを読む (DebugViewModeHelpers.h)。
+                if (text.Contains("enum ", StringComparison.Ordinal))
+                {
+                    CollectEnums(WithoutCommentsAndDefines(text), parsed);
+                }
+
                 return;
             }
 
@@ -223,6 +249,23 @@ public static partial class UnrealUniformBufferGenerator
         });
 
         return parsed;
+    }
+
+    /// <summary>列挙の宣言を読み、メンバーの名前を覚える (<see cref="ParsedSources.EnumMembers"/>)。</summary>
+    /// <param name="code">コメントとマクロの定義を除いたコード。</param>
+    /// <param name="parsed">覚える先。</param>
+    private static void CollectEnums(string code, ParsedSources parsed)
+    {
+        foreach (Match match in EnumDeclaration().Matches(code))
+        {
+            parsed.EnumMembers.TryAdd(
+                match.Groups["name"].Value,
+                [
+                    .. match.Groups["body"].Value.Split(',')
+                        .Select(member => member.Split('=')[0].Trim())
+                        .Where(member => member.Length > 0 && (char.IsLetter(member[0]) || member[0] == '_')),
+                ]);
+        }
     }
 
     /// <summary>C++ とシェーダーが共有するヘッダ (<c>Shaders/Shared</c> の下) かを判定する。</summary>
@@ -249,11 +292,23 @@ public static partial class UnrealUniformBufferGenerator
         }
 
         UnrealShaderRegistrations.Collect(path, code, parsed.ShaderRegistrations, parsed.UnreadShaderRegistrations);
+        UnrealVertexFactories.Collect(text, code, parsed.VertexFactories);
         UnrealShaderRegistrations.CollectMacros(path, text, code, parsed.RegistrationMacros);
 
         foreach (Match match in EngineDefine().Matches(code))
         {
             parsed.EngineDefines.TryAdd(match.Groups["name"].Value, 0);
+        }
+
+        // 列挙のメンバーを 1 つずつマクロにするループ。名前は列挙を引いてから足す (EnumMacroNames)。
+        foreach (Match match in EnumDefine().Matches(code))
+        {
+            parsed.EnumsDefinedAsMacros.TryAdd(match.Groups["enum"].Value, 0);
+        }
+
+        if (code.Contains("enum", StringComparison.Ordinal))
+        {
+            CollectEnums(code, parsed);
         }
 
         if (!StructBegin().IsMatch(text))
@@ -750,13 +805,31 @@ public static partial class UnrealUniformBufferGenerator
             written.Add(stereo);
         }
 
+        foreach (string name in EnumMacroNames(parsed))
+        {
+            parsed.EngineDefines.TryAdd(name, 0);
+        }
+
         string defines = Path.Combine(outputDirectory, EngineDefinesFileName);
         File.WriteAllText(defines, string.Concat(parsed.EngineDefines.Keys.Order(StringComparer.Ordinal).Select(name => name + "\n")));
         written.Add(defines);
         written.Add(UnrealShaderRegistrations.Write(outputDirectory, parsed.ShaderRegistrations));
 
+        // メッシュに描くマテリアルのシェーダーは、頂点ファクトリを軸にする (UnrealVertexFactories)。
+        ImmutableArray<UnrealVertexFactory> vertexFactories = UnrealVertexFactories.Order(
+            parsed.VertexFactories.Values.Where(f => parsed.ShaderFileExists?.Invoke(f.ShaderFile) != false));
+        parsed.Classes.VertexFactories = vertexFactories;
+
+        // 頂点ファクトリの側の ShouldCompilePermutation は、シェーダーのステージで答える (Parameters.ShaderType->GetFrequency())。
+        parsed.Classes.ClassFrequencies = parsed.ShaderRegistrations
+            .GroupBy(r => UnrealShaderClasses.BareClassName(r.ShaderClass), StringComparer.Ordinal)
+            .ToImmutableDictionary(g => g.Key, g => g.Select(r => r.Frequency).ToImmutableHashSet(StringComparer.Ordinal), StringComparer.Ordinal);
+
         ImmutableArray<UnrealShaderClass> classes = parsed.Classes.Resolve(parsed.ShaderRegistrations.Select(r => r.ShaderClass), out int missingClasses);
         written.Add(UnrealShaderClasses.Write(outputDirectory, classes, parsed.Classes.GlobalDefines));
+
+        // 頂点ファクトリの定義するマクロは、クラスを読んでから求まる (ModifyCompilationEnvironment を実行する)。
+        written.AddRange(UnrealVertexFactories.Write(outputDirectory, vertexFactories, parsed.Classes.VertexFactoryDefines));
 
         return new UnrealUniformBufferGeneration(
             parsed.FileCount,
@@ -1034,8 +1107,41 @@ public static partial class UnrealUniformBufferGenerator
     /// エンジンの C++ がシェーダーに定義するマクロ。<c>SetDefine(TEXT("NAME"), …)</c>、<c>SET_SHADER_DEFINE(Environment, NAME, …)</c>、
     /// パーミュテーションの次元 (<c>SHADER_PERMUTATION_BOOL("NAME")</c> など)。
     /// </summary>
-    [GeneratedRegex(""""\bSetDefine\s*\(\s*(?:TEXT\s*\(\s*)?"(?<name>[A-Za-z_]\w*)"|\bSET_SHADER_DEFINE\s*\([^,()]*,\s*(?<name>[A-Za-z_]\w*)\s*,|\bSHADER_PERMUTATION_\w+\s*\(\s*(?:TEXT\s*\(\s*)?"(?<name>[A-Za-z_]\w*)"""", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(""""\bSetDefine(?:IfUnset)?\s*\(\s*(?:TEXT\s*\(\s*)?"(?<name>[A-Za-z_]\w*)"|\bSET_SHADER_DEFINE\s*\([^,()]*,\s*(?<name>[A-Za-z_]\w*)\s*,|\bSHADER_PERMUTATION_\w+\s*\(\s*(?:TEXT\s*\(\s*)?"(?<name>[A-Za-z_]\w*)"""", RegexOptions.CultureInvariant)]
     private static partial Regex EngineDefine();
+
+    /// <summary>列挙のメンバーを 1 つずつマクロにするループの <c>SetDefine</c> (<c>SetDefine(XToString(static_cast&lt;EX&gt;(i)), i)</c>)。</summary>
+    [GeneratedRegex("""SetDefine\(\s*[A-Za-z_]\w*ToString\s*\(\s*static_cast\s*<\s*(?<enum>[A-Za-z_]\w*)\s*>""", RegexOptions.CultureInvariant)]
+    private static partial Regex EnumDefine();
+
+    /// <summary>列挙の宣言 (<c>enum EX { A, B = 2, }</c>、<c>enum class EX : uint8 { … }</c>)。</summary>
+    [GeneratedRegex("""\benum\s+(?:class\s+)?(?<name>[A-Za-z_]\w*)\s*(?::\s*[A-Za-z_]\w*\s*)?\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
+    private static partial Regex EnumDeclaration();
+
+    /// <summary>
+    /// メンバーを 1 つずつマクロにする列挙の、メンバーの名前。数を表す最後のメンバー (<c>DVSM_MAX</c>) は除く (ループはその手前まで)。
+    /// </summary>
+    /// <param name="parsed">読んだもの。</param>
+    /// <returns>マクロの名前。</returns>
+    /// <remarks>
+    /// <c>DebugViewModeRendering.cpp</c> は <c>for (int i = 0; i &lt; DVSM_MAX; ++i) SetDefine(DebugViewShaderModeToString(…(i)), i)</c> で、
+    /// <c>DVSM_None</c> などをすべて定義する。名前が式から作られるので、ふつうの <c>SetDefine(TEXT("…"))</c> としては読めない。
+    /// </remarks>
+    private static IEnumerable<string> EnumMacroNames(ParsedSources parsed)
+    {
+        foreach (string name in parsed.EnumsDefinedAsMacros.Keys)
+        {
+            if (!parsed.EnumMembers.TryGetValue(name, out ImmutableArray<string> members))
+            {
+                continue;
+            }
+
+            foreach (string member in members.Where(m => !m.EndsWith("_MAX", StringComparison.Ordinal) && m is not ("MAX" or "Max" or "Num" or "Count")))
+            {
+                yield return member;
+            }
+        }
+    }
 
     [GeneratedRegex("""^TShaderParameterTypeInfo<(?<type>\w+)>::TInstancedType$""", RegexOptions.CultureInvariant)]
     private static partial Regex InstancedType();

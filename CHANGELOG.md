@@ -64,12 +64,34 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   (`ShaderlynGenerationStamp.tsv`)。解析を始めるときに比べ、生成した後に ini や C++ が変わっていたら、作り直すよう伝える
   (CLI は標準エラー、VS Code 拡張は通知)。UE 5.5 のエンジンで、確かめるのに約 2 秒かかる。
   公開 API に `UnrealGenerationStamp` と `UnrealGenerationStaleness` を足した
+- Unreal Engine: `--unreal-generate` が、マテリアルの `Material.ush` と `VertexFactory.ush` の代わりも作る。
+  マテリアルのシェーダーでも宣言を検査する (今までは UE0002 を出して検査しなかった)。
+  `Material.ush` は、エンジンの `MaterialTemplate.ush` の穴を、どのマテリアルでもない中身で埋めたもの。
+  `VertexFactory.ush` は、C++ の頂点ファクトリの登録 (`IMPLEMENT_VERTEX_FACTORY_TYPE` など) から作り、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込む。
+  シェーダーのクラスの `ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読む。
+  頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ (`PARTICLE_SPRITE_FACTORY` など) も、
+  エンジンのコマンドラインと同じく、どのファイルよりも先に定義する (`ShaderlynVertexFactoryDefines.ush` を単位の先頭で取り込む)。
+  `unreal: permutations: true` なら頂点ファクトリを構成の軸にする。そうでなければクラスごとに 1 つを選び、選んだものが違うクラスは別の単位にする。
+  あわせて、列挙のメンバーを 1 つずつマクロにするループ (`SetDefine(XToString(static_cast<EX>(i)), i)`)、
+  頂点ファクトリの型を比べる式 (`Parameters.VertexFactoryType->GetFName() == FName(TEXT("…"))`)、
+  登録と同じファイルの `using` / `typedef` の別名で登録したクラス、描画の方式 (`FSceneInterface::GetShadingPath`)、
+  まだ定義していなければ定義する `SetDefineIfUnset` を読む。
+  評価できないメンバーの呼び出し (関数の中の static な変数の `CVar.Get(…)` など) は、その部分だけを値の分からないものにして式の残りを読む。
+  公開 API に `UnrealMaterialGenerator`、`UnrealVertexFactories`、`HlslEnvironmentOptions.SelectUnitPrelude` を足した
 - Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
   (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
   公開 API に `UnrealShaderClass.NeverCompiled`、`ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
 
 ### 修正
 
+- HL0313: ある木で条件の付かない構造体のメンバーを、後から読んだ木の条件で上書きしていた。
+  頂点ファクトリごとの木で、どの頂点ファクトリにもある `FVertexFactoryInput.Position` を、
+  1 つの頂点ファクトリでは無いと報告していた (UE 5.5 の `LocalVertexFactory.ush`)
+- 値を持つシンボルの、同じ名前の別の値 (`QUALITY == 1` と `QUALITY == 2`) を、値を宣言した単位が違うと同時に成り立ちうると見ていた。
+  どの単位でも同時には成り立たないものとして扱う。ある単位の木の構成とほかの単位の分岐の条件を掛けた、成り立たない構成を
+  `#error` に到達すると報告していた (HL0009。UE 5.5 の `PathTracingMaterialHitShader.usf`)
+- Unreal Engine: 最初のエントリ関数とステージが同じで、登録の文字列が違う単位 (`closesthit=A` と `closesthit=A intersection=B`) を、
+  クラスの名前で見分けていなかった。同じ単位の構成として比べ、別の頂点ファクトリの宣言と重なると報告していた (HL0314)
 - Unreal Engine: `--unreal-generate` が、ポインタで宣言した局所変数 (`static IConsoleVariable* CVar = …;`) を宣言として読まず、
   前のブロックで同じ名前で宣言した別のコンソール変数の値を使っていた。`GlobalBeginCompileShader` が定義する `PROJECT_SUPPORTS_LUMEN` などを、
   別のコンソール変数の値 (0) で決めていた

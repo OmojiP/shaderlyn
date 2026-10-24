@@ -298,7 +298,7 @@ public sealed partial record UnrealOptions
             [
                 .. byPath[virtualPath]
                     .Where(r => FindClass(classes, r.ShaderClass) is not { NeverCompiled: true })
-                    .GroupBy(r => (r.EntryPoint, r.Frequency, PermutationAxes ? ClassShape(classes, r.ShaderClass) : string.Empty))
+                    .GroupBy(r => (r.EntryPoint, r.Frequency, PermutationAxes ? ClassShape(classes, r.ShaderClass) : DefaultVertexFactory(classes, r.ShaderClass)))
                     .OrderBy(g => g.Key.EntryPoint, StringComparer.Ordinal)
                     .ThenBy(g => g.Key.Frequency, StringComparer.Ordinal)
                     .ThenBy(g => g.Min(r => r.ShaderClass), StringComparer.Ordinal),
@@ -312,10 +312,13 @@ public sealed partial record UnrealOptions
                 return [whole with { NotCompiledReason = notCompiled }];
             }
 
-            // 同じエントリポイントとステージに単位が複数あれば、クラスの名前で見分ける。
+            // 名前 (最初のエントリ関数とステージ) が同じ単位が複数あれば、クラスの名前で見分ける。
+            // 名前は単位のコードブロックの鍵でもある。同じだと、別の単位の木を同じブロックの構成として比べ、
+            // 別の頂点ファクトリの宣言と重なると報告していた (UE 5.5 の PathTracingMaterialHitShader.usf の
+            // closesthit=PathTracingMaterialCHS と closesthit=PathTracingMaterialCHS intersection=MaterialIS)。
             HashSet<(string, string)> shared =
             [
-                .. found.GroupBy(g => (g.Key.EntryPoint, g.Key.Frequency)).Where(g => g.Count() > 1).Select(g => g.Key),
+                .. found.GroupBy(g => UnitNameKey(g.Key.EntryPoint, g.Key.Frequency)).Where(g => g.Count() > 1).Select(g => g.Key),
             ];
 
             return
@@ -327,9 +330,12 @@ public sealed partial record UnrealOptions
                     platformMacros,
                     PermutationAxes ? baseVariants : null,
                     named: found.Length > 1,
-                    distinguisher: shared.Contains((g.Key.EntryPoint, g.Key.Frequency)) ? g.Min(r => r.ShaderClass) : null)),
+                    distinguisher: shared.Contains(UnitNameKey(g.Key.EntryPoint, g.Key.Frequency)) ? g.Min(r => r.ShaderClass) : null)),
             ];
         };
+
+        static (string, string) UnitNameKey(string entryPoint, string frequency)
+            => (UnrealShaderRegistrations.EntryFunctions(entryPoint).FirstOrDefault() ?? entryPoint, frequency);
     }
 
     /// <summary>ファイルのパスを仮想パスにする。</summary>
@@ -352,6 +358,16 @@ public sealed partial record UnrealOptions
 
         return null;
     }
+
+    /// <summary>
+    /// クラスが読む頂点ファクトリ (<see cref="UnrealVertexFactories.DefaultMacro"/>)。パーミュテーションを軸にしない解析で、これが違うクラスは別の単位にする。
+    /// </summary>
+    /// <remarks>
+    /// まとめると値が決まらず、どの頂点ファクトリの <c>.ush</c> も読んで、同じ関数の定義が重なっていた
+    /// (UE 5.5 の PathTracingMaterialHitShader.usf。交差シェーダーを使うクラスは髪の頂点ファクトリとだけコンパイルされる)。
+    /// </remarks>
+    private static string DefaultVertexFactory(ImmutableDictionary<string, UnrealShaderClass> classes, string className)
+        => FindClass(classes, className)?.Defines.GetValueOrDefault(UnrealVertexFactories.DefaultMacro) ?? string.Empty;
 
     /// <summary>クラスが定義するもの (マクロ・パーミュテーション・フラグ) を表す文字列。同じなら、同じ単位にまとめられる。</summary>
     /// <param name="classes">C++ のシェーダーのクラス。</param>
@@ -877,6 +893,11 @@ public sealed partial record UnrealOptions
 
             // エンジンと同じく、単位が名前で参照する uniform buffer だけを取り込む (UnrealUniformBufferSelection)。
             SelectUnitIncludeResolver = uniformBuffers is null ? null : uniformBuffers.Wrap,
+
+            // メッシュに描くマテリアルのシェーダー (頂点ファクトリを選ぶクラスの単位) には、頂点ファクトリの定義するマクロを先に定義する。
+            SelectUnitPrelude = GeneratedDirectory is { } generated && UnrealVertexFactories.CreatePrelude(generated) is { } prelude
+                ? unit => unit.ExtraMacros?.ContainsKey(UnrealVertexFactories.DefaultMacro) == true ? prelude : null
+                : null,
 
             // シェーダーの C++ が個別に HLSL 2021 にすることがある (CFLAG_HLSL2021)。C++ を読むまでは見分けられない。
             AcceptHlsl2021DeclarationsIn2018 = engineDefault is not null,

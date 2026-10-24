@@ -61,6 +61,10 @@ public static partial class UnrealShaderRegistrations
     /// <param name="code">コメントとマクロの定義を除いた中身。</param>
     /// <param name="registrations">拾った登録を足す先。</param>
     /// <param name="unread">読めなかった登録のマクロの名前と数を足す先。</param>
+    /// <remarks>
+    /// 登録のクラスが、同じファイルで付けた別名 (<c>using FPathTracingMaterialCHS_IS = TPathTracingMaterial&lt;false, true, false, false&gt;;</c>) なら、
+    /// 別名が指すクラスにする。クラスのマクロを、テンプレートの引数ごとに読める。
+    /// </remarks>
     internal static void Collect(
         string sourceFile,
         string code,
@@ -68,17 +72,18 @@ public static partial class UnrealShaderRegistrations
         ConcurrentDictionary<string, int> unread)
     {
         Dictionary<string, int> read = new(StringComparer.Ordinal);
+        Dictionary<string, string> aliases = Aliases(code);
 
         foreach (Match match in GlobalShader().Matches(code))
         {
-            registrations.Add(Create(match, "IMPLEMENT_GLOBAL_SHADER", sourceFile));
+            registrations.Add(WithAlias(Create(match, "IMPLEMENT_GLOBAL_SHADER", sourceFile), aliases));
             read["IMPLEMENT_GLOBAL_SHADER"] = read.GetValueOrDefault("IMPLEMENT_GLOBAL_SHADER") + 1;
         }
 
         foreach (Match match in ShaderType().Matches(code))
         {
             string macro = match.Groups["macro"].Value;
-            registrations.Add(Create(match, macro, sourceFile));
+            registrations.Add(WithAlias(Create(match, macro, sourceFile), aliases));
             read[macro] = read.GetValueOrDefault(macro) + 1;
         }
 
@@ -185,24 +190,18 @@ public static partial class UnrealShaderRegistrations
                 continue;
             }
 
-            Dictionary<string, string> typedefs = new(StringComparer.Ordinal);
-
-            foreach (Match typedef in Typedef().Matches(expanded))
-            {
-                typedefs[typedef.Groups["alias"].Value] = Regex.Replace(typedef.Groups["target"].Value, @"\s+", string.Empty);
-            }
-
+            Dictionary<string, string> typedefs = Aliases(expanded);
             int found = 0;
 
             foreach (Match match in GlobalShader().Matches(expanded))
             {
-                registrations.Add(WithTypedef(Create(match, name, file), typedefs));
+                registrations.Add(WithAlias(Create(match, name, file), typedefs));
                 found++;
             }
 
             foreach (Match match in ShaderType().Matches(expanded))
             {
-                registrations.Add(WithTypedef(Create(match, name, file), typedefs));
+                registrations.Add(WithAlias(Create(match, name, file), typedefs));
                 found++;
             }
 
@@ -216,12 +215,31 @@ public static partial class UnrealShaderRegistrations
         {
             unread.TryRemove(name, out _);
         }
-
-        static UnrealShaderRegistration WithTypedef(UnrealShaderRegistration registration, Dictionary<string, string> typedefs)
-            => typedefs.TryGetValue(registration.ShaderClass, out string? target)
-                ? registration with { ShaderClass = target }
-                : registration;
     }
+
+    /// <summary>コードの <c>typedef 型 名前;</c> と <c>using 名前 = 型;</c> から、別名と、それが指す型 (空白を除いたもの)。</summary>
+    private static Dictionary<string, string> Aliases(string code)
+    {
+        Dictionary<string, string> aliases = new(StringComparer.Ordinal);
+
+        if (!code.Contains("typedef", StringComparison.Ordinal) && !code.Contains("using", StringComparison.Ordinal))
+        {
+            return aliases;
+        }
+
+        foreach (Match alias in Typedef().Matches(code).Concat(UsingAlias().Matches(code)))
+        {
+            aliases[alias.Groups["alias"].Value] = Regex.Replace(alias.Groups["target"].Value, @"\s+", string.Empty);
+        }
+
+        return aliases;
+    }
+
+    /// <summary>登録のクラスが別名なら、それが指すクラスにする。</summary>
+    private static UnrealShaderRegistration WithAlias(UnrealShaderRegistration registration, Dictionary<string, string> aliases)
+        => aliases.TryGetValue(registration.ShaderClass, out string? target)
+            ? registration with { ShaderClass = target }
+            : registration;
 
     /// <summary>独自のマクロの呼び出しを 1 つ展開する。</summary>
     /// <returns>展開した中身。定義が無いか、引数の数が合わなければ <see langword="null"/>。</returns>
@@ -551,4 +569,8 @@ public static partial class UnrealShaderRegistrations
     /// <summary><c>typedef 型 名前;</c>。</summary>
     [GeneratedRegex("""\btypedef\s+(?<target>[^;]+?)\s+(?<alias>[A-Za-z_]\w*)\s*;""", RegexOptions.CultureInvariant)]
     private static partial Regex Typedef();
+
+    /// <summary><c>using 名前 = 型;</c>。</summary>
+    [GeneratedRegex("""\busing\s+(?<alias>[A-Za-z_]\w*)\s*=\s*(?<target>[^;]+?)\s*;""", RegexOptions.CultureInvariant)]
+    private static partial Regex UsingAlias();
 }

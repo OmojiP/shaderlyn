@@ -1412,6 +1412,7 @@ Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Im
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] EngineDefinedFunctions { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] EngineDefinedMacros { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`2[Shaderlyn.Semantics.Environments.ShaderCompilationUnit,System.String] SelectUnitPrelude { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,Shaderlyn.CFamily.Preprocessing.IIncludeResolver] SelectUnitIncludeResolver { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,Shaderlyn.Hlsl.Parsing.HlslLanguageVersion] SelectUnitLanguageVersion { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String]] SelectUnitMacros { get; set; }

@@ -80,6 +80,15 @@ public sealed record HlslEnvironmentOptions
     public Func<string, IIncludeResolver, IIncludeResolver>? SelectUnitIncludeResolver { get; init; }
 
     /// <summary>
+    /// 単位ごとに、どのファイルよりも先に読むコード (<see cref="PreprocessorOptions.Prelude"/>) を決める手続き。無ければ <see langword="null"/> を返す。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine は、メッシュに描くマテリアルのシェーダーに、頂点ファクトリの定義するマクロをコマンドラインで定義する。
+    /// どれを定義するかは頂点ファクトリ (構成の軸) で変わるので、マクロの表 (<see cref="ShaderCompilationUnit.ExtraMacros"/>) では書けない。
+    /// </remarks>
+    public Func<ShaderCompilationUnit, string?>? SelectUnitPrelude { get; init; }
+
+    /// <summary>
     /// HLSL 2021 で読む単位にだけ定義するマクロ (Unreal Engine の <c>COMPILER_SUPPORTS_HLSL2021</c>)。DXC のときだけ使う。
     /// </summary>
     public ImmutableDictionary<string, string> Hlsl2021Macros { get; init; } = ImmutableDictionary<string, string>.Empty;
@@ -190,6 +199,14 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
         if (Options.SelectUnitIncludeResolver is { } selectResolver && options.IncludeResolver is { } resolver)
         {
             options = options with { IncludeResolver = selectResolver(filePath, resolver) };
+        }
+
+        if (Options.SelectUnitPrelude?.Invoke(unit) is { Length: > 0 } prelude)
+        {
+            options = options with
+            {
+                Prelude = SourceText.From(options.Prelude is { } existing ? existing + "\n" + prelude : prelude, "<単位の前置き>"),
+            };
         }
 
         if (Options.SelectUnitMacros?.Invoke(filePath, options.IncludeResolver) is { Count: > 0 } unitMacros)
