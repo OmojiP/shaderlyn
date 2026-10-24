@@ -57,6 +57,13 @@ internal static class AnalysisSettings
         .Where(p => !AmbiguousExtensions.Contains(p.Extension))
         .ToFrozenDictionary(p => p.Extension, p => p.Name, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>拡張子から、その言語の環境の名前を引く (HLSL 以外の言語だけ)。</summary>
+    /// <param name="extension">拡張子 (<c>.vert</c> など)。</param>
+    /// <returns>環境の名前。HLSL の拡張子や、ほかの用途と重なる拡張子 (<c>.mesh</c>) なら <see langword="null"/>。</returns>
+    /// <remarks>VS Code 拡張も、CLI と同じくこれで GLSL などのファイルの環境を決める。</remarks>
+    public static string? LanguageFor(string extension)
+        => LanguageByExtension.TryGetValue(extension, out string? language) ? language : null;
+
     /// <summary>フォルダーから集める拡張子。どの設定ファイルがどの環境を指していても取りこぼさないよう、すべての環境の拡張子を集める。</summary>
     /// <param name="hosts">足した環境。</param>
     /// <returns>拡張子。</returns>

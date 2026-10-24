@@ -14,6 +14,7 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
   - [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
   - [Unreal Engine](#unreal-engine)
     - [C++ から生成されるファイルを作る](#c-から生成されるファイルを作る)
+  - [GLSL](#glsl)
   - [独自エンジン](#独自エンジン)
   - [CI で使う](#ci-で使う)
   - [環境によって変わること](#環境によって変わること)
@@ -29,7 +30,8 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 | `unity` (既定) | Unity の ShaderLab と HLSL | `.shader` / `.compute` |
 | `hlsl` | DXC で直接コンパイルする HLSL | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー | `.usf` |
-| `glsl` / `godot` / `slang` / `wgsl` | GLSL / Godot / Slang / WGSL (作っているところ。今は GLSL の構文エラーだけを指摘する) | `.vert` / `.frag` / `.comp` などと `.glsl` / `.gdshader` / `.slang` / `.wgsl` |
+| `glsl` | GLSL (構文エラーを指摘する。[下記](#glsl)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
+| `godot` / `slang` / `wgsl` | Godot / Slang / WGSL (作っているところ。今は何も指摘しない) | `.gdshader` / `.slang` / `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、名前を挙げたときだけ解析します。
@@ -208,6 +210,35 @@ unreal:
   ```
 
 UE 5.5 のエンジンのシェーダー (`Engine/Shaders` の `.usf` 522 個) では、宣言の検査を行えるものが 8 個から 460 個に増えます。
+
+## GLSL
+
+GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` / `.task`、レイトレーシングの `.rgen` などと、`.glsl`) は、
+設定ファイルが無くても、ほかの環境の設定ファイルの下にあっても、GLSL として解析します。VS Code 拡張も同じです。
+
+**今は構文の誤りだけを指摘します。** 指摘するのは次のものです。
+
+| ルール | 内容 |
+| --- | --- |
+| [HL0001](../rules/HL0001.md) | 構文の誤り |
+| [HL0002](../rules/HL0002.md) など | プリプロセッサ指令の誤り (閉じていない `#if` など) |
+| [HL0321](../rules/HL0321.md) | 解決できない `#include` (その中の構文は読めていない) |
+
+**宣言・型・呼び出しの検査 (宣言されていない名前、型の不一致、引数の数など) は 0.3.1 で対応する予定です。**
+今は GLSL の組み込みの型と関数 (`vec4`、`texture` など) を知らないので、これらの検査は行いません (誤って報告することもありません)。
+VS Code 拡張の説明 (ホバー)・定義へ移動・補完も、GLSL のファイルではまだ働きません。
+
+- `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
+  HLSL と同じく、解析対象の外のファイルは読みません
+- `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ読みます
+- 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
+
+```yaml
+version: 1
+environment: glsl
+include-paths:
+  - shaders/include
+```
 
 ## 独自エンジン
 

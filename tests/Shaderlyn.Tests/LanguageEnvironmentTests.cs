@@ -63,6 +63,30 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     /// <summary>
+    /// GLSL の取り込み (<c>GL_GOOGLE_include_directive</c>) を解決して、取り込んだ先の構文も読む。
+    /// 解決できない取り込みは、その中を読めていないので HL0321 で伝える。
+    /// </summary>
+    [Fact]
+    public async Task GLSLの取り込みを読み_解決できなければ伝える()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "common.glsl"), "vec4 tint(vec4 c) { return c * ; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "main.frag"), """
+            #version 450
+            #extension GL_GOOGLE_include_directive : require
+            #include "common.glsl"
+            #include "missing.glsl"
+            layout(location = 0) out vec4 outColor;
+            void main() { outColor = tint(vec4(1.0)); }
+            """);
+
+        (_, string output) = await RunAsync();
+
+        Assert.Contains("HL0321", output, StringComparison.Ordinal);
+        Assert.Contains("missing.glsl", output, StringComparison.Ordinal);
+        Assert.Contains("common.glsl(1:", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Unity のプロジェクトに GLSL のファイルが混ざっていれば、拡張子で GLSL として読む。
     /// Unity の環境で取り込まれる側の <c>.hlsl</c> は、今までどおり単体では読まない。
     /// </summary>
@@ -154,8 +178,11 @@ public sealed class LanguageEnvironmentTests : IDisposable
             (_, string output) = await RunAsync("--environment", "glsl", Path.Combine(_workDirectory, "a.frag"));
 
             Assert.Contains("inside.glsl", output, StringComparison.Ordinal);
-            Assert.DoesNotContain("secret.glsl", output, StringComparison.Ordinal);
+
+            // 外のファイルは読まないので、その中の指摘は出ない。取り込みを解決できなかったこと (HL0321) だけを伝える。
+            Assert.DoesNotContain("secret.glsl(", output, StringComparison.Ordinal);
             Assert.DoesNotContain("leaked", output, StringComparison.Ordinal);
+            Assert.Contains("HL0321", output, StringComparison.Ordinal);
         }
         finally
         {

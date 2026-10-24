@@ -538,7 +538,7 @@ internal sealed class CommandLineOptions
                                  探索しません。名前を挙げて指定すれば解析します。
 
         オプション:
-          --environment <名前>   解析する環境: unity (既定), hlsl, unreal。設定ファイルの environment より優先します。
+          --environment <名前>   解析する環境: unity (既定), hlsl, unreal, glsl。設定ファイルの environment より優先します。
           --format <形式>        出力形式: text (既定), json, sarif, github
           --error-on <重要度>    この重要度以上の指摘で終了コード 1 を返す: info, warning (既定), error
           --min-severity <重要度>

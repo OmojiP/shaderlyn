@@ -209,6 +209,13 @@ public sealed partial class ShaderLanguageServer
     /// </remarks>
     private async Task HandleAsync(string method, JsonElement message, CancellationToken cancellationToken)
     {
+        // 構文だけを読む環境 (GLSL など) の文書は、意味解析のモデルを作らない。モデルを使う要求には空で答える。
+        if (UsesSemanticModel(method) && !HasSemanticModel(message))
+        {
+            await RespondNullAsync(message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         switch (method)
         {
             case "initialize":
@@ -287,6 +294,23 @@ public sealed partial class ShaderLanguageServer
                 break;
         }
     }
+
+    /// <summary>意味解析のモデルを使う要求か。</summary>
+    /// <param name="method">メソッドの名前。</param>
+    /// <returns>使うなら <see langword="true"/>。</returns>
+    private static bool UsesSemanticModel(string method) => method is
+        "textDocument/hover" or "textDocument/definition" or "textDocument/completion" or "textDocument/signatureHelp"
+        or "textDocument/references" or "textDocument/rename" or "shaderlyn/inspect" or "shaderlyn/conditionSymbols";
+
+    /// <summary>要求の文書を解析する環境が、意味解析のモデルを作るか。文書が分からなければ作るものとする。</summary>
+    /// <param name="message">受け取ったメッセージ。</param>
+    /// <returns>作るなら <see langword="true"/>。</returns>
+    private bool HasSemanticModel(JsonElement message)
+        => !(message.TryGetProperty("params", out JsonElement parameters)
+             && parameters.TryGetProperty("textDocument", out JsonElement textDocument)
+             && textDocument.TryGetProperty("uri", out JsonElement uri)
+             && uri.GetString() is { } value
+             && !SessionFor(value).HasSemanticModel);
 
     /// <summary>スクリプトが開かれたときの処理。</summary>
     /// <param name="message">受け取ったメッセージ。</param>
@@ -689,32 +713,69 @@ public sealed partial class ShaderLanguageServer
     /// </remarks>
     private AnalysisSession SessionFor(string uri)
     {
-        if (DocumentUri.ToFilePath(uri) is not { } path
+        string? path = DocumentUri.ToFilePath(uri);
+        AnalysisSession configured = ConfiguredSessionFor(path, out string? configuration, out DateTime written);
+
+        // HLSL 以外の言語 (GLSL など) の拡張子は、CLI と同じく、設定の環境が読まなければその言語の環境で解析する。
+        // 設定の環境 (Unity など) で読むと、GLSL を ShaderLab や HLSL として読んで構文エラーを並べる。
+        if (path is null
+            || Cli.Environments.AnalysisSettings.LanguageFor(Path.GetExtension(path)) is not { } language
+            || configured.DefaultExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+        {
+            return configured;
+        }
+
+        return _sessionsByConfiguration.AddOrUpdate(
+            (configuration ?? string.Empty) + "\n" + language,
+            _ => (written, CreateSession(configuration, language)),
+            (_, existing) => existing.Written == written ? existing : (written, CreateSession(configuration, language))).Session;
+    }
+
+    /// <summary>ファイルから上へ辿って一番近い設定ファイルの設定を返す (<see cref="SessionFor"/>)。</summary>
+    /// <param name="path">ファイルのパス。</param>
+    /// <param name="configuration">見つかった設定ファイル。見つからなければ <see langword="null"/>。</param>
+    /// <param name="written">設定ファイルの更新日時。</param>
+    /// <returns>設定。見つからなければワークスペースの設定。</returns>
+    private AnalysisSession ConfiguredSessionFor(string? path, out string? configuration, out DateTime written)
+    {
+        written = default;
+        configuration = null;
+
+        if (path is null
             || Path.GetDirectoryName(path) is not { Length: > 0 } directory
-            || EffectiveSettings.FindConfigurationFile(directory) is not { } configuration)
+            || EffectiveSettings.FindConfigurationFile(directory) is not { } found)
         {
             return _session;
         }
 
-        DateTime written;
-
         try
         {
-            written = File.GetLastWriteTimeUtc(configuration);
+            written = File.GetLastWriteTimeUtc(found);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
             return _session;
         }
 
-        return _sessionsByConfiguration.AddOrUpdate(
-            configuration,
-            key => (written, CreateSession(key)),
-            (key, existing) => existing.Written == written ? existing : (written, CreateSession(key))).Session;
+        configuration = found;
+        DateTime stamp = written;
 
-        AnalysisSession CreateSession(string configurationPath)
-            => new(Path.GetDirectoryName(configurationPath), _analyzers, _environments);
+        return _sessionsByConfiguration.AddOrUpdate(
+            found,
+            key => (stamp, CreateSession(key, environment: null)),
+            (key, existing) => existing.Written == stamp ? existing : (stamp, CreateSession(key, environment: null))).Session;
     }
+
+    /// <summary>設定ファイルのフォルダーで解析の設定を作る。</summary>
+    /// <param name="configurationPath">設定ファイル。無ければワークスペースのルートで作る。</param>
+    /// <param name="environment">設定の環境の代わりに使う環境の名前。</param>
+    /// <returns>設定。</returns>
+    private AnalysisSession CreateSession(string? configurationPath, string? environment)
+        => new(
+            configurationPath is null ? _session.WorkspaceDirectory : Path.GetDirectoryName(configurationPath),
+            _analyzers,
+            _environments,
+            environment);
 
     /// <summary>
     /// 指摘に対する直しを返す。
@@ -1282,7 +1343,7 @@ public sealed partial class ShaderLanguageServer
 
                     // 効いていない範囲は、展開しなければ分からない。意味解析を伴う段でだけ送る。
                     // 指摘より後に送る。範囲の計算に失敗しても、指摘は届いている。
-                    if (stage == AnalysisDepth.Full && inactiveRegionsRequested)
+                    if (stage == AnalysisDepth.Full && inactiveRegionsRequested && session.HasSemanticModel)
                     {
                         ImmutableArray<InactiveLineRange> regions = selectedConfiguration
                             ? InactiveRegionCollector.CollectSelectedConfiguration(

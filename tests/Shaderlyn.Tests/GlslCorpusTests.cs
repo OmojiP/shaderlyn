@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace Shaderlyn.Tests;
 
 /// <summary>
-/// GLSL のコーパスを、共通の構文木と、GLSL に固有の構文の解析で読めるかの測定 (単位 P2)。
+/// GLSL のコーパスを、共通の構文木と、GLSL に固有の構文の解析で読めるかの検証。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,7 +16,8 @@ namespace Shaderlyn.Tests;
 /// 渡したときだけ動く。コーパスはリポジトリに入れない。
 /// </para>
 /// <para>
-/// 今は数えて出すだけで、失敗にはしない。構文エラーが 0 件であることを確かめるのは GL1 である。
+/// GLSL は構文エラーが 0 件であることを確かめる (0.3.0 で GLSL の構文エラーの指摘を出すため)。
+/// 読んだ節の数と、エラーの例も出す。Godot と Slang は数えて出すだけで、失敗にはしない。
 /// </para>
 /// </remarks>
 public sealed class GlslCorpusTests(ITestOutputHelper output)
@@ -33,7 +34,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     private readonly ITestOutputHelper _output = output;
 
     [Fact]
-    public void GLSLのコーパスの構文エラーを数える()
+    public void GLSLのコーパスに構文エラーが無い()
     {
         string? root = Environment.GetEnvironmentVariable(CorpusVariable);
 
@@ -109,6 +110,9 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
                 _output.WriteLine($"       {example}");
             }
         }
+
+        Assert.True(files > 0, $"{CorpusVariable} の下に GLSL のファイルがありません。");
+        Assert.True(failedFiles == 0, $"構文エラーのあるファイルが {failedFiles} 件あります: {string.Join(", ", byMessage.Keys.Take(5))}");
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ inputs:
 
   environment:
     description: >
-      解析する環境: unity / hlsl / unreal。
+      解析する環境: unity / hlsl / unreal / glsl。
       省略時は設定ファイルの environment を使い、それも無ければ unity です。
     required: false
     default: ""

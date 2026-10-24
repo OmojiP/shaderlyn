@@ -85,9 +85,40 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
         Assert.False(Covers(mid, LineOf("Low")));
     }
 
+    /// <summary>
+    /// GLSL のファイルは、設定の環境 (ここでは hlsl) が読まない拡張子なので、CLI と同じく GLSL の環境で解析する。
+    /// 構文エラーだけを指摘し、HLSL として読んだときの誤り (<c>vec4</c> が宣言されていないなど) は出さない。
+    /// 意味解析のモデルを作らないので、説明 (ホバー) は空で答える。
+    /// </summary>
+    [Fact]
+    public async Task GLSLのファイルは構文エラーだけを指摘する()
+    {
+        string uri = DocumentUri("Shader.frag");
+        await using LanguageServerHarness harness = new(uri);
+        await harness.InitializeAsync(null, _workDirectory);
+        await harness.OpenAsync("""
+            #version 450
+            layout(location = 0) out vec4 outColor;
+            void main()
+            {
+                vec4 color = vec4(1.0);
+                outColor = color *;
+            }
+            """);
+
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(uri, d => d.GetArrayLength() > 0);
+        string[] codes = [.. diagnostics.EnumerateArray().Select(d => d.GetProperty("code").GetString()!)];
+
+        Assert.Contains("HL0001", codes);
+        Assert.All(codes, code => Assert.Equal("HL0001", code));
+
+        using JsonDocument hover = await harness.RequestHoverAsync(4, 9);
+        Assert.Equal(JsonValueKind.Null, hover.RootElement.GetProperty("result").ValueKind);
+    }
+
     /// <summary>ワークスペースの中のファイルの URI。</summary>
-    private string DocumentUri()
-        => LanguageServer.DocumentUri.FromFilePath(Path.Combine(_workDirectory, "Shader.hlsl"));
+    private string DocumentUri(string name = "Shader.hlsl")
+        => LanguageServer.DocumentUri.FromFilePath(Path.Combine(_workDirectory, name));
 
     /// <summary>その文字列が書かれた行の番号 (0 始まり)。</summary>
     private static int LineOf(string marker)

@@ -1,7 +1,7 @@
 {
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
-  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する",
+  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL は構文エラーを指摘する",
   "version": "0.3.0",
   "publisher": "OmojiP",
   "license": "MIT",
@@ -24,6 +24,7 @@
     "workspaceContains:**/*.shader",
     "workspaceContains:**/*.hlsl",
     "workspaceContains:**/*.usf",
+    "workspaceContains:**/*.{vert,frag,comp,geom,tesc,tese,task,rgen,rint,rahit,rchit,rmiss,rcall,glsl}",
     "workspaceContains:**/.shaderlyn.yaml"
   ],
   "main": "./out/extension.js",
