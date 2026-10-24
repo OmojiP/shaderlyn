@@ -266,7 +266,25 @@ internal static class ConditionMapBuilder
             blocks.Add((program.Variants.Symbols, program.Variants.Constraints));
         }
 
-        if (blocks.All(block => block.Constraints.IsEmpty))
+        // 同じ名前の別の値 (QUALITY==1 と QUALITY==2) は、どのブロックでも同時には成り立たない。
+        // 値を宣言したブロックが違っても排他である (Unreal の頂点ファクトリの値は、同じファイルの単位ごとに違う)。
+        // 入れないと、ある単位の木の構成 (SHADERLYN_VERTEX_FACTORY == 4) と、ほかの単位の分岐の条件 (== 10) を掛けた条件を、ありうると見ていた。
+        List<(string First, string Second)> valuePairs =
+        [
+            .. blocks
+                .SelectMany(block => block.Declared)
+                .Distinct(StringComparer.Ordinal)
+                .Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? (Name: name, Symbol: symbol) : default)
+                .Where(atom => atom.Name is not null)
+                .GroupBy(atom => atom.Name, StringComparer.Ordinal)
+                .SelectMany(byName =>
+                {
+                    string[] atoms = [.. byName.Select(atom => atom.Symbol).Order(StringComparer.Ordinal)];
+                    return atoms.SelectMany((first, i) => atoms.Skip(i + 1).Select(second => (first, second)));
+                }),
+        ];
+
+        if (valuePairs.Count == 0 && blocks.All(block => block.Constraints.IsEmpty))
         {
             return SymbolConstraints.Empty;
         }
@@ -278,7 +296,9 @@ internal static class ConditionMapBuilder
             .Where(pair => blocks.All(
                 block => !block.Declared.Contains(pair.First)
                          || !block.Declared.Contains(pair.Second)
-                         || block.Constraints.AreExclusive(pair.First, pair.Second)));
+                         || block.Constraints.AreExclusive(pair.First, pair.Second)))
+            .Concat(valuePairs)
+            .Distinct();
 
         // どれか 1 つが必ず定義される集まりは、その中のどれかを宣言しているどのブロックでも、その集まりに含まれる集まりがあるものだけ。
         // 含まれる集まりのどれか 1 つが定義されるなら、その集まりのどれか 1 つも定義される。
@@ -296,11 +316,26 @@ internal static class ConditionMapBuilder
 
         List<ImmutableArray<string>> groups = [];
 
+        // ブロックごとの、値を宣言した名前。
+        ImmutableHashSet<string>[] valueNames =
+        [
+            .. blocks.Select(block => block.Declared
+                .Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null)
+                .OfType<string>()
+                .ToImmutableHashSet(StringComparer.Ordinal)),
+        ];
+
         foreach (ImmutableArray<string> group in candidates)
         {
+            // 値の原子の集まりは、同じ名前のほかの値を宣言したブロックでも成り立たなければならない。
+            // 4 だけの単位の集まり (QUALITY==4) を、1 と 2 の単位を見ずに残すと、どこでも QUALITY==4 が成り立つことになり、
+            // 同じ名前の値の排他と合わせて、QUALITY==1 の構成がありえないことになる。
+            ImmutableHashSet<string> names = [.. group.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>()];
+
             if (groups.Any(g => g.Length == group.Length && g.All(group.Contains))
-                || !blocks.All(block => !group.Any(block.Declared.Contains)
-                                        || block.Constraints.RequiredGroups.Any(g => g.All(group.Contains))))
+                || !blocks.Select((block, i) => (block, i)).All(
+                    b => !(group.Any(b.block.Declared.Contains) || (!names.IsEmpty && names.Overlaps(valueNames[b.i])))
+                         || b.block.Constraints.RequiredGroups.Any(g => g.All(group.Contains))))
             {
                 continue;
             }

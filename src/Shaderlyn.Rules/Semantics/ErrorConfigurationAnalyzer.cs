@@ -85,7 +85,9 @@ internal sealed class ErrorConfigurationAnalyzer : SemanticRuleAnalyzer
             SymbolCondition condition = compilation.GetConditionMap().Simplify(raw);
 
             // 木の構成と分岐の条件が両立しない (既定の木の中の、構成ごとの木が受け持つ分岐)。
-            if (condition.IsNever)
+            // 同じ名前の別の値 (QUALITY == 1 と QUALITY == 2) は簡約では消えないので、索引の制約でも確かめる。
+            // 分岐の条件は、同じファイルのほかの単位の値 (Unreal の頂点ファクトリ) を含むことがある。
+            if (condition.IsNever || !compilation.GetConditionMap().IsPossible(condition))
             {
                 continue;
             }

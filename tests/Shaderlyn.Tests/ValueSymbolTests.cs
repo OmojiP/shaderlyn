@@ -7,6 +7,7 @@ using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Environments;
 using Xunit.Abstractions;
 
@@ -255,6 +256,39 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
         }
 
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0310");
+    }
+
+    [Fact]
+    public void 同じ名前の別の値は単位が違っても同時には成り立たない()
+    {
+        // Unreal の頂点ファクトリの形。同じファイルの単位ごとに値が違う (交差シェーダーの単位は 4 だけ)。
+        // 値を宣言した単位が違うと排他の組にならず、ある単位の木の構成 (== 4) とほかの単位の分岐の条件 (== 1) を掛けた条件を
+        // ありうると見て、#error に到達すると報告していた (HL0009)。
+        SourceText text = SourceText.From(
+            """
+            #if QUALITY == 1
+            float4 Low() { return 1; }
+            #endif
+            float4 main() : SV_Target { return 0; }
+            """,
+            "test.hlsl");
+
+        ShaderCompilationUnit whole = HlslEnvironment.WholeFile(text);
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [
+                whole with { Name = "a", Variants = VariantSpace.ForValues("QUALITY", [4]) },
+                whole with { Name = "b", Variants = VariantSpace.ForValues("QUALITY", [1, 2]) },
+            ],
+            text,
+            new HlslEnvironment(),
+            ShaderSourceInfo.None);
+
+        ConditionMap condition = compilation.GetConditionMap();
+
+        Assert.False(condition.IsPossible(SymbolCondition.Symbol("QUALITY==4").And(SymbolCondition.Symbol("QUALITY==1"))));
+        Assert.True(condition.IsPossible(SymbolCondition.Symbol("QUALITY==1")));
     }
 
     [Fact]
