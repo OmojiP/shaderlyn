@@ -184,6 +184,8 @@ unreal:
   (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
   そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
 - 作っていなければ、マテリアルのシェーダーでは今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
+- **既知の誤報告があります** (0.3.1 で直す予定)。マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないため、
+  UE 5.5 のエンジンでは `DeferredDecal.usf` などに数件残ります。一覧は [CHANGELOG](../../CHANGELOG.md) の 0.3.0 の「既知の問題」にあります
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
 - 作ったファイルは、エンジンかプロジェクトの C++ や ini を変えたら作り直してください。バージョン管理には入れなくてかまいません。
   **作り直しが要るときは、解析を始めるときに伝えます** (CLI は標準エラー、VS Code 拡張は通知)。
@@ -210,7 +212,7 @@ GitHub Action は設定ファイルの `environment` に従います。設定フ
 Unity 以外の環境では Unity のプロジェクト (`Library/`) が要らないので、GitHub のホストランナーで動かせます。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.2.1
+- uses: OmojiP/shaderlyn/action@v0.3.0
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment

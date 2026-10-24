@@ -10,8 +10,29 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ## [未リリース]
 
+## [0.3.0] - 2026-10-25
+
+Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ から読んだ登録・パーミュテーション・プロジェクトの設定で検査できるようにした。
+`--unreal-generate` がマテリアルの `Material.ush` / `VertexFactory.ush` の代わりも作るので、マテリアルのシェーダーも宣言を検査する。
+`#error` に到達する構成を伝える HL0009 / UN0103 と、自作ルール向けに構成を扱う API を足した。
+
+**破壊的変更を含む** (下の「変更」)。自作ルール・自作の環境は、構文木と環境の型の名前と名前空間を書き換える。
+ツールとして使うだけなら書き換えは要らない。手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある。
+
 ### 追加
 
+- `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成が到達することを伝える UN0103 (エラー) を足した。
+  Unity は宣言したキーワードの構成をすべてコンパイルするので、到達するとシェーダーが使えなくなる (Unity 6.6 で、`multi_compile` ならシェーダー全体がピンクになった)。
+  公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、
+  `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を足した
+- 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
+  ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
+  `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
+- CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その下のファイルにだけ効く。
+  HLSL 以外の言語のファイルは、`environment` に関わらず拡張子の環境で解析する (Unity のプロジェクトにある `.wgsl` は WGSL として読む)。
+  `--config` を指定すれば、今までどおりすべてのファイルにその設定ファイルを使う
+- 環境 `glsl` / `godot` / `slang` / `wgsl` を足した (作っているところ)。拡張子でファイルを集めて解析する。
+  今は構文だけを読み、指摘するのは GLSL の構文エラーだけ (ほかの 3 つは何も指摘しない)
 - 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
   - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
     同じ位置の報告は Pass と構成をまたいで条件の和をとって 1 件にする。メッセージの `{0}` に「構成：○○ のとき、」が入る。
@@ -21,165 +42,53 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   - `ShaderCompilation.EnumerateCallees`: 呼ばれる関数を、深さとそこへ至る構成を付けてたどる
   - `ShaderCompilation.TryGetIdentifierUndeclaredCondition`: 識別子が指すグローバル変数が宣言されていない構成を求める (HL0315 と同じ判断)
   - `ExpressionTypeBinder.GetTypesByConfiguration`: 式の型を構成ごとに求める
+  - `ShaderCompilation.IsRepeatedDeclaration` と、繰り返しも返す `EnumerateRuleDeclarations(bool)` / `EnumerateRuleNodes(bool)` (下の「変更」)
   - 実例集の「コンパイル条件分岐（シンボル）に応じた関数制限」をこの API で書き直した。`#ifdef` の外の呼び出しも、その構成で実行されるので報告する
-- `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成が到達することを伝える UN0103 (エラー) を足した。
-  Unity は宣言したキーワードの構成をすべてコンパイルするので、到達するとシェーダーが使えなくなる (Unity 6.6 で、`multi_compile` ならシェーダー全体がピンクになった)。
-  公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、
-  `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を足した
-- 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
-  ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
-  `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
 - 自作ルールを AI のコーディングエージェントに書かせるための Skill (`skills/shaderlyn-custom-rule/SKILL.md`) を足した。
   組み込みのルールで足りないかを先に確かめさせ、ソースを文字列で調べずに構文木とセマンティックモデルで判定させる
-- 環境 `glsl` / `godot` / `slang` / `wgsl` を足した (作っているところ)。拡張子でファイルを集めて解析する。
-  今は構文だけを読み、指摘するのは GLSL の構文エラーだけ (ほかの 3 つは何も指摘しない)
-- CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その下のファイルにだけ効く。
-  HLSL 以外の言語のファイルは、`environment` に関わらず拡張子の環境で解析する (Unity のプロジェクトにある `.wgsl` は WGSL として読む)。
-  `--config` を指定すれば、今までどおりすべてのファイルにその設定ファイルを使う
-- Unreal Engine: `--unreal-generate` が、C++ のシェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など) と、シェーダーのクラスが定義するマクロ
-  (`ModifyCompilationEnvironment` の `SetDefine`) とパーミュテーションも読んで書き出す。読めなかった登録のマクロは名前と数を伝える。
-  解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する。
-  単位には、ステージのマクロ (`PIXELSHADER=1` など)、クラスで値が 1 つに決まるマクロ (Lumen の `LUMEN_HARDWARE_INLINE_RAYTRACING` など)、
-  シェーダープラットフォームのマクロ (PC の Direct3D 12 の `SM6_PROFILE` など。`DataDrivenPlatformInfo.ini` から決まるものを含む) を定義する。
-  パーミュテーションと、値の決まらないマクロは、まだ構成の軸にしない (今までどおり定義しない)。
-  クラスの値には、C++ とシェーダーが共有するヘッダ (`Engine/Shaders/Shared`) の整数の `#define` も使う (`NANITE_RASTER_BIN_INIT` など)
-- Unreal Engine: 設定 `unreal: permutations: true` で、C++ から読んだパーミュテーションを構成の軸にする (既定は `false`)。
-  `--unreal-generate` は、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、
-  コンパイルされない組を除き、組で値の変わる定義とフラグ (`CFLAG_AllowRealTypes` など) と、同時には現れない値の組を書き出す。
-  テンプレートのクラスは、登録に書かれた引数ごとに読む。プラットフォームを問う関数 (`FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders` など) には、
-  PC の Direct3D 12 (SM6) の設定 (`DataDrivenPlatformInfo.ini`) で答える。`CFLAG_AllowRealTypes` が付く構成は 16 ビットの型を有効にして解析する。
-  公開 API に `UnrealShaderClass.Varying` / `Exclusions`、`ShaderCompilationUnit.Enable16BitTypes`、
-  `ShaderCompilation.IsPossibleIn`、`ShaderlynConfiguration.UnrealPermutations` を足した
-- Unreal Engine: `--unreal-generate` が、登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) を展開して登録を読む。
-  展開した中の `typedef` から、クラスのテンプレートの引数も読む (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。
-  RHI のヘッダの、プラットフォームの設定を返すだけの関数 (`RHISupportsRenderTargetWriteMask` など) は、本体の式を読んで答える
-- Unreal Engine: `--unreal-generate` がプロジェクトの設定 (コンソール変数) を読む。C++ の既定値 (`TAutoConsoleVariable` の宣言) を、
-  エンジンとプロジェクトの ini (`DefaultEngine.ini` など) が上書きする。`GlobalBeginCompileShader` を実行して、
-  エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED`、`USE_HAIR_TRIANGLE_STRIP` など) を求め、登録から作る単位に定義する。
-  `ShouldCompilePermutation` が呼ぶ `Substrate::IsSubstrateEnabled()` や、クラスの `bool` を返す関数 (`IsSupported`) も実行する。
-  定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` の見張りで 1 にされ、`#error` に到達したまま読んでいた
-  (UE 5.5 のエンジンで、既定の構成が `#error` に到達する単位の大半がこれだった)。
-  公開 API に `UnrealConsoleVariables` と `UnrealShaderClasses.ReadGlobalDefines` を足した
+- Unreal Engine: `--unreal-generate` が、エンジンとプロジェクトの C++ から次のものを読んで書き出す。
+  解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する
+  ([Unreal Engine の環境](docs/guide/environments.md#c-から生成されるファイルを作る))
+  - **シェーダーの登録** (`IMPLEMENT_GLOBAL_SHADER` など)。登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) も展開し、
+    `typedef` / `using` の別名で登録したクラスは、テンプレートの引数を書いたクラスとして読む
+    (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。読めなかった登録のマクロは名前と数を伝える
+  - **シェーダーのクラスが定義するマクロ** (`ModifyCompilationEnvironment` の `SetDefine` / `SetDefineIfUnset`)。単位には、ステージのマクロ (`PIXELSHADER=1` など)、
+    クラスで値が 1 つに決まるマクロ (Lumen の `LUMEN_HARDWARE_INLINE_RAYTRACING` など)、
+    シェーダープラットフォームのマクロ (PC の Direct3D 12 の `SM6_PROFILE` など。`DataDrivenPlatformInfo.ini` から決まるものを含む) を定義する。
+    C++ とシェーダーが共有するヘッダ (`Engine/Shaders/Shared`) の整数の `#define` も使う (`NANITE_RASTER_BIN_INIT` など)
+  - **パーミュテーション。** 設定 `unreal: permutations: true` で構成の軸にする (既定は `false`)。値の組ごとに
+    `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、コンパイルされない組を除き、
+    組で値の変わる定義とフラグ (`CFLAG_AllowRealTypes` など) と、同時には現れない値の組を書き出す。
+    `CFLAG_AllowRealTypes` が付く構成は 16 ビットの型を有効にして解析する
+  - **プロジェクトの設定 (コンソール変数)。** C++ の既定値 (`TAutoConsoleVariable` の宣言) を、エンジンとプロジェクトの ini (`DefaultEngine.ini` など) が上書きする。
+    `GlobalBeginCompileShader` を実行して、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED`、`USE_HAIR_TRIANGLE_STRIP` など) を求め、単位に定義する。
+    定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` の見張りで 1 にされ、`#error` に到達したまま読んでいた
+  - **マテリアルの `Material.ush` と `VertexFactory.ush` の代わり。** マテリアルのシェーダーでも宣言を検査する (今までは UE0002 を出して検査しなかった)。
+    `Material.ush` は、エンジンの `MaterialTemplate.ush` の穴を、どのマテリアルでもない中身で埋めたもの。
+    `VertexFactory.ush` は、C++ の頂点ファクトリの登録 (`IMPLEMENT_VERTEX_FACTORY_TYPE` など) から作り、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込む。
+    シェーダーのクラスの `ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読む。
+    頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ (`PARTICLE_SPRITE_FACTORY` など) は、
+    エンジンのコマンドラインと同じく、どのファイルよりも先に定義する (`ShaderlynVertexFactoryDefines.ush` を単位の先頭で取り込む)。
+    `unreal: permutations: true` なら頂点ファクトリを構成の軸にする。そうでなければクラスごとに 1 つを選び、選んだものが違うクラスは別の単位にする
+  - C++ の読み方: プラットフォームを問う関数 (`IsMobilePlatform`、`FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders`、
+    `FSceneInterface::GetShadingPath` など) には PC の Direct3D 12 (SM6) の設定で答える。RHI のヘッダの、設定を返すだけの関数
+    (`RHISupportsRenderTargetWriteMask` など) は本体の式を読む。`Substrate::IsSubstrateEnabled()` やクラスの `bool` を返す関数 (`IsSupported`) も実行する。
+    列挙のメンバーを 1 つずつマクロにするループ (`SetDefine(XToString(static_cast<EX>(i)), i)`) と、
+    頂点ファクトリの型を比べる式 (`Parameters.VertexFactoryType->GetFName() == FName(TEXT("…"))`) を読む。
+    評価できないメンバーの呼び出し (関数の中の static な変数の `CVar.Get(…)` など) は、その部分だけを値の分からないものにして式の残りを読む
+  - 公開 API に `UnrealShaderClass` の `Varying` / `Exclusions` / `NeverCompiled`、`UnrealConsoleVariables`、`UnrealShaderClasses.ReadGlobalDefines`、
+    `UnrealMaterialGenerator`、`UnrealVertexFactories`、`ShaderCompilationUnit.Enable16BitTypes`、`ShaderCompilation.IsPossibleIn`、
+    `ShaderlynConfiguration.UnrealPermutations`、`HlslEnvironmentOptions.SelectUnitPrelude` を足した
+- Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
+  (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
+  公開 API に `ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
 - Unreal Engine: `--unreal-generate` が、読んだ ini の中身のハッシュと C++ のファイルの一覧・更新日時・大きさを記録する
   (`ShaderlynGenerationStamp.tsv`)。解析を始めるときに比べ、生成した後に ini や C++ が変わっていたら、作り直すよう伝える
   (CLI は標準エラー、VS Code 拡張は通知)。UE 5.5 のエンジンで、確かめるのに約 2 秒かかる。
   公開 API に `UnrealGenerationStamp` と `UnrealGenerationStaleness` を足した
-- Unreal Engine: `--unreal-generate` が、マテリアルの `Material.ush` と `VertexFactory.ush` の代わりも作る。
-  マテリアルのシェーダーでも宣言を検査する (今までは UE0002 を出して検査しなかった)。
-  `Material.ush` は、エンジンの `MaterialTemplate.ush` の穴を、どのマテリアルでもない中身で埋めたもの。
-  `VertexFactory.ush` は、C++ の頂点ファクトリの登録 (`IMPLEMENT_VERTEX_FACTORY_TYPE` など) から作り、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込む。
-  シェーダーのクラスの `ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読む。
-  頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ (`PARTICLE_SPRITE_FACTORY` など) も、
-  エンジンのコマンドラインと同じく、どのファイルよりも先に定義する (`ShaderlynVertexFactoryDefines.ush` を単位の先頭で取り込む)。
-  `unreal: permutations: true` なら頂点ファクトリを構成の軸にする。そうでなければクラスごとに 1 つを選び、選んだものが違うクラスは別の単位にする。
-  あわせて、列挙のメンバーを 1 つずつマクロにするループ (`SetDefine(XToString(static_cast<EX>(i)), i)`)、
-  頂点ファクトリの型を比べる式 (`Parameters.VertexFactoryType->GetFName() == FName(TEXT("…"))`)、
-  登録と同じファイルの `using` / `typedef` の別名で登録したクラス、描画の方式 (`FSceneInterface::GetShadingPath`)、
-  まだ定義していなければ定義する `SetDefineIfUnset` を読む。
-  評価できないメンバーの呼び出し (関数の中の static な変数の `CVar.Get(…)` など) は、その部分だけを値の分からないものにして式の残りを読む。
-  公開 API に `UnrealMaterialGenerator`、`UnrealVertexFactories`、`HlslEnvironmentOptions.SelectUnitPrelude` を足した
-- Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
-  (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
-  公開 API に `UnrealShaderClass.NeverCompiled`、`ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
-
-### 修正
-
-- HL0313: ある木で条件の付かない構造体のメンバーを、後から読んだ木の条件で上書きしていた。
-  頂点ファクトリごとの木で、どの頂点ファクトリにもある `FVertexFactoryInput.Position` を、
-  1 つの頂点ファクトリでは無いと報告していた (UE 5.5 の `LocalVertexFactory.ush`)
-- 値を持つシンボルの、同じ名前の別の値 (`QUALITY == 1` と `QUALITY == 2`) を、値を宣言した単位が違うと同時に成り立ちうると見ていた。
-  どの単位でも同時には成り立たないものとして扱う。ある単位の木の構成とほかの単位の分岐の条件を掛けた、成り立たない構成を
-  `#error` に到達すると報告していた (HL0009。UE 5.5 の `PathTracingMaterialHitShader.usf`)
-- Unreal Engine: 最初のエントリ関数とステージが同じで、登録の文字列が違う単位 (`closesthit=A` と `closesthit=A intersection=B`) を、
-  クラスの名前で見分けていなかった。同じ単位の構成として比べ、別の頂点ファクトリの宣言と重なると報告していた (HL0314)
-- Unreal Engine: `--unreal-generate` が、ポインタで宣言した局所変数 (`static IConsoleVariable* CVar = …;`) を宣言として読まず、
-  前のブロックで同じ名前で宣言した別のコンソール変数の値を使っていた。`GlobalBeginCompileShader` が定義する `PROJECT_SUPPORTS_LUMEN` などを、
-  別のコンソール変数の値 (0) で決めていた
-- 構成の条件が付く報告 (HL0311 / HL0313 / HL0350 / HL0353 / HL0360 など) を、木 (Pass と構成) をまたいで条件の和をとって 1 件にする (`ConditionalReports`)。
-  同じ位置の報告は最初の木のものだけを残していたので、ほかの木の構成の分が条件から落ちていた
-  - HL0311 / HL0313 は、木が表す構成を掛けず、`#error` に到達する構成も除かずに「その構成に無い」と報告していた
-  - HL0360 は、構成ごとの木で見つけた「値を返さない経路」を、条件を付けずに (どの構成でもあるように) 報告していた
-- Unity 2023.2 以降で、`#include` で取り込んだファイルの `#pragma` (`multi_compile`、`vertex` など) を使っていた。
-  Unity は `#include_with_pragmas` の連なりで取り込んだファイルの `#pragma` だけを使う
-  (`#include` の先の `#pragma` は「unknown pragma ignored」になる。2022.3 / 2023.2〜6.6 で確かめた)。
-  2022.3 と、Unity のバージョンが分からない場合は、今までどおりどの取り込みの `#pragma` も使う。
-  プリプロセッサの設定 `PragmaIncludeDirectives` を足し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に入れる
-- 先頭がマクロの宣言 (Unity の CGPROGRAM の `fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);`) で、
-  構成によって初期化子が変わると、構成をまたいだ検査をしていない (HL0007) と伝え、
-  `INSTANCING_ON` のとき変数の宣言が無い (HL0315) と誤って報告していた
-- 条件で中身が変わるマクロを使う文を複製するかを、常に FXC として判定していた。DXC の HLSL 2021 の構文 (ビットフィールドなど) を含む文は、
-  複製できずに構成ごとの展開で扱っていた (HL0007 になることがあった)
-- 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
-- DXR 1.1 の `RayQuery` の状態の定数 (`COMMITTED_TRIANGLE_HIT` など) を「宣言されていない」(HL0310) と報告していた
-- `globallycoherent` を付けた型への型変換 (`(globallycoherent RWByteAddressBuffer)x`) と、仮引数の型の前の `struct` (`F(struct P p)`) を構文の誤り (HL0001) にしていた
-- 条件の中で `#if` などの無いヘッダを取り込むと、同じ条件の中のヘッダより後ろのコードが条件を持たず、
-  ヘッダの構造体のメンバーを「その条件でないときは無い」(HL0313) と報告していた
-- ヘッダの `#ifndef X` の中の `#define X` (既定の値を与える書き方) を、ファイルが構成ごとに `X` を定義していると「定義し直し」(HL0002) と報告していた
-- 値を持つシンボル (設定の `values:`) の誤検出を直した
-  - 値に名前を付けたマクロとの比較 (`#if QUALITY == QUALITY_LOW`) を値の条件として読まず、`#elif` の連なりの分岐ごとの定義を「定義し直し」(HL0002) と報告していた
-  - 値ごとの構成の木で、ほかの値を持つシンボルを既定の値で読んだことを木の構成に入れず、その木の宣言をほかの値の構成のものとしても見ていた (HL0315)
-  - 値ごとの構成の木で、有効にした値の分岐の `#define` を使わず、定義の無い名前を「宣言されていない」(HL0310) と報告していた
-  - 単位ごとに値が違うと (1 から 4 の単位と 1 から 3 の単位)、どの値でもない構成があることになり、`#else` の宣言が無いと報告していた (HL0310)
-- 取り込みの展開結果を使い回したヘッダの宣言を、既定の木と構成ごとの木で別の宣言と見て、片方の構成にしか無いと報告することがあった (HL0313)
-- HLSL 2021 の template の呼び出しで、型でない引数に式を書いた形 (`Setup< SAMPLES, !TWO_SIDED >(x)`) を構文の誤り (HL0001) にしていた
-- `##` で数字に続けて書いた名前を連結した形 (`Name##1x`) を、`Name1` と `x` に分けていた (C では `1x` が 1 つのトークン)
-- `__LINE__` と `__FILE__` を展開せず、宣言されていない名前 (HL0310) にしていた
-- `#if` の条件を読めない連なり (`#if CONFIG_DOF_ALPHA` / `#elif DIM_RGB`) の分岐ごとの定義を「定義し直し」(HL0002) と報告していた
-- 構成ごとの木の、ほかの木の構成を除いた構成 (`ShaderCompilation.GetTreeConfiguration`) を、二重の宣言 (HL0314)、宣言の無い構成 (HL0315)、
-  実引数の型 (HL0340 など) の検査でも使う。既定の値で読んだ連なりの宣言や実引数の型を、ほかの値の構成のものとも見て報告していた
-- 値を持つシンボルの誤検出を、さらに直した
-  - 左右を入れ替えた比較 (`#if SIZE_UINT1 == ELEMENT_SIZE`) を値の条件として読む
-  - 値の原子を 1 つでも並べられなかったら、その名前のほかの値の構成も作る。並べられなかった連なりのほかの値の側がどの木にも載らなかった
-  - `#error` に到達する構成は、宣言の有無を見る検査 (HL0315 など) で考えない (その構成はコンパイルできない)。
-    どの構成でも到達するもの (解析のマクロの状態が実際と違うためのことが多い) では、検査を止めない。
-    `#if defined(_A)` / `#error` / `#else` の中でだけ宣言した名前を、`_A` の構成で宣言が無いと報告していた。
-    到達したことは新しい HL0009 (情報) で伝える。Unity のキーワードの構成なら、コンパイルに失敗するので新しい UN0103 (エラー) で伝える
-  - Unity: キーワードを付けた `#pragma target 4.5 DOTS_INSTANCING_ON` を、そのキーワードの構成の `SHADER_TARGET` に使う。
-    URP の DOTS_INSTANCING_ON の構成を `SHADER_TARGET` 3.5 で読み、`UnityInstancing.hlsl` の `#error` に到達していた
-  - 関数の本体を値ごとの `#if` で書き分けると (`void MainCS(…)` の後に `#if X == 0 { … } #endif #if X == 1 { … } #endif`)、
-    本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるか、関数の中で `}` で終わるときだけ並べる
-  - 既定の値では読まない `#if` の中で別の値の軸で書き分けた宣言を、二重の宣言 (HL0314) と報告していた。
-    構成ごとの木で並べた範囲の条件を、その木を解析した構成を掛けずに足していた。
-    また、そうした uniform に代入すると、最初の宣言の型で成分が落ちる (HL0353) と報告していた。同じ木の中で型が 1 つに決まらない uniform は、構成ごとの型で判断する
-    (局所変数と同じく、構成ごとに見える宣言から型を決める。型を不明にすると、本当に成分が落ちる構成も報告しなかった)
-  - マクロの定義を条件ごとに複製した関数 (`#if` で書き分けた `RADIX` を使う `void F(inout float2 L[2][RADIX])`) を、
-    呼び出しの候補として 1 つしか残していなかった。複製はどれも元の位置が同じで、宣言を位置で 1 つに寄せていた。
-    残った複製の条件の構成でしか比べられず、ほかの構成の呼び出しを「配列の長さが合わない」(HL0344) と報告していた (Unreal の GPUFastFourierTransform.usf)
-- Unreal Engine: すべての uniform buffer を取り込んでいたので、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
-  二重の宣言 (HL0314) と報告していた (HairStrandsTangent.usf の `HairStrandsVF_CullingIndexBuffer`)。
-  エンジンと同じく、単位のファイルから取り込みをすべてたどり、本文に `名前.` か `名前 .` を書いた uniform buffer だけを取り込む。
-  取り込みの展開結果を、取り込む uniform buffer の違う単位どうしでは使い回せないので、UE 5.5 のエンジンで解析が 1 割ほど長くなる
-  - 解析した構成で `#error` に到達する関数を、値を返さない経路がある (HL0360) と報告していた
-    (`#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error … #endif`)
-  - 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの
-    宣言の無い名前 (HL0310 など) を報告していなかった。固定したシンボルを、木の構成で無効として扱っていた
-- Unreal Engine: プラットフォームの設定 (`DataDrivenPlatformInfo.ini`) に書いていない項目を、エンジンの既定値ではなく常に 0 にしていた。
-  既定が有効な `bSupportsVertexShaderSRVs` / `bSupportsClipDistance` から作る `PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS` /
-  `PLATFORM_SUPPORTS_CLIP_DISTANCE` が PC で 0 になり、`InstanceCullingOcclusionQuery.usf` などを `#error` に到達する構成で読んでいた
-- プラグマ演算子 `_Pragma("…")` をコードに残し、構文の誤り (HL0001) にしていた。`#pragma` と同じくコードに残さない
-  (Unreal Engine の `SHADER_PUSH_WARNINGS_STATE`)
-- `#error` / `#warning` の文の中のアポストロフィ (`doesn't`) を、閉じていない文字のリテラル (HL0001) と報告していた
-- 組み込みの型の値の作成 `vector<T, N>(x)` / `matrix<T, R, C>(…)` を比較の連なりとして読み、構文の誤りや引数の数の誤り (HL0341) にしていた
-- 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた
 
 ### 変更
 
-- 構成ごとの木 (バリアント) の宣言のうち、既定の木と同じ位置・同じトークンで、参照する名前の宣言とマクロも変わらないものは、既定の木でだけ検査する。
-  どの構成でも検査の結果は同じである。UE 5.5 のエンジン全体 (パーミュテーションあり) で解析が 553 秒から 334 秒になり、報告は変わらなかった
-- **破壊的変更:** マクロを中身を変えて定義し直していることを、HL0002 (プリプロセッサ指令の誤り、エラー) から
-  新しい HL0008 (警告) に分けた。DXC も FXC も警告にするだけで、後の定義を使ってコンパイルを続けるため。
-  設定で HL0002 の重要度を変えていた場合、定義し直しには HL0008 で指定してください
-- プリプロセスと構文解析の警告 (HL0004 / HL0008) があっても、そのブロックの「宣言が無い」ことを根拠にする検査を止めない (HL0005 にならない)。
-  止めるのは解析の結果を信用できなくするエラーだけにした
-- 1 つのファイルを複数の単位 (Pass、カーネル、設定の `units:`、Unreal の登録) で解析するとき、
-  前の単位と同じ文脈 (ターゲット、コンパイラと HLSL のバージョン、コンパイル先、有効なシンボル) で、
-  同じ位置から同じトークンの並びに展開した宣言は、最初の単位でだけ検査する。参照する名前の宣言やマクロが単位で違う宣言は、それぞれの単位で検査する。
-  ヘッダを利用者のコードとして扱う環境 (Unreal のエンジン) で、単位の数だけヘッダを検査し直していた。
-  UE 5.5 のエンジン (526 ファイル) を登録の単位で解析する時間が、これが無い場合の 386 秒から 266 秒になる。指摘は変わらない。
-  自作のルール向けに `ShaderCompilation.IsRepeatedDeclaration` と、繰り返しも返す `EnumerateRuleDeclarations(bool)` / `EnumerateRuleNodes(bool)` を足した
-- URP0002 (定数バッファの中のテクスチャとサンプラ) の既定の重要度を、警告から情報に下げた。
-  コンパイラが定数バッファの外へ出すので、動作も SRP Batcher との互換も変わらない (Unity 2022.3〜6.6 の URP で、各 API について確かめた)。
-  Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけはエラーになるので、そのコンパイル先があればエラーとして報告する
 - **破壊的変更:** 字句解析・プリプロセッサ・構文木の大部分 (式・文・関数・構造体・変数の節) を、C 系の言語に共通の新しいパッケージ `Shaderlyn.CFamily` へ移した。
   HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken`、`HlslSyntaxNode` → `ShaderSyntaxNode`、`HlslExpressionSyntax` → `ExpressionSyntax` など)、
   ノードは `Shaderlyn.CFamily.Syntax`、`Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。
@@ -198,8 +107,105 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 - **破壊的変更:** 型の分類と形の名前から `Hlsl` を外した (`HlslTypeClass` → `ShaderTypeClass`、`HlslNumericShape` → `ShaderNumericShape`、
   `HlslNumericKind` → `ShaderNumericKind`)。言語の型システム (型と組み込み関数) を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
   HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
+- **破壊的変更:** マクロを中身を変えて定義し直していることを、HL0002 (プリプロセッサ指令の誤り、エラー) から
+  新しい HL0008 (警告) に分けた。DXC も FXC も警告にするだけで、後の定義を使ってコンパイルを続けるため。
+  設定で HL0002 の重要度を変えていた場合、定義し直しには HL0008 で指定してください
+- プリプロセスと構文解析の警告 (HL0004 / HL0008) があっても、そのブロックの「宣言が無い」ことを根拠にする検査を止めない (HL0005 にならない)。
+  止めるのは解析の結果を信用できなくするエラーだけにした
+- 構成の条件が付く組み込みのルールの報告 (HL0311 / HL0313 / HL0350 / HL0353 / HL0360 など) を、木 (Pass と構成) をまたいで条件の和をとって 1 件にする。
+  同じ位置の報告は最初の木のものだけを残していたので、ほかの木の構成の分が条件から落ちていた
+- 1 つのファイルを複数の単位 (Pass、カーネル、設定の `units:`、Unreal の登録) で解析するとき、
+  前の単位と同じ文脈 (ターゲット、コンパイラと HLSL のバージョン、コンパイル先、有効なシンボル) で、
+  同じ位置から同じトークンの並びに展開した宣言は、最初の単位でだけ検査する。構成ごとの木 (バリアント) の宣言も、既定の木と同じものは既定の木でだけ検査する。
+  参照する名前の宣言やマクロが違う宣言は、それぞれで検査する。指摘は変わらない。
+  UE 5.5 のエンジン (526 ファイル) で、登録の単位で解析する時間が 386 秒から 266 秒に、パーミュテーションありで 553 秒から 334 秒になった
+- URP0002 (定数バッファの中のテクスチャとサンプラ) の既定の重要度を、警告から情報に下げた。
+  コンパイラが定数バッファの外へ出すので、動作も SRP Batcher との互換も変わらない (Unity 2022.3〜6.6 の URP で、各 API について確かめた)。
+  Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけはエラーになるので、そのコンパイル先があればエラーとして報告する
 - DXC の HLSL 2021 で `select` / `and` / `or` を呼んだとき、呼び出しの解決 (`ResolveCall`) が、宣言されていない関数ではなく組み込み関数として扱う。
   使えるかどうかをコンパイラと HLSL のバージョンで判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である
+
+### 修正
+
+- 値を持つシンボル (設定の `values:`、Unreal のパーミュテーション) の誤検出を直した
+  - 値に名前を付けたマクロとの比較 (`#if QUALITY == QUALITY_LOW`) と、左右を入れ替えた比較 (`#if SIZE_UINT1 == ELEMENT_SIZE`) を値の条件として読む。
+    `#elif` の連なりの分岐ごとの定義を「定義し直し」(HL0002) と報告していた
+  - 値ごとの構成の木で、ほかの値を持つシンボルを既定の値で読んだことを木の構成に入れず、その木の宣言をほかの値の構成のものとしても見ていた (HL0315)。
+    この木の構成 (`ShaderCompilation.GetTreeConfiguration`) を、二重の宣言 (HL0314)、宣言の無い構成 (HL0315)、実引数の型 (HL0340 など) の検査でも使う
+  - 値ごとの構成の木で、有効にした値の分岐の `#define` を使わず、定義の無い名前を「宣言されていない」(HL0310) と報告していた
+  - 単位ごとに値が違うと (1 から 4 の単位と 1 から 3 の単位)、どの値でもない構成があることになり、`#else` の宣言が無いと報告していた (HL0310)。
+    また、同じ名前の別の値 (`QUALITY == 1` と `QUALITY == 2`) を、値を宣言した単位が違うと同時に成り立ちうると見て、
+    成り立たない構成を `#error` に到達すると報告していた (HL0009)
+  - 値の原子を 1 つでも並べられなかったら、その名前のほかの値の構成も作る。並べられなかった連なりのほかの値の側がどの木にも載らなかった
+  - 関数の本体を値ごとの `#if` で書き分けると (`void MainCS(…)` の後に `#if X == 0 { … } #endif #if X == 1 { … } #endif`)、
+    本体を 2 つ並べて構文の誤り (HL0001) にしていた。`{` で始まる分岐は、前のコードが `;` か `{` で終わるか、関数の中で `}` で終わるときだけ並べる
+  - 既定の値では読まない `#if` の中で別の値の軸で書き分けた宣言を、二重の宣言 (HL0314) と報告していた。
+    また、そうした uniform に代入すると、最初の宣言の型で成分が落ちる (HL0353) と報告していた。同じ木の中で型が 1 つに決まらない uniform は、構成ごとの型で判断する
+  - マクロの定義を条件ごとに複製した関数 (`#if` で書き分けた `RADIX` を使う `void F(inout float2 L[2][RADIX])`) を、
+    呼び出しの候補として 1 つしか残さず、ほかの構成の呼び出しを「配列の長さが合わない」(HL0344) と報告していた (Unreal の GPUFastFourierTransform.usf)
+- `#error` に到達する構成は、宣言の有無を見る検査 (HL0315 など) で考えない (その構成はコンパイルできない)。
+  どの構成でも到達するもの (解析のマクロの状態が実際と違うためのことが多い) では、検査を止めない。
+  `#if defined(_A)` / `#error` / `#else` の中でだけ宣言した名前を、`_A` の構成で宣言が無いと報告していた。
+  解析した構成で `#error` に到達する関数を、値を返さない経路がある (HL0360) と報告していた
+  (`#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error … #endif`)
+- HL0311 / HL0313 が、木が表す構成を掛けず、`#error` に到達する構成も除かずに「その構成に無い」と報告していた。
+  HL0360 は、構成ごとの木で見つけた「値を返さない経路」を、条件を付けずに (どの構成でもあるように) 報告していた
+- HL0313: ある木で条件の付かない構造体のメンバーを、後から読んだ木の条件で上書きしていた
+  (UE 5.5 の `LocalVertexFactory.ush` の `FVertexFactoryInput.Position` を、1 つの頂点ファクトリでは無いと報告していた)
+- 条件の中で `#if` などの無いヘッダを取り込むと、同じ条件の中のヘッダより後ろのコードが条件を持たず、
+  ヘッダの構造体のメンバーを「その条件でないときは無い」(HL0313) と報告していた
+- 取り込みの展開結果を使い回したヘッダの宣言を、既定の木と構成ごとの木で別の宣言と見て、片方の構成にしか無いと報告することがあった (HL0313)
+- 構成を 1 つに固定した解析 (VS Code 拡張の「選んだ構成で表示」) で、必ずどれかが有効な組 (`multi_compile MODE_A MODE_B`) を使うシェーダーの
+  宣言の無い名前 (HL0310 など) を報告していなかった。固定したシンボルを、木の構成で無効として扱っていた
+- 先頭がマクロの宣言 (Unity の CGPROGRAM の `fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);`) で、
+  構成によって初期化子が変わると、構成をまたいだ検査をしていない (HL0007) と伝え、
+  `INSTANCING_ON` のとき変数の宣言が無い (HL0315) と誤って報告していた
+- 条件で中身が変わるマクロを使う文を複製するかを、常に FXC として判定していた。DXC の HLSL 2021 の構文 (ビットフィールドなど) を含む文は、
+  複製できずに構成ごとの展開で扱っていた (HL0007 になることがあった)
+- 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
+- ヘッダの `#ifndef X` の中の `#define X` (既定の値を与える書き方) を、ファイルが構成ごとに `X` を定義していると「定義し直し」(HL0002) と報告していた
+- `#if` の条件を読めない連なり (`#if CONFIG_DOF_ALPHA` / `#elif DIM_RGB`) の分岐ごとの定義を「定義し直し」(HL0002) と報告していた
+- 構文の読み違いを直した
+  - `globallycoherent` を付けた型への型変換 (`(globallycoherent RWByteAddressBuffer)x`) と、仮引数の型の前の `struct` (`F(struct P p)`) を構文の誤り (HL0001) にしていた
+  - HLSL 2021 の template の呼び出しで、型でない引数に式を書いた形 (`Setup< SAMPLES, !TWO_SIDED >(x)`) を構文の誤り (HL0001) にしていた
+  - 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた
+  - 組み込みの型の値の作成 `vector<T, N>(x)` / `matrix<T, R, C>(…)` を比較の連なりとして読み、構文の誤りや引数の数の誤り (HL0341) にしていた
+  - プラグマ演算子 `_Pragma("…")` をコードに残し、構文の誤り (HL0001) にしていた。`#pragma` と同じくコードに残さない
+    (Unreal Engine の `SHADER_PUSH_WARNINGS_STATE`)
+  - `#error` / `#warning` の文の中のアポストロフィ (`doesn't`) を、閉じていない文字のリテラル (HL0001) と報告していた
+  - `##` で数字に続けて書いた名前を連結した形 (`Name##1x`) を、`Name1` と `x` に分けていた (C では `1x` が 1 つのトークン)
+  - `__LINE__` と `__FILE__` を展開せず、宣言されていない名前 (HL0310) にしていた
+- DXR 1.1 の `RayQuery` の状態の定数 (`COMMITTED_TRIANGLE_HIT` など) を「宣言されていない」(HL0310) と報告していた
+- Unity: 2023.2 以降で、`#include` で取り込んだファイルの `#pragma` (`multi_compile`、`vertex` など) を使っていた。
+  Unity は `#include_with_pragmas` の連なりで取り込んだファイルの `#pragma` だけを使う
+  (`#include` の先の `#pragma` は「unknown pragma ignored」になる。2022.3 / 2023.2〜6.6 で確かめた)。
+  2022.3 と、Unity のバージョンが分からない場合は、今までどおりどの取り込みの `#pragma` も使う。
+  プリプロセッサの設定 `PragmaIncludeDirectives` を足し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に入れる
+- Unity: キーワードを付けた `#pragma target 4.5 DOTS_INSTANCING_ON` を、そのキーワードの構成の `SHADER_TARGET` に使う。
+  URP の DOTS_INSTANCING_ON の構成を `SHADER_TARGET` 3.5 で読み、`UnityInstancing.hlsl` の `#error` に到達していた
+- Unreal Engine: すべての uniform buffer を取り込んでいたので、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
+  二重の宣言 (HL0314) と報告していた (HairStrandsTangent.usf の `HairStrandsVF_CullingIndexBuffer`)。
+  エンジンと同じく、単位のファイルから取り込みをすべてたどり、本文に `名前.` か `名前 .` を書いた uniform buffer だけを取り込む。
+  取り込みの展開結果を、取り込む uniform buffer の違う単位どうしでは使い回せないので、UE 5.5 のエンジンで解析が 1 割ほど長くなる
+- Unreal Engine: プラットフォームの設定 (`DataDrivenPlatformInfo.ini`) に書いていない項目を、エンジンの既定値ではなく常に 0 にしていた。
+  既定が有効な `bSupportsVertexShaderSRVs` / `bSupportsClipDistance` から作る `PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS` /
+  `PLATFORM_SUPPORTS_CLIP_DISTANCE` が PC で 0 になり、`InstanceCullingOcclusionQuery.usf` などを `#error` に到達する構成で読んでいた
+- Unreal Engine: `--unreal-generate` が、ポインタで宣言した局所変数 (`static IConsoleVariable* CVar = …;`) を宣言として読まず、
+  前のブロックで同じ名前で宣言した別のコンソール変数の値を使っていた。`GlobalBeginCompileShader` が定義する `PROJECT_SUPPORTS_LUMEN` などを、
+  別のコンソール変数の値 (0) で決めていた
+- Unreal Engine: 最初のエントリ関数とステージが同じで、登録の文字列が違う単位 (`closesthit=A` と `closesthit=A intersection=B`) を、
+  クラスの名前で見分けていなかった。同じ単位の構成として比べ、別の頂点ファクトリの宣言と重なると報告していた (HL0314)
+
+### 既知の問題
+
+0.3.1 で直す予定。UE 5.5 のエンジンを生成ファイルありで解析したときに残る誤報告である。
+マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないことによる。
+
+- `DeferredDecal.usf`: `FDeferredDecalAmbientOcclusionPS` / `FDeferredDecalMobilePS` の `MainPS` が見つからない (HL0301)
+- `MobileBasePassPixelShader.usf`: `FrameBufferBlendOp` に値を返さない経路がある (HL0360)。どの `MATERIALBLENDING_*` も定義していない構成を読んでいる
+- `Substrate/SubstrateSubsurface.ush`: `PackColorLinearToGamma2AlphaLinear` / `UnpackColorGamma2ToLinearAlphaLinear` の定義が無い (HL0311)
+- `VolumetricFogVoxelization.usf` (`unreal: permutations: true` のときだけ): 一部の頂点ファクトリで `FVertexFactoryInput.VertexId` が無い (HL0313)。
+  実際には、ボリュームのマテリアルとその頂点ファクトリの組み合わせはコンパイルされない
 
 ## [0.2.1] - 2026-10-16
 
@@ -534,7 +540,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/OmojiP/shaderlyn/compare/v0.1.0...v0.1.1
