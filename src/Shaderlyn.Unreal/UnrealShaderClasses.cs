@@ -1506,8 +1506,13 @@ public static partial class UnrealShaderClasses
             int end = statement.Length > 0 && statement[^1].Kind == ShaderSyntaxKind.SemicolonToken ? statement.Length - 1 : statement.Length;
 
             // ローカル変数: const bool bInline = DispatchType == E::Inline; と、その後の代入: Mode = E::Punctual;
+            // ポインタと参照の宣言 (static IConsoleVariable* CVar = …;) も宣言である。読まないと、前のブロックで宣言した同じ名前
+            // (static const auto CVar = …、別のコンソール変数) の値を使い、GlobalBeginCompileShader のマクロを別の変数の値で決めていた。
             bool declares = equals >= 2 && statement[equals - 1].Kind == ShaderSyntaxKind.IdentifierToken
-                            && statement[equals - 2].Kind == ShaderSyntaxKind.IdentifierToken
+                            && (statement[equals - 2].Kind == ShaderSyntaxKind.IdentifierToken
+                                || (equals >= 3
+                                    && statement[equals - 2].Kind is ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.AmpersandToken
+                                    && statement[equals - 3].Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.GreaterThanToken))
                             && !statement[..equals].Any(t => t.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken);
             bool assigns = equals == 1 && statement[0].Kind == ShaderSyntaxKind.IdentifierToken && context.Bindings.ContainsKey(statement[0].Text);
 

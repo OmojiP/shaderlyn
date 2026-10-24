@@ -70,6 +70,9 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 修正
 
+- Unreal Engine: `--unreal-generate` が、ポインタで宣言した局所変数 (`static IConsoleVariable* CVar = …;`) を宣言として読まず、
+  前のブロックで同じ名前で宣言した別のコンソール変数の値を使っていた。`GlobalBeginCompileShader` が定義する `PROJECT_SUPPORTS_LUMEN` などを、
+  別のコンソール変数の値 (0) で決めていた
 - 構成の条件が付く報告 (HL0311 / HL0313 / HL0350 / HL0353 / HL0360 など) を、木 (Pass と構成) をまたいで条件の和をとって 1 件にする (`ConditionalReports`)。
   同じ位置の報告は最初の木のものだけを残していたので、ほかの木の構成の分が条件から落ちていた
   - HL0311 / HL0313 は、木が表す構成を掛けず、`#error` に到達する構成も除かずに「その構成に無い」と報告していた

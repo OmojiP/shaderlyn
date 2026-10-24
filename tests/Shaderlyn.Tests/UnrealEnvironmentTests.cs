@@ -1337,6 +1337,45 @@ public sealed class UnrealEnvironmentTests : IDisposable
     /// ini のコンソール変数を、エンジンの ini、プロジェクトの ini の順に読み、後のものを優先する。
     /// コンソール変数の節だけを読み、名前に点の無い設定の項目と配列の書き方は読まない。
     /// </summary>
+    /// <summary>
+    /// ブロックごとに同じ名前で宣言したポインタの局所変数 (<c>static IConsoleVariable* CVar = …;</c>) を、それぞれの宣言の値で読む。
+    /// 読まずにいると、前のブロックの <c>static const auto CVar</c> (別のコンソール変数) の値を使っていた
+    /// (UE 5.5 の <c>GlobalBeginCompileShader</c> の <c>PROJECT_SUPPORTS_LUMEN</c> が 0 になった)。
+    /// </summary>
+    [Fact]
+    public void ポインタで宣言した局所変数をブロックごとに読む()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("Cvars.cpp", """
+                static TAutoConsoleVariable<int32> CVarOIT(TEXT("r.OIT.SortedPixels"), 0, TEXT(""), ECVF_ReadOnly);
+                int32 GLumenSupported = 1;
+                FAutoConsoleVariableRef CVarLumenSupported(TEXT("r.Lumen.Supported"), GLumenSupported, TEXT(""), ECVF_ReadOnly);
+                """),
+            ("ShaderCompiler.cpp", """
+                void GlobalBeginCompileShader(const FString& DebugGroupName, FShaderTarget Target, FShaderCompilerInput& Input)
+                {
+                	{
+                		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OIT.SortedPixels"));
+                		SET_SHADER_DEFINE(Input.Environment, PROJECT_OIT, CVar ? (CVar->GetValueOnAnyThread() != 0) : 0);
+                	}
+                	{
+                		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Supported"));
+                		const bool bLumenSupported = CVar->GetInt() != 0;
+                		SET_SHADER_DEFINE(Input.Environment, PROJECT_SUPPORTS_LUMEN, bLumenSupported ? 1 : 0);
+                	}
+                }
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, string> defines = UnrealShaderClasses.ReadGlobalDefines(output);
+        Assert.Equal("0", defines["PROJECT_OIT"]);
+        Assert.Equal("1", defines["PROJECT_SUPPORTS_LUMEN"]);
+    }
+
     [Fact]
     public void iniのコンソール変数を読む()
     {
