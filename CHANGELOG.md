@@ -12,6 +12,16 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ### 追加
 
+- 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
+  - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
+    同じ位置の報告は Pass と構成をまたいで条件の和をとって 1 件にする。メッセージの `{0}` に「構成：○○ のとき、」が入る。
+    `ShaderRuleAnalyzer` を使わないアナライザ向けに、同じことをする `ConditionalReports` も足した
+  - `RegisterNodeAction` の `NodeActionOptions`: エントリポイントから届く関数の中だけ (`ReachableFromEntryPoints`)、
+    ある構成で存在しうるノードだけ (`When`。`SymbolCondition` か `"defined(_A) && QUALITY >= 2"` のような `#if` の書き方の文字列) で呼ぶ
+  - `ShaderCompilation.EnumerateCallees`: 呼ばれる関数を、深さとそこへ至る構成を付けてたどる
+  - `ShaderCompilation.TryGetIdentifierUndeclaredCondition`: 識別子が指すグローバル変数が宣言されていない構成を求める (HL0315 と同じ判断)
+  - `ExpressionTypeBinder.GetTypesByConfiguration`: 式の型を構成ごとに求める
+  - 実例集の「コンパイル条件分岐（シンボル）に応じた関数制限」をこの API で書き直した。`#ifdef` の外の呼び出しも、その構成で実行されるので報告する
 - `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成が到達することを伝える UN0103 (エラー) を足した。
   Unity は宣言したキーワードの構成をすべてコンパイルするので、到達するとシェーダーが使えなくなる (Unity 6.6 で、`multi_compile` ならシェーダー全体がピンクになった)。
   公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、

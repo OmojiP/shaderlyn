@@ -49,6 +49,7 @@ Shaderlyn.CFamily.Preprocessing.FirstInclusion :: virtual System.Int32 GetHashCo
 Shaderlyn.CFamily.Preprocessing.FirstInclusion :: virtual System.String ToString()
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver : interface
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver :: abstract System.Boolean TryResolve(System.String, System.String, out Shaderlyn.Core.Text.SourceText)
+Shaderlyn.CFamily.Preprocessing.IIncludeResolver :: virtual System.String CacheFingerprint { get; }
 Shaderlyn.CFamily.Preprocessing.IIncludeResolver :: virtual System.String FindOutsideBoundary(System.String, System.String)
 Shaderlyn.CFamily.Preprocessing.InactiveRegion : struct (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.InactiveRegion])
 Shaderlyn.CFamily.Preprocessing.InactiveRegion :: .ctor(Shaderlyn.Core.Diagnostics.Location, System.Collections.Immutable.ImmutableArray`1[System.String])
@@ -1261,9 +1262,28 @@ Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: .ctor(Shaderlyn.LanguageServer.Protocol.LspConnection, System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Analysis.DiagnosticAnalyzer], System.Collections.Generic.IEnumerable`1[Shaderlyn.Cli.HostEnvironment])
 Shaderlyn.LanguageServer.ShaderLanguageServer :: System.Threading.Tasks.Task`1[System.Int32] RunAsync(System.Threading.CancellationToken)
+Shaderlyn.Semantics.Analysis.ConditionalReports : sealed class
+Shaderlyn.Semantics.Analysis.ConditionalReports :: .ctor(Shaderlyn.Semantics.ShaderCompilation)
+Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Boolean Add(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Diagnostics.Location, System.Object[])
+Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Boolean Add(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Diagnostics.Location, System.String, System.Func`2[Shaderlyn.Core.Syntax.SymbolCondition,System.Object[]])
+Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Diagnostics.Diagnostic] Build()
+Shaderlyn.Semantics.Analysis.ConditionalReports :: static System.String Describe(Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Analysis.NodeActionOptions : sealed class
+Shaderlyn.Semantics.Analysis.NodeActionOptions :: .ctor()
+Shaderlyn.Semantics.Analysis.NodeActionOptions :: Shaderlyn.Semantics.Analysis.NodeCondition When { get; set; }
+Shaderlyn.Semantics.Analysis.NodeActionOptions :: System.Boolean ReachableFromEntryPoints { get; set; }
+Shaderlyn.Semantics.Analysis.NodeCondition : sealed class
+Shaderlyn.Semantics.Analysis.NodeCondition :: Shaderlyn.Core.Syntax.SymbolCondition Resolve(System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]])
+Shaderlyn.Semantics.Analysis.NodeCondition :: System.String Text { get; }
+Shaderlyn.Semantics.Analysis.NodeCondition :: static Shaderlyn.Semantics.Analysis.NodeCondition FromCondition(Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Analysis.NodeCondition :: static Shaderlyn.Semantics.Analysis.NodeCondition Parse(System.String)
+Shaderlyn.Semantics.Analysis.NodeCondition :: static Shaderlyn.Semantics.Analysis.NodeCondition op_Implicit(Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Analysis.NodeCondition :: static Shaderlyn.Semantics.Analysis.NodeCondition op_Implicit(System.String)
+Shaderlyn.Semantics.Analysis.NodeCondition :: virtual System.String ToString()
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext : sealed class
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: .ctor()
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]])
+Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]], Shaderlyn.Semantics.Analysis.NodeActionOptions)
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 : struct
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Analysis.AnalyzerOptions Options { get; }
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
@@ -1272,6 +1292,8 @@ Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Semantics.
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Threading.CancellationToken CancellationToken { get; }
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, System.Object[])
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportWhen(Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
+Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: System.Void ReportWhen(Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, System.Object[])
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: TNode Node { get; }
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer : abstract class (Shaderlyn.Core.Analysis.DiagnosticAnalyzer)
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: System.Void Initialize(Shaderlyn.Core.Analysis.AnalysisContext)
@@ -1300,6 +1322,20 @@ Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableDic
 Shaderlyn.Semantics.AnalyzedProgram :: System.Collections.Immutable.ImmutableHashSet`1[System.String] FunctionNames { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.String KernelName { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: System.ValueTuple`2[System.Int32,System.String] BlockKey { get; }
+Shaderlyn.Semantics.CalledFunction : sealed class (System.IEquatable`1[Shaderlyn.Semantics.CalledFunction])
+Shaderlyn.Semantics.CalledFunction :: .ctor(Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax, Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax, Shaderlyn.Core.Syntax.SymbolCondition, System.Int32)
+Shaderlyn.Semantics.CalledFunction :: Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax Function { get; set; }
+Shaderlyn.Semantics.CalledFunction :: Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax Call { get; set; }
+Shaderlyn.Semantics.CalledFunction :: Shaderlyn.Core.Syntax.SymbolCondition When { get; set; }
+Shaderlyn.Semantics.CalledFunction :: Shaderlyn.Semantics.CalledFunction <Clone>$()
+Shaderlyn.Semantics.CalledFunction :: System.Boolean Equals(Shaderlyn.Semantics.CalledFunction)
+Shaderlyn.Semantics.CalledFunction :: System.Int32 Depth { get; set; }
+Shaderlyn.Semantics.CalledFunction :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax, out Shaderlyn.CFamily.Syntax.InvocationExpressionSyntax, out Shaderlyn.Core.Syntax.SymbolCondition, out System.Int32)
+Shaderlyn.Semantics.CalledFunction :: static System.Boolean op_Equality(Shaderlyn.Semantics.CalledFunction, Shaderlyn.Semantics.CalledFunction)
+Shaderlyn.Semantics.CalledFunction :: static System.Boolean op_Inequality(Shaderlyn.Semantics.CalledFunction, Shaderlyn.Semantics.CalledFunction)
+Shaderlyn.Semantics.CalledFunction :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.CalledFunction :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.CalledFunction :: virtual System.String ToString()
 Shaderlyn.Semantics.Conditional.ConditionMap : sealed class
 Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition GetCondition(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode)
 Shaderlyn.Semantics.Conditional.ConditionMap :: Shaderlyn.Core.Syntax.SymbolCondition Simplify(Shaderlyn.Core.Syntax.SymbolCondition)
@@ -1376,6 +1412,7 @@ Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Im
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] EngineDefinedFunctions { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Collections.Immutable.ImmutableHashSet`1[System.String] EngineDefinedMacros { get; set; }
+Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,Shaderlyn.CFamily.Preprocessing.IIncludeResolver] SelectUnitIncludeResolver { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,Shaderlyn.Hlsl.Parsing.HlslLanguageVersion] SelectUnitLanguageVersion { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.Func`3[System.String,Shaderlyn.CFamily.Preprocessing.IIncludeResolver,System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String]] SelectUnitMacros { get; set; }
 Shaderlyn.Semantics.Environments.HlslEnvironmentOptions :: System.String Name { get; set; }
@@ -1500,6 +1537,17 @@ Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssign
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsPresentWith(Shaderlyn.Semantics.Conditional.ConditionMap, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWriteback(Shaderlyn.CFamily.Syntax.ParameterSyntax)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWritebackModifier(System.String)
+Shaderlyn.Semantics.Programs.ConditionalType : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.ConditionalType])
+Shaderlyn.Semantics.Programs.ConditionalType :: .ctor(Shaderlyn.Core.Syntax.SymbolCondition, System.String)
+Shaderlyn.Semantics.Programs.ConditionalType :: Shaderlyn.Core.Syntax.SymbolCondition When { get; set; }
+Shaderlyn.Semantics.Programs.ConditionalType :: System.Boolean Equals(Shaderlyn.Semantics.Programs.ConditionalType)
+Shaderlyn.Semantics.Programs.ConditionalType :: System.String Type { get; set; }
+Shaderlyn.Semantics.Programs.ConditionalType :: System.Void Deconstruct(out Shaderlyn.Core.Syntax.SymbolCondition, out System.String)
+Shaderlyn.Semantics.Programs.ConditionalType :: static System.Boolean op_Equality(Shaderlyn.Semantics.Programs.ConditionalType, Shaderlyn.Semantics.Programs.ConditionalType)
+Shaderlyn.Semantics.Programs.ConditionalType :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Programs.ConditionalType, Shaderlyn.Semantics.Programs.ConditionalType)
+Shaderlyn.Semantics.Programs.ConditionalType :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Semantics.Programs.ConditionalType :: virtual System.Int32 GetHashCode()
+Shaderlyn.Semantics.Programs.ConditionalType :: virtual System.String ToString()
 Shaderlyn.Semantics.Programs.DeclaredName : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.DeclaredName])
 Shaderlyn.Semantics.Programs.DeclaredName :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Semantics.Symbols.ResolvedTypeName, Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Programs.DeclaredName :: Shaderlyn.CFamily.Syntax.ShaderSyntaxNode Declarator { get; set; }
@@ -1528,6 +1576,7 @@ Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: Shaderlyn.Semantics.Symbols
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Boolean TryGetStructField(System.String, System.String, out Shaderlyn.CFamily.Syntax.VariableDeclaratorSyntax, out System.String)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.Semantics.Conditional.ConditionMap)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Syntax.SymbolCondition] EnumerateAssumptions(Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ExpressionSyntax], Shaderlyn.Semantics.Conditional.ConditionMap)
+Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Programs.ConditionalType] GetTypesByConfiguration(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Programs.ExpressionTypeBinder :: System.Nullable`1[System.Int32] CountComponents(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Programs.FunctionSignature : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.FunctionSignature])
 Shaderlyn.Semantics.Programs.FunctionSignature :: .ctor(System.String, System.Int32, System.Int32, Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax = null)
@@ -1625,6 +1674,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean IsWrittenHere(Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean MayLackOverloadsOf(System.String)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryEnumerateConfigurations(System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode], Shaderlyn.Semantics.AnalyzedProgram, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Semantics.Conditional.NodeConfiguration])
+Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryGetIdentifierUndeclaredCondition(Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax, Shaderlyn.Semantics.AnalyzedProgram, out Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.ShaderCompilation :: System.Boolean TryGetUniform(System.String, out Shaderlyn.Semantics.Symbols.UniformSymbol)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] AllDeclaredNames { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] GetHeaderDeclaredNames(System.ValueTuple`2[System.Int32,System.String])
@@ -1632,6 +1682,7 @@ Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[S
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] LocalOnlyDeclaredNames { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Frozen.FrozenSet`1[System.String] UnanalyzedIdentifiers { get; }
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Syntax.SyntaxNode] EnumerateOwnNodes(Shaderlyn.Semantics.AnalyzedProgram)
+Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Semantics.CalledFunction] EnumerateCallees(Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax, Shaderlyn.Semantics.AnalyzedProgram, System.Int32 = 8)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.DeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations()
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.DeclarationSyntax,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleDeclarations(System.Boolean)
 Shaderlyn.Semantics.ShaderCompilation :: System.Collections.Generic.IEnumerable`1[System.ValueTuple`2[Shaderlyn.CFamily.Syntax.ShaderSyntaxNode,Shaderlyn.Semantics.AnalyzedProgram]] EnumerateRuleNodes()

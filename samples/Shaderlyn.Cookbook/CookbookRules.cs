@@ -46,7 +46,7 @@ internal static class CookbookRules
     public static DiagnosticDescriptor BannedUnderSymbol { get; } = new(
         id: "COOK0005",
         title: "この構成では使えない関数",
-        messageFormat: "'{1}' が定義されている構成で '{0}' は使えません。",
+        messageFormat: "{0}関数 '{1}' は使えません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");

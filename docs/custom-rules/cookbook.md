@@ -242,36 +242,37 @@ internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : ShaderRuleAnal
 
 ### 5. コンパイル条件分岐（シンボル）に応じた関数制限
 
-「特定のシンボルが定義されている場合のみ特定の関数呼び出しを禁じる」といった検査です。
+「特定のシンボルが定義されている構成では、特定の関数呼び出しを禁じる」といった検査です。
 
 ```csharp
+// Rule の書式: "{0}関数 '{1}' は使えません。"  ({0} に「構成：○○ のとき、」が入る)
 internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     protected override void InitializeShader(ShaderAnalysisContext context)
-        => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
-        {
-            if (c.Node.Target is not IdentifierExpressionSyntax name
-                || !string.Equals(name.Name, function, StringComparison.Ordinal))
+        => context.RegisterNodeAction<InvocationExpressionSyntax>(
+            c =>
             {
-                return;
-            }
-
-            ConditionMap map = c.Compilation.GetConditionMap();
-            SymbolCondition here = map.GetCondition(c.Node);
-
-            // 条件が未確定（Unknown）な場合は誤検出を防ぐためスキップ
-            if (here.IsUnknown) return;
-
-            // シンボルが無い構成では存在しない = そのシンボルのときだけ存在する
-            if (!map.IsPossible(here.And(SymbolCondition.Symbol(keyword, isDefined: false))))
-            {
-                c.ReportDiagnostic(Rule, name.Span, function, keyword);
-            }
-        });
+                if (c.Node.Target is IdentifierExpressionSyntax name
+                    && string.Equals(name.Name, function, StringComparison.Ordinal))
+                {
+                    c.ReportWhen(SymbolCondition.Always, Rule, name.Span, function);
+                }
+            },
+            // その構成に存在しうる呼び出しだけを受け取る。ReportWhen にもこの条件が掛かる。
+            new NodeActionOptions { When = $"defined({keyword})" });
 }
 ```
+
+```text
+構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。
+```
+
+- `#ifdef _LOW_QUALITY` の外の呼び出しも、その構成で実行されるので報告します。`#ifndef _LOW_QUALITY` の中の呼び出しは受け取りません
+- 条件の掛け方 (ノードの条件、木の構成、ありえない構成と `#error` に到達する構成を除く、Pass と構成をまたいで 1 件にまとめる) は
+  `ReportWhen` と `NodeActionOptions` が行います ([API リファレンス](api-reference.md#reportwhen))
+- 条件は `"defined(_A) && QUALITY >= 2"` のように `#if` と同じ書き方でも、`SymbolCondition` でも書けます
 
 ---
 

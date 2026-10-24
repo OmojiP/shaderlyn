@@ -119,8 +119,33 @@
 | メソッド                                                            |                          |
 | ------------------------------------------------------------------- | ------------------------ |
 | `RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>>)` | ノード型ごとのアクション |
+| `RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>>, NodeActionOptions)` | どのノードで呼ぶかを指定したアクション |
 
 `TNode` には [HLSL のノード型](#hlsl-のノード型)を指定します。
+
+#### `NodeActionOptions`
+
+| プロパティ                  |                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ReachableFromEntryPoints`  | エントリポイントから呼び出しをたどって届く関数の中のノードだけで呼ぶ。関数の外のノードでは今までどおり呼ぶ。エントリポイントが分からない木では、すべての関数で呼ぶ |
+| `When`                      | その構成で存在しうるノードだけで呼ぶ。その中の `ReportWhen` には、この条件も掛かる                    |
+
+`When` には `SymbolCondition` か、`#if` と同じ書き方の文字列を渡せます。
+
+```csharp
+context.RegisterNodeAction<InvocationExpressionSyntax>(Check, new NodeActionOptions
+{
+    ReachableFromEntryPoints = true,
+    When = "defined(SHADER_API_MOBILE) && !defined(_A) && QUALITY >= 2",
+});
+
+// SymbolCondition で書いてもよい
+When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_A", isDefined: false)),
+```
+
+- 文字列で書けるのは `defined(X)` / `defined X` / `X`、値を持つシンボルと整数の比較 (`==` `!=` `<` `<=` `>` `>=`)、`!` `&&` `||` と括弧です
+- 値を持つシンボル (`QUALITY`) は、その単位の値の一覧で読みます (`QUALITY >= 2` は `QUALITY == 2 || QUALITY == 3`)。`X` だけなら `X != 0` です
+- 書き方の誤りは、登録するときに `FormatException` になります。値を持たないシンボルを数と比べると、解析するときに `FormatException` になります (TOOL0001)
 
 ### `AnalysisStartContext`
 
@@ -158,6 +183,29 @@
 | `Compilation` | 対象シェーダーのセマンティックモデル。[`ShaderCompilation`](#shadercompilation-shaderlynsemantics)。`null` にはならない |
 | `Program`     | そのノードが属するコードブロック。[`AnalyzedProgram`](#analyzedprogram)。既定の構成の木か、バリアントの木のどちらか。型を求めるときは `Compilation.GetExpressionTypeBinder(Program)` を使う |
 | `Condition`   | そのノードが存在する条件 (`SymbolCondition`)。`Compilation.GetEffectiveCondition(Node, Program)` と同じ。`IsUnknown` なら報告の根拠にしない |
+| `ReportWhen(when, descriptor, args...)` / `ReportWhen(when, descriptor, span, args...)` | 構成の条件が付く報告。メッセージの `{0}` に「構成：○○ のとき、」(どの構成でもなら空) が入り、`args` は `{1}` 以降に入る。下記 |
+
+#### `ReportWhen`
+
+構成の条件が付く報告を、正しい順序で条件を掛けて出します。
+
+```csharp
+// メッセージの書式: "{0}関数 '{1}' は使えません。"
+c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function);
+// → 「構成：_A のとき、関数 'tex2Dlod' は使えません。」
+```
+
+1. 報告する構成 = ノードの条件 × その木が表す構成 (`GetTreeConfiguration`) × `when` × `NodeActionOptions.When`
+2. ありえない構成と、`#error` に到達する構成を除きます (`IsPossibleIn`)。残らなければ報告しません
+3. 条件を追えなかったときは報告しません
+4. 同じ位置・同じ引数の報告は、Pass と構成をまたいで条件の和をとって 1 件にし、解析の終わりに出します
+5. 読める形に短くします (`Simplify`)
+
+`ReportDiagnostic` で木ごとに報告すると、同じ位置の報告は最初の木のものだけが残り、ほかの木の構成の分が条件から落ちます。
+条件をメッセージに出すなら `ReportWhen` を使ってください。
+
+`ShaderRuleAnalyzer` を使わないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
+`Add(program, node, when, descriptor, location, args...)` で集め、`Build()` で診断にします。
 
 ---
 
@@ -732,6 +780,53 @@ if (resolution.IsResolved)
 
 `obj.Method(...)` の形は解決しません。メソッドは宣言として書かれていないためです。
 テクスチャのメソッド (`Sample` など) は `Intrinsic`、それ以外は `Unknown` になります。
+
+### `EnumerateCallees`
+
+関数から呼ばれる関数を、呼び出しをたどって列挙します。再帰と深さの打ち切りは API が持ちます。
+
+```csharp
+foreach (CalledFunction callee in c.Compilation.EnumerateCallees(c.Node, c.Program, maxDepth: 8))
+{
+    // callee.Function … 呼ばれる関数の宣言
+    // callee.Call     … それを呼んでいる呼び出し
+    // callee.When     … そこへ至る構成 (呼び出しの位置の条件と、宣言の条件の積)
+    // callee.Depth    … 深さ。直接呼ぶ関数が 1
+}
+```
+
+- 同じ関数は、最初に (浅いところで) 見つけた 1 件だけを返します
+- 多重定義が 1 つに決まらなければ、候補をすべてたどります。組み込み関数と、宣言の見つからない呼び出しはたどりません
+- `When` には木が表す構成を掛けていません。報告には `ReportWhen` を使ってください
+
+### `TryGetIdentifierUndeclaredCondition`
+
+識別子が指すグローバル変数が宣言されていない構成があるかを調べ、あればその構成を返します。組み込みのルール HL0315 と同じ判断です。
+
+```csharp
+if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out SymbolCondition undeclared))
+{
+    // undeclared … 識別子を使っていて、宣言が無い構成 (どの構成でもなら Always)
+}
+```
+
+- 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (HL0310 の範囲) は `false` です
+- 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比べ、ありえない構成と `#error` に到達する構成を除きます
+- 条件を追えなかったとき、どの構成でも解析しなかった領域に名前があるとき、依存関係が解決できていないときは `false` です
+
+### `GetTypesByConfiguration`
+
+`ExpressionTypeBinder` (`Compilation.GetExpressionTypeBinder(Program)`) のメソッドで、式の型を構成ごとに求めます。
+
+```csharp
+foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
+{
+    // type.When … 構成、type.Type … その構成での型
+}
+// #ifdef _A float3 color; #else float4 color; #endif の color なら (_A, float3) と (!_A, float4)
+```
+
+`Evaluate` は型が構成で割れる名前を不明 (`null`) にします。型が分からない構成は結果に含みません。`When` には木が表す構成を掛けていません。
 
 ### `CallCompatibility` (`Shaderlyn.Semantics.Programs`)
 

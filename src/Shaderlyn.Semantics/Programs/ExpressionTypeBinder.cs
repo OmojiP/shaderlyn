@@ -606,6 +606,53 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>
+    /// 式の型を、構成ごとに求める。
+    /// </summary>
+    /// <param name="expression">対象の式。</param>
+    /// <returns>
+    /// 構成と、その構成での型の組。型が構成によって変わらなければ 1 つ (構成はその位置の条件)。
+    /// 型が分からない構成は含まない。どの構成でも分からなければ空。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>同じ名前を条件ごとに違う型で宣言していても、構成ごとに見れば型は決まる。</b>
+    /// <c>#ifdef _A</c> で <c>float3 color</c>、<c>#else</c> で <c>float4 color</c> なら、
+    /// <c>(_A, float3)</c> と <c>(!_A, float4)</c> を返す。<see cref="GetEvaluatorFor(SyntaxNode)"/> の評価器はこの型を不明にする。
+    /// </para>
+    /// <para>
+    /// 仮定 (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>) を立て、仮定ごとに型を求めたものである。
+    /// 仮定が多すぎるときは分けずに 1 つの型を求める (分からなければ空)。
+    /// 構成には、木が表す構成 (<see cref="ShaderCompilation.GetTreeConfiguration"/>) は掛けていない。報告に使うときは掛けること。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<ConditionalType> GetTypesByConfiguration(ExpressionSyntax expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        ConditionMap conditions = _compilation.GetConditionMap();
+        ImmutableArray<SymbolCondition> assumptions = EnumerateAssumptions(expression, expression, conditions);
+
+        if (assumptions.IsEmpty)
+        {
+            return GetEvaluatorFor(expression).Evaluate(expression) is { } type
+                ? [new ConditionalType(conditions.GetCondition(expression), type)]
+                : [];
+        }
+
+        ImmutableArray<ConditionalType>.Builder types = ImmutableArray.CreateBuilder<ConditionalType>(assumptions.Length);
+
+        foreach (SymbolCondition assumption in assumptions)
+        {
+            if (GetEvaluatorFor(expression, assumption, conditions).Evaluate(expression) is { } type)
+            {
+                types.Add(new ConditionalType(assumption, type));
+            }
+        }
+
+        return types.ToImmutable();
+    }
+
+    /// <summary>
     /// ノードを囲む関数に対応する評価器を返す。
     /// </summary>
     /// <param name="node">対象のノード。</param>
@@ -1341,3 +1388,8 @@ public sealed class ExpressionTypeBinder
             ? single.Text
             : null;
 }
+
+/// <summary>構成と、その構成での式の型 (<see cref="ExpressionTypeBinder.GetTypesByConfiguration"/>)。</summary>
+/// <param name="When">構成。</param>
+/// <param name="Type">型の名前。</param>
+public readonly record struct ConditionalType(SymbolCondition When, string Type);

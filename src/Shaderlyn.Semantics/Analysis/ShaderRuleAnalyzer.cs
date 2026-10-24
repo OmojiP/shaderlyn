@@ -66,6 +66,9 @@ namespace Shaderlyn.Semantics.Analysis;
 /// </para>
 /// <para>
 /// そのノードが存在する条件は <see cref="ShaderNodeAnalysisContext{TNode}.Condition"/> で分かる。
+/// 構成の条件が付く報告は <see cref="ShaderNodeAnalysisContext{TNode}.ReportWhen(SymbolCondition, DiagnosticDescriptor, object?[])"/> で出す。
+/// 木の構成を掛け、ありえない構成を除き、同じ位置の報告は Pass と構成をまたいで条件の和をとって 1 件にする
+/// (<see cref="ConditionalReports"/>)。
 /// </para>
 /// </remarks>
 public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
@@ -127,10 +130,21 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
         // 歩くのはすべての木で、それぞれの文脈で渡す。Pass や構成が違えば意味が違いうるためである。
         // まとめるのは報告のほうにする。
         HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported = [];
+        ConditionalReports conditional = new(compilation);
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            registrations.Invoke(this, node, compilation, program, treeContext, reported);
+            registrations.Invoke(this, node, compilation, program, treeContext, reported, conditional);
+        }
+
+        // 条件付きの報告は、すべての木を歩いてから出す。同じ位置の報告の条件の和をとるためである。
+        // 解析しているファイルの位置は、元のテキスト (マスクする前) に付ける。抑制コメントと周辺の表示はそちらにある。
+        foreach (Diagnostic diagnostic in conditional.Build())
+        {
+            treeContext.ReportDiagnostic(
+                string.Equals(diagnostic.Location.FilePath, treeContext.Unit.FilePath, StringComparison.Ordinal)
+                    ? diagnostic.WithLocation(Location.Create(treeContext.Unit.Text, diagnostic.Location.Span))
+                    : diagnostic);
         }
     }
 }
@@ -144,7 +158,7 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
 /// </remarks>
 public sealed class ShaderAnalysisContext
 {
-    private readonly List<(Type NodeType, Action<ShaderSyntaxNode, ShaderCompilation, AnalyzedProgram, SyntaxTreeAnalysisContext, HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)>> Invoke)> _actions = [];
+    private readonly List<(Type NodeType, NodeActionOptions? Options, Action<ShaderSyntaxNode, ShaderCompilation, AnalyzedProgram, SyntaxTreeAnalysisContext, HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)>, ConditionalReports, SymbolCondition> Invoke)> _actions = [];
 
     /// <summary>登録が 1 つも無いかどうか。</summary>
     internal bool IsEmpty => _actions.Count == 0;
@@ -160,13 +174,30 @@ public sealed class ShaderAnalysisContext
     /// </remarks>
     public void RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>> action)
         where TNode : ShaderSyntaxNode
+        => RegisterNodeAction(action, null);
+
+    /// <summary>
+    /// 指定した型の HLSL ノードのうち、指定に合うものに対して実行するアクションを登録する。
+    /// </summary>
+    /// <typeparam name="TNode">関心のあるノードの型。</typeparam>
+    /// <param name="action">ノードごとに呼ばれるアクション。</param>
+    /// <param name="options">どのノードで呼ぶか (エントリポイントから届く関数の中だけ、ある構成で存在しうるノードだけ)。<see langword="null"/> ならすべて。</param>
+    /// <example>
+    /// <code>
+    /// context.RegisterNodeAction&lt;InvocationExpressionSyntax&gt;(Check,
+    ///     new NodeActionOptions { ReachableFromEntryPoints = true, When = "defined(SHADER_API_MOBILE)" });
+    /// </code>
+    /// </example>
+    public void RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>> action, NodeActionOptions? options)
+        where TNode : ShaderSyntaxNode
     {
         ArgumentNullException.ThrowIfNull(action);
 
         _actions.Add((
             typeof(TNode),
-            (node, compilation, program, treeContext, reported) =>
-                action(new ShaderNodeAnalysisContext<TNode>((TNode)node, compilation, program, treeContext, reported))));
+            options,
+            (node, compilation, program, treeContext, reported, conditional, when) =>
+                action(new ShaderNodeAnalysisContext<TNode>((TNode)node, compilation, program, treeContext, reported, conditional, when))));
     }
 
     /// <summary>登録されたアクションのうち、そのノードで発火すべきものを呼ぶ。</summary>
@@ -176,25 +207,68 @@ public sealed class ShaderAnalysisContext
     /// <param name="program">そのノードが属するコードブロック。</param>
     /// <param name="treeContext">報告先。</param>
     /// <param name="reported">報告済みの内容。同じ報告を構成の数だけ並べないために使う。</param>
+    /// <param name="conditional">条件付きの報告を集める先。</param>
     internal void Invoke(
         ShaderRuleAnalyzer owner,
         ShaderSyntaxNode node,
         ShaderCompilation compilation,
         AnalyzedProgram program,
         SyntaxTreeAnalysisContext treeContext,
-        HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported)
+        HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported,
+        ConditionalReports conditional)
     {
         ArgumentNullException.ThrowIfNull(owner);
 
         Type nodeType = node.GetType();
 
-        foreach ((Type registered, var invoke) in _actions)
+        foreach ((Type registered, NodeActionOptions? options, var invoke) in _actions)
         {
-            if (registered.IsAssignableFrom(nodeType))
+            if (registered.IsAssignableFrom(nodeType) && Selects(options, node, compilation, program, out SymbolCondition when))
             {
-                invoke(node, compilation, program, treeContext, reported);
+                invoke(node, compilation, program, treeContext, reported, conditional, when);
             }
         }
+    }
+
+    /// <summary>指定に合うノードかを判定し、合えば <see cref="NodeActionOptions.When"/> の条件を返す。</summary>
+    /// <param name="options">指定。</param>
+    /// <param name="node">対象のノード。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">そのノードが属する木。</param>
+    /// <param name="when">指定した構成の条件。指定が無ければ <see cref="SymbolCondition.Always"/>。</param>
+    /// <returns>アクションを呼ぶなら <see langword="true"/>。</returns>
+    private static bool Selects(NodeActionOptions? options, ShaderSyntaxNode node, ShaderCompilation compilation, AnalyzedProgram program, out SymbolCondition when)
+    {
+        when = SymbolCondition.Always;
+
+        if (options is null)
+        {
+            return true;
+        }
+
+        // 関数の外のノードは選ばない (グローバルの宣言は、届くかどうかに関わらない)。
+        if (options.ReachableFromEntryPoints
+            && node.Ancestors().OfType<FunctionDeclarationSyntax>().LastOrDefault() is { } function
+            && compilation.GetReachableFunctions(program) is { } reachable
+            && !reachable.Contains(function))
+        {
+            return false;
+        }
+
+        if (options.When is { } condition)
+        {
+            when = condition.Resolve(program.Variants.ValueSymbols);
+            SymbolCondition present = compilation.GetEffectiveCondition(node, program)
+                .And(compilation.GetTreeConfiguration(program))
+                .And(when);
+
+            if (present.IsUnknown || !compilation.IsPossibleIn(program, present))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
@@ -207,19 +281,25 @@ public readonly struct ShaderNodeAnalysisContext<TNode>
 {
     private readonly SyntaxTreeAnalysisContext _treeContext;
     private readonly HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> _reported;
+    private readonly ConditionalReports _conditional;
+    private readonly SymbolCondition _when;
 
     internal ShaderNodeAnalysisContext(
         TNode node,
         ShaderCompilation compilation,
         AnalyzedProgram program,
         SyntaxTreeAnalysisContext treeContext,
-        HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported)
+        HashSet<(string Id, string FilePath, TextSpan Span, string Arguments)> reported,
+        ConditionalReports conditional,
+        SymbolCondition when)
     {
         Node = node;
         Compilation = compilation;
         Program = program;
         _treeContext = treeContext;
         _reported = reported;
+        _conditional = conditional;
+        _when = when;
     }
 
     /// <summary>検査対象のノード。</summary>
@@ -253,6 +333,35 @@ public readonly struct ShaderNodeAnalysisContext<TNode>
 
     /// <summary>キャンセル用トークン。</summary>
     public CancellationToken CancellationToken => _treeContext.CancellationToken;
+
+    /// <summary>
+    /// 構成の条件が付く報告を、検査対象ノードの位置に出す。メッセージの <c>{0}</c> に「構成：○○ のとき、」(どの構成でもなら空) が入る。
+    /// </summary>
+    /// <param name="when">報告する構成。ノードがあればどの構成でも報告するなら <see cref="SymbolCondition.Always"/>。</param>
+    /// <param name="descriptor">報告するルール。</param>
+    /// <param name="messageArguments">メッセージの <c>{1}</c> 以降に入る引数。</param>
+    /// <remarks>
+    /// ノードの条件、木が表す構成、<see cref="NodeActionOptions.When"/> を掛け、ありえない構成を除いて報告する。
+    /// 同じ位置・同じ引数の報告は、Pass と構成をまたいで条件の和をとって 1 件にし、解析の終わりに出す (<see cref="ConditionalReports"/>)。
+    /// 条件を追えなかったときは報告しない。
+    /// </remarks>
+    public void ReportWhen(SymbolCondition when, DiagnosticDescriptor descriptor, params object?[] messageArguments)
+        => ReportWhen(when, descriptor, Node.Span, messageArguments);
+
+    /// <summary>
+    /// 構成の条件が付く報告を、ノード内の指定範囲に出す (<see cref="ReportWhen(SymbolCondition, DiagnosticDescriptor, object?[])"/>)。
+    /// </summary>
+    /// <param name="when">報告する構成。</param>
+    /// <param name="descriptor">報告するルール。</param>
+    /// <param name="span">指摘する範囲。</param>
+    /// <param name="messageArguments">メッセージの <c>{1}</c> 以降に入る引数。</param>
+    public void ReportWhen(SymbolCondition when, DiagnosticDescriptor descriptor, TextSpan span, params object?[] messageArguments)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        SourceText source = Node.FirstToken?.Source ?? _treeContext.Unit.Text;
+        _conditional.Add(Program, Node, when.And(_when), descriptor, Location.Create(source, span), messageArguments);
+    }
 
     /// <summary>
     /// 検査対象ノードの位置に診断を報告する。

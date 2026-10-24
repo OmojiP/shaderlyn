@@ -75,6 +75,9 @@ Shaderlyn のルールは、構文木 (AST) とセマンティックモデルを
   - `IsMissing` のトークン (構文エラーで補ったもの) には報告しない
   - `ResolveName` の `Undecidable`、`ResolveCall` の `Ambiguous` / `Unknown` は報告の根拠にしない
 - 数える・合計するルールは、構成ごとに数える (`TryEnumerateConfigurations`)。両方の分岐を並べた木をそのまま数えない
+- 構成の条件が付く報告は `ReportWhen` で出す。条件の掛け方 (木の構成、ありえない構成と `#error` に到達する構成を除く、同じ位置の報告をまとめる) を自分で書かない。
+  ある構成のノードだけを見るなら `NodeActionOptions.When`、エントリポイントから届く関数だけなら `ReachableFromEntryPoints` を使う
+- 呼び出しをたどるなら `EnumerateCallees`、グローバル変数が宣言されていない構成は `TryGetIdentifierUndeclaredCondition`、構成ごとの型は `GetTypesByConfiguration` を使う
 - 報告の位置は問題のトークンだけにする。ノード全体に波線を引かない
 
 ## 4. テストを書いて確かめる

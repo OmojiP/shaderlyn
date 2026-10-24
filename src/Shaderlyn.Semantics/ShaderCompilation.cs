@@ -35,7 +35,7 @@ namespace Shaderlyn.Semantics;
 /// <see cref="HasCompleteDependencies"/> と <see cref="UnresolvedIncludes"/> で判別できる。
 /// </para>
 /// </remarks>
-public sealed class ShaderCompilation
+public sealed partial class ShaderCompilation
 {
     private readonly Dictionary<string, List<UniformSymbol>> _uniformsByName;
     private readonly Dictionary<string, int> _declarationCounts;

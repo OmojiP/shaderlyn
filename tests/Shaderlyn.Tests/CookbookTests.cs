@@ -180,18 +180,33 @@ public sealed class CookbookTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
         Assert.Equal("COOK0005", diagnostic.Id);
-        Assert.Contains("_LOW_QUALITY", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。", diagnostic.GetMessage());
     }
 
+    /// <summary>
+    /// <c>#ifdef</c> の外の呼び出しも、その構成で実行されるので報告する。その構成に無い呼び出し (<c>#ifndef</c> の中) は報告しない。
+    /// </summary>
     [Fact]
-    public void 条件の外の呼び出しは報告しない()
-        => AssertNone(
+    public void 条件の外の呼び出しもその構成のものとして報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
             new BannedUnderSymbolAnalyzer("_LOW_QUALITY", "ExpensiveCall"),
             Shader("""
                             #pragma multi_compile _ _LOW_QUALITY
                             float4 ExpensiveCall() { return 1; }
-                            float4 frag() : SV_Target { return ExpensiveCall(); }
+                            float4 frag() : SV_Target
+                            {
+                                float4 c = ExpensiveCall();
+                            #ifndef _LOW_QUALITY
+                                c += ExpensiveCall();
+                            #endif
+                                return c;
+                            }
                 """));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。", diagnostic.GetMessage());
+    }
 
     [Fact]
     public void 引数の型が違えば報告する()

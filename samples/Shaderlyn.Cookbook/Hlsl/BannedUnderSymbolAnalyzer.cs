@@ -3,7 +3,6 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Semantics.Analysis;
-using Shaderlyn.Semantics.Conditional;
 
 namespace Shaderlyn.Cookbook;
 
@@ -12,13 +11,13 @@ namespace Shaderlyn.Cookbook;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>「そのノードがどの構成に存在するか」は出現条件が答える。</b>
-/// <c>#ifdef</c> の中にある呼び出しは、その条件のもとでしか存在しない。
+/// <b>構成の条件の掛け方は API に任せる。</b>
+/// <see cref="NodeActionOptions.When"/> で、その構成に存在しうる呼び出しだけを受け取る。
+/// <c>#ifdef</c> の外の呼び出しも、その構成で実行されるので報告する。<c>#ifndef</c> の中の呼び出しは受け取らない。
 /// </para>
 /// <para>
-/// 判定は「シンボルが未定義のときには存在しえない」かどうかで行う。
-/// 条件と「シンボルが未定義」を論理積にして、成り立たなくなれば
-/// その呼び出しはシンボルが定義された構成にしか無い。
+/// 報告は <see cref="ShaderNodeAnalysisContext{TNode}.ReportWhen(SymbolCondition, DiagnosticDescriptor, TextSpan, object?[])"/> で出す。
+/// 木の構成を掛け、ありえない構成を除き、同じ位置の報告を 1 件にまとめて、メッセージの <c>{0}</c> に構成を入れる。
 /// </para>
 /// </remarks>
 public sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
@@ -30,28 +29,16 @@ public sealed class BannedUnderSymbolAnalyzer(string keyword, string function) :
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
-        {
-            if (c.Node.Target is not IdentifierExpressionSyntax name
-                || !string.Equals(name.Name, function, StringComparison.Ordinal))
+        context.RegisterNodeAction<InvocationExpressionSyntax>(
+            c =>
             {
-                return;
-            }
-
-            ConditionMap condition = c.Compilation.GetConditionMap();
-            SymbolCondition here = condition.GetCondition(c.Node);
-
-            // 条件が分からないなら報告しない。分からないことを誤りにしてはならない。
-            if (here.IsUnknown)
-            {
-                return;
-            }
-
-            // シンボルが無い構成では存在しない = そのシンボルのときだけ存在する。
-            if (!condition.IsPossible(here.And(SymbolCondition.Symbol(keyword, isDefined: false))))
-            {
-                c.ReportDiagnostic(CookbookRules.BannedUnderSymbol, name.Span, function, keyword);
-            }
-        });
+                if (c.Node.Target is IdentifierExpressionSyntax name
+                    && string.Equals(name.Name, function, StringComparison.Ordinal))
+                {
+                    // 構成：<keyword> のとき、関数 '<function>' は使えません。
+                    c.ReportWhen(SymbolCondition.Always, CookbookRules.BannedUnderSymbol, name.Span, function);
+                }
+            },
+            new NodeActionOptions { When = $"defined({keyword})" });
     }
 }
