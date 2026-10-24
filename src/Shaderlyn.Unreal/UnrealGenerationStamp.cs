@@ -245,15 +245,17 @@ public sealed class UnrealGenerationStaleness
 
         if (!HasRecord)
         {
-            return "Unreal の生成物に、生成したときの ini と C++ の記録がありません。--unreal-generate をやり直すと、"
-                   + "設定や C++ を変えたときに生成し直しが要ることを伝えられるようになります。";
+            return string.Join(
+                Environment.NewLine,
+                "Unreal の生成物に、前回の --unreal-generate で読んだ ini と C++ の記録がありません。",
+                "--unreal-generate をやり直すと、ini や C++ の変更を検出できるようになります。");
         }
 
         List<string> reasons = [];
 
         if (!ChangedIniFiles.IsEmpty)
         {
-            reasons.Add($"ini が変わりました ({string.Join(", ", ChangedIniFiles.Select(Path.GetFileName))})");
+            reasons.Add($"ini が変更されました ({string.Join(", ", ChangedIniFiles.Select(Path.GetFileName))})");
         }
 
         List<string> sources = [];
@@ -275,10 +277,12 @@ public sealed class UnrealGenerationStaleness
 
         if (sources.Count > 0)
         {
-            reasons.Add($"C++ のファイルが変わりました ({string.Join("、", sources)})");
+            reasons.Add($"C++ ファイルが変更されました ({string.Join("、", sources)})");
         }
 
-        return $"Unreal の生成物を作った後に、{string.Join("。また、", reasons)}。"
-               + "解析は生成したときの値で読むので、--unreal-generate をやり直してください。";
+        // 1 行に 1 つずつ並べる。CLI でも VS Code の通知でも読みやすい。
+        return string.Join(
+            Environment.NewLine,
+            ["前回の --unreal-generate から変更が検出されました。", .. reasons.Select(reason => reason + "。"), "変更を解析に反映する場合は --unreal-generate をやり直してください。"]);
     }
 }

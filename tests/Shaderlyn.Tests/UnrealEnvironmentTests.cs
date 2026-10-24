@@ -1435,7 +1435,9 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal(1, stale.ChangedSourceFiles);
         Assert.Equal(1, stale.AddedSourceFiles);
         Assert.Equal(1, stale.RemovedSourceFiles);
-        Assert.Contains("--unreal-generate をやり直してください", stale.Describe(), StringComparison.Ordinal);
+        Assert.Equal(
+            string.Join(Environment.NewLine, "前回の --unreal-generate から変更が検出されました。", "ini が変更されました (BaseEngine.ini)。", "C++ ファイルが変更されました (変更 1 件、追加 1 件、削除 1 件)。", "変更を解析に反映する場合は --unreal-generate をやり直してください。"),
+            stale.Describe());
     }
 
     [Fact]
