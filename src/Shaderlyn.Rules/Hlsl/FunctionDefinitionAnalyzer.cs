@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Conditional;
 
 namespace Shaderlyn.Rules;
@@ -64,8 +65,9 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // 同じコードが Pass ごとに解析されるため、同じ位置を重ねて報告しない。
-        ReportedLocations reported = new();
+        // 同じコードが Pass ごと・構成ごとに解析される。同じ位置の報告は、木をまたいで条件の和をとって 1 件にする。
+        // 木の構成を掛け、#error に到達する構成を除くのも ConditionalReports が行う。
+        ConditionalReports reports = new(compilation);
 
         foreach (AnalyzedProgram program in EnumeratePrograms(compilation))
         {
@@ -91,36 +93,30 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
                 {
                     if (node is InvocationExpressionSyntax invocation)
                     {
-                        AnalyzeCall(
-                            context,
-                            compilation,
-                            condition,
-                            defined,
-                            invocation,
-                            program.AnalyzedCondition,
-                            reported);
+                        AnalyzeCall(compilation, defined, invocation, program, reports);
                     }
                 }
             }
         }
+
+        foreach (Diagnostic diagnostic in reports.Build())
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
     }
 
     /// <summary>呼び出し 1 つ分を検査する。</summary>
-    /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <param name="condition">出現条件の索引。</param>
     /// <param name="defined">名前ごとの、定義がある条件。</param>
     /// <param name="invocation">検査する呼び出し。</param>
-    /// <param name="analyzed">この木を解析した構成の条件。</param>
-    /// <param name="reported">報告済みの位置。</param>
+    /// <param name="program">呼び出しのある木。</param>
+    /// <param name="reports">報告を集める先。</param>
     private static void AnalyzeCall(
-        SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
-        ConditionMap condition,
         Dictionary<string, SymbolCondition> defined,
         InvocationExpressionSyntax invocation,
-        SymbolCondition analyzed,
-        ReportedLocations reported)
+        AnalyzedProgram program,
+        ConditionalReports reports)
     {
         if (invocation.TargetName is not { } name
             || !defined.TryGetValue(name, out SymbolCondition definition)
@@ -130,34 +126,25 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // バリアントの木では、条件が付いていないことは「どの構成でも」を意味しない。
-        SymbolCondition call = condition.GetCondition(invocation).And(analyzed);
-
         // 条件が分かっていないなら報告しない。
         // 分からないものを根拠に「定義が無い」と言ってはならない。
-        if (call.IsUnknown || definition.IsUnknown)
+        if (definition.IsUnknown || invocation.GetLocation() is not { } location)
         {
             return;
         }
 
-        // 呼ぶ条件が成り立ち、かつ定義がある条件が成り立たない構成があるか。
-        SymbolCondition missing = call.And(definition.Negate());
-
-        if (missing.IsUnknown || !condition.IsPossible(missing))
-        {
-            return;
-        }
-
-        if (invocation.GetLocation() is not { } location || !reported.Add(location))
-        {
-            return;
-        }
-
-        context.ReportDiagnostic(Diagnostic.Create(
+        // 呼ぶ構成 (呼び出しの条件 × 木の構成) のうち、定義が無い構成を報告する。成り立たなければ報告しない。
+        // どの構成にも定義が無いなら、木の構成は掛けない。どの構成についても正しく、掛けると「どの構成でも」と言えず、
+        // 木の構成を並べた長い条件になる (調べきれなかった構成があると、木の構成の和は「常に」にならない)。
+        reports.Add(
+            program,
+            invocation,
+            definition.Negate(),
             HlslRuleDescriptors.FunctionDefinitionNotFound,
             location,
             name,
-            Describe(missing)));
+            missing => [name, Describe(missing)],
+            withTreeConfiguration: !definition.IsNever);
     }
 
     /// <summary>定義が無い構成を、利用者に読める形にする。</summary>

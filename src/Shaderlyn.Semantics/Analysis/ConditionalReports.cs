@@ -78,6 +78,11 @@ public sealed class ConditionalReports
     /// <param name="location">報告の位置。</param>
     /// <param name="key">同じ位置の報告をまとめる鍵 (引数のうち条件以外のもの)。鍵の違う報告はまとめない。</param>
     /// <param name="arguments">まとめて短くした条件から、メッセージの引数を作る手続き。同じ鍵では最初に渡したものを使う。</param>
+    /// <param name="withTreeConfiguration">
+    /// 木が表す構成 (<see cref="ShaderCompilation.GetTreeConfiguration"/>) を掛けるか。
+    /// 両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は掛けない。
+    /// その構成を表す木には、型が構成で変わることが見えないためである。
+    /// </param>
     /// <returns>報告する構成が残ったら <see langword="true"/>。</returns>
     public bool Add(
         AnalyzedProgram program,
@@ -86,7 +91,8 @@ public sealed class ConditionalReports
         DiagnosticDescriptor descriptor,
         Location location,
         string key,
-        Func<SymbolCondition, object?[]> arguments)
+        Func<SymbolCondition, object?[]> arguments,
+        bool withTreeConfiguration = true)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(node);
@@ -95,9 +101,12 @@ public sealed class ConditionalReports
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(arguments);
 
-        SymbolCondition condition = _compilation.GetEffectiveCondition(node, program)
-            .And(_compilation.GetTreeConfiguration(program))
-            .And(when);
+        SymbolCondition condition = _compilation.GetEffectiveCondition(node, program).And(when);
+
+        if (withTreeConfiguration)
+        {
+            condition = condition.And(_compilation.GetTreeConfiguration(program));
+        }
 
         if (condition.IsUnknown || !_compilation.IsPossibleIn(program, condition))
         {

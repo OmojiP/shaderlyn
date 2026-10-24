@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -56,7 +57,9 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<(int Start, string? Kernel), Dictionary<string, StructInfo>> structs = CollectStructs(compilation, condition);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
+        // 構成の条件が付く報告 (HL0313) は、木をまたいで条件の和をとって 1 件にする (ConditionalReports)。
         ReportedLocations reported = new();
+        ConditionalReports reports = new(compilation);
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -69,9 +72,15 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                     structs.TryGetValue(program.BlockKey, out Dictionary<string, StructInfo>? own) ? own : [],
                     compilation.GetExpressionTypeBinder(program),
                     access,
-                    program.AnalyzedCondition,
-                    reported);
+                    program,
+                    reported,
+                    reports);
             }
+        }
+
+        foreach (Diagnostic diagnostic in reports.Build())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -82,11 +91,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="structs">このシェーダーが書いた構造体のうち、参照と同じコードブロックのもの。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="access">検査する参照。</param>
-    /// <param name="analyzed">
-    /// この木を解析した構成の条件 (<see cref="AnalyzedProgram.AnalyzedCondition"/>)。
-    /// 既定の木なら「常に」で、構成ごとの型もそこでだけ求める。
+    /// <param name="program">
+    /// 参照のある木。既定の木なら解析した構成 (<see cref="AnalyzedProgram.AnalyzedCondition"/>) は「常に」で、構成ごとの型もそこでだけ求める。
     /// </param>
     /// <param name="reported">報告済みの位置。</param>
+    /// <param name="reports">構成の条件が付く報告を集める先。</param>
     private static void AnalyzeAccess(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
@@ -94,8 +103,9 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, StructInfo> structs,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
-        SymbolCondition analyzed,
-        ReportedLocations reported)
+        AnalyzedProgram program,
+        ReportedLocations reported,
+        ConditionalReports reports)
     {
         // メンバー名そのものが書かれたものでなければ見ない。
         // UNITY_SETUP_INSTANCE_ID(v) の v.instanceID は、v は書かれたものだが .instanceID はヘッダのマクロの本体である。
@@ -136,7 +146,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         // 構成によって型が変わる名前なら、構成ごとに型を求めて検査する。
         if (binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName)
         {
-            if (analyzed.IsAlways)
+            if (program.AnalyzedCondition.IsAlways)
             {
                 AnalyzeSwizzleByAssumption(context, condition, binder, access, reported);
             }
@@ -146,7 +156,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
-            AnalyzeStructMember(context, condition, structs, typeName, structure, access, analyzed, reported);
+            AnalyzeStructMember(context, structs, typeName, structure, access, program, reported, reports);
             return;
         }
 
@@ -155,22 +165,22 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>構造体のメンバー参照を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
-    /// <param name="condition">出現条件の索引。</param>
     /// <param name="structs">同じコードブロックの構造体。継承した基底を引く。</param>
     /// <param name="typeName">構造体の名前。</param>
     /// <param name="structure">構造体の情報。</param>
     /// <param name="access">検査する参照。</param>
-    /// <param name="analyzed">この木を解析した構成の条件。</param>
+    /// <param name="program">参照のある木。</param>
     /// <param name="reported">報告済みの位置。</param>
+    /// <param name="reports">構成の条件が付く報告を集める先。</param>
     private static void AnalyzeStructMember(
         SyntaxTreeAnalysisContext context,
-        ConditionMap condition,
         Dictionary<string, StructInfo> structs,
         string typeName,
         StructInfo structure,
         MemberAccessExpressionSyntax access,
-        SymbolCondition analyzed,
-        ReportedLocations reported)
+        AnalyzedProgram program,
+        ReportedLocations reported,
+        ConditionalReports reports)
     {
         if (access.GetLocation() is not { } location)
         {
@@ -208,29 +218,27 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // バリアントの木では、条件が付いていないことは「どの構成でも」を意味しない。
-        // そのシンボルを有効にした構成の中での話なので、掛け合わせてから比べる。
-        SymbolCondition use = condition.GetCondition(access).And(analyzed);
-
-        if (use.IsUnknown || declared.IsUnknown)
+        if (declared.IsUnknown)
         {
             return;
         }
 
-        // 参照する条件が成り立ち、かつメンバーがある条件が成り立たない構成があるか。
-        SymbolCondition missing = use.And(declared.Negate());
+        // 参照する構成 (参照の条件 × 木の構成) のうち、メンバーが無い構成を報告する。
+        // バリアントの木では、条件が付いていないことは「どの構成でも」を意味しない。その掛け方は ConditionalReports が行う。
+        string name = access.Name;
 
-        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location))
+        if (reports.Add(
+                program,
+                access,
+                declared.Negate(),
+                HlslRuleDescriptors.StructMemberNotPresent,
+                location,
+                typeName + "\u0001" + name,
+                missing => [typeName, name, missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"]))
         {
-            return;
+            // 同じ位置に、ほかの木から「そもそもメンバーが無い」(HL0312) を重ねない。
+            reported.Add(location);
         }
-
-        context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.StructMemberNotPresent,
-            location,
-            typeName,
-            access.Name,
-            missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"));
     }
 
     /// <summary>構造体のメソッドの呼び出し (HLSL 2021 の <c>s.Get()</c>) で、そのメソッドがあるかを検査する。</summary>

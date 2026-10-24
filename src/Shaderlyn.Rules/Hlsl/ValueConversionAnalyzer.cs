@@ -58,7 +58,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        ReportedLocations reported = new();
+        // 構成ごとに型を求めて見つけた食い違いは、木をまたいで条件の和をとって 1 件にする。
+        // 木の構成を掛け、#error に到達する構成を除くのも、そこで行う (ConditionalReports)。
+        ReportedLocations reported = new(compilation);
         ConditionMap conditions = compilation.GetConditionMap();
 
         // 構造体の波括弧による初期化は、メンバーを平らにして数える。
@@ -81,6 +83,11 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             AnalyzeReturnPaths(context, compilation, program, function, reported);
             AnalyzeFunction(
                 context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), function, structs, reported);
+        }
+
+        foreach (Diagnostic diagnostic in reported.BuildConditional())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -162,7 +169,6 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (string.Equals(returnType, VoidTypeName, StringComparison.Ordinal)
             || function.Body is not { } body
             || function.NameToken.GetLocation() is not { } location
-            || reported.Contains(location)
             || ReachesErrorInside(program, body))
         {
             return;
@@ -173,14 +179,16 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        reported.Add(location);
-
-        context.ReportDiagnostic(Diagnostic.Create(
+        // 関数の先頭の条件と木の構成を掛けて報告する。構成ごとの木で見つけたものは、その木の構成のときの話である。
+        string name = function.Name;
+        reported.AddConditional(
+            program,
+            function.ReturnType,
+            missing,
             HlslRuleDescriptors.MissingReturn,
             location,
-            function.Name,
-            returnType,
-            missing.IsAlways ? string.Empty : $" (構成：{missing} のとき)"));
+            $"{name}\u0001{returnType}",
+            when => [name, returnType, when.IsAlways ? string.Empty : $" (構成：{when} のとき)"]);
     }
 
     /// <summary>この木の展開が、関数の本体の中の <c>#error</c> に到達したかを判定する。</summary>
@@ -740,15 +748,15 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
             if (!binder.TypeSystem.IsConvertible(valueType, targetType))
             {
-                if (reported.Add(location))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        HlslRuleDescriptors.ValueNotConvertible,
-                        location,
-                        targetType,
-                        valueType,
-                        assumption.IsAlways ? string.Empty : $"構成：{assumption} のとき、代入先は {targetType} です。"));
-                }
+                reported.AddConditional(
+                    binder.Program,
+                    assignment,
+                    assumption,
+                    HlslRuleDescriptors.ValueNotConvertible,
+                    location,
+                    $"{targetType}\u0001{valueType}",
+                    when => [targetType, valueType, when.IsAlways ? string.Empty : $"構成：{when} のとき、代入先は {targetType} です。"],
+                    withTreeConfiguration: false);
 
                 return;
             }
@@ -759,15 +767,18 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        if (truncating is { } finding && reported.Add(location))
+        if (truncating is { } finding)
         {
-            context.ReportDiagnostic(Diagnostic.Create(
+            string value = DescribeValue(assignment.Right);
+            reported.AddConditional(
+                binder.Program,
+                assignment,
+                finding.Assumption,
                 HlslRuleDescriptors.ConditionalTruncation,
                 location,
-                DescribeAssumption(finding.Assumption),
-                DescribeValue(assignment.Right),
-                finding.Value,
-                $"代入先の {finding.Target}"));
+                $"{value}\u0001{finding.Value}\u0001{finding.Target}",
+                when => [DescribeAssumption(when), value, finding.Value, $"代入先の {finding.Target}"],
+                withTreeConfiguration: false);
         }
     }
 
@@ -795,23 +806,34 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (binder.GetEvaluatorFor(value).Evaluate(value) is not { } valueType)
         {
-            if (FindByConfiguration(conditions, binder, value, targetType) is { } finding
-                && reported.Add(location))
+            if (FindByConfiguration(conditions, binder, value, targetType) is { } finding)
             {
-                context.ReportDiagnostic(finding.Convertible
-                    ? Diagnostic.Create(
+                string shown = DescribeValue(value);
+
+                if (finding.Convertible)
+                {
+                    reported.AddConditional(
+                        binder.Program,
+                        value,
+                        finding.Assumption,
                         HlslRuleDescriptors.ConditionalTruncation,
                         location,
-                        DescribeAssumption(finding.Assumption),
-                        DescribeValue(value),
-                        finding.ValueType,
-                        target)
-                    : Diagnostic.Create(
+                        $"{shown}\u0001{finding.ValueType}\u0001{target}",
+                        when => [DescribeAssumption(when), shown, finding.ValueType, target],
+                        withTreeConfiguration: false);
+                }
+                else
+                {
+                    reported.AddConditional(
+                        binder.Program,
+                        value,
+                        finding.Assumption,
                         HlslRuleDescriptors.ValueNotConvertible,
                         location,
-                        target,
-                        finding.ValueType,
-                        DescribeNote(finding)));
+                        $"{target}\u0001{finding.ValueType}",
+                        when => [target, finding.ValueType, DescribeNote(finding with { Assumption = when })],
+                        withTreeConfiguration: false);
+                }
             }
 
             return;
@@ -1015,29 +1037,32 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (!finding.Convertible)
         {
-            if (reported.Add(location))
-            {
-                Report(
-                    context,
-                    function.Name,
-                    returnType,
-                    $"{finding.ValueType} を返しています",
-                    location,
-                    DescribeNote(finding));
-            }
+            string name = function.Name;
+            reported.AddConditional(
+                binder.Program,
+                value,
+                finding.Assumption,
+                HlslRuleDescriptors.ReturnNotConvertible,
+                location,
+                $"{name}\u0001{returnType}\u0001{finding.ValueType}",
+                when => [name, returnType, $"{finding.ValueType} を返しています", DescribeNote(finding with { Assumption = when })],
+                withTreeConfiguration: false);
 
             return;
         }
 
-        if (value.GetLocation() is { } valueLocation && reported.Add(valueLocation))
+        if (value.GetLocation() is { } valueLocation)
         {
-            context.ReportDiagnostic(Diagnostic.Create(
+            string shown = DescribeValue(value);
+            reported.AddConditional(
+                binder.Program,
+                value,
+                finding.Assumption,
                 HlslRuleDescriptors.ConditionalTruncation,
                 valueLocation,
-                DescribeAssumption(finding.Assumption),
-                DescribeValue(value),
-                finding.ValueType,
-                $"戻り値の {returnType}"));
+                $"{shown}\u0001{finding.ValueType}\u0001{returnType}",
+                when => [DescribeAssumption(when), shown, finding.ValueType, $"戻り値の {returnType}"],
+                withTreeConfiguration: false);
         }
     }
 

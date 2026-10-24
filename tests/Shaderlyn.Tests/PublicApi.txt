@@ -1265,7 +1265,7 @@ Shaderlyn.LanguageServer.ShaderLanguageServer :: System.Threading.Tasks.Task`1[S
 Shaderlyn.Semantics.Analysis.ConditionalReports : sealed class
 Shaderlyn.Semantics.Analysis.ConditionalReports :: .ctor(Shaderlyn.Semantics.ShaderCompilation)
 Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Boolean Add(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Diagnostics.Location, System.Object[])
-Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Boolean Add(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Diagnostics.Location, System.String, System.Func`2[Shaderlyn.Core.Syntax.SymbolCondition,System.Object[]])
+Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Boolean Add(Shaderlyn.Semantics.AnalyzedProgram, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition, Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Diagnostics.Location, System.String, System.Func`2[Shaderlyn.Core.Syntax.SymbolCondition,System.Object[]], System.Boolean = True)
 Shaderlyn.Semantics.Analysis.ConditionalReports :: System.Collections.Generic.IEnumerable`1[Shaderlyn.Core.Diagnostics.Diagnostic] Build()
 Shaderlyn.Semantics.Analysis.ConditionalReports :: static System.String Describe(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Semantics.Analysis.NodeActionOptions : sealed class

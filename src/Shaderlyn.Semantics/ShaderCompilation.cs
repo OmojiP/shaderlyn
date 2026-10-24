@@ -2044,7 +2044,11 @@ public sealed partial class ShaderCompilation
 
         SymbolCondition compilable = SymbolCondition.Always;
 
-        foreach (ErrorConfiguration configuration in ErrorConfigurations.Where(e => e.BlockKey == block))
+        // 既定の木そのものが #error に到達したもの (どの分岐でもなく、木の構成全体) は除かない。
+        // 解析のマクロの状態が実際と違うためのことが多く (HL0009)、除くとその木のどの検査も止まる。
+        // 本当に値を返さない関数を報告しなくなっていた (別の関数の #else / #error に到達する木の HL0360)。
+        foreach (ErrorConfiguration configuration in ErrorConfigurations.Where(e => e.BlockKey == block
+                                                                                 && !(e.IsBaseline && e.BranchCondition is null)))
         {
             if (GetErrorConfigurationCondition(configuration) is { IsUnknown: false } excluded)
             {

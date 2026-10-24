@@ -206,6 +206,8 @@ c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function
 
 `ShaderRuleAnalyzer` を使わないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
 `Add(program, node, when, descriptor, location, args...)` で集め、`Build()` で診断にします。
+メッセージの引数を条件から作るなら `Add(program, node, when, descriptor, location, key, condition => [...])` を使います (`key` は条件以外の引数で、同じ鍵の報告をまとめます)。
+両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は、`withTreeConfiguration: false` で木の構成を掛けずに足します。
 
 ---
 
