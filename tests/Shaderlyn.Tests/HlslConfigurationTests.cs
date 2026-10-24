@@ -435,6 +435,48 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
+    /// 条件ごとに違う型で宣言した uniform は、構成ごとの型で成分が落ちるかを判断する。
+    /// 以前は型を不明にして、本当に成分が落ちる構成も報告していなかった。
+    /// </summary>
+    [Fact]
+    public async Task 条件ごとに型の違うuniformは構成ごとの型で成分の切り捨てを判断する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: FORMAT
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if FORMAT == 0
+            float2 Velocity;
+            #else
+            float4 Velocity;
+            #endif
+            RWStructuredBuffer<float4> Output;
+            [numthreads(8, 1, 1)]
+            void MainCS(uint Id : SV_DispatchThreadID)
+            {
+                float2 xy = Velocity;
+                float4 all = float4(Velocity.xy, 0, 1);
+                Output[Id] = all + xy.xyxy;
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        string truncated = Assert.Single(output.Split('\n'), line => line.Contains("HL0353", StringComparison.Ordinal));
+        Assert.Contains("a.hlsl(10:", truncated, StringComparison.Ordinal);
+        Assert.Contains("FORMAT == 1", truncated, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// ある単位では関数の外の変数、別の単位では仮引数として宣言される名前を、未宣言と報告しない
     /// (Unreal Engine の CapsuleShadowShaders.usf の LightDirection)。本当に宣言されていない名前は報告する。
     /// </summary>

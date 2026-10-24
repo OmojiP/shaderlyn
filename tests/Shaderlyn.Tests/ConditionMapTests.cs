@@ -734,6 +734,37 @@ public sealed class ConditionMapTests
     }
 
     [Fact]
+    public void 巻き上げで複製した関数はどの複製も呼び出しの候補になる()
+    {
+        // Unreal の GPUFastFourierTransform.usf の形。仮引数の配列の長さを、条件ごとに定義を変えたマクロで書く。
+        // 複製はどれも元の位置が同じなので、宣言を位置で 1 つに寄せると、片方の条件の複製しか候補に残らなかった。
+        // 残った複製の条件の構成でしか比べられず、別の構成の呼び出しを「長さが合わない」と報告していた (HL0344)。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define RADIX 2
+            #else
+            #define RADIX 4
+            #endif
+
+            void Shuffle(inout float2 L[2][RADIX]) { L[0][0] = L[1][0]; }
+            """,
+            "#pragma multi_compile _ _A");
+
+        ConditionMap condition = compilation.GetConditionMap();
+        AnalyzedProgram program = Assert.Single(compilation.Programs);
+
+        string[] found =
+        [
+            .. compilation.GetFunctionDeclarations("Shuffle", program)
+                .Select(f => $"{string.Concat(f.ParameterList.Single().ArrayRankTokens.Select(t => t.Text))} {condition.GetCondition(f)}")
+                .Order(StringComparer.Ordinal),
+        ];
+
+        Assert.Equal(["[2][2] _A", "[2][4] !_A"], found);
+    }
+
+    [Fact]
     public void 別のシンボルの分岐の中で複製した文にもそのシンボルの条件が残る()
     {
         // _B の分岐の中で CTYPE を使うと、_B は構成ごとに展開する (構成で定義が変わるマクロを分岐の中で使っている)。

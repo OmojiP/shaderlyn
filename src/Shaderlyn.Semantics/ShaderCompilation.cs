@@ -58,8 +58,8 @@ public sealed class ShaderCompilation
     private Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
     private Dictionary<AnalyzedProgram, ExpressionTypeBinder>? _binders;
 
-    /// <summary>木ごとの、位置から関数の宣言への対応。</summary>
-    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>>? _ownFunctions;
+    /// <summary>木ごとの、位置から関数の宣言への対応。同じ位置に条件の違う複製があれば、すべて持つ。</summary>
+    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), List<FunctionDeclarationSyntax>>>? _ownFunctions;
 
     /// <summary>関数の宣言を見分ける鍵。先頭のトークンの位置と、名前と仮引数の型の並び。</summary>
     /// <param name="function">関数の宣言。</param>
@@ -828,7 +828,7 @@ public sealed class ShaderCompilation
     /// <param name="program">呼び出しがある木。</param>
     /// <returns>宣言。1 つも無ければ空。</returns>
     /// <remarks>
-    /// <see cref="GetFunctionDeclarations(string)"/> と同じ宣言を、この木に同じ位置の宣言があればそれに置き換えて返す。
+    /// <see cref="GetFunctionDeclarations(string)"/> と同じ宣言を、この木に同じ位置の宣言があればそれ (条件の違う複製があればそのすべて) に置き換えて返す。
     /// ヘッダの関数でも、仮引数の型がキーワードで書き分けたマクロ (<c>inout CTYPE color</c>) なら、木ごとに型が違う。
     /// 呼び出しと同じ木の宣言で比べないと、別の構成の仮引数の型で判定することになる。
     /// </remarks>
@@ -845,15 +845,26 @@ public sealed class ShaderCompilation
 
         _ownFunctions ??= [];
 
-        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>? own))
+        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), List<FunctionDeclarationSyntax>>? own))
         {
             own = [];
 
+            // 同じ位置の宣言が 1 つの木に複数あることがある。マクロの定義を条件ごとに複製した宣言
+            // (#if で RADIX を 2 と 8 に書き分けた Complex Local[2][RADIX]) は、どれも元の位置が同じで、条件が違う。
+            // 1 つに寄せると、その構成の複製が消え、別の条件の複製とだけ比べていた (Unreal の GPUFastFourierTransform.usf)。
             foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (declaration is FunctionDeclarationSyntax function && function.FirstToken is { } first)
                 {
-                    own.TryAdd(FunctionKey(function, first), function);
+                    (SourceText Source, int Start, string Shape) key = FunctionKey(function, first);
+
+                    if (!own.TryGetValue(key, out List<FunctionDeclarationSyntax>? copies))
+                    {
+                        copies = [];
+                        own[key] = copies;
+                    }
+
+                    copies.Add(function);
                 }
             }
 
@@ -868,10 +879,10 @@ public sealed class ShaderCompilation
                                      && _functionBlocks is { } blocks
                                      && blocks.TryGetValue(FunctionKey(function, first), out HashSet<(int Start, string? Kernel)>? inBlocks)
                                      && inBlocks.Contains(program.BlockKey))
-                  .Select(function => function.FirstToken is { } first
-                                      && own.TryGetValue(FunctionKey(function, first), out FunctionDeclarationSyntax? mine)
+                  .SelectMany(function => function.FirstToken is { } first
+                                          && own.TryGetValue(FunctionKey(function, first), out List<FunctionDeclarationSyntax>? mine)
                 ? mine
-                : function),
+                : [function]),
         ];
     }
 

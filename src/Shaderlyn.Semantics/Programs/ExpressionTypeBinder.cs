@@ -45,8 +45,14 @@ public sealed class ExpressionTypeBinder
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
 
-    /// <summary>この木で、条件ごとに違う型で宣言された uniform の名前。型は 1 つに決まらない。</summary>
-    private readonly FrozenSet<string> _ambiguousUniforms;
+    /// <summary>
+    /// この木で、条件ごとに違う型で宣言された uniform と、その宣言。仮定が無ければ型は 1 つに決まらない。
+    /// </summary>
+    /// <remarks>
+    /// 仮定の下では、その仮定で見える宣言から型を決める (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ImmutableArray{ExpressionSyntax}, ConditionMap)"/>)。
+    /// 局所変数の型が割れているときと同じ扱いである。
+    /// </remarks>
+    private readonly FrozenDictionary<string, ImmutableArray<UniformSymbol>> _ambiguousUniforms;
 
     /// <summary>構造体の名前から、フィールド名とその宣言子への対応。配列の長さを読むのに使う。</summary>
     private readonly FrozenDictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> _structFieldDeclarators;
@@ -97,8 +103,7 @@ public sealed class ExpressionTypeBinder
         _ambiguousUniforms = program.Uniforms
             .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
             .Where(group => group.Select(UniformType).Distinct().Skip(1).Any())
-            .Select(group => group.Key)
-            .ToFrozenSet(StringComparer.Ordinal);
+            .ToFrozenDictionary(group => group.Key, group => group.ToImmutableArray(), StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structFunctions = CollectStructFunctions(program);
@@ -711,6 +716,7 @@ public sealed class ExpressionTypeBinder
     /// <param name="scopes">識別子を囲む関数の範囲。</param>
     /// <param name="identifier">使っている識別子。</param>
     /// <param name="narrow">見える宣言を、その構成で見えるものに絞る。絞らないなら素通しにする。</param>
+    /// <param name="global">関数の外の名前の型を引く。省略すると、型が割れている uniform を不明にする (<see cref="LookupGlobal"/>)。</param>
     /// <returns>型。見つからない、型が割れている、または判断できない場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// 関数の中に宣言が無ければ関数の外を引く。
@@ -720,7 +726,8 @@ public sealed class ExpressionTypeBinder
     private ResolvedTypeName? Resolve(
         LocalScopes scopes,
         IdentifierExpressionSyntax identifier,
-        Func<ImmutableArray<LocalDeclaration>, IEnumerable<LocalDeclaration>> narrow)
+        Func<ImmutableArray<LocalDeclaration>, IEnumerable<LocalDeclaration>> narrow,
+        Func<string, ResolvedTypeName?>? global = null)
     {
         if (scopes.Lookup(identifier) is not { } candidates)
         {
@@ -729,7 +736,7 @@ public sealed class ExpressionTypeBinder
 
         if (candidates.IsEmpty)
         {
-            return LookupGlobal(identifier.Name);
+            return (global ?? LookupGlobal)(identifier.Name);
         }
 
         ResolvedTypeName[] types = [.. narrow(candidates).Select(c => c.Type).Distinct()];
@@ -798,7 +805,7 @@ public sealed class ExpressionTypeBinder
                 ? GetScopes(function)
                 : null;
 
-        if (scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0)
+        if (scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0 && _ambiguousUniforms.Count == 0)
         {
             return [];
         }
@@ -820,8 +827,22 @@ public sealed class ExpressionTypeBinder
                      .DistinctBy(i => i.Name, StringComparer.Ordinal))
         {
             // 型が割れている名前だけが、構成ごとに分ける対象になる。
-            if (scopes?.Lookup(identifier) is not { Length: > 1 } candidates
-                || candidates.Select(c => c.Type).Distinct().Count() < 2)
+            // 局所変数で無ければ、条件ごとに違う型で宣言した uniform も分ける。
+            ImmutableArray<SymbolCondition> declarations;
+            ImmutableArray<LocalDeclaration>? locals = scopes?.Lookup(identifier);
+
+            if (locals is { Length: > 1 } candidates && candidates.Select(c => c.Type).Distinct().Count() >= 2)
+            {
+                // 宣言の出現条件ではなく、この位置から見える条件を使う。
+                // 内側の同じ名前に隠される構成では、外側の宣言は見えない (LocalScopes)。
+                declarations = [.. candidates.Select(c => c.Condition)];
+            }
+            else if ((scopes is null || locals is { IsEmpty: true })
+                     && _ambiguousUniforms.TryGetValue(identifier.Name, out ImmutableArray<UniformSymbol> uniforms))
+            {
+                declarations = [.. uniforms.Select(u => conditions.GetCondition(u.Declaration))];
+            }
+            else
             {
                 continue;
             }
@@ -831,11 +852,8 @@ public sealed class ExpressionTypeBinder
 
             foreach (SymbolCondition assumption in assumptions)
             {
-                foreach (LocalDeclaration candidate in candidates)
+                foreach (SymbolCondition declared in declarations)
                 {
-                    // 宣言の出現条件ではなく、この位置から見える条件を使う。
-                    // 内側の同じ名前に隠される構成では、外側の宣言は見えない (LocalScopes)。
-                    SymbolCondition declared = candidate.Condition;
 
                     if (declared.IsUnknown)
                     {
@@ -974,7 +992,7 @@ public sealed class ExpressionTypeBinder
                 ? GetScopes(function)
                 : null;
 
-        if ((scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0) || assumption.IsUnknown)
+        if ((scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0 && _ambiguousUniforms.Count == 0) || assumption.IsUnknown)
         {
             return GetEvaluatorFor(node);
         }
@@ -987,9 +1005,29 @@ public sealed class ExpressionTypeBinder
         FrozenSet<string> unknown = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosing
             ? TemplateParametersOf(enclosing)
             : FrozenSet<string>.Empty;
+        // 条件ごとに違う型で宣言した uniform も、仮定の下で見える宣言だけから型を決める。
+        ResolvedTypeName? Global(string name)
+        {
+            if (!_ambiguousUniforms.TryGetValue(name, out ImmutableArray<UniformSymbol> uniforms))
+            {
+                return LookupGlobal(name);
+            }
+
+            ResolvedTypeName[] types =
+            [
+                .. uniforms
+                    .Where(u => conditions.GetCondition(u.Declaration) is { IsUnknown: false } declared
+                                && conditions.IsPossible(assumption.And(declared)))
+                    .Select(UniformType)
+                    .Distinct(),
+            ];
+
+            return types.Length == 1 ? types[0] : null;
+        }
+
         Func<IdentifierExpressionSyntax, ResolvedTypeName?> resolve = scopes is null
-            ? identifier => LookupGlobal(identifier.Name)
-            : identifier => Hide(Resolve(scopes, identifier, Visible), unknown);
+            ? identifier => Global(identifier.Name)
+            : identifier => Hide(Resolve(scopes, identifier, Visible, Global), unknown);
 
         // 条件によって違う型を返す関数は、その構成で見える宣言だけに絞る。
         // 表を作り直すと関数の数だけ費用がかかるので、変わる名前だけを重ねる。
@@ -1100,7 +1138,7 @@ public sealed class ExpressionTypeBinder
     /// </remarks>
     private ResolvedTypeName? LookupGlobal(string name)
     {
-        if (_ambiguousUniforms.Contains(name))
+        if (_ambiguousUniforms.ContainsKey(name))
         {
             return null;
         }
