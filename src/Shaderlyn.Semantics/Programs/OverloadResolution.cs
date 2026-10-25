@@ -195,7 +195,7 @@ internal static class OverloadResolver
         ImmutableArray<string?> argumentTypes = [.. arguments.Select(evaluator.Evaluate)];
 
         ImmutableArray<FunctionDeclarationSyntax> viable =
-            [.. fitting.Where(c => Accepts(compilation.TypeSystem, c, arguments, argumentTypes))];
+            [.. fitting.Where(c => Accepts(binder.TypeSystem, c, arguments, argumentTypes))];
 
         if (viable.IsEmpty)
         {

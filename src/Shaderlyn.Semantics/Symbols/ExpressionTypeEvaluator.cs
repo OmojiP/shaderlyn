@@ -181,7 +181,7 @@ public sealed class ExpressionTypeEvaluator
         // (half)x * y の型を half と誤って主張することはない。
         CastExpressionSyntax cast => cast.Type.Name,
 
-        LiteralExpressionSyntax literal => EvaluateLiteral(literal),
+        LiteralExpressionSyntax literal => TypeSystem.GetLiteralTypeName(literal.Token),
         InvocationExpressionSyntax invocation => EvaluateInvocation(invocation),
         IdentifierExpressionSyntax identifier => EvaluateIdentifier(identifier),
         MemberAccessExpressionSyntax member => EvaluateSwizzle(member),
@@ -202,18 +202,6 @@ public sealed class ExpressionTypeEvaluator
 
         _ => null,
     };
-
-    /// <summary>
-    /// リテラルの型を求める。
-    /// </summary>
-    /// <param name="literal">対象のリテラル。</param>
-    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    /// <remarks>
-    /// <b>表記の読み解きは <see cref="ShaderLiteral"/> が持つ。</b>
-    /// 接尾辞・16 進・8 進の規則をここに書き写すと、片方だけが直されて食い違う。
-    /// </remarks>
-    private static string? EvaluateLiteral(LiteralExpressionSyntax literal)
-        => ShaderLiteral.GetTypeName(literal.Token);
 
     /// <summary>
     /// 呼び出しの形をした式の型を求める。
@@ -259,6 +247,12 @@ public sealed class ExpressionTypeEvaluator
                 && AsStruct(Evaluate(access.Target)) is { } receiver)
             {
                 return EvaluateStructCall(receiver, access.Name, count, access.Target);
+            }
+
+            // 配列とベクトルの長さ (a.length()、GLSL)。
+            if (TypeSystem.HasLengthMethod && access.Name == "length" && count == 0)
+            {
+                return "int";
             }
 
             // tex.Sample(...) のように、呼び出しの対象がメンバーの場合。
@@ -643,7 +637,7 @@ public sealed class ExpressionTypeEvaluator
                 return "bool";
 
             case IntrinsicResultRule.MatrixProduct:
-                return EvaluateMatrixProduct(arguments);
+                return arguments.Length == 2 ? MultiplyMatrices(Evaluate(arguments[0]), Evaluate(arguments[1])) : null;
 
             case IntrinsicResultRule.Transpose:
                 return EvaluateTranspose(arguments);
@@ -1079,14 +1073,15 @@ public sealed class ExpressionTypeEvaluator
     private string? EvaluateBuiltInBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
     {
         ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken
-            or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken
-            or ShaderSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
+            or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
+
+        ShaderSyntaxKind.AsteriskToken => EvaluateMultiplication(binary),
 
         ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken
             or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
             or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken
             or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken
-            => ToBool(Combine(binary.Left, binary.Right)),
+            => TypeSystem.ComparesWholeValues ? "bool" : ToBool(Combine(binary.Left, binary.Right)),
 
         // ビット演算は整数どうしに限る。型の揃え方は算術と同じである。
         ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
@@ -1211,10 +1206,36 @@ public sealed class ExpressionTypeEvaluator
             : null;
     }
 
+    /// <summary><c>*</c> の結果の型を求める。</summary>
+    /// <param name="binary">対象の式。</param>
+    /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// HLSL は成分ごとの積である。GLSL は、行列とベクトルか行列どうしなら行列の積になる。
+    /// 行列の形の持ち方 (<see cref="ShaderTypeSystem.MultipliesMatricesAlgebraically"/>) から、GLSL の <c>a * b</c> は <c>mul(b, a)</c> と同じ形になる。
+    /// </remarks>
+    private string? EvaluateMultiplication(BinaryExpressionSyntax binary)
+    {
+        if (!TypeSystem.MultipliesMatricesAlgebraically)
+        {
+            return Combine(binary.Left, binary.Right);
+        }
+
+        string? left = Evaluate(binary.Left);
+        string? right = Evaluate(binary.Right);
+
+        return TypeSystem.TryDescribeNumeric(left, out ShaderNumericShape a)
+               && TypeSystem.TryDescribeNumeric(right, out ShaderNumericShape b)
+               && (a.Kind, b.Kind) is (ShaderNumericKind.Matrix, ShaderNumericKind.Matrix or ShaderNumericKind.Vector)
+                   or (ShaderNumericKind.Vector, ShaderNumericKind.Matrix)
+            ? MultiplyMatrices(right, left)
+            : Combine(left, right);
+    }
+
     /// <summary>
-    /// <c>mul</c> の結果の型を求める。
+    /// 行列の積 (HLSL の <c>mul</c>) の結果の型を求める。
     /// </summary>
-    /// <param name="arguments">実引数。</param>
+    /// <param name="left">左の型名。</param>
+    /// <param name="right">右の型名。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// <para>
@@ -1227,11 +1248,10 @@ public sealed class ExpressionTypeEvaluator
     /// スカラーが混ざる場合は成分ごとの積になり、相手の形がそのまま結果になる。
     /// </para>
     /// </remarks>
-    private string? EvaluateMatrixProduct(ImmutableArray<ExpressionSyntax> arguments)
+    private string? MultiplyMatrices(string? left, string? right)
     {
-        if (arguments.Length != 2
-            || !TypeSystem.TryDescribeNumeric(Evaluate(arguments[0]), out ShaderNumericShape a)
-            || !TypeSystem.TryDescribeNumeric(Evaluate(arguments[1]), out ShaderNumericShape b)
+        if (!TypeSystem.TryDescribeNumeric(left, out ShaderNumericShape a)
+            || !TypeSystem.TryDescribeNumeric(right, out ShaderNumericShape b)
             || TypeSystem.GetWiderBaseName(a.BaseName, b.BaseName) is not { } baseName)
         {
             return null;

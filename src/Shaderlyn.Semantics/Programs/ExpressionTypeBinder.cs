@@ -82,8 +82,8 @@ public sealed class ExpressionTypeBinder
     /// <summary>型を求める対象の木。</summary>
     public AnalyzedProgram Program { get; }
 
-    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
-    public ShaderTypeSystem TypeSystem => _compilation.TypeSystem;
+    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。この木の言語のバージョンのもの。</summary>
+    public ShaderTypeSystem TypeSystem { get; }
 
     /// <summary>
     /// 束縛器を生成する。
@@ -97,6 +97,7 @@ public sealed class ExpressionTypeBinder
 
         _compilation = compilation;
         Program = program;
+        TypeSystem = compilation.TypeSystem.ForTree(program.Tree);
         _ownUniforms = program.Uniforms
             .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -117,7 +118,7 @@ public sealed class ExpressionTypeBinder
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
-            TypeSystem = _compilation.TypeSystem,
+            TypeSystem = TypeSystem,
             TypeAliases = program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -676,7 +677,7 @@ public sealed class ExpressionTypeBinder
                 _functionSignatures,
                 _structFields)
             {
-                TypeSystem = _compilation.TypeSystem,
+                TypeSystem = TypeSystem,
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
@@ -1102,7 +1103,7 @@ public sealed class ExpressionTypeBinder
             _structFields,
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
-            TypeSystem = _compilation.TypeSystem,
+            TypeSystem = TypeSystem,
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -1155,7 +1156,7 @@ public sealed class ExpressionTypeBinder
             return 1;
         }
 
-        return _compilation.TypeSystem.TryDescribeNumeric(
+        return TypeSystem.TryDescribeNumeric(
                    GetEvaluatorFor(expression).Evaluate(expression), out ShaderNumericShape shape)
             ? shape.Rows * shape.Columns
             : null;

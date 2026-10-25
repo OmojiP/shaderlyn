@@ -60,6 +60,42 @@ public abstract class ShaderTypeSystem
     /// <summary>ベクトルの成分の名前の組 (HLSL なら <c>xyzw</c> と <c>rgba</c>)。1 つの参照では 1 つの組の文字だけを使える。</summary>
     public abstract ImmutableArray<string> ComponentNameSets { get; }
 
+    /// <summary>
+    /// その木の言語のバージョンで使う型システムを返す。既定は自分自身。
+    /// </summary>
+    /// <param name="tree">木。</param>
+    /// <returns>型システム。</returns>
+    /// <remarks>
+    /// GLSL は暗黙の変換が <c>#version</c> とプロファイルで変わる (ES には無い)。
+    /// 式の型を求める束縛器は、木ごとにこれで引き直す。
+    /// </remarks>
+    internal virtual ShaderTypeSystem ForTree(ShaderSyntaxTree tree) => this;
+
+    /// <summary>数値のリテラルの型の名前を求める。</summary>
+    /// <param name="token">リテラルのトークン。</param>
+    /// <returns>型の名前。分からなければ <see langword="null"/>。</returns>
+    /// <remarks>接尾辞の意味が言語で違う (GLSL の <c>lf</c> は double、HLSL の <c>h</c> は half)。</remarks>
+    internal virtual string? GetLiteralTypeName(ShaderSyntaxToken token) => ShaderLiteral.GetTypeName(token);
+
+    /// <summary>
+    /// 行列を含む <c>*</c> が行列の積か。<see langword="false"/> なら成分ごとの積 (HLSL。行列の積は <c>mul</c>)。
+    /// </summary>
+    /// <remarks>
+    /// GLSL は行列の積である。行列の形 (<see cref="ShaderNumericShape"/>) は、GLSL の <c>matCxR</c> (C 列 R 行) を
+    /// <c>Rows = C</c>、<c>Columns = R</c> として持つ (HLSL の <c>floatCxR</c> と同じ並び)。
+    /// この持ち方では、GLSL の <c>a * b</c> は HLSL の <c>mul(b, a)</c> と同じ形の結果になり、<c>m[i]</c> (列) は <c>Columns</c> 成分のベクトルになる。
+    /// </remarks>
+    internal virtual bool MultipliesMatricesAlgebraically => false;
+
+    /// <summary>
+    /// 比較と論理の演算の結果が、いつも 1 つの <c>bool</c> か (GLSL)。<see langword="false"/> なら成分ごとの <c>bool</c> (HLSL)。
+    /// </summary>
+    /// <remarks>GLSL の <c>==</c> はベクトルどうしでも <c>bool</c> を返す。成分ごとの比較は <c>equal</c> などの組み込み関数で書く。</remarks>
+    internal virtual bool ComparesWholeValues => false;
+
+    /// <summary>配列とベクトルが <c>.length()</c> (結果は <c>int</c>) を持つか (GLSL)。</summary>
+    internal virtual bool HasLengthMethod => false;
+
     // --------------------------------------------------------------------
     // 変換
     // --------------------------------------------------------------------
