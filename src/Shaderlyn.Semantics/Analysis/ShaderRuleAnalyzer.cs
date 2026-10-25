@@ -95,7 +95,8 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
         {
             // セマンティックモデルが無いのは「問題が無い」ではなく「調べていない」である。
             // 報告しないのが正しい。
-            if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation)
+            if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation
+                || (compilation.IsGlsl && !AnalyzesGlsl))
             {
                 return;
             }
@@ -103,6 +104,21 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
             Walk(registrations, compilation, treeContext);
         });
     }
+
+    /// <summary>
+    /// GLSL のモデルも調べるか。既定は <see langword="false"/> (HLSL のモデルだけを調べる)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>HLSL を前提に書いたルールを、GLSL に当てない。</b>
+    /// GLSL は型の名前も組み込み関数も違うので、HLSL のつもりの判断は誤検出になる。
+    /// 組み込みのルールは、GLSL で確かめたものだけがこれを立てる。
+    /// </para>
+    /// <para>
+    /// 自作のルールからはまだ立てられない。GLSL のモデルのどこを公開するかは、GLSL の検査ができてから決める。
+    /// </para>
+    /// </remarks>
+    internal virtual bool AnalyzesGlsl => false;
 
     /// <summary>
     /// HLSL のノードに対する関心を登録する。

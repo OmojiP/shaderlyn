@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
     <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

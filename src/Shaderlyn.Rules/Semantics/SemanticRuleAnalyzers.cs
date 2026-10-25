@@ -30,12 +30,16 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 
         context.RegisterSyntaxTreeAction(treeContext =>
         {
-            if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation)
+            if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation
+                && (!compilation.IsGlsl || AnalyzesGlsl))
             {
                 Analyze(treeContext, compilation);
             }
         });
     }
+
+    /// <summary>GLSL のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
+    protected virtual bool AnalyzesGlsl => false;
 
     /// <summary>セマンティックモデルを使って検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>

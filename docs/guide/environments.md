@@ -232,12 +232,21 @@ VS Code 拡張の説明 (ホバー)・定義へ移動・補完も、GLSL のフ�
   HLSL と同じく、解析対象の外のファイルは読みません
 - `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ読みます
 - 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
+- ステージはファイルの拡張子で決めます (glslang と同じ)。`shadow.vert.glsl` のように `.glsl` の前にステージの拡張子があれば、そのステージです
+- 言語のバージョンはファイルの `#version` で決め、glslang と同じマクロを定義します (`__VERSION__`、ES の `GL_ES`、1.50 以降の `GL_core_profile` など)。
+  `#version` の無いステージのファイルは、glslang と同じく ES の 100 として読みます。`#version` の無い `.glsl` は、取り込む側で決まるのでバージョンを決めません
+- `VULKAN` と `GL_SPIRV` は、glslang に渡す指定 (`-V` / `-G`) で決まるので定義しません。使うなら `defines:` に書いてください
+- `#if` で切り替える分岐は、設定ファイルの `symbols:` に書くと両方を読みます (書き方は[汎用の HLSL](#汎用の-hlsl-dxc) と同じ)
 
 ```yaml
 version: 1
 environment: glsl
 include-paths:
   - shaders/include
+defines:
+  - VULKAN=100       # glslang -V でコンパイルするなら
+symbols:
+  - name: USE_FOG    # #ifdef USE_FOG の両方の分岐を読む
 ```
 
 ## 独自エンジン

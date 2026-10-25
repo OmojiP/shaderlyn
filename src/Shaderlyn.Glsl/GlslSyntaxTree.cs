@@ -24,7 +24,14 @@ internal static class GlslSyntaxTree
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        PreprocessorOptions effective = (options ?? new PreprocessorOptions()) with { Language = GlslLanguageOptions.Default };
+        // 環境が言語の設定 (#version で決まるバージョンなど) を与えていれば、それを木に残す。
+        PreprocessorOptions effective = options ?? new PreprocessorOptions();
+
+        if (effective.Language is not GlslLanguageOptions)
+        {
+            effective = effective with { Language = GlslLanguageOptions.Default };
+        }
+
         PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
 
         GlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude);
@@ -40,15 +47,3 @@ internal static class GlslSyntaxTree
     }
 }
 
-/// <summary>GLSL の言語の設定 (<see cref="PreprocessorOptions.Language"/>)。</summary>
-internal sealed record GlslLanguageOptions : ShaderLanguageOptions
-{
-    /// <summary>既定の設定。</summary>
-    public static GlslLanguageOptions Default { get; } = new();
-
-    /// <inheritdoc/>
-    public override string DescribeUnavailable() => "GLSL";
-
-    /// <inheritdoc/>
-    public override bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens) => GlslParser.IsCompleteUnits(tokens);
-}

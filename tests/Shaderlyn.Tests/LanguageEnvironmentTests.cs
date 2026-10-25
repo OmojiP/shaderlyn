@@ -6,8 +6,8 @@ namespace Shaderlyn.Tests;
 /// HLSL 以外の言語の環境 (GLSL・Godot・Slang・WGSL) の検証。
 /// </summary>
 /// <remarks>
-/// 今は構文だけを読む (単位 P3)。GLSL は構文エラーを指摘し、まだ読めない言語は何も指摘しない。
-/// 意味解析とルールは働かないので、HLSL のルールの誤検出 (<c>vec3</c> を宣言されていない名前と読むなど) も出ない。
+/// GLSL は意味解析のモデルを作るが、ルールはまだ働かせず、構文エラーを指摘する。まだ読めない言語は何も指摘しない。
+/// ルールが働かないので、HLSL のルールの誤検出 (<c>vec3</c> を宣言されていない名前と読むなど) も出ない。
 /// </remarks>
 public sealed class LanguageEnvironmentTests : IDisposable
 {

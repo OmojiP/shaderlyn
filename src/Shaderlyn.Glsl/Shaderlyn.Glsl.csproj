@@ -14,6 +14,7 @@
 
   <!-- 型は GL1 までは internal にしておく (どれを公開するかは GL1 で決める)。CLI と言語サーバーからは使う -->
   <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.Semantics" />
     <InternalsVisibleTo Include="Shaderlyn.Cli" />
     <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
   </ItemGroup>

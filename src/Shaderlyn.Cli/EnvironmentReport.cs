@@ -90,6 +90,10 @@ internal static partial class EnvironmentReport
             WriteEditor(builder, editor);
             WriteUnityCompiler(builder, settings);
         }
+        else if (environment.ShaderEnvironment is Semantics.Environments.GlslEnvironment)
+        {
+            WriteGlsl(builder, settings.Configuration);
+        }
         else if (environment.ShaderEnvironment is not null)
         {
             bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
@@ -376,12 +380,7 @@ internal static partial class EnvironmentReport
                 ? "  言語のバージョン: Unreal Engine の設定に従う (下記)"
                 : $"  言語のバージョン: {configuration.HlslVersion ?? defaultVersion}{(configuration.HlslVersion is null ? " (既定)" : string.Empty)}");
         Line(builder, $"  16 ビットの型 (enable-16bit-types): {(configuration.HlslEnable16BitTypes == true ? "使う (__HLSL_ENABLE_16_BIT=1)" : "使わない")}");
-
-        string symbols = string.Join(
-            ", ",
-            configuration.Symbols.Select(s => s.Values.IsEmpty ? s.Name : $"{s.Name} ∈ {{{string.Join(", ", s.Values)}}}")
-                .Concat(configuration.SymbolGroups.Select(g => $"{(g.RequiresOne ? "one-of" : "at-most-one")} [{string.Join(", ", g.Symbols)}]")));
-        Line(builder, $"  構成の軸 (symbols): {(symbols.Length == 0 ? "(なし)" : symbols)}");
+        WriteSymbols(builder, configuration);
 
         if (configuration.Units.IsEmpty)
         {
@@ -396,6 +395,29 @@ internal static partial class EnvironmentReport
             Line(builder, $"    {unit.Files}: entry {unit.Entry ?? "(なし)"}, target {unit.Target ?? "(なし)"}"
                           + (unit.Symbols is { } used ? $", symbols [{string.Join(", ", used)}]" : string.Empty));
         }
+    }
+
+    /// <summary>GLSL の環境の設定を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="configuration">設定ファイルの内容。</param>
+    private static void WriteGlsl(StringBuilder builder, ShaderlynConfiguration configuration)
+    {
+        Section(builder, "GLSL");
+        Line(builder, "  ステージ: ファイルの拡張子で決める (.vert / .frag など。.glsl は取り込まれる断片)");
+        Line(builder, "  言語のバージョン: ファイルの #version で決める (無ければ glslang と同じく ES の 100)");
+        WriteSymbols(builder, configuration);
+    }
+
+    /// <summary>構成の軸 (<c>symbols:</c>) を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="configuration">設定ファイルの内容。</param>
+    private static void WriteSymbols(StringBuilder builder, ShaderlynConfiguration configuration)
+    {
+        string symbols = string.Join(
+            ", ",
+            configuration.Symbols.Select(s => s.Values.IsEmpty ? s.Name : $"{s.Name} ∈ {{{string.Join(", ", s.Values)}}}")
+                .Concat(configuration.SymbolGroups.Select(g => $"{(g.RequiresOne ? "one-of" : "at-most-one")} [{string.Join(", ", g.Symbols)}]")));
+        Line(builder, $"  構成の軸 (symbols): {(symbols.Length == 0 ? "(なし)" : symbols)}");
     }
 
     /// <summary>Unity Editor を書き出す。</summary>

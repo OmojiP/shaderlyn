@@ -201,6 +201,10 @@ public sealed partial class ShaderCompilation
     /// <remarks>ルールとエディタ機能は、型の名前・変換・組み込み関数をここから尋ねる。</remarks>
     public Symbols.ShaderTypeSystem TypeSystem => Environment.TypeSystem;
 
+    /// <summary>GLSL のモデルか。</summary>
+    /// <remarks>GLSL で確かめていないルールは、GLSL のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesGlsl"/>)。</remarks>
+    internal bool IsGlsl => Environment is Environments.GlslEnvironment;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。
