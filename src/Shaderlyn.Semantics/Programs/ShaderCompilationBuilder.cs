@@ -7,6 +7,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -1100,6 +1101,7 @@ internal static class ShaderCompilationBuilder
                     FunctionDeclarationSyntax function => function.Name,
                     StructDeclarationSyntax structure => structure.Name,
                     ConstantBufferDeclarationSyntax buffer => buffer.Name,
+                    InterfaceBlockDeclarationSyntax block => block.Name,
                     TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text,
                     _ => null,
                 };

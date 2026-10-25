@@ -58,6 +58,9 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 /// </remarks>
 internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>メッセージに列挙する未解決 include の最大数。</summary>
     /// <remarks>
     /// すべて並べると 1 行が数千文字になる。原因の見当をつけるには数件で足りる。
@@ -133,6 +136,14 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeReason(ShaderCompilation compilation)
     {
+        // 取り込まれる断片は、取り込む側の宣言が見えない。直すものではないので、そう伝える。
+        if (compilation.IsIncludedFragment)
+        {
+            return "ステージを表す拡張子でないファイル (.glsl) は、ほかのファイルに取り込まれる断片として読むので、取り込む側で宣言した名前が分かりません。"
+                + "取り込む側のファイル (.vert / .frag など) を解析すると、断片の中も検査されます。"
+                + "単体のシェーダーなら、ステージの拡張子 (.vert / .frag、.vert.glsl など) にすると検査されます。";
+        }
+
         // ビルドのときに生成されるファイルだけが無いなら、設定の誤りではない。そう伝えないと、利用者は探索パスを探し回る。
         if (IsOnlyGeneratedIncludeMissing(compilation))
         {

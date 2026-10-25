@@ -4,24 +4,28 @@ using Shaderlyn.CFamily.Syntax;
 namespace Shaderlyn.Glsl.Syntax;
 
 /// <summary>
-/// GLSL のインターフェースブロック (<c>layout(std140) uniform UBO { mat4 m; } ubo;</c>)。
+/// GLSL のインスタンスの名前を持たないインターフェースブロック (<c>layout(std140) uniform UBO { mat4 m; };</c>)。
 /// </summary>
 /// <param name="modifiers">修飾子 (<c>layout(...)</c> と記憶域の修飾子)。</param>
 /// <param name="nameToken">ブロックの名前。</param>
 /// <param name="openBrace">開き波括弧。</param>
 /// <param name="members">メンバーの宣言。</param>
 /// <param name="closeBrace">閉じ波括弧。</param>
-/// <param name="instanceName">インスタンスの名前。無ければ <see langword="null"/> (メンバーを直接の名前として使う)。</param>
-/// <param name="arrayRanks">インスタンスの配列の指定。</param>
 /// <param name="semicolonToken">終端のセミコロン。</param>
+/// <remarks>
+/// <para>
+/// メンバーは、そのまま外側の名前になる (<c>m</c> と書いて使う)。HLSL の <c>cbuffer</c> と同じである。
+/// </para>
+/// <para>
+/// インスタンスの名前を持つブロック (<c>uniform UBO { mat4 m; } ubo;</c>) は、構造体の宣言 (<see cref="StructDeclarationSyntax"/>) として読む。
+/// </para>
+/// </remarks>
 internal sealed class InterfaceBlockDeclarationSyntax(
     ImmutableArray<ShaderSyntaxToken> modifiers,
     ShaderSyntaxToken nameToken,
     ShaderSyntaxToken openBrace,
     ImmutableArray<DeclarationSyntax> members,
     ShaderSyntaxToken closeBrace,
-    ShaderSyntaxToken? instanceName,
-    ImmutableArray<ShaderSyntaxToken> arrayRanks,
     ShaderSyntaxToken semicolonToken) : DeclarationSyntax
 {
     /// <summary>修飾子 (<c>layout(...)</c> と記憶域の修飾子)。</summary>
@@ -41,12 +45,6 @@ internal sealed class InterfaceBlockDeclarationSyntax(
 
     /// <summary>閉じ波括弧。</summary>
     public ShaderSyntaxToken CloseBrace { get; } = closeBrace;
-
-    /// <summary>インスタンスの名前。無ければ <see langword="null"/>。</summary>
-    public ShaderSyntaxToken? InstanceName { get; } = instanceName;
-
-    /// <summary>インスタンスの配列の指定。</summary>
-    public ImmutableArray<ShaderSyntaxToken> ArrayRanks { get; } = arrayRanks;
 
     /// <summary>終端のセミコロン。</summary>
     public ShaderSyntaxToken SemicolonToken { get; } = semicolonToken;
@@ -68,17 +66,6 @@ internal sealed class InterfaceBlockDeclarationSyntax(
         }
 
         yield return CloseBrace;
-
-        if (InstanceName is not null)
-        {
-            yield return InstanceName;
-        }
-
-        foreach (ShaderSyntaxToken rank in ArrayRanks)
-        {
-            yield return rank;
-        }
-
         yield return SemicolonToken;
     }
 }

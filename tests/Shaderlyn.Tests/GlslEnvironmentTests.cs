@@ -126,22 +126,30 @@ public sealed class GlslEnvironmentTests : IDisposable
     }
 
     /// <summary>
-    /// 型と組み込みの表が無いうちは、ルールを働かせない。働かせると、<c>vec4</c> や <c>gl_FragColor</c> を知らないために誤検出が出る。
-    /// エントリポイントが無いこと (CF0301) も、GLSL で確かめるまでは伝えない。
+    /// 取り込まれる断片 (<c>.glsl</c>) を単体で解析すると、取り込む側の宣言が見えない。宣言が無いことを根拠にする検査は見送り、そう伝える。
+    /// 取り込む側のステージのファイルを解析すれば、断片の中の誤りも報告する。
     /// </summary>
     [Fact]
-    public async Task GLSLではまだルールが働かない()
+    public async Task 取り込まれる断片は取り込む側から検査する()
     {
+        File.WriteAllText(Path.Combine(_workDirectory, "common.glsl"), """
+            float shade(vec3 n) { return dot(n, lightDirection) + missingValue; }
+            """);
         File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), """
             #version 450
+            #extension GL_GOOGLE_include_directive : require
             layout(location = 0) out vec4 outColor;
-            void notMain() { outColor = vec4(undefinedThing, gl_FragCoord.x); }
+            layout(binding = 0) uniform Light { vec3 lightDirection; };
+            #include "common.glsl"
+            void main() { outColor = vec4(shade(vec3(0.0, 1.0, 0.0))); }
             """);
 
         (ExitCode code, string output) = await RunAsync("--no-config");
 
-        Assert.Equal(ExitCode.Success, code);
-        Assert.DoesNotContain("CF0", output, StringComparison.Ordinal);
+        Assert.Equal(ExitCode.DiagnosticsFound, code);
+        Assert.Contains("common.glsl(1:1): info CF0101", output, StringComparison.Ordinal);
+        Assert.Contains("'missingValue'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("'lightDirection'", output, StringComparison.Ordinal);
     }
 
     /// <summary>設定ファイルの <c>symbols:</c> を構成の軸にし、両方の分岐を読む。</summary>

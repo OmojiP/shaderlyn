@@ -37,6 +37,9 @@ namespace Shaderlyn.Rules;
 internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.FunctionDefinitionNotFound];
 

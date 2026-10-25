@@ -48,6 +48,23 @@ const corpora = [
     patterns: ["/shaders/**/glsl/**", "!*.spv", "/LICENSE"],
   },
   {
+    // GLSL ES (#version 100 / 300 es / 310 es) のシェーダー。
+    // 次のものは単体のシェーダーではないので取らない。
+    // - FoveatedRendering の room.geom は、拡張子が .geom のメッシュのデータ
+    // - FFTOceanWater の .comp は、サンプルがつないで 1 つのシェーダーにする断片 (どれも単体では main を持たない)
+    name: "opengl-es-sdk-for-android",
+    url: "https://github.com/ARM-software/opengl-es-sdk-for-android.git",
+    commit: "c3caf759bb2e71fa9a118b3e3abd996cf00e660a",
+    license: "MIT",
+    languages: ["glsl"],
+    patterns: [
+      "*.vert", "*.frag", "*.comp", "*.geom", "*.tesc", "*.tese",
+      "!/samples/tutorials/FoveatedRendering/assets/room.geom",
+      "!/samples/advanced_samples/FFTOceanWater/assets/*.comp",
+      "/LICENSE",
+    ],
+  },
+  {
     // res:// の根を決めるため、project.godot も取る。
     name: "godot-demo-projects",
     url: "https://github.com/godotengine/godot-demo-projects.git",

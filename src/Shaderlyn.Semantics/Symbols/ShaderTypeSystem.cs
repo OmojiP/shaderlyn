@@ -113,6 +113,12 @@ public abstract class ShaderTypeSystem
         return false;
     }
 
+    /// <summary>
+    /// 数値の型のコンストラクタが、最後の引数の余った成分を捨て、行列 1 つから大きさの違う行列を作れるか (GLSL)。
+    /// <see langword="false"/> なら、2 つ以上の引数の成分の数がちょうど合わなければならない (HLSL)。
+    /// </summary>
+    internal virtual bool ConstructorsDropExtraComponents => false;
+
     /// <summary>配列とベクトルが <c>.length()</c> (結果は <c>int</c>) を持つか (GLSL)。</summary>
     internal virtual bool HasLengthMethod => false;
 

@@ -306,7 +306,7 @@ internal static class OverloadResolver
             bool writeback = CallCompatibility.IsWriteback(parameter);
 
             // 配列は式で作れない。形の判定は CF0405 の担当なので、ここでは通す。
-            if (parameter.ArrayRankTokens.IsEmpty
+            if (!parameter.IsArray
                 && !types.IsConvertible(argumentTypes[index], parameter.Type.Name, writeback))
             {
                 return false;

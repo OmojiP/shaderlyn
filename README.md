@@ -7,7 +7,7 @@
 Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
 
 DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` など）は構文の誤りを指摘します。宣言や型の検査は 0.3.1 で対応する予定です。
+GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments.md#glsl)）。
 
 CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
 

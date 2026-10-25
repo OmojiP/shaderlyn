@@ -33,6 +33,9 @@ namespace Shaderlyn.Rules;
 internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.EntryPointNotFound, HlslRuleDescriptors.EntryPointInConstantBuffer, HlslRuleDescriptors.EntryPointInConstantBufferWithDxc];
 

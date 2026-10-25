@@ -9,6 +9,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -73,7 +74,7 @@ public sealed partial class ShaderCompilation
     /// CF0401 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
     /// </remarks>
     private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, ShaderSyntaxToken first)
-        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken)))) + ")");
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayDimensions))) + ")");
 
     internal ShaderCompilation(
         SourceText text,
@@ -435,7 +436,17 @@ public sealed partial class ShaderCompilation
     /// </para>
     /// </remarks>
     public bool HasCompleteDependencies =>
-        UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+        !IsIncludedFragment && UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+
+    /// <summary>
+    /// 単体で解析した、取り込まれる断片 (GLSL の <c>.glsl</c>) か。
+    /// </summary>
+    /// <remarks>
+    /// 断片は、取り込む側で宣言した名前 (<c>hitAttributeEXT vec2 attribs;</c> など) を使う。単体で解析しても、それは見えない。
+    /// 「宣言が無い」ことを根拠にする検査は行わない (<see cref="HasCompleteDependencies"/> が偽になる)。
+    /// </remarks>
+    internal bool IsIncludedFragment
+        => IsGlsl && !Programs.IsEmpty && Programs.All(p => p.Tree.Language is Glsl.GlslLanguageOptions { Stage: null });
 
     /// <summary>プリプロセスか構文解析の診断のうち、解析の結果を信用できなくするもの (既定の重要度がエラーのもの) か。</summary>
     /// <param name="diagnostic">診断。</param>
@@ -1303,6 +1314,11 @@ public sealed partial class ShaderCompilation
                     outside.Add(name.Text);
                     break;
 
+                case InterfaceBlockDeclarationSyntax block:
+                    names.Add(block.Name);
+                    outside.Add(block.Name);
+                    break;
+
                 // enum の型の名前と、スコープの無い列挙子 (enum Mode { A } の A)。enum class の列挙子は Mode::A とだけ書くので足さない。
                 case EnumDeclarationSyntax enumeration:
                     foreach (string enumName in DeclaredNamesOf(enumeration))
@@ -1774,6 +1790,9 @@ public sealed partial class ShaderCompilation
                     .. buffer.NameToken is { } name ? [name.Text] : Array.Empty<string>(),
                     .. buffer.Members.SelectMany(DeclaredNames),
                 ];
+
+            case InterfaceBlockDeclarationSyntax block:
+                return [block.Name, .. block.Members.SelectMany(DeclaredNames)];
 
             case EnumDeclarationSyntax enumeration:
                 return DeclaredNamesOf(enumeration);

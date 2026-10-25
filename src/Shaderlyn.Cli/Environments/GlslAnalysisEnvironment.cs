@@ -17,7 +17,7 @@ namespace Shaderlyn.Cli.Environments;
 /// </para>
 /// <para>
 /// <b>ルールは、GLSL で確かめたものだけが働く</b> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer.AnalyzesGlsl"/>)。
-/// 型と組み込みの表がまだ無いので、今は構文エラー・プリプロセッサのエラー・解決できない取り込みだけが出る。
+/// C 系の言語に共通のルール (CF) は働き、HLSL にしか無いルール (HL) は働かない。
 /// </para>
 /// </remarks>
 /// <param name="configuration">設定ファイルの内容。</param>

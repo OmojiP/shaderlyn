@@ -213,6 +213,9 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     internal override bool ComparesWholeValues => true;
 
     /// <inheritdoc/>
+    internal override bool ConstructorsDropExtraComponents => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<string> ComponentNameSets { get; } = ["xyzw", "rgba", "stpq"];
 
     /// <inheritdoc/>
@@ -483,7 +486,10 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     internal override bool TryGetIntrinsicArity(string name, out IntrinsicArity arity)
     {
         ImmutableArray<GlslBuiltinFunction> overloads = Builtins.GetFunctions(name);
-        arity = new IntrinsicArity([.. overloads.Select(f => f.Parameters.Length).Distinct().Order()], -1);
+        int[] variadic = [.. overloads.Where(f => f.IsVariadic).Select(f => f.FixedParameterCount)];
+        arity = new IntrinsicArity(
+            [.. overloads.Where(f => !f.IsVariadic).Select(f => f.Parameters.Length).Distinct().Order()],
+            variadic.Length == 0 ? -1 : variadic.Min());
         return !overloads.IsEmpty;
     }
 
@@ -520,7 +526,8 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
             return false;
         }
 
-        GlslBuiltinFunction[] fitting = [.. overloads.Where(f => f.Parameters.Length == argumentTypes.Length)];
+        GlslBuiltinFunction[] fitting =
+            [.. overloads.Where(f => f.IsVariadic ? argumentTypes.Length >= f.FixedParameterCount : f.Parameters.Length == argumentTypes.Length)];
         GlslBuiltinFunction[] exact = [.. fitting.Where(f => Matches(f, exact: true))];
         GlslBuiltinFunction[] chosen = exact.Length > 0 ? exact : [.. fitting.Where(f => Matches(f, exact: false))];
         string?[] results = [.. chosen.Select(ReturnTypeOf).Distinct(StringComparer.Ordinal)];
@@ -536,7 +543,7 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
 
         bool Matches(GlslBuiltinFunction function, bool exact)
         {
-            for (int i = 0; i < argumentTypes.Length; i++)
+            for (int i = 0; i < Math.Min(argumentTypes.Length, function.FixedParameterCount); i++)
             {
                 if (argumentTypes[i] is not { } argument)
                 {

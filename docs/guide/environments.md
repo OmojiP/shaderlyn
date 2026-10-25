@@ -30,7 +30,7 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 | `unity` (既定) | Unity の ShaderLab と HLSL | `.shader` / `.compute` |
 | `hlsl` | DXC で直接コンパイルする HLSL | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー | `.usf` |
-| `glsl` | GLSL (構文エラーを指摘する。[下記](#glsl)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
+| `glsl` | GLSL (OpenGL・Vulkan・GLSL ES。[下記](#glsl)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
 | `godot` / `slang` / `wgsl` | Godot / Slang / WGSL (作っているところ。今は何も指摘しない) | `.gdshader` / `.slang` / `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン | ホストが決める |
 
@@ -216,17 +216,21 @@ UE 5.5 のエンジンのシェーダー (`Engine/Shaders` の `.usf` 522 個) �
 GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` / `.task`、レイトレーシングの `.rgen` などと、`.glsl`) は、
 設定ファイルが無くても、ほかの環境の設定ファイルの下にあっても、GLSL として解析します。VS Code 拡張も同じです。
 
-**今は構文の誤りだけを指摘します。** 指摘するのは次のものです。
+**C 系の言語に共通のルール (`CF` で始まるもの) で検査します。** HLSL にしか無いルール (`HL` で始まるもの) は出しません。
 
-| ルール | 内容 |
-| --- | --- |
-| [CF0001](../rules/CF0001.md) | 構文の誤り |
-| [CF0002](../rules/CF0002.md) など | プリプロセッサ指令の誤り (閉じていない `#if` など) |
-| [CF0021](../rules/CF0021.md) | 解決できない `#include` (その中の構文は読めていない) |
+- 型は GLSL の決まりで判断します。暗黙の変換は `#version` で変わり (ES と 1.10 には無く、4.00 以降は `int` → `uint` → `float` → `double`)、
+  成分の数の違う値は変換しません (`vec3 c = 1.0;` も `vec3 c = vec4(1.0);` も誤り)。行列を含む `*` は行列の積です
+- 組み込みの関数と変数 (`texture`、`gl_FragCoord` など) は、glslang から作った表で、ファイルのステージと `#version` で使えるものだけを知っています。
+  頂点シェーダーで `gl_FragCoord` を使うと、宣言されていない名前 ([CF0310](../rules/CF0310.md)) になります
+- glslang に `-V` (Vulkan) を渡すかどうかはソースから分からないので、Vulkan と OpenGL の組み込みはどちらも使えるものとします
+- ステージのファイルのエントリポイントは `main` です。無ければ [CF0301](../rules/CF0301.md) になります
+- 取り込まれる断片 (`.glsl`) を単体で解析すると、取り込む側で宣言した名前が分からないので、宣言が無いことを根拠にする検査を見送ります
+  ([CF0101](../rules/CF0101.md) で伝えます)。取り込む側のステージのファイルを解析すれば、断片の中も検査します。
+  ステージの拡張子でないファイルはすべて断片として読むので、単体のシェーダーを `.glsl` で置いているなら、`shadow.vert.glsl` のようにステージの拡張子を付けると検査されます
 
-**宣言・型・呼び出しの検査 (宣言されていない名前、型の不一致、引数の数など) は 0.3.1 で対応する予定です。**
-今は GLSL の組み込みの型と関数 (`vec4`、`texture` など) を知らないので、これらの検査は行いません (誤って報告することもありません)。
-VS Code 拡張の説明 (ホバー)・定義へ移動・補完も、GLSL のファイルではまだ働きません。
+GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Samples、GLSL ES の ARM OpenGL ES SDK、約 790 ファイル) で、誤りと警告を出さないことを確かめています。
+
+VS Code 拡張の説明 (ホバー)・定義へ移動・補完は、GLSL のファイルではまだ働きません。
 
 - `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
   HLSL と同じく、解析対象の外のファイルは読みません

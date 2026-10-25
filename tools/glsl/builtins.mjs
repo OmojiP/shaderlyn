@@ -477,6 +477,26 @@ for (const [index, ok] of usable.entries()) {
   }
 }
 
+// 引数の数を表に書き出さない関数。... は、そこから後ろにいくつでも引数を書けることを表す。
+// - debugPrintfEXT (GL_EXT_debug_printf) は、書式の文字列の後に値をいくつでも書ける。表には引数の無い形しか出ない
+// - tensorReadARM / tensorWriteARM (GL_ARM_tensors) の最後のテンソルの指定 (tensorOperands) は省ける。表には省かない形しか出ない
+for (const [key, indices] of [...functions].filter(([k]) => k.startsWith('debugPrintfEXT\t'))) {
+  const [name, result, , extensions] = key.split('\t');
+
+  for (const index of indices) {
+    add(functions, [name, result, '*;...', extensions].join('\t'), index);
+  }
+}
+
+for (const [key, indices] of [...functions].filter(([k]) => /^tensor(Read|Write)ARM\t/.test(k))) {
+  const [name, result, params, extensions] = key.split('\t');
+  const fixed = params.split(';');
+
+  for (const index of indices) {
+    add(functions, [name, result, [...fixed.slice(0, -1), '...'].join(';'), extensions].join('\t'), index);
+  }
+}
+
 const byKey = (a, b) =>(a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
 const functionLines = [...functions].sort(byKey).map(([key, indices]) => `F\t${key}\t${setOf(indices)}`);
 const variableLines = [...variables].sort(byKey).map(([key, indices]) => `V\t${key}\t${setOf(indices)}`);
@@ -489,7 +509,7 @@ const out = [
   '#',
   '# C 構成の番号 対象 プロファイル バージョン ステージ (glslang が組み込みを読めなかった構成は入れない)',
   '# S 構成の集まりの番号 構成の番号の範囲',
-  '# F 名前 戻り値の型 仮引数の型 (; で区切る。out / inout は書き戻す引数) 要る拡張 (, で区切る) 構成の集まり',
+  '# F 名前 戻り値の型 仮引数の型 (; で区切る。out / inout は書き戻す引数、* はどの型にも合う、... は後ろにいくつでも書ける) 要る拡張 (, で区切る) 構成の集まり',
   '# V 名前 型 (block はブロックの配列、structure は構造体) 記憶域 (in / out / uniform / const) 要る拡張 構成の集まり',
   '# M ブロックの変数の名前 メンバーの名前 型 要る拡張 構成の集まり',
   '# </auto-generated>',

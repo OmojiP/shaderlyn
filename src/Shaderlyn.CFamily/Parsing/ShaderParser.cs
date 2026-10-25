@@ -133,6 +133,13 @@ internal abstract class ShaderParser
     /// </summary>
     protected virtual bool AcceptsArrayTypes => false;
 
+    /// <summary>
+    /// <c>discard</c> と同じ形で、語と <c>;</c> だけで書く文 (GLSL の <c>ignoreIntersectionEXT;</c>) の語かを判定する。既定は無い。
+    /// </summary>
+    /// <param name="text">判定する語。</param>
+    /// <returns>その文の語なら <see langword="true"/>。</returns>
+    protected virtual bool IsLanguageJumpKeyword(string text) => false;
+
     /// <summary>組み込みの型の名前かを判定する。</summary>
     /// <param name="name">判定する名前。</param>
     /// <returns>組み込みの型なら <see langword="true"/>。</returns>
@@ -885,7 +892,7 @@ internal abstract class ShaderParser
     /// <summary>変数名より後の、配列・セマンティクス・初期化子を解析する。</summary>
     /// <param name="name">変数名。</param>
     /// <returns>解析した宣言子。</returns>
-    private VariableDeclaratorSyntax ParseDeclaratorRest(ShaderSyntaxToken name)
+    protected VariableDeclaratorSyntax ParseDeclaratorRest(ShaderSyntaxToken name)
     {
         ImmutableArray<ShaderSyntaxToken> arrayRanks = ParseArrayRanks();
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
@@ -1689,6 +1696,9 @@ internal abstract class ShaderParser
                 case "break":
                 case "continue":
                 case "discard":
+                    return new JumpStatementSyntax(Advance(), Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
+
+                case { } keyword when IsLanguageJumpKeyword(keyword) && Peek(1).Kind == ShaderSyntaxKind.SemicolonToken:
                     return new JumpStatementSyntax(Advance(), Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
                 case "case":
                 case "default":

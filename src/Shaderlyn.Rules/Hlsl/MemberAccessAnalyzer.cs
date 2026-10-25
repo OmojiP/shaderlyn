@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
@@ -30,11 +31,16 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 {
-    /// <summary>位置を表す成分名。</summary>
-    private const string PositionComponents = "xyzw";
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
 
-    /// <summary>色を表す成分名。</summary>
-    private const string ColorComponents = "rgba";
+    /// <summary>成分名の組を、利用者に見せるときの呼び名。</summary>
+    private static readonly FrozenDictionary<string, string> ComponentSetNames = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["xyzw"] = "位置",
+        ["rgba"] = "色",
+        ["stpq"] = "テクスチャ座標",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>スウィズルで取り出せる最大の成分数。</summary>
     private const int MaxSwizzleLength = 4;
@@ -335,7 +341,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// 行列には <c>_m00</c> 形式 (0 始まり) と <c>_11</c> 形式 (1 始まり) があり、
     /// 規則が違う。混ぜて書くこともできない。
-    /// 成分名の組と行列の書き方は HLSL のもの。GLSL の成分名 (<c>stpq</c>) と行列の列の参照は GL2 で決める。
+    /// 成分名の組は言語の型システムから引く (GLSL は <c>stpq</c> も使える)。行列の書き方 (<c>_m00</c>) は HLSL のもので、GLSL の行列は添字 (<c>m[i]</c>) で参照する。
     /// </remarks>
     private static bool AnalyzeSwizzle(
         SyntaxTreeAnalysisContext context,
@@ -352,7 +358,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         string? error = shape.Kind == ShaderNumericKind.Matrix
             ? DescribeMatrixSwizzleError(access.Name, shape)
-            : DescribeSwizzleError(access.Name, shape.Columns);
+            : DescribeSwizzleError(access.Name, shape.Columns, types.ComponentNameSets);
 
         if (error is not { } reason
             || access.GetLocation() is not { } location
@@ -453,13 +459,14 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// </summary>
     /// <param name="name">取り出そうとしている成分名。</param>
     /// <param name="components">元の型の成分数。</param>
+    /// <param name="sets">言語の成分名の組 (HLSL なら <c>xyzw</c> と <c>rgba</c>、GLSL はそれに <c>stpq</c>)。1 つの参照では 1 つの組の文字だけを使える。</param>
     /// <returns>成り立たない理由。成り立つなら <see langword="null"/>。</returns>
     /// <remarks>
     /// <b>スカラーとベクトルに、スウィズル以外のメンバーは無い。</b>
     /// だからここでは「成り立たないものはすべて誤り」と言い切れる。
     /// 規則の違う行列は、呼び出し元で除いてある。
     /// </remarks>
-    private static string? DescribeSwizzleError(string name, int components)
+    private static string? DescribeSwizzleError(string name, int components, ImmutableArray<string> sets)
     {
         if (name.Length == 0)
         {
@@ -471,21 +478,16 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return $"一度に取り出せるのは {MaxSwizzleLength} 成分までです。";
         }
 
-        bool position = name.All(c => PositionComponents.Contains(c, StringComparison.Ordinal));
-        bool color = name.All(c => ColorComponents.Contains(c, StringComparison.Ordinal));
+        string? set = sets.FirstOrDefault(s => name.All(c => s.Contains(c, StringComparison.Ordinal)));
 
-        if (!position && !color)
+        if (set is null)
         {
-            // 両方の並びの文字だけでできているなら、混ぜたということである。
-            return name.All(c =>
-                PositionComponents.Contains(c, StringComparison.Ordinal)
-                || ColorComponents.Contains(c, StringComparison.Ordinal))
-                ? $"位置 ({string.Join(", ", PositionComponents.Select(c => c.ToString()))}) と "
-                  + $"色 ({string.Join(", ", ColorComponents.Select(c => c.ToString()))}) は混ぜられません。"
-                : DescribeComponents(PositionComponents, components);
+            // どれかの組の文字だけでできているなら、組を混ぜたということである。
+            return name.All(c => sets.Any(s => s.Contains(c, StringComparison.Ordinal)))
+                ? string.Join(" と ", sets.Select(s => $"{ComponentSetNames.GetValueOrDefault(s, s)} ({string.Join(", ", s.Select(c => c.ToString()))})"))
+                  + " は混ぜられません。"
+                : DescribeComponents(sets[0], components);
         }
-
-        string set = position ? PositionComponents : ColorComponents;
 
         foreach (char component in name)
         {

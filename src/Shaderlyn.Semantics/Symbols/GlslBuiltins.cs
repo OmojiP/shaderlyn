@@ -9,14 +9,21 @@ namespace Shaderlyn.Semantics.Symbols;
 
 /// <summary>GLSL の組み込み関数の多重定義 1 つ。</summary>
 /// <param name="ReturnType">戻り値の型。</param>
-/// <param name="Parameters">仮引数の型。</param>
+/// <param name="Parameters">仮引数の型。最後が <c>...</c> なら、そこから後ろにいくつでも引数を書ける (<c>debugPrintfEXT</c>)。</param>
 /// <param name="WritesBack">仮引数ごとの、書き戻す引数 (<c>out</c> / <c>inout</c>) か。</param>
 /// <param name="Extensions">使うのに要る拡張 (どれか 1 つ)。要らなければ空。</param>
 internal sealed record GlslBuiltinFunction(
     string ReturnType,
     ImmutableArray<string> Parameters,
     ImmutableArray<bool> WritesBack,
-    ImmutableArray<string> Extensions);
+    ImmutableArray<string> Extensions)
+{
+    /// <summary>後ろにいくつでも引数を書けるか (仮引数の最後が <c>...</c>)。</summary>
+    public bool IsVariadic => !Parameters.IsEmpty && Parameters[^1] == "...";
+
+    /// <summary>型の決まった仮引数の数 (<c>...</c> を除く)。</summary>
+    public int FixedParameterCount => IsVariadic ? Parameters.Length - 1 : Parameters.Length;
+}
 
 /// <summary>GLSL の組み込み変数 1 つ。</summary>
 /// <param name="Type">型。配列なら <c>[]</c> や <c>[32]</c> が付く。ブロックの配列 (<c>gl_in</c>) は <c>block</c>。</param>

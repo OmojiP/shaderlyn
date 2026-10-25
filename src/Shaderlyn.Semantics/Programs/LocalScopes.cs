@@ -128,7 +128,7 @@ internal sealed class LocalScopes
                     new LocalDeclaration(
                         new ResolvedTypeName(
                             parameter.Type.Name,
-                            !parameter.ArrayRankTokens.IsEmpty,
+                            parameter.IsArray,
                             ExpressionTypeBinder.GetTemplateArgument(parameter.Type),
                             parameter.ArrayDimensions),
                         parameter,

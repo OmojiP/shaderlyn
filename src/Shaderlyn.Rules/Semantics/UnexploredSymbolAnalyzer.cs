@@ -37,6 +37,9 @@ namespace Shaderlyn.Rules;
 internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnexploredSymbols];
 

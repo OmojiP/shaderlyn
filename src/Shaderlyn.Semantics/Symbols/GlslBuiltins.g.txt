@@ -4,7 +4,7 @@
 #
 # C 構成の番号 対象 プロファイル バージョン ステージ (glslang が組み込みを読めなかった構成は入れない)
 # S 構成の集まりの番号 構成の番号の範囲
-# F 名前 戻り値の型 仮引数の型 (; で区切る。out / inout は書き戻す引数) 要る拡張 (, で区切る) 構成の集まり
+# F 名前 戻り値の型 仮引数の型 (; で区切る。out / inout は書き戻す引数、* はどの型にも合う、... は後ろにいくつでも書ける) 要る拡張 (, で区切る) 構成の集まり
 # V 名前 型 (block はブロックの配列、structure は構造体) 記憶域 (in / out / uniform / const) 要る拡張 構成の集まり
 # M ブロックの変数の名前 メンバーの名前 型 要る拡張 構成の集まり
 # </auto-generated>
@@ -2700,6 +2700,8 @@ F	dFdyFine	vector	vector		48
 F	dFdyFine	vector	vector	GL_NV_compute_shader_derivatives,GL_KHR_compute_shader_derivatives	41
 F	debugPrintfEXT	void			7
 F	debugPrintfEXT	void		GL_EXT_debug_printf	8
+F	debugPrintfEXT	void	*;...		7
+F	debugPrintfEXT	void	*;...	GL_EXT_debug_printf	8
 F	degrees	f16vec2	f16vec2		10
 F	degrees	f16vec3	f16vec3		10
 F	degrees	f16vec4	f16vec4		10
@@ -13808,66 +13810,126 @@ F	tanh	vec2	vec2		12
 F	tanh	vec3	vec3		12
 F	tanh	vec4	vec4		12
 F	tanh	vector	vector		16
+F	tensorReadARM	void	tensorARM;uint[];bfloat16_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];bfloat16_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];bool[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];bool[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];double[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];double[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];float16_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];float16_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];float[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];float[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];floate4m3_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];floate4m3_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];floate5m2_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];floate5m2_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];int16_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];int16_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];int64_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];int64_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];int8_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];int8_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];int[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];int[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out bfloat16_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out bfloat16_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out bool;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out bool;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out double;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out double;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out float16_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out float16_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out float;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out float;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out floate4m3_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out floate4m3_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out floate5m2_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out floate5m2_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out int16_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out int16_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out int64_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out int64_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out int8_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out int8_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out int;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out int;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out uint16_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out uint16_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out uint64_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out uint64_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out uint8_t;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out uint8_t;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];out uint;...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];out uint;uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];uint16_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];uint16_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];uint64_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];uint64_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];uint8_t[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];uint8_t[];uint	GL_ARM_tensors	17
+F	tensorReadARM	void	tensorARM;uint[];uint[];...	GL_ARM_tensors	17
 F	tensorReadARM	void	tensorARM;uint[];uint[];uint	GL_ARM_tensors	17
 F	tensorSizeARM	uint	tensorARM;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];bfloat16_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];bfloat16_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];bfloat16_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];bfloat16_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];bool;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];bool;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];bool[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];bool[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];double;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];double;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];double[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];double[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];float16_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];float16_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];float16_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];float16_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];float;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];float;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];float[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];float[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];floate4m3_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];floate4m3_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];floate4m3_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];floate4m3_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];floate5m2_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];floate5m2_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];floate5m2_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];floate5m2_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int16_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int16_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int16_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int16_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int64_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int64_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int64_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int64_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int8_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int8_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int8_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int8_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];int[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];int[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint16_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint16_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint16_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint16_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint64_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint64_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint64_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint64_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint8_t;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint8_t;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint8_t[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint8_t[];uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint;...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint;uint	GL_ARM_tensors	17
+F	tensorWriteARM	void	tensorARM;uint[];uint[];...	GL_ARM_tensors	17
 F	tensorWriteARM	void	tensorARM;uint[];uint[];uint	GL_ARM_tensors	17
 F	terminateRayNV	void		GL_NV_ray_tracing	66
 F	texelFetch	f16vec4	f16sampler1D;int;int		17

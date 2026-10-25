@@ -23,6 +23,9 @@ namespace Shaderlyn.Rules;
 internal sealed class ErrorConfigurationAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.ErrorConfiguration];
 

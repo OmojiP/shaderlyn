@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Symbols;
 
@@ -137,6 +138,15 @@ internal static class UniformCollector
 
                     case ConstantBufferDeclarationSyntax buffer:
                         CollectConstantBuffer(buffer);
+                        break;
+
+                    // GLSL のインスタンスの名前を持たないブロック。メンバーは外側の名前になる (cbuffer と同じ)。
+                    case InterfaceBlockDeclarationSyntax block:
+                        foreach (VariableDeclarationSyntax member in block.Members.OfType<VariableDeclarationSyntax>())
+                        {
+                            AddUniforms(member, block.Name, _uniforms);
+                        }
+
                         break;
 
                     // 構造体の外で定義したメソッド (Wave::GetIndex) はグローバルな関数ではない。

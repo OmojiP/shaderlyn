@@ -1,5 +1,6 @@
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -186,6 +187,14 @@ public sealed partial class ShaderCompilation
 
                     case ConstantBufferDeclarationSyntax buffer:
                         foreach (VariableDeclarationSyntax member in EnumerateGlobalVariables(buffer.Members))
+                        {
+                            yield return member;
+                        }
+
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        foreach (VariableDeclarationSyntax member in EnumerateGlobalVariables(block.Members))
                         {
                             yield return member;
                         }

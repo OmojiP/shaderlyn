@@ -4,6 +4,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
@@ -39,6 +40,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>
     /// 宣言なしで使える名前。
     /// </summary>
@@ -133,10 +137,13 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (compilation.TypeSystem.IsKnownFunction(identifier.Name, program.Tree)
-            || compilation.TypeSystem.IsKnownConstant(identifier.Name)
+        // 組み込みは、その木の言語のバージョンとステージで使えるものだけを見る (GLSL の gl_FragCoord は頂点シェーダーに無い)。
+        ShaderTypeSystem types = compilation.TypeSystem.ForTree(program.Tree);
+
+        if (types.IsKnownFunction(identifier.Name, program.Tree)
+            || types.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || compilation.TypeSystem.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            || types.Classify(identifier.Name) != ShaderTypeClass.Unknown
             || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
@@ -467,6 +474,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
                     case ConstantBufferDeclarationSyntax { NameToken: { } bufferName }:
                         declared.Add(bufferName.Text);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        declared.Add(block.Name);
                         break;
 
                     case EnumDeclarationSyntax enumeration:

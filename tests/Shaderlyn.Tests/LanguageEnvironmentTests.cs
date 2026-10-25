@@ -6,8 +6,8 @@ namespace Shaderlyn.Tests;
 /// HLSL 以外の言語の環境 (GLSL・Godot・Slang・WGSL) の検証。
 /// </summary>
 /// <remarks>
-/// GLSL は意味解析のモデルを作るが、ルールはまだ働かせず、構文エラーを指摘する。まだ読めない言語は何も指摘しない。
-/// ルールが働かないので、HLSL のルールの誤検出 (<c>vec3</c> を宣言されていない名前と読むなど) も出ない。
+/// GLSL は意味解析のモデルを作り、C 系の言語に共通のルールを働かせる。まだ読めない言語は何も指摘しない。
+/// GLSL の型と組み込みを知っているので、<c>vec3</c> を宣言されていない名前と読むような誤検出は出ない。
 /// </remarks>
 public sealed class LanguageEnvironmentTests : IDisposable
 {
@@ -38,7 +38,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     [Fact]
-    public async Task GLSLは構文エラーを指摘し_HLSLのルールは働かない()
+    public async Task GLSLは構文エラーを指摘し_正しいコードには何も言わない()
     {
         File.WriteAllText(Path.Combine(_workDirectory, "ok.frag"), """
             #version 450
@@ -59,7 +59,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.Contains("broken.vert", output, StringComparison.Ordinal);
         Assert.Contains("CF0001", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ok.frag", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("error CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>

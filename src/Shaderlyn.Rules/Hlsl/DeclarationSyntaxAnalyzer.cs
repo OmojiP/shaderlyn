@@ -25,6 +25,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>レジスタを指定する修飾の名前。</summary>
     private const string RegisterAnnotation = "register";
 
@@ -103,6 +106,11 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// 2 つ以上渡す形は、平らにした成分の数がちょうど一致していなければならない。
+    /// GLSL は、最後の引数の余った成分を捨てる (<c>vec3(v2, v2)</c>。GLSL 4.60 の 5.4.2 節)。
+    /// 足りないか、最後の引数を 1 つも使わないほど多いときだけ誤りである。
+    /// </para>
+    /// <para>
+    /// GLSL は、行列 1 つから大きさの違う行列を作れる (<c>mat4(mat3)</c>。足りない成分は単位行列で埋める)。
     /// </para>
     /// </remarks>
     private static void AnalyzeConstructor(
@@ -127,8 +135,10 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
 
         // 1 つだけ渡す形は、複製も切り捨ても許される。
         bool valid = arguments.Length == 1
-            ? written == 1 || written >= required
-            : written == required;
+            ? written == 1 || written >= required || IsMatrixFromMatrix(binder, shape, arguments[0])
+            : binder.TypeSystem.ConstructorsDropExtraComponents
+                ? written >= required && CountComponents(binder, [arguments[^1]]) is { } last && written - last < required
+                : written == required;
 
         if (valid || invocation.GetLocation() is not { } location || !reported.Add(location))
         {
@@ -142,6 +152,17 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             required,
             written));
     }
+
+    /// <summary>行列を、行列 1 つから作っているか (GLSL)。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="shape">作る型の形。</param>
+    /// <param name="argument">引数。</param>
+    /// <returns>GLSL で、作る型も引数も行列なら <see langword="true"/>。</returns>
+    private static bool IsMatrixFromMatrix(ExpressionTypeBinder binder, ShaderNumericShape shape, ExpressionSyntax argument)
+        => binder.TypeSystem.ConstructorsDropExtraComponents
+           && shape.Kind == ShaderNumericKind.Matrix
+           && binder.TypeSystem.TryDescribeNumeric(binder.GetEvaluatorFor(argument).Evaluate(argument), out ShaderNumericShape value)
+           && value.Kind == ShaderNumericKind.Matrix;
 
     /// <summary>
     /// 引数に書かれた成分の個数を数える。

@@ -1,7 +1,7 @@
 {
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
-  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL は構文エラーを指摘する",
+  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL は宣言・型・呼び出しを検査する",
   "version": "0.3.0",
   "publisher": "OmojiP",
   "license": "MIT",

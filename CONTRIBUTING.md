@@ -41,6 +41,12 @@ dotnet test
   # 作り直しても表が変わらないことと、GLSL のコーパスの関数の呼び出しがすべて解決することを確かめる
   SHADERLYN_GLSLANG=<glslang の実行ファイル> SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslBuiltinsTests"
   ```
+- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確かめる
+
+  ```sh
+  node tools/corpus/fetch.mjs --only=glsl
+  SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslCorpusTests"
+  ```
 - Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使う検証も動きます。時間がかかるので、ふだんの確認では外せます
 
   ```sh

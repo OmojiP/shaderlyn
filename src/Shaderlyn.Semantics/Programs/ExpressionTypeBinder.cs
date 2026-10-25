@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
@@ -1288,6 +1289,10 @@ public sealed class ExpressionTypeBinder
 
                     case ConstantBufferDeclarationSyntax buffer:
                         Collect(buffer.Members);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        Collect(block.Members);
                         break;
 
                     case NamespaceDeclarationSyntax ns:

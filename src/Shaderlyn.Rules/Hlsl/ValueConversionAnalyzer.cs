@@ -32,6 +32,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>値を返さない関数の戻り値の型名。</summary>
     private const string VoidTypeName = "void";
 
@@ -679,6 +682,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <para>
     /// 複合代入 (<c>+=</c> など) も、右辺を左辺の型へ変換してから演算する。
     /// 判定は単純代入と同じでよい。
+    /// ただし右辺がスカラーなら各成分に配られ、GLSL の <c>*=</c> の右辺の行列は行列の積になるので、変換の判定をしない
+    /// (<see cref="IsDistributedOperand"/>)。GLSL はスカラーをベクトルへ変換しないので、単純代入と同じ判定では誤りになる。
     /// </para>
     /// <para>
     /// <b>代入先の型が構成によって変わるなら、構成ごとに両辺の型を求めて判定する。</b>
@@ -694,6 +699,11 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         AssignmentExpressionSyntax assignment,
         ReportedLocations reported)
     {
+        if (IsDistributedOperand(binder, assignment))
+        {
+            return;
+        }
+
         if (binder.GetEvaluatorFor(assignment).Evaluate(assignment.Left) is not { } targetType)
         {
             AnalyzeAssignmentByConfiguration(context, conditions, binder, assignment, reported);
@@ -701,6 +711,25 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         }
 
         Check(context, conditions, binder, assignment.Right, targetType, targetType, reported);
+    }
+
+    /// <summary>複合代入の右辺が、左辺の型へ変換されずに演算されるものかを判定する。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="assignment">代入。</param>
+    /// <returns>右辺がスカラー (<c>v *= 2.0</c>) か、GLSL の <c>*=</c> の右辺が行列 (<c>v *= m</c>) なら <see langword="true"/>。</returns>
+    /// <remarks>HLSL ではスカラーはどの数値型にも変換できるので、判定を飛ばしても結果は変わらない。</remarks>
+    private static bool IsDistributedOperand(ExpressionTypeBinder binder, AssignmentExpressionSyntax assignment)
+    {
+        if (assignment.OperatorToken.Kind == ShaderSyntaxKind.EqualsToken
+            || !binder.TypeSystem.TryDescribeNumeric(binder.GetEvaluatorFor(assignment).Evaluate(assignment.Right), out ShaderNumericShape right))
+        {
+            return false;
+        }
+
+        return right.Kind == ShaderNumericKind.Scalar
+               || (right.Kind == ShaderNumericKind.Matrix
+                   && assignment.OperatorToken.Kind == ShaderSyntaxKind.AsteriskEqualsToken
+                   && binder.TypeSystem.MultipliesMatricesAlgebraically);
     }
 
     /// <summary>代入先の型が構成によって変わる代入を、構成ごとに検査する。</summary>

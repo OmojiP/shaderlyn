@@ -35,6 +35,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>多重定義できない演算子。</summary>
     private static readonly FrozenSet<string> NotOverloadable = new[]
     {

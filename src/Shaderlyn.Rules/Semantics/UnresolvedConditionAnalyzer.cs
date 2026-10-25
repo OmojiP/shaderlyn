@@ -26,6 +26,9 @@ namespace Shaderlyn.Rules;
 internal sealed class UnresolvedConditionAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnresolvedCondition];
 

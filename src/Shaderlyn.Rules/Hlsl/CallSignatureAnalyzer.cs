@@ -35,6 +35,9 @@ namespace Shaderlyn.Rules;
 internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         HlslRuleDescriptors.ArgumentNotConvertible,
@@ -727,7 +730,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             }
 
             // 配列は要素の型と長さの両方が一致していなければならない。
-            if (!parameter.ArrayRankTokens.IsEmpty)
+            if (parameter.IsArray)
             {
                 if (DescribeArrayMismatch(parameter, arguments[i], binder, declaresArrays) is { } reason)
                 {

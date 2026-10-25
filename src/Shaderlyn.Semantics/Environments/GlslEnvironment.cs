@@ -37,7 +37,7 @@ internal sealed record GlslEnvironmentOptions
 /// 解析の設定で与えたもの (<see cref="SemanticsOptions.PredefinedMacros"/>) である。同じ名前なら設定が勝つ。
 /// </para>
 /// <para>
-/// 型システムはまだ型を知らない (<see cref="Symbols.GlslTypeSystem"/>)。
+/// 型と組み込みは GLSL のもの (<see cref="Symbols.GlslTypeSystem"/>) を使う。
 /// </para>
 /// </remarks>
 internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : IShaderEnvironment
@@ -46,7 +46,7 @@ internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : 
     public const string EnvironmentName = "glsl";
 
     /// <summary>エントリポイントの出どころとして、診断に出す語の始まり。</summary>
-    private const string EntryOrigin = "GLSL のステージのファイル";
+    private const string EntryOrigin = "GLSL";
 
     /// <summary>環境の設定。</summary>
     public GlslEnvironmentOptions Options { get; } = options ?? GlslEnvironmentOptions.Default;
@@ -72,7 +72,7 @@ internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : 
             Language = GlslLanguageOptions.Default,
 
             // 解決できない取り込みは、その行で伝える (0.3.0 の構文だけの環境と同じ)。
-            // HLSL の環境はルール (CF0021) が伝えるが、GLSL ではまだルールを働かせない。
+            // HLSL の環境は取り込みのルール (IncludePathAnalyzer) が伝える。そのルールは、1 つも解決できないときに環境の問題 (TOOL0004) として伝えるので、GLSL では働かせない。
             ReportUnresolvedIncludes = true,
         };
     }
@@ -136,11 +136,14 @@ internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : 
     /// ファイル全体を 1 つの単位にする。
     /// </summary>
     /// <param name="text">ファイル。</param>
-    /// <returns>単位。</returns>
+    /// <returns>単位。取り込まれる断片 (<c>.glsl</c>) なら、宣言だけの関数の定義が取り込む側にありうる (<see cref="ShaderCompilationUnit.AllowsExternalDefinitions"/>)。</returns>
     public static ShaderCompilationUnit WholeFile(SourceText text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return new ShaderCompilationUnit(text, new TextSpan(0, text.Length));
+        return new ShaderCompilationUnit(text, new TextSpan(0, text.Length))
+        {
+            AllowsExternalDefinitions = GlslLanguageOptions.StageFromFileName(text.FilePath) is null,
+        };
     }
 
     /// <summary>単位の構成の空間。単位の指定が無ければ共通のもの。</summary>

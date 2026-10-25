@@ -13,6 +13,14 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 ### 追加
 
 - 設定ファイルの `rules:` に、どのルールにも無い ID を書くと、その行に TOOL0003 (警告) を出す。今までは黙って効かなかった
+- GLSL のファイルの宣言・型・呼び出しを、C 系の言語に共通のルール (CF) で検査する (宣言されていない名前、型の変換、引数の数、コンストラクタ、存在しないメンバー、値を返さない経路など)。
+  HLSL にしか無いルール (HL) は出さない
+  - 型は GLSL の決まりで判断する。暗黙の変換は `#version` で変わり (ES と 1.10 には無い)、成分の数の違う値は変換しない。行列を含む `*` は行列の積
+  - 組み込みの関数と変数は、glslang 16.6.0 から作った表で、ファイルのステージと `#version` で使えるものだけを知っている (頂点シェーダーの `gl_FragCoord` は宣言されていない名前になる)
+  - インターフェースブロック (`uniform UBO { … } ubo;` と、インスタンスの名前の無いもの)、`layout(buffer_reference)` のブロック、型の側に書いた配列 (`float[3] a`) を読む
+  - 取り込まれる断片 (`.glsl`) を単体で解析したときは、取り込む側の宣言が分からないので、宣言が無いことを根拠にする検査を見送り、CF0101 (情報) で伝える
+  - Vulkan (SaschaWillems・Vulkan-Samples) と GLSL ES (ARM OpenGL ES SDK) のシェーダー、約 790 ファイルで誤りと警告が出ないことを確かめた
+- 自作ルール向け: `StructDeclarationSyntax.Modifiers` (キーワードの前の修飾子。GLSL のインスタンスの名前を持つインターフェースブロックを構造体の宣言として表すときに使う)
 - GLSL のファイルで、設定ファイルの `symbols:` を構成の軸にする (HLSL と同じ書き方)。`#ifdef` の両方の分岐の構文を読む
 - GLSL のファイルの `#version` を読み、glslang と同じマクロ (`__VERSION__`、`GL_ES`、`GL_core_profile` など) を定義する。
   今までは定義しなかったので、`#if __VERSION__ >= 300` などで分ける分岐の片方を読んでいなかった
@@ -24,6 +32,8 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   GLSL などにも同じ検査を出すためである。HLSL にしか無いルール (HL0003、HL0210 など 10 個) は変わらない。
   0.3.0 の ID は使えないので、抑制コメント・設定ファイル・ベースラインを書き換える。
   対応表と置き換えのスクリプトは [0.3.0 から 0.3.1 へ移行する](docs/guide/migration-0.3.1.md) にある
+- 自作ルール向け: `VariableDeclaratorSyntax` と `ParameterSyntax` の `IsArray` / `ArrayDimensions` / `TryGetArrayLength` は、型の側に書いた配列 (GLSL の `float[3] a`) も含む。
+  `ArrayRankTokens` は今までどおり名前の後ろに書いたものだけを持つ。HLSL の木では何も変わらない
 
 ### 修正
 
