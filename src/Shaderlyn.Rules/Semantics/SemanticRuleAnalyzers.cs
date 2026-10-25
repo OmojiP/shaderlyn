@@ -44,7 +44,7 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 }
 
 /// <summary>
-/// 依存関係が解決できず対応検査を行えなかったことを報告する (HL0005)。
+/// 依存関係が解決できず対応検査を行えなかったことを報告する (CF0101)。
 /// </summary>
 /// <remarks>
 /// <b>「検査していない」ことを伝えないままにしてはならない。</b>
@@ -106,7 +106,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeSkipped(ShaderCompilation compilation)
         => compilation.Source.Root is null
-            ? "宣言が無いことを根拠にする検査 (HL0301 / HL0310 など)"
+            ? "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
             : "プロパティと uniform の対応検査";
 
     /// <summary>
@@ -123,7 +123,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// <b>別に報告されている指摘を、ここで繰り返さない。</b>
-    /// 解析対象のファイル自身にある構文エラーは <c>HL0001</c> などとして該当行に出る。
+    /// 解析対象のファイル自身にある構文エラーは <c>CF0001</c> などとして該当行に出る。
     /// 同じ文面をこちらにも並べると、読み手は 2 件別の問題があると受け取る。
     /// </para>
     /// </remarks>

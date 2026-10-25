@@ -97,6 +97,6 @@ float4 MainPS(VsOut input, uint packed : FLAGS) : SV_Target
     // 誤り 1 (HL0345): 接尾辞の無い 1.0 は float とは別の型として推論されるので、T を決められない (1.0f と書く)
     float exposure = MaxOf(1.0, adapt.Scale());
 
-    // 誤り 2 (HL0312): (color * 2) は Rgb で、alpha というメンバーは無い
+    // 誤り 2 (CF0312): (color * 2) は Rgb で、alpha というメンバーは無い
     return float4(box.Get() * exposure, (color * 2).alpha);
 }

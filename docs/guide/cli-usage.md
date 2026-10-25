@@ -167,7 +167,7 @@ Assets/Shaders/Lit.shader(24:18): warning SL1021: 'Cull' に指定された値 '
 #### `--format text`
 
 ```
-D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言されていません。
+D:\...\Shader.shader(68:17): error CF0310: 'a' は !_A && _C のとき宣言されていません。
  68 |                 a = 5;
     |                 ^
 
@@ -177,7 +177,7 @@ D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言さ�
 #### `--format github`
 
 ```                    
-::error file=D%3A\...\Shader.shader,line=68,col=17,endLine=68,endColumn=18,title=HL0310%3A 宣言されていない識別子です::HL0310: 'a' は !_A && _C のとき宣言されていません。
+::error file=D%3A\...\Shader.shader,line=68,col=17,endLine=68,endColumn=18,title=CF0310%3A 宣言されていない識別子です::CF0310: 'a' は !_A && _C のとき宣言されていません。
 1 ファイルを解析: エラー 1 件, 警告 0 件, 情報 0 件
 ```
 
@@ -194,7 +194,7 @@ D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言さ�
       },
       "results": [
         {
-          "ruleId": "HL0310",
+          "ruleId": "CF0310",
           "level": "error",
           "message": {
             "text": "'a' は !_A && _C のとき宣言されていません。"
@@ -236,7 +236,7 @@ D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言さ�
   },
   "diagnostics": [
     {
-      "id": "HL0310",
+      "id": "CF0310",
       "severity": "error",
       "category": "Correctness",
       "title": "宣言されていない識別子です",
@@ -247,7 +247,7 @@ D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言さ�
       "endLine": 68,
       "endColumn": 18,
       "fingerprint": "...",
-      "helpUri": "https://github.com/OmojiP/shaderlyn/blob/main/docs/rules/HL0310.md"
+      "helpUri": "https://github.com/OmojiP/shaderlyn/blob/main/docs/rules/CF0310.md"
     }
   ]
 }
@@ -302,7 +302,7 @@ shaderlyn Assets --min-severity error
 どの `#include` をたどって取り込んだかを、指摘に添えます。同じ指摘が複数のシェーダーや Pass から出たときは 1 件にまとめ、経路を並べます。
 
 ```
-Assets/Shaders/Lib/Inner.hlsl(1:36): error HL0310: 'undefinedTint' はどこにも宣言されていません。
+Assets/Shaders/Lib/Inner.hlsl(1:36): error CF0310: 'undefinedTint' はどこにも宣言されていません。
     取り込み元: Assets/Shaders/A.shader(11:22) Pass "Forward" → Assets/Shaders/Common.hlsl(1:10)
     ほかに 3 本の経路があります (--include-trace all ですべて出します)。
 ```
@@ -335,7 +335,7 @@ shaderlyn Assets --unity-project .
 
 指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。プロジェクトは推定しません。
 そのため `Assets/...` と `Packages/...` の `#include`、解析対象のフォルダーより上を指す `../...` の `#include` は解決できません。
-これらは [HL0321](../rules/HL0321.md) の文に、引けない理由と、解析対象の上で見つけた Unity プロジェクトを添えて報告します。
+これらは [CF0021](../rules/CF0021.md) の文に、引けない理由と、解析対象の上で見つけた Unity プロジェクトを添えて報告します。
 `--env` にも、見つけたプロジェクトと引けないものが出ます。
 
 見つからない場合、次のエラーが発生します。
@@ -352,7 +352,7 @@ Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つ�
 
 Unity Hub でインストール先を変えた場合 (別のドライブなど) は見つからないので、`--unity-editor` で Editor のデータフォルダーを指定してください
 (設定ファイルなら `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱のヘッダを引けず、
-[HL0321](../rules/HL0321.md) か [TOOL0004](../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
+[CF0021](../rules/CF0021.md) か [TOOL0004](../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
 Unity 6.3.26f1 以降の Editor は、同梱のヘッダを `Editor/Data/Resources/CGIncludes` に置いています。指定するのはどちらでも `Editor/Data` です。
 
 ```bash
@@ -384,7 +384,7 @@ shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 - `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス
 
-範囲の外を指した場合、そのファイルは読まず、[HL0321](../rules/HL0321.md) の文に「読んでよい範囲の外にあるため読みません」と添えます。
+範囲の外を指した場合、そのファイルは読まず、[CF0021](../rules/CF0021.md) の文に「読んでよい範囲の外にあるため読みません」と添えます。
 意図した取り込みであれば `--include-path` を追加してください。
 
 ### レンダーパイプライン
@@ -409,7 +409,7 @@ shaderlyn Assets --unity-project . --profile brp
 
 `#ifdef` で分かれるコードは、どちらの分岐も解析します。
 1 本の構文木に並べられない書き方の分岐は、そのシンボルを有効にした構成を別に展開して解析します。
-この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `HL0006` として報告されます。
+この件数には上限があり（既定 8）、超えたシンボルは調べられないまま `CF0102` として報告されます。
 
 上限は `--max-symbol-variants` で変更できます。
 

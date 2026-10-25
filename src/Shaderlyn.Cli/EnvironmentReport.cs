@@ -18,7 +18,7 @@ namespace Shaderlyn.Cli;
 /// <para>
 /// <b>環境の誤りは、指摘が「出ない」ことでしか現れない。</b>
 /// Editor やパッケージの場所を取り違えるとヘッダが読めず、ルールは誤検出を避けるために自ら検査を見送る
-/// (<c>HL0005</c>)。設定ファイルを拾えていなければ、書いたはずの重要度が効かない。
+/// (<c>CF0101</c>)。設定ファイルを拾えていなければ、書いたはずの重要度が効かない。
 /// どちらも解析結果だけを見ていては気づきにくいので、解析の前に確かめられるようにする。
 /// </para>
 /// <para>
@@ -341,7 +341,7 @@ internal static partial class EnvironmentReport
             Line(builder, $"  {(exists ? string.Empty : Warning)}{virtualPath} → {directory}{(exists ? string.Empty : " (ありません)")}");
         }
 
-        Line(builder, $"  生成される取り込み (解決せず、HL0321 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
+        Line(builder, $"  生成される取り込み (解決せず、CF0021 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
         Line(builder, $"  定義するマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}"
                       + " (HLSL 2021 で読むシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
 

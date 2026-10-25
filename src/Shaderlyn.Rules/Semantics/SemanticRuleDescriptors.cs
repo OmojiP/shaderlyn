@@ -35,7 +35,7 @@ internal static class SemanticRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor IncompleteAnalysis { get; } = new(
-        id: "HL0005",
+        id: "CF0101",
         title: "一部の検査を行っていません",
         messageFormat: "{0}を行っていません。{1}",
         category: UsageCategory,
@@ -47,7 +47,7 @@ internal static class SemanticRuleDescriptors
             + "include を解決できていない場合は、Unity プロジェクトのパスを --unity-project で"
             + "指定すると解決できる場合があります。"
             + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを直してください。",
-        helpLinkUri: DocumentationLinks.For("HL0005"));
+        helpLinkUri: DocumentationLinks.For("CF0101"));
 
     /// <summary>シンボルの経路を調べきれていない。</summary>
     /// <remarks>
@@ -64,7 +64,7 @@ internal static class SemanticRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnexploredSymbols { get; } = new(
-        id: "HL0006",
+        id: "CF0102",
         title: "未解析のシンボル構成が存在します",
         messageFormat: "シンボル {0} を{1}有効にした構成は未解析です。",
         category: UsageCategory,
@@ -77,20 +77,20 @@ internal static class SemanticRuleDescriptors
             + "上限を超えた分の経路にあるコードは一度も読んでいないため、"
             + "そこにある構文エラーや、そこでしか使われていないプロパティは報告されません。"
             + "上限を上げると調べられますが、解析時間はシンボルの数に比例して伸びます。",
-        helpLinkUri: DocumentationLinks.For("HL0006"));
+        helpLinkUri: DocumentationLinks.For("CF0102"));
 
     /// <summary>展開が #error に到達した構成。その構成はコンパイルされない。</summary>
     public static DiagnosticDescriptor ErrorConfiguration { get; } = new(
-        id: "HL0009",
+        id: "CF0104",
         title: "#error に到達する構成があります",
         messageFormat: "{0}#error ({1} の {2} 行目) に到達するため、コンパイルされません。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "その構成の展開が #error に到達しました。#error に到達する構成はコンパイルできないので、エンジンもその構成をコンパイルしないはずです "
-            + "(Unreal Engine は C++ の ShouldCompilePermutation で除きます)。その構成のコードは、宣言の有無を見る検査 (HL0310 / HL0315 など) で考えません。"
+            + "(Unreal Engine は C++ の ShouldCompilePermutation で除きます)。その構成のコードは、宣言の有無を見る検査 (CF0310 / CF0315 など) で考えません。"
             + "どの構成でも到達するなら、解析のマクロの状態 (設定の defines、Unreal の生成したファイル) が実際と違う見込みがあります。"
             + "Unity では、宣言したキーワードの構成はコンパイルされるので、UN0103 (エラー) が伝えます。",
-        helpLinkUri: DocumentationLinks.For("HL0009"));
+        helpLinkUri: DocumentationLinks.For("CF0104"));
 
     /// <summary>条件を追えなかった箇所がある。</summary>
     /// <remarks>
@@ -100,14 +100,14 @@ internal static class SemanticRuleDescriptors
     /// 構成ごとに組み立てた木の対応が取れず、その箇所の出現条件が分からない。
     /// </para>
     /// <para>
-    /// 出現条件を根拠にするルール (HL0311 / HL0313 / HL0340) は、
+    /// 出現条件を根拠にするルール (CF0311 / CF0313 / CF0401) は、
     /// 条件が分からない箇所では報告しない。
     /// <b>報告を見送ったことを、伝えないままにしてはならない。</b>
     /// 指摘が出ないことを「問題が無い」と受け取られる。
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnresolvedCondition { get; } = new(
-        id: "HL0007",
+        id: "CF0103",
         title: "構成によって文の形が変わる箇所があります",
         messageFormat: "この箇所は構成によって別の種類の文になるため、構成をまたいだ検査をしていません。",
         category: UsageCategory,
@@ -115,8 +115,8 @@ internal static class SemanticRuleDescriptors
         description: "#if が構文の単位をまたいでいるため、"
             + "構成ごとに組み立てた構文木の対応が取れませんでした。"
             + "この箇所については、どのシンボルの組み合わせで存在するコードなのかが分かっていません。"
-            + "出現条件を根拠にするルール (HL0311 / HL0313 / HL0340) は、"
+            + "出現条件を根拠にするルール (CF0311 / CF0313 / CF0401) は、"
             + "誤った指摘を出さないためにこの箇所では何も報告しません。"
             + "#if を関数や文の単位で閉じるように書き換えると、条件を追えるようになります。",
-        helpLinkUri: DocumentationLinks.For("HL0007"));
+        helpLinkUri: DocumentationLinks.For("CF0103"));
 }

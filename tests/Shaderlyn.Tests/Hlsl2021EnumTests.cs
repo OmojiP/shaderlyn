@@ -87,7 +87,7 @@ public sealed class Hlsl2021EnumTests
             float4 main() : SV_Target { return Transparent; }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("Transparent", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("Transparent", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -97,8 +97,8 @@ public sealed class Hlsl2021EnumTests
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
     /// <remarks>どの行も DXC で結果を確かめた。</remarks>
     [Theory]
-    [InlineData("Mode m = Mode::C", "HL0312")]
-    [InlineData("Plain p = Plain::P2", "HL0312")]
+    [InlineData("Mode m = Mode::C", "CF0312")]
+    [InlineData("Plain p = Plain::P2", "CF0312")]
     [InlineData("Plain p = Plain::P1", null)]
     [InlineData("Mode m = Mode::A; int x = m", "HL0347")]
     [InlineData("int x = Mode::A", "HL0347")]

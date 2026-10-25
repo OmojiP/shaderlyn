@@ -16,7 +16,7 @@ namespace Shaderlyn.Unity.Rules;
 /// </para>
 /// <para>
 /// どの構成でも到達するもの (条件が常に真) は、解析のマクロの状態が実際と違うためのことが多いので、
-/// ここでは伝えず HL0009 (情報) に任せる。
+/// ここでは伝えず CF0104 (情報) に任せる。
 /// </para>
 /// </remarks>
 internal sealed class KeywordErrorAnalyzer : SemanticRuleAnalyzer

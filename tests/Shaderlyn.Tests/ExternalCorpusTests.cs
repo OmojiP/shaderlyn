@@ -35,7 +35,7 @@ public sealed class ExternalCorpusTests(ITestOutputHelper output)
     /// <summary>
     /// 解析の設定が足りないことを表す指摘。コーパスのコンパイル単位 (探索パス) を知らないので出る。誤検出の候補には数えない。
     /// </summary>
-    private static readonly HashSet<string> SetupDiagnostics = new(StringComparer.Ordinal) { "HL0321", "TOOL0004" };
+    private static readonly HashSet<string> SetupDiagnostics = new(StringComparer.Ordinal) { "CF0021", "TOOL0004" };
 
     private readonly ITestOutputHelper _output = output;
 

@@ -13,7 +13,7 @@ namespace Shaderlyn.Unity.Rules;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 指定した関数があるかは、どの環境にも共通するルール (HL0301) が見る。
+/// 指定した関数があるかは、どの環境にも共通するルール (CF0301) が見る。
 /// ここで見るのは、Unity の <c>#pragma</c> でステージを指定しているかどうかだけである。
 /// </para>
 /// <para>

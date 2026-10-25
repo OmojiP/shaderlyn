@@ -48,9 +48,9 @@ public sealed class RuleFixtureTests
         ["TOOL0003"] = "設定ファイルの誤りの報告。シェーダーの内容では起こせない",
 
         // 循環は取り込み先で起きるため、報告は取り込んだファイルの側に出る。
-        // .shader の診断としては HL0005 のメッセージの中に現れる。
-        // これは HL0320_の循環はHL0005の中に現れる で確かめている。
-        ["HL0320"] = "循環は取り込み先で起きるため、報告が HL0005 のメッセージの中に入る",
+        // .shader の診断としては CF0101 のメッセージの中に現れる。
+        // これは HL0320_の循環はCF0101の中に現れる で確かめている。
+        ["CF0020"] = "循環は取り込み先で起きるため、報告が CF0101 のメッセージの中に入る",
 
         // template は HLSL 2021 の構文で、Unity (HLSL 2018) の .shader では HL0003 になる。
         // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
@@ -143,15 +143,15 @@ public sealed class RuleFixtureTests
     }
 
     [Fact]
-    public void HL0320_の循環はHL0005の中に現れる()
+    public void HL0320_の循環はCF0101の中に現れる()
     {
         // include の循環は取り込み先で起きるため、.shader 自身の診断にはならない。
-        // 見送った事実は HL0005 が伝える。
-        ImmutableArray<Diagnostic> diagnostics = Analyze("HL0320");
+        // 見送った事実は CF0101 が伝える。
+        ImmutableArray<Diagnostic> diagnostics = Analyze("CF0020");
 
-        Diagnostic reported = Assert.Single(diagnostics, d => d.Id == "HL0005");
+        Diagnostic reported = Assert.Single(diagnostics, d => d.Id == "CF0101");
 
-        Assert.Contains("HL0320", reported.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("CF0020", reported.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]

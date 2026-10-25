@@ -15,6 +15,6 @@ float4 MainPS(float4 SvPosition : SV_Position) : SV_Target0
 #endif
 
     // View は生成されるファイルで宣言される uniform buffer。宣言が無いとは報告しない
-    // 誤り (HL0312): PERMUTATION_HIGH_QUALITY == 1 のとき color は float3 なので .a は無い
+    // 誤り (CF0312): PERMUTATION_HIGH_QUALITY == 1 のとき color は float3 なので .a は無い
     return color.a * View.PreExposure;
 }

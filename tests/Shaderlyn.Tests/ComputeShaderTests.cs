@@ -110,7 +110,7 @@ public sealed class ComputeShaderTests : IDisposable
 
         (string output, _) = await RunAsync(path);
 
-        Assert.Contains("HL0301", output, StringComparison.Ordinal);
+        Assert.Contains("CF0301", output, StringComparison.Ordinal);
         Assert.Contains("CSMain", output, StringComparison.Ordinal);
     }
 
@@ -142,7 +142,7 @@ public sealed class ComputeShaderTests : IDisposable
 
         (string output, _) = await RunAsync(path);
 
-        Assert.DoesNotContain("HL0301", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0301", output, StringComparison.Ordinal);
         Assert.DoesNotContain("error", output, StringComparison.Ordinal);
     }
 
@@ -259,7 +259,7 @@ public sealed class ComputeShaderTests : IDisposable
 
         (string output, _) = await RunAsync(path);
 
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -292,7 +292,7 @@ public sealed class ComputeShaderTests : IDisposable
 
         (string output, _) = await RunAsync(path);
 
-        Assert.DoesNotContain("HL0350", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0410", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -326,7 +326,7 @@ public sealed class ComputeShaderTests : IDisposable
 
         (string output, _) = await RunAsync(path);
 
-        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0001", output, StringComparison.Ordinal);
     }
 
     [Fact]

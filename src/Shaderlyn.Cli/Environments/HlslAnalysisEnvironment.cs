@@ -114,7 +114,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <returns>単位。<c>units:</c> に当てはまらなければ、ファイル全体の 1 つ。</returns>
     private ImmutableArray<ShaderCompilationUnit> CreateUnits(SourceText text)
     {
-        // ターゲットが分からない単位では、ほかのライブラリとリンクするかも分からない。宣言だけの関数を誤りにしない (HL0311)。
+        // ターゲットが分からない単位では、ほかのライブラリとリンクするかも分からない。宣言だけの関数を誤りにしない (CF0311)。
         ShaderCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
 
         if (string.IsNullOrEmpty(text.FilePath))

@@ -16,7 +16,7 @@ namespace Shaderlyn.Unreal;
 /// <remarks>
 /// <para>
 /// <b>エンジン本体が無くても解析できる。</b> エンジンのフォルダーを与えなければ <c>/Engine/…</c> は解決できず、
-/// 「宣言が無いこと」を根拠にする検査を行わない (HL0005 で伝える)。型の誤りなど、取り込んだ先を見なくてよい検査は行う。
+/// 「宣言が無いこと」を根拠にする検査を行わない (CF0101 で伝える)。型の誤りなど、取り込んだ先を見なくてよい検査は行う。
 /// </para>
 /// <para>
 /// <c>--unreal-generate</c> が C++ から書き出した登録とクラスを読み、<c>.usf</c> をエンジンがコンパイルする単位で解析する
@@ -428,7 +428,7 @@ public sealed partial record UnrealOptions
             EntryPoints = [.. functions.Select(f => new ShaderEntryPoint(f, origin))],
             Target = stage is { } s ? new HlslShaderTarget(s, 6, 6) : null,
 
-            // ライブラリ (レイトレーシングなど) は、ほかの単位とリンクするので、宣言だけの関数を誤りにしない (HL0311)。
+            // ライブラリ (レイトレーシングなど) は、ほかの単位とリンクするので、宣言だけの関数を誤りにしない (CF0311)。
             AllowsExternalDefinitions = stage is null or HlslShaderStage.Library,
 
             // CFLAG_AllowRealTypes を立てる組があれば、16 ビットの型を使う (DXC の -enable-16bit-types)。
@@ -470,7 +470,7 @@ public sealed partial record UnrealOptions
     /// <b>値の分からないマクロは、シェーダーが比べている整数を値にする。</b>
     /// <c>#if RESOURCE_TYPE == 0</c> / <c>#elif RESOURCE_TYPE == 1</c> と書き分けたマクロを、
     /// 定義されているか・いないかの軸にすると、どの比べ方も同じ条件 (定義されている) で読み、
-    /// 分岐ごとの定義を「定義し直し」(HL0008) と報告していた (Unreal の <c>ClearReplacementShaders.usf</c>)。
+    /// 分岐ごとの定義を「定義し直し」(CF0004) と報告していた (Unreal の <c>ClearReplacementShaders.usf</c>)。
     /// 比べていなければ、定義されているか・いないかの軸にする (<c>#if NAME</c> の書き方)。
     /// </para>
     /// </remarks>
@@ -584,7 +584,7 @@ public sealed partial record UnrealOptions
     /// ただし、その名前を比べた条件の直後に <c>#error</c> があれば (<c>#if MAX_VECTOR_FIELDS != 4 &amp;&amp; MAX_VECTOR_FIELDS != 1</c>)、
     /// 比べた値のほかはエンジンがコンパイルしない値なので入れない。
     /// 入れると、その値でしか通らない分岐を読み、宣言されていない名前を報告していた
-    /// (Unreal の <c>ParticleSimulationShader.usf</c> で HL0315)。
+    /// (Unreal の <c>ParticleSimulationShader.usf</c> で CF0315)。
     /// </para>
     /// </remarks>
     internal static ImmutableArray<int> ComparedValues(SourceText text, string name)

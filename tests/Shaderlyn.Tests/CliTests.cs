@@ -166,11 +166,11 @@ public sealed class ProgramTests : IDisposable
     /// <para>
     /// 以前は、既定の構成で読み飛ばしたヘッダの分岐の名前を、名前だけで「解析されなかった場所にある名前」としていた。
     /// 誤った名前そのものがその分岐にあるので、<c>_MODE_A</c> の木で見つけても報告されなかった。
-    /// HL0007 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
+    /// CF0103 もヘッダの位置では出しておらず、検査を見送ったことも伝わらなかった。
     /// </para>
     /// <para>
     /// 今は利用者のヘッダの定義も条件付きで覚え、使う文を定義ごとに複製する (条件の巻き上げ)。
-    /// 文の種類が構成で変わっても HL0007 にならない。
+    /// 文の種類が構成で変わっても CF0103 にならない。
     /// </para>
     /// </remarks>
     [Theory]
@@ -212,11 +212,11 @@ public sealed class ProgramTests : IDisposable
 
         Assert.Contains($"Body.hlsl", output, StringComparison.Ordinal);
         Assert.Contains($"'missingA' は 構成：{symbol} のとき宣言されていません", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0007", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0103", output, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、HL0007 で伝えることを検証する。
+    /// 利用者が書いたヘッダの中で条件を追えなかった箇所も、CF0103 で伝えることを検証する。
     /// </summary>
     /// <remarks>
     /// 定義が 5 通りあるので複製しない。Unity やパッケージのヘッダと違い、利用者が直せる。
@@ -270,11 +270,11 @@ public sealed class ProgramTests : IDisposable
         (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.shader"), "--no-config");
 
         Assert.Contains("Body.hlsl", output, StringComparison.Ordinal);
-        Assert.Contains("HL0007", output, StringComparison.Ordinal);
+        Assert.Contains("CF0103", output, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// 別々のファイルの局所変数を、同じ範囲の重複した宣言 (HL0314) と報告しないことを検証する。
+    /// 別々のファイルの局所変数を、同じ範囲の重複した宣言 (CF0314) と報告しないことを検証する。
     /// </summary>
     /// <remarks>
     /// 範囲を開き波括弧のファイルの中の位置だけで見分けていたので、
@@ -296,7 +296,7 @@ public sealed class ProgramTests : IDisposable
 
         (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Test.hlsl"));
 
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
     }
 
     /// <summary>警告 (SL1021: Cull の不正な値) を 1 件出すシェーダー。</summary>
@@ -641,6 +641,33 @@ public sealed class ProgramTests : IDisposable
         Assert.Contains("unreel", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 設定ファイルの rules: に書いた、どのルールにも無い ID を、書いた行に伝える。
+    /// 0.3.0 の HL の ID (CF に振り直したもの) なら、振り直したことも伝える。正規表現のキーと、知っている ID は伝えない。
+    /// </summary>
+    [Fact]
+    public async Task 設定ファイルの知らないルールIDを書いた行に伝える()
+    {
+        CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            rules:
+              CF0310: warning
+              HL0310: none
+              SL9999:
+                severity: error
+              /HL.*/: info
+            """);
+
+        (_, string output, _) = await RunAsync(Path.Combine(_workDirectory, "Assets"));
+
+        Assert.Contains(".shaderlyn.yaml(4:1): warning TOOL0003: ルール HL0310 はありません。", output, StringComparison.Ordinal);
+        Assert.Contains("HL から CF に振り直しました", output, StringComparison.Ordinal);
+        Assert.Contains(".shaderlyn.yaml(5:1): warning TOOL0003: ルール SL9999 はありません。", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("ルール CF0310 はありません", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("/HL.*/", output, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task 環境の表示に環境を出す()
     {
@@ -824,7 +851,7 @@ public sealed class ProgramTests : IDisposable
 
         (_, string output, _) = await RunAsync(_workDirectory, "--unity-editor", Path.Combine(_workDirectory, "no-unity"));
 
-        Assert.Contains("HL0321", output, StringComparison.Ordinal);
+        Assert.Contains("CF0021", output, StringComparison.Ordinal);
         Assert.Contains("--unity-editor", output, StringComparison.Ordinal);
     }
 
@@ -865,7 +892,7 @@ public sealed class ProgramTests : IDisposable
         (_, string output, _) = await RunAsync(_workDirectory, "--unity-editor", editorData);
 
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>

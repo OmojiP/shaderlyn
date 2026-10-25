@@ -147,7 +147,7 @@ internal sealed class CommandLineOptions
     /// ヘッダを参照しており、パッケージの実体はプロジェクト配下にある。
     /// 指定が無い場合に引けるのは、インストール済みの Editor に同梱されたパッケージだけになる。
     /// どちらからも引けなければ uniform の一覧が不完全になり、
-    /// 誤検出を避けるためにルールが自ら検査を見送る (<c>HL0005</c>)。
+    /// 誤検出を避けるためにルールが自ら検査を見送る (<c>CF0101</c>)。
     /// <c>#include</c> を 1 つも解決できなかった場合は <c>TOOL0004</c> のエラーになる。
     /// </remarks>
     public string? UnityProjectPath { get; private set; }
@@ -241,7 +241,7 @@ internal sealed class CommandLineOptions
     /// <b>上げると見落としは減り、解析時間は伸びる。</b>
     /// 宣言されたシンボルはどれも C# から切り替えられるため、
     /// 展開しなかった経路は一度も読まれない。
-    /// 調べきれなかったことは <c>HL0006</c> として報告する。
+    /// 調べきれなかったことは <c>CF0102</c> として報告する。
     /// </remarks>
     public int? MaxSymbolVariants { get; private set; }
 
@@ -575,7 +575,7 @@ internal sealed class CommandLineOptions
                                  #pragma shader_feature / multi_compile で宣言された
                                  シンボルを 1 つずつ有効にして解析する上限 (既定 8)。
                                  上げると見落としは減り、解析時間は伸びます。
-                                 調べきれなかった経路は HL0006 として報告されます。
+                                 調べきれなかった経路は CF0102 として報告されます。
 
         設定ファイルとベースライン:
           --config <パス>        設定ファイル。省略時は解析対象から上へ .shaderlyn.yaml を探します。
@@ -612,7 +612,7 @@ internal sealed class CommandLineOptions
                                  エンジンやプロジェクトの C++ を変えたら作り直してください。
 
         プロパティと HLSL の対応検査 (SL1001 / SL1003 など) は、埋め込みコードの
-        依存関係を解決できて初めて働きます。見送ったことは HL0005 として報告されます。
+        依存関係を解決できて初めて働きます。見送ったことは CF0101 として報告されます。
         --unity-project の指定が無く Unity Editor も見つからないなど、ヘッダを
         1 つも解決できない場合は TOOL0004 のエラーになります。
 

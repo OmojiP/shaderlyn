@@ -43,14 +43,14 @@ public sealed partial class ConfigurationOracleTests
     /// <remarks>
     /// <list type="bullet">
     ///   <item><description>
-    ///     HL0005 / HL0006 / HL0007 / TOOL0004 は「どこまで調べたか」の報告で、構成を固定すると出方が変わるのが正しい
+    ///     CF0101 / CF0102 / CF0103 / TOOL0004 は「どこまで調べたか」の報告で、構成を固定すると出方が変わるのが正しい
     ///   </description></item>
     ///   <item><description>
-    ///     SL1001 / SL1002 / SL1004 / HL0330 / HL0331 は、構成をまたいで「どこにも無い」ことを判断する。
+    ///     SL1001 / SL1002 / SL1004 / CF0201 / CF0202 は、構成をまたいで「どこにも無い」ことを判断する。
     ///     1 つの構成で無いことは、どの構成でも無いことを意味しない
     ///   </description></item>
     ///   <item><description>
-    ///     HL0353 は、構成をまたいで「型を書き分けている」ことを判断する。
+    ///     CF0413 は、構成をまたいで「型を書き分けている」ことを判断する。
     ///     構成を固定すると、その構成の宣言しか残らない。
     ///     <c>float3</c> を <c>float</c> へ渡す形はただの切り捨てになり、
     ///     それは意図して書く場面が多いので報告しない。
@@ -59,18 +59,18 @@ public sealed partial class ConfigurationOracleTests
     /// </list>
     /// </remarks>
     private static readonly HashSet<string> FamilyRules =
-        ["HL0005", "HL0006", "HL0007", "TOOL0004", "SL1001", "SL1002", "SL1004", "HL0330", "HL0331", "HL0353"];
+        ["CF0101", "CF0102", "CF0103", "TOOL0004", "SL1001", "SL1002", "SL1004", "CF0201", "CF0202", "CF0413"];
 
     /// <summary>構成を固定すると別の ID で出る、同じ誤り。</summary>
     /// <remarks>
-    /// 既定の解析は「その構成には定義が無い」(HL0311 / HL0313 / HL0315) と条件付きで言う。
-    /// 構成を固定すれば、それはただの「無い」(HL0310 / HL0312) である。
+    /// 既定の解析は「その構成には定義が無い」(CF0311 / CF0313 / CF0315) と条件付きで言う。
+    /// 構成を固定すれば、それはただの「無い」(CF0310 / CF0312) である。
     /// </remarks>
     private static readonly Dictionary<string, string> SameError = new(StringComparer.Ordinal)
     {
-        ["HL0311"] = "HL0310",
-        ["HL0315"] = "HL0310",
-        ["HL0313"] = "HL0312",
+        ["CF0311"] = "CF0310",
+        ["CF0315"] = "CF0310",
+        ["CF0313"] = "CF0312",
     };
 
     /// <summary>

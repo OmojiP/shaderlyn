@@ -42,7 +42,7 @@ internal static partial class AnalysisInspector
         });
 
         // どのシンボルが方法 B (構成ごとの展開) になったか、その原因の #if はどこかを示す。
-        // 展開は解析を遅くし、上限に届けば HL0006 になる。書き方で避けられることが多いが、
+        // 展開は解析を遅くし、上限に届けば CF0102 になる。書き方で避けられることが多いが、
         // 原因の #if が見えなければ直しようがない。
         tabs.push({
           label: "シンボルの扱い",
@@ -50,7 +50,7 @@ internal static partial class AnalysisInspector
             const box = document.createElement("div");
             box.append(note("#pragma で宣言したシンボルごとに、#if の両方の分岐を 1 本の木に並べたか (方法 A)、" +
                             "そのシンボルを有効にした構成を別に展開したか (方法 B) を示します。" +
-                            "方法 B は解析を遅くし、上限 (--max-symbol-variants) に届くと HL0006 になります。" +
+                            "方法 B は解析を遅くし、上限 (--max-symbol-variants) に届くと CF0102 になります。" +
                             "理由の行を選ぶと、原因の #if をソースで示します。"));
 
             DATA.programs.forEach(program => {
@@ -85,7 +85,7 @@ internal static partial class AnalysisInspector
 
             if (DATA.unexploredCombinations.length) {
               const heading = document.createElement("h3");
-              heading.textContent = "上限で展開しなかった組 (HL0006)";
+              heading.textContent = "上限で展開しなかった組 (CF0102)";
               box.append(heading);
               box.append(tableView(["組", "位置"],
                 DATA.unexploredCombinations.map(c => ({ start: c.start, length: c.length, cells: [c.label, c.where] })),
@@ -197,7 +197,7 @@ internal static partial class AnalysisInspector
             const box = document.createElement("div");
             box.append(note(DATA.hasCompleteDependencies
               ? "依存関係はすべて解決できています。"
-              : "解決できていない依存関係があります。この状態では一部の検査を見送ります (HL0005)。"));
+              : "解決できていない依存関係があります。この状態では一部の検査を見送ります (CF0101)。"));
 
             const rows = DATA.resolvedIncludes.map(path => ({
               start: 0,

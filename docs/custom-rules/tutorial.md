@@ -101,7 +101,7 @@ internal static class MyRules
 }
 ```
 
-- ID は「英大文字の接頭辞 + 4 桁」です。組み込みの `SL` / `HL` / `URP` / `TOOL` と
+- ID は「英大文字の接頭辞 + 4 桁」です。組み込みの `CF` / `HL` / `SL` / `UN` / `URP` / `UE` / `TOOL` と
   ぶつからない接頭辞を選んでください
 - 詳細ページがあるなら `helpLinkUri` も渡してください
 

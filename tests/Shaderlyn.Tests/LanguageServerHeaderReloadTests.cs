@@ -55,8 +55,8 @@ public sealed class LanguageServerHeaderReloadTests : IDisposable
         await harness.OpenAsync(Source);
         await harness.SaveAsync();
 
-        JsonElement before = await harness.ReceiveDiagnosticsForAsync(headerUri, "HL0310");
-        Assert.Equal(2, LineOf(before, "HL0310"));
+        JsonElement before = await harness.ReceiveDiagnosticsForAsync(headerUri, "CF0310");
+        Assert.Equal(2, LineOf(before, "CF0310"));
 
         // ヘッダの先頭に 2 行足して保存した。指摘は 2 行下へ移る。
         File.WriteAllText(header, "// a\n// b\nfloat Lib()\n{\n    return missingName;\n}\n");
@@ -66,9 +66,9 @@ public sealed class LanguageServerHeaderReloadTests : IDisposable
         // 古い中身で解析していれば、何度届いても 2 行目のままで、待ちきれずに失敗する。
         JsonElement after = await harness.ReceiveDiagnosticsForAsync(
             headerUri,
-            diagnostics => diagnostics.EnumerateArray().Any(d => d.GetProperty("code").GetString() == "HL0310")
-                           && LineOf(diagnostics, "HL0310") == 4);
-        Assert.Equal(4, LineOf(after, "HL0310"));
+            diagnostics => diagnostics.EnumerateArray().Any(d => d.GetProperty("code").GetString() == "CF0310")
+                           && LineOf(diagnostics, "CF0310") == 4);
+        Assert.Equal(4, LineOf(after, "CF0310"));
     }
 
     /// <summary>ヘッダへの指摘には、取り込んだシェーダーの #include の行を関連する場所として添える。</summary>
@@ -99,9 +99,9 @@ public sealed class LanguageServerHeaderReloadTests : IDisposable
         await harness.OpenAsync(Source);
         await harness.SaveAsync();
 
-        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(headerUri, "HL0310");
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(headerUri, "CF0310");
         JsonElement related = diagnostics.EnumerateArray()
-            .First(d => d.GetProperty("code").GetString() == "HL0310")
+            .First(d => d.GetProperty("code").GetString() == "CF0310")
             .GetProperty("relatedInformation")[0];
 
         Assert.Equal(LanguageServer.DocumentUri.FromFilePath(shader), related.GetProperty("location").GetProperty("uri").GetString());

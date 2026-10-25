@@ -382,7 +382,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>原子は、その名前のマクロの値と比べる。</b>
     /// <c>QUALITY==1</c> という名前のマクロは無いので、定義されているかで判定するとどの原子も成り立たない。
     /// <c>QUALITY == 1</c> の木で、その値の分岐の定義を消して、定義の無い名前を残した複製を作り、
-    /// 「宣言されていない」(HL0310) と報告していた (Unreal の <c>TemporalAA.usf</c>)。
+    /// 「宣言されていない」(CF0310) と報告していた (Unreal の <c>TemporalAA.usf</c>)。
     /// 定義されていない名前は、条件式と同じく 0 と読む。
     /// </remarks>
     private bool? IsPredefined(string symbol)
@@ -630,7 +630,7 @@ internal sealed partial class ShaderPreprocessor
     /// 展開のときにそのシンボルを並べ直す (<see cref="NoteMergedMacroUse"/>)。以前と同じ構成ごとの展開に戻るだけである。
     /// </para>
     /// <para>
-    /// 以前はこの領域を並べず、構成ごとに展開していた。文の種類が構成で変わる箇所は HL0007 になっていた。
+    /// 以前はこの領域を並べず、構成ごとに展開していた。文の種類が構成で変わる箇所は CF0103 になっていた。
     /// <c>#define</c> しか無い領域は、並べずに巻き上げで補えたかを後で決める (<see cref="FindHoistableDefinitions"/>) ので、ここでは扱わない。
     /// <c>#undef</c> がある領域は扱わない。並べた分岐の <c>#undef</c> は、後ろの分岐のマクロ表を変えてしまう。
     /// </para>
@@ -850,7 +850,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>入れ子は、外側の分岐の条件をすべて掛け合わせる。</b>
     /// <c>#ifdef _A</c> の中の <c>#ifdef _B</c> は、<c>_A</c> だけ・<c>_B</c> だけの構成では通らない。
     /// 外側を並べられず読み飛ばした場合、覚えないとこの分岐の中はどの構成にも現れず、
-    /// 上限に達したわけでもないので <c>HL0006</c> も出ない。
+    /// 上限に達したわけでもないので <c>CF0102</c> も出ない。
     /// </para>
     /// <para>
     /// 並べた分岐は記録しない。外側もすべて並べているので、

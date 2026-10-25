@@ -716,7 +716,7 @@ public sealed class ExpressionTypeBinder
     /// </returns>
     /// <remarks>
     /// Unreal Engine の NaniteRasterizer.ush は、仮引数 <c>FWritePixel WritePixel</c> を <c>WritePixel(...)</c> と呼ぶ。
-    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (HL0340 / HL0341)。
+    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (CF0401 / CF0402)。
     /// </remarks>
     internal bool CallsNonGlobalFunction(InvocationExpressionSyntax invocation, string name)
         => IsEnclosingStructFunction(invocation, name)

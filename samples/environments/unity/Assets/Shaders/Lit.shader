@@ -32,13 +32,13 @@ Shader "Samples/Lit"
             float4 Frag() : SV_Target
             {
                 float4 color = _BaseColor;
-            // 誤り 2 (HL0330): シンボルの綴りが違う。この分岐は決して有効にならない
+            // 誤り 2 (CF0201): シンボルの綴りが違う。この分岐は決して有効にならない
             #ifdef _SHADOWS_SOFTT
                 color *= 0.5;
             #endif
             #ifdef _SHADOWS_SOFT
                 float3 shadow = 0.5;
-                // 誤り 3 (HL0312): _SHADOWS_SOFT のとき float3 に .w は無い
+                // 誤り 3 (CF0312): _SHADOWS_SOFT のとき float3 に .w は無い
                 color.a = shadow.w;
             #endif
                 return color;

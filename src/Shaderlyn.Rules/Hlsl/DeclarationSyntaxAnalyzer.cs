@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 宣言と式の形が成り立っているかを検査する (HL0343 / HL0211 / HL0370)。
+/// 宣言と式の形が成り立っているかを検査する (CF0404 / HL0211 / CF0510)。
 /// </summary>
 /// <remarks>
 /// <para>

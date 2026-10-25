@@ -121,7 +121,9 @@ internal sealed class AnalysisSession
         CommandLineOptions options = BuildOptions(workspaceDirectory, environmentName);
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
-        ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
+        // rules: に書いた知らない ID も伝える (CLI と同じ)。ルールの一覧は、この言語サーバーで動かすアナライザから決まる。
+        ConfigurationDiagnostics = settings.ConfigurationDiagnostics.AddRange(
+            settings.FindUnknownRules(new HashSet<string>(RuleCatalog.GetAllRules([.. analyzers]).Select(d => d.Id), StringComparer.OrdinalIgnoreCase)));
         UnrealGeneratedDirectory = settings.Environment == Unreal.UnrealOptions.EnvironmentName
             ? SemanticsSetup.CreateUnreal(settings).GeneratedDirectory
             : null;
@@ -324,7 +326,7 @@ internal sealed class AnalysisSession
     /// <remarks>
     /// Unity プロジェクトのルートは <c>Assets</c> と <c>ProjectSettings</c> の
     /// 両方があるフォルダーを上へ辿って探す。
-    /// 指定が無いと対応検査が働かず HL0005 だらけになるため、推定を試みる価値がある。
+    /// 指定が無いと対応検査が働かず CF0101 だらけになるため、推定を試みる価値がある。
     /// </remarks>
     private static CommandLineOptions BuildOptions(string? workspaceDirectory, string? environment)
     {

@@ -70,7 +70,7 @@ units:
 ```
 
 - 1 つのファイルに複数の単位を当てられます。上の例では、頂点シェーダーとピクセルシェーダーを 1 つのファイルに書き、2 回解析します
-- `entry` の関数が無ければ HL0301 になります。報告はファイルの先頭に出ます
+- `entry` の関数が無ければ CF0301 になります。報告はファイルの先頭に出ます
 - `target` から、DXC が定義するマクロ (`__SHADER_TARGET_STAGE` / `__SHADER_TARGET_MAJOR` / `__SHADER_TARGET_MINOR`) を決めます。
   `__HLSL_VERSION` と `__SHADER_STAGE_*` はどの単位でも定義します
 - 値を持つシンボルは `#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、指摘に `QUALITY == 2 のとき` を添えます
@@ -107,10 +107,10 @@ units:
 ### 生成ファイルがない場合
 
 ビルド時にエンジンが生成するファイル (`/Engine/Generated/…`) は、生成していないと解決できません。該当する `#include` はエラーとして報告しませんが、
-uniform buffer などの宣言も読み取れないため、宣言の有無を調べる検査 (HL0301 / HL0310 など) を行いません。この状態は UE0001 (情報) で知らせます。
+uniform buffer などの宣言も読み取れないため、宣言の有無を調べる検査 (CF0301 / CF0310 など) を行いません。この状態は UE0001 (情報) で知らせます。
 型の誤りなど、取り込んだ先の宣言を必要としない検査は行います。
 
-関数呼び出しの引数を調べる検査 (HL0340 / HL0341) は、関数を宣言しないと分かっているファイルだけが欠けている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら検査します。
+関数呼び出しの引数を調べる検査 (CF0401 / CF0402) は、関数を宣言しないと分かっているファイルだけが欠けている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら検査します。
 
 - `GeneratedInstancedStereo.ush` は `GetPrimaryView` など 3 つの関数だけを宣言するため、これらの関数呼び出しは検査しません
 - `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数の宣言が欠けている可能性があるため、引数の検査を行いません
@@ -140,9 +140,9 @@ uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりと
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
   パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
-  C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (HL0310 にしません)
+  C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (CF0310 にしません)
 - マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は、
-  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。
+  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (CF0001) になります。
   C++ から生成されるファイルを作れば、その `Material.ush` が定義します ([下記](#c-から生成されるファイルを作る))
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
@@ -220,9 +220,9 @@ GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` 
 
 | ルール | 内容 |
 | --- | --- |
-| [HL0001](../rules/HL0001.md) | 構文の誤り |
-| [HL0002](../rules/HL0002.md) など | プリプロセッサ指令の誤り (閉じていない `#if` など) |
-| [HL0321](../rules/HL0321.md) | 解決できない `#include` (その中の構文は読めていない) |
+| [CF0001](../rules/CF0001.md) | 構文の誤り |
+| [CF0002](../rules/CF0002.md) など | プリプロセッサ指令の誤り (閉じていない `#if` など) |
+| [CF0021](../rules/CF0021.md) | 解決できない `#include` (その中の構文は読めていない) |
 
 **宣言・型・呼び出しの検査 (宣言されていない名前、型の不一致、引数の数など) は 0.3.1 で対応する予定です。**
 今は GLSL の組み込みの型と関数 (`vec4`、`texture` など) を知らないので、これらの検査は行いません (誤って報告することもありません)。
@@ -266,7 +266,7 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 | 構成の軸 | `#pragma multi_compile` / `shader_feature` / `dynamic_branch` | 設定ファイルの `symbols:` |
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
 | コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([下記](#コンパイラと言語のバージョン)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021。Unreal はエンジンの設定に合わせてシェーダーごとに決める) |
-| 宣言し忘れたシンボル (HL0330) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
+| 宣言し忘れたシンボル (CF0201) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが普通に条件に出るため) |
 | Unity だけのルール | SL / UN / URP | 出ない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |
 | VS Code の構成の選択 | `#pragma` で宣言したシンボル | `symbols:` のシンボル。値を持つシンボルは `QUALITY = 2` のように値を選ぶ |

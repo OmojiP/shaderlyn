@@ -410,7 +410,7 @@ internal static class ConditionalMerge
     /// <b>同じ宣言が、構成によって並びの別の場所に現れることがある。</b>
     /// <c>#pragma once</c> のヘッダを、ある構成では <c>#if</c> の中で先に取り込み、別の構成では後で取り込むと、
     /// ヘッダの宣言は並びの中で動く。並びの順に突き合わせると、両方の宣言を「片方にしか無い」と見て、
-    /// それぞれの構成でしか無いことにしていた (Unreal の <c>BRDF.ush</c> の構造体のメンバーで HL0313)。
+    /// それぞれの構成でしか無いことにしていた (Unreal の <c>BRDF.ush</c> の構造体のメンバーで CF0313)。
     /// 位置 (ファイルと範囲) と種類が同じものは同じ宣言なので、順が違っても突き合わせる。
     /// </para>
     /// </remarks>
@@ -555,7 +555,7 @@ internal static class ConditionalMerge
     /// <para>
     /// Unity の CGPROGRAM では <c>fixed4</c> がマクロである (<c>HLSLSupport.cginc</c>)。
     /// <c>fixed4 col = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);</c> は先頭がマクロの展開なので選択肢にできず、
-    /// インスタンシングの有無で初期化子が変わると対応が取れなかった (HL0007。条件が付かず HL0315 にもなる)。
+    /// インスタンシングの有無で初期化子が変わると対応が取れなかった (CF0103。条件が付かず CF0315 にもなる)。
     /// </para>
     /// <para>
     /// 文の全体がマクロの本体から来たもの (<c>UNITY_SETUP_INSTANCE_ID(i);</c>) は今までどおり選択肢にしない。
@@ -758,7 +758,7 @@ internal static class ConditionalMerge
         /// <b>出どころは、同じインスタンスでなくても、同じファイルの同じ文字の並びなら同じとみなす。</b>
         /// 取り込みの展開結果を使い回すと、トークンは覚えたとき (別のファイルの解析のこともある) の <see cref="SourceText"/> を持つ。
         /// 既定の木とバリアントの木で同じヘッダの宣言が別のインスタンスを指し、対応が取れずに、
-        /// それぞれの構成にしか無いことになっていた (Unreal の <c>SubstrateEvaluation.ush</c> の構造体で HL0313)。
+        /// それぞれの構成にしか無いことになっていた (Unreal の <c>SubstrateEvaluation.ush</c> の構造体で CF0313)。
         /// パスだけで比べないのは、Unity の HLSLINCLUDE のように、同じパスで中身の違うテキストがあるからである。
         /// </remarks>
         public bool Equals(NodeKey other)

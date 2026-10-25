@@ -70,7 +70,7 @@ public sealed class Hlsl2021OperatorTests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
-        Assert.Equal("HL0310", diagnostic.Id);
+        Assert.Equal("CF0310", diagnostic.Id);
         Assert.Contains("missingName", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -103,7 +103,7 @@ public sealed class Hlsl2021OperatorTests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
-        Assert.Equal("HL0312", diagnostic.Id);
+        Assert.Equal("CF0312", diagnostic.Id);
         Assert.Contains("missing", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 

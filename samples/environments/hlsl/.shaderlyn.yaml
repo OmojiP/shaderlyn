@@ -24,7 +24,7 @@ symbols:
 # どの単位にも当てはまらないファイル (.hlsli など) は、ファイル全体を 1 つの単位にし、symbols: のすべてを構成の軸にする
 units:
   - files: Shaders/*.hlsl # 設定ファイルからの相対の glob (** はフォルダーをまたぐ)
-    entry: MainVS         # この名前の関数が無ければ HL0301
+    entry: MainVS         # この名前の関数が無ければ CF0301
     target: vs_6_6        # DXC の -T と同じ書き方。__SHADER_TARGET_STAGE などを決める
     symbols: [QUALITY]    # この単位で使う構成の軸。省略するとすべて
   - files: Shaders/*.hlsl
@@ -32,8 +32,8 @@ units:
     target: ps_6_6
     defines: [PIXEL_SHADER=1]   # この単位でだけ定義するマクロ
   - files: Shaders/Library/*.hlsl   # * はフォルダーをまたがないので、上の 2 つの単位には入らない
-    target: lib_6_6       # ライブラリ (DXR など)。entry は書かない。宣言だけの関数を HL0311 にしない
+    target: lib_6_6       # ライブラリ (DXR など)。entry は書かない。宣言だけの関数を CF0311 にしない
     symbols: []           # 構成の軸を使わない
 
 rules:
-  HL0331: none            # 例: 使われていないシンボルの指摘を止める
+  CF0202: none            # 例: 使われていないシンボルの指摘を止める

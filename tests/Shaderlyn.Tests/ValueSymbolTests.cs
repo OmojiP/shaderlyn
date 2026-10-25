@@ -39,7 +39,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             }
             """);
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("QUALITY == 2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -58,7 +58,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             }
             """);
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         // (QUALITY == 1) || (QUALITY == 2) ではなく、0 以外と短く書く。
         Assert.Contains("QUALITY != 0 のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -85,7 +85,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             compilation.SymbolVariants.SelectMany(v => v.EnabledSymbols).Order(StringComparer.Ordinal));
 
         // 構成の木の中では型が float3 に決まるので、条件を添えずに報告する。
-        Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Assert.Single(diagnostics, d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // SIZE の分岐は並べられないので、SIZE == 16 の木を作る。その木で FORMAT は既定の値 (0) で読む。
         // 木の構成を「SIZE == 16」だけにすると、その木の宣言や使用を FORMAT == 1 のものとも見て、
-        // 「そのとき宣言が無い」(HL0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
+        // 「そのとき宣言が無い」(CF0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
         SourceText text = SourceText.From(
             """
             #if SIZE >= 16
@@ -133,7 +133,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // #if DEBUG は DEBUG==1 だけを並べ、DEBUG==0 は並べた記録に残らない。
         // KIND == 2 の木で DEBUG==0 を「成り立つ」と決めると、その木にある DEBUG==1 の側の宣言を使う文を
-        // 「DEBUG == 0 のときは無い」と報告していた (Unreal の HairStrandsEnvironmentLighting.usf で HL0313)。
+        // 「DEBUG == 0 のときは無い」と報告していた (Unreal の HairStrandsEnvironmentLighting.usf で CF0313)。
         SourceText text = SourceText.From(
             """
             #if DEBUG
@@ -169,7 +169,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
 
         ImmutableArray<Diagnostic> diagnostics =
             new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0313");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0313");
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の FXAAShader.usf と Fxaa3_11.ush の形。ファイルが値ごとに FXAA_PC を定義し、
         // ヘッダは #ifndef FXAA_PC で既定の値を与える。FXAA_PRESET == 0 の構成で読んだヘッダの定義を、
-        // FXAA_PRESET == 1 の分岐の定義と照合して「定義し直し」(HL0008) と報告していた。
+        // FXAA_PRESET == 1 の分岐の定義と照合して「定義し直し」(CF0004) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if FXAA_PRESET == 0
@@ -208,7 +208,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
                     """,
             });
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0004");
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の SSRTReflections.usf の形。QUALITY が 1 から 4 の単位と、1 から 3 の単位がある。
         // 1 から 3 の単位の木は 4 の #else を読まないので、そこの宣言が無い。
-        // その木を 4 の構成についても見ていることにして、「4 のとき宣言されていない」(HL0310) と報告していた。
+        // その木を 4 の構成についても見ていることにして、「4 のとき宣言されていない」(CF0310) と報告していた。
         SourceText text = SourceText.From(
             """
             float4 main() : SV_Target
@@ -255,7 +255,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             _output.WriteLine($"{diagnostic.Location.LineSpan.Start} {diagnostic.Id} {diagnostic.Severity}: {diagnostic.GetMessage()}");
         }
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0310");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0310");
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の頂点ファクトリの形。同じファイルの単位ごとに値が違う (交差シェーダーの単位は 4 だけ)。
         // 値を宣言した単位が違うと排他の組にならず、ある単位の木の構成 (== 4) とほかの単位の分岐の条件 (== 1) を掛けた条件を
-        // ありうると見て、#error に到達すると報告していた (HL0009)。
+        // ありうると見て、#error に到達すると報告していた (CF0104)。
         SourceText text = SourceText.From(
             """
             #if QUALITY == 1
@@ -296,7 +296,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の LumenScreenProbeFiltering.usf の形。宣言の側の FORMAT の分岐は並べられるが、
         // 使う側の連なりは並べられない (ここでは外側の条件が読めない)。== 1 をほかで並べたからと == 1 の構成を作らずにいると、
-        // 使う側の == 1 の分岐はどの木にも載らず、== 0 の分岐の使用を「== 1 のときは宣言が無い」(HL0315) と報告していた。
+        // 使う側の == 1 の分岐はどの木にも載らず、== 0 の分岐の使用を「== 1 のときは宣言が無い」(CF0315) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if FORMAT == 0
@@ -326,7 +326,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             """,
             VariantSpace.ForValues("FORMAT", [0, 1]).Union(VariantSpace.ForValues("KIND", [0, 1])));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0315" or "HL0310");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "CF0315" or "CF0310");
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の DistanceFieldLightingShared.ush の形。ヘッダの連なりを並べられず、記録に残った原子は既定の値 (== 0) だった。
         // == 1 の構成を作らずにいると、== 1 の側の宣言はどの木にも載らず、並べた == 0 の側の宣言しか見えないので、
-        // 使う名前を「!= 0 のとき宣言されていない」(HL0310) と報告していた。
+        // 使う名前を「!= 0 のとき宣言されていない」(CF0310) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #include "Brick.hlsl"
@@ -360,14 +360,14 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
                     """,
             });
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0310" or "HL0315");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "CF0310" or "CF0315");
     }
 
     [Fact]
     public void 読めない条件の後ろの分岐の定義を定義し直しと言わない()
     {
         // Unreal の DOFReduce.usf の形。#if CONFIG_DOF_ALPHA は読めないので、#elif DIM_RGB の条件は DIM_RGB だけになる。
-        // その広い条件どうしを照らして、1 つ目と 2 つ目の分岐の定義を「定義し直し」(HL0008) と報告していた。
+        // その広い条件どうしを照らして、1 つ目と 2 つ目の分岐の定義を「定義し直し」(CF0004) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #include "Common.hlsl"
@@ -394,7 +394,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
                     """,
             });
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0004");
     }
 
     [Fact]
@@ -434,7 +434,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     public void errorに到達した構成の木は使わない()
     {
         // Unreal の SSDInjest.usf の形。パーミュテーションの値のうち、#else / #error で止めた値の構成はコンパイルできない。
-        // その木を使うと、宣言が足りないと報告していた (HL0310)。
+        // その木を使うと、宣言が足りないと報告していた (CF0310)。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if (PROCESSING == 0) * 1
@@ -460,7 +460,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     [Fact]
     public void errorに到達した構成を情報として伝える()
     {
-        // Unreal と汎用の HLSL では、その構成はコンパイルされない (ShouldCompilePermutation が除く)。誤りではないので情報にする (HL0009)。
+        // Unreal と汎用の HLSL では、その構成はコンパイルされない (ShouldCompilePermutation が除く)。誤りではないので情報にする (CF0104)。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if PROCESSING == 0
@@ -477,7 +477,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
             out ShaderCompilation compilation);
 
         Assert.NotEmpty(compilation.ErrorConfigurations);
-        Diagnostic info = Assert.Single(diagnostics, d => d.Id == "HL0009");
+        Diagnostic info = Assert.Single(diagnostics, d => d.Id == "CF0104");
         Assert.Equal(DiagnosticSeverity.Info, info.Severity);
         Assert.Contains("PROCESSING", info.GetMessage(), StringComparison.Ordinal);
         Assert.Empty(diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning));
@@ -488,7 +488,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // Unreal の TemporalAA.usf の形。値に名前を付けて比べる。
         // 比べる相手を読めないと、#elif の連なりのすべての分岐を同じ条件で読み、
-        // 分岐ごとの定義を「定義し直し」(HL0008) と報告していた。
+        // 分岐ごとの定義を「定義し直し」(CF0004) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #define QUALITY_LOW 0
@@ -519,7 +519,7 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     {
         // QUALITY == 1 の木で、PASS の分岐ごとの定義を複製する (条件の巻き上げ)。
         // 有効にした値 (QUALITY == 1) の原子を「成り立たない」と読み、その分岐の定義を外して
-        // 名前の残った複製を作り、「宣言されていない」(HL0310) と報告していた。
+        // 名前の残った複製を作り、「宣言されていない」(CF0310) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(
             """
             #if PASS == 0

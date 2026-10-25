@@ -456,10 +456,10 @@ Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエン
 | `ConfigurePreprocessor` | どの単位にも共通する設定。言語のバージョン、エンジンのコンパイラが定義するマクロ |
 | `PrepareUnit` | 単位ごとの設定。ターゲットで決まるマクロ (`HlslShaderTarget.CreateDxcMacros`) |
 | `ReadDeclaredVariants` / `ReadVariants` | 構成の軸。展開の前 (字句解析しただけのトークン) と後 (取り込んだヘッダの指令も含む) の 2 回読む |
-| `ReadEntryPoints` | エントリポイント。この名前の関数が無ければ HL0301 |
-| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
-| `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても HL0321 にしない |
-| `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを HL0340 / HL0341 で検査できる |
+| `ReadEntryPoints` | エントリポイント。この名前の関数が無ければ CF0301 |
+| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (CF0201) |
+| `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても CF0021 にしない |
+| `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを CF0401 / CF0402 で検査できる |
 
 ```csharp
 public sealed class MyEngineEnvironment : IHlslEnvironment
@@ -530,7 +530,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
             ShaderSyntaxToken name = arguments[0];
             List<int> values = [.. arguments.Skip(1).Select(v => int.TryParse(v.Text, out int n) ? n : -1).Where(n => n >= 0)];
 
-            // 宣言の位置を持たせると、使っていない宣言を HL0331 で報告できる。
+            // 宣言の位置を持たせると、使っていない宣言を CF0202 で報告できる。
             space = space.Union(values.Count >= 2
                 ? VariantSpace.ForValues(name.Text, values, name.GetLocation())
                 : new VariantSpace([new VariantDeclaration(name.Text, VariantSymbolKind.Compiled, name.GetLocation())], []));

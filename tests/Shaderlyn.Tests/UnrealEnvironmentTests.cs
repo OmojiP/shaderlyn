@@ -109,11 +109,11 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal(ExitCode.DiagnosticsFound, code);
 
         // パーミュテーションの値ごとに読み分け、値を添えて報告する。
-        Assert.Contains("HL0312", output, StringComparison.Ordinal);
+        Assert.Contains("CF0312", output, StringComparison.Ordinal);
         Assert.Contains("PERMUTATION_HIGH_QUALITY == 1", output, StringComparison.Ordinal);
 
-        // 生成される取り込みは誤りとして報告しない。中身を知らないことは HL0005 で伝える。
-        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        // 生成される取り込みは誤りとして報告しない。中身を知らないことは CF0101 で伝える。
+        Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
         Assert.Contains("エンジンが生成するファイル", output, StringComparison.Ordinal);
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
@@ -121,7 +121,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// 宣言する関数が決まっている生成される取り込み (uniform buffer の宣言、GeneratedInstancedStereo.ush) だけが欠けているなら、
-    /// ほかの名前の呼び出しは多重定義と照らす (HL0341)。以前はエンジンのシェーダーのほとんどで検査を止めていた。
+    /// ほかの名前の呼び出しは多重定義と照らす (CF0402)。以前はエンジンのシェーダーのほとんどで検査を止めていた。
     /// </summary>
     [Fact]
     public async Task 宣言する関数が決まっている生成ファイルだけが欠けていれば呼び出しを検査する()
@@ -304,7 +304,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         (_, string output, _) = await RunAsync(_workDirectory);
 
-        Assert.DoesNotContain("HL0341", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0402", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -346,12 +346,12 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// <c>--unreal-generate</c> で C++ から uniform buffer の宣言とエンジンが定義するマクロの名前を書き出し、
-    /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (HL0310) を行う。
+    /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (CF0310) を行う。
     /// </summary>
     /// <summary>
     /// エンジンと同じく、単位が名前で参照する uniform buffer だけを取り込む。
     /// すべてを取り込むと、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
-    /// 二重の宣言 (HL0314) と報告していた (Unreal の HairStrandsTangent.usf の HairStrandsVF_CullingIndexBuffer)。
+    /// 二重の宣言 (CF0314) と報告していた (Unreal の HairStrandsTangent.usf の HairStrandsVF_CullingIndexBuffer)。
     /// </summary>
     [Fact]
     public async Task 名前で参照するuniform_bufferだけを取り込む()
@@ -416,9 +416,9 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Own.usf(2:", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains("Both.usf(2:", StringComparison.Ordinal) && line.Contains("HL0314", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains("Both.usf(2:", StringComparison.Ordinal) && line.Contains("CF0314", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -488,13 +488,13 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0101", output, StringComparison.Ordinal);
         Assert.Contains("'Undeclared'", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains("HL0310", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains("CF0310", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// 欠けているのが生成されるファイルだけなら、HL0005 ではなく Unreal のルールで伝える。
+    /// 欠けているのが生成されるファイルだけなら、CF0101 ではなく Unreal のルールで伝える。
     /// C++ から作れるものが欠けていれば UE0001、マテリアルごとに作られるものだけなら UE0002。
     /// </summary>
     [Fact]
@@ -533,10 +533,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("--unreal-generate", output, StringComparison.Ordinal);
         Assert.Contains("MaterialPass.usf(1:1): info UE0002", output, StringComparison.Ordinal);
 
-        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので HL0005 で伝える。
-        Assert.Contains("BrokenPass.usf(1:1): info HL0005", output, StringComparison.Ordinal);
+        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので CF0101 で伝える。
+        Assert.Contains("BrokenPass.usf(1:1): info CF0101", output, StringComparison.Ordinal);
         Assert.DoesNotContain("BrokenPass.usf(1:1): info UE", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains(": info HL0005", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains(": info CF0101", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1103,7 +1103,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         // 登録したエントリポイントが無ければ、どの C++ の登録からかを添えて報告する。
         Assert.Contains("Missing.usf", output, StringComparison.Ordinal);
-        Assert.Contains("HL0301", output, StringComparison.Ordinal);
+        Assert.Contains("CF0301", output, StringComparison.Ordinal);
         Assert.Contains("IMPLEMENT_GLOBAL_SHADER", output, StringComparison.Ordinal);
     }
 
@@ -1223,7 +1223,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
               generated: Generated
             """);
 
-        // エントリポイントはコンソールのヘッダにある。PC で読むと HL0301 になっていた。
+        // エントリポイントはコンソールのヘッダにある。PC で読むと CF0301 になっていた。
         Write("Engine/Shaders/Private/Decode.usf", "float Helper() { return 1; }\n");
 
         // モバイルでない構成では宣言されない名前を使う。
@@ -1244,7 +1244,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("Decode.usf(1:1): info UE0003", output, StringComparison.Ordinal);
         Assert.Contains("FDecodeCS", output, StringComparison.Ordinal);
         Assert.Contains("Feedback.usf(1:1): info UE0003", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0301", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0301", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'Buffer'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Both.usf(1:1): info UE0003", output, StringComparison.Ordinal);
         Assert.Contains("'undeclaredOnDesktop'", output, StringComparison.Ordinal);
@@ -1516,7 +1516,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
               permutations: {(permutations ? "true" : "false")}
             """);
 
-        // 定義されていなければ、C++ が定義する名前なので値の分からないマクロとして読み、#error に到達する構成があると伝える (HL0009)。
+        // 定義されていなければ、C++ が定義する名前なので値の分からないマクロとして読み、#error に到達する構成があると伝える (CF0104)。
         Write("Engine/Shaders/Private/Hair.usf", """
             #if HAIR_CARD_MESH_FACTORY != 1
             #error Hair cards only.
@@ -1537,8 +1537,8 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0009", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0104", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
         Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
 
         // まだ定義していなければ定義する (SetDefineIfUnset)。定義してあれば、そのまま。
@@ -1549,7 +1549,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// 最初のエントリ関数とステージが同じで登録の文字列が違う単位 (<c>closesthit=A</c> と <c>closesthit=A anyhit=B</c>) は、クラスの名前で見分ける。
-    /// 見分けないと単位の名前 (コードブロックの鍵) が重なり、ほかの単位の分岐の宣言と重なると報告していた (HL0314)。
+    /// 見分けないと単位の名前 (コードブロックの鍵) が重なり、ほかの単位の分岐の宣言と重なると報告していた (CF0314)。
     /// </summary>
     [Fact]
     public async Task 最初のエントリ関数が同じ単位をクラスの名前で見分ける()
@@ -1599,7 +1599,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
         Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
     }
 

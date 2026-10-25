@@ -109,8 +109,8 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
         JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(uri, d => d.GetArrayLength() > 0);
         string[] codes = [.. diagnostics.EnumerateArray().Select(d => d.GetProperty("code").GetString()!)];
 
-        Assert.Contains("HL0001", codes);
-        Assert.All(codes, code => Assert.Equal("HL0001", code));
+        Assert.Contains("CF0001", codes);
+        Assert.All(codes, code => Assert.Equal("CF0001", code));
 
         using JsonDocument hover = await harness.RequestHoverAsync(4, 9);
         Assert.Equal(JsonValueKind.Null, hover.RootElement.GetProperty("result").ValueKind);

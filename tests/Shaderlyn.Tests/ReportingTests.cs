@@ -122,7 +122,7 @@ public sealed class ReportingTests : IDisposable
     [Fact]
     public async Task SARIFのルール一覧に解析基盤のルールも含まれる()
     {
-        // 構文エラー (SL0001 / HL0001) はどのアナライザにも属さない。
+        // 構文エラー (SL0001 / CF0001) はどのアナライザにも属さない。
         // rules に無いと、GitHub のアラート画面で説明にも詳細にも辿れなくなる。
         using JsonDocument document = JsonDocument.Parse(await RunAsync("--format", "sarif"));
 
@@ -135,7 +135,7 @@ public sealed class ReportingTests : IDisposable
         ];
 
         Assert.Contains("SL0001", ruleIds);
-        Assert.Contains("HL0001", ruleIds);
+        Assert.Contains("CF0001", ruleIds);
         Assert.Contains("TOOL0002", ruleIds);
 
         // アナライザの実装の誤りを表すルールも含める。
@@ -410,7 +410,7 @@ public sealed class ReportingTests : IDisposable
     [Fact]
     public async Task シンボルごとに並べたか構成ごとに展開したかと原因の指令を書き出す()
     {
-        // 構成ごとの展開は解析を遅くし、上限に届けば HL0006 になる。
+        // 構成ごとの展開は解析を遅くし、上限に届けば CF0102 になる。
         // 書き方を変えれば避けられることが多いが、原因の #if が見えなければ直しようがない。
         string shaderPath = Path.Combine(_workDirectory, "Assets", "Shaders", "Symbols.shader");
         await File.WriteAllTextAsync(shaderPath, """

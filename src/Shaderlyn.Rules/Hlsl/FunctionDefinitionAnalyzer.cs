@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 呼んでいる関数の定義が、その構成に存在するかを検査する (HL0311)。
+/// 呼んでいる関数の定義が、その構成に存在するかを検査する (CF0311)。
 /// </summary>
 /// <remarks>
 /// <para>

@@ -378,7 +378,7 @@ internal sealed partial class ShaderPreprocessor
     /// <para>
     /// <b>利用者が書いたヘッダの定義は、並べた分岐の条件 (<see cref="CurrentCondition"/>) 付きで覚える。</b>
     /// 使う文を定義ごとに複製できる (条件の巻き上げ)。覚えずにいると、ヘッダで書き分けたマクロを使うたびに
-    /// そのシンボルを構成ごとに展開し直し、文の種類が構成で変わる箇所は HL0007 になっていた。
+    /// そのシンボルを構成ごとに展開し直し、文の種類が構成で変わる箇所は CF0103 になっていた。
     /// ヘッダの条件は解析しているファイルのシンボルを経路の条件として読まない (<see cref="TryReadPathCondition"/>) ので、
     /// 経路の条件は使えない。読み飛ばした分岐の定義も、条件が分からないので覚えない (<paramref name="active"/>)。
     /// </para>
@@ -411,12 +411,12 @@ internal sealed partial class ShaderPreprocessor
         // #ifndef X の中の #define X (既定の値を与える書き方) は、定義されていないときにしか働かない。定義し直しにならない。
         // 条件として読めない #ifndef (ヘッダで、この構成の定義の有無で決めたもの) でも、そう言える。
         // 照合すると、FXAA_PRESET == 1 の分岐で FXAA_PC を定義するファイルが取り込むヘッダの #ifndef FXAA_PC の既定の値を、
-        // FXAA_PRESET == 0 の構成で読んで「定義し直し」(HL0008) と報告していた (Unreal の Fxaa3_11.ush)。
+        // FXAA_PRESET == 0 の構成で読んで「定義し直し」(CF0004) と報告していた (Unreal の Fxaa3_11.ush)。
         bool givesDefault = _conditionals.Count > 0 && _conditionals[^1].UndefinedName == nameToken.Text;
 
         // 経路に読めない条件があれば、条件は実際より広い (#if CONFIG_DOF_ALPHA / #elif DIM_RGB_COLOR_BUFFER の 2 つ目は
         // DIM_RGB_COLOR_BUFFER だけになる)。広い条件どうしが重なっても、同時に通るとは言えない
-        // (Unreal の DOFReduce.usf で HL0008)。単一構成で通る定義し直しは、展開の側の検査が報告する。
+        // (Unreal の DOFReduce.usf で CF0004)。単一構成で通る定義し直しは、展開の側の検査が報告する。
         bool uncertain = root && _conditionals.Exists(state => state.IsPathUnreadable);
 
         foreach (ConditionalMacro previous in givesDefault ? [] : definitions)
@@ -508,7 +508,7 @@ internal sealed partial class ShaderPreprocessor
     /// #endif
     /// </code>
     /// 縮めた定義と、その後の定義は条件が重ならないので、使う文を定義ごとに複製できる (条件の巻き上げ)。
-    /// 以前は <c>#undef</c> された名前を覚えるのをやめており、この形は構成ごとに展開して HL0007 になっていた。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめており、この形は構成ごとに展開して CF0103 になっていた。
     /// </para>
     /// <para>
     /// 条件が分からないか「常に」なら、それまでの記録をすべて捨てる。分からないものを根拠に再定義とは言わない。
@@ -793,7 +793,7 @@ internal sealed partial class ShaderPreprocessor
     /// 実際にそうなっていた。<c>RingBuffer.hlsl</c> を取り込み済みの経路で作られた記録は
     /// 非活性領域の名前を 14 個しか持たず、未取り込みの経路で作られた記録は 19 個持つ。
     /// 前者を後者の文脈で使い回すと <c>RingBuffer</c> が「どこにも宣言されていない」
-    /// (HL0310) になる。並列に解析するとどちらが先に記録されるかが変わるため、
+    /// (CF0310) になる。並列に解析するとどちらが先に記録されるかが変わるため、
     /// <b>実行するたびに結果が変わっていた。</b>
     /// </para>
     /// </remarks>

@@ -6,7 +6,7 @@ namespace Shaderlyn.Rules;
 /// HLSL のコードを対象にするルールの定義。
 /// </summary>
 /// <remarks>
-/// 字句解析・プリプロセス・構文解析が報告するもの (HL0001 / HL0002 / HL0320 / HL0321) は
+/// 字句解析・プリプロセス・構文解析が報告するもの (CF0001 / CF0002 / CF0020 / CF0021) は
 /// <c>Shaderlyn.Hlsl</c> 側にある。ここにあるのはアナライザが報告するものだけである。
 /// </remarks>
 internal static class HlslRuleDescriptors
@@ -37,7 +37,7 @@ internal static class HlslRuleDescriptors
     /// Unity なら <c>#pragma vertex</c> になり、v0.1 までと同じ文になる。
     /// </remarks>
     public static DiagnosticDescriptor EntryPointNotFound { get; } = new(
-        id: "HL0301",
+        id: "CF0301",
         title: "エントリポイントが見つかりません",
         messageFormat: "{0} が指定する関数 '{1}' が見つかりません。{2}",
         category: CorrectnessCategory,
@@ -46,7 +46,7 @@ internal static class HlslRuleDescriptors
             + " (Unity なら #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境なら units の entry)。"
             + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
             + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0301"));
+        helpLinkUri: DocumentationLinks.For("CF0301"));
 
     /// <summary>cbuffer の中の関数をエントリポイントにしていて、FXC でコンパイルされる。</summary>
     /// <remarks>
@@ -87,7 +87,7 @@ internal static class HlslRuleDescriptors
     /// これは出現条件を見なければ判定できない。
     /// </remarks>
     public static DiagnosticDescriptor FunctionDefinitionNotFound { get; } = new(
-        id: "HL0311",
+        id: "CF0311",
         title: "関数の定義が見つかりません",
         messageFormat: "関数 '{0}' の定義が{1}存在しません。",
         category: CorrectnessCategory,
@@ -96,7 +96,7 @@ internal static class HlslRuleDescriptors
             + "宣言だけを書いて定義を #ifdef の中に置き、"
             + "条件の付け方が呼ぶ側とずれている場合に起きます。"
             + "その構成ではリンクに失敗し、シェーダーが使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0311"));
+        helpLinkUri: DocumentationLinks.For("CF0311"));
 
     /// <summary>使っている変数の宣言が、その構成には存在しない。</summary>
     /// <remarks>
@@ -105,7 +105,7 @@ internal static class HlslRuleDescriptors
     /// 「宣言されていない識別子」にはならない。
     /// </remarks>
     public static DiagnosticDescriptor VariableDeclarationNotPresent { get; } = new(
-        id: "HL0315",
+        id: "CF0315",
         title: "変数の宣言がその構成に存在しません",
         messageFormat: "{1}変数 '{0}' の宣言が{2}存在しません。",
         category: CorrectnessCategory,
@@ -113,7 +113,7 @@ internal static class HlslRuleDescriptors
         description: "使っている変数の宣言が、その構成には存在しません。"
             + "宣言を #ifdef の中に置き、使う側をその条件の外に書いた場合に起きます。"
             + "その構成ではコンパイルに失敗し、シェーダーが使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0315"));
+        helpLinkUri: DocumentationLinks.For("CF0315"));
 
     /// <summary>参照している構造体のメンバーが、その構成には存在しない。</summary>
     /// <remarks>
@@ -123,7 +123,7 @@ internal static class HlslRuleDescriptors
     /// 出現条件を見なければ食い違いに気づけない。
     /// </remarks>
     public static DiagnosticDescriptor StructMemberNotPresent { get; } = new(
-        id: "HL0313",
+        id: "CF0313",
         title: "その構成に存在しない構造体メンバー",
         messageFormat: "構造体 '{0}' のメンバー '{1}' は、{2}存在しません。",
         category: CorrectnessCategory,
@@ -132,7 +132,7 @@ internal static class HlslRuleDescriptors
             + "メンバーを #ifdef で囲んだのに、"
             + "参照する側に同じ条件を付け忘れた場合に起きます。"
             + "その構成ではコンパイルに失敗し、シェーダーが使えなくなります。",
-        helpLinkUri: DocumentationLinks.For("HL0313"));
+        helpLinkUri: DocumentationLinks.For("CF0313"));
 
     /// <summary>実引数を仮引数の型へ変換できない。</summary>
     /// <remarks>
@@ -142,7 +142,7 @@ internal static class HlslRuleDescriptors
     /// 確実に誤りと言えるのは増える向きだけである。
     /// </remarks>
     public static DiagnosticDescriptor ArgumentNotConvertible { get; } = new(
-        id: "HL0340",
+        id: "CF0401",
         title: "実引数を仮引数の型へ変換できません",
         messageFormat: "関数 '{0}' の第 {1} 引数に {2} を指定できません (仮引数は {3})。{4}",
         category: CorrectnessCategory,
@@ -152,15 +152,15 @@ internal static class HlslRuleDescriptors
             + "#ifdef で仮引数の型が切り替わる関数を呼んでいる場合、"
             + "片方の構成でだけ成り立たないことがあります。"
             + "その構成ではコンパイルに失敗します。",
-        helpLinkUri: DocumentationLinks.For("HL0340"));
+        helpLinkUri: DocumentationLinks.For("CF0401"));
 
     /// <summary>引数の個数が、その構成に存在するどの宣言とも合わない。</summary>
     /// <remarks>
     /// 個数が合う宣言が 1 つも無いということは、その呼び出しは解決できない。
-    /// 定義そのものが無い場合 (HL0311) とは区別する。名前はあるが形が合っていない。
+    /// 定義そのものが無い場合 (CF0311) とは区別する。名前はあるが形が合っていない。
     /// </remarks>
     public static DiagnosticDescriptor ArgumentCountMismatch { get; } = new(
-        id: "HL0341",
+        id: "CF0402",
         title: "引数の個数が一致しません",
         messageFormat: "関数 '{0}' に引数を {1} 個渡していますが、{2}。{3}",
         category: CorrectnessCategory,
@@ -168,7 +168,7 @@ internal static class HlslRuleDescriptors
         description: "呼び出しの引数の個数が、その構成に存在するどの宣言とも合っていません。"
             + "既定値のある仮引数は省略できるものとして数えています。"
             + "その構成ではコンパイルに失敗します。",
-        helpLinkUri: DocumentationLinks.For("HL0341"));
+        helpLinkUri: DocumentationLinks.For("CF0402"));
 
     /// <summary>参照しているメンバーが存在しない。</summary>
     /// <remarks>
@@ -177,7 +177,7 @@ internal static class HlslRuleDescriptors
     /// 取り込んだヘッダの構造体やテクスチャのメソッドには踏み込まない。
     /// </remarks>
     public static DiagnosticDescriptor MemberNotFound { get; } = new(
-        id: "HL0312",
+        id: "CF0312",
         title: "存在しないメンバー",
         messageFormat: "{0} に{1}は存在しません。{2}",
         category: CorrectnessCategory,
@@ -187,7 +187,7 @@ internal static class HlslRuleDescriptors
             + "成分の数を超えたスウィズル (float2 に対する .z など) です。"
             + "位置 (xyzw) と色 (rgba) の成分名を混ぜることもできません。"
             + "いずれもコンパイルに失敗します。",
-        helpLinkUri: DocumentationLinks.For("HL0312"));
+        helpLinkUri: DocumentationLinks.For("CF0312"));
 
     /// <summary><c>out</c> の引数に、書き戻せない式を渡している。</summary>
     /// <remarks>
@@ -195,7 +195,7 @@ internal static class HlslRuleDescriptors
     /// リテラルや関数の戻り値には書き戻す先が無い。
     /// </remarks>
     public static DiagnosticDescriptor ArgumentNotAssignable { get; } = new(
-        id: "HL0342",
+        id: "CF0403",
         title: "out の引数に書き戻せません",
         messageFormat: "関数 '{0}' の第 {1} 引数は {2} です。{2} 引数には変数を指定してください。{3}",
         category: CorrectnessCategory,
@@ -203,15 +203,15 @@ internal static class HlslRuleDescriptors
         description: "out / inout の仮引数は、呼び出し側の変数へ値を書き戻します。"
             + "リテラルや関数の戻り値のように、書き戻す先が無い式は渡せません。"
             + "その構成ではコンパイルに失敗します。",
-        helpLinkUri: DocumentationLinks.For("HL0342"));
+        helpLinkUri: DocumentationLinks.For("CF0403"));
 
     /// <summary>代入や初期化で、値を代入先の型へ変換できない。</summary>
     /// <remarks>
-    /// 判定は引数の受け渡し (HL0340) と同じである。
+    /// 判定は引数の受け渡し (CF0401) と同じである。
     /// 成分が増える向きだけを誤りとする。
     /// </remarks>
     public static DiagnosticDescriptor ValueNotConvertible { get; } = new(
-        id: "HL0350",
+        id: "CF0410",
         title: "値を代入先の型へ変換できません",
 
         // {2} は「どの構成でそうなるか」の注記。構成によらず型が決まる場合は空になる。
@@ -222,11 +222,11 @@ internal static class HlslRuleDescriptors
             + "（例: float2 を float3 に代入）。"
             + "HLSL ではスカラー（1成分）から複数成分への拡張（全成分への複製）のみ許されており、"
             + "それ以外の成分不足はコンパイルエラーになります。",
-        helpLinkUri: DocumentationLinks.For("HL0350"));
+        helpLinkUri: DocumentationLinks.For("CF0410"));
 
     /// <summary><c>return</c> の値が関数の戻り値の型と合わない。</summary>
     public static DiagnosticDescriptor ReturnNotConvertible { get; } = new(
-        id: "HL0351",
+        id: "CF0411",
         title: "return の値が戻り値の型と一致しません",
 
         // {3} は「どの構成でそうなるか」の注記。構成によらず型が決まる場合は空になる。
@@ -237,7 +237,7 @@ internal static class HlslRuleDescriptors
             + "成分が足りない、void の関数が値を返している、"
             + "値を返す関数が値なしで return している、のいずれかです。"
             + "いずれもコンパイルに失敗します。",
-        helpLinkUri: DocumentationLinks.For("HL0351"));
+        helpLinkUri: DocumentationLinks.For("CF0411"));
 
     /// <summary>構成によっては、渡すときに成分が落ちる。</summary>
     /// <remarks>
@@ -259,7 +259,7 @@ internal static class HlslRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor ConditionalTruncation { get; } = new(
-        id: "HL0353",
+        id: "CF0413",
         title: "一部構成で成分が切り捨てられます",
         messageFormat: "{0}、{1} は {2} です。{3} へ渡すと成分が切り捨てられます。",
         category: CorrectnessCategory,
@@ -269,7 +269,7 @@ internal static class HlslRuleDescriptors
             + "HLSL は成分を減らす変換を警告 (X3206) 付きで通すため、コンパイルは成功します。"
             + "書き分けた構成の片方でだけ値が落ちるため、"
             + "その構成でのみ現れる不具合になります。",
-        helpLinkUri: DocumentationLinks.For("HL0353"));
+        helpLinkUri: DocumentationLinks.For("CF0413"));
 
     /// <summary>値を返さずに関数を抜ける経路がある。</summary>
     /// <remarks>
@@ -278,17 +278,17 @@ internal static class HlslRuleDescriptors
     /// そうしないと、実際には必ず返している関数を誤って指摘することになる。
     /// </remarks>
     public static DiagnosticDescriptor MissingReturn { get; } = new(
-        id: "HL0360",
+        id: "CF0501",
         title: "値を返さずに終わる経路があります",
         messageFormat: "関数 '{0}' は {1} を返しますが、値を返さない経路が存在します。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "値を返す関数に、return を通らずに末尾へ到達する経路があります。",
-        helpLinkUri: DocumentationLinks.For("HL0360"));
+        helpLinkUri: DocumentationLinks.For("CF0501"));
 
     /// <summary>波括弧による初期化の要素の個数が合わない。</summary>
     public static DiagnosticDescriptor InitializerCountMismatch { get; } = new(
-        id: "HL0352",
+        id: "CF0412",
         title: "初期化の要素の個数が一致しません",
         messageFormat: "{0} の初期化に要素を {1} 個書いていますが、{2} 個必要です。{3}",
         category: CorrectnessCategory,
@@ -297,7 +297,7 @@ internal static class HlslRuleDescriptors
             + "ベクトルや行列では成分の数と、配列では要素の数と一致していなければなりません。"
             + "数えるのは書いた項目の個数ではなく、展開した成分の個数です。"
             + "float4 v = { float2(1, 2), 3, 4 }; は項目 3 個ですが成分 4 個なので正しい書き方です。",
-        helpLinkUri: DocumentationLinks.For("HL0352"));
+        helpLinkUri: DocumentationLinks.For("CF0412"));
 
     /// <summary>宣言されていない識別子を使っている。</summary>
     /// <remarks>
@@ -306,7 +306,7 @@ internal static class HlslRuleDescriptors
     /// 「宣言されていない」と言うことになる。
     /// </remarks>
     public static DiagnosticDescriptor UndeclaredIdentifier { get; } = new(
-        id: "HL0310",
+        id: "CF0310",
         title: "宣言されていない識別子です",
         messageFormat: "'{0}' は{1}宣言されていません。",
         category: CorrectnessCategory,
@@ -316,7 +316,7 @@ internal static class HlslRuleDescriptors
             + "一部の構成でだけ宣言されていない場合は、その構成を添えます。"
             + "スペルミスか、宣言しているヘッダの取り込み漏れです。"
             + "取り込めなかったヘッダがある場合、この検査は行いません。",
-        helpLinkUri: DocumentationLinks.For("HL0310"));
+        helpLinkUri: DocumentationLinks.For("CF0310"));
 
     /// <summary>同じ名前を 2 回宣言している。</summary>
     /// <remarks>
@@ -334,7 +334,7 @@ internal static class HlslRuleDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor Redeclaration { get; } = new(
-        id: "HL0314",
+        id: "CF0314",
         title: "シンボル宣言の重複",
         messageFormat: "'{0}' は {1} 行目にも宣言されています。",
         category: CorrectnessCategory,
@@ -343,7 +343,7 @@ internal static class HlslRuleDescriptors
             + "#ifdef で分けて宣言している形は、同時に成り立つ構成があるときだけ報告します。"
             + "関数は仮引数の型まで同じで、どちらも実装を持つ場合だけ報告します。"
             + "関数の中で宣言された名前は、名前の範囲を追っていないため対象にしません。",
-        helpLinkUri: DocumentationLinks.For("HL0314"));
+        helpLinkUri: DocumentationLinks.For("CF0314"));
 
     /// <summary>数値型コンストラクタの引数の個数が合わない。</summary>
     /// <remarks>
@@ -351,7 +351,7 @@ internal static class HlslRuleDescriptors
     /// 1 つだけ渡す形はスカラーの複製と切り捨てが許されるので別に扱う。
     /// </remarks>
     public static DiagnosticDescriptor ConstructorArgumentMismatch { get; } = new(
-        id: "HL0343",
+        id: "CF0404",
         title: "コンストラクタに渡す成分の数が一致しません",
         messageFormat: "{0} のコンストラクタには成分を {1} 個渡してください (渡している成分は {2} 個です)。",
         category: CorrectnessCategory,
@@ -359,7 +359,7 @@ internal static class HlslRuleDescriptors
         description: "数値型のコンストラクタに渡した値の成分の数が、その型と合っていません。"
             + "入れ子のベクトルは平らにして数えます。"
             + "値を 1 つだけ渡す場合は、スカラーの複製と成分の切り捨てが許されます。",
-        helpLinkUri: DocumentationLinks.For("HL0343"));
+        helpLinkUri: DocumentationLinks.For("CF0404"));
 
     /// <summary>同じレジスタを 2 つ以上の宣言が使っている。</summary>
     /// <remarks>
@@ -383,14 +383,14 @@ internal static class HlslRuleDescriptors
     /// 変数の添字は実行時に決まるので、ここでは何も言えない。
     /// </remarks>
     public static DiagnosticDescriptor ArrayIndexOutOfBounds { get; } = new(
-        id: "HL0370",
+        id: "CF0510",
         title: "配列の添字が範囲を超えています",
         messageFormat: "'{0}' の長さは {1} ですが、要素 {2} を指定しています。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "配列の長さを超えた添字を書いています。"
             + "添字は 0 始まりであることに注意してください。",
-        helpLinkUri: DocumentationLinks.For("HL0370"));
+        helpLinkUri: DocumentationLinks.For("CF0510"));
 
     /// <summary>整数のリテラルが 32 ビットに収まらない。</summary>
     /// <remarks>
@@ -398,7 +398,7 @@ internal static class HlslRuleDescriptors
     /// リテラルとして読めることだけを保証し、範囲の検査はここへ委ねている。
     /// </remarks>
     public static DiagnosticDescriptor LiteralTruncated { get; } = new(
-        id: "HL0371",
+        id: "CF0511",
         title: "整数のリテラルが 32 ビットに収まりません",
         messageFormat: "'{0}' は 32 bit に収まりません。下位 32 bit が使用されます。",
         category: CorrectnessCategory,
@@ -406,7 +406,7 @@ internal static class HlslRuleDescriptors
         description: "整数のリテラルが 32 ビットで表せる範囲を超えています。"
             + "上位の桁が捨てられ、書いた値とは違う値になります。"
             + "16 進・8 進・10 進のいずれも同じです。",
-        helpLinkUri: DocumentationLinks.For("HL0371"));
+        helpLinkUri: DocumentationLinks.For("CF0511"));
 
     /// <summary>配列の仮引数に、形の合わない実引数を渡している。</summary>
     /// <remarks>
@@ -414,7 +414,7 @@ internal static class HlslRuleDescriptors
     /// 成分を減らす変換も、長さの違う配列の受け渡しも許されない。
     /// </remarks>
     public static DiagnosticDescriptor ArrayArgumentMismatch { get; } = new(
-        id: "HL0344",
+        id: "CF0405",
         title: "関数の配列型の引数が一致しません",
         messageFormat: "関数 '{0}' の第 {1} 引数は {2} ですが、{3}。",
         category: CorrectnessCategory,
@@ -422,7 +422,7 @@ internal static class HlslRuleDescriptors
         description: "配列の仮引数に、形の合わない実引数を渡しています。"
             + "配列は要素の型と長さの両方が一致していなければなりません。"
             + "配列でない値を渡すこともできません。",
-        helpLinkUri: DocumentationLinks.For("HL0344"));
+        helpLinkUri: DocumentationLinks.For("CF0405"));
 
     /// <summary>template の型引数を、実引数から 1 つに決められない (HLSL 2021)。</summary>
     /// <remarks>
@@ -448,7 +448,7 @@ internal static class HlslRuleDescriptors
     /// どれも DXC で確かめた。
     /// </remarks>
     public static DiagnosticDescriptor StructOperatorNotAvailable { get; } = new(
-        id: "HL0346",
+        id: "CF0406",
         title: "構造体に使用できない演算子です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
@@ -456,7 +456,7 @@ internal static class HlslRuleDescriptors
         description: "HLSL の演算子は数値型 (スカラー・ベクトル・行列) の値にしか使えません。"
             + "HLSL 2021 では、構造体の中で operator+ などを定義すると、その構造体を左辺にして使えます。"
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
-        helpLinkUri: DocumentationLinks.For("HL0346"));
+        helpLinkUri: DocumentationLinks.For("CF0406"));
 
     /// <summary><c>for</c> の初期化で宣言した変数を、ループの外で使っている (HLSL 2021 へ移せない)。</summary>
     /// <remarks>FXC と DXC 2021 より前は通るが、DXC 2021 はエラーにする。手元の FXC / DXC 1.8 で確かめた。</remarks>
@@ -485,7 +485,7 @@ internal static class HlslRuleDescriptors
     /// <summary>構造体の値を増減している (FXC では何もしない)。</summary>
     /// <remarks>
     /// FXC は構造体自身への <c>++</c> / <c>--</c> をエラーにせず、何もしないコードにする。
-    /// DXC はどの版でもエラーにする (HL0346)。手元の FXC と、Unity 2022.3〜6.6 の FXC で確かめた。
+    /// DXC はどの版でもエラーにする (CF0406)。手元の FXC と、Unity 2022.3〜6.6 の FXC で確かめた。
     /// </remarks>
     public static DiagnosticDescriptor StructIncrementIgnored { get; } = new(
         id: "HL0348",
@@ -494,7 +494,7 @@ internal static class HlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "FXC は構造体の値への ++ / -- をエラーにせず、何もしません。値は変わらないので、意図した計算になりません。"
-            + "DXC ではエラーになります (HL0346)。メンバーごとに増減してください。",
+            + "DXC ではエラーになります (CF0406)。メンバーごとに増減してください。",
         helpLinkUri: DocumentationLinks.For("HL0348"));
 
     /// <summary>enum の値を、変換できない型との間でやり取りしている。または使えない演算子を使っている (HLSL 2021)。</summary>

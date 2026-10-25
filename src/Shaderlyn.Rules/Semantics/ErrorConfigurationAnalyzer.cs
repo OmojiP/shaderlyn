@@ -7,7 +7,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 展開が <c>#error</c> に到達した構成を伝える (HL0009)。
+/// 展開が <c>#error</c> に到達した構成を伝える (CF0104)。
 /// </summary>
 /// <remarks>
 /// <para>

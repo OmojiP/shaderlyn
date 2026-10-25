@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules;
 
 /// <summary>
 /// 呼び出しが、その構成に存在する宣言と噛み合っているかを検査する
-/// (HL0340 / HL0341 / HL0342 / HL0344 / HL0345)。
+/// (CF0401 / CF0402 / CF0403 / CF0405 / HL0345)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,7 +29,7 @@ namespace Shaderlyn.Rules;
 /// </para>
 /// <para>
 /// <b>候補が 1 つも無い場合はここでは何も言わない。</b>
-/// その構成に定義が無いという話であり、HL0311 の担当である。
+/// その構成に定義が無いという話であり、CF0311 の担当である。
 /// </para>
 /// </remarks>
 internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
@@ -155,7 +155,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         if (candidates.Count == 0)
         {
-            // その構成には定義そのものが無い。HL0311 の担当である。
+            // その構成には定義そのものが無い。CF0311 の担当である。
             return;
         }
 
@@ -180,7 +180,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 個数の合う宣言が、呼び出しのあるすべての構成に存在するか。
         // 存在しうる宣言のどれか 1 つが合えば通すと、構成 _B でだけ 2 個受け付ける関数に
         // 2 個渡す呼び出しを、!_B でも通してしまう。
-        // 宣言が 1 つも無い構成は HL0311 の担当である。宣言のある構成だけで比べる。
+        // 宣言が 1 つも無い構成は CF0311 の担当である。宣言のある構成だけで比べる。
         if (!intrinsicAccepts
             && PresentCondition(condition, candidates) is { } anyPresent
             && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
@@ -459,7 +459,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             DescribeCondition(call)));
     }
 
-    /// <summary>template の関数と同じ名前の関数の呼び出しを検査する (HL0341 / HL0345)。</summary>
+    /// <summary>template の関数と同じ名前の関数の呼び出しを検査する (CF0402 / HL0345)。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="condition">出現条件の索引。</param>
@@ -565,7 +565,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.TemplateArgumentConflict, location, message));
     }
 
-    /// <summary>構造体のメソッドの呼び出しで、引数の個数を検査する (HL0341、HLSL 2021)。</summary>
+    /// <summary>構造体のメソッドの呼び出しで、引数の個数を検査する (CF0402、HLSL 2021)。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="condition">出現条件の索引。</param>

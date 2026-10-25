@@ -20,7 +20,7 @@ internal sealed partial class ShaderPreprocessor
     /// <param name="nameToken">識別子のトークン。</param>
     /// <returns>展開した場合は <see langword="true"/>。</returns>
     /// <remarks>
-    /// FXC も DXC も C のプリプロセッサと同じく定義する。展開しないと、宣言されていない名前 (HL0310) になる
+    /// FXC も DXC も C のプリプロセッサと同じく定義する。展開しないと、宣言されていない名前 (CF0310) になる
     /// (Unreal の D3DCommon.ush の <c>UE_DEBUG_BREAK</c>)。
     /// </remarks>
     private bool TryExpandPredefinedMacro(ShaderSyntaxToken nameToken)

@@ -57,14 +57,14 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.Equal(ExitCode.DiagnosticsFound, code);
         Assert.Contains("2 ファイルを解析", output, StringComparison.Ordinal);
         Assert.Contains("broken.vert", output, StringComparison.Ordinal);
-        Assert.Contains("HL0001", output, StringComparison.Ordinal);
+        Assert.Contains("CF0001", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ok.frag", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// GLSL の取り込み (<c>GL_GOOGLE_include_directive</c>) を解決して、取り込んだ先の構文も読む。
-    /// 解決できない取り込みは、その中を読めていないので HL0321 で伝える。
+    /// 解決できない取り込みは、その中を読めていないので CF0021 で伝える。
     /// </summary>
     [Fact]
     public async Task GLSLの取り込みを読み_解決できなければ伝える()
@@ -81,7 +81,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
 
         (_, string output) = await RunAsync();
 
-        Assert.Contains("HL0321", output, StringComparison.Ordinal);
+        Assert.Contains("CF0021", output, StringComparison.Ordinal);
         Assert.Contains("missing.glsl", output, StringComparison.Ordinal);
         Assert.Contains("common.glsl(1:", output, StringComparison.Ordinal);
     }
@@ -139,7 +139,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\n");
         File.WriteAllText(Path.Combine(_workDirectory, "root.hlsl"), Undeclared);
         Directory.CreateDirectory(Path.Combine(_workDirectory, "legacy"));
-        File.WriteAllText(Path.Combine(_workDirectory, "legacy", ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\nrules:\n  HL0310: none\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "legacy", ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\nrules:\n  CF0310: none\n");
         File.WriteAllText(Path.Combine(_workDirectory, "legacy", "old.hlsl"), Undeclared);
 
         StringWriter output = new();
@@ -179,10 +179,10 @@ public sealed class LanguageEnvironmentTests : IDisposable
 
             Assert.Contains("inside.glsl", output, StringComparison.Ordinal);
 
-            // 外のファイルは読まないので、その中の指摘は出ない。取り込みを解決できなかったこと (HL0321) だけを伝える。
+            // 外のファイルは読まないので、その中の指摘は出ない。取り込みを解決できなかったこと (CF0021) だけを伝える。
             Assert.DoesNotContain("secret.glsl(", output, StringComparison.Ordinal);
             Assert.DoesNotContain("leaked", output, StringComparison.Ordinal);
-            Assert.Contains("HL0321", output, StringComparison.Ordinal);
+            Assert.Contains("CF0021", output, StringComparison.Ordinal);
         }
         finally
         {
@@ -202,7 +202,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         File.WriteAllText(Path.Combine(_workDirectory, "z.hlsl"), "#include \"Common.hlsli\"\nfloat4 main() : SV_Target { return Lib() + alsoMissing; }\n");
         File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nvoid main() { x = ; }\n");
         Directory.CreateDirectory(Path.Combine(_workDirectory, "sub"));
-        File.WriteAllText(Path.Combine(_workDirectory, "sub", ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\nrules:\n  HL0301: none\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "sub", ".shaderlyn.yaml"), "version: 1\nenvironment: hlsl\nrules:\n  CF0301: none\n");
         File.WriteAllText(Path.Combine(_workDirectory, "sub", "b.hlsl"), "#include \"../Common.hlsli\"\nfloat4 main() : SV_Target { return Lib(); }\n");
 
         StringWriter output = new();
@@ -219,7 +219,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.True(frag >= 0 && z > frag, text);
 
         // ヘッダの指摘は、2 つの解析設定から取り込まれても 1 件。
-        Assert.Single(text.Split('\n'), line => line.Contains("Common.hlsli(", StringComparison.Ordinal) && line.Contains("HL0310", StringComparison.Ordinal));
+        Assert.Single(text.Split('\n'), line => line.Contains("Common.hlsli(", StringComparison.Ordinal) && line.Contains("CF0310", StringComparison.Ordinal));
     }
 
     /// <summary>入れ子の設定ファイルに知らない環境を書いたら、黙って飛ばさず、書いた行に報告する。</summary>
@@ -268,7 +268,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         await RunWithCacheAsync();
         Assert.Contains("前回の結果の使い回し 3 件 / 解析 0 件", await RunWithCacheAsync(), StringComparison.Ordinal);
 
-        File.WriteAllText(nested, "version: 1\nenvironment: hlsl\nrules:\n  HL0301: none\n");
+        File.WriteAllText(nested, "version: 1\nenvironment: hlsl\nrules:\n  CF0301: none\n");
         Assert.Contains("前回の結果の使い回し 0 件 / 解析 3 件", await RunWithCacheAsync(), StringComparison.Ordinal);
     }
 
@@ -284,7 +284,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
         await Program.RunAsync([file, "--no-config", "--environment", "hlsl"], BuiltInAnalyzers.All, output, error);
 
         Assert.Contains("1 ファイルを解析", output.ToString(), StringComparison.Ordinal);
-        Assert.Contains("HL0001", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("CF0001", output.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary><c>--env</c> は、解析設定が複数あれば見出しを 1 回だけ書き、解析設定ごとに区切る。</summary>

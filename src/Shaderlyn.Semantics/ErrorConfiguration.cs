@@ -24,7 +24,7 @@ namespace Shaderlyn.Semantics;
 /// </para>
 /// <para>
 /// どちらでも、その構成のコードの誤りを報告する意味は無い。宣言の有無を見る検査は、その構成を考えない
-/// (<see cref="ShaderCompilation.IsPossibleIn"/>)。到達したこと自体は、環境に合わせた重要度で伝える (HL0009 / UN0103)。
+/// (<see cref="ShaderCompilation.IsPossibleIn"/>)。到達したこと自体は、環境に合わせた重要度で伝える (CF0104 / UN0103)。
 /// 既定の木そのものが到達したもの (<see cref="IsBaseline"/> で <see cref="BranchCondition"/> が無いもの) は除かない。
 /// 解析のマクロの状態が実際と違うためのことが多く、除くとその木のどの検査も止まる。
 /// </para>

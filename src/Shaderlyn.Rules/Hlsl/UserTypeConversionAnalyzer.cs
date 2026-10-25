@@ -11,7 +11,7 @@ namespace Shaderlyn.Rules;
 
 /// <summary>
 /// 利用者が定義した型 (enum と構造体) の値の変換と、enum への演算子を検査する
-/// (HL0347、構造体は HL0350 / HL0340 / HL0351、HLSL 2021)。
+/// (HL0347、構造体は CF0410 / CF0401 / CF0411、HLSL 2021)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -379,7 +379,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.EnumValueMismatch, location, message));
     }
 
-    /// <summary>構造体の食い違いを、受け取り方に合ったルールで報告する (HL0350 / HL0340 / HL0351)。</summary>
+    /// <summary>構造体の食い違いを、受け取り方に合ったルールで報告する (CF0410 / CF0401 / CF0411)。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="receiver">受け取る側。</param>
     /// <param name="value">渡した値。</param>

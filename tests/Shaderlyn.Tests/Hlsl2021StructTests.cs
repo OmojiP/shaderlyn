@@ -47,9 +47,9 @@ public sealed class Hlsl2021StructTests
     [InlineData("E e = (E)0; float a = e.x + e.y + e.z", null)]
     [InlineData("D d = { 1, float3(0, 0, 1), 2 }", null)]
     [InlineData("E e = { 1, float3(0, 0, 1), 2, 3 }", null)]
-    [InlineData("E e = (E)0; float a = e.missing", "HL0312")]
-    [InlineData("E e = (E)0; float a = e.n.w", "HL0312")]
-    [InlineData("D d = { 1, 2 }", "HL0352")]
+    [InlineData("E e = (E)0; float a = e.missing", "CF0312")]
+    [InlineData("E e = (E)0; float a = e.n.w", "CF0312")]
+    [InlineData("D d = { 1, 2 }", "CF0412")]
     public void 継承した基底のメンバーを使える(string statement, string? expected)
         => AssertReported(statement, expected);
 
@@ -61,7 +61,7 @@ public sealed class Hlsl2021StructTests
             float4 main() : SV_Target { D d = (D)0; return d.x + d.y; }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0312");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0312");
     }
 
     /// <summary>メソッドの前置き。</summary>
@@ -88,27 +88,27 @@ public sealed class Hlsl2021StructTests
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
     [Theory]
     [InlineData("S s = (S)0; float a = s.Twice()", null)]
-    [InlineData("S s = (S)0; s.Nope()", "HL0312")]
-    [InlineData("S s = (S)0; float a = s.Twice().q", "HL0312")]
+    [InlineData("S s = (S)0; s.Nope()", "CF0312")]
+    [InlineData("S s = (S)0; float a = s.Twice().q", "CF0312")]
     [InlineData("S s = (S)0; float a = s.Twice().x", null)]
-    [InlineData("S s = (S)0; s.Twice(1)", "HL0341")]
+    [InlineData("S s = (S)0; s.Twice(1)", "CF0402")]
     [InlineData("S s = (S)0; float a = s.Scale(2)", null)]
     [InlineData("S s = (S)0; float a = s.Scale(2, 1)", null)]
-    [InlineData("S s = (S)0; float a = s.Scale()", "HL0341")]
-    [InlineData("S s = (S)0; float a = s.Scale(1, 2, 3)", "HL0341")]
+    [InlineData("S s = (S)0; float a = s.Scale()", "CF0402")]
+    [InlineData("S s = (S)0; float a = s.Scale(1, 2, 3)", "CF0402")]
     [InlineData("S s = (S)0; float3 d = s.Dir(); float a = s.Dir().z", null)]
-    [InlineData("S s = (S)0; float a = s.Dir().w", "HL0312")]
+    [InlineData("S s = (S)0; float a = s.Dir().w", "CF0312")]
     [InlineData("S s = (S)0; float a = s[0]", null)]
-    [InlineData("S s = (S)0; float a = s[0].q", "HL0312")]
+    [InlineData("S s = (S)0; float a = s[0].q", "CF0312")]
     [InlineData("S s = (S)0; float2 a = s(0.5)", null)]
-    [InlineData("S s = (S)0; float a = s(0.5).z", "HL0312")]
+    [InlineData("S s = (S)0; float a = s(0.5).z", "CF0312")]
     [InlineData("D d = (D)0; float a = d.GetY()", null)]
-    [InlineData("D d = (D)0; float a = d.GetY().q", "HL0312")]
-    [InlineData("D d = (D)0; d.Nope()", "HL0312")]
+    [InlineData("D d = (D)0; float a = d.GetY().q", "CF0312")]
+    [InlineData("D d = (D)0; d.Nope()", "CF0312")]
     [InlineData("H h = (H)0; float a = h.Get() + h.Get(2)", null)]
-    [InlineData("H h = (H)0; float a = h.Get(1, 2)", "HL0341")]
+    [InlineData("H h = (H)0; float a = h.Get(1, 2)", "CF0402")]
     [InlineData("H h = (H)0; float a = h.Pair(1).y", null)]
-    [InlineData("H h = (H)0; float a = h.Pair(1).z", "HL0312")]
+    [InlineData("H h = (H)0; float a = h.Pair(1).z", "CF0312")]
     [InlineData("H h = (H)0; float a = h.Pair(1, 2).z", null)]
     [InlineData("S s[2]; float a = s[1].Twice()", null)]
     [InlineData("S s[2]; float a = s[1][0]", null)]
@@ -132,27 +132,27 @@ public sealed class Hlsl2021StructTests
     /// </remarks>
     [Theory]
     [InlineData("Box<float4> b = (Box<float4>)0; float4 a = b.v", null)]
-    [InlineData("Box<float4> b = (Box<float4>)0; b.missing = 1", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.v.q", "HL0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.missing = 1", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.v.q", "CF0312")]
     [InlineData("Box<float4> b = (Box<float4>)0; float a = b.v.w", null)]
-    [InlineData("Box<float3> b = (Box<float3>)0; float a = b.v.w", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Get().q", "HL0312")]
+    [InlineData("Box<float3> b = (Box<float3>)0; float a = b.v.w", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Get().q", "CF0312")]
     [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Get().w", null)]
-    [InlineData("Box<float4> b = (Box<float4>)0; b.Nope()", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.w.y", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Len().y", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; float a = b[0].q", "HL0312")]
-    [InlineData("Box<F4> b = (Box<F4>)0; float a = b.v.q", "HL0312")]
-    [InlineData("Box<float4> b = (Box<float4>)0; b.Get(1)", "HL0341")]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.Nope()", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.w.y", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b.Len().y", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; float a = b[0].q", "CF0312")]
+    [InlineData("Box<F4> b = (Box<F4>)0; float a = b.v.q", "CF0312")]
+    [InlineData("Box<float4> b = (Box<float4>)0; b.Get(1)", "CF0402")]
     [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; float a = r.items[0]", null)]
     [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; float a = r.First()", null)]
-    [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; r.missing = 1", "HL0312")]
+    [InlineData("Arr<float, 4> r = (Arr<float, 4>)0; r.missing = 1", "CF0312")]
     [InlineData("Box<float4> bs[2]; float a = bs[0].v.x", null)]
     [InlineData("Derived<float4> d = (Derived<float4>)0; float a = d.v.x + d.extra.y", null)]
-    [InlineData("Derived<float4> d = (Derived<float4>)0; d.missing = 1", "HL0312")]
+    [InlineData("Derived<float4> d = (Derived<float4>)0; d.missing = 1", "CF0312")]
     [InlineData("Fixed f = (Fixed)0; float a = f.v.x + f.z + f.Get().y", null)]
     [InlineData("Fixed f = (Fixed)0; float a = f.v.w", null)]
-    [InlineData("Fixed f = (Fixed)0; f.missing = 1", "HL0312")]
+    [InlineData("Fixed f = (Fixed)0; f.missing = 1", "CF0312")]
     public void templateの構造体のメンバーをDXCと同じに扱う(string statement, string? expected)
         => AssertReported(statement, expected, TemplatePrelude);
 
@@ -165,32 +165,32 @@ public sealed class Hlsl2021StructTests
         cbuffer C { float k; };
         """;
 
-    /// <summary>構造体に使えない演算子を、DXC と同じに扱うことを検証する (G4 / G6、HL0346)。</summary>
+    /// <summary>構造体に使えない演算子を、DXC と同じに扱うことを検証する (G4 / G6、CF0406)。</summary>
     /// <param name="statement">main の中に書く文。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
     [Theory]
-    [InlineData("P a = (P)0; P b = (P)0; P c = k > 0 ? a : b", "HL0346")]
+    [InlineData("P a = (P)0; P b = (P)0; P c = k > 0 ? a : b", "CF0406")]
     [InlineData("P a = (P)0; float c = k > 0 ? a.x : 1", null)]
-    [InlineData("O a = (O)0; O b = (O)0; O c = k > 0 ? a : b", "HL0346")]
-    [InlineData("P a = (P)0; P b = (P)0; P c = a + b", "HL0346")]
-    [InlineData("P a = (P)0; P c = a * 2", "HL0346")]
-    [InlineData("P a = (P)0; P c = -a", "HL0346")]
-    [InlineData("P a = (P)0; bool c = !a", "HL0346")]
-    [InlineData("P a = (P)0; P b = (P)0; bool c = a == b", "HL0346")]
-    [InlineData("P a = (P)0; a++", "HL0346")]
-    [InlineData("P a = (P)0; ++a", "HL0346")]
-    [InlineData("P a = (P)0; P b = (P)0; a += b", "HL0346")]
-    [InlineData("P a = (P)0; float c = 2 * a", "HL0346")]
+    [InlineData("O a = (O)0; O b = (O)0; O c = k > 0 ? a : b", "CF0406")]
+    [InlineData("P a = (P)0; P b = (P)0; P c = a + b", "CF0406")]
+    [InlineData("P a = (P)0; P c = a * 2", "CF0406")]
+    [InlineData("P a = (P)0; P c = -a", "CF0406")]
+    [InlineData("P a = (P)0; bool c = !a", "CF0406")]
+    [InlineData("P a = (P)0; P b = (P)0; bool c = a == b", "CF0406")]
+    [InlineData("P a = (P)0; a++", "CF0406")]
+    [InlineData("P a = (P)0; ++a", "CF0406")]
+    [InlineData("P a = (P)0; P b = (P)0; a += b", "CF0406")]
+    [InlineData("P a = (P)0; float c = 2 * a", "CF0406")]
     [InlineData("P a = (P)0; float c = 2 * a.x", null)]
-    [InlineData("P a = (P)0; bool c = a && true", "HL0346")]
-    [InlineData("P a = (P)0; bool c = true || a", "HL0346")]
+    [InlineData("P a = (P)0; bool c = a && true", "CF0406")]
+    [InlineData("P a = (P)0; bool c = true || a", "CF0406")]
     [InlineData("O a = (O)0; O b = (O)0; O c = a + b", null)]
-    [InlineData("O a = (O)0; O c = a * 2", "HL0346")]
+    [InlineData("O a = (O)0; O c = a * 2", "CF0406")]
     [InlineData("O a = (O)0; O b = (O)0; bool c = a == b", null)]
-    [InlineData("O a = (O)0; O b = (O)0; bool c = a != b", "HL0346")]
+    [InlineData("O a = (O)0; O b = (O)0; bool c = a != b", "CF0406")]
     [InlineData("O a = (O)0; bool c = a && true", null)]
-    [InlineData("O a = (O)0; bool c = true && a", "HL0346")]
-    [InlineData("O a = (O)0; O b = (O)0; a += b", "HL0346")]
+    [InlineData("O a = (O)0; bool c = true && a", "CF0406")]
+    [InlineData("O a = (O)0; O b = (O)0; a += b", "CF0406")]
     [InlineData("P a = (P)0; P b = (P)0; a = b", null)]
     [InlineData("P a = (P)0; P c = (a)", null)]
     [InlineData("P a = (P)0; float c = a.Self()", null)]
@@ -214,7 +214,7 @@ public sealed class Hlsl2021StructTests
             float4 main() : SV_Target { S a = (S)0; S c = 2 * a; S d = a + a; return c.x + d.x; }
             """);
 
-        string[] messages = [.. diagnostics.Where(d => d.Id == "HL0346").Select(d => d.GetMessage())];
+        string[] messages = [.. diagnostics.Where(d => d.Id == "CF0406").Select(d => d.GetMessage())];
 
         Assert.Equal(3, messages.Length);
         Assert.Contains(messages, m => m.Contains("operator* は構造体の中でだけ定義できます", StringComparison.Ordinal));
@@ -242,20 +242,20 @@ public sealed class Hlsl2021StructTests
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0406");
         Assert.Contains("'+'", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(2, diagnostics.Count(d => d.Id == "HL0348" && d.Severity == DiagnosticSeverity.Warning));
     }
 
-    /// <summary>多重定義できない演算子の定義を報告することを検証する (HL0346)。</summary>
+    /// <summary>多重定義できない演算子の定義を報告することを検証する (CF0406)。</summary>
     /// <param name="definition">構造体の中に書く定義。</param>
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
     [Theory]
-    [InlineData("O operator<<(O o) { return o; }", "HL0346")]
-    [InlineData("O operator+=(O o) { return o; }", "HL0346")]
-    [InlineData("O operator=(O o) { return o; }", "HL0346")]
-    [InlineData("O operator++() { return (O)0; }", "HL0346")]
-    [InlineData("O operator--() { return (O)0; }", "HL0346")]
+    [InlineData("O operator<<(O o) { return o; }", "CF0406")]
+    [InlineData("O operator+=(O o) { return o; }", "CF0406")]
+    [InlineData("O operator=(O o) { return o; }", "CF0406")]
+    [InlineData("O operator++() { return (O)0; }", "CF0406")]
+    [InlineData("O operator--() { return (O)0; }", "CF0406")]
     [InlineData("O operator+(O o) { return o; }", null)]
     [InlineData("O operator-() { return (O)0; }", null)]
     [InlineData("float operator[](uint i) { return x; }", null)]
@@ -279,7 +279,7 @@ public sealed class Hlsl2021StructTests
             float4 main() : SV_Target { return 0; }
             """);
 
-        Assert.Equal(["HL0312", "HL0312"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
+        Assert.Equal(["CF0312", "CF0312"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
     }
 
     /// <summary>構造体の変換の前置き。</summary>
@@ -304,24 +304,24 @@ public sealed class Hlsl2021StructTests
     /// (<c>Box&lt;float4&gt;</c> から <c>Box&lt;float3&gt;</c> は DXC ではエラーだが報告しない)。
     /// </remarks>
     [Theory]
-    [InlineData("Q q = (Q)0; P p = q", "HL0350")]
-    [InlineData("R r = (R)0; P p = r", "HL0350")]
-    [InlineData("P p = (P)0; float f = p", "HL0350")]
-    [InlineData("P p = k", "HL0350")]
-    [InlineData("P p = 0", "HL0350")]
+    [InlineData("Q q = (Q)0; P p = q", "CF0410")]
+    [InlineData("R r = (R)0; P p = r", "CF0410")]
+    [InlineData("P p = (P)0; float f = p", "CF0410")]
+    [InlineData("P p = k", "CF0410")]
+    [InlineData("P p = 0", "CF0410")]
     [InlineData("P p = (P)k", null)]
     [InlineData("Q q = (Q)0; P p = (P)q", null)]
     [InlineData("D d = (D)0; P p = d", null)]
     [InlineData("E e = (E)0; P p = e", null)]
-    [InlineData("P p = (P)0; D d = p", "HL0350")]
+    [InlineData("P p = (P)0; D d = p", "CF0410")]
     [InlineData("Box<float4> b = (Box<float4>)0; Box<float3> c = b", null)]
     [InlineData("PAlias a = (P)0; P p = a", null)]
-    [InlineData("Q q = (Q)0; P p = MakeP(); p = q", "HL0350")]
-    [InlineData("Q q = (Q)0; float r = TakeP(q)", "HL0340")]
+    [InlineData("Q q = (Q)0; P p = MakeP(); p = q", "CF0410")]
+    [InlineData("Q q = (Q)0; float r = TakeP(q)", "CF0401")]
     [InlineData("float r = TakeP(MakeP())", null)]
     [InlineData("D d = (D)0; float r = TakeP(d)", null)]
-    [InlineData("P p = (P)0; float4 v = p", "HL0350")]
-    [InlineData("P p = f4", "HL0350")]
+    [InlineData("P p = (P)0; float4 v = p", "CF0410")]
+    [InlineData("P p = f4", "CF0410")]
     [InlineData("P p = { 1 }", null)]
     public void 構造体の暗黙の変換をDXCと同じに扱う(string statement, string? expected)
         => AssertReported(statement, expected, ConversionPrelude);
@@ -338,7 +338,7 @@ public sealed class Hlsl2021StructTests
             float4 main() : SV_Target { return 0; }
             """);
 
-        Assert.Equal(["HL0351", "HL0351"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
+        Assert.Equal(["CF0411", "CF0411"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
     }
 
     [Fact]
@@ -358,7 +358,7 @@ public sealed class Hlsl2021StructTests
 
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0350");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0410");
     }
 
     /// <summary>
@@ -368,18 +368,18 @@ public sealed class Hlsl2021StructTests
     /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
     [Theory]
     [InlineData("class Light { float3 color; float3 Get() { return color; } }; float4 main() : SV_Target { Light l; l.color = 1; return float4(l.Get() + l.color, 1); }", null)]
-    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.missing; }", "HL0312")]
-    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.Nope(); }", "HL0312")]
+    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.missing; }", "CF0312")]
+    [InlineData("class Light { float3 color; }; float4 main() : SV_Target { Light l; l.color = 0; return l.Nope(); }", "CF0312")]
     [InlineData("class B { float x; }; class D : B { float y; }; float4 main() : SV_Target { D d; d.x = 1; d.y = 2; return d.x + d.y; }", null)]
     [InlineData("interface ILight { float3 Color(); }; float4 main() : SV_Target { return 0; }", null)]
     [InlineData("interface ILight { float3 Color(); }; class Sun : ILight { float3 Color() { return 1; } }; float4 main() : SV_Target { Sun s; return float4(s.Color(), 1); }", null)]
-    [InlineData("interface ILight { float3 Color(); }; class Sun : ILight { float3 Color() { return 1; } }; float4 main() : SV_Target { Sun s; return float4(s.Nope(), 1); }", "HL0312")]
+    [InlineData("interface ILight { float3 Color(); }; class Sun : ILight { float3 Color() { return 1; } }; float4 main() : SV_Target { Sun s; return float4(s.Nope(), 1); }", "CF0312")]
     [InlineData("class Light { float3 color; } g_light; float4 main() : SV_Target { return float4(g_light.color, 1); }", null)]
     [InlineData("struct Light { float3 color; } g_light; float4 main() : SV_Target { return float4(g_light.color, 1); }", null)]
     [InlineData("template<typename T> T Twice(T x) { return x + x; } template<> float Twice<float>(float x) { return x * 2; } float4 main() : SV_Target { return Twice(2.0f) + Twice<float>(1.0f); }", null)]
-    [InlineData("template<typename T> T Twice(T x) { return x + x; } template<> float Twice<float>(float x) { return x * missingName; } float4 main() : SV_Target { return Twice(2.0f); }", "HL0310")]
+    [InlineData("template<typename T> T Twice(T x) { return x + x; } template<> float Twice<float>(float x) { return x * missingName; } float4 main() : SV_Target { return Twice(2.0f); }", "CF0310")]
     [InlineData("template<typename T> struct Box { T v; }; template<> struct Box<float> { float v; float extra; }; float4 main() : SV_Target { Box<float> b = (Box<float>)0; return b.extra; }", null)]
-    [InlineData("template<typename T> struct Box { T v; }; template<> struct Box<float> { float v; float extra; }; float4 main() : SV_Target { Box<float> b = (Box<float>)0; return b.nope; }", "HL0312")]
+    [InlineData("template<typename T> struct Box { T v; }; template<> struct Box<float> { float v; float extra; }; float4 main() : SV_Target { Box<float> b = (Box<float>)0; return b.nope; }", "CF0312")]
     [InlineData("struct Light; struct Light { float x; }; float4 main() : SV_Target { Light l = (Light)0; return l.x; }", null)]
     [InlineData("class ObjModelLoader; float4 main() : SV_Target { return 0; }", null)]
     public void classとinterfaceと明示的な特殊化をDXCと同じに扱う(string code, string? expected)

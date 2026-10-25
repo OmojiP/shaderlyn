@@ -12,13 +12,13 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// メンバー参照が成り立っているかを検査する (HL0313 / HL0312)。
+/// メンバー参照が成り立っているかを検査する (CF0313 / CF0312)。
 /// </summary>
 /// <remarks>
 /// <para>
 /// 2 つの検査は同じ場所を歩く。
-/// 「そのメンバーがあるか」(HL0312) と
-/// 「その構成にあるか」(HL0313) は、順に見なければならない。
+/// 「そのメンバーがあるか」(CF0312) と
+/// 「その構成にあるか」(CF0313) は、順に見なければならない。
 /// 無いものを条件で語っても仕方がなく、
 /// 条件付きで<b>ある</b>ものを「無い」と言ってもいけない。
 /// </para>
@@ -57,7 +57,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<(int Start, string? Kernel), Dictionary<string, StructInfo>> structs = CollectStructs(compilation, condition);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        // 構成の条件が付く報告 (HL0313) は、木をまたいで条件の和をとって 1 件にする (ConditionalReports)。
+        // 構成の条件が付く報告 (CF0313) は、木をまたいで条件の和をとって 1 件にする (ConditionalReports)。
         ReportedLocations reported = new();
         ConditionalReports reports = new(compilation);
 
@@ -236,7 +236,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 typeName + "\u0001" + name,
                 missing => [typeName, name, missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"]))
         {
-            // 同じ位置に、ほかの木から「そもそもメンバーが無い」(HL0312) を重ねない。
+            // 同じ位置に、ほかの木から「そもそもメンバーが無い」(CF0312) を重ねない。
             reported.Add(location);
         }
     }

@@ -92,7 +92,7 @@ public sealed class CompileTargetRuleTests
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze("", "P a = (P)0; a++; return a.x;", "6.3", "struct P { float x; };");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0346");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0406");
         Assert.Single(diagnostics, d => d.Id == "HL0348");
     }
 
@@ -101,7 +101,7 @@ public sealed class CompileTargetRuleTests
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze("#pragma use_dxc", "P a = (P)0; a++; return a.x;", "6.6", "struct P { float x; };");
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0346");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0406");
         Assert.Contains("は dx12 (DXC (HLSL 2018)) では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0348");
     }
@@ -274,7 +274,7 @@ public sealed class CompileTargetRuleTests
             "6.3",
             "enum Mode { ModeA, ModeB };");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "HL0331");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "CF0202");
     }
 
     [Fact]
@@ -291,11 +291,11 @@ public sealed class CompileTargetRuleTests
         ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, new SemanticsOptions(), new UnityOptions { EditorVersion = "6.3" });
         ImmutableArray<Diagnostic> diagnostics = new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "HL0331");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0003" or "CF0202");
     }
 
     /// <summary>
-    /// コンパイラを切り替えるデバイスのキーワードは、条件に書かなくても HL0331 にしないことを検証する。
+    /// コンパイラを切り替えるデバイスのキーワードは、条件に書かなくても CF0202 にしないことを検証する。
     /// .shader の WAVE のキーワードはコンパイラを切り替えないので、使っていなければ報告する。
     /// </summary>
     [Theory]
@@ -303,7 +303,7 @@ public sealed class CompileTargetRuleTests
     [InlineData("UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING", false)]
     [InlineData("UNITY_DEVICE_SUPPORTS_WAVE_ANY", true)]
     public void コンパイラを切り替えるキーワードは条件に無くても使われている(string keyword, bool expected)
-        => Assert.Equal(expected, Analyze($"#pragma multi_compile _ {keyword}", "return 1;", "6.3").Any(d => d.Id == "HL0331"));
+        => Assert.Equal(expected, Analyze($"#pragma multi_compile _ {keyword}", "return 1;", "6.3").Any(d => d.Id == "CF0202"));
 
     /// <summary>カーネルの無いコンピュートシェーダーには、頂点・フラグメントではなく #pragma kernel を求めることを検証する (UN0301)。</summary>
     [Fact]
@@ -327,7 +327,7 @@ public sealed class CompileTargetRuleTests
             "6.3",
             "Texture2D _ProbeTexture; sampler2D _ProbeSampler = sampler_state { Texture = <_ProbeTexture>; };");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0310" or "HL0001");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "CF0310" or "CF0001");
     }
 
     [Fact]

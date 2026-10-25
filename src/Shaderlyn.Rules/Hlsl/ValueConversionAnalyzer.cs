@@ -11,12 +11,12 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 値が受け取る側の型に収まっているかを検査する (HL0350 / HL0351)。
+/// 値が受け取る側の型に収まっているかを検査する (CF0410 / CF0411)。
 /// </summary>
 /// <remarks>
 /// <para>
 /// 代入・初期化・<c>return</c> のいずれも「値を受け取る側へ渡す」点で同じであり、
-/// 判定も引数の受け渡し (HL0340) と同じ規則で書ける。
+/// 判定も引数の受け渡し (CF0401) と同じ規則で書ける。
 /// </para>
 /// <para>
 /// <b>1 本の木で型が決まる場合、ここでは出現条件を見ない。</b>
@@ -25,7 +25,7 @@ namespace Shaderlyn.Rules;
 /// それは型の評価器が既に解いている。
 /// </para>
 /// <para>
-/// 型が決まらなかったときだけ、構成ごとに求め直す (HL0353)。
+/// 型が決まらなかったときだけ、構成ごとに求め直す (CF0413)。
 /// 同じ名前を条件ごとに違う型で宣言していると 1 本の木では型が決まらず、
 /// そのままでは成分が落ちる構成があっても何も言えない。
 /// </para>
@@ -852,8 +852,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="Assumption">その食い違いが起きる構成。</param>
     /// <param name="ValueType">その構成での値の型。</param>
     /// <param name="Convertible">
-    /// 渡せはするかどうか。<see langword="true"/> なら成分が落ちるだけ (HL0353)、
-    /// <see langword="false"/> なら渡せない (HL0350 / HL0351)。
+    /// 渡せはするかどうか。<see langword="true"/> なら成分が落ちるだけ (CF0413)、
+    /// <see langword="false"/> なら渡せない (CF0410 / CF0411)。
     /// </param>
     private readonly record struct ConfigurationFinding(
         SymbolCondition Assumption,
@@ -1017,7 +1017,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// 構成ごとに展開した経路では同じ誤りが <c>return</c> の位置に出る。
     /// 位置がずれると、並べる経路と並べない経路の突き合わせで別の指摘に見える
     /// (<c>BothBranchConsistencyTests</c>)。
-    /// 成分が落ちるだけの構成 (HL0353) は、
+    /// 成分が落ちるだけの構成 (CF0413) は、
     /// どの構成でも展開した経路には出ないので式の位置を指す。
     /// </remarks>
     private static void AnalyzeReturnByConfiguration(

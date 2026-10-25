@@ -959,7 +959,7 @@ internal static class ConfigurationLoader
         /// rules:
         ///   /SL.*/: error
         ///   SL1003: error
-        ///   HL0351:
+        ///   CF0411:
         ///     severity: warning
         ///     options: { maxSamplers: 8 }
         /// </code>

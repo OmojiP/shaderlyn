@@ -542,14 +542,14 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(unity, tree.Root.Declarations.Any(d => d is FunctionDeclarationSyntax { Name: "Shared" }));
 
         // 知らない指令は、知らない指令として報告する。
-        Assert.Equal(!unity, tree.Diagnostics.Any(d => d.Id == "HL0002"));
+        Assert.Equal(!unity, tree.Diagnostics.Any(d => d.Id == "CF0002"));
     }
 
     /// <summary>
     /// <c>[[vk::binding(0, 0)]]</c> のような二重角括弧の注釈を読み飛ばすことを検証する。
     /// </summary>
     /// <remarks>
-    /// 読み飛ばさないと、後ろの宣言が丸ごと <c>HL0001</c> になり、
+    /// 読み飛ばさないと、後ろの宣言が丸ごと <c>CF0001</c> になり、
     /// その uniform を使っている場所が「宣言されていない」ことになる。
     /// 注釈が指示するのはレジスタの割り当てで、この解析ツールはそれを検査しない。
     /// </remarks>
@@ -893,7 +893,7 @@ public sealed class HlslRobustnessTests
         ShaderSyntaxTree tree = HlslHarness.Parse(content);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
-        Assert.Equal("HL0001", diagnostic.Id);
+        Assert.Equal("CF0001", diagnostic.Id);
         Assert.StartsWith($"'{macro}(' を宣言として読めません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
     }
 }

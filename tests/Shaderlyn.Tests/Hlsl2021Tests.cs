@@ -138,7 +138,7 @@ public sealed class Hlsl2021Tests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
-        Assert.Equal("HL0312", diagnostic.Id);
+        Assert.Equal("CF0312", diagnostic.Id);
         Assert.Contains("a, b, f", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -158,7 +158,7 @@ public sealed class Hlsl2021Tests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
-        Assert.Equal("HL0310", diagnostic.Id);
+        Assert.Equal("CF0310", diagnostic.Id);
         Assert.Contains("'i'", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -248,7 +248,7 @@ public sealed class Hlsl2021Tests
         Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
     }
 
-    /// <summary>HLSL 2021 だけなら、HL0354 ではなく HL0310 (宣言されていない) になることを検証する。</summary>
+    /// <summary>HLSL 2021 だけなら、HL0354 ではなく CF0310 (宣言されていない) になることを検証する。</summary>
     [Fact]
     public void HLSL2021ではforの変数の情報を出さない()
     {
@@ -262,7 +262,7 @@ public sealed class Hlsl2021Tests
             """);
 
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0354");
-        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+        Assert.Contains(diagnostics, d => d.Id == "CF0310");
     }
 
     /// <summary>HLSL 2021 の環境で 1 ファイルを解析する。</summary>

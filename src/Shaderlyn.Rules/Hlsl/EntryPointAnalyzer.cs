@@ -12,7 +12,7 @@ using Shaderlyn.Semantics.Environments;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 環境が指定したエントリポイントの関数があるかを検査する (HL0301)。
+/// 環境が指定したエントリポイントの関数があるかを検査する (CF0301)。
 /// </summary>
 /// <remarks>
 /// <para>

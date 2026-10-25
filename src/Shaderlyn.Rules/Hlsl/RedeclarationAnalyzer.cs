@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 同じ名前を 2 回宣言している箇所を報告する (HL0314)。
+/// 同じ名前を 2 回宣言している箇所を報告する (CF0314)。
 /// </summary>
 /// <remarks>
 /// <para>

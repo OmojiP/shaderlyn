@@ -126,7 +126,7 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
                 PredefinedMacros = semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal),
 
                 // 解決できない取り込みは、その中の構文を読めていないことになる。黙っていると、検査したように見える。
-                // HLSL の環境は意味解析のルール (HL0321 など) が伝えるが、この環境にはモデルが無いので展開の段で伝える。
+                // HLSL の環境は意味解析のルール (CF0021 など) が伝えるが、この環境にはモデルが無いので展開の段で伝える。
                 ReportUnresolvedIncludes = true,
             };
 }

@@ -15,7 +15,7 @@ namespace Shaderlyn.Tests;
 /// </para>
 /// <para>
 /// <b>Unity プロジェクトは推定しない。</b> 付けなければ <c>Assets/...</c> などは引けないので、
-/// 引けない理由と、解析対象の上で見つけたプロジェクトを HL0321 の文で伝える。
+/// 引けない理由と、解析対象の上で見つけたプロジェクトを CF0021 の文で伝える。
 /// </para>
 /// </remarks>
 [Collection(CurrentDirectoryCollection.Name)]
@@ -126,9 +126,9 @@ public sealed class IncludePatternTests : IDisposable
         string project = Path.Combine(_root, "project");
         string output = await RunAsync(Path.Combine(project, target), "--no-config", "--unity-project", project);
 
-        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -165,7 +165,7 @@ public sealed class IncludePatternTests : IDisposable
             Environment.CurrentDirectory = Path.Combine(project, "Assets", "Shaders");
             string output = await RunAsync("Main.shader", "--no-config", "--unity-project", project);
 
-            Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+            Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
             Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
 
             // プロジェクトを付けなくても、同じフォルダーのヘッダは引ける。
@@ -200,7 +200,7 @@ public sealed class IncludePatternTests : IDisposable
         string plain = Path.Combine(_root, "plain");
         string output = await RunAsync(Path.Combine(plain, "shaders", "fx", "b.hlsl"), "--config", Path.Combine(plain, ".shaderlyn.yaml"));
 
-        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
     }
 

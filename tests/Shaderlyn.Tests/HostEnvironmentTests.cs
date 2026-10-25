@@ -77,14 +77,14 @@ public sealed class HostEnvironmentTests(ITestOutputHelper output) : IDisposable
             _output.WriteLine($"{diagnostic.Location.LineSpan.Start} {diagnostic.Id}: {diagnostic.GetMessage()}");
         }
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0301" && d.GetMessage().Contains("#pragma entry が指定する関数 'MainPS'", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0312" && d.GetMessage().Contains("QUALITY == 2", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0301" && d.GetMessage().Contains("#pragma entry が指定する関数 'MainPS'", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0312" && d.GetMessage().Contains("QUALITY == 2", StringComparison.Ordinal));
 
         // エンジンの慣習 (USE_) に合う名前だけを、宣言し忘れとして報告する。
         // 値を持つシンボルは名前 (QUALITY) で使われている。原子 (QUALITY==0) を使っていないとは言わない。
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0331");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0202");
 
-        Diagnostic undeclared = Assert.Single(diagnostics, d => d.Id == "HL0330");
+        Diagnostic undeclared = Assert.Single(diagnostics, d => d.Id == "CF0201");
         Assert.Contains("USE_SHADOWS", undeclared.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -101,7 +101,7 @@ public sealed class HostEnvironmentTests(ITestOutputHelper output) : IDisposable
 
         Assert.True(error.Length == 0, error);
         Assert.Equal(ExitCode.DiagnosticsFound, code);
-        Assert.Contains("HL0301", text, StringComparison.Ordinal);
+        Assert.Contains("CF0301", text, StringComparison.Ordinal);
         Assert.Contains("1 ファイルを解析", text, StringComparison.Ordinal);
 
         (_, string environment, _) = await RunAsync([myEngine], _workDirectory, "--env");

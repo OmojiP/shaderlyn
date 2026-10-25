@@ -98,7 +98,7 @@ internal abstract class ShaderParser
     /// <b>構文解析と親の設定だけで CPU 時間の半分</b>を使っていた。
     /// </para>
     /// <para>
-    /// 波括弧は残す。関数が実装を持つかどうか (HL0311) は括弧の有無で決まり、
+    /// 波括弧は残す。関数が実装を持つかどうか (CF0311) は括弧の有無で決まり、
     /// 範囲も括弧から求まる。中の文だけを作らない。
     /// </para>
     /// </remarks>
@@ -453,7 +453,7 @@ internal abstract class ShaderParser
     /// <para>
     /// DXC は C11 の <c>_Static_assert</c> を受け付け、HLSL 2021 では <c>static_assert</c> も使える。
     /// Unreal Engine のシェーダーは <c>HLSL_STATIC_ASSERT</c> マクロを通して、DXC のときにこれを書く
-    /// (<c>Shared/HLSLStaticAssert.h</c>)。読めずにいると、関数の外の表明が構文エラー (HL0001) になっていた。
+    /// (<c>Shared/HLSLStaticAssert.h</c>)。読めずにいると、関数の外の表明が構文エラー (CF0001) になっていた。
     /// </para>
     /// <para>
     /// 式は評価しない。何も宣言しないので、名前の引き方にも関わらない。
@@ -897,7 +897,7 @@ internal abstract class ShaderParser
         {
             equals = Advance();
 
-            // sampler_state { ... } は値ではなくサンプラ状態の指定である。名前として読むと、宣言されていない名前 (HL0310) になる。
+            // sampler_state { ... } は値ではなくサンプラ状態の指定である。名前として読むと、宣言されていない名前 (CF0310) になる。
             if (Current.Text == "sampler_state" && Peek(1).Kind == ShaderSyntaxKind.OpenBraceToken)
             {
                 Advance();
@@ -1032,7 +1032,7 @@ internal abstract class ShaderParser
     /// <c>a &lt; b, c &gt; (d)</c> は、<c>a</c> が template なら呼び出し、そうでなければ比較の並びである。
     /// C++ と同じく、名前の宣言を知らないと決められない。
     /// Unreal Engine の VirtualShadowMapDebug.usf の <c>or(OutputPixel &lt; BorderWidth, OutputPixel &gt;(…))</c> を呼び出しと読み、
-    /// 引数の個数を誤って報告していた (HL0341)。
+    /// 引数の個数を誤って報告していた (CF0402)。
     /// </remarks>
     private readonly HashSet<string> _templateNames = new(StringComparer.Ordinal);
 
@@ -1539,7 +1539,7 @@ internal abstract class ShaderParser
     /// 読み飛ばしても、見送る検査は 1 つも無い。
     /// </para>
     /// <para>
-    /// 読み飛ばさないと、後ろの宣言が丸ごと <c>HL0001</c> になる。
+    /// 読み飛ばさないと、後ろの宣言が丸ごと <c>CF0001</c> になる。
     /// <c>[[vk::binding(0, 0)]] Texture2D _Tex;</c> の <c>_Tex</c> が
     /// 宣言として拾われず、使っている場所が「宣言されていない」ことになっていた。
     /// </para>

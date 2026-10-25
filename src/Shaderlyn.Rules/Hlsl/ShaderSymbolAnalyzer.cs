@@ -13,7 +13,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (HL0330 / HL0331 / HL0332)。
+/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (CF0201 / CF0202 / CF0203)。
 /// </summary>
 /// <remarks>
 /// <para>

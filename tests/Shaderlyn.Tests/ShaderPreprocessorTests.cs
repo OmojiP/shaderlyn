@@ -46,7 +46,7 @@ public sealed class MacroExpansionTests
     [InlineData("#ifdef\n#endif\n")]
     public void 名前の無い指令は指令名を指す(string content)
     {
-        Diagnostic diagnostic = Assert.Single(PreprocessorHarness.Run(content).Diagnostics, d => d.Id == "HL0002");
+        Diagnostic diagnostic = Assert.Single(PreprocessorHarness.Run(content).Diagnostics, d => d.Id == "CF0002");
 
         Assert.Equal("test.hlsl", diagnostic.Location.FilePath);
         Assert.Equal(0, diagnostic.Location.LineSpan.Start.Line);
@@ -252,7 +252,7 @@ public sealed class MacroExpansionTests
             TWO(1)
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0002");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0002");
     }
 
     [Fact]
@@ -452,14 +452,14 @@ public sealed class ConditionalCompilationTests
             code
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0002");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0002");
     }
 
     [Fact]
     public void 対応するifのないendifを報告する()
     {
         PreprocessResult result = PreprocessorHarness.Run("#endif");
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0002");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0002");
     }
 
     [Fact]
@@ -534,7 +534,7 @@ public sealed class ConditionalCompilationTests
             #endif
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0002");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0002");
     }
 
     [Fact]
@@ -547,7 +547,7 @@ public sealed class ConditionalCompilationTests
             #endif
             """);
 
-        Diagnostic diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "HL0004");
+        Diagnostic diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "CF0003");
 
         Assert.Contains("'#if defined(A0) || defined(A1)'", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal("if defined(A0) || defined(A1)", diagnostic.SuggestedReplacement);
@@ -583,7 +583,7 @@ public sealed class ConditionalCompilationTests
         // #ifndef A || B は「どちらも無い」のか「どちらかが無い」のかが読み取れない。
         PreprocessResult result = PreprocessorHarness.Run($"{directive}\nyes\n#endif");
 
-        Diagnostic diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "HL0004");
+        Diagnostic diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "CF0003");
 
         Assert.Null(diagnostic.SuggestedReplacement);
         Assert.Contains(example, diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -598,7 +598,7 @@ public sealed class ConditionalCompilationTests
             #endif
             """);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CF0003");
     }
 }
 
@@ -660,7 +660,7 @@ public sealed class IncludeHandlingTests
                 ("B.hlsl", "#include \"A.hlsl\"")))
             .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0320");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0020");
     }
 
     [Fact]
@@ -709,7 +709,7 @@ public sealed class IncludeHandlingTests
                 ("B.hlsl", "#pragma once\n#include \"A.hlsl\"\nfromB")))
             .Preprocess(SourceText.From("#include \"A.hlsl\"", "test.hlsl"));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0320");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CF0020");
         Assert.Equal("fromB fromA", string.Join(" ", result.Tokens.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken).Select(t => t.Text)));
         Assert.DoesNotContain(result.Macros.Keys, name => name.Contains("once", StringComparison.Ordinal));
     }
@@ -736,7 +736,7 @@ public sealed class IncludeHandlingTests
         };
 
         PreprocessResult result = PreprocessorHarness.Run("#include \"Missing.hlsl\"", options);
-        Assert.Contains(result.Diagnostics, d => d.Id == "HL0321");
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0021");
     }
 
     [Fact]

@@ -96,7 +96,7 @@ public interface IShaderEnvironment
     /// <param name="unit">対象の単位。</param>
     /// <param name="result">既定の構成で展開した結果。取り込んだヘッダの指令も含む。</param>
     /// <returns>
-    /// エントリポイント。解析は、この名前の関数があるかを確かめる (HL0301)。
+    /// エントリポイント。解析は、この名前の関数があるかを確かめる (CF0301)。
     /// 指定が無い (取り込まれる断片など) なら空。
     /// </returns>
     /// <remarks>
@@ -109,7 +109,7 @@ public interface IShaderEnvironment
     /// 宣言されていない名前が、構成の軸になるシンボルのつもりで書かれたものらしいかを判定する。
     /// </summary>
     /// <param name="name">条件に書かれた名前。</param>
-    /// <returns>シンボルらしければ <see langword="true"/>。宣言し忘れとして報告する (HL0330)。</returns>
+    /// <returns>シンボルらしければ <see langword="true"/>。宣言し忘れとして報告する (CF0201)。</returns>
     /// <remarks>
     /// Unity は「下線で始まる大文字の名前」(<c>_NORMALMAP</c>) という慣習を持つ。
     /// 慣習の無い環境 (<c>_DEBUG</c> などが普通に条件に出る) は常に <see langword="false"/> を返す。
@@ -127,8 +127,8 @@ public interface IShaderEnvironment
     /// エンジンがシェーダーをコンパイルするときにメモリ上で作るもので、エンジンのフォルダーには無いので解決できない。
     /// </para>
     /// <para>
-    /// <b>解決できないことは変わらないが、誤りとしては報告しない (HL0321)。</b>
-    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (HL0005 で伝える)。
+    /// <b>解決できないことは変わらないが、誤りとしては報告しない (CF0021)。</b>
+    /// 中身を知らないので、「宣言が無い」ことを根拠にする検査は行わない (CF0101 で伝える)。
     /// </para>
     /// </remarks>
     bool IsGeneratedInclude(string path);
@@ -149,7 +149,7 @@ public interface IShaderEnvironment
     /// </para>
     /// <para>
     /// <b>これらが解決できなくても、ほかの名前の関数の多重定義は欠けていない。</b>
-    /// 呼び出しを多重定義と照らす検査 (HL0340 / HL0341) は、その名前の多重定義が欠けていない限り続ける
+    /// 呼び出しを多重定義と照らす検査 (CF0401 / CF0402) は、その名前の多重定義が欠けていない限り続ける
     /// (<see cref="ShaderCompilation.MayLackOverloadsOf"/>)。
     /// </para>
     /// </remarks>
@@ -167,7 +167,7 @@ public interface IShaderEnvironment
     /// 値はシェーダーやパーミュテーションごとに変わるので、名前だけが分かる。
     /// </para>
     /// <para>
-    /// <b>こうした名前は、シェーダーの中に定義が無くても「宣言されていない」(HL0310) とは言わない。</b>
+    /// <b>こうした名前は、シェーダーの中に定義が無くても「宣言されていない」(CF0310) とは言わない。</b>
     /// </para>
     /// </remarks>
     bool IsDefinedByEngine(string name) => false;
@@ -197,7 +197,7 @@ public interface IShaderEnvironment
     /// <returns>エンジンが定義を足すなら <see langword="true"/>。既定は <see langword="false"/>。</returns>
     /// <remarks>
     /// Unreal の前処理は、どのシェーダーにも <c>ShaderPrintGetChar</c> などの定義を足す (UE 5.5 の <c>ShaderPreprocessor.cpp</c>)。
-    /// ヘッダは宣言だけを書くので、定義が無いこと (HL0311) を誤りにしない。
+    /// ヘッダは宣言だけを書くので、定義が無いこと (CF0311) を誤りにしない。
     /// </remarks>
     bool IsFunctionDefinedByEngine(string name) => false;
 }
