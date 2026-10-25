@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -59,7 +60,7 @@ internal static partial class CompletionBuilder
                 return [];
 
             case CompletionPlace.DirectiveName:
-                return BuildDirectives();
+                return BuildDirectives(compilation.IsGlsl);
 
             // #pragma の名前とエントリポイントの指定は Unity の書き方である。ほかの環境では #pragma を読まない。
             case CompletionPlace.PragmaName:
@@ -249,6 +250,13 @@ internal static partial class CompletionBuilder
 
                     case StructDeclarationSyntax structure when compilation.IsWrittenHere(structure):
                         Add(structure.Name, KindStruct, "struct");
+
+                        // 構造体に続けて宣言した変数 (struct Light { … } light;、GLSL の uniform UBO { … } ubo;)。
+                        foreach (VariableDeclaratorSyntax declarator in structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                        {
+                            Add(declarator.Name, KindVariable, structure.Name);
+                        }
+
                         break;
 
                     default:
@@ -265,19 +273,39 @@ internal static partial class CompletionBuilder
             }
         }
 
-        foreach (string name in compilation.TypeSystem.FunctionNames)
+        // 組み込みは、ファイルの言語のバージョンとステージで使えるものだけを出す (GLSL の gl_FragCoord はフラグメントシェーダーだけ)。
+        ShaderTypeSystem types = compilation.Programs.IsEmpty
+            ? compilation.TypeSystem
+            : compilation.TypeSystem.ForTree(compilation.Programs[0].Tree);
+
+        foreach (string name in types.FunctionNames)
         {
             Add(name, KindFunction, "組み込み関数");
         }
 
-        foreach (string name in HlslKeywords.BuiltInTypes)
+        if (types is GlslTypeSystem glsl)
         {
-            Add(name, KindKeyword, "型");
-        }
+            foreach (string name in glsl.Builtins.VariableNames)
+            {
+                Add(name, KindVariable, $"{glsl.Builtins.GetVariable(name)?.Type} (組み込み変数)");
+            }
 
-        foreach (string name in HlslKeywords.ObjectTypes)
+            foreach (string name in GlslKeywords.BuiltInTypes)
+            {
+                Add(name, KindKeyword, "型");
+            }
+        }
+        else
         {
-            Add(name, KindKeyword, "型");
+            foreach (string name in HlslKeywords.BuiltInTypes)
+            {
+                Add(name, KindKeyword, "型");
+            }
+
+            foreach (string name in HlslKeywords.ObjectTypes)
+            {
+                Add(name, KindKeyword, "型");
+            }
         }
 
         return [.. items.Values.OrderBy(i => i.Label, StringComparer.Ordinal)];

@@ -2,7 +2,7 @@
 
 Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.compute`）のリアルタイム静的解析・コーディング支援を提供する VS Code 拡張機能です。
 DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[Unity 以外の環境で使う](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査します。説明（ホバー）・定義へ移動・補完は、GLSL ではまだ働きません。
+GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
 
 ## 主な機能
 

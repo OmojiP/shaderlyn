@@ -88,10 +88,10 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
     /// <summary>
     /// GLSL のファイルは、設定の環境 (ここでは hlsl) が読まない拡張子なので、CLI と同じく GLSL の環境で解析する。
     /// GLSL の型で検査し、HLSL として読んだときの誤り (<c>vec4</c> が宣言されていないなど) は出さない。
-    /// 説明 (ホバー) はまだ GLSL に合わせていないので、空で答える (GL-LSP で答える)。
+    /// 説明 (ホバー) も GLSL の型で答える。
     /// </summary>
     [Fact]
-    public async Task GLSLのファイルを検査し_説明はまだ出さない()
+    public async Task GLSLのファイルをGLSLの型で検査し説明する()
     {
         string uri = DocumentUri("Shader.frag");
         await using LanguageServerHarness harness = new(uri);
@@ -114,7 +114,7 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
         Assert.All(codes, code => Assert.Contains(code, (string[])["CF0001", "CF0101"]));
 
         using JsonDocument hover = await harness.RequestHoverAsync(4, 9);
-        Assert.Equal(JsonValueKind.Null, hover.RootElement.GetProperty("result").ValueKind);
+        Assert.Contains("vec4", hover.RootElement.GetProperty("result").GetProperty("contents").GetProperty("value").GetString(), StringComparison.Ordinal);
     }
 
     /// <summary>ワークスペースの中のファイルの URI。</summary>

@@ -230,7 +230,7 @@ GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` 
 
 GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Samples、GLSL ES の ARM OpenGL ES SDK、約 790 ファイル) で、誤りと警告を出さないことを確かめています。
 
-VS Code 拡張の説明 (ホバー)・定義へ移動・補完は、GLSL のファイルではまだ働きません。
+VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内も、GLSL の型と組み込みで答えます (組み込み関数の説明と引数の案内には、glslang の表の多重定義を並べます)。
 
 - `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
   HLSL と同じく、解析対象の外のファイルは読みません

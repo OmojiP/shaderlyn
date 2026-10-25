@@ -20,6 +20,10 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
   - インターフェースブロック (`uniform UBO { … } ubo;` と、インスタンスの名前の無いもの)、`layout(buffer_reference)` のブロック、型の側に書いた配列 (`float[3] a`) を読む
   - 取り込まれる断片 (`.glsl`) を単体で解析したときは、取り込む側の宣言が分からないので、宣言が無いことを根拠にする検査を見送り、CF0101 (情報) で伝える
   - Vulkan (SaschaWillems・Vulkan-Samples) と GLSL ES (ARM OpenGL ES SDK) のシェーダー、約 790 ファイルで誤りと警告が出ないことを確かめた
+- VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内が、GLSL のファイルでも働く (0.3.0 で予告したもの)。
+  型と組み込みは GLSL のもので答える。組み込み関数の説明と引数の案内には、glslang の表の多重定義を、書いた実引数の型に合うものから並べる。
+  補完は、ファイルのステージとバージョンで使える組み込み関数と変数 (`gl_FragCoord` など) を出し、HLSL の型や関数は出さない。`#` の後には `#version` / `#extension` も出す
+- 補完に、構造体に続けて宣言した変数 (`struct Light { … } light;`、GLSL の `uniform UBO { … } ubo;`) を出す
 - 自作ルール向け: `StructDeclarationSyntax.Modifiers` (キーワードの前の修飾子。GLSL のインスタンスの名前を持つインターフェースブロックを構造体の宣言として表すときに使う)
 - GLSL のファイルで、設定ファイルの `symbols:` を構成の軸にする (HLSL と同じ書き方)。`#ifdef` の両方の分岐の構文を読む
 - GLSL のファイルの `#version` を読み、glslang と同じマクロ (`__VERSION__`、`GL_ES`、`GL_core_profile` など) を定義する。

@@ -23,6 +23,21 @@ internal sealed record GlslBuiltinFunction(
 
     /// <summary>型の決まった仮引数の数 (<c>...</c> を除く)。</summary>
     public int FixedParameterCount => IsVariadic ? Parameters.Length - 1 : Parameters.Length;
+
+    /// <summary>
+    /// 拡張で足される型 (16 ビット・64 ビットの数値、<c>f16sampler2D</c>、協調行列など) を使う形か。
+    /// </summary>
+    /// <remarks>説明と引数の案内で、よく使う形を先に並べるのに使う。</remarks>
+    public bool UsesExtensionTypes => Parameters.Append(ReturnType).Any(t =>
+        t.Contains("16", StringComparison.Ordinal)
+        || t.Contains("64", StringComparison.Ordinal)
+        || t.Contains("8_t", StringComparison.Ordinal)
+        || t.StartsWith("i8", StringComparison.Ordinal)
+        || t.StartsWith("u8", StringComparison.Ordinal)
+        || t.StartsWith("bfloat", StringComparison.Ordinal)
+        || t.StartsWith("floate", StringComparison.Ordinal)
+        || t.StartsWith("coop", StringComparison.Ordinal)
+        || t.StartsWith("tensor", StringComparison.Ordinal));
 }
 
 /// <summary>GLSL の組み込み変数 1 つ。</summary>
@@ -272,10 +287,14 @@ internal sealed class GlslBuiltinView
         _table = table;
         _selected = selected;
         FunctionNames = [.. table.Functions.Where(p => p.Value.Any(f => table.Intersects(f.Set, selected))).Select(p => p.Key).Order(StringComparer.Ordinal)];
+        VariableNames = [.. table.Variables.Where(p => p.Value.Any(v => table.Intersects(v.Set, selected))).Select(p => p.Key).Order(StringComparer.Ordinal)];
     }
 
     /// <summary>使える関数の名前。</summary>
     public ImmutableArray<string> FunctionNames { get; }
+
+    /// <summary>使える組み込み変数の名前。</summary>
+    public ImmutableArray<string> VariableNames { get; }
 
     /// <summary>その名前の関数の多重定義のうち、使えるもの。</summary>
     /// <param name="name">名前。</param>

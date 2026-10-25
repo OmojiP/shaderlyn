@@ -55,10 +55,7 @@ internal sealed class AnalysisSession
     /// <summary>
     /// モデルを使う機能 (ホバー・定義へ移動・補完など) が働くか。構文だけを読む環境 (Godot など) では作らず、働かない。
     /// </summary>
-    /// <remarks>
-    /// GLSL はモデルを作るが、これらの機能はまだ HLSL の型と組み込みで答えるので、働かせない (GL-LSP で GLSL に合わせる)。
-    /// </remarks>
-    public bool HasSemanticModel => _environment.ShaderEnvironment is not (null or Semantics.Environments.GlslEnvironment);
+    public bool HasSemanticModel => _environment.ShaderEnvironment is not null;
 
     /// <summary>解析する環境が、設定が無いときに解析する拡張子。</summary>
     public ImmutableArray<string> DefaultExtensions => _environment.DefaultExtensions;
