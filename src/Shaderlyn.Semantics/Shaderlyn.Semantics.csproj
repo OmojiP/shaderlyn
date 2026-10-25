@@ -13,6 +13,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- GLSL の組み込みの関数と変数の表。tools/glsl/builtins.mjs が glslang から作る -->
+  <ItemGroup>
+    <EmbeddedResource Include="Symbols\GlslBuiltins.g.txt" LogicalName="Shaderlyn.Semantics.GlslBuiltins.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Shaderlyn.Rules" />
     <InternalsVisibleTo Include="Shaderlyn.Testing" />

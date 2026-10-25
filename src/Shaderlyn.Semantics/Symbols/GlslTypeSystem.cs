@@ -31,7 +31,7 @@ namespace Shaderlyn.Semantics.Symbols;
 /// 明示的な幅の算術型の変換は、拡張で決まる規則がまだ無いので、同じ型でなければ通す。
 /// </para>
 /// <para>
-/// 組み込みの関数と変数は、まだ知らない (GL2b で足す)。
+/// 組み込みの関数と変数は、glslang から作った表 (<see cref="GlslBuiltins"/>) を、木のバージョン・プロファイル・ステージで絞って引く。
 /// </para>
 /// </remarks>
 internal sealed class GlslTypeSystem : ShaderTypeSystem
@@ -155,37 +155,52 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["ExternalOES"] = ShaderTypeClass.Texture2D,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    /// <summary>変換の範囲ごとの型システム。</summary>
-    private static readonly ConcurrentDictionary<ConversionLevel, GlslTypeSystem> ByLevel = new();
+    /// <summary>バージョン・プロファイル・ステージごとの型システム。</summary>
+    private static readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage), GlslTypeSystem> ByConfiguration = new();
+
+    /// <summary>組み込みの表で、どの型にも合う仮引数と、実引数と同じ型の戻り値を表す名前 (<c>nonuniformEXT</c>)。</summary>
+    private const string AnyType = "*";
 
     private readonly ConversionLevel _level;
+    private readonly int? _version;
+    private readonly GlslProfile _profile;
+    private readonly GlslShaderStage? _stage;
+    private GlslBuiltinView? _builtins;
 
-    private GlslTypeSystem(ConversionLevel level) => _level = level;
-
-    /// <summary>言語のバージョンが分からないときの型システム (4.00 以降の変換)。</summary>
-    public static GlslTypeSystem Instance { get; } = For(ConversionLevel.Full);
-
-    /// <summary>言語のバージョンとプロファイルの型システムを返す。</summary>
-    /// <param name="version">バージョン。分からなければ <see langword="null"/>。</param>
-    /// <param name="profile">プロファイル。</param>
-    /// <returns>型システム。</returns>
-    public static GlslTypeSystem For(int? version, GlslProfile profile)
-        => For(version switch
+    private GlslTypeSystem(int? version, GlslProfile profile, GlslShaderStage? stage)
+    {
+        _version = version;
+        _profile = profile;
+        _stage = stage;
+        _level = version switch
         {
             null => ConversionLevel.Full,
             _ when profile == GlslProfile.Es => ConversionLevel.None,
             < 120 => ConversionLevel.None,
             < 400 => ConversionLevel.IntegerToFloat,
             _ => ConversionLevel.Full,
-        });
+        };
+    }
 
-    private static GlslTypeSystem For(ConversionLevel level) => ByLevel.GetOrAdd(level, static l => new GlslTypeSystem(l));
+    /// <summary>言語のバージョンもステージも分からないときの型システム (4.00 以降の変換、すべての組み込み)。</summary>
+    public static GlslTypeSystem Instance { get; } = For(null, GlslProfile.Core);
+
+    /// <summary>言語のバージョン・プロファイル・ステージの型システムを返す。</summary>
+    /// <param name="version">バージョン。分からなければ <see langword="null"/>。</param>
+    /// <param name="profile">プロファイル。</param>
+    /// <param name="stage">ステージ。分からなければ <see langword="null"/>。</param>
+    /// <returns>型システム。</returns>
+    public static GlslTypeSystem For(int? version, GlslProfile profile, GlslShaderStage? stage = null)
+        => ByConfiguration.GetOrAdd((version, profile, stage), static key => new GlslTypeSystem(key.Version, key.Profile, key.Stage));
+
+    /// <summary>この構成で使える組み込みの関数と変数。表は初めて使うときに読む。</summary>
+    internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage);
 
     /// <inheritdoc/>
     internal override ShaderTypeSystem ForTree(ShaderSyntaxTree tree)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        return tree.Language is GlslLanguageOptions language ? For(language.Version, language.Profile) : this;
+        return tree.Language is GlslLanguageOptions language ? For(language.Version, language.Profile, language.Stage) : this;
     }
 
     /// <inheritdoc/>
@@ -201,7 +216,7 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     public override ImmutableArray<string> ComponentNameSets { get; } = ["xyzw", "rgba", "stpq"];
 
     /// <inheritdoc/>
-    public override IReadOnlyCollection<string> FunctionNames { get; } = [];
+    public override IReadOnlyCollection<string> FunctionNames => Builtins.FunctionNames;
 
     // --------------------------------------------------------------------
     // 型の名前と形
@@ -225,13 +240,14 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
             return ShaderTypeClass.Sampler;
         }
 
-        // [i|u](sampler|texture|image)<次元>
+        // [i|u|f16](sampler|texture|image)<次元>
         string name = typeName ?? string.Empty;
 
         foreach (string kind in (ReadOnlySpan<string>)["sampler", "texture", "image"])
         {
             int start = name.StartsWith(kind, StringComparison.Ordinal) ? 0
                 : name.Length > 1 && name[0] is 'i' or 'u' && name.AsSpan(1).StartsWith(kind, StringComparison.Ordinal) ? 1
+                : name.StartsWith("f16", StringComparison.Ordinal) && name.AsSpan(3).StartsWith(kind, StringComparison.Ordinal) ? 3
                 : -1;
 
             if (start >= 0 && Dimensions.TryGetValue(name[(start + kind.Length)..], out ShaderTypeClass dimension))
@@ -449,20 +465,118 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     }
 
     // --------------------------------------------------------------------
-    // 組み込み (GL2b で足す)
+    // 組み込み
     // --------------------------------------------------------------------
 
     /// <inheritdoc/>
-    public override bool IsKnownConstant(string? name) => false;
+    /// <remarks>組み込み変数 (<c>gl_FragCoord</c>、<c>gl_MaxDrawBuffers</c> など) を含む。この型システムのステージとバージョンで使えるものだけ。</remarks>
+    public override bool IsKnownConstant(string? name) => name is not null && Builtins.GetVariable(name) is not null;
 
     /// <inheritdoc/>
-    public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree) => false;
+    public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        return name is not null && !((GlslTypeSystem)ForTree(tree)).Builtins.GetFunctions(name).IsEmpty;
+    }
+
+    /// <inheritdoc/>
+    internal override bool TryGetIntrinsicArity(string name, out IntrinsicArity arity)
+    {
+        ImmutableArray<GlslBuiltinFunction> overloads = Builtins.GetFunctions(name);
+        arity = new IntrinsicArity([.. overloads.Select(f => f.Parameters.Length).Distinct().Order()], -1);
+        return !overloads.IsEmpty;
+    }
+
+    /// <inheritdoc/>
+    internal override bool ResolvesIntrinsicsByOverloads => true;
+
+    /// <inheritdoc/>
+    internal override ResolvedTypeName? GetBuiltinVariable(string name)
+    {
+        if (Builtins.GetVariable(name) is not { } variable)
+        {
+            return null;
+        }
+
+        // vec4[] / float[32] / block[32]
+        int bracket = variable.Type.IndexOf('[', StringComparison.Ordinal);
+        return bracket < 0
+            ? new ResolvedTypeName(variable.Type, IsArray: false)
+            : new ResolvedTypeName(variable.Type[..bracket], IsArray: true, ArrayDimensions: variable.Type.Count(c => c == '['));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 引数の数が合う多重定義のうち、実引数の型と同じ仮引数を持つもの、無ければ暗黙に変換できるものを選ぶ (GLSL 4.60 の 6.1 節)。
+    /// 型の分からない実引数はどの仮引数にも合うものとする。選んだ多重定義の戻り値の型が 1 つに決まるときだけ答える。
+    /// </remarks>
+    internal override bool TryResolveIntrinsic(string name, ImmutableArray<string?> argumentTypes, out string? resultType)
+    {
+        resultType = null;
+        ImmutableArray<GlslBuiltinFunction> overloads = Builtins.GetFunctions(name);
+
+        if (overloads.IsEmpty)
+        {
+            return false;
+        }
+
+        GlslBuiltinFunction[] fitting = [.. overloads.Where(f => f.Parameters.Length == argumentTypes.Length)];
+        GlslBuiltinFunction[] exact = [.. fitting.Where(f => Matches(f, exact: true))];
+        GlslBuiltinFunction[] chosen = exact.Length > 0 ? exact : [.. fitting.Where(f => Matches(f, exact: false))];
+        string?[] results = [.. chosen.Select(ReturnTypeOf).Distinct(StringComparer.Ordinal)];
+
+        resultType = results.Length == 1 ? results[0] : null;
+        return true;
+
+        // * (nonuniformEXT) は実引数と同じ型を返す。
+        string? ReturnTypeOf(GlslBuiltinFunction function)
+            => function.ReturnType == AnyType
+                ? function.Parameters.IndexOf(AnyType) is >= 0 and int index ? argumentTypes[index] : null
+                : function.ReturnType;
+
+        bool Matches(GlslBuiltinFunction function, bool exact)
+        {
+            for (int i = 0; i < argumentTypes.Length; i++)
+            {
+                if (argumentTypes[i] is not { } argument)
+                {
+                    continue;
+                }
+
+                string parameter = function.Parameters[i];
+
+                if (parameter == AnyType)
+                {
+                    continue;
+                }
+
+                if (exact ? !SameType(argument, parameter) : !IsConvertible(argument, parameter, function.WritesBack[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>2 つの型の名前が同じ型を指すか (<c>mat3</c> と <c>mat3x3</c>、<c>vec3</c> と <c>f32vec3</c>)。</summary>
+    /// <param name="left">一方の型の名前。</param>
+    /// <param name="right">もう一方の型の名前。</param>
+    /// <returns>同じ型なら <see langword="true"/>。</returns>
+    private bool SameType(string left, string right)
+        => string.Equals(left, right, StringComparison.Ordinal)
+           || (TryDescribeNumeric(left, out ShaderNumericShape a) && TryDescribeNumeric(right, out ShaderNumericShape b) && a == b);
 
     /// <inheritdoc/>
     public override TextureMethodReturnType GetTextureMethodReturnType(string? name) => TextureMethodReturnType.Unknown;
 
     /// <inheritdoc/>
-    public override bool IsTextureSamplingFunction(string? name) => false;
+    /// <remarks>テクスチャを読む組み込み関数 (<c>texture</c>、<c>textureLod</c>、<c>texelFetch</c> など)。</remarks>
+    public override bool IsTextureSamplingFunction(string? name)
+        => name is not null
+           && (name.StartsWith("texture", StringComparison.Ordinal) || name.StartsWith("texel", StringComparison.Ordinal))
+           && !Builtins.GetFunctions(name).IsEmpty;
 
     /// <inheritdoc/>
     public override IntrinsicResultRule GetResultShape(string? name) => IntrinsicResultRule.Unknown;

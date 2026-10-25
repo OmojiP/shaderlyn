@@ -629,6 +629,13 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateIntrinsic(string name, ImmutableArray<ExpressionSyntax> arguments)
     {
+        // 実引数の型を求めるのは、多重定義の表で答える言語 (GLSL) だけにする。HLSL は下の規則で必要な実引数だけを見る。
+        if (TypeSystem.ResolvesIntrinsicsByOverloads
+            && TypeSystem.TryResolveIntrinsic(name, [.. arguments.Select(Evaluate)], out string? resolved))
+        {
+            return resolved;
+        }
+
         IntrinsicResultRule shape = TypeSystem.GetResultShape(name);
 
         switch (shape)
@@ -711,7 +718,7 @@ public sealed class ExpressionTypeEvaluator
             return self;
         }
 
-        if (_resolve(identifier) is { } resolved)
+        if (Resolve(identifier) is { } resolved)
         {
             return resolved.IsArray ? null : resolved.TypeName;
         }
@@ -810,6 +817,12 @@ public sealed class ExpressionTypeEvaluator
         };
     }
 
+    /// <summary>名前の宣言の型を引く。宣言が見つからなければ、組み込み変数 (GLSL の <c>gl_FragCoord</c> など) を引く。</summary>
+    /// <param name="identifier">名前。</param>
+    /// <returns>型。分からなければ <see langword="null"/>。</returns>
+    private ResolvedTypeName? Resolve(IdentifierExpressionSyntax identifier)
+        => _resolve(identifier) ?? TypeSystem.GetBuiltinVariable(identifier.Name);
+
     /// <summary>添字の起点が配列なら、その宣言の型を求める。</summary>
     /// <param name="root">添字を重ねた式の、いちばん内側の対象。</param>
     /// <returns>配列の宣言の型。配列でないか分からなければ <see langword="null"/>。</returns>
@@ -820,7 +833,7 @@ public sealed class ExpressionTypeEvaluator
     {
         switch (root)
         {
-            case IdentifierExpressionSyntax identifier when _resolve(identifier) is { IsArray: true } resolved:
+            case IdentifierExpressionSyntax identifier when Resolve(identifier) is { IsArray: true } resolved:
                 return resolved;
 
             case MemberAccessExpressionSyntax member

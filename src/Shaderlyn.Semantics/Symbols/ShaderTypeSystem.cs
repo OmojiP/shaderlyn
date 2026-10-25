@@ -93,6 +93,26 @@ public abstract class ShaderTypeSystem
     /// <remarks>GLSL の <c>==</c> はベクトルどうしでも <c>bool</c> を返す。成分ごとの比較は <c>equal</c> などの組み込み関数で書く。</remarks>
     internal virtual bool ComparesWholeValues => false;
 
+    /// <summary>組み込み変数 (GLSL の <c>gl_FragCoord</c> など) の型を引く。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>型。組み込み変数でなければ <see langword="null"/> (既定)。</returns>
+    /// <remarks>式の型を求めるとき、宣言の見つからない名前について尋ねる。</remarks>
+    internal virtual ResolvedTypeName? GetBuiltinVariable(string name) => null;
+
+    /// <summary>組み込み関数の呼び出しの型を、多重定義の表 (<see cref="TryResolveIntrinsic"/>) で求めるか (GLSL)。既定は <see langword="false"/>。</summary>
+    internal virtual bool ResolvesIntrinsicsByOverloads => false;
+
+    /// <summary>組み込み関数の呼び出しの型を、多重定義の表から求める。</summary>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="argumentTypes">実引数の型。分からないものは <see langword="null"/>。</param>
+    /// <param name="resultType">戻り値の型。決まらなければ <see langword="null"/>。</param>
+    /// <returns>表で答えたなら <see langword="true"/>。<see langword="false"/> なら、決め方の規則 (<see cref="GetResultShape"/>) で求める (既定)。</returns>
+    internal virtual bool TryResolveIntrinsic(string name, ImmutableArray<string?> argumentTypes, out string? resultType)
+    {
+        resultType = null;
+        return false;
+    }
+
     /// <summary>配列とベクトルが <c>.length()</c> (結果は <c>int</c>) を持つか (GLSL)。</summary>
     internal virtual bool HasLengthMethod => false;
 
