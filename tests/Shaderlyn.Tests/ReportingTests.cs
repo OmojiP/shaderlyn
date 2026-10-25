@@ -517,6 +517,45 @@ public sealed class ReportingTests : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// 取り込む側で定義したマクロを、取り込んだファイルの中でマクロの実引数に書いても書き出せる。
+    /// 展開したトークンの実引数の位置が取り込む側を指し、取り込んだファイルの長さを超えて落ちていた
+    /// (Unreal の LargeWorldCoordinates.ush の <c>#define FBoolType bool</c> と、LWCOperations.ush の <c>LWC_COMPARE_OP(…, FBoolType)</c>)。
+    /// </summary>
+    [Fact]
+    public async Task 取り込む側のマクロを実引数に書いた宣言も書き出せる()
+    {
+        string path = Path.Combine(_workDirectory, "inspect-nested.html");
+        string directory = Path.Combine(_workDirectory, "Nested");
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "Ops.hlsl"), """
+            #define COMPARE_OP(Name, BoolType) BoolType Name(float a, float b) { return a > b; }
+            COMPARE_OP(Greater, BoolType)
+            """);
+
+        // 取り込まれる側より長くし、マクロの定義をその長さより後ろに置く。
+        string padding = string.Concat(Enumerable.Repeat("// padding padding padding padding padding\n", 20));
+        string shaderPath = Path.Combine(directory, "Main.hlsl");
+        await File.WriteAllTextAsync(shaderPath, padding + """
+            #define BoolType bool
+            #include "Ops.hlsl"
+            float4 main() : SV_Target { return Greater(1, 0) ? 1 : 0; }
+            """);
+
+        StringWriter output = new();
+        StringWriter error = new();
+
+        ExitCode code = await Program.RunAsync(
+            [shaderPath, "--no-config", "--environment", "hlsl", "--inspect", path],
+            BuiltInAnalyzers.All,
+            output,
+            error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(ExitCode.Success, code);
+        Assert.Contains("Greater", await File.ReadAllTextAsync(path), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task 解析の中身をHTMLとして書き出せる()
     {

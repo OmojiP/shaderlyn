@@ -10,6 +10,12 @@ CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージ
 
 ## [未リリース]
 
+### 修正
+
+- `--inspect` が、取り込む側で定義したマクロを、取り込んだファイルの中でマクロの実引数に書いた宣言で落ちていた
+  (Unreal Engine の `LargeWorldCoordinates.ush` の `#define FBoolType bool` と、`LWCOperations.ush` の `LWC_COMPARE_OP(…, FBoolType)`。
+  エンジンのマテリアルのシェーダーの多くがこれを取り込む)。こうしたトークンの指摘の位置は、マクロの呼び出し位置にする
+
 ## [0.3.0] - 2026-10-25
 
 Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ から読んだ登録・パーミュテーション・プロジェクトの設定で検査できるようにした。

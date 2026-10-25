@@ -136,8 +136,12 @@ public sealed class ShaderSyntaxToken
 
     /// <summary>このトークンの位置を診断用の位置情報として返す。</summary>
     /// <returns>ソーステキストと範囲を組み合わせた位置。</returns>
-    /// <remarks>マクロの実引数として書かれたトークンは、書かれた位置 (<see cref="MacroArgumentSpan"/>) を指す。</remarks>
-    public Core.Diagnostics.Location GetLocation() => Core.Diagnostics.Location.Create(Source, MacroArgumentSpan ?? Span);
+    /// <remarks>
+    /// マクロの実引数として書かれたトークンは、書かれた位置 (<see cref="MacroArgumentSpan"/>) を指す。
+    /// マクロを入れ子に使うと、書かれた位置が呼び出し位置のファイルの外になることがある。そのときは呼び出し位置を指す。
+    /// </remarks>
+    public Core.Diagnostics.Location GetLocation()
+        => Core.Diagnostics.Location.Create(Source, MacroArgumentSpan is { } argument && argument.End <= Source.Length ? argument : Span);
 
     /// <summary>
     /// トークンのテキストを大文字小文字を区別して比較する。
