@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Unity;
 
@@ -16,7 +16,7 @@ namespace Shaderlyn.Unity;
 internal readonly record struct ComputeKernel(
     string Name,
     ImmutableDictionary<string, string> Macros,
-    HlslSyntaxToken NameToken);
+    ShaderSyntaxToken NameToken);
 
 /// <summary>
 /// <c>#pragma kernel</c> を、展開が始まる前に読み取る。
@@ -54,7 +54,7 @@ internal static class ComputeKernels
     /// 同じ名前のカーネルが 2 度書かれていても、書かれた分だけ返す。
     /// 重複はそれ自体が誤りであり、ここで何も伝えずに 1 つにまとめると見えなくなる。
     /// </remarks>
-    public static ImmutableArray<ComputeKernel> Collect(ImmutableArray<HlslSyntaxToken> tokens)
+    public static ImmutableArray<ComputeKernel> Collect(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         ImmutableArray<ComputeKernel>.Builder kernels = ImmutableArray.CreateBuilder<ComputeKernel>();
 
@@ -65,9 +65,9 @@ internal static class ComputeKernels
                 continue;
             }
 
-            HlslSyntaxToken nameToken = tokens[i + 3];
+            ShaderSyntaxToken nameToken = tokens[i + 3];
 
-            if (nameToken.Kind != HlslSyntaxKind.IdentifierToken || nameToken.IsAtLineStart)
+            if (nameToken.Kind != ShaderSyntaxKind.IdentifierToken || nameToken.IsAtLineStart)
             {
                 continue;
             }
@@ -85,13 +85,13 @@ internal static class ComputeKernels
     /// <param name="tokens">トークン列。</param>
     /// <param name="index">判定する位置。</param>
     /// <returns>始まっていれば <see langword="true"/>。</returns>
-    private static bool IsKernelPragma(ImmutableArray<HlslSyntaxToken> tokens, int index)
-        => tokens[index].Kind == HlslSyntaxKind.HashToken
+    private static bool IsKernelPragma(ImmutableArray<ShaderSyntaxToken> tokens, int index)
+        => tokens[index].Kind == ShaderSyntaxKind.HashToken
            && tokens[index].IsAtLineStart
            && index + 2 < tokens.Length
-           && tokens[index + 1].Kind == HlslSyntaxKind.IdentifierToken
+           && tokens[index + 1].Kind == ShaderSyntaxKind.IdentifierToken
            && tokens[index + 1].Text == "pragma"
-           && tokens[index + 2].Kind == HlslSyntaxKind.IdentifierToken
+           && tokens[index + 2].Kind == ShaderSyntaxKind.IdentifierToken
            && tokens[index + 2].Text == "kernel";
 
     /// <summary>
@@ -105,7 +105,7 @@ internal static class ComputeKernels
     /// 値を書かない形は <c>1</c> とみなす。C コンパイラの <c>-D</c> と同じ規則である。
     /// </remarks>
     private static ImmutableDictionary<string, string> ReadMacros(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         int start)
     {
         ImmutableDictionary<string, string>.Builder macros =
@@ -114,7 +114,7 @@ internal static class ComputeKernels
         // 行の終わりまでが引数である。
         for (int i = start; i < tokens.Length && !tokens[i].IsAtLineStart; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.IdentifierToken)
+            if (tokens[i].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }
@@ -123,7 +123,7 @@ internal static class ComputeKernels
 
             if (i + 2 < tokens.Length
                 && !tokens[i + 1].IsAtLineStart
-                && tokens[i + 1].Kind == HlslSyntaxKind.EqualsToken
+                && tokens[i + 1].Kind == ShaderSyntaxKind.EqualsToken
                 && !tokens[i + 2].IsAtLineStart)
             {
                 macros[name] = tokens[i + 2].Text;

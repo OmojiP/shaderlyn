@@ -1,7 +1,9 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
@@ -43,6 +45,15 @@ public sealed class ExpressionTypeBinder
     /// <summary>この木で宣言された uniform。名前ごとに最初の宣言。</summary>
     private readonly FrozenDictionary<string, UniformSymbol> _ownUniforms;
 
+    /// <summary>
+    /// この木で、条件ごとに違う型で宣言された uniform と、その宣言。仮定が無ければ型は 1 つに決まらない。
+    /// </summary>
+    /// <remarks>
+    /// 仮定の下では、その仮定で見える宣言から型を決める (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ImmutableArray{ExpressionSyntax}, ConditionMap)"/>)。
+    /// 局所変数の型が割れているときと同じ扱いである。
+    /// </remarks>
+    private readonly FrozenDictionary<string, ImmutableArray<UniformSymbol>> _ambiguousUniforms;
+
     /// <summary>構造体の名前から、フィールド名とその宣言子への対応。配列の長さを読むのに使う。</summary>
     private readonly FrozenDictionary<string, FrozenDictionary<string, VariableDeclaratorSyntax>> _structFieldDeclarators;
     private readonly FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>> _globalNames;
@@ -71,6 +82,9 @@ public sealed class ExpressionTypeBinder
     /// <summary>型を求める対象の木。</summary>
     public AnalyzedProgram Program { get; }
 
+    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
+    public ShaderTypeSystem TypeSystem => _compilation.TypeSystem;
+
     /// <summary>
     /// 束縛器を生成する。
     /// </summary>
@@ -86,6 +100,10 @@ public sealed class ExpressionTypeBinder
         _ownUniforms = program.Uniforms
             .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        _ambiguousUniforms = program.Uniforms
+            .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
+            .Where(group => group.Select(UniformType).Distinct().Skip(1).Any())
+            .ToFrozenDictionary(group => group.Key, group => group.ToImmutableArray(), StringComparer.Ordinal);
         _functionSignatures = program.FunctionSignatures.ToFrozenDictionary(StringComparer.Ordinal);
         _structFields = CollectStructFields(program, out _structFieldDeclarators);
         _structFunctions = CollectStructFunctions(program);
@@ -99,6 +117,7 @@ public sealed class ExpressionTypeBinder
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
+            TypeSystem = _compilation.TypeSystem,
             TypeAliases = program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -124,9 +143,9 @@ public sealed class ExpressionTypeBinder
     /// <param name="declarations">トップレベルの宣言。</param>
     /// <returns>template の宣言と、その構造体。</returns>
     internal static IEnumerable<(TemplateDeclarationSyntax Template, StructDeclarationSyntax Structure)> TemplateStructsOf(
-        ImmutableArray<HlslDeclarationSyntax> declarations)
+        ImmutableArray<DeclarationSyntax> declarations)
     {
-        foreach (HlslDeclarationSyntax declaration in declarations)
+        foreach (DeclarationSyntax declaration in declarations)
         {
             switch (declaration)
             {
@@ -180,7 +199,7 @@ public sealed class ExpressionTypeBinder
             Dictionary<string, ResolvedTypeName> fields = new(StringComparer.Ordinal);
             Dictionary<string, VariableDeclaratorSyntax> fieldDeclarators = new(StringComparer.Ordinal);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 if (member is not VariableDeclarationSyntax variable)
                 {
@@ -238,7 +257,7 @@ public sealed class ExpressionTypeBinder
 
             Dictionary<string, List<FunctionDeclarationSyntax>> functions = new(StringComparer.Ordinal);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 FunctionDeclarationSyntax? function = member switch
                 {
@@ -306,13 +325,13 @@ public sealed class ExpressionTypeBinder
     /// <summary>enum を集める。名前空間の中のものを含む。同じ名前の enum が複数あれば載せない。</summary>
     /// <param name="declarations">トップレベルの宣言。</param>
     /// <returns>enum の名前から、その型への対応。</returns>
-    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<HlslDeclarationSyntax> declarations)
+    private static FrozenDictionary<string, EnumInfo> CollectEnums(ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, EnumInfo?> enums = new(StringComparer.Ordinal);
 
-        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        void Collect(ImmutableArray<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -382,7 +401,7 @@ public sealed class ExpressionTypeBinder
         // 継承の深さは 8 までたどる。循環した継承 (誤ったコード) で止まらなくならないようにする。
         for (int depth = 0; depth < 8; depth++)
         {
-            if (!_structBases.TryGetValue(current, out HlslTypeSyntax? baseType))
+            if (!_structBases.TryGetValue(current, out TypeSyntax? baseType))
             {
                 return null;
             }
@@ -409,7 +428,7 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>構造体の名前から、継承する基底の型への対応。継承していなければ <see langword="null"/>。</summary>
-    private FrozenDictionary<string, HlslTypeSyntax?>? _structBases;
+    private FrozenDictionary<string, TypeSyntax?>? _structBases;
 
     /// <summary>構造体のメソッドか演算子を引く (HLSL 2021)。</summary>
     /// <param name="structName">構造体の名前。</param>
@@ -436,14 +455,14 @@ public sealed class ExpressionTypeBinder
     /// 名前空間の中の関数もトップレベルと同じに扱う (<see cref="UniformCollector"/> と揃える)。
     /// </remarks>
     private static FrozenDictionary<string, ImmutableArray<TemplateFunctionCandidate>> CollectTemplateFunctions(
-        ImmutableArray<HlslDeclarationSyntax> declarations)
+        ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, List<TemplateFunctionCandidate>> byName = new(StringComparer.Ordinal);
         HashSet<string> templates = new(StringComparer.Ordinal);
 
-        void Collect(ImmutableArray<HlslDeclarationSyntax> scope)
+        void Collect(ImmutableArray<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -475,7 +494,7 @@ public sealed class ExpressionTypeBinder
 
         void Add(FunctionDeclarationSyntax function, ImmutableArray<string> parameters)
         {
-            HlslTypeSyntax type = function.ReturnType;
+            TypeSyntax type = function.ReturnType;
             bool dependsOnParameters = type.TemplateArguments.Any(t => parameters.Contains(t.Text));
             string? returnType = dependsOnParameters ? null : type.Name;
 
@@ -587,6 +606,53 @@ public sealed class ExpressionTypeBinder
     }
 
     /// <summary>
+    /// 式の型を、構成ごとに求める。
+    /// </summary>
+    /// <param name="expression">対象の式。</param>
+    /// <returns>
+    /// 構成と、その構成での型の組。型が構成によって変わらなければ 1 つ (構成はその位置の条件)。
+    /// 型が分からない構成は含まない。どの構成でも分からなければ空。
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>同じ名前を条件ごとに違う型で宣言していても、構成ごとに見れば型は決まる。</b>
+    /// <c>#ifdef _A</c> で <c>float3 color</c>、<c>#else</c> で <c>float4 color</c> なら、
+    /// <c>(_A, float3)</c> と <c>(!_A, float4)</c> を返す。<see cref="GetEvaluatorFor(SyntaxNode)"/> の評価器はこの型を不明にする。
+    /// </para>
+    /// <para>
+    /// 仮定 (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>) を立て、仮定ごとに型を求めたものである。
+    /// 仮定が多すぎるときは分けずに 1 つの型を求める (分からなければ空)。
+    /// 構成には、木が表す構成 (<see cref="ShaderCompilation.GetTreeConfiguration"/>) は掛けていない。報告に使うときは掛けること。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<ConditionalType> GetTypesByConfiguration(ExpressionSyntax expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        ConditionMap conditions = _compilation.GetConditionMap();
+        ImmutableArray<SymbolCondition> assumptions = EnumerateAssumptions(expression, expression, conditions);
+
+        if (assumptions.IsEmpty)
+        {
+            return GetEvaluatorFor(expression).Evaluate(expression) is { } type
+                ? [new ConditionalType(conditions.GetCondition(expression), type)]
+                : [];
+        }
+
+        ImmutableArray<ConditionalType>.Builder types = ImmutableArray.CreateBuilder<ConditionalType>(assumptions.Length);
+
+        foreach (SymbolCondition assumption in assumptions)
+        {
+            if (GetEvaluatorFor(expression, assumption, conditions).Evaluate(expression) is { } type)
+            {
+                types.Add(new ConditionalType(assumption, type));
+            }
+        }
+
+        return types.ToImmutable();
+    }
+
+    /// <summary>
     /// ノードを囲む関数に対応する評価器を返す。
     /// </summary>
     /// <param name="node">対象のノード。</param>
@@ -610,6 +676,7 @@ public sealed class ExpressionTypeBinder
                 _functionSignatures,
                 _structFields)
             {
+                TypeSystem = _compilation.TypeSystem,
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
@@ -696,6 +763,7 @@ public sealed class ExpressionTypeBinder
     /// <param name="scopes">識別子を囲む関数の範囲。</param>
     /// <param name="identifier">使っている識別子。</param>
     /// <param name="narrow">見える宣言を、その構成で見えるものに絞る。絞らないなら素通しにする。</param>
+    /// <param name="global">関数の外の名前の型を引く。省略すると、型が割れている uniform を不明にする (<see cref="LookupGlobal"/>)。</param>
     /// <returns>型。見つからない、型が割れている、または判断できない場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// 関数の中に宣言が無ければ関数の外を引く。
@@ -705,7 +773,8 @@ public sealed class ExpressionTypeBinder
     private ResolvedTypeName? Resolve(
         LocalScopes scopes,
         IdentifierExpressionSyntax identifier,
-        Func<ImmutableArray<LocalDeclaration>, IEnumerable<LocalDeclaration>> narrow)
+        Func<ImmutableArray<LocalDeclaration>, IEnumerable<LocalDeclaration>> narrow,
+        Func<string, ResolvedTypeName?>? global = null)
     {
         if (scopes.Lookup(identifier) is not { } candidates)
         {
@@ -714,7 +783,7 @@ public sealed class ExpressionTypeBinder
 
         if (candidates.IsEmpty)
         {
-            return LookupGlobal(identifier.Name);
+            return (global ?? LookupGlobal)(identifier.Name);
         }
 
         ResolvedTypeName[] types = [.. narrow(candidates).Select(c => c.Type).Distinct()];
@@ -745,8 +814,8 @@ public sealed class ExpressionTypeBinder
     /// </para>
     /// </remarks>
     public ImmutableArray<SymbolCondition> EnumerateAssumptions(
-        HlslSyntaxNode node,
-        HlslExpressionSyntax expression,
+        ShaderSyntaxNode node,
+        ExpressionSyntax expression,
         ConditionMap conditions)
     {
         ArgumentNullException.ThrowIfNull(expression);
@@ -771,8 +840,8 @@ public sealed class ExpressionTypeBinder
     /// 両方の式に出てくる名前をまとめて仮定を立てれば、1 つの仮定の下で両方の型が決まる。
     /// </remarks>
     public ImmutableArray<SymbolCondition> EnumerateAssumptions(
-        HlslSyntaxNode node,
-        ImmutableArray<HlslExpressionSyntax> expressions,
+        ShaderSyntaxNode node,
+        ImmutableArray<ExpressionSyntax> expressions,
         ConditionMap conditions)
     {
         ArgumentNullException.ThrowIfNull(node);
@@ -783,7 +852,7 @@ public sealed class ExpressionTypeBinder
                 ? GetScopes(function)
                 : null;
 
-        if (scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0)
+        if (scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0 && _ambiguousUniforms.Count == 0)
         {
             return [];
         }
@@ -805,8 +874,22 @@ public sealed class ExpressionTypeBinder
                      .DistinctBy(i => i.Name, StringComparer.Ordinal))
         {
             // 型が割れている名前だけが、構成ごとに分ける対象になる。
-            if (scopes?.Lookup(identifier) is not { Length: > 1 } candidates
-                || candidates.Select(c => c.Type).Distinct().Count() < 2)
+            // 局所変数で無ければ、条件ごとに違う型で宣言した uniform も分ける。
+            ImmutableArray<SymbolCondition> declarations;
+            ImmutableArray<LocalDeclaration>? locals = scopes?.Lookup(identifier);
+
+            if (locals is { Length: > 1 } candidates && candidates.Select(c => c.Type).Distinct().Count() >= 2)
+            {
+                // 宣言の出現条件ではなく、この位置から見える条件を使う。
+                // 内側の同じ名前に隠される構成では、外側の宣言は見えない (LocalScopes)。
+                declarations = [.. candidates.Select(c => c.Condition)];
+            }
+            else if ((scopes is null || locals is { IsEmpty: true })
+                     && _ambiguousUniforms.TryGetValue(identifier.Name, out ImmutableArray<UniformSymbol> uniforms))
+            {
+                declarations = [.. uniforms.Select(u => conditions.GetCondition(u.Declaration))];
+            }
+            else
             {
                 continue;
             }
@@ -816,11 +899,8 @@ public sealed class ExpressionTypeBinder
 
             foreach (SymbolCondition assumption in assumptions)
             {
-                foreach (LocalDeclaration candidate in candidates)
+                foreach (SymbolCondition declared in declarations)
                 {
-                    // 宣言の出現条件ではなく、この位置から見える条件を使う。
-                    // 内側の同じ名前に隠される構成では、外側の宣言は見えない (LocalScopes)。
-                    SymbolCondition declared = candidate.Condition;
 
                     if (declared.IsUnknown)
                     {
@@ -942,7 +1022,7 @@ public sealed class ExpressionTypeBinder
     /// 仮定の下で、ノードを囲む関数に対応する評価器を返す。
     /// </summary>
     /// <param name="node">対象のノード。</param>
-    /// <param name="assumption">成り立っているとする条件 (<see cref="EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。</param>
+    /// <param name="assumption">成り立っているとする条件 (<see cref="EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。</param>
     /// <param name="conditions">出現条件の索引。</param>
     /// <returns>評価器。</returns>
     /// <remarks>
@@ -959,7 +1039,7 @@ public sealed class ExpressionTypeBinder
                 ? GetScopes(function)
                 : null;
 
-        if ((scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0) || assumption.IsUnknown)
+        if ((scopes?.HasVaryingTypes != true && VaryingFunctions.Count == 0 && _ambiguousUniforms.Count == 0) || assumption.IsUnknown)
         {
             return GetEvaluatorFor(node);
         }
@@ -972,9 +1052,29 @@ public sealed class ExpressionTypeBinder
         FrozenSet<string> unknown = node.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosing
             ? TemplateParametersOf(enclosing)
             : FrozenSet<string>.Empty;
+        // 条件ごとに違う型で宣言した uniform も、仮定の下で見える宣言だけから型を決める。
+        ResolvedTypeName? Global(string name)
+        {
+            if (!_ambiguousUniforms.TryGetValue(name, out ImmutableArray<UniformSymbol> uniforms))
+            {
+                return LookupGlobal(name);
+            }
+
+            ResolvedTypeName[] types =
+            [
+                .. uniforms
+                    .Where(u => conditions.GetCondition(u.Declaration) is { IsUnknown: false } declared
+                                && conditions.IsPossible(assumption.And(declared)))
+                    .Select(UniformType)
+                    .Distinct(),
+            ];
+
+            return types.Length == 1 ? types[0] : null;
+        }
+
         Func<IdentifierExpressionSyntax, ResolvedTypeName?> resolve = scopes is null
-            ? identifier => LookupGlobal(identifier.Name)
-            : identifier => Hide(Resolve(scopes, identifier, Visible), unknown);
+            ? identifier => Global(identifier.Name)
+            : identifier => Hide(Resolve(scopes, identifier, Visible, Global), unknown);
 
         // 条件によって違う型を返す関数は、その構成で見える宣言だけに絞る。
         // 表を作り直すと関数の数だけ費用がかかるので、変わる名前だけを重ねる。
@@ -1002,6 +1102,7 @@ public sealed class ExpressionTypeBinder
             _structFields,
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
+            TypeSystem = _compilation.TypeSystem,
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -1024,7 +1125,7 @@ public sealed class ExpressionTypeBinder
         if (!_scopes.TryGetValue(function, out LocalScopes? scopes))
         {
             scopes = _scopes[function] = new LocalScopes(
-                function, _compilation.GetConditionMap(), Program.Tree.Features.LoopVariableOutsideLoop);
+                function, _compilation.GetConditionMap(), Program.Tree.Hlsl().Features.LoopVariableOutsideLoop);
         }
 
         return scopes;
@@ -1045,7 +1146,7 @@ public sealed class ExpressionTypeBinder
     /// 接尾辞の無い <c>0</c> や <c>0.5</c> の型は文脈で決まるため、型としては判定できない。
     /// </para>
     /// </remarks>
-    public int? CountComponents(HlslExpressionSyntax expression)
+    public int? CountComponents(ExpressionSyntax expression)
     {
         ArgumentNullException.ThrowIfNull(expression);
 
@@ -1054,8 +1155,8 @@ public sealed class ExpressionTypeBinder
             return 1;
         }
 
-        return HlslTypeClassifier.TryDescribeNumeric(
-                   GetEvaluatorFor(expression).Evaluate(expression), out HlslNumericShape shape)
+        return _compilation.TypeSystem.TryDescribeNumeric(
+                   GetEvaluatorFor(expression).Evaluate(expression), out ShaderNumericShape shape)
             ? shape.Rows * shape.Columns
             : null;
     }
@@ -1075,16 +1176,33 @@ public sealed class ExpressionTypeBinder
     /// シェーダー全体で最初に見つかった宣言を使うと、別のカーネルの型で判定する。
     /// この木に無ければ、これまでどおりシェーダー全体から引く。
     /// </para>
+    /// <para>
+    /// <b>この木の中で条件ごとに違う型で宣言した uniform は、型を不明にする。</b>
+    /// <c>#if FORMAT == 0</c> の <c>RWTexture2D&lt;float2&gt;</c> と <c>#else</c> の <c>RWTexture2D&lt;float4&gt;</c> を
+    /// 両方並べた木で、最初の宣言の型を使うと、float4 を書く構成で成分が落ちると報告していた
+    /// (Unreal の HairStrandsVelocity.usf)。static の変数と同じ扱いである (<see cref="CollectFileVariables"/>)。
+    /// </para>
     /// </remarks>
     private ResolvedTypeName? LookupGlobal(string name)
     {
+        if (_ambiguousUniforms.ContainsKey(name))
+        {
+            return null;
+        }
+
         if (_ownUniforms.TryGetValue(name, out UniformSymbol? uniform) || _compilation.TryGetUniform(name, out uniform))
         {
-            return new ResolvedTypeName(uniform.TypeName, uniform.IsArray, GetTemplateArgument(uniform.Declaration.Type), uniform.Declarator.ArrayDimensions);
+            return UniformType(uniform);
         }
 
         return _fileVariables.TryGetValue(name, out ResolvedTypeName? variable) ? variable : null;
     }
+
+    /// <summary>uniform の宣言の型。</summary>
+    /// <param name="uniform">対象の uniform。</param>
+    /// <returns>型。</returns>
+    private static ResolvedTypeName UniformType(UniformSymbol uniform)
+        => new(uniform.TypeName, uniform.IsArray, GetTemplateArgument(uniform.Declaration.Type), uniform.Declarator.ArrayDimensions);
 
     /// <summary>
     /// 関数の外で宣言された、uniform ではない変数の型を集める。
@@ -1143,13 +1261,13 @@ public sealed class ExpressionTypeBinder
     /// 取り込んだヘッダの宣言も入る。関数の中から見える名前であることに変わりはない。
     /// </remarks>
     private static FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>>
-        CollectGlobalNames(ImmutableArray<HlslDeclarationSyntax> declarations)
+        CollectGlobalNames(ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, List<(VariableDeclarationSyntax, VariableDeclaratorSyntax)>> names = new(StringComparer.Ordinal);
 
-        void Collect(IEnumerable<HlslDeclarationSyntax> scope)
+        void Collect(IEnumerable<DeclarationSyntax> scope)
         {
-            foreach (HlslDeclarationSyntax declaration in scope)
+            foreach (DeclarationSyntax declaration in scope)
             {
                 switch (declaration)
                 {
@@ -1265,8 +1383,13 @@ public sealed class ExpressionTypeBinder
     /// <c>StructuredBuffer&lt;float4&gt;</c> から要素の型を得るために使う。
     /// 引数が 1 つの単純な形だけを扱う。
     /// </remarks>
-    internal static string? GetTemplateArgument(HlslTypeSyntax type)
-        => type.TemplateArguments is [{ Kind: HlslSyntaxKind.IdentifierToken } single]
+    internal static string? GetTemplateArgument(TypeSyntax type)
+        => type.TemplateArguments is [{ Kind: ShaderSyntaxKind.IdentifierToken } single]
             ? single.Text
             : null;
 }
+
+/// <summary>構成と、その構成での式の型 (<see cref="ExpressionTypeBinder.GetTypesByConfiguration"/>)。</summary>
+/// <param name="When">構成。</param>
+/// <param name="Type">型の名前。</param>
+public readonly record struct ConditionalType(SymbolCondition When, string Type);

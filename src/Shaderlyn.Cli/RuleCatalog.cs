@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 
@@ -29,12 +30,13 @@ internal static class RuleCatalog
     private static ImmutableArray<DiagnosticDescriptor> FrameworkDescriptors { get; } =
     [
         ShaderLab.ShaderLabDescriptors.SyntaxError,
-        Hlsl.HlslDescriptors.SyntaxError,
-        Hlsl.HlslDescriptors.PreprocessorError,
-        Hlsl.HlslDescriptors.UnsupportedDeclaration,
-        Hlsl.HlslDescriptors.ExtraTokensAfterConditionName,
-        Hlsl.HlslDescriptors.CircularInclude,
-        Hlsl.HlslDescriptors.UnresolvedInclude,
+        CFamily.ShaderDescriptors.SyntaxError,
+        CFamily.ShaderDescriptors.PreprocessorError,
+        CFamily.ShaderDescriptors.UnsupportedDeclaration,
+        CFamily.ShaderDescriptors.ExtraTokensAfterConditionName,
+        CFamily.ShaderDescriptors.MacroRedefinition,
+        CFamily.ShaderDescriptors.CircularInclude,
+        CFamily.ShaderDescriptors.UnresolvedInclude,
     ];
 
     /// <summary>

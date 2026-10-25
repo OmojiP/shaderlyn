@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Cli;
 
@@ -90,7 +90,7 @@ internal sealed class AnalysisTimings : IAnalyzerTimingRecorder, ISyntaxTimingRe
     /// <returns>内訳。</returns>
     /// <param name="includeCache">取り込みのキャッシュ。null なら出さない。</param>
     /// <param name="analysisCache">実行をまたぐ結果のキャッシュ。null なら出さない。</param>
-    public string Describe(HlslIncludeCache? includeCache = null, Caching.AnalysisCache? analysisCache = null)
+    public string Describe(IncludeCache? includeCache = null, Caching.AnalysisCache? analysisCache = null)
     {
         long total = _shaderLabTicks + _expandTicks + _unitTicks + _ruleTicks;
         StringBuilder text = new();

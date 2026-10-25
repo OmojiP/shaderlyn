@@ -164,7 +164,7 @@ internal sealed class EffectiveSettings
         ImmutableArray<string> defines = [.. configuration.Defines, .. options.Defines];
 
         AnalyzerOptions analyzerOptions =
-            new(configuration.RuleSeverities, configuration.RuleOptions);
+            new(configuration.RuleSeverities, configuration.RuleOptions, configuration.RuleSeverityPatterns);
 
         return new EffectiveSettings(
             configuration,

@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Unity;
 
@@ -103,7 +103,7 @@ public static class ShaderSymbols
     /// </para>
     /// </remarks>
     public static VariantSpace ReadVariantSpace(ImmutableArray<PragmaDirective> pragmas)
-        => BuildVariantSpace(pragmas.Select(p => (p.NameToken, (IEnumerable<HlslSyntaxToken>)p.Arguments)));
+        => BuildVariantSpace(pragmas.Select(p => (p.NameToken, (IEnumerable<ShaderSyntaxToken>)p.Arguments)));
 
     /// <summary>
     /// 展開する前のトークン列から、構成の空間を作る。
@@ -113,19 +113,19 @@ public static class ShaderSymbols
     /// <remarks>
     /// 展開の前に要る (<see cref="CollectDeclaredFromTokens"/>)。このファイル自身に書かれた <c>#pragma</c> だけを見る。
     /// </remarks>
-    public static VariantSpace ReadVariantSpaceFromTokens(ImmutableArray<HlslSyntaxToken> tokens)
+    public static VariantSpace ReadVariantSpaceFromTokens(ImmutableArray<ShaderSyntaxToken> tokens)
         => BuildVariantSpace(EnumeratePragmaLines(tokens));
 
     /// <summary><c>#pragma</c> の名前と引数から、構成の空間を作る。</summary>
     /// <param name="pragmas">名前のトークンと、引数のトークン。</param>
     /// <returns>宣言と組。</returns>
     private static VariantSpace BuildVariantSpace(
-        IEnumerable<(HlslSyntaxToken Name, IEnumerable<HlslSyntaxToken> Arguments)> pragmas)
+        IEnumerable<(ShaderSyntaxToken Name, IEnumerable<ShaderSyntaxToken> Arguments)> pragmas)
     {
         List<VariantDeclaration> declarations = [];
         List<VariantGroup> groups = [];
 
-        foreach ((HlslSyntaxToken name, IEnumerable<HlslSyntaxToken> arguments) in pragmas)
+        foreach ((ShaderSyntaxToken name, IEnumerable<ShaderSyntaxToken> arguments) in pragmas)
         {
             if (!IsDeclaringPragmaName(name.Text))
             {
@@ -136,7 +136,7 @@ public static class ShaderSymbols
                 ? VariantSymbolKind.Runtime
                 : VariantSymbolKind.Compiled;
 
-            HlslSyntaxToken[] identifiers = [.. arguments.Where(a => a.Kind == HlslSyntaxKind.IdentifierToken)];
+            ShaderSyntaxToken[] identifiers = [.. arguments.Where(a => a.Kind == ShaderSyntaxKind.IdentifierToken)];
             List<DeclaringLine> lines = [.. LinesOf(name.Text, identifiers.Select(a => a.Text))];
 
             if (BuiltInSets.ContainsKey(name.Text))
@@ -166,23 +166,23 @@ public static class ShaderSymbols
     /// </summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>名前のトークンと、行の終わりまでの引数のトークン。</returns>
-    private static IEnumerable<(HlslSyntaxToken Name, IEnumerable<HlslSyntaxToken> Arguments)> EnumeratePragmaLines(
-        ImmutableArray<HlslSyntaxToken> tokens)
+    private static IEnumerable<(ShaderSyntaxToken Name, IEnumerable<ShaderSyntaxToken> Arguments)> EnumeratePragmaLines(
+        ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
-                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
                 || tokens[i + 1].Text != "pragma"
-                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken)
+                || tokens[i + 2].Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 continue;
             }
 
             int end = i + 3;
 
-            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != ShaderSyntaxKind.EndOfFileToken)
             {
                 end++;
             }
@@ -201,7 +201,7 @@ public static class ShaderSymbols
     /// 位置が要る呼び出し元のためにトークンのまま返す。
     /// 名前だけでよければ <see cref="CollectDeclared"/> を使う。
     /// </remarks>
-    public static IEnumerable<HlslSyntaxToken> EnumerateDeclared(ImmutableArray<PragmaDirective> pragmas)
+    public static IEnumerable<ShaderSyntaxToken> EnumerateDeclared(ImmutableArray<PragmaDirective> pragmas)
     {
         foreach (PragmaDirective pragma in pragmas)
         {
@@ -211,9 +211,9 @@ public static class ShaderSymbols
                 continue;
             }
 
-            foreach (HlslSyntaxToken argument in pragma.Arguments)
+            foreach (ShaderSyntaxToken argument in pragma.Arguments)
             {
-                if (argument.Kind == HlslSyntaxKind.IdentifierToken && !IsNoSymbol(argument.Text))
+                if (argument.Kind == ShaderSyntaxKind.IdentifierToken && !IsNoSymbol(argument.Text))
                 {
                     yield return argument;
                 }
@@ -244,7 +244,7 @@ public static class ShaderSymbols
     /// <remarks>
     /// シンボルの名前は書かれていないので、指摘はその宣言の行に出すしかない。
     /// </remarks>
-    public static IEnumerable<(HlslSyntaxToken Declaration, string Symbol)> EnumerateBuiltInDeclared(
+    public static IEnumerable<(ShaderSyntaxToken Declaration, string Symbol)> EnumerateBuiltInDeclared(
         ImmutableArray<PragmaDirective> pragmas)
         => pragmas
             .Where(p => BuiltInSets.ContainsKey(p.Name))
@@ -266,7 +266,7 @@ public static class ShaderSymbols
     /// 取り込んだヘッダの宣言は、この時点では読めていない。
     /// </para>
     /// </remarks>
-    public static HashSet<string> CollectDeclaredFromTokens(ImmutableArray<HlslSyntaxToken> tokens)
+    public static HashSet<string> CollectDeclaredFromTokens(ImmutableArray<ShaderSyntaxToken> tokens)
         => [.. EnumerateDeclaringLines(tokens).SelectMany(line => line.Symbols)];
 
     /// <summary>
@@ -291,7 +291,7 @@ public static class ShaderSymbols
     /// <returns>宣言の行。組み込みの宣言は複数の行になる。宣言でなければ空。</returns>
     private static IEnumerable<DeclaringLine> LinesOf(PragmaDirective pragma)
         => IsDeclaringPragma(pragma)
-            ? LinesOf(pragma.Name, pragma.Arguments.Where(a => a.Kind == HlslSyntaxKind.IdentifierToken).Select(a => a.Text))
+            ? LinesOf(pragma.Name, pragma.Arguments.Where(a => a.Kind == ShaderSyntaxKind.IdentifierToken).Select(a => a.Text))
             : [];
 
     /// <summary>宣言の名前と引数から、宣言の行を作る。</summary>
@@ -434,7 +434,7 @@ public static class ShaderSymbols
     /// 展開の前に要る。決して成り立たない分岐は並べず、
     /// どれか 1 つが必ず有効になる行は、既定の構成でも先頭のシンボルを定義する。
     /// </remarks>
-    public static SymbolConstraints CollectConstraintsFromTokens(ImmutableArray<HlslSyntaxToken> tokens)
+    public static SymbolConstraints CollectConstraintsFromTokens(ImmutableArray<ShaderSyntaxToken> tokens)
         => ToConstraints(EnumerateDeclaringLines(tokens));
 
     /// <summary>
@@ -483,16 +483,16 @@ public static class ShaderSymbols
     /// </summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>宣言の行。</returns>
-    private static IEnumerable<DeclaringLine> EnumerateDeclaringLines(ImmutableArray<HlslSyntaxToken> tokens)
+    private static IEnumerable<DeclaringLine> EnumerateDeclaringLines(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || i + 2 >= tokens.Length
-                || tokens[i + 1].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
                 || tokens[i + 1].Text != "pragma"
-                || tokens[i + 2].Kind != HlslSyntaxKind.IdentifierToken
+                || tokens[i + 2].Kind != ShaderSyntaxKind.IdentifierToken
                 || !IsDeclaringPragmaName(tokens[i + 2].Text))
             {
                 continue;
@@ -503,7 +503,7 @@ public static class ShaderSymbols
 
             for (int j = i + 3; j < tokens.Length && !tokens[j].IsAtLineStart; j++)
             {
-                if (tokens[j].Kind == HlslSyntaxKind.IdentifierToken)
+                if (tokens[j].Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     arguments.Add(tokens[j].Text);
                 }

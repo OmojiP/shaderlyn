@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -13,11 +13,11 @@ namespace Shaderlyn.Cookbook;
 /// 連なりの先頭でだけ数え、途中の if では数えない。
 /// 数えないと、5 連なりに対して 5 件・4 件・3 件…と報告することになる。
 /// </remarks>
-public sealed class TooManyBranchesAnalyzer(int maxElseCount) : HlslRuleAnalyzer
+public sealed class TooManyBranchesAnalyzer(int maxElseCount) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.TooManyBranches];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

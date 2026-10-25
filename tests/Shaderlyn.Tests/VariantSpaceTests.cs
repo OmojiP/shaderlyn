@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
@@ -34,7 +34,7 @@ public sealed class VariantSpaceTests
     [Fact]
     public void 展開前のトークンから読んだ空間はこれまでの関数と同じ答えを出す()
     {
-        ImmutableArray<HlslSyntaxToken> tokens = Lex(Declarations);
+        ImmutableArray<ShaderSyntaxToken> tokens = Lex(Declarations);
         VariantSpace space = ShaderSymbols.ReadVariantSpaceFromTokens(tokens);
 
         Assert.Equal(ShaderSymbols.CollectDeclaredFromTokens(tokens).Order(), space.Symbols.Order());
@@ -84,7 +84,7 @@ public sealed class VariantSpaceTests
         foreach (string path in Directory.EnumerateFiles(editorData, "*.shader", enumeration)
                      .Concat(Directory.EnumerateFiles(editorData, "*.hlsl", enumeration)))
         {
-            ImmutableArray<HlslSyntaxToken> tokens = Lex(File.ReadAllText(path));
+            ImmutableArray<ShaderSyntaxToken> tokens = Lex(File.ReadAllText(path));
             VariantSpace space = ShaderSymbols.ReadVariantSpaceFromTokens(tokens);
 
             Assert.True(
@@ -141,8 +141,8 @@ public sealed class VariantSpaceTests
     /// <summary>字句解析する。</summary>
     /// <param name="code">コード。</param>
     /// <returns>トークン。</returns>
-    private static ImmutableArray<HlslSyntaxToken> Lex(string code)
-        => new HlslLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
+    private static ImmutableArray<ShaderSyntaxToken> Lex(string code)
+        => new ShaderLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
 
     /// <summary>展開して <c>#pragma</c> を集める。</summary>
     /// <param name="code">コード。</param>

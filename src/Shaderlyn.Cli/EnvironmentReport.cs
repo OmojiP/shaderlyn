@@ -3,11 +3,11 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Configuration;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Unity;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Cli.Environments;
+using Shaderlyn.Configuration;
+using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Unity;
 
 namespace Shaderlyn.Cli;
 
@@ -44,6 +44,10 @@ internal static partial class EnvironmentReport
     /// <param name="files">見つかった解析対象のファイル。</param>
     /// <param name="missingPaths">存在しなかった解析対象のパス。</param>
     /// <param name="version">このツールのバージョン。</param>
+    /// <param name="group">
+    /// 解析設定 (設定ファイルと環境) が複数あるときの、この解析設定の番号 (1 から) と数。1 つなら <see langword="null"/>。
+    /// 見出し (ツールのバージョン) は最初の解析設定にだけ書き、解析設定ごとに区切りを書く。
+    /// </param>
     /// <returns>書き出した文字列。</returns>
     public static string Build(
         CommandLineOptions options,
@@ -51,7 +55,8 @@ internal static partial class EnvironmentReport
         IAnalysisEnvironment environment,
         ImmutableArray<string> files,
         ImmutableArray<string> missingPaths,
-        string version)
+        string version,
+        (int Index, int Count)? group = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
@@ -59,7 +64,16 @@ internal static partial class EnvironmentReport
 
         StringBuilder builder = new();
 
-        Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
+        if (group is not { Index: > 1 })
+        {
+            Line(builder, $"Shaderlyn {version} の解析環境 (解析はしていません)");
+        }
+
+        if (group is { } current)
+        {
+            builder.AppendLine();
+            Line(builder, $"━━ 解析設定 {current.Index}/{current.Count}: 環境 {environment.DisplayName}、設定ファイル {settings.Configuration.FilePath ?? "(なし)"} ━━");
+        }
 
         WriteInputs(builder, options, environment, files, missingPaths);
         WriteConfiguration(builder, options, settings, environment);
@@ -76,7 +90,7 @@ internal static partial class EnvironmentReport
             WriteEditor(builder, editor);
             WriteUnityCompiler(builder, settings);
         }
-        else if (environment.HlslEnvironment is not null)
+        else if (environment.ShaderEnvironment is not null)
         {
             bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
             WriteHlsl(builder, settings.Configuration, defaultVersion: isUnreal ? 2018 : 2021, versionFromEngine: isUnreal && settings.Configuration.HlslVersion is null);
@@ -218,6 +232,11 @@ internal static partial class EnvironmentReport
         if (!configuration.RuleSeverities.IsEmpty)
         {
             Line(builder, $"  重要度を変えたルール: {string.Join(", ", configuration.RuleSeverities.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value.ToString().ToLowerInvariant()}"))}");
+        }
+
+        if (!configuration.RuleSeverityPatterns.IsEmpty)
+        {
+            Line(builder, $"  正規表現で重要度を変えたルール: {string.Join(", ", configuration.RuleSeverityPatterns.Select(p => $"/{p.Pattern}/={p.Severity.ToString().ToLowerInvariant()}"))}");
         }
 
         if (!configuration.RuleOptions.IsEmpty)

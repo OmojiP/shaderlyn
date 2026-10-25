@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -163,16 +163,16 @@ internal static partial class AnalysisInspector
         writer.WriteBoolean("expanded", IsFromMacroExpansion(node));
 
         // このファイルが書いたマクロの本体から来たノードは、本体の位置を指す。
-        // そこが報告の位置でもある (HlslSyntaxToken.MacroDefinitionSpan)。
+        // そこが報告の位置でもある (ShaderSyntaxToken.MacroDefinitionSpan)。
         // 利用者のヘッダで定義したマクロの本体は、このファイルの行では表せないので出さない。
-        if (node is HlslSyntaxNode own
+        if (node is ShaderSyntaxNode own
             && own.FirstToken?.MacroDefinitionSpan is { } definition
             && string.Equals(own.FirstToken.MacroDefinitionSource?.FilePath, text.FilePath, StringComparison.Ordinal))
         {
             writer.WriteString("macroBody", text.GetLinePositionSpan(definition).Start.ToString());
         }
 
-        HlslSyntaxNode? hlsl = node as HlslSyntaxNode;
+        ShaderSyntaxNode? hlsl = node as ShaderSyntaxNode;
         SymbolCondition condition = parent;
 
         // #ifdef で守られたノードには、どの条件のもとで存在するかを添える。
@@ -227,7 +227,7 @@ internal static partial class AnalysisInspector
     /// </remarks>
     private static IEnumerable<SyntaxNode> MergeChildren(
         SyntaxNode node,
-        HlslSyntaxNode? hlsl,
+        ShaderSyntaxNode? hlsl,
         ConditionMap? conditions)
     {
         if (conditions is null || hlsl is null || !conditions.HasInsertedChildren)
@@ -268,15 +268,15 @@ internal static partial class AnalysisInspector
     /// </remarks>
     private static string DescribeText(SyntaxNode node, SourceText text)
     {
-        if (node is not HlslSyntaxNode hlsl)
+        if (node is not ShaderSyntaxNode hlsl)
         {
             return Shorten(text.ToString(node.Span));
         }
 
         StringBuilder builder = new();
-        HlslSyntaxKind previous = HlslSyntaxKind.BadToken;
+        ShaderSyntaxKind previous = ShaderSyntaxKind.BadToken;
 
-        foreach (HlslSyntaxToken token in hlsl.DescendantTokens())
+        foreach (ShaderSyntaxToken token in hlsl.DescendantTokens())
         {
             if (builder.Length > MaxTextLength)
             {
@@ -306,18 +306,18 @@ internal static partial class AnalysisInspector
     /// 定義側の空白も呼び出し側の空白も失っているためである。
     /// <c>uv . x</c> のように読みにくくならない程度の規則で並べ直す。
     /// </remarks>
-    private static bool NeedsSpace(HlslSyntaxKind previous, HlslSyntaxKind current)
+    private static bool NeedsSpace(ShaderSyntaxKind previous, ShaderSyntaxKind current)
     {
-        if (previous is HlslSyntaxKind.DotToken
-            or HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.OpenBracketToken)
+        if (previous is ShaderSyntaxKind.DotToken
+            or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken)
         {
             return false;
         }
 
-        return current is not (HlslSyntaxKind.DotToken or HlslSyntaxKind.CommaToken
-            or HlslSyntaxKind.SemicolonToken
-            or HlslSyntaxKind.CloseParenToken or HlslSyntaxKind.CloseBracketToken
-            or HlslSyntaxKind.OpenParenToken or HlslSyntaxKind.OpenBracketToken);
+        return current is not (ShaderSyntaxKind.DotToken or ShaderSyntaxKind.CommaToken
+            or ShaderSyntaxKind.SemicolonToken
+            or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken
+            or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken);
     }
 
     /// <summary>表示に使う文字列の上限。</summary>
@@ -339,7 +339,7 @@ internal static partial class AnalysisInspector
     /// 印を出しておかないと、同じ行が何度も並ぶ理由が読み手に伝わらない。
     /// </remarks>
     private static bool IsFromMacroExpansion(SyntaxNode node)
-        => node is HlslSyntaxNode hlsl
+        => node is ShaderSyntaxNode hlsl
            && hlsl.DescendantTokens().FirstOrDefault() is { IsFromMacroExpansion: true };
 
     /// <summary>ノードの種別を表す名前を返す。</summary>
@@ -409,7 +409,7 @@ internal static partial class AnalysisInspector
                     break;
                 }
 
-                if (child is HlslDeclarationSyntax declaration
+                if (child is DeclarationSyntax declaration
                     && IsWrittenInSource(compilation, declaration))
                 {
                     WriteNode(writer, declaration, compilation.Text, budget, condition);
@@ -437,7 +437,7 @@ internal static partial class AnalysisInspector
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="declaration">判定する宣言。</param>
     /// <returns>このファイルに書かれたものであれば <see langword="true"/>。</returns>
-    private static bool IsWrittenInSource(ShaderCompilation compilation, HlslDeclarationSyntax declaration)
+    private static bool IsWrittenInSource(ShaderCompilation compilation, DeclarationSyntax declaration)
         => declaration.GetLocation() is { } location
            && string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal);
 
@@ -540,9 +540,9 @@ internal static partial class AnalysisInspector
     {
         writer.WriteStartArray("tokens");
 
-        foreach (HlslSyntaxToken token in compilation.CodeTokens)
+        foreach (ShaderSyntaxToken token in compilation.CodeTokens)
         {
-            if (token.Kind == HlslSyntaxKind.EndOfFileToken)
+            if (token.Kind == ShaderSyntaxKind.EndOfFileToken)
             {
                 continue;
             }
@@ -594,7 +594,7 @@ internal static partial class AnalysisInspector
                     break;
                 }
 
-                if (node is not HlslExpressionSyntax expression
+                if (node is not ExpressionSyntax expression
                     || expression.GetLocation() is not { } location
                     || !string.Equals(location.FilePath, compilation.Text.FilePath, StringComparison.Ordinal)
                     || !seen.Add(location.Span))

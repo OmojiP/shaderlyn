@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -20,11 +20,11 @@ namespace Shaderlyn.Cookbook;
 /// <c>static const</c> で書いた上限まで巻き込むので、誤検出を確かめてから入れること。
 /// </para>
 /// </remarks>
-public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
+public sealed class LoopBoundAnalyzer(int maxIterations) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.LoopTooLong];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -32,15 +32,15 @@ public sealed class LoopBoundAnalyzer(int maxIterations) : HlslRuleAnalyzer
         {
             if (c.Node.Condition is not BinaryExpressionSyntax condition
                 || condition.OperatorToken.Kind
-                    is not (HlslSyntaxKind.LessThanToken or HlslSyntaxKind.LessThanEqualsToken)
+                    is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.LessThanEqualsToken)
                 || condition.Right is not LiteralExpressionSyntax literal
-                || !HlslLiteral.TryGetInt64(literal.Token, out long bound))
+                || !ShaderLiteral.TryGetInt64(literal.Token, out long bound))
             {
                 return;
             }
 
             long iterations =
-                condition.OperatorToken.Kind == HlslSyntaxKind.LessThanEqualsToken ? bound + 1 : bound;
+                condition.OperatorToken.Kind == ShaderSyntaxKind.LessThanEqualsToken ? bound + 1 : bound;
 
             if (iterations > maxIterations)
             {

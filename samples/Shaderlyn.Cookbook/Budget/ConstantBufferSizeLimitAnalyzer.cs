@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
@@ -31,7 +32,7 @@ namespace Shaderlyn.Cookbook;
 /// (<see cref="Semantics.ShaderCompilation.TryEnumerateConfigurations"/>)。
 /// </para>
 /// </remarks>
-public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[] bufferNames) : HlslRuleAnalyzer
+public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[] bufferNames) : ShaderRuleAnalyzer
 {
     /// <summary>スカラー型 1 成分の大きさ。</summary>
     private static readonly ImmutableDictionary<string, int> ScalarSizes =
@@ -56,7 +57,7 @@ public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [CookbookRules.ConstantBufferTooLarge];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -155,7 +156,7 @@ public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[
         wholeRegisters = false;
 
         // 型名の読み解きは分類器が持っている。成分数の切り出しを自分で書かない。
-        if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
+        if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out ShaderNumericShape shape))
         {
             return false;
         }
@@ -166,7 +167,7 @@ public sealed class ConstantBufferSizeLimitAnalyzer(int maxBytes, params string[
         }
 
         // 行列は列優先 (HLSL の既定) として、列ごとに 1 つの区切りを占めるものとして数える。
-        if (shape.Kind == HlslNumericKind.Matrix)
+        if (shape.Kind == ShaderNumericKind.Matrix)
         {
             size = shape.Columns * 16;
             wholeRegisters = true;

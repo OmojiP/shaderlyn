@@ -7,6 +7,7 @@
 Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
 
 DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
+GLSL（`.vert` / `.frag` / `.comp` など）は構文の誤りを指摘します。宣言や型の検査は 0.3.1 で対応する予定です。
 
 CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
 
@@ -120,13 +121,13 @@ D:\...\Shader.shader(73:24): error HL0310: 'a' は !_A のとき宣言されて�
 `half` 型の使用を禁止する自作ルール例：
 
 ```
-public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MyRules.NoHalf];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             if (c.Node.Name.StartsWith("half", StringComparison.Ordinal))
             {
@@ -264,7 +265,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md)                                                         |
+| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md)       |
 | CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |

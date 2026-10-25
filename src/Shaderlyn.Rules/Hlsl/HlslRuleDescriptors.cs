@@ -33,7 +33,7 @@ internal static class HlslRuleDescriptors
 
     /// <summary>環境が指定したエントリポイントが存在しない。</summary>
     /// <remarks>
-    /// 文の <c>{0}</c> は指定した場所 (<see cref="Semantics.Environments.HlslEntryPoint.Origin"/>)。
+    /// 文の <c>{0}</c> は指定した場所 (<see cref="Semantics.Environments.ShaderEntryPoint.Origin"/>)。
     /// Unity なら <c>#pragma vertex</c> になり、v0.1 までと同じ文になる。
     /// </remarks>
     public static DiagnosticDescriptor EntryPointNotFound { get; } = new(

@@ -1,4 +1,4 @@
-// HLSL の方言 (コンパイラと言語のバージョン) ごとに、使える構文と型の表を手元のコンパイラで作り直す。
+// コンパイラと HLSL のバージョンの組ごとに、使える構文と型の表を手元のコンパイラで作り直す。
 //
 // 使い方 (リポジトリのルートで):
 //   node tools/dialects/probe.mjs                  # Windows SDK の最新の fxc.exe / dxc.exe を使う
@@ -15,7 +15,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-/** 方言。dxc は -HV の版。 */
+/** コンパイラと HLSL のバージョンの組。dxc は -HV の版。 */
 const dialects = [
   { name: "FXC", compiler: "fxc" },
   { name: "2016", compiler: "dxc", version: "2016" },
@@ -26,7 +26,7 @@ const dialects = [
 
 /**
  * 確かめる項目。code はピクセルシェーダー main を含む完全なコード。
- * expected は HlslLanguageFeatures.Of の値 (方言の順)。"warn" は通るが警告が出る、"noop" は通るが何もしない。
+ * expected は HlslLanguageFeatures.Of の値 (組の順)。"warn" は通るが警告が出る、"noop" は通るが何もしない。
  */
 const features = [
   { name: "template", code: "template<typename T> T Twice(T x) { return x + x; }\nfloat4 main() : SV_Target { return Twice(1.0); }", expected: [false, false, false, false, true] },
@@ -78,7 +78,7 @@ if (!fxc || !dxc) {
 
 const work = mkdtempSync(join(tmpdir(), "shaderlyn-dialects-"));
 
-/** 1 つの項目を 1 つの方言でコンパイルし、通ったかを返す。 */
+/** 1 つの項目を 1 つの組でコンパイルし、通ったかを返す。 */
 function compiles(feature, dialect) {
   const file = join(work, "probe.hlsl");
   writeFileSync(file, feature.code + "\n");

@@ -620,10 +620,10 @@ public sealed class ProgramTests : IDisposable
     {
         CreateShaderFile(Path.Combine("Assets", "Test.shader"), "Shader \"Test\" { SubShader { Pass { } } }");
 
-        (ExitCode code, _, string error) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--environment", "godot");
+        (ExitCode code, _, string error) = await RunAsync(Path.Combine(_workDirectory, "Assets"), "--environment", "unreel");
 
         Assert.Equal(ExitCode.ToolError, code);
-        Assert.Contains("環境 'godot' はありません", error, StringComparison.Ordinal);
+        Assert.Contains("環境 'unreel' はありません", error, StringComparison.Ordinal);
         Assert.Contains("unity", error, StringComparison.Ordinal);
     }
 

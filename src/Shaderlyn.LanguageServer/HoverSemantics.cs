@@ -1,4 +1,4 @@
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.LanguageServer;
 

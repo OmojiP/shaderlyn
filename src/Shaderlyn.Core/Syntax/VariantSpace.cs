@@ -147,7 +147,10 @@ public sealed class VariantSpace
     {
         ArgumentNullException.ThrowIfNull(other);
 
-        return other.IsEmpty ? this : IsEmpty ? other : new VariantSpace([.. Declarations, .. other.Declarations], [.. Groups, .. other.Groups]);
+        // 組だけの空間 (宣言は別の空間にある値の、同時には有効にならない組) も足す。
+        return other.IsEmpty && other.Groups.IsEmpty ? this
+            : IsEmpty && Groups.IsEmpty ? other
+            : new VariantSpace([.. Declarations, .. other.Declarations], [.. Groups, .. other.Groups]);
     }
 
     /// <summary>組から分かる、実在する組み合わせの制約。</summary>

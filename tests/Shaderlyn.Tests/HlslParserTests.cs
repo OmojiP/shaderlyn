@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Unity;
 
@@ -12,7 +13,7 @@ namespace Shaderlyn.Tests;
 internal static class HlslHarness
 {
     /// <summary>解析して構文木を返す。</summary>
-    public static HlslSyntaxTree Parse(string content)
+    public static ShaderSyntaxTree Parse(string content)
         => HlslSyntaxTree.Parse(SourceText.From(content, "test.hlsl"));
 
     /// <summary>診断メッセージを連結する。</summary>
@@ -20,9 +21,9 @@ internal static class HlslHarness
         => string.Join("\n", diagnostics.Select(d => $"  {d.Location.LineSpan.Start} {d.Id}: {d.GetMessage()}"));
 
     /// <summary>診断が 1 件も出ないことを確認したうえで構文木を返す。</summary>
-    public static HlslSyntaxTree ParseValid(string content)
+    public static ShaderSyntaxTree ParseValid(string content)
     {
-        HlslSyntaxTree tree = Parse(content);
+        ShaderSyntaxTree tree = Parse(content);
         Assert.True(tree.Diagnostics.IsEmpty, $"予期しない診断:\n{Describe(tree.Diagnostics)}");
         return tree;
     }
@@ -33,7 +34,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 変数宣言を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("float4 _BaseColor;");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("float4 _BaseColor;");
 
         VariableDeclarationSyntax declaration =
             Assert.IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -45,7 +46,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 修飾子と初期化子つきの宣言を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("static const float PI = 3.14159f;");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("static const float PI = 3.14159f;");
 
         VariableDeclarationSyntax declaration =
             Assert.IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -58,7 +59,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 複数の宣言子を一度に解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("float a = 0, b, c[4];");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("float a = 0, b, c[4];");
 
         VariableDeclarationSyntax declaration =
             Assert.IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -70,7 +71,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void テンプレート引数を伴う型を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("Texture2D<float4> _BaseMap;");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("Texture2D<float4> _BaseMap;");
 
         VariableDeclarationSyntax declaration =
             Assert.IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -83,7 +84,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void レジスタ指定を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("Texture2D _BaseMap : register(t0);");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("Texture2D _BaseMap : register(t0);");
 
         VariableDeclaratorSyntax declarator = Assert
             .IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations))
@@ -97,7 +98,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 構造体とセマンティクスを解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -120,7 +121,7 @@ public sealed class HlslDeclarationParsingTests
     {
         // URP の CBUFFER_START(UnityPerMaterial) はマクロ展開後にこの形になる。
         // SRP Batcher の互換性検査 (URP0001) がこのノードを対象にする。
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             cbuffer UnityPerMaterial
             {
                 float4 _BaseMap_ST;
@@ -139,7 +140,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 関数定義を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             half4 LitPassFragment(Varyings input) : SV_Target
             {
                 return half4(1, 1, 1, 1);
@@ -162,7 +163,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void プロトタイプ宣言を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("float3 Normalize(float3 v);");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("float3 Normalize(float3 v);");
 
         FunctionDeclarationSyntax function =
             Assert.IsType<FunctionDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -173,7 +174,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 引数の入出力修飾子を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("void Compute(in float a, out float b, inout float c) { }");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("void Compute(in float a, out float b, inout float c) { }");
 
         FunctionDeclarationSyntax function =
             Assert.IsType<FunctionDeclarationSyntax>(Assert.Single(tree.Root.Declarations));
@@ -185,7 +186,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 計算シェーダーの属性を解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             [numthreads(8, 8, 1)]
             void CSMain(uint3 id : SV_DispatchThreadID) { }
             """);
@@ -208,7 +209,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 属性の引数に入れ子の括弧が来ても解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             [numthreads((16 / 2), (16 / 2), 1)]
             void CSMain(uint3 id : SV_DispatchThreadID) { }
             """);
@@ -234,7 +235,7 @@ public sealed class HlslDeclarationParsingTests
     [InlineData("(row_major float4x4) x")]
     public void 修飾子付きの型変換を解析できる(string expression)
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid($$"""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid($$"""
             int f(int x)
             {
                 return {{expression}};
@@ -254,7 +255,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 修飾子だけの括弧は型変換にしない()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             int f(int a, int b)
             {
                 return (a) - b;
@@ -271,7 +272,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 型変換の修飾子は木に残る()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             int f(int x)
             {
                 return (const unsigned int) x;
@@ -286,7 +287,7 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// 既定の方言 (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
+    /// 既定のコンパイラ (FXC) で使えない宣言 (<c>enum</c> / <c>template</c>) を報告することを検証する。
     /// </summary>
     /// <remarks>
     /// FXC は <c>enum</c> も <c>template</c> も "syntax error: unexpected token" で拒む (手元の FXC で確かめた)。
@@ -299,7 +300,7 @@ public sealed class HlslDeclarationParsingTests
     [InlineData("template<typename T> T Value;", "template")]
     public void 解釈できない型宣言を報告する(string source, string keyword)
     {
-        HlslSyntaxTree tree = HlslHarness.Parse(source);
+        ShaderSyntaxTree tree = HlslHarness.Parse(source);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -316,7 +317,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 解釈できない型宣言は宣言として取り込まない()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("""
+        ShaderSyntaxTree tree = HlslHarness.Parse("""
             enum Mode { First, Second } mode;
             float4 _BaseColor;
             """);
@@ -343,7 +344,7 @@ public sealed class HlslDeclarationParsingTests
     [InlineData("template<typename T> T Value;")]
     public void 解釈できない型宣言の後も解析を続ける(string unsupported)
     {
-        HlslSyntaxTree tree = HlslHarness.Parse(unsupported + "\nfloat4 f(float4 x) { return x; }\n");
+        ShaderSyntaxTree tree = HlslHarness.Parse(unsupported + "\nfloat4 f(float4 x) { return x; }\n");
 
         Assert.Single(tree.Diagnostics);
 
@@ -364,7 +365,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void ビットフィールドを数値の位置で報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("""
+        ShaderSyntaxTree tree = HlslHarness.Parse("""
             struct Packed
             {
                 uint a : 8;
@@ -381,7 +382,7 @@ public sealed class HlslDeclarationParsingTests
     }
 
     /// <summary>
-    /// <c>class</c> / <c>interface</c> を、どの方言でも構造体と同じ形で読むことを検証する。
+    /// <c>class</c> / <c>interface</c> を、どのコンパイラと HLSL のバージョンでも構造体と同じ形で読むことを検証する。
     /// </summary>
     /// <remarks>
     /// FXC でも DXC のどの版でも使える。Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。
@@ -390,7 +391,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void classとinterfaceは構造体として読む()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("""
+        ShaderSyntaxTree tree = HlslHarness.Parse("""
             interface IBase { float4 Shade(float4 x); };
             class Impl : IBase { float4 v; float4 Shade(float4 x) { return x * v; } };
             class Plain { float4 v; } impl;
@@ -415,7 +416,7 @@ public sealed class HlslDeclarationParsingTests
     [InlineData("struct S { float4 v; };\nS operator*(S a, S b) { return a; }")]
     public void 演算子の多重定義をUnityで使えない構文として報告する(string source)
     {
-        HlslSyntaxTree tree = HlslHarness.Parse(source + "\nfloat4 f(float4 x) { return x; }\n");
+        ShaderSyntaxTree tree = HlslHarness.Parse(source + "\nfloat4 f(float4 x) { return x; }\n");
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -431,7 +432,7 @@ public sealed class HlslDeclarationParsingTests
     public void LineはUnityで使えない構文として報告する()
     {
         PreprocessorOptions options = Unity.UnityPreprocessorDirectives.Apply(PreprocessorOptions.Default);
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("#line 100\nfloat4 f(float4 x) { return x; }\n", "test.hlsl"), options);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
@@ -448,9 +449,70 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 環境の指定が無ければLineを読み飛ばす()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("#line 100\nfloat4 f(float4 x) { return x; }\n");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("#line 100\nfloat4 f(float4 x) { return x; }\n");
 
         Assert.Contains(tree.Root.Declarations, d => d is FunctionDeclarationSyntax { Name: "f" });
+    }
+
+    /// <summary>
+    /// 取り込んだファイルの <c>#pragma</c> は、設定した指令だけでたどれるものだけを伝えることを検証する。
+    /// Unity 2023.2 以降は <c>#include_with_pragmas</c> の連なりだけを使う (2022.3 / 2023.2〜6.6 で確かめた)。
+    /// </summary>
+    /// <param name="onlyWithPragmas">伝える指令を <c>include_with_pragmas</c> に限るか。</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void 取り込んだファイルのpragmaは設定した指令の連なりだけで伝える(bool onlyWithPragmas)
+    {
+        InMemoryIncludeResolver resolver = new(new Dictionary<string, string>
+        {
+            ["With.hlsl"] = "#pragma multi_compile _ KW_WITH\n#include \"WithThenPlain.hlsl\"\n",
+            ["WithThenPlain.hlsl"] = "#pragma multi_compile _ KW_WITH_THEN_PLAIN\n",
+            ["Plain.hlsl"] = "#pragma multi_compile _ KW_PLAIN\n#include_with_pragmas \"PlainThenWith.hlsl\"\n",
+            ["PlainThenWith.hlsl"] = "#pragma multi_compile _ KW_PLAIN_THEN_WITH\n",
+        });
+
+        PreprocessorOptions options = Unity.UnityPreprocessorDirectives.Apply(new PreprocessorOptions { IncludeResolver = resolver }) with
+        {
+            PragmaIncludeDirectives = onlyWithPragmas ? Unity.UnityPreprocessorDirectives.IncludeDirectives : null,
+        };
+
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
+            SourceText.From("#pragma multi_compile _ KW_ROOT\n#include_with_pragmas \"With.hlsl\"\n#include \"Plain.hlsl\"\n", "test.hlsl"),
+            options);
+
+        string[] Keywords(ImmutableArray<PragmaDirective> pragmas)
+            => [.. (pragmas.IsDefault ? [] : pragmas).Select(p => p.Arguments.Last().Text).Order(StringComparer.Ordinal)];
+
+        if (onlyWithPragmas)
+        {
+            Assert.Equal(["KW_ROOT", "KW_WITH"], Keywords(tree.Pragmas));
+            Assert.Equal(["KW_PLAIN", "KW_PLAIN_THEN_WITH", "KW_WITH_THEN_PLAIN"], Keywords(tree.PreprocessResult.IgnoredPragmas));
+        }
+        else
+        {
+            Assert.Equal(["KW_PLAIN", "KW_PLAIN_THEN_WITH", "KW_ROOT", "KW_WITH", "KW_WITH_THEN_PLAIN"], Keywords(tree.Pragmas));
+            Assert.Empty(Keywords(tree.PreprocessResult.IgnoredPragmas));
+        }
+    }
+
+    /// <summary>
+    /// Unity の環境は、2023.2 以降でだけ <c>#include_with_pragmas</c> の <c>#pragma</c> に限ることを検証する。
+    /// 2022.3 と、バージョンが分からない場合は、どの取り込みの <c>#pragma</c> も使う。
+    /// </summary>
+    /// <param name="version">Unity のバージョン。<see langword="null"/> なら分からない。</param>
+    /// <param name="limited">限るか。</param>
+    [Theory]
+    [InlineData("2022.3", false)]
+    [InlineData("2023.2", true)]
+    [InlineData("6.6", true)]
+    [InlineData(null, false)]
+    public void Unityのバージョンで取り込んだファイルのpragmaの扱いを変える(string? version, bool limited)
+    {
+        Unity.UnityHlslEnvironment environment = new(new Unity.UnityOptions { EditorVersion = version });
+        PreprocessorOptions options = environment.ConfigurePreprocessor(new PreprocessorOptions(), new Semantics.SemanticsOptions());
+
+        Assert.Equal(limited, options.PragmaIncludeDirectives is not null);
     }
 
     /// <summary>
@@ -474,7 +536,7 @@ public sealed class HlslDeclarationParsingTests
             options = Unity.UnityPreprocessorDirectives.Apply(options);
         }
 
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("#include_with_pragmas \"Common.hlsl\"\n", "test.hlsl"), options);
 
         Assert.Equal(unity, tree.Root.Declarations.Any(d => d is FunctionDeclarationSyntax { Name: "Shared" }));
@@ -494,7 +556,7 @@ public sealed class HlslDeclarationParsingTests
     [Fact]
     public void 二重角括弧の注釈を読み飛ばす()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("[[vk::binding(0, 0)]] Texture2D _Tex;");
+        ShaderSyntaxTree tree = HlslHarness.Parse("[[vk::binding(0, 0)]] Texture2D _Tex;");
 
         Assert.Empty(tree.Diagnostics);
 
@@ -508,7 +570,7 @@ public sealed class HlslStatementParsingTests
 {
     private static BlockStatementSyntax ParseBody(string body)
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid($"void F() {{ {body} }}");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid($"void F() {{ {body} }}");
         return Assert.IsType<FunctionDeclarationSyntax>(Assert.Single(tree.Root.Declarations)).Body!;
     }
 
@@ -568,9 +630,9 @@ public sealed class HlslStatementParsingTests
 
 public sealed class HlslExpressionParsingTests
 {
-    private static HlslExpressionSyntax ParseExpression(string expression)
+    private static ExpressionSyntax ParseExpression(string expression)
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid($"void F() {{ x = {expression}; }}");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid($"void F() {{ x = {expression}; }}");
         BlockStatementSyntax body = Assert.IsType<FunctionDeclarationSyntax>(
             Assert.Single(tree.Root.Declarations)).Body!;
 
@@ -651,7 +713,7 @@ public sealed class HlslExpressionParsingTests
     [Fact]
     public void 初期化子リストを解析できる()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("static const float4 a[2] = { float4(0,0,0,0), float4(1,1,1,1) };");
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("static const float4 a[2] = { float4(0,0,0,0), float4(1,1,1,1) };");
 
         VariableDeclaratorSyntax declarator = Assert
             .IsType<VariableDeclarationSyntax>(Assert.Single(tree.Root.Declarations))
@@ -671,7 +733,7 @@ public sealed class HlslIntegrationTests
     {
         // これが M2 の中心的な要件である。
         // マクロを展開しなければ TEXTURE2D(_BaseMap) は構文として成立しない。
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             #define TEXTURE2D(name) Texture2D name
             #define SAMPLER(name) SamplerState name
             #define CBUFFER_START(name) cbuffer name {
@@ -699,7 +761,7 @@ public sealed class HlslIntegrationTests
     [Fact]
     public void 条件分岐で無効化された領域は構文木に現れない()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             #if 0
             this is not valid hlsl at all @@@
             #endif
@@ -713,7 +775,7 @@ public sealed class HlslIntegrationTests
     [Fact]
     public void pragmaを構文木から分離して保持する()
     {
-        HlslSyntaxTree tree = HlslHarness.ParseValid("""
+        ShaderSyntaxTree tree = HlslHarness.ParseValid("""
             #pragma vertex vert
             #pragma fragment frag
             void vert() { }
@@ -728,7 +790,7 @@ public sealed class HlslIntegrationTests
     public void 診断はマクロの呼び出し位置を指す()
     {
         // マクロ定義の中を指しても利用者は直しようがない。
-        HlslSyntaxTree tree = HlslHarness.Parse("""
+        ShaderSyntaxTree tree = HlslHarness.Parse("""
             #define BROKEN float4 @@@
             BROKEN
             """);
@@ -765,7 +827,7 @@ public sealed class HlslRobustnessTests
     [InlineData("return return return;")]
     public void 壊れた入力でも例外を投げない(string content)
     {
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
         Assert.NotNull(tree.Root);
     }
 
@@ -775,7 +837,7 @@ public sealed class HlslRobustnessTests
         // マクロが期待どおり展開されないと 1 ファイルから数千件のエラーが出る。
         // そのすべてを報告しても読み手の役に立たず、他のファイルの指摘が埋もれる。
         string content = string.Join("\n", Enumerable.Repeat("@@@", 500));
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
 
         Assert.True(
             tree.Diagnostics.Length <= Hlsl.Parsing.HlslParser.MaxReportedErrors,
@@ -787,7 +849,7 @@ public sealed class HlslRobustnessTests
     {
         // リンタは壊れた入力・病的な入力を与えられる前提で書く必要がある。
         string content = $"void F() {{ x = {new string('(', 200)}1{new string(')', 200)}; }}";
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
         Assert.NotNull(tree.Root);
     }
 
@@ -800,7 +862,7 @@ public sealed class HlslRobustnessTests
         int operands = Hlsl.Parsing.HlslParser.MaxBinaryOperands + 100;
         string content = $"void F() {{ x = {string.Join(" + ", Enumerable.Repeat("1", operands))}; }}";
 
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
 
         Assert.Contains(
             tree.Diagnostics,
@@ -813,7 +875,7 @@ public sealed class HlslRobustnessTests
         // 上限は、人が書く式には届かない高さに置く。
         string content = $"void F() {{ x = {string.Join(" + ", Enumerable.Repeat("1", 256))}; }}";
 
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
     }
@@ -828,7 +890,7 @@ public sealed class HlslRobustnessTests
     [InlineData("float4 frag(float4 p : SV_POSITION, FACE_PARAM(face)) : SV_Target { return 1; }", "FACE_PARAM")]
     public void 定義されていない関数形式のマクロはそう伝える(string content, string macro)
     {
-        HlslSyntaxTree tree = HlslHarness.Parse(content);
+        ShaderSyntaxTree tree = HlslHarness.Parse(content);
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0001", diagnostic.Id);

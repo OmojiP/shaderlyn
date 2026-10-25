@@ -1,14 +1,14 @@
 using System.Collections.Immutable;
 using System.Text;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
-using Xunit.Abstractions;
 using Shaderlyn.Unity;
+using Xunit.Abstractions;
 
 namespace Shaderlyn.Tests;
 
@@ -106,10 +106,10 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
         {
             IncludeResolver = preprocessor.IncludeResolver,
             PredefinedMacros = preprocessor.PredefinedMacros,
-            TokenCache = new HlslTokenCache(),
+            TokenCache = new TokenCache(),
 
             // CLI と同じく、ヘッダの展開結果を使い回す。結果は変わらない (使い回すかどうかで変わるなら、それは不具合である)。
-            IncludeCache = new HlslIncludeCache(),
+            IncludeCache = new IncludeCache(),
         };
 
         AnalyzerDriver driver = new(Cli.BuiltInAnalyzers.All);

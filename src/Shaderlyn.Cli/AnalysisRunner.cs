@@ -48,6 +48,56 @@ internal sealed record AnalysisResult(ImmutableArray<Diagnostic> Diagnostics, in
     }
 
     /// <summary>
+    /// ファイルごと (または解析設定ごと) の指摘を 1 つの結果にまとめる。
+    /// </summary>
+    /// <param name="parts">まとめる指摘の並び。</param>
+    /// <param name="analyzedFileCount">解析したファイルの数。</param>
+    /// <returns>まとめた結果。整列済み。</returns>
+    /// <remarks>
+    /// <para>
+    /// 利用者が書いた共通のヘッダの指摘は、それを取り込むシェーダーの数だけ出る。
+    /// 同じ位置の同じ指摘は 1 件にまとめる。取り込む側によって中身が違うものは、別の指摘として残す。
+    /// まとめるときは、取り込みの経路を足し合わせる。どのシェーダーから取り込んだときの指摘かが分かるようにする。
+    /// </para>
+    /// <para>
+    /// 解析設定 (設定ファイルと環境の組。<c>AnalysisSetting</c>) をまたいでも同じにまとめる。
+    /// 同じヘッダを 2 つの解析設定が取り込めば、指摘は 1 件で、経路が 2 本になる。
+    /// </para>
+    /// </remarks>
+    public static AnalysisResult Merge(IEnumerable<ImmutableArray<Diagnostic>> parts, int analyzedFileCount)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+
+        ImmutableArray<Diagnostic>.Builder all = ImmutableArray.CreateBuilder<Diagnostic>();
+        Dictionary<(string Id, string FilePath, TextSpan Span, string Message), int> seen = [];
+
+        foreach (ImmutableArray<Diagnostic> diagnostics in parts)
+        {
+            foreach (Diagnostic diagnostic in diagnostics.IsDefault ? [] : diagnostics)
+            {
+                (string, string, TextSpan, string) key = (diagnostic.Id, diagnostic.Location.FilePath, diagnostic.Location.Span, diagnostic.GetMessage());
+
+                if (!seen.TryGetValue(key, out int index))
+                {
+                    seen[key] = all.Count;
+                    all.Add(diagnostic);
+                    continue;
+                }
+
+                if (!diagnostic.IncludeRoutes.IsEmpty)
+                {
+                    Diagnostic first = all[index];
+                    all[index] = first.WithIncludeRoutes(
+                        [.. first.IncludeRoutes.Concat(diagnostic.IncludeRoutes).DistinctBy(r => r.Key)]);
+                }
+            }
+        }
+
+        all.Sort(Diagnostic.DocumentOrderComparer);
+        return new AnalysisResult(all.ToImmutable(), analyzedFileCount);
+    }
+
+    /// <summary>
     /// 解析以外の経路で得られた診断を加える。
     /// </summary>
     /// <param name="additional">加える診断。</param>
@@ -176,37 +226,7 @@ internal sealed class AnalysisRunner
             }
         }).ConfigureAwait(false);
 
-        ImmutableArray<Diagnostic>.Builder allDiagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-
-        // 利用者が書いた共通のヘッダの指摘は、それを取り込むシェーダーの数だけ出る。
-        // 同じ位置の同じ指摘は 1 件にまとめる。取り込む側によって中身が違うものは、別の指摘として残す。
-        // まとめるときは、取り込みの経路を足し合わせる。どのシェーダーから取り込んだときの指摘かが分かるようにする。
-        Dictionary<(string Id, string FilePath, TextSpan Span, string Message), int> seen = [];
-
-        foreach (ImmutableArray<Diagnostic> diagnostics in perFile)
-        {
-            foreach (Diagnostic diagnostic in diagnostics)
-            {
-                (string, string, TextSpan, string) key = (diagnostic.Id, diagnostic.Location.FilePath, diagnostic.Location.Span, diagnostic.GetMessage());
-
-                if (!seen.TryGetValue(key, out int index))
-                {
-                    seen[key] = allDiagnostics.Count;
-                    allDiagnostics.Add(diagnostic);
-                    continue;
-                }
-
-                if (!diagnostic.IncludeRoutes.IsEmpty)
-                {
-                    Diagnostic first = allDiagnostics[index];
-                    allDiagnostics[index] = first.WithIncludeRoutes(
-                        [.. first.IncludeRoutes.Concat(diagnostic.IncludeRoutes).DistinctBy(r => r.Key)]);
-                }
-            }
-        }
-
-        allDiagnostics.Sort(Diagnostic.DocumentOrderComparer);
-        return new AnalysisResult(allDiagnostics.ToImmutable(), analyzedCount);
+        return AnalysisResult.Merge(perFile, analyzedCount);
     }
 
     /// <summary>

@@ -43,7 +43,7 @@ public sealed class PassNeedsNameAnalyzer : DiagnosticAnalyzer
 `RegisterNodeAction` が歩くのは ShaderLab の構文木だけです。
 埋め込み HLSL はコードブロックごとに別の構文木になっており、マクロ展開と `#include` の解決を経て
 初めて出来上がるので、ShaderLab の木からは辿れません。
-HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `HlslRuleAnalyzer` を使ってください。
+HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `ShaderRuleAnalyzer` を使ってください。
 
 ---
 
@@ -83,7 +83,7 @@ Roslyn の `RegisterCompilationStartAction` / `RegisterSymbolStartAction` と同
 ## 3. セマンティックモデルを使う
 
 `Properties` と uniform の対応のような、層をまたぐ情報が要るときはセマンティックモデルを引きます。
-`HlslRuleAnalyzer` を使っていれば `c.Compilation` から直接引けます。
+`ShaderRuleAnalyzer` を使っていれば `c.Compilation` から直接引けます。
 
 ```csharp
 context.RegisterSyntaxTreeAction(c =>
@@ -122,7 +122,7 @@ foreach (PropertySymbol property in unity.Properties)
 }
 ```
 
-`HlslRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
+`ShaderRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
 ノードは既定の構成の木とバリアントの木の両方から、それぞれの文脈で渡ってきます (`c.Program`)。
 同じ位置のコードは `Pass` と構成の数だけ渡りますが、同じ内容の報告は 1 度にまとまります。
 
@@ -144,7 +144,7 @@ foreach (PropertySymbol property in unity.Properties)
 アナライザは普通のクラスなので、コンストラクタで受け取ります。
 
 ```csharp
-public sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
     ...
@@ -216,10 +216,10 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 文字列を切り刻んで求めたものは、書き方が増えたときに気づけないまま取りこぼします。
 同じ判定をする仕組みが用意してあるので、そちらを使ってください。
 
-- リテラルの値は `HlslLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
+- リテラルの値は `ShaderLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
   「数字で書かれていない」として検査が素通りします
 - 配列の長さは `TryGetArrayLength` で読んでください。多次元の場合も積で返ります
-- 型名の分解は `HlslTypeClassifier` で行ってください。`Texture2D` の `2D` を成分数と読み違えません
+- 型名の分解は `compilation.TypeSystem` (`ShaderTypeSystem`) で行ってください。`Texture2D` の `2D` を成分数と読み違えず、HLSL 以外の言語 (`vec3` など) も同じ形で読めます
 - 式の型は `GetExpressionTypeBinder(program)` が返すものから求めてください。
   `ExpressionTypeBinder` を自分で `new` すると、ノードごとに宣言と構造体のフィールドを
   集め直すため、走査が二乗になります

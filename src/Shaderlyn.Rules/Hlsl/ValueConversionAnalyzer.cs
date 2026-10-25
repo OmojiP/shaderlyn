@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -58,7 +58,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        ReportedLocations reported = new();
+        // 構成ごとに型を求めて見つけた食い違いは、木をまたいで条件の和をとって 1 件にする。
+        // 木の構成を掛け、#error に到達する構成を除くのも、そこで行う (ConditionalReports)。
+        ReportedLocations reported = new(compilation);
         ConditionMap conditions = compilation.GetConditionMap();
 
         // 構造体の波括弧による初期化は、メンバーを平らにして数える。
@@ -66,7 +68,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 初期化を書いた木と同じ木の宣言だけを見る。
         Dictionary<AnalyzedProgram, Dictionary<string, StructDeclarationSyntax>> structsByProgram = [];
 
-        foreach ((HlslDeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
+        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
         {
             if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
             {
@@ -81,6 +83,11 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             AnalyzeReturnPaths(context, compilation, program, function, reported);
             AnalyzeFunction(
                 context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), function, structs, reported);
+        }
+
+        foreach (Diagnostic diagnostic in reported.BuildConditional())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -105,7 +112,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         foreach (SyntaxNode node in function.DescendantNodesAndSelf())
         {
-            if (!compilation.IsReportable((HlslSyntaxNode)node))
+            if (!compilation.IsReportable((ShaderSyntaxNode)node))
             {
                 continue;
             }
@@ -162,7 +169,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (string.Equals(returnType, VoidTypeName, StringComparison.Ordinal)
             || function.Body is not { } body
             || function.NameToken.GetLocation() is not { } location
-            || reported.Contains(location))
+            || ReachesErrorInside(program, body))
         {
             return;
         }
@@ -172,14 +179,39 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        reported.Add(location);
-
-        context.ReportDiagnostic(Diagnostic.Create(
+        // 関数の先頭の条件と木の構成を掛けて報告する。構成ごとの木で見つけたものは、その木の構成のときの話である。
+        string name = function.Name;
+        reported.AddConditional(
+            program,
+            function.ReturnType,
+            missing,
             HlslRuleDescriptors.MissingReturn,
             location,
-            function.Name,
-            returnType,
-            missing.IsAlways ? string.Empty : $" (構成：{missing} のとき)"));
+            $"{name}\u0001{returnType}",
+            when => [name, returnType, when.IsAlways ? string.Empty : $" (構成：{when} のとき)"]);
+    }
+
+    /// <summary>この木の展開が、関数の本体の中の <c>#error</c> に到達したかを判定する。</summary>
+    /// <param name="program">関数がある木。</param>
+    /// <param name="body">関数の本体。</param>
+    /// <returns>届いたなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>#error</c> に到達した構成はコンパイルできない。その分岐に <c>return</c> が無いのは当たり前である。
+    /// <c>#if METHOD == 1 return …; #elif METHOD == 2 return …; #else #error #endif</c> を、値を決めずに読んだ既定の構成で
+    /// 「値を返さない経路がある」と報告していた (Unreal の DOFPostfiltering.usf の PostfilterInput)。
+    /// </remarks>
+    private static bool ReachesErrorInside(AnalyzedProgram program, BlockStatementSyntax body)
+    {
+        ImmutableArray<Location> errors = program.Tree.PreprocessResult.ReachedErrorDirectives;
+
+        if (errors.IsDefaultOrEmpty || body.GetLocation() is not { } location)
+        {
+            return false;
+        }
+
+        return errors.Any(error => string.Equals(error.FilePath, location.FilePath, StringComparison.OrdinalIgnoreCase)
+                                   && location.Span.Start <= error.Span.Start
+                                   && error.Span.End <= location.Span.End);
     }
 
     /// <summary>値を返さずに終わる経路がある構成を求める。</summary>
@@ -202,12 +234,12 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return ControlFlow.AlwaysExits(body) ? null : SymbolCondition.Always;
         }
 
-        List<HlslSyntaxNode> statements = [.. body.DescendantNodesAndSelf().OfType<HlslStatementSyntax>()];
+        List<ShaderSyntaxNode> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
 
         // 関数がある構成は、関数の先頭 (戻り値の型) の出現条件で代表させる。
         // 出現条件は #if の領域が内側の指令で切れた単位で付くので、関数全体のように複数の切れ目にまたがるノードには付かない。
         // 関数ごと #ifdef _BASE の中にあっても、関数の宣言そのものは「常に」になり、_BASE の無い構成で本体が空に見える。
-        HlslSyntaxNode head = function.ReturnType;
+        ShaderSyntaxNode head = function.ReturnType;
 
         if (!compilation.TryEnumerateConfigurations([head, .. statements], program, out ImmutableArray<NodeConfiguration> configurations)
             || configurations.Length <= 1)
@@ -231,7 +263,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 構成を表す条件を作るために、本体の条件に現れるシンボルを集める。
         SortedSet<string> symbols = new(StringComparer.Ordinal);
 
-        foreach (HlslSyntaxNode statement in statements)
+        foreach (ShaderSyntaxNode statement in statements)
         {
             symbols.UnionWith(compilation.GetEffectiveCondition(statement, program).EnumerateSymbols());
         }
@@ -358,7 +390,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         SymbolCondition declared = conditions.GetCondition(declaration);
 
         if (declared.IsUnknown
-            || CountRequiredComponents(conditions, declaration, variable, structs) is not { } required
+            || CountRequiredComponents(compilation.TypeSystem, conditions, declaration, variable, structs) is not { } required
             || CountWrittenComponents(conditions, binder, list) is not { } written
             || list.GetLocation() is not { } location
             || reported.Contains(location))
@@ -442,18 +474,20 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 代入先が必要とする成分の個数を求める。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="declaration">対象の宣言。</param>
     /// <param name="variable">対象の宣言子。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
     /// <returns>出現条件ごとの必要な個数。求められない場合は <see langword="null"/>。</returns>
     private static Dictionary<SymbolCondition, int>? CountRequiredComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         VariableDeclarationSyntax declaration,
         VariableDeclaratorSyntax variable,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs)
     {
-        if (CountElementComponents(conditions, declaration.Type.Name, structs) is not { } perElement)
+        if (CountElementComponents(types, conditions, declaration.Type.Name, structs) is not { } perElement)
         {
             return null;
         }
@@ -474,6 +508,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 要素 1 つ分の成分の個数を求める。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="typeName">要素の型名。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
@@ -484,12 +519,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// 入れ子の構造体もたどる。たどれない型が 1 つでもあれば数えない。
     /// </remarks>
     private static Dictionary<SymbolCondition, int>? CountElementComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         string typeName,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs)
-        => CountElementComponents(conditions, typeName, structs, depth: 0);
+        => CountElementComponents(types, conditions, typeName, structs, depth: 0);
 
     /// <summary>構造体の入れ子をたどりながら成分を数える。</summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="conditions">ノードの出現条件。</param>
     /// <param name="typeName">要素の型名。</param>
     /// <param name="structs">このシェーダーが書いた構造体。</param>
@@ -506,6 +543,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// </remarks>
     private static Dictionary<SymbolCondition, int>? CountElementComponents(
+        ShaderTypeSystem types,
         ConditionMap conditions,
         string typeName,
         IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
@@ -513,7 +551,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         Dictionary<SymbolCondition, int> counts = [];
 
-        if (HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
+        if (types.TryDescribeNumeric(typeName, out ShaderNumericShape shape))
         {
             counts[SymbolCondition.Always] = shape.Rows * shape.Columns;
             return counts;
@@ -527,7 +565,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         // 継承した基底 (struct D : B) のフィールドが先に並ぶ。基底を数えられなければ、この構造体も数えない。
         if (structure.BaseTypeName is { } baseName)
         {
-            if (CountElementComponents(conditions, baseName, structs, depth + 1) is not { } inherited)
+            if (CountElementComponents(types, conditions, baseName, structs, depth + 1) is not { } inherited)
             {
                 return null;
             }
@@ -548,7 +586,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 return null;
             }
 
-            if (CountElementComponents(conditions, field.Type.Name, structs, depth + 1) is not { } perMember)
+            if (CountElementComponents(types, conditions, field.Type.Name, structs, depth + 1) is not { } perMember)
             {
                 return null;
             }
@@ -588,9 +626,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     {
         Dictionary<SymbolCondition, int> counts = [];
 
-        foreach (HlslNodeOrTokenEntry item in list.Elements)
+        foreach (ShaderNodeOrTokenEntry item in list.Elements)
         {
-            if (item.Node is not HlslExpressionSyntax element)
+            if (item.Node is not ExpressionSyntax element)
             {
                 // 区切りのカンマ。
                 continue;
@@ -708,36 +746,39 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!HlslConversion.IsConvertible(valueType, targetType))
+            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
             {
-                if (reported.Add(location))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        HlslRuleDescriptors.ValueNotConvertible,
-                        location,
-                        targetType,
-                        valueType,
-                        assumption.IsAlways ? string.Empty : $"構成：{assumption} のとき、代入先は {targetType} です。"));
-                }
+                reported.AddConditional(
+                    binder.Program,
+                    assignment,
+                    assumption,
+                    HlslRuleDescriptors.ValueNotConvertible,
+                    location,
+                    $"{targetType}\u0001{valueType}",
+                    when => [targetType, valueType, when.IsAlways ? string.Empty : $"構成：{when} のとき、代入先は {targetType} です。"],
+                    withTreeConfiguration: false);
 
                 return;
             }
 
-            if (truncating is null && HlslConversion.IsTruncating(valueType, targetType))
+            if (truncating is null && binder.TypeSystem.IsTruncating(valueType, targetType))
             {
                 truncating = (assumption, targetType, valueType);
             }
         }
 
-        if (truncating is { } finding && reported.Add(location))
+        if (truncating is { } finding)
         {
-            context.ReportDiagnostic(Diagnostic.Create(
+            string value = DescribeValue(assignment.Right);
+            reported.AddConditional(
+                binder.Program,
+                assignment,
+                finding.Assumption,
                 HlslRuleDescriptors.ConditionalTruncation,
                 location,
-                DescribeAssumption(finding.Assumption),
-                DescribeValue(assignment.Right),
-                finding.Value,
-                $"代入先の {finding.Target}"));
+                $"{value}\u0001{finding.Value}\u0001{finding.Target}",
+                when => [DescribeAssumption(when), value, finding.Value, $"代入先の {finding.Target}"],
+                withTreeConfiguration: false);
         }
     }
 
@@ -753,7 +794,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ConditionMap conditions,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string targetType,
         string target,
         ReportedLocations reported)
@@ -765,29 +806,40 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (binder.GetEvaluatorFor(value).Evaluate(value) is not { } valueType)
         {
-            if (FindByConfiguration(conditions, binder, value, targetType) is { } finding
-                && reported.Add(location))
+            if (FindByConfiguration(conditions, binder, value, targetType) is { } finding)
             {
-                context.ReportDiagnostic(finding.Convertible
-                    ? Diagnostic.Create(
+                string shown = DescribeValue(value);
+
+                if (finding.Convertible)
+                {
+                    reported.AddConditional(
+                        binder.Program,
+                        value,
+                        finding.Assumption,
                         HlslRuleDescriptors.ConditionalTruncation,
                         location,
-                        DescribeAssumption(finding.Assumption),
-                        DescribeValue(value),
-                        finding.ValueType,
-                        target)
-                    : Diagnostic.Create(
+                        $"{shown}\u0001{finding.ValueType}\u0001{target}",
+                        when => [DescribeAssumption(when), shown, finding.ValueType, target],
+                        withTreeConfiguration: false);
+                }
+                else
+                {
+                    reported.AddConditional(
+                        binder.Program,
+                        value,
+                        finding.Assumption,
                         HlslRuleDescriptors.ValueNotConvertible,
                         location,
-                        target,
-                        finding.ValueType,
-                        DescribeNote(finding)));
+                        $"{target}\u0001{finding.ValueType}",
+                        when => [target, finding.ValueType, DescribeNote(finding with { Assumption = when })],
+                        withTreeConfiguration: false);
+                }
             }
 
             return;
         }
 
-        if (HlslConversion.IsConvertible(valueType, targetType) || !reported.Add(location))
+        if (binder.TypeSystem.IsConvertible(valueType, targetType) || !reported.Add(location))
         {
             return;
         }
@@ -830,7 +882,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     private static ConfigurationFinding? FindByConfiguration(
         ConditionMap conditions,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string targetType)
     {
         ConfigurationFinding? truncating = null;
@@ -842,12 +894,12 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!HlslConversion.IsConvertible(valueType, targetType))
+            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
             {
                 return new ConfigurationFinding(assumption, valueType, Convertible: false);
             }
 
-            if (truncating is null && HlslConversion.IsTruncating(valueType, targetType))
+            if (truncating is null && binder.TypeSystem.IsTruncating(valueType, targetType))
             {
                 truncating = new ConfigurationFinding(assumption, valueType, Convertible: true);
             }
@@ -868,7 +920,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// 長い式をそのまま載せると読めなくなる。名前で指せるときだけ名前を出す。
     /// </remarks>
-    private static string DescribeValue(HlslExpressionSyntax value)
+    private static string DescribeValue(ExpressionSyntax value)
         => value is IdentifierExpressionSyntax identifier ? $"'{identifier.Name}'" : "この値";
 
     /// <summary>
@@ -940,7 +992,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (HlslConversion.IsConvertible(valueType, returnType)
+        if (binder.TypeSystem.IsConvertible(valueType, returnType)
             || !reported.Add(location))
         {
             return;
@@ -973,7 +1025,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         ConditionMap conditions,
         ExpressionTypeBinder binder,
         FunctionDeclarationSyntax function,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string returnType,
         Location location,
         ReportedLocations reported)
@@ -985,29 +1037,32 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (!finding.Convertible)
         {
-            if (reported.Add(location))
-            {
-                Report(
-                    context,
-                    function.Name,
-                    returnType,
-                    $"{finding.ValueType} を返しています",
-                    location,
-                    DescribeNote(finding));
-            }
+            string name = function.Name;
+            reported.AddConditional(
+                binder.Program,
+                value,
+                finding.Assumption,
+                HlslRuleDescriptors.ReturnNotConvertible,
+                location,
+                $"{name}\u0001{returnType}\u0001{finding.ValueType}",
+                when => [name, returnType, $"{finding.ValueType} を返しています", DescribeNote(finding with { Assumption = when })],
+                withTreeConfiguration: false);
 
             return;
         }
 
-        if (value.GetLocation() is { } valueLocation && reported.Add(valueLocation))
+        if (value.GetLocation() is { } valueLocation)
         {
-            context.ReportDiagnostic(Diagnostic.Create(
+            string shown = DescribeValue(value);
+            reported.AddConditional(
+                binder.Program,
+                value,
+                finding.Assumption,
                 HlslRuleDescriptors.ConditionalTruncation,
                 valueLocation,
-                DescribeAssumption(finding.Assumption),
-                DescribeValue(value),
-                finding.ValueType,
-                $"戻り値の {returnType}"));
+                $"{shown}\u0001{finding.ValueType}\u0001{returnType}",
+                when => [DescribeAssumption(when), shown, finding.ValueType, $"戻り値の {returnType}"],
+                withTreeConfiguration: false);
         }
     }
 

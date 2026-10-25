@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -12,13 +12,13 @@ namespace Shaderlyn.Cookbook;
 /// マクロと違い、関数は展開後も呼び出しの形で残る。構文木から探すほうが正確である。
 /// 呼び出しの対象が単純な名前のときだけ見る。
 /// </remarks>
-public sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedFunction];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
@@ -72,10 +74,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             // 行きがけ順なので、修飾は左側の識別子より先に現れる。
-            if (node is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.ColonColonToken } access
+            if (node is MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.ColonColonToken } access
                 && access.Target.GetLocation() is { } qualifier)
             {
                 qualifiers.Add((qualifier.FilePath, qualifier.Span.Start));
@@ -101,6 +103,16 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// 型引数を書いた組み込みの型の値の作成 (<c>vector&lt;float, 2&gt;(x, y)</c>、<c>matrix&lt;T, 2, 2&gt;(…)</c>) の型の名前か。
+    /// </summary>
+    /// <param name="identifier">識別子。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsBuiltInTemplateConstruction(IdentifierExpressionSyntax identifier)
+        => identifier.Name is "vector" or "matrix"
+           && identifier.Parent is InvocationExpressionSyntax { OpenAngle: not null } invocation
+           && ReferenceEquals(invocation.Target, identifier);
+
     /// <summary>識別子 1 つを、それがある木で見えるかどうかとともに覚える。</summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="program">識別子がある木。</param>
@@ -121,10 +133,11 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (HlslIntrinsics.IsKnownFunction(identifier.Name, program.Tree.Features)
-            || HlslIntrinsics.IsKnownConstant(identifier.Name)
+        if (compilation.TypeSystem.IsKnownFunction(identifier.Name, program.Tree)
+            || compilation.TypeSystem.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || HlslTypeClassifier.Classify(identifier.Name) != HlslTypeClass.Unknown
+            || compilation.TypeSystem.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
@@ -160,6 +173,14 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         else
         {
             visible = declared.Contains(identifier.Name, program, invoked);
+
+            // 別の単位では関数の外の変数として、この単位では仮引数や関数の中の変数として宣言されている名前がある
+            // (Unreal の CapsuleShadowShaders.usf の LightDirection は、構成によって uniform か仮引数になる)。
+            // コードブロックの名前に無くても、その位置で関数の中の宣言が見えれば宣言されている。
+            if (!visible && compilation.GetExpressionTypeBinder(program).ResolveName(identifier).Kind != DeclaredNameKind.NotFound)
+            {
+                visible = true;
+            }
         }
 
         if (!uses.TryGetValue((location.FilePath, location.Span.Start), out Uses? use))
@@ -290,7 +311,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     ? use.And(occurrence.DeclaredWhen!.Value.Negate())
                     : use;
 
-                if (!hidden.IsUnknown && map.IsPossible(hidden))
+                if (!hidden.IsUnknown && compilation.IsPossibleIn(occurrence.Program, hidden))
                 {
                     missing = missing.Or(hidden);
                 }
@@ -417,7 +438,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// <param name="declared">足す先。</param>
     private static void AddWrittenDeclarations(ShaderCompilation compilation, AnalyzedProgram program, HashSet<string> declared)
     {
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             if (declaration.FirstToken is not { } first
                 || !string.Equals(first.Source.FilePath, compilation.Text.FilePath, StringComparison.Ordinal))

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\Shaderlyn.CFamily\Shaderlyn.CFamily.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Description>Shaderlyn の GLSL の構文解析 (GLSL に固有の構文)。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- 型は GL1 までは internal にしておく (どれを公開するかは GL1 で決める)。CLI と言語サーバーからは使う -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+    <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
+  </ItemGroup>
+
+</Project>

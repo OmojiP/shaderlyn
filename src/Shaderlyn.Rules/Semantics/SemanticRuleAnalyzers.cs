@@ -147,23 +147,20 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
                 + $"解決できなかった include: {string.Join(", ", listed)}{suffix}";
         }
 
-        if (!compilation.ReportableHlslDiagnostics.IsEmpty)
+        // 検査を止めるのはエラーだけである (ShaderCompilation.BreaksAnalysis)。警告を原因として示さない。
+        if (compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } reported)
         {
-            Diagnostic reported = compilation.ReportableHlslDiagnostics[0];
             return "このファイルの HLSL を解析できませんでした。"
                 + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
         }
 
-        ImmutableArray<Diagnostic> hlslDiagnostics = compilation.HlslDiagnostics;
-
-        if (hlslDiagnostics.IsEmpty)
+        // include 先のヘッダの中の問題は、それ自体は報告していない。
+        // ここで示さないと、利用者は原因に辿り着く手がかりを一切持てない。
+        if (compilation.HlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is not { } first)
         {
             return "原因を特定できませんでした。";
         }
 
-        // include 先のヘッダの中の問題は、それ自体は報告していない。
-        // ここで示さないと、利用者は原因に辿り着く手がかりを一切持てない。
-        Diagnostic first = hlslDiagnostics[0];
         return "include したファイルの HLSL を解析できませんでした。"
             + $"{Path.GetFileName(first.Location.FilePath)}({first.Location.LineSpan.Start}): "
             + $"{first.Id} {first.GetMessage()}";

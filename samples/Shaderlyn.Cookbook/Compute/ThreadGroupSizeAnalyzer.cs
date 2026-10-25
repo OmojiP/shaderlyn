@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -12,11 +12,11 @@ namespace Shaderlyn.Cookbook;
 /// GPU の実行単位 (wave / warp) の倍数でないと、
 /// スレッドが遊んだまま起動されることになる。
 /// </remarks>
-public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
+public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.ThreadGroupSize];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -29,7 +29,7 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                 return;
             }
 
-            foreach (HlslAttributeSyntax attribute in c.Node.Attributes)
+            foreach (AttributeSyntax attribute in c.Node.Attributes)
             {
                 if (!string.Equals(attribute.Name, "numthreads", StringComparison.OrdinalIgnoreCase))
                 {
@@ -39,9 +39,9 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                 int total = 1;
                 bool known = true;
 
-                foreach (HlslSyntaxToken token in attribute.ArgumentTokens)
+                foreach (ShaderSyntaxToken token in attribute.ArgumentTokens)
                 {
-                    if (token.Kind == HlslSyntaxKind.NumericLiteralToken)
+                    if (token.Kind == ShaderSyntaxKind.NumericLiteralToken)
                     {
                         if (int.TryParse(token.Text, out int value))
                         {
@@ -52,7 +52,7 @@ public sealed class ThreadGroupSizeAnalyzer(int multipleOf) : HlslRuleAnalyzer
                             known = false;
                         }
                     }
-                    else if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                    else if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                     {
                         // マクロが展開されずに残っている。分からないので報告しない。
                         known = false;

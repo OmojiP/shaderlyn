@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Semantics.Programs;
 
 namespace Shaderlyn.Semantics.Symbols;
@@ -77,6 +77,11 @@ internal readonly record struct TemplateDeductionResult(
 /// 数値型の基本型が確かめた範囲 (<see cref="ComparableBaseNames"/>) にあるものと、リテラルだけを比べる。
 /// 構造体や 16 ビットの型の別名は、同じ型かどうかを決めきれないので比べない。
 /// </para>
+/// <para>
+/// <b>HLSL の型の表 (<see cref="HlslTypeClassifier"/>) を直接引く。</b>
+/// <c>template</c> は HLSL 2021 にしか無く、ほかの言語の木にこの推論は現れないためである
+/// (言語の型システムは <see cref="ShaderTypeSystem"/> から尋ねるのが原則)。
+/// </para>
 /// </remarks>
 internal static class TemplateDeduction
 {
@@ -106,16 +111,16 @@ internal static class TemplateDeduction
     /// <param name="evaluator">実引数の位置の評価器。</param>
     /// <param name="argument">実引数。</param>
     /// <returns>型名。接尾辞の無い数なら <see cref="LiteralFloat"/> / <see cref="LiteralInt"/>。分からなければ <see langword="null"/>。</returns>
-    internal static string? ArgumentType(ExpressionTypeEvaluator evaluator, HlslExpressionSyntax argument)
+    internal static string? ArgumentType(ExpressionTypeEvaluator evaluator, ExpressionSyntax argument)
     {
         ArgumentNullException.ThrowIfNull(evaluator);
 
         if (AsLiteral(argument) is { } token)
         {
             // 接尾辞の無い数だけがリテラルの型になる。1.0f や 1u はふつうの型である。
-            if (HlslLiteral.GetDigits(token).Length == token.Text.Length)
+            if (ShaderLiteral.GetDigits(token).Length == token.Text.Length)
             {
-                return HlslLiteral.GetTypeName(token) switch
+                return ShaderLiteral.GetTypeName(token) switch
                 {
                     "float" => LiteralFloat,
                     "int" => LiteralInt,
@@ -124,7 +129,7 @@ internal static class TemplateDeduction
             }
 
             // 整数に付く l の型は決めきれない (幅の指定)。
-            if (HlslLiteral.GetTypeName(token) is "int")
+            if (ShaderLiteral.GetTypeName(token) is "int")
             {
                 return null;
             }
@@ -136,9 +141,9 @@ internal static class TemplateDeduction
     /// <summary>実引数が、括弧と符号を除けば数のリテラルかを調べる。</summary>
     /// <param name="argument">実引数。</param>
     /// <returns>リテラルのトークン。リテラルでなければ <see langword="null"/>。</returns>
-    internal static HlslSyntaxToken? AsLiteral(HlslExpressionSyntax argument)
+    internal static ShaderSyntaxToken? AsLiteral(ExpressionSyntax argument)
     {
-        HlslExpressionSyntax current = argument;
+        ExpressionSyntax current = argument;
 
         while (true)
         {
@@ -148,11 +153,11 @@ internal static class TemplateDeduction
                     current = parenthesized.Expression;
                     continue;
 
-                case PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken } unary:
+                case PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken } unary:
                     current = unary.Operand;
                     continue;
 
-                case LiteralExpressionSyntax { Token.Kind: HlslSyntaxKind.NumericLiteralToken } literal:
+                case LiteralExpressionSyntax { Token.Kind: ShaderSyntaxKind.NumericLiteralToken } literal:
                     return literal.Token;
 
                 default:
@@ -173,7 +178,7 @@ internal static class TemplateDeduction
     internal static TemplateDeductionResult Deduce(
         TemplateFunctionCandidate candidate,
         InvocationExpressionSyntax invocation,
-        Func<HlslExpressionSyntax, string?> argumentType)
+        Func<ExpressionSyntax, string?> argumentType)
     {
         ArgumentNullException.ThrowIfNull(invocation);
         ArgumentNullException.ThrowIfNull(argumentType);
@@ -190,7 +195,7 @@ internal static class TemplateDeduction
         HashSet<string> explicitlyWritten = [.. bindings.Keys];
         HashSet<string> undecided = new(StringComparer.Ordinal);
         ParameterSyntax[] parameters = [.. candidate.Declaration.ParameterList];
-        HlslExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
         TemplateDeductionConflict? conflict = null;
         TemplateDeductionMismatch? mismatch = null;
 
@@ -238,7 +243,7 @@ internal static class TemplateDeduction
         for (int i = 0; i < parameters.Length && i < arguments.Length && conflict is null && mismatch is null; i++)
         {
             ParameterSyntax parameter = parameters[i];
-            HlslTypeSyntax type = parameter.Type;
+            TypeSyntax type = parameter.Type;
 
             if (parameter.IsArray || !type.QualifierTokens.IsEmpty)
             {
@@ -258,7 +263,7 @@ internal static class TemplateDeduction
 
             // vector<T, N> a。
             if (type.NameToken.Text != "vector"
-                || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+                || type.TemplateArguments is not [var element, { Kind: ShaderSyntaxKind.CommaToken }, var count])
             {
                 continue;
             }
@@ -273,7 +278,7 @@ internal static class TemplateDeduction
 
             if (argumentType(arguments[i]) is not { } argument
                 || IsLiteral(argument)
-                || !HlslTypeClassifier.TryDescribeNumeric(argument, out HlslNumericShape shape)
+                || !HlslTypeClassifier.TryDescribeNumeric(argument, out ShaderNumericShape shape)
                 || !ComparableBaseNames.Contains(shape.BaseName))
             {
                 if (deducesElement)
@@ -292,7 +297,7 @@ internal static class TemplateDeduction
             string parameterType = $"vector<{element.Text}, {count.Text}>";
 
             // ベクトルでない値、書かれた基本型や成分の数と違う値は、この仮引数に合わない。
-            if (shape.Kind != HlslNumericKind.Vector
+            if (shape.Kind != ShaderNumericKind.Vector
                 || (!deducesElement && IsComparable(element.Text) && Canonicalize(element.Text) != shape.BaseName)
                 || (!deducesCount && int.TryParse(count.Text, out int columns) && columns != shape.Columns))
             {
@@ -348,10 +353,10 @@ internal static class TemplateDeduction
     /// <returns>組み立てた型 (<c>float3</c>)。決まらなければ <see langword="null"/>。</returns>
     private static string? ComposedReturnType(TemplateFunctionCandidate candidate, TemplateDeductionResult result)
     {
-        HlslTypeSyntax type = candidate.Declaration.ReturnType;
+        TypeSyntax type = candidate.Declaration.ReturnType;
 
         if (type.NameToken.Text != "vector"
-            || type.TemplateArguments is not [var element, { Kind: HlslSyntaxKind.CommaToken }, var count])
+            || type.TemplateArguments is not [var element, { Kind: ShaderSyntaxKind.CommaToken }, var count])
         {
             return null;
         }
@@ -379,7 +384,7 @@ internal static class TemplateDeduction
     /// <summary>型引数のトークンを、カンマで区切った 1 つずつの型名にする。</summary>
     /// <param name="tokens">型引数のトークン。</param>
     /// <returns>型名。1 つの名前で書かれていないもの (<c>vector&lt;float, 3&gt;</c> や数) は <see langword="null"/>。</returns>
-    internal static ImmutableArray<string?> SplitTypeArguments(ImmutableArray<HlslSyntaxToken> tokens)
+    internal static ImmutableArray<string?> SplitTypeArguments(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         if (tokens.IsEmpty)
         {
@@ -387,12 +392,12 @@ internal static class TemplateDeduction
         }
 
         ImmutableArray<string?>.Builder arguments = ImmutableArray.CreateBuilder<string?>();
-        List<HlslSyntaxToken> current = [];
+        List<ShaderSyntaxToken> current = [];
         int depth = 0;
 
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
-            if (token.Kind == HlslSyntaxKind.CommaToken && depth == 0)
+            if (token.Kind == ShaderSyntaxKind.CommaToken && depth == 0)
             {
                 arguments.Add(AsTypeName(current));
                 current.Clear();
@@ -401,8 +406,8 @@ internal static class TemplateDeduction
 
             depth += token.Kind switch
             {
-                HlslSyntaxKind.LessThanToken => 1,
-                HlslSyntaxKind.GreaterThanToken => -1,
+                ShaderSyntaxKind.LessThanToken => 1,
+                ShaderSyntaxKind.GreaterThanToken => -1,
                 _ => 0,
             };
             current.Add(token);
@@ -411,15 +416,15 @@ internal static class TemplateDeduction
         arguments.Add(AsTypeName(current));
         return arguments.ToImmutable();
 
-        static string? AsTypeName(List<HlslSyntaxToken> argument)
-            => argument is [{ Kind: HlslSyntaxKind.IdentifierToken } single] ? single.Text : null;
+        static string? AsTypeName(List<ShaderSyntaxToken> argument)
+            => argument is [{ Kind: ShaderSyntaxKind.IdentifierToken } single] ? single.Text : null;
     }
 
     /// <summary>typedef で同じになる型を、1 つの名前に揃える。</summary>
     /// <param name="type">型名。</param>
     /// <returns>揃えた型名。</returns>
     private static string Canonicalize(string type)
-        => HlslTypeClassifier.TryDescribeNumeric(type, out HlslNumericShape shape)
+        => HlslTypeClassifier.TryDescribeNumeric(type, out ShaderNumericShape shape)
            && Aliases.TryGetValue(shape.BaseName, out string? baseName)
             ? HlslTypeClassifier.Compose(shape with { BaseName = baseName }) ?? type
             : type;
@@ -430,5 +435,5 @@ internal static class TemplateDeduction
     private static bool IsComparable(string type)
         => IsLiteral(type)
            || int.TryParse(type, out _)
-           || (HlslTypeClassifier.TryDescribeNumeric(type, out HlslNumericShape shape) && ComparableBaseNames.Contains(shape.BaseName));
+           || (HlslTypeClassifier.TryDescribeNumeric(type, out ShaderNumericShape shape) && ComparableBaseNames.Contains(shape.BaseName));
 }

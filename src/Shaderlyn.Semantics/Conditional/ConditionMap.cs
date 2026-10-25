@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -22,7 +22,7 @@ internal readonly record struct ConditionalRegion(Location Location, SymbolCondi
 /// </summary>
 /// <param name="Copy">その複製の先頭のトークン。どの複製のものかを見分ける。</param>
 /// <param name="Condition">その複製が存在する条件。</param>
-internal readonly record struct HoistedToken(HlslSyntaxToken Copy, SymbolCondition Condition);
+internal readonly record struct HoistedToken(ShaderSyntaxToken Copy, SymbolCondition Condition);
 
 /// <summary>
 /// 構文木のノードが、どのシンボルの組み合わせのもとで存在するか。
@@ -44,20 +44,20 @@ public sealed class ConditionMap
     /// <remarks>シンボルバリアントが無い場合に使う。条件を引くと必ず「常に」を返す。</remarks>
     public static ConditionMap Empty { get; } = new([], [], [], [], SymbolConstraints.Empty, [], []);
 
-    private readonly Dictionary<HlslSyntaxNode, SymbolCondition> _conditions;
+    private readonly Dictionary<ShaderSyntaxNode, SymbolCondition> _conditions;
     private readonly ImmutableArray<ConditionalRegion> _regions;
-    private readonly Dictionary<HlslSyntaxNode, List<ConditionalNode>> _inserted;
+    private readonly Dictionary<ShaderSyntaxNode, List<ConditionalNode>> _inserted;
     private readonly SymbolConstraints _constraints;
-    private readonly Dictionary<HlslSyntaxToken, HoistedToken> _hoisted;
+    private readonly Dictionary<ShaderSyntaxToken, HoistedToken> _hoisted;
     private readonly Dictionary<SyntaxNode, (int Start, string? Kernel)> _blockByRoot;
 
     internal ConditionMap(
-        Dictionary<HlslSyntaxNode, SymbolCondition> conditions,
+        Dictionary<ShaderSyntaxNode, SymbolCondition> conditions,
         ImmutableArray<Location> unmergedLocations,
         ImmutableArray<ConditionalRegion> regions,
-        Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted,
+        Dictionary<ShaderSyntaxNode, List<ConditionalNode>> inserted,
         SymbolConstraints constraints,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted,
         Dictionary<SyntaxNode, (int Start, string? Kernel)> blockByRoot)
     {
         _blockByRoot = blockByRoot;
@@ -86,7 +86,7 @@ public sealed class ConditionMap
     /// 両方の分岐が 1 本の木として読める。
     /// </para>
     /// </remarks>
-    public IReadOnlyList<ConditionalNode> GetInsertedChildren(HlslSyntaxNode node)
+    public IReadOnlyList<ConditionalNode> GetInsertedChildren(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -130,7 +130,7 @@ public sealed class ConditionMap
     /// 同時には定義されないシンボルを両方求める項は落とす (<see cref="IsPossible"/>)。
     /// </para>
     /// </remarks>
-    public SymbolCondition GetCondition(HlslSyntaxNode node)
+    public SymbolCondition GetCondition(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -148,7 +148,7 @@ public sealed class ConditionMap
         {
             for (SyntaxNode? current = node; current is not null; current = current.Parent)
             {
-                if (current is HlslSyntaxNode hlsl
+                if (current is ShaderSyntaxNode hlsl
                     && _conditions.TryGetValue(hlsl, out SymbolCondition found))
                 {
                     condition = condition.And(found);
@@ -184,7 +184,7 @@ public sealed class ConditionMap
     /// <summary>ノードがある木のコードブロックを返す。</summary>
     /// <param name="node">対象のノード。</param>
     /// <returns>コードブロック。木の根が分からなければ <see langword="null"/> (どのコードブロックの範囲も見る)。</returns>
-    private (int Start, string? Kernel)? FindBlock(HlslSyntaxNode node)
+    private (int Start, string? Kernel)? FindBlock(ShaderSyntaxNode node)
     {
         if (_regions.IsEmpty || _blockByRoot.Count == 0)
         {
@@ -211,7 +211,7 @@ public sealed class ConditionMap
     /// 複製を含むブロックは、先頭も末尾も複製の外にある。
     /// 末尾を求めるには子孫を辿るので、先頭が複製のものだったときだけ求める。
     /// </remarks>
-    private SymbolCondition? GetHoistedCondition(HlslSyntaxNode node)
+    private SymbolCondition? GetHoistedCondition(ShaderSyntaxNode node)
     {
         if (_hoisted.Count == 0
             || node.FirstToken is not { } first
@@ -220,7 +220,7 @@ public sealed class ConditionMap
             return null;
         }
 
-        HlslSyntaxToken? last = node.DescendantTokens().LastOrDefault();
+        ShaderSyntaxToken? last = node.DescendantTokens().LastOrDefault();
 
         return last is not null
                && _hoisted.TryGetValue(last, out HoistedToken end)
@@ -271,7 +271,7 @@ public sealed class ConditionMap
     /// 重なりを条件と見なすと、条件付きなのは中の数行だけなのに
     /// 関数全体が「そのシンボルのときだけ存在する」ことになってしまう。
     /// </remarks>
-    private static bool IsInside(HlslSyntaxNode node, Location location)
+    private static bool IsInside(ShaderSyntaxNode node, Location location)
     {
         if (node.Source is not { } source || !ReferenceEquals(source, location.Source))
         {
@@ -293,7 +293,7 @@ public sealed class ConditionMap
     /// どの構成でも成り立つことだけを指摘すれば、
     /// 利用者は「自分の構成では起きない指摘」を追わずに済む。
     /// </remarks>
-    public bool IsAlwaysPresent(HlslSyntaxNode node) => GetCondition(node).IsAlways;
+    public bool IsAlwaysPresent(ShaderSyntaxNode node) => GetCondition(node).IsAlways;
 
     /// <summary>
     /// ノードが、突き合わせられなかった範囲に入っているかを判定する。
@@ -319,7 +319,7 @@ public sealed class ConditionMap
     /// 普段はこの並びが空なので、判定は費用にならない。
     /// </para>
     /// </remarks>
-    private bool IsInUnmergedRegion(HlslSyntaxNode node)
+    private bool IsInUnmergedRegion(ShaderSyntaxNode node)
     {
         if (UnmergedLocations.IsEmpty || node.Source is not { } source)
         {

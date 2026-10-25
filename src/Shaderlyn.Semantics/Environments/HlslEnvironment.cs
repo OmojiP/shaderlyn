@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Semantics.Environments;
 
@@ -27,12 +27,12 @@ public sealed record HlslEnvironmentOptions
     /// </summary>
     public HlslLanguageVersion LanguageVersion { get; init; } = HlslLanguageVersion.Hlsl2021;
 
-    /// <summary>このコードをコンパイルする方言。</summary>
+    /// <summary>このコードをコンパイルするコンパイラと HLSL のバージョン。</summary>
     public HlslDialect Dialect => DialectFor(LanguageVersion);
 
-    /// <summary>指定した言語のバージョンでコンパイルするときの方言。</summary>
+    /// <summary>指定した HLSL のバージョンでコンパイルするときの、コンパイラと HLSL のバージョンの組。</summary>
     /// <param name="languageVersion">言語のバージョン。FXC のときは使わない。</param>
-    /// <returns>方言。</returns>
+    /// <returns>コンパイラと HLSL のバージョンの組。</returns>
     public HlslDialect DialectFor(HlslLanguageVersion languageVersion) => Compiler == HlslCompiler.Fxc
         ? HlslDialect.Fxc
         : HlslDialect.Dxc(languageVersion) with
@@ -71,6 +71,24 @@ public sealed record HlslEnvironmentOptions
     public Func<string, IIncludeResolver?, ImmutableDictionary<string, string>>? SelectUnitMacros { get; init; }
 
     /// <summary>
+    /// 単位ごとに取り込みの解決を差し替える手続き。引数は単位のファイルのパスと、取り込みを解決する手続き。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine は、uniform buffer の宣言を取り込む生成ファイル (<c>GeneratedUniformBuffers.ush</c>) の中身を、
+    /// 単位が名前で参照する uniform buffer だけにする。
+    /// </remarks>
+    public Func<string, IIncludeResolver, IIncludeResolver>? SelectUnitIncludeResolver { get; init; }
+
+    /// <summary>
+    /// 単位ごとに、どのファイルよりも先に読むコード (<see cref="PreprocessorOptions.Prelude"/>) を決める手続き。無ければ <see langword="null"/> を返す。
+    /// </summary>
+    /// <remarks>
+    /// Unreal Engine は、メッシュに描くマテリアルのシェーダーに、頂点ファクトリの定義するマクロをコマンドラインで定義する。
+    /// どれを定義するかは頂点ファクトリ (構成の軸) で変わるので、マクロの表 (<see cref="ShaderCompilationUnit.ExtraMacros"/>) では書けない。
+    /// </remarks>
+    public Func<ShaderCompilationUnit, string?>? SelectUnitPrelude { get; init; }
+
+    /// <summary>
     /// HLSL 2021 で読む単位にだけ定義するマクロ (Unreal Engine の <c>COMPILER_SUPPORTS_HLSL2021</c>)。DXC のときだけ使う。
     /// </summary>
     public ImmutableDictionary<string, string> Hlsl2021Macros { get; init; } = ImmutableDictionary<string, string>.Empty;
@@ -84,21 +102,21 @@ public sealed record HlslEnvironmentOptions
     public bool Enable16BitTypes { get; init; }
 
     /// <summary>
-    /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="HlslCompilationUnit.Variants"/>) があれば、そちらを使う。
+    /// どの単位にも共通する構成の空間。単位ごとの指定 (<see cref="ShaderCompilationUnit.Variants"/>) があれば、そちらを使う。
     /// </summary>
     public VariantSpace Variants { get; init; } = VariantSpace.Empty;
 
     /// <summary>
     /// ビルドのときに生成される <c>#include</c> のパスの接頭辞 (<c>/Engine/Generated/</c>)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.IsGeneratedInclude"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.IsGeneratedInclude"/> を見ること。</remarks>
     public ImmutableArray<string> GeneratedIncludePrefixes { get; init; } = [];
 
     /// <summary>
     /// 生成される取り込みのうち、宣言する関数が分かっているもの。キーはパスで、<c>/</c> で終わるものはその下のすべてを指す。
     /// 値は宣言しうる関数の名前 (関数を宣言しないなら空)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.GetFunctionsDeclaredIn"/> を見ること。</remarks>
     public ImmutableDictionary<string, ImmutableArray<string>> GeneratedIncludeFunctions { get; init; } =
         ImmutableDictionary<string, ImmutableArray<string>>.Empty;
 
@@ -111,8 +129,12 @@ public sealed record HlslEnvironmentOptions
     /// <summary>
     /// エンジンがシェーダーごとに定義するマクロの名前 (値は分からない)。
     /// </summary>
-    /// <remarks><see cref="IHlslEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
+    /// <remarks><see cref="IShaderEnvironment.IsDefinedByEngine"/> を見ること。</remarks>
     public ImmutableHashSet<string> EngineDefinedMacros { get; init; } = ImmutableHashSet<string>.Empty;
+
+    /// <summary>エンジンのシェーダーコンパイラが、どのシェーダーにも定義を足す関数の名前。</summary>
+    /// <remarks><see cref="IShaderEnvironment.IsFunctionDefinedByEngine"/> を見ること。</remarks>
+    public ImmutableHashSet<string> EngineDefinedFunctions { get; init; } = ImmutableHashSet<string>.Empty;
 }
 
 /// <summary>
@@ -122,8 +144,8 @@ public sealed record HlslEnvironmentOptions
 /// <remarks>
 /// <para>
 /// <b>構成の空間・エントリポイント・ターゲットは、ソースの中からは読まない。</b>
-/// どれも設定ファイルで単位ごとに与える (<see cref="HlslCompilationUnit.Variants"/> /
-/// <see cref="HlslCompilationUnit.EntryPoints"/> / <see cref="HlslCompilationUnit.Target"/>)。
+/// どれも設定ファイルで単位ごとに与える (<see cref="ShaderCompilationUnit.Variants"/> /
+/// <see cref="ShaderCompilationUnit.EntryPoints"/> / <see cref="ShaderCompilationUnit.Target"/>)。
 /// <c>#pragma</c> は DXC と同じく読み流す。
 /// </para>
 /// <para>
@@ -157,7 +179,7 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
         return options with
         {
-            Dialects = [Options.Dialect],
+            Language = options.Hlsl() with { Dialects = [Options.Dialect] },
             PredefinedMacros = compilerMacros
                 .SetItems(Options.PredefinedMacros)
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
@@ -166,13 +188,26 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
     /// <inheritdoc/>
     public PreprocessorOptions PrepareUnit(
-        HlslCompilationUnit unit,
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ShaderCompilationUnit unit,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         string filePath)
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
+
+        if (Options.SelectUnitIncludeResolver is { } selectResolver && options.IncludeResolver is { } resolver)
+        {
+            options = options with { IncludeResolver = selectResolver(filePath, resolver) };
+        }
+
+        if (Options.SelectUnitPrelude?.Invoke(unit) is { Length: > 0 } prelude)
+        {
+            options = options with
+            {
+                Prelude = SourceText.From(options.Prelude is { } existing ? existing + "\n" + prelude : prelude, "<単位の前置き>"),
+            };
+        }
 
         if (Options.SelectUnitMacros?.Invoke(filePath, options.IncludeResolver) is { Count: > 0 } unitMacros)
         {
@@ -194,11 +229,12 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
             return options;
         }
 
-        // 単位ごとに言語のバージョンが違えば、方言と、バージョンで決まるマクロを差し替える。
+        // 単位ごとに言語のバージョンか 16 ビットの型の設定が違えば、コンパイラと HLSL のバージョンの組と、それで決まるマクロを差し替える。
         HlslLanguageVersion version = Options.SelectUnitLanguageVersion?.Invoke(filePath, options.IncludeResolver)
                                       ?? Options.LanguageVersion;
+        bool sixteenBit = unit.Enable16BitTypes ?? Options.Enable16BitTypes;
 
-        if (version != Options.LanguageVersion)
+        if (version != Options.LanguageVersion || sixteenBit != Options.Enable16BitTypes)
         {
             ImmutableDictionary<string, string> macros = options.PredefinedMacros
                 .SetItem("__HLSL_VERSION", ((int)version).ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -208,7 +244,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
                 macros = version >= HlslLanguageVersion.Hlsl2021 ? macros.SetItem(name, value) : macros.Remove(name);
             }
 
-            options = options with { Dialects = [Options.DialectFor(version)], PredefinedMacros = macros };
+            macros = sixteenBit ? macros.SetItem("__HLSL_ENABLE_16_BIT", "1") : macros.Remove("__HLSL_ENABLE_16_BIT");
+            HlslDialect dialect = Options.DialectFor(version) with { Enable16BitTypes = sixteenBit };
+            options = options.WithHlsl(h => h with { Dialects = [dialect] }) with { PredefinedMacros = macros };
         }
 
         // ターゲットで決まるマクロは、設定で与えたマクロ (共通・単位ごと) に負ける。
@@ -218,14 +256,14 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     }
 
     /// <inheritdoc/>
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => VariantsOf(unit);
 
     /// <inheritdoc/>
-    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => VariantsOf(unit);
+    public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result) => VariantsOf(unit);
 
     /// <inheritdoc/>
-    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
     {
         ArgumentNullException.ThrowIfNull(unit);
         return unit.EntryPoints;
@@ -246,6 +284,9 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
 
     /// <inheritdoc/>
     public bool IsDefinedByEngine(string name) => Options.EngineDefinedMacros.Contains(name);
+
+    /// <inheritdoc/>
+    public bool IsFunctionDefinedByEngine(string name) => Options.EngineDefinedFunctions.Contains(name);
 
     /// <inheritdoc/>
     public ImmutableArray<string>? GetFunctionsDeclaredIn(string path)
@@ -272,16 +313,16 @@ public sealed class HlslEnvironment(HlslEnvironmentOptions? options = null) : IH
     /// </summary>
     /// <param name="text">ファイル。</param>
     /// <returns>単位。構成の空間・エントリポイント・ターゲットは持たない。</returns>
-    public static HlslCompilationUnit WholeFile(SourceText text)
+    public static ShaderCompilationUnit WholeFile(SourceText text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return new HlslCompilationUnit(text, new TextSpan(0, text.Length));
+        return new ShaderCompilationUnit(text, new TextSpan(0, text.Length));
     }
 
     /// <summary>単位の構成の空間。単位の指定が無ければ共通のもの。</summary>
     /// <param name="unit">単位。</param>
     /// <returns>構成の空間。</returns>
-    private VariantSpace VariantsOf(HlslCompilationUnit unit)
+    private VariantSpace VariantsOf(ShaderCompilationUnit unit)
     {
         ArgumentNullException.ThrowIfNull(unit);
         return unit.Variants ?? Options.Variants;

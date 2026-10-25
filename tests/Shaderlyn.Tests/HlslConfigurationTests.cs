@@ -53,6 +53,8 @@ public sealed class HlslConfigurationTests : IDisposable
 
         Assert.Equal(2018, configuration.HlslVersion);
         Assert.True(configuration.HlslEnable16BitTypes);
+        Assert.Null(configuration.UnrealPermutations);
+        Assert.True(ParseWithoutProblems("unreal:\n  permutations: true\n").UnrealPermutations);
         Assert.Equal(["QUALITY", "USE_FOG"], configuration.Symbols.Select(s => s.Name));
         Assert.Equal([0, 1, 2], configuration.Symbols[0].Values.ToArray());
         Assert.True(configuration.Symbols[1].Values.IsEmpty);
@@ -85,6 +87,7 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    stage: pixel\n", "'stage'")]
     [InlineData("unreal:\n  virtual-paths:\n    Plugin/A: x\n", "/ で始めて")]
     [InlineData("unreal:\n  engines: x\n", "'engines'")]
+    [InlineData("unreal:\n  permutations: maybe\n", "unreal: の permutations には true か false")]
     [InlineData("hlsl:\n  enable-16bit-types: yes-please\n", "true か false")]
     [InlineData("hlsl:\n  compiler: fxc\n  enable-16bit-types: true\n", "compiler が fxc では使えません")]
     [InlineData("hlsl:\n  version: 2017\n  enable-16bit-types: true\n", "HLSL 2018 から使えます")]
@@ -187,6 +190,468 @@ public sealed class HlslConfigurationTests : IDisposable
         // 取り込まれる断片 (.hlsli) はフォルダーの指定では探さない。頂点シェーダーの入口は見つかる。
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'MainVS'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 既定の構成では <c>#error</c> の分岐に入る関数を、値を返さない (HL0360) と報告しない
+    /// (Unreal Engine の DOFPostfiltering.usf)。本当に値を返さない関数は報告する。
+    /// <c>#error</c> の文の中のアポストロフィ (<c>doesn't</c>) を、閉じていない文字のリテラルにしない。
+    /// </summary>
+    [Fact]
+    public async Task error指令に到達する関数を値を返さないと報告しない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if METHOD > 4
+                #error This method doesn't exist.
+            #endif
+
+            float4 Pick(float4 a)
+            {
+            #if METHOD == 1
+                return a;
+            #elif METHOD == 2
+                return a * 2;
+            #else
+                #error Unknown method.
+            #endif
+            }
+
+            float4 Broken(float4 a)
+            {
+            #if METHOD == 1
+                return a;
+            #endif
+            }
+
+            RWBuffer<float4> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS() { Output[0] = Pick(1) + Broken(1); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'Pick'", output, StringComparison.Ordinal);
+        Assert.Contains("'Broken'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// プラグマ演算子 <c>_Pragma("…")</c> を、<c>#pragma</c> と同じくコードに残さない (Unreal Engine の <c>SHADER_PUSH_WARNINGS_STATE</c>)。
+    /// </summary>
+    [Fact]
+    public async Task プラグマ演算子をコードに残さない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #define SHADER_PUSH_WARNINGS_STATE _Pragma("dxc diagnostic push")
+            #define SHADER_DISABLE_WARNINGS \
+            	_Pragma("dxc diagnostic ignored \"-Wall\"") \
+            	_Pragma("dxc diagnostic ignored \"-Wconversion\"")
+            #define SHADER_POP_WARNINGS_STATE _Pragma("dxc diagnostic pop")
+
+            SHADER_PUSH_WARNINGS_STATE
+            SHADER_DISABLE_WARNINGS
+            float Get(float x)
+            {
+            SHADER_PUSH_WARNINGS_STATE
+            	return x;
+            SHADER_POP_WARNINGS_STATE
+            }
+            SHADER_POP_WARNINGS_STATE
+
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS() { _Pragma("message(\"hi\")") Output[0] = Get(1); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 組み込みの型の値の作成 (<c>vector&lt;float, 2&gt;(x, y)</c>) と、型でない引数の式を書いた型の静的メンバー
+    /// (<c>FLayout&lt;T, X * Y&gt;::RowSize</c>) を読む (Unreal Engine の LaneVectorization.ush)。
+    /// </summary>
+    [Fact]
+    public async Task 型引数を書いた組み込みの型と静的メンバーを読む()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            hlsl:
+              version: 2021
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            template<typename T, uint N>
+            struct FLayout
+            {
+                static const uint RowSize = N;
+            };
+
+            template<typename T, uint X, uint Y>
+            struct TVector
+            {
+                static const uint RowSize = FLayout<T, X * Y>::RowSize;
+                vector<T, X> V;
+                void Set(uint I, vector<T, X> E) { V = E; }
+
+                static TVector<T, X, Y> From(T Value)
+                {
+                    TVector<T, X, Y> R;
+                    R.Set(0, vector<T, X>(Value));
+                    return R;
+                }
+            };
+
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)]
+            void MainCS()
+            {
+                TVector<float, 2, 3> A = TVector<float, 2, 3>::From(1.0);
+                float2 B = vector<float, 2>(3.0, 4.0);
+                Output[0] = A.V.x + B.y + TVector<float, 2, 3>::RowSize;
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 関数の本体を値ごとの <c>#if</c> で書き分けても、本体を 2 つ並べて構文の誤りにしない
+    /// (Unreal Engine の HairStrandsCoverage.usf)。
+    /// </summary>
+    [Fact]
+    public async Task 値ごとに書き分けた関数の本体を並べない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: INPUT_TYPE
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            RWTexture2D<float> Output;
+            [numthreads(8, 8, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            #if INPUT_TYPE == 0
+            {
+                Output[Id.xy] = 0;
+            }
+            #endif
+            #if INPUT_TYPE == 1
+            {
+                Output[Id.xy] = Missing;
+            }
+            #endif
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+        Assert.Contains("'Missing'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 既定の値では読まない <c>#if</c> の中で、別の値の軸で書き分けた宣言を、二重の宣言と報告しない
+    /// (Unreal Engine の HairStrandsVelocity.usf)。その変数へ代入する値の成分が落ちるとも報告しない。本当に二重の宣言は報告する。
+    /// </summary>
+    [Fact]
+    public async Task 値の軸の中で書き分けた宣言を二重の宣言にしない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: VELOCITY
+                values: [0, 1, 2]
+              - name: FORMAT
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if VELOCITY != 0
+              #if FORMAT == 0
+                RWTexture2D<float2> OutVelocity;
+              #else
+                RWTexture2D<float4> OutVelocity;
+              #endif
+              uint Twice;
+              uint Twice;
+            #endif
+            #if FORMAT == 0
+            float2 ToOutput(float4 v) { return v.xy; }
+            #else
+            float4 ToOutput(float4 v) { return v; }
+            #endif
+            [numthreads(8, 8, 1)]
+            void MainCS(uint3 Id : SV_DispatchThreadID)
+            {
+            #if VELOCITY != 0
+                OutVelocity[Id.xy] = ToOutput(Twice);
+            #endif
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'OutVelocity'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("HL0353", output, StringComparison.Ordinal);
+        Assert.Contains("'Twice'", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 条件ごとに違う型で宣言した uniform は、構成ごとの型で成分が落ちるかを判断する。
+    /// 以前は型を不明にして、本当に成分が落ちる構成も報告していなかった。
+    /// </summary>
+    [Fact]
+    public async Task 条件ごとに型の違うuniformは構成ごとの型で成分の切り捨てを判断する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: FORMAT
+                values: [0, 1]
+            units:
+              - files: a.hlsl
+                entry: MainCS
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if FORMAT == 0
+            float2 Velocity;
+            #else
+            float4 Velocity;
+            #endif
+            RWStructuredBuffer<float4> Output;
+            [numthreads(8, 1, 1)]
+            void MainCS(uint Id : SV_DispatchThreadID)
+            {
+                float2 xy = Velocity;
+                float4 all = float4(Velocity.xy, 0, 1);
+                Output[Id] = all + xy.xyxy;
+            }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        string truncated = Assert.Single(output.Split('\n'), line => line.Contains("HL0353", StringComparison.Ordinal));
+        Assert.Contains("a.hlsl(10:", truncated, StringComparison.Ordinal);
+        Assert.Contains("FORMAT == 1", truncated, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ある単位では関数の外の変数、別の単位では仮引数として宣言される名前を、未宣言と報告しない
+    /// (Unreal Engine の CapsuleShadowShaders.usf の LightDirection)。本当に宣言されていない名前は報告する。
+    /// </summary>
+    [Fact]
+    public async Task 単位によって関数の外の変数か仮引数になる名前を未宣言にしない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: FromCapsule
+                target: cs_6_6
+                defines: [MODE=1]
+              - files: a.hlsl
+                entry: Punctual
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #ifndef MODE
+            #define MODE 0
+            #endif
+            RWBuffer<float> Output;
+            #if MODE == 0
+            float3 LightDirection;
+            [numthreads(1, 1, 1)] void Punctual() { Output[0] = LightDirection.x; }
+            #else
+            void Read(out float3 LightDirection) { LightDirection = 1; }
+            [numthreads(1, 1, 1)] void FromCapsule() { float3 d; Read(d); Output[0] = d.x + Missing; }
+            #endif
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("'LightDirection'", output, StringComparison.Ordinal);
+        Assert.Contains("'Missing' はどこにも宣言されていません", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 構成の軸で切り替わる <c>#include</c> で取り込んだヘッダを、あとで条件無しにもう一度取り込んでも、
+    /// ヘッダの宣言はどの構成にもあることを検証する。2 度目の取り込みは <c>#pragma once</c> かインクルードガードで飛ばされる。
+    /// </summary>
+    /// <param name="header">ヘッダの中身。</param>
+    [Theory]
+    [InlineData("#pragma once\nstruct S { float x; };\n")]
+    [InlineData("#ifndef H_INCLUDED\n#define H_INCLUDED\nstruct S { float x; };\n#endif\n")]
+    public async Task 軸で切り替わる取り込みのあとの二度目の取り込みでも宣言はどの構成にもある(string header)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            symbols:
+              - name: FOO
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "h.hlsli"), header);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #if FOO
+            #include "h.hlsli"
+            #endif
+            #include "h.hlsli"
+            float f(S s) { return s.x; }
+            [numthreads(1, 1, 1)] void main() {}
+            """);
+
+        (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "a.hlsl"));
+
+        Assert.True(error.Length == 0, error);
+        Assert.DoesNotContain("HL0313", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同じ文脈の単位が同じに展開したヘッダの宣言は 1 度だけ検査する。単位によって展開が違う宣言は、それぞれの単位で検査する。
+    /// </summary>
+    [Fact]
+    public async Task 単位が同じに展開したヘッダは一度だけ検査する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainA
+                target: cs_6_6
+                defines: [STAGE_A=1]
+              - files: a.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "Common.hlsli"), """
+            float Twice(float x) { return x * 2; }
+            float Same() { return Twice(1, 2); }
+            #if STAGE_A
+            float OnlyA() { return Twice(); }
+            #endif
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            #include "Common.hlsli"
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = Same(); }
+            [numthreads(1, 1, 1)] void MainB() { Output[0] = Same(); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Single(output.Split('\n'), line => line.Contains("Common.hlsli(2:", StringComparison.Ordinal) && line.Contains("HL0341", StringComparison.Ordinal));
+        Assert.Contains("Common.hlsli(4:", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同じステージの単位でもエントリポイントは違う。エントリ関数の uniform 引数の検査は、後の単位でも行う。
+    /// </summary>
+    [Fact]
+    public async Task エントリポイントで変わる検査は後の単位でも行う()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: a.hlsl
+                entry: MainA
+                target: cs_6_6
+              - files: a.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.hlsl"), """
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = 1; }
+            [numthreads(1, 1, 1)] void MainB(uniform float scale) { Output[0] = scale; }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("エントリ関数 MainB の uniform 引数 scale", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同じに展開したヘッダの宣言でも、単位ごとの文脈 (ほかの宣言) で検査する。
+    /// ヘッダが呼ぶ関数の定義が単位で違えば、後の単位でだけ成り立つ指摘も出す。
+    /// </summary>
+    [Fact]
+    public async Task 同じに展開したヘッダの宣言も単位ごとの文脈で検査する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            version: 1
+            environment: hlsl
+            units:
+              - files: b.hlsl
+                entry: MainA
+                target: cs_6_6
+                defines: [STAGE_A=1]
+              - files: b.hlsl
+                entry: MainB
+                target: cs_6_6
+            """);
+        File.WriteAllText(Path.Combine(_workDirectory, "Use.hlsli"), "float Use() { return Pick(1.0); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "b.hlsl"), """
+            #if STAGE_A
+            float Pick(float x) { return x; }
+            #else
+            float Pick(float x, float y) { return x + y; }
+            #endif
+            #include "Use.hlsli"
+            RWBuffer<float> Output;
+            [numthreads(1, 1, 1)] void MainA() { Output[0] = Use(); }
+            [numthreads(1, 1, 1)] void MainB() { Output[0] = Use(); }
+            """);
+
+        (_, string output, string error) = await RunAsync(_workDirectory);
+
+        Assert.True(error.Length == 0, error);
+        Assert.Contains("関数 'Pick' に引数を 1 個渡していますが、必要な引数は 2 個です", output, StringComparison.Ordinal);
     }
 
     [Theory]

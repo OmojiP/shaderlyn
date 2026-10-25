@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
 
 namespace Shaderlyn.Semantics.Conditional;
 
@@ -35,12 +35,12 @@ internal static class ConditionMapBuilder
         ImmutableArray<AnalyzedProgram> variants)
     {
 
-        Dictionary<HlslSyntaxNode, SymbolCondition> conditions = [];
-        Dictionary<HlslSyntaxNode, List<ConditionalNode>> inserted = [];
+        Dictionary<ShaderSyntaxNode, SymbolCondition> conditions = [];
+        Dictionary<ShaderSyntaxNode, List<ConditionalNode>> inserted = [];
         ImmutableArray<Location>.Builder unmerged = ImmutableArray.CreateBuilder<Location>();
         ImmutableArray<ConditionalRegion>.Builder regions =
             ImmutableArray.CreateBuilder<ConditionalRegion>();
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted = [];
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted = [];
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations = [];
 
         // バリアントが並べた範囲も集める。バリアントにしか無いノードも、その木で並べた分岐の中にあれば条件が付く
@@ -164,7 +164,7 @@ internal static class ConditionMapBuilder
         AnalyzedProgram baseline,
         AnalyzedProgram variant,
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
         List<Location> ambiguous = [];
 
@@ -196,11 +196,11 @@ internal static class ConditionMapBuilder
     /// <param name="hoisted">複製した文のトークン。</param>
     /// <returns>あれば <see langword="true"/>。</returns>
     private static bool HasUncopiedTokens(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         Location location,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
             if (ReferenceEquals(token.Source, location.Source)
                 && location.Span.Start <= token.Span.Start
@@ -218,7 +218,7 @@ internal static class ConditionMapBuilder
     /// <param name="node">対象のノード。</param>
     /// <param name="locations">比べる範囲。</param>
     /// <returns>収まっていれば <see langword="true"/>。</returns>
-    private static bool IsInsideAny(HlslSyntaxNode node, List<Location> locations)
+    private static bool IsInsideAny(ShaderSyntaxNode node, List<Location> locations)
     {
         if (locations.Count == 0 || node.Source is not { } source)
         {
@@ -266,7 +266,25 @@ internal static class ConditionMapBuilder
             blocks.Add((program.Variants.Symbols, program.Variants.Constraints));
         }
 
-        if (blocks.All(block => block.Constraints.IsEmpty))
+        // 同じ名前の別の値 (QUALITY==1 と QUALITY==2) は、どのブロックでも同時には成り立たない。
+        // 値を宣言したブロックが違っても排他である (Unreal の頂点ファクトリの値は、同じファイルの単位ごとに違う)。
+        // 入れないと、ある単位の木の構成 (SHADERLYN_VERTEX_FACTORY == 4) と、ほかの単位の分岐の条件 (== 10) を掛けた条件を、ありうると見ていた。
+        List<(string First, string Second)> valuePairs =
+        [
+            .. blocks
+                .SelectMany(block => block.Declared)
+                .Distinct(StringComparer.Ordinal)
+                .Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? (Name: name, Symbol: symbol) : default)
+                .Where(atom => atom.Name is not null)
+                .GroupBy(atom => atom.Name, StringComparer.Ordinal)
+                .SelectMany(byName =>
+                {
+                    string[] atoms = [.. byName.Select(atom => atom.Symbol).Order(StringComparer.Ordinal)];
+                    return atoms.SelectMany((first, i) => atoms.Skip(i + 1).Select(second => (first, second)));
+                }),
+        ];
+
+        if (valuePairs.Count == 0 && blocks.All(block => block.Constraints.IsEmpty))
         {
             return SymbolConstraints.Empty;
         }
@@ -278,16 +296,46 @@ internal static class ConditionMapBuilder
             .Where(pair => blocks.All(
                 block => !block.Declared.Contains(pair.First)
                          || !block.Declared.Contains(pair.Second)
-                         || block.Constraints.AreExclusive(pair.First, pair.Second)));
+                         || block.Constraints.AreExclusive(pair.First, pair.Second)))
+            .Concat(valuePairs)
+            .Distinct();
 
-        // どれか 1 つが必ず定義される集まりは、その中のどれかを宣言しているどのブロックでも、同じ集まりであるものだけ。
+        // どれか 1 つが必ず定義される集まりは、その中のどれかを宣言しているどのブロックでも、その集まりに含まれる集まりがあるものだけ。
+        // 含まれる集まりのどれか 1 つが定義されるなら、その集まりのどれか 1 つも定義される。
+        // 値を持つシンボルは、ブロック (単位) ごとに値が違うことがある (QUALITY が 1 から 4 の単位と 1 から 3 の単位)。
+        // 同じ集まりに限ると、どちらの集まりも残らず、「どの値でもない」構成があることになって、
+        // その構成で宣言が無いと報告していた (Unreal の SSRTReflections.usf で HL0310)。値を合わせた集まりも候補にする。
+        IEnumerable<ImmutableArray<string>> candidates = blocks
+            .SelectMany(block => block.Constraints.RequiredGroups)
+            .Concat(blocks
+                .SelectMany(block => block.Constraints.RequiredGroups)
+                .Where(group => group.All(symbol => VariantValues.TryParseAtom(symbol, out _, out _)))
+                .GroupBy(group => VariantValues.TryParseAtom(group[0], out string? name, out _) ? name : string.Empty, StringComparer.Ordinal)
+                .Where(byName => byName.Skip(1).Any())
+                .Select(byName => byName.SelectMany(group => group).Distinct(StringComparer.Ordinal).ToImmutableArray()));
+
         List<ImmutableArray<string>> groups = [];
 
-        foreach (ImmutableArray<string> group in blocks.SelectMany(block => block.Constraints.RequiredGroups))
+        // ブロックごとの、値を宣言した名前。
+        ImmutableHashSet<string>[] valueNames =
+        [
+            .. blocks.Select(block => block.Declared
+                .Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null)
+                .OfType<string>()
+                .ToImmutableHashSet(StringComparer.Ordinal)),
+        ];
+
+        foreach (ImmutableArray<string> group in candidates)
         {
-            if (groups.Any(g => g.SequenceEqual(group))
-                || !blocks.All(block => !group.Any(block.Declared.Contains)
-                                        || block.Constraints.RequiredGroups.Any(g => g.SequenceEqual(group))))
+            // 値の原子の集まりは、同じ名前のほかの値を宣言したブロックでも成り立たなければならない。
+            // 4 だけの単位の集まり (QUALITY==4) を、1 と 2 の単位を見ずに残すと、どこでも QUALITY==4 が成り立つことになり、
+            // 同じ名前の値の排他と合わせて、QUALITY==1 の構成がありえないことになる。
+            ImmutableHashSet<string> names = [.. group.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>()];
+
+            if (groups.Any(g => g.Length == group.Length && g.All(group.Contains))
+                || !blocks.Select((block, i) => (block, i)).All(
+                    b => !(group.Any(b.block.Declared.Contains) || (!names.IsEmpty && names.Overlaps(valueNames[b.i])))
+                         || b.block.Constraints.RequiredGroups.Any(g => g.All(group.Contains))))
             {
                 continue;
             }
@@ -320,7 +368,7 @@ internal static class ConditionMapBuilder
     private static void CollectEmittedRegions(
         ImmutableArray<AnalyzedProgram> programs,
         ImmutableArray<ConditionalRegion>.Builder regions,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted,
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted,
         Dictionary<AnalyzedProgram, List<Location>> hoistedLocations)
     {
         // 同じソース範囲を占める領域は、掛け合わせずに足し合わせる。
@@ -332,6 +380,12 @@ internal static class ConditionMapBuilder
         {
             PreprocessResult result = program.Tree.PreprocessResult;
 
+            // バリアントの木の条件は、その木を解析した構成の中での話である。その構成を掛けてから足す。
+            // 掛けないと、F == 1 の木で外側の #if V だけが付いた宣言と、既定の木で内側の #else (F != 0) も付いた宣言が
+            // 同じ範囲になり、足すと内側の条件が消える。値で書き分けた宣言どうしを二重の宣言と報告していた
+            // (Unreal の HairStrandsVelocity.usf の OutVelocityTexture)。
+            SymbolCondition analyzed = program.AnalyzedCondition;
+
             foreach (ConditionalTokenRange range in result.ConditionalRegions)
             {
                 // 定義ごとに複製した文 (条件の巻き上げ) は、どれも同じ位置から作られる。
@@ -341,7 +395,7 @@ internal static class ConditionMapBuilder
                 {
                     AddHoistedRange(result.Tokens, range, hoisted);
 
-                    if (TryGetRegionLocation(result.Tokens, range, out Location copied))
+                    foreach (Location copied in GetRegionLocations(result.Tokens, range))
                     {
                         if (!hoistedLocations.TryGetValue(program, out List<Location>? locations))
                         {
@@ -355,21 +409,21 @@ internal static class ConditionMapBuilder
                     continue;
                 }
 
-                if (!TryGetRegionLocation(result.Tokens, range, out Location location))
+                foreach (Location location in GetRegionLocations(result.Tokens, range))
                 {
-                    continue;
+                    ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
+
+                    SymbolCondition present = range.Condition.And(analyzed);
+
+                    if (byLocation.TryGetValue(key, out SymbolCondition existing))
+                    {
+                        byLocation[key] = existing.Or(present);
+                        continue;
+                    }
+
+                    byLocation[key] = present;
+                    order.Add(key);
                 }
-
-                ((int Start, string? Kernel) Block, SourceText Source, TextSpan Span) key = (program.BlockKey, location.Source, location.Span);
-
-                if (byLocation.TryGetValue(key, out SymbolCondition existing))
-                {
-                    byLocation[key] = existing.Or(range.Condition);
-                    continue;
-                }
-
-                byLocation[key] = range.Condition;
-                order.Add(key);
             }
         }
 
@@ -391,9 +445,9 @@ internal static class ConditionMapBuilder
     /// 取り込みの結果を使い回すと、同じトークンが別のブロックの木にも現れる。条件は同じなので、先に覚えたほうを残す。
     /// </remarks>
     private static void AddHoistedRange(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         ConditionalTokenRange range,
-        Dictionary<HlslSyntaxToken, HoistedToken> hoisted)
+        Dictionary<ShaderSyntaxToken, HoistedToken> hoisted)
     {
         if (range.Start < 0 || range.Start >= tokens.Length || range.Length <= 0)
         {
@@ -413,40 +467,50 @@ internal static class ConditionMapBuilder
     /// </summary>
     /// <param name="tokens">展開後のトークン列。</param>
     /// <param name="range">対象の範囲。</param>
-    /// <param name="location">求めた位置。</param>
-    /// <returns>求められた場合は <see langword="true"/>。</returns>
+    /// <returns>出どころの続く区切りごとの位置。</returns>
     /// <remarks>
-    /// マクロ展開で生まれたトークンは出どころが呼び出し位置に移っているため、
-    /// 範囲の中で出どころが変わることがある。
-    /// 先頭のトークンと同じ出どころのものだけで範囲を作る。
+    /// <para>
+    /// <b>範囲の中で出どころが変わるのは、取り込みをまたぐときである。</b>
+    /// マクロ展開で生まれたトークンの出どころは呼び出し位置に揃えてあるので、マクロでは変わらない。
+    /// <code>
+    /// #if DEBUG
+    /// #include "Debug.ush"   // 指令の無いヘッダなら、ヘッダの中身とその後ろが 1 つの範囲になる
+    /// void WriteDebug() { FDebugInfo o; o.Color = 1; }
+    /// #endif
+    /// </code>
+    /// 以前は先頭のトークンと同じ出どころのものだけで範囲を作っていた。
+    /// ヘッダより後ろの文が条件を持たず、ヘッダの構造体のメンバーを「DEBUG でないときは無い」(HL0313) と報告していた
+    /// (Unreal の <c>HairStrandsEnvironmentLighting.usf</c>)。
+    /// </para>
     /// </remarks>
-    private static bool TryGetRegionLocation(
-        ImmutableArray<HlslSyntaxToken> tokens,
-        ConditionalTokenRange range,
-        out Location location)
+    private static IEnumerable<Location> GetRegionLocations(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        ConditionalTokenRange range)
     {
-        location = null!;
-
         if (range.Start < 0 || range.Start >= tokens.Length || range.Length <= 0)
         {
-            return false;
+            yield break;
         }
 
-        HlslSyntaxToken first = tokens[range.Start];
+        int last = Math.Min(range.Start + range.Length, tokens.Length);
+        ShaderSyntaxToken first = tokens[range.Start];
         int end = first.Span.End;
 
-        for (int i = range.Start + 1; i < range.Start + range.Length && i < tokens.Length; i++)
+        for (int i = range.Start + 1; i < last; i++)
         {
             if (!ReferenceEquals(tokens[i].Source, first.Source))
             {
-                break;
+                yield return Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
+
+                first = tokens[i];
+                end = first.Span.End;
+                continue;
             }
 
             end = Math.Max(end, tokens[i].Span.End);
         }
 
-        location = Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
-        return true;
+        yield return Location.Create(first.Source, TextSpan.FromBounds(first.Span.Start, end));
     }
 
     /// <summary>バリアントに対応する既定の構成を探す。</summary>

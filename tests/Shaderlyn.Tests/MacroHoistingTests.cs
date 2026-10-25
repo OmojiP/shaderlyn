@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 
 namespace Shaderlyn.Tests;
 
@@ -28,9 +29,10 @@ public sealed class MacroHoistingTests
             BothBranchSymbols = [.. kept],
             DeclaredSymbols = [.. kept],
             HoistConditionalMacros = true,
+            Language = HlslLanguageOptions.Default,
         };
 
-        return new HlslPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
+        return new ShaderPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
     }
 
     /// <summary>展開結果のトークンを 1 つの文字列にする。</summary>
@@ -89,6 +91,39 @@ public sealed class MacroHoistingTests
 
         Assert.Equal(SymbolCondition.Symbol("_A", true), ConditionOf(result, "float3"));
         Assert.Equal(SymbolCondition.Symbol("_A", false), ConditionOf(result, "float4"));
+    }
+
+    [Fact]
+    public void 複製する文は設定のコンパイラとHLSLのバージョンで読む()
+    {
+        // ビットフィールドは HLSL 2021 の構文である。FXC として読むと宣言として読めないと判断し、複製しなかった。
+        PreprocessorOptions options = new()
+        {
+            BothBranchSymbols = ["_A"],
+            DeclaredSymbols = ["_A"],
+            HoistConditionalMacros = true,
+            Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 },
+        };
+
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(SourceText.From(
+            """
+            #ifdef _A
+            #define BITS 4
+            #else
+            #define BITS 8
+            #endif
+
+            struct Packed
+            {
+                uint low : BITS;
+            };
+            """,
+            "test.hlsl"));
+
+        string text = TextOf(result);
+
+        Assert.Contains("low : 4", text, StringComparison.Ordinal);
+        Assert.Contains("low : 8", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -185,8 +220,8 @@ public sealed class MacroHoistingTests
         Assert.Contains("struct Packed { float pad ; float4 value ; } ;", text, StringComparison.Ordinal);
 
         Assert.True(
-            result.Tokens.Count(t => t.Kind == HlslSyntaxKind.OpenBraceToken)
-                == result.Tokens.Count(t => t.Kind == HlslSyntaxKind.CloseBraceToken),
+            result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBraceToken)
+                == result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.CloseBraceToken),
             text);
 
         Assert.Equal(SymbolCondition.Symbol("_A", false), ConditionOf(result, "pad"));
@@ -271,8 +306,8 @@ public sealed class MacroHoistingTests
         Assert.Contains("i < 8 ;", text, StringComparison.Ordinal);
 
         Assert.True(
-            result.Tokens.Count(t => t.Kind == HlslSyntaxKind.OpenBraceToken)
-                == result.Tokens.Count(t => t.Kind == HlslSyntaxKind.CloseBraceToken),
+            result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBraceToken)
+                == result.Tokens.Count(t => t.Kind == ShaderSyntaxKind.CloseBraceToken),
             text);
     }
 
@@ -446,7 +481,7 @@ public sealed class MacroHoistingTests
             """,
             "_A");
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0002");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0008");
     }
 
     [Fact]
@@ -459,7 +494,7 @@ public sealed class MacroHoistingTests
             HoistConditionalMacros = false,
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -490,7 +525,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -523,7 +558,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A
@@ -555,7 +590,7 @@ public sealed class MacroHoistingTests
             }),
         };
 
-        PreprocessResult result = new HlslPreprocessor(options).Preprocess(
+        PreprocessResult result = new ShaderPreprocessor(options).Preprocess(
             SourceText.From(
                 """
                 #ifdef _A

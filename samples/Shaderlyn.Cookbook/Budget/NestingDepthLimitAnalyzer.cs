@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -20,17 +20,17 @@ namespace Shaderlyn.Cookbook;
 /// 深いところすべてで報告すると、1 つの入れ子に何件も出る。
 /// </para>
 /// </remarks>
-public sealed class NestingDepthLimitAnalyzer(int maxDepth) : HlslRuleAnalyzer
+public sealed class NestingDepthLimitAnalyzer(int maxDepth) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.NestingTooDeep];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.RegisterNodeAction<HlslStatementSyntax>(c =>
+        context.RegisterNodeAction<StatementSyntax>(c =>
         {
-            if (!IsNesting(c.Node) || HlslSyntaxFacts.GetKeyword(c.Node) is not { } keyword)
+            if (!IsNesting(c.Node) || ShaderSyntaxFacts.GetKeyword(c.Node) is not { } keyword)
             {
                 return;
             }
@@ -56,7 +56,7 @@ public sealed class NestingDepthLimitAnalyzer(int maxDepth) : HlslRuleAnalyzer
                     continue;
                 }
 
-                if (node is HlslStatementSyntax statement && IsNesting(statement))
+                if (node is StatementSyntax statement && IsNesting(statement))
                 {
                     depth++;
                 }
@@ -72,7 +72,7 @@ public sealed class NestingDepthLimitAnalyzer(int maxDepth) : HlslRuleAnalyzer
     /// <summary>段を作る文かどうかを判定する。</summary>
     /// <param name="statement">対象の文。</param>
     /// <returns>段を作る文であれば <see langword="true"/>。</returns>
-    private static bool IsNesting(HlslStatementSyntax statement)
+    private static bool IsNesting(StatementSyntax statement)
         => statement is IfStatementSyntax
             or ForStatementSyntax
             or WhileStatementSyntax

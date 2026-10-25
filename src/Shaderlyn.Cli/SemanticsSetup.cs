@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Cli.Environments;
 using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Unity;
 using Shaderlyn.Unity.Profiles;
@@ -43,7 +43,7 @@ internal static class SemanticsSetup
         return new SemanticsOptions
         {
             IncludeResolver = CreateIncludeResolver(options, settings, editorData),
-            IsUserInclude = CreateUserIncludePredicate(options, editorData),
+            IsUserInclude = CreateUserIncludePredicate(options, editorData, GeneratedMaterialOf(settings)),
             DescribeUnresolvedInclude = CreateUnresolvedIncludeDescriber(options, settings),
             PredefinedMacros = BuildPredefinedMacros(settings.Environment, settings.Defines),
 
@@ -54,11 +54,11 @@ internal static class SemanticsSetup
             // 複数ファイルを解析するので必ず共有する。
             // 同じ URP のヘッダ群を Pass ごと・ファイルごとに字句解析し直すと、
             // 解析時間の大半がそこに消える。
-            TokenCache = new HlslTokenCache(),
+            TokenCache = new TokenCache(),
 
             // 同じヘッダを同じマクロの状態で取り込んだら使い回す。
             // ブロックごと・ファイルごとの展開の大半がこれに当たる。
-            IncludeCache = new HlslIncludeCache(),
+            IncludeCache = new IncludeCache(),
 
             // 段ごとの内訳を測る先。--timings のときだけ渡される。
             SyntaxTimings = syntaxTimings,
@@ -162,6 +162,7 @@ internal static class SemanticsSetup
             // バージョンを書いていなければ、エンジンの設定に合わせてシェーダーごとに決める (UE 5.5 の PC は、グローバルシェーダーが 2021)。
             FollowEngineLanguageVersion = configuration.HlslVersion is null,
             Enable16BitTypes = configuration.HlslEnable16BitTypes == true,
+            PermutationAxes = configuration.UnrealPermutations == true,
         };
     }
 
@@ -422,11 +423,20 @@ internal static class SemanticsSetup
         return Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full;
     }
 
+    /// <summary>Unreal Engine の環境で使う、代わりの <c>Material.ush</c> のパス。Unreal の環境でなければ <see langword="null"/>。</summary>
+    /// <param name="settings">設定。</param>
+    /// <returns>ファイルの絶対パス。</returns>
+    private static string? GeneratedMaterialOf(EffectiveSettings settings)
+        => settings.Environment == UnrealOptions.EnvironmentName && CreateUnreal(settings).GeneratedDirectory is { } generated
+            ? Path.GetFullPath(Path.Combine(generated, Unreal.UnrealMaterialGenerator.FileName))
+            : null;
+
     /// <summary>
     /// 取り込んだファイルのうち、利用者が書いて直せるものを判定する関数を作る。
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
     /// <param name="editorData">Unity Editor のデータフォルダー。</param>
+    /// <param name="generatedMaterial">Unreal Engine の生成物の、代わりの <c>Material.ush</c> のパス。無ければ <see langword="null"/>。</param>
     /// <returns>パスを受け取り、利用者のファイルなら <see langword="true"/> を返す関数。</returns>
     /// <remarks>
     /// <para>
@@ -440,8 +450,12 @@ internal static class SemanticsSetup
     /// <para>
     /// 絶対パスでないもの (先に差し込むスタブなど) は利用者のファイルとしない。実在するファイルではない。
     /// </para>
+    /// <para>
+    /// Unreal Engine の代わりの <c>Material.ush</c> (<c>--unreal-generate</c> がテンプレートの穴を既定値で埋めたもの) も利用者のファイルとしない。
+    /// その中の報告は利用者には直せない。uniform buffer の宣言などほかの生成物は、利用者のコードと重なる宣言 (HL0314) を報告するので、利用者のファイルのままにする。
+    /// </para>
     /// </remarks>
-    public static Func<string, bool> CreateUserIncludePredicate(CommandLineOptions options, string? editorData)
+    public static Func<string, bool> CreateUserIncludePredicate(CommandLineOptions options, string? editorData, string? generatedMaterial = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -457,10 +471,12 @@ internal static class SemanticsSetup
             external.Add(editorData);
         }
 
+
         IncludeBoundary externalRoots = new(external);
 
         return path => Path.IsPathFullyQualified(path)
-                       && !(externalRoots.IsRestricted && externalRoots.Allows(path));
+                       && !(externalRoots.IsRestricted && externalRoots.Allows(path))
+                       && !string.Equals(path, generatedMaterial, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

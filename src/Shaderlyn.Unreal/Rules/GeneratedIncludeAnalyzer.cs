@@ -26,11 +26,20 @@ internal sealed class GeneratedIncludeAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [UnrealRuleDescriptors.GeneratedFilesMissing, UnrealRuleDescriptors.MaterialGeneratedFilesUnknown];
+        [UnrealRuleDescriptors.GeneratedFilesMissing, UnrealRuleDescriptors.MaterialGeneratedFilesUnknown, UnrealRuleDescriptors.NotCompiledOnPlatform];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
+        // 登録したシェーダーがどれもこのプラットフォームではコンパイルされず、読まなかった (UE0003)。
+        if (!compilation.HasHlslPrograms
+            && compilation.Environment.Name == UnrealOptions.EnvironmentName
+            && compilation.NotCompiledUnits.FirstOrDefault()?.NotCompiledReason is { } reason)
+        {
+            context.ReportDiagnostic(UnrealRuleDescriptors.NotCompiledOnPlatform, new Core.Text.TextSpan(0, 0), reason);
+            return;
+        }
+
         if (!compilation.HasHlslPrograms
             || compilation.HasCompleteDependencies
             || !IsOnlyGeneratedMissing(compilation))

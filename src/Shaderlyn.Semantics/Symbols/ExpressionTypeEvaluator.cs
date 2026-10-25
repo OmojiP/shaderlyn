@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Semantics.Programs;
 
 namespace Shaderlyn.Semantics.Symbols;
@@ -55,9 +55,14 @@ public readonly record struct ResolvedTypeName(string TypeName, bool IsArray, st
 /// </remarks>
 public sealed class ExpressionTypeEvaluator
 {
-    /// <summary>スウィズルに使える成分名。</summary>
-    /// <remarks>位置 (xyzw) と色 (rgba) は混ぜられないが、混ざっていても型は変わらない。</remarks>
-    private const string SwizzleComponents = "xyzwrgba";
+    /// <summary>
+    /// 型の名前・変換・組み込み関数を尋ねる先。既定は HLSL。
+    /// </summary>
+    /// <remarks>
+    /// 束縛 (<see cref="Programs.ExpressionTypeBinder"/>) が、解析した言語の型システム (<c>compilation.TypeSystem</c>) を渡す。
+    /// スウィズルの成分名 (位置 xyzw と色 rgba など) もここから読む。組を混ぜられないが、混ざっていても型は変わらない。
+    /// </remarks>
+    public ShaderTypeSystem TypeSystem { get; init; } = HlslTypeSystem.Instance;
 
     private readonly Func<IdentifierExpressionSyntax, ResolvedTypeName?> _resolve;
     private readonly FrozenDictionary<string, ImmutableArray<FunctionSignature>> _functionSignatures;
@@ -159,7 +164,7 @@ public sealed class ExpressionTypeEvaluator
     /// </summary>
     /// <param name="expression">対象の式。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    public string? Evaluate(HlslExpressionSyntax? expression)
+    public string? Evaluate(ExpressionSyntax? expression)
     {
         string? type = EvaluateCore(expression);
         return type is not null && UnknownTypeNames.Contains(type) ? null : type;
@@ -168,7 +173,7 @@ public sealed class ExpressionTypeEvaluator
     /// <summary>式の型名を求める。型引数による絞り込みの前の値。</summary>
     /// <param name="expression">対象の式。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    private string? EvaluateCore(HlslExpressionSyntax? expression) => expression switch
+    private string? EvaluateCore(ExpressionSyntax? expression) => expression switch
     {
         ParenthesizedExpressionSyntax parenthesized => Evaluate(parenthesized.Expression),
 
@@ -188,11 +193,11 @@ public sealed class ExpressionTypeEvaluator
         AssignmentExpressionSyntax assignment => Evaluate(assignment.Left),
 
         // 符号の反転は型を変えない。
-        PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken }
+        PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken }
             unary => Evaluate(unary.Operand),
 
         // 論理否定は成分ごとに bool を返す。
-        PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.ExclamationToken }
+        PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.ExclamationToken }
             negation => ToBool(Evaluate(negation.Operand)),
 
         _ => null,
@@ -204,11 +209,11 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="literal">対象のリテラル。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     /// <remarks>
-    /// <b>表記の読み解きは <see cref="HlslLiteral"/> が持つ。</b>
+    /// <b>表記の読み解きは <see cref="ShaderLiteral"/> が持つ。</b>
     /// 接尾辞・16 進・8 進の規則をここに書き写すと、片方だけが直されて食い違う。
     /// </remarks>
     private static string? EvaluateLiteral(LiteralExpressionSyntax literal)
-        => HlslLiteral.GetTypeName(literal.Token);
+        => ShaderLiteral.GetTypeName(literal.Token);
 
     /// <summary>
     /// 呼び出しの形をした式の型を求める。
@@ -250,7 +255,7 @@ public sealed class ExpressionTypeEvaluator
 
             // 構造体のメソッド (s.Get()、HLSL 2021)。
             if (StructFunctions.Count > 0
-                && access.DotToken.Kind == HlslSyntaxKind.DotToken
+                && access.DotToken.Kind == ShaderSyntaxKind.DotToken
                 && AsStruct(Evaluate(access.Target)) is { } receiver)
             {
                 return EvaluateStructCall(receiver, access.Name, count, access.Target);
@@ -260,7 +265,7 @@ public sealed class ExpressionTypeEvaluator
             return EvaluateTextureMethod(access);
         }
 
-        if (HlslTypeClassifier.Classify(name) != HlslTypeClass.Unknown)
+        if (TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
         {
             return name;
         }
@@ -280,7 +285,7 @@ public sealed class ExpressionTypeEvaluator
             return EvaluateStructCall(callable, "operator()", count, callee);
         }
 
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         if (_functionOverrides?.TryGetValue(name, out ImmutableArray<FunctionSignature> visible) == true)
         {
@@ -374,7 +379,7 @@ public sealed class ExpressionTypeEvaluator
     /// それ以外の変換どうしの順位には踏み込まない。
     /// </para>
     /// </remarks>
-    private string? ResolveReturnType(ImmutableArray<FunctionSignature> signatures, ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? ResolveReturnType(ImmutableArray<FunctionSignature> signatures, ImmutableArray<ExpressionSyntax> arguments)
     {
         int argumentCount = arguments.Length;
         string? resolved = null;
@@ -406,7 +411,7 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="signatures">同じ名前で宣言されている形。</param>
     /// <param name="arguments">実引数。</param>
     /// <returns>一致する候補がちょうど 1 つならその戻り値の型。それ以外は <see langword="null"/>。</returns>
-    private string? ResolveByExactArguments(ImmutableArray<FunctionSignature> signatures, ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? ResolveByExactArguments(ImmutableArray<FunctionSignature> signatures, ImmutableArray<ExpressionSyntax> arguments)
     {
         string?[] argumentTypes = new string?[arguments.Length];
 
@@ -500,7 +505,7 @@ public sealed class ExpressionTypeEvaluator
     /// 引数ごとの順位。渡せない候補は空の配列。
     /// 数値型でない引数や配列の仮引数があって順位を決められなければ <see langword="null"/>。
     /// </returns>
-    private static int[]? RankConversions(ImmutableArray<ParameterSyntax> parameters, string?[] argumentTypes)
+    private int[]? RankConversions(ImmutableArray<ParameterSyntax> parameters, string?[] argumentTypes)
     {
         int[] ranks = new int[argumentTypes.Length];
 
@@ -509,15 +514,15 @@ public sealed class ExpressionTypeEvaluator
             ParameterSyntax parameter = parameters[i];
 
             if (parameter.IsArray
-                || !HlslTypeClassifier.TryDescribeNumeric(argumentTypes[i], out HlslNumericShape argument)
-                || !HlslTypeClassifier.TryDescribeNumeric(parameter.Type.Name, out HlslNumericShape target))
+                || !TypeSystem.TryDescribeNumeric(argumentTypes[i], out ShaderNumericShape argument)
+                || !TypeSystem.TryDescribeNumeric(parameter.Type.Name, out ShaderNumericShape target))
             {
                 return null;
             }
 
             bool writesBack = parameter.ModifierTokens.Any(t => t.TextIs("out") || t.TextIs("inout"));
 
-            if (!HlslConversion.IsConvertible(argument, target, exact: writesBack))
+            if (!TypeSystem.IsConvertible(argument, target, exact: writesBack))
             {
                 return [];
             }
@@ -528,7 +533,7 @@ public sealed class ExpressionTypeEvaluator
 
             ranks[i] = sameShape
                 ? (string.Equals(argument.BaseName, target.BaseName, StringComparison.Ordinal) ? RankIdentical : RankBaseConversion)
-                : argument.Kind == HlslNumericKind.Scalar ? RankSplat : RankTruncation;
+                : argument.Kind == ShaderNumericKind.Scalar ? RankSplat : RankTruncation;
         }
 
         return ranks;
@@ -602,16 +607,16 @@ public sealed class ExpressionTypeEvaluator
     {
         if (access.Target is not IdentifierExpressionSyntax identifier
             || _resolve(identifier) is not { } texture
-            || !HlslTypeClassifier.Classify(texture.TypeName).IsTexture())
+            || !TypeSystem.Classify(texture.TypeName).IsTexture())
         {
             return null;
         }
 
-        return HlslIntrinsics.GetTextureMethodReturnType(access.Name) switch
+        return TypeSystem.GetTextureMethodReturnType(access.Name) switch
         {
             TextureMethodReturnType.Element => texture.TemplateArgument ?? "float4",
             TextureMethodReturnType.Scalar => "float",
-            TextureMethodReturnType.Gathered => HlslTypeClassifier.TryDescribeNumeric(texture.TemplateArgument ?? "float4", out HlslNumericShape element)
+            TextureMethodReturnType.Gathered => TypeSystem.TryDescribeNumeric(texture.TemplateArgument ?? "float4", out ShaderNumericShape element)
                 ? element.BaseName + "4"
                 : "float4",
             _ => null,
@@ -628,9 +633,9 @@ public sealed class ExpressionTypeEvaluator
     /// 引数を揃えた型を先に求める。<c>lerp(half3, half3, half)</c> は
     /// スカラーが各成分へ配られるため <c>half3</c> になる。
     /// </remarks>
-    private string? EvaluateIntrinsic(string name, ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? EvaluateIntrinsic(string name, ImmutableArray<ExpressionSyntax> arguments)
     {
-        IntrinsicResultRule shape = HlslIntrinsics.GetResultShape(name);
+        IntrinsicResultRule shape = TypeSystem.GetResultShape(name);
 
         switch (shape)
         {
@@ -647,7 +652,7 @@ public sealed class ExpressionTypeEvaluator
                 return EvaluateDeterminant(arguments);
 
             case IntrinsicResultRule.FixedBaseType:
-                return EvaluateFixedBaseType(HlslIntrinsics.GetFixedBaseType(name), arguments);
+                return EvaluateFixedBaseType(TypeSystem.GetFixedBaseType(name), arguments);
 
             case IntrinsicResultRule.SameAsFirstArgument:
                 return arguments.IsEmpty ? null : Evaluate(arguments[0]);
@@ -656,7 +661,7 @@ public sealed class ExpressionTypeEvaluator
                 return "void";
 
             case IntrinsicResultRule.FixedType:
-                return HlslIntrinsics.GetFixedType(name);
+                return TypeSystem.GetFixedType(name);
 
             case IntrinsicResultRule.BoolPerComponent:
                 return arguments.Length == 1 ? ToBool(Evaluate(arguments[0])) : null;
@@ -682,8 +687,8 @@ public sealed class ExpressionTypeEvaluator
             return combined;
         }
 
-        return HlslTypeClassifier.TryDecomposeNumeric(combined, out string baseName, out _)
-            ? HlslTypeClassifier.ComposeNumeric(baseName, 1)
+        return TypeSystem.TryDecomposeNumeric(combined, out string baseName, out _)
+            ? TypeSystem.ComposeNumeric(baseName, 1)
             : null;
     }
 
@@ -745,7 +750,7 @@ public sealed class ExpressionTypeEvaluator
         // 配列は、添字を次元の数だけ重ねて初めて要素になる。
         // float3 a[4][8] の a[0] はまだ配列で、a[0][1] が float3 である。
         int depth = 1;
-        HlslExpressionSyntax root = element.Target;
+        ExpressionSyntax root = element.Target;
 
         while (root is ElementAccessExpressionSyntax inner)
         {
@@ -780,14 +785,14 @@ public sealed class ExpressionTypeEvaluator
         if (element.Target is IdentifierExpressionSyntax identifier
             && _resolve(identifier) is { IsArray: false } resolved)
         {
-            switch (HlslTypeClassifier.Classify(resolved.TypeName))
+            switch (TypeSystem.Classify(resolved.TypeName))
             {
-                case HlslTypeClass.Buffer:
+                case ShaderTypeClass.Buffer:
                     return resolved.TemplateArgument;
 
                 // tex[coord] は要素の型を返す。テンプレート引数を書かない Texture2D の要素は float4 である。
                 // Cg の sampler2D も同じ分類だが、添字では読めないので除く。
-                case HlslTypeClass.Texture2D or HlslTypeClass.Texture3D or HlslTypeClass.Texture2DArray
+                case ShaderTypeClass.Texture2D or ShaderTypeClass.Texture3D or ShaderTypeClass.Texture2DArray
                     when resolved.TypeName.StartsWith("Texture", StringComparison.Ordinal)
                          || resolved.TypeName.StartsWith("RWTexture", StringComparison.Ordinal):
                     return resolved.TemplateArgument
@@ -798,15 +803,15 @@ public sealed class ExpressionTypeEvaluator
             }
         }
 
-        if (!HlslTypeClassifier.TryDescribeNumeric(Evaluate(element.Target), out HlslNumericShape shape))
+        if (!TypeSystem.TryDescribeNumeric(Evaluate(element.Target), out ShaderNumericShape shape))
         {
             return null;
         }
 
         return shape.Kind switch
         {
-            HlslNumericKind.Matrix => HlslTypeClassifier.ComposeNumeric(shape.BaseName, shape.Columns),
-            HlslNumericKind.Vector => shape.BaseName,
+            ShaderNumericKind.Matrix => TypeSystem.ComposeNumeric(shape.BaseName, shape.Columns),
+            ShaderNumericKind.Vector => shape.BaseName,
             _ => null,
         };
     }
@@ -817,7 +822,7 @@ public sealed class ExpressionTypeEvaluator
     /// <remarks>
     /// 名前 (<c>a[i]</c>) と、構造体の配列のフィールド (<c>data.v[i]</c>) を扱う。
     /// </remarks>
-    private ResolvedTypeName? ResolveArray(HlslExpressionSyntax root)
+    private ResolvedTypeName? ResolveArray(ExpressionSyntax root)
     {
         switch (root)
         {
@@ -849,7 +854,7 @@ public sealed class ExpressionTypeEvaluator
     private string? EvaluateSwizzle(MemberAccessExpressionSyntax member)
     {
         // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。
-        if (member.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        if (member.DotToken.Kind == ShaderSyntaxKind.ColonColonToken)
         {
             return member.Target is IdentifierExpressionSyntax { Name: var enumName }
                    && Enums.TryGetValue(enumName, out EnumInfo? enumeration)
@@ -860,7 +865,7 @@ public sealed class ExpressionTypeEvaluator
 
         string? targetType = Evaluate(member.Target);
 
-        if (!HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape shape))
+        if (!TypeSystem.TryDescribeNumeric(targetType, out ShaderNumericShape shape))
         {
             // 数値型でなければ、構造体のフィールドとして引く。配列のフィールドそのものは型を持たない。
             // template の構造体のフィールドは、受け手の型引数で置き換える。
@@ -872,14 +877,14 @@ public sealed class ExpressionTypeEvaluator
                 : null;
         }
 
-        if (shape.Kind == HlslNumericKind.Matrix)
+        if (shape.Kind == ShaderNumericKind.Matrix)
         {
             return EvaluateMatrixSwizzle(shape, member.Name);
         }
 
         string name = member.Name;
 
-        if (name.Length is 0 or > 4 || name.Any(c => !SwizzleComponents.Contains(c, StringComparison.Ordinal)))
+        if (name.Length is 0 or > 4 || name.Any(c => ComponentIndex(c) < 0))
         {
             return null;
         }
@@ -887,7 +892,7 @@ public sealed class ExpressionTypeEvaluator
         // 元の成分数を超える取り出しは成立しない。構造体のフィールドか、誤ったコードである。
         return name.Any(c => ComponentIndex(c) >= shape.Columns)
             ? null
-            : HlslTypeClassifier.ComposeNumeric(shape.BaseName, name.Length);
+            : TypeSystem.ComposeNumeric(shape.BaseName, name.Length);
     }
 
     /// <summary>
@@ -906,7 +911,7 @@ public sealed class ExpressionTypeEvaluator
     /// 範囲を超える添字は成立しない。構造体のフィールドか、誤ったコードである。
     /// </para>
     /// </remarks>
-    private static string? EvaluateMatrixSwizzle(HlslNumericShape shape, string name)
+    private string? EvaluateMatrixSwizzle(ShaderNumericShape shape, string name)
     {
         bool zeroBased = name.StartsWith("_m", StringComparison.Ordinal);
         int stride = zeroBased ? 4 : 3;
@@ -940,14 +945,27 @@ public sealed class ExpressionTypeEvaluator
             }
         }
 
-        return HlslTypeClassifier.ComposeNumeric(shape.BaseName, count);
+        return TypeSystem.ComposeNumeric(shape.BaseName, count);
     }
 
     /// <summary>成分名が何番目の成分を指すかを返す。</summary>
     /// <param name="component">成分名の文字。</param>
-    /// <returns>0 始まりの位置。</returns>
-    private static int ComponentIndex(char component)
-        => SwizzleComponents.IndexOf(component, StringComparison.Ordinal) % 4;
+    /// <returns>0 始まりの位置。成分名でなければ -1。</returns>
+    /// <remarks>成分名の組 (<see cref="ShaderTypeSystem.ComponentNameSets"/>) のどれかの中での位置である。</remarks>
+    private int ComponentIndex(char component)
+    {
+        foreach (string set in TypeSystem.ComponentNameSets)
+        {
+            int index = set.IndexOf(component, StringComparison.Ordinal);
+
+            if (index >= 0)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
 
     /// <summary>
     /// 二項演算の結果の型を求める。
@@ -992,7 +1010,7 @@ public sealed class ExpressionTypeEvaluator
     /// <remarks>
     /// 実引数の型による多重定義の選択はしない。template のメソッドは、型引数で戻り値が変わりうるので答えない。
     /// </remarks>
-    private string? EvaluateStructCall(string structName, string functionName, int argumentCount, HlslExpressionSyntax receiver)
+    private string? EvaluateStructCall(string structName, string functionName, int argumentCount, ExpressionSyntax receiver)
     {
         if (!StructFunctions.TryGetValue(structName, out FrozenDictionary<string, ImmutableArray<FunctionDeclarationSyntax>>? functions)
             || !functions.TryGetValue(functionName, out ImmutableArray<FunctionDeclarationSyntax> overloads))
@@ -1033,7 +1051,7 @@ public sealed class ExpressionTypeEvaluator
     /// 受け手が名前 (<c>b</c>) で、その宣言の型引数が 1 つの名前 (<c>Box&lt;float4&gt;</c>) のときだけ置き換える。
     /// 型引数を含む別の形 (<c>vector&lt;T, 3&gt;</c>) は、書かれた名前 (<c>vector</c>) のままで、数値型とは見なされない。
     /// </remarks>
-    private string? Specialize(string structName, string type, HlslExpressionSyntax receiver)
+    private string? Specialize(string structName, string type, ExpressionSyntax receiver)
     {
         if (!TemplateStructs.TryGetValue(structName, out ImmutableArray<string> parameters))
         {
@@ -1060,22 +1078,22 @@ public sealed class ExpressionTypeEvaluator
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     private string? EvaluateBuiltInBinary(BinaryExpressionSyntax binary) => binary.OperatorToken.Kind switch
     {
-        HlslSyntaxKind.PlusToken or HlslSyntaxKind.MinusToken
-            or HlslSyntaxKind.AsteriskToken or HlslSyntaxKind.SlashToken
-            or HlslSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
+        ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken
+            or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken
+            or ShaderSyntaxKind.PercentToken => Combine(binary.Left, binary.Right),
 
-        HlslSyntaxKind.EqualsEqualsToken or HlslSyntaxKind.ExclamationEqualsToken
-            or HlslSyntaxKind.LessThanToken or HlslSyntaxKind.GreaterThanToken
-            or HlslSyntaxKind.LessThanEqualsToken or HlslSyntaxKind.GreaterThanEqualsToken
-            or HlslSyntaxKind.AmpersandAmpersandToken or HlslSyntaxKind.BarBarToken
+        ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken
+            or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+            or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken
+            or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken
             => ToBool(Combine(binary.Left, binary.Right)),
 
         // ビット演算は整数どうしに限る。型の揃え方は算術と同じである。
-        HlslSyntaxKind.AmpersandToken or HlslSyntaxKind.BarToken or HlslSyntaxKind.CaretToken
+        ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
             => EvaluateBitwise(binary),
 
         // シフトの結果は左辺の基本型になる。成分数は揃える (1 << uint3(...) は int3)。
-        HlslSyntaxKind.LessThanLessThanToken or HlslSyntaxKind.GreaterThanGreaterThanToken
+        ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken
             => EvaluateShift(binary),
 
         _ => null,
@@ -1101,10 +1119,10 @@ public sealed class ExpressionTypeEvaluator
         string? right = Evaluate(binary.Right);
 
         if (!IsInteger(left) || !IsInteger(right)
-            || !HlslTypeClassifier.TryDescribeNumeric(left, out HlslNumericShape leftShape)
-            || !HlslTypeClassifier.TryDescribeNumeric(right, out HlslNumericShape rightShape)
-            || leftShape.Kind == HlslNumericKind.Matrix
-            || rightShape.Kind == HlslNumericKind.Matrix)
+            || !TypeSystem.TryDescribeNumeric(left, out ShaderNumericShape leftShape)
+            || !TypeSystem.TryDescribeNumeric(right, out ShaderNumericShape rightShape)
+            || leftShape.Kind == ShaderNumericKind.Matrix
+            || rightShape.Kind == ShaderNumericKind.Matrix)
         {
             return null;
         }
@@ -1115,14 +1133,14 @@ public sealed class ExpressionTypeEvaluator
             return null;
         }
 
-        return HlslTypeClassifier.ComposeNumeric(leftShape.BaseName, Math.Max(leftShape.Columns, rightShape.Columns));
+        return TypeSystem.ComposeNumeric(leftShape.BaseName, Math.Max(leftShape.Columns, rightShape.Columns));
     }
 
     /// <summary>整数の基本型を持つ数値型かを判定する。</summary>
     /// <param name="typeName">型名。</param>
     /// <returns>整数型なら <see langword="true"/>。</returns>
-    private static bool IsInteger(string? typeName)
-        => HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape)
+    private bool IsInteger(string? typeName)
+        => TypeSystem.TryDescribeNumeric(typeName, out ShaderNumericShape shape)
            && shape.BaseName is "int" or "uint" or "dword" or "int16_t" or "uint16_t" or "int32_t" or "uint32_t"
                or "int64_t" or "uint64_t" or "min16int" or "min16uint" or "min12int";
 
@@ -1135,9 +1153,9 @@ public sealed class ExpressionTypeEvaluator
     /// HLSL の比較は成分ごとに行われる。<c>float4 &gt; float4</c> は <c>bool4</c> である。
     /// スカラーどうしの比較だけが <c>bool</c> になる。
     /// </remarks>
-    private static string? ToBool(string? operandType)
-        => HlslTypeClassifier.TryDecomposeNumeric(operandType, out _, out int components)
-            ? HlslTypeClassifier.ComposeNumeric("bool", components)
+    private string? ToBool(string? operandType)
+        => TypeSystem.TryDecomposeNumeric(operandType, out _, out int components)
+            ? TypeSystem.ComposeNumeric("bool", components)
             : null;
 
     /// <summary>
@@ -1146,7 +1164,7 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="left">一方の式。</param>
     /// <param name="right">もう一方の式。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    private string? Combine(HlslExpressionSyntax left, HlslExpressionSyntax right)
+    private string? Combine(ExpressionSyntax left, ExpressionSyntax right)
         => Combine(Evaluate(left), Evaluate(right));
 
     /// <summary>
@@ -1166,30 +1184,30 @@ public sealed class ExpressionTypeEvaluator
     /// 成分数が食い違う組み合わせは成立しないので、その場合も主張しない。
     /// </para>
     /// </remarks>
-    private static string? Combine(string? left, string? right)
+    private string? Combine(string? left, string? right)
     {
-        if (!HlslTypeClassifier.TryDescribeNumeric(left, out HlslNumericShape a)
-            || !HlslTypeClassifier.TryDescribeNumeric(right, out HlslNumericShape b)
-            || HlslTypeClassifier.GetWiderBaseName(a.BaseName, b.BaseName) is not { } baseName)
+        if (!TypeSystem.TryDescribeNumeric(left, out ShaderNumericShape a)
+            || !TypeSystem.TryDescribeNumeric(right, out ShaderNumericShape b)
+            || TypeSystem.GetWiderBaseName(a.BaseName, b.BaseName) is not { } baseName)
         {
             return null;
         }
 
         // スカラーは相手の形へ配られる。
-        if (a.Kind == HlslNumericKind.Scalar)
+        if (a.Kind == ShaderNumericKind.Scalar)
         {
-            return HlslTypeClassifier.Compose(b with { BaseName = baseName });
+            return TypeSystem.Compose(b with { BaseName = baseName });
         }
 
-        if (b.Kind == HlslNumericKind.Scalar)
+        if (b.Kind == ShaderNumericKind.Scalar)
         {
-            return HlslTypeClassifier.Compose(a with { BaseName = baseName });
+            return TypeSystem.Compose(a with { BaseName = baseName });
         }
 
         // 形が違うものどうしは成立しない。
         // 行列とベクトルの * は成分ごとの演算にならず、mul を使う場面である。
         return a.Kind == b.Kind && a.Rows == b.Rows && a.Columns == b.Columns
-            ? HlslTypeClassifier.Compose(a with { BaseName = baseName })
+            ? TypeSystem.Compose(a with { BaseName = baseName })
             : null;
     }
 
@@ -1209,28 +1227,28 @@ public sealed class ExpressionTypeEvaluator
     /// スカラーが混ざる場合は成分ごとの積になり、相手の形がそのまま結果になる。
     /// </para>
     /// </remarks>
-    private string? EvaluateMatrixProduct(ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? EvaluateMatrixProduct(ImmutableArray<ExpressionSyntax> arguments)
     {
         if (arguments.Length != 2
-            || !HlslTypeClassifier.TryDescribeNumeric(Evaluate(arguments[0]), out HlslNumericShape a)
-            || !HlslTypeClassifier.TryDescribeNumeric(Evaluate(arguments[1]), out HlslNumericShape b)
-            || HlslTypeClassifier.GetWiderBaseName(a.BaseName, b.BaseName) is not { } baseName)
+            || !TypeSystem.TryDescribeNumeric(Evaluate(arguments[0]), out ShaderNumericShape a)
+            || !TypeSystem.TryDescribeNumeric(Evaluate(arguments[1]), out ShaderNumericShape b)
+            || TypeSystem.GetWiderBaseName(a.BaseName, b.BaseName) is not { } baseName)
         {
             return null;
         }
 
-        if (a.Kind == HlslNumericKind.Scalar)
+        if (a.Kind == ShaderNumericKind.Scalar)
         {
-            return HlslTypeClassifier.Compose(b with { BaseName = baseName });
+            return TypeSystem.Compose(b with { BaseName = baseName });
         }
 
-        if (b.Kind == HlslNumericKind.Scalar)
+        if (b.Kind == ShaderNumericKind.Scalar)
         {
-            return HlslTypeClassifier.Compose(a with { BaseName = baseName });
+            return TypeSystem.Compose(a with { BaseName = baseName });
         }
 
         // ベクトルどうしは内積になり、結果はスカラーである。
-        if (a.Kind == HlslNumericKind.Vector && b.Kind == HlslNumericKind.Vector)
+        if (a.Kind == ShaderNumericKind.Vector && b.Kind == ShaderNumericKind.Vector)
         {
             return a.Columns == b.Columns ? baseName : null;
         }
@@ -1238,7 +1256,7 @@ public sealed class ExpressionTypeEvaluator
         // ベクトルは左なら行ベクトル、右なら列ベクトルとして扱えば行列と同じ規則で解ける。
         int leftRows = a.Rows;
         int leftColumns = a.Columns;
-        (int rightRows, int rightColumns) = b.Kind == HlslNumericKind.Vector
+        (int rightRows, int rightColumns) = b.Kind == ShaderNumericKind.Vector
             ? (b.Columns, 1)
             : (b.Rows, b.Columns);
 
@@ -1247,13 +1265,13 @@ public sealed class ExpressionTypeEvaluator
             return null;
         }
 
-        HlslNumericKind kind = leftRows == 1 || rightColumns == 1
-            ? HlslNumericKind.Vector
-            : HlslNumericKind.Matrix;
+        ShaderNumericKind kind = leftRows == 1 || rightColumns == 1
+            ? ShaderNumericKind.Vector
+            : ShaderNumericKind.Matrix;
 
-        return kind == HlslNumericKind.Vector
-            ? HlslTypeClassifier.ComposeNumeric(baseName, Math.Max(leftRows, rightColumns))
-            : HlslTypeClassifier.Compose(new HlslNumericShape(kind, baseName, leftRows, rightColumns));
+        return kind == ShaderNumericKind.Vector
+            ? TypeSystem.ComposeNumeric(baseName, Math.Max(leftRows, rightColumns))
+            : TypeSystem.Compose(new ShaderNumericShape(kind, baseName, leftRows, rightColumns));
     }
 
     /// <summary>
@@ -1267,16 +1285,16 @@ public sealed class ExpressionTypeEvaluator
     /// <c>sign</c> や <c>f32tof16</c> は値も変わるが、形が変わらない点は同じである。
     /// どちらも基底型だけを差し替えればよい。
     /// </remarks>
-    private string? EvaluateFixedBaseType(string? baseName, ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? EvaluateFixedBaseType(string? baseName, ImmutableArray<ExpressionSyntax> arguments)
     {
         if (baseName is null
             || arguments.IsEmpty
-            || !HlslTypeClassifier.TryDescribeNumeric(Evaluate(arguments[0]), out HlslNumericShape shape))
+            || !TypeSystem.TryDescribeNumeric(Evaluate(arguments[0]), out ShaderNumericShape shape))
         {
             return null;
         }
 
-        return HlslTypeClassifier.Compose(shape with { BaseName = baseName });
+        return TypeSystem.Compose(shape with { BaseName = baseName });
     }
 
     /// <summary>
@@ -1284,11 +1302,11 @@ public sealed class ExpressionTypeEvaluator
     /// </summary>
     /// <param name="arguments">実引数。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
-    private string? EvaluateTranspose(ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? EvaluateTranspose(ImmutableArray<ExpressionSyntax> arguments)
         => arguments.Length == 1
-           && HlslTypeClassifier.TryDescribeNumeric(Evaluate(arguments[0]), out HlslNumericShape shape)
-           && shape.Kind == HlslNumericKind.Matrix
-            ? HlslTypeClassifier.Compose(shape with { Rows = shape.Columns, Columns = shape.Rows })
+           && TypeSystem.TryDescribeNumeric(Evaluate(arguments[0]), out ShaderNumericShape shape)
+           && shape.Kind == ShaderNumericKind.Matrix
+            ? TypeSystem.Compose(shape with { Rows = shape.Columns, Columns = shape.Rows })
             : null;
 
     /// <summary>
@@ -1297,10 +1315,10 @@ public sealed class ExpressionTypeEvaluator
     /// <param name="arguments">実引数。</param>
     /// <returns>型名。判定できない場合は <see langword="null"/>。</returns>
     /// <remarks>行列式はスカラーである。基底型は元の行列と同じ。</remarks>
-    private string? EvaluateDeterminant(ImmutableArray<HlslExpressionSyntax> arguments)
+    private string? EvaluateDeterminant(ImmutableArray<ExpressionSyntax> arguments)
         => arguments.Length == 1
-           && HlslTypeClassifier.TryDescribeNumeric(Evaluate(arguments[0]), out HlslNumericShape shape)
-           && shape.Kind == HlslNumericKind.Matrix
+           && TypeSystem.TryDescribeNumeric(Evaluate(arguments[0]), out ShaderNumericShape shape)
+           && shape.Kind == ShaderNumericKind.Matrix
             ? shape.BaseName
             : null;
 }

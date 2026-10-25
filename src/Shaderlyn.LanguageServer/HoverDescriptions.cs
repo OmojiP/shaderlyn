@@ -1,3 +1,4 @@
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Syntax;
@@ -17,6 +18,7 @@ internal static partial class HoverBuilder
     /// <summary>
     /// 型名を説明する。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="name">型名。</param>
     /// <param name="span">対応する範囲。</param>
     /// <returns>説明。</returns>
@@ -25,21 +27,21 @@ internal static partial class HoverBuilder
     /// <c>half4</c> は型であって、型が不明な式ではない。
     /// 分類が分からない型 (構造体など) でも、型であることは分かる。
     /// </remarks>
-    private static HoverResult DescribeType(string name, TextSpan span)
+    private static HoverResult DescribeType(ShaderTypeSystem types, string name, TextSpan span)
     {
-        string body = HlslTypeClassifier.TryDescribeNumeric(name, out HlslNumericShape shape)
+        string body = types.TryDescribeNumeric(name, out ShaderNumericShape shape)
             ? shape.Kind switch
             {
-                HlslNumericKind.Scalar => $"{shape.BaseName} のスカラー",
-                HlslNumericKind.Vector => $"{shape.BaseName} の {shape.Columns} 成分ベクトル",
-                HlslNumericKind.Matrix => $"{shape.BaseName} の {shape.Rows} 行 {shape.Columns} 列の行列",
+                ShaderNumericKind.Scalar => $"{shape.BaseName} のスカラー",
+                ShaderNumericKind.Vector => $"{shape.BaseName} の {shape.Columns} 成分ベクトル",
+                ShaderNumericKind.Matrix => $"{shape.BaseName} の {shape.Rows} 行 {shape.Columns} 列の行列",
                 _ => "数値型",
             }
-            : HlslTypeClassifier.Classify(name) switch
+            : types.Classify(name) switch
             {
-                HlslTypeClass.Unknown => "型 (構造体、またはこのツールが知らない型)",
-                HlslTypeClass.Sampler => "サンプラ",
-                HlslTypeClass.Buffer => "バッファ",
+                ShaderTypeClass.Unknown => "型 (構造体、またはこのツールが知らない型)",
+                ShaderTypeClass.Sampler => "サンプラ",
+                ShaderTypeClass.Buffer => "バッファ",
                 { } classified => $"テクスチャ ({classified})",
             };
 
@@ -74,7 +76,7 @@ internal static partial class HoverBuilder
 
         if (declaration.Type.Name is { Length: > 0 })
         {
-            body += $"\n\n型: {DescribeTypeBody(declaration.Type.Name)}";
+            body += $"\n\n型: {DescribeTypeBody(compilation.TypeSystem, declaration.Type.Name)}";
         }
 
         return new HoverResult(body, declarator.NameToken.Span);
@@ -119,7 +121,7 @@ internal static partial class HoverBuilder
     /// <param name="nameToken">構造体の名前のトークン。</param>
     /// <returns>説明。</returns>
     /// <remarks>フィールドの一覧を出す。型を辿るときに最初に見たいものである。</remarks>
-    private static HoverResult DescribeStruct(StructDeclarationSyntax structure, HlslSyntaxToken nameToken)
+    private static HoverResult DescribeStruct(StructDeclarationSyntax structure, ShaderSyntaxToken nameToken)
     {
         IEnumerable<string> fields = structure.Members
             .OfType<VariableDeclarationSyntax>()
@@ -138,7 +140,7 @@ internal static partial class HoverBuilder
     private static HoverResult DescribeConstantBuffer(
         ShaderCompilation compilation,
         ConstantBufferDeclarationSyntax buffer,
-        HlslSyntaxToken nameToken)
+        ShaderSyntaxToken nameToken)
     {
         int members = buffer.Members.OfType<VariableDeclarationSyntax>().Sum(m => m.Variables.Count());
 
@@ -156,6 +158,7 @@ internal static partial class HoverBuilder
     /// <summary>
     /// 呼び出しの対象を説明する。
     /// </summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="program">対象のコードブロック。</param>
     /// <param name="identifier">呼び出しの対象となっている識別子。</param>
     /// <returns>説明。</returns>
@@ -164,13 +167,13 @@ internal static partial class HoverBuilder
     /// <c>half4(1, 0, 0, 0)</c> の <c>half4</c> を
     /// 「型が不明な式」として扱ってはならない。
     /// </remarks>
-    private static HoverResult DescribeCallee(AnalyzedProgram program, IdentifierExpressionSyntax identifier)
+    private static HoverResult DescribeCallee(ShaderTypeSystem types, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
     {
         string name = identifier.Name;
 
-        if (HlslTypeClassifier.Classify(name) != HlslTypeClass.Unknown)
+        if (types.Classify(name) != ShaderTypeClass.Unknown)
         {
-            HoverResult type = DescribeType(name, identifier.Span);
+            HoverResult type = DescribeType(types, name, identifier.Span);
             return type with { Markdown = type.Markdown + "\n\nこの位置ではコンストラクタとして使われている。" };
         }
 
@@ -202,8 +205,8 @@ internal static partial class HoverBuilder
             return new HoverResult($"```hlsl\n{forms}\n```\n\n宣言されている関数{note}", identifier.Span);
         }
 
-        return HlslIntrinsics.GetResultShape(name) != IntrinsicResultRule.Unknown
-               || HlslIntrinsics.GetTextureMethodReturnType(name) != TextureMethodReturnType.Unknown
+        return types.GetResultShape(name) != IntrinsicResultRule.Unknown
+               || types.GetTextureMethodReturnType(name) != TextureMethodReturnType.Unknown
             ? new HoverResult($"```hlsl\n{name}\n```\n\n組み込み関数", identifier.Span)
             : new HoverResult(
                 $"```hlsl\n{name}\n```\n\n宣言が見つからない。"
@@ -277,7 +280,7 @@ internal static partial class HoverBuilder
     /// ただし、そう答える前に構成ごとの型を試す。
     /// 同じ名前を条件ごとに違う型で宣言するのは普通の書き方であり、
     /// 1 本の木では型が決まらなくても、構成を決めれば決まる。
-    /// 診断はすでにそうしている (<see cref="ExpressionTypeBinder.EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。
+    /// 診断はすでにそうしている (<see cref="ExpressionTypeBinder.EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。
     /// ホバーだけが「判定できません」と答えると、
     /// 指摘が出ない理由を調べる利用者を誤った方向へ導く。
     /// </para>
@@ -285,7 +288,7 @@ internal static partial class HoverBuilder
     private static HoverResult DescribeExpression(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         string text = Shorten(compilation.Text.ToString(expression.Span));
 
@@ -320,7 +323,7 @@ internal static partial class HoverBuilder
     private static string? DescribeTypeByConfiguration(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         ConditionMap conditions = compilation.GetConditionMap();
         List<(SymbolCondition Condition, string Type)> found = [];
@@ -355,11 +358,12 @@ internal static partial class HoverBuilder
     }
 
     /// <summary>型の分類を短く表す。</summary>
+    /// <param name="types">型を尋ねる先。</param>
     /// <param name="name">型名。</param>
     /// <returns>組み立てた文字列。</returns>
-    private static string DescribeTypeBody(string name)
+    private static string DescribeTypeBody(ShaderTypeSystem types, string name)
     {
-        HoverResult described = DescribeType(name, default);
+        HoverResult described = DescribeType(types, name, default);
         int separator = described.Markdown.LastIndexOf("\n\n", StringComparison.Ordinal);
 
         return separator < 0 ? name : described.Markdown[(separator + 2)..];

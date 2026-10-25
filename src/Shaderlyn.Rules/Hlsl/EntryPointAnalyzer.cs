@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -20,7 +21,7 @@ namespace Shaderlyn.Rules;
 /// 該当のマテリアルを画面に出すまで気づけないことがある。
 /// </para>
 /// <para>
-/// エントリポイントは環境が読む (<see cref="IHlslEnvironment.ReadEntryPoints"/>)。
+/// エントリポイントは環境が読む (<see cref="IShaderEnvironment.ReadEntryPoints"/>)。
 /// Unity なら <c>#pragma vertex</c> などに書いた名前、設定でコンパイル単位を与える環境なら設定に書いた名前である。
 /// </para>
 /// <para>
@@ -45,7 +46,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (HlslEntryPoint entryPoint in program.EntryPoints)
+            foreach (ShaderEntryPoint entryPoint in program.EntryPoints)
             {
                 CheckEntryPoint(context, compilation, program, entryPoint);
                 CheckConstantBufferEntryPoint(context, compilation, program, entryPoint);
@@ -67,16 +68,16 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// 関数に届くコンパイル先に DXC があればエラー (HL0304)、FXC だけなら警告 (HL0303) にする。
-    /// コンパイル先が分からない環境 (汎用の HLSL) は、木の方言で決める。
+    /// コンパイル先が分からない環境 (汎用の HLSL) は、木のコンパイラと HLSL のバージョンで決める。
     /// </para>
     /// </remarks>
     private static void CheckConstantBufferEntryPoint(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        HlslEntryPoint entryPoint)
+        ShaderEntryPoint entryPoint)
     {
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             if (declaration is not ConstantBufferDeclarationSyntax buffer
                 || EnumerateFunctions(buffer.Members).FirstOrDefault(f => !f.IsMethodDefinition && f.Name == entryPoint.Name) is not { } function)
@@ -90,7 +91,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 
             if (targets.IsEmpty)
             {
-                bool dxc = program.Tree.Dialects.Any(d => d.Compiler == HlslCompiler.Dxc);
+                bool dxc = program.Tree.Hlsl().Dialects.Any(d => d.Compiler == HlslCompiler.Dxc);
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     dxc ? HlslRuleDescriptors.EntryPointInConstantBufferWithDxc : HlslRuleDescriptors.EntryPointInConstantBuffer,
@@ -118,9 +119,9 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// <summary>関数の宣言を列挙する。cbuffer の中に書いた関数も含む。</summary>
     /// <param name="declarations">宣言の並び。</param>
     /// <returns>関数の宣言。</returns>
-    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<HlslDeclarationSyntax> declarations)
+    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<DeclarationSyntax> declarations)
     {
-        foreach (HlslDeclarationSyntax declaration in declarations)
+        foreach (DeclarationSyntax declaration in declarations)
         {
             if (declaration is FunctionDeclarationSyntax function)
             {
@@ -145,7 +146,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        HlslEntryPoint entryPoint)
+        ShaderEntryPoint entryPoint)
     {
         // 入口の関数が無い構成を求める。
         // 両方の分岐を並べた木では、#ifdef _B の中の関数も木にある。名前があるだけで「ある」とすると、

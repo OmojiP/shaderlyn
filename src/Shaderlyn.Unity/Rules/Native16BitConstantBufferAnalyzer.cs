@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Parsing;
@@ -28,14 +29,14 @@ internal sealed class Native16BitConstantBufferAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (compilation.Programs.All(p => !p.Tree.CompileTargets.Any(t => t.Dialect.Enable16BitTypes)))
+        if (compilation.Programs.All(p => !p.Tree.Hlsl().CompileTargets.Any(t => t.Dialect.Enable16BitTypes)))
         {
             return;
         }
 
         HashSet<int> reported = [];
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not VariableDeclarationSyntax { Parent: ConstantBufferDeclarationSyntax buffer } declaration
                 || !IsSixteenBitWhenEnabled(declaration.Type.NameToken.Text)

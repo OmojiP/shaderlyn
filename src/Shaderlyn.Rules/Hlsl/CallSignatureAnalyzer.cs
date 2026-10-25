@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -56,7 +56,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is InvocationExpressionSyntax invocation)
             {
@@ -67,7 +67,11 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                     compilation.GetExpressionTypeBinder(program),
                     invocation,
                     declaresArrays,
-                    program.AnalyzedCondition,
+
+                    // その木が表す構成 (解析した構成と、ほかの木の構成を除いたもの)。実引数の型はその構成のものである。
+                    // 解析した構成だけにすると、既定の木の実引数の型をほかの値の構成にも当てはめ、
+                    // その構成の多重定義と食い違うと報告していた (Unreal の TSRUpdateHistory.usf の DIM_ALPHA_CHANNEL)。
+                    compilation.GetTreeConfiguration(program),
                     reported);
             }
         }
@@ -80,7 +84,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
     /// <param name="declaresArrays">このシェーダーが長さの書かれた配列を 1 つでも宣言しているか。</param>
-    /// <param name="analyzed">この木を解析した構成の条件。</param>
+    /// <param name="analyzed">この木が表す構成の条件 (<see cref="ShaderCompilation.GetTreeConfiguration"/>)。</param>
     /// <param name="reported">報告済みの位置。</param>
     private static void AnalyzeCall(
         SyntaxTreeAnalysisContext context,
@@ -98,7 +102,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         }
 
         // 構造体のメソッド (s.Get()、HLSL 2021)。
-        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: HlslSyntaxKind.DotToken } access)
+        if (invocation.Target is MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access)
         {
             AnalyzeMethodCall(context, compilation, condition, binder, invocation, access, reported);
             return;
@@ -155,13 +159,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         List<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
 
         // 組み込み関数と同じ名前で多重定義していれば、組み込み関数の側が受け付けることもある。
-        bool intrinsicAccepts = HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity intrinsic)
+        bool intrinsicAccepts = compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity intrinsic)
                                 && intrinsic.Accepts(arguments.Length);
 
         // 構成ごとに覆えているかを見るのは既定の木だけにする。出現条件は既定の木を基準にしたもので、
@@ -179,7 +183,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 宣言が 1 つも無い構成は HL0311 の担当である。宣言のある構成だけで比べる。
         if (!intrinsicAccepts
             && PresentCondition(condition, candidates) is { } anyPresent
-            && FindUncovered(condition, call.And(anyPresent), fitting) is { } arityMissing)
+            && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
         {
             ReportArity(
                 context,
@@ -220,7 +224,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 受け付ける宣言が、呼び出しのあるすべての構成に存在するか。個数と同じ理由で、1 つあれば通すのでは足りない。
         // 個数の合う宣言がある構成だけで比べる。個数の合わない構成は上で報告している。
         if (PresentCondition(condition, fitting) is not { } fittingPresent
-            || FindUncovered(condition, call.And(fittingPresent), accepting) is not { } typeMissing)
+            || FindUncovered(compilation, binder.Program, condition, call.And(fittingPresent), accepting) is not { } typeMissing)
         {
             return;
         }
@@ -254,7 +258,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         InvocationExpressionSyntax invocation,
         string name,
         List<FunctionDeclarationSyntax> candidates,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         bool intrinsicAccepts,
         bool declaresArrays,
         SymbolCondition call,
@@ -298,6 +302,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 呼び出しのある構成のうち、受け付ける宣言がどれも存在しない構成を求める。
     /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">呼び出しのある木。その単位の制約でも、構成がありうるかを確かめる。</param>
     /// <param name="condition">出現条件の索引。</param>
     /// <param name="call">呼び出しの出現条件。</param>
     /// <param name="accepting">受け付ける宣言。</param>
@@ -306,6 +312,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// 条件の分からない宣言は、どの構成にもあるものとして扱う。分からないものを根拠に報告しない。
     /// </remarks>
     private static SymbolCondition? FindUncovered(
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
         ConditionMap condition,
         SymbolCondition call,
         List<FunctionDeclarationSyntax> accepting)
@@ -317,7 +325,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         SymbolCondition missing = call.And(covered.Negate());
 
-        return !missing.IsUnknown && condition.IsPossible(missing)
+        return !missing.IsUnknown && compilation.IsPossibleIn(program, missing)
             ? condition.Simplify(missing)
             : null;
     }
@@ -369,10 +377,10 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ReportedLocations reported)
     {
         if (compilation.MayLackOverloadsOf(name)
-            || !HlslIntrinsicArity.Functions.TryGetValue(name, out IntrinsicArity arity)
+            || !compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
-            || HlslTypeClassifier.Classify(name) != HlslTypeClass.Unknown)
+            || compilation.TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
         {
             return;
         }
@@ -490,7 +498,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         // 型引数を書いた呼び出しは、template の関数だけが候補になる。
         TemplateFunctionCandidate[] pool = invocation.HasTypeArguments ? [.. candidates.Where(c => c.IsTemplate)] : [.. candidates];
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         if (pool.Length == 0 || invocation.GetLocation() is not { } location || reported.Contains(location))
         {
@@ -602,7 +610,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="type">推論に使った型。</param>
     /// <param name="argument">実引数。</param>
     /// <returns>画面に出す文字列。</returns>
-    private static string DescribeDeduced(string type, HlslExpressionSyntax argument)
+    private static string DescribeDeduced(string type, ExpressionSyntax argument)
         => TemplateDeduction.IsLiteral(type)
             ? TemplateDeduction.AsLiteral(argument)?.Text ?? type
             : type;
@@ -702,7 +710,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static Mismatch? FindMismatch(
         ImmutableArray<ParameterSyntax> parameters,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         string?[] argumentTypes,
         ExpressionTypeBinder binder,
         bool declaresArrays)
@@ -730,7 +738,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (HlslConversion.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
+            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
             {
                 continue;
             }
@@ -747,7 +755,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <returns>修飾の名前。</returns>
     private static string DescribeModifier(ParameterSyntax parameter)
     {
-        foreach (HlslSyntaxToken modifier in parameter.ModifierTokens)
+        foreach (ShaderSyntaxToken modifier in parameter.ModifierTokens)
         {
             if (CallCompatibility.IsWritebackModifier(modifier.Text))
             {
@@ -783,7 +791,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string? DescribeArrayMismatch(
         ParameterSyntax parameter,
-        HlslExpressionSyntax argument,
+        ExpressionSyntax argument,
         ExpressionTypeBinder binder,
         bool declaresArrays)
     {
@@ -878,7 +886,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <returns>宣言していれば <see langword="true"/>。</returns>
     private static bool DeclaresArrays(ShaderCompilation compilation)
     {
-        foreach ((HlslSyntaxNode node, AnalyzedProgram _) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram _) in compilation.EnumerateRuleNodes())
         {
             if (node is VariableDeclarationSyntax declaration
                 && compilation.IsReportable(declaration)

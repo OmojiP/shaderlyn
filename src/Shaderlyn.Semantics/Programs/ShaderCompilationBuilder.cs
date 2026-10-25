@@ -1,13 +1,14 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Environments;
@@ -52,10 +53,10 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     internal static ShaderCompilation Build(
         SourceText text,
-        ImmutableArray<HlslCompilationUnit> units,
+        ImmutableArray<ShaderCompilationUnit> units,
         SourceText codeText,
         SemanticsOptions? options,
-        IHlslEnvironment environment,
+        IShaderEnvironment environment,
         ShaderSourceInfo source)
     {
         options ??= SemanticsOptions.Default;
@@ -77,14 +78,23 @@ internal static class ShaderCompilationBuilder
         SortedDictionary<string, SymbolCombination> unexploredCombinations = new(StringComparer.Ordinal);
 
         DeclarationIndex index = new();
+        ImmutableArray<ShaderCompilationUnit>.Builder notCompiled = ImmutableArray.CreateBuilder<ShaderCompilationUnit>();
+        ImmutableArray<ErrorConfiguration>.Builder errorConfigurations = ImmutableArray.CreateBuilder<ErrorConfiguration>();
 
-        foreach (HlslCompilationUnit unit in units)
+        foreach (ShaderCompilationUnit unit in units)
         {
+            // このプラットフォームではコンパイルされない単位は読まない。読んでも、実在しない構成の話になる。
+            if (unit.NotCompiledReason is not null)
+            {
+                notCompiled.Add(unit);
+                continue;
+            }
+
             // 字句解析の結果は共有しているので、展開の前に読むのは実質ただである
             // (このあとの展開が同じトークン列を使う)。
-            ImmutableArray<HlslSyntaxToken> unitTokens = options.TokenCache is { } cache
+            ImmutableArray<ShaderSyntaxToken> unitTokens = options.TokenCache is { } cache
                 ? cache.GetOrLex(unit.Text, out _)
-                : new HlslLexer(unit.Text).Lex(out _);
+                : new ShaderLexer(unit.Text).Lex(out _);
 
             // どの #ifdef で両方の分岐を残すかは、展開しながら決める。
             // そのため「どれがシンボルか」は展開が始まる前に分かっていなければならない。
@@ -105,8 +115,8 @@ internal static class ShaderCompilationBuilder
 
             PreprocessorOptions blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, []);
 
-            HlslSyntaxTree tree = ParseWithoutMergedMacroConflicts(
-                unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
+            ShaderSyntaxTree tree = ParseWithoutMergedMacroConflicts(
+                environment, unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
             VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
 
@@ -118,11 +128,11 @@ internal static class ShaderCompilationBuilder
                 blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, includedSymbols);
 
                 tree = ParseWithoutMergedMacroConflicts(
-                    unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
+                    environment, unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
                 treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
-            DeclarationSet declarations = UniformCollector.Collect(tree.Root);
+            DeclarationSet declarations = UniformCollector.Collect(tree.Root, environment.TypeSystem);
 
             AnalyzedProgram program = new(unit, tree, declarations, treeVariants)
             {
@@ -132,6 +142,15 @@ internal static class ShaderCompilationBuilder
 
             programs.Add(program);
             index.Absorb(tree, declarations, program.BlockKey, treeVariants);
+
+            // 既定の構成が #error に到達した。その構成 (既定の木が表す構成) はコンパイルできない。
+            if (!tree.PreprocessResult.ReachedErrorDirectives.IsDefaultOrEmpty)
+            {
+                errorConfigurations.Add(new ErrorConfiguration(program.BlockKey, [], tree.PreprocessResult.ReachedErrorDirectives, IsBaseline: true));
+            }
+
+            // 並べた分岐の中の #error は、その分岐の条件の構成だけがコンパイルできない (Unity の #if defined(_KEYWORD) / #error)。
+            AddBranchErrors(errorConfigurations, program.BlockKey, [], tree.PreprocessResult, baseline: null);
 
             // シンボルは C# からも切り替えられる。
             // 有効になっていない分岐のコードも「いつか通る」コードなので、
@@ -166,7 +185,8 @@ internal static class ShaderCompilationBuilder
             KeywordRegionIndex baselineRegions = new(tree.PreprocessResult.KeywordRegions);
 
             SymbolExpansion[] expanded = ExpandSymbols(
-                unit.Text, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
+                environment,
+                unit, tree.PreprocessResult, plan.Configurations, variantOptions, constraints, options.SyntaxTimings);
 
             for (int i = 0; i < expanded.Length; i++)
             {
@@ -193,7 +213,8 @@ internal static class ShaderCompilationBuilder
             ImmutableArray<ImmutableArray<string>> retried = [.. unpacked.Take(Math.Max(0, budget)).Select(s => ImmutableArray.Create(s))];
 
             foreach (SymbolExpansion single in ExpandSymbols(
-                         unit.Text, retried, variantOptions, constraints, options.SyntaxTimings))
+                         environment,
+                         unit, tree.PreprocessResult, retried, variantOptions, constraints, options.SyntaxTimings))
             {
                 accepted.Add((single, null));
             }
@@ -215,9 +236,24 @@ internal static class ShaderCompilationBuilder
                 }
             }
 
-            foreach (((ImmutableArray<string> enabled, HlslSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
+            foreach (((ImmutableArray<string> enabled, ShaderSyntaxTree variantTree, DeclarationSet variantDeclarations), ConditionalMergeResult? packedMerge)
                      in accepted)
             {
+                // 既定の木の到達しない #error に到達した構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
+                // その木を使うと、#else / #error で止めた値の木で宣言が足りないと報告していた (Unreal の SSDInjest.usf)。
+                // 既定の木も到達する #error は、ここでは数えない (既定の構成として別に記録する)。
+                // 使わない構成は ErrorConfigurations に記録し、到達したことを伝える (HL0009 / UN0103)。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
+                // 外さないと、既定の木がその構成も表すことになり、既定の値の側にしか無い宣言を「その構成では無い」と報告していた
+                // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に到達する)。
+                if (ReachesNewError(variantTree.PreprocessResult, tree.PreprocessResult))
+                {
+                    errorConfigurations.Add(new ErrorConfiguration(
+                        program.BlockKey, enabled, NewErrors(variantTree.PreprocessResult, tree.PreprocessResult), IsBaseline: false));
+                    continue;
+                }
+
+                AddBranchErrors(errorConfigurations, program.BlockKey, enabled, variantTree.PreprocessResult, tree.PreprocessResult);
+
                 VariantSpace variantSpace = environment.ReadVariants(unit, variantTree.PreprocessResult);
                 index.Absorb(variantTree, variantDeclarations, program.BlockKey, variantSpace);
 
@@ -225,13 +261,14 @@ internal static class ShaderCompilationBuilder
                 {
                     EnabledSymbols = enabled,
                     PackedMerge = packedMerge,
+                    FixedCondition = FixedCondition(variantTree, tree, enabled, variantOptions, constraints, macroConflicts, blockSymbols),
                 });
             }
         }
 
         index.Complete(text.FilePath, options.FixedSymbolConfiguration);
 
-        ImmutableArray<HlslSyntaxToken> codeTokens = new HlslLexer(codeText).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> codeTokens = new ShaderLexer(codeText).Lex(out _);
 
         return new ShaderCompilation(
             text,
@@ -252,6 +289,9 @@ internal static class ShaderCompilationBuilder
         {
             IsUserInclude = options.IsUserInclude,
             DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
+            IsFixedSymbolConfiguration = options.FixedSymbolConfiguration,
+            NotCompiledUnits = notCompiled.ToImmutable(),
+            ErrorConfigurations = errorConfigurations.ToImmutable(),
             InactiveIdentifiersByBlock = index.InactiveIdentifiersByBlock.ToFrozenDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToFrozenSet(StringComparer.Ordinal)),
@@ -322,7 +362,7 @@ internal static class ShaderCompilationBuilder
         /// <param name="declarations">その構成で見つかった宣言。</param>
         /// <param name="block">その木のコードブロックの鍵 (<see cref="AnalyzedProgram.BlockKey"/>)。</param>
         /// <param name="variants">その木から読んだ構成の空間。</param>
-        public void Absorb(HlslSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block, VariantSpace variants)
+        public void Absorb(ShaderSyntaxTree tree, DeclarationSet declarations, (int Start, string? Kernel) block, VariantSpace variants)
         {
             foreach (UniformSymbol uniform in declarations.Uniforms)
             {
@@ -395,7 +435,7 @@ internal static class ShaderCompilationBuilder
     private sealed class SkippedNames
     {
         /// <summary>取り込んだ解析結果。読み飛ばした位置を、別の構成が解析したかを確かめるのに使う。</summary>
-        private readonly List<(HlslSyntaxTree Tree, VariantSpace Variants)> _trees = [];
+        private readonly List<(ShaderSyntaxTree Tree, VariantSpace Variants)> _trees = [];
 
         /// <summary>
         /// 解析しているファイル自身と、利用者が書いたヘッダの非活性領域に現れた識別子。ファイルと開始位置から名前を引く。
@@ -411,7 +451,7 @@ internal static class ShaderCompilationBuilder
         /// <summary>解析結果 1 つ分を取り込む。</summary>
         /// <param name="tree">解析して得た構文木。</param>
         /// <param name="variants">その木から読んだ構成の空間。</param>
-        public void Add(HlslSyntaxTree tree, VariantSpace variants)
+        public void Add(ShaderSyntaxTree tree, VariantSpace variants)
         {
             _trees.Add((tree, variants));
 
@@ -430,7 +470,7 @@ internal static class ShaderCompilationBuilder
 
             if (!result.SkippedRootIdentifiers.IsDefaultOrEmpty)
             {
-                foreach (HlslSyntaxToken token in result.SkippedRootIdentifiers)
+                foreach (ShaderSyntaxToken token in result.SkippedRootIdentifiers)
                 {
                     _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
@@ -439,7 +479,7 @@ internal static class ShaderCompilationBuilder
             // 利用者が書いたヘッダも位置で持つ。#ifdef _A の中で定義したマクロの本体は、_A の木で検査されている。
             if (!result.SkippedUserHeaderIdentifiers.IsDefaultOrEmpty)
             {
-                foreach (HlslSyntaxToken token in result.SkippedUserHeaderIdentifiers)
+                foreach (ShaderSyntaxToken token in result.SkippedUserHeaderIdentifiers)
                 {
                     _skippedRootIdentifiers[(token.Source.FilePath, token.Span.Start)] = token.Text;
                 }
@@ -462,7 +502,7 @@ internal static class ShaderCompilationBuilder
 
             if (_skippedRootIdentifiers.Count > 0)
             {
-                foreach ((HlslSyntaxTree tree, _) in _trees)
+                foreach ((ShaderSyntaxTree tree, _) in _trees)
                 {
                     // その構成で処理した #define の名前も、解析された位置である。
                     // #ifdef _B の中の #define EXTRA 1 は、_B の木で定義されている。
@@ -476,7 +516,7 @@ internal static class ShaderCompilationBuilder
                         }
                     }
 
-                    foreach (HlslSyntaxToken token in tree.PreprocessResult.Tokens)
+                    foreach (ShaderSyntaxToken token in tree.PreprocessResult.Tokens)
                     {
                         // 利用者が書いたマクロの本体から来たトークンも、
                         // 本体の位置が解析されたことを表す。展開されて初めて中身が検査される。
@@ -519,7 +559,7 @@ internal static class ShaderCompilationBuilder
         /// </remarks>
         private void ForgetSymbolExcludedRegions(string filePath)
         {
-            foreach ((HlslSyntaxTree tree, VariantSpace variants) in _trees)
+            foreach ((ShaderSyntaxTree tree, VariantSpace variants) in _trees)
             {
                 PreprocessResult result = tree.PreprocessResult;
 
@@ -594,7 +634,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static ImmutableArray<ImmutableArray<string>> SelectVariantSymbols(
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         VariantSpace variants,
         SourceText text,
         HashSet<string> defaults,
@@ -615,7 +655,7 @@ internal static class ShaderCompilationBuilder
         // 値を持つシンボルは、条件には名前 (QUALITY) で書かれる。候補は値ごとの原子 (QUALITY==2) である。
         ImmutableDictionary<string, ImmutableArray<int>> valueSymbols = variants.ValueSymbols;
 
-        foreach (HlslSyntaxToken token in result.ConditionalIdentifiers)
+        foreach (ShaderSyntaxToken token in result.ConditionalIdentifiers)
         {
             IEnumerable<string> symbols = valueSymbols.TryGetValue(token.Text, out ImmutableArray<int> values)
                 ? values.Select(value => VariantValues.Atom(token.Text, value))
@@ -667,8 +707,14 @@ internal static class ShaderCompilationBuilder
         // .shader で宣言して、共通の .hlsl の機能だけを切り替える書き方である。
         // ヘッダでその分岐を並べられなかったなら、有効にした構成を作らないと、その側はどの木にも載らない。
         // 並べ直しで外したシンボルも同じである。並べる対象でなくなったので、ヘッダの条件は並べられなかったとも記録されない。
+        // 値を持つシンボルの原子を並べられなかったなら、その名前のどの値も構成にする。
+        // 並べられなかった連なりは既定の値の側しか読んでいないが、記録に残る原子は既定の値 (== 0) のことがある
+        // (Unreal の DistanceFieldLightingShared.ush の OFFSET_DATA_STRUCT)。
         SortedSet<string> declinedInHeaders = new(
             result.DeclinedBothBranchSymbols
+                .SelectMany(s => VariantValues.TryParseAtom(s, out string? name, out _) && valueSymbols.TryGetValue(name, out ImmutableArray<int> values)
+                    ? values.Select(value => VariantValues.Atom(name, value))
+                    : [s])
                 .Concat(macroConflicts.Where(s => result.ConditionalIdentifiers.Any(t => t.Text == s)))
                 .Where(s => declared.Contains(s) && !defaults.Contains(s)),
             StringComparer.Ordinal);
@@ -728,7 +774,7 @@ internal static class ShaderCompilationBuilder
     /// </remarks>
     private static ExpansionPlan PlanExpansions(
         ImmutableArray<ImmutableArray<string>> candidates,
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         SymbolConstraints constraints,
         SemanticsOptions options)
     {
@@ -842,13 +888,13 @@ internal static class ShaderCompilationBuilder
     /// ヘッダ込みで宣言も連なりも数千になるので、ファイルごとに開始位置で並べて二分探索する。
     /// </remarks>
     private static IEnumerable<HashSet<string>> GroupRegionSymbolsByDeclaration(
-        HlslCompilationUnitSyntax root,
+        CompilationUnitSyntax root,
         ImmutableArray<KeywordRegion> regions)
     {
         Dictionary<string, List<(int Start, int End, int Index)>> declarations = new(StringComparer.Ordinal);
         int index = 0;
 
-        foreach (HlslDeclarationSyntax declaration in root.Declarations)
+        foreach (DeclarationSyntax declaration in root.Declarations)
         {
             string file = declaration.Source?.FilePath ?? string.Empty;
 
@@ -933,7 +979,7 @@ internal static class ShaderCompilationBuilder
     /// まとめた木にしか無いノードはまとめた木の連なりで見る。
     /// </remarks>
     private static ConditionalMergeResult? VerifyPacked(
-        HlslSyntaxTree baseline,
+        ShaderSyntaxTree baseline,
         SymbolExpansion packed,
         KeywordRegionIndex baselineRegions,
         SymbolConstraints constraints,
@@ -1026,20 +1072,20 @@ internal static class ShaderCompilationBuilder
 
         /// <summary>違いの部分木 1 つを足す。</summary>
         /// <param name="node">部分木の根。</param>
-        public void Add(HlslSyntaxNode node)
+        public void Add(ShaderSyntaxNode node)
         {
-            HlslSyntaxNode top = node;
+            ShaderSyntaxNode top = node;
 
-            while (top.Parent is HlslSyntaxNode parent and not HlslCompilationUnitSyntax)
+            while (top.Parent is ShaderSyntaxNode parent and not CompilationUnitSyntax)
             {
                 top = parent;
             }
 
             _topLevel.Add((top.Source?.FilePath ?? string.Empty, top.Span.Start, top.Span.End));
 
-            foreach (HlslSyntaxToken token in node.DescendantTokens())
+            foreach (ShaderSyntaxToken token in node.DescendantTokens())
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     _identifiers.Add(token.Text);
                 }
@@ -1054,7 +1100,7 @@ internal static class ShaderCompilationBuilder
                     FunctionDeclarationSyntax function => function.Name,
                     StructDeclarationSyntax structure => structure.Name,
                     ConstantBufferDeclarationSyntax buffer => buffer.Name,
-                    TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == HlslSyntaxKind.IdentifierToken)?.Text,
+                    TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text,
                     _ => null,
                 };
 
@@ -1187,7 +1233,7 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static bool TryAddIncludedSymbols(
-        HlslSyntaxTree tree,
+        ShaderSyntaxTree tree,
         VariantSpace variants,
         ref ImmutableHashSet<string> blockSymbols,
         ref SymbolConstraints constraints)
@@ -1324,6 +1370,17 @@ internal static class ShaderCompilationBuilder
 
         merged.ExceptWith(result.DeclinedBothBranchSymbols);
 
+        // 値を持つシンボルの原子が 1 つでも並べられなかったなら、その名前のほかの原子も並べられていない。
+        // 並べられなかった #if PROBE_IRRADIANCE_FORMAT == 0 / #elif == 1 の連なりは、既定の値 (0) の側しか読んでいない。
+        // ほかの場所で == 1 を並べていても、== 1 を有効にした構成を作らないと、この連なりの == 1 の側はどの木にも載らず、
+        // そこで使う宣言を「== 1 のときは無い」(HL0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
+        HashSet<string> declinedNames =
+        [
+            .. result.DeclinedBothBranchSymbols.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>(),
+        ];
+
+        merged.RemoveWhere(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) && declinedNames.Contains(name));
+
         return merged;
     }
 
@@ -1333,13 +1390,15 @@ internal static class ShaderCompilationBuilder
     /// <param name="Declarations">その構成で見つかった宣言。</param>
     private readonly record struct SymbolExpansion(
         ImmutableArray<string> EnabledSymbols,
-        HlslSyntaxTree Tree,
+        ShaderSyntaxTree Tree,
         DeclarationSet Declarations);
 
     /// <summary>
     /// 構成ごとに展開する。
     /// </summary>
-    /// <param name="maskedText">対象のコードブロック。</param>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
+    /// <param name="unit">展開する単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果 (環境が構成ごとのマクロを決めるのに使う)。</param>
     /// <param name="configurations">展開する構成。1 件が 1 つの構成で、同時に有効にするシンボルを並べる。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="constraints">宣言から分かる構成の制約。どれか 1 つが必ず有効な行の既定を決めるのに使う。</param>
@@ -1363,7 +1422,9 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static SymbolExpansion[] ExpandSymbols(
-        SourceText maskedText,
+        IShaderEnvironment environment,
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
         ImmutableArray<ImmutableArray<string>> configurations,
         PreprocessorOptions options,
         SymbolConstraints constraints,
@@ -1378,14 +1439,14 @@ internal static class ShaderCompilationBuilder
 
         if (configurations.Length == 1)
         {
-            results[0] = Expand(maskedText, configurations[0], options, constraints, syntaxTimings);
+            results[0] = Expand(environment, unit, baseline, configurations[0], options, constraints, syntaxTimings);
             return results;
         }
 
         Parallel.For(
             0,
             configurations.Length,
-            i => results[i] = Expand(maskedText, configurations[i], options, constraints, syntaxTimings));
+            i => results[i] = Expand(environment, unit, baseline, configurations[i], options, constraints, syntaxTimings));
 
         return results;
     }
@@ -1427,6 +1488,149 @@ internal static class ShaderCompilationBuilder
         return macros;
     }
 
+    /// <summary>
+    /// バリアントの木で、両方の分岐を並べられずに既定の値で読んだシンボルの条件を求める (<see cref="AnalyzedProgram.FixedCondition"/>)。
+    /// </summary>
+    /// <param name="tree">バリアントの木。</param>
+    /// <param name="baseline">既定の構成の木。バリアントは、既定の木が並べた領域だけを並べる。既定の木が並べなかったシンボルは、バリアントでも既定の値で読む。</param>
+    /// <param name="enabled">有効にしたシンボル。</param>
+    /// <param name="options">バリアントを展開した設定 (有効にする前の定義済みマクロを持つ)。</param>
+    /// <param name="constraints">宣言から分かる構成の制約。</param>
+    /// <param name="macroConflicts">分岐のマクロがコードで使われたために、並べなかったシンボル。</param>
+    /// <param name="declared">このコードブロックのシンボル。並べる対象に入っていないものも、既定の値で読む。</param>
+    /// <returns>条件。</returns>
+    private static SymbolCondition FixedCondition(
+        ShaderSyntaxTree tree,
+        ShaderSyntaxTree baseline,
+        ImmutableArray<string> enabled,
+        PreprocessorOptions options,
+        SymbolConstraints constraints,
+        ImmutableArray<string> macroConflicts,
+        ImmutableHashSet<string> declared)
+    {
+        ImmutableDictionary<string, string> macros = ConfigurationMacros(options.PredefinedMacros, enabled, constraints);
+        SymbolCondition condition = SymbolCondition.Always;
+        ImmutableArray<string> merged = tree.PreprocessResult.MergedSymbols.IsDefault ? [] : tree.PreprocessResult.MergedSymbols;
+
+        ImmutableArray<string> treeDeclined = tree.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : tree.PreprocessResult.DeclinedBothBranchSymbols;
+        ImmutableArray<string> baselineDeclined = baseline.PreprocessResult.DeclinedBothBranchSymbols.IsDefault ? [] : baseline.PreprocessResult.DeclinedBothBranchSymbols;
+
+        // この木で原子を 1 つでも並べた値の名前。その名前は今の値に決まっていない (#if DEBUG は DEBUG==1 だけを並べる)。
+        // ただし、どこかで原子を並べられなかった名前は、そこを今の値で読んでいるので入れない (CollectMergedSymbols)。
+        HashSet<string> declinedValueNames = [.. ValueNames(treeDeclined.Concat(baselineDeclined))];
+        HashSet<string> mergedValueNames = [.. ValueNames(merged).Where(name => !declinedValueNames.Contains(name))];
+
+        IEnumerable<string> declined = treeDeclined
+            .Concat(baselineDeclined)
+            .Concat(macroConflicts.IsDefault ? [] : macroConflicts)
+            .Concat(declared.Where(symbol => !options.BothBranchSymbols.Contains(symbol)))
+
+            // 値を持つシンボルは、どの木でも値の 1 つを定義して読む (ConfigurationMacros)。#if X == 1 はその値で決まり、
+            // 並べた記録にも並べられなかった記録にも残らない。ほかの値は、その値を有効にしたバリアントで読む。
+            // この木で並べなかった値の原子は、この木で定義した値で決まっている。
+            .Concat(declared.Where(symbol => VariantValues.TryParseAtom(symbol, out _, out _) && !merged.Contains(symbol)))
+            .Distinct(StringComparer.Ordinal);
+
+        foreach (string symbol in declined)
+        {
+            if (enabled.Contains(symbol))
+            {
+                continue;
+            }
+
+            if (VariantValues.TryParseAtom(symbol, out string? name, out int value))
+            {
+                bool isValue = macros.TryGetValue(name, out string? defined)
+                               && defined == value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // 並べなかった原子でも、ほかの原子を並べた名前なら、今の値の原子が成り立つとは限らない。
+                // #if DEBUG の DEBUG==1 を並べた木は、DEBUG==0 のときの中身も持つ。
+                // 成り立つと決めると、DEBUG==1 の側の宣言を使う文を「DEBUG == 0 では無い」と報告していた
+                // (Unreal の HairStrandsEnvironmentLighting.usf で HL0313)。成り立たないほうは決めてよい。
+                if (isValue && mergedValueNames.Contains(name))
+                {
+                    continue;
+                }
+
+                condition = condition.And(SymbolCondition.Symbol(symbol, isValue));
+            }
+            else if (options.ValueSymbols.TryGetValue(symbol, out ImmutableArray<int> values))
+            {
+                // 値を持つシンボルの名前。この木で読んだ値の原子が成り立つ (原子を並べていなければ)。
+                if (!mergedValueNames.Contains(symbol)
+                    && macros.TryGetValue(symbol, out string? defined)
+                    && int.TryParse(defined, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int current)
+                    && values.Contains(current))
+                {
+                    condition = condition.And(SymbolCondition.Symbol(VariantValues.Atom(symbol, current)));
+                }
+            }
+            else if (!enabled.Any(e => constraints.AreExclusive(e, symbol)))
+            {
+                condition = condition.And(SymbolCondition.Symbol(symbol, macros.ContainsKey(symbol)));
+            }
+        }
+
+        return constraints.Apply(condition);
+    }
+
+    /// <summary>並べた分岐の中で到達した <c>#error</c> を、その分岐の条件の構成として記録する。</summary>
+    /// <param name="errorConfigurations">記録先。</param>
+    /// <param name="block">コードブロック。</param>
+    /// <param name="enabled">木の構成で有効にしたシンボル。既定の木なら空。</param>
+    /// <param name="result">木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。構成ごとの木なら、既定の木も到達したものは記録しない。</param>
+    private static void AddBranchErrors(
+        ImmutableArray<ErrorConfiguration>.Builder errorConfigurations,
+        (int Start, string? Kernel) block,
+        ImmutableArray<string> enabled,
+        PreprocessResult result,
+        PreprocessResult? baseline)
+    {
+        if (result.ConditionalErrorDirectives.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach ((Location location, SymbolCondition condition) in result.ConditionalErrorDirectives)
+        {
+            if (baseline is { } reference
+                && !reference.ConditionalErrorDirectives.IsDefaultOrEmpty
+                && reference.ConditionalErrorDirectives.Any(b => b.Key.FilePath == location.FilePath && b.Key.Span == location.Span))
+            {
+                continue;
+            }
+
+            errorConfigurations.Add(new ErrorConfiguration(block, enabled, [location], IsBaseline: enabled.IsEmpty, condition));
+        }
+    }
+
+    /// <summary>構成ごとの木が到達した <c>#error</c> のうち、既定の木の到達しないもの。</summary>
+    /// <param name="variant">構成ごとの木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。</param>
+    /// <returns>位置。</returns>
+    private static ImmutableArray<Location> NewErrors(PreprocessResult variant, PreprocessResult baseline)
+        =>
+        [
+            .. variant.ReachedErrorDirectives.Where(location => baseline.ReachedErrorDirectives.IsDefaultOrEmpty
+                                                               || !baseline.ReachedErrorDirectives.Any(b => b.FilePath == location.FilePath && b.Span == location.Span)),
+        ];
+
+    /// <summary>構成ごとの木が、既定の木の到達しない <c>#error</c> に到達したかを判定する。</summary>
+    /// <param name="variant">構成ごとの木の展開の結果。</param>
+    /// <param name="baseline">既定の木の展開の結果。</param>
+    /// <returns>届いたなら <see langword="true"/>。</returns>
+    private static bool ReachesNewError(PreprocessResult variant, PreprocessResult baseline)
+        => !variant.ReachedErrorDirectives.IsDefaultOrEmpty
+           && variant.ReachedErrorDirectives.Any(location => baseline.ReachedErrorDirectives.IsDefaultOrEmpty
+                                                             || !baseline.ReachedErrorDirectives.Any(b => b.FilePath == location.FilePath && b.Span == location.Span));
+
+    /// <summary>値を持つシンボルの原子から、名前を取り出す。</summary>
+    /// <param name="symbols">シンボル。原子でないものは飛ばす。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> ValueNames(IEnumerable<string> symbols)
+        => symbols.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>();
+
     /// <summary>シンボルを有効にするマクロを定義する。</summary>
     /// <param name="macros">元のマクロ。</param>
     /// <param name="symbol">シンボル。値を持つシンボルの原子 (<c>QUALITY==2</c>) なら、その値で定義する。</param>
@@ -1449,6 +1653,7 @@ internal static class ShaderCompilationBuilder
     /// <summary>
     /// 並べた分岐のマクロがコードとして展開されたら、そのシンボルを並べずに展開し直す。
     /// </summary>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
     /// <param name="maskedText">対象のコードブロック。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="syntaxTimings">段ごとの時間を受け取る先。測らない場合は <see langword="null"/>。</param>
@@ -1470,14 +1675,15 @@ internal static class ShaderCompilationBuilder
     /// 繰り返しは、外したシンボルが増えなくなるまで。並べる対象は毎回減るので必ず終わる。
     /// </para>
     /// </remarks>
-    private static HlslSyntaxTree ParseWithoutMergedMacroConflicts(
+    private static ShaderSyntaxTree ParseWithoutMergedMacroConflicts(
+        IShaderEnvironment environment,
         SourceText maskedText,
         PreprocessorOptions options,
         ISyntaxTimingRecorder? syntaxTimings,
         out ImmutableArray<string> removed)
     {
         ImmutableHashSet<string> original = options.BothBranchSymbols;
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(maskedText, options, syntaxTimings);
 
         while (!tree.PreprocessResult.MergedMacroConflicts.IsDefaultOrEmpty)
         {
@@ -1489,7 +1695,7 @@ internal static class ShaderCompilationBuilder
             }
 
             options = options with { BothBranchSymbols = kept };
-            tree = HlslSyntaxTree.Parse(maskedText, options, syntaxTimings);
+            tree = environment.Parse(maskedText, options, syntaxTimings);
         }
 
         removed = [.. original.Except(options.BothBranchSymbols).Order(StringComparer.Ordinal)];
@@ -1509,7 +1715,9 @@ internal static class ShaderCompilationBuilder
         => [.. constraints.RequiredGroups.Where(g => !g.Any(symbol => IsDefinedBy(predefined, symbol))).Select(g => g[0])];
 
     /// <summary>指定した構成で展開する。</summary>
-    /// <param name="maskedText">対象のコードブロック。</param>
+    /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
+    /// <param name="unit">展開する単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果 (環境が構成ごとのマクロを決めるのに使う)。</param>
     /// <param name="enabledSymbols">有効にするシンボル。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="constraints">宣言から分かる構成の制約。どれか 1 つが必ず有効な行の既定を決めるのに使う。</param>
@@ -1532,7 +1740,9 @@ internal static class ShaderCompilationBuilder
     /// </para>
     /// </remarks>
     private static SymbolExpansion Expand(
-        SourceText maskedText,
+        IShaderEnvironment environment,
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
         ImmutableArray<string> enabledSymbols,
         PreprocessorOptions options,
         SymbolConstraints constraints,
@@ -1543,15 +1753,17 @@ internal static class ShaderCompilationBuilder
         // 既定の木で並べた分岐がまるごと「このシンボルのときは無い」と読まれてしまう。
         PreprocessorOptions variantOptions = options with
         {
-            PredefinedMacros = ConfigurationMacros(options.PredefinedMacros, enabledSymbols, constraints),
+            // 構成で変わる環境のマクロ (Unity の #pragma target 4.5 DOTS_INSTANCING_ON の SHADER_TARGET) は、環境が足す。
+            PredefinedMacros = environment.PrepareVariant(
+                unit, baseline, enabledSymbols, ConfigurationMacros(options.PredefinedMacros, enabledSymbols, constraints)),
             BothBranchSymbols = options.BothBranchSymbols
                 .Except(enabledSymbols)
                 .Except(options.BothBranchSymbols.Where(s => enabledSymbols.Any(e => constraints.AreExclusive(s, e)))),
         };
 
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(maskedText, variantOptions, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(unit.Text, variantOptions, syntaxTimings);
 
-        return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root));
+        return new SymbolExpansion(enabledSymbols, tree, UniformCollector.Collect(tree.Root, environment.TypeSystem));
     }
 
     /// <summary>
@@ -1571,9 +1783,9 @@ internal static class ShaderCompilationBuilder
     {
         foreach (MacroDefinition macro in macros.Values)
         {
-            foreach (HlslSyntaxToken token in macro.Body)
+            foreach (ShaderSyntaxToken token in macro.Body)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken)
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken)
                 {
                     identifiers.Add(token.Text);
                 }

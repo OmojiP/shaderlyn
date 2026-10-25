@@ -44,6 +44,7 @@ public static class BuiltInAnalyzers
         // セマンティックモデルが渡されていない場合、これらは何も報告しない。
         new SkippedCheckAnalyzer(),
         new UnexploredSymbolAnalyzer(),
+        new ErrorConfigurationAnalyzer(),
         new UnresolvedConditionAnalyzer(),
         new PropertyUniformAnalyzer(),
         new UnusedPropertyAnalyzer(),
@@ -59,6 +60,7 @@ public static class BuiltInAnalyzers
         new CompilerPragmaAnalyzer(),
         new Native16BitConstantBufferAnalyzer(),
         new PragmaOnceAnalyzer(),
+        new KeywordErrorAnalyzer(),
         new Utf16FileAnalyzer(),
         new FunctionDefinitionAnalyzer(),
         new VariableDeclarationPresenceAnalyzer(),

@@ -112,6 +112,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // サーバが HLSL 単体として読む拡張子 (ShaderSourceKinds) と揃えること。
       // .hlsli は汎用の HLSL (environment: hlsl)、.usf / .ush は Unreal (environment: unreal) のもの。
       { scheme: "file", pattern: "**/*.{hlsl,hlsli,cginc,hlslinc,compute,usf,ush}" },
+      // GLSL は構文エラーだけを指摘する (サーバの SyntaxOnlyAnalysisEnvironment.GlslExtensions と揃えること)。
+      // .mesh は Unity のメッシュのアセットと同じ拡張子なので選ばない。
+      { scheme: "file", pattern: "**/*.{vert,frag,comp,geom,tesc,tese,task,rgen,rint,rahit,rchit,rmiss,rcall,glsl}" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。

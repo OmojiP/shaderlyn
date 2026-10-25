@@ -6,7 +6,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <Description>Shaderlyn のセマンティックモデル。HLSL を見る自作ルールの基底クラス HlslRuleAnalyzer を持つ。</Description>
+    <Description>Shaderlyn のセマンティックモデル。自作ルールの基底クラス ShaderRuleAnalyzer を持つ。</Description>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

@@ -1,8 +1,8 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Unity;
 
@@ -87,7 +87,7 @@ public static class UnityCompilerSelection
     /// </param>
     /// <returns>コンパイル先。API の順に並ぶ。</returns>
     public static ImmutableArray<HlslCompileTarget> Select(
-        ImmutableArray<HlslSyntaxToken> tokens,
+        ImmutableArray<ShaderSyntaxToken> tokens,
         bool isCompute,
         UnityOptions options,
         UnityCompilerPragmas? included = null)
@@ -442,7 +442,7 @@ public sealed class UnityCompilerPragmas
     /// <summary>トークン列から読む。</summary>
     /// <param name="tokens">字句解析しただけのトークン列。</param>
     /// <returns>読んだもの。</returns>
-    public static UnityCompilerPragmas Read(ImmutableArray<HlslSyntaxToken> tokens)
+    public static UnityCompilerPragmas Read(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         UnityCompilerPragmas result = new();
         ImmutableHashSet<string>.Builder useDxc = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
@@ -454,7 +454,7 @@ public sealed class UnityCompilerPragmas
 
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken
                 || !tokens[i].IsAtLineStart
                 || tokens[i + 1].Text != "pragma"
                 || tokens[i + 2].IsAtLineStart)
@@ -466,7 +466,7 @@ public sealed class UnityCompilerPragmas
             List<string> arguments = [];
             int end = i + 3;
 
-            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != ShaderSyntaxKind.EndOfFileToken)
             {
                 arguments.Add(tokens[end].Text);
                 end++;

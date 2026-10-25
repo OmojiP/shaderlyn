@@ -8,7 +8,7 @@ namespace Shaderlyn.Cli;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>独自エンジンの決まりは <see cref="IHlslEnvironment"/> に書く。</b>
+/// <b>独自エンジンの決まりは <see cref="IHlslEnvironment"/> (HLSL を使う環境) に書く。</b>
 /// 構成の軸をどこから読むか (エンジン独自の <c>#pragma</c> など)、エントリポイント、定義済みマクロ、
 /// ビルドのときに生成される取り込みを、環境が解析に教える。字句解析・プリプロセッサ・型・ルールはそのまま使える。
 /// </para>
@@ -16,8 +16,8 @@ namespace Shaderlyn.Cli;
 /// 設定ファイルの <c>environment</c> にこの名前を書くと選ばれる。コンパイル単位と構成の軸は、
 /// 汎用の HLSL 環境と同じく設定ファイルの <c>units:</c> と <c>symbols:</c> からも作る。
 /// 単位に当てはまらないファイルは、ファイル全体を 1 つの単位にする。
-/// 設定から作った構成の空間とエントリポイントは単位 (<see cref="HlslCompilationUnit.Variants"/> /
-/// <see cref="HlslCompilationUnit.EntryPoints"/>) に入る。使うかどうかは環境が決める。
+/// 設定から作った構成の空間とエントリポイントは単位 (<see cref="ShaderCompilationUnit.Variants"/> /
+/// <see cref="ShaderCompilationUnit.EntryPoints"/>) に入る。使うかどうかは環境が決める。
 /// </para>
 /// <para>
 /// Native AOT ではプラグインを読み込めないので、環境は自作ルールと同じく、ホストを作るときに渡す。
@@ -31,7 +31,7 @@ public sealed record HostEnvironment(
     string Name,
     string DisplayName,
     ImmutableArray<string> DefaultExtensions,
-    Func<IHlslEnvironment> CreateEnvironment)
+    Func<IShaderEnvironment> CreateEnvironment)
 {
     /// <summary>
     /// HLSL ではない言語の環境が、ファイルを解析単位にする口。設定されていれば <see cref="CreateEnvironment"/> は使わない。

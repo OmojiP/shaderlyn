@@ -20,7 +20,7 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 
 `--unity-project` の指定先が正しくないか、一部のヘッダだけ引けていません（[CLI の使い方 5 章](cli-usage.md#5-プロジェクトの解析設定)）。
 1 つも引けていない場合は `HL0005` と一緒に `TOOL0004` のエラーが出ます。
-原因はそちらで、直し方もメッセージに書かれています。
+`TOOL0004` のメッセージに原因と対処方法が書かれています。
 
 同じオプションに `--env` を足して実行すると、解析はせずに、使う Unity Editor・パッケージの解決先・
 解決できない `#include` を表示します（[CLI の使い方 8 章](cli-usage.md#8-解析の中身を見る)）。
@@ -30,10 +30,11 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 設定の誤りではありません。`/Engine/Generated/…` (uniform buffer などの宣言) はビルドのときに作られるので、そのままでは中身が分かりません。
 宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) だけを止めています。型の検査などは行っています。
 
-- [UE0001](../rules/UE0001.md) は、`--unreal-generate` で C++ から作って `unreal: generated` に書くと消えます
-  ([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))
-- [UE0002](../rules/UE0002.md) は、マテリアルごとに作られる `Material.ush` / `VertexFactory.ush` のためで、直せません。
-  要らなければ `rules:` で `UE0002: none` にしてください
+どちらも、`--unreal-generate` で生成ファイルを作って `unreal: generated` に書くと消えます
+([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))。
+
+- [UE0001](../rules/UE0001.md) は、uniform buffer の宣言などのためです
+- [UE0002](../rules/UE0002.md) は、マテリアルのシェーダーが取り込む `Material.ush` / `VertexFactory.ush` のためです
 
 `/Engine/Private/Common.ush` など、生成されないファイルが解決できないときは `TOOL0004` か `HL0321` が出ます。
 設定ファイルの `unreal:` の `engine` を確かめてください。`--env` で仮想パスの割り当てを表示できます。
@@ -187,7 +188,7 @@ VS Code からの指し方は [VS Code 拡張の README「自作ルールを使�
 
 1. `SupportedDiagnostics` に入れましたか。入っていないルールはアナライザごと実行されないことがあります
 2. `RegisterNodeAction` に HLSL のノード型を渡していませんか。ShaderLab の木しか歩きません。
-   HLSL を見るときは `HlslRuleAnalyzer` を使います（[自作ルールの作り方 3 章](../custom-rules/tutorial.md#3-ルールを書く)）
+   HLSL を見るときは `ShaderRuleAnalyzer` を使います（[自作ルールの作り方 3 章](../custom-rules/tutorial.md#3-ルールを書く)）
 3. セマンティックモデルが `null` ではありませんか。`--unity-project` を渡していないと構築されないことがあります
 4. `--inspect` で構文木を見て、期待した型のノードがあるか確かめてください
 

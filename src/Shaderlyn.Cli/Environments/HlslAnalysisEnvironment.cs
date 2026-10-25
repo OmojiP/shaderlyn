@@ -28,7 +28,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     private const string EntryOrigin = "設定ファイルの entry";
 
     private readonly ShaderlynConfiguration _configuration;
-    private readonly IHlslEnvironment _environment;
+    private readonly IShaderEnvironment _environment;
 
     /// <summary>設定ファイルから、汎用の HLSL 環境を作る。</summary>
     /// <param name="configuration">設定ファイルの内容。</param>
@@ -52,20 +52,28 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <param name="environment">意味解析に渡す環境 (Unreal なら名前と生成される取り込みが違う)。</param>
     /// <param name="displayName">画面に出す名前。</param>
     /// <param name="defaultExtensions">フォルダーを指定したときに探す拡張子。</param>
+    /// <param name="registeredUnits">
+    /// 設定の <c>units:</c> に書いていないファイルの単位を、環境が知っている登録から作るもの
+    /// (Unreal なら C++ のシェーダーの登録)。空を返せば、ファイル全体を 1 つの単位にする。<see langword="null"/> なら使わない。
+    /// </param>
     public HlslAnalysisEnvironment(
         ShaderlynConfiguration configuration,
-        IHlslEnvironment environment,
+        IShaderEnvironment environment,
         string displayName,
-        ImmutableArray<string> defaultExtensions)
+        ImmutableArray<string> defaultExtensions,
+        Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? registeredUnits = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
         _configuration = configuration;
         _environment = environment;
+        _registeredUnits = registeredUnits;
         DisplayName = displayName;
         DefaultExtensions = defaultExtensions;
     }
+
+    private readonly Func<ShaderCompilationUnit, ImmutableArray<ShaderCompilationUnit>>? _registeredUnits;
 
     /// <inheritdoc/>
     public string Name => _environment.Name;
@@ -77,7 +85,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     public ImmutableArray<string> DefaultExtensions { get; }
 
     /// <inheritdoc/>
-    public IHlslEnvironment HlslEnvironment => _environment;
+    public IShaderEnvironment ShaderEnvironment => _environment;
 
     /// <inheritdoc/>
     public PreparedFile Prepare(SourceText text, SemanticsOptions? semantics, AnalysisTimings? timings)
@@ -104,10 +112,10 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
     /// <summary>ファイルのコンパイル単位を作る。</summary>
     /// <param name="text">ファイル。</param>
     /// <returns>単位。<c>units:</c> に当てはまらなければ、ファイル全体の 1 つ。</returns>
-    private ImmutableArray<HlslCompilationUnit> CreateUnits(SourceText text)
+    private ImmutableArray<ShaderCompilationUnit> CreateUnits(SourceText text)
     {
         // ターゲットが分からない単位では、ほかのライブラリとリンクするかも分からない。宣言だけの関数を誤りにしない (HL0311)。
-        HlslCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
+        ShaderCompilationUnit whole = Semantics.Environments.HlslEnvironment.WholeFile(text) with { AllowsExternalDefinitions = true };
 
         if (string.IsNullOrEmpty(text.FilePath))
         {
@@ -118,7 +126,8 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
 
         if (matched.Length == 0)
         {
-            return [whole];
+            // 設定に書いていなければ、環境が知っている単位 (Unreal なら C++ のシェーダーの登録) を使う。
+            return _registeredUnits?.Invoke(whole) is { IsDefaultOrEmpty: false } registered ? registered : [whole];
         }
 
         // 同じ範囲から作る単位は名前で見分ける。エントリポイントの名前が重ならなければそれを使う。
@@ -131,7 +140,7 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
             {
                 Name = matched.Length == 1 ? null : entriesAreUnique ? unit.Entry : $"{unit.Entry ?? "unit"}#{index + 1}",
                 ExtraMacros = unit.Defines.IsEmpty ? null : SemanticsSetup.ApplyDefines(ImmutableDictionary<string, string>.Empty, unit.Defines),
-                EntryPoints = unit.Entry is { } entry ? [new HlslEntryPoint(entry, EntryOrigin)] : [],
+                EntryPoints = unit.Entry is { } entry ? [new ShaderEntryPoint(entry, EntryOrigin)] : [],
                 Target = HlslShaderTarget.TryParse(unit.Target, out HlslShaderTarget? target) ? target : null,
                 AllowsExternalDefinitions = target is null || target.Value.Stage == HlslShaderStage.Library,
                 Variants = unit.Symbols is { } symbols ? BuildVariants(_configuration, symbols) : null,

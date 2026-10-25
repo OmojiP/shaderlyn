@@ -1,10 +1,10 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Semantics;
 using Shaderlyn.Rules;
+using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Unity.Rules;
 

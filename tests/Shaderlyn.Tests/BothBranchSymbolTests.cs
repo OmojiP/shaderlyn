@@ -1,8 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
 
@@ -39,7 +38,7 @@ public sealed class BothBranchSymbolTests
             ConfigurationSymbols = [.. configuration],
         };
 
-        return new HlslPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
+        return new ShaderPreprocessor(options).Preprocess(SourceText.From(code, "test.hlsl"));
     }
 
     /// <summary>展開結果のトークンを 1 つの文字列にする。</summary>

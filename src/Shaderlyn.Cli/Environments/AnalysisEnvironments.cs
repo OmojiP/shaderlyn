@@ -24,6 +24,10 @@ internal static class AnalysisEnvironments
         UnityAnalysisEnvironment.EnvironmentName,
         Semantics.Environments.HlslEnvironment.EnvironmentName,
         Unreal.UnrealOptions.EnvironmentName,
+        SyntaxOnlyAnalysisEnvironment.GlslName,
+        SyntaxOnlyAnalysisEnvironment.GodotName,
+        SyntaxOnlyAnalysisEnvironment.SlangName,
+        SyntaxOnlyAnalysisEnvironment.WgslName,
     ];
 
     /// <summary>指定できる環境の名前。</summary>
@@ -73,11 +77,11 @@ internal static class AnalysisEnvironments
         {
             UnityAnalysisEnvironment.EnvironmentName => new UnityAnalysisEnvironment(SemanticsSetup.CreateUnity(settings)),
             Semantics.Environments.HlslEnvironment.EnvironmentName => new HlslAnalysisEnvironment(settings.Configuration),
-            Unreal.UnrealOptions.EnvironmentName => new HlslAnalysisEnvironment(
-                settings.Configuration,
-                SemanticsSetup.CreateUnreal(settings).CreateEnvironment(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)),
-                "Unreal Engine",
-                [".usf"]),
+            Unreal.UnrealOptions.EnvironmentName => CreateUnreal(settings),
+            SyntaxOnlyAnalysisEnvironment.GlslName => SyntaxOnlyAnalysisEnvironment.CreateGlsl(),
+            SyntaxOnlyAnalysisEnvironment.GodotName => SyntaxOnlyAnalysisEnvironment.CreateGodot(),
+            SyntaxOnlyAnalysisEnvironment.SlangName => SyntaxOnlyAnalysisEnvironment.CreateSlang(),
+            SyntaxOnlyAnalysisEnvironment.WgslName => SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
             _ => settings.HostEnvironments.FirstOrDefault(h => h.Name == settings.Environment) is { } host
                 ? host.CreateAnalysisEnvironment?.Invoke()
                   ?? new HlslAnalysisEnvironment(settings.Configuration, host.CreateEnvironment(), host.DisplayName, host.DefaultExtensions)
@@ -85,6 +89,24 @@ internal static class AnalysisEnvironments
         };
 
         return environment is not null;
+    }
+
+    /// <summary>Unreal Engine の環境を作る。</summary>
+    /// <param name="settings">設定。</param>
+    /// <returns>環境。</returns>
+    /// <remarks>
+    /// 設定の <c>units:</c> に書いていない <c>.usf</c> は、C++ のシェーダーの登録 (<c>--unreal-generate</c> が書き出したもの) から単位を作る。
+    /// </remarks>
+    private static HlslAnalysisEnvironment CreateUnreal(EffectiveSettings settings)
+    {
+        Unreal.UnrealOptions unreal = SemanticsSetup.CreateUnreal(settings);
+
+        return new HlslAnalysisEnvironment(
+            settings.Configuration,
+            unreal.CreateEnvironment(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)),
+            "Unreal Engine",
+            [".usf"],
+            unreal.CreateRegisteredUnits(HlslAnalysisEnvironment.BuildVariants(settings.Configuration, null)));
     }
 
     /// <summary>知らない環境の名前を伝える文。</summary>

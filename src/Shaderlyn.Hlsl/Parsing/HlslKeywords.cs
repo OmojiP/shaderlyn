@@ -26,7 +26,7 @@ internal static class HlslKeywords
         "bool", "int", "uint", "dword", "half", "float", "double", "fixed",
         "min16float", "min10float", "min16int", "min12int", "min16uint",
 
-        // 明示のビット幅の型 (DXC)。使えるかは方言で決まり、HL0003 が見る。名前としては型である。
+        // 明示のビット幅の型 (DXC)。使えるかはコンパイラと HLSL のバージョンで決まり、HL0003 が見る。名前としては型である。
         "int16_t", "uint16_t", "float16_t", "int32_t", "uint32_t", "float32_t", "int64_t", "uint64_t", "float64_t",
     ];
 
@@ -89,6 +89,9 @@ internal static class HlslKeywords
     {
         "const", "unsigned", "signed", "volatile", "precise",
         "row_major", "column_major", "snorm", "unorm",
+
+        // UAV の型に付く。型変換にも書ける ((globallycoherent RWByteAddressBuffer)x。DXC 1.8 で確かめた。Unreal の WorkDistribution.ush)
+        "globallycoherent",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>

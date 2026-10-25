@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 
@@ -29,9 +29,9 @@ public sealed class Hlsl2021StructTests
     [Fact]
     public void 継承した基底の名前を構文木に残す()
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("struct B { float x; }; struct D : B { float y; };", "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
         StructDeclarationSyntax derived = Assert.IsType<StructDeclarationSyntax>(tree.Root.Declarations[1]);

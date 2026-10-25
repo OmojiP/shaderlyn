@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
@@ -11,15 +13,15 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// コードが届くコンパイル先 (API と方言) のうち、その構文や型を使えないものがあれば報告する (HL0003)。
+/// コードが届くコンパイル先 (API と、コンパイラと HLSL のバージョン) のうち、その構文や型を使えないものがあれば報告する (HL0003)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>1 つのパスは、API ごとに別の方言でコンパイルされることがある。</b>
+/// <b>1 つのパスは、API ごとに別のコンパイラや HLSL のバージョンでコンパイルされることがある。</b>
 /// Unity で <c>#pragma use_dxc</c> を書いたパスは、DX12 は DXC、DX11 は FXC でコンパイルされうる
-/// (<see cref="HlslCompileTarget"/>)。パーサーはどれかの方言で使える構文を読むので、
+/// (<see cref="HlslCompileTarget"/>)。パーサーはどれかのコンパイラと HLSL のバージョンで使える構文を読むので、
 /// 片方でしか使えない構文 (<c>enum</c> など) は、ここで API を添えて報告する。
-/// どの方言でも使えない構文は、パーサーが HL0003 として報告済みである。
+/// どのコンパイラと HLSL のバージョンでも使えない構文は、パーサーが HL0003 として報告済みである。
 /// </para>
 /// <para>
 /// <b>構成ごとに、そのノードに届くコンパイル先だけを見る。</b>
@@ -31,28 +33,30 @@ namespace Shaderlyn.Rules;
 internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [HlslDescriptors.UnsupportedDeclaration];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [ShaderDescriptors.UnsupportedDeclaration];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 位置ごとに、使えないコンパイル先を集めてから 1 度だけ報告する。同じコードが構成ごとに何度も渡る。
-        Dictionary<(string File, int Start), (HlslSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
+        Dictionary<(string File, int Start), (ShaderSyntaxToken Token, string Construct, SortedSet<string> Subjects)> found = [];
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        // エントリ関数の uniform 引数は、そのコードブロックのエントリポイントで決まる。
+        // 同じステージの単位でもエントリポイントは違うので、前のコードブロックの繰り返しも歩く。
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes(includeRepeated: true))
         {
             if (Describe(node, program) is not { } construct || !compilation.IsReportable(node))
             {
                 continue;
             }
 
-            // 型 (int64_t など) はパーサーが見ないので、方言が 1 つだけでも見る。
-            // コンパイル先が分からなければ (汎用の HLSL)、方言を 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
+            // 型 (int64_t など) はパーサーが見ないので、コンパイラと HLSL のバージョンが 1 つだけでも見る。
+            // コンパイル先が分からなければ (汎用の HLSL)、コンパイラと HLSL のバージョンを 1 つのコンパイル先として見る。ただし見るのは interface の変数だけ
             // (型は、コンパイルの設定 (-enable-16bit-types など) が分からないと決められない)。
-            IEnumerable<HlslCompileTarget> targets = !program.Tree.CompileTargets.IsDefaultOrEmpty
+            IEnumerable<HlslCompileTarget> targets = !program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty
                 ? CompileTargets.Reaching(compilation, node, program)
                 : construct.CheckWithoutTargets
-                    ? program.Tree.Dialects.Select(d => new HlslCompileTarget(string.Empty, d))
+                    ? program.Tree.Hlsl().Dialects.Select(d => new HlslCompileTarget(string.Empty, d))
                     : [];
 
             foreach (HlslCompileTarget target in targets)
@@ -74,24 +78,24 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        foreach ((HlslSyntaxToken token, string name, SortedSet<string> subjects) in found.Values)
+        foreach ((ShaderSyntaxToken token, string name, SortedSet<string> subjects) in found.Values)
         {
             if (token.GetLocation() is { } location)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    HlslDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects)));
+                    ShaderDescriptors.UnsupportedDeclaration, location, name, string.Join("・", subjects)));
             }
         }
     }
 
-    /// <summary>方言で使えるかが変わる構文と型を見分ける。</summary>
+    /// <summary>コンパイラと HLSL のバージョンで使えるかが変わる構文と型を見分ける。</summary>
     /// <param name="node">ノード。</param>
     /// <param name="program">ノードが属する木。</param>
     /// <returns>見分けた構文。当てはまらなければ <see langword="null"/>。</returns>
-    private static Construct? Describe(HlslSyntaxNode node, AnalyzedProgram program) => node switch
+    private static Construct? Describe(ShaderSyntaxNode node, AnalyzedProgram program) => node switch
     {
         EnumDeclarationSyntax enumeration => new Construct(enumeration.NameToken ?? enumeration.Keyword, "enum", static d => d.Features.Enums),
-        HlslTypeSyntax type => DescribeType(type),
+        TypeSyntax type => DescribeType(type),
         VariableDeclarationSyntax variable => DescribeInterfaceVariable(variable, program),
         InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: var name } target } when LegacyTextureIntrinsics.Contains(name)
             => new Construct(target.Identifier, $"DX9 の組み込み関数 {name}", static d => d.AcceptsLegacySamplerSyntax) { CheckWithoutTargets = true },
@@ -152,7 +156,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static Construct? DescribeInterfaceVariable(VariableDeclarationSyntax variable, AnalyzedProgram program)
     {
-        if (variable.Parent is not (HlslCompilationUnitSyntax or NamespaceDeclarationSyntax or ConstantBufferDeclarationSyntax)
+        if (variable.Parent is not (CompilationUnitSyntax or NamespaceDeclarationSyntax or ConstantBufferDeclarationSyntax)
             || variable.HasModifier("static")
             || !InterfaceNames(program).Contains(variable.Type.NameToken.Text))
         {
@@ -161,7 +165,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
 
         int? shaderModel = program.Unit.Target is { } target
             ? (target.Major * 10) + target.Minor
-            : !program.Tree.CompileTargets.IsDefaultOrEmpty
+            : !program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty
                 ? ReadPragmaTarget(program) ?? 35
                 : null;
 
@@ -186,7 +190,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
         ]);
 
     /// <summary>木ごとの interface の名前。</summary>
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HlslSyntaxTree, HashSet<string>> InterfaceCache = [];
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderSyntaxTree, HashSet<string>> InterfaceCache = [];
 
     /// <summary><c>#pragma target</c> のシェーダーモデルを読む (<c>4.5</c> → 45)。複数あれば最も高いもの。</summary>
     /// <param name="program">木。</param>
@@ -195,7 +199,7 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     {
         int? best = null;
 
-        foreach (Hlsl.Preprocessing.PragmaDirective pragma in program.Tree.Pragmas)
+        foreach (CFamily.Preprocessing.PragmaDirective pragma in program.Tree.Pragmas)
         {
             if (pragma.Name == "target"
                 && pragma.Arguments.FirstOrDefault()?.Text is { } text
@@ -213,10 +217,10 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <summary>型名を見分ける (<c>int64_t</c>、<c>float32_t</c>、<c>float16_t3</c> など)。</summary>
     /// <param name="type">型。</param>
     /// <returns>見分けた型。当てはまらなければ <see langword="null"/>。</returns>
-    private static Construct? DescribeType(HlslTypeSyntax type)
+    private static Construct? DescribeType(TypeSyntax type)
     {
         // vector<uint32_t, 2> は要素の型を見る。
-        HlslSyntaxToken token = type.NameToken.Text is "vector" or "matrix" && !type.TemplateArguments.IsDefaultOrEmpty
+        ShaderSyntaxToken token = type.NameToken.Text is "vector" or "matrix" && !type.TemplateArguments.IsDefaultOrEmpty
             ? type.TemplateArguments[0]
             : type.NameToken;
         string written = token.Text;
@@ -259,10 +263,10 @@ internal sealed class CompileTargetAnalyzer : SemanticRuleAnalyzer
     /// <summary>見分けた構文。</summary>
     /// <param name="Token">報告する位置。</param>
     /// <param name="Name">文に入れる名前。</param>
-    /// <param name="IsAvailable">方言で使えるか。</param>
-    private sealed record Construct(HlslSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
+    /// <param name="IsAvailable">コンパイラと HLSL のバージョンで使えるか。</param>
+    private sealed record Construct(ShaderSyntaxToken Token, string Name, Func<HlslDialect, bool> IsAvailable)
     {
-        /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、方言で見るか。</summary>
+        /// <summary>コンパイル先が分からないとき (汎用の HLSL) にも、コンパイラと HLSL のバージョンで見るか。</summary>
         public bool CheckWithoutTargets { get; init; }
     }
 }
@@ -283,9 +287,9 @@ internal static class CompileTargets
     /// ノードの出現条件と、コンパイル先の構成の条件が両立するなら届く。
     /// 出現条件が分からなければ、木を解析した構成で決める。
     /// </remarks>
-    public static IEnumerable<HlslCompileTarget> Reaching(ShaderCompilation compilation, HlslSyntaxNode node, AnalyzedProgram program)
+    public static IEnumerable<HlslCompileTarget> Reaching(ShaderCompilation compilation, ShaderSyntaxNode node, AnalyzedProgram program)
     {
-        ImmutableArray<HlslCompileTarget> targets = program.Tree.CompileTargets;
+        ImmutableArray<HlslCompileTarget> targets = program.Tree.Hlsl().CompileTargets;
 
         if (targets.IsDefaultOrEmpty)
         {

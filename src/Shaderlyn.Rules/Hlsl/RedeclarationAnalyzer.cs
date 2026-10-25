@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -114,8 +114,11 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
         // 範囲の位置は、ファイルと位置の組で持つ (KeyOf)。トップレベルはファイルを問わず 1 つの範囲である。
         Dictionary<(int Block, string ScopeFile, int Scope), Dictionary<string, List<Declared>>> byScope = [];
 
-        // 同じ宣言が既定の木とバリアントの木の両方に現れる。位置で 1 つに数える。
-        HashSet<(int Block, string File, int Start)> seen = [];
+        // 同じ宣言が既定の木とバリアントの木の両方に現れる。位置で 1 つに数え、条件は木ごとのものを足し合わせる。
+        // 条件には、その木が表す構成 (ShaderCompilation.GetTreeConfiguration) を掛ける。掛けないと、既定の値で読んだ
+        // 連なりの宣言 (#if LIGHT_SOURCE_MODE == 0 の側) が条件を持たず、ほかの値の木の宣言 (== 2 の側) と
+        // 同時にあることになって、二重の宣言と報告していた (Unreal の CapsuleShadowShaders.usf)。
+        Dictionary<(int Block, string File, int Start), (List<Declared> List, int Index)> seen = [];
 
         // 報告の「先に書かれた」を決めるための、ファイルが現れた順。
         Dictionary<string, int> fileOrder = new(StringComparer.Ordinal);
@@ -136,6 +139,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             AnalyzedConfiguration? configuration = null;
+            SymbolCondition tree = compilation.GetTreeConfiguration(program);
 
             if (!program.EnabledSymbols.IsDefaultOrEmpty)
             {
@@ -150,7 +154,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 configurations.Add(configuration.Value);
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (!compilation.IsReportable(declaration))
                 {
@@ -162,11 +166,11 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 // 関数の中は、波括弧ごとに別の範囲として集める。switch の本体も 1 つの範囲である。
                 foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
                 {
-                    (HlslSyntaxToken open, ImmutableArray<HlslStatementSyntax> statements) = node switch
+                    (ShaderSyntaxToken open, ImmutableArray<StatementSyntax> statements) = node switch
                     {
                         BlockStatementSyntax body => (body.OpenBrace, body.Statements),
                         SwitchStatementSyntax body => (body.OpenBrace, body.Statements),
-                        _ => (default(HlslSyntaxToken)!, []),
+                        _ => (default(ShaderSyntaxToken)!, []),
                     };
 
                     if (statements.IsDefaultOrEmpty)
@@ -180,7 +184,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         CollectParameters(function, KeyOf(open.GetLocation()));
                     }
 
-                    foreach (HlslStatementSyntax statement in statements)
+                    foreach (StatementSyntax statement in statements)
                     {
                         if (statement is LocalDeclarationStatementSyntax local
                             && compilation.IsReportable(local.Declaration))
@@ -214,7 +218,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            void Collect(HlslDeclarationSyntax declaration, (string File, int Start) scope)
+            void Collect(DeclarationSyntax declaration, (string File, int Start) scope)
             {
                 foreach (Declared declared in Describe(declaration, condition))
                 {
@@ -226,9 +230,12 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 (string file, int start) = KeyOf(declared.Location);
                 configuration?.DeclarationStarts.Add((file, start));
+                declared = declared with { Condition = declared.Condition.And(tree) };
 
-                if (!seen.Add((block, file, start)))
+                if (seen.TryGetValue((block, file, start), out (List<Declared> List, int Index) placed))
                 {
+                    Declared earlier = placed.List[placed.Index];
+                    placed.List[placed.Index] = earlier with { Condition = earlier.Condition.Or(declared.Condition) };
                     return;
                 }
 
@@ -246,6 +253,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     byName[declared.Name] = list;
                 }
 
+                seen[(block, file, start)] = (list, list.Count);
                 list.Add(declared);
             }
         }
@@ -271,7 +279,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <param name="condition">出現条件の索引。</param>
     /// <returns>分解した宣言。対象外なら空。</returns>
     private static IEnumerable<Declared> Describe(
-        HlslDeclarationSyntax declaration,
+        DeclarationSyntax declaration,
         ConditionMap condition)
     {
         switch (declaration)
@@ -323,7 +331,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// 違えば別の多重定義である。型の名前だけで比べると、Unreal Engine の TSR や FFT のシェーダーを重複と報告していた。
     /// </remarks>
     private static string DescribeShape(FunctionDeclarationSyntax function)
-        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken))));
+        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken))));
 
     /// <summary>同じ名前の宣言をつき合わせて報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

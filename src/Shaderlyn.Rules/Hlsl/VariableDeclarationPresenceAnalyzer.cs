@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 
@@ -58,62 +60,35 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        ConditionMap condition = compilation.GetConditionMap();
+        // 同じ位置の報告は、Pass と構成をまたいで条件の和をとって 1 件にする。
+        // 木ごとに最初の報告だけを残すと、ほかの木の構成の分が条件から落ちる。
+        ConditionalReports reports = new(compilation);
 
-        Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> declaredByBlock =
-            CollectGlobalDeclarations(compilation, condition);
-
-        if (declaredByBlock.Count == 0)
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            return;
-        }
-
-        ReportedLocations reported = new();
-
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
-        {
+            // 判断の手順は ShaderCompilation.TryGetIdentifierUndeclaredCondition にある (自作ルールにも公開している)。
             if (node is not IdentifierExpressionSyntax identifier
-                || !declaredByBlock.TryGetValue(program.BlockKey, out Dictionary<string, SymbolCondition>? declared)
-                || !declared.TryGetValue(identifier.Name, out SymbolCondition declaration)
-                || compilation.UnanalyzedIdentifiers.Contains(identifier.Name)
-                || !compilation.IsReportable(identifier))
+                || !compilation.IsReportable(identifier)
+                || !compilation.TryGetIdentifierUndeclaredCondition(identifier, program, out SymbolCondition missing)
+                || identifier.GetLocation() is not { } location)
             {
                 continue;
             }
 
-            // その位置で局所変数を指しているなら、このルールの対象ではない。
-            // 判断できないなら見送る。別の構成でしか宣言されていない名前は NotFound になるが、それこそが検査の対象である。
-            if (compilation.GetExpressionTypeBinder(program).ResolveName(identifier).Kind
-                is DeclaredNameKind.Local or DeclaredNameKind.Undecidable)
-            {
-                continue;
-            }
-
-            // バリアントの木の中なら、その木を解析した構成も掛け合わせる。
-            SymbolCondition use = compilation.GetEffectiveCondition(identifier, program);
-
-            if (use.IsUnknown || declaration.IsUnknown)
-            {
-                continue;
-            }
-
-            // 使う条件が成り立ち、かつ宣言がある条件が成り立たない構成があるか。
-            SymbolCondition missing = use.And(declaration.Negate());
-
-            if (missing.IsUnknown
-                || !condition.IsPossible(missing)
-                || identifier.GetLocation() is not { } location
-                || !reported.Add(location))
-            {
-                continue;
-            }
-
-            context.ReportDiagnostic(Diagnostic.Create(
+            string name = identifier.Name;
+            reports.Add(
+                program,
+                identifier,
+                missing,
                 HlslRuleDescriptors.VariableDeclarationNotPresent,
                 location,
-                identifier.Name,
-                DescribeLeading(condition.Simplify(missing)),
-                DescribeTrailing(condition.Simplify(missing))));
+                name,
+                condition => [name, DescribeLeading(condition), DescribeTrailing(condition)]);
+        }
+
+        foreach (Diagnostic diagnostic in reports.Build())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -128,125 +103,4 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeTrailing(SymbolCondition missing)
         => missing.IsAlways ? "どの構成でも" : string.Empty;
-
-    /// <summary>
-    /// グローバル変数の名前ごとに「宣言がある条件」を求める。
-    /// </summary>
-    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <param name="condition">出現条件の索引。</param>
-    /// <returns>
-    /// コードブロックごとの、名前と、その宣言がある条件。条件が分からない名前は <see cref="SymbolCondition.Unknown"/>。
-    /// 別の Pass やカーネルの宣言は、そのコードからは見えない (<see cref="AnalyzedProgram.BlockKey"/>)。
-    /// </returns>
-    /// <remarks>
-    /// <para>
-    /// 既定の木の宣言 (取り込んだヘッダのものも含む) と、バリアントの木から既定の木へ足す宣言を数える。
-    /// 同じ名前の宣言が複数の条件の下にあるなら、その和が宣言のある条件である。
-    /// </para>
-    /// <para>
-    /// <b>バリアントの木にしか無く、足し先も分からない宣言があれば、その名前の条件は分からない。</b>
-    /// 数えずに済ませると、その構成の宣言を「無い」と取り違える。
-    /// </para>
-    /// </remarks>
-    private static Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> CollectGlobalDeclarations(
-        ShaderCompilation compilation,
-        ConditionMap condition)
-    {
-        Dictionary<(int Start, string? Kernel), Dictionary<string, SymbolCondition>> byBlock = [];
-        HashSet<((int Start, string? Kernel) Block, string File, int Start)> known = [];
-
-        Dictionary<string, SymbolCondition> For((int Start, string? Kernel) block)
-        {
-            if (!byBlock.TryGetValue(block, out Dictionary<string, SymbolCondition>? declared))
-            {
-                declared = new Dictionary<string, SymbolCondition>(StringComparer.Ordinal);
-                byBlock[block] = declared;
-            }
-
-            return declared;
-        }
-
-        void Add((int Start, string? Kernel) block, VariableDeclarationSyntax declaration, SymbolCondition present)
-        {
-            Dictionary<string, SymbolCondition> declared = For(block);
-
-            foreach (VariableDeclaratorSyntax variable in declaration.Variables)
-            {
-                known.Add((block, variable.NameToken.Source.FilePath, variable.NameToken.Span.Start));
-
-                declared[variable.Name] = declared.TryGetValue(variable.Name, out SymbolCondition existing)
-                    ? existing.Or(present)
-                    : present;
-            }
-        }
-
-        foreach (AnalyzedProgram program in compilation.Programs)
-        {
-            (int Start, string? Kernel) block = program.BlockKey;
-
-            foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables(program.Tree.Root.Declarations))
-            {
-                Add(block, declaration, condition.GetCondition(declaration));
-            }
-
-            foreach (ConditionalNode inserted in condition.GetInsertedChildren(program.Tree.Root))
-            {
-                if (inserted.Node is HlslDeclarationSyntax root)
-                {
-                    foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables([root]))
-                    {
-                        Add(block, declaration, condition.GetCondition(declaration));
-                    }
-                }
-            }
-        }
-
-        // 既定の木にも、足すノードにも無い宣言がバリアントの木にあれば、その名前は条件が分からない。
-        foreach (AnalyzedProgram variant in compilation.SymbolVariants)
-        {
-            (int Start, string? Kernel) block = variant.BlockKey;
-            Dictionary<string, SymbolCondition> declared = For(block);
-
-            foreach (VariableDeclarationSyntax declaration in EnumerateGlobalVariables(variant.Tree.Root.Declarations))
-            {
-                foreach (VariableDeclaratorSyntax variable in declaration.Variables)
-                {
-                    if (!known.Contains((block, variable.NameToken.Source.FilePath, variable.NameToken.Span.Start)))
-                    {
-                        declared[variable.Name] = SymbolCondition.Unknown;
-                    }
-                }
-            }
-        }
-
-        return byBlock;
-    }
-
-    /// <summary>グローバル変数の宣言を列挙する。定数バッファの中も見る。</summary>
-    /// <param name="declarations">最上位の宣言。</param>
-    /// <returns>変数の宣言。</returns>
-    private static IEnumerable<VariableDeclarationSyntax> EnumerateGlobalVariables(
-        IEnumerable<HlslDeclarationSyntax> declarations)
-    {
-        foreach (HlslDeclarationSyntax declaration in declarations)
-        {
-            switch (declaration)
-            {
-                case VariableDeclarationSyntax variable:
-                    yield return variable;
-                    break;
-
-                case ConstantBufferDeclarationSyntax buffer:
-                    foreach (VariableDeclarationSyntax member in EnumerateGlobalVariables(buffer.Members))
-                    {
-                        yield return member;
-                    }
-
-                    break;
-
-                default:
-                    break;
-            }
-        }
-    }
 }

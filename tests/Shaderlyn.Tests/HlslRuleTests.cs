@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
@@ -1933,7 +1933,7 @@ public sealed class HlslRuleTests
             "}"));
 
         Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0002"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0008"), Describe(diagnostics));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
         Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
     }
@@ -1951,7 +1951,7 @@ public sealed class HlslRuleTests
             "#define BODY 4",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0002" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "HL0008" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -2003,7 +2003,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0002");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0008");
         Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -2796,6 +2796,110 @@ public sealed class HlslRuleTests
             "    payload.front = (HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE);",
             "    payload.origin = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();",
             "    uint flags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RayFlags();",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void キーワードの構成がerrorに到達するとエラーにしその構成の宣言の不足は報告しない()
+    {
+        // Unity はキーワードの構成をすべてコンパイルするので、#error に到達するとシェーダーが使えなくなる (UN0103)。
+        // その構成のコードは考えない。#else の中でだけ宣言した '_Tint' を、構成：_A のとき無い (HL0315) と報告していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma shader_feature_local _ _A",
+            "#if defined(_A)",
+            "#error _A is not supported",
+            "#else",
+            "float4 _Tint;",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return _Tint; }"));
+
+        Diagnostic error = Assert.Single(diagnostics, d => d.Id == "UN0103");
+        Assert.Equal(DiagnosticSeverity.Error, error.Severity);
+        Assert.Contains("構成：_A は", error.GetMessage(), StringComparison.Ordinal);
+        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void キーワードを付けたtargetはそのキーワードの構成のSHADER_TARGETにする()
+    {
+        // URP の #pragma target 4.5 DOTS_INSTANCING_ON の形。キーワードの構成を既定の target (3.5) で読み、
+        // UnityInstancing.hlsl の SHADER_TARGET < 45 の #error に到達していた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma target 3.5",
+            "#pragma target 4.5 _DOTS",
+            "#pragma multi_compile _ _DOTS",
+            "#if defined(_DOTS)",
+            "#if SHADER_TARGET < 45",
+            "#error _DOTS requires shader model 4.5",
+            "#endif",
+            "#define SCALE 2",
+            "#else",
+            "#define SCALE 1",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p * SCALE; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Assert.False(Has(diagnostics, "UN0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void 先頭がマクロの宣言も構成ごとの選択肢にする()
+    {
+        // Unity の CGPROGRAM の fixed4 はマクロである。インスタンシングの有無で初期化子が変わる形 (Animation Rigging の BoneHandles.shader)。
+        // 先頭がマクロの展開だと選択肢にできず、対応が取れなかった (HL0007)。条件が付かず、構成：_M1 のとき '_Color' が無い (HL0315) とも報告していた。
+        // 定義を 5 通りにして、巻き上げではなく構成ごとの展開で扱わせる。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma multi_compile _ _M1 _M2 _M3 _M4",
+            "#define fixed4 half4",
+            "#if defined(_M1)",
+            "struct PropsData { half4 _Color; };",
+            "StructuredBuffer<PropsData> PropsArray;",
+            "#define ACCESS(v) PropsArray[0].v",
+            "#elif defined(_M2)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 2)",
+            "#elif defined(_M3)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 3)",
+            "#elif defined(_M4)",
+            "half4 _Color;",
+            "#define ACCESS(v) (v * 4)",
+            "#else",
+            "half4 _Color;",
+            "#define ACCESS(v) v",
+            "#endif",
+            "half4 frag() : SV_Target",
+            "{",
+            "    fixed4 col = ACCESS(_Color);",
+            "    return col;",
+            "}"));
+
+        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void RayQueryの状態の定数は未宣言と報告しない()
+    {
+        // DXR 1.1 の CandidateType() と CommittedStatus() の値 (Unreal Engine の TraceRayInline.ush)。DXC 1.8 で確かめた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "RaytracingAccelerationStructure Scene;",
+            "uint Trace(RayDesc ray)",
+            "{",
+            "    RayQuery<RAY_FLAG_NONE> q;",
+            "    q.TraceRayInline(Scene, 0, 0xff, ray);",
+            "    uint a = q.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE ? 1 : (q.CandidateType() == CANDIDATE_PROCEDURAL_PRIMITIVE ? 2 : 0);",
+            "    uint b = q.CommittedStatus() == COMMITTED_NOTHING ? 0 : (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 1 : (q.CommittedStatus() == COMMITTED_PROCEDURAL_PRIMITIVE_HIT ? 2 : 3));",
+            "    return a + b;",
             "}"));
 
         Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));

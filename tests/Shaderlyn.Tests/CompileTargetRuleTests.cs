@@ -11,7 +11,7 @@ using Shaderlyn.Unity;
 namespace Shaderlyn.Tests;
 
 /// <summary>
-/// コードが届くコンパイル先 (API と方言) で使えない構文と型の検査 (HL0003、<see cref="Rules.CompileTargetAnalyzer"/>) の検証。
+/// コードが届くコンパイル先 (API と、コンパイラと HLSL のバージョン) で使えない構文と型の検査 (HL0003、<see cref="Rules.CompileTargetAnalyzer"/>) の検証。
 /// </summary>
 public sealed class CompileTargetRuleTests
 {
@@ -221,7 +221,7 @@ public sealed class CompileTargetRuleTests
             """, "test.hlsl");
         ShaderCompilation compilation = ShaderCompilation.Create(
             text,
-            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new HlslEntryPoint("main", "test")] }],
+            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new ShaderEntryPoint("main", "test")] }],
             text,
             new HlslEnvironment(new HlslEnvironmentOptions { Compiler = compiler }),
             ShaderSourceInfo.None);

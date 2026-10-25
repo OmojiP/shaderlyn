@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab.Syntax;
 using Shaderlyn.Unity;
@@ -71,7 +71,7 @@ internal static class CompletionPlaces
             return CompletionPlace.None;
         }
 
-        ImmutableArray<HlslSyntaxToken> tokens = compilation.CodeTokens;
+        ImmutableArray<ShaderSyntaxToken> tokens = compilation.CodeTokens;
 
         if (IsInCommentOrString(compilation.CodeText, tokens, offset))
         {
@@ -81,11 +81,11 @@ internal static class CompletionPlaces
         // カーソルのある行で、カーソルより前から始まるトークン。
         SourceText text = compilation.CodeText;
         int lineStart = offset - text.GetLinePosition(Math.Min(offset, text.Length)).Character;
-        List<HlslSyntaxToken> line = [];
+        List<ShaderSyntaxToken> line = [];
 
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
-            if (token.Kind == HlslSyntaxKind.EndOfFileToken || token.Span.Start >= offset)
+            if (token.Kind == ShaderSyntaxKind.EndOfFileToken || token.Span.Start >= offset)
             {
                 break;
             }
@@ -96,7 +96,7 @@ internal static class CompletionPlaces
             }
         }
 
-        if (line.Count == 0 || line[0].Kind != HlslSyntaxKind.HashToken)
+        if (line.Count == 0 || line[0].Kind != ShaderSyntaxKind.HashToken)
         {
             return CompletionPlace.Code;
         }
@@ -108,7 +108,7 @@ internal static class CompletionPlaces
     /// <param name="line"><c>#</c> から、カーソルより前から始まるトークンまで。</param>
     /// <param name="offset">カーソルのオフセット。</param>
     /// <returns>場所。</returns>
-    private static CompletionPlace FindInDirective(List<HlslSyntaxToken> line, int offset)
+    private static CompletionPlace FindInDirective(List<ShaderSyntaxToken> line, int offset)
     {
         // 書きかけの語はカーソルの直前で終わっている。空白を挟めば、次の語を書き始める位置である。
         bool typing = line[^1].Span.End == offset && IsWord(line[^1]);
@@ -141,24 +141,24 @@ internal static class CompletionPlaces
     /// <summary>関数形式マクロの仮引数を書いているかを判定する。</summary>
     /// <param name="line"><c>#</c> から、カーソルより前から始まるトークンまで。</param>
     /// <returns>名前の直後の <c>(</c> がまだ閉じていなければ <see langword="true"/>。</returns>
-    private static bool IsInParameters(List<HlslSyntaxToken> line)
+    private static bool IsInParameters(List<ShaderSyntaxToken> line)
     {
         // #define NAME( は、名前と ( の間に空白が無いときだけ仮引数になる。
         if (line.Count < 4
-            || line[3].Kind != HlslSyntaxKind.OpenParenToken
+            || line[3].Kind != ShaderSyntaxKind.OpenParenToken
             || line[3].Span.Start != line[2].Span.End)
         {
             return false;
         }
 
-        return !line.Skip(4).Any(t => t.Kind == HlslSyntaxKind.CloseParenToken);
+        return !line.Skip(4).Any(t => t.Kind == ShaderSyntaxKind.CloseParenToken);
     }
 
     /// <summary>名前として書きかけうるトークンかを判定する。</summary>
     /// <param name="token">対象のトークン。</param>
     /// <returns>識別子かキーワードなら <see langword="true"/>。</returns>
     /// <remarks><c>#if</c> の <c>if</c> は、識別子ではなくキーワードとして字句解析される。</remarks>
-    private static bool IsWord(HlslSyntaxToken token)
+    private static bool IsWord(ShaderSyntaxToken token)
         => token.Text.Length > 0 && (char.IsLetter(token.Text[0]) || token.Text[0] == '_');
 
     /// <summary>カーソルが HLSL のコードの中にあるかを判定する。</summary>
@@ -193,9 +193,9 @@ internal static class CompletionPlaces
     /// <param name="tokens">展開前のトークン。</param>
     /// <param name="offset">カーソルのオフセット。</param>
     /// <returns>中にあれば <see langword="true"/>。</returns>
-    private static bool IsInCommentOrString(SourceText text, ImmutableArray<HlslSyntaxToken> tokens, int offset)
+    private static bool IsInCommentOrString(SourceText text, ImmutableArray<ShaderSyntaxToken> tokens, int offset)
     {
-        foreach (HlslSyntaxToken token in tokens)
+        foreach (ShaderSyntaxToken token in tokens)
         {
             if (token.FullSpan.Start > offset)
             {
@@ -207,20 +207,20 @@ internal static class CompletionPlaces
                 continue;
             }
 
-            if (token.Kind == HlslSyntaxKind.StringLiteralToken
+            if (token.Kind == ShaderSyntaxKind.StringLiteralToken
                 && token.Span.Start < offset
                 && (offset < token.Span.End || !IsClosedString(token)))
             {
                 return true;
             }
 
-            foreach (HlslSyntaxTrivia trivia in token.LeadingTrivia.Concat(token.TrailingTrivia))
+            foreach (ShaderSyntaxTrivia trivia in token.LeadingTrivia.Concat(token.TrailingTrivia))
             {
                 // 行コメントは行の終わりまで続く。閉じたブロックコメントの直後は外である。
                 bool inside = trivia.Kind switch
                 {
-                    HlslSyntaxKind.SingleLineCommentTrivia => trivia.Span.Start < offset && offset <= trivia.Span.End,
-                    HlslSyntaxKind.MultiLineCommentTrivia => trivia.Span.Start < offset
+                    ShaderSyntaxKind.SingleLineCommentTrivia => trivia.Span.Start < offset && offset <= trivia.Span.End,
+                    ShaderSyntaxKind.MultiLineCommentTrivia => trivia.Span.Start < offset
                         && (offset < trivia.Span.End || !text.ToString(trivia.Span).EndsWith("*/", StringComparison.Ordinal)),
                     _ => false,
                 };
@@ -238,6 +238,6 @@ internal static class CompletionPlaces
     /// <summary>文字列のトークンが閉じているかを判定する。</summary>
     /// <param name="token">文字列のトークン。</param>
     /// <returns>閉じていれば <see langword="true"/>。</returns>
-    private static bool IsClosedString(HlslSyntaxToken token)
+    private static bool IsClosedString(ShaderSyntaxToken token)
         => token.Text.Length >= 2 && token.Text[^1] == '"';
 }

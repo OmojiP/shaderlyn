@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
@@ -71,7 +71,12 @@ public sealed class ConditionMapTests
     /// 既定の経路である。#ifdef の両方の分岐が 1 本の木に載り、
     /// 条件は展開が残した範囲から引ける。
     /// </remarks>
-    private static ShaderCompilation CompileFolded(string body, string pragmas, bool hoist = true)
+    /// <param name="userFiles">取り込める利用者のファイル (URP の Core.hlsl のほか)。</param>
+    private static ShaderCompilation CompileFolded(
+        string body,
+        string pragmas,
+        bool hoist = true,
+        Dictionary<string, string>? userFiles = null)
     {
         string source = $$"""
             Shader "Test/Condition"
@@ -94,7 +99,8 @@ public sealed class ConditionMapTests
         SemanticsOptions options = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(
-                new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+                new Dictionary<string, string>(userFiles ?? [], StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+            IsUserInclude = path => userFiles?.ContainsKey(path) == true,
             HoistConditionalMacros = hoist,
         };
 
@@ -305,13 +311,13 @@ public sealed class ConditionMapTests
         Location unmerged = condition.UnmergedLocations[0];
 
         // その範囲に重なるノードを探す。
-        HlslSyntaxNode? inRegion = null;
+        ShaderSyntaxNode? inRegion = null;
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
             {
-                if (node is HlslSyntaxNode hlsl
+                if (node is ShaderSyntaxNode hlsl
                     && ReferenceEquals(hlsl.Source, unmerged.Source)
                     && hlsl.Span.Start < unmerged.Span.End
                     && unmerged.Span.Start < hlsl.Span.End)
@@ -406,6 +412,27 @@ public sealed class ConditionMapTests
 
         Assert.Equal("_NORMALMAP", found["_BumpMap"].ToString());
         Assert.True(found["_BaseMap"].IsAlways);
+    }
+
+    [Fact]
+    public void 取り込んだヘッダより後ろの宣言にも条件が付く()
+    {
+        // 指令の無いヘッダを条件の中で取り込むと、ヘッダの中身とその後ろが 1 つの条件付きの範囲になる。
+        // 先頭 (ヘッダ) の出どころの分だけを位置に直していて、後ろの宣言が条件を持たなかった。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _DEBUG
+            #include "Debug.hlsl"
+                float4 _AfterInclude;
+            #endif
+            """,
+            "#pragma shader_feature_local _DEBUG",
+            userFiles: new(StringComparer.Ordinal) { ["Debug.hlsl"] = "float4 _InHeader;\n" });
+
+        Dictionary<string, SymbolCondition> found = WalkDeclarations(compilation);
+
+        Assert.Equal("_DEBUG", found["_InHeader"].ToString());
+        Assert.Equal("_DEBUG", found["_AfterInclude"].ToString());
     }
 
     [Fact]
@@ -572,7 +599,7 @@ public sealed class ConditionMapTests
             .OfType<EmptyStatementSyntax>()
             .Single();
 
-        HlslSyntaxNode block = (HlslSyntaxNode)empty.Parent!;
+        ShaderSyntaxNode block = (ShaderSyntaxNode)empty.Parent!;
 
         ConditionalNode inserted = Assert.Single(condition.GetInsertedChildren(block));
 
@@ -707,6 +734,37 @@ public sealed class ConditionMapTests
     }
 
     [Fact]
+    public void 巻き上げで複製した関数はどの複製も呼び出しの候補になる()
+    {
+        // Unreal の GPUFastFourierTransform.usf の形。仮引数の配列の長さを、条件ごとに定義を変えたマクロで書く。
+        // 複製はどれも元の位置が同じなので、宣言を位置で 1 つに寄せると、片方の条件の複製しか候補に残らなかった。
+        // 残った複製の条件の構成でしか比べられず、別の構成の呼び出しを「長さが合わない」と報告していた (HL0344)。
+        ShaderCompilation compilation = CompileFolded(
+            """
+            #ifdef _A
+            #define RADIX 2
+            #else
+            #define RADIX 4
+            #endif
+
+            void Shuffle(inout float2 L[2][RADIX]) { L[0][0] = L[1][0]; }
+            """,
+            "#pragma multi_compile _ _A");
+
+        ConditionMap condition = compilation.GetConditionMap();
+        AnalyzedProgram program = Assert.Single(compilation.Programs);
+
+        string[] found =
+        [
+            .. compilation.GetFunctionDeclarations("Shuffle", program)
+                .Select(f => $"{string.Concat(f.ParameterList.Single().ArrayRankTokens.Select(t => t.Text))} {condition.GetCondition(f)}")
+                .Order(StringComparer.Ordinal),
+        ];
+
+        Assert.Equal(["[2][2] _A", "[2][4] !_A"], found);
+    }
+
+    [Fact]
     public void 別のシンボルの分岐の中で複製した文にもそのシンボルの条件が残る()
     {
         // _B の分岐の中で CTYPE を使うと、_B は構成ごとに展開する (構成で定義が変わるマクロを分岐の中で使っている)。
@@ -809,7 +867,7 @@ public sealed class ConditionMapTests
 
         // バリアントの側は、同じ親へ入れるものとして「シンボルが有効なとき」。
         ConditionalNode inserted = Assert.Single(
-            condition.GetInsertedChildren((HlslSyntaxNode)baseline.Parent!),
+            condition.GetInsertedChildren((ShaderSyntaxNode)baseline.Parent!),
             c => c.Node is VariableDeclarationSyntax);
 
         Assert.Equal("_NORMALMAP", inserted.Condition.ToString());

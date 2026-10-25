@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -75,7 +75,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!compilation.IsReportable(node))
             {
@@ -98,7 +98,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
                     break;
 
-                case AssignmentExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.EqualsToken } assignment
+                case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken } assignment
                     when binder.GetEvaluatorFor(assignment).Evaluate(assignment.Left) is { } target:
                     CheckConversion(context, binder, new Receiver(ReceiverKind.Assignment, target, target), assignment.Right, reported);
                     break;
@@ -117,7 +117,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     CheckArguments(context, compilation, binder, invocation, name, reported);
                     break;
 
-                case BinaryExpressionSyntax { OperatorToken.Kind: not HlslSyntaxKind.CommaToken } binary:
+                case BinaryExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.CommaToken } binary:
                     CheckOperands(context, binder, binary, binary.OperatorToken, [binary.Left, binary.Right], reported);
                     break;
 
@@ -145,7 +145,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         Receiver receiver,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         ReportedLocations reported)
     {
         string target = receiver.TypeName;
@@ -155,8 +155,8 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        bool valueIsNumeric = HlslTypeClassifier.TryDescribeNumeric(valueType, out _);
-        bool targetIsNumeric = HlslTypeClassifier.TryDescribeNumeric(target, out _);
+        bool valueIsNumeric = binder.TypeSystem.TryDescribeNumeric(valueType, out _);
+        bool targetIsNumeric = binder.TypeSystem.TryDescribeNumeric(target, out _);
         bool valueIsEnum = binder.TryGetEnum(valueType, out EnumInfo? valueEnum);
 
         // enum の受け取る側には、同じ enum の値しか入らない。
@@ -177,7 +177,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (!binder.Program.Tree.Features.ImplicitUserTypeConversion
+        if (!binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion
             && DescribeStructMismatch(binder, target, targetIsNumeric, valueType, valueIsNumeric) is { } reason)
         {
             ReportStruct(context, receiver, value, valueType, reason, reported);
@@ -265,7 +265,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         }
 
         ParameterSyntax[] parameters = [.. declarations[0].ParameterList];
-        HlslExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
 
         for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
         {
@@ -291,9 +291,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     private static void CheckOperands(
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression,
-        HlslSyntaxToken operatorToken,
-        HlslExpressionSyntax[] operands,
+        ExpressionSyntax expression,
+        ShaderSyntaxToken operatorToken,
+        ExpressionSyntax[] operands,
         ReportedLocations reported)
     {
         ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(expression);
@@ -323,7 +323,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             {
                 string? other = types[1 - i];
 
-                if (other is null || other == type || !(HlslTypeClassifier.TryDescribeNumeric(other, out _) || binder.TryGetEnum(other, out _)))
+                if (other is null || other == type || !(binder.TypeSystem.TryDescribeNumeric(other, out _) || binder.TryGetEnum(other, out _)))
                 {
                     return;
                 }
@@ -369,7 +369,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// <param name="node">報告する位置のノード。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    private static void ReportEnum(SyntaxTreeAnalysisContext context, HlslSyntaxNode node, string message, ReportedLocations reported)
+    private static void ReportEnum(SyntaxTreeAnalysisContext context, ShaderSyntaxNode node, string message, ReportedLocations reported)
     {
         if (node.GetLocation() is not { } location || !reported.Add(location))
         {
@@ -389,7 +389,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     private static void ReportStruct(
         SyntaxTreeAnalysisContext context,
         Receiver receiver,
-        HlslExpressionSyntax value,
+        ExpressionSyntax value,
         string valueType,
         string reason,
         ReportedLocations reported)

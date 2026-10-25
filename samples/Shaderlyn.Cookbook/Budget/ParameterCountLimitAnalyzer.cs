@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
@@ -32,11 +32,11 @@ namespace Shaderlyn.Cookbook;
 /// </para>
 /// </remarks>
 /// <param name="defaultMaxParameters">設定ファイルに <c>maxParameters</c> が無いときに使う上限。</param>
-public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : HlslRuleAnalyzer
+public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.TooManyParameters];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

@@ -3,6 +3,10 @@
 プロジェクト固有の規約を検査するルールを自分で書き、CLI とエディタで動かすまでの手順書です。
 最初のルールが動いたら、[自作ルールの書き方の手引き](guide.md) に進んでください。
 
+> **AI のコーディングエージェントに書かせるとき**は、[skills/shaderlyn-custom-rule](../../skills/shaderlyn-custom-rule/SKILL.md) をプロジェクトの
+> `.claude/skills/shaderlyn-custom-rule/SKILL.md` に写してください (Claude Code の Skill の形式です。ほかのエージェントでも、指示として読ませれば使えます)。
+> 組み込みのルールで足りないかを先に確かめること、ソースを文字列で調べず構文木とセマンティックモデルで判定することを、エージェントに守らせます。
+
 ## 目次
 
 - [自作ルールの作り方](#自作ルールの作り方)
@@ -65,7 +69,7 @@ dotnet add MyShaderRules package Shaderlyn.Semantics
 
 | パッケージ                 | 必要な場面                                                          |
 | -------------------------- | ------------------------------------------------------------------- |
-| `Shaderlyn.Semantics`      | ルールを書くとき。`Shaderlyn.Core` と `ShaderLab` / `Hlsl` も入ります |
+| `Shaderlyn.Semantics`      | ルールを書くとき。`Shaderlyn.Core` と `ShaderLab` / `CFamily` / `Hlsl` も入ります |
 | `Shaderlyn.Testing`        | テストを書くとき (テストプロジェクト側で)                          |
 | `Shaderlyn.Cli`            | 自作ルール入りの CLI を作るとき ([5 章](#5-自作ルール入りの-cli-を作る)) |
 | `Shaderlyn.LanguageServer` | 自作ルール入りの言語サーバーを作るとき ([5-1](#5-1-エディタでも働かせる)) |
@@ -103,7 +107,7 @@ internal static class MyRules
 
 ### 3-2. アナライザを作成
 
-HLSL のノードを見るので `HlslRuleAnalyzer` を継承します。
+HLSL のノードを見るので `ShaderRuleAnalyzer` を継承します。
 
 解析タイミングと発火条件を指定して処理を登録します。
 
@@ -111,22 +115,22 @@ HLSL のノードを見るので `HlslRuleAnalyzer` を継承します。
 [HLSL のノード型](api-reference.md#hlsl-のノード型) にあります。
 
 基底型で登録すると派生型すべてで発火します。
-「式すべて」を見たいなら `HlslExpressionSyntax`、「文すべて」なら `HlslStatementSyntax` です。
+「式すべて」を見たいなら `ExpressionSyntax`、「文すべて」なら `StatementSyntax` です。
 
 
 ```csharp
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
-public sealed class NoHalfAnalyzer : HlslRuleAnalyzer
+public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [MyRules.NoHalf];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             if (c.Node.Name.StartsWith("half", StringComparison.Ordinal))
             {

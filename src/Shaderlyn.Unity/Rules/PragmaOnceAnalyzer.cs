@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 
@@ -38,7 +38,8 @@ internal sealed class PragmaOnceAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (PragmaDirective pragma in program.Tree.Pragmas)
+            // #include で取り込んだファイルの #pragma は使われない (2023.2 以降) が、#pragma once が効かないことは同じである。
+            foreach (PragmaDirective pragma in program.Tree.Pragmas.Concat(program.Tree.PreprocessResult.IgnoredPragmas.IsDefault ? [] : program.Tree.PreprocessResult.IgnoredPragmas))
             {
                 if (pragma.Name != "once"
                     || pragma.NameToken.IsFromMacroExpansion

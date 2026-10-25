@@ -466,6 +466,10 @@ public static class HlslIntrinsics
         "RAY_FLAG_CULL_OPAQUE", "RAY_FLAG_CULL_NON_OPAQUE",
         "RAY_FLAG_SKIP_TRIANGLES", "RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES",
 
+        // DXR 1.1 の RayQuery の CandidateType() と CommittedStatus() の値
+        "CANDIDATE_NON_OPAQUE_TRIANGLE", "CANDIDATE_PROCEDURAL_PRIMITIVE",
+        "COMMITTED_NOTHING", "COMMITTED_TRIANGLE_HIT", "COMMITTED_PROCEDURAL_PRIMITIVE_HIT",
+
         // シェーダーモデル 6.6 の動的リソース。宣言せずに ResourceDescriptorHeap[i] と書く
         "ResourceDescriptorHeap", "SamplerDescriptorHeap",
 
@@ -497,7 +501,7 @@ public static class HlslIntrinsics
     /// その名前が、その言語のバージョンで使える組み込み関数かどうかを判定する。
     /// </summary>
     /// <param name="name">判定する名前。</param>
-    /// <param name="features">このコードをコンパイルする方言のどれかで使えるもの。</param>
+    /// <param name="features">このコードをコンパイルするコンパイラと HLSL のバージョンのどれかで使えるもの。</param>
     /// <returns>組み込み関数であれば <see langword="true"/>。</returns>
     /// <remarks>
     /// <c>select</c> / <c>and</c> / <c>or</c> は DXC 2021 で入った。それより前と FXC では宣言されていない名前である

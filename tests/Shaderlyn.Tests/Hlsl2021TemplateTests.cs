@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 
@@ -23,7 +23,7 @@ public sealed class Hlsl2021TemplateTests
     [Fact]
     public void templateを構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("""
+        ShaderSyntaxTree tree = Parse2021("""
             template<typename T, uint N = 4>
             struct Array { T items[N]; };
 
@@ -46,7 +46,7 @@ public sealed class Hlsl2021TemplateTests
     [Fact]
     public void 型引数を書いた呼び出しを構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("""
+        ShaderSyntaxTree tree = Parse2021("""
             ByteAddressBuffer raw;
             template<typename T> T Twice(T x) { return x + x; }
             float4 main() : SV_Target { return Twice<float4>(raw.Load<float4>(0)); }
@@ -64,10 +64,29 @@ public sealed class Hlsl2021TemplateTests
     }
 
     [Fact]
+    public void 型でないtemplate引数に式を書いた呼び出しを構文木にする()
+    {
+        // Unreal Engine の NaniteRasterizer.usf の形 (SetupTriangle< NANITE_SUBPIXEL_SAMPLES, !NANITE_TWO_SIDED >)。
+        ShaderSyntaxTree tree = Parse2021("""
+            #define SAMPLES (1 << 8)
+            #define TWO_SIDED 0
+            template<uint N, bool B> float Setup(float x) { return B ? x * N : x; }
+            float main() : SV_Target { return Setup< SAMPLES, !TWO_SIDED >(1.0); }
+            """);
+
+        Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
+
+        InvocationExpressionSyntax call = Assert.Single(
+            tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>(),
+            c => c.HasTypeArguments);
+        Assert.Equal("(1<<8),!0", string.Concat(call.TypeArgumentTokens.Select(t => t.Text)));
+    }
+
+    [Fact]
     public void templateでない名前の後ろの山括弧は比較として読む()
     {
         // Unreal Engine の VirtualShadowMapDebug.usf の形。OutputPixel を template の名前と読むと、引数が 1 つになる。
-        HlslSyntaxTree tree = Parse2021("bool2 f(uint2 p, uint w, uint d) { return or(p < w, p >(d + w)); }");
+        ShaderSyntaxTree tree = Parse2021("bool2 f(uint2 p, uint w, uint d) { return or(p < w, p >(d + w)); }");
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
         InvocationExpressionSyntax call = Assert.Single(tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>());
@@ -77,7 +96,7 @@ public sealed class Hlsl2021TemplateTests
     [Fact]
     public void HLSL2018では比較として読む()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("float f(float a, float b, float c) { return a < b > (c); }");
+        ShaderSyntaxTree tree = HlslHarness.Parse("float f(float a, float b, float c) { return a < b > (c); }");
 
         Assert.True(tree.Diagnostics.IsEmpty, HlslHarness.Describe(tree.Diagnostics));
         Assert.DoesNotContain(tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>(), c => c.HasTypeArguments);
@@ -86,7 +105,7 @@ public sealed class Hlsl2021TemplateTests
     [Fact]
     public void HLSL2018では今までどおり使えない構文として報告する()
     {
-        HlslSyntaxTree tree = HlslHarness.Parse("template<typename T> T Twice(T x) { return x + x; }");
+        ShaderSyntaxTree tree = HlslHarness.Parse("template<typename T> T Twice(T x) { return x + x; }");
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -95,7 +114,7 @@ public sealed class Hlsl2021TemplateTests
     [Fact]
     public void 明示的な特殊化を構文木にする()
     {
-        HlslSyntaxTree tree = Parse2021("""
+        ShaderSyntaxTree tree = Parse2021("""
             template<> float Twice<float>(float x) { return x * 2; }
             template<> struct Box<float> { float v; };
             """);
@@ -436,10 +455,10 @@ public sealed class Hlsl2021TemplateTests
         Assert.Equal(1, help.Value.ActiveParameter);
     }
 
-    private static HlslSyntaxTree Parse2021(string code)
+    private static ShaderSyntaxTree Parse2021(string code)
         => HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
     private static ImmutableArray<Diagnostic> Analyze(string code)
     {

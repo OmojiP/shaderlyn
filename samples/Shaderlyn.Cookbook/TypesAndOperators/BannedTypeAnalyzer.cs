@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Symbols;
 
@@ -23,17 +23,17 @@ namespace Shaderlyn.Cookbook;
 /// マクロが展開した型は、利用者が自分のファイルで直せるものではない。
 /// </para>
 /// </remarks>
-public sealed class BannedTypeAnalyzer(params string[] banned) : HlslRuleAnalyzer
+public sealed class BannedTypeAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.BannedType];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.RegisterNodeAction<HlslTypeSyntax>(c =>
+        context.RegisterNodeAction<TypeSyntax>(c =>
         {
             string name = c.Node.Name;
 
@@ -60,5 +60,5 @@ public sealed class BannedTypeAnalyzer(params string[] banned) : HlslRuleAnalyze
     /// 分類器に任せれば起こらない。
     /// </remarks>
     private static string BaseName(string name)
-        => HlslTypeClassifier.TryDescribeNumeric(name, out HlslNumericShape shape) ? shape.BaseName : name;
+        => HlslTypeClassifier.TryDescribeNumeric(name, out ShaderNumericShape shape) ? shape.BaseName : name;
 }

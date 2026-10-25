@@ -1,11 +1,11 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -51,7 +51,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!compilation.IsReportable(node))
             {
@@ -64,14 +64,14 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (node is not HlslExpressionSyntax expression)
+            if (node is not ExpressionSyntax expression)
             {
                 continue;
             }
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 
-            if (IsIncrement(expression, out HlslSyntaxToken? incrementToken, out HlslExpressionSyntax? operand))
+            if (IsIncrement(expression, out ShaderSyntaxToken? incrementToken, out ExpressionSyntax? operand))
             {
                 if (DescribeIncrement(compilation, binder, expression, operand, incrementToken) is { } increment)
                 {
@@ -120,14 +120,14 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="expression">対象の式。</param>
     /// <returns>報告する位置と文。問題が無ければ <see langword="null"/>。</returns>
-    private static (HlslSyntaxToken Token, string Message)? Describe(
+    private static (ShaderSyntaxToken Token, string Message)? Describe(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression)
+        ExpressionSyntax expression)
     {
         ExpressionTypeEvaluator? evaluator = null;
 
-        string? StructOf(HlslExpressionSyntax operand)
+        string? StructOf(ExpressionSyntax operand)
         {
             evaluator ??= binder.GetEvaluatorFor(expression);
             return evaluator.Evaluate(operand) is { } type && binder.IsStructType(type) ? type : null;
@@ -135,7 +135,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
         switch (expression)
         {
-            case BinaryExpressionSyntax { OperatorToken.Kind: not HlslSyntaxKind.CommaToken } binary:
+            case BinaryExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.CommaToken } binary:
             {
                 string symbol = binary.OperatorToken.Text;
 
@@ -178,7 +178,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
             }
 
             // 複合代入 (+= など) は多重定義できない。ふつうの代入 (=) は構造体どうしでも使える。
-            case AssignmentExpressionSyntax { OperatorToken.Kind: not HlslSyntaxKind.EqualsToken } assignment:
+            case AssignmentExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.EqualsToken } assignment:
             {
                 string symbol = assignment.OperatorToken.Text;
 
@@ -203,16 +203,16 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="operand">増減する値。</param>
     /// <returns>増減なら <see langword="true"/>。</returns>
     private static bool IsIncrement(
-        HlslExpressionSyntax expression,
-        [NotNullWhen(true)] out HlslSyntaxToken? token,
-        [NotNullWhen(true)] out HlslExpressionSyntax? operand)
+        ExpressionSyntax expression,
+        [NotNullWhen(true)] out ShaderSyntaxToken? token,
+        [NotNullWhen(true)] out ExpressionSyntax? operand)
     {
         (token, operand) = expression switch
         {
-            PrefixUnaryExpressionSyntax { OperatorToken.Kind: HlslSyntaxKind.PlusPlusToken or HlslSyntaxKind.MinusMinusToken } prefix
+            PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken } prefix
                 => (prefix.OperatorToken, prefix.Operand),
             PostfixUnaryExpressionSyntax postfix => (postfix.OperatorToken, postfix.Operand),
-            _ => ((HlslSyntaxToken?)null, (HlslExpressionSyntax?)null),
+            _ => ((ShaderSyntaxToken?)null, (ExpressionSyntax?)null),
         };
 
         return token is not null && operand is not null;
@@ -234,15 +234,15 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// コンパイル先が分かれば (Unity)、届くコンパイル先に DXC があるかで決め、その API を文に添える。
-    /// 分からなければ、どれかの方言が受け付けるか (<see cref="HlslLanguageFeatures.StructIncrement"/>) で決める。
+    /// 分からなければ、どれかのコンパイラと HLSL のバージョンが受け付けるか (<see cref="HlslLanguageFeatures.StructIncrement"/>) で決める。
     /// </para>
     /// </remarks>
-    private static (HlslSyntaxToken Token, string Message, DiagnosticDescriptor Descriptor)? DescribeIncrement(
+    private static (ShaderSyntaxToken Token, string Message, DiagnosticDescriptor Descriptor)? DescribeIncrement(
         ShaderCompilation compilation,
         ExpressionTypeBinder binder,
-        HlslExpressionSyntax expression,
-        HlslExpressionSyntax operand,
-        HlslSyntaxToken token)
+        ExpressionSyntax expression,
+        ExpressionSyntax operand,
+        ShaderSyntaxToken token)
     {
         if (binder.GetEvaluatorFor(expression).Evaluate(operand) is not { } type || !binder.IsStructType(type))
         {
@@ -252,9 +252,9 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         string symbol = token.Text;
         AnalyzedProgram program = binder.Program;
 
-        if (program.Tree.CompileTargets.IsDefaultOrEmpty)
+        if (program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty)
         {
-            return program.Tree.Features.StructIncrement
+            return program.Tree.Hlsl().Features.StructIncrement
                 ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored)
                 : (token, $"構造体 '{type}' の値に演算子 '{symbol}' は使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
         }
@@ -304,7 +304,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="descriptor">ルール。省略すると HL0346。</param>
     private static void Report(
         SyntaxTreeAnalysisContext context,
-        HlslSyntaxToken token,
+        ShaderSyntaxToken token,
         string message,
         ReportedLocations reported,
         DiagnosticDescriptor? descriptor = null)

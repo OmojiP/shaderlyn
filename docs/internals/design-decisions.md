@@ -59,7 +59,7 @@
 ## HLSL の解析単位
 
 - **HLSL はマクロ展開と `#include` の解決を済ませたトークン列から木を作る。** マクロを展開しなければ構文として成立しない（`TEXTURE2D(_BaseMap);`）。
-  元のテキストは復元できないので、診断の位置は `HlslSyntaxNode.GetLocation()` で求める
+  元のテキストは復元できないので、診断の位置は `ShaderSyntaxNode.GetLocation()` で求める
 - **環境の条件（`SHADER_API_*`、`UNITY_VERSION`）は 1 通りだけ解く。** ビルドで決まる値で、書き手が選ぶ軸ではない。両方を展開しても直せる誤りはほとんど増えない
 - **埋め込み HLSL は切り出さず、元のファイルと同じ長さで解析範囲の外を空白にしたテキストで解析する。**
   位置の変換が要らず、`HLSLINCLUDE` の差し込みもファイル上の順序のまま再現される。`HLSLPROGRAM` 1 つが 1 つの解析単位になる
@@ -73,8 +73,8 @@
 
 ## 環境
 
-- **環境 (Unity・汎用の HLSL・Unreal・独自エンジン) の違いは、上の層だけに置く。** 字句解析・プリプロセッサ・構文解析 (`Shaderlyn.Hlsl`) と
-  意味解析・ルール (`Shaderlyn.Semantics` / `Shaderlyn.Rules`) は環境の決まりを持たず、`IHlslEnvironment` に尋ねる
+- **環境 (Unity・汎用の HLSL・Unreal・独自エンジン) の違いは、上の層だけに置く。** 字句解析・プリプロセッサ (`Shaderlyn.CFamily`)・構文解析 (`Shaderlyn.Hlsl`) と
+  意味解析・ルール (`Shaderlyn.Semantics` / `Shaderlyn.Rules`) は環境の決まりを持たず、`IShaderEnvironment` に尋ねる
   (構成の空間、エントリポイント、定義済みマクロ、シンボルらしい名前、生成される取り込み)。
   Unity の `#pragma multi_compile` も、設定ファイルの `symbols:` も、独自エンジンの `#pragma variant` も、同じ `VariantSpace` になる
 - **CLI は 1 つにまとめる。** 環境ごとの差はコードと表で、バイナリはほとんど大きくならない。分けると配布物・VS Code 拡張・GitHub Action が環境の数だけ増える。

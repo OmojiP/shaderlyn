@@ -26,10 +26,10 @@ internal static class PropertyTypeCompatibility
     /// <param name="propertyKind">ShaderLab 側のプロパティ型。</param>
     /// <param name="typeClass">HLSL 側の型の分類。</param>
     /// <returns>食い違いを断定できない場合は <see langword="true"/>。</returns>
-    public static bool IsCompatible(ShaderPropertyKind propertyKind, HlslTypeClass typeClass)
+    public static bool IsCompatible(ShaderPropertyKind propertyKind, ShaderTypeClass typeClass)
     {
         // 判別できない型に対しては何も断定しない。
-        if (typeClass == HlslTypeClass.Unknown || propertyKind == ShaderPropertyKind.Unknown)
+        if (typeClass == ShaderTypeClass.Unknown || propertyKind == ShaderPropertyKind.Unknown)
         {
             return true;
         }
@@ -41,12 +41,12 @@ internal static class PropertyTypeCompatibility
 
             // 数値プロパティは成分数を問わない。
             // Color を half3 で受けるのは Unity 同梱のシェーダーでも普通に行われている。
-            ShaderPropertyKind.Color or ShaderPropertyKind.Vector => typeClass == HlslTypeClass.Vector,
+            ShaderPropertyKind.Color or ShaderPropertyKind.Vector => typeClass == ShaderTypeClass.Vector,
 
             // スカラープロパティを float4 で受けると x 成分にしか値が入らない。
             // 行列で受けることも当然できない。
             ShaderPropertyKind.Float or ShaderPropertyKind.Range
-                or ShaderPropertyKind.Int or ShaderPropertyKind.Integer => typeClass == HlslTypeClass.Scalar,
+                or ShaderPropertyKind.Int or ShaderPropertyKind.Integer => typeClass == ShaderTypeClass.Scalar,
 
             // テクスチャは種類まで一致していなければならない。
             // 2D のプロパティを TextureCube で受けると、そもそもバインドされない。
@@ -54,15 +54,15 @@ internal static class PropertyTypeCompatibility
             // サンプラを許しているのは Cg 記法との整合のためではなく、
             // TEXTURE2D(_X) と SAMPLER(_X) を同名で書く実装があるためである。
             ShaderPropertyKind.Texture2D =>
-                typeClass is HlslTypeClass.Texture2D or HlslTypeClass.Sampler,
+                typeClass is ShaderTypeClass.Texture2D or ShaderTypeClass.Sampler,
             ShaderPropertyKind.Texture3D =>
-                typeClass is HlslTypeClass.Texture3D or HlslTypeClass.Sampler,
+                typeClass is ShaderTypeClass.Texture3D or ShaderTypeClass.Sampler,
             ShaderPropertyKind.TextureCube =>
-                typeClass is HlslTypeClass.TextureCube or HlslTypeClass.Sampler,
+                typeClass is ShaderTypeClass.TextureCube or ShaderTypeClass.Sampler,
             ShaderPropertyKind.Texture2DArray =>
-                typeClass is HlslTypeClass.Texture2DArray or HlslTypeClass.Sampler,
+                typeClass is ShaderTypeClass.Texture2DArray or ShaderTypeClass.Sampler,
             ShaderPropertyKind.TextureCubeArray =>
-                typeClass is HlslTypeClass.TextureCubeArray or HlslTypeClass.Sampler,
+                typeClass is ShaderTypeClass.TextureCubeArray or ShaderTypeClass.Sampler,
 
             _ => true,
         };

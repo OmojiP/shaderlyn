@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Unity;
 
 namespace Shaderlyn.Tests;
@@ -108,7 +108,7 @@ public sealed class SymbolConstraintsTests
     [Fact]
     public void 同じ行に並べたシンボルどうしを排他とする()
     {
-        ImmutableArray<HlslSyntaxToken> tokens = new HlslLexer(SourceText.From("""
+        ImmutableArray<ShaderSyntaxToken> tokens = new ShaderLexer(SourceText.From("""
             #pragma multi_compile_local_fragment _ _X _Y
             #pragma shader_feature _Z
             #pragma multi_compile __ _P _Q _R
@@ -159,7 +159,7 @@ public sealed class SymbolConstraintsTests
     [Fact]
     public void 下線の無いmulti_compileだけをどれか1つが必ず有効な行とする()
     {
-        ImmutableArray<HlslSyntaxToken> tokens = new HlslLexer(SourceText.From("""
+        ImmutableArray<ShaderSyntaxToken> tokens = new ShaderLexer(SourceText.From("""
             #pragma multi_compile MODE_A MODE_B
             #pragma multi_compile_local ALWAYS_ON
             #pragma multi_compile _ _X
@@ -185,7 +185,7 @@ public sealed class SymbolConstraintsTests
     [Fact]
     public void 組み込みの宣言が作るシンボルも宣言されている()
     {
-        ImmutableArray<HlslSyntaxToken> tokens = new HlslLexer(SourceText.From("""
+        ImmutableArray<ShaderSyntaxToken> tokens = new ShaderLexer(SourceText.From("""
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
             #pragma multi_compile_shadowcaster
@@ -212,7 +212,7 @@ public sealed class SymbolConstraintsTests
     [Fact]
     public void 組み込みの宣言の引数はシンボルではない()
     {
-        ImmutableArray<HlslSyntaxToken> tokens = new HlslLexer(SourceText.From("""
+        ImmutableArray<ShaderSyntaxToken> tokens = new ShaderLexer(SourceText.From("""
             #pragma multi_compile_fwdbase nolightmap nodynlightmap
             """, "test.hlsl")).Lex(out _);
 

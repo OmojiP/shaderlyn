@@ -29,17 +29,31 @@ internal static class UnrealRuleDescriptors
             + "--unreal-generate で同じ宣言をエンジンとプロジェクトの C++ から作り、unreal: generated に書くと検査できます。",
         helpLinkUri: DocumentationLinks.For("UE0001"));
 
-    /// <summary>マテリアルごとに生成されるファイルの中身が分からないので、宣言の検査を行っていない。</summary>
+    /// <summary>マテリアルのシェーダーが取り込む生成ファイルが無いので、宣言の検査を行っていない。</summary>
     public static DiagnosticDescriptor MaterialGeneratedFilesUnknown { get; } = new(
         id: "UE0002",
-        title: "マテリアルごとに生成されるファイルの中身が分からないため、一部の検査を行っていません",
+        title: "マテリアルのシェーダーが取り込む生成ファイルが無いため、一部の検査を行っていません",
         messageFormat: "宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) を行っていません。"
-            + "マテリアルごとに生成されるファイル ({0}) の中身が分からないため、宣言の一覧が不完全です。",
+            + "マテリアルのシェーダーが取り込む生成ファイル ({0}) が無いため、宣言の一覧が不完全です。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "Material.ush と VertexFactory.ush は、エンジンがマテリアルと頂点ファクトリごとに作ります。"
-            + "中身はマテリアルで変わるので、Shaderlyn は作れません。これらを取り込むシェーダー (マテリアルのシェーダー) では、"
+            + "ディスクには無いので、これらを取り込むシェーダー (マテリアルのシェーダー) では、"
             + "「宣言が無い」ことを根拠にする検査 (HL0301 / HL0310 など) を見送ります。"
-            + "利用者には直せないので、知らせが要らなければ設定ファイルの rules で無効にしてください。",
+            + "--unreal-generate で代わりを作り、unreal: generated に書くと検査できます。",
         helpLinkUri: DocumentationLinks.For("UE0002"));
+
+    /// <summary>登録したシェーダーがどれも、解析するプラットフォームではコンパイルされないので、解析していない。</summary>
+    public static DiagnosticDescriptor NotCompiledOnPlatform { get; } = new(
+        id: "UE0003",
+        title: "このプラットフォームではコンパイルされないシェーダーのため、解析していません",
+        messageFormat: "このファイルを解析していません。登録した C++ のクラス ({0}) は、どのパーミュテーションも "
+            + "ShouldCompilePermutation が PC の Direct3D 12 (SM6) では除きます。",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "--unreal-generate は、C++ の ShouldCompilePermutation を PC の Direct3D 12 (SM6) として読みます。"
+            + "ファイルを登録したクラスがどれも、どのパーミュテーションでもコンパイルされないと分かったファイル "
+            + "(モバイルだけ、コンソールだけのシェーダーなど) は、エンジンも PC ではコンパイルしません。"
+            + "既定の構成で読むと、実在しない構成の誤りを報告することになるので、解析しません。",
+        helpLinkUri: DocumentationLinks.For("UE0003"));
 }

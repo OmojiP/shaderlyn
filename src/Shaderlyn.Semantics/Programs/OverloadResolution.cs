@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Symbols;
 
@@ -155,7 +155,7 @@ internal static class OverloadResolver
             // obj.Method(...) の形。宣言として書かれているものではないので、解決先は無い。
             // テクスチャのメソッドだけは、組み込みであると分かる。
             return invocation.Target is MemberAccessExpressionSyntax member
-                   && HlslIntrinsics.GetTextureMethodReturnType(member.Name) != TextureMethodReturnType.Unknown
+                   && compilation.TypeSystem.GetTextureMethodReturnType(member.Name) != TextureMethodReturnType.Unknown
                 ? new OverloadResolution(OverloadResolutionStatus.Intrinsic, null, [], [])
                 : UnknownResult;
         }
@@ -165,7 +165,7 @@ internal static class OverloadResolver
         if (declared.IsEmpty)
         {
             return new OverloadResolution(
-                HlslIntrinsics.IsKnownFunction(name)
+                compilation.TypeSystem.IsKnownFunction(name, binder.Program.Tree)
                     ? OverloadResolutionStatus.Intrinsic
                     : OverloadResolutionStatus.NotDeclared,
                 null,
@@ -180,7 +180,7 @@ internal static class OverloadResolver
             return new OverloadResolution(OverloadResolutionStatus.NotDeclared, null, [], []);
         }
 
-        ImmutableArray<HlslExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+        ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         ImmutableArray<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount(c.ParameterList, arguments.Length))];
@@ -195,7 +195,7 @@ internal static class OverloadResolver
         ImmutableArray<string?> argumentTypes = [.. arguments.Select(evaluator.Evaluate)];
 
         ImmutableArray<FunctionDeclarationSyntax> viable =
-            [.. fitting.Where(c => Accepts(c, arguments, argumentTypes))];
+            [.. fitting.Where(c => Accepts(compilation.TypeSystem, c, arguments, argumentTypes))];
 
         if (viable.IsEmpty)
         {
@@ -277,6 +277,7 @@ internal static class OverloadResolver
     /// <summary>
     /// 実引数をすべて渡せるかを判定する。
     /// </summary>
+    /// <param name="types">型と変換を尋ねる先。</param>
     /// <param name="function">対象の宣言。</param>
     /// <param name="arguments">実引数の式。</param>
     /// <param name="argumentTypes">実引数の型。</param>
@@ -288,8 +289,9 @@ internal static class OverloadResolver
     /// <see cref="OverloadResolutionStatus.Unknown"/> になるが、それが正しい答えである。
     /// </remarks>
     private static bool Accepts(
+        ShaderTypeSystem types,
         FunctionDeclarationSyntax function,
-        ImmutableArray<HlslExpressionSyntax> arguments,
+        ImmutableArray<ExpressionSyntax> arguments,
         ImmutableArray<string?> argumentTypes)
     {
         int index = 0;
@@ -305,7 +307,7 @@ internal static class OverloadResolver
 
             // 配列は式で作れない。形の判定は HL0344 の担当なので、ここでは通す。
             if (parameter.ArrayRankTokens.IsEmpty
-                && !HlslConversion.IsConvertible(argumentTypes[index], parameter.Type.Name, writeback))
+                && !types.IsConvertible(argumentTypes[index], parameter.Type.Name, writeback))
             {
                 return false;
             }

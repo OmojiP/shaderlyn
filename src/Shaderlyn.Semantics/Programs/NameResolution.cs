@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Symbols;
 
 namespace Shaderlyn.Semantics.Programs;
@@ -33,7 +33,7 @@ public enum DeclaredNameKind
 /// 使っている位置からこの宣言が見える条件。
 /// 関数の中の宣言なら、内側の同じ名前の宣言が無いことも掛け合わせてある。
 /// </param>
-public readonly record struct DeclaredName(HlslSyntaxNode Declarator, ResolvedTypeName Type, SymbolCondition Condition)
+public readonly record struct DeclaredName(ShaderSyntaxNode Declarator, ResolvedTypeName Type, SymbolCondition Condition)
 {
     /// <summary>配列の要素の総数を求める。</summary>
     /// <param name="length">要素の総数。</param>

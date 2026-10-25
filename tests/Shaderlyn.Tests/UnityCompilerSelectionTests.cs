@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
@@ -234,14 +234,14 @@ public sealed class UnityCompilerSelectionTests
         SourceText text = SourceText.From(source, Path.Combine("Assets", "Test.shader"));
         SemanticsOptions semantics = new()
         {
-            IncludeResolver = new Hlsl.Preprocessing.InMemoryIncludeResolver(
+            IncludeResolver = new CFamily.Preprocessing.InMemoryIncludeResolver(
                 new Dictionary<string, string>(StringComparer.Ordinal) { ["Dxc.hlsl"] = "#include \"Inner.hlsl\"\n", ["Inner.hlsl"] = "#pragma use_dxc\n" }),
         };
 
         ShaderCompilation compilation = UnityCompilation.Create(
             text, ShaderLabSyntaxTree.Parse(text), semantics, new UnityOptions { EditorVersion = version });
 
-        HlslCompileTarget dx12 = Assert.Single(compilation.Programs[0].Tree.CompileTargets, t => t.Platform == "dx12");
+        HlslCompileTarget dx12 = Assert.Single(compilation.Programs[0].Tree.Hlsl().CompileTargets, t => t.Platform == "dx12");
         Assert.Equal(expected, dx12.Dialect.DisplayName);
     }
 
@@ -251,14 +251,14 @@ public sealed class UnityCompilerSelectionTests
         SourceText text = SourceText.From("float4 f() { return 0; }", Path.Combine("Assets", "Test.hlsl"));
         ShaderCompilation compilation = UnityCompilation.CreateForHlsl(text, new SemanticsOptions());
 
-        Assert.All(compilation.Programs, p => Assert.Empty(p.Tree.CompileTargets));
+        Assert.All(compilation.Programs, p => Assert.Empty(p.Tree.Hlsl().CompileTargets));
     }
 
     /// <summary><c>#pragma</c> の行からコンパイル先を決める。</summary>
     private static ImmutableArray<HlslCompileTarget> Select(string pragmas, UnityOptions options, bool isCompute)
     {
         string code = string.Join("\n", pragmas.Split('|', StringSplitOptions.RemoveEmptyEntries).Select(p => "#pragma " + p)) + "\nfloat4 f() { return 0; }\n";
-        ImmutableArray<HlslSyntaxToken> tokens = new Hlsl.Parsing.HlslLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> tokens = new CFamily.Syntax.ShaderLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
 
         return UnityCompilerSelection.Select(tokens, isCompute, options);
     }
@@ -292,7 +292,7 @@ public sealed class UnityCompilerSelectionTests
         ShaderCompilation compilation = UnityCompilation.Create(
             text, ShaderLabSyntaxTree.Parse(text), new SemanticsOptions(), new UnityOptions { EditorVersion = "6.3" });
 
-        targets = compilation.Programs[0].Tree.CompileTargets;
+        targets = compilation.Programs[0].Tree.Hlsl().CompileTargets;
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }
 }

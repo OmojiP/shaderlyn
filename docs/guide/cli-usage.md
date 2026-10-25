@@ -424,7 +424,7 @@ shaderlyn Assets/Shaders --unity-project . --max-symbol-variants 16
 ### 設定ファイル
 
 同じオプションを毎回書く代わりに、リポジトリのルートの `.shaderlyn.yaml` に書けます。
-CLI は解析対象のパスから上のフォルダーへ辿ってこのファイルを探します。
+CLI は解析するファイルごとに、そのファイルから上のフォルダーへ辿って一番近いファイルを使います。
 
 - `--config <パス>` で明示的に指定できます
 - `--no-config` で探さないようにできます
@@ -461,7 +461,7 @@ shaderlyn Assets --unity-project . --baseline .shaderlyn-baseline.json
 shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 ```
 
-- キャッシュファイルは絶対パスを参照するため、`.gitignore` へ入れてください
+- キャッシュには絶対パスが記録されるため、`.gitignore` へ追加してください
 - 書き出せないパス (権限が無い、フォルダーを指している、ドライブが無い、`NUL` などのデバイス名) なら、解析の前に理由を標準エラーへ出します。
   解析はそのまま続け、終了コードも変わりません (キャッシュが残らないだけです)
 
@@ -599,7 +599,7 @@ shaderlyn <パス...> [オプション]
 
 | オプション                        | 説明                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal`。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
+| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl`（構文の誤りだけを指摘する）/ `godot` / `slang` / `wgsl`（この 3 つは作っているところで、今は何も指摘しない）。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
 | `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です。Unity の環境だけ |
 | `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定。Unity の環境だけ |
 | `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります |

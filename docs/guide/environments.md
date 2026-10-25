@@ -4,17 +4,22 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 環境ごとの違いは設定ファイルに書き、ルールと出力 (CLI・VS Code 拡張・GitHub Actions) はどの環境でも同じです。
 
 環境ごとの設定ファイルのテンプレートと、試すためのシェーダーが [samples/environments](../../samples/environments/) にあります。
-写して書き換えると早く始められます。
+テンプレートをコピーし、環境に合わせて編集すると、すぐに試せます。
 
 ## 目次
 
-- [環境の選び方](#環境の選び方)
-- [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
-- [Unreal Engine](#unreal-engine)
-- [独自エンジン](#独自エンジン)
-- [CI で使う](#ci-で使う)
-- [環境によって変わること](#環境によって変わること)
-- [コンパイラと言語のバージョン](#コンパイラと言語のバージョン)
+- [Unity 以外の環境で使う](#unity-以外の環境で使う)
+  - [目次](#目次)
+  - [環境の選び方](#環境の選び方)
+  - [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
+  - [Unreal Engine](#unreal-engine)
+    - [C++ から生成されるファイルを作る](#c-から生成されるファイルを作る)
+  - [GLSL](#glsl)
+  - [独自エンジン](#独自エンジン)
+  - [CI で使う](#ci-で使う)
+  - [環境によって変わること](#環境によって変わること)
+  - [コンパイラと言語のバージョン](#コンパイラと言語のバージョン)
+    - [Unity](#unity)
 
 ## 環境の選び方
 
@@ -25,9 +30,15 @@ Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX
 | `unity` (既定) | Unity の ShaderLab と HLSL | `.shader` / `.compute` |
 | `hlsl` | DXC で直接コンパイルする HLSL | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー | `.usf` |
+| `glsl` | GLSL (構文エラーを指摘する。[下記](#glsl)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
+| `godot` / `slang` / `wgsl` | Godot / Slang / WGSL (作っているところ。今は何も指摘しない) | `.gdshader` / `.slang` / `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、名前を挙げたときだけ解析します。
+
+HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) のファイルは、`environment` に関わらず拡張子の環境で解析します。
+ただし `.mesh` (GLSL のメッシュシェーダー) は Unity のメッシュのアセットと重なるので、`environment: glsl` を指定したときだけ読みます。
+たとえば Unity のプロジェクトにある `.wgsl` は WGSL として読みます。
 
 ```sh
 shaderlyn Shaders --env      # どの環境で、何を解析するかを表示する (解析はしない)
@@ -93,14 +104,20 @@ units:
 ```
 
 - **パーミュテーションは C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
-- **ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、そのままでは解決できません。** その `#include` は誤りとして報告しませんが、
-  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません。
-  その旨を UE0001 (情報) で伝えます。型の誤りなど、取り込んだ先を見なくてよい検査は行います。
-  呼び出しの引数の検査 (HL0340 / HL0341) は、欠けているのが関数を宣言しないと分かっているファイル
-  (uniform buffer の宣言 `GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら行います。
-  `GeneratedInstancedStereo.ush` は `GetPrimaryView` などの 3 つの関数だけを宣言するので、それらの呼び出しだけを見ません。
-  `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数が欠けているかもしれないので行いません。
-  uniform buffer の宣言は、エンジンの C++ から作れます ([下記](#c-から生成されるファイルを作る))
+### 生成ファイルがない場合
+
+ビルド時にエンジンが生成するファイル (`/Engine/Generated/…`) は、生成していないと解決できません。該当する `#include` はエラーとして報告しませんが、
+uniform buffer などの宣言も読み取れないため、宣言の有無を調べる検査 (HL0301 / HL0310 など) を行いません。この状態は UE0001 (情報) で知らせます。
+型の誤りなど、取り込んだ先の宣言を必要としない検査は行います。
+
+関数呼び出しの引数を調べる検査 (HL0340 / HL0341) は、関数を宣言しないと分かっているファイルだけが欠けている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら検査します。
+
+- `GeneratedInstancedStereo.ush` は `GetPrimaryView` など 3 つの関数だけを宣言するため、これらの関数呼び出しは検査しません
+- `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数の宣言が欠けている可能性があるため、引数の検査を行いません
+
+uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりとなるファイルは、エンジンの C++ とシェーダーから作れます ([下記](#c-から生成されるファイルを作る))。
+
+### 解析時の前提
 - エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す GBuffer の取り込み
   (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
 - マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
@@ -124,8 +141,9 @@ units:
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
   パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
   C++ から生成されるファイルを作っていれば、こうした名前は値が分からないまま「宣言されている」ものとして扱います (HL0310 にしません)
-- マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は分かりません。
-  マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。`defines` で空に定義すると読めます
+- マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は、
+  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (HL0001) になります。
+  C++ から生成されるファイルを作れば、その `Material.ush` が定義します ([下記](#c-から生成されるファイルを作る))
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンの版と合わないところがあれば、
 > `defines` で上書きしてください。仮想パスは `virtual-paths` で足せます。`--env` で、使っている割り当てとマクロを確かめられます。
@@ -154,12 +172,73 @@ unreal:
 | `UniformBuffers/<名前>.ush`、`GeneratedUniformBuffers.ush` | uniform buffer の宣言。`View.ViewSizeAndInvSize` と `View_ViewSizeAndInvSize` のどちらの書き方でも引けます。`Scene` も含みます |
 | `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
 | `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
+| `ShaderlynShaderRegistrations.tsv` | シェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など。登録を包んだ独自のマクロも展開して読みます)。`.usf` ごとのエントリポイントとステージ |
+| `ShaderlynShaderClasses.tsv` | シェーダーのクラスが定義するマクロとパーミュテーション、どの組もコンパイルされないクラス、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED` など) |
+| `Material.ush`、`UniformBuffers/Material.ush` | マテリアルの代わり。エンジンの `MaterialTemplate.ush` の、マテリアルごとに埋まる穴を、何もしない中身で埋めたもの (下記) |
+| `VertexFactory.ush` | 頂点ファクトリ (`IMPLEMENT_VERTEX_FACTORY_TYPE`) の `.ush` を、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込むもの |
+| `ShaderlynVertexFactoryDefines.ush` | 頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロを、`SHADERLYN_VERTEX_FACTORY` の値で選んで定義するもの |
+| `ShaderlynGenerationStamp.tsv` | 読んだ ini の中身のハッシュと、C++ のファイルの一覧・更新日時・大きさ。生成した後に変わったかを確かめるのに使います |
 
-- **マテリアルから作られる `Material.ush` / `VertexFactory.ush` は作れません。** これらを取り込むシェーダーでは、今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
+- **プロジェクトの設定 (コンソール変数) を読みます。** エンジンはプロジェクトの設定から、どのシェーダーにもマクロを定義し (`GlobalBeginCompileShader`)、
+  シェーダーのクラスもそれを見てコンパイルするかを決めます (`Substrate::IsSubstrateEnabled()` など)。
+  値は C++ に書いた既定値 (`TAutoConsoleVariable` の宣言) を、エンジンとプロジェクトの ini (`DefaultEngine.ini` の `[/Script/Engine.RendererSettings]` など) が上書きします。
+  プロジェクトの設定を変えたら作り直してください
+- プラットフォームを問う関数 (`IsMobilePlatform`、`FDataDrivenShaderPlatformInfo::GetSupportsPrimitiveShaders` など) には、PC の Direct3D 12 (SM6) として答えます。
+  どのパーミュテーションでもコンパイルされないクラスだけが登録したファイルは解析せず、UE0003 で伝えます
+- **マテリアルのシェーダーも、宣言を検査します。** エンジンは `Material.ush` を、マテリアルごとに `MaterialTemplate.ush` の穴 (`%{num_material_texcoords}` など) を埋めて作ります。
+  Shaderlyn は、どのマテリアルでもない代わりを作ります。数を表す穴は `0`、値を返す関数は `0` を返すもの、
+  `FPixelMaterialInputs` のメンバーは C++ のマテリアルの属性の一覧から埋め、ほかは空にします。
+  マテリアルのノードが書くコード (カスタムノードなど) は分からないので、それに関わる誤りは見つけられません。
+  作った `Material.ush` の中は、利用者のコードとしては検査しません
+- **頂点ファクトリは、シェーダーのクラスに合わせて選びます。** メッシュに描くマテリアルのシェーダー (`FMeshMaterialShader` の派生) は、
+  頂点ファクトリごとにコンパイルされます。`ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読みます
+  (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ読みます)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
+  (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
+  そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
+- 作っていなければ、マテリアルのシェーダーでは今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
+- **既知の誤報告があります** (0.3.1 で修正予定)。マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないため、
+  UE 5.5 のエンジンでは `DeferredDecal.usf` などに数件残ります。一覧は [CHANGELOG](../../CHANGELOG.md) の 0.3.0 の「既知の問題」にあります
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。知らない型は `float4` として書き、`--unreal-generate` の出力に挙げます
-- 作ったファイルは、エンジンかプロジェクトの C++ を変えたら作り直してください。バージョン管理には入れなくてかまいません
+- 作ったファイルは、エンジンかプロジェクトの C++ や ini を変えたら作り直してください。バージョン管理には入れなくてかまいません。
+  **作り直しが要るときは、解析を始めるときに伝えます** (CLI は標準エラー、VS Code 拡張は通知)。
+  ini は中身を、C++ は更新日時と大きさを比べます。C++ の一覧を読むので、UE 5.5 のエンジンで解析が 2 秒ほど長くなります
+  ```text
+  前回の --unreal-generate から変更が検出されました。
+  ini が変更されました (DefaultEngine.ini)。
+  C++ ファイルが変更されました (変更 3 件、追加 1 件)。
+  変更を解析に反映する場合は --unreal-generate をやり直してください。
+  ```
 
 UE 5.5 のエンジンのシェーダー (`Engine/Shaders` の `.usf` 522 個) では、宣言の検査を行えるものが 8 個から 460 個に増えます。
+
+## GLSL
+
+GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` / `.task`、レイトレーシングの `.rgen` などと、`.glsl`) は、
+設定ファイルが無くても、ほかの環境の設定ファイルの下にあっても、GLSL として解析します。VS Code 拡張も同じです。
+
+**今は構文の誤りだけを指摘します。** 指摘するのは次のものです。
+
+| ルール | 内容 |
+| --- | --- |
+| [HL0001](../rules/HL0001.md) | 構文の誤り |
+| [HL0002](../rules/HL0002.md) など | プリプロセッサ指令の誤り (閉じていない `#if` など) |
+| [HL0321](../rules/HL0321.md) | 解決できない `#include` (その中の構文は読めていない) |
+
+**宣言・型・呼び出しの検査 (宣言されていない名前、型の不一致、引数の数など) は 0.3.1 で対応する予定です。**
+今は GLSL の組み込みの型と関数 (`vec4`、`texture` など) を知らないので、これらの検査は行いません (誤って報告することもありません)。
+VS Code 拡張の説明 (ホバー)・定義へ移動・補完も、GLSL のファイルではまだ働きません。
+
+- `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
+  HLSL と同じく、解析対象の外のファイルは読みません
+- `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ読みます
+- 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
+
+```yaml
+version: 1
+environment: glsl
+include-paths:
+  - shaders/include
+```
 
 ## 独自エンジン
 
@@ -174,7 +253,7 @@ GitHub Action は設定ファイルの `environment` に従います。設定フ
 Unity 以外の環境では Unity のプロジェクト (`Library/`) が要らないので、GitHub のホストランナーで動かせます。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.2.1
+- uses: OmojiP/shaderlyn/action@v0.3.0
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment
@@ -195,7 +274,7 @@ Unity 以外の環境では Unity のプロジェクト (`Library/`) が要ら�
 ## コンパイラと言語のバージョン
 
 使える構文と型は、コードをコンパイルするコンパイラ (FXC / DXC) と、DXC の言語のバージョン (`-HV`) で決まります。
-Shaderlyn はこの組 (方言) ごとの表を持ち、使えない構文を [HL0003](../rules/HL0003.md) などで報告します。
+Shaderlyn はこの組ごとの表を持ち、使えない構文を [HL0003](../rules/HL0003.md) などで報告します。
 表は手元の FXC (Windows SDK 10.0.26100) と DXC 1.6 / 1.8 で確かめたものです。
 
 | | FXC | DXC 2016 | 2017 | 2018 | 2021 |

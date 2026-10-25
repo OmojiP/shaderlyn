@@ -3,13 +3,14 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -34,7 +35,7 @@ namespace Shaderlyn.Semantics;
 /// <see cref="HasCompleteDependencies"/> と <see cref="UnresolvedIncludes"/> で判別できる。
 /// </para>
 /// </remarks>
-public sealed class ShaderCompilation
+public sealed partial class ShaderCompilation
 {
     private readonly Dictionary<string, List<UniformSymbol>> _uniformsByName;
     private readonly Dictionary<string, int> _declarationCounts;
@@ -57,8 +58,8 @@ public sealed class ShaderCompilation
     private Dictionary<(SourceText Source, int Start, string Shape), HashSet<(int Start, string? Kernel)>>? _functionBlocks;
     private Dictionary<AnalyzedProgram, ExpressionTypeBinder>? _binders;
 
-    /// <summary>木ごとの、位置から関数の宣言への対応。</summary>
-    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>>? _ownFunctions;
+    /// <summary>木ごとの、位置から関数の宣言への対応。同じ位置に条件の違う複製があれば、すべて持つ。</summary>
+    private Dictionary<AnalyzedProgram, Dictionary<(SourceText Source, int Start, string Shape), List<FunctionDeclarationSyntax>>>? _ownFunctions;
 
     /// <summary>関数の宣言を見分ける鍵。先頭のトークンの位置と、名前と仮引数の型の並び。</summary>
     /// <param name="function">関数の宣言。</param>
@@ -71,13 +72,13 @@ public sealed class ShaderCompilation
     /// 位置だけで 1 つにまとめると最初の多重定義しか残らず、ほかの多重定義を呼ぶ正しい呼び出しを
     /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
     /// </remarks>
-    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, HlslSyntaxToken first)
-        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == HlslSyntaxKind.OpenBracketToken)))) + ")");
+    private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, ShaderSyntaxToken first)
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken)))) + ")");
 
     internal ShaderCompilation(
         SourceText text,
         Environments.ShaderSourceInfo source,
-        Environments.IHlslEnvironment environment,
+        Environments.IShaderEnvironment environment,
         ImmutableArray<AnalyzedProgram> programs,
         Dictionary<string, List<UniformSymbol>> uniformsByName,
         Dictionary<string, int> declarationCounts,
@@ -86,7 +87,7 @@ public sealed class ShaderCompilation
         ImmutableArray<string> allIncludePaths,
         ImmutableArray<string> unresolvedIncludes,
         SourceText codeText,
-        ImmutableArray<HlslSyntaxToken> codeTokens,
+        ImmutableArray<ShaderSyntaxToken> codeTokens,
         ImmutableArray<AnalyzedProgram> symbolVariants,
         ImmutableArray<string> unexploredSymbols,
         ImmutableArray<SymbolCombination> unexploredSymbolCombinations)
@@ -133,7 +134,7 @@ public sealed class ShaderCompilation
     /// Unity のヘッダの中身を指摘しても直しようがない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> CodeTokens { get; }
+    public ImmutableArray<ShaderSyntaxToken> CodeTokens { get; }
 
     /// <summary>
     /// 利用者が書いて取り込んだヘッダ (<see cref="IsUserFile"/>) のコードを字句解析したトークン列。
@@ -148,20 +149,20 @@ public sealed class ShaderCompilation
     /// 初めて引いたときに、取り込んだファイルを読み直して作る。引かないルールには費用が掛からない。
     /// </para>
     /// </remarks>
-    public ImmutableArray<HlslSyntaxToken> UserIncludeCodeTokens => _userIncludeCodeTokens ??= LexUserIncludes();
+    public ImmutableArray<ShaderSyntaxToken> UserIncludeCodeTokens => _userIncludeCodeTokens ??= LexUserIncludes();
 
-    private ImmutableArray<HlslSyntaxToken>? _userIncludeCodeTokens;
+    private ImmutableArray<ShaderSyntaxToken>? _userIncludeCodeTokens;
 
     /// <summary>利用者が書いて取り込んだヘッダを読み直し、字句解析する。</summary>
     /// <returns>ヘッダごとのトークンを、パスの順に並べたもの。</returns>
-    private ImmutableArray<HlslSyntaxToken> LexUserIncludes()
+    private ImmutableArray<ShaderSyntaxToken> LexUserIncludes()
     {
         if (IsUserInclude is null)
         {
             return [];
         }
 
-        ImmutableArray<HlslSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<HlslSyntaxToken>();
+        ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         foreach (string path in AllIncludePaths.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
@@ -174,7 +175,7 @@ public sealed class ShaderCompilation
             {
                 if (File.Exists(path))
                 {
-                    tokens.AddRange(new HlslLexer(SourceText.Load(path)).Lex(out _));
+                    tokens.AddRange(new ShaderLexer(SourceText.Load(path)).Lex(out _));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -194,7 +195,11 @@ public sealed class ShaderCompilation
 
     /// <summary>このモデルを作った環境。</summary>
     /// <remarks>ルールとエディタ機能が、環境ごとの決まり (シンボルらしい名前など) を尋ねるのに使う。</remarks>
-    public Environments.IHlslEnvironment Environment { get; }
+    public Environments.IShaderEnvironment Environment { get; }
+
+    /// <summary>解析した言語の型システム (型と組み込み関数。環境の <see cref="Environments.IShaderEnvironment.TypeSystem"/>)。</summary>
+    /// <remarks>ルールとエディタ機能は、型の名前・変換・組み込み関数をここから尋ねる。</remarks>
+    public Symbols.ShaderTypeSystem TypeSystem => Environment.TypeSystem;
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
@@ -302,6 +307,65 @@ public sealed class ShaderCompilation
     /// <summary>HLSL として解析できたコードブロックが 1 つでもあるかどうか。</summary>
     public bool HasHlslPrograms => !Programs.IsEmpty;
 
+    /// <summary>
+    /// 解析するプラットフォームではコンパイルされないので、読まなかった単位 (<see cref="Environments.ShaderCompilationUnit.NotCompiledReason"/>)。
+    /// </summary>
+    public ImmutableArray<Environments.ShaderCompilationUnit> NotCompiledUnits { get; init; } = [];
+
+    /// <summary>
+    /// 展開が <c>#error</c> に到達した構成。その構成はコンパイルできないので、宣言の有無を見る検査は考えない (<see cref="IsPossibleIn"/>)。
+    /// </summary>
+    public ImmutableArray<ErrorConfiguration> ErrorConfigurations { get; init; } = [];
+
+    /// <summary>
+    /// <c>#error</c> に到達した構成を表す条件を返す。
+    /// </summary>
+    /// <param name="configuration">対象の構成。</param>
+    /// <returns>
+    /// 既定の構成なら、その木が表す構成 (<see cref="GetTreeConfiguration"/>)。
+    /// 構成ごとの木なら、有効にしたシンボルと、同じコードブロックのほかのシンボルを無効にした条件。
+    /// </returns>
+    public SymbolCondition GetErrorConfigurationCondition(ErrorConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        SymbolCondition branch = configuration.BranchCondition ?? SymbolCondition.Always;
+
+        if (configuration.IsBaseline)
+        {
+            return Programs.FirstOrDefault(p => p.BlockKey == configuration.BlockKey) is { } baseline
+                ? GetTreeConfiguration(baseline).And(branch)
+                : SymbolCondition.Unknown;
+        }
+
+        SymbolCondition condition = branch;
+
+        foreach (string symbol in configuration.EnabledSymbols)
+        {
+            condition = condition.And(SymbolCondition.Symbol(symbol));
+        }
+
+        foreach (string symbol in OtherSymbols(configuration.BlockKey, configuration.EnabledSymbols))
+        {
+            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: false));
+        }
+
+        return condition;
+    }
+
+    /// <summary>コードブロックで、構成ごとの木にしたシンボルと、調べきれなかったシンボルのうち、有効にしたもの以外。</summary>
+    private IEnumerable<string> OtherSymbols((int Start, string? Kernel) block, ImmutableArray<string> enabled)
+        => SymbolVariants
+            .Where(v => v.BlockKey == block && !v.EnabledSymbols.IsDefault)
+            .SelectMany(v => v.EnabledSymbols)
+            .Concat(ErrorConfigurations.Where(e => e.BlockKey == block && !e.IsBaseline && e.BranchCondition is null).SelectMany(e => e.EnabledSymbols))
+            .Concat(UnexploredSymbols)
+            .Where(s => !enabled.Contains(s))
+            .Distinct(StringComparer.Ordinal);
+
+    /// <summary>コードブロックごとの、<c>#error</c> に到達しない構成の条件 (<see cref="IsPossibleIn"/>)。</summary>
+    private Dictionary<(int Start, string? Kernel), SymbolCondition>? _compilableConditions;
+
     /// <summary>埋め込みコードの解析で出た診断。</summary>
     /// <remarks>
     /// include 先のヘッダで出たものも、Pass ごとに重複したものも、すべてそのまま含む。
@@ -367,7 +431,21 @@ public sealed class ShaderCompilation
     /// </para>
     /// </remarks>
     public bool HasCompleteDependencies =>
-        UnresolvedIncludes.IsEmpty && Programs.All(p => p.Diagnostics.IsEmpty);
+        UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+
+    /// <summary>プリプロセスか構文解析の診断のうち、解析の結果を信用できなくするもの (既定の重要度がエラーのもの) か。</summary>
+    /// <param name="diagnostic">診断。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 警告 (<c>#ifdef A || B</c> の HL0004、マクロの定義し直しの HL0008) は、コンパイルも解析も止めない。
+    /// これらでブロックの検査を止めると、正しく読めたコードの誤りまで見送ることになる。
+    /// 利用者が重要度を変えても、解析が壊れているかどうかは変わらないので、既定の重要度で決める。
+    /// </remarks>
+    public static bool BreaksAnalysis(Diagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        return diagnostic.Descriptor.DefaultSeverity == DiagnosticSeverity.Error;
+    }
 
     /// <summary>
     /// 指定した名前の関数の多重定義が、見えていないかもしれないかを判定する。
@@ -378,12 +456,12 @@ public sealed class ShaderCompilation
     /// </returns>
     /// <remarks>
     /// <see cref="HasCompleteDependencies"/> より緩い。解決できない取り込みが宣言する関数が分かっていれば
-    /// (<see cref="Environments.IHlslEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
+    /// (<see cref="Environments.IShaderEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
     /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (HL0340 / HL0341) はこれを見る。
     /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
     /// </remarks>
     public bool MayLackOverloadsOf(string name)
-        => !Programs.All(p => p.Diagnostics.IsEmpty)
+        => Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis))
            || UnresolvedIncludes.Any(path => Environment.GetFunctionsDeclaredIn(path) is not { } functions || functions.Contains(name));
 
     /// <summary>
@@ -526,6 +604,9 @@ public sealed class ShaderCompilation
     /// <remarks><see cref="SemanticsOptions.IsUserInclude"/> を受け取る。</remarks>
     internal Func<string, bool>? IsUserInclude { get; init; }
 
+    /// <summary>構成を 1 つに固定した解析か (<see cref="SemanticsOptions.FixedSymbolConfiguration"/>)。</summary>
+    internal bool IsFixedSymbolConfiguration { get; init; }
+
     /// <summary>解決できなかった include の理由を述べる文を作る (<see cref="SemanticsOptions.DescribeUnresolvedInclude"/>)。</summary>
     internal Func<IncludeReference, string?>? DescribeUnresolvedInclude { get; init; }
 
@@ -544,7 +625,7 @@ public sealed class ShaderCompilation
     /// Unity や外部パッケージのヘッダは当たらない。どれがそうかは <see cref="SemanticsOptions.IsUserInclude"/> が決める。
     /// </para>
     /// <para>
-    /// 指摘を出すかどうかの判定には、これを使う <see cref="IsReportable(HlslSyntaxNode)"/> を使うこと。
+    /// 指摘を出すかどうかの判定には、これを使う <see cref="IsReportable(ShaderSyntaxNode)"/> を使うこと。
     /// </para>
     /// </remarks>
     public bool IsUserFile(string filePath)
@@ -573,11 +654,11 @@ public sealed class ShaderCompilation
     /// カーソルの下にある語とは一致しない。
     /// </para>
     /// <para>
-    /// <b>指摘を出すかどうかには <see cref="IsReportable(HlslSyntaxToken)"/> を使うこと。</b>
+    /// <b>指摘を出すかどうかには <see cref="IsReportable(ShaderSyntaxToken)"/> を使うこと。</b>
     /// こちらは利用者が書いて取り込んだヘッダを含まない。
     /// </para>
     /// </remarks>
-    public bool IsWrittenHere(HlslSyntaxToken token)
+    public bool IsWrittenHere(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
         return IsWrittenIn(token, path => string.Equals(path, Text.FilePath, StringComparison.Ordinal));
@@ -590,7 +671,7 @@ public sealed class ShaderCompilation
     /// <returns>このファイルの中であれば <see langword="true"/>。</returns>
     /// <remarks>
     /// 構成の空間の宣言 (<see cref="VariantDeclaration.Location"/>) のように、位置だけを持つものに使う。
-    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(HlslSyntaxToken)"/>) と同じ答えになる。
+    /// 指令の行はマクロ展開を受けないので、トークンの判定 (<see cref="IsWrittenHere(ShaderSyntaxToken)"/>) と同じ答えになる。
     /// </remarks>
     public bool IsWrittenHere(Location location)
     {
@@ -605,11 +686,11 @@ public sealed class ShaderCompilation
     /// <returns>このファイルに書かれたものであれば <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
-    /// 判定のしかたは <see cref="IsReportable(HlslSyntaxNode)"/> と同じで、ファイルをこのファイルに限る点だけが違う。
-    /// エディタの操作が使う。<b>指摘を出すかどうかには <see cref="IsReportable(HlslSyntaxNode)"/> を使うこと。</b>
+    /// 判定のしかたは <see cref="IsReportable(ShaderSyntaxNode)"/> と同じで、ファイルをこのファイルに限る点だけが違う。
+    /// エディタの操作が使う。<b>指摘を出すかどうかには <see cref="IsReportable(ShaderSyntaxNode)"/> を使うこと。</b>
     /// </para>
     /// </remarks>
-    public bool IsWrittenHere(HlslSyntaxNode node)
+    public bool IsWrittenHere(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         return IsWrittenIn(node, path => string.Equals(path, Text.FilePath, StringComparison.Ordinal));
@@ -621,9 +702,9 @@ public sealed class ShaderCompilation
     /// <param name="node">判定するノード。</param>
     /// <returns>利用者のマクロが作ったものであれば <see langword="true"/>。</returns>
     /// <remarks>
-    /// Unity や外部パッケージのヘッダのマクロには印が付かない (<see cref="HlslSyntaxToken.MacroDefinitionSpan"/>)。
+    /// Unity や外部パッケージのヘッダのマクロには印が付かない (<see cref="ShaderSyntaxToken.MacroDefinitionSpan"/>)。
     /// </remarks>
-    public bool IsFromOwnMacro(HlslSyntaxNode node)
+    public bool IsFromOwnMacro(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -651,11 +732,11 @@ public sealed class ShaderCompilation
     /// </para>
     /// <para>
     /// マクロから来たコードの位置は、本体の位置になる
-    /// (<see cref="HlslSyntaxNode.GetLocation"/>)。
+    /// (<see cref="ShaderSyntaxNode.GetLocation"/>)。
     /// そこが直す場所であり、同じマクロを何度使っても報告は 1 か所にまとまる。
     /// </para>
     /// </remarks>
-    public bool IsReportable(HlslSyntaxNode node)
+    public bool IsReportable(ShaderSyntaxNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         return IsWrittenIn(node, IsUserFile) || IsFromOwnMacro(node);
@@ -668,9 +749,9 @@ public sealed class ShaderCompilation
     /// <returns>報告してよければ <see langword="true"/>。</returns>
     /// <remarks>
     /// ノードの一部 (メンバー名のトークンなど) だけを報告するルールが使う。
-    /// 判定の範囲は <see cref="IsReportable(HlslSyntaxNode)"/> と同じである。
+    /// 判定の範囲は <see cref="IsReportable(ShaderSyntaxNode)"/> と同じである。
     /// </remarks>
-    public bool IsReportable(HlslSyntaxToken token)
+    public bool IsReportable(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
         return IsWrittenIn(token, IsUserFile) || token.MacroDefinitionSpan is not null;
@@ -680,9 +761,9 @@ public sealed class ShaderCompilation
     /// <param name="token">判定するトークン。</param>
     /// <param name="isTargetFile">対象のファイルかをパスから判定する。</param>
     /// <returns>書かれたものであれば <see langword="true"/>。</returns>
-    private static bool IsWrittenIn(HlslSyntaxToken token, Func<string, bool> isTargetFile)
+    private static bool IsWrittenIn(ShaderSyntaxToken token, Func<string, bool> isTargetFile)
         // マクロの実引数として書かれたトークンは、利用者が呼び出し位置に書いたものである
-        // (HlslSyntaxToken.MacroArgumentSpan)。
+        // (ShaderSyntaxToken.MacroArgumentSpan)。
         => (!token.IsFromMacroExpansion || token.MacroArgumentSpan is not null)
            && isTargetFile(token.Source.FilePath);
 
@@ -704,7 +785,7 @@ public sealed class ShaderCompilation
     /// ヘッダの関数形式マクロが作ったコードは、実引数も含めてすべて展開の結果になるので、この判定では拾わない。
     /// </para>
     /// </remarks>
-    private static bool IsWrittenIn(HlslSyntaxNode node, Func<string, bool> isTargetFile)
+    private static bool IsWrittenIn(ShaderSyntaxNode node, Func<string, bool> isTargetFile)
     {
         if (node.FirstToken is not { } first)
         {
@@ -723,7 +804,7 @@ public sealed class ShaderCompilation
             return false;
         }
 
-        foreach (HlslSyntaxToken token in node.DescendantTokens())
+        foreach (ShaderSyntaxToken token in node.DescendantTokens())
         {
             if (!token.IsFromMacroExpansion)
             {
@@ -747,7 +828,7 @@ public sealed class ShaderCompilation
     /// <param name="program">呼び出しがある木。</param>
     /// <returns>宣言。1 つも無ければ空。</returns>
     /// <remarks>
-    /// <see cref="GetFunctionDeclarations(string)"/> と同じ宣言を、この木に同じ位置の宣言があればそれに置き換えて返す。
+    /// <see cref="GetFunctionDeclarations(string)"/> と同じ宣言を、この木に同じ位置の宣言があればそれ (条件の違う複製があればそのすべて) に置き換えて返す。
     /// ヘッダの関数でも、仮引数の型がキーワードで書き分けたマクロ (<c>inout CTYPE color</c>) なら、木ごとに型が違う。
     /// 呼び出しと同じ木の宣言で比べないと、別の構成の仮引数の型で判定することになる。
     /// </remarks>
@@ -764,15 +845,26 @@ public sealed class ShaderCompilation
 
         _ownFunctions ??= [];
 
-        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), FunctionDeclarationSyntax>? own))
+        if (!_ownFunctions.TryGetValue(program, out Dictionary<(SourceText Source, int Start, string Shape), List<FunctionDeclarationSyntax>>? own))
         {
             own = [];
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            // 同じ位置の宣言が 1 つの木に複数あることがある。マクロの定義を条件ごとに複製した宣言
+            // (#if で RADIX を 2 と 8 に書き分けた Complex Local[2][RADIX]) は、どれも元の位置が同じで、条件が違う。
+            // 1 つに寄せると、その構成の複製が消え、別の条件の複製とだけ比べていた (Unreal の GPUFastFourierTransform.usf)。
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 if (declaration is FunctionDeclarationSyntax function && function.FirstToken is { } first)
                 {
-                    own.TryAdd(FunctionKey(function, first), function);
+                    (SourceText Source, int Start, string Shape) key = FunctionKey(function, first);
+
+                    if (!own.TryGetValue(key, out List<FunctionDeclarationSyntax>? copies))
+                    {
+                        copies = [];
+                        own[key] = copies;
+                    }
+
+                    copies.Add(function);
                 }
             }
 
@@ -787,10 +879,10 @@ public sealed class ShaderCompilation
                                      && _functionBlocks is { } blocks
                                      && blocks.TryGetValue(FunctionKey(function, first), out HashSet<(int Start, string? Kernel)>? inBlocks)
                                      && inBlocks.Contains(program.BlockKey))
-                  .Select(function => function.FirstToken is { } first
-                                      && own.TryGetValue(FunctionKey(function, first), out FunctionDeclarationSyntax? mine)
+                  .SelectMany(function => function.FirstToken is { } first
+                                          && own.TryGetValue(FunctionKey(function, first), out List<FunctionDeclarationSyntax>? mine)
                 ? mine
-                : function),
+                : [function]),
         ];
     }
 
@@ -908,7 +1000,7 @@ public sealed class ShaderCompilation
 
             foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
             {
-                foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+                foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
                 {
                     if (declaration is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax template })
                     {
@@ -1065,7 +1157,7 @@ public sealed class ShaderCompilation
                 headerByBlock[program.BlockKey] = blockNames;
             }
 
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 bool fromHeader = declaration.FirstToken is { } first
                                   && !string.Equals(first.Source.FilePath, Text.FilePath, StringComparison.Ordinal);
@@ -1122,7 +1214,7 @@ public sealed class ShaderCompilation
     /// <c>DoubleFloatOperations.ush</c> を取り込み、同じ位置から別の名前の関数を作る。
     /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(HL0310) と報告していた。
     /// </remarks>
-    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(HlslDeclarationSyntax declaration)
+    private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(DeclarationSyntax declaration)
         => (declaration.FirstToken!.Source,
             declaration.FirstToken.Span.Start,
             declaration switch
@@ -1155,7 +1247,7 @@ public sealed class ShaderCompilation
     /// <param name="declaration">対象の宣言。</param>
     /// <param name="names">名前を足す先。</param>
     /// <param name="outside">関数の中の変数と仮引数を除いた名前を足す先。</param>
-    private static void Absorb(HlslDeclarationSyntax declaration, HashSet<string> names, HashSet<string> outside)
+    private static void Absorb(DeclarationSyntax declaration, HashSet<string> names, HashSet<string> outside)
     {
         foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
         {
@@ -1320,20 +1412,373 @@ public sealed class ShaderCompilation
     /// ノードの出現条件は <see cref="GetEffectiveCondition"/> で求める。
     /// </para>
     /// </remarks>
-    public IEnumerable<(HlslDeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
+    public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations()
+        => EnumerateRuleDeclarations(includeRepeated: false);
+
+    /// <summary>
+    /// 規則が検査する、この解析が書いた宣言を列挙する。前のコードブロックの繰り返しも返すかを選べる。
+    /// </summary>
+    /// <param name="includeRepeated">
+    /// 前のコードブロックと同じ文脈で同じに展開した宣言 (<see cref="IsRepeatedDeclaration"/>) も返すか。
+    /// エントリポイントから届くかで結果の変わる検査 (コンパイル先の検査) は <see langword="true"/> にする。
+    /// </param>
+    /// <returns>宣言と、それを含むコードブロック。</returns>
+    /// <remarks><see cref="EnumerateRuleDeclarations()"/> を見ること。</remarks>
+    public IEnumerable<(DeclarationSyntax Declaration, AnalyzedProgram Program)> EnumerateRuleDeclarations(bool includeRepeated)
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
+        FrozenSet<DeclarationSyntax> repeated = includeRepeated ? FrozenSet<DeclarationSyntax>.Empty : RepeatedDeclarations;
 
         foreach (AnalyzedProgram program in Programs.Concat(SymbolVariants))
         {
-            foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
             {
                 // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
-                if (IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
+                if (!repeated.Contains(declaration) && IsReportable(declaration) && !IsCoveredByVariant(declaration, program, covered))
                 {
                     yield return (declaration, program);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 宣言が、前のコードブロックで同じ文脈のもとに同じトークンの並びへ展開した宣言の繰り返しかを判定する。
+    /// </summary>
+    /// <param name="declaration">最上位の宣言。</param>
+    /// <returns>繰り返しなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>単位が多いと、同じヘッダを単位の数だけ検査していた。</b>
+    /// Unreal のシェーダーは、1 つの <c>.usf</c> をエントリポイントとステージごとの単位で解析する。
+    /// エンジンのヘッダも利用者のコードなので、規則は単位ごとにヘッダのすべての宣言を歩く。
+    /// </para>
+    /// <para>
+    /// <b>繰り返しとみなすのは、検査の結果が変わりえないときだけである。</b>
+    /// </para>
+    /// <list type="number">
+    ///   <item><description>
+    ///   コードブロックの文脈が同じ。ターゲット、コンパイラと HLSL のバージョン、コンパイル先、有効なシンボル、
+    ///   解析した構成、構成の軸が同じである (<see cref="ContextKey"/>)。
+    ///   </description></item>
+    ///   <item><description>前のコードブロックに、同じ位置から同じトークンの並びに展開した宣言がある。</description></item>
+    ///   <item><description>
+    ///   参照する名前の宣言が変わっていない。2 つのコードブロックで中身の違う宣言が宣言する名前を起点に、
+    ///   その名前を使う宣言とそれが宣言する名前をたどり、どれも使わない宣言だけを繰り返しとする
+    ///   (ヘッダが呼ぶ関数の定義がコードブロックで違えば、ヘッダの呼び出しは繰り返しではない)。
+    ///   </description></item>
+    /// </list>
+    /// <para>
+    /// コードブロックのエントリポイントは文脈に入れない。同じステージの単位でもエントリポイントは違い、入れると繰り返しが無くなる。
+    /// エントリポイントで結果の変わる検査 (エントリ関数の引数の検査) は繰り返しも歩く (<see cref="EnumerateRuleDeclarations(bool)"/>)。
+    /// </para>
+    /// <para>
+    /// <b>構成ごとの木 (バリアント) の宣言も、同じコードブロックの既定の木と比べて繰り返しを求める。</b>
+    /// 構成ごとの木は、ヘッダの大半が既定の木と同じ宣言になる (UE 5.5 のエンジンで、構成ごとの木の関数の 99% が既定の木と同じ位置・同じトークンだった)。
+    /// 同じ位置・同じトークンで、参照する名前の宣言とマクロも変わらない宣言は、どの構成でも検査の結果が同じなので、既定の木でだけ歩く。
+    /// 2 と 3 の条件は単位どうしと同じである。省くと、UE 5.5 のエンジン全体 (パーミュテーションあり) でルールの時間が 4 割減り、報告は変わらなかった。
+    /// </para>
+    /// </remarks>
+    public bool IsRepeatedDeclaration(DeclarationSyntax declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+        return RepeatedDeclarations.Contains(declaration);
+    }
+
+    /// <summary>前のコードブロックの繰り返しの宣言 (<see cref="IsRepeatedDeclaration"/>)。</summary>
+    private FrozenSet<DeclarationSyntax> RepeatedDeclarations
+        => _repeatedDeclarations ??= FindRepeatedDeclarations();
+
+    private FrozenSet<DeclarationSyntax>? _repeatedDeclarations;
+
+    /// <summary>繰り返しの宣言を求める (<see cref="IsRepeatedDeclaration"/>)。</summary>
+    /// <returns>繰り返しの宣言。</returns>
+    private FrozenSet<DeclarationSyntax> FindRepeatedDeclarations()
+    {
+        if (Programs.Length < 2 && SymbolVariants.IsEmpty)
+        {
+            return FrozenSet<DeclarationSyntax>.Empty;
+        }
+
+        HashSet<DeclarationSyntax> repeated = [];
+        Dictionary<string, AnalyzedProgram> firstByContext = new(StringComparer.Ordinal);
+        Dictionary<AnalyzedProgram, Dictionary<DeclarationKey, DeclarationSyntax>> keysByProgram = [];
+
+        foreach (AnalyzedProgram program in Programs)
+        {
+            string context = ContextKey(program);
+
+            if (!firstByContext.TryGetValue(context, out AnalyzedProgram? earlier))
+            {
+                firstByContext[context] = program;
+                continue;
+            }
+
+            AddRepeated(earlier, program, keysByProgram, repeated);
+        }
+
+        // 構成ごとの木は、同じコードブロックの既定の木と比べる。
+        foreach (AnalyzedProgram variant in SymbolVariants)
+        {
+            if (Programs.FirstOrDefault(p => p.BlockKey == variant.BlockKey) is { } baseline)
+            {
+                AddRepeated(baseline, variant, keysByProgram, repeated);
+            }
+        }
+
+        return repeated.ToFrozenSet();
+    }
+
+    /// <summary>
+    /// 後の木の宣言のうち、前の木と同じ位置・同じトークンで、参照する名前の宣言も変わらないものを、繰り返しとして足す。
+    /// </summary>
+    /// <param name="earlier">前の木。</param>
+    /// <param name="program">後の木。</param>
+    /// <param name="keysByProgram">求めた宣言の鍵を覚える先。</param>
+    /// <param name="repeated">繰り返しの宣言を足す先。</param>
+    private static void AddRepeated(
+        AnalyzedProgram earlier,
+        AnalyzedProgram program,
+        Dictionary<AnalyzedProgram, Dictionary<DeclarationKey, DeclarationSyntax>> keysByProgram,
+        HashSet<DeclarationSyntax> repeated)
+    {
+        Dictionary<DeclarationKey, DeclarationSyntax> earlierKeys = KeysOf(earlier, keysByProgram);
+        Dictionary<DeclarationKey, DeclarationSyntax> keys = KeysOf(program, keysByProgram);
+
+        // 片方にしか無い宣言が宣言する名前から、影響を受ける名前を広げる。
+        HashSet<string> changed = new(StringComparer.Ordinal);
+
+        foreach ((DeclarationKey key, DeclarationSyntax declaration) in keys)
+        {
+            if (!earlierKeys.ContainsKey(key))
+            {
+                changed.UnionWith(DeclaredNames(declaration));
+            }
+        }
+
+        foreach ((DeclarationKey key, DeclarationSyntax declaration) in earlierKeys)
+        {
+            if (!keys.ContainsKey(key))
+            {
+                changed.UnionWith(DeclaredNames(declaration));
+            }
+        }
+
+        // マクロの定義が違う名前も変わった名前である。展開した並びが同じでも、残った名前の扱いが変わる
+        // (括弧を付けずに書いた関数形式マクロの名前は、定義されていれば宣言されている)。
+        changed.UnionWith(ChangedMacros(earlier.Tree.PreprocessResult.Macros, program.Tree.PreprocessResult.Macros));
+
+        HashSet<DeclarationSyntax> affected = Affected(program.Tree.Root.Declarations, changed);
+
+        foreach ((DeclarationKey key, DeclarationSyntax declaration) in keys)
+        {
+            if (earlierKeys.ContainsKey(key) && !affected.Contains(declaration))
+            {
+                repeated.Add(declaration);
+            }
+        }
+    }
+
+    /// <summary>2 つのマクロの表で、定義が違うか片方にしか無い名前を求める。</summary>
+    /// <param name="left">一方の表。</param>
+    /// <param name="right">もう一方の表。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> ChangedMacros(ImmutableDictionary<string, MacroDefinition> left, ImmutableDictionary<string, MacroDefinition> right)
+    {
+        static string Shape(MacroDefinition definition)
+            => (definition.IsFunctionLike ? "(" + string.Join(",", definition.Parameters) + (definition.IsVariadic ? "..." : string.Empty) + ")" : string.Empty)
+               + string.Join(" ", definition.Body.Select(t => t.Text));
+
+        foreach ((string name, MacroDefinition definition) in left)
+        {
+            if (!right.TryGetValue(name, out MacroDefinition? other) || Shape(definition) != Shape(other))
+            {
+                yield return name;
+            }
+        }
+
+        foreach (string name in right.Keys.Where(name => !left.ContainsKey(name)))
+        {
+            yield return name;
+        }
+    }
+
+    /// <summary>コードブロックの文脈 (<see cref="IsRepeatedDeclaration"/> の 1)。同じなら、同じ宣言の検査の結果は同じである。</summary>
+    /// <param name="program">コードブロック。</param>
+    /// <returns>文脈を表す文字列。</returns>
+    private static string ContextKey(AnalyzedProgram program)
+    {
+        HlslLanguageOptions hlsl = program.Tree.Hlsl();
+
+        return string.Join(
+            "\u0001",
+            program.Unit.Target?.ToString() ?? string.Empty,
+            program.Unit.AllowsExternalDefinitions ? "external" : string.Empty,
+            string.Join(",", hlsl.Dialects.Select(d => d.ToString())),
+            string.Join(",", hlsl.CompileTargets.Select(t =>
+                $"{t.Platform}/{t.Dialect}/{t.IsUsable}/{string.Join("+", t.WhenAnySymbol)}/{string.Join("+", t.UnlessAnySymbol)}")),
+            program.EnabledSymbols.IsDefault ? string.Empty : string.Join(",", program.EnabledSymbols),
+            program.AnalyzedCondition.ToString(),
+            string.Join(",", program.Variants.Symbols.Order(StringComparer.Ordinal)));
+    }
+
+    /// <summary>宣言を見分ける鍵。位置と、展開したトークンの並び。</summary>
+    /// <param name="File">先頭のトークンのファイル。</param>
+    /// <param name="Start">先頭のトークンの位置。</param>
+    /// <param name="Count">トークンの数。</param>
+    /// <param name="Hash">トークンの文字の並びのハッシュ。</param>
+    private readonly record struct DeclarationKey(string File, int Start, int Count, ulong Hash);
+
+    /// <summary>コードブロックの最上位の宣言の鍵を求める。同じ鍵が 2 つある宣言は、どちらも入れない。</summary>
+    /// <param name="program">コードブロック。</param>
+    /// <param name="cache">求めた鍵を覚える先。</param>
+    /// <returns>鍵から宣言。</returns>
+    private static Dictionary<DeclarationKey, DeclarationSyntax> KeysOf(
+        AnalyzedProgram program,
+        Dictionary<AnalyzedProgram, Dictionary<DeclarationKey, DeclarationSyntax>> cache)
+    {
+        if (cache.TryGetValue(program, out Dictionary<DeclarationKey, DeclarationSyntax>? known))
+        {
+            return known;
+        }
+
+        Dictionary<DeclarationKey, DeclarationSyntax> keys = [];
+        HashSet<DeclarationKey> duplicated = [];
+
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
+        {
+            if (declaration.FirstToken is not { } first)
+            {
+                continue;
+            }
+
+            ulong hash = 14695981039346656037UL;
+            int count = 0;
+
+            foreach (ShaderSyntaxToken token in declaration.DescendantTokens())
+            {
+                hash = (hash ^ (ulong)(uint)StringComparer.Ordinal.GetHashCode(token.Text)) * 1099511628211UL;
+                count++;
+            }
+
+            // マクロが同じ位置に同じ宣言を 2 度作ると、鍵では見分けられない。どちらも繰り返しにしない。
+            DeclarationKey key = new(first.Source.FilePath ?? string.Empty, first.Span.Start, count, hash);
+
+            if (!keys.TryAdd(key, declaration))
+            {
+                duplicated.Add(key);
+            }
+        }
+
+        foreach (DeclarationKey key in duplicated)
+        {
+            keys.Remove(key);
+        }
+
+        cache[program] = keys;
+        return keys;
+    }
+
+    /// <summary>
+    /// 変わった名前を使う宣言を、たどれる限り集める。使う宣言が宣言する名前も、変わった名前に加える。
+    /// </summary>
+    /// <param name="declarations">コードブロックの最上位の宣言。</param>
+    /// <param name="changed">変わった名前。</param>
+    /// <returns>影響を受ける宣言。</returns>
+    private static HashSet<DeclarationSyntax> Affected(ImmutableArray<DeclarationSyntax> declarations, HashSet<string> changed)
+    {
+        HashSet<DeclarationSyntax> affected = [];
+
+        if (changed.Count == 0)
+        {
+            return affected;
+        }
+
+        // 名前から、それを使う宣言。
+        Dictionary<string, List<DeclarationSyntax>> users = new(StringComparer.Ordinal);
+
+        foreach (DeclarationSyntax declaration in declarations)
+        {
+            HashSet<string> names = new(StringComparer.Ordinal);
+
+            foreach (ShaderSyntaxToken token in declaration.DescendantTokens())
+            {
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && names.Add(token.Text))
+                {
+                    if (!users.TryGetValue(token.Text, out List<DeclarationSyntax>? list))
+                    {
+                        list = [];
+                        users[token.Text] = list;
+                    }
+
+                    list.Add(declaration);
+                }
+            }
+        }
+
+        Queue<string> pending = new(changed);
+        HashSet<string> seen = new(changed, StringComparer.Ordinal);
+
+        while (pending.TryDequeue(out string? name))
+        {
+            if (!users.TryGetValue(name, out List<DeclarationSyntax>? list))
+            {
+                continue;
+            }
+
+            foreach (DeclarationSyntax user in list)
+            {
+                if (!affected.Add(user))
+                {
+                    continue;
+                }
+
+                foreach (string declared in DeclaredNames(user))
+                {
+                    if (seen.Add(declared))
+                    {
+                        pending.Enqueue(declared);
+                    }
+                }
+            }
+        }
+
+        return affected;
+    }
+
+    /// <summary>
+    /// 最上位の宣言が外へ見せる名前を求める。分からない種類の宣言は、含む識別子をすべて返す (多めに見る)。
+    /// </summary>
+    /// <param name="declaration">最上位の宣言。</param>
+    /// <returns>名前。</returns>
+    private static IEnumerable<string> DeclaredNames(DeclarationSyntax declaration)
+    {
+        switch (declaration)
+        {
+            case FunctionDeclarationSyntax function:
+                return [function.Name];
+
+            case StructDeclarationSyntax structure:
+                return [structure.Name, .. structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().Select(v => v.Name)];
+
+            case VariableDeclarationSyntax variable:
+                return variable.Variables.Select(v => v.Name);
+
+            case ConstantBufferDeclarationSyntax buffer:
+                return
+                [
+                    .. buffer.NameToken is { } name ? [name.Text] : Array.Empty<string>(),
+                    .. buffer.Members.SelectMany(DeclaredNames),
+                ];
+
+            case EnumDeclarationSyntax enumeration:
+                return DeclaredNamesOf(enumeration);
+
+            default:
+                return declaration.DescendantTokens()
+                    .Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken)
+                    .Select(t => t.Text)
+                    .Distinct(StringComparer.Ordinal);
         }
     }
 
@@ -1360,7 +1805,7 @@ public sealed class ShaderCompilation
     /// 両方を有効にした構成は作っていないので、その組み合わせでは検査しない。
     /// </para>
     /// </remarks>
-    private bool IsCoveredByVariant(HlslSyntaxNode node, AnalyzedProgram program, Dictionary<(SymbolCondition, AnalyzedProgram), bool> cache)
+    private bool IsCoveredByVariant(ShaderSyntaxNode node, AnalyzedProgram program, Dictionary<(SymbolCondition, AnalyzedProgram), bool> cache)
     {
         if (SymbolVariants.IsEmpty)
         {
@@ -1417,21 +1862,28 @@ public sealed class ShaderCompilation
     /// <summary>
     /// ルールが検査するノードを、それが属する構成とともに列挙する。
     /// </summary>
-    /// <returns><see cref="EnumerateRuleDeclarations"/> の宣言と、その中のノード。</returns>
+    /// <returns><see cref="EnumerateRuleDeclarations()"/> の宣言と、その中のノード。</returns>
     /// <remarks>
     /// 宣言の中にあってこのファイル由来でないノード (ヘッダのマクロが作った部分) も含まれる。
     /// 報告の直前に位置を確かめるルールは、その判定を省いてはならない。
     /// </remarks>
-    public IEnumerable<(HlslSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes()
+    public IEnumerable<(ShaderSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes()
+        => EnumerateRuleNodes(includeRepeated: false);
+
+    /// <summary>規則が検査するノードを列挙する。前のコードブロックの繰り返しも返すかを選べる。</summary>
+    /// <param name="includeRepeated">繰り返しの宣言 (<see cref="IsRepeatedDeclaration"/>) の中も返すか。</param>
+    /// <returns>ノードと、それを含むコードブロック。</returns>
+    /// <remarks><see cref="EnumerateRuleNodes()"/> を見ること。</remarks>
+    public IEnumerable<(ShaderSyntaxNode Node, AnalyzedProgram Program)> EnumerateRuleNodes(bool includeRepeated)
     {
         Dictionary<(SymbolCondition, AnalyzedProgram), bool> covered = [];
 
-        foreach ((HlslDeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations())
+        foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in EnumerateRuleDeclarations(includeRepeated))
         {
             foreach (SyntaxNode node in declaration.DescendantNodesAndSelf())
             {
                 // バリアントの構成でしか存在しない分岐は、そのバリアントの木で渡る (EnumerateRuleDeclarations)。
-                if (node is HlslSyntaxNode hlsl && !IsCoveredByVariant(hlsl, program, covered))
+                if (node is ShaderSyntaxNode hlsl && !IsCoveredByVariant(hlsl, program, covered))
                 {
                     yield return (hlsl, program);
                 }
@@ -1450,7 +1902,7 @@ public sealed class ShaderCompilation
     /// そのシンボルを有効にした構成の中での話である。
     /// 出現条件に、その木を解析した構成 (<see cref="AnalyzedProgram.AnalyzedCondition"/>) を掛け合わせる。
     /// </remarks>
-    public SymbolCondition GetEffectiveCondition(HlslSyntaxNode node, AnalyzedProgram program)
+    public SymbolCondition GetEffectiveCondition(ShaderSyntaxNode node, AnalyzedProgram program)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(program);
@@ -1478,6 +1930,20 @@ public sealed class ShaderCompilation
     /// <para>
     /// 両方の分岐を 1 本の木に並べたシンボルは掛けない。並べた木はその両方の構成を表している。
     /// </para>
+    /// <para>
+    /// <b>値を持つシンボルの値は、単位ごとに違うことがある。</b>
+    /// その木の単位に無い値の原子 (ほかの単位にだけある値) は、成り立たないとして掛ける。
+    /// 掛けないと、値が 0 から 3 の単位の木を、ほかの単位にだけある 4 の構成についても見ていることになり、
+    /// その単位では読まない <c>#else</c> (4 のときの宣言) が無いと報告していた
+    /// (Unreal の <c>SSRTReflections.usf</c> で HL0310。ステンシルの単位の <c>SSR_QUALITY</c> は 0 から 3)。
+    /// </para>
+    /// <para>
+    /// <b>その単位で値を持たない名前は、その木のマクロの値で決まっている。</b>
+    /// ほかの単位がパーミュテーションにしている名前を、ヘッダが <c>#ifndef</c> で既定の値に定義していれば、その値の原子だけが成り立つ。
+    /// 定義されていなければ、条件式と同じく 0 と読む。整数でない定義なら決めない。
+    /// 決めないと、その木の宣言をほかの値の構成でも見ていることになり、ほかの値の分岐の宣言が無いと報告していた
+    /// (Unreal の <c>DistanceFieldLightingShared.ush</c> の <c>OFFSET_DATA_STRUCT</c> で HL0310)。
+    /// </para>
     /// </remarks>
     public SymbolCondition GetTreeConfiguration(AnalyzedProgram program)
     {
@@ -1497,17 +1963,144 @@ public sealed class ShaderCompilation
             .Where(v => v.BlockKey == program.BlockKey && !v.EnabledSymbols.IsDefault)
             .SelectMany(v => v.EnabledSymbols)
             .Concat(UnexploredSymbols)
+            .Concat(ErrorConfigurations.Where(e => e.BlockKey == program.BlockKey && !e.IsBaseline && e.BranchCondition is null).SelectMany(e => e.EnabledSymbols))
             .Where(s => !enabled.Contains(s))
             .Distinct(StringComparer.Ordinal);
 
         foreach (string symbol in others)
         {
-            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: false));
+            // 構成を固定した解析の木は、固定したシンボルを定義した構成である。それを無効とすると、
+            // 必ずどれかが有効な組 (multi_compile MODE_A MODE_B) と矛盾し、その木の報告がすべて消えていた。
+            bool defined = IsFixedSymbolConfiguration && program.Tree.PreprocessResult.Macros.ContainsKey(symbol);
+            condition = condition.And(SymbolCondition.Symbol(symbol, isDefined: defined));
+        }
+
+        ImmutableDictionary<string, ImmutableArray<int>> own = program.Variants.ValueSymbols;
+
+        foreach (string atom in AllValueAtoms)
+        {
+            if (!VariantValues.TryParseAtom(atom, out string? name, out int value))
+            {
+                continue;
+            }
+
+            if (own.TryGetValue(name, out ImmutableArray<int> values))
+            {
+                if (!values.Contains(value))
+                {
+                    condition = condition.And(SymbolCondition.Symbol(atom, isDefined: false));
+                }
+            }
+            else if (MacroValue(program, name) is { } fixedValue)
+            {
+                condition = condition.And(SymbolCondition.Symbol(atom, isDefined: fixedValue == value));
+            }
         }
 
         _treeConfigurations[program] = condition;
         return condition;
     }
+
+    /// <summary>その木の構成として、条件の成り立つ構成がありうるかを判定する。</summary>
+    /// <param name="program">木。</param>
+    /// <param name="condition">条件。</param>
+    /// <returns>ありうるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 索引の制約 (<see cref="Conditional.ConditionMap.IsPossible"/>) に加えて、その木の単位の制約でも確かめる。
+    /// </para>
+    /// <para>
+    /// <b>索引の制約は、どの単位でも成り立つものだけである。</b>
+    /// 単位ごとに違う制約 (Unreal のクラスで、同時にはコンパイルされないパーミュテーションの値の組) は入っていない。
+    /// それを使わないと、その単位では実在しない組み合わせで宣言が無いと報告していた
+    /// (Unreal の SingleLayerWaterComposite.usf の GENERATE_FROXELS と USE_WATER_PRE_PASS_STENCIL)。
+    /// </para>
+    /// </remarks>
+    public bool IsPossibleIn(AnalyzedProgram program, SymbolCondition condition)
+    {
+        ArgumentNullException.ThrowIfNull(program);
+
+        // #error に到達する構成はコンパイルされない。その構成についての結論は出さない。
+        if (!ErrorConfigurations.IsEmpty && CompilableCondition(program.BlockKey) is { IsAlways: false } compilable)
+        {
+            condition = condition.And(compilable);
+        }
+
+        return GetConditionMap().IsPossible(condition) && program.Variants.Constraints.IsPossible(condition);
+    }
+
+    /// <summary>コードブロックの、<c>#error</c> に到達しない構成の条件。</summary>
+    private SymbolCondition CompilableCondition((int Start, string? Kernel) block)
+    {
+        _compilableConditions ??= [];
+
+        lock (_compilableConditions)
+        {
+            if (_compilableConditions.TryGetValue(block, out SymbolCondition cached))
+            {
+                return cached;
+            }
+        }
+
+        SymbolCondition compilable = SymbolCondition.Always;
+
+        // 既定の木そのものが #error に到達したもの (どの分岐でもなく、木の構成全体) は除かない。
+        // 解析のマクロの状態が実際と違うためのことが多く (HL0009)、除くとその木のどの検査も止まる。
+        // 本当に値を返さない関数を報告しなくなっていた (別の関数の #else / #error に到達する木の HL0360)。
+        foreach (ErrorConfiguration configuration in ErrorConfigurations.Where(e => e.BlockKey == block
+                                                                                 && !(e.IsBaseline && e.BranchCondition is null)))
+        {
+            if (GetErrorConfigurationCondition(configuration) is { IsUnknown: false } excluded)
+            {
+                compilable = compilable.And(excluded.Negate());
+            }
+        }
+
+        lock (_compilableConditions)
+        {
+            _compilableConditions[block] = compilable;
+        }
+
+        return compilable;
+    }
+
+    /// <summary>その木を展開し終えたときのマクロの、整数としての値。</summary>
+    /// <param name="program">木。</param>
+    /// <param name="name">マクロの名前。</param>
+    /// <returns>値。定義されていなければ 0。整数のリテラル (括弧で囲んだものも) でなければ <see langword="null"/>。</returns>
+    private static int? MacroValue(AnalyzedProgram program, string name)
+    {
+        if (!program.Tree.PreprocessResult.Macros.TryGetValue(name, out MacroDefinition? macro))
+        {
+            return 0;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> body = macro.Body;
+
+        if (body is [{ Kind: ShaderSyntaxKind.OpenParenToken }, var inner, { Kind: ShaderSyntaxKind.CloseParenToken }])
+        {
+            body = [inner];
+        }
+
+        return !macro.IsFunctionLike
+               && body is [{ Kind: ShaderSyntaxKind.NumericLiteralToken } literal]
+               && int.TryParse(literal.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int value)
+            ? value
+            : null;
+    }
+
+    /// <summary>どれかの木の構成の空間にある、値を持つシンボルの原子。</summary>
+    private ImmutableArray<string> AllValueAtoms
+        => _allValueAtoms ??=
+        [
+            .. Programs.Concat(SymbolVariants)
+                .SelectMany(p => p.Variants.Symbols)
+                .Where(symbol => VariantValues.TryParseAtom(symbol, out _, out _))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal),
+        ];
+
+    private ImmutableArray<string>? _allValueAtoms;
 
     /// <summary><see cref="GetTreeConfiguration"/> の結果。</summary>
     private Dictionary<AnalyzedProgram, SymbolCondition>? _treeConfigurations;
@@ -1541,7 +2134,7 @@ public sealed class ShaderCompilation
     /// </para>
     /// </remarks>
     public bool TryEnumerateConfigurations(
-        IEnumerable<HlslSyntaxNode> nodes,
+        IEnumerable<ShaderSyntaxNode> nodes,
         AnalyzedProgram program,
         out ImmutableArray<Conditional.NodeConfiguration> configurations)
     {
@@ -1550,10 +2143,10 @@ public sealed class ShaderCompilation
 
         configurations = [];
 
-        List<(HlslSyntaxNode Node, SymbolCondition Condition)> conditioned = [];
+        List<(ShaderSyntaxNode Node, SymbolCondition Condition)> conditioned = [];
         SortedSet<string> symbols = new(StringComparer.Ordinal);
 
-        foreach (HlslSyntaxNode node in nodes)
+        foreach (ShaderSyntaxNode node in nodes)
         {
             SymbolCondition condition = GetEffectiveCondition(node, program);
 
@@ -1600,9 +2193,9 @@ public sealed class ShaderCompilation
                 continue;
             }
 
-            HashSet<HlslSyntaxNode> present = [];
+            HashSet<ShaderSyntaxNode> present = [];
 
-            foreach ((HlslSyntaxNode node, SymbolCondition condition) in conditioned)
+            foreach ((ShaderSyntaxNode node, SymbolCondition condition) in conditioned)
             {
                 if (condition.IsSatisfiedBy(enabled.Contains))
                 {
@@ -1624,7 +2217,7 @@ public sealed class ShaderCompilation
     /// <returns>このファイルに書かれた宣言と、その中のノード。突き合わせで足したノードも含む。</returns>
     /// <remarks>
     /// <para>
-    /// <b>ルールが検査のために歩くなら <see cref="EnumerateRuleNodes"/> を使う。</b>
+    /// <b>ルールが検査のために歩くなら <see cref="EnumerateRuleNodes()"/> を使う。</b>
     /// こちらはバリアントにしか無いノードを既定の木の子として返すので、
     /// そのノードの属さない構成の文脈で渡すことになる。1 本の木として見せる用途に向く。
     /// </para>
@@ -1635,7 +2228,7 @@ public sealed class ShaderCompilation
     /// **ルールの実行時間が全体の 7 割**を占めていた。
     /// </para>
     /// <para>
-    /// <b>ノードごとに <see cref="IsWrittenHere(HlslSyntaxNode)"/> を呼ぶより速い。</b>
+    /// <b>ノードごとに <see cref="IsWrittenHere(ShaderSyntaxNode)"/> を呼ぶより速い。</b>
     /// あの判定は最初のトークンを取り出すために列挙子を作る。
     /// 数百万ノードで呼ぶと、判定そのものが費用になる。
     /// 宣言の単位で 1 度だけ判定すれば、中のノードは見るまでもない。
@@ -1658,7 +2251,7 @@ public sealed class ShaderCompilation
             yield return node;
         }
 
-        foreach (HlslDeclarationSyntax declaration in program.Tree.Root.Declarations)
+        foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
         {
             // このファイルが書いたマクロが作った宣言も歩く。本体は利用者が直せる。
             if (!IsReportable(declaration))
@@ -1672,7 +2265,7 @@ public sealed class ShaderCompilation
 
                 // バリアントの木にしか無いノードも、1 本の木に足したものとして歩く。
                 // 歩かないと、その中のコードだけ検査されない。
-                if (node is not HlslSyntaxNode hlsl)
+                if (node is not ShaderSyntaxNode hlsl)
                 {
                     continue;
                 }
@@ -1695,7 +2288,7 @@ public sealed class ShaderCompilation
     /// このファイルが書いたものだけを返す。
     /// 取り込んだヘッダの中身は、バリアントの側にしか無くても利用者に直しようがない。
     /// </remarks>
-    private IEnumerable<SyntaxNode> EnumerateInserted(ConditionMap conditions, HlslSyntaxNode node)
+    private IEnumerable<SyntaxNode> EnumerateInserted(ConditionMap conditions, ShaderSyntaxNode node)
     {
         foreach (ConditionalNode inserted in conditions.GetInsertedChildren(node))
         {
@@ -1838,9 +2431,9 @@ public sealed class ShaderCompilation
     /// </remarks>
     public static ShaderCompilation Create(
         SourceText text,
-        ImmutableArray<Environments.HlslCompilationUnit> units,
+        ImmutableArray<Environments.ShaderCompilationUnit> units,
         SourceText codeText,
-        Environments.IHlslEnvironment environment,
+        Environments.IShaderEnvironment environment,
         Environments.ShaderSourceInfo source,
         SemanticsOptions? options = null)
     {

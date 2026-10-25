@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Shaderlyn.Core.IO;
 using Shaderlyn.Configuration.Yaml;
+using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 
 namespace Shaderlyn.Configuration;
@@ -44,7 +45,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
 
     /// <summary><c>unreal:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths"];
+    private static readonly string[] KnownUnrealKeys = ["engine", "project", "generated", "virtual-paths", "permutations"];
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
@@ -221,6 +222,7 @@ internal static class ConfigurationLoader
                 UnrealProjectDirectory = ResolvePath(ReadOptionalScalar(unreal, "project")),
                 UnrealGeneratedDirectory = ResolvePath(ReadOptionalScalar(unreal, "generated")),
                 UnrealVirtualPaths = ReadVirtualPaths(unreal),
+                UnrealPermutations = ReadOptionalBoolean(unreal, "permutations", "unreal:"),
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
@@ -229,7 +231,10 @@ internal static class ConfigurationLoader
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),
                 IncludePaths = ReadIncludePaths(),
                 Defines = ReadStringSequence("defines"),
-                RuleSeverities = ReadRuleSeverities(out ImmutableDictionary<string, ImmutableDictionary<string, string>> options),
+                RuleSeverities = ReadRuleSeverities(
+                    out ImmutableDictionary<string, ImmutableDictionary<string, string>> options,
+                    out ImmutableArray<RuleSeverityPattern> severityPatterns),
+                RuleSeverityPatterns = severityPatterns,
                 RuleOptions = options,
                 ReportMinSeverities = ReadReportMinSeverities(),
                 ReportIncludeTrace = ReadReportIncludeTrace(),
@@ -416,6 +421,28 @@ internal static class ConfigurationLoader
             => hlsl is not null && hlsl.TryGetScalar("enable-16bit-types", out YamlScalar? value) && value.TryGetBoolean(out bool enabled)
                 ? enabled
                 : null;
+
+        /// <summary>節の中の真偽の値を読む。</summary>
+        /// <param name="section">節。無ければ <see langword="null"/>。</param>
+        /// <param name="key">キー。</param>
+        /// <param name="sectionName">報告に書く節の名前 (<c>unreal:</c>)。</param>
+        /// <returns>値。書いていないか、真偽でなければ <see langword="null"/>。</returns>
+        private bool? ReadOptionalBoolean(YamlMapping? section, string key, string sectionName)
+        {
+            if (section is null || !section.TryGetScalar(key, out YamlScalar? value) || value.Value.Length == 0)
+            {
+                return null;
+            }
+
+            if (!value.TryGetBoolean(out bool result))
+            {
+                problems.Add(new ConfigurationProblem(
+                    value.Line, $"{sectionName} の {key} には true か false を指定してください ('{value.Value}')。"));
+                return null;
+            }
+
+            return result;
+        }
 
         /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>) を読む。</summary>
         /// <param name="hlsl"><c>hlsl:</c> の節。無ければ <see langword="null"/>。</param>
@@ -924,11 +951,13 @@ internal static class ConfigurationLoader
         /// <c>rules</c> の内容を読む。
         /// </summary>
         /// <param name="options">読み取ったルール固有のオプション。</param>
+        /// <param name="patterns">ルール ID の正規表現と重要度 (書いた順)。</param>
         /// <returns>ルール ID から重要度への対応。</returns>
         /// <remarks>
-        /// 2 通りの書き方を受け付ける。
+        /// 2 通りの書き方を受け付ける。キーを <c>/</c> で囲むと、ルール ID の正規表現になる (重要度だけを書ける)。
         /// <code>
         /// rules:
+        ///   /SL.*/: error
         ///   SL1003: error
         ///   HL0351:
         ///     severity: warning
@@ -936,19 +965,27 @@ internal static class ConfigurationLoader
         /// </code>
         /// </remarks>
         private ImmutableDictionary<string, DiagnosticSeverity> ReadRuleSeverities(
-            out ImmutableDictionary<string, ImmutableDictionary<string, string>> options)
+            out ImmutableDictionary<string, ImmutableDictionary<string, string>> options,
+            out ImmutableArray<RuleSeverityPattern> patterns)
         {
             ImmutableDictionary<string, DiagnosticSeverity>.Builder severities =
                 ImmutableDictionary.CreateBuilder<string, DiagnosticSeverity>(StringComparer.OrdinalIgnoreCase);
             ImmutableDictionary<string, ImmutableDictionary<string, string>>.Builder optionBuilder =
                 ImmutableDictionary.CreateBuilder<string, ImmutableDictionary<string, string>>(
                     StringComparer.OrdinalIgnoreCase);
+            ImmutableArray<RuleSeverityPattern>.Builder patternBuilder = ImmutableArray.CreateBuilder<RuleSeverityPattern>();
 
             if (root.TryGet("rules", out YamlNode? node) && node is YamlMapping rules)
             {
                 foreach (string ruleId in rules.Keys)
                 {
                     YamlNode value = rules.Entries[ruleId];
+
+                    if (ruleId.Length >= 2 && ruleId[0] == '/' && ruleId[^1] == '/')
+                    {
+                        ReadRulePattern(ruleId, value, patternBuilder);
+                        continue;
+                    }
 
                     switch (value)
                     {
@@ -973,7 +1010,63 @@ internal static class ConfigurationLoader
             }
 
             options = optionBuilder.ToImmutable();
+            patterns = patternBuilder.ToImmutable();
             return severities.ToImmutable();
+        }
+
+        /// <summary><c>rules:</c> の、ルール ID を正規表現で書いた項目 (<c>/SL.*/: error</c>) を読む。</summary>
+        /// <param name="key">書かれたキー (<c>/</c> で囲んだもの)。</param>
+        /// <param name="value">値。重要度か、<c>severity</c> だけを持つ写像。</param>
+        /// <param name="patterns">読んだものを足す先。</param>
+        /// <remarks>
+        /// <c>options</c> は書けない。オプションはルールごとに意味が違うので、まとめて渡すとどのルールにも合わない値を渡すことになる。
+        /// </remarks>
+        private void ReadRulePattern(string key, YamlNode value, ImmutableArray<RuleSeverityPattern>.Builder patterns)
+        {
+            YamlScalar? scalar = value as YamlScalar;
+
+            if (value is YamlMapping detail)
+            {
+                ReportUnknownKeys(detail, ["severity", "options"], $"ルール {key}");
+                ReportNonScalars(detail, $"ルール {key} の ", "severity");
+
+                if (detail.TryGet("options", out YamlNode? optionsNode))
+                {
+                    problems.Add(new ConfigurationProblem(
+                        optionsNode.Line, $"ルール {key} には options を書けません。正規表現で指定したルールには重要度だけを書けます。"));
+                }
+
+                detail.TryGetScalar("severity", out scalar);
+            }
+
+            if (scalar is null)
+            {
+                if (value is not YamlMapping)
+                {
+                    problems.Add(new ConfigurationProblem(value.Line, $"ルール {key} の設定を解釈できません。"));
+                }
+
+                return;
+            }
+
+            if (!TryParseSeverity(scalar.Value, out DiagnosticSeverity severity))
+            {
+                problems.Add(new ConfigurationProblem(
+                    scalar.Line,
+                    $"ルール {key} の重要度 '{scalar.Value}' を解釈できません。"
+                    + "none, info, warning, error のいずれかを指定してください。"));
+                return;
+            }
+
+            try
+            {
+                patterns.Add(new RuleSeverityPattern(key[1..^1], severity));
+            }
+            catch (ArgumentException exception)
+            {
+                problems.Add(new ConfigurationProblem(
+                    value.Line, $"ルール {key} を正規表現として読めません: {exception.Message}"));
+            }
         }
 
         /// <summary>出力に出す指摘の最低の重要度 (<c>report: min-severity</c>) を読む。</summary>

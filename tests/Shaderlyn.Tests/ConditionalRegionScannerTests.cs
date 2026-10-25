@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 
 namespace Shaderlyn.Tests;
 
@@ -23,15 +23,15 @@ public sealed class ConditionalRegionScannerTests
     /// <returns>判定結果。</returns>
     private static ConditionalRegionLayout Scan(string code)
     {
-        ImmutableArray<HlslSyntaxToken> tokens =
-            new HlslLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
+        ImmutableArray<ShaderSyntaxToken> tokens =
+            new ShaderLexer(SourceText.From(code, "test.hlsl")).Lex(out _);
 
         // #if の行の次から始める。
         int start = 0;
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            if (tokens[i].Kind == HlslSyntaxKind.HashToken && tokens[i].IsAtLineStart)
+            if (tokens[i].Kind == ShaderSyntaxKind.HashToken && tokens[i].IsAtLineStart)
             {
                 for (int j = i + 1; j < tokens.Length; j++)
                 {

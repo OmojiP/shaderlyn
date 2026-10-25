@@ -41,8 +41,8 @@ public static class HlslConversion
     /// </remarks>
     public static bool IsConvertible(string? valueType, string? targetType, bool exact = false)
         => !string.Equals(valueType, VoidTypeName, StringComparison.Ordinal)
-           && (!HlslTypeClassifier.TryDescribeNumeric(valueType, out HlslNumericShape value)
-               || !HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape target)
+           && (!HlslTypeClassifier.TryDescribeNumeric(valueType, out ShaderNumericShape value)
+               || !HlslTypeClassifier.TryDescribeNumeric(targetType, out ShaderNumericShape target)
                || IsConvertible(value, target, exact));
 
     /// <summary>値を返さない型の名前。</summary>
@@ -65,7 +65,7 @@ public static class HlslConversion
     /// 書き戻す先が足りないためである。その場合に <paramref name="exact"/> を立てる。
     /// </para>
     /// </remarks>
-    public static bool IsConvertible(HlslNumericShape value, HlslNumericShape target, bool exact)
+    public static bool IsConvertible(ShaderNumericShape value, ShaderNumericShape target, bool exact)
     {
         if (exact)
         {
@@ -75,7 +75,7 @@ public static class HlslConversion
         }
 
         // スカラーは全成分へ複製される。行列にも渡せる。
-        if (value.Kind == HlslNumericKind.Scalar)
+        if (value.Kind == ShaderNumericKind.Scalar)
         {
             return true;
         }
@@ -83,10 +83,10 @@ public static class HlslConversion
         // 行列とベクトルは互いに渡せない。受け取る側がスカラーなら切り捨てられる。
         if (value.Kind != target.Kind)
         {
-            return target.Kind == HlslNumericKind.Scalar;
+            return target.Kind == ShaderNumericKind.Scalar;
         }
 
-        return value.Kind == HlslNumericKind.Matrix
+        return value.Kind == ShaderNumericKind.Matrix
             ? value.Rows >= target.Rows && value.Columns >= target.Columns
             : value.Columns >= target.Columns;
     }
@@ -114,8 +114,8 @@ public static class HlslConversion
     /// </para>
     /// </remarks>
     public static bool IsTruncating(string? valueType, string? targetType)
-        => HlslTypeClassifier.TryDescribeNumeric(valueType, out HlslNumericShape value)
-           && HlslTypeClassifier.TryDescribeNumeric(targetType, out HlslNumericShape target)
-           && value.Kind != HlslNumericKind.Scalar
+        => HlslTypeClassifier.TryDescribeNumeric(valueType, out ShaderNumericShape value)
+           && HlslTypeClassifier.TryDescribeNumeric(targetType, out ShaderNumericShape target)
+           && value.Kind != ShaderNumericKind.Scalar
            && (value.Rows * value.Columns) > (target.Rows * target.Columns);
 }

@@ -77,7 +77,7 @@ flowchart TD
 ## 4. 字句解析と構文解析
 
 - **ShaderLab:** [ShaderLabSyntaxTree](../../src/Shaderlyn.ShaderLab/ShaderLabSyntaxTree.cs) が [ShaderLabLexer](../../src/Shaderlyn.ShaderLab/Parsing/ShaderLabLexer.cs) と [ShaderLabParser](../../src/Shaderlyn.ShaderLab/Parsing/ShaderLabParser.cs) を通して、トークン、構文木 (`ShaderLabCompilationUnitSyntax`)、構文診断を作ります。
-- **HLSL:** 先にプリプロセッサがマクロの定義・`#include`・条件付きコンパイルを扱い、[HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs) が展開済みのトークン列から `HlslCompilationUnitSyntax` と構文診断を作ります。
+- **HLSL:** 先にプリプロセッサ ([ShaderPreprocessor](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessor.cs)。字句解析と合わせて C 系の言語に共通の `Shaderlyn.CFamily` にある) がマクロの定義・`#include`・条件付きコンパイルを扱い、[HlslParser](../../src/Shaderlyn.Hlsl/Parsing/HlslParser.cs) が展開済みのトークン列から `CompilationUnitSyntax` と構文診断を作ります。共通の構文解析器 ([ShaderParser](../../src/Shaderlyn.CFamily/Parsing/ShaderParser.cs)) と式・文・宣言の節は C 系の言語で共有し、`HlslParser` は HLSL に固有の部分 (組み込みの型、`cbuffer` など) と、コンパイラと HLSL のバージョンで使える構文の違いを答えます。
   `.shader` に埋め込まれた HLSL は、切り出さずに ShaderLab の部分をマスクした複製の上で解析します。
 - **取り込んだヘッダ:** Unity や外部パッケージのヘッダの関数は、速さのために中身を構文木にしません。
   利用者が書いて取り込んだヘッダ (`SemanticsOptions.IsUserInclude` が利用者のものとしたファイル) は、関数の中身まで構文木にします。
@@ -92,7 +92,7 @@ flowchart TD
 
 - 入口は `ShaderCompilation.Create(text, units, codeText, environment, source, semantics)` です。
   Unity は [UnityCompilation](../../src/Shaderlyn.Unity/UnityCompilation.cs) の `Create` (ShaderLab) と `CreateForHlsl` (HLSL 単体) が単位を切り出してこれを呼びます
-- 環境の決まり (構成の軸・エントリポイント・定義済みマクロ・生成される取り込み) は [IHlslEnvironment](../../src/Shaderlyn.Semantics/Environments/IHlslEnvironment.cs) から受け取ります。
+- 環境の決まり (構成の軸・エントリポイント・定義済みマクロ・生成される取り込み) は [IShaderEnvironment](../../src/Shaderlyn.Semantics/Environments/IShaderEnvironment.cs) から受け取ります。
   組み立ては環境の決まりを持ちません ([設計判断「環境」](design-decisions.md#環境))
 - Unity のヘッダの解決は、`SemanticsOptions` に渡された include resolver が担います。
   どの取り込み先が利用者のファイルかは `SemanticsOptions.IsUserInclude` が決め、CLI と言語サーバーは `SemanticsSetup.CreateUserIncludePredicate` で作ります

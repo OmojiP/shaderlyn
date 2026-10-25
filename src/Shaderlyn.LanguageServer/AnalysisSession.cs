@@ -50,7 +50,16 @@ internal sealed class AnalysisSession
     private readonly IAnalysisEnvironment _environment;
 
     /// <summary>意味解析に渡す HLSL の環境。宣言されたシンボルを、解析せずに読むのに使う。</summary>
-    public Semantics.Environments.IHlslEnvironment? HlslEnvironment => _environment.HlslEnvironment;
+    public Semantics.Environments.IShaderEnvironment? ShaderEnvironment => _environment.ShaderEnvironment;
+
+    /// <summary>
+    /// 意味解析のモデルを作るか。構文だけを読む環境 (GLSL など) では作らず、
+    /// モデルを使う機能 (ホバー・定義へ移動・補完など) は働かない。
+    /// </summary>
+    public bool HasSemanticModel => _environment.ShaderEnvironment is not null;
+
+    /// <summary>解析する環境が、設定が無いときに解析する拡張子。</summary>
+    public ImmutableArray<string> DefaultExtensions => _environment.DefaultExtensions;
 
     /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
@@ -93,10 +102,15 @@ internal sealed class AnalysisSession
     /// <param name="workspaceDirectory">ワークスペースのルート。設定ファイルの探索に使う。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
     /// <param name="environments">自前のホストが足した環境。</param>
+    /// <param name="environmentName">
+    /// 設定ファイルの環境の代わりに使う環境の名前 (<c>--environment</c>)。
+    /// GLSL などの拡張子のファイルを、CLI と同じくその言語の環境で解析するのに使う。
+    /// </param>
     public AnalysisSession(
         string? workspaceDirectory,
         IEnumerable<DiagnosticAnalyzer> analyzers,
-        ImmutableArray<HostEnvironment> environments)
+        ImmutableArray<HostEnvironment> environments,
+        string? environmentName = null)
     {
         ArgumentNullException.ThrowIfNull(analyzers);
 
@@ -104,10 +118,13 @@ internal sealed class AnalysisSession
 
         ImmutableArray<DiagnosticAnalyzer> all = [.. analyzers];
 
-        CommandLineOptions options = BuildOptions(workspaceDirectory);
+        CommandLineOptions options = BuildOptions(workspaceDirectory, environmentName);
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
+        UnrealGeneratedDirectory = settings.Environment == Unreal.UnrealOptions.EnvironmentName
+            ? SemanticsSetup.CreateUnreal(settings).GeneratedDirectory
+            : null;
         UnityProjectPath = options.UnityProjectPath;
 
         _analyzers = all;
@@ -202,6 +219,9 @@ internal sealed class AnalysisSession
 
     /// <summary>見つかった Unity プロジェクトのルート。無い場合は <see langword="null"/>。</summary>
     public string? UnityProjectPath { get; }
+
+    /// <summary>Unreal の環境で使う生成物のフォルダー。Unreal の環境でなければ <see langword="null"/>。</summary>
+    public string? UnrealGeneratedDirectory { get; }
 
     /// <summary>設定ファイルの読み込みで見つかった問題。</summary>
     /// <remarks>
@@ -299,15 +319,22 @@ internal sealed class AnalysisSession
     /// ワークスペースから解析の設定を組み立てる。
     /// </summary>
     /// <param name="workspaceDirectory">ワークスペースのルート。</param>
+    /// <param name="environment">設定ファイルの環境の代わりに使う環境の名前。無ければ <see langword="null"/>。</param>
     /// <returns>組み立てた設定。</returns>
     /// <remarks>
     /// Unity プロジェクトのルートは <c>Assets</c> と <c>ProjectSettings</c> の
     /// 両方があるフォルダーを上へ辿って探す。
     /// 指定が無いと対応検査が働かず HL0005 だらけになるため、推定を試みる価値がある。
     /// </remarks>
-    private static CommandLineOptions BuildOptions(string? workspaceDirectory)
+    private static CommandLineOptions BuildOptions(string? workspaceDirectory, string? environment)
     {
         List<string> arguments = [];
+
+        if (environment is not null)
+        {
+            arguments.Add("--environment");
+            arguments.Add(environment);
+        }
 
         if (FindUnityProject(workspaceDirectory) is { } unityProject)
         {

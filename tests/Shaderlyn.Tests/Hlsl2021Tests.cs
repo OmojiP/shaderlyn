@@ -1,12 +1,12 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 
@@ -17,7 +17,7 @@ namespace Shaderlyn.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 既定の方言 (FXC。Unity の既定のコンパイラ) は <c>template</c> / <c>enum</c> / 演算子の多重定義 / ビットフィールドを受け付けないので、
+/// 既定のコンパイラ (FXC。Unity の既定のコンパイラ) は <c>template</c> / <c>enum</c> / 演算子の多重定義 / ビットフィールドを受け付けないので、
 /// 使えない構文 (HL0003) として報告する。DXC の HLSL 2021 は受け付ける。
 /// <c>class</c> / <c>interface</c> は FXC でも DXC でも使える。
 /// </para>
@@ -42,7 +42,7 @@ public sealed class Hlsl2021Tests
     [MemberData(nameof(Constructs))]
     public void 既定ではUnityで使えない構文として報告する(string code, string expected)
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(SourceText.From(code, "test.hlsl"));
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(SourceText.From(code, "test.hlsl"));
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("HL0003", diagnostic.Id);
@@ -56,9 +56,9 @@ public sealed class Hlsl2021Tests
     {
         _ = unused;
 
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From(code, "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
         Assert.Empty(tree.Diagnostics);
     }
@@ -67,9 +67,9 @@ public sealed class Hlsl2021Tests
     [Fact]
     public void 読み飛ばした宣言の名前を残す()
     {
-        HlslSyntaxTree tree = HlslSyntaxTree.Parse(
+        ShaderSyntaxTree tree = HlslSyntaxTree.Parse(
             SourceText.From("template<typename T = vector<float, 3>> T Make() { return (T)0; }", "test.hlsl"),
-            new PreprocessorOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
+            new PreprocessorOptions { Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 } });
 
         Assert.Empty(tree.Diagnostics);
         Assert.Contains(tree.UnanalyzedIdentifiers, t => t.Text == "Make");
@@ -274,7 +274,7 @@ public sealed class Hlsl2021Tests
 
         ShaderCompilation compilation = ShaderCompilation.Create(
             text,
-            [new HlslCompilationUnit(text, new TextSpan(0, text.Length))],
+            [new ShaderCompilationUnit(text, new TextSpan(0, text.Length))],
             text,
             new Hlsl2021Environment(),
             ShaderSourceInfo.None);
@@ -288,21 +288,21 @@ public sealed class Hlsl2021Tests
         public string Name => "test-hlsl2021";
 
         public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
-            => options with { LanguageVersion = HlslLanguageVersion.Hlsl2021 };
+            => options.WithHlsl(h => h with { LanguageVersion = HlslLanguageVersion.Hlsl2021 });
 
         public PreprocessorOptions PrepareUnit(
-            HlslCompilationUnit unit,
-            ImmutableArray<HlslSyntaxToken> tokens,
+            ShaderCompilationUnit unit,
+            ImmutableArray<ShaderSyntaxToken> tokens,
             PreprocessorOptions options,
             string filePath)
             => options;
 
-        public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+        public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
             => VariantSpace.Empty;
 
-        public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result) => VariantSpace.Empty;
+        public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result) => VariantSpace.Empty;
 
-        public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result) => [];
+        public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result) => [];
 
         public bool LooksLikeVariantSymbol(string name) => false;
 

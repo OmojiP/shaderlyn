@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Core.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
-using Shaderlyn.Core.Syntax;
 
 namespace Shaderlyn.Rules;
 
@@ -62,7 +62,7 @@ internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
+            foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.ConditionalIdentifiers)
             {
                 // 同じシンボルを見ている条件が複数あっても、最初の 1 か所で足りる。
                 // 展開しなかったのはシンボルであって、条件の行ではない。

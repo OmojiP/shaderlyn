@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -63,7 +64,7 @@ public sealed class SemanticsTests
         float4 TransformObjectToHClip(float3 positionOS) { return float4(positionOS, 1); }
         """;
 
-    private static ShaderCompilation Compile(string source, bool provideUrpHeaders = true)
+    private static ShaderCompilation Compile(string source, bool provideUrpHeaders = true, UnityOptions? unity = null)
     {
         SourceText text = SourceText.From(source, Path.Combine("Assets", "Test.shader"));
         ShaderLabSyntaxTree tree = ShaderLabSyntaxTree.Parse(text);
@@ -73,12 +74,12 @@ public sealed class SemanticsTests
             : [];
 
         SemanticsOptions options = new() { IncludeResolver = new InMemoryIncludeResolver(files) };
-        return UnityCompilation.Create(text, tree, options);
+        return unity is null ? UnityCompilation.Create(text, tree, options) : UnityCompilation.Create(text, tree, options, unity);
     }
 
-    private static ImmutableArray<Diagnostic> Analyze(string source, bool provideUrpHeaders = true)
+    private static ImmutableArray<Diagnostic> Analyze(string source, bool provideUrpHeaders = true, UnityOptions? unity = null)
     {
-        ShaderCompilation compilation = Compile(source, provideUrpHeaders);
+        ShaderCompilation compilation = Compile(source, provideUrpHeaders, unity);
 
         return new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
     }
@@ -824,7 +825,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
 
         // TEXTURE2D は既定マクロによって Texture2D の宣言へ展開されている。
         Assert.True(compilation.TryGetUniform("_BaseMap", out UniformSymbol? map));
-        Assert.Equal(HlslTypeClass.Texture2D, map.TypeClass);
+        Assert.Equal(ShaderTypeClass.Texture2D, map.TypeClass);
         Assert.Null(map.ContainingBufferName);
     }
 
@@ -1323,6 +1324,39 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
         Assert.True(Has(diagnostics, "URP0002"), Describe(diagnostics));
     }
 
+    /// <summary>
+    /// 定数バッファの中のテクスチャは、既定では情報にする。Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけエラーにする
+    /// (2022.3〜6.6 の URP で、コンパイルと SRP Batcher との互換を確かめた)。
+    /// </summary>
+    [Theory]
+    [InlineData("2022.3", "metal", "#pragma use_dxc", DiagnosticSeverity.Error)]
+    [InlineData("2022.3", "metal", "", DiagnosticSeverity.Info)]
+    [InlineData("2022.3", "dx11", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    [InlineData("6.6", "metal", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    [InlineData(null, "metal", "#pragma use_dxc", DiagnosticSeverity.Info)]
+    public void 定数バッファに入れたテクスチャの重要度はDXCとMetalで決める(string? version, string api, string pragma, DiagnosticSeverity expected)
+    {
+        string source = CorrectUrpShader.Replace(
+            """
+                        TEXTURE2D(_BaseMap);
+                        SAMPLER(sampler_BaseMap);
+            """,
+            string.Empty,
+            StringComparison.Ordinal).Replace(
+            "float4 _BaseMap_ST;",
+            "float4 _BaseMap_ST;\n                TEXTURE2D(_BaseMap);\n                SAMPLER(sampler_BaseMap);",
+            StringComparison.Ordinal).Replace(
+            "#pragma fragment frag",
+            "#pragma fragment frag\n            " + pragma,
+            StringComparison.Ordinal);
+
+        Assert.True(UnityGraphicsApis.TryParse(api, out UnityGraphicsApi graphicsApi));
+        ImmutableArray<Diagnostic> diagnostics = Analyze(source, unity: new UnityOptions { EditorVersion = version, GraphicsApis = [graphicsApi] });
+
+        Assert.All(diagnostics.Where(d => d.Id == "URP0002"), d => Assert.Equal(expected, d.Severity));
+        Assert.True(Has(diagnostics, "URP0002"), Describe(diagnostics));
+    }
+
     [Fact]
     public void BuiltIn向けのAPIを報告する()
     {
@@ -1422,22 +1456,22 @@ public sealed class RenderPipelineProfileTests
 public sealed class HlslTypeClassifierTests
 {
     [Theory]
-    [InlineData("float", HlslTypeClass.Scalar)]
-    [InlineData("half", HlslTypeClass.Scalar)]
-    [InlineData("int", HlslTypeClass.Scalar)]
-    [InlineData("real", HlslTypeClass.Scalar)]
-    [InlineData("float1", HlslTypeClass.Scalar)]
-    [InlineData("float2", HlslTypeClass.Vector)]
-    [InlineData("half4", HlslTypeClass.Vector)]
-    [InlineData("float4x4", HlslTypeClass.Matrix)]
-    [InlineData("real3x3", HlslTypeClass.Matrix)]
-    [InlineData("Texture2D", HlslTypeClass.Texture2D)]
-    [InlineData("sampler2D", HlslTypeClass.Texture2D)]
-    [InlineData("TextureCube", HlslTypeClass.TextureCube)]
-    [InlineData("Texture2DArray", HlslTypeClass.Texture2DArray)]
-    [InlineData("SamplerState", HlslTypeClass.Sampler)]
-    [InlineData("StructuredBuffer", HlslTypeClass.Buffer)]
-    public void 既知の型名を分類できる(string typeName, HlslTypeClass expected)
+    [InlineData("float", ShaderTypeClass.Scalar)]
+    [InlineData("half", ShaderTypeClass.Scalar)]
+    [InlineData("int", ShaderTypeClass.Scalar)]
+    [InlineData("real", ShaderTypeClass.Scalar)]
+    [InlineData("float1", ShaderTypeClass.Scalar)]
+    [InlineData("float2", ShaderTypeClass.Vector)]
+    [InlineData("half4", ShaderTypeClass.Vector)]
+    [InlineData("float4x4", ShaderTypeClass.Matrix)]
+    [InlineData("real3x3", ShaderTypeClass.Matrix)]
+    [InlineData("Texture2D", ShaderTypeClass.Texture2D)]
+    [InlineData("sampler2D", ShaderTypeClass.Texture2D)]
+    [InlineData("TextureCube", ShaderTypeClass.TextureCube)]
+    [InlineData("Texture2DArray", ShaderTypeClass.Texture2DArray)]
+    [InlineData("SamplerState", ShaderTypeClass.Sampler)]
+    [InlineData("StructuredBuffer", ShaderTypeClass.Buffer)]
+    public void 既知の型名を分類できる(string typeName, ShaderTypeClass expected)
         => Assert.Equal(expected, HlslTypeClassifier.Classify(typeName));
 
     [Theory]
@@ -1448,40 +1482,40 @@ public sealed class HlslTypeClassifierTests
     [InlineData("")]
     [InlineData(null)]
     public void 知らない型名は分類しない(string? typeName)
-        => Assert.Equal(HlslTypeClass.Unknown, HlslTypeClassifier.Classify(typeName));
+        => Assert.Equal(ShaderTypeClass.Unknown, HlslTypeClassifier.Classify(typeName));
 
     [Theory]
-    [InlineData(ShaderPropertyKind.Color, HlslTypeClass.Vector, true)]
-    [InlineData(ShaderPropertyKind.Color, HlslTypeClass.Scalar, false)]
-    [InlineData(ShaderPropertyKind.Float, HlslTypeClass.Scalar, true)]
-    [InlineData(ShaderPropertyKind.Float, HlslTypeClass.Vector, false)]
-    [InlineData(ShaderPropertyKind.Texture2D, HlslTypeClass.Texture2D, true)]
-    [InlineData(ShaderPropertyKind.Texture2D, HlslTypeClass.TextureCube, false)]
-    [InlineData(ShaderPropertyKind.Any, HlslTypeClass.Matrix, true)]
-    public void 型の整合性を判定できる(ShaderPropertyKind kind, HlslTypeClass typeClass, bool expected)
+    [InlineData(ShaderPropertyKind.Color, ShaderTypeClass.Vector, true)]
+    [InlineData(ShaderPropertyKind.Color, ShaderTypeClass.Scalar, false)]
+    [InlineData(ShaderPropertyKind.Float, ShaderTypeClass.Scalar, true)]
+    [InlineData(ShaderPropertyKind.Float, ShaderTypeClass.Vector, false)]
+    [InlineData(ShaderPropertyKind.Texture2D, ShaderTypeClass.Texture2D, true)]
+    [InlineData(ShaderPropertyKind.Texture2D, ShaderTypeClass.TextureCube, false)]
+    [InlineData(ShaderPropertyKind.Any, ShaderTypeClass.Matrix, true)]
+    public void 型の整合性を判定できる(ShaderPropertyKind kind, ShaderTypeClass typeClass, bool expected)
         => Assert.Equal(expected, PropertyTypeCompatibility.IsCompatible(kind, typeClass));
 
     [Fact]
     public void 分類できない型に対しては不一致と断定しない()
     {
         // 判別できないことは、合っていないことの証拠にならない。
-        Assert.True(PropertyTypeCompatibility.IsCompatible(ShaderPropertyKind.Color, HlslTypeClass.Unknown));
+        Assert.True(PropertyTypeCompatibility.IsCompatible(ShaderPropertyKind.Color, ShaderTypeClass.Unknown));
     }
 }
 
 /// <summary>
 /// 字句解析キャッシュの検証。
 /// </summary>
-public sealed class HlslTokenCacheTests
+public sealed class TokenCacheTests
 {
     [Fact]
     public void 同じテキストには同じトークン列を返す()
     {
-        HlslTokenCache cache = new();
+        TokenCache cache = new();
         SourceText text = SourceText.From("float4 _Color;", "a.hlsl");
 
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> first = cache.GetOrLex(text, out _);
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> second = cache.GetOrLex(text, out _);
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> first = cache.GetOrLex(text, out _);
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> second = cache.GetOrLex(text, out _);
 
         // 同じ配列が返る (字句解析をやり直していない)。
         Assert.True(first.Equals(second));
@@ -1492,11 +1526,11 @@ public sealed class HlslTokenCacheTests
     {
         // キーは参照であって内容ではない。内容をキーにするとハッシュ計算で全文を走査することになり、
         // 字句解析を省いた意味が薄れる。
-        HlslTokenCache cache = new();
+        TokenCache cache = new();
 
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> first =
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> first =
             cache.GetOrLex(SourceText.From("float4 _Color;", "a.hlsl"), out _);
-        ImmutableArray<Hlsl.Syntax.HlslSyntaxToken> second =
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> second =
             cache.GetOrLex(SourceText.From("float4 _Color;", "a.hlsl"), out _);
 
         Assert.False(first.Equals(second));

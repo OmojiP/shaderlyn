@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Rules;
 using Shaderlyn.Semantics;
 
@@ -61,13 +62,13 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             // コンパイル先を決めた単位 (.shader のパスと .compute のカーネル) だけを見る。
-            if (program.Tree.CompileTargets.IsDefaultOrEmpty)
+            if (program.Tree.Hlsl().CompileTargets.IsDefaultOrEmpty)
             {
                 continue;
             }
 
-            HlslSyntaxToken? neverUseDxc = null;
-            HlslSyntaxToken? dxcRequirement = null;
+            ShaderSyntaxToken? neverUseDxc = null;
+            ShaderSyntaxToken? dxcRequirement = null;
 
             foreach (PragmaDirective pragma in program.Tree.Pragmas)
             {
@@ -89,7 +90,7 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                HlslSyntaxToken[] arguments = [.. pragma.Arguments];
+                ShaderSyntaxToken[] arguments = [.. pragma.Arguments];
 
                 switch (pragma.Name)
                 {
@@ -125,8 +126,8 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
     /// <param name="dx11">対象の API に DX11 があるか。</param>
     /// <param name="report">報告する手続き。</param>
     private static void AnalyzeUseDxc(
-        HlslSyntaxToken name,
-        HlslSyntaxToken[] arguments,
+        ShaderSyntaxToken name,
+        ShaderSyntaxToken[] arguments,
         UnityVersionBand? band,
         bool dx11,
         Action<Location, DiagnosticDescriptor, string> report)
@@ -149,7 +150,7 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        foreach (HlslSyntaxToken argument in arguments)
+        foreach (ShaderSyntaxToken argument in arguments)
         {
             switch (argument.Text.ToLowerInvariant())
             {
@@ -199,17 +200,17 @@ internal sealed class CompilerPragmaAnalyzer : SemanticRuleAnalyzer
     /// <param name="dx11">対象の API に DX11 があるか。</param>
     /// <param name="report">報告する手続き。</param>
     /// <returns>キーワードの条件が無い、DXC が要る値のトークン。無ければ <see langword="null"/>。</returns>
-    private static HlslSyntaxToken? AnalyzeRequire(
-        HlslSyntaxToken[] arguments,
+    private static ShaderSyntaxToken? AnalyzeRequire(
+        ShaderSyntaxToken[] arguments,
         UnityVersionBand? band,
         bool dx11,
         Action<Location, DiagnosticDescriptor, string> report)
     {
         int colon = Array.FindIndex(arguments, a => a.Text == ":");
         bool conditional = colon >= 0;
-        HlslSyntaxToken? dxc = null;
+        ShaderSyntaxToken? dxc = null;
 
-        foreach (HlslSyntaxToken value in conditional ? arguments[..colon] : arguments)
+        foreach (ShaderSyntaxToken value in conditional ? arguments[..colon] : arguments)
         {
             string text = value.Text.ToLowerInvariant();
             bool requiresDxc = UnityCompilerSelection.DxcRequirements.Contains(text)

@@ -46,14 +46,25 @@ internal static class RenderPipelineRuleDescriptors
         helpLinkUri: DocumentationLinks.For("URP0001"));
 
     /// <summary>マテリアル定数バッファにテクスチャやサンプラが含まれている。</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>既定は情報である。</b> コンパイラはテクスチャとサンプラを定数バッファの外へ出し、SRP Batcher との互換も変わらない
+    /// (Unity 2022.3〜6.6 の URP で、FXC と DXC、D3D11 / D3D12 / Vulkan / Metal / OpenGL で確かめた)。
+    /// </para>
+    /// <para>
+    /// Unity 2022.3 の DXC は、Metal 向けのコンパイルでエラーになる (SPIR-V に変換するところで落ちる)。
+    /// そのコンパイル先があるときだけエラーにする (<see cref="Shaderlyn.Unity.Rules.SrpBatcherAnalyzer"/>)。
+    /// </para>
+    /// </remarks>
     public static DiagnosticDescriptor TextureInConstantBuffer { get; } = new(
         id: "URP0002",
         title: "定数バッファにテクスチャまたはサンプラが含まれています",
-        messageFormat: "'{1}' に含まれる '{0}' はテクスチャまたはサンプラです。定数バッファの外で宣言してください。",
+        messageFormat: "'{1}' に含まれる '{0}' はテクスチャまたはサンプラです。{2}定数バッファの外で宣言してください。",
         category: CorrectnessCategory,
-        defaultSeverity: DiagnosticSeverity.Warning,
-        description: "定数バッファに入れられるのは数値だけです。"
-            + "テクスチャとサンプラは別のリソースであり、定数バッファへ入れることはできません。"
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "定数バッファに書いたテクスチャとサンプラは、コンパイラが定数バッファの外へ出します。"
+            + "ほとんどの場合は動作も SRP Batcher との互換も変わりませんが、"
+            + "Unity 2022.3 の DXC は Metal 向けのコンパイルでエラーになります。"
             + "テクスチャの宣言は CBUFFER_START / CBUFFER_END の外に置き、"
             + "スケールとオフセット (_ST) だけをバッファへ入れてください。",
         helpLinkUri: DocumentationLinks.For("URP0002"));

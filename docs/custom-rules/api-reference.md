@@ -33,23 +33,24 @@
 | [`AnalyzedProgram`](#analyzedprogram) | セマンティックモデル |
 | [`AnalyzerOptions`](#analyzeroptions) | セマンティックモデル |
 | [`CallCompatibility`](#callcompatibility-shaderlynsemanticsprograms) | セマンティックモデル |
-| [`ConditionalTokenRange`](#conditionaltokenrange-shaderlynhlslpreprocessing) | セマンティックモデル |
+| [`ConditionalTokenRange`](#conditionaltokenrange-shaderlyncfamilypreprocessing) | セマンティックモデル |
 | [`ConditionMap`](#conditionmap-shaderlynsemanticsconditional) | セマンティックモデル |
 | [`Diagnostic`](#diagnostic) | 診断 |
 | [`DiagnosticAnalyzer`](#diagnosticanalyzer-shaderlyncoreanalysis) | アナライザ |
 | [`DiagnosticDescriptor`](#diagnosticdescriptor-shaderlyncorediagnostics) | 診断 |
 | [`DiagnosticSeverity`](#diagnosticseverity) | 診断 |
-| [`HlslAnalysisContext`](#hlslanalysiscontext) | アクションを登録する |
-| [`HlslIntrinsics`](#hlslintrinsics--組み込み関数を知る) | 構文木 |
-| [`HlslLiteral`](#hlslliteral--リテラルの値と型) | 構文木 |
-| [`HlslRuleAnalyzer`](#hlslruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
-| [`HlslSyntaxFacts`](#hlslsyntaxfacts--構文の規則) | 構文木 |
-| [`HlslTypeClassifier`](#hlsltypeclassifier--型名を読み解く) | 構文木 |
+| [`HlslIntrinsics`](#hlslintrinsics--hlsl-の組み込み関数を知る) | 構文木 |
+| [`HlslTypeClassifier`](#hlsltypeclassifier--hlsl-の型名を読み解く) | 構文木 |
 | [`Location`](#location-と-textspan) | 診断 |
 | [`ResolveCall`](#resolvecall) | セマンティックモデル |
 | [`ResolveName`](#resolvename) | セマンティックモデル |
+| [`ShaderAnalysisContext`](#shaderanalysiscontext) | アクションを登録する |
 | [`ShaderCompilation`](#shadercompilation-shaderlynsemantics) | セマンティックモデル |
+| [`ShaderLiteral`](#shaderliteral--リテラルの値と型) | 構文木 |
+| [`ShaderRuleAnalyzer`](#shaderruleanalyzer-shaderlynsemanticsanalysis) | アナライザ |
 | [`ShaderRuleVerifier`](#shaderruleverifier-shaderlyntesting) | テスト |
+| [`ShaderSyntaxFacts`](#shadersyntaxfacts--構文の規則) | 構文木 |
+| [`ShaderTypeSystem`](#shadertypesystem--型システム) | 構文木 |
 | [`SymbolCondition`](#symbolcondition-shaderlyncoresyntax) | セマンティックモデル |
 | [`TextSpan`](#location-と-textspan) | 診断 |
 
@@ -68,13 +69,13 @@
 
 `Initialize` で登録したアクションが、以降すべてのファイルに適用されます。
 
-### `HlslRuleAnalyzer` (`Shaderlyn.Semantics.Analysis`)
+### `ShaderRuleAnalyzer` (`Shaderlyn.Semantics.Analysis`)
 
 埋め込み HLSL のノードを見るアナライザの基底クラスです。
 
 | メンバー                                                    |                           |
 | ----------------------------------------------------------- | ------------------------- |
-| `abstract void InitializeHlsl(HlslAnalysisContext context)` | HLSL ノードへの関心の登録 |
+| `abstract void InitializeShader(ShaderAnalysisContext context)` | HLSL ノードへの関心の登録 |
 | `sealed override void Initialize(...)`                      | 上書き不可                |
 
 この基底クラスが引き受けることは次のとおりです。
@@ -111,15 +112,40 @@
 
 アクションを何個登録しても、構文木の走査は 1 回のままです。
 
-### `HlslAnalysisContext`
+### `ShaderAnalysisContext`
 
-名前空間は `Shaderlyn.Semantics.Analysis` です。`InitializeHlsl` の引数です。
+名前空間は `Shaderlyn.Semantics.Analysis` です。`InitializeShader` の引数です。
 
 | メソッド                                                            |                          |
 | ------------------------------------------------------------------- | ------------------------ |
-| `RegisterNodeAction<TNode>(Action<HlslNodeAnalysisContext<TNode>>)` | ノード型ごとのアクション |
+| `RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>>)` | ノード型ごとのアクション |
+| `RegisterNodeAction<TNode>(Action<ShaderNodeAnalysisContext<TNode>>, NodeActionOptions)` | どのノードで呼ぶかを指定したアクション |
 
 `TNode` には [HLSL のノード型](#hlsl-のノード型)を指定します。
+
+#### `NodeActionOptions`
+
+| プロパティ                  |                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ReachableFromEntryPoints`  | エントリポイントから呼び出しをたどって届く関数の中のノードだけで呼ぶ。関数の外のノードでは今までどおり呼ぶ。エントリポイントが分からない木では、すべての関数で呼ぶ |
+| `When`                      | その構成で存在しうるノードだけで呼ぶ。その中の `ReportWhen` には、この条件も掛かる                    |
+
+`When` には `SymbolCondition` か、`#if` と同じ書き方の文字列を渡せます。
+
+```csharp
+context.RegisterNodeAction<InvocationExpressionSyntax>(Check, new NodeActionOptions
+{
+    ReachableFromEntryPoints = true,
+    When = "defined(SHADER_API_MOBILE) && !defined(_A) && QUALITY >= 2",
+});
+
+// SymbolCondition で書いてもよい
+When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_A", isDefined: false)),
+```
+
+- 文字列で書けるのは `defined(X)` / `defined X` / `X`、値を持つシンボルと整数の比較 (`==` `!=` `<` `<=` `>` `>=`)、`!` `&&` `||` と括弧です
+- 値を持つシンボル (`QUALITY`) は、その単位の値の一覧で読みます (`QUALITY >= 2` は `QUALITY == 2 || QUALITY == 3`)。`X` だけなら `X != 0` です
+- 書き方の誤りは、登録するときに `FormatException` になります。値を持たないシンボルを数と比べると、解析するときに `FormatException` になります (TOOL0001)
 
 ### `AnalysisStartContext`
 
@@ -137,7 +163,7 @@
 
 登録したアクションには、対象のノードと、報告するためのメソッドを持つ値が渡ります。
 型はアクションの種類ごとに違いますが (`NodeAnalysisContext<TNode>` /
-`SyntaxTreeAnalysisContext` / `AnalysisEndContext` / `HlslNodeAnalysisContext<TNode>`)、
+`SyntaxTreeAnalysisContext` / `AnalysisEndContext` / `ShaderNodeAnalysisContext<TNode>`)、
 次のメンバーは共通です。
 
 | メンバー                                      |                                                       |
@@ -150,13 +176,38 @@
 | `ReportDiagnostic(descriptor, span, args...)` | 範囲を指定して報告                                    |
 | `ReportDiagnostic(diagnostic)`                | 作り込んだ診断をそのまま報告                          |
 
-`HlslNodeAnalysisContext<TNode>` はこれに加えて次を持ちます。
+`ShaderNodeAnalysisContext<TNode>` はこれに加えて次を持ちます。
 
 | メンバー      |                                                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `Compilation` | 対象シェーダーのセマンティックモデル。[`ShaderCompilation`](#shadercompilation-shaderlynsemantics)。`null` にはならない |
 | `Program`     | そのノードが属するコードブロック。[`AnalyzedProgram`](#analyzedprogram)。既定の構成の木か、バリアントの木のどちらか。型を求めるときは `Compilation.GetExpressionTypeBinder(Program)` を使う |
 | `Condition`   | そのノードが存在する条件 (`SymbolCondition`)。`Compilation.GetEffectiveCondition(Node, Program)` と同じ。`IsUnknown` なら報告の根拠にしない |
+| `ReportWhen(when, descriptor, args...)` / `ReportWhen(when, descriptor, span, args...)` | 構成の条件が付く報告。メッセージの `{0}` に「構成：○○ のとき、」(どの構成でもなら空) が入り、`args` は `{1}` 以降に入る。下記 |
+
+#### `ReportWhen`
+
+構成の条件が付く報告を、正しい順序で条件を掛けて出します。
+
+```csharp
+// メッセージの書式: "{0}関数 '{1}' は使えません。"
+c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function);
+// → 「構成：_A のとき、関数 'tex2Dlod' は使えません。」
+```
+
+1. 報告する構成 = ノードの条件 × その木が表す構成 (`GetTreeConfiguration`) × `when` × `NodeActionOptions.When`
+2. ありえない構成と、`#error` に到達する構成を除きます (`IsPossibleIn`)。残らなければ報告しません
+3. 条件を追えなかったときは報告しません
+4. 同じ位置・同じ引数の報告は、Pass と構成をまたいで条件の和をとって 1 件にし、解析の終わりに出します
+5. 読める形に短くします (`Simplify`)
+
+`ReportDiagnostic` で木ごとに報告すると、同じ位置の報告は最初の木のものだけが残り、ほかの木の構成の分が条件から落ちます。
+条件をメッセージに出すなら `ReportWhen` を使ってください。
+
+`ShaderRuleAnalyzer` を使わないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
+`Add(program, node, when, descriptor, location, args...)` で集め、`Build()` で診断にします。
+メッセージの引数を条件から作るなら `Add(program, node, when, descriptor, location, key, condition => [...])` を使います (`key` は条件以外の引数で、同じ鍵の報告をまとめます)。
+両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は、`withTreeConfiguration: false` で木の構成を掛けずに足します。
 
 ---
 
@@ -291,23 +342,23 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 ### HLSL のノード型
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。すべて `HlslSyntaxNode` の派生型です。
+名前空間は `Shaderlyn.CFamily.Syntax` です (C 系の言語に共通の節)。HLSL にだけある節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) は `Shaderlyn.Hlsl.Syntax` にあります。すべて `ShaderSyntaxNode` の派生型です。
 
-`HlslSyntaxNode` の直下:
+`ShaderSyntaxNode` の直下:
 
 | 型                          | 何を指すか                                                |
 | --------------------------- | --------------------------------------------------------- |
-| `HlslCompilationUnitSyntax` | コードブロックの根                                        |
-| `HlslTypeSyntax`            | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments` |
+| `CompilationUnitSyntax`     | コードブロックの根                                        |
+| `TypeSyntax`                | 型の記述。`Name` / `ModifierTokens` / `TemplateArguments`。型の側に書いた配列 (GLSL の `vec4[3] x`) は `ArrayRanks` |
 | `ParameterSyntax`           | 仮引数                                                    |
 | `VariableDeclaratorSyntax`  | 宣言された変数 1 つ分の名前と初期化子                     |
 | `SemanticSyntax`            | `: SV_Target` のセマンティクス                            |
-| `HlslAttributeSyntax`       | `[loop]` `[branch]` などの属性                            |
-| `HlslDeclarationSyntax`     | 宣言の基底 (抽象)                                         |
-| `HlslExpressionSyntax`      | 式の基底 (抽象)                                           |
-| `HlslStatementSyntax`       | 文の基底 (抽象)                                           |
+| `AttributeSyntax`           | `[loop]` `[branch]` などの属性                            |
+| `DeclarationSyntax`         | 宣言の基底 (抽象)                                         |
+| `ExpressionSyntax`          | 式の基底 (抽象)                                           |
+| `StatementSyntax`           | 文の基底 (抽象)                                           |
 
-`HlslDeclarationSyntax` の派生:
+`DeclarationSyntax` の派生:
 
 | 型                                | 何を指すか                                                           |
 | --------------------------------- | -------------------------------------------------------------------- |
@@ -321,7 +372,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `TypedefDeclarationSyntax`        | `typedef`                                                            |
 | `IncompleteDeclarationSyntax`     | 宣言として解析しきれなかったトークン                                 |
 
-`HlslExpressionSyntax` の派生:
+`ExpressionSyntax` の派生:
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
@@ -339,9 +390,10 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `CastExpressionSyntax`            | `(float)a`                         |
 | `ParenthesizedExpressionSyntax`   | `( a )`                            |
 | `InitializerListExpressionSyntax` | `{ 1, 2 }`                         |
+| `ArrayTypeExpressionSyntax`       | 配列の型を名前として書いた式 (GLSL の配列のコンストラクタ `float[](0.1, 0.2)` の呼び出し先)。`ElementType` / `ArrayRanks`。HLSL の木には現れない |
 | `IncompleteExpressionSyntax`      | 式として解析しきれなかったトークン |
 
-`HlslStatementSyntax` の派生:
+`StatementSyntax` の派生:
 
 | 型                                | 何を指すか                         |
 | --------------------------------- | ---------------------------------- |
@@ -361,9 +413,9 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 ### 構文の上の事実を引く
 
-#### `HlslLiteral` — リテラルの値と型
+#### `ShaderLiteral` — リテラルの値と型
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。16 進・8 進・接尾辞を読み分けます。
+名前空間は `Shaderlyn.CFamily.Syntax` です。16 進・8 進・接尾辞を読み分けます。
 
 | メンバー                         |                                                           |
 | -------------------------------- | --------------------------------------------------------- |
@@ -374,12 +426,12 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `GetDigits(token)`               | 接尾辞を除いた表記                                        |
 
 ```csharp
-if (HlslLiteral.TryGetInt64(literal.Token, out long index)) { ... }
+if (ShaderLiteral.TryGetInt64(literal.Token, out long index)) { ... }
 ```
 
-#### `HlslSyntaxFacts` — 構文の規則
+#### `ShaderSyntaxFacts` — 構文の規則
 
-名前空間は `Shaderlyn.Hlsl.Syntax` です。
+名前空間は `Shaderlyn.CFamily.Syntax` です。
 
 | メンバー                                                    |                                          |
 | ----------------------------------------------------------- | ---------------------------------------- |
@@ -395,26 +447,49 @@ if (variable.TryGetArrayLength(out int length)) { ... }   // VariableDeclaratorS
 if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 ```
 
-#### `HlslTypeClassifier` — 型名を読み解く
+#### `ShaderTypeSystem` — 型システム
+
+名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型システム (型と組み込み関数) です。`compilation.TypeSystem` で引けます。
+**言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として読めます。
+
+| メンバー                                                                   |                                                      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `Classify(typeName)`                                                       | `ShaderTypeClass` への分類                           |
+| `TryDescribeNumeric(typeName, out shape)`                                  | 基底名・行・列への分解 (`ShaderNumericShape`)        |
+| `Compose(shape)` / `ComposeNumeric(baseName, components)`                  | 分解の逆。その言語での型の名前を作る                 |
+| `IsConvertible(valueType, targetType, exact)` / `IsTruncating(...)`        | 組み込みルールと同じ判定で、暗黙の変換の可否         |
+| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL ならコンパイラと HLSL のバージョン) は木から読む |
+| `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読む関数・メソッドかどうか、何を返すか   |
+| `ComponentNameSets`                                                        | ベクトルの成分名の組 (HLSL は `xyzw` と `rgba`)      |
+
+```csharp
+// float4x4 → BaseName "float", Rows 4, Columns 4
+compilation.TypeSystem.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
+```
+
+下の `HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` は、HLSL の表そのものです。
+HLSL にしか無い決まり (定数バッファの詰め方など) を見るルールで使います。
+
+#### `HlslTypeClassifier` — HLSL の型名を読み解く
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。
 
 | メンバー                                                  |                          |
 | --------------------------------------------------------- | ------------------------ |
-| `Classify(typeName)`                                      | `HlslTypeClass` への分類 |
+| `Classify(typeName)`                                      | `ShaderTypeClass` への分類 |
 | `TryDescribeNumeric(typeName, out shape)`                 | 基底名・行・列への分解   |
 | `Compose(shape)` / `ComposeNumeric(baseName, components)` | 分解の逆                 |
 | `GetWiderBaseName(left, right)`                           | 広いほうの基底型         |
 
 ```csharp
 // float4x4 → BaseName "float", Rows 4, Columns 4
-HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
+HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 ```
 
 `HlslConversion.IsConvertible(valueType, targetType, exact)` が、
 組み込みルールと同じ判定で暗黙の変換の可否を答えます。
 
-#### `HlslIntrinsics` — 組み込み関数を知る
+#### `HlslIntrinsics` — HLSL の組み込み関数を知る
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。
 
@@ -475,7 +550,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out HlslNumericShape shape);
 | `GetFunctionDeclarations(name)`    | その名前で宣言されている関数すべて          |
 | `HasFunctionDeclarations`          | 関数の宣言が 1 つでもあるか                 |
 | `GetExpressionTypeBinder(program)` | 式の型を求める `ExpressionTypeBinder`       |
-| `Environment`                      | このモデルを作った環境 (`IHlslEnvironment`。[環境](#環境)) |
+| `Environment`                      | このモデルを作った環境 (`IShaderEnvironment`。[環境](#環境)) |
 | `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
 
 Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
@@ -513,7 +588,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 
 - **マクロの実引数に書いたコード。** `SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv)` の `uv` や
   `HEADER_ID(uv.z)` の `uv.z` は、利用者が呼び出し位置に書いたものです。報告は実引数を書いた位置に出ます
-  (`HlslSyntaxToken.MacroArgumentSpan`)
+  (`ShaderSyntaxToken.MacroArgumentSpan`)
 - **先頭だけがヘッダのマクロのノード。** `fixed4 frag(v2f i) : SV_Target { ... }` の `fixed4` は `HLSLSupport.cginc` のマクロですが、
   `frag` 以降は利用者が書いたコードです
 
@@ -522,7 +597,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 ノードの一部だけを報告するルールは、報告する部分 (メンバー名のトークンなど) についても `IsReportable(token)` を確かめてください。
 
 **利用者のヘッダのコードは、取り込むシェーダーの文脈で渡ってきます。**
-`HlslRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
+`ShaderRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
 `DiagnosticAnalyzer` を直接継承したルールで範囲だけを渡すと、解析しているファイルの位置になります。
 ヘッダのノードを報告するときは `Diagnostic.Create(descriptor, node.GetLocation(), ...)` で位置ごと渡してください。
 `IsWrittenHere` はエディタの操作 (ホバーや定義へ移動) のための判定で、利用者のヘッダを含みません。報告の判定には使わないでください。
@@ -546,7 +621,7 @@ HELPER_DECL
 ```csharp
 HashSet<(string FilePath, int Start)> reported = [];
 
-foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
 {
     if (node is not InvocationExpressionSyntax invocation || !compilation.IsReportable(invocation))
     {
@@ -588,7 +663,7 @@ foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.Enumerate
 `TryEnumerateConfigurations` で構成ごとに存在するノードを絞り、その最大を上限と比べます。
 
 ```csharp
-List<HlslStatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<HlslStatementSyntax>()];
+List<StatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
 
 // 条件が分からないノードがある、シンボルが多すぎる (MaxConfigurationSymbols を超える) なら数えない
 if (!compilation.TryEnumerateConfigurations(statements, program, out var configurations) || configurations.IsEmpty)
@@ -708,6 +783,53 @@ if (resolution.IsResolved)
 `obj.Method(...)` の形は解決しません。メソッドは宣言として書かれていないためです。
 テクスチャのメソッド (`Sample` など) は `Intrinsic`、それ以外は `Unknown` になります。
 
+### `EnumerateCallees`
+
+関数から呼ばれる関数を、呼び出しをたどって列挙します。再帰と深さの打ち切りは API が持ちます。
+
+```csharp
+foreach (CalledFunction callee in c.Compilation.EnumerateCallees(c.Node, c.Program, maxDepth: 8))
+{
+    // callee.Function … 呼ばれる関数の宣言
+    // callee.Call     … それを呼んでいる呼び出し
+    // callee.When     … そこへ至る構成 (呼び出しの位置の条件と、宣言の条件の積)
+    // callee.Depth    … 深さ。直接呼ぶ関数が 1
+}
+```
+
+- 同じ関数は、最初に (浅いところで) 見つけた 1 件だけを返します
+- 多重定義が 1 つに決まらなければ、候補をすべてたどります。組み込み関数と、宣言の見つからない呼び出しはたどりません
+- `When` には木が表す構成を掛けていません。報告には `ReportWhen` を使ってください
+
+### `TryGetIdentifierUndeclaredCondition`
+
+識別子が指すグローバル変数が宣言されていない構成があるかを調べ、あればその構成を返します。組み込みのルール HL0315 と同じ判断です。
+
+```csharp
+if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out SymbolCondition undeclared))
+{
+    // undeclared … 識別子を使っていて、宣言が無い構成 (どの構成でもなら Always)
+}
+```
+
+- 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (HL0310 の範囲) は `false` です
+- 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比べ、ありえない構成と `#error` に到達する構成を除きます
+- 条件を追えなかったとき、どの構成でも解析しなかった領域に名前があるとき、依存関係が解決できていないときは `false` です
+
+### `GetTypesByConfiguration`
+
+`ExpressionTypeBinder` (`Compilation.GetExpressionTypeBinder(Program)`) のメソッドで、式の型を構成ごとに求めます。
+
+```csharp
+foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
+{
+    // type.When … 構成、type.Type … その構成での型
+}
+// #ifdef _A float3 color; #else float4 color; #endif の color なら (_A, float3) と (!_A, float4)
+```
+
+`Evaluate` は型が構成で割れる名前を不明 (`null`) にします。型が分からない構成は結果に含みません。`When` には木が表す構成を掛けていません。
+
 ### `CallCompatibility` (`Shaderlyn.Semantics.Programs`)
 
 呼び出しが宣言に合うかを、自分で 1 つずつ確かめるための判定です。
@@ -796,11 +918,11 @@ if (conditions.IsPossible(missing))
 | `EnabledSymbols`                                                | どのシンボルを有効にした構成か。既定の構成では空 |
 | `Variants`                                                      | その木から環境が読んだ構成の空間 (`VariantSpace`) |
 | `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
-| `Unit`                                                          | 解析したコンパイル単位 (`HlslCompilationUnit`) |
+| `Unit`                                                          | 解析したコンパイル単位 (`ShaderCompilationUnit`) |
 
 囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
 
-### `ConditionalTokenRange` (`Shaderlyn.Hlsl.Preprocessing`)
+### `ConditionalTokenRange` (`Shaderlyn.CFamily.Preprocessing`)
 
 プリプロセッサが条件付きで出力したトークンの範囲です。`program.Tree.PreprocessResult.ConditionalRegions` で列挙できます。
 位置は展開後のトークン列 (`PreprocessResult.Tokens`) の添字で表します。
@@ -850,24 +972,26 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ルールを書くだけなら、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使います。
 例は [ルールの実例集「独自エンジンの環境」](cookbook.md#独自エンジンの環境) にあります。
 
-### `IHlslEnvironment` (`Shaderlyn.Semantics.Environments`)
+### `IHlslEnvironment` / `IShaderEnvironment` (`Shaderlyn.Semantics.Environments`)
 
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
+言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを足したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
 セマンティックモデルを作った環境は `compilation.Environment` で引けます。
 
 | メンバー | 役目 |
 | --- | --- |
 | `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
+| `Parse` | 単位のコードを環境の言語で読む。`IHlslEnvironment` は HLSL として読む (実装しなくてよい) |
 | `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
-| `ReadEntryPoints` | エントリポイント (`HlslEntryPoint`)。HL0301 が見る |
+| `ReadEntryPoints` | エントリポイント (`ShaderEntryPoint`)。HL0301 が見る |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
 | `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。HL0340 / HL0341 が見る |
 
 ### `ShaderCompilation.Create`
 
-コンパイル単位 (`HlslCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
+コンパイル単位 (`ShaderCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
 ファイル全体を 1 つの単位にするなら `HlslEnvironment.WholeFile(text)` を使います。
 
 ### `VariantSpace` / `VariantValues` (`Shaderlyn.Core.Syntax`)

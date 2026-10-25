@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.ShaderLab;
@@ -31,8 +32,9 @@ public sealed class ConditionalMergeTests
     /// </summary>
     /// <param name="body">HLSLPROGRAM の中身。</param>
     /// <param name="keyword">有効にするシンボル。</param>
+    /// <param name="files">取り込めるファイル (URP の Core.hlsl のほか)。</param>
     /// <returns>突き合わせた結果。</returns>
-    private static ConditionalMergeResult MergeBlock(string body, string keyword)
+    private static ConditionalMergeResult MergeBlock(string body, string keyword, Dictionary<string, string>? files = null)
     {
         string source = $$"""
             Shader "Test/Conditional"
@@ -56,7 +58,7 @@ public sealed class ConditionalMergeTests
         SemanticsOptions options = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(
-                new Dictionary<string, string>(StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
+                new Dictionary<string, string>(files ?? [], StringComparer.Ordinal) { [UrpCorePath] = string.Empty }),
 
             // ここで見るのは「2 つの木を突き合わせる」機構である。
             // 1 つの木にまとめられるとその機構を通らないので、明示的に切る。
@@ -95,10 +97,33 @@ public sealed class ConditionalMergeTests
     /// <param name="node">部分木の根。</param>
     /// <param name="name">探す変数の名前。</param>
     /// <returns>宣言していれば <see langword="true"/>。</returns>
-    private static bool DeclaresVariable(HlslSyntaxNode node, string name)
+    private static bool DeclaresVariable(ShaderSyntaxNode node, string name)
         => node.DescendantNodesAndSelf()
             .OfType<VariableDeclarationSyntax>()
             .Any(d => d.Variables.Any(v => v.Name == name));
+
+    [Fact]
+    public void 構成によって並びの中で動いた宣言には条件が付かない()
+    {
+        // インクルードガードのヘッダを、_K のときだけ先に取り込む。2 度目の取り込みはガードで中身が無い。
+        // _K の木では _Moved が _Middle の前に、既定の木では後ろに並ぶ。どちらの構成にもあるので、条件は付かない。
+        ConditionalMergeResult result = MergeBlock(
+            """
+            #ifdef _K
+            #include "Moved.hlsl"
+            #endif
+                        float4 _Middle;
+            #include "Moved.hlsl"
+            """,
+            "_K",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Moved.hlsl"] = "#ifndef MOVED_INCLUDED\n#define MOVED_INCLUDED\nfloat4 _Moved;\n#endif\n",
+            });
+
+        Assert.DoesNotContain(result.ConditionalNodes, n => DeclaresVariable(n.Node, "_Moved"));
+        Assert.DoesNotContain(result.ConditionalNodes, n => DeclaresVariable(n.Node, "_Middle"));
+    }
 
     [Fact]
     public void 条件の外にある宣言には条件が付かない()
@@ -239,7 +264,7 @@ public sealed class ConditionalMergeTests
         // 子孫の条件は親を辿って求める (ConditionMap.GetCondition がそれを行う)。
         Assert.DoesNotContain(
             result.ConditionalNodes,
-            n => n.Node is HlslExpressionSyntax);
+            n => n.Node is ExpressionSyntax);
     }
 
     [Fact]
@@ -372,5 +397,32 @@ public sealed class ConditionalMergeTests
 
         // 突き合わせる相手が違えば条件は出る。上の空は「同じだから」である。
         Assert.NotEmpty(result.ConditionalNodes);
+    }
+
+    [Fact]
+    public void 同じファイルの同じ文字の並びなら別のインスタンスでも同じノードとみなす()
+    {
+        // 取り込みの展開結果を使い回すと、既定の木とバリアントの木で同じヘッダの宣言が
+        // 別の SourceText のインスタンスを指す。インスタンスで比べると対応が取れず、
+        // それぞれの構成にしか無いことになっていた (Unreal の SubstrateEvaluation.ush の構造体で HL0313)。
+        const string Code = """
+            struct Material { float3 Color; };
+            float4 Shade(Material m) { return float4(m.Color, 1); }
+            """;
+
+        ShaderSyntaxTree left = HlslSyntaxTree.Parse(SourceText.From(Code, "Shared.hlsl"), new PreprocessorOptions());
+        ShaderSyntaxTree right = HlslSyntaxTree.Parse(SourceText.From(Code, "Shared.hlsl"), new PreprocessorOptions());
+
+        ConditionalMergeResult result = ConditionalMerge.Merge(left.Root, right.Root, ["_A"]);
+
+        Assert.True(result.IsComplete);
+        Assert.Empty(result.ConditionalNodes);
+
+        // 同じパスでも中身が違えば (Unity の HLSLINCLUDE のように) 別のノードである。
+        ShaderSyntaxTree changed = HlslSyntaxTree.Parse(
+            SourceText.From(Code.Replace("Color", "Albedo", StringComparison.Ordinal), "Shared.hlsl"),
+            new PreprocessorOptions());
+
+        Assert.NotEmpty(ConditionalMerge.Merge(left.Root, changed.Root, ["_A"]).ConditionalNodes);
     }
 }

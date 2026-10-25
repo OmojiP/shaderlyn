@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 
@@ -16,7 +17,7 @@ namespace Shaderlyn.Rules;
 /// HLSL 2021 は C++ と同じくループの中に閉じ込め、外で使うとエラーになる (<c>use of undeclared identifier</c>)。
 /// </para>
 /// <para>
-/// コードをコンパイルする方言がどれも 2021 なら、名前は見つからず HL0310 になる。
+/// コードをコンパイルするコンパイラがどれも DXC の HLSL 2021 なら、名前は見つからず HL0310 になる。
 /// ここで伝えるのは、今は通るが 2021 へ移すとエラーになる書き方である (情報)。
 /// </para>
 /// </remarks>
@@ -30,10 +31,10 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
     {
         ReportedLocations reported = new();
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not IdentifierExpressionSyntax identifier
-                || !program.Tree.Features.LoopVariableOutsideLoop
+                || !program.Tree.Hlsl().Features.LoopVariableOutsideLoop
                 || !compilation.IsReportable(identifier.Identifier))
             {
                 continue;
@@ -57,7 +58,7 @@ internal sealed class LoopVariableScopeAnalyzer : SemanticRuleAnalyzer
     /// <summary>宣言子が for 文の初期化にあれば、その for 文を返す。</summary>
     /// <param name="declarator">宣言子。</param>
     /// <returns>for 文。初期化に無ければ <see langword="null"/>。</returns>
-    private static ForStatementSyntax? LoopOf(HlslSyntaxNode declarator)
+    private static ForStatementSyntax? LoopOf(ShaderSyntaxNode declarator)
         => declarator.Parent is VariableDeclarationSyntax declaration
            && declaration.Parent is ForStatementSyntax loop
            && ReferenceEquals(loop.Initializer, declaration)

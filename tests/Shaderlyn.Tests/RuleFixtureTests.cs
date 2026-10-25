@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.Cli;
 using Shaderlyn.Configuration;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Preprocessing;
 using Shaderlyn.Semantics;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
@@ -69,6 +69,7 @@ public sealed class RuleFixtureTests
         // Unreal の環境だけの規則。UnrealEnvironmentTests で、Unreal の .usf として確かめている。
         ["UE0001"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
         ["UE0002"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
+        ["UE0003"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。

@@ -1,8 +1,8 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.ShaderLab;
@@ -190,9 +190,9 @@ public sealed class UnityShaderModel
 
         foreach (AnalyzedProgram program in trees)
         {
-            foreach (HlslSyntaxToken token in program.Tree.PreprocessResult.Tokens)
+            foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.Tokens)
             {
-                if (token.Kind != HlslSyntaxKind.IdentifierToken
+                if (token.Kind != ShaderSyntaxKind.IdentifierToken
                     || token.Text.Length == 0
                     || !initials.Contains(token.Text[0]))
                 {

@@ -79,6 +79,19 @@ internal static class SemanticRuleDescriptors
             + "上限を上げると調べられますが、解析時間はシンボルの数に比例して伸びます。",
         helpLinkUri: DocumentationLinks.For("HL0006"));
 
+    /// <summary>展開が #error に到達した構成。その構成はコンパイルされない。</summary>
+    public static DiagnosticDescriptor ErrorConfiguration { get; } = new(
+        id: "HL0009",
+        title: "#error に到達する構成があります",
+        messageFormat: "{0}#error ({1} の {2} 行目) に到達するため、コンパイルされません。",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        description: "その構成の展開が #error に到達しました。#error に到達する構成はコンパイルできないので、エンジンもその構成をコンパイルしないはずです "
+            + "(Unreal Engine は C++ の ShouldCompilePermutation で除きます)。その構成のコードは、宣言の有無を見る検査 (HL0310 / HL0315 など) で考えません。"
+            + "どの構成でも到達するなら、解析のマクロの状態 (設定の defines、Unreal の生成したファイル) が実際と違う見込みがあります。"
+            + "Unity では、宣言したキーワードの構成はコンパイルされるので、UN0103 (エラー) が伝えます。",
+        helpLinkUri: DocumentationLinks.For("HL0009"));
+
     /// <summary>条件を追えなかった箇所がある。</summary>
     /// <remarks>
     /// <para>

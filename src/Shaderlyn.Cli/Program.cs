@@ -107,7 +107,10 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        // 設定ファイルは最初の解析対象から上へ探す。探す拡張子は環境が決めるので、ファイルを探す前に読む。
+        // 設定を作る処理は指定を書き換える。ファイルごとの設定 (AnalysisSettings) は、書き換える前の指定から作る。
+        CommandLineOptions original = options.Clone();
+
+        // 設定ファイルは最初の解析対象から上へ探す。これが既定の解析設定 (今までの 1 つの設定と環境) になる。
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
         if (options.UnrealGenerateOutputPath is { } generateOutput)
@@ -129,18 +132,43 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        ImmutableArray<string> files = ShaderFileDiscovery.Discover(
+        ImmutableArray<string> discovered = ShaderFileDiscovery.Discover(
             options.InputPaths,
-            environment.DefaultExtensions,
+            AnalysisSettings.DiscoveryExtensions(environments),
             out ImmutableArray<string> missingPaths,
             out ImmutableArray<string> unsupportedFiles);
+
+        // ファイルごとに、一番近い設定ファイルとその環境 (HLSL 以外の言語は拡張子の環境) で解析する。
+        AnalysisSetting primary = new(options, settings, environment, []);
+        ImmutableArray<AnalysisSetting> groups = AnalysisSettings.Build(
+            original,
+            primary,
+            environments,
+            discovered,
+            options.InputPaths.Where(File.Exists).Select(Path.GetFullPath).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            out ImmutableArray<Diagnostic> unusableConfigurations);
+
+        // 解析するファイルが無くても、既定の解析設定は残す (環境の表示と「0 ファイルを解析」のため)。
+        if (groups.IsEmpty)
+        {
+            groups = [primary];
+        }
+
+        ImmutableArray<string> files = [.. groups.SelectMany(g => g.Files)];
 
         // 環境の表示は、対象のパスが間違っていてもそれを含めて見せる。止めると何が違うのかが分からない。
         if (options.ShowEnvironment)
         {
-            await output.WriteAsync(
-                EnvironmentReport.Build(options, settings, environment, files, missingPaths, GetVersion()))
-                .ConfigureAwait(false);
+            for (int i = 0; i < groups.Length; i++)
+            {
+                AnalysisSetting group = groups[i];
+                await output.WriteAsync(
+                    EnvironmentReport.Build(
+                        group.Options, group.Settings, group.Environment, group.Files, missingPaths, GetVersion(),
+                        groups.Length == 1 ? null : (i + 1, groups.Length)))
+                    .ConfigureAwait(false);
+            }
+
             return ExitCode.Success;
         }
 
@@ -155,23 +183,53 @@ public static class Program
         }
 
         await ReportUnsupportedFilesAsync(options, unsupportedFiles, errorOutput).ConfigureAwait(false);
+        await ReportStaleUnrealGenerationAsync(groups, errorOutput).ConfigureAwait(false);
 
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
+            // 調べる出力は 1 つの環境のもの。先頭の解析設定 (既定の設定と環境のもの) を書く。
+            AnalysisSetting inspected = groups[0];
+
+            // 外した解析設定は黙って捨てない。どのファイルが出力に入っていないかを伝える。
+            foreach (AnalysisSetting skipped in groups.Skip(1))
+            {
+                await errorOutput.WriteLineAsync(
+                    $"--inspect は 1 つの解析設定のファイルだけを書きます。次の解析設定のファイルは書きません: 環境 {skipped.Environment.DisplayName}、"
+                    + $"設定ファイル {skipped.Settings.Configuration.FilePath ?? "(なし)"}、{skipped.Files.Length} ファイル")
+                    .ConfigureAwait(false);
+            }
+
             return await WriteInspectionAsync(
-                options, settings, environment, analyzers, files, inspectOutputPath, output, errorOutput, cancellationToken)
+                inspected.Options, inspected.Settings, inspected.Environment, analyzers, inspected.Files, inspectOutputPath, output, errorOutput, cancellationToken)
                 .ConfigureAwait(false);
         }
 
         AnalysisTimings? timings = options.ReportTimings ? new AnalysisTimings() : null;
         SemanticsOptions semanticsOptions = SemanticsSetup.Create(options, settings, timings);
-        AnalysisCache? cache = await LoadCacheAsync(options, settings, analyzers, errorOutput).ConfigureAwait(false);
+        AnalysisCache? cache = await LoadCacheAsync(options, groups, analyzers, errorOutput).ConfigureAwait(false);
         bool cacheWritable = await CheckCacheWritableAsync(options, errorOutput).ConfigureAwait(false);
 
-        AnalysisRunner runner = new(
-            analyzers, settings.AnalyzerOptions, semanticsOptions, timings, cache, environment);
+        List<AnalysisResult> perGroup = [];
 
-        AnalysisResult result = await runner.RunAsync(files, cancellationToken).ConfigureAwait(false);
+        foreach (AnalysisSetting group in groups)
+        {
+            // 既定の解析設定は、上で作った解析の設定をそのまま使う (解析設定が 1 つなら今までと同じ)。
+            SemanticsOptions groupSemantics = ReferenceEquals(group, primary) || ReferenceEquals(group.Settings, settings)
+                ? semanticsOptions
+                : SemanticsSetup.Create(group.Options, group.Settings, timings);
+
+            AnalysisRunner runner = new(
+                analyzers, group.Settings.AnalyzerOptions, groupSemantics, timings, cache, group.Environment);
+
+            AnalysisResult groupResult = await runner.RunAsync(group.Files, cancellationToken).ConfigureAwait(false);
+            perGroup.Add(groupResult);
+        }
+
+        // 解析設定をまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つの解析設定が取り込むことがある)。
+        // 解析設定が 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
+        AnalysisResult result = perGroup.Count == 1
+            ? perGroup[0]
+            : AnalysisResult.Merge(perGroup.Select(r => r.Diagnostics), perGroup.Sum(r => r.AnalyzedFileCount));
 
         if (cacheWritable)
         {
@@ -184,7 +242,14 @@ public static class Program
             await errorOutput.WriteAsync(timings.Describe(semanticsOptions.IncludeCache, cache))
                 .ConfigureAwait(false);
         }
-        result = result.WithAdditionalDiagnostics(settings.ConfigurationDiagnostics);
+        // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数の解析設定が使う)。
+        ImmutableArray<Diagnostic> configurationDiagnostics =
+        [
+            .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics)
+                .Concat(unusableConfigurations)
+                .DistinctBy(d => (d.Id, d.Location.FilePath, d.Location.Span, d.GetMessage())),
+        ];
+        result = result.WithAdditionalDiagnostics(configurationDiagnostics);
 
         if (options.BaselinePath is { } baselinePath)
         {
@@ -204,7 +269,7 @@ public static class Program
 
         // 出力は形式ごとの重要度で絞る。終了コードは絞る前のすべての指摘で決める (表示を絞って CI の合否が変わらないように)。
         AnalysisResult shown = result.OnlyAtOrAbove(
-            settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), settings.ConfigurationDiagnostics);
+            settings.GetMinimumReportedSeverity(options.Format, options.MinSeverity), configurationDiagnostics);
         IncludeTraceMode includeTrace = settings.GetIncludeTrace(options.IncludeTrace);
         string report = FormatReport(options, analyzers, shown, output, result.Diagnostics.Length - shown.Diagnostics.Length, includeTrace);
         await WriteReportAsync(options, report, output, cancellationToken).ConfigureAwait(false);
@@ -218,7 +283,7 @@ public static class Program
 
             AnalysisResult annotated =
                 result.OnlyAtOrAbove(
-                    settings.GetMinimumReportedSeverity(OutputFormat.GitHub, options.MinSeverity), settings.ConfigurationDiagnostics);
+                    settings.GetMinimumReportedSeverity(OutputFormat.GitHub, options.MinSeverity), configurationDiagnostics);
 
             await output.WriteAsync(annotator.Format(annotated.Diagnostics, annotated.AnalyzedFileCount))
                 .ConfigureAwait(false);
@@ -231,20 +296,26 @@ public static class Program
     /// 結果のキャッシュを読み込む。
     /// </summary>
     /// <param name="options">コマンドライン引数の解析結果。</param>
-    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <param name="groups">設定ファイルと環境ごとの解析設定。</param>
     /// <param name="analyzers">実行するアナライザ。</param>
     /// <param name="errorOutput">エラーメッセージの出力先。</param>
     /// <returns>読み込んだキャッシュ。<c>--cache</c> の指定が無ければ <see langword="null"/>。</returns>
     /// <remarks>
+    /// <para>
     /// <b>読み込みの失敗はツールエラーにしない。</b>
     /// キャッシュは速さのための仕組みでしかなく、
     /// 捨てて全件を解析し直せば正しい結果になる。
     /// ただし何も伝えずに捨てると「なぜか毎回遅い」ことに気づけないので、
     /// 読めなかったことは標準エラーへ伝える。
+    /// </para>
+    /// <para>
+    /// 解析設定が複数あれば、すべての解析設定の鍵をまとめた鍵にする。どの設定ファイルを変えても使い回さない。
+    /// 解析設定が 1 つなら、その解析設定の鍵そのもの (今までのキャッシュを使い回せる)。
+    /// </para>
     /// </remarks>
     private static async Task<AnalysisCache?> LoadCacheAsync(
         CommandLineOptions options,
-        EffectiveSettings settings,
+        ImmutableArray<AnalysisSetting> groups,
         ImmutableArray<DiagnosticAnalyzer> analyzers,
         TextWriter errorOutput)
     {
@@ -253,8 +324,12 @@ public static class Program
             return null;
         }
 
-        AnalysisCache cache = AnalysisCache.Load(
-            cachePath, AnalysisCacheKey.Compute(options, settings, analyzers), out string? warning);
+        string key = groups.Length == 1
+            ? AnalysisCacheKey.Compute(groups[0].Options, groups[0].Settings, analyzers)
+            : Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
+                string.Join('\n', groups.Select(g => $"{g.Environment.Name}:{AnalysisCacheKey.Compute(g.Options, g.Settings, analyzers)}")))));
+
+        AnalysisCache cache = AnalysisCache.Load(cachePath, key, out string? warning);
 
         if (warning is not null)
         {
@@ -437,7 +512,8 @@ public static class Program
             return ExitCode.ToolError;
         }
 
-        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins")];
+        // Shaders/Shared は C++ とシェーダーが共有するヘッダで、C++ が値に使うマクロ (NANITE_RASTER_BIN_INIT など) を定義する。
+        List<string> roots = [Path.Combine(engine, "Source"), Path.Combine(engine, "Plugins"), Path.Combine(engine, "Shaders", "Shared")];
 
         if (configuration.UnrealProjectDirectory is { } project)
         {
@@ -447,10 +523,24 @@ public static class Program
 
         string fullOutput = Path.GetFullPath(outputDirectory);
         Unreal.UnrealUniformBufferGeneration generation;
+        string? materialTemplate;
 
         try
         {
-            generation = Unreal.UnrealUniformBufferGenerator.Generate(roots, fullOutput);
+            generation = Unreal.UnrealUniformBufferGenerator.Generate(
+                roots,
+                fullOutput,
+                Unreal.UnrealShaderLanguageVersions.ReadShaderPlatformSettings(engine, Unreal.UnrealShaderLanguageVersions.DefaultShaderPlatform),
+                Unreal.UnrealConsoleVariables.ReadOverrides(engine, configuration.UnrealProjectDirectory),
+
+                // 解析で解決できない頂点ファクトリ (仮想パスを割り当てていないプラグインのもの) は、構成の軸に入れない。
+                ShaderFileResolver(settings));
+
+            // マテリアルのシェーダーが取り込む Material.ush / VertexFactory.ush の代わり。
+            materialTemplate = Unreal.UnrealMaterialGenerator.Write(fullOutput, engine);
+
+            // 生成した後に ini や C++ を変えたら、解析を始めるときに伝える (ReportStaleUnrealGenerationAsync)。
+            Unreal.UnrealGenerationStamp.Write(fullOutput, engine, configuration.UnrealProjectDirectory, roots);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -460,7 +550,29 @@ public static class Program
 
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読みました。");
+
+        if (generation.MissingShaderClassCount > 0)
+        {
+            report.AppendLine(CultureInfo.InvariantCulture, $"宣言が見つからなかったクラスが {generation.MissingShaderClassCount} 個あります。これらのクラスが登録したシェーダーには、クラスで決まるマクロを定義せずに解析します。");
+        }
+
+        report.AppendLine(materialTemplate is null
+            ? "MaterialTemplate.ush か、マテリアルの属性を書いた C++ が見つからないので、マテリアルのシェーダーの代わりの Material.ush は作りませんでした。"
+            : "マテリアルのシェーダーの代わりの Material.ush を作りました (実際のマテリアルの中身ではなく、既定値で埋めたもの)。");
         report.AppendLine(CultureInfo.InvariantCulture, $"書き出し先: {fullOutput}");
+
+        if (!generation.UnreadShaderRegistrations.IsEmpty)
+        {
+            // 独自のマクロで登録したシェーダーは、設定の units: に書けば解析できる。
+            report.AppendLine(CultureInfo.InvariantCulture, $"読めなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントが分からないので、必要なら設定の units: に書いてください):");
+
+            foreach ((string macro, int count) in generation.UnreadShaderRegistrations.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal))
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"  {macro}: {count} 個");
+            }
+        }
 
         if (!generation.Incomplete.IsEmpty)
         {
@@ -659,6 +771,41 @@ public static class Program
         {
             await errorOutput.WriteLineAsync($"解析の対象外のファイルがあります: {string.Join(", ", counts)}")
                 .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>シェーダーのファイルの仮想パスを、解析と同じ割り当てで解決できるかを判定する手続きを作る。</summary>
+    /// <param name="settings">設定。</param>
+    /// <returns>手続き。</returns>
+    private static Func<string, bool> ShaderFileResolver(EffectiveSettings settings)
+    {
+        Unreal.UnrealVirtualPathResolver resolver = new(SemanticsSetup.CreateUnreal(settings).GetVirtualPathMappings());
+        return path => resolver.TryResolve(path, string.Empty, out _);
+    }
+
+    /// <summary>Unreal の生成物を作った後に、ini や C++ が変わったことを伝える。</summary>
+    /// <param name="groups">解析設定。</param>
+    /// <param name="errorOutput">標準エラー。解析結果 (JSON や SARIF) には混ぜない。</param>
+    /// <returns>非同期操作。</returns>
+    /// <remarks>
+    /// C++ の一覧と更新日時を読むので、エンジンだけで約 2 秒かかる (<see cref="Unreal.UnrealGenerationStamp"/>)。
+    /// 解析するファイルのある Unreal の解析設定だけで、生成物のフォルダーごとに 1 度だけ確かめる。
+    /// </remarks>
+    private static async Task ReportStaleUnrealGenerationAsync(ImmutableArray<AnalysisSetting> groups, TextWriter errorOutput)
+    {
+        IEnumerable<string> directories = groups
+            .Where(g => !g.Files.IsEmpty && g.Settings.Environment == Unreal.UnrealOptions.EnvironmentName)
+            .Select(g => g.Settings.Configuration.UnrealGeneratedDirectory)
+            .OfType<string>()
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string directory in directories)
+        {
+            if (Unreal.UnrealGenerationStamp.Check(directory)?.Describe() is { } message)
+            {
+                await errorOutput.WriteLineAsync(message).ConfigureAwait(false);
+            }
         }
     }
 

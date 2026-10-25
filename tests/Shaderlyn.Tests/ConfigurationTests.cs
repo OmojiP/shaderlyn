@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.Configuration;
+using Shaderlyn.Core.Analysis;
 using Shaderlyn.Configuration.Yaml;
 using Shaderlyn.Core.Diagnostics;
 
@@ -379,6 +380,56 @@ public sealed class ConfigurationLoaderTests
             """);
 
         Assert.Contains(configuration.Problems, p => p.Message.Contains("severty", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <c>/</c> で囲んだキーを、ルール ID の正規表現として読むことを検証する。
+    /// ID をそのまま書いた設定が先に効き、正規表現どうしは後に書いたものが効く。ID の一部にだけ当たる式は当たらない。
+    /// </summary>
+    [Fact]
+    public void ルールIDを正規表現で指定して重要度を変える()
+    {
+        ShaderlynConfiguration configuration = ParseWithoutProblems("""
+            rules:
+              /sl.*/: error
+              SL1003: warning
+              /SL10.*/:
+                severity: info
+              "/(HL|UN)03[0-9]{2}/": none
+              /0001/: none
+            """);
+
+        Assert.Equal(["sl.*", "SL10.*", "(HL|UN)03[0-9]{2}", "0001"], configuration.RuleSeverityPatterns.Select(p => p.Pattern).ToArray());
+
+        AnalyzerOptions options = new(configuration.RuleSeverities, configuration.RuleOptions, configuration.RuleSeverityPatterns);
+
+        Assert.Equal(DiagnosticSeverity.Warning, options.GetEffectiveSeverity(Descriptor("SL1003")));
+        Assert.Equal(DiagnosticSeverity.Info, options.GetEffectiveSeverity(Descriptor("SL1004")));
+        Assert.Equal(DiagnosticSeverity.Error, options.GetEffectiveSeverity(Descriptor("SL2001")));
+        Assert.Equal(DiagnosticSeverity.None, options.GetEffectiveSeverity(Descriptor("HL0310")));
+        Assert.Equal(DiagnosticSeverity.Warning, options.GetEffectiveSeverity(Descriptor("HL0001")));
+
+        // ID の全体と一致したものだけが当たる。/0001/ は SL0001 に当たらない (部分一致なら none になる)。
+        Assert.Equal(DiagnosticSeverity.Error, options.GetEffectiveSeverity(Descriptor("SL0001")));
+
+        static DiagnosticDescriptor Descriptor(string id)
+            => new(id, "title", "message", "category", DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ルールIDの正規表現の誤りを報告する()
+    {
+        ShaderlynConfiguration configuration = Parse("""
+            rules:
+              "/SL[/": error
+              /HL.*/:
+                severity: error
+                options: { max: 1 }
+            """);
+
+        Assert.Contains(configuration.Problems, p => p.Message.Contains("/SL[/", StringComparison.Ordinal) && p.Message.Contains("正規表現", StringComparison.Ordinal));
+        Assert.Contains(configuration.Problems, p => p.Message.Contains("options を書けません", StringComparison.Ordinal));
+        Assert.Single(configuration.RuleSeverityPatterns);
     }
 
     [Fact]

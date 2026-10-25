@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\Shaderlyn.CFamily\Shaderlyn.CFamily.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

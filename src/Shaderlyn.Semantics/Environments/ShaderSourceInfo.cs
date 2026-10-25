@@ -14,7 +14,7 @@ namespace Shaderlyn.Semantics.Environments;
 /// <param name="Diagnostics">その構文木の診断。</param>
 /// <param name="Data">環境がファイルに持たせる情報。解析そのものは中身を見ない。</param>
 /// <remarks>
-/// <b>コンパイル単位 (<see cref="HlslCompilationUnit"/>) の外側にある情報である。</b>
+/// <b>コンパイル単位 (<see cref="ShaderCompilationUnit"/>) の外側にある情報である。</b>
 /// Unity の <c>Properties</c> や <c>Pass</c> の設定は、どの単位の HLSL にも含まれない。
 /// </remarks>
 public sealed record ShaderSourceInfo(

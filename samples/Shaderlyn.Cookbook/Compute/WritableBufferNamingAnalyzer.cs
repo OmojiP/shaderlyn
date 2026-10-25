@@ -1,17 +1,17 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Analysis;
 
 namespace Shaderlyn.Cookbook;
 
 /// <summary>書き込めるバッファ・テクスチャの名前の接頭辞を揃える。</summary>
-public sealed class WritableBufferNamingAnalyzer(string prefix) : HlslRuleAnalyzer
+public sealed class WritableBufferNamingAnalyzer(string prefix) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [CookbookRules.WritableBufferNaming];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

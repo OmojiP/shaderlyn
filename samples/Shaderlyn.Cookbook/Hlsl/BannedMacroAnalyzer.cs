@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Cookbook;
@@ -31,9 +31,9 @@ public sealed class BannedMacroAnalyzer(params string[] banned) : DiagnosticAnal
                 return;
             }
 
-            foreach (HlslSyntaxToken token in compilation.CodeTokens)
+            foreach (ShaderSyntaxToken token in compilation.CodeTokens)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
                 {
                     c.ReportDiagnostic(CookbookRules.BannedMacro, token.Span, token.Text);
                 }
@@ -41,9 +41,9 @@ public sealed class BannedMacroAnalyzer(params string[] banned) : DiagnosticAnal
 
             // 利用者が書いて取り込んだヘッダ (共通の .hlsl) も、展開前のトークンを見る。
             // これらのトークンはヘッダを指すので、位置はトークンから作る。
-            foreach (HlslSyntaxToken token in compilation.UserIncludeCodeTokens)
+            foreach (ShaderSyntaxToken token in compilation.UserIncludeCodeTokens)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
                 {
                     c.ReportDiagnostic(Diagnostic.Create(CookbookRules.BannedMacro, token.GetLocation(), token.Text));
                 }

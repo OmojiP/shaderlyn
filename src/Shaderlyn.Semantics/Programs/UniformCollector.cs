@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Symbols;
 
@@ -73,19 +74,21 @@ internal static class UniformCollector
     /// <summary>
     /// 構文木からトップレベルの宣言を集める。
     /// </summary>
-    /// <param name="root">HLSL の構文木の根。</param>
+    /// <param name="root">構文木の根。</param>
+    /// <param name="types">uniform の型を分類する言語の型システム。省略すると HLSL。</param>
     /// <returns>集めた宣言。</returns>
-    public static DeclarationSet Collect(HlslCompilationUnitSyntax root)
+    public static DeclarationSet Collect(CompilationUnitSyntax root, ShaderTypeSystem? types = null)
     {
         ArgumentNullException.ThrowIfNull(root);
 
-        Collector collector = new();
+        Collector collector = new(types ?? HlslTypeSystem.Instance);
         collector.CollectFrom(root.Declarations);
         return collector.ToResult();
     }
 
     /// <summary>走査中の状態。</summary>
-    private sealed class Collector
+    /// <param name="types">uniform の型を分類する言語の型システム。</param>
+    private sealed class Collector(ShaderTypeSystem types)
     {
         private readonly ImmutableArray<UniformSymbol>.Builder _uniforms =
             ImmutableArray.CreateBuilder<UniformSymbol>();
@@ -122,9 +125,9 @@ internal static class UniformCollector
                     pair => pair.Value.ToImmutableArray(),
                     StringComparer.Ordinal));
 
-        public void CollectFrom(ImmutableArray<HlslDeclarationSyntax> declarations)
+        public void CollectFrom(ImmutableArray<DeclarationSyntax> declarations)
         {
-            foreach (HlslDeclarationSyntax declaration in declarations)
+            foreach (DeclarationSyntax declaration in declarations)
             {
                 switch (declaration)
                 {
@@ -175,7 +178,7 @@ internal static class UniformCollector
         {
             _structs.Add(declaration);
 
-            foreach (HlslDeclarationSyntax member in declaration.Members)
+            foreach (DeclarationSyntax member in declaration.Members)
             {
                 if (member is StructDeclarationSyntax nested)
                 {
@@ -227,7 +230,7 @@ internal static class UniformCollector
         {
             ImmutableArray<UniformSymbol>.Builder members = ImmutableArray.CreateBuilder<UniformSymbol>();
 
-            foreach (HlslDeclarationSyntax member in buffer.Members)
+            foreach (DeclarationSyntax member in buffer.Members)
             {
                 if (member is VariableDeclarationSyntax variable)
                 {
@@ -243,7 +246,7 @@ internal static class UniformCollector
         /// <param name="declaration">対象の宣言。</param>
         /// <param name="containingBufferName">含まれている定数バッファの名前。</param>
         /// <param name="uniforms">見つかった uniform の追加先。</param>
-        private static void AddUniforms(
+        private void AddUniforms(
             VariableDeclarationSyntax declaration,
             string? containingBufferName,
             ImmutableArray<UniformSymbol>.Builder uniforms)
@@ -265,7 +268,7 @@ internal static class UniformCollector
                     continue;
                 }
 
-                uniforms.Add(new UniformSymbol(declarator.Name, declaration, declarator, containingBufferName));
+                uniforms.Add(new UniformSymbol(declarator.Name, declaration, declarator, containingBufferName, types));
             }
         }
     }

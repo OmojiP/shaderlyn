@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.LanguageServer;
@@ -45,7 +45,7 @@ internal static class SymbolOccurrences
         return
         [
             .. compilation.CodeTokens
-                .Where(t => t.Kind == HlslSyntaxKind.IdentifierToken
+                .Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken
                             && string.Equals(t.Text, name.Text, StringComparison.Ordinal)
                             && t.Span.Start >= scope.Start
                             && t.Span.End <= scope.End)
@@ -82,7 +82,7 @@ internal static class SymbolOccurrences
     /// uniform や関数のようにファイル全体から見える名前は、ファイル全体を見る。
     /// </para>
     /// </remarks>
-    private static TextSpan FindScope(ShaderCompilation compilation, HlslSyntaxToken name)
+    private static TextSpan FindScope(ShaderCompilation compilation, ShaderSyntaxToken name)
     {
         TextSpan whole = new(0, compilation.Text.Content.Length);
 

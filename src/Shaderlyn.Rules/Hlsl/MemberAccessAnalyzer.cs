@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Analysis;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -56,9 +57,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<(int Start, string? Kernel), Dictionary<string, StructInfo>> structs = CollectStructs(compilation, condition);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
+        // 構成の条件が付く報告 (HL0313) は、木をまたいで条件の和をとって 1 件にする (ConditionalReports)。
         ReportedLocations reported = new();
+        ConditionalReports reports = new(compilation);
 
-        foreach ((HlslSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is MemberAccessExpressionSyntax access)
             {
@@ -69,9 +72,15 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                     structs.TryGetValue(program.BlockKey, out Dictionary<string, StructInfo>? own) ? own : [],
                     compilation.GetExpressionTypeBinder(program),
                     access,
-                    program.AnalyzedCondition,
-                    reported);
+                    program,
+                    reported,
+                    reports);
             }
+        }
+
+        foreach (Diagnostic diagnostic in reports.Build())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -82,11 +91,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="structs">このシェーダーが書いた構造体のうち、参照と同じコードブロックのもの。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="access">検査する参照。</param>
-    /// <param name="analyzed">
-    /// この木を解析した構成の条件 (<see cref="AnalyzedProgram.AnalyzedCondition"/>)。
-    /// 既定の木なら「常に」で、構成ごとの型もそこでだけ求める。
+    /// <param name="program">
+    /// 参照のある木。既定の木なら解析した構成 (<see cref="AnalyzedProgram.AnalyzedCondition"/>) は「常に」で、構成ごとの型もそこでだけ求める。
     /// </param>
     /// <param name="reported">報告済みの位置。</param>
+    /// <param name="reports">構成の条件が付く報告を集める先。</param>
     private static void AnalyzeAccess(
         SyntaxTreeAnalysisContext context,
         ShaderCompilation compilation,
@@ -94,8 +103,9 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, StructInfo> structs,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
-        SymbolCondition analyzed,
-        ReportedLocations reported)
+        AnalyzedProgram program,
+        ReportedLocations reported,
+        ConditionalReports reports)
     {
         // メンバー名そのものが書かれたものでなければ見ない。
         // UNITY_SETUP_INSTANCE_ID(v) の v.instanceID は、v は書かれたものだが .instanceID はヘッダのマクロの本体である。
@@ -105,7 +115,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         // 名前の修飾 (Mode::A、名前空間の UnifiedRT::TraceRay)。enum の列挙子だけを見る (HLSL 2021)。
-        if (access.DotToken.Kind == HlslSyntaxKind.ColonColonToken)
+        if (access.DotToken.Kind == ShaderSyntaxKind.ColonColonToken)
         {
             if (access.Target is IdentifierExpressionSyntax { Name: var enumName }
                 && binder.TryGetEnum(enumName, out EnumInfo? enumeration)
@@ -136,7 +146,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         // 構成によって型が変わる名前なら、構成ごとに型を求めて検査する。
         if (binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName)
         {
-            if (analyzed.IsAlways)
+            if (program.AnalyzedCondition.IsAlways)
             {
                 AnalyzeSwizzleByAssumption(context, condition, binder, access, reported);
             }
@@ -146,31 +156,31 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
-            AnalyzeStructMember(context, condition, structs, typeName, structure, access, analyzed, reported);
+            AnalyzeStructMember(context, structs, typeName, structure, access, program, reported, reports);
             return;
         }
 
-        AnalyzeSwizzle(context, typeName, access, reported);
+        AnalyzeSwizzle(context, binder.TypeSystem, typeName, access, reported);
     }
 
     /// <summary>構造体のメンバー参照を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
-    /// <param name="condition">出現条件の索引。</param>
     /// <param name="structs">同じコードブロックの構造体。継承した基底を引く。</param>
     /// <param name="typeName">構造体の名前。</param>
     /// <param name="structure">構造体の情報。</param>
     /// <param name="access">検査する参照。</param>
-    /// <param name="analyzed">この木を解析した構成の条件。</param>
+    /// <param name="program">参照のある木。</param>
     /// <param name="reported">報告済みの位置。</param>
+    /// <param name="reports">構成の条件が付く報告を集める先。</param>
     private static void AnalyzeStructMember(
         SyntaxTreeAnalysisContext context,
-        ConditionMap condition,
         Dictionary<string, StructInfo> structs,
         string typeName,
         StructInfo structure,
         MemberAccessExpressionSyntax access,
-        SymbolCondition analyzed,
-        ReportedLocations reported)
+        AnalyzedProgram program,
+        ReportedLocations reported,
+        ConditionalReports reports)
     {
         if (access.GetLocation() is not { } location)
         {
@@ -208,29 +218,27 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // バリアントの木では、条件が付いていないことは「どの構成でも」を意味しない。
-        // そのシンボルを有効にした構成の中での話なので、掛け合わせてから比べる。
-        SymbolCondition use = condition.GetCondition(access).And(analyzed);
-
-        if (use.IsUnknown || declared.IsUnknown)
+        if (declared.IsUnknown)
         {
             return;
         }
 
-        // 参照する条件が成り立ち、かつメンバーがある条件が成り立たない構成があるか。
-        SymbolCondition missing = use.And(declared.Negate());
+        // 参照する構成 (参照の条件 × 木の構成) のうち、メンバーが無い構成を報告する。
+        // バリアントの木では、条件が付いていないことは「どの構成でも」を意味しない。その掛け方は ConditionalReports が行う。
+        string name = access.Name;
 
-        if (missing.IsUnknown || !condition.IsPossible(missing) || !reported.Add(location))
+        if (reports.Add(
+                program,
+                access,
+                declared.Negate(),
+                HlslRuleDescriptors.StructMemberNotPresent,
+                location,
+                typeName + "\u0001" + name,
+                missing => [typeName, name, missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"]))
         {
-            return;
+            // 同じ位置に、ほかの木から「そもそもメンバーが無い」(HL0312) を重ねない。
+            reported.Add(location);
         }
-
-        context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.StructMemberNotPresent,
-            location,
-            typeName,
-            access.Name,
-            missing.IsAlways ? "どの構成でも" : $"構成：{missing} のとき"));
     }
 
     /// <summary>構造体のメソッドの呼び出し (HLSL 2021 の <c>s.Get()</c>) で、そのメソッドがあるかを検査する。</summary>
@@ -250,7 +258,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
-        if (access.DotToken.Kind != HlslSyntaxKind.DotToken
+        if (access.DotToken.Kind != ShaderSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
             || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing
@@ -288,7 +296,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// #endif
     /// </code>
     /// 構成ごとの型は、使う位置の条件と宣言の条件を掛け合わせて求める
-    /// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(HlslSyntaxNode, HlslExpressionSyntax, ConditionMap)"/>)。
+    /// (<see cref="ExpressionTypeBinder.EnumerateAssumptions(ShaderSyntaxNode, ExpressionSyntax, ConditionMap)"/>)。
     /// 1 つの構成で誤りなら、その構成を添えて報告する。
     /// </remarks>
     private static void AnalyzeSwizzleByAssumption(
@@ -309,7 +317,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 ? string.Empty
                 : $"構成：{assumption} のとき、この式は {typeName} です。";
 
-            if (AnalyzeSwizzle(context, typeName, access, reported, note))
+            if (AnalyzeSwizzle(context, binder.TypeSystem, typeName, access, reported, note))
             {
                 return;
             }
@@ -318,6 +326,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>数値型のスウィズルを検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
+    /// <param name="types">型の形を尋ねる先。</param>
     /// <param name="typeName">対象の型名。</param>
     /// <param name="access">検査する参照。</param>
     /// <param name="reported">報告済みの位置。</param>
@@ -326,20 +335,22 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// 行列には <c>_m00</c> 形式 (0 始まり) と <c>_11</c> 形式 (1 始まり) があり、
     /// 規則が違う。混ぜて書くこともできない。
+    /// 成分名の組と行列の書き方は HLSL のもの。GLSL の成分名 (<c>stpq</c>) と行列の列の参照は GL2 で決める。
     /// </remarks>
     private static bool AnalyzeSwizzle(
         SyntaxTreeAnalysisContext context,
+        ShaderTypeSystem types,
         string typeName,
         MemberAccessExpressionSyntax access,
         ReportedLocations reported,
         string note = "")
     {
-        if (!HlslTypeClassifier.TryDescribeNumeric(typeName, out HlslNumericShape shape))
+        if (!types.TryDescribeNumeric(typeName, out ShaderNumericShape shape))
         {
             return false;
         }
 
-        string? error = shape.Kind == HlslNumericKind.Matrix
+        string? error = shape.Kind == ShaderNumericKind.Matrix
             ? DescribeMatrixSwizzleError(access.Name, shape)
             : DescribeSwizzleError(access.Name, shape.Columns);
 
@@ -372,7 +383,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// どちらの形にも当てはまらない名前も誤りである。
     /// </para>
     /// </remarks>
-    private static string? DescribeMatrixSwizzleError(string name, HlslNumericShape shape)
+    private static string? DescribeMatrixSwizzleError(string name, ShaderNumericShape shape)
     {
         bool zeroBased = name.StartsWith("_m", StringComparison.Ordinal);
         int stride = zeroBased ? 4 : 3;
@@ -612,11 +623,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="Conditions">条件が付いたメンバーの、宣言がある条件。</param>
     /// <param name="Bases">継承した基底の名前。</param>
     /// <param name="Methods">メソッドの名前。</param>
+    /// <param name="Unconditional">どれかの木で、条件の付かない宣言があったメンバーの名前。</param>
     private readonly record struct StructInfo(
         IReadOnlySet<string> Members,
         Dictionary<string, SymbolCondition> Conditions,
         HashSet<string> Bases,
-        HashSet<string> Methods);
+        HashSet<string> Methods,
+        HashSet<string> Unconditional);
 
     /// <summary>
     /// このシェーダーが書いた構造体を集める。
@@ -668,6 +681,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                         new HashSet<string>(StringComparer.Ordinal),
                         new Dictionary<string, SymbolCondition>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal),
                         new HashSet<string>(StringComparer.Ordinal));
 
                     structs[structure.Name] = info;
@@ -695,7 +709,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         // メソッド (template のメソッドを含む)。演算子は名前で呼ばないので含めない。
-        foreach (HlslDeclarationSyntax member in structure.Members)
+        foreach (DeclarationSyntax member in structure.Members)
         {
             if (member is FunctionDeclarationSyntax { IsOperator: false } method)
             {
@@ -715,9 +729,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             {
                 ((HashSet<string>)info.Members).Add(variable.Name);
 
-                if (declared.IsAlways)
+                // 無条件で現れたなら、条件は付いていない。ほかの木で条件付きで現れても付けない。
+                // 付けると、後から読んだ木の条件だけが残り、ほかの構成でメンバーが無いと報告していた
+                // (Unreal の頂点ファクトリごとの木。LocalVertexFactory.ush の FVertexFactoryInput.Position)。
+                // 構成ごとの木の構成を掛けて和をとると正確だが、木が多いと条件が膨らみ、その否定に時間がかかりすぎる。
+                if (declared.IsAlways || info.Unconditional.Contains(variable.Name))
                 {
-                    // 無条件で現れたなら、条件は付いていない。
+                    info.Unconditional.Add(variable.Name);
                     info.Conditions.Remove(variable.Name);
                     continue;
                 }

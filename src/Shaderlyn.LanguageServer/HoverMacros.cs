@@ -1,10 +1,10 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
-using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
 using Shaderlyn.Unity;
@@ -38,7 +38,7 @@ internal static partial class HoverBuilder
     /// </remarks>
     private static HoverResult? BuildForMacro(ShaderCompilation compilation, int offset)
     {
-        HlslSyntaxToken? token = CursorTarget.FindIdentifier(compilation, offset);
+        ShaderSyntaxToken? token = CursorTarget.FindIdentifier(compilation, offset);
 
         if (token is null)
         {
@@ -127,7 +127,7 @@ internal static partial class HoverBuilder
     /// その定義に通る条件も添える。読み飛ばした分岐の定義でも、別の構成では効いている。
     /// 同じ名前を別の条件で定義していれば、それも並べる。
     /// </remarks>
-    private static HoverResult? DescribeWrittenDefinition(ShaderCompilation compilation, HlslSyntaxToken token)
+    private static HoverResult? DescribeWrittenDefinition(ShaderCompilation compilation, ShaderSyntaxToken token)
     {
         foreach (AnalyzedProgram program in compilation.Programs)
         {
@@ -213,13 +213,13 @@ internal static partial class HoverBuilder
     private static string? DescribeExpansionsByCondition(
         ShaderCompilation compilation,
         AnalyzedProgram program,
-        HlslSyntaxToken token)
+        ShaderSyntaxToken token)
     {
-        ImmutableArray<HlslSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
-        List<List<HlslSyntaxToken>> runs = [];
-        List<HlslSyntaxToken>? current = null;
+        ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+        List<List<ShaderSyntaxToken>> runs = [];
+        List<ShaderSyntaxToken>? current = null;
 
-        foreach (HlslSyntaxToken expanded in tokens)
+        foreach (ShaderSyntaxToken expanded in tokens)
         {
             bool atCall = expanded.IsFromMacroExpansion
                           && expanded.Span.Start <= token.Span.Start
@@ -247,18 +247,18 @@ internal static partial class HoverBuilder
         }
 
         // 展開の先頭から始まるノードのうち、最も外側のもの。複製の条件はそこから引く。
-        Dictionary<HlslSyntaxToken, HlslSyntaxNode?> starts = [];
+        Dictionary<ShaderSyntaxToken, ShaderSyntaxNode?> starts = [];
 
-        foreach (List<HlslSyntaxToken> run in runs)
+        foreach (List<ShaderSyntaxToken> run in runs)
         {
             starts[run[0]] = null;
         }
 
         foreach (SyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
         {
-            if (node is HlslSyntaxNode hlsl
+            if (node is ShaderSyntaxNode hlsl
                 && hlsl.FirstToken is { } first
-                && starts.TryGetValue(first, out HlslSyntaxNode? found)
+                && starts.TryGetValue(first, out ShaderSyntaxNode? found)
                 && found is null)
             {
                 starts[first] = hlsl;
@@ -268,7 +268,7 @@ internal static partial class HoverBuilder
         ConditionMap conditions = compilation.GetConditionMap();
         List<(SymbolCondition Condition, string Text)> byCondition = [];
 
-        foreach (List<HlslSyntaxToken> run in runs)
+        foreach (List<ShaderSyntaxToken> run in runs)
         {
             SymbolCondition condition = starts[run[0]] is { } node
                 ? conditions.GetCondition(node)

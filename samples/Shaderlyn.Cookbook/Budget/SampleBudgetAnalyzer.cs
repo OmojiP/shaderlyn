@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Symbols;
 
@@ -39,14 +39,15 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
     private readonly ImmutableHashSet<string> _functions = [.. functions];
 
     /// <summary>その名前を数えるかどうかを判定する。</summary>
+    /// <param name="types">解析した言語の型と組み込み関数 (<c>compilation.TypeSystem</c>)。</param>
     /// <param name="name">関数またはメソッドの名前。</param>
     /// <returns>数えるなら <see langword="true"/>。</returns>
     /// <remarks>
     /// <b>名前を渡さなければ、ツールが知っているサンプリング関数を数える。</b>
     /// 一覧を自分で持つと、新しい読み方が増えたときに古いままになる。
     /// </remarks>
-    private bool Counts(string name)
-        => _functions.IsEmpty ? HlslIntrinsics.IsTextureSamplingFunction(name) : _functions.Contains(name);
+    private bool Counts(ShaderTypeSystem types, string name)
+        => _functions.IsEmpty ? types.IsTextureSamplingFunction(name) : _functions.Contains(name);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.TooManySamples];
 
@@ -63,12 +64,12 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
 
             foreach (AnalyzedProgram program in compilation.Programs)
             {
-                List<(InvocationExpressionSyntax Call, HlslSyntaxToken Name)> samples =
+                List<(InvocationExpressionSyntax Call, ShaderSyntaxToken Name)> samples =
                 [
                     .. compilation.EnumerateOwnNodes(program)
                         .OfType<InvocationExpressionSyntax>()
                         .Select(call => (Call: call, Name: NameToken(call)))
-                        .Where(sample => sample.Name is { } name && Counts(name.Text))
+                        .Where(sample => sample.Name is { } name && Counts(compilation.TypeSystem, name.Text))
                         .Select(sample => (sample.Call, sample.Name!)),
                 ];
 
@@ -80,7 +81,7 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
                 }
 
                 // いちばん多い構成で数え、その構成で予算を超えた最初の呼び出しを指す。
-                List<HlslSyntaxToken> worst = configurations
+                List<ShaderSyntaxToken> worst = configurations
                     .Select(configuration => samples.Where(s => configuration.Contains(s.Call)).Select(s => s.Name).ToList())
                     .MaxBy(present => present.Count) ?? [];
 
@@ -100,7 +101,7 @@ public sealed class SampleBudgetAnalyzer(int maxSamples, params string[] functio
     /// <summary>呼び出しの名前のトークンを返す。</summary>
     /// <param name="invocation">対象の呼び出し。</param>
     /// <returns>名前のトークン。名前で呼んでいない場合は <see langword="null"/>。</returns>
-    private static HlslSyntaxToken? NameToken(InvocationExpressionSyntax invocation) => invocation.Target switch
+    private static ShaderSyntaxToken? NameToken(InvocationExpressionSyntax invocation) => invocation.Target switch
     {
         IdentifierExpressionSyntax identifier => identifier.Identifier,
         MemberAccessExpressionSyntax member => member.NameToken,

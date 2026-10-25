@@ -1,4 +1,4 @@
-using Shaderlyn.Hlsl.Syntax;
+using Shaderlyn.CFamily.Syntax;
 
 namespace Shaderlyn.Rules;
 
@@ -26,7 +26,7 @@ internal static class ControlFlow
     /// </summary>
     /// <param name="statement">対象の文。</param>
     /// <returns>必ず抜けるなら <see langword="true"/>。</returns>
-    public static bool AlwaysExits(HlslStatementSyntax? statement) => AlwaysExits(statement, static _ => true);
+    public static bool AlwaysExits(StatementSyntax? statement) => AlwaysExits(statement, static _ => true);
 
     /// <summary>
     /// 1 つの構成に存在する文だけを見て、その文を通ると必ず関数を抜けるかを判定する。
@@ -40,7 +40,7 @@ internal static class ControlFlow
     /// <c>!_B</c> の構成でも必ず返すように見える。
     /// 存在しない文は、無いもの (空の文) として扱う。
     /// </remarks>
-    public static bool AlwaysExits(HlslStatementSyntax? statement, Func<HlslSyntaxNode, bool> present) => statement switch
+    public static bool AlwaysExits(StatementSyntax? statement, Func<ShaderSyntaxNode, bool> present) => statement switch
     {
         null => false,
 

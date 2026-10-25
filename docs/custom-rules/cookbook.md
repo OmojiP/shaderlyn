@@ -54,11 +54,11 @@ return (int)await Program.RunAsync(args, analyzers, Console.Out, Console.Error);
 実装は `samples/Shaderlyn.Cookbook/Budget/ParameterCountLimitAnalyzer.cs` にあります。
 
 ```csharp
-public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : HlslRuleAnalyzer
+public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
     {
         context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
         {
@@ -150,17 +150,17 @@ internal sealed class BannedMacroAnalyzer(params string[] banned) : DiagnosticAn
         {
             if (c.Unit.GetModel<ShaderCompilation>() is not { } compilation) return;
 
-            foreach (HlslSyntaxToken token in compilation.CodeTokens)
+            foreach (ShaderSyntaxToken token in compilation.CodeTokens)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
                 {
                     c.ReportDiagnostic(Rule, token.Span, token.Text);
                 }
             }
 
-            foreach (HlslSyntaxToken token in compilation.UserIncludeCodeTokens)
+            foreach (ShaderSyntaxToken token in compilation.UserIncludeCodeTokens)
             {
-                if (token.Kind == HlslSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
+                if (token.Kind == ShaderSyntaxKind.IdentifierToken && _banned.Contains(token.Text))
                 {
                     c.ReportDiagnostic(Diagnostic.Create(Rule, token.GetLocation(), token.Text));
                 }
@@ -174,13 +174,13 @@ internal sealed class BannedMacroAnalyzer(params string[] banned) : DiagnosticAn
 構文木上の関数呼び出しノード (`InvocationExpressionSyntax`) から判定します。
 
 ```csharp
-internal sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleAnalyzer
+internal sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleAnalyzer
 {
     private readonly ImmutableHashSet<string> _banned = [.. banned];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             // 関数名（Identifier）のみを指摘範囲とすることで、複数行にわたる波線ハイライトを防止する
@@ -197,11 +197,11 @@ internal sealed class BannedFunctionAnalyzer(params string[] banned) : HlslRuleA
 HLSLでifを見つけたら報告する例
 
 ```csharp
-internal sealed class NoBranchAnalyzer : HlslRuleAnalyzer
+internal sealed class NoBranchAnalyzer : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<IfStatementSyntax>(
             c => c.ReportDiagnostic(Rule, c.Node.IfKeyword.Span));
 }
@@ -212,11 +212,11 @@ internal sealed class NoBranchAnalyzer : HlslRuleAnalyzer
 `else if` は構文木上「`else` ブロック配下の `if`」として表現されます。多重判定を防ぐため、ネスト連鎖の最先頭ノードでのみ評価を行います。
 
 ```csharp
-internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : HlslRuleAnalyzer
+internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<IfStatementSyntax>(c =>
         {
             // 連鎖の途中の場合は親ノード側の処理に委ねる
@@ -242,36 +242,37 @@ internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : HlslRuleAnalyz
 
 ### 5. コンパイル条件分岐（シンボル）に応じた関数制限
 
-「特定のシンボルが定義されている場合のみ特定の関数呼び出しを禁じる」といった検査です。
+「特定のシンボルが定義されている構成では、特定の関数呼び出しを禁じる」といった検査です。
 
 ```csharp
-internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : HlslRuleAnalyzer
+// Rule の書式: "{0}関数 '{1}' は使えません。"  ({0} に「構成：○○ のとき、」が入る)
+internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
-        => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
-        {
-            if (c.Node.Target is not IdentifierExpressionSyntax name
-                || !string.Equals(name.Name, function, StringComparison.Ordinal))
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<InvocationExpressionSyntax>(
+            c =>
             {
-                return;
-            }
-
-            ConditionMap map = c.Compilation.GetConditionMap();
-            SymbolCondition here = map.GetCondition(c.Node);
-
-            // 条件が未確定（Unknown）な場合は誤検出を防ぐためスキップ
-            if (here.IsUnknown) return;
-
-            // シンボルが無い構成では存在しない = そのシンボルのときだけ存在する
-            if (!map.IsPossible(here.And(SymbolCondition.Symbol(keyword, isDefined: false))))
-            {
-                c.ReportDiagnostic(Rule, name.Span, function, keyword);
-            }
-        });
+                if (c.Node.Target is IdentifierExpressionSyntax name
+                    && string.Equals(name.Name, function, StringComparison.Ordinal))
+                {
+                    c.ReportWhen(SymbolCondition.Always, Rule, name.Span, function);
+                }
+            },
+            // その構成に存在しうる呼び出しだけを受け取る。ReportWhen にもこの条件が掛かる。
+            new NodeActionOptions { When = $"defined({keyword})" });
 }
 ```
+
+```text
+構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。
+```
+
+- `#ifdef _LOW_QUALITY` の外の呼び出しも、その構成で実行されるので報告します。`#ifndef _LOW_QUALITY` の中の呼び出しは受け取りません
+- 条件の掛け方 (ノードの条件、木の構成、ありえない構成と `#error` に到達する構成を除く、Pass と構成をまたいで 1 件にまとめる) は
+  `ReportWhen` と `NodeActionOptions` が行います ([API リファレンス](api-reference.md#reportwhen))
+- 条件は `"defined(_A) && QUALITY >= 2"` のように `#if` と同じ書き方でも、`SymbolCondition` でも書けます
 
 ---
 
@@ -285,11 +286,11 @@ internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function)
 
 ```csharp
 internal sealed class ArgumentTypeAnalyzer(string function, int parameter, string expectedType)
-    : HlslRuleAnalyzer
+    : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             if (c.Node.Target is not IdentifierExpressionSyntax name
@@ -298,12 +299,12 @@ internal sealed class ArgumentTypeAnalyzer(string function, int parameter, strin
                 return;
             }
 
-            ImmutableArray<HlslExpressionSyntax> arguments =
-                [.. c.Node.Arguments.Select(a => a.Node).OfType<HlslExpressionSyntax>()];
+            ImmutableArray<ExpressionSyntax> arguments =
+                [.. c.Node.Arguments.Select(a => a.Node).OfType<ExpressionSyntax>()];
 
             if (parameter >= arguments.Length) return;
 
-            HlslExpressionSyntax argument = arguments[parameter];
+            ExpressionSyntax argument = arguments[parameter];
             string? actual = c.Compilation.GetExpressionTypeBinder(c.Program)
                 .GetEvaluatorFor(argument)
                 .Evaluate(argument);
@@ -325,13 +326,13 @@ internal sealed class ArgumentTypeAnalyzer(string function, int parameter, strin
 
 ```csharp
 internal sealed class BannedOverloadAnalyzer(string function, params string?[] parameterTypes)
-    : HlslRuleAnalyzer
+    : ShaderRuleAnalyzer
 {
     private readonly ImmutableArray<string?> _parameters = [.. parameterTypes];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
-    protected override void InitializeHlsl(HlslAnalysisContext context)
+    protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
         {
             if (c.Node.TargetName is not { } name || !string.Equals(name, function, StringComparison.Ordinal))
@@ -468,14 +469,14 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
         => options with
         {
-            LanguageVersion = HlslLanguageVersion.Hlsl2021,
+            Language = new HlslLanguageOptions { LanguageVersion = HlslLanguageVersion.Hlsl2021 },
             PredefinedMacros = HlslShaderTarget.CreateCommonDxcMacros(HlslLanguageVersion.Hlsl2021)
                 .SetItem("MYENGINE", "1")
                 .SetItems(semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty),
         };
 
     public PreprocessorOptions PrepareUnit(
-        HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens, PreprocessorOptions options, string filePath)
+        ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens, PreprocessorOptions options, string filePath)
     {
         foreach (PragmaDirective pragma in ReadPragmas(tokens))
         {
@@ -493,20 +494,20 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
         return options;
     }
 
-    public VariantSpace ReadDeclaredVariants(HlslCompilationUnit unit, ImmutableArray<HlslSyntaxToken> tokens)
+    public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens)
         => ReadVariantSpace(ReadPragmas(tokens));
 
-    public VariantSpace ReadVariants(HlslCompilationUnit unit, PreprocessResult result)
+    public VariantSpace ReadVariants(ShaderCompilationUnit unit, PreprocessResult result)
         => ReadVariantSpace(result.Pragmas);
 
-    public ImmutableArray<HlslEntryPoint> ReadEntryPoints(HlslCompilationUnit unit, PreprocessResult result)
+    public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
         =>
         [
             .. result.Pragmas
                 .Where(pragma => pragma.Name == "entry")
                 .Select(pragma => pragma.Arguments.FirstOrDefault())
-                .OfType<HlslSyntaxToken>()
-                .Select(name => new HlslEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
+                .OfType<ShaderSyntaxToken>()
+                .Select(name => new ShaderEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
         ];
 
     public bool LooksLikeVariantSymbol(string name) => name.StartsWith("USE_", StringComparison.Ordinal);
@@ -519,14 +520,14 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 
         foreach (PragmaDirective pragma in pragmas.Where(p => p.Name == "variant"))
         {
-            ImmutableArray<HlslSyntaxToken> arguments = [.. pragma.Arguments];
+            ImmutableArray<ShaderSyntaxToken> arguments = [.. pragma.Arguments];
 
             if (arguments.IsEmpty)
             {
                 continue;
             }
 
-            HlslSyntaxToken name = arguments[0];
+            ShaderSyntaxToken name = arguments[0];
             List<int> values = [.. arguments.Skip(1).Select(v => int.TryParse(v.Text, out int n) ? n : -1).Where(n => n >= 0)];
 
             // 宣言の位置を持たせると、使っていない宣言を HL0331 で報告できる。
@@ -539,11 +540,11 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     }
 
     // 字句解析しただけのトークンから #pragma の行を読む。展開の前に構成の軸を知るために使う。
-    private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<HlslSyntaxToken> tokens)
+    private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i + 2 < tokens.Length; i++)
         {
-            if (tokens[i].Kind != HlslSyntaxKind.HashToken || !tokens[i].IsAtLineStart
+            if (tokens[i].Kind != ShaderSyntaxKind.HashToken || !tokens[i].IsAtLineStart
                 || tokens[i + 1].Text != "pragma" || tokens[i + 2].IsAtLineStart)
             {
                 continue;
@@ -551,12 +552,12 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 
             int end = i + 2;
 
-            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != HlslSyntaxKind.EndOfFileToken)
+            while (end < tokens.Length && !tokens[end].IsAtLineStart && tokens[end].Kind != ShaderSyntaxKind.EndOfFileToken)
             {
                 end++;
             }
 
-            ImmutableArray<HlslSyntaxToken> line = tokens[(i + 2)..end];
+            ImmutableArray<ShaderSyntaxToken> line = tokens[(i + 2)..end];
             yield return new PragmaDirective(line, line[0]);
             i = end - 1;
         }
@@ -588,7 +589,7 @@ environment: myengine
 * コンパイル単位は、汎用の HLSL 環境と同じく設定ファイルの `units:` から作ります。当てはまらないファイルは、ファイル全体を 1 つの単位にします
 * 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使うかどうかは環境が決めます
   (上の例はソースの `#pragma` だけを読みます)
-* 名前は組み込みの環境 (`unity` / `hlsl` / `unreal`) と重ねられません
+* 名前は組み込みの環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`) と重ねられません
 
 ## そのほかの実装例
 

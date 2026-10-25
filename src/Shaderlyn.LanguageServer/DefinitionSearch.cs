@@ -1,6 +1,6 @@
+using Shaderlyn.CFamily.Preprocessing;
+using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
-using Shaderlyn.Hlsl.Preprocessing;
-using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -54,7 +54,7 @@ internal static partial class DefinitionBuilder
     /// <b>名前を使っている位置を囲む関数の中だけを見る。</b>
     /// 別の関数の同名の変数へ飛ばすと、読み手を誤った場所へ連れて行くことになる。
     /// </remarks>
-    private static DefinitionTarget? FindLocal(ShaderCompilation compilation, HlslSyntaxToken name)
+    private static DefinitionTarget? FindLocal(ShaderCompilation compilation, ShaderSyntaxToken name)
     {
         foreach (AnalyzedProgram program in compilation.Programs)
         {
@@ -119,7 +119,7 @@ internal static partial class DefinitionBuilder
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="name">探す名前のトークン。</param>
     /// <returns>見つかった定義。無い場合は <see langword="null"/>。</returns>
-    private static DefinitionTarget? FindUniform(ShaderCompilation compilation, HlslSyntaxToken name)
+    private static DefinitionTarget? FindUniform(ShaderCompilation compilation, ShaderSyntaxToken name)
         => compilation.TryGetUniform(name.Text, out UniformSymbol? uniform)
            && uniform.GetLocation() is { } location
             ? ToTarget(location)
