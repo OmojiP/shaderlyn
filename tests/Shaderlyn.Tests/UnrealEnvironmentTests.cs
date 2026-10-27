@@ -1345,6 +1345,197 @@ public sealed class UnrealEnvironmentTests : IDisposable
     }
 
     /// <summary>
+    /// <c>GlobalBeginCompileShader</c> の後半のマクロも求める (UE 5.5 で <c>SHADING_PATH_DEFERRED</c> と
+    /// <c>FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING</c> が抜けていた)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     エンジンの C++ に <c>enum EShadingPath</c> があると、<c>EShadingPath::Deferred</c> は数になる。
+    ///     <c>GetShadingPath</c> の答えも数にしないと、比べられずに決まらなかった
+    ///   </description></item>
+    ///   <item><description>
+    ///     プラットフォームを問う関数が、シェーダーの登録の無いファイル (<c>RenderUtils.cpp</c>) にあると、読んでいなかった
+    ///   </description></item>
+    ///   <item><description>
+    ///     プラットフォームごとの ini の値 (<c>static FShaderPlatformCachedIniValue&lt;int32&gt; CVar(TEXT("r.X"));</c>) を、コンソール変数として読む
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    [Fact]
+    public void GlobalBeginCompileShaderの後半のマクロも求める()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("SceneInterface.h", """
+                enum class EShadingPath
+                {
+                	Mobile,
+                	Deferred,
+                	Num,
+                };
+                namespace ERHIFeatureLevel
+                {
+                	enum Type : int
+                	{
+                		/** OpenGL ES 3.1 */
+                		ES3_1,
+                		SM5,
+                		SM6,
+                		Num
+                	};
+                };
+                """),
+            ("RenderUtils.cpp", """
+                static TAutoConsoleVariable<int32> CVarForwardShadingForceSkyBoxBlending(
+                	TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"),
+                	0,
+                	TEXT(""),
+                	ECVF_ReadOnly);
+
+                bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Platform)
+                {
+                	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"));
+                	return CVar.Get(Platform) > 0;
+                }
+                """),
+            ("ShaderCompiler.cpp", """
+                void GlobalBeginCompileShader(const FString& DebugGroupName, FShaderTarget Target, FShaderCompilerInput& Input)
+                {
+                	if (GDumpShaderDebugInfoBindless)
+                	{
+                		// ラムダの中の return は、この関数から戻らない。
+                		auto GetBindlessString = [](ERHIBindlessConfiguration InConfig)
+                			{
+                				switch (InConfig)
+                				{
+                				default:
+                				case ERHIBindlessConfiguration::Disabled: return TEXT("Off");
+                				}
+                			};
+                	}
+                	SET_SHADER_DEFINE(Input.Environment, SM5_OR_LATER, GetMaxSupportedFeatureLevel(ShaderPlatform) >= ERHIFeatureLevel::SM5);
+                	SET_SHADER_DEFINE(Input.Environment, FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING, ForwardShadingForcesSkyLightCubemapBlending(ShaderPlatform) ? 1 : 0);
+                	if (FSceneInterface::GetShadingPath(GetMaxSupportedFeatureLevel(ShaderPlatform)) == EShadingPath::Deferred)
+                	{
+                		SET_SHADER_DEFINE(Input.Environment, SHADING_PATH_DEFERRED, 1);
+                	}
+                }
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, string> defines = UnrealShaderClasses.ReadGlobalDefines(output);
+        Assert.Equal("1", defines["SHADING_PATH_DEFERRED"]);
+        Assert.Equal("0", defines["FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING"]);
+
+        // 名前空間で包んだ列挙 (ERHIFeatureLevel::SM5) を、名前空間の名前で引く。PC の Direct3D 12 は SM6。
+        Assert.Equal("1", defines["SM5_OR_LATER"]);
+
+        // ini の値 (DefaultEngine.ini の [/Script/Engine.RendererSettings]) が C++ の既定値より優先する。
+        string forced = Path.Combine(_workDirectory, "Forced");
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+            sources,
+            forced,
+            consoleVariableOverrides: ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase)
+                .Add("r.ForwardShading.ForceSkyLightCubemapBlending", "1"));
+
+        Assert.Equal("1", UnrealShaderClasses.ReadGlobalDefines(forced)["FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING"]);
+    }
+
+    /// <summary>
+    /// 条件の決まらない分岐の中の <c>return</c> も、関数の戻り値に入れる。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <c>if (決まらない) { return true; } return false;</c> は決まらない。後ろの <c>return false;</c> だけを見ると、
+    ///     コンパイルされるクラスを、されないと読む (PostProcessMaterial.cpp の FPostProcessMaterialPS)
+    ///   </description></item>
+    ///   <item><description>
+    ///     <c>if (決まらない) { return false; } return false;</c> は false である (Substrate.cpp の FSubstrateClosureTilePassCS)
+    ///   </description></item>
+    ///   <item><description>
+    ///     決まらない分岐が戻るだけなら、そのあとのローカル変数の値は使える。交差シェーダーを使うクラスは、
+    ///     プロシージャルなプリミティブを扱える頂点ファクトリとだけコンパイルされる (PathTracing.cpp の TPathTracingMaterial)
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    [Fact]
+    public void 決まらない分岐の中のreturnも戻り値に入れる()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("VertexFactories.cpp", """
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FLocalVertexFactory, "/Engine/Private/LocalVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsRayTracing);
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FHairStrandsVertexFactory, "/Engine/Private/HairStrands/HairStrandsVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsRayTracing | EVertexFactoryFlags::SupportsRayTracingProceduralPrimitive);
+                """),
+            ("Passes.cpp", """
+                class FPostProcessPS : public FMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+                	{
+                		if (Parameters.MaterialParameters.MaterialDomain == MD_PostProcess)
+                		{
+                			return !IsMobilePlatform(Parameters.Platform);
+                		}
+                		return false;
+                	}
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FPostProcessPS, TEXT("/Engine/Private/PostProcess.usf"), TEXT("MainPS"), SF_Pixel);
+
+                class FDisabledCS : public FGlobalShader
+                {
+                	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                	{
+                		if (UnknownCondition(Parameters.Platform))
+                		{
+                			return false;
+                		}
+                		return IsMobilePlatform(Parameters.Platform);
+                	}
+                };
+                IMPLEMENT_GLOBAL_SHADER(FDisabledCS, "/Engine/Private/Disabled.usf", "MainCS", SF_Compute);
+
+                template<bool UseIntersectionShader>
+                class TPathTracingMaterial : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		if (Parameters.MaterialParameters.MaterialDomain != MD_Surface)
+                		{
+                			return false;
+                		}
+                		const bool bUseProceduralPrimitive = Parameters.VertexFactoryType->SupportsRayTracingProceduralPrimitive();
+                		if (UseIntersectionShader != bUseProceduralPrimitive)
+                		{
+                			return false;
+                		}
+                		return true;
+                	}
+                };
+                using FPathTracingIS = TPathTracingMaterial<true>;
+                IMPLEMENT_MATERIAL_SHADER_TYPE(template <>, FPathTracingIS, TEXT("/Engine/Private/Hit.usf"), TEXT("closesthit=MainCHS intersection=MainIS"), SF_RayHitGroup);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(output);
+        Assert.False(classes["FPostProcessPS"].NeverCompiled);
+        Assert.True(classes["FDisabledCS"].NeverCompiled);
+
+        // 名前の順: 0 FHairStrandsVertexFactory、1 FLocalVertexFactory。
+        string[] lines = File.ReadAllLines(Path.Combine(output, UnrealShaderClasses.FileName));
+        Assert.Contains("TPathTracingMaterial<true>\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0", lines);
+    }
+
+    /// <summary>
     /// メッシュに描くマテリアルのシェーダーは、頂点ファクトリを構成の軸にする。
     /// シェーダーのクラスの <c>ShouldCompilePermutation</c> と、頂点ファクトリの側の <c>ShouldCompilePermutation</c> (ステージで答える) で、
     /// 組み合わせる頂点ファクトリを絞る。

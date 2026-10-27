@@ -44,6 +44,17 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - `--inspect` が、取り込む側で定義したマクロを、取り込んだファイルの中でマクロの実引数に書いた宣言で落ちていた
   (Unreal Engine の `LargeWorldCoordinates.ush` の `#define FBoolType bool` と、`LWCOperations.ush` の `LWC_COMPARE_OP(…, FBoolType)`。
   エンジンのマテリアルのシェーダーの多くがこれを取り込む)。こうしたトークンの指摘の位置は、マクロの呼び出し位置にする
+- Unreal Engine: `--unreal-generate` が、エンジンがどのシェーダーにも定義するマクロ (`GlobalBeginCompileShader`) のうち、
+  `SHADING_PATH_DEFERRED`・`FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING`・`USES_BASE_PASS_VELOCITY` などを定義していなかった。
+  `COMPILER_DXC` は 0 にしていた (PC の Direct3D 12 では 1)。`BasePassPixelShader.usf` など 5 つのファイルで、
+  `#error` に到達するために構成を捨てていた (CF0104)。次を直した
+  - エンジンの C++ の `enum EShadingPath` と `namespace ERHIFeatureLevel { enum Type … }` を読み、`GetShadingPath` と `GetMaxSupportedFeatureLevel` の答えと比べられるようにする
+  - シェーダーの登録の無いファイル (`RenderUtils.cpp`) の、プラットフォームを問う関数も読む。
+    プラットフォームごとの ini の値 (`FShaderPlatformCachedIniValue`) を、コンソール変数として読む
+- Unreal Engine: `--unreal-generate` が `ShouldCompilePermutation` の、条件の決まらない分岐の中の `return` を無視していた。
+  `if (MaterialDomain == MD_PostProcess) { return …; } return false;` を必ず false と読み、ポストプロセスのマテリアルのシェーダー
+  (`FPostProcessMaterialPS` / `VS`) をコンパイルされないものとして扱い、解析していなかった。
+  逆に、どの道も false を返すクラス (`FTrivialMaterialCHS`) は、コンパイルされないものとして扱う
 
 ## [0.3.0] - 2026-10-25
 
