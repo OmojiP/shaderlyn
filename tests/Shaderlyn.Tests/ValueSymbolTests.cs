@@ -458,6 +458,41 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void 値ごとの木でもエントリポイントから届かない関数の中の呼び出しは報告しない()
+    {
+        // 値ごとの木 (バリアントの木) はエントリポイントを持たないので、届く関数が分からず CF0311 を報告していた
+        // (Unreal のパーミュテーションを軸にした解析の Substrate/SubstrateSubsurface.ush)。
+        SourceText text = SourceText.From(
+            """
+            uint packColor(float4 c);
+
+            #if MODE == 0
+            float3 Value;
+            #else
+            float2 Value;
+            #endif
+
+            uint helper(float3 c) { return packColor(float4(c, 0)); }
+
+            float4 main() : SV_Target { return Value.x; }
+            """,
+            "test.hlsl");
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text,
+            [HlslEnvironment.WholeFile(text) with { EntryPoints = [new ShaderEntryPoint("main", "test")] }],
+            text,
+            new HlslEnvironment(new HlslEnvironmentOptions { Variants = VariantSpace.ForValues("MODE", [0, 1, 2]) }),
+            ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics =
+            new AnalyzerDriver(Cli.BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Assert.NotEmpty(compilation.SymbolVariants);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0311");
+    }
+
+    [Fact]
     public void errorに到達した構成の木は使わない()
     {
         // Unreal の SSDInjest.usf の形。パーミュテーションの値のうち、#else / #error で止めた値の構成はコンパイルできない。
