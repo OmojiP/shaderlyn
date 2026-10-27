@@ -57,7 +57,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         bool declaresArrays = DeclaresArrays(compilation);
 
         // 同じコードが Pass ごと・構成ごとに解析されるため、同じ位置を重ねて報告しない。
-        ReportedLocations reported = new();
+        // 既定の木の報告 (構成の条件が付くもの) は、木をまたいで条件の和をとって 1 件にする。
+        ReportedLocations reported = new(compilation);
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -77,6 +78,11 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                     compilation.GetTreeConfiguration(program),
                     reported);
             }
+        }
+
+        foreach (Diagnostic diagnostic in reported.BuildConditional())
+        {
+            context.ReportDiagnostic(diagnostic);
         }
     }
 
@@ -176,7 +182,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // バリアントの木は、それ自身を 1 つの構成として、合う宣言が 1 つでもあれば通す。
         if (!binder.Program.EnabledSymbols.IsDefaultOrEmpty)
         {
-            AnalyzeCallInVariant(context, binder, invocation, name, candidates, arguments, intrinsicAccepts, declaresArrays, call, reported);
+            AnalyzeCallInVariant(binder, invocation, name, candidates, arguments, intrinsicAccepts, declaresArrays, reported);
             return;
         }
 
@@ -188,14 +194,21 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             && PresentCondition(condition, candidates) is { } anyPresent
             && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
         {
-            ReportArity(
-                context,
-                invocation,
-                name,
-                [.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))],
-                arguments.Length,
-                arityMissing,
-                reported);
+            // 合わない構成は、木ごとにその一部しか見えない。木をまたいで和をとる。照らした宣言が違えば別の報告にする。
+            string accepted = DescribeAccepted([.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))]);
+            int actual = arguments.Length;
+
+            if (invocation.GetLocation() is { } arityLocation)
+            {
+                reported.AddConditional(
+                    binder.Program,
+                    invocation,
+                    arityMissing,
+                    HlslRuleDescriptors.ArgumentCountMismatch,
+                    arityLocation,
+                    accepted,
+                    missing => [name, actual, accepted, DescribeCondition(missing)]);
+            }
 
             return;
         }
@@ -235,17 +248,15 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 報告するのは、受け付ける宣言が無い構成に存在する宣言の食い違いである。
         if (rejecting.FirstOrDefault(r => CallCompatibility.IsPresentWith(condition, r.Declaration, typeMissing))
                 is not { Declaration: not null } rejected
-            || arguments[rejected.Mismatch.Index].GetLocation() is not { } location
-            || !reported.Add(location))
+            || arguments[rejected.Mismatch.Index].GetLocation() is not { } location)
         {
             return;
         }
 
-        Report(context, rejected.Mismatch, location, name, typeMissing);
+        AddMismatch(reported, binder.Program, arguments[rejected.Mismatch.Index], typeMissing, location, name, rejected.Declaration, rejected.Mismatch);
     }
 
     /// <summary>バリアントの木の呼び出しを、その木を 1 つの構成として検査する。</summary>
-    /// <param name="context">解析コンテキスト。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
     /// <param name="name">関数の名前。</param>
@@ -253,10 +264,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     /// <param name="arguments">実引数。</param>
     /// <param name="intrinsicAccepts">同じ名前の組み込み関数がその個数を受け付けるか。</param>
     /// <param name="declaresArrays">このシェーダーが長さの書かれた配列を 1 つでも宣言しているか。</param>
-    /// <param name="call">呼び出しの出現条件。</param>
     /// <param name="reported">報告済みの位置。</param>
     private static void AnalyzeCallInVariant(
-        SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         string name,
@@ -264,17 +273,27 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ImmutableArray<ExpressionSyntax> arguments,
         bool intrinsicAccepts,
         bool declaresArrays,
-        SymbolCondition call,
         ReportedLocations reported)
     {
         List<FunctionDeclarationSyntax> fitting =
             [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
 
+        // 報告は、木の構成を掛けて木をまたいで和をとる (値ごとの木は、それぞれ値 1 つ分の構成しか表さない)。
         if (fitting.Count == 0)
         {
-            if (!intrinsicAccepts)
+            string accepted = DescribeAccepted(candidates);
+            int actual = arguments.Length;
+
+            if (!intrinsicAccepts && invocation.GetLocation() is { } arityLocation)
             {
-                ReportArity(context, invocation, name, candidates, arguments.Length, call, reported);
+                reported.AddConditional(
+                    binder.Program,
+                    invocation,
+                    SymbolCondition.Always,
+                    HlslRuleDescriptors.ArgumentCountMismatch,
+                    arityLocation,
+                    accepted,
+                    missing => [name, actual, accepted, DescribeCondition(missing)]);
             }
 
             return;
@@ -282,7 +301,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
         string?[] argumentTypes = [.. arguments.Select(evaluator.Evaluate)];
-        Mismatch? first = null;
+        (FunctionDeclarationSyntax Declaration, Mismatch Mismatch)? first = null;
 
         foreach (FunctionDeclarationSyntax declaration in fitting)
         {
@@ -291,15 +310,43 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
-            first ??= mismatch;
+            first ??= (declaration, mismatch);
         }
 
-        if (first is { } found
-            && arguments[found.Index].GetLocation() is { } location
-            && reported.Add(location))
+        if (first is { } rejected && arguments[rejected.Mismatch.Index].GetLocation() is { } location)
         {
-            Report(context, found, location, name, call);
+            AddMismatch(reported, binder.Program, arguments[rejected.Mismatch.Index], SymbolCondition.Always, location, name, rejected.Declaration, rejected.Mismatch);
         }
+    }
+
+    /// <summary>食い違いを、木をまたいで条件の和をとる報告に足す。照らした宣言と食い違いの種類が違えば別の報告にする。</summary>
+    /// <param name="reported">報告を集める先。</param>
+    /// <param name="program">実引数のある木。</param>
+    /// <param name="argument">合わない実引数。</param>
+    /// <param name="when">報告する構成。</param>
+    /// <param name="location">報告位置。</param>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="declaration">照らした宣言。</param>
+    /// <param name="found">食い違いの中身。</param>
+    private static void AddMismatch(
+        ReportedLocations reported,
+        AnalyzedProgram program,
+        ExpressionSyntax argument,
+        SymbolCondition when,
+        Location location,
+        string name,
+        FunctionDeclarationSyntax declaration,
+        Mismatch found)
+    {
+        (DiagnosticDescriptor descriptor, Func<SymbolCondition, object?[]> describe) = Describe(found, name);
+        reported.AddConditional(
+            program,
+            argument,
+            when,
+            descriptor,
+            location,
+            $"{found.Kind}\u0001{found.ArgumentType}\u0001{found.ParameterType}\u0001{declaration.Span.Start}",
+            describe);
     }
 
     /// <summary>
@@ -413,54 +460,23 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             string.Empty));
     }
 
-    /// <summary>見つかった食い違いを報告する。</summary>
-    /// <param name="context">解析コンテキスト。</param>
+    /// <summary>食い違いを報告するルールと、構成の条件からメッセージの引数を作る手続きを返す。</summary>
     /// <param name="found">食い違いの中身。</param>
-    /// <param name="location">報告位置。</param>
     /// <param name="name">関数の名前。</param>
-    /// <param name="call">呼び出しの出現条件。</param>
-    private static void Report(
-        SyntaxTreeAnalysisContext context,
-        Mismatch found,
-        Location location,
-        string name,
-        SymbolCondition call)
-    {
-        if (found.Kind == MismatchKind.ArrayMismatch)
+    /// <returns>ルールと手続き。</returns>
+    private static (DiagnosticDescriptor Descriptor, Func<SymbolCondition, object?[]> Arguments) Describe(Mismatch found, string name)
+        => found.Kind switch
         {
-            context.ReportDiagnostic(Diagnostic.Create(
+            MismatchKind.ArrayMismatch => (
                 HlslRuleDescriptors.ArrayArgumentMismatch,
-                location,
-                name,
-                found.Index + 1,
-                found.ParameterType,
-                found.ArgumentType));
-
-            return;
-        }
-
-        if (found.Kind == MismatchKind.NotAssignable)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
+                _ => [name, found.Index + 1, found.ParameterType, found.ArgumentType]),
+            MismatchKind.NotAssignable => (
                 HlslRuleDescriptors.ArgumentNotAssignable,
-                location,
-                name,
-                found.Index + 1,
-                found.ParameterType,
-                DescribeCondition(call)));
-
-            return;
-        }
-
-        context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.ArgumentNotConvertible,
-            location,
-            name,
-            found.Index + 1,
-            found.ArgumentType,
-            found.ParameterType,
-            DescribeCondition(call)));
-    }
+                call => [name, found.Index + 1, found.ParameterType, DescribeCondition(call)]),
+            _ => (
+                HlslRuleDescriptors.ArgumentNotConvertible,
+                call => [name, found.Index + 1, found.ArgumentType, found.ParameterType, DescribeCondition(call)]),
+        };
 
     /// <summary>template の関数と同じ名前の関数の呼び出しを検査する (CF0402 / HL0345)。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -640,20 +656,27 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // 受け付けられる個数を並べる。同じ個数の宣言が複数あっても 1 度だけ書く。
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.ArgumentCountMismatch,
+            location,
+            name,
+            actual,
+            DescribeAccepted(candidates),
+            DescribeCondition(call)));
+    }
+
+    /// <summary>宣言が受け付ける引数の個数を並べる。同じ個数の宣言が複数あっても 1 度だけ書く。</summary>
+    /// <param name="candidates">その構成に存在する宣言。</param>
+    /// <returns>「必要な引数は … です」。</returns>
+    private static string DescribeAccepted(List<FunctionDeclarationSyntax> candidates)
+    {
         IEnumerable<string> accepted = candidates
             .Select(c => (ImmutableArray<ParameterSyntax>)[.. c.ParameterList])
             .Select(DescribeArity)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
 
-        context.ReportDiagnostic(Diagnostic.Create(
-            HlslRuleDescriptors.ArgumentCountMismatch,
-            location,
-            name,
-            actual,
-            $"必要な引数は {string.Join(" / ", accepted)}です",
-            DescribeCondition(call)));
+        return $"必要な引数は {string.Join(" / ", accepted)}です";
     }
 
     /// <summary>宣言が受け付ける引数の個数を表す文字列を返す。</summary>

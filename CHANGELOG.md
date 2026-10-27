@@ -61,6 +61,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Unreal Engine: マテリアルのシェーダーで、どの `MATERIALBLENDING_*` も定義していなかった。エンジンはマテリアルのブレンドモードから必ず 1 つを定義する。
   既定のマテリアルと同じ不透明 (`MATERIALBLENDING_SOLID=1`) にする。`MobileBasePassPixelShader.usf` の `FrameBufferBlendOp` に
   値を返さない経路があると報告し (0.3.0 の既知の問題)、`PathTracingMaterialHitShader.usf` の `#error Unknown material blending mode` に到達していた
+- 呼び出しの検査 (CF0401 / CF0402 / CF0403 / CF0405) の報告の条件が、最初に見つけた木 (Pass や値ごとの構成) の分だけになっていた。
+  実引数の型が値ごとに変わるとき、合わない構成のうち 1 つの値の分しか書かなかった。木をまたいで条件の和をとって 1 件にする。
+  照らした宣言と食い違いの種類が違う報告は、別々に出す
 - CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
   コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
   UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。エントリポイントが分からない単位では今までどおり報告する

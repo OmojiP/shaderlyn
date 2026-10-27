@@ -431,6 +431,33 @@ public sealed class ValueSymbolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void 呼び出しの食い違いは木をまたいで条件の和をとる()
+    {
+        // 実引数の型は値ごとの木で決まり、食い違う構成は木ごとにその一部しか見えない。
+        // 最初の木の報告だけを残すと、MODE == 2 の構成が条件から落ちていた。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(
+            """
+            float use(float3 x) { return x.x; }
+
+            #if MODE == 0
+            float3 Value;
+            #else
+            float2 Value;
+            #endif
+
+            float4 main() : SV_Target
+            {
+                return use(Value);
+            }
+            """,
+            VariantSpace.ForValues("MODE", [0, 1, 2]));
+
+        Diagnostic report = Assert.Single(diagnostics, d => d.Id == "CF0401");
+        Assert.Contains("1", report.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("2", report.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void errorに到達した構成の木は使わない()
     {
         // Unreal の SSDInjest.usf の形。パーミュテーションの値のうち、#else / #error で止めた値の構成はコンパイルできない。
