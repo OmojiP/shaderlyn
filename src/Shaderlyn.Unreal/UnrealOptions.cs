@@ -933,9 +933,17 @@ public sealed partial record UnrealOptions
     /// <remarks>
     /// エンジンはマテリアルを翻訳するときに <c>IS_MATERIAL_SHADER=1</c> を定義する (UE 5.5 の <c>HLSLMaterialTranslator.cpp</c>)。
     /// エンジンのヘッダ (<c>LumenRadianceCacheMarkCommon.ush</c> など) は、このマクロで宣言を切り替える。
+    /// <para>
+    /// <b>ブレンドモードは、既定のマテリアルと同じ不透明 (<c>MATERIALBLENDING_SOLID=1</c>) にする。</b>
+    /// エンジンはマテリアルのブレンドモードから <c>MATERIALBLENDING_*</c> のどれか 1 つを必ず定義する (UE 5.5 の <c>MaterialShared.cpp</c>)。
+    /// どれも定義しないと、どのマテリアルにも無い構成を読み、どの <c>#elif</c> にも入らない関数を値を返さないと報告していた
+    /// (<c>MobileBasePassPixelShader.usf</c> の <c>FrameBufferBlendOp</c>)。
+    /// </para>
     /// </remarks>
     public static ImmutableDictionary<string, string> MaterialShaderMacros { get; } =
-        ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal).Add("IS_MATERIAL_SHADER", "1");
+        ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal)
+            .Add("IS_MATERIAL_SHADER", "1")
+            .Add("MATERIALBLENDING_SOLID", "1");
 
     /// <summary>マテリアルのシェーダー (<c>/Engine/Generated/Material.ush</c> を取り込むもの) に、<see cref="MaterialShaderMacros"/> を足す手続きを作る。</summary>
     private static Func<string, IIncludeResolver?, ImmutableDictionary<string, string>> CreateMaterialMacroSelector()

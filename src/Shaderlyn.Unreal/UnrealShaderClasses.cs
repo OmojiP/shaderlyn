@@ -807,6 +807,9 @@ public static partial class UnrealShaderClasses
             int[] match = MatchBraces(tokens);
             List<(string Name, int End)> enclosing = [];
 
+            // 名前空間 (namespace DecalRendering { … })。クラスの外の ModifyCompilationEnvironment を、名前空間の名前で引けるようにする。
+            List<(string Name, int End)> namespaces = [];
+
             // 直前の template<…> の仮引数と、その終わりの位置。すぐ後の class にだけ付ける。
             (ImmutableArray<string> Names, int End) template = ([], -1);
 
@@ -815,6 +818,11 @@ public static partial class UnrealShaderClasses
                 while (enclosing.Count > 0 && i > enclosing[^1].End)
                 {
                     enclosing.RemoveAt(enclosing.Count - 1);
+                }
+
+                while (namespaces.Count > 0 && i > namespaces[^1].End)
+                {
+                    namespaces.RemoveAt(namespaces.Count - 1);
                 }
 
                 string? owner = enclosing.Count > 0 ? enclosing[^1].Name : null;
@@ -850,9 +858,15 @@ public static partial class UnrealShaderClasses
                         AddAlias(path, tokens, tokens[end].Text, owner, i + 2);
                     }
                 }
+                else if (word == "namespace" && i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                         && tokens[i + 2].Kind == ShaderSyntaxKind.OpenBraceToken && match[i + 2] > i + 2)
+                {
+                    namespaces.Add((tokens[i + 1].Text, match[i + 2]));
+                }
                 else if (word == "ModifyCompilationEnvironment" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
                 {
-                    ReadFunction(path, tokens, match, i, owner, _functions);
+                    // クラスの外の関数は、名前空間の名前で引く (DecalRendering::ModifyCompilationEnvironment(…)。デカールのクラスが呼び、IS_DECAL を定義する)。
+                    ReadFunction(path, tokens, match, i, owner ?? (namespaces.Count > 0 ? namespaces[^1].Name : null), _functions);
                 }
                 else if (word == "ShouldCompilePermutation" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
                 {

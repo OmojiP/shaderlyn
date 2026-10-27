@@ -595,7 +595,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("#include \"/Engine/Generated/UniformBuffers/Outer.ush\"", File.ReadAllText(Path.Combine(output, "GeneratedUniformBuffers.ush")), StringComparison.Ordinal);
     }
 
-    /// <summary>マテリアルのシェーダーには、エンジンと同じく <c>IS_MATERIAL_SHADER=1</c> を定義する。</summary>
+    /// <summary>
+    /// マテリアルのシェーダーには、エンジンと同じく <c>IS_MATERIAL_SHADER=1</c> を定義する。
+    /// ブレンドモードは既定のマテリアルと同じ不透明 (<c>MATERIALBLENDING_SOLID=1</c>) にする。
+    /// </summary>
     [Fact]
     public async Task マテリアルのシェーダーにはマテリアルの印を定義する()
     {
@@ -617,6 +620,11 @@ public sealed class UnrealEnvironmentTests : IDisposable
             #else
             float MarkerGlobal = ;
             #endif
+            #if MATERIALBLENDING_SOLID
+            float MarkerSolid = ;
+            #elif MATERIALBLENDING_TRANSLUCENT
+            float MarkerTranslucent = ;
+            #endif
             """);
         Write("Shaders/Private/GlobalPass.usf", """
             #if IS_MATERIAL_SHADER
@@ -630,6 +638,8 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         Assert.Contains("MaterialPass.usf(3:", output, StringComparison.Ordinal);
         Assert.DoesNotContain("MaterialPass.usf(5:", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(8:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialPass.usf(10:", output, StringComparison.Ordinal);
         Assert.Contains("GlobalPass.usf(4:", output, StringComparison.Ordinal);
         Assert.DoesNotContain("GlobalPass.usf(2:", output, StringComparison.Ordinal);
     }
@@ -1533,6 +1543,42 @@ public sealed class UnrealEnvironmentTests : IDisposable
         // 名前の順: 0 FHairStrandsVertexFactory、1 FLocalVertexFactory。
         string[] lines = File.ReadAllLines(Path.Combine(output, UnrealShaderClasses.FileName));
         Assert.Contains("TPathTracingMaterial<true>\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0", lines);
+    }
+
+    /// <summary>
+    /// 名前空間に書いた <c>ModifyCompilationEnvironment</c> を、名前空間の名前を付けた呼び出しから追う
+    /// (UE 5.5 の <c>DecalRendering::ModifyCompilationEnvironment</c>。デカールのクラスが呼び、<c>IS_DECAL</c> を定義する)。
+    /// </summary>
+    [Fact]
+    public void 名前空間のModifyCompilationEnvironmentの呼び出しを追う()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("DecalRenderingCommon.cpp", """
+                namespace DecalRendering
+                {
+                	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		OutEnvironment.SetDefine(TEXT("IS_DECAL"), 1);
+                	}
+                }
+                """),
+            ("Decals.cpp", """
+                class FDecalPS : public FMaterialShader
+                {
+                	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		DecalRendering::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+                	}
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FDecalPS, TEXT("/Engine/Private/Decal.usf"), TEXT("MainPS"), SF_Pixel);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        Assert.Equal("1", UnrealShaderClasses.Read(output)["FDecalPS"].Defines["IS_DECAL"]);
     }
 
     /// <summary>

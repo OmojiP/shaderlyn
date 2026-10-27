@@ -55,6 +55,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   `if (MaterialDomain == MD_PostProcess) { return …; } return false;` を必ず false と読み、ポストプロセスのマテリアルのシェーダー
   (`FPostProcessMaterialPS` / `VS`) をコンパイルされないものとして扱い、解析していなかった。
   逆に、どの道も false を返すクラス (`FTrivialMaterialCHS`) は、コンパイルされないものとして扱う
+- Unreal Engine: `--unreal-generate` が、名前空間に書いた `ModifyCompilationEnvironment`
+  (`DecalRendering::ModifyCompilationEnvironment`) を追っていなかった。デカールのクラスに `IS_DECAL` を定義せず、
+  `DeferredDecal.usf` の `FDeferredDecalAmbientOcclusionPS` / `FDeferredDecalMobilePS` の `MainPS` が見つからないと報告していた (0.3.0 の既知の問題)
+- Unreal Engine: マテリアルのシェーダーで、どの `MATERIALBLENDING_*` も定義していなかった。エンジンはマテリアルのブレンドモードから必ず 1 つを定義する。
+  既定のマテリアルと同じ不透明 (`MATERIALBLENDING_SOLID=1`) にする。`MobileBasePassPixelShader.usf` の `FrameBufferBlendOp` に
+  値を返さない経路があると報告し (0.3.0 の既知の問題)、`PathTracingMaterialHitShader.usf` の `#error Unknown material blending mode` に到達していた
 - CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
   コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
   UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。エントリポイントが分からない単位では今までどおり報告する
