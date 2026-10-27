@@ -195,6 +195,8 @@ unreal:
   (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ読みます)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
   (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
   そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
+- **マテリアルのブレンドモードは、既定のマテリアルと同じ不透明にします** (`MATERIALBLENDING_SOLID=1`)。
+  エンジンはマテリアルごとに `MATERIALBLENDING_*` のどれか 1 つを定義します。半透明などのマテリアルでだけ通る分岐は読みません
 - 作っていなければ、マテリアルのシェーダーでは今までどおり宣言の検査を行いません (UE0002。要らなければ `rules:` で `UE0002: none` にします)
 - **既知の誤報告があります** (0.3.1 で修正予定)。マテリアルの設定 (ブレンドの方式・ドメイン・デカールの設定) と Substrate の構成を C++ から決められないため、
   UE 5.5 のエンジンでは `DeferredDecal.usf` などに数件残ります。一覧は [CHANGELOG](../../CHANGELOG.md) の 0.3.0 の「既知の問題」にあります
