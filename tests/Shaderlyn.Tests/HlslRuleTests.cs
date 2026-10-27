@@ -887,6 +887,38 @@ public sealed class HlslRuleTests
     }
 
     /// <summary>
+    /// エントリポイントから届かない関数の中で、定義の無い関数を呼んでいても報告しない。コンパイラは使われない関数を捨てる
+    /// (UE 5.5 の SubstrateSubsurface.ush。Substrate を使わない構成では、使われない関数が宣言だけの関数を呼ぶ)。
+    /// </summary>
+    /// <remarks>
+    /// DXC (ps_6_0) と FXC (ps_5_0) で確かめた。使われない関数の中なら通り、エントリポイントから呼ぶとエラーになる
+    /// (DXC は External function used in non-library profile、FXC は X3510)。
+    /// </remarks>
+    [Fact]
+    public void エントリポイントから届かない関数の中の呼び出しは報告しない()
+    {
+        ImmutableArray<Diagnostic> unused = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "uint packColor(float4 c);",
+            "uint helper(float3 c) { return packColor(float4(c, 0)); }",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Assert.False(Has(unused, "CF0311"), Describe(unused));
+
+        ImmutableArray<Diagnostic> used = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "uint packColor(float4 c);",
+            "uint helper(float3 c) { return packColor(float4(c, 0)); }",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return helper(1); }"));
+
+        Assert.True(Has(used, "CF0311"), Describe(used));
+    }
+
+    /// <summary>
     /// 取り込んだヘッダ自身が宣言したシンボルの分岐にしか定義が無い関数を報告することを検証する。
     /// </summary>
     /// <remarks>

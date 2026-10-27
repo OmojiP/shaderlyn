@@ -136,6 +136,17 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // エントリポイントから届かない関数の中の呼び出しは、コンパイラが関数ごと捨てるので誤りにならない
+        // (UE 5.5 の SubstrateSubsurface.ush の SubstrateSubsurfaceExtrasSetBaseColor。Substrate を使わない構成では、
+        // 宣言だけの PackColorLinearToGamma2AlphaLinear を呼ぶが、どのエントリポイントからも呼ばれない)。
+        // エントリポイントが分からない単位 (取り込まれる断片を単体で解析したときなど) は、今までどおり報告する。
+        if (invocation.Ancestors().OfType<FunctionDeclarationSyntax>().LastOrDefault() is { } caller
+            && compilation.GetReachableFunctions(program) is { } reachable
+            && !reachable.Contains(caller))
+        {
+            return;
+        }
+
         // 呼ぶ構成 (呼び出しの条件 × 木の構成) のうち、定義が無い構成を報告する。成り立たなければ報告しない。
         // どの構成にも定義が無いなら、木の構成は掛けない。どの構成についても正しく、掛けると「どの構成でも」と言えず、
         // 木の構成を並べた長い条件になる (調べきれなかった構成があると、木の構成の和は「常に」にならない)。

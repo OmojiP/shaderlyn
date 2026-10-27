@@ -55,6 +55,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   `if (MaterialDomain == MD_PostProcess) { return …; } return false;` を必ず false と読み、ポストプロセスのマテリアルのシェーダー
   (`FPostProcessMaterialPS` / `VS`) をコンパイルされないものとして扱い、解析していなかった。
   逆に、どの道も false を返すクラス (`FTrivialMaterialCHS`) は、コンパイルされないものとして扱う
+- CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
+  コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
+  UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。エントリポイントが分からない単位では今までどおり報告する
 
 ## [0.3.0] - 2026-10-25
 
