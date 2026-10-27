@@ -10,25 +10,34 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.1] - 2026-10-28
+
+GLSL のファイルの宣言・型・呼び出しを検査し、VS Code 拡張の説明・定義へ移動・補完・引数の案内を GLSL でも使えるようにした (0.3.0 で予告したもの)。
+そのために、C 系の言語に共通のルールの ID を `CF` で振り直した。
+Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報告 (0.3.0 の既知の問題) を直した。
+
+**破壊的変更を含む** (下の「変更」)。ルールの ID を抑制コメント・設定ファイル・ベースラインに書いていれば書き換える。
+対応表と置き換えのスクリプトは [0.3.0 から 0.3.1 へ移行する](docs/guide/migration-0.3.1.md) にある。
+
 ### 追加
 
-- 設定ファイルの `rules:` に存在しないルール ID を書くと、その行に TOOL0003 (警告) を表示する。
 - GLSL のファイルの宣言・型・呼び出しを、C 系の言語に共通のルール (CF) で検査する (宣言されていない名前、型の変換、引数の数、コンストラクタ、存在しないメンバー、値を返さない経路など)。
   HLSL にしか無いルール (HL) は出さない
   - 型は GLSL の決まりで判断する。暗黙の変換は `#version` で変わり (ES と 1.10 には無い)、成分の数の違う値は変換しない。行列を含む `*` は行列の積
   - 組み込み関数と変数は、glslang 16.6.0 を元に作った一覧を参照し、ファイルのステージと `#version` で使えるものとして判定する (頂点シェーダーの `gl_FragCoord` は宣言されていない名前になる)
   - インターフェースブロック (`uniform UBO { … } ubo;` と、インスタンスの名前の無いもの)、`layout(buffer_reference)` のブロック、型の側に書いた配列 (`float[3] a`) を読む
+  - `#version` を読み、glslang と同じマクロ (`__VERSION__`、`GL_ES`、`GL_core_profile` など) を定義する。
+    これまでは定義していなかったため、`#if __VERSION__ >= 300` などで分かれる分岐の片方を解析できていなかった
+  - 設定ファイルの `symbols:` を構成の軸にする (HLSL と同じ書き方)。`#ifdef` の両方の分岐の構文を読む
   - 取り込まれる断片 (`.glsl`) を単体で解析するときは、取り込む側の宣言が分からない。そのため、宣言が無いことを根拠にする検査を見送り、CF0101 (情報) で知らせる
   - Vulkan (SaschaWillems・Vulkan-Samples) と GLSL ES (ARM OpenGL ES SDK) のシェーダー、約 790 ファイルで誤りと警告が出ないことを確かめた
 - VS Code 拡張の説明 (ホバー表示)、定義への移動、補完、引数の案内が、GLSL のファイルでも使える (0.3.0 で予告したもの)。
   型と組み込みは GLSL のもので答える。組み込み関数の説明と引数の案内には、glslang の表の多重定義を、書いた実引数の型に合うものから並べる。
   補完は、ファイルのステージとバージョンで使える組み込み関数と変数 (`gl_FragCoord` など) を出し、HLSL の型や関数は出さない。`#` の後には `#version` / `#extension` も出す
-- 補完に、構造体の宣言と同時に宣言した変数 (`struct Light { … } light;`、GLSL の `uniform UBO { … } ubo;`) を出す
-- 自作ルール向け: `StructDeclarationSyntax.Modifiers` (キーワードの前の修飾子。GLSL のインスタンスの名前を持つインターフェースブロックを構造体の宣言として表すときに使う)
-- GLSL のファイルで、設定ファイルの `symbols:` を構成の軸にする (HLSL と同じ書き方)。`#ifdef` の両方の分岐の構文を読む
-- GLSL のファイルの `#version` を読み、glslang と同じマクロ (`__VERSION__`、`GL_ES`、`GL_core_profile` など) を定義する。
-  これまでは定義していなかったため、`#if __VERSION__ >= 300` などで分かれる分岐の片方を解析できていなかった
 - `--inspect` を GLSL のファイルにも使える (構成ごとの展開と構文木を見られる)
+- 補完に、構造体の宣言と同時に宣言した変数 (`struct Light { … } light;`、GLSL の `uniform UBO { … } ubo;`) を出す
+- 設定ファイルの `rules:` に存在しないルール ID を書くと、その行に TOOL0003 (警告) を表示する
+- 自作ルール向け: `StructDeclarationSyntax.Modifiers` (キーワードの前の修飾子。GLSL のインスタンスの名前を持つインターフェースブロックを構造体の宣言として表すときに使う)
 
 ### 変更
 
@@ -41,6 +50,13 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 修正
 
+- CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
+  コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
+  UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。パーミュテーションの値ごとの構成でも同じに扱う。
+  エントリポイントが分からない単位では今までどおり報告する
+- 呼び出しの検査 (CF0401 / CF0402 / CF0403 / CF0405) の報告の条件が、最初に見つけた木 (Pass や値ごとの構成) の分だけになっていた。
+  実引数の型が値ごとに変わるとき、合わない構成のうち 1 つの値の分しか書かなかった。木をまたいで条件の和をとって 1 件にする。
+  照らした宣言と食い違いの種類が違う報告は、別々に出す
 - `--inspect` が、取り込む側で定義したマクロを、取り込んだファイルの中でマクロの実引数に書いた宣言で落ちていた
   (Unreal Engine の `LargeWorldCoordinates.ush` の `#define FBoolType bool` と、`LWCOperations.ush` の `LWC_COMPARE_OP(…, FBoolType)`。
   エンジンのマテリアルのシェーダーの多くがこれを取り込む)。こうしたトークンの指摘の位置は、マクロの呼び出し位置にする
@@ -61,13 +77,11 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Unreal Engine: マテリアルのシェーダーで、どの `MATERIALBLENDING_*` も定義していなかった。エンジンはマテリアルのブレンドモードから必ず 1 つを定義する。
   既定のマテリアルと同じ不透明 (`MATERIALBLENDING_SOLID=1`) にする。`MobileBasePassPixelShader.usf` の `FrameBufferBlendOp` に
   値を返さない経路があると報告し (0.3.0 の既知の問題)、`PathTracingMaterialHitShader.usf` の `#error Unknown material blending mode` に到達していた
-- 呼び出しの検査 (CF0401 / CF0402 / CF0403 / CF0405) の報告の条件が、最初に見つけた木 (Pass や値ごとの構成) の分だけになっていた。
-  実引数の型が値ごとに変わるとき、合わない構成のうち 1 つの値の分しか書かなかった。木をまたいで条件の和をとって 1 件にする。
-  照らした宣言と食い違いの種類が違う報告は、別々に出す
-- CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
-  コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
-  UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。パーミュテーションの値ごとの構成でも同じに扱う。
-  エントリポイントが分からない単位では今までどおり報告する
+
+### 既知の問題
+
+- GLSL に固有の検査 (`#version` の無いファイル、その `#version` や拡張で使えない関数・型、`layout(location / binding)` の重複、そのステージで使えない組み込み) は、まだ行わない。0.3.2 で対応予定
+- GLSL の 16 ビットの整数のリテラルの接尾辞 (`GL_EXT_shader_explicit_arithmetic_types` の `3s` / `3us`) を読めず、構文の誤り (CF0001) と報告する。0.3.2 で修正予定
 
 ## [0.3.0] - 2026-10-25
 
@@ -606,7 +620,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...v0.2.0

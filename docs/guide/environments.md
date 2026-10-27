@@ -269,7 +269,7 @@ GitHub Action は設定ファイルの `environment` に従います。設定フ
 Unity 以外の環境では Unity のプロジェクト (`Library/`) が要らないので、GitHub のホストランナーで動かせます。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.3.0
+- uses: OmojiP/shaderlyn/action@v0.3.1
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment
