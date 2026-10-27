@@ -270,6 +270,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - `Substrate/SubstrateSubsurface.ush`: `PackColorLinearToGamma2AlphaLinear` / `UnpackColorGamma2ToLinearAlphaLinear` の定義が無い (HL0311)
 - `VolumetricFogVoxelization.usf` (`unreal: permutations: true` のときだけ): 一部の頂点ファクトリで `FVertexFactoryInput.VertexId` が無い (HL0313)。
   実際には、ボリュームのマテリアルとその頂点ファクトリの組み合わせはコンパイルされない
+  (0.3.1 で調べ直したところ、誤報告ではなかった。ボリュームのマテリアルに Geometry Cache などの使用のフラグが立つと、エンジンはこの組み合わせをコンパイルし、失敗する)
 
 ## [0.2.1] - 2026-10-16
 
