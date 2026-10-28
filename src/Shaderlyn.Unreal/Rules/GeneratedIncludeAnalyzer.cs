@@ -12,7 +12,7 @@ namespace Shaderlyn.Unreal.Rules;
 /// <remarks>
 /// <para>
 /// 解決できなかった取り込みが、どれもエンジンが生成するファイルであるときだけ報告する。
-/// ほかの取り込みも解決できていなければ、設定の誤りの見込みが高いので <c>HL0005</c> に任せる (こちらは報告しない)。
+/// ほかの取り込みも解決できていなければ、設定の誤りの見込みが高いので <c>CF0101</c> に任せる (こちらは報告しない)。
 /// </para>
 /// <para>
 /// C++ から作れるもの (uniform buffer の宣言など) が欠けていれば UE0001 で <c>--unreal-generate</c> を案内する。
@@ -58,7 +58,7 @@ internal sealed class GeneratedIncludeAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>Unreal の環境で、宣言の一覧が欠けている理由がエンジンが生成するファイルだけかを判定する。</summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <returns>そうなら <see langword="true"/>。<c>HL0005</c> (<see cref="SkippedCheckAnalyzer"/>) は、このときは報告しない。</returns>
+    /// <returns>そうなら <see langword="true"/>。<c>CF0101</c> (<see cref="SkippedCheckAnalyzer"/>) は、このときは報告しない。</returns>
     private static bool IsOnlyGeneratedMissing(ShaderCompilation compilation)
         => compilation.Environment.Name == UnrealOptions.EnvironmentName
            && SkippedCheckAnalyzer.IsOnlyGeneratedIncludeMissing(compilation);

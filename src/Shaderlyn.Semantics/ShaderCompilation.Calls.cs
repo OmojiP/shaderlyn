@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Semantics.Conditional;
@@ -92,9 +93,15 @@ public sealed partial class ShaderCompilation
 
         FrozenSet<FunctionDeclarationSyntax>? reachable = null;
 
-        if (!program.EntryPoints.IsDefaultOrEmpty)
+        // バリアントの木はエントリポイントを持たない。同じ単位の既定の木のものを使い、関数はその木の中で探す
+        // (Unreal のパーミュテーションを軸にした解析。値ごとの木で、届かない関数の中の呼び出しを CF0311 と報告していた)。
+        ImmutableArray<Environments.ShaderEntryPoint> entryPoints = program.EntryPoints.IsDefaultOrEmpty
+            ? Programs.FirstOrDefault(p => p.Unit == program.Unit && p.BlockKey == program.BlockKey)?.EntryPoints ?? []
+            : program.EntryPoints;
+
+        if (!entryPoints.IsDefaultOrEmpty)
         {
-            HashSet<string> names = [.. program.EntryPoints.Select(e => e.Name)];
+            HashSet<string> names = [.. entryPoints.Select(e => e.Name)];
             HashSet<FunctionDeclarationSyntax> found = [];
 
             foreach (FunctionDeclarationSyntax entry in program.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>().Where(f => names.Contains(f.Name)))

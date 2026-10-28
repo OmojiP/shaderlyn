@@ -243,9 +243,12 @@ public static class Program
                 .ConfigureAwait(false);
         }
         // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数の解析設定が使う)。
+        // rules: に書いた知らない ID もここで伝える。ルールの一覧はアナライザ (自作のルールを含む) から決まる。
+        HashSet<string> knownRuleIds = [.. RuleCatalog.GetAllRules(analyzers).Select(d => d.Id)];
+        knownRuleIds = new HashSet<string>(knownRuleIds, StringComparer.OrdinalIgnoreCase);
         ImmutableArray<Diagnostic> configurationDiagnostics =
         [
-            .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics)
+            .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics.AddRange(g.Settings.FindUnknownRules(knownRuleIds)))
                 .Concat(unusableConfigurations)
                 .DistinctBy(d => (d.Id, d.Location.FilePath, d.Location.Span, d.GetMessage())),
         ];

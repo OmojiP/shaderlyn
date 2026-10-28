@@ -31,9 +31,9 @@ public sealed class EnvironmentTemplateTests
     }
 
     [Theory]
-    [InlineData("unity", new[] { "SL1003", "HL0330", "HL0312" }, "1 ファイルを解析")]
-    [InlineData("hlsl", new[] { "HL0301", "HL0312", "HL0345", "HL0312" }, "4 ファイルを解析")]
-    [InlineData("unreal", new[] { "UE0001", "HL0312" }, "1 ファイルを解析")]
+    [InlineData("unity", new[] { "SL1003", "CF0201", "CF0312" }, "1 ファイルを解析")]
+    [InlineData("hlsl", new[] { "CF0301", "CF0312", "HL0345", "CF0312" }, "4 ファイルを解析")]
+    [InlineData("unreal", new[] { "UE0001", "CF0312" }, "1 ファイルを解析")]
     public async Task テンプレートでREADMEに書いた指摘が出る(string name, string[] expected, string summary)
     {
         StringWriter output = new();

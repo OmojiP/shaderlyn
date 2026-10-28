@@ -7,6 +7,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -242,7 +243,7 @@ internal static class ShaderCompilationBuilder
                 // 既定の木の到達しない #error に到達した構成はコンパイルできない。エンジンもその構成をコンパイルしない (Unreal の ShouldCompilePermutation)。
                 // その木を使うと、#else / #error で止めた値の木で宣言が足りないと報告していた (Unreal の SSDInjest.usf)。
                 // 既定の木も到達する #error は、ここでは数えない (既定の構成として別に記録する)。
-                // 使わない構成は ErrorConfigurations に記録し、到達したことを伝える (HL0009 / UN0103)。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
+                // 使わない構成は ErrorConfigurations に記録し、到達したことを伝える (CF0104 / UN0103)。ほかの木が表す構成からも外れる (ShaderCompilation.GetTreeConfiguration)。
                 // 外さないと、既定の木がその構成も表すことになり、既定の値の側にしか無い宣言を「その構成では無い」と報告していた
                 // (Unreal の PostProcessHistogram.usf。BILATERAL_GRID == 1 の木は、値の分からないマクロのために #error に到達する)。
                 if (ReachesNewError(variantTree.PreprocessResult, tree.PreprocessResult))
@@ -616,7 +617,7 @@ internal static class ShaderCompilationBuilder
     /// <para>
     /// 宣言されていないシンボルは対象にしない。
     /// 宣言が無ければ切り替えようがなく、その分岐は決して通らない
-    /// (それ自体は HL0330 が報告する)。
+    /// (それ自体は CF0201 が報告する)。
     /// </para>
     /// <para>
     /// 並び順を名前で固定するのは、上限に達したときにどれが選ばれるかを
@@ -1100,6 +1101,7 @@ internal static class ShaderCompilationBuilder
                     FunctionDeclarationSyntax function => function.Name,
                     StructDeclarationSyntax structure => structure.Name,
                     ConstantBufferDeclarationSyntax buffer => buffer.Name,
+                    InterfaceBlockDeclarationSyntax block => block.Name,
                     TypedefDeclarationSyntax typedef => typedef.Tokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text,
                     _ => null,
                 };
@@ -1135,7 +1137,7 @@ internal static class ShaderCompilationBuilder
     /// <remarks>
     /// <para>
     /// <b>組の中のシンボルは、すべて宣言されていなければならない。</b>
-    /// 宣言の無いシンボルは切り替えようがない (それ自体は HL0330 が報告する)。
+    /// 宣言の無いシンボルは切り替えようがない (それ自体は CF0201 が報告する)。
     /// </para>
     /// <para>
     /// <b>両方の分岐を並べたシンボルが混ざっていてもよい。</b>
@@ -1373,7 +1375,7 @@ internal static class ShaderCompilationBuilder
         // 値を持つシンボルの原子が 1 つでも並べられなかったなら、その名前のほかの原子も並べられていない。
         // 並べられなかった #if PROBE_IRRADIANCE_FORMAT == 0 / #elif == 1 の連なりは、既定の値 (0) の側しか読んでいない。
         // ほかの場所で == 1 を並べていても、== 1 を有効にした構成を作らないと、この連なりの == 1 の側はどの木にも載らず、
-        // そこで使う宣言を「== 1 のときは無い」(HL0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
+        // そこで使う宣言を「== 1 のときは無い」(CF0315) と報告していた (Unreal の LumenScreenProbeFiltering.usf)。
         HashSet<string> declinedNames =
         [
             .. result.DeclinedBothBranchSymbols.Select(symbol => VariantValues.TryParseAtom(symbol, out string? name, out _) ? name : null).OfType<string>(),
@@ -1546,7 +1548,7 @@ internal static class ShaderCompilationBuilder
                 // 並べなかった原子でも、ほかの原子を並べた名前なら、今の値の原子が成り立つとは限らない。
                 // #if DEBUG の DEBUG==1 を並べた木は、DEBUG==0 のときの中身も持つ。
                 // 成り立つと決めると、DEBUG==1 の側の宣言を使う文を「DEBUG == 0 では無い」と報告していた
-                // (Unreal の HairStrandsEnvironmentLighting.usf で HL0313)。成り立たないほうは決めてよい。
+                // (Unreal の HairStrandsEnvironmentLighting.usf で CF0313)。成り立たないほうは決めてよい。
                 if (isValue && mergedValueNames.Contains(name))
                 {
                     continue;

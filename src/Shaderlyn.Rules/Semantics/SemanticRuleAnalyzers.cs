@@ -30,12 +30,16 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 
         context.RegisterSyntaxTreeAction(treeContext =>
         {
-            if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation)
+            if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation
+                && (!compilation.IsGlsl || AnalyzesGlsl))
             {
                 Analyze(treeContext, compilation);
             }
         });
     }
+
+    /// <summary>GLSL のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
+    protected virtual bool AnalyzesGlsl => false;
 
     /// <summary>セマンティックモデルを使って検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -44,7 +48,7 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 }
 
 /// <summary>
-/// 依存関係が解決できず対応検査を行えなかったことを報告する (HL0005)。
+/// 依存関係が解決できず対応検査を行えなかったことを報告する (CF0101)。
 /// </summary>
 /// <remarks>
 /// <b>「検査していない」ことを伝えないままにしてはならない。</b>
@@ -54,6 +58,9 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 /// </remarks>
 internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>メッセージに列挙する未解決 include の最大数。</summary>
     /// <remarks>
     /// すべて並べると 1 行が数千文字になる。原因の見当をつけるには数件で足りる。
@@ -106,7 +113,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeSkipped(ShaderCompilation compilation)
         => compilation.Source.Root is null
-            ? "宣言が無いことを根拠にする検査 (HL0301 / HL0310 など)"
+            ? "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
             : "プロパティと uniform の対応検査";
 
     /// <summary>
@@ -123,12 +130,20 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// <b>別に報告されている指摘を、ここで繰り返さない。</b>
-    /// 解析対象のファイル自身にある構文エラーは <c>HL0001</c> などとして該当行に出る。
+    /// 解析対象のファイル自身にある構文エラーは <c>CF0001</c> などとして該当行に出る。
     /// 同じ文面をこちらにも並べると、読み手は 2 件別の問題があると受け取る。
     /// </para>
     /// </remarks>
     private static string DescribeReason(ShaderCompilation compilation)
     {
+        // 取り込まれる断片は、取り込む側の宣言が見えない。直すものではないので、そう伝える。
+        if (compilation.IsIncludedFragment)
+        {
+            return "ステージを表す拡張子でないファイル (.glsl) は、ほかのファイルに取り込まれる断片として読むので、取り込む側で宣言した名前が分かりません。"
+                + "取り込む側のファイル (.vert / .frag など) を解析すると、断片の中も検査されます。"
+                + "単体のシェーダーなら、ステージの拡張子 (.vert / .frag、.vert.glsl など) にすると検査されます。";
+        }
+
         // ビルドのときに生成されるファイルだけが無いなら、設定の誤りではない。そう伝えないと、利用者は探索パスを探し回る。
         if (IsOnlyGeneratedIncludeMissing(compilation))
         {

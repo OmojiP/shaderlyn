@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 呼んでいる関数の定義が、その構成に存在するかを検査する (HL0311)。
+/// 呼んでいる関数の定義が、その構成に存在するかを検査する (CF0311)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,6 +36,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.FunctionDefinitionNotFound];
@@ -129,6 +132,17 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
         // 条件が分かっていないなら報告しない。
         // 分からないものを根拠に「定義が無い」と言ってはならない。
         if (definition.IsUnknown || invocation.GetLocation() is not { } location)
+        {
+            return;
+        }
+
+        // エントリポイントから届かない関数の中の呼び出しは、コンパイラが関数ごと捨てるので誤りにならない
+        // (UE 5.5 の SubstrateSubsurface.ush の SubstrateSubsurfaceExtrasSetBaseColor。Substrate を使わない構成では、
+        // 宣言だけの PackColorLinearToGamma2AlphaLinear を呼ぶが、どのエントリポイントからも呼ばれない)。
+        // エントリポイントが分からない単位 (取り込まれる断片を単体で解析したときなど) は、今までどおり報告する。
+        if (invocation.Ancestors().OfType<FunctionDeclarationSyntax>().LastOrDefault() is { } caller
+            && compilation.GetReachableFunctions(program) is { } reachable
+            && !reachable.Contains(caller))
         {
             return;
         }

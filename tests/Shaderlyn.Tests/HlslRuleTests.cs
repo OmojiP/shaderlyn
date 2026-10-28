@@ -128,7 +128,7 @@ public sealed class HlslRuleTests
     }
 
     // ------------------------------------------------------------------
-    // HL0301 / UN0301: エントリポイント
+    // CF0301 / UN0301: エントリポイント
     // ------------------------------------------------------------------
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class HlslRuleTests
             "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0301");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0301");
         Assert.Contains("fragmnet", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
@@ -172,7 +172,7 @@ public sealed class HlslRuleTests
             """;
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0301");
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { return 0; }",
             "#endif"));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0301");
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class HlslRuleTests
             "half4 g() { return frag; }",
             "#endif"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0301");
+        Assert.Single(diagnostics, d => d.Id == "CF0301");
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { return 0; }",
             "#endif"));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0301");
     }
 
     [Fact]
@@ -241,11 +241,11 @@ public sealed class HlslRuleTests
             "void surf(Input IN, inout SurfaceOutputStandard o) { o.Albedo = 1; }"));
 
         Assert.DoesNotContain(diagnostics, d => d.Id == "UN0301");
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0301");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0301");
     }
 
     // ------------------------------------------------------------------
-    // HL0330 / HL0331: シェーダーのシンボル
+    // CF0201 / CF0202: シェーダーのシンボル
     // ------------------------------------------------------------------
 
     /// <summary>シンボルの宣言と使用を並べたシェーダー。</summary>
@@ -288,7 +288,7 @@ public sealed class HlslRuleTests
         """;
 
     // ------------------------------------------------------------------
-    // HL0332: どの構成でも成り立たない条件
+    // CF0203: どの構成でも成り立たない条件
     // ------------------------------------------------------------------
 
     /// <summary>
@@ -324,7 +324,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             [.. pragmas.Split('|'), condition, "float _Never;", "#endif", .. ValidProgram]));
 
-        Diagnostic[] reported = [.. diagnostics.Where(d => d.Id == "HL0332")];
+        Diagnostic[] reported = [.. diagnostics.Where(d => d.Id == "CF0203")];
 
         Assert.True(expected == (reported.Length == 1), Describe(diagnostics));
     }
@@ -335,7 +335,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             ["#pragma multi_compile _ _A", "#if defined(_A)", "float _First;", "#elif _A == 2", "float _Second;", "#endif", .. ValidProgram]));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics.Where(d => d.Id == "HL0332"));
+        Diagnostic diagnostic = Assert.Single(diagnostics.Where(d => d.Id == "CF0203"));
         Assert.Contains("_A == 2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -347,7 +347,7 @@ public sealed class HlslRuleTests
             Shader(["#pragma multi_compile _ _A", .. ValidProgram]),
             "#if _A == 2\nfloat _InHeader;\n#endif\n");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0332");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0203");
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public sealed class HlslRuleTests
         // シンボルは宣言して初めて切り替えられる。
         // 綴りを 1 文字誤っただけで、その機能が丸ごと入らないまま出荷されうる。
         Diagnostic diagnostic = Assert.Single(
-            Analyze(SymbolShader).Where(d => d.Id == "HL0330"));
+            Analyze(SymbolShader).Where(d => d.Id == "CF0201"));
 
         Assert.Contains("_SHADOWS_SOFTT", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -364,7 +364,7 @@ public sealed class HlslRuleTests
     [Fact]
     public void 宣言されているシンボルは報告しない()
     {
-        string[] reported = [.. Analyze(SymbolShader).Where(d => d.Id == "HL0330").Select(d => d.GetMessage())];
+        string[] reported = [.. Analyze(SymbolShader).Where(d => d.Id == "CF0201").Select(d => d.GetMessage())];
 
         Assert.DoesNotContain(reported, m => m.Contains("_NORMALMAP", StringComparison.Ordinal));
         Assert.DoesNotContain(reported, m => m.Contains("_SHADOWS_SOFT'", StringComparison.Ordinal));
@@ -376,7 +376,7 @@ public sealed class HlslRuleTests
         // 条件にはコンパイラが定義する名前も現れる。
         // それらは宣言されていなくて当然である。
         Assert.DoesNotContain(
-            Analyze(SymbolShader).Where(d => d.Id == "HL0330"),
+            Analyze(SymbolShader).Where(d => d.Id == "CF0201"),
             d => d.GetMessage().Contains("SHADER_API_D3D11", StringComparison.Ordinal));
     }
 
@@ -385,7 +385,7 @@ public sealed class HlslRuleTests
     {
         // シンボルは 1 つ増えるごとにバリアントの数を倍にする。
         Diagnostic diagnostic = Assert.Single(
-            Analyze(SymbolShader).Where(d => d.Id == "HL0331"));
+            Analyze(SymbolShader).Where(d => d.Id == "CF0202"));
 
         Assert.Contains("_NEVER_USED", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -432,7 +432,7 @@ public sealed class HlslRuleTests
             }
             """);
 
-        Assert.Empty(diagnostics.Where(d => d.Id is "HL0330" or "HL0331"));
+        Assert.Empty(diagnostics.Where(d => d.Id is "CF0201" or "CF0202"));
     }
 
     /// <summary>
@@ -442,7 +442,7 @@ public sealed class HlslRuleTests
     /// <remarks>
     /// Unity は有効なシンボルを値 1 のマクロとして定義するため、
     /// URP 自身も <c>#if _ALPHATEST_ON</c> の形を使っている。
-    /// 記号として扱わないと、参照しているのに「使われていない」(HL0331) と報告され、
+    /// 記号として扱わないと、参照しているのに「使われていない」(CF0202) と報告され、
     /// その分岐のコードも検査されない。
     /// </remarks>
     [Theory]
@@ -462,10 +462,10 @@ public sealed class HlslRuleTests
             "}"));
 
         // 宣言を参照しているので「使われていない」にはならない。
-        Assert.False(Has(diagnostics, "HL0331"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0202"), Describe(diagnostics));
 
         // 分岐の中のコードも検査される。
-        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+        Assert.Contains(diagnostics, d => d.Id == "CF0310");
     }
 
     /// <summary>HLSLINCLUDE を複数のパスが共有するシェーダー。</summary>
@@ -528,7 +528,7 @@ public sealed class HlslRuleTests
         // HLSLINCLUDE の 1 行を 2 つのパスが共有している。
         // 同じ場所の同じ誤りを 2 回並べても、読み手には 2 件の問題に見えるだけである。
         Diagnostic diagnostic = Assert.Single(
-            Analyze(SharedSymbolShader).Where(d => d.Id == "HL0330"));
+            Analyze(SharedSymbolShader).Where(d => d.Id == "CF0201"));
 
         Assert.Contains("_MISSPELED", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -538,7 +538,7 @@ public sealed class HlslRuleTests
     {
         // _NORMALMAP は 1 つ目のパス、_DETAIL は 2 つ目のパスでしか使われていない。
         // パスごとに判定すると、どちらも「もう一方のパスでは未使用」として報告されてしまう。
-        Assert.Empty(Analyze(SharedSymbolShader).Where(d => d.Id == "HL0331"));
+        Assert.Empty(Analyze(SharedSymbolShader).Where(d => d.Id == "CF0202"));
     }
 
     [Fact]
@@ -565,15 +565,15 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0301"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0101"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0301"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0001: 埋め込み HLSL の構文エラーの報告
+    // CF0001: 埋め込み HLSL の構文エラーの報告
     // ------------------------------------------------------------------
 
-    /// <summary>14 行目の <c>}</c> の位置に HL0001 が出るシェーダー。</summary>
+    /// <summary>14 行目の <c>}</c> の位置に CF0001 が出るシェーダー。</summary>
     /// <remarks><c>return 0</c> のセミコロンが無い。</remarks>
     private const string BrokenShader = """
         Shader "Test/Broken"
@@ -605,7 +605,7 @@ public sealed class HlslRuleTests
         // マスクした複製の上で解析していても、
         // 報告する位置は元のファイル上の該当行でなければならない。
         ImmutableArray<Diagnostic> diagnostics = Analyze(BrokenShader);
-        Diagnostic error = Assert.Single(diagnostics.Where(d => d.Id == "HL0001"));
+        Diagnostic error = Assert.Single(diagnostics.Where(d => d.Id == "CF0001"));
 
         Assert.Equal(14, error.Location.LineSpan.Start.Line + 1);
         Assert.Equal("}", error.Location.GetLineText().Trim());
@@ -618,10 +618,10 @@ public sealed class HlslRuleTests
         // 「依存関係を解決できないため」と言われた利用者は --unity-project を疑う。
         // 既に指定してある場合、それは何時間でも溶かせる誤誘導になる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(BrokenShader);
-        string message = diagnostics.First(d => d.Id == "HL0005").GetMessage();
+        string message = diagnostics.First(d => d.Id == "CF0101").GetMessage();
 
         Assert.DoesNotContain("include", message, StringComparison.Ordinal);
-        Assert.Contains("HL0001", message, StringComparison.Ordinal);
+        Assert.Contains("CF0001", message, StringComparison.Ordinal);
         Assert.Contains("14:13", message, StringComparison.Ordinal);
     }
 
@@ -696,8 +696,8 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
     }
 
     /// <summary>2 つの共通コード片が同じマクロを定義し直していれば、どの Pass も後のほうの値を見る。</summary>
@@ -732,7 +732,7 @@ public sealed class HlslRuleTests
             }
             """);
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     /// <summary>CGINCLUDE は HLSLPROGRAM に、HLSLINCLUDE は CGPROGRAM に入らない (Unity 6.6 で確かめた)。</summary>
@@ -760,7 +760,7 @@ public sealed class HlslRuleTests
             }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("FromCg", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("FromCg", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -804,7 +804,7 @@ public sealed class HlslRuleTests
             """;
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
-        Diagnostic error = Assert.Single(diagnostics.Where(d => d.Id == "HL0001"));
+        Diagnostic error = Assert.Single(diagnostics.Where(d => d.Id == "CF0001"));
 
         Assert.Equal(9, error.Location.LineSpan.Start.Line + 1);
     }
@@ -819,11 +819,11 @@ public sealed class HlslRuleTests
             Shader("float4 frag() : SV_Target { return 1; }"),
             urpCoreContent: "float4 ;\nfloat4 _Ok;\n");
 
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0101"), Describe(diagnostics));
         Assert.Contains(
             "Core.hlsl",
-            diagnostics.First(d => d.Id == "HL0005").GetMessage(),
+            diagnostics.First(d => d.Id == "CF0101").GetMessage(),
             StringComparison.Ordinal);
     }
 
@@ -836,15 +836,15 @@ public sealed class HlslRuleTests
             Shader("float4 frag() : SV_Target { return Provided(); }"),
             urpCoreContent: "float4 Provided()\n{\n    return 0\n}\n");
 
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0101"), Describe(diagnostics));
 
         // 中身を読まなくても「実装がある」ことは分かる。
-        Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0311"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0311: 関数の定義がその構成に無い
+    // CF0311: 関数の定義がその構成に無い
     // ------------------------------------------------------------------
 
     [Fact]
@@ -867,7 +867,7 @@ public sealed class HlslRuleTests
             "half4 sampleTexture(float2 uv) { return 1; }",
             "#endif"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0311");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0311");
 
         Assert.Contains("sampleTexture", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("!SHADER_DEBUG", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -881,9 +881,41 @@ public sealed class HlslRuleTests
             "half4 sampleTexture(float2 uv);",
             "half4 frag() : SV_Target { return sampleTexture(float2(0, 0)); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0311");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0311");
 
         Assert.Contains("どの構成でも", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// エントリポイントから届かない関数の中で、定義の無い関数を呼んでいても報告しない。コンパイラは使われない関数を捨てる
+    /// (UE 5.5 の SubstrateSubsurface.ush。Substrate を使わない構成では、使われない関数が宣言だけの関数を呼ぶ)。
+    /// </summary>
+    /// <remarks>
+    /// DXC (ps_6_0) と FXC (ps_5_0) で確かめた。使われない関数の中なら通り、エントリポイントから呼ぶとエラーになる
+    /// (DXC は External function used in non-library profile、FXC は X3510)。
+    /// </remarks>
+    [Fact]
+    public void エントリポイントから届かない関数の中の呼び出しは報告しない()
+    {
+        ImmutableArray<Diagnostic> unused = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "uint packColor(float4 c);",
+            "uint helper(float3 c) { return packColor(float4(c, 0)); }",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Assert.False(Has(unused, "CF0311"), Describe(unused));
+
+        ImmutableArray<Diagnostic> used = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "uint packColor(float4 c);",
+            "uint helper(float3 c) { return packColor(float4(c, 0)); }",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return helper(1); }"));
+
+        Assert.True(Has(used, "CF0311"), Describe(used));
     }
 
     /// <summary>
@@ -915,7 +947,7 @@ public sealed class HlslRuleTests
             #endif
             """);
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0311");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0311");
 
         Assert.Contains("highQualitySample", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("!_HEADER_QUALITY", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -950,7 +982,7 @@ public sealed class HlslRuleTests
 
         // 既定の構成は _HIGH_PRECISION で、そこでは 3 + 1 で足りる。
         // _LOW_PRECISION の構成を作らなければ、この誤りは見つからない。
-        Assert.Single(diagnostics, d => d.Id == "HL0343");
+        Assert.Single(diagnostics, d => d.Id == "CF0404");
     }
 
     [Fact]
@@ -972,7 +1004,7 @@ public sealed class HlslRuleTests
             "half4 sampleTexture(float2 uv) { return 1; }",
             "#endif"));
 
-        Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0311"), Describe(diagnostics));
     }
 
     [Fact]
@@ -982,7 +1014,7 @@ public sealed class HlslRuleTests
             "half4 sampleTexture(float2 uv) { return 1; }",
             "half4 frag() : SV_Target { return sampleTexture(float2(0, 0)); }"));
 
-        Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0311"), Describe(diagnostics));
     }
 
     [Fact]
@@ -993,7 +1025,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { return lerp(0, 1, 0.5); }"));
 
-        Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0311"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1005,7 +1037,7 @@ public sealed class HlslRuleTests
             Shader("half4 frag() : SV_Target { return Missing(float2(0, 0)); }"),
             urpCoreContent: "half4 Missing(float2 uv);");
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0311");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0311");
 
         Assert.Contains("Missing", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1018,11 +1050,11 @@ public sealed class HlslRuleTests
             urpCoreContent: "half4 Provided(float2 uv);\n"
                             + "half4 Provided(float2 uv) { return 1; }");
 
-        Assert.False(Has(diagnostics, "HL0311"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0311"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0313: 構造体のメンバーがその構成に無い
+    // CF0313: 構造体のメンバーがその構成に無い
     // ------------------------------------------------------------------
 
     /// <summary>条件付きのメンバーを持つ構造体を組み立てる。</summary>
@@ -1057,7 +1089,7 @@ public sealed class HlslRuleTests
             "#endif"));
 
         // 報告するのは #else の側だけである。
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0313");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0313");
 
         Assert.Contains("debugColor", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("Varyings", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1071,7 +1103,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(ConditionalMemberShader(
             "    return IN.debugColor;"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0313");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0313");
 
         Assert.Contains("!SHADER_DEBUG", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1085,7 +1117,7 @@ public sealed class HlslRuleTests
             "#endif",
             "    return 0;"));
 
-        Assert.False(Has(diagnostics, "HL0313"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0313"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1094,11 +1126,11 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(ConditionalMemberShader(
             "    return IN.uv.xyxy;"));
 
-        Assert.False(Has(diagnostics, "HL0313"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0313"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0340: 実引数を仮引数の型へ変換できない
+    // CF0401: 実引数を仮引数の型へ変換できない
     // ------------------------------------------------------------------
 
     /// <summary>条件で仮引数の型が変わる関数を持つシェーダーを組み立てる。</summary>
@@ -1130,7 +1162,7 @@ public sealed class HlslRuleTests
 
         // 報告するのは #else の側だけである。
         // #ifdef の側は、その構成にある float2 版が受け付ける。
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0340");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0401");
 
         Assert.Contains("sampleTexture", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1145,7 +1177,7 @@ public sealed class HlslRuleTests
         // float2 を float へ渡すのは切り捨てであり、警告は出るが通る。
         ImmutableArray<Diagnostic> diagnostics = Analyze(OverloadedShader("float u"));
 
-        Assert.False(Has(diagnostics, "HL0340"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0401"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1156,7 +1188,7 @@ public sealed class HlslRuleTests
             "half4 shade(float3 v) { return v.x; }",
             "half4 frag() : SV_Target { return shade(1.0); }"));
 
-        Assert.False(Has(diagnostics, "HL0340"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0401"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1166,7 +1198,7 @@ public sealed class HlslRuleTests
             "half4 shade(float3 v) { return v.x; }",
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { return shade(uv); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0340");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0401");
 
         // 無条件の呼び出しでは、構成の断りを添えない。読み手には雑音でしかない。
         Assert.DoesNotContain("のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1181,11 +1213,11 @@ public sealed class HlslRuleTests
             "half4 shade(float2 v) { return v.x; }",
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { return shade(uv); }"));
 
-        Assert.False(Has(diagnostics, "HL0340"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0401"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0341: 引数の個数が合わない
+    // CF0402: 引数の個数が合わない
     // ------------------------------------------------------------------
 
     [Fact]
@@ -1195,7 +1227,7 @@ public sealed class HlslRuleTests
             "half4 shade(float3 v) { return v.x; }",
             "half4 frag(float3 v : TEXCOORD0) : SV_Target { return shade(v, v); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0341");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0402");
 
         Assert.Contains("shade", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("2 個", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1216,7 +1248,7 @@ public sealed class HlslRuleTests
             "sampler2D _S;",
             "half4 frag(float3 v : TEXCOORD0) : SV_Target { return half4(" + call + ".xxx, 1); }"));
 
-        Assert.True(Has(diagnostics, "HL0341") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0402") == reported, Describe(diagnostics));
     }
 
     [Fact]
@@ -1227,7 +1259,7 @@ public sealed class HlslRuleTests
             "float3 max(float3 a, float3 b, float3 c) { return a; }",
             "half4 frag(float3 v : TEXCOORD0) : SV_Target { return max(v, v).x; }"));
 
-        Assert.False(Has(diagnostics, "HL0341"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0402"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1237,7 +1269,7 @@ public sealed class HlslRuleTests
         string source = Shader("half4 frag(float3 v : TEXCOORD0) : SV_Target { return lerp(v, v).x; }")
             .Replace(UrpCorePath, "Packages/does.not.exist/Missing.hlsl", StringComparison.Ordinal);
 
-        Assert.False(Has(Analyze(source), "HL0341"));
+        Assert.False(Has(Analyze(source), "CF0402"));
     }
 
     [Fact]
@@ -1247,7 +1279,7 @@ public sealed class HlslRuleTests
             "half4 shade(float3 v, float k = 1) { return v.x * k; }",
             "half4 frag(float3 v : TEXCOORD0) : SV_Target { return shade(v); }"));
 
-        Assert.False(Has(diagnostics, "HL0341"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0402"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1270,13 +1302,13 @@ public sealed class HlslRuleTests
             "#endif",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0341");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0402");
 
         Assert.Contains("!SHADER_DEBUG", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     // ------------------------------------------------------------------
-    // HL0312: そのメンバーが存在しない
+    // CF0312: そのメンバーが存在しない
     // ------------------------------------------------------------------
 
     /// <summary>
@@ -1297,7 +1329,7 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { return WEIGHTS.z; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
 
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1330,7 +1362,7 @@ public sealed class HlslRuleTests
             "#ifndef DEFINES_INCLUDED\n#define DEFINES_INCLUDED\n#if !defined(ENABLE_ALPHA)\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#endif\n");
 
         // c.w は float4 なら読める。c.q はどの型でも読めないので、float4 として報告する。
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("float4", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("成分 q ", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1371,7 +1403,7 @@ public sealed class HlslRuleTests
                 "}"),
             "#ifndef DEFINES_INCLUDED\n#define DEFINES_INCLUDED\n#if !defined(ENABLE_ALPHA)\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#endif\n");
 
-        Assert.False(Has(diagnostics, "HL0343"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0404"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -1401,7 +1433,7 @@ public sealed class HlslRuleTests
                 "}"),
             "#ifndef DEFINES_INCLUDED\n#define DEFINES_INCLUDED\n#if !defined(ENABLE_ALPHA)\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nvoid Run(inout CTYPE c) { c = 1; }\n#endif\n");
 
-        Assert.False(Has(diagnostics, "HL0340"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0401"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -1433,7 +1465,7 @@ public sealed class HlslRuleTests
             body,
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
 
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1455,7 +1487,7 @@ public sealed class HlslRuleTests
             "return i.w;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -1471,7 +1503,7 @@ public sealed class HlslRuleTests
             "return j.w;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1486,7 +1518,7 @@ public sealed class HlslRuleTests
             "return i.w;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -1508,7 +1540,7 @@ public sealed class HlslRuleTests
             "    return v.x;",
             "}"));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0312");
+        Assert.Contains(diagnostics, d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -1524,7 +1556,7 @@ public sealed class HlslRuleTests
             "    return v.w;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1540,7 +1572,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return WEIGHTS.x; }"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     /// <summary>条件ごとに違う型で <c>color</c> を宣言し、<c>_B</c> のときだけ成分を取り出す関数。</summary>
@@ -1571,7 +1603,7 @@ public sealed class HlslRuleTests
         // _A と _B が同時に有効なとき、color は float3 なので .w は無い。
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(ColorByCondition("w")));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1607,7 +1639,7 @@ public sealed class HlslRuleTests
             "    return r;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
         Assert.Contains("_A && _B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -1616,7 +1648,7 @@ public sealed class HlslRuleTests
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(ColorByCondition("z")));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1636,7 +1668,7 @@ public sealed class HlslRuleTests
             "    return color.x;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1646,7 +1678,7 @@ public sealed class HlslRuleTests
             "struct Varyings { float4 positionHCS : SV_POSITION; float2 uv : TEXCOORD0; };",
             "half4 frag(Varyings IN) : SV_Target { return IN.postionHCS.x; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
 
         Assert.Contains("postionHCS", diagnostic.GetMessage(), StringComparison.Ordinal);
 
@@ -1664,7 +1696,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { return " + expression + ".x; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
 
         Assert.Contains(member, diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -1679,7 +1711,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { return " + expression + ".x; }"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1689,22 +1721,22 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float u : TEXCOORD0) : SV_Target { return u.xxxx.x; }"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
-    public void 条件付きのメンバーはHL0312では報告しない()
+    public void 条件付きのメンバーはCF0312では報告しない()
     {
-        // メンバー自体は存在する。条件の食い違いは HL0313 の担当である。
+        // メンバー自体は存在する。条件の食い違いは CF0313 の担当である。
         ImmutableArray<Diagnostic> diagnostics = Analyze(ConditionalMemberShader(
             "    return IN.debugColor;"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
-        Assert.True(Has(diagnostics, "HL0313"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0313"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0342: out の引数に書き戻せない
+    // CF0403: out の引数に書き戻せない
     // ------------------------------------------------------------------
 
     [Fact]
@@ -1718,7 +1750,7 @@ public sealed class HlslRuleTests
             "    return 0;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0342");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0403");
 
         Assert.Contains("split", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("out", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1737,8 +1769,8 @@ public sealed class HlslRuleTests
             "    return got.x;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0342"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0340"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0403"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0401"), Describe(diagnostics));
     }
 
     [Fact]
@@ -1754,7 +1786,7 @@ public sealed class HlslRuleTests
             "    return small.x;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0340");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0401");
 
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -1767,13 +1799,13 @@ public sealed class HlslRuleTests
             "half4 shade(float3x3 m) { return m._m00; }",
             "half4 frag(float3 v : TEXCOORD0) : SV_Target { return shade(v); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0340");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0401");
 
         Assert.Contains("float3x3", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     // ------------------------------------------------------------------
-    // HL0007: 条件を追えなかった箇所
+    // CF0103: 条件を追えなかった箇所
     // ------------------------------------------------------------------
 
     /// <summary>条件を追えない箇所があるシェーダー。</summary>
@@ -1816,18 +1848,18 @@ public sealed class HlslRuleTests
         // 指摘が出ないことを「問題が無い」と受け取られる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader([.. UntrackableSource.Split('\n')]));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0007");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0103");
 
         Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
     }
 
     [Fact]
-    public void 条件を追えているときはHL0007を報告しない()
+    public void 条件を追えているときはCF0103を報告しない()
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(ConditionalMemberShader(
             "    return IN.uv.x;"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -1835,7 +1867,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// <c>if</c> の本体が、構成によってブロックにも文にもなる形である。
-    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに HL0007 になっていた。
+    /// 以前は <c>#elif</c> のシンボルを構成ごとの展開に回し、木の対応が取れずに CF0103 になっていた。
     /// 複製した分岐の中の誤りは、その定義の条件付きで報告する。
     /// </remarks>
     [Theory]
@@ -1864,13 +1896,13 @@ public sealed class HlslRuleTests
             "    return v;",
             "}").Split('\n')]));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
 
         Assert.All(
-            diagnostics.Where(d => d.Id == "HL0310"),
+            diagnostics.Where(d => d.Id == "CF0310"),
             d => Assert.Contains("構成：_MODE_B のとき", d.GetMessage(), StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310");
+        Assert.Contains(diagnostics, d => d.Id == "CF0310");
     }
 
     /// <summary>
@@ -1878,7 +1910,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// 展開前のトークンには <c>;</c> も <c>}</c> も無いので、以前は文の切れ目の候補が見つからず、
-    /// 複製を諦めて HL0007 になっていた。
+    /// 複製を諦めて CF0103 になっていた。
     /// </remarks>
     [Theory]
     [InlineData("    if (v > 0)\n        BODY\n#ifdef _C\n    v += 1;\n#endif")]
@@ -1901,9 +1933,9 @@ public sealed class HlslRuleTests
             "    return v;",
             "}").Split('\n')]));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0310");
         Assert.Contains("構成：!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -1912,7 +1944,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// <c>#undef</c> は、それまでの定義の条件を縮める (常に → <c>!_A</c>)。
-    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して HL0007 になっていた。
+    /// 以前は <c>#undef</c> された名前を覚えるのをやめていたので、構成ごとに展開して CF0103 になっていた。
     /// </remarks>
     [Fact]
     public void undefしてから定義し直したマクロも定義ごとに複製する()
@@ -1932,10 +1964,10 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0008"), Describe(diagnostics));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0004"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingDefault' は 構成：!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1951,7 +1983,7 @@ public sealed class HlslRuleTests
             "#define BODY 4",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0008" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0004" && d.GetMessage().Contains("!_A のとき", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -1959,7 +1991,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// 条件の付く範囲は、入れ子の <c>#if</c> の前・中・後に分かれて記録される。
-    /// 関数はどの範囲にも収まらず条件が付かなかったので、分岐ごとの同じ名前の関数を重複した宣言 (HL0314) と報告していた
+    /// 関数はどの範囲にも収まらず条件が付かなかったので、分岐ごとの同じ名前の関数を重複した宣言 (CF0314) と報告していた
     /// (HDRP の MotionBlurMotionVecPrep.compute)。
     /// </remarks>
     [Theory]
@@ -1988,7 +2020,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return F(1); }").Split('\n')]));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0314");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0314");
     }
 
     [Fact]
@@ -2003,7 +2035,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return BODY; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0008");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0004");
         Assert.Contains("(_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -2012,7 +2044,7 @@ public sealed class HlslRuleTests
     /// </summary>
     /// <remarks>
     /// 以前は 1 つだけを複製し、もう一方は構成ごとに展開していた。
-    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず HL0007 になっていた。
+    /// 名前と数値のように同じ位置が別の種類の式になると、木の対応が取れず CF0103 になっていた。
     /// </remarks>
     [Fact]
     public void 一つの文で二つのマクロを使っても組み合わせごとに複製する()
@@ -2037,9 +2069,9 @@ public sealed class HlslRuleTests
             "    return n.z;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingDetail' は 構成：_D のとき", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0312" && d.GetMessage().Contains("!_N のとき", StringComparison.Ordinal));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingDetail' は 構成：_D のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0312" && d.GetMessage().Contains("!_N のとき", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2066,16 +2098,16 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingC' は 構成：_C のとき", StringComparison.Ordinal));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingA' は 構成：_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingC' は 構成：_C のとき", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// マクロを書き分けた分岐にコードもある領域も並べ、マクロを使う文は定義ごとに複製することを検証する。
     /// </summary>
     /// <remarks>
-    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は HL0007 になっていた。
+    /// 以前はこの領域を並べず構成ごとに展開しており、文の種類が構成で変わる箇所は CF0103 になっていた。
     /// 分岐の中のコードは、それぞれの分岐の条件付きで検査する。
     /// </remarks>
     [Fact]
@@ -2099,13 +2131,13 @@ public sealed class HlslRuleTests
             "    return v;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingA' は 構成：_MODE_A のとき", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("'missingInG' は 構成：_MODE_B のとき", StringComparison.Ordinal));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingA' は 構成：_MODE_A のとき", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("'missingInG' は 構成：_MODE_B のとき", StringComparison.Ordinal));
     }
 
     // ------------------------------------------------------------------
-    // HL0350 / HL0351: 代入・初期化・return の型
+    // CF0410 / CF0411: 代入・初期化・return の型
     // ------------------------------------------------------------------
 
     [Theory]
@@ -2117,7 +2149,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { " + body + " return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0410");
 
         Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("float2", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2133,7 +2165,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { " + body + " return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0350"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0410"), Describe(diagnostics));
     }
 
     [Theory]
@@ -2146,7 +2178,7 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0351");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0411");
 
         Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -2162,11 +2194,11 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0351"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0411"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0353: 構成によっては成分が切り捨てられる
+    // CF0413: 構成によっては成分が切り捨てられる
     // ------------------------------------------------------------------
 
     /// <summary>条件ごとに違う型で宣言した名前を返す関数。</summary>
@@ -2217,7 +2249,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return ReturnFloat(); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0353");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0413");
 
         Assert.Contains("float4", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_D", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2241,7 +2273,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return ReturnFloat(); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0410");
 
         Assert.Contains("_B", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2253,7 +2285,7 @@ public sealed class HlslRuleTests
         // _A のとき a は float、_B のとき float3。float を返す関数なので _B でだけ落ちる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(VaryingTypeShader("float", "float3"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0353");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0413");
 
         Assert.Contains("_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.DoesNotContain("!_A", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2270,7 +2302,7 @@ public sealed class HlslRuleTests
         // float と float の書き分けでは、どちらの構成でも落ちるものが無い。
         ImmutableArray<Diagnostic> diagnostics = Analyze(VaryingTypeShader("float", "float"));
 
-        Assert.False(Has(diagnostics, "HL0353"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0413"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2281,7 +2313,7 @@ public sealed class HlslRuleTests
             "float Narrow(float3 v) { return v; }",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0353"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0413"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2290,17 +2322,17 @@ public sealed class HlslRuleTests
         // スカラーは全成分へ複製される。失われる値は無い。
         ImmutableArray<Diagnostic> diagnostics = Analyze(VaryingTypeShader("float3", "float"));
 
-        Assert.False(Has(diagnostics, "HL0353"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0413"), Describe(diagnostics));
     }
 
     [Fact]
     public void 構成によって渡せない戻り値を報告する()
     {
         // _B のとき float2 を float3 へ渡す。成分が増える向きなのでコンパイルに失敗する。
-        // 成分が落ちるだけの HL0353 ではなく、HL0351 の領分である。
+        // 成分が落ちるだけの CF0413 ではなく、CF0411 の領分である。
         ImmutableArray<Diagnostic> diagnostics = Analyze(VaryingTypeShader("float3", "float2"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0351");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0411");
 
         Assert.Contains("float2 を返しています", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2308,7 +2340,7 @@ public sealed class HlslRuleTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
 
         // 渡せない構成は、値が落ちるだけの構成より重い。警告の陰に隠してはならない。
-        Assert.False(Has(diagnostics, "HL0353"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0413"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2329,7 +2361,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0350");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0410");
 
         Assert.Contains("float2 を float3 に変換できません", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_B のとき、この式は float2 です。", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2345,7 +2377,7 @@ public sealed class HlslRuleTests
             "float3 widen(float2 uv) { return uv; }",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0351");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0411");
 
         Assert.DoesNotContain("のとき、この式は", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.EndsWith("float2 を返しています。", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2363,7 +2395,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0330"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0201"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2375,7 +2407,7 @@ public sealed class HlslRuleTests
             "#pragma dynamic_branch_local_fragment _ _HDR_OVERLAY",
             "half4 frag() : SV_Target { if (_HDR_OVERLAY) { return 1; } return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0331"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0202"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2387,11 +2419,11 @@ public sealed class HlslRuleTests
             "#pragma dynamic_branch_local_fragment _ _HDR_OVERLAY",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.True(Has(diagnostics, "HL0331"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0202"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0360 / HL0352 / HL0310: 制御フロー・初期化・未宣言
+    // CF0501 / CF0412 / CF0310: 制御フロー・初期化・未宣言
     // ------------------------------------------------------------------
 
     [Theory]
@@ -2407,7 +2439,7 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0360");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0501");
 
         Assert.Contains("float3", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -2433,7 +2465,7 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0360"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0501"), Describe(diagnostics));
     }
 
     [Theory]
@@ -2446,7 +2478,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { " + body + " return a[0].x; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0412");
 
         Assert.Contains($"{written} 個", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains($"{required} 個", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2463,7 +2495,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { " + body + " return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0412"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -2497,7 +2529,7 @@ public sealed class HlslRuleTests
             "    return c;",
             "}"));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0350");
+        Assert.Contains(diagnostics, d => d.Id == "CF0410");
     }
 
     [Fact]
@@ -2518,7 +2550,7 @@ public sealed class HlslRuleTests
             "    return c;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0350"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0410"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -2555,7 +2587,7 @@ public sealed class HlslRuleTests
             "    return o.a;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0412"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -2580,7 +2612,7 @@ public sealed class HlslRuleTests
             "    return c;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0412");
 
         Assert.Contains("3 個", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("4 個", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2607,7 +2639,7 @@ public sealed class HlslRuleTests
             "    return o.a;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0412");
 
         Assert.Contains("4 個書いていますが、8 個必要です", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("(構成：_A のとき)", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -2635,7 +2667,7 @@ public sealed class HlslRuleTests
             "    return c;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0412"), Describe(diagnostics));
     }
 
     [Theory]
@@ -2647,7 +2679,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { float3x3 m = 0; return " + expression + "; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0312");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0312");
 
         Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -2663,7 +2695,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { float3x3 m = 0; return " + expression + ".x; }"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2672,7 +2704,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { return undeclaredName; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0310");
 
         Assert.Contains("undeclaredName", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -2691,7 +2723,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { " + body + " }"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2705,7 +2737,7 @@ public sealed class HlslRuleTests
             "HELPER_DECL",
             "half4 frag() : SV_Target { return helper(); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0310");
 
         Assert.Contains("undeclaredInMacro", diagnostic.GetMessage(), StringComparison.Ordinal);
 
@@ -2720,7 +2752,7 @@ public sealed class HlslRuleTests
             "#define USE_MISSING (undeclaredInMacro)",
             "half4 frag() : SV_Target { return USE_MISSING + USE_MISSING + USE_MISSING; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Assert.Single(diagnostics, d => d.Id == "CF0310");
     }
 
     [Fact]
@@ -2731,7 +2763,7 @@ public sealed class HlslRuleTests
             Shader("half4 frag() : SV_Target { return HEADER_MACRO; }"),
             "#define HEADER_MACRO (undeclaredInHeaderMacro)\n");
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -2753,7 +2785,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return Helpers::shade(half3(0, 0, 1)); }"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -2775,9 +2807,9 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { NS::Wave w; w.indexW = 1; return w.GetIndex() + GetIndexTypo(); }"));
 
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
-        Assert.Single(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("GetIndexTypo", StringComparison.Ordinal));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0101"), Describe(diagnostics));
+        Assert.Single(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("GetIndexTypo", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2798,14 +2830,14 @@ public sealed class HlslRuleTests
             "    uint flags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RayFlags();",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     [Fact]
     public void キーワードの構成がerrorに到達するとエラーにしその構成の宣言の不足は報告しない()
     {
         // Unity はキーワードの構成をすべてコンパイルするので、#error に到達するとシェーダーが使えなくなる (UN0103)。
-        // その構成のコードは考えない。#else の中でだけ宣言した '_Tint' を、構成：_A のとき無い (HL0315) と報告していた。
+        // その構成のコードは考えない。#else の中でだけ宣言した '_Tint' を、構成：_A のとき無い (CF0315) と報告していた。
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "#pragma vertex vert",
             "#pragma fragment frag",
@@ -2821,8 +2853,8 @@ public sealed class HlslRuleTests
         Diagnostic error = Assert.Single(diagnostics, d => d.Id == "UN0103");
         Assert.Equal(DiagnosticSeverity.Error, error.Severity);
         Assert.Contains("構成：_A は", error.GetMessage(), StringComparison.Ordinal);
-        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0104"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2848,14 +2880,14 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { return 1; }"));
 
         Assert.False(Has(diagnostics, "UN0103"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0009"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0104"), Describe(diagnostics));
     }
 
     [Fact]
     public void 先頭がマクロの宣言も構成ごとの選択肢にする()
     {
         // Unity の CGPROGRAM の fixed4 はマクロである。インスタンシングの有無で初期化子が変わる形 (Animation Rigging の BoneHandles.shader)。
-        // 先頭がマクロの展開だと選択肢にできず、対応が取れなかった (HL0007)。条件が付かず、構成：_M1 のとき '_Color' が無い (HL0315) とも報告していた。
+        // 先頭がマクロの展開だと選択肢にできず、対応が取れなかった (CF0103)。条件が付かず、構成：_M1 のとき '_Color' が無い (CF0315) とも報告していた。
         // 定義を 5 通りにして、巻き上げではなく構成ごとの展開で扱わせる。
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "#pragma multi_compile _ _M1 _M2 _M3 _M4",
@@ -2883,8 +2915,8 @@ public sealed class HlslRuleTests
             "    return col;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0007"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0315"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2902,7 +2934,7 @@ public sealed class HlslRuleTests
             "    return a + b;",
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2913,7 +2945,7 @@ public sealed class HlslRuleTests
             "float helper(float x) { float scale = 2; return x * scale; }",
             "half4 frag() : SV_Target { return helper(1) * scale; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0310");
         Assert.Contains("scale", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -2965,7 +2997,7 @@ public sealed class HlslRuleTests
             Shader(["#pragma multi_compile _ USE_TILES", .. function]),
             "#ifndef CORE_INCLUDED\n#define CORE_INCLUDED\n#define FLT_MIN 1.175494351e-38\n#endif\n");
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     [Fact]
@@ -2983,7 +3015,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return ReturnFloat(); }"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3001,7 +3033,7 @@ public sealed class HlslRuleTests
             Shader("fixed4 frag() : SV_Target { return undeclaredName; }"),
             urpCoreContent: "#define fixed4 half4\n");
 
-        Assert.True(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3013,10 +3045,10 @@ public sealed class HlslRuleTests
     /// 報告は実引数を書いた位置に出す。
     /// </remarks>
     [Theory]
-    [InlineData("float2 a = ID(undeclaredC);", "HL0310", "undeclaredC")]           // このファイルのマクロ
-    [InlineData("float2 a = HEADER_ID(undeclaredD);", "HL0310", "undeclaredD")]    // ヘッダのマクロ
-    [InlineData("float a = HEADER_ID(uv.z);", "HL0312", "uv.z")]
-    [InlineData("float a = OUTER(uv.z);", "HL0312", "uv.z")]                        // 入れ子のマクロ
+    [InlineData("float2 a = ID(undeclaredC);", "CF0310", "undeclaredC")]           // このファイルのマクロ
+    [InlineData("float2 a = HEADER_ID(undeclaredD);", "CF0310", "undeclaredD")]    // ヘッダのマクロ
+    [InlineData("float a = HEADER_ID(uv.z);", "CF0312", "uv.z")]
+    [InlineData("float a = OUTER(uv.z);", "CF0312", "uv.z")]                        // 入れ子のマクロ
     public void マクロの実引数に書いたコードを検査する(string statement, string id, string reportedText)
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(
@@ -3045,7 +3077,7 @@ public sealed class HlslRuleTests
                 "half4 frag() : SV_Target { A a = (A)0; SETUP_ID(a); return 0; }"),
             urpCoreContent: "#define SETUP_ID(v) uint id = v.instanceID;\n");
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3059,7 +3091,7 @@ public sealed class HlslRuleTests
             Shader("MAKE_FUNC(Broken)", "half4 frag() : SV_Target { return Broken(); }"),
             urpCoreContent: "#define MAKE_FUNC(name) half4 name() { return undeclaredInHeader; }\n");
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
@@ -3087,7 +3119,7 @@ public sealed class HlslRuleTests
             declarations,
             frag));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0310");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0310");
         Assert.Contains(name, diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("!_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -3130,7 +3162,7 @@ public sealed class HlslRuleTests
             source,
             urpCoreContent: "float4 _FromHeader;\nfloat4 HeaderFunc() { return 1; }\n");
 
-        List<Diagnostic> undeclared = [.. diagnostics.Where(d => d.Id == "HL0310")];
+        List<Diagnostic> undeclared = [.. diagnostics.Where(d => d.Id == "CF0310")];
         Assert.Equal(2, undeclared.Count);
         // 取り込んでいない 2 つ目の Pass の frag だけを報告する (行は 0 始まり)。
         Assert.All(undeclared, d => Assert.Equal(20, d.Location.LineSpan.Start.Line));
@@ -3144,11 +3176,11 @@ public sealed class HlslRuleTests
     /// </remarks>
     [Theory]
     [InlineData(
-        "float4 F(float a, float b) { return a; }", "float4 F(float a) { return a; }", "F(1, 2)", "HL0341", "!_B のとき")]
+        "float4 F(float a, float b) { return a; }", "float4 F(float a) { return a; }", "F(1, 2)", "CF0402", "!_B のとき")]
     [InlineData(
-        "float4 F(float3 a) { return 1; }", "float4 F(float4 a) { return 1; }", "F(v)", "HL0340", "!_B のとき")]
+        "float4 F(float3 a) { return 1; }", "float4 F(float4 a) { return 1; }", "F(v)", "CF0401", "!_B のとき")]
     [InlineData(
-        "void F(out float a) { a = 1; }", "void F(float a) { }", "F(1)", "HL0342", "_B のとき")]
+        "void F(out float a) { a = 1; }", "void F(float a) { }", "F(1)", "CF0403", "_B のとき")]
     public void ある構成でだけ引数が合わない呼び出しを報告する(
         string whenB, string otherwise, string call, string id, string condition)
     {
@@ -3187,7 +3219,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return F(1); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0360");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0501");
         Assert.Contains("!_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -3216,7 +3248,7 @@ public sealed class HlslRuleTests
             "}",
             "half4 frag() : SV_Target { return F() + G(); }"));
 
-        Assert.False(Has(diagnostics, "HL0360"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0501"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3234,7 +3266,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { return 1; }",
             "#endif"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0301");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0301");
         Assert.Contains("!_B のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -3275,11 +3307,11 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0343 / HL0211 / HL0370: コンストラクタ・レジスタ・添字
+    // CF0404 / HL0211 / CF0510: コンストラクタ・レジスタ・添字
     // ------------------------------------------------------------------
 
     [Theory]
@@ -3291,7 +3323,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { " + body + " return a.x; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0343");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0404");
 
         Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -3307,7 +3339,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { " + body + " return a.x; }"));
 
-        Assert.False(Has(diagnostics, "HL0343"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0404"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3356,7 +3388,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { float arr[3] = {1, 2, 3}; return arr[5]; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0370");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0510");
 
         Assert.Contains("arr", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("3", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -3377,7 +3409,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { float arr[8] = {1, 2, 3, 4, 5, 6, 7, 8}; return arr[3] + shortOne(); }"));
 
         // shortOne の arr[3] だけが範囲を超える。frag の arr は 8 個ある。
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0370");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0510");
         Assert.Contains("2", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -3389,11 +3421,11 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag(float2 uv : TEXCOORD0) : SV_Target { float arr[3] = {1, 2, 3}; " + body + " }"));
 
-        Assert.False(Has(diagnostics, "HL0370"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0510"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0344 / HL0352: 配列と構造体
+    // CF0405 / CF0412: 配列と構造体
     // ------------------------------------------------------------------
 
     [Theory]
@@ -3405,7 +3437,7 @@ public sealed class HlslRuleTests
             "void fill(out float dst[4]) { dst[0] = 0; }",
             "half4 frag() : SV_Target { " + body + " return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0344");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0405");
 
         Assert.Contains(expected, diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
@@ -3426,7 +3458,7 @@ public sealed class HlslRuleTests
             "half4 wrong() { float arr[2]; fill(arr); return 0; }",
             "half4 frag() : SV_Target { float arr[4]; fill(arr); return arr[0] + wrong(); }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0344");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0405");
         Assert.Contains("float[2] を渡しています", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -3448,7 +3480,7 @@ public sealed class HlslRuleTests
             "void fill(inout float dst[3]) { dst[0] = 0; }",
             "half4 frag() : SV_Target { Data d = (Data)0; float arr[3]; fill(d.v); fill(arr); return 0; }"));
 
-        Assert.True(Has(diagnostics, "HL0344") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0405") == reported, Describe(diagnostics));
     }
 
     /// <summary>
@@ -3469,7 +3501,7 @@ public sealed class HlslRuleTests
             "static float3 a[4][8];",
             "half4 frag() : SV_Target { S s = (S)0; float3 v = " + access + "; return half4(v, 1); }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     /// <summary>
@@ -3490,7 +3522,7 @@ public sealed class HlslRuleTests
             "float3 Max3(float3 a, float3 b, float3 c) { return max(a, max(b, c)); }",
             "half4 frag() : SV_Target { float3 c = 1; float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     /// <summary>
@@ -3512,7 +3544,7 @@ public sealed class HlslRuleTests
             "float4 ToSRGB(float4 c) { return c; }",
             "half4 frag() : SV_Target { " + declaration + " float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     /// <summary>
@@ -3534,9 +3566,9 @@ public sealed class HlslRuleTests
             "V2 MakeV2() { return 0; }",
             "half4 frag() : SV_Target { " + declaration + " float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
-        Assert.False(Has(diagnostics, "HL0001"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0001"), Describe(diagnostics));
     }
 
     [Theory]
@@ -3550,7 +3582,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { " + declaration + " float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     [Theory]
@@ -3561,7 +3593,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { float2 b; float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     /// <summary>
@@ -3576,7 +3608,7 @@ public sealed class HlslRuleTests
             "float4 Mix(float4 a, float4 b) { return a; }",
             "half4 frag() : SV_Target { float4 a = 1; half b = 1; float v = Mix(a, b).y; return v; }"));
 
-        Assert.False(Has(diagnostics, "HL0312"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0312"), Describe(diagnostics));
     }
 
     [Theory]
@@ -3591,7 +3623,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { uint2 v = 3; float f = 1; float r = " + expression + "; return r; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     [Theory]
@@ -3604,7 +3636,7 @@ public sealed class HlslRuleTests
             declaration,
             "half4 frag() : SV_Target { float v = " + expression + "; return v; }"));
 
-        Assert.True(Has(diagnostics, "HL0312") == reported, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0312") == reported, Describe(diagnostics));
     }
 
     [Fact]
@@ -3614,7 +3646,7 @@ public sealed class HlslRuleTests
             "void fill(out float dst[4]) { dst[0] = 0; }",
             "half4 frag() : SV_Target { float ok[4]; fill(ok); return ok[0]; }"));
 
-        Assert.False(Has(diagnostics, "HL0344"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0405"), Describe(diagnostics));
     }
 
     [Theory]
@@ -3626,7 +3658,7 @@ public sealed class HlslRuleTests
             "struct Point { float2 uv; float w; };",
             "half4 frag() : SV_Target { " + body + " return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0352");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0412");
 
         Assert.Contains($"{written} 個", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains($"{required} 個", diagnostic.GetMessage(), StringComparison.Ordinal);
@@ -3641,7 +3673,7 @@ public sealed class HlslRuleTests
             "struct Point { float2 uv; float w; };",
             "half4 frag() : SV_Target { " + body + " return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0352"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0412"), Describe(diagnostics));
     }
 
     [Theory]
@@ -3653,7 +3685,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { " + body + " return x.x; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0350");
+        Assert.Single(diagnostics, d => d.Id == "CF0410");
     }
 
     [Fact]
@@ -3663,7 +3695,7 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { float s, c; sincos(1, s, c); clip(s); return c; }"));
 
-        Assert.False(Has(diagnostics, "HL0350"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0410"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
@@ -3678,7 +3710,7 @@ public sealed class HlslRuleTests
             Shader("half4 frag() : SV_Target { return Shade(1, 2); }"),
             urpCoreContent: "float4 Shade(float a) { return a; }");
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0341");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0402");
 
         Assert.Contains("Shade", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -3691,7 +3723,7 @@ public sealed class HlslRuleTests
             urpCoreContent: "float4 Shade(float a) { return a; }\n"
                             + "float4 Shade(float a, float b) { return a + b; }");
 
-        Assert.False(Has(diagnostics, "HL0341"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0402"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3703,11 +3735,11 @@ public sealed class HlslRuleTests
             urpCoreContent: "float4 Shade(float a) { return a; }\n"
                             + "float4 Use() { return Shade(1, 2); }");
 
-        Assert.False(Has(diagnostics, "HL0341"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0402"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0315: 使っている変数の宣言がその構成に無い
+    // CF0315: 使っている変数の宣言がその構成に無い
     // ------------------------------------------------------------------
 
     [Fact]
@@ -3721,7 +3753,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return _Tint; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0315");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0315");
         Assert.Contains("_Tint", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
@@ -3746,7 +3778,7 @@ public sealed class HlslRuleTests
             "half4 frag() : SV_Target { return _Tint + shadowed(); }"));
 
         // frag の _Tint (グローバル) だけを報告する。shadowed の _Tint は局所変数なので報告しない。
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0315");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0315");
         Assert.Contains("!_A のとき", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -3767,7 +3799,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"]));
 
-        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0315"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3783,7 +3815,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { if (true) float4 _Tint = 1; return _Tint; }"));
 
-        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0315"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3808,11 +3840,11 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0315"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0315"), Describe(diagnostics));
     }
 
     // ------------------------------------------------------------------
-    // HL0314: 同じ名前を 2 回宣言している
+    // CF0314: 同じ名前を 2 回宣言している
     // ------------------------------------------------------------------
 
     [Theory]
@@ -3826,7 +3858,7 @@ public sealed class HlslRuleTests
             second,
             "half4 frag() : SV_Target { return 0; }"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0314");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0314");
 
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
@@ -3843,7 +3875,7 @@ public sealed class HlslRuleTests
             second,
             "half4 frag() : SV_Target { return f(1); }"));
 
-        Assert.False(Has(diagnostics, "HL0314"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0314"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -3870,7 +3902,7 @@ public sealed class HlslRuleTests
             "    return a.x;",
             "}"));
 
-        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0314");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0314");
 
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
@@ -3900,7 +3932,7 @@ public sealed class HlslRuleTests
             body,
             "}"));
 
-        Assert.False(Has(diagnostics, "HL0314"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0314"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3910,7 +3942,7 @@ public sealed class HlslRuleTests
             "half4 helper() { float a = 1; return a.xxxx; }",
             "half4 frag() : SV_Target { float a = 2; return a.xxxx + helper(); }"));
 
-        Assert.False(Has(diagnostics, "HL0314"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0314"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3927,7 +3959,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return _Color; }"));
 
-        Assert.False(Has(diagnostics, "HL0314"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0314"), Describe(diagnostics));
     }
 
     [Fact]
@@ -3942,7 +3974,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return _Color; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0314");
+        Assert.Single(diagnostics, d => d.Id == "CF0314");
     }
 
     /// <summary>同じ宣言に並べた場合と、別々に宣言した場合。</summary>
@@ -3967,7 +3999,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"]));
 
-        Assert.Equal(expected, Has(diagnostics, "HL0310"));
+        Assert.Equal(expected, Has(diagnostics, "CF0310"));
     }
 
     [Theory]
@@ -3984,7 +4016,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"]));
 
-        Assert.Equal(expected, Has(diagnostics, "HL0310"));
+        Assert.Equal(expected, Has(diagnostics, "CF0310"));
     }
 
     [Theory]
@@ -3999,7 +4031,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"]));
 
-        Assert.Equal(expected, Has(diagnostics, "HL0310"));
+        Assert.Equal(expected, Has(diagnostics, "CF0310"));
     }
 
     [Theory]
@@ -4016,7 +4048,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return _Tint; }"]));
 
-        Assert.Equal(expected, Has(diagnostics, "HL0314"));
+        Assert.Equal(expected, Has(diagnostics, "CF0314"));
     }
 
     [Theory]
@@ -4036,7 +4068,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return f(); }"));
 
-        Assert.Equal(expected, diagnostics.Any(d => d.Id == "HL0310" && d.GetMessage().Contains("neverCompiled", StringComparison.Ordinal)));
+        Assert.Equal(expected, diagnostics.Any(d => d.Id == "CF0310" && d.GetMessage().Contains("neverCompiled", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -4050,7 +4082,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0310"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0310"), Describe(diagnostics));
     }
 
     [Theory]
@@ -4070,8 +4102,8 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return f(); }"]));
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("missingInA", StringComparison.Ordinal));
-        Assert.Contains(diagnostics, d => d.Id == "HL0310" && d.GetMessage().Contains("missingInB", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("missingInA", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.Id == "CF0310" && d.GetMessage().Contains("missingInB", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -4112,7 +4144,7 @@ public sealed class HlslRuleTests
             }
             """;
 
-        Assert.Single(Analyze(source), d => d.Id == "HL0314");
+        Assert.Single(Analyze(source), d => d.Id == "CF0314");
     }
 
     [Fact]
@@ -4135,7 +4167,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.False(Has(diagnostics, "HL0314"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0314"), Describe(diagnostics));
     }
 
     [Fact]
@@ -4153,7 +4185,7 @@ public sealed class HlslRuleTests
             "#endif",
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "HL0314");
+        Assert.Single(diagnostics, d => d.Id == "CF0314");
     }
 
     /// <summary>
@@ -4174,8 +4206,8 @@ public sealed class HlslRuleTests
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader("#pragma fragment frag", function));
 
-        Assert.Equal(expected, diagnostics.Count(d => d.Id == "HL0314") == 1);
-        Assert.True(diagnostics.Count(d => d.Id == "HL0314") <= 1, Describe(diagnostics));
+        Assert.Equal(expected, diagnostics.Count(d => d.Id == "CF0314") == 1);
+        Assert.True(diagnostics.Count(d => d.Id == "CF0314") <= 1, Describe(diagnostics));
     }
 
     /// <summary>
@@ -4196,7 +4228,7 @@ public sealed class HlslRuleTests
             "#pragma fragment frag",
             "half4 frag() : SV_Target { " + body + " }"));
 
-        Assert.True(Has(diagnostics, "HL0314") == expected, Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0314") == expected, Describe(diagnostics));
     }
 
     [Fact]
@@ -4224,7 +4256,7 @@ public sealed class HlslRuleTests
             }
             """;
 
-        Assert.False(Has(Analyze(source), "HL0314"), Describe(Analyze(source)));
+        Assert.False(Has(Analyze(source), "CF0314"), Describe(Analyze(source)));
     }
 
     /// <summary>
@@ -4235,8 +4267,8 @@ public sealed class HlslRuleTests
     /// 名前だけでシェーダー全体の宣言を集めると、別の Pass にあるだけで「宣言されている」ことになっていた。
     /// </remarks>
     [Theory]
-    [InlineData("float4 Helper() { return 1; }", "return Helper();", "HL0311")]
-    [InlineData("float4 _OnlyFirst;", "return _OnlyFirst;", "HL0310")]
+    [InlineData("float4 Helper() { return 1; }", "return Helper();", "CF0311")]
+    [InlineData("float4 _OnlyFirst;", "return _OnlyFirst;", "CF0310")]
     public void 別のPassにだけある宣言は見えない(string firstPass, string use, string id)
     {
         string source = $$"""
@@ -4333,7 +4365,7 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.False(Has(diagnostics, "HL0313"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0313"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -4363,7 +4395,7 @@ public sealed class HlslRuleTests
 
         // FXC でも Unity でも使える (利用者が Unity 6.3 / 6.6 で確かめた)。以前は HL0003 と報告していた (誤検出)。
         Assert.DoesNotContain(diagnostics, d => d.Id == "HL0003");
-        Assert.False(Has(diagnostics, "HL0005"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0101"), Describe(diagnostics));
     }
 
     /// <summary>
@@ -4373,7 +4405,7 @@ public sealed class HlslRuleTests
     /// <remarks>
     /// 中身を読んでいない宣言がある以上、uniform の一覧には抜けがある。
     /// その状態で「対応する宣言が無い」と言えば、正しいシェーダーを誤りとして指摘する。
-    /// 見送ったこと自体は <c>HL0005</c> が伝える。
+    /// 見送ったこと自体は <c>CF0101</c> が伝える。
     /// </remarks>
     [Fact]
     public void 解釈できない宣言があるブロックでは対応検査を見送る()
@@ -4388,7 +4420,7 @@ public sealed class HlslRuleTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
-        Assert.True(Has(diagnostics, "HL0005"), Describe(diagnostics));
+        Assert.True(Has(diagnostics, "CF0101"), Describe(diagnostics));
     }
 
     private static bool Has(ImmutableArray<Diagnostic> diagnostics, string ruleId)

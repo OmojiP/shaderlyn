@@ -166,6 +166,12 @@ public static partial class UnrealShaderClasses
             foreach (Match match in EnumClass().Matches(text))
             {
                 string body = Comment().Replace(match.Groups["body"].Value, " ");
+
+                // 名前空間で包んだ列挙 (namespace ERHIFeatureLevel { enum Type { SM5, SM6 }; }) は、名前空間の名前で引く (ERHIFeatureLevel::SM6)。
+                string enumName = match.Groups["name"].Value == "Type"
+                                  && NamespaceBeforeEnum().Match(text[Math.Max(0, match.Index - 200)..match.Index]) is { Success: true } wrapper
+                    ? wrapper.Groups["name"].Value
+                    : match.Groups["name"].Value;
                 string[] members = [.. body.Split(',').Select(m => m.Trim()).Where(m => m.Length > 0)];
 
                 // SHADER_PERMUTATION_ENUM_CLASS は 0 から MAX の手前までを使う。最後のメンバーが数を表すなら除く。
@@ -195,8 +201,8 @@ public static partial class UnrealShaderClasses
 
                     // 修飾の無い列挙 (enum EMode { PCM_None, … }) のメンバーは、名前だけでも書かれる (CollisionMode == PCM_DepthBuffer)。
                     IEnumerable<string> keys = match.Groups["scoped"].Success
-                        ? [match.Groups["name"].Value + "::" + memberName]
-                        : [match.Groups["name"].Value + "::" + memberName, memberName];
+                        ? [enumName + "::" + memberName]
+                        : [enumName + "::" + memberName, memberName];
 
                     // クラスの中の列挙 (FTSRUpdateHistoryCS::EQuality) は、ほかのクラスに同じ名前の別の列挙がある。同じファイルのものを先に探す。
                     keys = [.. keys, .. keys.Select(k => InFile(path, k))];
@@ -280,7 +286,12 @@ public static partial class UnrealShaderClasses
                 || text.Contains("ModifyCompilationEnvironment", StringComparison.Ordinal)
                 || text.Contains("SHADER_PERMUTATION_", StringComparison.Ordinal)
                 || text.Contains("PermutationDomain", StringComparison.Ordinal)
-                || text.Contains("IMPLEMENT_", StringComparison.Ordinal))
+                || text.Contains("IMPLEMENT_", StringComparison.Ordinal)
+
+                // プラットフォームを問う関数 (RenderUtils.cpp の ForwardShadingForcesSkyLightCubemapBlending など)。
+                // 本体が 1 行でなく、PlatformHelper では読めないものを、実行するために読む。GlobalBeginCompileShader が呼ぶ。
+                || text.Contains("FStaticShaderPlatform", StringComparison.Ordinal)
+                || text.Contains("FShaderPlatformCachedIniValue", StringComparison.Ordinal))
             {
                 _files.Add((path, keepText ? text : null));
             }
@@ -697,7 +708,7 @@ public static partial class UnrealShaderClasses
                 {
                     Dictionary<string, long> vector = new(StringComparer.Ordinal) { [FrequencyDimension] = index };
                     ClassDeclaration owned = new(owner, should.File, []);
-                    compiles = Execute(should, owned, new(StringComparer.Ordinal), new Environment(), certain: true, depth: 0, vector).State.Return?.AsBool != false;
+                    compiles = Execute(should, owned, new(StringComparer.Ordinal), new Environment(), certain: true, depth: 0, vector).State.Result?.AsBool != false;
                 }
 
                 if (compiles)
@@ -796,6 +807,9 @@ public static partial class UnrealShaderClasses
             int[] match = MatchBraces(tokens);
             List<(string Name, int End)> enclosing = [];
 
+            // 名前空間 (namespace DecalRendering { … })。クラスの外の ModifyCompilationEnvironment を、名前空間の名前で引けるようにする。
+            List<(string Name, int End)> namespaces = [];
+
             // 直前の template<…> の仮引数と、その終わりの位置。すぐ後の class にだけ付ける。
             (ImmutableArray<string> Names, int End) template = ([], -1);
 
@@ -804,6 +818,11 @@ public static partial class UnrealShaderClasses
                 while (enclosing.Count > 0 && i > enclosing[^1].End)
                 {
                     enclosing.RemoveAt(enclosing.Count - 1);
+                }
+
+                while (namespaces.Count > 0 && i > namespaces[^1].End)
+                {
+                    namespaces.RemoveAt(namespaces.Count - 1);
                 }
 
                 string? owner = enclosing.Count > 0 ? enclosing[^1].Name : null;
@@ -839,9 +858,15 @@ public static partial class UnrealShaderClasses
                         AddAlias(path, tokens, tokens[end].Text, owner, i + 2);
                     }
                 }
+                else if (word == "namespace" && i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                         && tokens[i + 2].Kind == ShaderSyntaxKind.OpenBraceToken && match[i + 2] > i + 2)
+                {
+                    namespaces.Add((tokens[i + 1].Text, match[i + 2]));
+                }
                 else if (word == "ModifyCompilationEnvironment" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
                 {
-                    ReadFunction(path, tokens, match, i, owner, _functions);
+                    // クラスの外の関数は、名前空間の名前で引く (DecalRendering::ModifyCompilationEnvironment(…)。デカールのクラスが呼び、IS_DECAL を定義する)。
+                    ReadFunction(path, tokens, match, i, owner ?? (namespaces.Count > 0 ? namespaces[^1].Name : null), _functions);
                 }
                 else if (word == "ShouldCompilePermutation" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
                 {
@@ -1273,7 +1298,7 @@ public static partial class UnrealShaderClasses
                 if (shouldCompile is { } should)
                 {
                     Context checkContext = Execute(should.Function, should.Class, new(templateBindings, StringComparer.Ordinal), new Environment(), certain: true, depth: 0, vector);
-                    compiles = checkContext.State.Return?.AsBool != false;
+                    compiles = checkContext.State.Result?.AsBool != false;
                 }
 
                 if (compiles)
@@ -1559,6 +1584,16 @@ public static partial class UnrealShaderClasses
             /// <summary>値の組を指す名前 (<c>FPermutationDomain PermutationVector(…)</c> の <c>PermutationVector</c>)。</summary>
             public HashSet<string> VectorNames { get; } = new(StringComparer.Ordinal);
 
+            /// <summary>
+            /// いま実行している、通るかどうか決まらない分岐 (条件の決まらない if の分岐、ループの本体) の入れ子の深さ。
+            /// </summary>
+            /// <remarks>
+            /// 0 なら、ここに届いた道ではどの文も実行されている。<c>if (決まらない) { return false; }</c> のあとは「必ずは通らない」が、
+            /// 届いた道では、そのあとのローカル変数への代入は必ず行われているので、値を使える
+            /// (PathTracing.cpp の TPathTracingMaterial の bUseProceduralPrimitive)。
+            /// </remarks>
+            public int UndecidedBranches { get; set; }
+
             /// <summary>戻り値と、値の組を決められなかったか。</summary>
             public ExecutionState State { get; } = new();
         }
@@ -1568,6 +1603,31 @@ public static partial class UnrealShaderClasses
         {
             /// <summary>必ず通る <c>return</c> の値。届かなければ <see langword="null"/>。</summary>
             public Value? Return { get; set; }
+
+            /// <summary>決まらない分岐の中の <c>return</c> の値 (通るかもしれない <c>return</c>)。</summary>
+            public List<Value> PossibleReturns { get; } = [];
+
+            /// <summary>
+            /// 関数の戻り値。必ず通る <c>return</c> と、通るかもしれない <c>return</c> の値がどれも同じならその値、違えば決まらない値。
+            /// </summary>
+            /// <remarks>
+            /// <c>if (決まらない) { return false; } return false;</c> は false である (Substrate.cpp の FSubstrateClosureTilePassCS)。
+            /// <c>if (決まらない) { return true; } return false;</c> は決まらない (PostProcessMaterial.cpp の FPostProcessMaterialPS)。
+            /// 通るかもしれない <c>return</c> を見ずに後ろの <c>return false;</c> だけを見ると、コンパイルされるクラスを、されないと読む。
+            /// </remarks>
+            public Value? Result
+            {
+                get
+                {
+                    if (PossibleReturns.Count == 0)
+                    {
+                        return Return;
+                    }
+
+                    Value[] all = Return is { } certain ? [.. PossibleReturns, certain] : [.. PossibleReturns];
+                    return all.Distinct().Count() == 1 ? all[0] : Value.Unknown;
+                }
+            }
 
             /// <summary>値の組を、決まらない値で書き換えたか (<c>RemapPermutation</c> の結果が決まらない)。</summary>
             public bool VectorUnknown { get; set; }
@@ -1614,6 +1674,11 @@ public static partial class UnrealShaderClasses
                     bool thenReturned = false;
                     bool elseReturned = false;
 
+                    if (condition is null)
+                    {
+                        context.UndecidedBranches++;
+                    }
+
                     if (condition != false)
                     {
                         ExecuteRange(body, match, conditionEnd, thenEnd, context, certain && condition == true, ref thenReturned);
@@ -1624,10 +1689,15 @@ public static partial class UnrealShaderClasses
                         ExecuteRange(body, match, elseStart, elseEnd, context, certain && condition == false, ref elseReturned);
                     }
 
-                    // 片方の分岐だけが戻るなら、そのあとの文は必ずは通らない。
+                    if (condition is null)
+                    {
+                        context.UndecidedBranches--;
+                    }
+
+                    // 通る分岐が戻るなら、そのあとの文には届かない (決まらない文脈の中でも同じ)。片方の分岐だけが戻るなら、そのあとの文は必ずは通らない。
                     if (thenReturned || elseReturned)
                     {
-                        if (certain && (condition == true ? thenReturned : condition == false ? elseReturned : thenReturned && elseReturned))
+                        if (condition == true ? thenReturned : condition == false ? elseReturned : thenReturned && elseReturned)
                         {
                             returned = true;
                         }
@@ -1635,6 +1705,15 @@ public static partial class UnrealShaderClasses
                         {
                             certain = false;
                         }
+                    }
+
+                    // 決まらない分岐 (か、その中の決まらない分岐) の return は、戻ったと決められない (returned は立たない)。
+                    // それでも、そのあとの文は必ずは通らない。通るものとすると、後ろの return false; を必ず返すと読む
+                    // (RenderUtils.cpp の UseSplineMeshSceneResources が、GPU Scene を使えるかの分岐の後ろで false を返していた)。
+                    else if ((condition != false && ContainsReturn(body, conditionEnd, thenEnd))
+                             || (condition != true && ContainsReturn(body, elseStart, elseEnd)))
+                    {
+                        certain = false;
                     }
 
                     i = elseEnd;
@@ -1646,7 +1725,9 @@ public static partial class UnrealShaderClasses
                     int bodyStart = token.Text == "do" ? i + 1 : (i + 1 < end && body[i + 1].Kind == ShaderSyntaxKind.OpenParenToken ? SkipParens(body, i + 1) : i + 1);
                     int bodyEnd = StatementEnd(body, match, bodyStart, end);
                     bool ignored = false;
+                    context.UndecidedBranches++;
                     ExecuteRange(body, match, bodyStart, bodyEnd, context, certain: false, ref ignored);
+                    context.UndecidedBranches--;
 
                     // do { } while (…); の while の部分を飛ばす。
                     i = token.Text == "do" ? StatementEnd(body, match, bodyEnd, end) : bodyEnd;
@@ -1671,14 +1752,97 @@ public static partial class UnrealShaderClasses
                         return;
                     }
 
-                    certain = false;
-                    i = statementEnd;
-                    continue;
+                    // 通るかもしれない return。値を覚えておき、関数の戻り値を決めるときに合わせて見る (ExecutionState.Result)。
+                    // この道はここで戻るので、同じ並びの後ろの文には届かない。
+                    int possibleEnd = statementEnd > i + 1 && body[statementEnd - 1].Kind == ShaderSyntaxKind.SemicolonToken ? statementEnd - 1 : statementEnd;
+                    context.State.PossibleReturns.Add(possibleEnd > i + 1 ? Evaluate(body[(i + 1)..possibleEnd], context, 0) : Value.Unknown);
+                    returned = true;
+                    return;
                 }
 
                 ExecuteStatement(body[i..statementEnd], context, certain);
                 i = statementEnd;
             }
+        }
+
+        /// <summary>範囲の中に、この関数から戻る <c>return</c> があるか (入れ子の分岐の中も含む)。</summary>
+        /// <param name="body">関数の本体。</param>
+        /// <param name="start">範囲の始まり。</param>
+        /// <param name="end">範囲の終わり (含まない)。</param>
+        /// <returns>あれば <see langword="true"/>。</returns>
+        /// <remarks>
+        /// ラムダの本体 (<c>[](…) { return …; }</c>) の <c>return</c> は、ラムダから戻るだけなので数えない
+        /// (<c>GlobalBeginCompileShader</c> の <c>GetBindlessString</c>)。
+        /// </remarks>
+        private static bool ContainsReturn(ShaderSyntaxToken[] body, int start, int end)
+        {
+            int[] match = MatchBraces(body);
+
+            for (int i = start; i < end; i++)
+            {
+                if (body[i].Kind == ShaderSyntaxKind.OpenBraceToken && IsLambdaBody(body, i) && match[i] > i)
+                {
+                    i = match[i];
+                    continue;
+                }
+
+                if (body[i].Text == "return")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary><c>{</c> がラムダの本体の始まりか (<c>[…](…) {</c>、<c>[…] {</c>、<c>[…](…) -&gt; T {</c>、<c>mutable</c> 付き)。</summary>
+        /// <param name="body">関数の本体。</param>
+        /// <param name="open"><c>{</c> の位置。</param>
+        /// <returns>ラムダの本体なら <see langword="true"/>。</returns>
+        private static bool IsLambdaBody(ShaderSyntaxToken[] body, int open)
+        {
+            int i = open - 1;
+
+            // -> T と mutable / constexpr を飛ばす。
+            while (i >= 0 && body[i].Kind == ShaderSyntaxKind.IdentifierToken && body[i].Text is not "else" and not "do")
+            {
+                i--;
+            }
+
+            // -> は - と > の 2 つのトークンになる。
+            if (i >= 1 && body[i].Kind == ShaderSyntaxKind.GreaterThanToken && body[i - 1].Kind == ShaderSyntaxKind.MinusToken)
+            {
+                i -= 2;
+
+                while (i >= 0 && body[i].Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.ColonColonToken)
+                {
+                    i--;
+                }
+            }
+
+            if (i >= 0 && body[i].Kind == ShaderSyntaxKind.CloseParenToken)
+            {
+                int depth = 0;
+
+                for (; i >= 0; i--)
+                {
+                    depth += body[i].Kind switch
+                    {
+                        ShaderSyntaxKind.CloseParenToken => 1,
+                        ShaderSyntaxKind.OpenParenToken => -1,
+                        _ => 0,
+                    };
+
+                    if (depth == 0)
+                    {
+                        break;
+                    }
+                }
+
+                i--;
+            }
+
+            return i >= 0 && body[i].Kind == ShaderSyntaxKind.CloseBracketToken;
         }
 
         /// <summary>式の文を実行する (定義、フラグ、呼び出し、ローカル変数、値の組の書き換え)。</summary>
@@ -1774,6 +1938,25 @@ public static partial class UnrealShaderClasses
                 return;
             }
 
+            // プラットフォームごとの ini の値: static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.X")); のあとの CVar.Get(Platform)。
+            // コンソール変数を探す呼び出し (IConsoleManager::Get().FindConsoleVariable(TEXT("r.X"))) と同じに読む。
+            // 知らないコンソール変数なら置き換えない。CVar.Get(…) の部分だけが決まらない値になり、式の残りは読める。
+            if (ReadCachedIniValue(statement) is ({ } cachedName, { } cachedArgument)
+                && Evaluate(cachedArgument, context, context.Depth + 1) is { Kind: ValueKind.String, Text: { } cachedVariable }
+                && ConsoleValues.ContainsKey(cachedVariable))
+            {
+                if (certain || context.UndecidedBranches == 0)
+                {
+                    context.Bindings[cachedName] = [.. Lex("IConsoleManager::Get().FindConsoleVariable("), .. cachedArgument, .. Lex(")")];
+                }
+                else
+                {
+                    context.Bindings.Remove(cachedName);
+                }
+
+                return;
+            }
+
             int equals = Array.FindIndex(statement, t => t.Kind == ShaderSyntaxKind.EqualsToken);
             int end = statement.Length > 0 && statement[^1].Kind == ShaderSyntaxKind.SemicolonToken ? statement.Length - 1 : statement.Length;
 
@@ -1793,7 +1976,8 @@ public static partial class UnrealShaderClasses
                 ShaderSyntaxToken[] initializer = ResolvePermutationGets(Substitute(statement[(equals + 1)..end], context.Bindings, 0), context);
 
                 // 決まらない分岐の中で決めた値は、そのあとでは決まらない。
-                if (certain)
+                // 前の決まらない分岐が戻った (return) だけなら、ここに届いた道では代入しているので、値を使う。
+                if (certain || context.UndecidedBranches == 0)
                 {
                     context.Bindings[statement[equals - 1].Text] = initializer;
                 }
@@ -1802,6 +1986,36 @@ public static partial class UnrealShaderClasses
                     context.Bindings.Remove(statement[equals - 1].Text);
                 }
             }
+        }
+
+        /// <summary>
+        /// <c>FShaderPlatformCachedIniValue&lt;T&gt; Name(TEXT("r.X"))</c> の宣言を読む。
+        /// </summary>
+        /// <param name="statement">文。</param>
+        /// <returns>変数の名前と、コンソール変数の名前の引数 (<c>TEXT("r.X")</c>)。宣言でなければ <see langword="null"/>。</returns>
+        private static (string Name, ShaderSyntaxToken[] Argument)? ReadCachedIniValue(ShaderSyntaxToken[] statement)
+        {
+            int type = Array.FindIndex(statement, t => t.Text == "FShaderPlatformCachedIniValue");
+
+            if (type < 0)
+            {
+                return null;
+            }
+
+            int close = Array.FindIndex(statement, type, t => t.Kind == ShaderSyntaxKind.GreaterThanToken);
+
+            if (close < 0
+                || close + 2 >= statement.Length
+                || statement[close + 1].Kind != ShaderSyntaxKind.IdentifierToken
+                || statement[close + 2].Kind != ShaderSyntaxKind.OpenParenToken)
+            {
+                return null;
+            }
+
+            int argumentEnd = SkipParens(statement, close + 2);
+            return argumentEnd - 1 > close + 3
+                ? (statement[close + 1].Text, statement[(close + 3)..(argumentEnd - 1)])
+                : null;
         }
 
         /// <summary>ほかの <c>ModifyCompilationEnvironment</c> の呼び出しを追う。</summary>
@@ -1878,9 +2092,26 @@ public static partial class UnrealShaderClasses
 
             // 描画の方式 (FSceneInterface::GetShadingPath(GetMaxSupportedFeatureLevel(Platform)))。PC の SM6 は遅延シェーディングである。
             // GlobalBeginCompileShader は、これで SHADING_PATH_DEFERRED を定義する。
+            // 解析するプラットフォーム (PC の Direct3D 12) の最大の機能レベルは SM6 である。列挙を読めていれば数で返す (SM5 以上かを比べる)。
+            if (name == "GetMaxSupportedFeatureLevel")
+            {
+                return enumMembers.TryGetValue("ERHIFeatureLevel::SM6", out int? sm6) && sm6 is { } level
+                    ? new Value(ValueKind.Number, level, null)
+                    : Value.Unknown;
+            }
+
+            // FDataDrivenShaderPlatformInfo::IsValid(Platform)。PC の Direct3D 12 の設定は読んでいる (DataDrivenPlatformInfo.ini)。
+            if (name == "IsValid" && at >= 2 && tokens[at - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[at - 2].Text == "FDataDrivenShaderPlatformInfo")
+            {
+                return Value.FromBool(true);
+            }
+
+            // エンジンの C++ に enum EShadingPath があれば、比べる相手 (EShadingPath::Deferred) は数になるので、数で返す。
             if (name == "GetShadingPath")
             {
-                return new Value(ValueKind.Symbol, 0, "EShadingPath::Deferred");
+                return enumMembers.TryGetValue("EShadingPath::Deferred", out int? deferred) && deferred is { } number
+                    ? new Value(ValueKind.Number, number, null)
+                    : new Value(ValueKind.Symbol, 0, "EShadingPath::Deferred");
             }
 
             // FName(TEXT("FLocalVertexFactory")) は名前の文字列、FindVertexFactoryType(…) はその頂点ファクトリにする。
@@ -1929,7 +2160,7 @@ public static partial class UnrealShaderClasses
 
                 ClassDeclaration functionOwner = new(boolFunction.Owner, boolFunction.File, []);
                 Context called = Execute(boolFunction, functionOwner, bindings, new Environment(), certain: true, context.Depth + 1, context.Vector);
-                return called.State.Return ?? Value.Unknown;
+                return called.State.Result ?? Value.Unknown;
             }
 
             // IConsoleManager::Get()。続く FindConsoleVariable(…) の相手になる。
@@ -1953,7 +2184,7 @@ public static partial class UnrealShaderClasses
                 }
 
                 Context called = Execute(found.Function, found.Class, found.Bindings, new Environment(), certain: true, context.Depth + 1, context.Vector);
-                return called.State.Return ?? Value.Unknown;
+                return called.State.Result ?? Value.Unknown;
             }
 
             if (name == "RemapPermutation" && context.Vector is { } vector && arguments.Count == 1)
@@ -1980,6 +2211,9 @@ public static partial class UnrealShaderClasses
             ["IsD3DPlatform"] = true,
             ["IsMetalPlatform"] = false,
             ["IsMetalMobilePlatform"] = false,
+            ["IsMetalMobileSM5Platform"] = false,
+            ["IsMetalSM5Platform"] = false,
+            ["IsMetalSM6Platform"] = false,
             ["IsVulkanPlatform"] = false,
             ["IsVulkanMobilePlatform"] = false,
             ["IsOpenGLPlatform"] = false,
@@ -3397,6 +3631,10 @@ public static partial class UnrealShaderClasses
     /// <summary>列挙の宣言 (<c>enum class E : uint8 { … }</c> と、修飾の無い <c>enum E { … }</c>)。<c>scoped</c> は <c>class</c> があること。</summary>
     [GeneratedRegex("""\benum\s+(?<scoped>(?:class|struct)\s+)?(?<name>\w+)\s*(?::\s*[\w:]+\s*)?\{(?<body>[^{}]*)\}""", RegexOptions.CultureInvariant)]
     private static partial Regex EnumClass();
+
+    /// <summary>列挙の直前の名前空間の始まり (<c>namespace ERHIFeatureLevel {</c>)。コメントを挟んでもよい。</summary>
+    [GeneratedRegex("""namespace\s+(?<name>\w+)\s*\{(?:\s|//[^\n]*\n|/\*.*?\*/)*$""", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex NamespaceBeforeEnum();
 
     /// <summary>
     /// シェーダープラットフォームだけを受け取る、本体が 1 段の <c>bool</c> 関数

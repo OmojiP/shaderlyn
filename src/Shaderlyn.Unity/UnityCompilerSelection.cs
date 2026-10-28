@@ -310,7 +310,7 @@ public static class UnityCompilerSelection
         List<HlslCompileTarget> targets = [];
 
         // もとから DXC でも、キーワードが有効な構成のコンパイル先として持っておく。
-        // キーワードがコンパイラを切り替えるものであること (FXC のプロジェクトでは DXC にする) を、ルールが知るのに使う (HL0331)。
+        // キーワードがコンパイラを切り替えるものであること (FXC のプロジェクトでは DXC にする) を、ルールが知るのに使う (CF0202)。
         foreach ((string keyword, bool keywordSixteenBit, string? keywordReason) in keywords)
         {
             HlslDialect dialect = baseDialect == Dxc16Bit || keywordSixteenBit || sixteenBit ? Dxc16Bit : Dxc;

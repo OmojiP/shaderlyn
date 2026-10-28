@@ -481,7 +481,7 @@ public sealed class MacroHoistingTests
             """,
             "_A");
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "HL0008");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CF0004");
     }
 
     [Fact]

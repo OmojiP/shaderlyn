@@ -9,6 +9,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
@@ -70,10 +71,10 @@ public sealed partial class ShaderCompilation
     /// 展開で生まれたトークンは呼び出し位置を持つので、
     /// <c>DEFINE_FOR_ALL(DEFINE_MIN)</c> が作る <c>min2(float2x2, …)</c> と <c>min2(float3x2, …)</c> は同じ位置になる。
     /// 位置だけで 1 つにまとめると最初の多重定義しか残らず、ほかの多重定義を呼ぶ正しい呼び出しを
-    /// HL0340 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
+    /// CF0401 と報告していた (Unreal Engine の DualPixelVectorization.ush の dpv_min など)。
     /// </remarks>
     private static (SourceText Source, int Start, string Shape) FunctionKey(FunctionDeclarationSyntax function, ShaderSyntaxToken first)
-        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken)))) + ")");
+        => (first.Source, first.Span.Start, function.Name + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayDimensions))) + ")");
 
     internal ShaderCompilation(
         SourceText text,
@@ -200,6 +201,10 @@ public sealed partial class ShaderCompilation
     /// <summary>解析した言語の型システム (型と組み込み関数。環境の <see cref="Environments.IShaderEnvironment.TypeSystem"/>)。</summary>
     /// <remarks>ルールとエディタ機能は、型の名前・変換・組み込み関数をここから尋ねる。</remarks>
     public Symbols.ShaderTypeSystem TypeSystem => Environment.TypeSystem;
+
+    /// <summary>GLSL のモデルか。</summary>
+    /// <remarks>GLSL で確かめていないルールは、GLSL のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesGlsl"/>)。</remarks>
+    internal bool IsGlsl => Environment is Environments.GlslEnvironment;
 
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
@@ -380,7 +385,7 @@ public sealed partial class ShaderCompilation
     /// <remarks>
     /// <para>
     /// <b>構文エラーやプリプロセッサエラーは、それ自体が報告されなければならない。</b>
-    /// 報告されないと、指摘は「検査を見送った」という <c>HL0005</c> のメッセージの中にしか現れず、
+    /// 報告されないと、指摘は「検査を見送った」という <c>CF0101</c> のメッセージの中にしか現れず、
     /// 位置はファイルの先頭を指したまま、実際の箇所へは辿れない。
     /// </para>
     /// <para>
@@ -426,18 +431,28 @@ public sealed partial class ShaderCompilation
     /// あわせて見逃されるようになる。
     /// </para>
     /// <para>
-    /// 検査を行わなかったこと自体は <c>HL0005</c> として報告されるので、
+    /// 検査を行わなかったこと自体は <c>CF0101</c> として報告されるので、
     /// 利用者が「検査された」と誤解することはない。
     /// </para>
     /// </remarks>
     public bool HasCompleteDependencies =>
-        UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+        !IsIncludedFragment && UnresolvedIncludes.IsEmpty && !Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis));
+
+    /// <summary>
+    /// 単体で解析した、取り込まれる断片 (GLSL の <c>.glsl</c>) か。
+    /// </summary>
+    /// <remarks>
+    /// 断片は、取り込む側で宣言した名前 (<c>hitAttributeEXT vec2 attribs;</c> など) を使う。単体で解析しても、それは見えない。
+    /// 「宣言が無い」ことを根拠にする検査は行わない (<see cref="HasCompleteDependencies"/> が偽になる)。
+    /// </remarks>
+    internal bool IsIncludedFragment
+        => IsGlsl && !Programs.IsEmpty && Programs.All(p => p.Tree.Language is Glsl.GlslLanguageOptions { Stage: null });
 
     /// <summary>プリプロセスか構文解析の診断のうち、解析の結果を信用できなくするもの (既定の重要度がエラーのもの) か。</summary>
     /// <param name="diagnostic">診断。</param>
     /// <returns>そうなら <see langword="true"/>。</returns>
     /// <remarks>
-    /// 警告 (<c>#ifdef A || B</c> の HL0004、マクロの定義し直しの HL0008) は、コンパイルも解析も止めない。
+    /// 警告 (<c>#ifdef A || B</c> の CF0003、マクロの定義し直しの CF0004) は、コンパイルも解析も止めない。
     /// これらでブロックの検査を止めると、正しく読めたコードの誤りまで見送ることになる。
     /// 利用者が重要度を変えても、解析が壊れているかどうかは変わらないので、既定の重要度で決める。
     /// </remarks>
@@ -457,7 +472,7 @@ public sealed partial class ShaderCompilation
     /// <remarks>
     /// <see cref="HasCompleteDependencies"/> より緩い。解決できない取り込みが宣言する関数が分かっていれば
     /// (<see cref="Environments.IShaderEnvironment.GetFunctionsDeclaredIn"/>、Unreal の uniform buffer の宣言など)、
-    /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (HL0340 / HL0341) はこれを見る。
+    /// ほかの名前の多重定義は欠けていない。呼び出しを多重定義と照らす検査 (CF0401 / CF0402) はこれを見る。
     /// 名前や型が宣言されているかを見る検査は、引き続き <see cref="HasCompleteDependencies"/> を見ること。
     /// </remarks>
     public bool MayLackOverloadsOf(string name)
@@ -1176,7 +1191,7 @@ public sealed partial class ShaderCompilation
                     {
                         // 利用者が書いたヘッダの関数は、構成によって本体が違う (#if の中の局所変数はその構成の木にしか無い)。
                         // 1 度だけ見ると、ほかの木の局所変数の名前が漏れ、関数の中の変数を大域の名前として探して
-                        // 「宣言されていない」(HL0310) と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
+                        // 「宣言されていない」(CF0310) と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
                         // Unity やパッケージのヘッダは報告しない場所なので、今までどおり 1 度だけ見る。
                         if (IsUserFile(at.Source.FilePath))
                         {
@@ -1212,7 +1227,7 @@ public sealed partial class ShaderCompilation
     /// <b>位置だけでは、マクロを変えて同じヘッダを何度も取り込んだ宣言を見分けられない。</b>
     /// Unreal Engine の DoubleFloat.ush は、<c>DFConstructor</c> を <c>MakeDFScalar</c> / <c>MakeDFVector2</c> / … に変えながら
     /// <c>DoubleFloatOperations.ush</c> を取り込み、同じ位置から別の名前の関数を作る。
-    /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(HL0310) と報告していた。
+    /// 位置だけで 1 つにまとめると最初の名前しか残らず、ほかの名前を「どこにも宣言されていない」(CF0310) と報告していた。
     /// </remarks>
     private static (SourceText Source, int Start, string Name) HeaderDeclarationKey(DeclarationSyntax declaration)
         => (declaration.FirstToken!.Source,
@@ -1297,6 +1312,11 @@ public sealed partial class ShaderCompilation
                 case ConstantBufferDeclarationSyntax buffer when buffer.NameToken is { } name:
                     names.Add(name.Text);
                     outside.Add(name.Text);
+                    break;
+
+                case InterfaceBlockDeclarationSyntax block:
+                    names.Add(block.Name);
+                    outside.Add(block.Name);
                     break;
 
                 // enum の型の名前と、スコープの無い列挙子 (enum Mode { A } の A)。enum class の列挙子は Mode::A とだけ書くので足さない。
@@ -1771,6 +1791,9 @@ public sealed partial class ShaderCompilation
                     .. buffer.Members.SelectMany(DeclaredNames),
                 ];
 
+            case InterfaceBlockDeclarationSyntax block:
+                return [block.Name, .. block.Members.SelectMany(DeclaredNames)];
+
             case EnumDeclarationSyntax enumeration:
                 return DeclaredNamesOf(enumeration);
 
@@ -1935,14 +1958,14 @@ public sealed partial class ShaderCompilation
     /// その木の単位に無い値の原子 (ほかの単位にだけある値) は、成り立たないとして掛ける。
     /// 掛けないと、値が 0 から 3 の単位の木を、ほかの単位にだけある 4 の構成についても見ていることになり、
     /// その単位では読まない <c>#else</c> (4 のときの宣言) が無いと報告していた
-    /// (Unreal の <c>SSRTReflections.usf</c> で HL0310。ステンシルの単位の <c>SSR_QUALITY</c> は 0 から 3)。
+    /// (Unreal の <c>SSRTReflections.usf</c> で CF0310。ステンシルの単位の <c>SSR_QUALITY</c> は 0 から 3)。
     /// </para>
     /// <para>
     /// <b>その単位で値を持たない名前は、その木のマクロの値で決まっている。</b>
     /// ほかの単位がパーミュテーションにしている名前を、ヘッダが <c>#ifndef</c> で既定の値に定義していれば、その値の原子だけが成り立つ。
     /// 定義されていなければ、条件式と同じく 0 と読む。整数でない定義なら決めない。
     /// 決めないと、その木の宣言をほかの値の構成でも見ていることになり、ほかの値の分岐の宣言が無いと報告していた
-    /// (Unreal の <c>DistanceFieldLightingShared.ush</c> の <c>OFFSET_DATA_STRUCT</c> で HL0310)。
+    /// (Unreal の <c>DistanceFieldLightingShared.ush</c> の <c>OFFSET_DATA_STRUCT</c> で CF0310)。
     /// </para>
     /// </remarks>
     public SymbolCondition GetTreeConfiguration(AnalyzedProgram program)
@@ -2045,8 +2068,8 @@ public sealed partial class ShaderCompilation
         SymbolCondition compilable = SymbolCondition.Always;
 
         // 既定の木そのものが #error に到達したもの (どの分岐でもなく、木の構成全体) は除かない。
-        // 解析のマクロの状態が実際と違うためのことが多く (HL0009)、除くとその木のどの検査も止まる。
-        // 本当に値を返さない関数を報告しなくなっていた (別の関数の #else / #error に到達する木の HL0360)。
+        // 解析のマクロの状態が実際と違うためのことが多く (CF0104)、除くとその木のどの検査も止まる。
+        // 本当に値を返さない関数を報告しなくなっていた (別の関数の #else / #error に到達する木の CF0501)。
         foreach (ErrorConfiguration configuration in ErrorConfigurations.Where(e => e.BlockKey == block
                                                                                  && !(e.IsBaseline && e.BranchCondition is null)))
         {

@@ -13,7 +13,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 構造体の値に使えない演算子と、多重定義できない演算子の定義を検査する (HL0346)。
+/// 構造体の値に使えない演算子と、多重定義できない演算子の定義を検査する (CF0406)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,6 +35,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>多重定義できない演算子。</summary>
     private static readonly FrozenSet<string> NotOverloadable = new[]
     {
@@ -229,7 +232,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <returns>報告する中身。構造体でないか、報告しなければ <see langword="null"/>。</returns>
     /// <remarks>
     /// <para>
-    /// <b>構造体の増減は、FXC だけが受け付けて何もしない。</b> DXC はどの版でも拒む (HL0346)。
+    /// <b>構造体の増減は、FXC だけが受け付けて何もしない。</b> DXC はどの版でも拒む (CF0406)。
     /// FXC だけでコンパイルされるなら、何も起きないことを HL0348 で警告する。
     /// </para>
     /// <para>
@@ -301,7 +304,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <param name="token">報告する位置のトークン。</param>
     /// <param name="message">文。</param>
     /// <param name="reported">報告済みの位置。</param>
-    /// <param name="descriptor">ルール。省略すると HL0346。</param>
+    /// <param name="descriptor">ルール。省略すると CF0406。</param>
     private static void Report(
         SyntaxTreeAnalysisContext context,
         ShaderSyntaxToken token,

@@ -195,7 +195,7 @@ internal static class OverloadResolver
         ImmutableArray<string?> argumentTypes = [.. arguments.Select(evaluator.Evaluate)];
 
         ImmutableArray<FunctionDeclarationSyntax> viable =
-            [.. fitting.Where(c => Accepts(compilation.TypeSystem, c, arguments, argumentTypes))];
+            [.. fitting.Where(c => Accepts(binder.TypeSystem, c, arguments, argumentTypes))];
 
         if (viable.IsEmpty)
         {
@@ -305,8 +305,8 @@ internal static class OverloadResolver
 
             bool writeback = CallCompatibility.IsWriteback(parameter);
 
-            // 配列は式で作れない。形の判定は HL0344 の担当なので、ここでは通す。
-            if (parameter.ArrayRankTokens.IsEmpty
+            // 配列は式で作れない。形の判定は CF0405 の担当なので、ここでは通す。
+            if (!parameter.IsArray
                 && !types.IsConvertible(argumentTypes[index], parameter.Type.Name, writeback))
             {
                 return false;

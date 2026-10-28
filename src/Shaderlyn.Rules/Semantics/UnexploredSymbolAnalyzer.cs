@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Programs;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 展開しきれなかったシンボルの経路があることを報告する (HL0006)。
+/// 展開しきれなかったシンボルの経路があることを報告する (CF0102)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,6 +36,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnexploredSymbols];

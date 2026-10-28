@@ -404,7 +404,7 @@ public sealed class ConditionalMergeTests
     {
         // 取り込みの展開結果を使い回すと、既定の木とバリアントの木で同じヘッダの宣言が
         // 別の SourceText のインスタンスを指す。インスタンスで比べると対応が取れず、
-        // それぞれの構成にしか無いことになっていた (Unreal の SubstrateEvaluation.ush の構造体で HL0313)。
+        // それぞれの構成にしか無いことになっていた (Unreal の SubstrateEvaluation.ush の構造体で CF0313)。
         const string Code = """
             struct Material { float3 Color; };
             float4 Shade(Material m) { return float4(m.Color, 1); }

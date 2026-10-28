@@ -15,6 +15,9 @@ namespace Shaderlyn.LanguageServer;
 /// </summary>
 internal static partial class HoverBuilder
 {
+    /// <summary>GLSL の組み込み関数の説明に並べる多重定義の数。</summary>
+    private const int MaxListedOverloads = 8;
+
     /// <summary>
     /// 型名を説明する。
     /// </summary>
@@ -155,10 +158,33 @@ internal static partial class HoverBuilder
             nameToken.Span);
     }
 
+    /// <summary>GLSL の組み込み関数の多重定義を並べる。</summary>
+    /// <param name="types">木の言語のバージョンとステージの型システム。</param>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="argumentTypes">呼び出しの実引数の型。合う形を先に並べる。</param>
+    /// <returns>説明の Markdown。</returns>
+    /// <remarks>
+    /// 実引数の型と合う形、拡張の型 (16 ビットの型など) を使わない形、拡張の要らない形の順に並べる (<see cref="SignatureHelpBuilder.OrderBuiltins"/>)。
+    /// そうした形で数十になる関数があるので、決まった数までにする。
+    /// </remarks>
+    private static string DescribeGlslBuiltin(GlslTypeSystem types, string name, IReadOnlyList<string?> argumentTypes)
+    {
+        GlslBuiltinFunction[] overloads = [.. SignatureHelpBuilder.OrderBuiltins(types.Builtins.GetFunctions(name), argumentTypes)];
+        IEnumerable<string> forms = overloads
+            .Take(MaxListedOverloads)
+            .Select(f => $"{f.ReturnType} {name}({string.Join(", ", f.Parameters.Select((p, i) => f.WritesBack[i] ? $"out {p}" : p))})");
+        string rest = overloads.Length > MaxListedOverloads ? $"\n\nほかに {overloads.Length - MaxListedOverloads} 個の形がある。" : string.Empty;
+        string extensions = overloads.All(f => !f.Extensions.IsEmpty)
+            ? $"\n\n使うには拡張が要る ({string.Join(", ", overloads.SelectMany(f => f.Extensions).Distinct(StringComparer.Ordinal).Take(3))})。"
+            : string.Empty;
+
+        return $"```hlsl\n{string.Join("\n", forms)}\n```\n\n組み込み関数{rest}{extensions}";
+    }
+
     /// <summary>
     /// 呼び出しの対象を説明する。
     /// </summary>
-    /// <param name="types">型を尋ねる先。</param>
+    /// <param name="binder">式の型を求める束縛器。型と組み込みは、この木の言語のバージョンのもの (<see cref="ExpressionTypeBinder.TypeSystem"/>) を使う。</param>
     /// <param name="program">対象のコードブロック。</param>
     /// <param name="identifier">呼び出しの対象となっている識別子。</param>
     /// <returns>説明。</returns>
@@ -167,8 +193,9 @@ internal static partial class HoverBuilder
     /// <c>half4(1, 0, 0, 0)</c> の <c>half4</c> を
     /// 「型が不明な式」として扱ってはならない。
     /// </remarks>
-    private static HoverResult DescribeCallee(ShaderTypeSystem types, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
+    private static HoverResult DescribeCallee(ExpressionTypeBinder binder, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
     {
+        ShaderTypeSystem types = binder.TypeSystem;
         string name = identifier.Name;
 
         if (types.Classify(name) != ShaderTypeClass.Unknown)
@@ -203,6 +230,16 @@ internal static partial class HoverBuilder
                 : string.Empty;
 
             return new HoverResult($"```hlsl\n{forms}\n```\n\n宣言されている関数{note}", identifier.Span);
+        }
+
+        // GLSL は組み込み関数の多重定義の表を持つので、形を並べる。
+        if (types is GlslTypeSystem glsl && !glsl.Builtins.GetFunctions(name).IsEmpty)
+        {
+            ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(identifier);
+            string?[] arguments = identifier.Parent is InvocationExpressionSyntax invocation
+                ? [.. invocation.ArgumentExpressions.Select(evaluator.Evaluate)]
+                : [];
+            return new HoverResult(DescribeGlslBuiltin(glsl, name, arguments), identifier.Span);
         }
 
         return types.GetResultShape(name) != IntrinsicResultRule.Unknown
@@ -297,6 +334,15 @@ internal static partial class HoverBuilder
             : DescribeTypeByConfiguration(compilation, binder, expression)
               ?? "**型を判定できません。**\n\n"
                  + "型を根拠にするルールは、この式について何も報告しません。";
+
+        // 宣言の無い名前が組み込み変数 (GLSL の gl_FragCoord など) なら、そう添える。
+        if (expression is IdentifierExpressionSyntax identifier
+            && binder.TypeSystem is GlslTypeSystem glsl
+            && binder.ResolveName(identifier).Kind == DeclaredNameKind.NotFound
+            && glsl.Builtins.GetVariable(identifier.Name) is { } builtin)
+        {
+            body += $"\n\n組み込み変数 ({builtin.Storage}{(builtin.Extensions.IsEmpty ? string.Empty : $"、{string.Join(" か ", builtin.Extensions)} が要る")})";
+        }
 
         return new HoverResult($"```hlsl\n{text}\n```\n\n{body}", expression.Span);
     }

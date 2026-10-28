@@ -5,17 +5,21 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 ## ツールを使う人向け
 
 1. [CLI の使い方](guide/cli-usage.md) — インストール、実行、出力の読み方、オプション
-2. [設定ファイル](guide/configuration.md) — `.shaderlyn.yaml`、抑制コメント
-   - [Unity 以外の環境で使う](guide/environments.md) — 汎用の HLSL (DXC)、Unreal Engine、独自エンジン
-   - [0.1 から 0.2 へ移行する](guide/migration-0.2.md) — 設定ファイルと自作ルールの書き換え
-   - [0.2.0 から 0.2.1 へ移行する](guide/migration-0.2.1.md) — 付け替えたルール ID の書き換え
-   - [0.2.1 から 0.3.0 へ移行する](guide/migration-0.3.0.md) — 自作ルールの型と名前空間の書き換え
-3. [ルール](rules/README.md) — 組み込みルールの一覧と、ルールごとの説明
+2. [設定ファイル](guide/configuration.md) — `.shaderlyn.yaml` と抑制コメント
+3. [Unity 以外の環境で使う](guide/environments.md) — 汎用の HLSL（DXC）、Unreal Engine、独自エンジン
+4. [ルール](rules/README.md) — 組み込みルールの一覧と、ルールごとの説明
 
-必要になったら読むもの:
+### バージョンを上げるとき
+
+- [0.1 から 0.2 へ移行する](guide/migration-0.2.md) — 設定ファイルと自作ルールの書き換え
+- [0.2.0 から 0.2.1 へ移行する](guide/migration-0.2.1.md) — 付け替えたルール ID の書き換え
+- [0.2.1 から 0.3.0 へ移行する](guide/migration-0.3.0.md) — 自作ルールの型と名前空間の書き換え
+- [0.3.0 から 0.3.1 へ移行する](guide/migration-0.3.1.md) — C 系の言語に共通するルール ID の変更（HL → CF）
+
+### 必要に応じて読む
 
 - [CI に組み込む](guide/ci-setup.md) — GitHub Actions のセルフホストランナーで PR ごとに動かす
-- [条件付きコンパイルの扱い](guide/conditional-compilation.md) — `#ifdef` の分岐をどう解析しているか。`HL0006` / `HL0007` が出たとき。付録に実装の細部
+- [条件付きコンパイルの扱い](guide/conditional-compilation.md) — `#ifdef` の分岐をどう解析しているか。`CF0102` / `CF0103` が出たとき。付録に実装の細部
 - [VS Code 拡張](../editors/vscode/README.md) — 導入、機能、設定
 - [トラブルシューティング](guide/troubleshooting.md) — 症状から原因と対処を探す
 

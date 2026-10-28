@@ -189,20 +189,25 @@ public abstract class ShaderSyntaxNode : SyntaxNode
 
         // マクロの実引数として書かれたコードは、書かれた位置を指す (ShaderSyntaxToken.MacroArgumentSpan)。
         // 終わりも実引数なら、そこまでを含める。
-        if (first.MacroArgumentSpan is { } argument)
+        // 終わりの実引数が別のファイルに書かれていれば (取り込んだファイルの中で使ったマクロの実引数で終わる宣言)、つながない。
+        // マクロを入れ子に使うと、実引数を書いた場所が呼び出し位置のファイルの外になることがある。そのときは呼び出し位置を指す。
+        // 別のファイルの位置を混ぜると、ファイルの長さを超える範囲になる (Unreal の --inspect が落ちていた)。
+        if (first.MacroArgumentSpan is { } argument && first.Source is { } source && argument.End <= source.Length)
         {
-            TextSpan? last = LastArgumentSpan();
+            ShaderSyntaxToken? last = LastToken();
             return Location.Create(
-                first.Source,
-                last is { } end && end.End > argument.Start ? TextSpan.FromBounds(argument.Start, end.End) : argument);
+                source,
+                last is { MacroArgumentSpan: { } end } && ReferenceEquals(last.Source, source) && end.End > argument.Start && end.End <= source.Length
+                    ? TextSpan.FromBounds(argument.Start, end.End)
+                    : argument);
         }
 
         return Location.Create(first.Source, Span);
     }
 
-    /// <summary>このノードの最後のトークンが実引数として書かれた位置を返す。</summary>
-    /// <returns>書かれた位置。最後のトークンが実引数でなければ <see langword="null"/>。</returns>
-    private TextSpan? LastArgumentSpan()
+    /// <summary>このノードの最後のトークンを返す。</summary>
+    /// <returns>最後のトークン。トークンを含まなければ <see langword="null"/>。</returns>
+    private ShaderSyntaxToken? LastToken()
     {
         ShaderSyntaxToken? last = null;
 
@@ -211,7 +216,7 @@ public abstract class ShaderSyntaxNode : SyntaxNode
             last = token;
         }
 
-        return last?.MacroArgumentSpan;
+        return last;
     }
 
     /// <summary>直接の子から先頭のトークンを探す。</summary>

@@ -53,8 +53,7 @@ internal sealed class AnalysisSession
     public Semantics.Environments.IShaderEnvironment? ShaderEnvironment => _environment.ShaderEnvironment;
 
     /// <summary>
-    /// 意味解析のモデルを作るか。構文だけを読む環境 (GLSL など) では作らず、
-    /// モデルを使う機能 (ホバー・定義へ移動・補完など) は働かない。
+    /// モデルを使う機能 (ホバー・定義へ移動・補完など) が働くか。構文だけを読む環境 (Godot など) では作らず、働かない。
     /// </summary>
     public bool HasSemanticModel => _environment.ShaderEnvironment is not null;
 
@@ -121,7 +120,9 @@ internal sealed class AnalysisSession
         CommandLineOptions options = BuildOptions(workspaceDirectory, environmentName);
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
 
-        ConfigurationDiagnostics = settings.ConfigurationDiagnostics;
+        // rules: に書いた知らない ID も伝える (CLI と同じ)。ルールの一覧は、この言語サーバーで動かすアナライザから決まる。
+        ConfigurationDiagnostics = settings.ConfigurationDiagnostics.AddRange(
+            settings.FindUnknownRules(new HashSet<string>(RuleCatalog.GetAllRules([.. analyzers]).Select(d => d.Id), StringComparer.OrdinalIgnoreCase)));
         UnrealGeneratedDirectory = settings.Environment == Unreal.UnrealOptions.EnvironmentName
             ? SemanticsSetup.CreateUnreal(settings).GeneratedDirectory
             : null;
@@ -324,7 +325,7 @@ internal sealed class AnalysisSession
     /// <remarks>
     /// Unity プロジェクトのルートは <c>Assets</c> と <c>ProjectSettings</c> の
     /// 両方があるフォルダーを上へ辿って探す。
-    /// 指定が無いと対応検査が働かず HL0005 だらけになるため、推定を試みる価値がある。
+    /// 指定が無いと対応検査が働かず CF0101 だらけになるため、推定を試みる価値がある。
     /// </remarks>
     private static CommandLineOptions BuildOptions(string? workspaceDirectory, string? environment)
     {

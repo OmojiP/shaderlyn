@@ -47,10 +47,15 @@ internal static partial class HoverBuilder
     {
         ArgumentNullException.ThrowIfNull(compilation);
 
-        return BuildForHlsl(compilation, offset)
-               ?? BuildForPragma(compilation, offset)
-               ?? BuildForMacro(compilation, offset)
-               ?? BuildForProperty(compilation, offset);
+        HoverResult? result = BuildForHlsl(compilation, offset)
+                              ?? BuildForPragma(compilation, offset)
+                              ?? BuildForMacro(compilation, offset)
+                              ?? BuildForProperty(compilation, offset);
+
+        // 説明の中のコードは、言語に合わせて色を付けてもらう。説明を組み立てる側は HLSL として書いている。
+        return compilation.IsGlsl && result is { } glsl
+            ? glsl with { Markdown = glsl.Markdown.Replace("```hlsl\n", "```glsl\n", StringComparison.Ordinal) }
+            : result;
     }
 
     /// <summary>
@@ -305,7 +310,7 @@ internal static partial class HoverBuilder
             => DescribeConstantBuffer(compilation, buffer, bufferName),
 
         IdentifierExpressionSyntax identifier when IsCallee(identifier)
-            => DescribeCallee(compilation.TypeSystem, program, identifier),
+            => DescribeCallee(binder, program, identifier),
 
         // 代入と、構文エラーから作られた式は値として評価しない。
         // ここで「型を判定できません」と答えると、

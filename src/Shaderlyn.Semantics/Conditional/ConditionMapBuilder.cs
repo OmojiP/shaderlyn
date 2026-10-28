@@ -304,7 +304,7 @@ internal static class ConditionMapBuilder
         // 含まれる集まりのどれか 1 つが定義されるなら、その集まりのどれか 1 つも定義される。
         // 値を持つシンボルは、ブロック (単位) ごとに値が違うことがある (QUALITY が 1 から 4 の単位と 1 から 3 の単位)。
         // 同じ集まりに限ると、どちらの集まりも残らず、「どの値でもない」構成があることになって、
-        // その構成で宣言が無いと報告していた (Unreal の SSRTReflections.usf で HL0310)。値を合わせた集まりも候補にする。
+        // その構成で宣言が無いと報告していた (Unreal の SSRTReflections.usf で CF0310)。値を合わせた集まりも候補にする。
         IEnumerable<ImmutableArray<string>> candidates = blocks
             .SelectMany(block => block.Constraints.RequiredGroups)
             .Concat(blocks
@@ -479,7 +479,7 @@ internal static class ConditionMapBuilder
     /// #endif
     /// </code>
     /// 以前は先頭のトークンと同じ出どころのものだけで範囲を作っていた。
-    /// ヘッダより後ろの文が条件を持たず、ヘッダの構造体のメンバーを「DEBUG でないときは無い」(HL0313) と報告していた
+    /// ヘッダより後ろの文が条件を持たず、ヘッダの構造体のメンバーを「DEBUG でないときは無い」(CF0313) と報告していた
     /// (Unreal の <c>HairStrandsEnvironmentLighting.usf</c>)。
     /// </para>
     /// </remarks>

@@ -124,7 +124,7 @@ public sealed class AnalyzedProgram
     /// <c>THREADGROUP_SIZE == 16</c> を有効にした木で <c>PROBE_IRRADIANCE_FORMAT</c> の分岐を並べられなかったなら、
     /// その木は <c>PROBE_IRRADIANCE_FORMAT == 0</c> の構成である。有効にしたシンボルだけを木の構成とすると、
     /// その木の宣言や使用を <c>PROBE_IRRADIANCE_FORMAT == 1</c> のものとも見て、
-    /// 「そのとき宣言が無い」(HL0315) と報告していた (Unreal の <c>LumenScreenProbeFiltering.usf</c>)。
+    /// 「そのとき宣言が無い」(CF0315) と報告していた (Unreal の <c>LumenScreenProbeFiltering.usf</c>)。
     /// </para>
     /// <para><see cref="AnalyzedCondition"/> に掛け合わせる。</para>
     /// </remarks>

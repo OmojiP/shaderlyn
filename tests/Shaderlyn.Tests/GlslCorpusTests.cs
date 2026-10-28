@@ -116,6 +116,43 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// GLSL のコーパス (コンパイルできるシェーダー) を解析して、誤りも警告も出ないことを確かめる。
+    /// </summary>
+    /// <remarks>
+    /// Vulkan の GLSL (SaschaWillems・Vulkan-Samples) と GLSL ES (ARM の OpenGL ES SDK) で、C 系の言語に共通のルールの誤検出が無いことを見る。
+    /// 取り込まれる断片 (<c>.glsl</c>) に出る CF0101 (検査を見送った、情報) は数えない。
+    /// </remarks>
+    [Theory]
+    [InlineData("SaschaWillems-Vulkan")]
+    [InlineData("Vulkan-Samples")]
+    [InlineData("opengl-es-sdk-for-android")]
+    public async Task GLSLのコーパスに誤検出が無い(string corpus)
+    {
+        string? root = Environment.GetEnvironmentVariable(CorpusVariable);
+
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(Path.Combine(root, corpus)))
+        {
+            _output.WriteLine($"{CorpusVariable} の下に {corpus} が無いため飛ばします。");
+            return;
+        }
+
+        StringWriter output = new();
+        StringWriter error = new();
+        await Cli.Program.RunAsync([Path.Combine(root, corpus), "--no-config", "--environment", "glsl"], Cli.BuiltInAnalyzers.All, output, error);
+
+        string[] reported = [.. output.ToString().Split('\n').Where(l => l.Contains(": error ", StringComparison.Ordinal) || l.Contains(": warning ", StringComparison.Ordinal))];
+
+        foreach (string line in reported.Take(30))
+        {
+            _output.WriteLine(line.TrimEnd());
+        }
+
+        _output.WriteLine(output.ToString().Split('\n').LastOrDefault(l => l.Contains("ファイルを解析", StringComparison.Ordinal)) ?? string.Empty);
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.True(reported.Length == 0, $"{corpus} に誤りか警告が {reported.Length} 件出ました。");
+    }
+
+    /// <summary>
     /// Godot と Slang を、いちばん近い言語 (Godot は GLSL、Slang は HLSL 2021) として読んだときに、何が足りないかを数える。
     /// </summary>
     /// <remarks>

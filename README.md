@@ -4,12 +4,12 @@
 
 # Shaderlyn
 
-Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
+Unity の ShaderLab と HLSL（`.shader`、`.compute`）を、条件付きコンパイルも考慮して静的解析するツールです。解析ルールを追加する仕組みは Roslyn に似ています。
 
 DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` など）は構文の誤りを指摘します。宣言や型の検査は 0.3.1 で対応する予定です。
+GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments.md#glsl)）。
 
-CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
+CLI、VS Code 拡張、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能
 
@@ -92,15 +92,15 @@ float ReturnFloat()
 shaderlyn は、宣言や変数を存在条件付きで解析し、一部の構成によって起きる誤りも報告します。
 
 ```
-D:\...\Shader.shader(68:17): error HL0310: 'a' は !_A && _C のとき宣言されていません。                                                                                       
+D:\...\Shader.shader(68:17): error CF0310: 'a' は !_A && _C のとき宣言されていません。                                                                                       
  68 |                 a = 5;                       
     |                 ^                                                                 
    
-D:\...\Shader.shader(70:17): error HL0310: 'b' は (_A && !_C && _D) || (!_B && !_C && _D) のとき宣言されていません。
+D:\...\Shader.shader(70:17): error CF0310: 'b' は (_A && !_C && _D) || (!_B && !_C && _D) のとき宣言されていません。
  70 |                 b = 2;                                                            
     |                 ^
                     
-D:\...\Shader.shader(73:24): error HL0310: 'a' は !_A のとき宣言されていません。
+D:\...\Shader.shader(73:24): error CF0310: 'a' は !_A のとき宣言されていません。
  73 |                 return a;                                   
     |                        ^
                                                                       
@@ -138,9 +138,9 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 }
 ```
 
-### 4. LSP利用
+### 4. VS Code 拡張で使う
 
-vscode拡張として指摘を表示します。
+解析結果を VS Code 拡張の指摘として表示します。
 自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を出すこともできます。
 
 VS Code 拡張の言語サーバー利用 : [editors/vscode/README.md](editors/vscode/README.md)
@@ -265,7 +265,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md)       |
+| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md) / [0.3.1 への移行](docs/guide/migration-0.3.1.md)       |
 | CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |

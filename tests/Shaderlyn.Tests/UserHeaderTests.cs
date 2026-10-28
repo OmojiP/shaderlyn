@@ -126,7 +126,7 @@ public sealed partial class UserHeaderTests : IDisposable
     /// <summary>
     /// キーワードを宣言していない Pass には、そのキーワードの分岐の条件を付けない。
     /// 以前は、宣言している Pass のヘッダの分岐の条件が、同じヘッダを取り込む別の Pass にも付き、
-    /// 「A のとき宣言されていない」(HL0310) や「値を返さない経路がある」(HL0360) と誤って報告していた。
+    /// 「A のとき宣言されていない」(CF0310) や「値を返さない経路がある」(CF0501) と誤って報告していた。
     /// </summary>
     [Fact]
     public async Task キーワードを宣言しないPassにはヘッダの分岐の条件を付けない()
@@ -157,8 +157,8 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.DoesNotContain("HL0360", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0501", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>キーワードの分岐で本当に返さない経路は、Pass を分けても報告する。</summary>
@@ -180,7 +180,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Contains(("Missing.hlsl", "HL0360"), Findings(output));
+        Assert.Contains(("Missing.hlsl", "CF0501"), Findings(output));
     }
 
     /// <summary>
@@ -214,9 +214,9 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0101", output, StringComparison.Ordinal);
 
         // 見つけて解析は続けるが、別のフォルダーのシェーダーからは見つからなくなるので、ヘッダの #include の行に警告を出す (UN0102)。
         Assert.Contains(("H.hlsl", "UN0102"), Findings(output));
@@ -250,7 +250,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Single(Findings(output), f => f == ("Inner.hlsl", "HL0310"));
+        Assert.Single(Findings(output), f => f == ("Inner.hlsl", "CF0310"));
         Assert.Matches(@"取り込み元: .*A\.shader\(10:22\) .*→ .*Common\.hlsl\(1:10\)", output);
         Assert.Contains("ほかに 1 本の経路があります", output, StringComparison.Ordinal);
 
@@ -280,7 +280,7 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Contains(("Common.hlsl", "HL0310"), Findings(output));
+        Assert.Contains(("Common.hlsl", "CF0310"), Findings(output));
         Assert.Contains("undefinedTint", output, StringComparison.Ordinal);
     }
 
@@ -295,11 +295,11 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.Single(Findings(output), f => f == ("Common.hlsl", "HL0310"));
+        Assert.Single(Findings(output), f => f == ("Common.hlsl", "CF0310"));
     }
 
     /// <summary>
-    /// 構成によって本体が違うヘッダの関数の局所変数を、宣言されていない (HL0310) と報告しない。
+    /// 構成によって本体が違うヘッダの関数の局所変数を、宣言されていない (CF0310) と報告しない。
     /// </summary>
     /// <remarks>
     /// 既定の構成 (P_LOW) の木には <c>#if !defined(P_LOW)</c> の中身が無い。ヘッダの関数を位置で 1 度だけ見ていたので、
@@ -331,12 +331,12 @@ public sealed partial class UserHeaderTests : IDisposable
 
         (_, string output, _) = await RunAsync(null, Shaders);
 
-        Assert.DoesNotContain(("Lib.hlsl", "HL0310"), Findings(output));
+        Assert.DoesNotContain(("Lib.hlsl", "CF0310"), Findings(output));
     }
 
     /// <summary>
     /// UTF-16 で保存したヘッダは、読んで解析を続けたうえで、取り込む行に UN0001 を出す (Unity は読めない)。
-    /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を HL0001 にしていた。BOM 付きは何も言わなかった。
+    /// 以前は BOM の無い UTF-16 を UTF-8 として読み、NUL を挟んだ文字列を CF0001 にしていた。BOM 付きは何も言わなかった。
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -351,7 +351,7 @@ public sealed partial class UserHeaderTests : IDisposable
         (_, string output, _) = await RunAsync(null, Shaders);
 
         Assert.Contains(("A.shader", "UN0001"), Findings(output));
-        Assert.DoesNotContain(Findings(output), f => f.Id is "HL0001" or "HL0310");
+        Assert.DoesNotContain(Findings(output), f => f.Id is "CF0001" or "CF0310");
     }
 
     [Fact]
@@ -427,7 +427,7 @@ public sealed partial class UserHeaderTests : IDisposable
         (_, string first, _) = await RunAsync(null, Shaders, "--cache", cache);
         (_, string second, string timings) = await RunAsync(null, Shaders, "--cache", cache, "--timings");
 
-        Assert.Contains(("Common.hlsl", "HL0310"), Findings(first));
+        Assert.Contains(("Common.hlsl", "CF0310"), Findings(first));
         Assert.Equal(first, second);
         Assert.Contains("前回の結果の使い回し 1 件", timings, StringComparison.Ordinal);
     }
@@ -479,9 +479,9 @@ public sealed partial class UserHeaderTests : IDisposable
         await harness.InitializeAsync();
         await harness.OpenAsync(File.ReadAllText(shader));
 
-        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(headerUri, "HL0310");
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(headerUri, "CF0310");
 
-        JsonElement found = Assert.Single(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0310");
+        JsonElement found = Assert.Single(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0310");
         Assert.Contains("undefinedTint", found.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(0, found.GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
     }

@@ -13,7 +13,7 @@ namespace Shaderlyn.CFamily.Preprocessing;
 internal readonly record struct NeverTrueCondition(ShaderSyntaxToken Directive, string Text);
 
 /// <summary>
-/// どの構成でも成り立たない条件を見つける (HL0332)。
+/// どの構成でも成り立たない条件を見つける (CF0203)。
 /// </summary>
 /// <remarks>
 /// <para>

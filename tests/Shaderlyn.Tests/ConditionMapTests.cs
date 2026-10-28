@@ -738,7 +738,7 @@ public sealed class ConditionMapTests
     {
         // Unreal の GPUFastFourierTransform.usf の形。仮引数の配列の長さを、条件ごとに定義を変えたマクロで書く。
         // 複製はどれも元の位置が同じなので、宣言を位置で 1 つに寄せると、片方の条件の複製しか候補に残らなかった。
-        // 残った複製の条件の構成でしか比べられず、別の構成の呼び出しを「長さが合わない」と報告していた (HL0344)。
+        // 残った複製の条件の構成でしか比べられず、別の構成の呼び出しを「長さが合わない」と報告していた (CF0405)。
         ShaderCompilation compilation = CompileFolded(
             """
             #ifdef _A
@@ -770,7 +770,7 @@ public sealed class ConditionMapTests
         // _B の分岐の中で CTYPE を使うと、_B は構成ごとに展開する (構成で定義が変わるマクロを分岐の中で使っている)。
         // 既定の木の #else 側の複製には、突き合わせから !_B が付く。
         // 複製の中だからと突き合わせの結果を捨てると !_B が消え、_B の木の複製と同時にあることになる
-        // (HL0314「既に宣言されています」の誤報告)。
+        // (CF0314「既に宣言されています」の誤報告)。
         ShaderCompilation compilation = CompileFolded(
             """
             #ifdef _A

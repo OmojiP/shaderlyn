@@ -87,11 +87,11 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
 
     /// <summary>
     /// GLSL のファイルは、設定の環境 (ここでは hlsl) が読まない拡張子なので、CLI と同じく GLSL の環境で解析する。
-    /// 構文エラーだけを指摘し、HLSL として読んだときの誤り (<c>vec4</c> が宣言されていないなど) は出さない。
-    /// 意味解析のモデルを作らないので、説明 (ホバー) は空で答える。
+    /// GLSL の型で検査し、HLSL として読んだときの誤り (<c>vec4</c> が宣言されていないなど) は出さない。
+    /// 説明 (ホバー) も GLSL の型で答える。
     /// </summary>
     [Fact]
-    public async Task GLSLのファイルは構文エラーだけを指摘する()
+    public async Task GLSLのファイルをGLSLの型で検査し説明する()
     {
         string uri = DocumentUri("Shader.frag");
         await using LanguageServerHarness harness = new(uri);
@@ -109,11 +109,12 @@ public sealed class LanguageServerEnvironmentTests : IDisposable
         JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(uri, d => d.GetArrayLength() > 0);
         string[] codes = [.. diagnostics.EnumerateArray().Select(d => d.GetProperty("code").GetString()!)];
 
-        Assert.Contains("HL0001", codes);
-        Assert.All(codes, code => Assert.Equal("HL0001", code));
+        // 構文エラーのある木では、宣言が無いことを根拠にする検査を見送ったこと (CF0101) も伝える (HLSL と同じ)。
+        Assert.Contains("CF0001", codes);
+        Assert.All(codes, code => Assert.Contains(code, (string[])["CF0001", "CF0101"]));
 
         using JsonDocument hover = await harness.RequestHoverAsync(4, 9);
-        Assert.Equal(JsonValueKind.Null, hover.RootElement.GetProperty("result").ValueKind);
+        Assert.Contains("vec4", hover.RootElement.GetProperty("result").GetProperty("contents").GetProperty("value").GetString(), StringComparison.Ordinal);
     }
 
     /// <summary>ワークスペースの中のファイルの URI。</summary>

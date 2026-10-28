@@ -20,7 +20,7 @@ namespace Shaderlyn.Cookbook.Environment;
 ///   <item><description><c>#pragma variant QUALITY 0 1 2</c>: 値を持つ構成の軸。先頭の値が既定</description></item>
 ///   <item><description><c>#pragma variant USE_FOG</c>: 定義されるか・されないかの構成の軸</description></item>
 ///   <item><description><c>#pragma entry MainPS ps_6_6</c>: エントリポイントとコンパイルのターゲット</description></item>
-///   <item><description><c>USE_</c> で始まる名前は構成の軸の慣習。宣言し忘れを HL0330 で報告させる</description></item>
+///   <item><description><c>USE_</c> で始まる名前は構成の軸の慣習。宣言し忘れを CF0201 で報告させる</description></item>
 ///   <item><description><c>Generated/</c> で始まる取り込みは、ビルドのときにエンジンが生成する</description></item>
 ///   <item><description>エンジンのシェーダーコンパイラは <c>MYENGINE=1</c> を定義し、DXC (HLSL 2021) でコンパイルする</description></item>
 /// </list>
@@ -138,7 +138,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
                 }
             }
 
-            // 宣言の位置を持たせると、使っていない宣言を HL0331 で報告できる。
+            // 宣言の位置を持たせると、使っていない宣言を CF0202 で報告できる。
             space = space.Union(values.Count >= 2
                 ? VariantSpace.ForValues(name.Text, values, name.GetLocation())
                 : new VariantSpace([new VariantDeclaration(name.Text, VariantSymbolKind.Compiled, name.GetLocation())], []));

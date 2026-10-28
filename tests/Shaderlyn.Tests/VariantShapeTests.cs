@@ -13,7 +13,7 @@ namespace Shaderlyn.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>並べられる形でバリアントを作ると、解析が遅くなるうえに上限 (<c>HL0006</c>) に早く届く。</b>
+/// <b>並べられる形でバリアントを作ると、解析が遅くなるうえに上限 (<c>CF0102</c>) に早く届く。</b>
 /// 並べられない形で並べると、別の構成の中身で型を求めて誤検出になる。
 /// どちらに倒れたかは指摘の数には現れにくいので、形ごとに作った構成を直接確かめる。
 /// </para>
@@ -254,7 +254,7 @@ public sealed class VariantShapeTests
             ""
         },
         {
-            // どの構成でも成り立たない条件 (HL0332) の分岐は、どの構成でも通らない。構成を作っても読めるものは増えない。
+            // どの構成でも成り立たない条件 (CF0203) の分岐は、どの構成でも通らない。構成を作っても読めるものは増えない。
             "36 どの構成でも成り立たない条件",
             "#pragma multi_compile _ _A\nfloat F() {\n#if _A == 2\n    return 1;\n#else\n    return 2;\n#endif\n}",
             ""
@@ -727,7 +727,7 @@ public sealed class VariantShapeTests
     /// </summary>
     /// <remarks>
     /// core の FunctionTestsWave.compute は <c>#if EMULATE_WAVE_SIZE_8 ... #elif EMULATE_WAVE_SIZE_16</c> の形で見る。
-    /// 並べなかった <c>#elif</c> の名前は記録されず、「条件のどこにも現れない」(HL0331) と報告され、
+    /// 並べなかった <c>#elif</c> の名前は記録されず、「条件のどこにも現れない」(CF0202) と報告され、
     /// そのキーワードを有効にした構成も作られなかった。
     /// </remarks>
     [Fact]
@@ -764,7 +764,7 @@ public sealed class VariantShapeTests
     /// <remarks>
     /// HDRP の LutBuilder3D.compute は、<c>TONEMAPPING_ACES_APPROX</c> の木でだけ現れる呼び出しが
     /// 並べた <c>#ifdef HDR_COLORSPACE_CONVERSION</c> の中にある。並べた範囲を既定の木からしか集めていなかったため、
-    /// 呼び出しに <c>HDR_COLORSPACE_CONVERSION</c> が付かず、その定義が無い構成があると誤って報告していた (HL0311)。
+    /// 呼び出しに <c>HDR_COLORSPACE_CONVERSION</c> が付かず、その定義が無い構成があると誤って報告していた (CF0311)。
     /// </remarks>
     [Fact]
     public void バリアントにしか無いノードにもその木で並べた分岐の条件が付く()

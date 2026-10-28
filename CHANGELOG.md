@@ -2,41 +2,114 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に従い、
 バージョンの付け方は [セマンティックバージョニング](https://semver.org/lang/ja/) に従う。
-CLI、VS Code 拡張、NuGet パッケージは同じタグから同じバージョンで出す。
-0.x の間は、公開 API・CLI のオプション・ルール ID を変えることがある (パッチバージョンでも変えることがある)。
+CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージョンをリリースする。
+0.x の間は、パッチバージョンでも公開 API・CLI のオプション・ルール ID を変更することがある。
 そうした変更は「変更」「削除」の項目の先頭に **破壊的変更:** と書いて示す。
 
 利用者から見て何が変わるかを書く。実装の変更は、それが挙動か API を変える場合にだけ載せる。
 
 ## [未リリース]
 
+## [0.3.1] - 2026-10-29
+
+GLSL のファイルの宣言・型・呼び出しを検査し、VS Code 拡張の説明・定義へ移動・補完・引数の案内を GLSL でも使えるようにした (0.3.0 で予告したもの)。
+そのために、C 系の言語に共通のルールの ID を `CF` で振り直した。
+Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報告 (0.3.0 の既知の問題) を直した。
+
+**破壊的変更を含む** (下の「変更」)。ルールの ID を抑制コメント・設定ファイル・ベースラインに書いていれば書き換える。
+対応表と置き換えのスクリプトは [0.3.0 から 0.3.1 へ移行する](docs/guide/migration-0.3.1.md) にある。
+
+### 追加
+
+- GLSL のファイルの宣言・型・呼び出しを、C 系の言語に共通のルール (CF) で検査する (宣言されていない名前、型の変換、引数の数、コンストラクタ、存在しないメンバー、値を返さない経路など)。
+  HLSL にしか無いルール (HL) は出さない
+  - 型は GLSL の決まりで判断する。暗黙の変換は `#version` で変わり (ES と 1.10 には無い)、成分の数の違う値は変換しない。行列を含む `*` は行列の積
+  - 組み込み関数と変数は、glslang 16.6.0 を元に作った一覧を参照し、ファイルのステージと `#version` で使えるものとして判定する (頂点シェーダーの `gl_FragCoord` は宣言されていない名前になる)
+  - インターフェースブロック (`uniform UBO { … } ubo;` と、インスタンスの名前の無いもの)、`layout(buffer_reference)` のブロック、型の側に書いた配列 (`float[3] a`) を読む
+  - `#version` を読み、glslang と同じマクロ (`__VERSION__`、`GL_ES`、`GL_core_profile` など) を定義する。
+    これまでは定義していなかったため、`#if __VERSION__ >= 300` などで分かれる分岐の片方を解析できていなかった
+  - 設定ファイルの `symbols:` を構成の軸にする (HLSL と同じ書き方)。`#ifdef` の両方の分岐の構文を読む
+  - 取り込まれる断片 (`.glsl`) を単体で解析するときは、取り込む側の宣言が分からない。そのため、宣言が無いことを根拠にする検査を見送り、CF0101 (情報) で知らせる
+  - Vulkan (SaschaWillems・Vulkan-Samples) と GLSL ES (ARM OpenGL ES SDK) のシェーダー、約 790 ファイルで誤りと警告が出ないことを確かめた
+- VS Code 拡張の説明 (ホバー表示)、定義への移動、補完、引数の案内が、GLSL のファイルでも使える (0.3.0 で予告したもの)。
+  型と組み込みは GLSL のもので答える。組み込み関数の説明と引数の案内には、glslang の表の多重定義を、書いた実引数の型に合うものから並べる。
+  補完は、ファイルのステージとバージョンで使える組み込み関数と変数 (`gl_FragCoord` など) を出し、HLSL の型や関数は出さない。`#` の後には `#version` / `#extension` も出す
+- `--inspect` を GLSL のファイルにも使える (構成ごとの展開と構文木を見られる)
+- 補完に、構造体の宣言と同時に宣言した変数 (`struct Light { … } light;`、GLSL の `uniform UBO { … } ubo;`) を出す
+- 設定ファイルの `rules:` に存在しないルール ID を書くと、その行に TOOL0003 (警告) を表示する
+- 自作ルール向け: `StructDeclarationSyntax.Modifiers` (キーワードの前の修飾子。GLSL のインスタンスの名前を持つインターフェースブロックを構造体の宣言として表すときに使う)
+
+### 変更
+
+- **破壊的変更:** C 系の言語に共通のルール 33 個の ID を、新しい接頭辞 `CF` で振り直した (`HL0310` → `CF0310`、`HL0340` → `CF0401` など)。
+  GLSL などにも同じ検査を出すためである。HLSL にしか無いルール (HL0003、HL0210 など 10 個) は変わらない。
+  0.3.0 の ID は使えないので、抑制コメント・設定ファイル・ベースラインを書き換える。
+  対応表と置き換えのスクリプトは [0.3.0 から 0.3.1 へ移行する](docs/guide/migration-0.3.1.md) にある
+- 自作ルール向け: `VariableDeclaratorSyntax` と `ParameterSyntax` の `IsArray` / `ArrayDimensions` / `TryGetArrayLength` は、型の側に書いた配列 (GLSL の `float[3] a`) も含む。
+  `ArrayRankTokens` は今までどおり名前の後ろに書いたものだけを持つ。HLSL の木では何も変わらない
+
+### 修正
+
+- CF0311 (関数の定義が無い) を、エントリポイントから届かない関数の中の呼び出しに出していた。
+  コンパイラは使われない関数を捨てるので、DXC でも FXC でもエラーにならない (どちらも、エントリポイントから届く呼び出しだけをエラーにする)。
+  UE 5.5 の `Substrate/SubstrateSubsurface.ush` の 2 件 (0.3.0 の既知の問題) がこれだった。パーミュテーションの値ごとの構成でも同じに扱う。
+  エントリポイントが分からない単位では今までどおり報告する
+- 呼び出しの検査 (CF0401 / CF0402 / CF0403 / CF0405) の報告の条件が、最初に見つけた木 (Pass や値ごとの構成) の分だけになっていた。
+  実引数の型が値ごとに変わるとき、合わない構成のうち 1 つの値の分しか書かなかった。木をまたいで条件の和をとって 1 件にする。
+  照らした宣言と食い違いの種類が違う報告は、別々に出す
+- `--inspect` が、取り込む側で定義したマクロを、取り込んだファイルの中でマクロの実引数に書いた宣言で落ちていた
+  (Unreal Engine の `LargeWorldCoordinates.ush` の `#define FBoolType bool` と、`LWCOperations.ush` の `LWC_COMPARE_OP(…, FBoolType)`。
+  エンジンのマテリアルのシェーダーの多くがこれを取り込む)。こうしたトークンの指摘の位置は、マクロの呼び出し位置にする
+- Unreal Engine: `--unreal-generate` が、エンジンがどのシェーダーにも定義するマクロ (`GlobalBeginCompileShader`) のうち、
+  `SHADING_PATH_DEFERRED`・`FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING`・`USES_BASE_PASS_VELOCITY` などを定義していなかった。
+  `COMPILER_DXC` は 0 にしていた (PC の Direct3D 12 では 1)。`BasePassPixelShader.usf` など 5 つのファイルで、
+  `#error` に到達するために構成を捨てていた (CF0104)。次を直した
+  - エンジンの C++ の `enum EShadingPath` と `namespace ERHIFeatureLevel { enum Type … }` を読み、`GetShadingPath` と `GetMaxSupportedFeatureLevel` の答えと比べられるようにする
+  - シェーダーの登録の無いファイル (`RenderUtils.cpp`) の、プラットフォームを問う関数も読む。
+    プラットフォームごとの ini の値 (`FShaderPlatformCachedIniValue`) を、コンソール変数として読む
+- Unreal Engine: `--unreal-generate` が `ShouldCompilePermutation` の、条件の決まらない分岐の中の `return` を無視していた。
+  `if (MaterialDomain == MD_PostProcess) { return …; } return false;` を必ず false と読み、ポストプロセスのマテリアルのシェーダー
+  (`FPostProcessMaterialPS` / `VS`) をコンパイルされないものとして扱い、解析していなかった。
+  逆に、どの道も false を返すクラス (`FTrivialMaterialCHS`) は、コンパイルされないものとして扱う
+- Unreal Engine: `--unreal-generate` が、名前空間に書いた `ModifyCompilationEnvironment`
+  (`DecalRendering::ModifyCompilationEnvironment`) を追っていなかった。デカールのクラスに `IS_DECAL` を定義せず、
+  `DeferredDecal.usf` の `FDeferredDecalAmbientOcclusionPS` / `FDeferredDecalMobilePS` の `MainPS` が見つからないと報告していた (0.3.0 の既知の問題)
+- Unreal Engine: マテリアルのシェーダーで、どの `MATERIALBLENDING_*` も定義していなかった。エンジンはマテリアルのブレンドモードから必ず 1 つを定義する。
+  既定のマテリアルと同じ不透明 (`MATERIALBLENDING_SOLID=1`) にする。`MobileBasePassPixelShader.usf` の `FrameBufferBlendOp` に
+  値を返さない経路があると報告し (0.3.0 の既知の問題)、`PathTracingMaterialHitShader.usf` の `#error Unknown material blending mode` に到達していた
+
+### 既知の問題
+
+- GLSL に固有の検査 (`#version` の無いファイル、その `#version` や拡張で使えない関数・型、`layout(location / binding)` の重複、そのステージで使えない組み込み) は、まだ行わない。0.3.2 で対応予定
+- GLSL の 16 ビットの整数のリテラルの接尾辞 (`GL_EXT_shader_explicit_arithmetic_types` の `3s` / `3us`) を読めず、構文の誤り (CF0001) と報告する。0.3.2 で修正予定
+
 ## [0.3.0] - 2026-10-25
 
-Unreal Engine のシェーダーを、エンジンとプロジェクトの C++ から読んだ登録・パーミュテーション・プロジェクトの設定で検査できるようにした。
+エンジンとプロジェクトの C++ から読み取ったシェーダー登録、パーミュテーション、プロジェクト設定を使って、Unreal Engine のシェーダーを検査できるようにした。
 `--unreal-generate` がマテリアルの `Material.ush` / `VertexFactory.ush` の代わりも作るので、マテリアルのシェーダーも宣言を検査する。
 `#error` に到達する構成を伝える HL0009 / UN0103 と、自作ルール向けに構成を扱う API を足した。
 GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 0.3.1 で対応する)。
 
-**破壊的変更を含む** (下の「変更」)。自作ルール・自作の環境は、構文木と環境の型の名前と名前空間を書き換える。
+**破壊的変更を含む** (下の「変更」)。自作ルールや独自環境を使う場合は、構文木や環境の型名と名前空間を書き換える。
 ツールとして使うだけなら書き換えは要らない。手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある。
 
 ### 追加
 
-- `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成が到達することを伝える UN0103 (エラー) を足した。
-  Unity は宣言したキーワードの構成をすべてコンパイルするので、到達するとシェーダーが使えなくなる (Unity 6.6 で、`multi_compile` ならシェーダー全体がピンクになった)。
+- `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成で `#error` に到達することを伝える UN0103 (エラー) を追加した。
+  Unity は宣言したキーワードの構成をすべてコンパイルするため、`#error` に到達する構成があるとシェーダーを使えない (Unity 6.6 では、`multi_compile` の場合にシェーダー全体がピンクになった)。
   公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、
   `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を足した
 - 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
   ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
   `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
-- CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その下のファイルにだけ効く。
+- CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その配下のファイルにだけ適用される。
   HLSL 以外の言語のファイルは、`environment` に関わらず拡張子の環境で解析する (Unity のプロジェクトにある `.wgsl` は WGSL として読む)。
   `--config` を指定すれば、今までどおりすべてのファイルにその設定ファイルを使う
 - GLSL の環境 `glsl` を足した。`.vert` / `.frag` / `.comp` などと `.glsl` を、設定ファイルが無くても GLSL として解析し、
   構文の誤り (HL0001)・プリプロセッサ指令の誤り・解決できない `#include` (HL0321) を指摘する。VS Code 拡張でも同じく指摘する。
   宣言・型・呼び出しの検査と、VS Code 拡張の説明・定義へ移動・補完は 0.3.1 で対応する予定
   ([GLSL](docs/guide/environments.md#glsl))
-- 環境 `godot` / `slang` / `wgsl` を足した (作っているところ)。拡張子でファイルを集めるが、まだ何も指摘しない
+- 環境 `godot` / `slang` / `wgsl` を追加した (開発中)。拡張子でファイルを集めるが、まだ何も指摘しない
 - 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
   - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
     同じ位置の報告は Pass と構成をまたいで条件の和をとって 1 件にする。メッセージの `{0}` に「構成：○○ のとき、」が入る。
@@ -48,8 +121,8 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   - `ExpressionTypeBinder.GetTypesByConfiguration`: 式の型を構成ごとに求める
   - `ShaderCompilation.IsRepeatedDeclaration` と、繰り返しも返す `EnumerateRuleDeclarations(bool)` / `EnumerateRuleNodes(bool)` (下の「変更」)
   - 実例集の「コンパイル条件分岐（シンボル）に応じた関数制限」をこの API で書き直した。`#ifdef` の外の呼び出しも、その構成で実行されるので報告する
-- 自作ルールを AI のコーディングエージェントに書かせるための Skill (`skills/shaderlyn-custom-rule/SKILL.md`) を足した。
-  組み込みのルールで足りないかを先に確かめさせ、ソースを文字列で調べずに構文木とセマンティックモデルで判定させる
+- AI のコーディングエージェントに自作ルールを書いてもらうための Skill (`skills/shaderlyn-custom-rule/SKILL.md`) を追加した。
+  組み込みルールで対応できるかを先に確認し、ソースを文字列検索せず、構文木とセマンティックモデルで判定するよう案内する
 - Unreal Engine: `--unreal-generate` が、エンジンとプロジェクトの C++ から次のものを読んで書き出す。
   解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する
   ([Unreal Engine の環境](docs/guide/environments.md#c-から生成されるファイルを作る))
@@ -66,9 +139,9 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
     `CFLAG_AllowRealTypes` が付く構成は 16 ビットの型を有効にして解析する
   - **プロジェクトの設定 (コンソール変数)。** C++ の既定値 (`TAutoConsoleVariable` の宣言) を、エンジンとプロジェクトの ini (`DefaultEngine.ini` など) が上書きする。
     `GlobalBeginCompileShader` を実行して、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED`、`USE_HAIR_TRIANGLE_STRIP` など) を求め、単位に定義する。
-    定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` の見張りで 1 にされ、`#error` に到達したまま読んでいた
+    必要なマクロを定義していなかったため、`Substrate.ush` の `#ifndef SUBSTRATE_ENABLED` 内で `SUBSTRATE_ENABLED` が 1 に定義され、`#error` に到達する構成として解析されていた
   - **マテリアルの `Material.ush` と `VertexFactory.ush` の代わり。** マテリアルのシェーダーでも宣言を検査する (今までは UE0002 を出して検査しなかった)。
-    `Material.ush` は、エンジンの `MaterialTemplate.ush` の穴を、どのマテリアルでもない中身で埋めたもの。
+    `Material.ush` は、エンジンの `MaterialTemplate.ush` にある差し込み箇所を、マテリアルごとの情報を入れずに埋めたもの。
     `VertexFactory.ush` は、C++ の頂点ファクトリの登録 (`IMPLEMENT_VERTEX_FACTORY_TYPE` など) から作り、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込む。
     シェーダーのクラスの `ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読む。
     頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ (`PARTICLE_SPRITE_FACTORY` など) は、
@@ -97,7 +170,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   HLSL に限らない型は名前から `Hlsl` を外し (`HlslSyntaxToken` → `ShaderSyntaxToken`、`HlslSyntaxNode` → `ShaderSyntaxNode`、`HlslExpressionSyntax` → `ExpressionSyntax` など)、
   ノードは `Shaderlyn.CFamily.Syntax`、`Shaderlyn.Hlsl.Preprocessing` の型は `Shaderlyn.CFamily.Preprocessing` へ移した。
   HLSL にだけある節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) は `Shaderlyn.Hlsl.Syntax` に残る。
-  解析済みのコードは `ShaderSyntaxTree` になり、`HlslSyntaxTree` は HLSL を読む入口 (`HlslSyntaxTree.Parse`) だけになった。
+  解析済みのコードは `ShaderSyntaxTree` になり、`HlslSyntaxTree` に残る HLSL の解析メソッドは `HlslSyntaxTree.Parse` のみになった。
   木の HLSL に固有の値 (`CompileTargets` など) は `tree.Hlsl()` から読む。
   `PreprocessorOptions` の HLSL のコンパイラとバージョンの設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
   `PreprocessorOptions.Language` に入れて渡す。
@@ -183,7 +256,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - Unity: 2023.2 以降で、`#include` で取り込んだファイルの `#pragma` (`multi_compile`、`vertex` など) を使っていた。
   Unity は `#include_with_pragmas` の連なりで取り込んだファイルの `#pragma` だけを使う
   (`#include` の先の `#pragma` は「unknown pragma ignored」になる。2022.3 / 2023.2〜6.6 で確かめた)。
-  2022.3 と、Unity のバージョンが分からない場合は、今までどおりどの取り込みの `#pragma` も使う。
+  Unity 2022.3 では、どのファイルから取り込んだ `#pragma` も使う。Unity のバージョンが不明な場合も、従来どおり同じ扱いにする。
   プリプロセッサの設定 `PragmaIncludeDirectives` を足し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に入れる
 - Unity: キーワードを付けた `#pragma target 4.5 DOTS_INSTANCING_ON` を、そのキーワードの構成の `SHADER_TARGET` に使う。
   URP の DOTS_INSTANCING_ON の構成を `SHADER_TARGET` 3.5 で読み、`UnityInstancing.hlsl` の `#error` に到達していた
@@ -212,6 +285,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - `Substrate/SubstrateSubsurface.ush`: `PackColorLinearToGamma2AlphaLinear` / `UnpackColorGamma2ToLinearAlphaLinear` の定義が無い (HL0311)
 - `VolumetricFogVoxelization.usf` (`unreal: permutations: true` のときだけ): 一部の頂点ファクトリで `FVertexFactoryInput.VertexId` が無い (HL0313)。
   実際には、ボリュームのマテリアルとその頂点ファクトリの組み合わせはコンパイルされない
+  (0.3.1 で調べ直したところ、誤報告ではなかった。ボリュームのマテリアルに Geometry Cache などの使用のフラグが立つと、エンジンはこの組み合わせをコンパイルし、失敗する)
 
 ## [0.2.1] - 2026-10-16
 
@@ -504,16 +578,16 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
 
 ### 追加
 
-- [HL0332](docs/rules/HL0332.md): どの構成でも成り立たない条件 (`#if _DETAIL == 2` など) を報告する
+- [HL0332](docs/rules/CF0203.md): どの構成でも成り立たない条件 (`#if _DETAIL == 2` など) を報告する
 - `--inspect` に「シンボルの扱い」タブ。シンボルごとに、両方の分岐を並べたか構成ごとに展開したかと、その原因の `#if` を示す
 
 ### 変更
 
 - 文の途中で分かれる `#if` と、条件で中身が変わるマクロを使う文を、分岐・定義ごとに文を複製して検査する。
-  構成ごとの展開が減り、別々の `#if` が同時に有効なときだけ起きる誤り (`_A && _B` のときの [HL0312](docs/rules/HL0312.md) など) も報告する
+  構成ごとの展開が減り、別々の `#if` が同時に有効なときだけ起きる誤り (`_A && _B` のときの [HL0312](docs/rules/CF0312.md) など) も報告する
 - 報告とホバーに示す条件を、宣言の制約を使って短くする。
   `#pragma multi_compile _A _B` のもとでは `!_B` を `_A` と、`!_A && _B` を `_B` と示す
-- [HL0352](docs/rules/HL0352.md): 構成ごとに要素とメンバーを数えて比べる。
+- [HL0352](docs/rules/CF0412.md): 構成ごとに要素とメンバーを数えて比べる。
   条件の付いた要素やメンバーが片側にしか無い初期化も報告し、食い違う構成をメッセージに添える
 - VS Code 拡張: 補完の候補を、カーソルの位置で書けるものに絞る。
   `#` の後ろでは指令の名前、`#pragma` の後ろでは pragma の名前、`#if` / `#ifdef` ではシンボルとマクロを出し、
@@ -546,7 +620,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/OmojiP/shaderlyn/compare/v0.1.1...v0.2.0

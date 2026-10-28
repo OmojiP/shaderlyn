@@ -79,7 +79,7 @@ public sealed class Dx12SyntaxTests
             }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0350");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0410");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class Dx12SyntaxTests
             float4 main() : SV_Target { return Constants.tint; }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0314");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0314");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class Dx12SyntaxTests
             float4 main() : SV_Target { return 1; }
             """);
 
-        Assert.Contains(diagnostics, d => d.Id == "HL0314");
+        Assert.Contains(diagnostics, d => d.Id == "CF0314");
     }
 
     [Theory]
@@ -121,7 +121,7 @@ public sealed class Dx12SyntaxTests
 
         ImmutableArray<Diagnostic> diagnostics = Analyze(text, unit);
 
-        Assert.Equal(reported, diagnostics.Any(d => d.Id == "HL0311"));
+        Assert.Equal(reported, diagnostics.Any(d => d.Id == "CF0311"));
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ public sealed class Dx12SyntaxTests
             }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0340" or "HL0341");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "CF0401" or "CF0402");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class Dx12SyntaxTests
             HlslEnvironment.WholeFile(text),
             new InMemoryIncludeResolver(new Dictionary<string, string>(StringComparer.Ordinal) { ["Ops.hlsl"] = "float CTOR(float x) { return x; }" }));
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0310");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0310");
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class Dx12SyntaxTests
             }
             """);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id is "HL0346" or "HL0001");
+        Assert.DoesNotContain(diagnostics, d => d.Id is "CF0406" or "CF0001");
     }
 
     [Theory]
@@ -208,7 +208,7 @@ public sealed class Dx12SyntaxTests
         float4 main() : SV_Target { FWriter w; FTri t; t.a = 0; Raster(t, w); return 0; }
         """)]
     public void 大域の関数でないものの呼び出しを大域の関数と照らさない(string code)
-        => Assert.DoesNotContain(Analyze(code), d => d.Id is "HL0340" or "HL0341");
+        => Assert.DoesNotContain(Analyze(code), d => d.Id is "CF0401" or "CF0402");
 
     [Theory]
     // 配列の次元だけが違う多重定義 (GPUFastFourierTransformCore.ush)。
@@ -216,7 +216,7 @@ public sealed class Dx12SyntaxTests
     // 型引数だけが違う多重定義 (TSRShadingAnalysis.ush)。
     [InlineData("template<typename T, uint N> struct V { vector<T, N> x; };\nV<float, 3> F(V<float, 3> a) { return a; }\nV<float, 1> F(V<float, 1> a) { return a; }\nfloat4 main() : SV_Target { return 0; }")]
     public void 配列の次元や型引数の違う多重定義を重複と報告しない(string code)
-        => Assert.DoesNotContain(Analyze(code), d => d.Id == "HL0314");
+        => Assert.DoesNotContain(Analyze(code), d => d.Id == "CF0314");
 
     private static ImmutableArray<Diagnostic> Analyze(string code)
     {

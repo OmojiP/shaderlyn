@@ -58,7 +58,7 @@ public static class ShaderLiteral
     /// <param name="token">対象のトークン。</param>
     /// <returns>書き方。数値リテラルとして読めない場合は <see cref="ShaderLiteralKind.None"/>。</returns>
     /// <remarks>
-    /// 桁の大きさを自分で数えるルール (HL0371 など) が、
+    /// 桁の大きさを自分で数えるルール (CF0511 など) が、
     /// 8 進や 16 進の見分け方を書き写さずに済むようにしている。
     /// </remarks>
     public static ShaderLiteralKind GetKind(ShaderSyntaxToken token)

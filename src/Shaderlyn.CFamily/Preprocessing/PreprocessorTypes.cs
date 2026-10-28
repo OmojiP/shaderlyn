@@ -104,7 +104,7 @@ public sealed record PreprocessorOptions
     /// <b>解析しているファイルが宣言したシンボルは入れない。</b>
     /// URP のシェーダーは 40 を超えるシンボルを宣言し、その条件はほとんどがヘッダ側に書かれている。
     /// すべてを読むと、構成として作る候補が 1 ブロックあたり数十件になり、
-    /// 上限で落ちた分が <c>HL0006</c> として並ぶ。
+    /// 上限で落ちた分が <c>CF0102</c> として並ぶ。
     /// 解析しているファイルが宣言したシンボルは、そのファイルに書かれた条件から構成を決める
     /// (<see cref="DeclaredSymbols"/>)。
     /// </para>
@@ -984,7 +984,7 @@ public readonly record struct PreprocessResult(
     internal ImmutableArray<(MacroDefinition Definition, SymbolCondition Condition)> WrittenDefinitions { get; init; } = [];
 
     /// <summary>
-    /// 解析しているファイルに書かれた、どの構成でも成り立たない <c>#if</c> / <c>#elif</c> の条件 (HL0332)。
+    /// 解析しているファイルに書かれた、どの構成でも成り立たない <c>#if</c> / <c>#elif</c> の条件 (CF0203)。
     /// </summary>
     internal ImmutableArray<NeverTrueCondition> NeverTrueConditions { get; init; } = [];
 

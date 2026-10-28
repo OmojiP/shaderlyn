@@ -50,6 +50,14 @@ internal sealed class GlslParser : ShaderParser
     /// <inheritdoc/>
     protected override bool AcceptsArrayTypes => true;
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// レイトレーシングの <c>ignoreIntersectionEXT;</c> / <c>terminateRayEXT;</c> (GL_EXT_ray_tracing)、
+    /// <c>demote;</c> (GL_EXT_demote_to_helper_invocation)、<c>terminateInvocation;</c> (GL_EXT_terminate_invocation)。
+    /// </remarks>
+    protected override bool IsLanguageJumpKeyword(string text)
+        => text is "ignoreIntersectionEXT" or "terminateRayEXT" or "demote" or "terminateInvocation";
+
     /// <summary>そのトークン列が、文・宣言として過不足なく閉じているかを判定する。</summary>
     /// <param name="tokens">判定するトークン列。</param>
     /// <returns>閉じていれば <see langword="true"/>。</returns>
@@ -199,7 +207,18 @@ internal sealed class GlslParser : ShaderParser
 
     /// <summary>インターフェースブロックを読む。</summary>
     /// <returns>読んだ宣言。</returns>
-    private InterfaceBlockDeclarationSyntax ParseInterfaceBlock()
+    /// <remarks>
+    /// <para>
+    /// <b>インスタンスの名前があるブロック (<c>uniform UBO { mat4 m; } ubo;</c>) は、構造体の宣言として読む。</b>
+    /// 構造体とそれに続けて宣言した変数 (<c>struct UBO { mat4 m; } ubo;</c>) と同じく、<c>ubo.m</c> で使うからである。
+    /// 最後の修飾子をキーワードに、それより前の修飾子を <see cref="StructDeclarationSyntax.Modifiers"/> に置く。
+    /// </para>
+    /// <para>
+    /// インスタンスの名前が無いブロックは、メンバーがそのまま外側の名前になる (HLSL の <c>cbuffer</c> と同じ)。
+    /// <see cref="InterfaceBlockDeclarationSyntax"/> として読む。
+    /// </para>
+    /// </remarks>
+    private DeclarationSyntax ParseInterfaceBlock()
     {
         ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
         ShaderSyntaxToken name = Advance();
@@ -207,11 +226,30 @@ internal sealed class GlslParser : ShaderParser
         ImmutableArray<DeclarationSyntax> members = ParseMemberDeclarations();
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
 
-        ShaderSyntaxToken? instance = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
-        ImmutableArray<ShaderSyntaxToken> ranks = instance is null ? [] : ParseArrayRanks();
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            VariableDeclaratorSyntax instance = ParseDeclaratorRest(Advance());
+            ShaderSyntaxToken end = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
+
+            return new StructDeclarationSyntax(
+                modifiers[^1], name, openBrace, members, closeBrace, [ShaderNodeOrTokenEntry.FromNode(instance)], end)
+            {
+                Modifiers = modifiers[..^1],
+            };
+        }
+
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
-        return new InterfaceBlockDeclarationSyntax(modifiers, name, openBrace, members, closeBrace, instance, ranks, semicolon);
+        // layout(buffer_reference) のブロックは型を宣言する (GL_EXT_buffer_reference)。Vertices v = Vertices(address); と使う。
+        if (modifiers.Any(m => m.Text == "buffer_reference"))
+        {
+            return new StructDeclarationSyntax(modifiers[^1], name, openBrace, members, closeBrace, [], semicolon)
+            {
+                Modifiers = modifiers[..^1],
+            };
+        }
+
+        return new InterfaceBlockDeclarationSyntax(modifiers, name, openBrace, members, closeBrace, semicolon);
     }
 
     /// <summary>セミコロンまでを、構文木にしない宣言として読む。</summary>

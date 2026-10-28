@@ -1,5 +1,6 @@
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -27,10 +28,10 @@ public sealed partial class ShaderCompilation
     /// <para>
     /// <b>対象はグローバル変数 (定数バッファのメンバーを含む) である。</b>
     /// その位置で局所変数か仮引数を指す名前、そのコードブロックのどの木でもグローバル変数として宣言されていない名前
-    /// (関数や構造体のメンバー、どこにも宣言の無い名前。後者は HL0310 の範囲) には <see langword="false"/> を返す。
+    /// (関数や構造体のメンバー、どこにも宣言の無い名前。後者は CF0310 の範囲) には <see langword="false"/> を返す。
     /// </para>
     /// <para>
-    /// 次の順で求める。組み込みのルール (HL0315) と同じである。
+    /// 次の順で求める。組み込みのルール (CF0315) と同じである。
     /// </para>
     /// <list type="number">
     ///   <item><description>使う側の条件 = その位置の条件 × その木が表す構成 (<see cref="GetTreeConfiguration"/>)</description></item>
@@ -186,6 +187,14 @@ public sealed partial class ShaderCompilation
 
                     case ConstantBufferDeclarationSyntax buffer:
                         foreach (VariableDeclarationSyntax member in EnumerateGlobalVariables(buffer.Members))
+                        {
+                            yield return member;
+                        }
+
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        foreach (VariableDeclarationSyntax member in EnumerateGlobalVariables(block.Members))
                         {
                             yield return member;
                         }

@@ -275,6 +275,76 @@ internal sealed class EffectiveSettings
     }
 
     /// <summary>
+    /// 設定ファイルの <c>rules:</c> に書いた、どのルールにも無い ID を伝える。
+    /// </summary>
+    /// <param name="knownRuleIds">ルールの ID (組み込みと自作のルール、解析基盤とツールのもの。<see cref="RuleCatalog.GetAllRules"/>)。</param>
+    /// <returns>知らない ID ごとの診断。書いた行を指す。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>知らない ID の設定は、黙って効かない。</b> 重要度を変えたつもりのルールがそのまま出て、無効にしたつもりのルールも出る。
+    /// 綴りの誤りと、ID を変えたルール (0.3.1 の HL から CF への振り直し) の書き残しを見つけるために伝える。
+    /// </para>
+    /// <para>
+    /// ルールの一覧はアナライザから決まるので、設定を作るとき (<see cref="Create(CommandLineOptions, ImmutableArray{HostEnvironment})"/>) ではなく、アナライザを知っている側が呼ぶ。
+    /// </para>
+    /// </remarks>
+    public ImmutableArray<Diagnostic> FindUnknownRules(IReadOnlySet<string> knownRuleIds)
+    {
+        ArgumentNullException.ThrowIfNull(knownRuleIds);
+
+        if (Configuration.FilePath is not { } filePath)
+        {
+            return [];
+        }
+
+        string[] unknown =
+        [
+            .. Configuration.RuleSeverities.Keys
+                .Concat(Configuration.RuleOptions.Keys)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(id => !knownRuleIds.Contains(id)),
+        ];
+
+        if (unknown.Length == 0)
+        {
+            return [];
+        }
+
+        SourceText text;
+        try
+        {
+            text = SourceText.Load(filePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            text = SourceText.From(string.Empty, filePath);
+        }
+
+        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+
+        foreach (string id in unknown)
+        {
+            // 設定の読み込みはキーの行を持たないので、キーを書いた行を探す。
+            int line = Enumerable.Range(0, text.LineCount)
+                .FirstOrDefault(
+                    i => text.ToString(text.GetLineSpan(i)).TrimStart().TrimStart('"', '\'')
+                        .StartsWith(id, StringComparison.OrdinalIgnoreCase),
+                    -1);
+
+            string message = id.StartsWith("HL", StringComparison.OrdinalIgnoreCase)
+                ? $"ルール {id} はありません。0.3.1 で、C 系の言語に共通のルールの ID を HL から CF に振り直しました (docs/guide/migration-0.3.1.md)。"
+                : $"ルール {id} はありません。ID の綴りを確かめてください (shaderlyn --list-rules で一覧を表示できます)。";
+
+            diagnostics.Add(Diagnostic.Create(
+                WellKnownDescriptors.ConfigurationProblem,
+                Location.Create(text, line >= 0 ? text.GetLineSpan(line) : new TextSpan(0, 0)),
+                message));
+        }
+
+        return diagnostics.ToImmutable();
+    }
+
+    /// <summary>
     /// 設定ファイルの問題を診断へ変換する。
     /// </summary>
     /// <param name="configuration">読み込んだ設定。</param>

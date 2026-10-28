@@ -214,7 +214,7 @@ public sealed class Hlsl2021TemplateTests
 
         Assert.Equal(
             ["missingA", "missingB"],
-            diagnostics.Where(d => d.Id == "HL0310").Select(d => d.GetMessage().Split('\'')[1]).Order());
+            diagnostics.Where(d => d.Id == "CF0310").Select(d => d.GetMessage().Split('\'')[1]).Order());
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public sealed class Hlsl2021TemplateTests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
-        Assert.Equal("HL0312", diagnostic.Id);
+        Assert.Equal("CF0312", diagnostic.Id);
         Assert.Contains("成分 q ", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
@@ -285,8 +285,8 @@ public sealed class Hlsl2021TemplateTests
     [InlineData("float a = MaxOf(i, u)", "HL0345")]
     [InlineData("float3 a = MaxOf(v, k)", "HL0345")]
     [InlineData("float a = MaxOf(k, d)", "HL0345")]
-    [InlineData("float a = MaxOf(k)", "HL0341")]
-    [InlineData("float a = MaxOf(k, k, k)", "HL0341")]
+    [InlineData("float a = MaxOf(k)", "CF0402")]
+    [InlineData("float a = MaxOf(k, k, k)", "CF0402")]
     [InlineData("float a = One(1.0)", null)]
     [InlineData("float4 a = One(f4)", null)]
     [InlineData("float a = First(k, v)", null)]
@@ -307,12 +307,12 @@ public sealed class Hlsl2021TemplateTests
     [InlineData("float a = MaxOf(u, 1u)", null)]
     [InlineData("float a = Opt(k)", null)]
     [InlineData("float a = Opt(k, 1.0)", "HL0345")]
-    [InlineData("float a = Opt(k, k, k)", "HL0341")]
+    [InlineData("float a = Opt(k, k, k)", "CF0402")]
     [InlineData("float a; Out(k, a)", null)]
     [InlineData("float3 a; Out(k, a)", "HL0345")]
-    [InlineData("float a = One(f4).q", "HL0312")]
+    [InlineData("float a = One(f4).q", "CF0312")]
     [InlineData("float a = One(f4).w", null)]
-    [InlineData("float a = First(v, k).w", "HL0312")]
+    [InlineData("float a = First(v, k).w", "CF0312")]
     public void 型引数の推論をDXCと同じに扱う(string statement, string? expected)
     {
         ImmutableArray<Diagnostic> diagnostics = Analyze($$"""
@@ -354,10 +354,10 @@ public sealed class Hlsl2021TemplateTests
     [InlineData("float a = Dot(f3, i3)", "HL0345")]
     [InlineData("float a = Dot(f3, h3)", "HL0345")]
     [InlineData("float a = Sum3(f3).x", null)]
-    [InlineData("float a = Scale(f3, k).w", "HL0312")]
-    [InlineData("float a = Sum3(f3).y", "HL0312")]
+    [InlineData("float a = Scale(f3, k).w", "CF0312")]
+    [InlineData("float a = Sum3(f3).y", "CF0312")]
     [InlineData("float a = Ones(f3).z", null)]
-    [InlineData("float a = Ones(f3).w", "HL0312")]
+    [InlineData("float a = Ones(f3).w", "CF0312")]
     [InlineData("float a = Ones(i3).x", "HL0345")]
     public void vectorの仮引数からの推論をDXCと同じに扱う(string statement, string? expected)
     {

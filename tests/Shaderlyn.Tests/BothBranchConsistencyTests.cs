@@ -36,17 +36,17 @@ public sealed partial class BothBranchConsistencyTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>HL0006</c> は「どこまで展開したか」の報告である。
+    /// <c>CF0102</c> は「どこまで展開したか」の報告である。
     /// 並べない経路は展開する構成が増えるので、上限との兼ね合いで出方が変わるのは正しい。
     /// シェーダーの誤りについての答えではないので比べない。
     /// </para>
     /// <para>
-    /// <c>HL0007</c> は「どこまで条件を追えたか」の報告である。
+    /// <c>CF0103</c> は「どこまで条件を追えたか」の報告である。
     /// 並べる経路は、条件によって中身が変わるマクロを使う文を定義ごとに複製して追えるようにする
     /// (条件の巻き上げ)。追えた箇所が増えれば、この報告は減る。
     /// </para>
     /// </remarks>
-    private static readonly string[] ExplorationRules = ["HL0006", "HL0007"];
+    private static readonly string[] ExplorationRules = ["CF0102", "CF0103"];
 
     /// <summary>
     /// 並べる経路のほうが多く見つけるシェーダーと、その理由。
@@ -60,15 +60,15 @@ public sealed partial class BothBranchConsistencyTests
     /// </para>
     /// <para>
     /// もう 1 つ、<b>構成をまたいで初めて言えること</b>がある。
-    /// 「同じ名前を条件ごとに違う型で宣言している」(HL0353) は、
+    /// 「同じ名前を条件ごとに違う型で宣言している」(CF0413) は、
     /// 構成を固定すると、その構成の宣言しか残らないので観測できない。
     /// 並べる経路にしか出ないのが正しい。
     /// </para>
     /// </remarks>
     private static readonly Dictionary<string, string> MergedFindsMore = new(StringComparer.Ordinal)
     {
-        [Path.Combine("rules", "HL0353.shader")] =
-            "型を書き分けたという事実は構成を固定すると消える。並べた木でしか HL0353 を言えない",
+        [Path.Combine("rules", "CF0413.shader")] =
+            "型を書き分けたという事実は構成を固定すると消える。並べた木でしか CF0413 を言えない",
 
         [Path.Combine("conditional", "MergedTypeByCondition.shader")] =
             "_A と _B が同時に有効なときだけ color が float3 になる。並べない経路はその構成を作らない",
@@ -166,7 +166,7 @@ public sealed partial class BothBranchConsistencyTests
 
         Assert.Contains(
             diagnostics,
-            d => d.Id == "HL0310" && d.GetMessage().Contains($"'{undeclared}'", StringComparison.Ordinal));
+            d => d.Id == "CF0310" && d.GetMessage().Contains($"'{undeclared}'", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -181,7 +181,7 @@ public sealed partial class BothBranchConsistencyTests
 
         Assert.Contains(
             Analyze(path, bothBranchSymbols: null),
-            d => d.Id == "HL0310" && d.GetMessage().Contains($"'{undeclared}'", StringComparison.Ordinal));
+            d => d.Id == "CF0310" && d.GetMessage().Contains($"'{undeclared}'", StringComparison.Ordinal));
     }
 
     /// <summary>シェーダーを解析する。</summary>
@@ -238,7 +238,7 @@ public sealed partial class BothBranchConsistencyTests
     /// </remarks>
     /// <remarks>
     /// <para>
-    /// <b>HL0310 の「どの構成で宣言が無いか」も外す。</b>
+    /// <b>CF0310 の「どの構成で宣言が無いか」も外す。</b>
     /// これは木ごとの結果を突き合わせて求めるので、どの組み合わせを 1 本の木で解析したかによって精度が変わる。
     /// 並べる経路は <c>_A &amp;&amp; _B</c> を同じ木で見るが、構成ごとに展開する経路は見ない。
     /// どちらも解析した構成についてだけ述べているので、書き方が違っても誤りの見つけ方は同じである。

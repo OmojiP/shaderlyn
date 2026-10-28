@@ -382,7 +382,7 @@ internal static class SemanticsSetup
             }
 
             // Unity 同梱のヘッダ (UnityCG.cginc など) はフォルダーを付けずに .cginc で書く。
-            // Editor が見つからなければ、ほかのヘッダを引けていても引けない (TOOL0004 にならず、HL0321 が並ぶ)。
+            // Editor が見つからなければ、ほかのヘッダを引けていても引けない (TOOL0004 にならず、CF0021 が並ぶ)。
             if (isUnity
                 && !normalized.Contains('/', StringComparison.Ordinal)
                 && normalized.EndsWith(".cginc", StringComparison.OrdinalIgnoreCase)
@@ -452,7 +452,7 @@ internal static class SemanticsSetup
     /// </para>
     /// <para>
     /// Unreal Engine の代わりの <c>Material.ush</c> (<c>--unreal-generate</c> がテンプレートの穴を既定値で埋めたもの) も利用者のファイルとしない。
-    /// その中の報告は利用者には直せない。uniform buffer の宣言などほかの生成物は、利用者のコードと重なる宣言 (HL0314) を報告するので、利用者のファイルのままにする。
+    /// その中の報告は利用者には直せない。uniform buffer の宣言などほかの生成物は、利用者のコードと重なる宣言 (CF0314) を報告するので、利用者のファイルのままにする。
     /// </para>
     /// </remarks>
     public static Func<string, bool> CreateUserIncludePredicate(CommandLineOptions options, string? editorData, string? generatedMaterial = null)

@@ -67,14 +67,14 @@ public sealed class MinimalYamlParserTests
     {
         YamlNode root = ParseWithoutErrors("""
             rules:
-              HL0351:
+              CF0411:
                 severity: warning
                 options:
                   maxSamplers: 8
             """);
 
-        Assert.Equal("warning", ScalarAt(root, "rules", "HL0351", "severity"));
-        Assert.Equal("8", ScalarAt(root, "rules", "HL0351", "options", "maxSamplers"));
+        Assert.Equal("warning", ScalarAt(root, "rules", "CF0411", "severity"));
+        Assert.Equal("8", ScalarAt(root, "rules", "CF0411", "options", "maxSamplers"));
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class ConfigurationLoaderTests
             rules:
               SL1003: error
               SL1004: none
-              HL0351:
+              CF0411:
                 severity: warning
                 options: { maxSamplers: 8 }
             """);
@@ -259,8 +259,8 @@ public sealed class ConfigurationLoaderTests
 
         Assert.Equal(DiagnosticSeverity.Error, configuration.RuleSeverities["SL1003"]);
         Assert.Equal(DiagnosticSeverity.None, configuration.RuleSeverities["SL1004"]);
-        Assert.Equal(DiagnosticSeverity.Warning, configuration.RuleSeverities["HL0351"]);
-        Assert.Equal("8", configuration.RuleOptions["HL0351"]["maxSamplers"]);
+        Assert.Equal(DiagnosticSeverity.Warning, configuration.RuleSeverities["CF0411"]);
+        Assert.Equal("8", configuration.RuleOptions["CF0411"]["maxSamplers"]);
 
     }
 
@@ -395,19 +395,19 @@ public sealed class ConfigurationLoaderTests
               SL1003: warning
               /SL10.*/:
                 severity: info
-              "/(HL|UN)03[0-9]{2}/": none
+              "/(CF|UN)03[0-9]{2}/": none
               /0001/: none
             """);
 
-        Assert.Equal(["sl.*", "SL10.*", "(HL|UN)03[0-9]{2}", "0001"], configuration.RuleSeverityPatterns.Select(p => p.Pattern).ToArray());
+        Assert.Equal(["sl.*", "SL10.*", "(CF|UN)03[0-9]{2}", "0001"], configuration.RuleSeverityPatterns.Select(p => p.Pattern).ToArray());
 
         AnalyzerOptions options = new(configuration.RuleSeverities, configuration.RuleOptions, configuration.RuleSeverityPatterns);
 
         Assert.Equal(DiagnosticSeverity.Warning, options.GetEffectiveSeverity(Descriptor("SL1003")));
         Assert.Equal(DiagnosticSeverity.Info, options.GetEffectiveSeverity(Descriptor("SL1004")));
         Assert.Equal(DiagnosticSeverity.Error, options.GetEffectiveSeverity(Descriptor("SL2001")));
-        Assert.Equal(DiagnosticSeverity.None, options.GetEffectiveSeverity(Descriptor("HL0310")));
-        Assert.Equal(DiagnosticSeverity.Warning, options.GetEffectiveSeverity(Descriptor("HL0001")));
+        Assert.Equal(DiagnosticSeverity.None, options.GetEffectiveSeverity(Descriptor("CF0310")));
+        Assert.Equal(DiagnosticSeverity.Warning, options.GetEffectiveSeverity(Descriptor("CF0001")));
 
         // ID の全体と一致したものだけが当たる。/0001/ は SL0001 に当たらない (部分一致なら none になる)。
         Assert.Equal(DiagnosticSeverity.Error, options.GetEffectiveSeverity(Descriptor("SL0001")));

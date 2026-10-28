@@ -12,7 +12,7 @@ namespace Shaderlyn.Cli.Inspection;
 /// <remarks>
 /// <para>
 /// <b>構成ごとの展開 (バリアント) が増えた理由を、利用者が自分のシェーダーで確かめられるようにする。</b>
-/// 展開は解析を遅くし、上限 (<c>--max-symbol-variants</c>) に届けば <c>HL0006</c> になる。
+/// 展開は解析を遅くし、上限 (<c>--max-symbol-variants</c>) に届けば <c>CF0102</c> になる。
 /// 書き方を変えれば並べられることが多いが、どの <c>#if</c> が原因なのかが見えなければ直しようがない。
 /// </para>
 /// <para>
@@ -46,7 +46,7 @@ internal static partial class AnalysisInspector
     /// 扱いは次の順に決める。前のものに当たれば、後ろは見ない。
     /// <list type="number">
     /// <item>構成ごとに展開した (方法 B)</item>
-    /// <item>展開が要ったが、上限で展開しなかった (<c>HL0006</c>)</item>
+    /// <item>展開が要ったが、上限で展開しなかった (<c>CF0102</c>)</item>
     /// <item>並べなかったが、既定の構成で有効なシンボルである (<c>_</c> の無い行の先頭)</item>
     /// <item>並べなかったが、構成は作っていない</item>
     /// <item>条件に現れ、両方の分岐を並べた (方法 A)</item>
@@ -85,7 +85,7 @@ internal static partial class AnalysisInspector
             (string state, string label) = expanded.Length > 0
                 ? ("variant", "方法 B: 構成ごとに展開した")
                 : compilation.UnexploredSymbols.Contains(symbol)
-                    ? ("unexplored", "方法 B が要るが、上限で展開していない (HL0006)")
+                    ? ("unexplored", "方法 B が要るが、上限で展開していない (CF0102)")
                     : (declined.Contains(symbol) || conflicts.Contains(symbol)) && defaults.Contains(symbol)
                         ? ("default", "既定の構成で有効。無効な側は同じ行の別のシンボルの構成で読む")
                         : declined.Contains(symbol) || conflicts.Contains(symbol)

@@ -4,6 +4,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
@@ -14,7 +15,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 宣言されていない識別子の使用を報告する (HL0310)。
+/// 宣言されていない識別子の使用を報告する (CF0310)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -39,6 +40,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>
     /// 宣言なしで使える名前。
     /// </summary>
@@ -133,10 +137,13 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool invoked = identifier.Parent is InvocationExpressionSyntax invocation
                        && ReferenceEquals(invocation.Target, identifier);
 
-        if (compilation.TypeSystem.IsKnownFunction(identifier.Name, program.Tree)
-            || compilation.TypeSystem.IsKnownConstant(identifier.Name)
+        // 組み込みは、その木の言語のバージョンとステージで使えるものだけを見る (GLSL の gl_FragCoord は頂点シェーダーに無い)。
+        ShaderTypeSystem types = compilation.TypeSystem.ForTree(program.Tree);
+
+        if (types.IsKnownFunction(identifier.Name, program.Tree)
+            || types.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || compilation.TypeSystem.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            || types.Classify(identifier.Name) != ShaderTypeClass.Unknown
             || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
@@ -343,12 +350,12 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// </para>
     /// <para>
     /// シンボル・uniform・関数の外の宣言は、コードブロックごとにまとめる。
-    /// 一部の構成でだけある変数と関数は、HL0315 と HL0311 が構成を添えて報告する。
+    /// 一部の構成でだけある変数と関数は、CF0315 と CF0311 が構成を添えて報告する。
     /// </para>
     /// <para>
     /// <b>取り込んだヘッダの宣言はコードブロックごとに見る</b> (<see cref="ShaderCompilation.GetHeaderDeclaredNames"/>)。
     /// 別の Pass が取り込んだヘッダの宣言は、そのコードからは見えない。
-    /// ヘッダの中で条件付きの宣言は、変数は HL0315、関数は HL0311 が構成ごとに判断している。
+    /// ヘッダの中で条件付きの宣言は、変数は CF0315、関数は CF0311 が構成ごとに判断している。
     /// </para>
     /// </remarks>
     private sealed class DeclaredNames
@@ -404,7 +411,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         /// <returns>同じコードブロックのどの木かで宣言された名前。</returns>
         /// <remarks>
         /// <b>これらはコードブロックごとにまとめる。</b>
-        /// 一部の構成でだけある変数や関数は、HL0315 / HL0311 が構成を添えて報告する。
+        /// 一部の構成でだけある変数や関数は、CF0315 / CF0311 が構成を添えて報告する。
         /// ここで木ごとに見ると、同じ誤りを 2 つのルールが報告し、並べ方によって報告が変わる。
         /// </remarks>
         private HashSet<string> Own(AnalyzedProgram program)
@@ -467,6 +474,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
                     case ConstantBufferDeclarationSyntax { NameToken: { } bufferName }:
                         declared.Add(bufferName.Text);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        declared.Add(block.Name);
                         break;
 
                     case EnumDeclarationSyntax enumeration:

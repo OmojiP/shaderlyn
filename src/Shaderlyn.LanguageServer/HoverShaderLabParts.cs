@@ -172,7 +172,7 @@ internal static partial class HoverBuilder
             $"```shaderlab\n{keyword}\n```\n\n{note}"
             + (info.Unresolved > 0
                 ? $"\n\n**解決できない include が {info.Unresolved} 件ある。**"
-                  + "この状態では対応検査を見送る (HL0005)。"
+                  + "この状態では対応検査を見送る (CF0101)。"
                 : string.Empty),
             GetProgramKeywordSpan(block, offset));
     }

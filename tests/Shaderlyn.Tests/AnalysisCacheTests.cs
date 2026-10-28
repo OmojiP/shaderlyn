@@ -44,7 +44,7 @@ public sealed class AnalysisCacheTests : IDisposable
     /// <param name="parameterType">関数の仮引数の型。</param>
     /// <remarks>
     /// <c>float4</c> にすると、<c>float3</c> を渡している呼び出しが
-    /// HL0340 (成分が増える向きの変換) になる。
+    /// CF0401 (成分が増える向きの変換) になる。
     /// <c>float3</c> に戻せば指摘は消える。
     /// ヘッダを直したことが結果に届くかを、この 1 文字で確かめる。
     /// </remarks>
@@ -153,7 +153,7 @@ public sealed class AnalysisCacheTests : IDisposable
         (string cold, _) = await RunWithCacheAsync();
         (string warm, _) = await RunWithCacheAsync();
 
-        Assert.Contains("HL0340", plain, StringComparison.Ordinal);
+        Assert.Contains("CF0401", plain, StringComparison.Ordinal);
         Assert.Equal(plain, cold);
         Assert.Equal(plain, warm);
     }
@@ -179,14 +179,14 @@ public sealed class AnalysisCacheTests : IDisposable
     public async Task ヘッダを直すと指摘が消える()
     {
         (string before, _) = await RunWithCacheAsync();
-        Assert.Contains("HL0340", before, StringComparison.Ordinal);
+        Assert.Contains("CF0401", before, StringComparison.Ordinal);
 
         WriteHeader("float3");
 
         (string after, string error) = await RunWithCacheAsync("--timings");
         (string withoutCache, _) = await RunAsync();
 
-        Assert.DoesNotContain("HL0340", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0401", after, StringComparison.Ordinal);
         Assert.Equal(withoutCache, after);
         Assert.Contains("前回の結果の使い回し 0 件 / 解析 1 件", error, StringComparison.Ordinal);
     }
@@ -203,12 +203,12 @@ public sealed class AnalysisCacheTests : IDisposable
     {
         WriteHeader("float3");
         (string before, _) = await RunWithCacheAsync();
-        Assert.DoesNotContain("HL0340", before, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0401", before, StringComparison.Ordinal);
 
         WriteHeader("float4");
 
         (string after, _) = await RunWithCacheAsync();
-        Assert.Contains("HL0340", after, StringComparison.Ordinal);
+        Assert.Contains("CF0401", after, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public sealed class AnalysisCacheTests : IDisposable
 
         (string output, string error) = await RunWithCacheAsync();
 
-        Assert.Contains("HL0340", output, StringComparison.Ordinal);
+        Assert.Contains("CF0401", output, StringComparison.Ordinal);
         Assert.Contains("キャッシュを読み込めませんでした", error, StringComparison.Ordinal);
 
         // 壊れた内容は書き直され、次回からは使い回せる。

@@ -104,7 +104,7 @@ public sealed class IncludeCacheTests
     /// <remarks>
     /// 1 度目に once.hlsl を覚え、2 度目に h.hlsl の中で once.hlsl を使い回すと、h.hlsl の記録から once.hlsl の
     /// 解決できなかった取り込み (missing.hlsl) が抜けていた。3 度目に h.hlsl を使い回すと、解決できなかった取り込みが 0 件になる。
-    /// Unreal Engine の解析で、生成される取り込みが消えて宣言が揃っていると判断し、HL0310 を出したり出さなかったりした。
+    /// Unreal Engine の解析で、生成される取り込みが消えて宣言が揃っていると判断し、CF0310 を出したり出さなかったりした。
     /// </remarks>
     [Fact]
     public void 入れ子で使い回した取り込みの結果も外側の記録に入る()
@@ -257,7 +257,7 @@ public sealed class IncludeCacheTests
     /// </para>
     /// <para>
     /// Unity 同梱の <c>RestirSpatial.compute</c> で実際に起きていた。
-    /// <c>RingBuffer</c> が「どこにも宣言されていません」(HL0310) と、
+    /// <c>RingBuffer</c> が「どこにも宣言されていません」(CF0310) と、
     /// 出たり出なかったりしていた。
     /// </para>
     /// </remarks>

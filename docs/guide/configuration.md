@@ -142,8 +142,8 @@ units:
 
 - フォルダーを指定したときは `.usf` を探します。`.ush` は名前を挙げたときだけ解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
-  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (HL0301 / HL0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (HL0340 / HL0341) は行います ([Unity 以外の環境で使う](environments.md))
+  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
+  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unity 以外の環境で使う](environments.md))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
@@ -178,7 +178,7 @@ symbols:
 ```yaml
 units:
   - files: Shaders/**/*.hlsl   # 設定ファイルからの相対の glob
-    entry: MainPS              # この名前の関数が無ければ HL0301
+    entry: MainPS              # この名前の関数が無ければ CF0301
     target: ps_6_6             # DXC の -T と同じ書き方
     defines: [USE_FOO=1]       # この単位でだけ定義するマクロ
     symbols: [QUALITY]         # この単位で使う構成の軸。省略するとすべて
@@ -198,6 +198,9 @@ rules:
     options: { maxParameters: 4 }
 ```
 
+どのルールにも無い ID を書くと、その行に TOOL0003 (警告) を出します。その設定は効いていません。
+ID の一覧は `shaderlyn --list-rules` で表示できます (自作のルールも含みます)。
+
 ### 正規表現でまとめて指定する
 
 キーを `/` で囲むと、ルール ID の正規表現になります。接頭辞ごとにまとめて重要度を変えるときに使います。
@@ -206,7 +209,7 @@ rules:
 rules:
   /SL.*/: error          # ShaderLab の指摘はすべて error
   SL1003: warning        # ID をそのまま書いた設定は、正規表現より優先します
-  "/(HL|UN)03[0-9]{2}/": none
+  "/(CF|UN)03[0-9]{2}/": none
 ```
 
 - ID の**全体**と一致したものだけに効きます。`/SL/` は `SL0001` に当たりません (`/SL.*/` と書きます)。大文字と小文字は区別しません

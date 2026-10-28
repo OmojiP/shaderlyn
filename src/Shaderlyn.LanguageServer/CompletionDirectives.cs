@@ -36,10 +36,23 @@ internal static partial class CompletionBuilder
         ("line", "以降の行番号とファイル名を付け替える。"),
     ];
 
+    /// <summary>GLSL にだけある指令の名前と、その説明。</summary>
+    private static readonly (string Name, string Description)[] GlslDirectives =
+    [
+        ("version", "GLSL のバージョンとプロファイル (450、310 es など)。ファイルの先頭に書く。"),
+        ("extension", "拡張を使う (#extension GL_EXT_… : require / enable)。"),
+    ];
+
     /// <summary>指令の名前を候補にする。</summary>
+    /// <param name="glsl">GLSL のファイルか。<c>#version</c> と <c>#extension</c> を足し、<c>#pragma</c> の説明を GLSL のものにする。</param>
     /// <returns>候補。</returns>
-    private static ImmutableArray<CompletionItem> BuildDirectives()
-        => [.. Directives.Select(d => new CompletionItem(d.Name, KindKeyword, "指令", d.Description))];
+    private static ImmutableArray<CompletionItem> BuildDirectives(bool glsl)
+        =>
+        [
+            .. Directives.Select(d => new CompletionItem(
+                d.Name, KindKeyword, "指令", glsl && d.Name == "pragma" ? "コンパイラへの指示 (#pragma optimize(off) など)。" : d.Description)),
+            .. glsl ? GlslDirectives.Select(d => new CompletionItem(d.Name, KindKeyword, "指令", d.Description)) : [],
+        ];
 
     /// <summary><c>#pragma</c> の名前を候補にする。</summary>
     /// <returns>候補。</returns>

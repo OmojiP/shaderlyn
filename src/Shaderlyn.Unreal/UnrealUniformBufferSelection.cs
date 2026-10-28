@@ -21,7 +21,7 @@ namespace Shaderlyn.Unreal;
 /// </para>
 /// <para>
 /// すべての uniform buffer を取り込むと、シェーダーが自分で宣言した同じ名前 (<c>HairStrandsVF_CullingIndexBuffer</c>) と重なり、
-/// 二重の宣言 (HL0314) と報告していた (Unreal の HairStrandsTangent.usf)。
+/// 二重の宣言 (CF0314) と報告していた (Unreal の HairStrandsTangent.usf)。
 /// </para>
 /// <para>
 /// シェーダーのクラスの引数の構造体が持つ uniform buffer (<c>SHADER_PARAMETER_STRUCT_REF</c>) もエンジンは取り込むが、ここでは選ばない。

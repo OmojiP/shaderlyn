@@ -154,10 +154,10 @@ public sealed class LanguageServerTests
             float3 Always(float2 uv) { return uv; }
             """);
 
-        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("HL0351");
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("CF0411");
 
         Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "UN0301");
-        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0330");
+        Assert.DoesNotContain(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0201");
     }
 
     /// <summary>
@@ -181,7 +181,7 @@ public sealed class LanguageServerTests
 
         await harness.InitializeAsync();
 
-        // Missing1 と Missing2 は同じ行、Missing3 は別の行。いずれも HL0310 になる。
+        // Missing1 と Missing2 は同じ行、Missing3 は別の行。いずれも CF0310 になる。
         await harness.OpenAsync("""
             float Frag()
             {
@@ -190,23 +190,23 @@ public sealed class LanguageServerTests
             }
             """);
 
-        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("HL0310");
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync("CF0310");
 
         JsonElement target = diagnostics.EnumerateArray().Single(
             d => d.GetProperty("message").GetString()?.Contains("Missing3", StringComparison.Ordinal) == true);
 
         JsonElement actions = await harness.RequestCodeActionsAsync(target);
 
-        // スクリプト全体の HL0310 をなぞると 3 件になる。返すのはカーソルの下の 1 件だけである。
+        // スクリプト全体の CF0310 をなぞると 3 件になる。返すのはカーソルの下の 1 件だけである。
         JsonElement action = Assert.Single(actions.EnumerateArray());
-        Assert.Equal("この行で HL0310 を抑制する", action.GetProperty("title").GetString());
+        Assert.Equal("この行で CF0310 を抑制する", action.GetProperty("title").GetString());
 
         // 差し込む先は Missing3 の行 (0 始まりで 3) の先頭である。
         JsonElement edit = action.GetProperty("edit").GetProperty("changes")
             .GetProperty(harness.Uri).EnumerateArray().Single();
 
         Assert.Equal(3, edit.GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
-        Assert.Contains("shaderlyn-disable-next-line HL0310", edit.GetProperty("newText").GetString());
+        Assert.Contains("shaderlyn-disable-next-line CF0310", edit.GetProperty("newText").GetString());
     }
 
     /// <summary>
@@ -229,14 +229,14 @@ public sealed class LanguageServerTests
             }
             """);
 
-        await harness.ReceiveDiagnosticsForAsync("HL0310");
+        await harness.ReceiveDiagnosticsForAsync("CF0310");
 
         // 2 件の指摘をまたぐ範囲 (0 始まりで 2 行目の全体) を選んだ状態にあたる。
         JsonElement actions = await harness.RequestCodeActionsAsync(
-            startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 30, ruleId: "HL0310");
+            startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 30, ruleId: "CF0310");
 
         JsonElement action = Assert.Single(actions.EnumerateArray());
-        Assert.Equal("この行で HL0310 を抑制する", action.GetProperty("title").GetString());
+        Assert.Equal("この行で CF0310 を抑制する", action.GetProperty("title").GetString());
     }
 
     /// <summary>
@@ -257,13 +257,13 @@ public sealed class LanguageServerTests
 
         // 定義が無いので、条件の中の誤りは検査されない。
         JsonElement before = await harness.ReceiveDiagnosticsAsync();
-        Assert.DoesNotContain(before.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0351");
+        Assert.DoesNotContain(before.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0411");
         Assert.Contains(("_FOO", false, false), await harness.RequestConditionSymbolsAsync());
 
         await harness.SetDefinedSymbolsAsync("_FOO");
 
-        JsonElement after = await harness.ReceiveDiagnosticsForAsync("HL0351");
-        Assert.Contains(after.EnumerateArray(), d => d.GetProperty("code").GetString() == "HL0351");
+        JsonElement after = await harness.ReceiveDiagnosticsForAsync("CF0411");
+        Assert.Contains(after.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0411");
 
         // 選んだものは候補に残り、選ばれていることが分かる。残らないと外す手段が無い。
         Assert.Contains(("_FOO", true, false), await harness.RequestConditionSymbolsAsync());
@@ -1189,7 +1189,7 @@ public sealed class LanguageServerTests
     [Fact]
     public async Task 解決できないincludeをその行で報告する()
     {
-        // HL0005 は「解決できなかった」ことをファイルの先頭で伝えるが、
+        // CF0101 は「解決できなかった」ことをファイルの先頭で伝えるが、
         // どの行のパスが誤っているかは伝えない。
         await WriteHeaderBesideDocumentAsync("Included.hlsl", "#define M 1\n");
 
@@ -1204,8 +1204,8 @@ public sealed class LanguageServerTests
         await harness.OpenAsync(source);
 
         JsonElement reported = Assert.Single(
-            (await harness.ReceiveDiagnosticsForAsync("HL0321")).EnumerateArray(),
-            d => d.GetProperty("code").GetString() == "HL0321");
+            (await harness.ReceiveDiagnosticsForAsync("CF0021")).EnumerateArray(),
+            d => d.GetProperty("code").GetString() == "CF0021");
 
         Assert.Contains("Typoed.hlsl", reported.GetProperty("message").GetString()!, StringComparison.Ordinal);
 

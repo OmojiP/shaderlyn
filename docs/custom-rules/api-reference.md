@@ -683,7 +683,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 
 - **ノードの出現条件は、既定の木を基準にしたものです。** シンボルを有効にしたバリアントの木 (シンボルをまとめて有効にした木を含む) の中では、
   その木に実際にあるノードにも合わない条件が付くことがあります。構成ごとの判定は既定の木で行い、
-  バリアントの木はその木を 1 つの構成として扱ってください (組み込みの HL0310 / HL0340〜0342 / HL0360 がこの形です)
+  バリアントの木はその木を 1 つの構成として扱ってください (組み込みの CF0310 / CF0401〜0342 / CF0501 がこの形です)
 - **その木が表す構成を掛けてください** (`GetTreeConfiguration(program)`)。既定の木の `AnalyzedCondition` は「常に」ですが、
   実際にはバリアントになったシンボルをどれも無効にした構成です。掛けないと、どの木も解析していない組み合わせについてまで報告します
 
@@ -803,7 +803,7 @@ foreach (CalledFunction callee in c.Compilation.EnumerateCallees(c.Node, c.Progr
 
 ### `TryGetIdentifierUndeclaredCondition`
 
-識別子が指すグローバル変数が宣言されていない構成があるかを調べ、あればその構成を返します。組み込みのルール HL0315 と同じ判断です。
+識別子が指すグローバル変数が宣言されていない構成があるかを調べ、あればその構成を返します。組み込みのルール CF0315 と同じ判断です。
 
 ```csharp
 if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out SymbolCondition undeclared))
@@ -812,7 +812,7 @@ if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out Sym
 }
 ```
 
-- 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (HL0310 の範囲) は `false` です
+- 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (CF0310 の範囲) は `false` です
 - 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比べ、ありえない構成と `#error` に到達する構成を除きます
 - 条件を追えなかったとき、どの構成でも解析しなかった領域に名前があるとき、依存関係が解決できていないときは `false` です
 
@@ -833,7 +833,7 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 ### `CallCompatibility` (`Shaderlyn.Semantics.Programs`)
 
 呼び出しが宣言に合うかを、自分で 1 つずつ確かめるための判定です。
-`ResolveCall` と組み込みルール (HL0340〜HL0342) も同じ判定を使っています。
+`ResolveCall` と組み込みルール (CF0401〜CF0403) も同じ判定を使っています。
 
 | メンバー                                   |                                                              |
 | ------------------------------------------ | ------------------------------------------------------------ |
@@ -854,14 +854,14 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 | `GetCondition(node)`           | そのノードが存在する条件 (`SymbolCondition`)。入れ子の条件は掛け合わさる |
 | `IsPossible(condition)`        | その条件が成り立つ構成があるか。同じ `#pragma` 行のシンボルは同時に有効にならないこと、`_` の無い `multi_compile` の行はどれか 1 つが必ず有効なことも考える |
 | `EnumerateConditional()`       | 条件が付いているノードの一覧                                             |
-| `UnmergedLocations`            | 条件を追えなかった箇所。`HL0007` として報告される                        |
+| `UnmergedLocations`            | 条件を追えなかった箇所。`CF0103` として報告される                        |
 | `IsComplete`                   | 条件を追えなかった箇所が 1 つも無いか                                    |
 
 **構成によって起きる誤りは、起きる構成を添えて報告してください。** 組み込みルールはこの形で書いています。
 シンボルの構成はどれもいつか通るコードなので、1 つの構成でしか起きない誤りも直すべき誤りです。
 黙っていると、そのシンボルを有効にしたときだけ現れる不具合になります。
 
-判定は条件の演算で書きます。たとえば「呼んでいる関数の定義が無い構成があるか」(HL0311) は、
+判定は条件の演算で書きます。たとえば「呼んでいる関数の定義が無い構成があるか」(CF0311) は、
 「呼ぶ位置の条件 ∧ ¬定義がある条件」が成り立ちうるかです。
 
 ```csharp
@@ -984,10 +984,10 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
 | `Parse` | 単位のコードを環境の言語で読む。`IHlslEnvironment` は HLSL として読む (実装しなくてよい) |
 | `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
-| `ReadEntryPoints` | エントリポイント (`ShaderEntryPoint`)。HL0301 が見る |
-| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (HL0330) |
-| `IsGeneratedInclude` | ビルドのときに生成される取り込みか (HL0321 にしない) |
-| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。HL0340 / HL0341 が見る |
+| `ReadEntryPoints` | エントリポイント (`ShaderEntryPoint`)。CF0301 が見る |
+| `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (CF0201) |
+| `IsGeneratedInclude` | ビルドのときに生成される取り込みか (CF0021 にしない) |
+| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。CF0401 / CF0402 が見る |
 
 ### `ShaderCompilation.Create`
 

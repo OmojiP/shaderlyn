@@ -745,6 +745,7 @@ Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.Typ
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax] Fields { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Members { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Modifiers { get; set; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String Name { get; }

@@ -26,7 +26,7 @@ public readonly record struct SymbolGroup(ImmutableArray<string> Symbols, bool R
 /// <para>
 /// <b>「どれが宣言か」の判断は 1 か所に置く。</b>
 /// この判断は 2 か所で必要になる。
-/// 宣言と使用が噛み合っているかを検査するルール (HL0330 / HL0331) と、
+/// 宣言と使用が噛み合っているかを検査するルール (CF0201 / CF0202) と、
 /// シンボルを 1 つずつ有効にして展開する解析である。
 /// </para>
 /// <para>

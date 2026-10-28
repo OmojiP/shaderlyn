@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics.Conditional;
@@ -82,8 +83,8 @@ public sealed class ExpressionTypeBinder
     /// <summary>型を求める対象の木。</summary>
     public AnalyzedProgram Program { get; }
 
-    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。</summary>
-    public ShaderTypeSystem TypeSystem => _compilation.TypeSystem;
+    /// <summary>解析した言語の型システム (<see cref="ShaderCompilation.TypeSystem"/>)。この木の言語のバージョンのもの。</summary>
+    public ShaderTypeSystem TypeSystem { get; }
 
     /// <summary>
     /// 束縛器を生成する。
@@ -97,6 +98,7 @@ public sealed class ExpressionTypeBinder
 
         _compilation = compilation;
         Program = program;
+        TypeSystem = compilation.TypeSystem.ForTree(program.Tree);
         _ownUniforms = program.Uniforms
             .GroupBy(uniform => uniform.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -117,7 +119,7 @@ public sealed class ExpressionTypeBinder
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
-            TypeSystem = _compilation.TypeSystem,
+            TypeSystem = TypeSystem,
             TypeAliases = program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -676,7 +678,7 @@ public sealed class ExpressionTypeBinder
                 _functionSignatures,
                 _structFields)
             {
-                TypeSystem = _compilation.TypeSystem,
+                TypeSystem = TypeSystem,
                 TypeAliases = Program.Tree.Root.TypeAliases,
                 StructFunctions = _structFunctions,
                 TemplateFunctions = _templateFunctions,
@@ -716,7 +718,7 @@ public sealed class ExpressionTypeBinder
     /// </returns>
     /// <remarks>
     /// Unreal Engine の NaniteRasterizer.ush は、仮引数 <c>FWritePixel WritePixel</c> を <c>WritePixel(...)</c> と呼ぶ。
-    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (HL0340 / HL0341)。
+    /// 大域の同じ名前の関数と照らすと、正しい呼び出しを誤りと言うことになる (CF0401 / CF0402)。
     /// </remarks>
     internal bool CallsNonGlobalFunction(InvocationExpressionSyntax invocation, string name)
         => IsEnclosingStructFunction(invocation, name)
@@ -1102,7 +1104,7 @@ public sealed class ExpressionTypeBinder
             _structFields,
             overrides.Count == 0 ? null : overrides.ToFrozenDictionary(StringComparer.Ordinal))
         {
-            TypeSystem = _compilation.TypeSystem,
+            TypeSystem = TypeSystem,
             TypeAliases = Program.Tree.Root.TypeAliases,
             StructFunctions = _structFunctions,
             TemplateFunctions = _templateFunctions,
@@ -1155,7 +1157,7 @@ public sealed class ExpressionTypeBinder
             return 1;
         }
 
-        return _compilation.TypeSystem.TryDescribeNumeric(
+        return TypeSystem.TryDescribeNumeric(
                    GetEvaluatorFor(expression).Evaluate(expression), out ShaderNumericShape shape)
             ? shape.Rows * shape.Columns
             : null;
@@ -1287,6 +1289,10 @@ public sealed class ExpressionTypeBinder
 
                     case ConstantBufferDeclarationSyntax buffer:
                         Collect(buffer.Members);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        Collect(block.Members);
                         break;
 
                     case NamespaceDeclarationSyntax ns:

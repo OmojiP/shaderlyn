@@ -3,20 +3,19 @@ using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Text;
-using Shaderlyn.Glsl;
 using Shaderlyn.Semantics;
 
 namespace Shaderlyn.Cli.Environments;
 
 /// <summary>
-/// 構文だけを読む環境。意味解析とルールはまだ働かない言語 (GLSL・Godot・Slang・WGSL) のためにある。
+/// 構文だけを読む環境。意味解析とルールはまだ働かない言語 (Godot・Slang・WGSL) のためにある。
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>意味解析のモデル (<see cref="ShaderCompilation"/>) を作らない。</b>
 /// ルールはモデルが無ければ何もしないので、出るのは構文エラーだけになる。
 /// HLSL のルールを他の言語の木に当てると、型や組み込み関数を知らないために誤検出が出る (GLSL の <c>vec3</c> を宣言されていない名前と読むなど)。
-/// 言語の型システム (GL2 など) ができたら、意味解析を働かせる。
+/// GLSL は 0.3.1 から意味解析のモデルを作る (<see cref="GlslAnalysisEnvironment"/>)。
 /// </para>
 /// <para>
 /// 読む方法 (<c>parse</c>) が無い言語は、木を作らない (何も指摘しない)。まだ読めない言語で、正しいコードを構文エラーにしないためである。
@@ -32,9 +31,6 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
     ImmutableArray<string> defaultExtensions,
     Func<SourceText, PreprocessorOptions, ShaderSyntaxTree>? parse) : IAnalysisEnvironment
 {
-    /// <summary>GLSL の環境の名前。</summary>
-    public const string GlslName = "glsl";
-
     /// <summary>Godot の環境の名前。</summary>
     public const string GodotName = "godot";
 
@@ -43,18 +39,6 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
 
     /// <summary>WGSL の環境の名前。</summary>
     public const string WgslName = "wgsl";
-
-    /// <summary>GLSL のステージを表す拡張子と、取り込まれる側の <c>.glsl</c>。</summary>
-    public static ImmutableArray<string> GlslExtensions { get; } =
-    [
-        ".vert", ".frag", ".comp", ".geom", ".tesc", ".tese",
-        ".mesh", ".task", ".rgen", ".rint", ".rahit", ".rchit", ".rmiss", ".rcall", ".glsl",
-    ];
-
-    /// <summary>GLSL の環境を作る。構文だけを読む (単位 P2 の試作のパーサー)。</summary>
-    /// <returns>環境。</returns>
-    public static SyntaxOnlyAnalysisEnvironment CreateGlsl()
-        => new(GlslName, "GLSL", GlslExtensions, GlslSyntaxTree.Parse);
 
     /// <summary>Godot の環境を作る。まだ読まない (GD1 で読む)。</summary>
     /// <returns>環境。</returns>
@@ -126,7 +110,7 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
                 PredefinedMacros = semantics.PredefinedMacros ?? ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.Ordinal),
 
                 // 解決できない取り込みは、その中の構文を読めていないことになる。黙っていると、検査したように見える。
-                // HLSL の環境は意味解析のルール (HL0321 など) が伝えるが、この環境にはモデルが無いので展開の段で伝える。
+                // HLSL の環境は意味解析のルール (CF0021 など) が伝えるが、この環境にはモデルが無いので展開の段で伝える。
                 ReportUnresolvedIncludes = true,
             };
 }

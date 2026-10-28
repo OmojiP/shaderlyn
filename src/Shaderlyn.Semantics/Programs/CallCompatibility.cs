@@ -10,7 +10,7 @@ namespace Shaderlyn.Semantics.Programs;
 /// <remarks>
 /// <para>
 /// <b>1 か所に置く。</b>
-/// 呼び出しの誤りを報告するルール (HL0340 / HL0341 / HL0342) と、
+/// 呼び出しの誤りを報告するルール (CF0401 / CF0402 / CF0403) と、
 /// 呼び出しを宣言へ結びつける <see cref="ShaderCompilation.ResolveCall"/> は、同じ判定を使う。
 /// 書き写すと、片方だけを直したときにルールの指摘と解決の結果が食い違う。
 /// </para>

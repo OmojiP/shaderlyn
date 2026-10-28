@@ -458,7 +458,7 @@ internal sealed partial class ShaderPreprocessor
     /// <para>
     /// 条件を記号として読む経路 (<see cref="TryReadDefinedCondition"/>) は、並べる対象のキーワードしか記録しない。
     /// 並べ直しのために外したキーワード (<c>MergedMacroConflicts</c>) を <c>#if _BLOOM_HQ</c> の形で見ていると、どこにも記録されず、
-    /// 「条件のどこにも現れない」(HL0331) と報告され、そのキーワードを有効にした構成も作られなかった。
+    /// 「条件のどこにも現れない」(CF0202) と報告され、そのキーワードを有効にした構成も作られなかった。
     /// </para>
     /// <para>
     /// <c>defined(X)</c> の形は、値を解くときに記録している (<see cref="ResolveDefinedOperators"/>)。
@@ -602,7 +602,7 @@ internal sealed partial class ShaderPreprocessor
     /// ノードに条件を付けるのは、そのノードがどれか 1 つの範囲の内側にあるときである。
     /// 関数の本体に <c>#if</c> を書くと、関数そのものはどの範囲の内側にも収まらず、条件が付かなかった (「常に」)。
     /// <c>#if A … #elif B</c> の分岐ごとに同じ名前の関数を書くと、それらを同時に存在すると判断し、
-    /// 重複した宣言 (HL0314) と報告していた (HDRP の MotionBlurMotionVecPrep.compute)。
+    /// 重複した宣言 (CF0314) と報告していた (HDRP の MotionBlurMotionVecPrep.compute)。
     /// 分岐全体の範囲を分岐の条件で足せば、分岐をまたぐノードにも条件が付く。
     /// 入れ子の中の範囲には、外側の条件を含む条件が付いているので、重ねて掛けても変わらない。
     /// </para>
@@ -792,7 +792,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>値を持つシンボルは、条件には名前で書かれ、並べる対象は原子である。</b>
     /// 名前で照らすと、読めない条件 (<c>#if (OFFSET == 0) * 1</c>) で並べられなかったことが記録に残らず、
     /// ほかの値の構成も作られなかった。その連なりのほかの値の側はどの木にも載らず、
-    /// そこにある宣言を使う文を「宣言されていない」(HL0310) と報告していた。
+    /// そこにある宣言を使う文を「宣言されていない」(CF0310) と報告していた。
     /// </remarks>
     private List<string> BothBranchSymbolsOf(string name)
     {
@@ -1122,7 +1122,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>整数のリテラルに展開するマクロ (<c>#define TAA_QUALITY_LOW 0</c>) も読む。</b>
     /// Unreal のシェーダーは、パーミュテーションの値に名前を付けて <c>#if TAA_QUALITY == TAA_QUALITY_LOW</c> と比べる。
     /// 読めないと、条件を記号として扱えず、<c>#elif</c> の連なりのすべての分岐を同じ条件で読んで、
-    /// 分岐ごとのマクロの定義を「定義し直し」(HL0008) と報告していた。
+    /// 分岐ごとのマクロの定義を「定義し直し」(CF0004) と報告していた。
     /// 構成によって定義の変わるマクロと、構成によって変わる名前 (値を持つシンボルそのものなど) は、値が 1 つに決まらないので読まない。
     /// </remarks>
     private bool TryReadIntegerOperand(ShaderSyntaxToken token, out int value)
@@ -1270,7 +1270,7 @@ internal sealed partial class ShaderPreprocessor
     /// <b>宣言されたシンボルに限る。</b>
     /// <c>#if SHADER_API_D3D11</c> や <c>#if UNITY_VERSION &gt;= 600</c> は
     /// 値としての判定であり、単一構成で解けば済む。
-    /// 名前そのものは記録しておく。スペルミスは <c>HL0330</c> が拾う。
+    /// 名前そのものは記録しておく。スペルミスは <c>CF0201</c> が拾う。
     /// </para>
     /// </remarks>
     private SymbolCondition? ReadSymbolAtom(ImmutableArray<ShaderSyntaxToken> line, ref int index, ConditionReading reading)
@@ -1899,8 +1899,8 @@ internal sealed partial class ShaderPreprocessor
     /// <remarks>
     /// <para>
     /// <b>Unreal Engine のヘッダは、インクルードガードではなく <c>#pragma once</c> で 2 度目の取り込みを防ぐ。</b>
-    /// 扱わずにいると、同じヘッダを何度も展開し (同じ宣言の重複 HL0314、同じマクロの再定義)、
-    /// ヘッダどうしが互いを取り込むだけで循環 (HL0320) と報告し、展開の量も膨れ上がっていた。
+    /// 扱わずにいると、同じヘッダを何度も展開し (同じ宣言の重複 CF0314、同じマクロの再定義)、
+    /// ヘッダどうしが互いを取り込むだけで循環 (CF0020) と報告し、展開の量も膨れ上がっていた。
     /// DXC と FXC は、2 度目の取り込みを丸ごと飛ばす。
     /// </para>
     /// <para>

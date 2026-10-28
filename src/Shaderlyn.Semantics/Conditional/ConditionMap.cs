@@ -161,7 +161,7 @@ public sealed class ConditionMap
         // ノードと同じコードブロック (Pass) の展開が並べた範囲だけを見る。共通のヘッダは Pass の間で同じ位置にあるが、
         // あるキーワードを宣言していない Pass には、その分岐の条件は無い (その Pass では常に既定の分岐を読む)。
         // 範囲の位置だけで引くと、キーワードを持つ Pass で付いた条件が持たない Pass の木にも付き、
-        // 「そのキーワードのとき宣言が無い」(HL0310) や「値を返さない経路がある」(HL0360) と誤って報告していた。
+        // 「そのキーワードのとき宣言が無い」(CF0310) や「値を返さない経路がある」(CF0501) と誤って報告していた。
         (int Start, string? Kernel)? block = FindBlock(node);
 
         foreach (ConditionalRegion region in _regions)

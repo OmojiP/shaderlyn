@@ -109,11 +109,11 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Equal(ExitCode.DiagnosticsFound, code);
 
         // パーミュテーションの値ごとに読み分け、値を添えて報告する。
-        Assert.Contains("HL0312", output, StringComparison.Ordinal);
+        Assert.Contains("CF0312", output, StringComparison.Ordinal);
         Assert.Contains("PERMUTATION_HIGH_QUALITY == 1", output, StringComparison.Ordinal);
 
-        // 生成される取り込みは誤りとして報告しない。中身を知らないことは HL0005 で伝える。
-        Assert.DoesNotContain("HL0321", output, StringComparison.Ordinal);
+        // 生成される取り込みは誤りとして報告しない。中身を知らないことは CF0101 で伝える。
+        Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);
         Assert.Contains("エンジンが生成するファイル", output, StringComparison.Ordinal);
         Assert.Contains("1 ファイルを解析", output, StringComparison.Ordinal);
@@ -121,7 +121,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// 宣言する関数が決まっている生成される取り込み (uniform buffer の宣言、GeneratedInstancedStereo.ush) だけが欠けているなら、
-    /// ほかの名前の呼び出しは多重定義と照らす (HL0341)。以前はエンジンのシェーダーのほとんどで検査を止めていた。
+    /// ほかの名前の呼び出しは多重定義と照らす (CF0402)。以前はエンジンのシェーダーのほとんどで検査を止めていた。
     /// </summary>
     [Fact]
     public async Task 宣言する関数が決まっている生成ファイルだけが欠けていれば呼び出しを検査する()
@@ -304,7 +304,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         (_, string output, _) = await RunAsync(_workDirectory);
 
-        Assert.DoesNotContain("HL0341", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0402", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -346,12 +346,12 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// <c>--unreal-generate</c> で C++ から uniform buffer の宣言とエンジンが定義するマクロの名前を書き出し、
-    /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (HL0310) を行う。
+    /// <c>unreal: generated</c> に書けば、宣言が揃ったものとして宣言の検査 (CF0310) を行う。
     /// </summary>
     /// <summary>
     /// エンジンと同じく、単位が名前で参照する uniform buffer だけを取り込む。
     /// すべてを取り込むと、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
-    /// 二重の宣言 (HL0314) と報告していた (Unreal の HairStrandsTangent.usf の HairStrandsVF_CullingIndexBuffer)。
+    /// 二重の宣言 (CF0314) と報告していた (Unreal の HairStrandsTangent.usf の HairStrandsVF_CullingIndexBuffer)。
     /// </summary>
     [Fact]
     public async Task 名前で参照するuniform_bufferだけを取り込む()
@@ -416,9 +416,9 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0310", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Own.usf(2:", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains("Both.usf(2:", StringComparison.Ordinal) && line.Contains("HL0314", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains("Both.usf(2:", StringComparison.Ordinal) && line.Contains("CF0314", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -488,13 +488,13 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0005", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0101", output, StringComparison.Ordinal);
         Assert.Contains("'Undeclared'", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains("HL0310", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains("CF0310", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// 欠けているのが生成されるファイルだけなら、HL0005 ではなく Unreal のルールで伝える。
+    /// 欠けているのが生成されるファイルだけなら、CF0101 ではなく Unreal のルールで伝える。
     /// C++ から作れるものが欠けていれば UE0001、マテリアルごとに作られるものだけなら UE0002。
     /// </summary>
     [Fact]
@@ -533,10 +533,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("--unreal-generate", output, StringComparison.Ordinal);
         Assert.Contains("MaterialPass.usf(1:1): info UE0002", output, StringComparison.Ordinal);
 
-        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので HL0005 で伝える。
-        Assert.Contains("BrokenPass.usf(1:1): info HL0005", output, StringComparison.Ordinal);
+        // 生成されないファイルも欠けていれば、設定の誤りの見込みが高いので CF0101 で伝える。
+        Assert.Contains("BrokenPass.usf(1:1): info CF0101", output, StringComparison.Ordinal);
         Assert.DoesNotContain("BrokenPass.usf(1:1): info UE", output, StringComparison.Ordinal);
-        Assert.Single(output.Split('\n'), line => line.Contains(": info HL0005", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains(": info CF0101", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -595,7 +595,10 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("#include \"/Engine/Generated/UniformBuffers/Outer.ush\"", File.ReadAllText(Path.Combine(output, "GeneratedUniformBuffers.ush")), StringComparison.Ordinal);
     }
 
-    /// <summary>マテリアルのシェーダーには、エンジンと同じく <c>IS_MATERIAL_SHADER=1</c> を定義する。</summary>
+    /// <summary>
+    /// マテリアルのシェーダーには、エンジンと同じく <c>IS_MATERIAL_SHADER=1</c> を定義する。
+    /// ブレンドモードは既定のマテリアルと同じ不透明 (<c>MATERIALBLENDING_SOLID=1</c>) にする。
+    /// </summary>
     [Fact]
     public async Task マテリアルのシェーダーにはマテリアルの印を定義する()
     {
@@ -617,6 +620,11 @@ public sealed class UnrealEnvironmentTests : IDisposable
             #else
             float MarkerGlobal = ;
             #endif
+            #if MATERIALBLENDING_SOLID
+            float MarkerSolid = ;
+            #elif MATERIALBLENDING_TRANSLUCENT
+            float MarkerTranslucent = ;
+            #endif
             """);
         Write("Shaders/Private/GlobalPass.usf", """
             #if IS_MATERIAL_SHADER
@@ -630,6 +638,8 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         Assert.Contains("MaterialPass.usf(3:", output, StringComparison.Ordinal);
         Assert.DoesNotContain("MaterialPass.usf(5:", output, StringComparison.Ordinal);
+        Assert.Contains("MaterialPass.usf(8:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialPass.usf(10:", output, StringComparison.Ordinal);
         Assert.Contains("GlobalPass.usf(4:", output, StringComparison.Ordinal);
         Assert.DoesNotContain("GlobalPass.usf(2:", output, StringComparison.Ordinal);
     }
@@ -1103,7 +1113,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         // 登録したエントリポイントが無ければ、どの C++ の登録からかを添えて報告する。
         Assert.Contains("Missing.usf", output, StringComparison.Ordinal);
-        Assert.Contains("HL0301", output, StringComparison.Ordinal);
+        Assert.Contains("CF0301", output, StringComparison.Ordinal);
         Assert.Contains("IMPLEMENT_GLOBAL_SHADER", output, StringComparison.Ordinal);
     }
 
@@ -1223,7 +1233,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
               generated: Generated
             """);
 
-        // エントリポイントはコンソールのヘッダにある。PC で読むと HL0301 になっていた。
+        // エントリポイントはコンソールのヘッダにある。PC で読むと CF0301 になっていた。
         Write("Engine/Shaders/Private/Decode.usf", "float Helper() { return 1; }\n");
 
         // モバイルでない構成では宣言されない名前を使う。
@@ -1244,7 +1254,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("Decode.usf(1:1): info UE0003", output, StringComparison.Ordinal);
         Assert.Contains("FDecodeCS", output, StringComparison.Ordinal);
         Assert.Contains("Feedback.usf(1:1): info UE0003", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0301", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0301", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'Buffer'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Both.usf(1:1): info UE0003", output, StringComparison.Ordinal);
         Assert.Contains("'undeclaredOnDesktop'", output, StringComparison.Ordinal);
@@ -1342,6 +1352,233 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
         Assert.False(UnrealShaderClasses.ReadGlobalDefines(enabled).ContainsKey("SUBSTRATE_ENABLED"));
         Assert.False(UnrealShaderClasses.Read(enabled)["FVisualizeCS"].NeverCompiled);
+    }
+
+    /// <summary>
+    /// <c>GlobalBeginCompileShader</c> の後半のマクロも求める (UE 5.5 で <c>SHADING_PATH_DEFERRED</c> と
+    /// <c>FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING</c> が抜けていた)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     エンジンの C++ に <c>enum EShadingPath</c> があると、<c>EShadingPath::Deferred</c> は数になる。
+    ///     <c>GetShadingPath</c> の答えも数にしないと、比べられずに決まらなかった
+    ///   </description></item>
+    ///   <item><description>
+    ///     プラットフォームを問う関数が、シェーダーの登録の無いファイル (<c>RenderUtils.cpp</c>) にあると、読んでいなかった
+    ///   </description></item>
+    ///   <item><description>
+    ///     プラットフォームごとの ini の値 (<c>static FShaderPlatformCachedIniValue&lt;int32&gt; CVar(TEXT("r.X"));</c>) を、コンソール変数として読む
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    [Fact]
+    public void GlobalBeginCompileShaderの後半のマクロも求める()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("SceneInterface.h", """
+                enum class EShadingPath
+                {
+                	Mobile,
+                	Deferred,
+                	Num,
+                };
+                namespace ERHIFeatureLevel
+                {
+                	enum Type : int
+                	{
+                		/** OpenGL ES 3.1 */
+                		ES3_1,
+                		SM5,
+                		SM6,
+                		Num
+                	};
+                };
+                """),
+            ("RenderUtils.cpp", """
+                static TAutoConsoleVariable<int32> CVarForwardShadingForceSkyBoxBlending(
+                	TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"),
+                	0,
+                	TEXT(""),
+                	ECVF_ReadOnly);
+
+                bool ForwardShadingForcesSkyLightCubemapBlending(const FStaticShaderPlatform Platform)
+                {
+                	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"));
+                	return CVar.Get(Platform) > 0;
+                }
+                """),
+            ("ShaderCompiler.cpp", """
+                void GlobalBeginCompileShader(const FString& DebugGroupName, FShaderTarget Target, FShaderCompilerInput& Input)
+                {
+                	if (GDumpShaderDebugInfoBindless)
+                	{
+                		// ラムダの中の return は、この関数から戻らない。
+                		auto GetBindlessString = [](ERHIBindlessConfiguration InConfig)
+                			{
+                				switch (InConfig)
+                				{
+                				default:
+                				case ERHIBindlessConfiguration::Disabled: return TEXT("Off");
+                				}
+                			};
+                	}
+                	SET_SHADER_DEFINE(Input.Environment, SM5_OR_LATER, GetMaxSupportedFeatureLevel(ShaderPlatform) >= ERHIFeatureLevel::SM5);
+                	SET_SHADER_DEFINE(Input.Environment, FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING, ForwardShadingForcesSkyLightCubemapBlending(ShaderPlatform) ? 1 : 0);
+                	if (FSceneInterface::GetShadingPath(GetMaxSupportedFeatureLevel(ShaderPlatform)) == EShadingPath::Deferred)
+                	{
+                		SET_SHADER_DEFINE(Input.Environment, SHADING_PATH_DEFERRED, 1);
+                	}
+                }
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, string> defines = UnrealShaderClasses.ReadGlobalDefines(output);
+        Assert.Equal("1", defines["SHADING_PATH_DEFERRED"]);
+        Assert.Equal("0", defines["FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING"]);
+
+        // 名前空間で包んだ列挙 (ERHIFeatureLevel::SM5) を、名前空間の名前で引く。PC の Direct3D 12 は SM6。
+        Assert.Equal("1", defines["SM5_OR_LATER"]);
+
+        // ini の値 (DefaultEngine.ini の [/Script/Engine.RendererSettings]) が C++ の既定値より優先する。
+        string forced = Path.Combine(_workDirectory, "Forced");
+        UnrealUniformBufferGenerator.GenerateFromTexts(
+            sources,
+            forced,
+            consoleVariableOverrides: ImmutableDictionary<string, string>.Empty.WithComparers(StringComparer.OrdinalIgnoreCase)
+                .Add("r.ForwardShading.ForceSkyLightCubemapBlending", "1"));
+
+        Assert.Equal("1", UnrealShaderClasses.ReadGlobalDefines(forced)["FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING"]);
+    }
+
+    /// <summary>
+    /// 条件の決まらない分岐の中の <c>return</c> も、関数の戻り値に入れる。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <c>if (決まらない) { return true; } return false;</c> は決まらない。後ろの <c>return false;</c> だけを見ると、
+    ///     コンパイルされるクラスを、されないと読む (PostProcessMaterial.cpp の FPostProcessMaterialPS)
+    ///   </description></item>
+    ///   <item><description>
+    ///     <c>if (決まらない) { return false; } return false;</c> は false である (Substrate.cpp の FSubstrateClosureTilePassCS)
+    ///   </description></item>
+    ///   <item><description>
+    ///     決まらない分岐が戻るだけなら、そのあとのローカル変数の値は使える。交差シェーダーを使うクラスは、
+    ///     プロシージャルなプリミティブを扱える頂点ファクトリとだけコンパイルされる (PathTracing.cpp の TPathTracingMaterial)
+    ///   </description></item>
+    /// </list>
+    /// </remarks>
+    [Fact]
+    public void 決まらない分岐の中のreturnも戻り値に入れる()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("VertexFactories.cpp", """
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FLocalVertexFactory, "/Engine/Private/LocalVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsRayTracing);
+                IMPLEMENT_VERTEX_FACTORY_TYPE(FHairStrandsVertexFactory, "/Engine/Private/HairStrands/HairStrandsVertexFactory.ush",
+                	EVertexFactoryFlags::UsedWithMaterials | EVertexFactoryFlags::SupportsRayTracing | EVertexFactoryFlags::SupportsRayTracingProceduralPrimitive);
+                """),
+            ("Passes.cpp", """
+                class FPostProcessPS : public FMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+                	{
+                		if (Parameters.MaterialParameters.MaterialDomain == MD_PostProcess)
+                		{
+                			return !IsMobilePlatform(Parameters.Platform);
+                		}
+                		return false;
+                	}
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FPostProcessPS, TEXT("/Engine/Private/PostProcess.usf"), TEXT("MainPS"), SF_Pixel);
+
+                class FDisabledCS : public FGlobalShader
+                {
+                	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+                	{
+                		if (UnknownCondition(Parameters.Platform))
+                		{
+                			return false;
+                		}
+                		return IsMobilePlatform(Parameters.Platform);
+                	}
+                };
+                IMPLEMENT_GLOBAL_SHADER(FDisabledCS, "/Engine/Private/Disabled.usf", "MainCS", SF_Compute);
+
+                template<bool UseIntersectionShader>
+                class TPathTracingMaterial : public FMeshMaterialShader
+                {
+                	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+                	{
+                		if (Parameters.MaterialParameters.MaterialDomain != MD_Surface)
+                		{
+                			return false;
+                		}
+                		const bool bUseProceduralPrimitive = Parameters.VertexFactoryType->SupportsRayTracingProceduralPrimitive();
+                		if (UseIntersectionShader != bUseProceduralPrimitive)
+                		{
+                			return false;
+                		}
+                		return true;
+                	}
+                };
+                using FPathTracingIS = TPathTracingMaterial<true>;
+                IMPLEMENT_MATERIAL_SHADER_TYPE(template <>, FPathTracingIS, TEXT("/Engine/Private/Hit.usf"), TEXT("closesthit=MainCHS intersection=MainIS"), SF_RayHitGroup);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        ImmutableDictionary<string, UnrealShaderClass> classes = UnrealShaderClasses.Read(output);
+        Assert.False(classes["FPostProcessPS"].NeverCompiled);
+        Assert.True(classes["FDisabledCS"].NeverCompiled);
+
+        // 名前の順: 0 FHairStrandsVertexFactory、1 FLocalVertexFactory。
+        string[] lines = File.ReadAllLines(Path.Combine(output, UnrealShaderClasses.FileName));
+        Assert.Contains("TPathTracingMaterial<true>\tpermutation\tSHADERLYN_VERTEX_FACTORY\t0", lines);
+    }
+
+    /// <summary>
+    /// 名前空間に書いた <c>ModifyCompilationEnvironment</c> を、名前空間の名前を付けた呼び出しから追う
+    /// (UE 5.5 の <c>DecalRendering::ModifyCompilationEnvironment</c>。デカールのクラスが呼び、<c>IS_DECAL</c> を定義する)。
+    /// </summary>
+    [Fact]
+    public void 名前空間のModifyCompilationEnvironmentの呼び出しを追う()
+    {
+        (string Path, string Text)[] sources =
+        [
+            ("DecalRenderingCommon.cpp", """
+                namespace DecalRendering
+                {
+                	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		OutEnvironment.SetDefine(TEXT("IS_DECAL"), 1);
+                	}
+                }
+                """),
+            ("Decals.cpp", """
+                class FDecalPS : public FMaterialShader
+                {
+                	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+                	{
+                		DecalRendering::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+                	}
+                };
+                IMPLEMENT_MATERIAL_SHADER_TYPE(, FDecalPS, TEXT("/Engine/Private/Decal.usf"), TEXT("MainPS"), SF_Pixel);
+                """),
+        ];
+
+        string output = Path.Combine(_workDirectory, "Generated");
+        UnrealUniformBufferGenerator.GenerateFromTexts(sources, output);
+
+        Assert.Equal("1", UnrealShaderClasses.Read(output)["FDecalPS"].Defines["IS_DECAL"]);
     }
 
     /// <summary>
@@ -1516,7 +1753,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
               permutations: {(permutations ? "true" : "false")}
             """);
 
-        // 定義されていなければ、C++ が定義する名前なので値の分からないマクロとして読み、#error に到達する構成があると伝える (HL0009)。
+        // 定義されていなければ、C++ が定義する名前なので値の分からないマクロとして読み、#error に到達する構成があると伝える (CF0104)。
         Write("Engine/Shaders/Private/Hair.usf", """
             #if HAIR_CARD_MESH_FACTORY != 1
             #error Hair cards only.
@@ -1537,8 +1774,8 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0009", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0104", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
         Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
 
         // まだ定義していなければ定義する (SetDefineIfUnset)。定義してあれば、そのまま。
@@ -1549,7 +1786,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
 
     /// <summary>
     /// 最初のエントリ関数とステージが同じで登録の文字列が違う単位 (<c>closesthit=A</c> と <c>closesthit=A anyhit=B</c>) は、クラスの名前で見分ける。
-    /// 見分けないと単位の名前 (コードブロックの鍵) が重なり、ほかの単位の分岐の宣言と重なると報告していた (HL0314)。
+    /// 見分けないと単位の名前 (コードブロックの鍵) が重なり、ほかの単位の分岐の宣言と重なると報告していた (CF0314)。
     /// </summary>
     [Fact]
     public async Task 最初のエントリ関数が同じ単位をクラスの名前で見分ける()
@@ -1599,7 +1836,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "Engine", "Shaders"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0314", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
         Assert.Contains("エラー 0 件", output, StringComparison.Ordinal);
     }
 

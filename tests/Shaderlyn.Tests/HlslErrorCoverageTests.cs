@@ -37,43 +37,43 @@ public sealed class HlslErrorCoverageTests
     public static TheoryData<string, string, string> Covered => new()
     {
         // 字句 (1001-1008)
-        { "1001", "HL0001", "/* 閉じていないコメント" },
-        { "1002", "HL0371", "static const uint h = 0xFFFFFFFFFFFFFFFFF;" },
-        { "1003", "HL0371", "static const int o = 077777777777777777777;" },
-        { "1004", "HL0371", "static const int d = 999999999999999999999999;" },
+        { "1001", "CF0001", "/* 閉じていないコメント" },
+        { "1002", "CF0511", "static const uint h = 0xFFFFFFFFFFFFFFFFF;" },
+        { "1003", "CF0511", "static const int o = 077777777777777777777;" },
+        { "1004", "CF0511", "static const int d = 999999999999999999999999;" },
 
         // プリプロセッサ (1500-1521)
-        { "1500", "HL0002", "#if )(\n#endif" },
-        { "1502", "HL0002", "#if 1" },
-        { "1503", "HL0002", "#if 1/0\n#endif" },
-        { "1504", "HL0002", "#bogus_directive" },
-        { "1508", "HL0002", "#elif 1\n#endif" },
-        { "1509", "HL0002", "#else\n#endif" },
-        { "1510", "HL0002", "#endif" },
-        { "1511", "HL0002", "#define M(a, a) a" },
-        { "1513", "HL0002", "#if 1\n#else\n#elif 0\n#endif" },
-        { "1514", "HL0002", "#if 1\n#else\n#else\n#endif" },
-        { "1516", "HL0002", "#define M(a, b) (a + b)\nstatic const int x = M(1);" },
-        { "1518", "HL0002", "#if \"text\"\n#endif" },
+        { "1500", "CF0002", "#if )(\n#endif" },
+        { "1502", "CF0002", "#if 1" },
+        { "1503", "CF0002", "#if 1/0\n#endif" },
+        { "1504", "CF0002", "#bogus_directive" },
+        { "1508", "CF0002", "#elif 1\n#endif" },
+        { "1509", "CF0002", "#else\n#endif" },
+        { "1510", "CF0002", "#endif" },
+        { "1511", "CF0002", "#define M(a, a) a" },
+        { "1513", "CF0002", "#if 1\n#else\n#elif 0\n#endif" },
+        { "1514", "CF0002", "#if 1\n#else\n#else\n#endif" },
+        { "1516", "CF0002", "#define M(a, b) (a + b)\nstatic const int x = M(1);" },
+        { "1518", "CF0002", "#if \"text\"\n#endif" },
 
-        { "1501", "HL0002", "#if 1\n#endif _STRAY" },
-        { "1519", "HL0008", "#define M 1\n#define M 2" },
+        { "1501", "CF0002", "#if 1\n#endif _STRAY" },
+        { "1519", "CF0004", "#define M 1\n#define M 2" },
 
         // 解析・意味 (3000-3999)
-        { "3000", "HL0001", "half4 broken() : SV_Target { return 1 +* ; }" },
-        { "3004", "HL0310", "static const float u = undeclaredName;" },
-        { "3013", "HL0341", "half4 f(float3 v) { return v.x; }\nstatic const float u = f(float3(0,0,0), 1).x;" },
-        { "3014", "HL0343", "static const float u = float3(1, 2).x;" },
-        { "3017", "HL0350", "half4 g(float2 uv) { float3 a = uv; return a.x; }" },
-        { "3018", "HL0312", "half4 g(float2 uv) { return uv.z; }" },
-        { "3025", "HL0342", "void s(out float3 b) { b = 0; }\nhalf4 g() { s(float3(0,0,0)); return 0; }" },
-        { "3030", "HL0370", "half4 g() { float arr[3] = {1,2,3}; return arr[5]; }" },
-        { "3079", "HL0351", "void v() { return 1; }" },
-        { "3080", "HL0360", "float3 e() { }" },
+        { "3000", "CF0001", "half4 broken() : SV_Target { return 1 +* ; }" },
+        { "3004", "CF0310", "static const float u = undeclaredName;" },
+        { "3013", "CF0402", "half4 f(float3 v) { return v.x; }\nstatic const float u = f(float3(0,0,0), 1).x;" },
+        { "3014", "CF0404", "static const float u = float3(1, 2).x;" },
+        { "3017", "CF0410", "half4 g(float2 uv) { float3 a = uv; return a.x; }" },
+        { "3018", "CF0312", "half4 g(float2 uv) { return uv.z; }" },
+        { "3025", "CF0403", "void s(out float3 b) { b = 0; }\nhalf4 g() { s(float3(0,0,0)); return 0; }" },
+        { "3030", "CF0510", "half4 g() { float arr[3] = {1,2,3}; return arr[5]; }" },
+        { "3079", "CF0411", "void v() { return 1; }" },
+        { "3080", "CF0501", "float3 e() { }" },
         { "3115", "HL0211", "Texture2D _A : register(t0);\nTexture2D _B : register(t0);\nstatic const float4 u = _A.Load(int3(0,0,0)) + _B.Load(int3(0,0,0));" },
-        { "3504", "HL0370", "half4 g() { float arr[2] = {1,2}; return arr[9]; }" },
-        { "3510", "HL0311", "half4 decl(float2 a);\nstatic const float u = decl(float2(0,0)).x;" },
-        { "3517", "HL0310", "static const float u = notDefinedAnywhere;" },
+        { "3504", "CF0510", "half4 g() { float arr[2] = {1,2}; return arr[9]; }" },
+        { "3510", "CF0311", "half4 decl(float2 a);\nstatic const float u = decl(float2(0,0)).x;" },
+        { "3517", "CF0310", "static const float u = notDefinedAnywhere;" },
     };
 
     /// <summary>
@@ -87,22 +87,22 @@ public sealed class HlslErrorCoverageTests
     public static TheoryData<string, string, string> Split => new()
     {
         // 3017 ERR_UNSUPPORTED_CAST
-        { "3017 return", "HL0351", "float3 f(float2 uv) { return uv; }" },
+        { "3017 return", "CF0411", "float3 f(float2 uv) { return uv; }" },
         {
-            "3017 引数", "HL0340",
+            "3017 引数", "CF0401",
             "half4 t(float3 v) { return v.x; }\nhalf4 f(float2 uv) { return t(uv); }"
         },
-        { "3017 初期化", "HL0350", "half4 f(float2 uv) { float3 a = uv; return a.x; }" },
-        { "3017 代入", "HL0350", "half4 f(float2 uv) { float3 a = 0; a = uv; return a.x; }" },
+        { "3017 初期化", "CF0410", "half4 f(float2 uv) { float3 a = uv; return a.x; }" },
+        { "3017 代入", "CF0410", "half4 f(float2 uv) { float3 a = 0; a = uv; return a.x; }" },
 
         // 3018 ERR_SUBSCRIPT
         {
-            "3018 どの構成にも無い", "HL0312",
+            "3018 どの構成にも無い", "CF0312",
             "struct V { float2 uv : TEXCOORD0; };\nhalf4 f(V i) { return i.notAMember; }"
         },
-        { "3018 スウィズル", "HL0312", "half4 f(float2 uv) { return uv.z; }" },
+        { "3018 スウィズル", "CF0312", "half4 f(float2 uv) { return uv.z; }" },
         {
-            "3018 その構成にだけ無い", "HL0313",
+            "3018 その構成にだけ無い", "CF0313",
             "#pragma multi_compile _ SHADER_DEBUG\n"
             + "struct V { float2 uv : TEXCOORD0;\n#ifdef SHADER_DEBUG\nfloat4 d : COLOR;\n#endif\n};\n"
             + "half4 f(V i)\n{\n#ifdef SHADER_DEBUG\nreturn i.d;\n#else\nreturn i.d;\n#endif\n}"
@@ -139,7 +139,7 @@ public sealed class HlslErrorCoverageTests
         // 書き手の意図どおりなので何も言わない。
         ImmutableArray<Diagnostic> diagnostics = Analyze("#define SAME 3\n#define SAME 3");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0008");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0004");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class HlslErrorCoverageTests
 
         Assert.DoesNotContain(
             diagnostics,
-            d => d.Id == "HL0008"
+            d => d.Id == "CF0004"
                  && d.GetMessage().Contains("定義し直しています", StringComparison.Ordinal));
     }
 
@@ -170,7 +170,7 @@ public sealed class HlslErrorCoverageTests
             + "static const half  g = 0.5h;\n"
             + "static const uint  h = 100u;");
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "HL0371");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CF0511");
     }
 
     /// <summary>埋め込みコードを解析して診断を得る。</summary>

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Shaderlyn.Semantics.Environments;
 
 namespace Shaderlyn.Cli.Environments;
 
@@ -24,7 +25,7 @@ internal static class AnalysisEnvironments
         UnityAnalysisEnvironment.EnvironmentName,
         Semantics.Environments.HlslEnvironment.EnvironmentName,
         Unreal.UnrealOptions.EnvironmentName,
-        SyntaxOnlyAnalysisEnvironment.GlslName,
+        GlslEnvironment.EnvironmentName,
         SyntaxOnlyAnalysisEnvironment.GodotName,
         SyntaxOnlyAnalysisEnvironment.SlangName,
         SyntaxOnlyAnalysisEnvironment.WgslName,
@@ -78,7 +79,7 @@ internal static class AnalysisEnvironments
             UnityAnalysisEnvironment.EnvironmentName => new UnityAnalysisEnvironment(SemanticsSetup.CreateUnity(settings)),
             Semantics.Environments.HlslEnvironment.EnvironmentName => new HlslAnalysisEnvironment(settings.Configuration),
             Unreal.UnrealOptions.EnvironmentName => CreateUnreal(settings),
-            SyntaxOnlyAnalysisEnvironment.GlslName => SyntaxOnlyAnalysisEnvironment.CreateGlsl(),
+            GlslEnvironment.EnvironmentName => new GlslAnalysisEnvironment(settings.Configuration),
             SyntaxOnlyAnalysisEnvironment.GodotName => SyntaxOnlyAnalysisEnvironment.CreateGodot(),
             SyntaxOnlyAnalysisEnvironment.SlangName => SyntaxOnlyAnalysisEnvironment.CreateSlang(),
             SyntaxOnlyAnalysisEnvironment.WgslName => SyntaxOnlyAnalysisEnvironment.CreateWgsl(),

@@ -98,7 +98,7 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: [a.hlsl]\n", "units の要素の files には値を 1 つだけ")]
     [InlineData("units:\n  - files: a.hlsl\n    entry: { name: Main }\n", "units の要素の entry には値を 1 つだけ")]
     [InlineData("symbols:\n  - name: [Q]\n", "symbols の要素の name には値を 1 つだけ")]
-    [InlineData("rules:\n  HL0301:\n    severity: [error]\n", "ルール HL0301 の severity には値を 1 つだけ")]
+    [InlineData("rules:\n  CF0301:\n    severity: [error]\n", "ルール CF0301 の severity には値を 1 つだけ")]
     public void 書き誤りを報告する(string content, string expected)
     {
         ShaderlynConfiguration configuration = Parse(content);
@@ -182,9 +182,9 @@ public sealed class HlslConfigurationTests : IDisposable
 
         Assert.True(error.Length == 0, error);
         Assert.Equal(ExitCode.DiagnosticsFound, code);
-        Assert.Contains("HL0301", output, StringComparison.Ordinal);
+        Assert.Contains("CF0301", output, StringComparison.Ordinal);
         Assert.Contains("設定ファイルの entry が指定する関数 'MainPS' が見つかりません", output, StringComparison.Ordinal);
-        Assert.Contains("HL0312", output, StringComparison.Ordinal);
+        Assert.Contains("CF0312", output, StringComparison.Ordinal);
         Assert.Contains("QUALITY == 2", output, StringComparison.Ordinal);
 
         // 取り込まれる断片 (.hlsli) はフォルダーの指定では探さない。頂点シェーダーの入口は見つかる。
@@ -193,7 +193,7 @@ public sealed class HlslConfigurationTests : IDisposable
     }
 
     /// <summary>
-    /// 既定の構成では <c>#error</c> の分岐に入る関数を、値を返さない (HL0360) と報告しない
+    /// 既定の構成では <c>#error</c> の分岐に入る関数を、値を返さない (CF0501) と報告しない
     /// (Unreal Engine の DOFPostfiltering.usf)。本当に値を返さない関数は報告する。
     /// <c>#error</c> の文の中のアポストロフィ (<c>doesn't</c>) を、閉じていない文字のリテラルにしない。
     /// </summary>
@@ -241,7 +241,7 @@ public sealed class HlslConfigurationTests : IDisposable
         Assert.True(error.Length == 0, error);
         Assert.DoesNotContain("'Pick'", output, StringComparison.Ordinal);
         Assert.Contains("'Broken'", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0001", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -378,7 +378,7 @@ public sealed class HlslConfigurationTests : IDisposable
         (_, string output, string error) = await RunAsync(_workDirectory);
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0001", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0001", output, StringComparison.Ordinal);
         Assert.Contains("'Missing'", output, StringComparison.Ordinal);
     }
 
@@ -430,7 +430,7 @@ public sealed class HlslConfigurationTests : IDisposable
 
         Assert.True(error.Length == 0, error);
         Assert.DoesNotContain("'OutVelocity'", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("HL0353", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0413", output, StringComparison.Ordinal);
         Assert.Contains("'Twice'", output, StringComparison.Ordinal);
     }
 
@@ -471,7 +471,7 @@ public sealed class HlslConfigurationTests : IDisposable
         (_, string output, string error) = await RunAsync(_workDirectory);
 
         Assert.True(error.Length == 0, error);
-        string truncated = Assert.Single(output.Split('\n'), line => line.Contains("HL0353", StringComparison.Ordinal));
+        string truncated = Assert.Single(output.Split('\n'), line => line.Contains("CF0413", StringComparison.Ordinal));
         Assert.Contains("a.hlsl(10:", truncated, StringComparison.Ordinal);
         Assert.Contains("FORMAT == 1", truncated, StringComparison.Ordinal);
     }
@@ -545,7 +545,7 @@ public sealed class HlslConfigurationTests : IDisposable
         (_, string output, string error) = await RunAsync(Path.Combine(_workDirectory, "a.hlsl"));
 
         Assert.True(error.Length == 0, error);
-        Assert.DoesNotContain("HL0313", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0313", output, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -583,7 +583,7 @@ public sealed class HlslConfigurationTests : IDisposable
         (_, string output, string error) = await RunAsync(_workDirectory);
 
         Assert.True(error.Length == 0, error);
-        Assert.Single(output.Split('\n'), line => line.Contains("Common.hlsli(2:", StringComparison.Ordinal) && line.Contains("HL0341", StringComparison.Ordinal));
+        Assert.Single(output.Split('\n'), line => line.Contains("Common.hlsli(2:", StringComparison.Ordinal) && line.Contains("CF0402", StringComparison.Ordinal));
         Assert.Contains("Common.hlsli(4:", output, StringComparison.Ordinal);
     }
 

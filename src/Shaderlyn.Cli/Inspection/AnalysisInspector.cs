@@ -626,7 +626,7 @@ internal static partial class AnalysisInspector
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <remarks>
     /// 名前がマクロとして定義されているかどうかで、ルールの判断が変わる。
-    /// たとえば HL0310 は、関数形式マクロの名前を宣言されていないとは言わない。
+    /// たとえば CF0310 は、関数形式マクロの名前を宣言されていないとは言わない。
     /// 指摘が出た・出なかった理由を確かめるには、この一覧が要る。
     /// </remarks>
     private static void WriteMacros(Utf8JsonWriter writer, ShaderCompilation compilation)

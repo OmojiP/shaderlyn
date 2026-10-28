@@ -638,7 +638,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
                 {
                     shadersWithCompleteDependencies++;
 
-                    // HL0310 が調べる識別子の数。同じ位置は構成の数だけ現れるので 1 度に数える。
+                    // CF0310 が調べる識別子の数。同じ位置は構成の数だけ現れるので 1 度に数える。
                     identifiersChecked += compilation.EnumerateRuleNodes()
                         .Select(pair => pair.Node)
                         .OfType<CFamily.Syntax.IdentifierExpressionSyntax>()
@@ -701,7 +701,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// (条件の巻き上げ)。
     /// </para>
     /// <para>
-    /// 見るのは <c>HL0001</c> (構文エラー) が増えていないことである。
+    /// 見るのは <c>CF0001</c> (構文エラー) が増えていないことである。
     /// 複製する単位を取り違えると、文にならない断片が並び、そこから先の構文解析が総崩れになる。
     /// </para>
     /// <para>
@@ -1011,7 +1011,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// <param name="text">シェーダーのテキスト。</param>
     /// <param name="options">実行時設定。</param>
     /// <param name="results">コードブロックごとの展開結果。</param>
-    /// <returns><c>HL0001</c> の数。</returns>
+    /// <returns><c>CF0001</c> の数。</returns>
     private static int CountSyntaxErrors(
         SourceText text,
         Semantics.SemanticsOptions options,
@@ -1026,7 +1026,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
 
         return compilation.Programs
             .SelectMany(p => p.Diagnostics)
-            .Count(d => d.Id == "HL0001");
+            .Count(d => d.Id == "CF0001");
     }
 
     /// <summary>
@@ -1035,13 +1035,13 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// <remarks>
     /// <list type="bullet">
     ///   <item><description><c>SL1001</c> / <c>SL1004</c>: プロパティがどれかの Pass で宣言・使用されているか</description></item>
-    ///   <item><description><c>HL0330</c> / <c>HL0331</c>: キーワードがどれかの Pass で宣言・使用されているか</description></item>
-    ///   <item><description><c>HL0005</c> / <c>HL0006</c>: ファイルとして何を調べなかったか</description></item>
+    ///   <item><description><c>CF0201</c> / <c>CF0202</c>: キーワードがどれかの Pass で宣言・使用されているか</description></item>
+    ///   <item><description><c>CF0101</c> / <c>CF0102</c>: ファイルとして何を調べなかったか</description></item>
     ///   <item><description><c>SL1041</c>: 同じ SubShader の Pass 名の重複。Pass が 2 つ以上なければ起きない</description></item>
     /// </list>
     /// </remarks>
     private static readonly ImmutableHashSet<string> ShaderWideRules =
-        ["SL1001", "SL1004", "HL0330", "HL0331", "HL0005", "HL0006", "SL1041"];
+        ["SL1001", "SL1004", "CF0201", "CF0202", "CF0101", "CF0102", "SL1041"];
 
     /// <summary>
     /// Pass やカーネルを 1 つずつに分けて解析しても、Pass ごとに判定するルールの指摘が変わらないことを確かめる。

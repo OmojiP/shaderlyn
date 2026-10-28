@@ -335,21 +335,28 @@ public sealed class VariableDeclaratorSyntax(
     /// <summary>変数名。</summary>
     public string Name => NameToken.Text;
 
-    /// <summary>配列の次元を表すトークン。</summary>
+    /// <summary>配列の次元を表すトークン (変数名の後ろに書いたもの)。</summary>
+    /// <remarks>型の側に書いた配列 (GLSL の <c>float[3] a</c>) は含まない。配列かどうかは <see cref="IsArray"/> で調べる。</remarks>
     public ImmutableArray<ShaderSyntaxToken> ArrayRankTokens { get; } = arrayRankTokens;
 
-    /// <summary>配列かどうか。</summary>
-    public bool IsArray => !ArrayRankTokens.IsEmpty;
+    /// <summary>配列かどうか。型の側に書いた配列 (GLSL の <c>float[3] a</c>) も含む。</summary>
+    public bool IsArray => !AllArrayRanks.IsEmpty;
 
     /// <summary>配列の次元の数。配列でなければ 0。</summary>
-    public int ArrayDimensions => ShaderSyntaxFacts.CountArrayDimensions(ArrayRankTokens);
+    public int ArrayDimensions => ShaderSyntaxFacts.CountArrayDimensions(AllArrayRanks);
 
     /// <summary>配列の要素の総数を求める。</summary>
     /// <param name="length">要素の総数。</param>
     /// <returns>数として書かれていた場合は <see langword="true"/>。</returns>
     /// <remarks>多次元は次元の積になる。長さが式で書かれている場合は求まらない。</remarks>
     public bool TryGetArrayLength(out int length)
-        => ShaderSyntaxFacts.TryGetArrayLength(ArrayRankTokens, out length);
+        => ShaderSyntaxFacts.TryGetArrayLength(AllArrayRanks, out length);
+
+    /// <summary>変数名の後ろと、宣言の型の側 (GLSL) に書いた配列の次元。</summary>
+    private ImmutableArray<ShaderSyntaxToken> AllArrayRanks
+        => Parent is VariableDeclarationSyntax { Type.ArrayRanks: { IsEmpty: false } typeRanks }
+            ? [.. ArrayRankTokens, .. typeRanks]
+            : ArrayRankTokens;
 
     /// <summary>セマンティクスやレジスタ指定。</summary>
     public ImmutableArray<SemanticSyntax> Semantics { get; } = semantics;
@@ -469,21 +476,26 @@ public sealed class ParameterSyntax(
     /// <summary>仮引数名。</summary>
     public string Name => NameToken.Text;
 
-    /// <summary>配列の次元を表すトークン。</summary>
+    /// <summary>配列の次元を表すトークン (仮引数名の後ろに書いたもの)。</summary>
+    /// <remarks>型の側に書いた配列 (GLSL の <c>float[3] p</c>) は含まない。配列かどうかは <see cref="IsArray"/> で調べる。</remarks>
     public ImmutableArray<ShaderSyntaxToken> ArrayRankTokens { get; } = arrayRankTokens;
 
-    /// <summary>配列の仮引数かどうか。</summary>
-    public bool IsArray => !ArrayRankTokens.IsEmpty;
+    /// <summary>配列の仮引数かどうか。型の側に書いた配列 (GLSL の <c>float[3] p</c>) も含む。</summary>
+    public bool IsArray => !AllArrayRanks.IsEmpty;
 
     /// <summary>配列の次元の数。配列でなければ 0。</summary>
-    public int ArrayDimensions => ShaderSyntaxFacts.CountArrayDimensions(ArrayRankTokens);
+    public int ArrayDimensions => ShaderSyntaxFacts.CountArrayDimensions(AllArrayRanks);
 
     /// <summary>配列の要素の総数を求める。</summary>
     /// <param name="length">要素の総数。</param>
     /// <returns>数として書かれていた場合は <see langword="true"/>。</returns>
     /// <remarks>多次元は次元の積になる。長さが式で書かれている場合は求まらない。</remarks>
     public bool TryGetArrayLength(out int length)
-        => ShaderSyntaxFacts.TryGetArrayLength(ArrayRankTokens, out length);
+        => ShaderSyntaxFacts.TryGetArrayLength(AllArrayRanks, out length);
+
+    /// <summary>仮引数名の後ろと、型の側 (GLSL) に書いた配列の次元。</summary>
+    private ImmutableArray<ShaderSyntaxToken> AllArrayRanks
+        => Type.ArrayRanks.IsEmpty ? ArrayRankTokens : [.. ArrayRankTokens, .. Type.ArrayRanks];
 
     /// <summary>セマンティクス。</summary>
     public ImmutableArray<SemanticSyntax> Semantics { get; } = semantics;
@@ -732,7 +744,17 @@ public sealed class StructDeclarationSyntax(
     /// <remarks>基底のフィールドとメソッドは、この構造体のメンバーとしても使える。</remarks>
     public string? BaseTypeName => BaseType?.NameToken.Text;
 
-    /// <summary><c>struct</c> キーワード。</summary>
+    /// <summary>
+    /// キーワードの前の修飾子。ふつうの構造体では空。
+    /// </summary>
+    /// <remarks>
+    /// GLSL のインスタンスの名前を持つインターフェースブロック (<c>layout(std140) uniform UBO { mat4 m; } ubo;</c>) は、
+    /// 構造体と、それに続けて宣言した変数 (<c>struct UBO { mat4 m; } ubo;</c>) と同じ形で表す。
+    /// そのとき、最後の修飾子 (<c>uniform</c>) を <see cref="Keyword"/> に、それより前 (<c>layout(std140)</c>) をここに置く。
+    /// </remarks>
+    public ImmutableArray<ShaderSyntaxToken> Modifiers { get; init; } = [];
+
+    /// <summary><c>struct</c> キーワード。GLSL のインターフェースブロックでは、ブロックを作る修飾子 (<c>uniform</c> など)。</summary>
     public ShaderSyntaxToken Keyword { get; } = keyword;
 
     /// <summary>構造体名のトークン。</summary>
@@ -762,6 +784,11 @@ public sealed class StructDeclarationSyntax(
     /// <inheritdoc/>
     public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
     {
+        foreach (ShaderSyntaxToken modifier in Modifiers)
+        {
+            yield return modifier;
+        }
+
         yield return Keyword;
 
         if (NameToken is not null)

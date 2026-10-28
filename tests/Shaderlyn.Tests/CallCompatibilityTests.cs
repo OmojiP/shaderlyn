@@ -8,7 +8,7 @@ namespace Shaderlyn.Tests;
 /// 呼び出しが宣言に合うかの小さな判定を検証する。
 /// </summary>
 /// <remarks>
-/// ルール (HL0340〜HL0342) と <c>ResolveCall</c> の両方がこれを使う。
+/// ルール (CF0401〜CF0403) と <c>ResolveCall</c> の両方がこれを使う。
 /// 振る舞いはそれぞれのテストでも確かめているが、公開 API としての約束はここで押さえる。
 /// </remarks>
 public sealed class CallCompatibilityTests

@@ -9,7 +9,7 @@ VsOut MainVS(float3 position : POSITION, float2 uv : TEXCOORD0)
     return o;
 }
 
-// 誤り 1 (HL0301): 設定ファイルの entry は MainPS だが、関数の名前が MainPs になっている
+// 誤り 1 (CF0301): 設定ファイルの entry は MainPS だが、関数の名前が MainPs になっている
 float4 MainPs(VsOut input) : SV_Target
 {
 #if QUALITY >= 2
@@ -22,6 +22,6 @@ float4 MainPs(VsOut input) : SV_Target
     color *= FogColor.a;
 #endif
 
-    // 誤り 2 (HL0312): QUALITY == 2 のとき color は float3 なので .a は無い
+    // 誤り 2 (CF0312): QUALITY == 2 のとき color は float3 なので .a は無い
     return float4(color.rgb, color.a);
 }

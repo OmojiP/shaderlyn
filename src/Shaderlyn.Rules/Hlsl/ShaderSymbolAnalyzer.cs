@@ -13,7 +13,7 @@ using Shaderlyn.Semantics;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (HL0330 / HL0331 / HL0332)。
+/// シェーダーのシンボルの宣言と使用が噛み合っているかを検査する (CF0201 / CF0202 / CF0203)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,6 +31,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [ShaderDescriptors.UndeclaredSymbol, ShaderDescriptors.UnusedSymbol, ShaderDescriptors.NeverTrueCondition];

@@ -9,7 +9,7 @@ internal static class ShaderDescriptors
 {
     /// <summary>構文エラー。</summary>
     public static DiagnosticDescriptor SyntaxError { get; } = new(
-        id: "HL0001",
+        id: "CF0001",
         title: "構文エラー",
         messageFormat: "{0}",
         category: "Syntax",
@@ -17,11 +17,11 @@ internal static class ShaderDescriptors
         description: "HLSL の構文として解釈できない記述があります。"
             + "マクロ展開の結果として発生する場合もあるため、"
             + "該当箇所にマクロが使われている場合はその定義も確認してください。",
-        helpLinkUri: DocumentationLinks.For("HL0001"));
+        helpLinkUri: DocumentationLinks.For("CF0001"));
 
     /// <summary>プリプロセッサ指令の誤り。</summary>
     public static DiagnosticDescriptor PreprocessorError { get; } = new(
-        id: "HL0002",
+        id: "CF0002",
         title: "プリプロセッサ指令の誤り",
         messageFormat: "{0}",
         category: "Syntax",
@@ -29,7 +29,7 @@ internal static class ShaderDescriptors
         description: "プリプロセッサ指令が正しく書かれていません。"
             + "条件分岐の対応が取れていない場合、以降のコードが意図と異なる形で"
             + "有効化または無効化される可能性があります。",
-        helpLinkUri: DocumentationLinks.For("HL0002"));
+        helpLinkUri: DocumentationLinks.For("CF0002"));
 
     /// <summary>この解析ツールが解釈できない宣言。</summary>
     /// <remarks>
@@ -54,7 +54,7 @@ internal static class ShaderDescriptors
     /// <c>ShaderCompilation.HasCompleteDependencies</c> は
     /// ブロックの診断が空であることを条件にしているため、
     /// 「無いこと」を根拠とするルールはこのブロックでは何も報告しなくなり、
-    /// 見送ったことは <c>HL0005</c> が伝える。
+    /// 見送ったことは <c>CF0101</c> が伝える。
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnsupportedDeclaration { get; } = new(
@@ -68,7 +68,7 @@ internal static class ShaderDescriptors
             + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も、コンパイラと HLSL のバージョンで使えるかが変わります。"
             + "1 つのコードが API ごとに別のコンパイラや HLSL のバージョンでコンパイルされるときは、使えない API とコンパイラを添えます。"
             + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどのコンパイラと HLSL のバージョンでも使えます。"
-            + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (HL0005)。"
+            + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (CF0101)。"
             + "struct・定数・通常の関数で書き直してください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));
 
@@ -81,13 +81,13 @@ internal static class ShaderDescriptors
     /// </para>
     /// <para>
     /// 捨てた名前は、条件で参照したものとして数えない。見られていない以上、
-    /// <c>HL0331</c> (宣言したシンボルが条件に現れない) はそのまま正しい。
-    /// ただし <c>HL0331</c> はシンボルの宣言を指すので、原因の行が分からない。
+    /// <c>CF0202</c> (宣言したシンボルが条件に現れない) はそのまま正しい。
+    /// ただし <c>CF0202</c> はシンボルの宣言を指すので、原因の行が分からない。
     /// この診断は書いた行そのものを指す。
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor ExtraTokensAfterConditionName { get; } = new(
-        id: "HL0004",
+        id: "CF0003",
         title: "#ifdef / #ifndef の後ろの記述は無視されます",
         messageFormat: "#{0} の後ろに指定できるシンボルは 1 つです。'{1}' は無視されます。{2}",
         category: "Correctness",
@@ -95,16 +95,16 @@ internal static class ShaderDescriptors
         description: "#ifdef / #ifndef は直後の名前 1 つだけを条件にし、その後ろの記述を無視します。"
             + "#ifdef A || B は #ifdef A と解釈されます。"
             + "複数の名前を条件にするときは #if defined(A) || defined(B) と書いてください。",
-        helpLinkUri: DocumentationLinks.For("HL0004"));
+        helpLinkUri: DocumentationLinks.For("CF0003"));
 
     /// <summary>マクロを中身を変えて定義し直している。</summary>
     /// <remarks>
     /// <b>コンパイラは警告にするだけで、後の定義を使ってコンパイルを続ける。</b>
     /// DXC は <c>-Wmacro-redefined</c>、FXC は X1519 の警告である。
-    /// 以前はプリプロセッサ指令の誤り (HL0002、エラー) として報告し、そのブロックの検査を止めていた。
+    /// 以前はプリプロセッサ指令の誤り (CF0002、エラー) として報告し、そのブロックの検査を止めていた。
     /// </remarks>
     public static DiagnosticDescriptor MacroRedefinition { get; } = new(
-        id: "HL0008",
+        id: "CF0004",
         title: "マクロを中身を変えて定義し直しています",
         messageFormat: "{0}",
         category: "Correctness",
@@ -113,11 +113,11 @@ internal static class ShaderDescriptors
             + "コンパイラは警告を出したうえで後の定義を使うので、コンパイルは通ります。"
             + "ただし、取り込む順序や構成によって、どちらの定義が使われるかが読み手に分かりにくくなります。"
             + "意図したものなら、#undef してから定義してください。",
-        helpLinkUri: DocumentationLinks.For("HL0008"));
+        helpLinkUri: DocumentationLinks.For("CF0004"));
 
     /// <summary>include の循環参照。</summary>
     public static DiagnosticDescriptor CircularInclude { get; } = new(
-        id: "HL0320",
+        id: "CF0020",
         title: "include が循環しています",
         messageFormat: "'{0}' の include が循環しています。",
         category: "Correctness",
@@ -125,7 +125,7 @@ internal static class ShaderDescriptors
         description: "include が自分自身を直接または間接に取り込んでいます。"
             + "インクルードガード (#ifndef ... #define ... #endif) が"
             + "書かれていないか、正しく機能していない可能性があります。",
-        helpLinkUri: DocumentationLinks.For("HL0320"));
+        helpLinkUri: DocumentationLinks.For("CF0020"));
 
     /// <summary>宣言されていないシンボルを条件に使っている。</summary>
     /// <remarks>
@@ -135,7 +135,7 @@ internal static class ShaderDescriptors
     /// 綴りを 1 文字誤っただけで、その機能が丸ごと入らないまま出荷されうる。
     /// </remarks>
     public static DiagnosticDescriptor UndeclaredSymbol { get; } = new(
-        id: "HL0330",
+        id: "CF0201",
         title: "未宣言のシンボルが使用されています",
         messageFormat: "シンボル '{0}' の宣言が存在しないため、この分岐は常に無効になります。",
         category: "Correctness",
@@ -145,7 +145,7 @@ internal static class ShaderDescriptors
             + "シンボルは宣言して初めてマテリアルやスクリプトから切り替えられるため、"
             + "この分岐のコードは決してコンパイルに含まれません。"
             + "スペルミスか、pragma の書き忘れです。",
-        helpLinkUri: DocumentationLinks.For("HL0330"));
+        helpLinkUri: DocumentationLinks.For("CF0201"));
 
     /// <summary>宣言したシンボルがどこでも使われていない。</summary>
     /// <remarks>
@@ -153,7 +153,7 @@ internal static class ShaderDescriptors
     /// 使っていない宣言はビルド時間とメモリをそのぶん消費する。
     /// </remarks>
     public static DiagnosticDescriptor UnusedSymbol { get; } = new(
-        id: "HL0331",
+        id: "CF0202",
         title: "宣言したシンボルが未使用です",
         messageFormat: "シンボル '{0}' はプリプロセッサ条件で使用されていません。",
         category: "Usage",
@@ -162,7 +162,7 @@ internal static class ShaderDescriptors
             + "#ifdef などで一度も参照されていません。"
             + "シンボルは 1 つ増えるごとにバリアントの数を倍にするため、"
             + "使っていない宣言はビルド時間とメモリを無駄に消費します。",
-        helpLinkUri: DocumentationLinks.For("HL0331"));
+        helpLinkUri: DocumentationLinks.For("CF0202"));
 
     /// <summary>どの構成でも成り立たない条件を書いている。</summary>
     /// <remarks>
@@ -177,7 +177,7 @@ internal static class ShaderDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor NeverTrueCondition { get; } = new(
-        id: "HL0332",
+        id: "CF0203",
         title: "どの構成でも成り立たない条件です",
         messageFormat: "条件 '{0}' はどの構成でも成立しないため、この分岐は常に無効になります。",
         category: "Correctness",
@@ -186,7 +186,7 @@ internal static class ShaderDescriptors
             + "Unity は有効なシンボルを値 1 として定義するため、1 以外と比べる条件 (#if _A == 2) は通りません。"
             + "同じ #pragma 行のシンボルは同時に有効にならず、_ の無い multi_compile の行はどれか 1 つが必ず有効です。"
             + "この分岐のコードは決してコンパイルに含まれません。",
-        helpLinkUri: DocumentationLinks.For("HL0332"));
+        helpLinkUri: DocumentationLinks.For("CF0203"));
 
     /// <summary>include を解決できなかった。</summary>
     /// <remarks>
@@ -209,7 +209,7 @@ internal static class ShaderDescriptors
     /// </para>
     /// </remarks>
     public static DiagnosticDescriptor UnresolvedInclude { get; } = new(
-        id: "HL0321",
+        id: "CF0021",
         title: "include を解決できません",
         messageFormat: "include '{0}' を解決できませんでした。{1}",
         category: "Correctness",
@@ -219,5 +219,5 @@ internal static class ShaderDescriptors
             + "解決できない include があると、その中で定義されるマクロや型が未知のままになり、"
             + "その先の検査は根拠を欠いたまま行うことになります。"
             + "ファイルがあっても、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なら読みません。",
-        helpLinkUri: DocumentationLinks.For("HL0321"));
+        helpLinkUri: DocumentationLinks.For("CF0021"));
 }

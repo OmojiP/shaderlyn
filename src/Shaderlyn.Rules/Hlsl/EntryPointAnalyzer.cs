@@ -12,7 +12,7 @@ using Shaderlyn.Semantics.Environments;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 環境が指定したエントリポイントの関数があるかを検査する (HL0301)。
+/// 環境が指定したエントリポイントの関数があるかを検査する (CF0301)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,6 +32,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.EntryPointNotFound, HlslRuleDescriptors.EntryPointInConstantBuffer, HlslRuleDescriptors.EntryPointInConstantBufferWithDxc];

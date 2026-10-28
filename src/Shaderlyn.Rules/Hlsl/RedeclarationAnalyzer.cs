@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 同じ名前を 2 回宣言している箇所を報告する (HL0314)。
+/// 同じ名前を 2 回宣言している箇所を報告する (CF0314)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -61,6 +61,9 @@ namespace Shaderlyn.Rules;
 /// </remarks>
 internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <summary>構造体の宣言の形。関数の形 (仮引数の型の並び) や変数の形 (空) とは重ならない。</summary>
     private const string StructShape = "<struct>";
 
@@ -331,7 +334,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// 違えば別の多重定義である。型の名前だけで比べると、Unreal Engine の TSR や FFT のシェーダーを重複と報告していた。
     /// </remarks>
     private static string DescribeShape(FunctionDeclarationSyntax function)
-        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken))));
+        => string.Join(",", function.ParameterList.Select(p => p.Type.OverloadShape + new string('#', p.ArrayDimensions)));
 
     /// <summary>同じ名前の宣言をつき合わせて報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

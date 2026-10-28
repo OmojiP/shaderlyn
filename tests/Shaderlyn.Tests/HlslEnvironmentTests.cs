@@ -68,8 +68,8 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
 
         HlslEnvironment enabled = new(new HlslEnvironmentOptions { Enable16BitTypes = true });
 
-        Assert.Contains(Analyze(code, Unit(code, "ps_6_2"), environment: enabled), d => d.Id == "HL0312");
-        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "HL0312");
+        Assert.Contains(Analyze(code, Unit(code, "ps_6_2"), environment: enabled), d => d.Id == "CF0312");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -89,8 +89,8 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             }
             """;
 
-        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "HL0312");
-        Assert.Contains(Analyze(code, Unit(code, "ps_6_2") with { Enable16BitTypes = true }), d => d.Id == "HL0312");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_2")), d => d.Id == "CF0312");
+        Assert.Contains(Analyze(code, Unit(code, "ps_6_2") with { Enable16BitTypes = true }), d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             #endif
             """;
 
-        Assert.Single(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0312");
-        Assert.DoesNotContain(Analyze(code, Unit(code, "cs_6_6")), d => d.Id == "HL0312");
+        Assert.Single(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "CF0312");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "cs_6_6")), d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             EntryPoints = [new ShaderEntryPoint("MainPS", "設定ファイルの entry")],
         };
 
-        Diagnostic diagnostic = Assert.Single(Analyze(code, unit), d => d.Id == "HL0301");
+        Diagnostic diagnostic = Assert.Single(Analyze(code, unit), d => d.Id == "CF0301");
         Assert.Equal("設定ファイルの entry が指定する関数 'MainPS' が見つかりません。", diagnostic.GetMessage());
         Assert.Equal(0, diagnostic.Location.Span.Start);
     }
@@ -138,7 +138,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             EntryPoints = [new ShaderEntryPoint("MainPS", "設定ファイルの entry")],
         };
 
-        Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "HL0301");
+        Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "CF0301");
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             Variants = VariantSpace.ForValues("QUALITY", [0, 1, 2]),
         };
 
-        Assert.Single(Analyze(code, unit), d => d.Id == "HL0312");
+        Assert.Single(Analyze(code, unit), d => d.Id == "CF0312");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
     [Fact]
     public void 宣言に無い下線で始まる名前をシンボルの宣言し忘れとは言わない()
     {
-        // Unity なら HL0330 (_DEBUG がどこにも宣言されていない)。DX12 のエンジンでは普通のマクロである。
+        // Unity なら CF0201 (_DEBUG がどこにも宣言されていない)。DX12 のエンジンでは普通のマクロである。
         const string code = """
             float4 main() : SV_Target
             {
@@ -261,7 +261,7 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
             }
             """;
 
-        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "HL0330");
+        Assert.DoesNotContain(Analyze(code, Unit(code, "ps_6_6")), d => d.Id == "CF0201");
     }
 
     [Fact]
@@ -317,13 +317,13 @@ public sealed class HlslEnvironmentTests(ITestOutputHelper output)
 
         ShaderCompilationUnit unit = Unit(code, "ps_6_6");
 
-        Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "HL0310");
+        Assert.DoesNotContain(Analyze(code, unit), d => d.Id == "CF0310");
         Assert.DoesNotContain(
             Analyze(code, unit, environment: new HlslEnvironment(new HlslEnvironmentOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2018 })),
-            d => d.Id == "HL0310");
+            d => d.Id == "CF0310");
         Assert.Contains(
             Analyze(code, Unit(code, "ps_5_0"), environment: new HlslEnvironment(new HlslEnvironmentOptions { Compiler = Hlsl.Parsing.HlslCompiler.Fxc })),
-            d => d.Id == "HL0310");
+            d => d.Id == "CF0310");
     }
 
     /// <summary>ファイル全体を、ターゲットを指定した 1 つの単位にする。</summary>

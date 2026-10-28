@@ -7,24 +7,27 @@ using Shaderlyn.Semantics.Conditional;
 namespace Shaderlyn.Rules;
 
 /// <summary>
-/// 出現条件を追えなかった箇所があることを報告する (HL0007)。
+/// 出現条件を追えなかった箇所があることを報告する (CF0103)。
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>条件を根拠にするルールを入れた以上、これが要る。</b>
-/// HL0311 / HL0313 / HL0340 は、条件が分からない箇所では何も報告しない。
+/// CF0311 / CF0313 / CF0401 は、条件が分からない箇所では何も報告しない。
 /// それは正しい振る舞いだが、利用者から見ると
 /// 「問題が無かった」のと区別が付かない。
 /// </para>
 /// <para>
 /// <b>報告は追えなかった箇所そのものに出す。</b>
-/// ファイルの先頭に出す HL0005 / HL0006 と違い、
+/// ファイルの先頭に出す CF0101 / CF0102 と違い、
 /// ここでは原因の場所が分かっている。
 /// 実測では 545 組のうち 2 組でしか起きないので、量の問題にもならない。
 /// </para>
 /// </remarks>
 internal sealed class UnresolvedConditionAnalyzer : SemanticRuleAnalyzer
 {
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnresolvedCondition];

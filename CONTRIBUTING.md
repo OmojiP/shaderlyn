@@ -30,6 +30,23 @@ dotnet test
   ```
 
   指摘の一覧は `.work/corpus/report-<名前>.txt` に書き出されます
+- GLSL の組み込みの関数と変数の表 (`src/Shaderlyn.Semantics/Symbols/GlslBuiltins.g.txt`) は、glslang から作ります。
+  glslang はリポジトリに入れないので、[リリース](https://github.com/KhronosGroup/glslang/releases)から取って、実行ファイルを環境変数で渡します。
+  表の先頭に、作った glslang のバージョンが書いてあります
+
+  ```sh
+  # 表を作り直す
+  GLSLANG=<glslang の実行ファイル> node tools/glsl/builtins.mjs
+
+  # 作り直しても表が変わらないことと、GLSL のコーパスの関数の呼び出しがすべて解決することを確かめる
+  SHADERLYN_GLSLANG=<glslang の実行ファイル> SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslBuiltinsTests"
+  ```
+- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確かめる
+
+  ```sh
+  node tools/corpus/fetch.mjs --only=glsl
+  SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslCorpusTests"
+  ```
 - Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使う検証も動きます。時間がかかるので、ふだんの確認では外せます
 
   ```sh
