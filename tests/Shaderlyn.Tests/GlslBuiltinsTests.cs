@@ -198,7 +198,7 @@ public sealed class GlslBuiltinsTests(ITestOutputHelper output)
         int files = 0;
         int calls = 0;
 
-        foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+        foreach (string path in GlslCorpusTests.CompilableCorpusFiles(root)
                      .Where(p => GlslLanguageOptions.StageFromFileName(p) is not null
                                  && !p.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
                      .Order(StringComparer.Ordinal))

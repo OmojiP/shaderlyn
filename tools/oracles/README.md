@@ -26,6 +26,26 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 | `wgsl` | naga | 検証する |
 | `godot` | Godot | 起動して版を出すだけ。シェーダーの検査は GD4 で作る |
 
+## GLSL を glslang と行ごとに比べる
+
+`compare-glsl.mjs` は、GLSL のシェーダーを glslang と Shaderlyn の両方に掛け、指摘を行ごとに比べます。
+Shaderlyn の CLI は Release でビルドしたもの (`dotnet build src/Shaderlyn.Cli.App -c Release`) を使います。別の場所なら `SHADERLYN_CLI` で渡します。
+
+```sh
+# glslang の Test を、付いている正解 (baseResults) と比べる (glslang は動かさない)
+node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults
+# glslang を動かして比べる (OpenGL の意味。Vulkan の意味なら --vulkan)
+SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/ogl-samples/data
+# 拡張子がステージを表さないシェーダー集
+SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/LearnOpenGL/src --stage-map=vs:vert,fs:frag,gs:geom
+```
+
+- **誤報告:** glslang が誤りにしないファイルに、Shaderlyn が出したエラー
+- **見落とし:** glslang の誤りの行に、Shaderlyn のエラーが無いもの。行の無い誤りは、そのファイルにエラーがあればよいとします
+
+`--details` で食い違いを 1 件ずつ、`--json=<パス>` でファイルごとの結果を出します。
+glslang の Test のうち、1 つのファイルをコンパイルした結果でないもの (`-E` の出力、複数のファイルをつなぐもの、HLSL として読ませるもの) は比べません。
+
 ## 記録した道具 (2026-10-17)
 
 結果を再現できるよう、使ったツールのバージョンを記録します。バージョンを上げたら、ここも更新してください。
