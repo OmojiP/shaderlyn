@@ -4,12 +4,12 @@
 
 # Shaderlyn
 
-Unity の ShaderLab および HLSL（`.shader`, `.compute`）を静的解析する variability-aware で Roslyn-like なツール
+Unity の ShaderLab と HLSL（`.shader`、`.compute`）を、条件付きコンパイルも考慮して静的解析するツールです。解析ルールを追加する仕組みは Roslyn に似ています。
 
 DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[Unity 以外の環境で使う](docs/guide/environments.md)）。
 GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments.md#glsl)）。
 
-CLI, VS Code 拡張, GitHub Actions 等で利用でき、自作の解析ルールも追加できます。
+CLI、VS Code 拡張、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能
 
@@ -138,9 +138,9 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 }
 ```
 
-### 4. LSP利用
+### 4. VS Code 拡張で使う
 
-vscode拡張として指摘を表示します。
+解析結果を VS Code 拡張の指摘として表示します。
 自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を出すこともできます。
 
 VS Code 拡張の言語サーバー利用 : [editors/vscode/README.md](editors/vscode/README.md)

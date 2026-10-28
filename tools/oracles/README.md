@@ -28,9 +28,9 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 
 ## 記録した道具 (2026-10-17)
 
-結果を再現するため、使った版を記録します。版を上げたらここを書き換えます。
+結果を再現できるよう、使ったツールのバージョンを記録します。バージョンを上げたら、ここも更新してください。
 
-| 道具 | 版 | 入手先 |
+| ツール | バージョン | 入手先 |
 | --- | --- | --- |
 | glslang | 16.6.0 | [KhronosGroup/glslang のリリース](https://github.com/KhronosGroup/glslang/releases/tag/16.6.0) |
 | slangc | 2026.19 | [shader-slang/slang のリリース](https://github.com/shader-slang/slang/releases/tag/v2026.19) |
