@@ -80,6 +80,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslSmallTypeStorageAnalyzer(),
         new Rules.Glsl.GlslCallLocationAnalyzer(),
         new Rules.Glsl.GlslVariableArgumentAnalyzer(),
+        new Rules.Glsl.GlslIndexRangeAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

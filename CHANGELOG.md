@@ -30,6 +30,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ
   - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した
+  - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、

@@ -177,6 +177,20 @@ internal static class GlslRuleDescriptors
             + "buffer のブロックか shared の変数でなければなりません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0306"));
 
+    /// <summary>定数の添字が、配列・ベクトル・行列の範囲の外にある。</summary>
+    /// <remarks>
+    /// glslang の <c>checkIndex</c> (「index out of range」「array index out of range」「vector index out of range」「matrix index out of range」) に当たる。
+    /// 文の <c>{0}</c> は添字の値、<c>{1}</c> は範囲。
+    /// </remarks>
+    public static DiagnosticDescriptor IndexOutOfRange { get; } = new(
+        id: "GL0307",
+        title: "添字が範囲の外です",
+        messageFormat: "添字 {0} は範囲の外です ({1})。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上です。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0307"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(
