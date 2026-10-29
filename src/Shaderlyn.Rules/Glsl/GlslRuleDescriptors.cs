@@ -191,6 +191,22 @@ internal static class GlslRuleDescriptors
         description: "定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上です。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0307"));
 
+    /// <summary>予約された名前を宣言している。</summary>
+    /// <remarks>
+    /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」
+    /// 「identifiers containing consecutive underscores ("__") are reserved, and an error if version &lt; 300」) に当たる。
+    /// 文の <c>{0}</c> は名前、<c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor ReservedName { get; } = new(
+        id: "GL0401",
+        title: "予約された名前です",
+        messageFormat: "'{0}' は予約された名前です。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "gl_ で始まる名前 (宣言し直せる組み込みの変数を除く) と、ES の 3.00 より前の __ を含む名前は宣言できません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0401"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(
