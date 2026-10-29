@@ -122,6 +122,30 @@ internal static class GlslRuleDescriptors
             + "暗黙の変換で合うかは #version と有効にした拡張で決まります。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0302"));
 
+    /// <summary>組み込み関数の、定数でなければならない実引数に、定数でない式を渡した。</summary>
+    /// <remarks>glslang の「argument must be compile-time constant」に当たる。文の <c>{0}</c> は、どの実引数か。</remarks>
+    public static DiagnosticDescriptor ConstantArgumentRequired { get; } = new(
+        id: "GL0303",
+        title: "この実引数は定数でなければなりません",
+        messageFormat: "{0} は定数の式でなければなりません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込み関数の、定数でなければならない実引数 (textureOffset のオフセット、サブグループのクラスターの大きさなど) に、"
+            + "変数や仮引数を使う式を渡しています。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0303"));
+
+    /// <summary>組み込み関数の実引数の値が、使える範囲の外にある。</summary>
+    /// <remarks>glslang の「value is out of range」「argument must be a power of 2」などに当たる。文の <c>{0}</c> は実引数、<c>{1}</c> は使える値。</remarks>
+    public static DiagnosticDescriptor ArgumentOutOfRange { get; } = new(
+        id: "GL0304",
+        title: "実引数の値が範囲の外です",
+        messageFormat: "{0} は {1} でなければなりません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込み関数の実引数の値が、使える範囲の外にあります (テクセルのオフセットは -8 から 7、textureGather の成分の番号は 0 から 3 など)。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0304"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(

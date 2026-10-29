@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 
@@ -70,8 +72,51 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder)
                                                    || IsCertainlyNotConstant(conditional.WhenTrue)
                                                    || IsCertainlyNotConstant(conditional.WhenFalse),
         IdentifierExpressionSyntax identifier => IsNonConstantVariable(identifier),
+        MemberAccessExpressionSyntax member => IsCertainlyNotConstant(member.Target),
+        ElementAccessExpressionSyntax element => IsCertainlyNotConstant(element.Target) || IsCertainlyNotConstant(element.Index),
+
+        // 値の作成 (ivec2(x, 1)) は、実引数のどれかが定数でなければ定数でない。
+        InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation when GlslKeywords.IsBuiltInType(callee.Name)
+            => invocation.ArgumentExpressions.Any(IsCertainlyNotConstant),
         _ => false,
     };
+
+    /// <summary>
+    /// 式の成分ごとの値を求める。スカラーなら 1 つ、<c>ivec2(1, -2)</c> のような値の作成なら成分ごと。
+    /// </summary>
+    /// <param name="expression">式。</param>
+    /// <returns>成分ごとの値。どれか 1 つでも求められなければ <see langword="null"/>。</returns>
+    public ImmutableArray<GlslConstant>? EvaluateComponents(ExpressionSyntax expression)
+    {
+        if (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            return EvaluateComponents(parenthesized.Expression);
+        }
+
+        if (Evaluate(expression) is { } scalar)
+        {
+            return [scalar];
+        }
+
+        if (expression is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation || !GlslKeywords.IsBuiltInType(callee.Name))
+        {
+            return null;
+        }
+
+        ImmutableArray<GlslConstant>.Builder components = ImmutableArray.CreateBuilder<GlslConstant>();
+
+        foreach (ExpressionSyntax argument in invocation.ArgumentExpressions)
+        {
+            if (Evaluate(argument) is not { } value)
+            {
+                return null;
+            }
+
+            components.Add(value);
+        }
+
+        return components.ToImmutable();
+    }
 
     private GlslConstant? Evaluate(ExpressionSyntax expression, int depth)
     {
