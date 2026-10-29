@@ -409,8 +409,15 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <param name="from">値の要素の型。</param>
     /// <param name="to">変換先の要素の型。</param>
     /// <returns>変換できれば <see langword="true"/>。</returns>
-    private bool IsBaseConvertible(string from, string to)
+    internal bool IsBaseConvertible(string from, string to)
         => GlslConversions.CanImplicitlyPromote(from, to, _version ?? 460, _version is not null && _profile == GlslProfile.Es, _features);
+
+    /// <summary>二項の演算子で、両辺の要素の型をそろえる先を求める (glslang の <c>getConversionDestinationType</c>)。</summary>
+    /// <param name="left">左の要素の型。</param>
+    /// <param name="right">右の要素の型。</param>
+    /// <returns>そろえる先の要素の型。そろえられなければ <see langword="null"/>。</returns>
+    internal string? GetConversionDestination(string left, string right)
+        => GlslConversions.GetConversionDestination(left, right, _version ?? 460, _version is not null && _profile == GlslProfile.Es, _features);
 
     /// <inheritdoc/>
     /// <remarks>

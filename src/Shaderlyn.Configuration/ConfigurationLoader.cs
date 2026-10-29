@@ -51,7 +51,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
 
     /// <summary><c>glsl:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownGlslKeys = ["target", "spirv"];
+    private static readonly string[] KnownGlslKeys = ["target", "spirv", "auto-map-locations", "auto-map-bindings"];
 
     /// <summary><c>glsl: target</c> に書ける値 (glslang の <c>--target-env</c> と同じ名前)。</summary>
     private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
@@ -221,7 +221,7 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(glsl, KnownGlslKeys, "glsl:");
             }
 
-            ReportNonScalars(glsl, "glsl: の ", "target", "spirv");
+            ReportNonScalars(glsl, "glsl: の ", "target", "spirv", "auto-map-locations", "auto-map-bindings");
 
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
@@ -246,6 +246,8 @@ internal static class ConfigurationLoader
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
                 GlslTarget = ReadGlslTarget(glsl),
                 GlslSpirv = ReadGlslSpirv(glsl),
+                GlslAutoMapLocations = ReadOptionalBoolean(glsl, "auto-map-locations", "glsl:") ?? false,
+                GlslAutoMapBindings = ReadOptionalBoolean(glsl, "auto-map-bindings", "glsl:") ?? false,
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),

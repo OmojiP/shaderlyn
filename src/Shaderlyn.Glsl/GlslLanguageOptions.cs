@@ -128,6 +128,14 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
     /// <remarks>分からなければ、SPIR-V のバージョンで決まる検査 (glslang の「requires SPIR-V 1.3」) をしない。</remarks>
     public int? SpirvVersion { get; init; }
 
+    /// <summary>入力と出力の location をコンパイラが決めるか (glslang の <c>--auto-map-locations</c>)。</summary>
+    /// <remarks>決めるなら、SPIR-V を作るときに location を書かなくてよい。</remarks>
+    public bool AutoMapLocations { get; init; }
+
+    /// <summary>uniform と buffer の binding をコンパイラが決めるか (glslang の <c>--auto-map-bindings</c>)。</summary>
+    /// <remarks>決めるなら、SPIR-V を作るときに binding を書かなくてよい。</remarks>
+    public bool AutoMapBindings { get; init; }
+
     /// <summary><c>#extension</c> で有効にした拡張で決まる、数値の型の機能。</summary>
     public GlslNumericFeatures NumericFeatures => Extensions.NumericFeatures;
 

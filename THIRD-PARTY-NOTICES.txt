@@ -87,7 +87,10 @@ The following source files of Shaderlyn port logic from glslang 16.6.0:
   src/Shaderlyn.Rules/Glsl/GlslExtensionTimeline.cs
       predefined macros and version / extension requirements, from
       glslang/MachineIndependent/Versions.cpp
-  src/Shaderlyn.Rules/Glsl/*Analyzer.cs
+  src/Shaderlyn.Rules/Glsl/GlslRequirements.Keywords.cs
+      type and qualifier requirements, from the grammar actions in
+      glslang/MachineIndependent/glslang.y
+  src/Shaderlyn.Rules/Glsl/*Analyzer*.cs
       semantic checks, from glslang/MachineIndependent/ParseHelper.cpp
 
 These files of glslang are distributed under the following license:

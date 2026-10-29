@@ -43,7 +43,7 @@ internal enum GlslProfileMask
 /// 拡張の振る舞いが <c>warn</c> のときに glslang が出す警告は出さない (使えるものとして扱う)。
 /// </para>
 /// </remarks>
-internal sealed class GlslRequirements
+internal sealed partial class GlslRequirements
 {
     private readonly SyntaxTreeAnalysisContext _context;
     private readonly ShaderCompilation _compilation;
@@ -69,6 +69,8 @@ internal sealed class GlslRequirements
         Stage = language.Stage;
         Vulkan = language.Vulkan;
         SpirvVersion = language.SpirvVersion;
+        AutoMapLocations = language.AutoMapLocations;
+        AutoMapBindings = language.AutoMapBindings;
         Extensions = new GlslExtensionTimeline(tree);
     }
 
@@ -89,6 +91,12 @@ internal sealed class GlslRequirements
 
     /// <summary>作る SPIR-V のバージョン (1.3 なら 103)。作らなければ 0、分からなければ <see langword="null"/>。</summary>
     public int? SpirvVersion { get; }
+
+    /// <summary>入力と出力の location をコンパイラが決めるか (glslang の <c>--auto-map-locations</c>)。</summary>
+    public bool AutoMapLocations { get; }
+
+    /// <summary>uniform と buffer の binding をコンパイラが決めるか (glslang の <c>--auto-map-bindings</c>)。</summary>
+    public bool AutoMapBindings { get; }
 
     /// <summary>位置ごとの拡張の振る舞い。</summary>
     public GlslExtensionTimeline Extensions { get; }
@@ -206,8 +214,8 @@ internal sealed class GlslRequirements
         }
     }
 
-    /// <summary>報告する。同じ位置の同じ文は 1 度だけ。</summary>
-    private void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, params object?[] arguments)
+    /// <summary>報告する。同じ位置の同じ文は 1 度だけ。報告できない位置 (利用者のファイルでない) なら報告しない。</summary>
+    public void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, params object?[] arguments)
     {
         if (!_compilation.IsReportable(at) || at.GetLocation() is not { } location)
         {

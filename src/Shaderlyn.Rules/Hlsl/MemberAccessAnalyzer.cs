@@ -721,6 +721,16 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             {
                 info.Methods.Add(generic.Name);
             }
+
+            // 中に宣言した構造体とその変数 (GLSL のディスクリプターヒープの中の名前の無いブロック)。
+            else if (member is StructDeclarationSyntax nested)
+            {
+                foreach (VariableDeclaratorSyntax variable in nested.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    ((HashSet<string>)info.Members).Add(variable.Name);
+                    info.Unconditional.Add(variable.Name);
+                }
+            }
         }
 
         foreach (VariableDeclarationSyntax field in structure.Fields)

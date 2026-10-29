@@ -14,7 +14,18 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 - GLSL にしか無いルール (GL) を足した。glslang 16.6.0 が誤りにするものを、glslang の検査を移して同じ所で伝える
   - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
-    その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)
+    その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
+    型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
+  - GL0002: そのステージでは使えない (頂点シェーダーの `shared` など)
+  - GL0101: 修飾子をここに書けない。関数の中の `in` / `out`、型の無い宣言にだけ書ける layout (`triangles`、`local_size_x` など) を変数に書いたもの、
+    記憶域や型と合わない layout (`uniform` でない宣言の `offset`、ブロックのメンバーの `std140` など)
+  - GL0102: layout に無い名前を書いた (そのステージに無い名前を含む)
+  - GL0103: layout の値が正しくない (負の数、上限を越える数、2 のべき乗でない `align`、リテラルでない値、前の宣言と違うプリミティブ、`location` の重なりなど)
+  - GL0104: layout に要る指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
+  - GL0201: ES で、精度を決めていない型 (フラグメントシェーダーの `float` など) を宣言している
+  - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う
+- 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
+  `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
   `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものから引く
 - GLSL: glslang 16.6.0 が読む書き方を、拡張のものも含めてすべて読む。次の書き方を構文の誤り (CF0001) にしていた

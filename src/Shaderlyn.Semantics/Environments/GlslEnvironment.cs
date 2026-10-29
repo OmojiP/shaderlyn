@@ -35,6 +35,12 @@ internal sealed record GlslEnvironmentOptions
     /// </summary>
     public int? SpirvVersion { get; init; }
 
+    /// <summary>入力と出力の location をコンパイラが決めるか (設定ファイルの <c>glsl: auto-map-locations</c>)。</summary>
+    public bool AutoMapLocations { get; init; }
+
+    /// <summary>uniform と buffer の binding をコンパイラが決めるか (設定ファイルの <c>glsl: auto-map-bindings</c>)。</summary>
+    public bool AutoMapBindings { get; init; }
+
     /// <summary>設定ファイルの <c>glsl: target</c> と <c>glsl: spirv</c> から作る。</summary>
     /// <param name="target"><c>vulkan</c> / <c>vulkan1.0</c> ～ <c>vulkan1.4</c> / <c>opengl</c>。</param>
     /// <param name="spirv"><c>1.0</c> ～ <c>1.6</c>。</param>
@@ -151,6 +157,8 @@ internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : 
                         : options.PredefinedMacros.ContainsKey("GL_SPIRV") ? false
                         : null),
                 SpirvVersion = Options.SpirvVersion,
+                AutoMapLocations = Options.AutoMapLocations,
+                AutoMapBindings = Options.AutoMapBindings,
             };
 
         // コンパイラが定義するマクロ (Vulkan 向けなら VULKAN も) は、設定で与えたマクロ (共通・単位ごと) に負ける。

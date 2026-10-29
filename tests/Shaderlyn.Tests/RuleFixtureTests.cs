@@ -71,6 +71,16 @@ public sealed class RuleFixtureTests
         ["UE0002"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
         ["UE0003"] = "Unreal の環境だけの規則なので、Unity の .shader では起こせない",
 
+        // GLSL だけの規則。GlslRuleTests で、GLSL のファイルとして確かめている。
+        ["GL0001"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0002"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0101"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0102"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0103"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0104"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0301"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0201"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。
         ["UN0202"] = "Unity のバージョンが分かるときだけ報告するので、バージョンを渡さない fixture では起こせない",

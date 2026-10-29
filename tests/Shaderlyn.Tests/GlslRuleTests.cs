@@ -204,6 +204,62 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Equal(expected, output.Contains("error GL0001", StringComparison.Ordinal));
     }
 
+    /// <summary>型・修飾子・演算子・リテラルを、バージョン・ステージ・場所で検査する (glslang の文法の規則の検査)。</summary>
+    [Theory]
+    [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { uint u = 1u; gl_FragColor = vec4(float(u)); }")]
+    [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { int i = 5 % 2; gl_FragColor = vec4(float(i)); }")]
+    [InlineData("GL0001", "a.frag", "#version 330\nout vec4 o;\nvoid main() { double d = 1.0lf; o = vec4(float(d)); }")]
+    [InlineData("GL0001", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { double d = 1.0; o = vec4(float(d)); }")]
+    [InlineData("GL0002", "a.vert", "#version 450\nshared float s;\nvoid main() { gl_Position = vec4(s); }")]
+    [InlineData("GL0201", "a.frag", "#version 300 es\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { in vec4 v; o = v; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0, offset = 4) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.comp", "#version 450\nlayout(binding = 0) buffer B { layout(local_size_x = 8) float v[]; };\nvoid main() { v[0] = 1.0; }")]
+    [InlineData("GL0103", "a.geom", "#version 450\nlayout(triangles) in;\nlayout(points, max_vertices = 1) out;\nlayout(lines) in;\nvoid main() { EmitVertex(); }")]
+    [InlineData("GL0102", "a.frag", "#version 450\nlayout(location = 0, colour_space) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0102", "a.vert", "#version 450\nlayout(local_size_x = 8) in;\nvoid main() { gl_Position = vec4(1.0); }")]
+    [InlineData("GL0103", "a.frag", "#version 450\nlayout(location = -1) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0103", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(std140, binding = 0) uniform U { layout(align = 12) vec4 a; };\nvoid main() { o = a; }")]
+    [InlineData("GL0103", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 0, component = 2) out vec2 p;\nvoid main() { o = vec4(1.0); p = vec2(1.0); }")]
+    [InlineData("GL0103", "a.frag", "#version 450\nlayout(location = 40) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0104", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(offset = 0) uniform atomic_uint c;\nvoid main() { o = vec4(float(atomicCounter(c))); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec2 a = vec2(1.0); vec3 b = vec3(1.0); o = vec4(a + b, 1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { bool b = true; float f = 1.0 + b; o = vec4(f); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4 m = mat4(1.0); o = vec4(m * vec3(1.0), 1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec2 a = vec2(1.0); o = vec4(a < a ? 1.0 : 0.0); }")]
+    public async Task 文法の規則の検査(string id, string fileName, string code)
+    {
+        string output = await AnalyzeAsync(fileName, code + "\n");
+        Assert.Contains($"error {id}", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// SPIR-V を作るとき、入力と出力の location とブロックの binding が要る。
+    /// コンパイラに決めさせる設定 (<c>glsl: auto-map-locations</c> / <c>auto-map-bindings</c>) なら要らない。
+    /// </summary>
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("  auto-map-locations: true\n  auto-map-bindings: true\n", false)]
+    public async Task SPIRVを作るときのlocationとbinding(string autoMap, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n  target: vulkan1.0\n{autoMap}");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), """
+            #version 450
+            in vec4 color;
+            out vec4 o;
+            uniform U { vec4 tint; };
+            void main() { o = color * tint; }
+
+            """);
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("error GL0104", StringComparison.Ordinal));
+    }
+
     /// <summary><c>#extension</c> は書いた位置より後ろにだけ効く。</summary>
     [Fact]
     public async Task 拡張は書いた位置より後ろに効く()

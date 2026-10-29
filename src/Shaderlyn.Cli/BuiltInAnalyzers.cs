@@ -70,6 +70,11 @@ public static class BuiltInAnalyzers
 
         // GLSL にしか無いルール。
         new Rules.Glsl.GlslBuiltinRequirementAnalyzer(),
+        new Rules.Glsl.GlslDeclarationRequirementAnalyzer(),
+        new Rules.Glsl.GlslExpressionRequirementAnalyzer(),
+        new Rules.Glsl.GlslPrecisionAnalyzer(),
+        new Rules.Glsl.GlslLayoutAnalyzer(),
+        new Rules.Glsl.GlslOperatorAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

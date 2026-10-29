@@ -33,7 +33,11 @@ internal sealed class GlslAnalysisEnvironment(ShaderlynConfiguration configurati
     private readonly GlslEnvironment _environment = new(GlslEnvironmentOptions.FromConfiguration(
         (configuration ?? throw new ArgumentNullException(nameof(configuration))).GlslTarget,
         configuration.GlslSpirv,
-        HlslAnalysisEnvironment.BuildVariants(configuration, null)));
+        HlslAnalysisEnvironment.BuildVariants(configuration, null)) with
+    {
+        AutoMapLocations = configuration.GlslAutoMapLocations,
+        AutoMapBindings = configuration.GlslAutoMapBindings,
+    });
 
     /// <inheritdoc/>
     public string Name => GlslEnvironment.EnvironmentName;

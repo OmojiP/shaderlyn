@@ -61,24 +61,25 @@ const vulkan14 = { target: "vulkan1.4", defines: [] };
 
 /**
  * glslang の gtests の試験の種類と、その試験のファイルをコンパイルする意味 (Spv.FromFile.cpp などの TEST_P の引数)。
- * 載っていない種類 (HLSL、リンク、プリプロセスだけ、設定ファイル、入出力の割り当て) は比べない。
+ * 載っていない種類 (HLSL、リンク、プリプロセスだけ、設定ファイル、入出力の割り当て、set と binding の上限を緩める既定でない設定) は比べない。
  * target と spirv は設定ファイルの glsl: target / spirv に渡す (vulkan なら Shaderlyn も VULKAN を 100 にする)。
  * defines はほかに定義するマクロ。compileOnly はリンクしない (main が無くてよい)。
+ * gtests はほとんどの試験で location と binding をコンパイラに決めさせる (TestFixture.h の automap)。
+ * 決めさせない試験 (noAutoMap) のほかは、設定ファイルの glsl: auto-map-locations / auto-map-bindings を true にする。
  */
 const gtestFixtures = {
   CompileToAstTest: { target: "opengl", defines: [] },
   CompileToAstTestNV: { target: "opengl", defines: [] },
   CompileOpenGLToSpirvTest: { target: "opengl", spirv: "1.0", defines: [] },
-  OpenGLSemantics: { target: "opengl", spirv: "1.0", defines: [] },
+  OpenGLSemantics: { target: "opengl", spirv: "1.0", defines: [], noAutoMap: true },
   CompileVulkanToSpirvTest: vulkanMode,
-  CompileVulkanToSpirvRelaxSetBindingLimitsTest: vulkanMode,
   CompileVulkanToSpirvTestNoLink: { target: "vulkan1.3", spirv: "1.0", defines: [], compileOnly: true },
   CompileToSpirv14TestNoLink: { target: "vulkan1.3", spirv: "1.4", defines: [], compileOnly: true },
   CompileVulkanToSpirvDeadCodeElimTest: vulkanMode,
   CompileVulkan1_1ToSpirvTest: vulkan11,
   CompileToSpirv14Test: vulkan11Spirv14,
   CompileToSpirv16Test: vulkan13,
-  VulkanSemantics: vulkanMode,
+  VulkanSemantics: { ...vulkanMode, noAutoMap: true },
   VulkanAstSemantics: vulkanMode,
   CompileVulkanToSpirvTestQCOM: vulkanMode,
   CompileVulkanToSpirv13TestQCOM: vulkan11,
@@ -164,7 +165,7 @@ try {
   // Shaderlyn の指摘。同じ意味のファイルを束ねて CLI に渡す。向けは設定ファイルで渡す。
   const byPath = new Map(files.map(entry => [resolve(entry.analyzed).toLowerCase(), entry]));
 
-  for (const [, group] of Map.groupBy(files, entry => `${entry.mode.target} ${entry.mode.spirv} ${entry.mode.defines.join(" ")}`)) {
+  for (const [, group] of Map.groupBy(files, entry => `${entry.mode.target} ${entry.mode.spirv} ${entry.mode.noAutoMap ?? false} ${entry.mode.defines.join(" ")}`)) {
     for (let i = 0; i < group.length; i += 80) {
       const batch = group.slice(i, i + 80);
       const defines = batch[0].mode.defines.flatMap(define => ["--define", define]);
@@ -271,11 +272,13 @@ function readGtests(directory) {
 }
 
 /** その向けの設定ファイルを作業用のフォルダーに書き、パスを返す。 */
-function writeConfig({ target, spirv }) {
-  const path = join(scratch, `shaderlyn-${target}-${spirv ?? "default"}.yml`);
+function writeConfig({ target, spirv, noAutoMap }) {
+  const autoMap = gtests !== undefined && !noAutoMap;
+  const path = join(scratch, `shaderlyn-${target}-${spirv ?? "default"}${autoMap ? "-automap" : ""}.yml`);
 
   if (!existsSync(path)) {
-    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n${spirv ? `  spirv: "${spirv}"\n` : ""}`);
+    const autoMapKeys = autoMap ? "  auto-map-locations: true\n  auto-map-bindings: true\n" : "";
+    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n${spirv ? `  spirv: "${spirv}"\n` : ""}${autoMapKeys}`);
   }
 
   return path;

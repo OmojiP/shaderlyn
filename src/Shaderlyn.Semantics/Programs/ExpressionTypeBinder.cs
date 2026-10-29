@@ -115,7 +115,7 @@ public sealed class ExpressionTypeBinder
             .GroupBy(t => t.Structure.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(g => g.Key, g => g.First().Template.ParameterNames, StringComparer.Ordinal);
         _globalNames = CollectGlobalNames(program.Tree.Root.Declarations);
-        _fileVariables = CollectFileVariables(_globalNames);
+        _fileVariables = CollectFileVariables(_globalNames, program.Tree.Root.Declarations);
         _fileScope = new ExpressionTypeEvaluator(
             identifier => LookupGlobal(identifier.Name), _functionSignatures, _structFields)
         {
@@ -203,6 +203,18 @@ public sealed class ExpressionTypeBinder
 
             foreach (DeclarationSyntax member in declaration.Members)
             {
+                // 中に宣言した構造体とその変数 (struct A { struct B { … } b; };、GLSL のディスクリプターヒープの中の名前の無いブロック)。
+                if (member is StructDeclarationSyntax nested)
+                {
+                    foreach (VariableDeclaratorSyntax field in nested.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                    {
+                        fields[field.Name] = new ResolvedTypeName(nested.Name, field.IsArray, null, field.ArrayDimensions);
+                        fieldDeclarators[field.Name] = field;
+                    }
+
+                    continue;
+                }
+
                 if (member is not VariableDeclarationSyntax variable)
                 {
                     continue;
@@ -1213,6 +1225,7 @@ public sealed class ExpressionTypeBinder
     /// 関数の外で宣言された、uniform ではない変数の型を集める。
     /// </summary>
     /// <param name="globals">関数の外の変数の宣言 (<see cref="CollectGlobalNames"/>)。</param>
+    /// <param name="declarations">トップレベルの宣言。構造体の宣言に続けて宣言した変数を引く。</param>
     /// <returns>名前から型への対応。型が 1 つに決まらない名前は <see langword="null"/>。</returns>
     /// <remarks>
     /// <para>
@@ -1231,9 +1244,22 @@ public sealed class ExpressionTypeBinder
     /// </para>
     /// </remarks>
     private static FrozenDictionary<string, ResolvedTypeName?> CollectFileVariables(
-        FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>> globals)
+        FrozenDictionary<string, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)>> globals,
+        ImmutableArray<DeclarationSyntax> declarations)
     {
         Dictionary<string, ResolvedTypeName?> variables = new(StringComparer.Ordinal);
+
+        // 構造体の宣言に続けて宣言した変数 (struct Light { … } g_light;) と、GLSL のインスタンスの名前を持つブロック (uniform UBO { … } ubo;)。
+        foreach (StructDeclarationSyntax structure in declarations.OfType<StructDeclarationSyntax>())
+        {
+            foreach (VariableDeclaratorSyntax declarator in structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+            {
+                ResolvedTypeName type = new(structure.Name, declarator.IsArray, null, declarator.ArrayDimensions);
+                variables[declarator.Name] = variables.TryGetValue(declarator.Name, out ResolvedTypeName? existing) && existing != type
+                    ? null
+                    : type;
+            }
+        }
 
         foreach ((string name, ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)> declared) in globals)
         {
