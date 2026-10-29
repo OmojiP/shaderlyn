@@ -100,6 +100,8 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
             requirement.RequireExtensions(callee.Identifier, [.. overloads.SelectMany(o => o.Extensions).Distinct(StringComparer.Ordinal)], $"'{name}'");
         }
 
+        AnalyzeArgumentTypes(compilation.GetExpressionTypeBinder(program), types, requirement, invocation, callee);
+
         if (!name.StartsWith("subgroup", StringComparison.Ordinal))
         {
             return;
@@ -127,5 +129,160 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
         {
             requirement.RequireExtensions(callee.Identifier, [extension], $"サブグループの関数に {type} を渡すこと");
         }
+    }
+
+    /// <summary>
+    /// 実引数の型で決まる、組み込み関数に要る拡張 (glslang の builtInOpCheck)。
+    /// </summary>
+    /// <remarks>
+    /// float のアトミック (GL_EXT_shader_atomic_float / float2)、64 ビットの整数のアトミック、メモリのスコープを取るアトミック (GL_KHR_memory_scope_semantics)、
+    /// 整数と bool の <c>mix</c> (GL_EXT_shader_integer_mix)、サンプラーを伴わないテクスチャの問い合わせ (GL_EXT_samplerless_texture_functions)、
+    /// 影のサンプラーの配列とキューブの <c>texture</c> / <c>textureLod</c> (GL_EXT_texture_shadow_lod) を見る。
+    /// 実引数の型が分からなければ検査しない。
+    /// </remarks>
+    private static void AnalyzeArgumentTypes(
+        ExpressionTypeBinder binder,
+        GlslTypeSystem types,
+        GlslRequirements requirement,
+        InvocationExpressionSyntax invocation,
+        IdentifierExpressionSyntax callee)
+    {
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+        string name = callee.Name;
+        ShaderSyntaxToken at = callee.Identifier;
+
+        string? TypeOf(int index)
+            => index < arguments.Length && binder.GetTypesByConfiguration(arguments[index]) is [{ Type: { } type }] ? type : null;
+
+        (string Base, int Components)? Numeric(int index)
+            => TypeOf(index) is { } type && types.TryDecomposeNumeric(type, out string element, out int components) ? (element, components) : null;
+
+        static bool IsFloating(string element) => element is "float" or "double" or "float16_t" || element.StartsWith("bfloat", StringComparison.Ordinal);
+
+        switch (name)
+        {
+            case "atomicAdd" or "atomicMin" or "atomicMax" or "atomicAnd" or "atomicOr" or "atomicXor" or "atomicExchange"
+                or "atomicCompSwap" or "atomicLoad" or "atomicStore":
+            {
+                if (Numeric(0) is not { } value)
+                {
+                    break;
+                }
+
+                bool addOrExchange = name is "atomicAdd" or "atomicExchange";
+                bool float2Ops = name is "atomicAdd" or "atomicExchange" or "atomicLoad" or "atomicStore" or "atomicMin" or "atomicMax";
+
+                if (arguments.Length > 3)
+                {
+                    requirement.RequireExtensions(at, ["GL_KHR_memory_scope_semantics"], $"'{name}'");
+
+                    if (name is "atomicAdd" or "atomicExchange" or "atomicLoad" or "atomicStore" && value.Base is "float" or "double")
+                    {
+                        requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float"], $"'{name}'");
+                    }
+                    else if (float2Ops && IsFloating(value.Base))
+                    {
+                        requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float2"], $"'{name}'");
+                    }
+                }
+                else if (value.Base is "int64_t" or "uint64_t")
+                {
+                    requirement.RequireExtensions(at, ["GL_NV_shader_atomic_int64", "GL_EXT_shader_atomic_int64"], $"'{name}'");
+                }
+                else if (name is "atomicAdd" or "atomicExchange" or "atomicMin" or "atomicMax" && value.Base == "float16_t" && value.Components is 2 or 4)
+                {
+                    requirement.RequireExtensions(at, ["GL_NV_shader_atomic_fp16_vector"], $"'{name}'");
+                }
+                else if (addOrExchange && value.Base is "float" or "double")
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float"], $"'{name}'");
+                }
+                else if (float2Ops && IsFloating(value.Base))
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float2"], $"'{name}'");
+                }
+
+                break;
+            }
+
+            case "imageAtomicAdd" or "imageAtomicMin" or "imageAtomicMax" or "imageAtomicExchange" or "imageAtomicLoad" or "imageAtomicStore":
+            {
+                // 浮動小数点数のイメージ (image2D など。iimage2D / uimage2D でないもの)。
+                if (TypeOf(0) is not { } image || !image.StartsWith("image", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                // rg16f / rgba16f のイメージに f16vec2 / f16vec4 を渡すものは、GL_NV_shader_atomic_fp16_vector で使える。
+                if (Enumerable.Range(1, arguments.Length - 1).Any(i => Numeric(i) is { Base: "float16_t", Components: 2 or 4 }))
+                {
+                    if (name is "imageAtomicAdd" or "imageAtomicExchange" or "imageAtomicMin" or "imageAtomicMax")
+                    {
+                        requirement.RequireExtensions(at, ["GL_NV_shader_atomic_fp16_vector"], $"'{name}'");
+                    }
+                }
+                else if (name is "imageAtomicAdd" or "imageAtomicLoad" or "imageAtomicStore")
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float"], $"'{name}'");
+                }
+                else if (name is "imageAtomicMin" or "imageAtomicMax")
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_atomic_float2"], $"'{name}'");
+                }
+
+                break;
+            }
+
+            case "mix" when arguments.Length == 3 && Numeric(0) is { } x && Numeric(1) is { } y && Numeric(2) is { Base: "bool" }:
+                if (requirement.IsEs && requirement.Version < 310 && x.Base != "float" && y.Base != "float")
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_integer_mix"], "整数と bool の mix");
+                }
+
+                if (!requirement.IsEs && requirement.Version < 450 && x.Base is not ("float" or "double") && y.Base is not ("float" or "double"))
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_shader_integer_mix"], "整数と bool の mix");
+                }
+
+                break;
+
+            // サンプラーを伴わないテクスチャ (texture2D など)。texelFetch の textureBuffer は拡張が要らない。
+            case "textureSize" or "textureQueryLevels" or "textureSamples" or "texelFetch" or "texelFetchOffset"
+                when TypeOf(0) is { } texture && IsSeparateTexture(texture)
+                     && !(name is "texelFetch" or "texelFetchOffset" && texture.Contains("Buffer", StringComparison.Ordinal)):
+                requirement.RequireExtensions(at, ["GL_EXT_samplerless_texture_functions"], $"'{name}'");
+                break;
+
+            case "texture" or "textureLod" or "textureOffset" or "textureLodOffset"
+                when TypeOf(0) is { } sampler && sampler.Contains("Shadow", StringComparison.Ordinal) && Numeric(1) is { Base: "float", Components: 4 }:
+            {
+                bool arrayed = sampler.Contains("Array", StringComparison.Ordinal);
+                bool cube = sampler.Contains("Cube", StringComparison.Ordinal);
+                bool twoD = sampler.Contains("2D", StringComparison.Ordinal);
+                bool needs = name switch
+                {
+                    "texture" => arguments.Length > 2 && ((twoD && arrayed) || (cube && arrayed && arguments.Length > 3)),
+                    "textureLod" => arguments.Length > 2 && ((twoD && arrayed) || (cube && arrayed && arguments.Length > 3) || cube),
+                    _ => twoD && arrayed && arguments.Length == 4,
+                };
+
+                if (needs)
+                {
+                    requirement.RequireExtensions(at, ["GL_EXT_texture_shadow_lod"], $"影のサンプラー {sampler} の '{name}'");
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    /// <summary>サンプラーを伴わないテクスチャの型か (<c>texture2D</c>、<c>itexture3D</c> など)。</summary>
+    private static bool IsSeparateTexture(string type)
+    {
+        int texture = type.IndexOf("texture", StringComparison.Ordinal);
+        return texture >= 0 && texture <= 3 && !type.Contains("sampler", StringComparison.Ordinal);
     }
 }

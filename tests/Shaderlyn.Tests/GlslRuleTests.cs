@@ -231,6 +231,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0303", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nlayout(location = 0) flat in ivec2 shift;\nvoid main() { o = textureOffset(s, vec2(0.5), shift); }")]
     [InlineData("GL0304", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nvoid main() { o = textureOffset(s, vec2(0.5), ivec2(8, 0)); }")]
     [InlineData("GL0304", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nvoid main() { o = textureGather(s, vec2(0.5), 4); }")]
+    [InlineData("GL0001", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { float v; };\nvoid main() { atomicAdd(v, 1.0); }")]
+    [InlineData("GL0001", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform texture2D t;\nvoid main() { o = vec4(textureSize(t, 0), 0.0, 1.0); }")]
     public async Task 文法の規則の検査(string id, string fileName, string code)
     {
         string output = await AnalyzeAsync(fileName, code + "\n");
