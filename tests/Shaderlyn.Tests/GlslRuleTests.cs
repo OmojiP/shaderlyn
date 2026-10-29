@@ -249,6 +249,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0001", "a.frag", "#version 330\nout vec4 o;\nvoid main() { float a[2][3]; o = vec4(a[0][0]); }")]
     [InlineData("GL0001", "a.vert", "#version 120\nin vec4 position;\nvoid main() { gl_Position = position; }")]
     [InlineData("GL0001", "a.vert", "#version 300 es\nin vec4 positions[2];\nvoid main() { gl_Position = positions[0]; }")]
+    [InlineData("GL0001", "a.frag", "#version 330\nuniform sampler2D s[4];\nuniform int i;\nout vec4 o;\nvoid main() { o = texture(s[i], vec2(0.5)); }")]
     [InlineData("GL0001", "a.frag", "#version 330\n#define ONE \\\n 1.0\nout vec4 o;\nvoid main() { o = vec4(ONE); }")]
     public async Task 文法の規則の検査(string id, string fileName, string code)
     {

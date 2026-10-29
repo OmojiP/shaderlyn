@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Glsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -19,7 +21,7 @@ namespace Shaderlyn.Rules.Glsl;
 ///   <item><description>64 ビット・16 ビットの整数、double、half のリテラルに要る拡張と版</description></item>
 /// </list>
 /// </remarks>
-internal sealed class GlslExpressionRequirementAnalyzer : SemanticRuleAnalyzer
+internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
     protected override bool AnalyzesGlsl => true;
@@ -92,6 +94,12 @@ internal sealed class GlslExpressionRequirementAnalyzer : SemanticRuleAnalyzer
                     requirement.ArrayObjectCheck(assignment.OperatorToken, "array assignment");
                     break;
 
+                case ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax array } element
+                    when !array.Name.StartsWith("gl_", StringComparison.Ordinal)
+                         && new GlslConstantEvaluator(compilation.GetExpressionTypeBinder(program)).IsCertainlyNotConstant(element.Index):
+                    AnalyzeVariableIndex(requirement, compilation, program, array);
+                    break;
+
                 default:
                     break;
             }
@@ -161,6 +169,73 @@ internal sealed class GlslExpressionRequirementAnalyzer : SemanticRuleAnalyzer
                 break;
         }
     }
+
+    /// <summary>
+    /// 定数でない添字で引く配列に要る版と拡張 (glslang の handleBracketDereference)。
+    /// サンプラーとイメージの配列、uniform と buffer のブロックの配列、フラグメントシェーダーの出力の配列を見る。
+    /// </summary>
+    private static void AnalyzeVariableIndex(GlslRequirements requirement, ShaderCompilation compilation, AnalyzedProgram program, IdentifierExpressionSyntax array)
+    {
+        NameResolution resolution = compilation.GetExpressionTypeBinder(program).ResolveName(array);
+        ShaderSyntaxToken at = array.Identifier;
+
+        if (resolution is { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Type.IsArray: true } candidate] })
+        {
+            if (OpaqueType().IsMatch(candidate.Type.TypeName) && requirement.Version >= 130)
+            {
+                const string feature = "サンプラーの配列を定数でない添字で引くこと";
+                requirement.RequireProfile(at, GlslProfileMask.Es | GlslProfileMask.Core | GlslProfileMask.Compatibility, feature);
+                requirement.ProfileRequires(at, GlslProfileMask.Es, 320, ["GL_EXT_gpu_shader5", "GL_OES_gpu_shader5"], feature);
+                requirement.ProfileRequires(at, GlslProfileMask.Core | GlslProfileMask.Compatibility, 400, ["GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"], feature);
+            }
+            else if (requirement.Stage == GlslShaderStage.Fragment
+                     && resolution.Kind == DeclaredNameKind.Global
+                     && candidate.Declarator is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } declaration }
+                     && declaration.HasModifier("out"))
+            {
+                requirement.RequireProfile(at, GlslProfileMask.NotEs, "フラグメントシェーダーの出力の配列を定数でない添字で引くこと");
+            }
+
+            return;
+        }
+
+        // インスタンスの名前を持つブロックの配列は、名前の解決に載らない。関数の中にもその名前が無いときだけ見る。
+        if (resolution.Kind != DeclaredNameKind.NotFound)
+        {
+            return;
+        }
+
+        foreach (StructDeclarationSyntax block in program.Tree.Root.Declarations.OfType<StructDeclarationSyntax>())
+        {
+            if (block.Keyword.Text == "struct"
+                || !block.Declarators.Any(d => d.Node is VariableDeclaratorSyntax { IsArray: true } instance && instance.Name == array.Name))
+            {
+                continue;
+            }
+
+            switch (block.Keyword.Text)
+            {
+                case "buffer":
+                    requirement.RequireProfile(at, GlslProfileMask.NotEs, "buffer のブロックの配列を定数でない添字で引くこと");
+                    break;
+
+                case "uniform":
+                    const string feature = "uniform のブロックの配列を定数でない添字で引くこと";
+                    requirement.ProfileRequires(at, GlslProfileMask.Es, 320, ["GL_EXT_gpu_shader5", "GL_OES_gpu_shader5"], feature);
+                    requirement.ProfileRequires(at, GlslProfileMask.Core, 400, ["GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"], feature);
+                    break;
+
+                default:
+                    break;
+            }
+
+            return;
+        }
+    }
+
+    /// <summary>サンプラー・イメージ・テクスチャ・サブパスの入力の型 (glslang の EbtSampler)。</summary>
+    [GeneratedRegex(@"^[iu]?(sampler|image|texture|subpassInput)[0-9A-Za-z_]*$")]
+    private static partial Regex OpaqueType();
 
     /// <summary>式の値が配列か、配列を含む構造体か (glslang の containsArray)。</summary>
     private static bool ContainsArray(ShaderCompilation compilation, AnalyzedProgram program, ExpressionSyntax expression)
