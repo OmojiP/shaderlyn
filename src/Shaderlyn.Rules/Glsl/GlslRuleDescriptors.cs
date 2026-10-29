@@ -146,6 +146,21 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0304"));
 
+    /// <summary>組み込み関数を、呼べない場所で呼んでいる。</summary>
+    /// <remarks>
+    /// glslang の <c>checkLocation</c> (「tessellation control barrier() cannot be placed within flow control」
+    /// 「beginInvocationInterlockARB() must only be called once」など) に当たる。文の <c>{0}</c> は関数、<c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor CallNotAllowedHere { get; } = new(
+        id: "GL0305",
+        title: "ここでは呼べない組み込み関数です",
+        messageFormat: "{0}() は{1}。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "テッセレーションの制御シェーダーの barrier() と、beginInvocationInterlockARB() / endInvocationInterlockARB() は、"
+            + "main の中で、if・ループ・switch・?: の外に、return より前に書かなければなりません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0305"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(
