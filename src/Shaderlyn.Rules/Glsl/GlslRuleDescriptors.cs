@@ -161,6 +161,22 @@ internal static class GlslRuleDescriptors
             + "main の中で、if・ループ・switch・?: の外に、return より前に書かなければなりません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0305"));
 
+    /// <summary>組み込み関数に、決まった種類の変数でなければならない実引数として、別のものを渡している。</summary>
+    /// <remarks>
+    /// glslang の「first argument must be an interpolant, or interpolant-array element」
+    /// 「Only l-values corresponding to shader block storage or shared variables can be used with atomic memory functions」などに当たる。
+    /// 文の <c>{0}</c> は関数、<c>{1}</c> は実引数の番号、<c>{2}</c> は要るもの。
+    /// </remarks>
+    public static DiagnosticDescriptor VariableArgumentRequired { get; } = new(
+        id: "GL0306",
+        title: "実引数に渡せない値です",
+        messageFormat: "{0} の第 {1} 引数は{2}。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "interpolateAt* の第 1 引数は入力の変数、アトミックの関数の第 1 引数と協調行列の読み書きの関数の第 2 引数は "
+            + "buffer のブロックか shared の変数でなければなりません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0306"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(
