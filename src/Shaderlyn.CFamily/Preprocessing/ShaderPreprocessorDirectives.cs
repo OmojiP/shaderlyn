@@ -120,9 +120,13 @@ internal sealed partial class ShaderPreprocessor
                 SkipDirectiveLine();
                 break;
 
-            case "warning":
+            // GLSL の #version と #extension は、展開の順番とともに覚える (書いた位置より後ろにだけ効く)。
             case "version":
             case "extension":
+                _recordedDirectives.Add(new RecordedDirective(directiveToken, ReadDirectiveLine(), _output.Count));
+                break;
+
+            case "warning":
             case "line":
                 SkipDirectiveLine();
                 break;

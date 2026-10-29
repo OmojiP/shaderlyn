@@ -155,9 +155,20 @@ public sealed class GlslTypeSystemTests
     [InlineData(110, "int", "float", false)]
     [InlineData(120, "int", "float", true)]
     [InlineData(null, "int", "double", true)]
-    [InlineData(450, "int16_t", "float", true)]
+    [InlineData(450, "int16_t", "float", false)]
     public void デスクトップの暗黙の変換(int? version, string value, string target, bool expected)
         => Assert.Equal(expected, GlslTypeSystem.For(version, GlslProfile.Core).IsConvertible(value, target));
+
+    /// <summary>有効にした拡張で、暗黙の変換が増える (glslang の canImplicitlyPromote)。</summary>
+    [Theory]
+    [InlineData(450, (int)GlslNumericFeatures.ExplicitArithmeticTypes, "int16_t", "float", true)]
+    [InlineData(450, (int)GlslNumericFeatures.GpuShaderInt16, "int16_t", "float", true)]
+    [InlineData(330, (int)GlslNumericFeatures.ArbGpuShader5, "int", "uint", true)]
+    [InlineData(330, (int)GlslNumericFeatures.GpuShaderFp64, "float", "double", true)]
+    [InlineData(330, (int)GlslNumericFeatures.NvGpuShader5Types, "int8_t", "float", true)]
+    [InlineData(450, (int)GlslNumericFeatures.None, "float16_t", "float", false)]
+    public void 拡張で増える暗黙の変換(int version, int features, string value, string target, bool expected)
+        => Assert.Equal(expected, GlslTypeSystem.For(version, GlslProfile.Core, null, (GlslNumericFeatures)features).IsConvertible(value, target));
 
     [Theory]
     [InlineData("int", "float")]

@@ -220,11 +220,14 @@ GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` 
 
 **C 系の言語に共通のルール (`CF` で始まるもの) で検査します。** HLSL にしか無いルール (`HL` で始まるもの) は出しません。
 
-- 型は GLSL の決まりで判断します。暗黙の変換は `#version` で変わり (ES と 1.10 には無く、4.00 以降は `int` → `uint` → `float` → `double`)、
+- glslang 16.6.0 が読む書き方は、拡張のもの (協調行列の `coopmat<…>`、長いベクトルの `vector<T, N>`、`GL_EXT_spirv_intrinsics` など) も含めてすべて読みます。
+  語がキーワードかは、glslang と同じく `#version` と有効にした拡張で決めます (4.00 より前の `sample` は名前に使えます)。予約語 (`class` など) を名前に使うと [CF0001](../rules/CF0001.md) です
+- 型は GLSL の決まりで判断します。暗黙の変換は glslang と同じく `#version` と有効にした拡張で変わり (ES の 3.10 より前と 1.10 には無く、4.00 以降は `int` → `uint` → `float` → `double`。
+  `GL_ARB_gpu_shader5` や `GL_EXT_shader_explicit_arithmetic_types` などで増えます)、
   成分の数の違う値は変換しません (`vec3 c = 1.0;` も `vec3 c = vec4(1.0);` も誤り)。行列を含む `*` は行列の積です
 - glslang から作った一覧を使い、ファイルのステージと `#version` で使える組み込み関数と変数 (`texture`、`gl_FragCoord` など) を解析対象にします。
   頂点シェーダーで `gl_FragCoord` を使うと、宣言されていない名前 ([CF0310](../rules/CF0310.md)) になります
-- glslang に `-V` (Vulkan) を渡すかどうかはソースから分からないので、Vulkan と OpenGL の組み込みはどちらも使えるものとします
+- Vulkan 向けか OpenGL 向けかは、設定ファイルの [`glsl: target`](configuration.md#glsl) で決めます。書かなければ、Vulkan と OpenGL の組み込みはどちらも使えるものとします
 - ステージのファイルのエントリポイントは `main` です。無ければ [CF0301](../rules/CF0301.md) になります
 - 取り込まれる断片 (`.glsl`) を単体で解析すると、取り込む側で宣言した名前が分からないため、宣言が無いことを根拠にする検査を見送ります
   ([CF0101](../rules/CF0101.md) で伝えます)。取り込む側のステージのファイルを解析すれば、断片の中も検査します。
@@ -239,9 +242,10 @@ VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内
 - `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ読みます
 - 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
 - ステージはファイルの拡張子で決めます (glslang と同じ)。`shadow.vert.glsl` のように `.glsl` の前にステージの拡張子があれば、そのステージです
-- 言語のバージョンはファイルの `#version` で決め、glslang と同じマクロを定義します (`__VERSION__`、ES の `GL_ES`、1.50 以降の `GL_core_profile` など)。
+- 言語のバージョンはファイルの `#version` で決め、glslang と同じマクロを定義します (`__VERSION__`、ES の `GL_ES`、1.50 以降の `GL_core_profile`、
+  glslang が読める拡張の名前のマクロ `GL_EXT_ray_tracing` など、デスクトップのステージのマクロ `GL_FRAGMENT_SHADER` など)。
   `#version` の無いステージのファイルは、glslang と同じく ES の 100 として読みます。`#version` の無い `.glsl` は、取り込む側で決まるのでバージョンを決めません
-- `VULKAN` と `GL_SPIRV` は、glslang に渡す指定 (`-V` / `-G`) で決まるので定義しません。使うなら `defines:` に書いてください
+- `VULKAN` と `GL_SPIRV` は、[`glsl: target`](configuration.md#glsl) と `glsl: spirv` で決まります (glslang の `-V` / `-G`)。`defines:` に書いても同じです
 - `#if` で切り替える分岐は、設定ファイルの `symbols:` に書くと両方を読みます (書き方は[汎用の HLSL](#汎用の-hlsl-dxc) と同じ)
 
 ```yaml
@@ -249,8 +253,8 @@ version: 1
 environment: glsl
 include-paths:
   - shaders/include
-defines:
-  - VULKAN=100       # glslang -V でコンパイルするなら
+glsl:
+  target: vulkan1.3  # glslang -V --target-env vulkan1.3 でコンパイルするなら
 symbols:
   - name: USE_FOG    # #ifdef USE_FOG の両方の分岐を読む
 ```

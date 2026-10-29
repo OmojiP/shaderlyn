@@ -34,16 +34,54 @@ internal static class GlslSyntaxTree
 
         PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
 
-        GlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude);
+        GlslLanguageOptions language = (GlslLanguageOptions)effective.Language!;
+        GlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude, language);
         CompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         SyntaxNode.WireParents(root);
 
         ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         diagnostics.AddRange(preprocessed.Diagnostics);
         diagnostics.AddRange(parseDiagnostics);
+        AddReservedWords(diagnostics, preprocessed.Tokens, text, language);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
         return new ShaderSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable(), effective.Language!, parser.UnanalyzedIdentifiers);
+    }
+
+    /// <summary>
+    /// そのバージョンと拡張で使えない予約語を、構文の誤り (CF0001) として報告する (glslang の「Reserved word.」)。
+    /// </summary>
+    /// <param name="diagnostics">報告を足す先。</param>
+    /// <param name="tokens">展開したトークン。</param>
+    /// <param name="text">解析しているファイル。このファイルに書いた語だけを報告する。</param>
+    /// <param name="language">言語の設定。バージョンが分からなければ報告しない。</param>
+    /// <remarks>
+    /// <c>class</c> や <c>union</c> のようにどのバージョンでも予約語のものと、<c>double</c> を 1.40 で書くように、そのバージョンでは予約語のものがある。
+    /// </remarks>
+    private static void AddReservedWords(
+        ImmutableArray<Diagnostic>.Builder diagnostics,
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        SourceText text,
+        GlslLanguageOptions language)
+    {
+        if (language.Version is not { } version)
+        {
+            return;
+        }
+
+        GlslWordRules rules = new(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, language.Extensions.Contains);
+
+        foreach (ShaderSyntaxToken token in tokens)
+        {
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken
+                && ReferenceEquals(token.Source, text)
+                && rules.Classify(token.Text).IsReservedError
+                && token.GetLocation() is { } location)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    CFamily.ShaderDescriptors.SyntaxError, location, $"'{token.Text}' はこのバージョンの GLSL の予約語なので使えません。"));
+            }
+        }
     }
 }
 

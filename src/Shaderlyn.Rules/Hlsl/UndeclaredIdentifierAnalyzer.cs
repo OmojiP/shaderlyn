@@ -143,7 +143,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         if (types.IsKnownFunction(identifier.Name, program.Tree)
             || types.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || types.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            || types.IsBuiltInTypeName(identifier.Name)
             || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)

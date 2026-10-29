@@ -479,8 +479,10 @@ for (const [index, ok] of usable.entries()) {
 
 // 引数の数を表に書き出さない関数。... は、そこから後ろにいくつでも引数を書けることを表す。
 // - debugPrintfEXT (GL_EXT_debug_printf) は、書式の文字列の後に値をいくつでも書ける。表には引数の無い形しか出ない
+// - abortEXT (GL_EXT_abort)、coopMatPerElementNV / EXT、saturatedConvertEXT も、glslang は引数の無い形で宣言し、
+//   呼び出しの検査を別にしている (ParseHelper.cpp の findFunction)。引数の無い abortEXT() も書けるので、引数の無い形も残す
 // - tensorReadARM / tensorWriteARM (GL_ARM_tensors) の最後のテンソルの指定 (tensorOperands) は省ける。表には省かない形しか出ない
-for (const [key, indices] of [...functions].filter(([k]) => k.startsWith('debugPrintfEXT\t'))) {
+for (const [key, indices] of [...functions].filter(([k]) => /^(debugPrintfEXT|abortEXT|coopMatPerElementNV|coopMatPerElementEXT|saturatedConvertEXT)\t/.test(k))) {
   const [name, result, , extensions] = key.split('\t');
 
   for (const index of indices) {

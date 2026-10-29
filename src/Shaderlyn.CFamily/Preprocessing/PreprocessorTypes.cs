@@ -555,6 +555,21 @@ public readonly record struct PragmaDirective(
 }
 
 /// <summary>
+/// 展開の順番を覚えておく指令 (GLSL の <c>#version</c> と <c>#extension</c>)。
+/// </summary>
+/// <param name="Directive">指令の名前のトークン (<c>extension</c> など)。</param>
+/// <param name="Tokens">指令の名前の後ろのトークン。</param>
+/// <param name="OutputIndex">この指令の後に出力したトークンの、出力の中での最初の位置。指令より前に出力したトークンは、これより前にある。</param>
+/// <remarks>
+/// GLSL の <c>#extension</c> は、書いた位置より後ろのコードにだけ効く (glslang)。
+/// 構文木のトークンを出力の中の位置と比べれば、そのトークンの時点で有効な拡張が分かる。
+/// </remarks>
+public readonly record struct RecordedDirective(
+    ShaderSyntaxToken Directive,
+    ImmutableArray<ShaderSyntaxToken> Tokens,
+    int OutputIndex);
+
+/// <summary>
 /// 条件付きで出力へ入れたトークンの範囲。
 /// </summary>
 /// <param name="Start">出力トークン列での開始位置。</param>
@@ -855,6 +870,9 @@ public readonly record struct PreprocessResult(
     /// </summary>
     /// <remarks>既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。</remarks>
     public ImmutableArray<PragmaDirective> IgnoredPragmas { get; init; }
+
+    /// <summary>展開の順番を覚えた指令 (GLSL の <c>#version</c> と <c>#extension</c>)。読み飛ばした分岐の中のものは無い。</summary>
+    public ImmutableArray<RecordedDirective> RecordedDirectives { get; init; } = [];
 
     /// <summary>
     /// 到達した、読んでいる <c>#error</c> の位置。並べた分岐の中のものは数えない。

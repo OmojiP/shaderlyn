@@ -63,6 +63,15 @@ public sealed class Dx12SyntaxTests
     public void DXCが受け付ける書き方を構文の誤りにしない(string code)
         => HlslHarness.ParseValid(code);
 
+    /// <summary>
+    /// GLSL の数値の接尾辞 (16 ビットの整数の <c>s</c>、8 ビットの浮動小数点数の <c>fe2m1</c>) は、字句解析が 1 つのトークンにするが、HLSL では誤り。
+    /// </summary>
+    [Theory]
+    [InlineData("static const int A = 3s;")]
+    [InlineData("static const float B = 1.0fe2m1;")]
+    public void GLSLの数値の接尾辞はHLSLでは誤り(string code)
+        => Assert.Contains(HlslHarness.Parse(code).Diagnostics, d => d.Id == "CF0001");
+
     [Fact]
     public void Gatherは要素の成分を4つ集めたベクトルを返す()
     {

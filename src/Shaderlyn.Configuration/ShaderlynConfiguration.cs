@@ -118,6 +118,19 @@ internal sealed record ShaderlynConfiguration
     /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>、DXC の <c>-enable-16bit-types</c>)。指定が無い場合は <see langword="null"/>。</summary>
     public bool? HlslEnable16BitTypes { get; init; }
 
+    /// <summary>
+    /// GLSL をどこ向けにコンパイルするか (<c>glsl: target</c>、glslang の <c>--target-env</c>)。
+    /// <c>vulkan</c> (バージョンを決めない)、<c>vulkan1.0</c> ～ <c>vulkan1.4</c>、<c>opengl</c>。
+    /// 指定が無い場合は <see langword="null"/> で、どちらにしかない書き方も誤りにしない。
+    /// </summary>
+    public string? GlslTarget { get; init; }
+
+    /// <summary>
+    /// 作る SPIR-V のバージョン (<c>glsl: spirv</c>。<c>1.0</c> ～ <c>1.6</c>)。指定が無い場合は <see langword="null"/> で、<see cref="GlslTarget"/> の Vulkan のバージョンから決める。
+    /// <c>opengl</c> に付けると、OpenGL 向けの SPIR-V (glslang の <c>-G</c>) になる。
+    /// </summary>
+    public string? GlslSpirv { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

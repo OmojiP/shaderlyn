@@ -4,7 +4,7 @@
 //   node tools/oracles/compare-glsl.mjs <ファイルかフォルダー>... [オプション]
 //
 //   # glslang の Test を、付いている正解 (baseResults) と比べる
-//   node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults
+//   node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults --gtests=.work/corpus/glslang/gtests
 //   # glslang を動かして比べる (OpenGL の意味。--vulkan で Vulkan の意味の SPIR-V を作る)
 //   node tools/oracles/compare-glsl.mjs .work/corpus/ogl-samples/data
 //   # 拡張子がステージを表さないシェーダー集は、ステージを対応づける
@@ -12,7 +12,10 @@
 //
 // オプション:
 //   --baseline=<フォルダー>  glslang を動かさず、<フォルダー>/<ファイル名>.out の ERROR の行を正解にする (glslang の Test の形)
-//   --vulkan                 glslang に -V --target-env vulkan1.3 を渡す
+//   --gtests=<フォルダー>    glslang の gtests (*.FromFile.cpp) から、1 つのファイルをコンパイルする試験だけを選び、
+//                            Vulkan と OpenGL のどちらの意味でコンパイルしたかを読む (--baseline と使う)。
+//                            渡さなければ、ファイルの名前で試験の種類を見分ける (baselineExclusions)
+//   --vulkan                 glslang に -V --target-env vulkan1.3 を渡す。Shaderlyn には glsl: target: vulkan を渡す
 //   --stage-map=<a:b,...>    拡張子 .a のファイルを .b のステージとして読む (作業用のフォルダーに写して読ませる)
 //   --details                食い違いを 1 件ずつ出す
 //   --json=<パス>            ファイルごとの結果を JSON で書く
@@ -36,8 +39,7 @@ const stages = new Set([
 ]);
 
 /**
- * glslang の Test のうち、1 つのファイルをコンパイルした結果でないもの。比べない。
- * 名前の先頭で見分ける。
+ * glslang の Test のうち、1 つのファイルをコンパイルした結果でないもの。--gtests を渡さないときに、名前の先頭で見分けて比べない。
  */
 const baselineExclusions = [
   ["hlsl.", "HLSL として読ませる"],
@@ -51,12 +53,49 @@ const baselineExclusions = [
   ["spv.glsl.register.", "HLSL のレジスタの割り当ての試験"],
 ];
 
+const vulkanMode = { target: "vulkan", defines: [] };
+
+/**
+ * glslang の gtests の試験の種類と、その試験のファイルをコンパイルする意味。
+ * 載っていない種類 (HLSL、リンク、プリプロセスだけ、設定ファイル、入出力の割り当て) は比べない。
+ * target は設定ファイルの glsl: target に渡す (vulkan なら Shaderlyn も VULKAN を 100 にする)。
+ * defines はほかに glslang が定義するマクロ (-G の GL_SPIRV)。compileOnly はリンクしない (main が無くてよい)。
+ */
+const gtestFixtures = {
+  CompileToAstTest: { target: "opengl", defines: [] },
+  CompileToAstTestNV: { target: "opengl", defines: [] },
+  CompileOpenGLToSpirvTest: { target: "opengl", defines: ["GL_SPIRV=100"] },
+  OpenGLSemantics: { target: "opengl", defines: ["GL_SPIRV=100"] },
+  CompileVulkanToSpirvTest: vulkanMode,
+  CompileVulkanToSpirvRelaxSetBindingLimitsTest: vulkanMode,
+  CompileVulkanToSpirvTestNoLink: { ...vulkanMode, compileOnly: true },
+  CompileToSpirv14TestNoLink: { ...vulkanMode, compileOnly: true },
+  CompileVulkanToSpirvDeadCodeElimTest: vulkanMode,
+  CompileVulkan1_1ToSpirvTest: vulkanMode,
+  CompileToSpirv14Test: vulkanMode,
+  CompileToSpirv16Test: vulkanMode,
+  VulkanSemantics: vulkanMode,
+  VulkanAstSemantics: vulkanMode,
+  CompileVulkanToSpirvTestQCOM: vulkanMode,
+  CompileVulkanToSpirv13TestQCOM: vulkanMode,
+  CompileVulkanToSpirv14TestQCOM: vulkanMode,
+  CompileVulkanToSpirvTestAMD: vulkanMode,
+  CompileVulkanToSpirvTestNV: vulkanMode,
+  CompileVulkanToSpirv14TestNV: vulkanMode,
+  CompileUpgradeTextureToSampledTextureAndDropSamplersTest: vulkanMode,
+  GlslSpirvDebugInfoTest: vulkanMode,
+  GlslNonSemanticShaderDebugInfoTest: vulkanMode,
+  GlslNonSemanticShaderDebugInfoVulkanLatestTest: vulkanMode,
+  GlslSplitBarrierEXTTest: vulkanMode,
+};
+
 /** glslang の出力のうち、誤りではない ERROR の行。 */
 const ignoredErrors = [/node is still EOpNull!/, /compilation errors\.\s+No code generated/, /^\d+ compilation errors/];
 
 const args = process.argv.slice(2);
 const option = name => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const baseline = option("baseline");
+const gtests = option("gtests");
 const vulkan = args.includes("--vulkan");
 const details = args.includes("--details");
 const jsonPath = option("json");
@@ -67,7 +106,7 @@ const stageMap = new Map((option("stage-map") ?? "").split(",").filter(Boolean).
 const targets = args.filter(a => !a.startsWith("--"));
 
 if (targets.length === 0) {
-  console.error("使い方: node tools/oracles/compare-glsl.mjs <ファイルかフォルダー>... [--baseline=<フォルダー>] [--vulkan] [--stage-map=vs:vert,...] [--details] [--json=<パス>]");
+  console.error("使い方: node tools/oracles/compare-glsl.mjs <ファイルかフォルダー>... [--baseline=<フォルダー>] [--gtests=<フォルダー>] [--vulkan] [--stage-map=vs:vert,...] [--details] [--json=<パス>]");
   process.exit(2);
 }
 
@@ -83,13 +122,16 @@ if (!existsSync(cli) && !process.env.SHADERLYN_CLI) {
 const scratch = mkdtempSync(join(tmpdir(), "shaderlyn-compare-"));
 
 try {
+  // gtests の試験の一覧から、ファイルごとのコンパイルの意味を読む。
+  const modes = gtests ? readGtests(gtests) : undefined;
+
   // 比べるファイルを集める。stageMap の拡張子のファイルは、作業用のフォルダーにステージの拡張子を足して写す。
   const files = [];
 
   for (const target of targets) {
     for (const file of collect(resolve(target))) {
       const name = basename(file);
-      const excluded = baseline ? baselineExclusions.find(([prefix]) => name.startsWith(prefix)) : undefined;
+      const excluded = modes ? !modes.has(name) : baseline !== undefined && baselineExclusions.some(([prefix]) => name.startsWith(prefix));
 
       if (excluded || (baseline && !existsSync(join(baseline, `${name}.out`)))) {
         continue;
@@ -103,7 +145,8 @@ try {
         copyFileSync(file, analyzed);
       }
 
-      files.push({ file, analyzed, ours: [], theirs: [] });
+      const mode = modes?.get(name) ?? (vulkan ? vulkanMode : { target: "opengl", defines: [] });
+      files.push({ file, analyzed, mode, ours: [], theirs: [] });
     }
   }
 
@@ -114,26 +157,28 @@ try {
       : runGlslang(entry.analyzed);
   }
 
-  // Shaderlyn の指摘。ファイルを束ねて CLI に渡す。
+  // Shaderlyn の指摘。同じ意味のファイルを束ねて CLI に渡す。向けは設定ファイルで渡す。
   const byPath = new Map(files.map(entry => [resolve(entry.analyzed).toLowerCase(), entry]));
 
-  for (let i = 0; i < files.length; i += 80) {
-    const batch = files.slice(i, i + 80);
-    const result = spawnSync(cli, ["--environment", "glsl", "--format", "json", "--include-trace", "none", "--base-path", scratch, ...batch.map(e => e.analyzed)],
-      { encoding: "utf8", maxBuffer: 1 << 30 });
-    const report = JSON.parse(result.stdout);
+  for (const [, group] of Map.groupBy(files, entry => `${entry.mode.target} ${entry.mode.defines.join(" ")}`)) {
+    for (let i = 0; i < group.length; i += 80) {
+      const batch = group.slice(i, i + 80);
+      const defines = batch[0].mode.defines.flatMap(define => ["--define", define]);
+      const result = spawnSync(cli, ["--config", writeConfig(batch[0].mode.target), "--environment", "glsl", "--format", "json", "--include-trace", "none", "--base-path", scratch, ...defines, ...batch.map(e => e.analyzed)],
+        { encoding: "utf8", maxBuffer: 1 << 30 });
 
-    for (const diagnostic of report.diagnostics) {
-      if (diagnostic.severity === "info") {
-        continue;
-      }
+      for (const diagnostic of JSON.parse(result.stdout).diagnostics) {
+        if (diagnostic.severity === "info") {
+          continue;
+        }
 
-      const entry = byPath.get(resolve(scratch, diagnostic.file).toLowerCase());
-
-      if (entry) {
-        entry.ours.push({ id: diagnostic.id, severity: diagnostic.severity, line: diagnostic.line, message: diagnostic.message });
-      } else {
         // 取り込んだファイルの中の指摘は、取り込んだ側のファイルの名前で付かない。どのファイルのものか分からないので数えない。
+        // リンクしない試験 (compileOnly) では、main が無いこと (CF0301) は誤りではない。
+        const entry = byPath.get(resolve(scratch, diagnostic.file).toLowerCase());
+
+        if (entry && !(entry.mode.compileOnly && diagnostic.id === "CF0301")) {
+          entry.ours.push({ id: diagnostic.id, severity: diagnostic.severity, line: diagnostic.line, message: diagnostic.message });
+        }
       }
     }
   }
@@ -186,7 +231,7 @@ try {
   }
 
   if (jsonPath) {
-    writeFileSync(jsonPath, JSON.stringify(files.map(({ file, ours, theirs, status }) => ({ file: relative(process.cwd(), file), status: status ?? "ok", ours, theirs })), null, 1));
+    writeFileSync(jsonPath, JSON.stringify(files.map(({ file, mode, ours, theirs, status }) => ({ file: relative(process.cwd(), file), target: mode.target, status: status ?? "ok", ours, theirs })), null, 1));
   }
 
   console.log(`ファイル ${summary.files} 件`);
@@ -197,10 +242,49 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 
-/** glslang を動かし、誤りを返す。 */
+/**
+ * glslang の gtests (*.FromFile.cpp) の INSTANTIATE_TEST_SUITE_P から、ファイルの名前ごとのコンパイルの意味を読む。
+ * gtestFixtures に無い種類の試験のファイルは載せない。
+ */
+function readGtests(directory) {
+  const modes = new Map();
+
+  for (const name of readdirSync(directory).filter(n => n.endsWith(".FromFile.cpp"))) {
+    const source = readFileSync(join(directory, name), "utf8");
+
+    for (const suite of source.matchAll(/INSTANTIATE_TEST_SUITE_P\(\s*\w+\s*,\s*(\w+)\s*,([\s\S]*?)\n\);/g)) {
+      const mode = gtestFixtures[suite[1]];
+
+      if (mode) {
+        for (const file of suite[2].matchAll(/"([^"]+)"/g)) {
+          modes.set(file[1], mode);
+        }
+      }
+    }
+  }
+
+  return modes;
+}
+
+/** その向けの設定ファイルを作業用のフォルダーに書き、パスを返す。 */
+function writeConfig(target) {
+  const path = join(scratch, `shaderlyn-${target}.yml`);
+
+  if (!existsSync(path)) {
+    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n`);
+  }
+
+  return path;
+}
+
+/**
+ * glslang を動かし、誤りを返す。
+ * -l でリンクまで行う。Shaderlyn はステージのファイルに main が無いこと (CF0301) と、関数の本体が無いこと (CF0311) を誤りにする。
+ * glslang ではどちらもリンクの誤りなので、リンクしないと比べられない。
+ */
 function runGlslang(file) {
   const options = vulkan ? ["-V", "--target-env", "vulkan1.3", "-o", join(scratch, "out.spv")] : [];
-  const result = spawnSync(glslang, [...options, `-I${dirname(file)}`, file], { encoding: "utf8" });
+  const result = spawnSync(glslang, [...options, "-l", `-I${dirname(file)}`, file], { encoding: "utf8" });
 
   if (result.error) {
     console.error(`glslang を起動できません (${glslang})。環境変数 SHADERLYN_GLSLANG に場所を渡すか、PATH に置いてください。`);

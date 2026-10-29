@@ -5,6 +5,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
+using Shaderlyn.Glsl;
 using Shaderlyn.Hlsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
@@ -74,7 +75,9 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 
-            if (IsIncrement(expression, out ShaderSyntaxToken? incrementToken, out ExpressionSyntax? operand))
+            // 増減の FXC での扱いは HLSL だけの話である。GLSL の増減は DescribeGlsl が見る。
+            if (program.Tree.Language is not GlslLanguageOptions
+                && IsIncrement(expression, out ShaderSyntaxToken? incrementToken, out ExpressionSyntax? operand))
             {
                 if (DescribeIncrement(compilation, binder, expression, operand, incrementToken) is { } increment)
                 {
@@ -84,7 +87,11 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (Describe(compilation, binder, expression) is { } problem)
+            (ShaderSyntaxToken Token, string Message)? found = program.Tree.Language is GlslLanguageOptions
+                ? DescribeGlsl(binder, program, expression)
+                : Describe(compilation, binder, expression);
+
+            if (found is { } problem)
             {
                 Report(context, problem.Token, problem.Message, reported);
             }
@@ -198,6 +205,66 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
             default:
                 return null;
         }
+    }
+
+    /// <summary>GLSL の式 1 つについて、構造体に使えない演算子を使っていればその中身を返す。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="program">式がある木。</param>
+    /// <param name="expression">対象の式。</param>
+    /// <returns>報告する位置と文。問題が無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// GLSL の構造体に使える演算子は、代入 (<c>=</c>)、比較 (<c>==</c> / <c>!=</c>)、条件演算子 (<c>?:</c>)、カンマ、メンバーの選択だけである
+    /// (GLSL 4.60 の 5.7 節)。演算子の多重定義は無い。増減も GLSL のどのコンパイラも受け付けない (HLSL の FXC と違う)。
+    /// </para>
+    /// <para>
+    /// <c>layout(buffer_reference)</c> のブロックの型はアドレスである (GL_EXT_buffer_reference2)。
+    /// 整数との <c>+</c> / <c>-</c>、<c>+=</c> / <c>-=</c>、アドレスどうしの <c>-</c> を使える (glslang の Intermediate.cpp の addBinaryMath)。
+    /// </para>
+    /// </remarks>
+    private static (ShaderSyntaxToken Token, string Message)? DescribeGlsl(
+        ExpressionTypeBinder binder,
+        AnalyzedProgram program,
+        ExpressionSyntax expression)
+    {
+        ExpressionTypeEvaluator? evaluator = null;
+
+        string? StructOf(ExpressionSyntax operand)
+        {
+            evaluator ??= binder.GetEvaluatorFor(expression);
+            return evaluator.Evaluate(operand) is { } type && binder.IsStructType(type) ? type : null;
+        }
+
+        bool IsReference(string structName)
+            => program.Structs.Any(s => s.Name == structName && s.Modifiers.Any(m => m.Text == "buffer_reference"));
+
+        const string Allowed = "GLSL の構造体に使える演算子は =、==、!=、?: とメンバーの選択 (.) だけです。";
+
+        (ExpressionSyntax[] Operands, ShaderSyntaxToken Token, bool AddressArithmetic)? use = expression switch
+        {
+            BinaryExpressionSyntax { OperatorToken.Kind: not (ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken) } binary
+                => ([binary.Left, binary.Right], binary.OperatorToken, binary.OperatorToken.Kind is ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken),
+            AssignmentExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.EqualsToken } assignment
+                => ([assignment.Left], assignment.OperatorToken, assignment.OperatorToken.Kind is ShaderSyntaxKind.PlusEqualsToken or ShaderSyntaxKind.MinusEqualsToken),
+            PrefixUnaryExpressionSyntax unary => ([unary.Operand], unary.OperatorToken, false),
+            PostfixUnaryExpressionSyntax postfix => ([postfix.Operand], postfix.OperatorToken, false),
+            _ => null,
+        };
+
+        if (use is not { } found)
+        {
+            return null;
+        }
+
+        foreach (ExpressionSyntax operand in found.Operands)
+        {
+            if (StructOf(operand) is { } structName && !(found.AddressArithmetic && IsReference(structName)))
+            {
+                return (found.Token, $"構造体 '{structName}' の値に演算子 '{found.Token.Text}' は使えません。{Allowed}");
+            }
+        }
+
+        return null;
     }
 
     /// <summary>増減 (<c>++a</c> / <c>a++</c> / <c>--a</c> / <c>a--</c>) かを判定する。</summary>

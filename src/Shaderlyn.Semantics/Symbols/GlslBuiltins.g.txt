@@ -721,6 +721,8 @@ F	SetMeshOutputsEXT	void	uint;uint		5
 F	SetMeshOutputsEXT	void	uint;uint	GL_EXT_mesh_shader	6
 F	abortEXT	void			7
 F	abortEXT	void		GL_EXT_abort	8
+F	abortEXT	void	*;...		7
+F	abortEXT	void	*;...	GL_EXT_abort	8
 F	abs	double	double		9
 F	abs	dvec2	dvec2		9
 F	abs	dvec3	dvec3		9
@@ -1854,7 +1856,9 @@ F	coopMatMulAddNV	float	float;float;float	GL_NV_cooperative_matrix,GL_NV_integer
 F	coopMatMulAddNV	int	int;int;int	GL_NV_cooperative_matrix,GL_NV_integer_cooperative_matrix	41
 F	coopMatMulAddNV	uint	uint;uint;uint	GL_NV_cooperative_matrix,GL_NV_integer_cooperative_matrix	41
 F	coopMatPerElementEXT	void		GL_EXT_cooperative_matrix_maintenance1	17
+F	coopMatPerElementEXT	void	*;...	GL_EXT_cooperative_matrix_maintenance1	17
 F	coopMatPerElementNV	void		GL_NV_cooperative_matrix2	17
+F	coopMatPerElementNV	void	*;...	GL_NV_cooperative_matrix2	17
 F	coopMatReduceEXT	void	out coopmat;coopmat;int;unknown	GL_EXT_cooperative_matrix_maintenance1	17
 F	coopMatReduceNV	void	out coopmat;coopmat;int;unknown	GL_NV_cooperative_matrix2	17
 F	coopMatStore	void	coopmat;bfloat16_t<2>[];uint64_t;uint;int	GL_EXT_shader_64bit_indexing	17
@@ -7109,6 +7113,8 @@ F	roundEven	vec4	vec4		12
 F	roundEven	vector	vector		16
 F	saturatedConvertEXT	void			35
 F	saturatedConvertEXT	void		GL_EXT_float_e5m2,GL_EXT_float_e4m3	36
+F	saturatedConvertEXT	void	*;...		35
+F	saturatedConvertEXT	void	*;...	GL_EXT_float_e5m2,GL_EXT_float_e4m3	36
 F	setTensorLayoutBlockSizeNV	tensorLayoutNV	tensorLayoutNV;uint	GL_NV_cooperative_matrix2	17
 F	setTensorLayoutBlockSizeNV	tensorLayoutNV	tensorLayoutNV;uint;uint	GL_NV_cooperative_matrix2	17
 F	setTensorLayoutBlockSizeNV	tensorLayoutNV	tensorLayoutNV;uint;uint;uint	GL_NV_cooperative_matrix2	17

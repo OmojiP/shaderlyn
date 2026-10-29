@@ -34,6 +34,9 @@ internal sealed partial class ShaderPreprocessor
     private readonly ImmutableArray<Diagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
     private readonly ImmutableArray<PragmaDirective>.Builder _pragmas = ImmutableArray.CreateBuilder<PragmaDirective>();
 
+    /// <summary>展開の順番とともに覚える指令 (GLSL の <c>#version</c> と <c>#extension</c>)。</summary>
+    private readonly ImmutableArray<RecordedDirective>.Builder _recordedDirectives = ImmutableArray.CreateBuilder<RecordedDirective>();
+
     /// <summary>条件で参照された名前。シンボルの検査に使う。</summary>
     private readonly List<ShaderSyntaxToken> _conditionalIdentifiers = [];
     private readonly ImmutableArray<ShaderSyntaxToken>.Builder _output = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -404,6 +407,7 @@ internal sealed partial class ShaderPreprocessor
         {
             InactiveRegions = [.. _inactiveRegions],
             IgnoredPragmas = ignoredPragmas,
+            RecordedDirectives = _recordedDirectives.ToImmutable(),
             BothBranchDeclines =
             [
                 .. _bothBranchDeclines

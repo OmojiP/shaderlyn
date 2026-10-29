@@ -430,7 +430,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             || !compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
-            || compilation.TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
+            || compilation.TypeSystem.IsBuiltInTypeName(name))
         {
             return;
         }

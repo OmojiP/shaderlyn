@@ -83,6 +83,16 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("layout(binding = 1) uniform UBO { mat4 model; } ubo;\nvoid main() { o = ubo.model * vec4(uv, 0.0, 1.0); }")]
     [InlineData("layout(binding = 1) uniform Params { float scale; };\nvoid main() { o = vec4(scale); }")]
     [InlineData("void main() { if (uv.x < 0.0) { discard; } o = vec4(gl_FragCoord.xy, 0.0, 1.0); }")]
+    [InlineData("void main() { bool a = uv.x > 0.0; bool b = uv.y > 0.0; o = vec4(a ^^ b ? 1.0 : 0.0); }")]
+    [InlineData("void main() { vec4(uv, 0.0, 1.0); ivec2[2](ivec2(1), ivec2(2)); o = vec4(1.0); }")]
+    [InlineData("struct S { float x; };\nvoid main() { S[2] s; s[0].x = 1.0; o = vec4(s[0].x); }")]
+    [InlineData("void main() { int i = 0; while (bool go = i < 3) { i += go ? 1 : 0; } o = vec4(float(i)); }")]
+    [InlineData("void main() { float a, b; a = 1.0, b = 2.0; o = vec4(a + b); }")]
+    [InlineData("void main() { struct T { float y[2]; } t; t.y[1] = 1.0; o = vec4(t.y[1]); }")]
+    [InlineData("void main() { vec2 v = uv; { vec4 v = vec4(v, 0.0, 1.0); o = v; } }")]
+    [InlineData("void main() { for (int i = 0; i < 2; i++) { } float i = 5.0; o = vec4(i); }")]
+    [InlineData("struct S { float x; };\nvoid main() { S a = S(1.0); S b = a; S c = a == b ? a : b; o = vec4(c.x); }")]
+    [InlineData("float u[];\nvoid main() { o = vec4(1.0); }\nfloat u[4];")]
     public async Task GLSLの正しいコードには何も言わない(string body)
     {
         string output = await AnalyzeAsync("ok.frag", $$"""
@@ -94,6 +104,85 @@ public sealed class GlslRuleTests : IDisposable
             """);
 
         Assert.DoesNotContain("ok.frag", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 拡張で増える書き方 (明示的な幅の算術型の接尾辞、64 ビットのリテラル、型の引数を取る型) を読む。
+    /// </summary>
+    [Fact]
+    public async Task 拡張の型とリテラルを読む()
+    {
+        string output = await AnalyzeAsync("ext.comp", """
+            #version 460
+            #extension GL_EXT_shader_explicit_arithmetic_types : enable
+            #extension GL_EXT_long_vector : enable
+            layout(local_size_x = 1) in;
+            layout(binding = 0) buffer Out { float values[]; };
+            void main()
+            {
+                int16_t a = 3s;
+                uint16_t b = 4us;
+                int64_t c = 0x1111111111111111l;
+                uint64_t d = 18446744073709551615ul;
+                float16_t h = 1.0hf;
+                vector<float, 5> v = vector<float, 5>(0.0);
+                values[0] = float(a) + float(b) + float(c) + float(d) + float(h) + v[0];
+            }
+            """);
+
+        Assert.DoesNotContain("ext.comp", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 暗黙の変換は、有効にした拡張で増える (glslang の canImplicitlyPromote)。3.30 の int から uint は GL_ARB_gpu_shader5 で通る。
+    /// </summary>
+    [Fact]
+    public async Task 拡張で暗黙の変換が増える()
+    {
+        const string body = "layout(location = 0) out vec4 o;\nvoid main() { uint u = 1; o = vec4(float(u)); }\n";
+
+        Assert.Contains("error CF0410", await AnalyzeAsync("a.frag", "#version 330\n" + body), StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0410", await AnalyzeAsync("a.frag", "#version 330\n#extension GL_ARB_gpu_shader5 : enable\n" + body), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 後のバージョンでキーワードになった語は、それより前のバージョンでは名前に使える (LearnOpenGL の <c>vec3 sample[9];</c>)。
+    /// 予約語は名前に使えない。
+    /// </summary>
+    [Fact]
+    public async Task バージョンでキーワードが変わる()
+    {
+        const string body = "out vec4 o;\nvoid main() { vec3 sample[2]; sample[0] = vec3(1.0); o = vec4(sample[0], 1.0); }\n";
+
+        Assert.DoesNotContain("a.frag", await AnalyzeAsync("a.frag", "#version 330 core\n" + body), StringComparison.Ordinal);
+        Assert.Contains("error CF0001", await AnalyzeAsync("a.frag", "#version 450\nout vec4 o;\nvoid main() { int class = 1; o = vec4(class); }\n"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ジオメトリシェーダーの入力と出力のブロックは、同じ名前でよい (ブロックの名前は型の名前ではない)。
+    /// </summary>
+    [Fact]
+    public async Task 入力と出力のブロックは同じ名前でよい()
+    {
+        string output = await AnalyzeAsync("a.geom", """
+            #version 450
+            layout(triangles) in;
+            layout(triangle_strip, max_vertices = 3) out;
+            layout(location = 0) in block { vec4 color; } In[];
+            layout(location = 0) out block { vec4 color; vec2 uv; } Out;
+            void main()
+            {
+                for (int i = 0; i < gl_in.length(); ++i)
+                {
+                    Out.color = In[i].color;
+                    Out.uv = vec2(0.0);
+                    gl_Position = gl_in[i].gl_Position;
+                    EmitVertex();
+                }
+            }
+            """);
+
+        Assert.DoesNotContain("a.geom", output, StringComparison.Ordinal);
     }
 
     /// <summary>

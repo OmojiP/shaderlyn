@@ -10,6 +10,43 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+### 追加
+
+- 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
+  `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものから引く
+- GLSL: glslang 16.6.0 が読む書き方を、拡張のものも含めてすべて読む。次の書き方を構文の誤り (CF0001) にしていた
+  - `^^`、16 ビットの整数の接尾辞 `s` / `us` (0.3.1 の既知の問題)、8 ビットの浮動小数点数の接尾辞 (`1.0fe2m1` など)
+  - 型の引数を取る型 (`coopmat<…>`、`vector<float, 5>`、`coopvecNV<…>`、テンソル)、`GL_EXT_spirv_intrinsics` (`spirv_instruction(…)`、`spirv_type(…)` など)、
+    関数の後ろの属性 (`void main() [[maximally_reconverges]]`)、ディスクリプターヒープのブロック
+  - 型の名前で始まる式の文 (`vec4(x);`)、型の側に配列を書いた構造体の変数 (`S[10] s;`)、`while` の条件の中の宣言、カンマ演算子 (`a = 1, b = 2;`)
+  - glslang の文法にあって表に無かった型と修飾子 (`f16sampler2D`、`hitObjectEXT`、`nontemporal`、`shadercallcoherent` など)
+- GLSL: 語がキーワードかを、glslang と同じく `#version` と有効にした拡張で決める。後のバージョンでキーワードになった語 (4.00 より前の `sample` など) を名前に使える。
+  予約語 (`class` など) を名前に使うと CF0001
+- GLSL: glslang と同じマクロを定義する。glslang が読める拡張の名前のマクロ (`GL_EXT_ray_tracing` など) と、デスクトップのステージのマクロ (`GL_FRAGMENT_SHADER` など)
+- 自作ルール向け: `ShaderSyntaxKind.CaretCaretToken` (`^^`)、`ConditionDeclarationExpressionSyntax`、`StructDeclarationSyntax.NameOverride`、
+  `ShaderLiteral.GetSuffix`、`PreprocessResult.RecordedDirectives`
+
+### 変更
+
+- GLSL の暗黙の変換を glslang と同じにした。有効にした拡張 (`GL_ARB_gpu_shader5`、`GL_NV_gpu_shader5` など) で増える変換を通す。
+  明示的な幅の算術型 (`int16_t` など) の変換は、今までは同じ型でなくても通していたが、glslang と同じく拡張が要るものは誤り (CF0410) にする
+- CF0406 (構造体に使えない演算子) は、GLSL では GLSL の規則で判断する。`==` / `!=` / `?:` は使え、`layout(buffer_reference)` の型はアドレスの足し引きができる
+- `--help` の見出しと、フォルダーを渡したときに解析するファイルの説明を、今の動きに合わせた
+
+### 修正
+
+- GLSL: glslang がエラーにしない書き方を誤りにしていた。glslang の Test (glslang がエラーにしない 757 ファイル) で、誤りを出したファイルが 148 から 3 になった
+  - `for` の初期化の変数がループの外へ漏れるとしていた。GLSL では漏れない
+  - 宣言の初期値の中で、宣言している名前が見えるとしていた (`vec4 p = vec4(p, 1.0);` の右の `p` は外側の `p`)
+  - 関数の中で構造体の宣言と同時に宣言した変数 (`struct S { … } s;`) を、宣言されていない名前 (CF0310) にしていた
+  - 組み込みの宣言し直し (`layout(origin_upper_left) in vec4 gl_FragCoord;`) と、大きさを書かない配列の宣言し直しを、宣言の重複 (CF0314) にしていた
+  - ジオメトリシェーダーの入力と出力の同じ名前のブロック (`in block { … } In[]; out block { … } Out;`) を、宣言の重複 (CF0314) と存在しないメンバー (CF0312) にしていた
+  - 実引数の数が決まらない組み込み (`abortEXT`、`coopMatPerElementNV` など) に、引数の数の誤り (CF0402) を出していた
+  - `spirv_instruction` を付けた関数の宣言に、定義が無い (CF0311) と言っていた
+  - 64 ビットの整数のリテラル (`1ul`) に、32 ビットに収まらない (CF0511) と言っていた
+- オブジェクト形式のマクロの本体の `##` を連結していなかった (C の規則。HLSL も同じ)
+- CF0101 の文が、GLSL のファイルでも「HLSL を解析できませんでした」と言っていた
+
 ## [0.3.1] - 2026-10-29
 
 GLSL のファイルの宣言・型・呼び出しを検査し、VS Code 拡張の説明・定義へ移動・補完・引数の案内を GLSL でも使えるようにした (0.3.0 で予告したもの)。

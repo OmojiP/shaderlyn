@@ -165,7 +165,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         // 検査を止めるのはエラーだけである (ShaderCompilation.BreaksAnalysis)。警告を原因として示さない。
         if (compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } reported)
         {
-            return "このファイルの HLSL を解析できませんでした。"
+            return $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
                 + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
         }
 
@@ -176,8 +176,14 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
             return "原因を特定できませんでした。";
         }
 
-        return "include したファイルの HLSL を解析できませんでした。"
+        return $"include したファイルの {LanguageOf(compilation)} を解析できませんでした。"
             + $"{Path.GetFileName(first.Location.FilePath)}({first.Location.LineSpan.Start}): "
             + $"{first.Id} {first.GetMessage()}";
     }
+
+    /// <summary>解析しているコードの言語の名前。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns><c>GLSL</c> か <c>HLSL</c>。</returns>
+    private static string LanguageOf(ShaderCompilation compilation)
+        => compilation.Environment.Name == Semantics.Environments.GlslEnvironment.EnvironmentName ? "GLSL" : "HLSL";
 }

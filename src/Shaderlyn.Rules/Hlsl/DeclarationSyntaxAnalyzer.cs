@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -70,7 +71,10 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
                     AnalyzeIndex(context, compilation.GetExpressionTypeBinder(program), access, reported);
                     break;
 
-                case LiteralExpressionSyntax literal:
+                // GLSL の 64 ビットの整数のリテラル (1l / 1ul、GL_ARB_gpu_shader_int64) は 32 ビットに収める必要が無い。
+                case LiteralExpressionSyntax literal
+                    when !(program.Tree.Language is GlslLanguageOptions
+                           && compilation.TypeSystem.ForTree(program.Tree).GetLiteralTypeName(literal.Token) is "int64_t" or "uint64_t"):
                     AnalyzeLiteral(context, literal, reported);
                     break;
 

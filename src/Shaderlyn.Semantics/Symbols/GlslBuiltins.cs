@@ -57,7 +57,7 @@ internal sealed record GlslBuiltinVariable(string Type, string Storage, Immutabl
 /// <para>
 /// <b>分からないものは、ありうるすべての構成を合わせる。</b>
 /// ステージの分からない断片 (<c>.glsl</c>) はすべてのステージの、バージョンの分からない木はすべてのバージョンの組み込みを使う。
-/// glslang に渡す指定 (<c>-V</c>) はソースから分からないので、Vulkan と OpenGL の組み込みはいつも合わせる。
+/// Vulkan 向けか OpenGL 向けか (glslang の <c>-V</c>) が分からなければ、両方の組み込みを合わせる。
 /// 多く知っているほうが、正しいコードを「宣言されていない」と言わずに済む。
 /// </para>
 /// </remarks>
@@ -68,10 +68,10 @@ internal sealed class GlslBuiltins
 
     private static readonly Lazy<GlslBuiltins> Table = new(Load);
 
-    private readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage), GlslBuiltinView> _views = new();
+    private readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage, bool? Vulkan), GlslBuiltinView> _views = new();
 
     private GlslBuiltins(
-        ImmutableArray<(string Profile, int Version, string Stage)> configurations,
+        ImmutableArray<(string Target, string Profile, int Version, string Stage)> configurations,
         ImmutableArray<BitArray> sets,
         FrozenDictionary<string, ImmutableArray<(GlslBuiltinFunction Function, int Set)>> functions,
         FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Variable, int Set)>> variables)
@@ -82,8 +82,8 @@ internal sealed class GlslBuiltins
         Variables = variables;
     }
 
-    /// <summary>表の構成 (プロファイル・バージョン・ステージ)。番号は表の構成の番号。</summary>
-    private ImmutableArray<(string Profile, int Version, string Stage)> Configurations { get; }
+    /// <summary>表の構成 (Vulkan か OpenGL・プロファイル・バージョン・ステージ)。番号は表の構成の番号。</summary>
+    private ImmutableArray<(string Target, string Profile, int Version, string Stage)> Configurations { get; }
 
     /// <summary>構成の集まり。番号は表の集まりの番号。</summary>
     private ImmutableArray<BitArray> Sets { get; }
@@ -103,13 +103,28 @@ internal sealed class GlslBuiltins
     /// <param name="version">バージョン。分からなければ <see langword="null"/> (すべてのバージョンを合わせる)。</param>
     /// <param name="profile">プロファイル。</param>
     /// <param name="stage">ステージ。分からなければ <see langword="null"/> (すべてのステージを合わせる)。</param>
+    /// <param name="vulkan">Vulkan 向けか。分からなければ <see langword="null"/> (Vulkan と OpenGL を合わせる)。</param>
     /// <returns>使える組み込み。</returns>
-    public GlslBuiltinView For(int? version, GlslProfile profile, GlslShaderStage? stage)
-        => _views.GetOrAdd((version, profile, stage), key => new GlslBuiltinView(this, Select(key.Version, key.Profile, key.Stage)));
+    public GlslBuiltinView For(int? version, GlslProfile profile, GlslShaderStage? stage, bool? vulkan = null)
+        => _views.GetOrAdd((version, profile, stage, vulkan), key => new GlslBuiltinView(this, Select(key.Version, key.Profile, key.Stage, key.Vulkan)));
 
     /// <summary>当てはまる構成を選ぶ。</summary>
-    private BitArray Select(int? version, GlslProfile profile, GlslShaderStage? stage)
+    private BitArray Select(int? version, GlslProfile profile, GlslShaderStage? stage, bool? vulkan)
     {
+        string? targetName = vulkan switch
+        {
+            true => "vulkan",
+            false => "opengl",
+            null => null,
+        };
+
+        // Vulkan の GLSL は、デスクトップの 1.40 以降と ES の 3.10 以降にしか無い。それより前のバージョンを Vulkan 向けに書いたものは、OpenGL の表で引く。
+        // バージョンの合う構成が glslang の誤りになるかは、別の検査が伝える。
+        if (targetName == "vulkan" && version is { } early && early < (profile == GlslProfile.Es ? 310 : 140))
+        {
+            targetName = null;
+        }
+
         string? stageName = stage is { } s ? StageName(s) : null;
         string profileName = profile switch
         {
@@ -120,16 +135,17 @@ internal sealed class GlslBuiltins
 
         // 表に無いバージョン (#version 500 など) は、表にある、それより前でいちばん新しいバージョンとして読む。
         int? listed = version is { } v
-            ? Configurations.Where(c => c.Profile == profileName && c.Version <= v).Select(c => (int?)c.Version).Max()
+            ? Configurations.Where(c => c.Profile == profileName && c.Version <= v && (targetName is null || c.Target == targetName)).Select(c => (int?)c.Version).Max()
             : null;
 
         BitArray selected = new(Configurations.Length);
 
         for (int i = 0; i < Configurations.Length; i++)
         {
-            (string p, int ver, string st) = Configurations[i];
+            (string target, string p, int ver, string st) = Configurations[i];
 
             selected[i] = (stageName is null || st == stageName)
+                          && (targetName is null || target == targetName)
                           && (version is null || listed is null || (p == profileName && ver == listed));
         }
 
@@ -179,7 +195,7 @@ internal sealed class GlslBuiltins
         using StreamReader reader = new(stream);
 
         Dictionary<int, int> configurationIndex = [];
-        List<(string Profile, int Version, string Stage)> configurations = [];
+        List<(string Target, string Profile, int Version, string Stage)> configurations = [];
         List<string> setLines = [];
         Dictionary<string, List<(GlslBuiltinFunction, int)>> functions = new(StringComparer.Ordinal);
         Dictionary<string, List<(GlslBuiltinVariable, int)>> variables = new(StringComparer.Ordinal);
@@ -197,7 +213,7 @@ internal sealed class GlslBuiltins
             {
                 case "C":
                     configurationIndex[int.Parse(fields[1], CultureInfo.InvariantCulture)] = configurations.Count;
-                    configurations.Add((fields[3], int.Parse(fields[4], CultureInfo.InvariantCulture), fields[5]));
+                    configurations.Add((fields[2], fields[3], int.Parse(fields[4], CultureInfo.InvariantCulture), fields[5]));
                     break;
 
                 case "S":

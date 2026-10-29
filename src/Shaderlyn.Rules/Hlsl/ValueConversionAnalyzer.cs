@@ -326,8 +326,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             string target = $"{declaration.Type.Name} の '{variable.Name}'";
 
             // 波括弧による初期化は、型ではなく要素の個数で見る。
+            // GLSL の空の波括弧 (S s = { };) は、すべてを 0 にする初期化である (GL_EXT_null_initializer)。拡張が要るかは別の検査が見る。
             if (initializer is InitializerListExpressionSyntax list)
             {
+                if (list.Elements.IsEmpty && program.Tree.Language is Shaderlyn.Glsl.GlslLanguageOptions)
+                {
+                    continue;
+                }
+
                 CheckInitializerList(
                     context, compilation, program, binder, list, declaration, variable, structs, target, reported);
                 continue;

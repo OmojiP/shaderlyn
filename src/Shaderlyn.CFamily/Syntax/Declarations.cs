@@ -639,7 +639,11 @@ public sealed class FunctionDeclarationSyntax(
     public ShaderSyntaxToken? SemicolonToken { get; } = semicolonToken;
 
     /// <summary>本体を持つ定義かどうか。</summary>
-    public bool IsDefinition => Body is not null;
+    /// <remarks>
+    /// GLSL の GL_EXT_spirv_intrinsics の <c>spirv_instruction(...)</c> を付けた宣言も定義である。
+    /// 本体は無く、SPIR-V の命令がそのまま関数の中身になる。
+    /// </remarks>
+    public bool IsDefinition => Body is not null || ModifierTokens.Any(m => m.Text == "spirv_instruction");
 
     /// <summary>区切りのカンマを除いた仮引数。</summary>
     public IEnumerable<ParameterSyntax> ParameterList
@@ -761,7 +765,18 @@ public sealed class StructDeclarationSyntax(
     public ShaderSyntaxToken? NameToken { get; } = nameToken;
 
     /// <summary>構造体名。無名の場合は空文字列。</summary>
-    public string Name => NameToken?.Text ?? string.Empty;
+    /// <remarks><see cref="NameOverride"/> があればそれを返す。</remarks>
+    public string Name => NameOverride ?? NameToken?.Text ?? string.Empty;
+
+    /// <summary>
+    /// 型の名前を、名前のトークンとは別にするときの名前。
+    /// </summary>
+    /// <remarks>
+    /// GLSL のインスタンスの名前を持つインターフェースブロックのブロックの名前は、型の名前ではない。
+    /// 入力と出力に同じ名前のブロックを置ける (ジオメトリシェーダーの <c>in block { … } In[]; out block { … } Out;</c>)。
+    /// 修飾子と合わせた名前 (<c>in block</c>) を型の名前にして、入力と出力を分ける。
+    /// </remarks>
+    public string? NameOverride { get; init; }
 
     /// <summary>開き波括弧。</summary>
     public ShaderSyntaxToken OpenBrace { get; } = openBrace;

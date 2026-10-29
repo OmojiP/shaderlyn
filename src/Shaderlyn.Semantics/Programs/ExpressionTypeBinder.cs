@@ -1127,7 +1127,10 @@ public sealed class ExpressionTypeBinder
         if (!_scopes.TryGetValue(function, out LocalScopes? scopes))
         {
             scopes = _scopes[function] = new LocalScopes(
-                function, _compilation.GetConditionMap(), Program.Tree.Hlsl().Features.LoopVariableOutsideLoop);
+                function,
+                _compilation.GetConditionMap(),
+                loopVariablesLeak: Program.Tree.Language is not Glsl.GlslLanguageOptions && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
+                ownNameInInitializer: Program.Tree.Language is not Glsl.GlslLanguageOptions);
         }
 
         return scopes;

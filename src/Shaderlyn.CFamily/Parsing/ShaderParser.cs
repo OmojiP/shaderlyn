@@ -140,6 +140,25 @@ internal abstract class ShaderParser
     /// <returns>その文の語なら <see langword="true"/>。</returns>
     protected virtual bool IsLanguageJumpKeyword(string text) => false;
 
+    /// <summary>数値リテラルの接尾辞を、この言語で書けるかを判定する。</summary>
+    /// <param name="suffix">接尾辞 (空でない)。</param>
+    /// <param name="floating">小数点か指数を持つリテラルか。</param>
+    /// <returns>書ければ <see langword="true"/>。</returns>
+    /// <remarks>既定は HLSL の接尾辞 (<c>f</c> <c>h</c> <c>u</c> <c>l</c> の並び)。字句解析は GLSL の接尾辞 (<c>3s</c> など) も 1 つのトークンにする。</remarks>
+    protected virtual bool IsNumericSuffixAccepted(string suffix, bool floating)
+        => suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L');
+
+    /// <summary>
+    /// 文の先頭の、組み込みの型の名前に開き括弧が続く形 (<c>vec4(x);</c>) を、値の作成の式として読むか。
+    /// </summary>
+    /// <remarks>既定は宣言として読む。GLSL には括弧で囲んだ宣言子が無いので、式である。</remarks>
+    protected virtual bool ReadsTypeNameCallAsExpression => false;
+
+    /// <summary>型の名前の後ろに、括弧で囲んだ引数を取る型か (GL_EXT_spirv_intrinsics の <c>spirv_type(id = 30)</c>)。</summary>
+    /// <param name="name">型の名前。</param>
+    /// <returns>取るなら <see langword="true"/>。</returns>
+    protected virtual bool TakesParenthesizedTypeArguments(string name) => false;
+
     /// <summary>組み込みの型の名前かを判定する。</summary>
     /// <param name="name">判定する名前。</param>
     /// <returns>組み込みの型なら <see langword="true"/>。</returns>
@@ -750,6 +769,12 @@ internal abstract class ShaderParser
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
 
+        // 仮引数の後ろの属性 (GLSL の GL_EXT_maximal_reconvergence の void main() [[maximally_reconverges]])。
+        while (Current.Kind == ShaderSyntaxKind.OpenBracketToken && Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
+        {
+            SkipDoubleBracketAnnotation();
+        }
+
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
@@ -1306,19 +1331,55 @@ internal abstract class ShaderParser
         ImmutableArray<ShaderSyntaxToken>.Builder templateArguments =
             ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if (Current.Kind == ShaderSyntaxKind.LessThanToken)
+        // 括弧で引数を取る型 (spirv_type(id = 30))。引数は型の引数として持つ (型の名前としては読まない)。
+        if (Current.Kind == ShaderSyntaxKind.OpenParenToken && TakesParenthesizedTypeArguments(name.Text))
         {
             openAngle = Advance();
-            int depth = 0;
+            int depth = 1;
 
             while (!AtEnd)
             {
-                if (Current.Kind == ShaderSyntaxKind.GreaterThanToken && depth == 0)
+                if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    depth++;
+                }
+                else if (Current.Kind == ShaderSyntaxKind.CloseParenToken && --depth == 0)
                 {
                     break;
                 }
 
-                if (Current.Kind == ShaderSyntaxKind.LessThanToken)
+                templateArguments.Add(Advance());
+            }
+
+            closeAngle = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+        }
+        else if (Current.Kind == ShaderSyntaxKind.LessThanToken)
+        {
+            openAngle = Advance();
+            int depth = 0;
+
+            // 括弧の中の > は比較である (GLSL の coopmat<float, gl_ScopeSubgroup, 16, (2>1?8:4)>)。
+            int parenthesisDepth = 0;
+
+            while (!AtEnd)
+            {
+                if (Current.Kind == ShaderSyntaxKind.GreaterThanToken && depth == 0 && parenthesisDepth == 0)
+                {
+                    break;
+                }
+
+                if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    parenthesisDepth++;
+                }
+                else if (Current.Kind == ShaderSyntaxKind.CloseParenToken)
+                {
+                    parenthesisDepth--;
+                }
+                else if (parenthesisDepth > 0)
+                {
+                }
+                else if (Current.Kind == ShaderSyntaxKind.LessThanToken)
                 {
                     depth++;
                 }
@@ -1711,7 +1772,7 @@ internal abstract class ShaderParser
             return new LocalDeclarationStatementSyntax(ParseDeclaration());
         }
 
-        ExpressionSyntax expression = ParseExpression();
+        ExpressionSyntax expression = ParseCommaExpression();
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new ExpressionStatementSyntax(expression, semicolon);
     }
@@ -1750,14 +1811,46 @@ internal abstract class ShaderParser
             return true;
         }
 
-        if (IsKnownTypeName(Current.Text))
+        if (TakesParenthesizedTypeArguments(Current.Text) && Peek(1).Kind == ShaderSyntaxKind.OpenParenToken)
         {
             return true;
+        }
+
+        if (IsKnownTypeName(Current.Text))
+        {
+            return !(ReadsTypeNameCallAsExpression && IsTypeNameFollowedByCall());
         }
 
         if (Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             return true;
+        }
+
+        // 型の側の配列 (GLSL の S[10] values;)。式なら、閉じ角括弧の後ろに名前は来ない。
+        if (AcceptsArrayTypes && Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
+        {
+            int depth = 0;
+
+            for (int offset = 1; offset < 64; offset++)
+            {
+                ShaderSyntaxKind kind = Peek(offset).Kind;
+
+                if (kind == ShaderSyntaxKind.OpenBracketToken)
+                {
+                    depth++;
+                }
+                else if (kind == ShaderSyntaxKind.CloseBracketToken && --depth == 0
+                         && Peek(offset + 1).Kind != ShaderSyntaxKind.OpenBracketToken)
+                {
+                    return Peek(offset + 1).Kind == ShaderSyntaxKind.IdentifierToken;
+                }
+                else if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.EndOfFileToken)
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         // 名前空間で修飾された型 (UnifiedRT::InstanceData x) を探す。
@@ -1807,6 +1900,78 @@ internal abstract class ShaderParser
         return false;
     }
 
+    /// <summary>
+    /// 今の位置の型の名前の後ろに、型の引数 (<c>&lt;…&gt;</c>) と配列 (<c>[…]</c>) を挟んで、開き括弧が続くかを判定する。
+    /// </summary>
+    /// <returns>続けば <see langword="true"/> (<c>vec4(x)</c>、<c>coopmat&lt;…&gt;(x)</c>、<c>ivec2[2](a, b)</c> の値の作成)。</returns>
+    private bool IsTypeNameFollowedByCall()
+    {
+        int offset = 1;
+
+        if (Peek(offset).Kind == ShaderSyntaxKind.LessThanToken && IsBuiltInTemplateTypeName(Current.Text))
+        {
+            int depth = 0;
+            int parenthesisDepth = 0;
+
+            for (; offset < 64; offset++)
+            {
+                ShaderSyntaxKind kind = Peek(offset).Kind;
+
+                if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.EndOfFileToken)
+                {
+                    return false;
+                }
+
+                if (kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    parenthesisDepth++;
+                }
+                else if (kind == ShaderSyntaxKind.CloseParenToken)
+                {
+                    parenthesisDepth--;
+                }
+                else if (parenthesisDepth == 0 && kind == ShaderSyntaxKind.LessThanToken)
+                {
+                    depth++;
+                }
+                else if (parenthesisDepth == 0 && kind == ShaderSyntaxKind.GreaterThanToken && --depth == 0)
+                {
+                    offset++;
+                    break;
+                }
+            }
+        }
+
+        while (Peek(offset).Kind == ShaderSyntaxKind.OpenBracketToken)
+        {
+            int depth = 0;
+
+            do
+            {
+                ShaderSyntaxKind kind = Peek(offset).Kind;
+
+                if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.EndOfFileToken)
+                {
+                    return false;
+                }
+
+                if (kind == ShaderSyntaxKind.OpenBracketToken)
+                {
+                    depth++;
+                }
+                else if (kind == ShaderSyntaxKind.CloseBracketToken)
+                {
+                    depth--;
+                }
+
+                offset++;
+            }
+            while (depth > 0);
+        }
+
+        return Peek(offset).Kind == ShaderSyntaxKind.OpenParenToken;
+    }
+
     /// <summary><c>if</c> 文を解析する。</summary>
     /// <param name="attributes">属性。</param>
     /// <returns>解析した文。</returns>
@@ -1814,7 +1979,7 @@ internal abstract class ShaderParser
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
-        ExpressionSyntax condition = ParseExpression();
+        ExpressionSyntax condition = ParseCommaExpression();
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         StatementSyntax thenStatement = ParseStatement();
 
@@ -1853,13 +2018,13 @@ internal abstract class ShaderParser
         }
         else
         {
-            initializer = ParseExpression();
+            initializer = ParseCommaExpression();
             firstSemicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         }
 
         ExpressionSyntax? condition = Current.Kind == ShaderSyntaxKind.SemicolonToken
             ? null
-            : ParseExpression();
+            : ParseCondition();
 
         ShaderSyntaxToken secondSemicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
@@ -1902,7 +2067,7 @@ internal abstract class ShaderParser
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
-        ExpressionSyntax condition = ParseExpression();
+        ExpressionSyntax condition = ParseCondition();
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         StatementSyntax body = ParseStatement();
 
@@ -1920,7 +2085,7 @@ internal abstract class ShaderParser
             ? Advance()
             : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
-        ExpressionSyntax condition = ParseExpression();
+        ExpressionSyntax condition = ParseCommaExpression();
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
@@ -1935,7 +2100,7 @@ internal abstract class ShaderParser
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
-        ExpressionSyntax expression = ParseExpression();
+        ExpressionSyntax expression = ParseCommaExpression();
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
 
@@ -1976,7 +2141,7 @@ internal abstract class ShaderParser
         ShaderSyntaxToken keyword = Advance();
         ExpressionSyntax? expression = Current.Kind == ShaderSyntaxKind.SemicolonToken
             ? null
-            : ParseExpression();
+            : ParseCommaExpression();
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new ReturnStatementSyntax(keyword, expression, semicolon);
     }
@@ -1988,6 +2153,49 @@ internal abstract class ShaderParser
     /// <summary>式を解析する。</summary>
     /// <returns>解析した式。</returns>
     private ExpressionSyntax ParseExpression() => ParseAssignment();
+
+    /// <summary>
+    /// <c>while</c> と <c>for</c> の条件を解析する。GLSL では変数の宣言も書ける (<c>while (bool b = x &lt; 45)</c>)。
+    /// </summary>
+    /// <returns>解析した式。宣言なら <see cref="ConditionDeclarationExpressionSyntax"/>。</returns>
+    private ExpressionSyntax ParseCondition()
+    {
+        if (!ReadsTypeNameCallAsExpression || !LooksLikeDeclaration())
+        {
+            return ParseCommaExpression();
+        }
+
+        ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
+        TypeSyntax type = ParseType();
+        ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
+            ? Advance()
+            : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
+
+        if (name.IsMissing)
+        {
+            ReportError(DescribeExpected("宣言する名前"));
+        }
+
+        VariableDeclaratorSyntax declarator = ParseDeclaratorRest(name);
+        return new ConditionDeclarationExpressionSyntax(new VariableDeclarationSyntax(
+            modifiers, type, [ShaderNodeOrTokenEntry.FromNode(declarator)], CreateMissingToken(ShaderSyntaxKind.SemicolonToken)));
+    }
+
+    /// <summary>カンマ演算子でつないだ式 (<c>a = 1, b = 2</c>) を解析する。文の式と、条件の式に使う。</summary>
+    /// <returns>解析した式。カンマがあれば、カンマを演算子とする二項演算の式。</returns>
+    /// <remarks>宣言の初期値・関数の実引数・仮引数の既定値では、カンマは区切りなので使わない。</remarks>
+    private ExpressionSyntax ParseCommaExpression()
+    {
+        ExpressionSyntax expression = ParseExpression();
+
+        while (Current.Kind == ShaderSyntaxKind.CommaToken)
+        {
+            ShaderSyntaxToken comma = Advance();
+            expression = new BinaryExpressionSyntax(expression, comma, ParseExpression());
+        }
+
+        return expression;
+    }
 
     /// <summary>代入式を解析する。</summary>
     /// <returns>解析した式。</returns>
@@ -2336,9 +2544,35 @@ internal abstract class ShaderParser
     {
         int depth = 0;
 
-        for (int offset = 0; offset < 32; offset++)
+        // 型でない引数の括弧の中は、どんな式でもよい (GLSL の coopmat<float, gl_ScopeSubgroup, 16, (2>1?8:4)>(x))。
+        int parenthesisDepth = 0;
+
+        for (int offset = 0; offset < 64; offset++)
         {
-            switch (Peek(offset).Kind)
+            ShaderSyntaxKind kind = Peek(offset).Kind;
+
+            if (allowsValues && kind == ShaderSyntaxKind.OpenParenToken)
+            {
+                parenthesisDepth++;
+                continue;
+            }
+
+            if (parenthesisDepth > 0)
+            {
+                if (kind == ShaderSyntaxKind.CloseParenToken)
+                {
+                    parenthesisDepth--;
+                }
+                else if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken
+                         or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.EndOfFileToken)
+                {
+                    return null;
+                }
+
+                continue;
+            }
+
+            switch (kind)
             {
                 case ShaderSyntaxKind.LessThanToken:
                     depth++;
@@ -2422,6 +2656,19 @@ internal abstract class ShaderParser
         switch (Current.Kind)
         {
             case ShaderSyntaxKind.NumericLiteralToken:
+            {
+                ShaderSyntaxToken literal = Advance();
+                string suffix = ShaderLiteral.GetSuffix(literal);
+
+                if (suffix.Length > 0 && !IsNumericSuffixAccepted(suffix, ShaderLiteral.GetKind(literal) == ShaderLiteralKind.Floating))
+                {
+                    _diagnostics.Add(Diagnostic.Create(
+                        ShaderDescriptors.SyntaxError, literal.GetLocation(), $"数値リテラルの接尾辞 '{suffix}' は {UnavailableSubject} では使えません。"));
+                }
+
+                return new LiteralExpressionSyntax(literal);
+            }
+
             case ShaderSyntaxKind.StringLiteralToken:
             case ShaderSyntaxKind.CharacterLiteralToken:
                 return new LiteralExpressionSyntax(Advance());
@@ -2472,16 +2719,19 @@ internal abstract class ShaderParser
     private static int GetBinaryPrecedence(ShaderSyntaxKind kind) => kind switch
     {
         ShaderSyntaxKind.BarBarToken => 1,
-        ShaderSyntaxKind.AmpersandAmpersandToken => 2,
-        ShaderSyntaxKind.BarToken => 3,
-        ShaderSyntaxKind.CaretToken => 4,
-        ShaderSyntaxKind.AmpersandToken => 5,
-        ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken => 6,
+
+        // GLSL の ^^ は || と && の間 (GLSL 4.60 の 5.1 節)。
+        ShaderSyntaxKind.CaretCaretToken => 2,
+        ShaderSyntaxKind.AmpersandAmpersandToken => 3,
+        ShaderSyntaxKind.BarToken => 4,
+        ShaderSyntaxKind.CaretToken => 5,
+        ShaderSyntaxKind.AmpersandToken => 6,
+        ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken => 7,
         ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
-            or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken => 7,
-        ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken => 8,
-        ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken => 9,
-        ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken => 10,
+            or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken => 8,
+        ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken => 9,
+        ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken => 10,
+        ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken => 11,
         _ => -1,
     };
 

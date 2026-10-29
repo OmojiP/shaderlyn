@@ -33,7 +33,7 @@ Shaderlyn の CLI は Release でビルドしたもの (`dotnet build src/Shader
 
 ```sh
 # glslang の Test を、付いている正解 (baseResults) と比べる (glslang は動かさない)
-node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults
+node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults --gtests=.work/corpus/glslang/gtests
 # glslang を動かして比べる (OpenGL の意味。Vulkan の意味なら --vulkan)
 SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/ogl-samples/data
 # 拡張子がステージを表さないシェーダー集

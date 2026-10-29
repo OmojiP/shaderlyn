@@ -66,13 +66,14 @@ const corpora = [
   },
   {
     // glslang の試験。誤りになるものも含み、glslang の出力 (Test/baseResults) が正解として付いている。
-    // tools/oracles/compare-glsl.mjs の --baseline で比べる。誤りを含むので GlslCorpusTests では読まない。
+    // tools/oracles/compare-glsl.mjs の --baseline で比べる。どのファイルをどの意味 (Vulkan / OpenGL) でコンパイルしたかは gtests にある。
+    // 誤りを含むので GlslCorpusTests では読まない。
     name: "glslang",
     url: "https://github.com/KhronosGroup/glslang.git",
     commit: "e1b562a8bed273a02f30b59b66a5d499793cede5",
     license: "BSD-3-Clause ほか (glslang の LICENSE.txt)",
     languages: ["glsl"],
-    patterns: ["/Test/*", "/LICENSE.txt"],
+    patterns: ["/Test/*", "/gtests/*.FromFile.cpp", "/LICENSE.txt"],
   },
   {
     // OpenGL 3.0〜4.6 と GLSL ES の、機能ごとの例。glslang が誤りにするもの (ドライバーは通す拡張の使い方など) を含む。

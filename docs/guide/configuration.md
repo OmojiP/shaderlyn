@@ -46,6 +46,7 @@ rules:
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
+| `glsl`          | GLSL の設定 ([下記](#glsl))                                     |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
@@ -110,6 +111,24 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 ターゲットで決まるものは `units:` の `target` から決めます。`defines` で同じ名前を定義すると、そちらが勝ちます。
 
 フォルダーを指定したときは `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、名前を挙げたときだけ解析します。
+
+## glsl
+
+GLSL のファイルで使う設定です。
+
+| キー     | 内容 |
+| -------- | ---- |
+| `target` | どこ向けにコンパイルするか (glslang の `--target-env`): `vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`。書かなければ分からないものとして、どちらにしかない書き方も誤りにしません |
+| `spirv`  | 作る SPIR-V のバージョン: `1.0` ～ `1.6`。書かなければ `target` の Vulkan のバージョンから決めます (`vulkan1.0` は `1.0`、`vulkan1.1` は `1.3`、`vulkan1.2` は `1.5`、`vulkan1.3` と `vulkan1.4` は `1.6`。glslang と同じ)。`opengl` に付けると OpenGL 向けの SPIR-V (glslang の `-G`) になります |
+
+`target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから引きます。
+`opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。
+`target: vulkan` だけではバージョンが分からないので、SPIR-V のバージョンで決まる検査をしません。
+
+```yaml
+glsl:
+  target: vulkan1.3   # glslang -V --target-env vulkan1.3 でコンパイルする
+```
 
 ## unreal
 

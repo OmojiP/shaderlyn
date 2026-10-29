@@ -16,6 +16,12 @@ namespace Shaderlyn.Glsl.Parsing;
 /// </remarks>
 internal sealed class GlslParser : ShaderParser
 {
+    /// <summary>語がキーワードかを決める規則。言語のバージョンが分からなければ無い (表の語はすべてキーワード)。</summary>
+    private readonly GlslWordRules? _rules;
+
+    /// <summary>語ごとの、キーワードかの答え。</summary>
+    private readonly Dictionary<string, bool> _keywords = new(StringComparer.Ordinal);
+
     /// <summary>パーサを生成する。</summary>
     /// <param name="tokens">プリプロセス済みのトークン列。</param>
     public GlslParser(ImmutableArray<ShaderSyntaxToken> tokens)
@@ -27,9 +33,34 @@ internal sealed class GlslParser : ShaderParser
     /// <param name="tokens">解析するトークン列。</param>
     /// <param name="ownSource">解析しているファイル自身のテキスト。</param>
     /// <param name="isUserInclude">取り込んだファイルが利用者のものかをパスから判定する。</param>
-    public GlslParser(ImmutableArray<ShaderSyntaxToken> tokens, SourceText? ownSource, Func<string, bool>? isUserInclude = null)
+    /// <param name="language">言語の設定。バージョンと拡張で、語がキーワードかが変わる (<see cref="GlslWordRules"/>)。</param>
+    public GlslParser(ImmutableArray<ShaderSyntaxToken> tokens, SourceText? ownSource, Func<string, bool>? isUserInclude = null, GlslLanguageOptions? language = null)
         : base(tokens, ownSource, isUserInclude)
     {
+        _rules = language is { Version: { } version }
+            ? new GlslWordRules(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, language.Extensions.Contains)
+            : null;
+    }
+
+    /// <summary>
+    /// 語が、言語のバージョンと有効にした拡張でキーワードかを判定する。
+    /// 4.00 より前の <c>sample</c> や、拡張を有効にしていない <c>rayPayloadEXT</c> は名前である。
+    /// </summary>
+    /// <param name="word">語。</param>
+    /// <returns>キーワードなら <see langword="true"/>。予約語は名前として読む (誤りは別に報告する)。</returns>
+    private bool IsKeyword(string word)
+    {
+        if (_rules is null)
+        {
+            return true;
+        }
+
+        if (!_keywords.TryGetValue(word, out bool keyword))
+        {
+            keyword = _keywords[word] = _rules.Classify(word).Kind == GlslWordKind.Keyword;
+        }
+
+        return keyword;
     }
 
     /// <inheritdoc/>
@@ -56,7 +87,22 @@ internal sealed class GlslParser : ShaderParser
     /// <c>demote;</c> (GL_EXT_demote_to_helper_invocation)、<c>terminateInvocation;</c> (GL_EXT_terminate_invocation)。
     /// </remarks>
     protected override bool IsLanguageJumpKeyword(string text)
-        => text is "ignoreIntersectionEXT" or "terminateRayEXT" or "demote" or "terminateInvocation";
+        => text is "ignoreIntersectionEXT" or "terminateRayEXT" or "demote" or "terminateInvocation" && IsKeyword(text);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// glslang 16.6.0 の字句解析と同じ。整数は <c>u</c>・<c>l</c>・<c>s</c> をこの順に組み合わせたもの (<c>u</c>、<c>ul</c>、<c>us</c>、<c>uls</c>、<c>l</c>、<c>s</c>)。
+    /// 浮動小数点数は <c>f</c>、<c>lf</c> (<c>double</c>)、<c>hf</c> (<c>float16_t</c>) と、8 ビットの浮動小数点数の <c>fe2m1</c> などである。
+    /// 小数点も指数も無い <c>1f</c> は誤り (glslang の「float literal needs a decimal point or exponent」)。
+    /// </remarks>
+    protected override bool IsNumericSuffixAccepted(string suffix, bool floating)
+    {
+        string lower = suffix.ToLowerInvariant();
+
+        return floating
+            ? lower is "f" or "lf" or "hf" || suffix is "fe2m1" or "fe3m2" or "fe2m3" or "fue8m0" or "fmxint8"
+            : lower is "u" or "ul" or "us" or "uls" or "l" or "s";
+    }
 
     /// <summary>そのトークン列が、文・宣言として過不足なく閉じているかを判定する。</summary>
     /// <param name="tokens">判定するトークン列。</param>
@@ -65,10 +111,25 @@ internal sealed class GlslParser : ShaderParser
         => IsCompleteUnits(tokens, static t => new GlslParser(t));
 
     /// <inheritdoc/>
-    protected override bool IsBuiltInTypeName(string name) => GlslKeywords.IsBuiltInType(name);
+    protected override bool IsBuiltInTypeName(string name) => GlslKeywords.IsBuiltInType(name) && IsKeyword(name);
 
     /// <inheritdoc/>
-    protected override bool IsDeclarationModifier(string text) => GlslKeywords.Qualifiers.Contains(text);
+    /// <remarks>型の引数を取る型 (<c>coopmat&lt;…&gt;(x)</c>、<c>vector&lt;float, 5&gt;(x)</c>) の値の作成を、比較の連なりと取り違えないために使う。</remarks>
+    protected override bool IsBuiltInTemplateTypeName(string name) => GlslKeywords.ParameterizedTypes.Contains(name) && IsKeyword(name);
+
+    /// <inheritdoc/>
+    protected override bool ReadsTypeNameCallAsExpression => true;
+
+    /// <inheritdoc/>
+    protected override bool TakesParenthesizedTypeArguments(string name) => name == "spirv_type" && IsKeyword(name);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <c>nonuniformEXT</c> は修飾子 (<c>nonuniformEXT in vec4 v;</c>) にも、値に付ける関数のような書き方 (<c>nonuniformEXT(i)</c>) にもなる。
+    /// 開き括弧が続けば式として読む。
+    /// </remarks>
+    protected override bool IsDeclarationModifier(string text)
+        => GlslKeywords.Qualifiers.Contains(text) && IsKeyword(text) && !(text == "nonuniformEXT" && Peek(1).Kind == ShaderSyntaxKind.OpenParenToken);
 
     /// <inheritdoc/>
     protected override bool IsTypePrefixModifier(string text) => false;
@@ -77,10 +138,12 @@ internal sealed class GlslParser : ShaderParser
     protected override bool IsParameterModifier(string text) => false;
 
     /// <inheritdoc/>
-    /// <remarks><c>layout(...)</c> を括弧ごと修飾子として読む。中の値は構文木にしない。</remarks>
+    /// <remarks>
+    /// <c>layout(...)</c> と、GL_EXT_spirv_intrinsics の <c>spirv_decorate(...)</c> などを括弧ごと修飾子として読む。中の値は構文木にしない。
+    /// </remarks>
     protected override bool TryParseModifierGroup(ImmutableArray<ShaderSyntaxToken>.Builder modifiers)
     {
-        if (!CurrentTextIs("layout") || Peek(1).Kind != ShaderSyntaxKind.OpenParenToken)
+        if (!IsQualifierGroup(Current.Text) || Peek(1).Kind != ShaderSyntaxKind.OpenParenToken)
         {
             return false;
         }
@@ -110,7 +173,7 @@ internal sealed class GlslParser : ShaderParser
     protected override DeclarationSyntax? TryParseLanguageDeclaration()
     {
         // precision highp float;
-        if (CurrentTextIs("precision"))
+        if (CurrentTextIs("precision") && IsKeyword("precision"))
         {
             return SkipToSemicolon();
         }
@@ -132,16 +195,17 @@ internal sealed class GlslParser : ShaderParser
 
         // 既にある名前に修飾子を足す宣言: invariant gl_Position; / precise x, y;
         if (next.Kind == ShaderSyntaxKind.IdentifierToken
-            && !GlslKeywords.IsBuiltInType(next.Text)
+            && !IsBuiltInTypeName(next.Text)
             && Peek(afterModifiers + 1).Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CommaToken)
         {
             return SkipToSemicolon();
         }
 
         // インターフェースブロック: uniform UBO { ... } ubo;
+        // ディスクリプターヒープの中には、名前の無いブロックも置ける (GL_EXT_structured_descriptor_heap の layout(buffer_reference) buffer { ... } inlineRef;)。
         if (hasBlockQualifier
-            && next.Kind == ShaderSyntaxKind.IdentifierToken
-            && Peek(afterModifiers + 1).Kind == ShaderSyntaxKind.OpenBraceToken)
+            && ((next.Kind == ShaderSyntaxKind.IdentifierToken && Peek(afterModifiers + 1).Kind == ShaderSyntaxKind.OpenBraceToken)
+                || next.Kind == ShaderSyntaxKind.OpenBraceToken))
         {
             return ParseInterfaceBlock();
         }
@@ -170,7 +234,7 @@ internal sealed class GlslParser : ShaderParser
                 return offset;
             }
 
-            if (token.Text == "layout" && Peek(offset + 1).Kind == ShaderSyntaxKind.OpenParenToken)
+            if (IsQualifierGroup(token.Text) && Peek(offset + 1).Kind == ShaderSyntaxKind.OpenParenToken)
             {
                 int depth = 0;
                 offset++;
@@ -194,7 +258,9 @@ internal sealed class GlslParser : ShaderParser
                 continue;
             }
 
-            if (!GlslKeywords.Qualifiers.Contains(token.Text))
+            if (!GlslKeywords.Qualifiers.Contains(token.Text)
+                || !IsKeyword(token.Text)
+                || (token.Text == "nonuniformEXT" && Peek(offset + 1).Kind == ShaderSyntaxKind.OpenParenToken))
             {
                 return offset;
             }
@@ -204,6 +270,17 @@ internal sealed class GlslParser : ShaderParser
             offset++;
         }
     }
+
+    /// <summary>括弧に値を取る修飾子か (<see cref="GlslKeywords.QualifierGroups"/> と、関数と宣言に付く GL_EXT_spirv_intrinsics の指定)。</summary>
+    /// <param name="text">トークンの文字列。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <c>spirv_instruction(...)</c> は関数の宣言の前に、<c>spirv_execution_mode(...)</c> は修飾子だけの宣言として書く。
+    /// どちらも宣言の修飾子として読めば、それぞれ関数の宣言と、読み飛ばす宣言になる。
+    /// </remarks>
+    private bool IsQualifierGroup(string text)
+        => (GlslKeywords.QualifierGroups.Contains(text) || text is "spirv_instruction" or "spirv_execution_mode" or "spirv_execution_mode_id")
+           && IsKeyword(text);
 
     /// <summary>インターフェースブロックを読む。</summary>
     /// <returns>読んだ宣言。</returns>
@@ -221,27 +298,36 @@ internal sealed class GlslParser : ShaderParser
     private DeclarationSyntax ParseInterfaceBlock()
     {
         ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
-        ShaderSyntaxToken name = Advance();
+        ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.OpenBraceToken ? null : Advance();
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<DeclarationSyntax> members = ParseMemberDeclarations();
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
+
+        // layout(buffer_reference) のブロックは型を宣言する (GL_EXT_buffer_reference)。Vertices v = Vertices(address); と使う。
+        // layout(buffer_type) のブロックも、ディスクリプターヒープの中に置く型を宣言する (GL_EXT_structured_descriptor_heap)。
+        bool declaresType = modifiers.Any(m => m.Text is "buffer_reference" or "buffer_type");
 
         if (Current.Kind == ShaderSyntaxKind.IdentifierToken)
         {
             VariableDeclaratorSyntax instance = ParseDeclaratorRest(Advance());
             ShaderSyntaxToken end = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
+            // ブロックの名前は型の名前ではなく、入力と出力で同じ名前を使える。修飾子と合わせた名前 (in block) を型の名前にする。
+            // 名前の無いブロックは、変数の名前と合わせる。型を宣言するブロックの名前は、そのまま型の名前である。
             return new StructDeclarationSyntax(
                 modifiers[^1], name, openBrace, members, closeBrace, [ShaderNodeOrTokenEntry.FromNode(instance)], end)
             {
                 Modifiers = modifiers[..^1],
+                NameOverride = name is null ? $"{modifiers[^1].Text} {instance.Name}"
+                    : declaresType ? null
+                    : $"{modifiers[^1].Text} {name.Text}",
             };
         }
 
+        name ??= Expect(ShaderSyntaxKind.IdentifierToken, "ブロックの変数の名前");
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
-        // layout(buffer_reference) のブロックは型を宣言する (GL_EXT_buffer_reference)。Vertices v = Vertices(address); と使う。
-        if (modifiers.Any(m => m.Text == "buffer_reference"))
+        if (declaresType)
         {
             return new StructDeclarationSyntax(modifiers[^1], name, openBrace, members, closeBrace, [], semicolon)
             {
