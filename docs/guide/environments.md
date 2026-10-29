@@ -248,6 +248,15 @@ VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内
 - `VULKAN` と `GL_SPIRV` は、[`glsl: target`](configuration.md#glsl) と `glsl: spirv` で決まります (glslang の `-V` / `-G`)。`defines:` に書いても同じです
 - `#if` で切り替える分岐は、設定ファイルの `symbols:` に書くと両方を読みます (書き方は[汎用の HLSL](#汎用の-hlsl-dxc) と同じ)
 
+### glslang と違う所
+
+検査は glslang 16.6.0 と同じ結果になるようにしていますが、次のものは意図して違えています。
+
+- 値を返さない経路がある関数 ([CF0501](../rules/CF0501.md)) を警告にします。glslang は何も言いません
+- マクロを一段通した実引数の中で空白を挟んだ字句を、`##` で連結しません。glslang は
+  `#define S e1 D` を `#define Q(a, b) P(a, b)` (`P` は `a##b`) に渡した `Q(imag, S)` を `image1D` にしますが、
+  C の規則では `image1 D` です。OpenGL のドライバーのコンパイラは C の規則で読むので、Shaderlyn も C の規則に従います
+
 ```yaml
 version: 1
 environment: glsl

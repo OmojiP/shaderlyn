@@ -53,6 +53,11 @@ const baselineExclusions = [
   ["spv.glsl.register.", "HLSL のレジスタの割り当ての試験"],
 ];
 
+/** Shaderlyn が意図して glslang と違う結果を出すファイル (docs/guide/environments.md の「glslang と違う所」)。比べない。 */
+const knownDifferences = [
+  ["cppMerge.frag", "マクロを通した実引数の、空白を挟んだ字句を ## で連結する glslang の動き。C の規則どおり連結しない"],
+];
+
 const vulkanMode = { target: "vulkan1.0", defines: [] };
 const vulkan11 = { target: "vulkan1.1", defines: [] };
 const vulkan11Spirv14 = { target: "vulkan1.1", spirv: "1.4", defines: [] };
@@ -136,7 +141,8 @@ try {
   for (const target of targets) {
     for (const file of collect(resolve(target))) {
       const name = basename(file);
-      const excluded = modes ? !modes.has(name) : baseline !== undefined && baselineExclusions.some(([prefix]) => name.startsWith(prefix));
+      const excluded = (modes ? !modes.has(name) : baseline !== undefined && baselineExclusions.some(([prefix]) => name.startsWith(prefix)))
+        || knownDifferences.some(([known]) => name === known);
 
       if (excluded || (baseline && !existsSync(join(baseline, `${name}.out`)))) {
         continue;
