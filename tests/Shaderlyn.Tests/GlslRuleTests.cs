@@ -226,6 +226,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { bool b = true; float f = 1.0 + b; o = vec4(f); }")]
     [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4 m = mat4(1.0); o = vec4(m * vec3(1.0), 1.0); }")]
     [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec2 a = vec2(1.0); o = vec4(a < a ? 1.0 : 0.0); }")]
+    [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nvoid main() { o = texture(s, vec3(0.5)); }")]
+    [InlineData("GL0302", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(max(1, 2.0)); }")]
     public async Task 文法の規則の検査(string id, string fileName, string code)
     {
         string output = await AnalyzeAsync(fileName, code + "\n");

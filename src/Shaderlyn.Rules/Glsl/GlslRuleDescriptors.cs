@@ -110,6 +110,18 @@ internal static class GlslRuleDescriptors
             + "GLSL には、成分の数を変える暗黙の変換も、bool から数への暗黙の変換もありません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0301"));
 
+    /// <summary>組み込み関数に、実引数の型に合う形が無い。</summary>
+    /// <remarks>glslang の「no matching overloaded function found」のうち、組み込み関数のものに当たる。</remarks>
+    public static DiagnosticDescriptor NoMatchingBuiltin { get; } = new(
+        id: "GL0302",
+        title: "組み込み関数に合う形がありません",
+        messageFormat: "組み込み関数 '{0}' に、実引数の型 ({1}) に合う形がありません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込み関数を、どの多重定義にも合わない型の実引数で呼んでいます (sampler2D の texture に vec3 を渡すなど)。"
+            + "暗黙の変換で合うかは #version と有効にした拡張で決まります。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0302"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(
