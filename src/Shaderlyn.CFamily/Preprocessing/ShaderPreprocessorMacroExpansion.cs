@@ -263,7 +263,8 @@ internal sealed partial class ShaderPreprocessor
 
                 while (i + 2 < body.Length && body[i + 1].Kind == ShaderSyntaxKind.HashHashToken)
                 {
-                    pasted = Paste(pasted, ResolveOperand(body[i + 2], bindings), callSite);
+                    ImmutableArray<ShaderSyntaxToken> operand = ResolveOperand(body[i + 2], bindings);
+                    pasted = Paste(pasted, operand, callSite, PpNumberLength(operand));
                     i += 2;
 
                     // 数字に続けて書いた名前 (Name##1x の 1x) は、C のプリプロセッサでは 1 つのトークン (pp-number) である。
@@ -373,11 +374,41 @@ internal sealed partial class ShaderPreprocessor
             : [token];
 
     /// <summary>
+    /// 実引数の先頭が数字で始まる 1 つの字句 (C の pp-number。<c>1D</c> など) なら、その字句を成すトークンの数を返す。
+    /// </summary>
+    /// <param name="tokens">実引数のトークン列。</param>
+    /// <returns>先頭の字句のトークンの数。数字で始まらなければ 1。</returns>
+    /// <remarks>
+    /// 字句解析は <c>1D</c> を <c>1</c> と <c>D</c> に分ける。空白を挟まずに続く名前と数字は、同じ字句の続きである
+    /// (<see cref="ShaderSyntaxToken.FollowsWithoutSpace"/>)。<c>image ## 1D</c> を <c>image1 D</c> にしないために使う。
+    /// 空白を挟んだもの (<c>e1 D</c>) は別の字句なので、連結しない。
+    /// </remarks>
+    private static int PpNumberLength(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        if (tokens.IsEmpty || tokens[0].Kind != ShaderSyntaxKind.NumericLiteralToken)
+        {
+            return 1;
+        }
+
+        int length = 1;
+
+        while (length < tokens.Length
+               && tokens[length].FollowsWithoutSpace
+               && tokens[length].Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken)
+        {
+            length++;
+        }
+
+        return length;
+    }
+
+    /// <summary>
     /// 2 つのトークン列を連結する。境界の 2 トークンは 1 つのトークンへ融合する。
     /// </summary>
     /// <param name="left">左側のトークン列。</param>
     /// <param name="right">右側のトークン列。</param>
     /// <param name="callSite">呼び出し位置のトークン。</param>
+    /// <param name="fuse">右側の先頭から融合するトークンの数 (<see cref="PpNumberLength"/>)。</param>
     /// <returns>連結後のトークン列。</returns>
     /// <remarks>
     /// 融合結果を字句解析し直して種別を決める。
@@ -386,7 +417,8 @@ internal sealed partial class ShaderPreprocessor
     private ImmutableArray<ShaderSyntaxToken> Paste(
         ImmutableArray<ShaderSyntaxToken> left,
         ImmutableArray<ShaderSyntaxToken> right,
-        ShaderSyntaxToken callSite)
+        ShaderSyntaxToken callSite,
+        int fuse = 1)
     {
         if (left.IsEmpty)
         {
@@ -401,7 +433,7 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken>.Builder result = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
         result.AddRange(left.Take(left.Length - 1));
 
-        string fused = left[^1].Text + right[0].Text;
+        string fused = left[^1].Text + string.Concat(right.Take(fuse).Select(t => t.Text));
         SourceText fusedText = SourceText.From(fused, "<トークン連結>");
         ShaderLexer lexer = new(fusedText);
         ImmutableArray<ShaderSyntaxToken> fusedTokens = lexer.Lex(out _);
@@ -415,7 +447,7 @@ internal sealed partial class ShaderPreprocessor
             }
         }
 
-        result.AddRange(right.Skip(1));
+        result.AddRange(right.Skip(fuse));
         return result.ToImmutable();
     }
 

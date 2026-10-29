@@ -198,6 +198,22 @@ public sealed class MacroExpansionTests
     }
 
     [Fact]
+    public void 実引数の数字に続けて書いた名前を1つのトークンとして連結する()
+    {
+        // 実引数の 1D も 1 つの字句である。マクロを一段通しても同じ (glslang の Test の cppMerge.frag)。
+        // 空白を挟んだ e1 D は 2 つの字句なので、e1 だけを連結する (C の規則)。
+        Assert.Equal("image1D a ; image1D b ; image1 D c ;", PreprocessorHarness.TextWithoutDiagnostics("""
+            #define PASTE(a, b) a##b
+            #define MAKE(a, b) PASTE(a, b)
+            #define SUFFIX 1D
+            #define SPACED e1 D
+            PASTE(image, 1D) a;
+            MAKE(image, SUFFIX) b;
+            MAKE(imag, SPACED) c;
+            """));
+    }
+
+    [Fact]
     public void LINEを行番号に展開する()
     {
         // FXC も DXC も __LINE__ を定義する (Unreal の D3DCommon.ush の UE_DEBUG_BREAK)。

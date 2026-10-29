@@ -174,6 +174,16 @@ public sealed class ShaderSyntaxToken
     public bool IsFromMacroExpansion { get; }
 
     /// <summary>
+    /// 書かれたときに、直前のトークンと空白を挟まずに続いていたか。マクロの展開で位置を移しても引き継ぐ。
+    /// </summary>
+    /// <remarks>
+    /// <b>数字で始まる 1 つの字句 (C の pp-number) を連結で復元するのに使う。</b>
+    /// 字句解析は <c>1D</c> を <c>1</c> と <c>D</c> に分けるが、C のプリプロセッサでは 1 つの字句であり、
+    /// <c>image ## 1D</c> は <c>image1D</c> になる。展開で位置が移ると、空白が無かったことは位置から分からなくなる。
+    /// </remarks>
+    internal bool FollowsWithoutSpace { get; init; }
+
+    /// <summary>
     /// 利用者のファイル (解析しているファイルと、利用者が書いたヘッダ) に書かれたマクロの本体での位置。
     /// それ以外は <see langword="null"/>。
     /// </summary>
@@ -248,7 +258,10 @@ public sealed class ShaderSyntaxToken
             isFromMacroExpansion: true,
             macroDefinitionSpan: keepDefinition ? MacroDefinitionSpan : null,
             macroArgumentSpan: argumentSpan,
-            macroDefinitionSource: keepDefinition ? MacroDefinitionSource : null);
+            macroDefinitionSource: keepDefinition ? MacroDefinitionSource : null)
+        {
+            FollowsWithoutSpace = FollowsWithoutSpace,
+        };
 
     /// <summary>
     /// マクロの本体での位置を付けた複製を返す。
@@ -263,7 +276,10 @@ public sealed class ShaderSyntaxToken
     /// </remarks>
     public ShaderSyntaxToken WithMacroDefinitionSpan(TextSpan span, SourceText source)
         => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
-            IsFromMacroExpansion, span, MacroArgumentSpan, source);
+            IsFromMacroExpansion, span, MacroArgumentSpan, source)
+        {
+            FollowsWithoutSpace = FollowsWithoutSpace,
+        };
 
     /// <summary>
     /// 中身が同じで、別のインスタンスである複製を返す。
@@ -277,7 +293,10 @@ public sealed class ShaderSyntaxToken
     /// </remarks>
     internal ShaderSyntaxToken Duplicate()
         => new(Kind, Source, Span, Text, IsAtLineStart, LeadingTrivia, TrailingTrivia, ValueText, IsMissing,
-            IsFromMacroExpansion, MacroDefinitionSpan, MacroArgumentSpan, MacroDefinitionSource);
+            IsFromMacroExpansion, MacroDefinitionSpan, MacroArgumentSpan, MacroDefinitionSource)
+        {
+            FollowsWithoutSpace = FollowsWithoutSpace,
+        };
 
     /// <summary>トークンの種別とテキストを並べた文字列を返す。</summary>
     /// <returns>デバッグ用の文字列表現。</returns>
