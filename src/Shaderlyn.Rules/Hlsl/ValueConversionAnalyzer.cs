@@ -90,7 +90,10 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         foreach (Diagnostic diagnostic in reported.BuildConditional())
         {
-            context.ReportDiagnostic(diagnostic);
+            // GLSL では、値を返さない経路があっても glslang は通す (返す値は不定)。誤りではなく警告にする。設定で重要度を書けば、そちらが勝つ。
+            context.ReportDiagnostic(compilation.IsGlsl && diagnostic.Descriptor == HlslRuleDescriptors.MissingReturn
+                ? diagnostic.WithSeverity(DiagnosticSeverity.Warning)
+                : diagnostic);
         }
     }
 

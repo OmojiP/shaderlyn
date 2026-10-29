@@ -902,6 +902,7 @@ Shaderlyn.Core.Analysis.AnalyzerOptions : sealed class
 Shaderlyn.Core.Analysis.AnalyzerOptions :: .ctor(System.Collections.Immutable.ImmutableDictionary`2[System.String,Shaderlyn.Core.Diagnostics.DiagnosticSeverity] = null, System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String]] = null, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Analysis.RuleSeverityPattern] = null)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: Shaderlyn.Core.Analysis.AnalyzerOptions WithExtension<TExtension>(TExtension)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity GetEffectiveSeverity(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor)
+Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Nullable`1[Shaderlyn.Core.Diagnostics.DiagnosticSeverity] GetConfiguredSeverity(System.String)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Boolean IsEnabled(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Boolean TryGetOption(System.String, System.String, out System.String)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Int32 GetIntOption(System.String, System.String, System.Int32)

@@ -37,13 +37,17 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - GLSL: 語がキーワードかを、glslang と同じく `#version` と有効にした拡張で決める。後のバージョンでキーワードになった語 (4.00 より前の `sample` など) を名前に使える。
   予約語 (`class` など) を名前に使うと CF0001
 - GLSL: glslang と同じマクロを定義する。glslang が読める拡張の名前のマクロ (`GL_EXT_ray_tracing` など) と、デスクトップのステージのマクロ (`GL_FRAGMENT_SHADER` など)
-- 自作ルール向け: `ShaderSyntaxKind.CaretCaretToken` (`^^`)、`ConditionDeclarationExpressionSyntax`、`StructDeclarationSyntax.NameOverride`、
+- 自作ルール向け: `AnalyzerOptions.GetConfiguredSeverity` (設定で指定した重要度)。重要度を明示していない診断は、
+  `Diagnostic.WithSeverity` で差し替えた重要度を既定として使い、設定ファイルの指定があればそれが勝つ。
+  `ShaderSyntaxKind.CaretCaretToken` (`^^`)、`ConditionDeclarationExpressionSyntax`、`StructDeclarationSyntax.NameOverride`、
   `ShaderLiteral.GetSuffix`、`PreprocessResult.RecordedDirectives`
 
 ### 変更
 
 - GLSL の暗黙の変換を glslang と同じにした。有効にした拡張 (`GL_ARB_gpu_shader5`、`GL_NV_gpu_shader5` など) で増える変換を通す。
   明示的な幅の算術型 (`int16_t` など) の変換は、今までは同じ型でなくても通していたが、glslang と同じく拡張が要るものは誤り (CF0410) にする
+- CF0501 (値を返さない経路がある) は、GLSL のファイルでは警告にする。glslang はコンパイルを通すため (返る値は決まらない)。
+  設定ファイルの `rules:` に CF0501 の重要度を書けば、それに従う
 - CF0406 (構造体に使えない演算子) は、GLSL では GLSL の規則で判断する。`==` / `!=` / `?:` は使え、`layout(buffer_reference)` の型はアドレスの足し引きができる
 - `--help` の見出しと、フォルダーを渡したときに解析するファイルの説明を、今の動きに合わせた
 

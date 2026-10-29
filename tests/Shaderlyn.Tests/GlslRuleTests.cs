@@ -11,7 +11,7 @@ namespace Shaderlyn.Tests;
 /// エントリポイントが無いこと (CF0301) は、glslang がリンクのときにエラーにする。
 /// </para>
 /// <para>
-/// 値を返さない経路 (CF0501) は、glslang はエラーにしない (値が不定になるだけ)。HLSL と同じく誤りとして伝える。
+/// 値を返さない経路 (CF0501) は、glslang はエラーにしない (値が不定になるだけ)。GLSL では警告として伝える。
 /// </para>
 /// </remarks>
 public sealed class GlslRuleTests : IDisposable
@@ -56,7 +56,6 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0402", "a.frag", "void main() { o = vec4(clamp(1.0, 0.0)); }")]
     [InlineData("CF0404", "a.frag", "void main() { o = vec4(1.0, 2.0); }")]
     [InlineData("CF0314", "a.frag", "float f(float x) { return x; }\nfloat f(float y) { return y; }\nvoid main() { o = vec4(f(1.0)); }")]
-    [InlineData("CF0501", "a.frag", "float pick(bool b) { if (b) { return 1.0; } }\nvoid main() { o = vec4(pick(true)); }")]
     public async Task GLSLの誤りを見つける(string id, string fileName, string body)
     {
         string output = await AnalyzeAsync(fileName, $"#version 450\nlayout(location = 0) out vec4 o;\n{body}\n");
@@ -258,6 +257,29 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.True(error.ToString().Length == 0, error.ToString());
         Assert.Equal(expected, output.ToString().Contains("error GL0104", StringComparison.Ordinal));
+    }
+
+    /// <summary>値を返さない経路 (CF0501) は、GLSL では警告にする。設定で重要度を書けば、それに従う。</summary>
+    [Theory]
+    [InlineData("", "warning CF0501")]
+    [InlineData("rules:\n  CF0501: error\n", "error CF0501")]
+    public async Task 値を返さない経路はGLSLでは警告(string rules, string expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\n{rules}");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), """
+            #version 450
+            layout(location = 0) out vec4 o;
+            float pick(bool b) { if (b) { return 1.0; } }
+            void main() { o = vec4(pick(true)); }
+
+            """);
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), "--config", config], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Contains(expected, output.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary><c>#extension</c> は書いた位置より後ろにだけ効く。</summary>
