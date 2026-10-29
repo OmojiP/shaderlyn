@@ -16,6 +16,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
     その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
     実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize` など)、
+    保存用の拡張だけで 16 ビット・8 ビットの型を uniform と buffer の外で使うこと、
     型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
   - GL0002: そのステージでは使えない (頂点シェーダーの `shared` など)
   - GL0101: 修飾子をここに書けない。関数の中の `in` / `out`、型の無い宣言にだけ書ける layout (`triangles`、`local_size_x` など) を変数に書いたもの、

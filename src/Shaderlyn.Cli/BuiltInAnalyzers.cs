@@ -77,6 +77,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslOperatorAnalyzer(),
         new Rules.Glsl.GlslBuiltinCallAnalyzer(),
         new Rules.Glsl.GlslBuiltinArgumentAnalyzer(),
+        new Rules.Glsl.GlslSmallTypeStorageAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),
