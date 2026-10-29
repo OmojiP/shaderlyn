@@ -852,4 +852,20 @@ internal sealed partial class GlslRequirements
         ProfileRequires(at, GlslProfileMask.None, 120, ["GL_3DL_array_objects"], $"'{feature}'");
         ProfileRequires(at, GlslProfileMask.Es, 300, [], $"'{feature}'");
     }
+
+    /// <summary>配列の配列に要る版 (glslang の arrayOfArrayVersionCheck)。</summary>
+    /// <param name="at">位置のトークン。</param>
+    /// <param name="dimensions">配列の次元の数。</param>
+    public void ArrayOfArrayVersionCheck(ShaderSyntaxToken at, int dimensions)
+    {
+        if (dimensions <= 1)
+        {
+            return;
+        }
+
+        const string feature = "配列の配列";
+        RequireProfile(at, GlslProfileMask.Es | GlslProfileMask.Core | GlslProfileMask.Compatibility, feature);
+        ProfileRequires(at, GlslProfileMask.Es, 310, [], feature);
+        ProfileRequires(at, GlslProfileMask.Core | GlslProfileMask.Compatibility, 430, [], feature);
+    }
 }

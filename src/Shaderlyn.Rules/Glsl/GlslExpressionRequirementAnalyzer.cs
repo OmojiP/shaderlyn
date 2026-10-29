@@ -38,6 +38,20 @@ internal sealed class GlslExpressionRequirementAnalyzer : SemanticRuleAnalyzer
         HashSet<(string? File, int Start, string Message)> reported = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
 
+        // 行の継続 (行末の \)。プリプロセッサの指令の行も含めて、書かれたとおりのトークンで探す (glslang の lineContinuationCheck)。
+        if (compilation.Programs.FirstOrDefault() is { } first
+            && GlslRequirements.Create(context, compilation, first, reported) is { } fileRequirement)
+        {
+            foreach (ShaderSyntaxToken token in compilation.CodeTokens)
+            {
+                if (token.TrailingTrivia.Concat(token.LeadingTrivia).Any(t => t.Kind == ShaderSyntaxKind.LineContinuationTrivia))
+                {
+                    fileRequirement.ProfileRequires(token, GlslProfileMask.Es, 300, [], "行の継続 (行末の \\)");
+                    fileRequirement.ProfileRequires(token, GlslProfileMask.NotEs, 420, ["GL_ARB_shading_language_420pack"], "行の継続 (行末の \\)");
+                }
+            }
+        }
+
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (!requirements.TryGetValue(program, out GlslRequirements? requirement))

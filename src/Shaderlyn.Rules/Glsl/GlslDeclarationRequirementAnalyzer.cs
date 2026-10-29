@@ -68,6 +68,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 // 仮引数の修飾子は、glslang では関数の外 (大域の範囲) で読む。
                 case ParameterSyntax parameter:
                     CheckQualifiers(requirement, parameter.ModifierTokens, global: true);
+                    requirement.ArrayOfArrayVersionCheck(parameter.NameToken, parameter.ArrayDimensions);
                     break;
 
                 case FunctionDeclarationSyntax function:
@@ -80,6 +81,10 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
 
                 case InterfaceBlockDeclarationSyntax block:
                     CheckQualifiers(requirement, block.Modifiers, global);
+                    break;
+
+                case VariableDeclaratorSyntax declarator:
+                    requirement.ArrayOfArrayVersionCheck(declarator.NameToken, declarator.ArrayDimensions);
                     break;
 
                 // 修飾子だけの宣言 (layout(local_size_x = 8) in;、invariant gl_Position;)。
