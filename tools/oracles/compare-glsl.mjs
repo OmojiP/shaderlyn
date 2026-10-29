@@ -15,7 +15,7 @@
 //   --gtests=<フォルダー>    glslang の gtests (*.FromFile.cpp) から、1 つのファイルをコンパイルする試験だけを選び、
 //                            Vulkan と OpenGL のどちらの意味でコンパイルしたかを読む (--baseline と使う)。
 //                            渡さなければ、ファイルの名前で試験の種類を見分ける (baselineExclusions)
-//   --vulkan                 glslang に -V --target-env vulkan1.3 を渡す。Shaderlyn には glsl: target: vulkan を渡す
+//   --vulkan                 glslang に -V --target-env vulkan1.3 を渡す。Shaderlyn には glsl: target: vulkan1.3 を渡す
 //   --stage-map=<a:b,...>    拡張子 .a のファイルを .b のステージとして読む (作業用のフォルダーに写して読ませる)
 //   --details                食い違いを 1 件ずつ出す
 //   --json=<パス>            ファイルごとの結果を JSON で書く
@@ -53,40 +53,44 @@ const baselineExclusions = [
   ["spv.glsl.register.", "HLSL のレジスタの割り当ての試験"],
 ];
 
-const vulkanMode = { target: "vulkan", defines: [] };
+const vulkanMode = { target: "vulkan1.0", defines: [] };
+const vulkan11 = { target: "vulkan1.1", defines: [] };
+const vulkan11Spirv14 = { target: "vulkan1.1", spirv: "1.4", defines: [] };
+const vulkan13 = { target: "vulkan1.3", defines: [] };
+const vulkan14 = { target: "vulkan1.4", defines: [] };
 
 /**
- * glslang の gtests の試験の種類と、その試験のファイルをコンパイルする意味。
+ * glslang の gtests の試験の種類と、その試験のファイルをコンパイルする意味 (Spv.FromFile.cpp などの TEST_P の引数)。
  * 載っていない種類 (HLSL、リンク、プリプロセスだけ、設定ファイル、入出力の割り当て) は比べない。
- * target は設定ファイルの glsl: target に渡す (vulkan なら Shaderlyn も VULKAN を 100 にする)。
- * defines はほかに glslang が定義するマクロ (-G の GL_SPIRV)。compileOnly はリンクしない (main が無くてよい)。
+ * target と spirv は設定ファイルの glsl: target / spirv に渡す (vulkan なら Shaderlyn も VULKAN を 100 にする)。
+ * defines はほかに定義するマクロ。compileOnly はリンクしない (main が無くてよい)。
  */
 const gtestFixtures = {
   CompileToAstTest: { target: "opengl", defines: [] },
   CompileToAstTestNV: { target: "opengl", defines: [] },
-  CompileOpenGLToSpirvTest: { target: "opengl", defines: ["GL_SPIRV=100"] },
-  OpenGLSemantics: { target: "opengl", defines: ["GL_SPIRV=100"] },
+  CompileOpenGLToSpirvTest: { target: "opengl", spirv: "1.0", defines: [] },
+  OpenGLSemantics: { target: "opengl", spirv: "1.0", defines: [] },
   CompileVulkanToSpirvTest: vulkanMode,
   CompileVulkanToSpirvRelaxSetBindingLimitsTest: vulkanMode,
-  CompileVulkanToSpirvTestNoLink: { ...vulkanMode, compileOnly: true },
-  CompileToSpirv14TestNoLink: { ...vulkanMode, compileOnly: true },
+  CompileVulkanToSpirvTestNoLink: { target: "vulkan1.3", spirv: "1.0", defines: [], compileOnly: true },
+  CompileToSpirv14TestNoLink: { target: "vulkan1.3", spirv: "1.4", defines: [], compileOnly: true },
   CompileVulkanToSpirvDeadCodeElimTest: vulkanMode,
-  CompileVulkan1_1ToSpirvTest: vulkanMode,
-  CompileToSpirv14Test: vulkanMode,
-  CompileToSpirv16Test: vulkanMode,
+  CompileVulkan1_1ToSpirvTest: vulkan11,
+  CompileToSpirv14Test: vulkan11Spirv14,
+  CompileToSpirv16Test: vulkan13,
   VulkanSemantics: vulkanMode,
   VulkanAstSemantics: vulkanMode,
   CompileVulkanToSpirvTestQCOM: vulkanMode,
-  CompileVulkanToSpirv13TestQCOM: vulkanMode,
-  CompileVulkanToSpirv14TestQCOM: vulkanMode,
+  CompileVulkanToSpirv13TestQCOM: vulkan11,
+  CompileVulkanToSpirv14TestQCOM: vulkan11Spirv14,
   CompileVulkanToSpirvTestAMD: vulkanMode,
   CompileVulkanToSpirvTestNV: vulkanMode,
-  CompileVulkanToSpirv14TestNV: vulkanMode,
+  CompileVulkanToSpirv14TestNV: vulkan11Spirv14,
   CompileUpgradeTextureToSampledTextureAndDropSamplersTest: vulkanMode,
   GlslSpirvDebugInfoTest: vulkanMode,
   GlslNonSemanticShaderDebugInfoTest: vulkanMode,
-  GlslNonSemanticShaderDebugInfoVulkanLatestTest: vulkanMode,
-  GlslSplitBarrierEXTTest: vulkanMode,
+  GlslNonSemanticShaderDebugInfoVulkanLatestTest: vulkan14,
+  GlslSplitBarrierEXTTest: vulkan14,
 };
 
 /** glslang の出力のうち、誤りではない ERROR の行。 */
@@ -145,7 +149,7 @@ try {
         copyFileSync(file, analyzed);
       }
 
-      const mode = modes?.get(name) ?? (vulkan ? vulkanMode : { target: "opengl", defines: [] });
+      const mode = modes?.get(name) ?? (vulkan ? vulkan13 : { target: "opengl", defines: [] });
       files.push({ file, analyzed, mode, ours: [], theirs: [] });
     }
   }
@@ -160,11 +164,11 @@ try {
   // Shaderlyn の指摘。同じ意味のファイルを束ねて CLI に渡す。向けは設定ファイルで渡す。
   const byPath = new Map(files.map(entry => [resolve(entry.analyzed).toLowerCase(), entry]));
 
-  for (const [, group] of Map.groupBy(files, entry => `${entry.mode.target} ${entry.mode.defines.join(" ")}`)) {
+  for (const [, group] of Map.groupBy(files, entry => `${entry.mode.target} ${entry.mode.spirv} ${entry.mode.defines.join(" ")}`)) {
     for (let i = 0; i < group.length; i += 80) {
       const batch = group.slice(i, i + 80);
       const defines = batch[0].mode.defines.flatMap(define => ["--define", define]);
-      const result = spawnSync(cli, ["--config", writeConfig(batch[0].mode.target), "--environment", "glsl", "--format", "json", "--include-trace", "none", "--base-path", scratch, ...defines, ...batch.map(e => e.analyzed)],
+      const result = spawnSync(cli, ["--config", writeConfig(batch[0].mode), "--environment", "glsl", "--format", "json", "--include-trace", "none", "--base-path", scratch, ...defines, ...batch.map(e => e.analyzed)],
         { encoding: "utf8", maxBuffer: 1 << 30 });
 
       for (const diagnostic of JSON.parse(result.stdout).diagnostics) {
@@ -267,11 +271,11 @@ function readGtests(directory) {
 }
 
 /** その向けの設定ファイルを作業用のフォルダーに書き、パスを返す。 */
-function writeConfig(target) {
-  const path = join(scratch, `shaderlyn-${target}.yml`);
+function writeConfig({ target, spirv }) {
+  const path = join(scratch, `shaderlyn-${target}-${spirv ?? "default"}.yml`);
 
   if (!existsSync(path)) {
-    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n`);
+    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n${spirv ? `  spirv: "${spirv}"\n` : ""}`);
   }
 
   return path;

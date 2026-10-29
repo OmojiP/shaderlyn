@@ -12,6 +12,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 追加
 
+- GLSL にしか無いルール (GL) を足した。glslang 16.6.0 が誤りにするものを、glslang の検査を移して同じ所で伝える
+  - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
+    その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
   `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものから引く
 - GLSL: glslang 16.6.0 が読む書き方を、拡張のものも含めてすべて読む。次の書き方を構文の誤り (CF0001) にしていた

@@ -67,6 +67,9 @@ public static class BuiltInAnalyzers
         new MemberAccessAnalyzer(),
         new CallSignatureAnalyzer(),
         new StructOperatorAnalyzer(),
+
+        // GLSL にしか無いルール。
+        new Rules.Glsl.GlslBuiltinRequirementAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

@@ -186,6 +186,43 @@ public sealed class GlslRuleTests : IDisposable
     }
 
     /// <summary>
+    /// 拡張で足される組み込みは、その拡張を使う位置より前で有効にしなければならない (GL0001)。
+    /// </summary>
+    [Theory]
+    [InlineData("#extension GL_KHR_shader_subgroup_basic : enable\n", true)]
+    [InlineData("#extension GL_KHR_shader_subgroup_arithmetic : enable\n", false)]
+    [InlineData("", true)]
+    public async Task 組み込みに要る拡張(string extension, bool expected)
+    {
+        string output = await AnalyzeAsync("a.comp", $$"""
+            #version 450
+            {{extension}}layout(local_size_x = 64) in;
+            layout(binding = 0) buffer Data { float values[]; };
+            void main() { values[gl_LocalInvocationIndex] = subgroupAdd(values[gl_LocalInvocationIndex]); }
+            """);
+
+        Assert.Equal(expected, output.Contains("error GL0001", StringComparison.Ordinal));
+    }
+
+    /// <summary><c>#extension</c> は書いた位置より後ろにだけ効く。</summary>
+    [Fact]
+    public async Task 拡張は書いた位置より後ろに効く()
+    {
+        string output = await AnalyzeAsync("a.comp", """
+            #version 450
+            layout(local_size_x = 64) in;
+            layout(binding = 0) buffer Data { uint values[]; };
+            uint before() { return gl_SubgroupSize; }
+            #extension GL_KHR_shader_subgroup_basic : enable
+            uint after() { return gl_SubgroupSize; }
+            void main() { values[0] = before() + after(); }
+            """);
+
+        Assert.Contains("a.comp(4:", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("a.comp(6:", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// HLSL にしか無い検査 (HL で始まるルール) は、GLSL では働かない。
     /// </summary>
     [Fact]
