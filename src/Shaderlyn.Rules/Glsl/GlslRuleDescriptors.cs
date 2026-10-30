@@ -232,6 +232,18 @@ internal static class GlslRuleDescriptors
         description: "writeonly を付けた buffer のブロック (かそのメンバー) の値を、演算・代入の右辺・初期化子などで読んでいます。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0310"));
 
+    /// <summary>条件が bool のスカラーでない。</summary>
+    /// <remarks>glslang の <c>boolCheck</c> (「boolean expression expected」) に当たる。文の <c>{0}</c> は条件の型。</remarks>
+    public static DiagnosticDescriptor BooleanExpected { get; } = new(
+        id: "GL0311",
+        title: "条件が bool ではありません",
+        messageFormat: "条件は bool のスカラーでなければなりません (今は {0})。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "if・while・do・for・?: の条件に、bool のスカラーでない値 (int、bvec2 など) を書いています。"
+            + "GLSL は暗黙に bool へ変換しません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0311"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -29,7 +30,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.BooleanExpected];
 
     private enum Op
     {
@@ -56,7 +57,8 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (BinaryExpressionSyntax or AssignmentExpressionSyntax or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax))
+            if (node is not (BinaryExpressionSyntax or AssignmentExpressionSyntax or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax
+                or IfStatementSyntax or WhileStatementSyntax or DoWhileStatementSyntax or ForStatementSyntax or ConditionalExpressionSyntax))
             {
                 continue;
             }
@@ -118,6 +120,27 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
                 case PostfixUnaryExpressionSyntax postfix:
                     CheckUnary(postfix.OperatorToken, postfix.Operand);
+                    break;
+
+                // 条件 (glslang の boolCheck)。
+                case IfStatementSyntax statement:
+                    CheckCondition(statement.IfKeyword, statement.Condition);
+                    break;
+
+                case WhileStatementSyntax statement:
+                    CheckCondition(statement.WhileKeyword, statement.Condition);
+                    break;
+
+                case DoWhileStatementSyntax statement:
+                    CheckCondition(statement.WhileKeyword, statement.Condition);
+                    break;
+
+                case ForStatementSyntax { Condition: { } condition } statement:
+                    CheckCondition(statement.ForKeyword, condition);
+                    break;
+
+                case ConditionalExpressionSyntax conditional:
+                    CheckCondition(conditional.QuestionToken, conditional.Condition);
                     break;
 
                 default:
@@ -364,6 +387,19 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
                     // 代入の演算子は、結果の型が左の型でなければならない。
                     return !assign || result.SameType(left);
+            }
+        }
+
+        /// <summary>条件が bool のスカラーかを検査する。型が分からなければ検査しない。</summary>
+        private void CheckCondition(ShaderSyntaxToken at, ExpressionSyntax condition)
+        {
+            string? name = condition is ConditionDeclarationExpressionSyntax { Declaration: var declaration }
+                ? declaration.Variables.All(v => !v.IsArray) && GlslKeywords.IsBuiltInType(declaration.Type.Name) ? declaration.Type.Name : null
+                : TypeOf(condition)?.Name;
+
+            if (name is not null && name != "bool")
+            {
+                requirement.Report(GlslRuleDescriptors.BooleanExpected, at, name);
             }
         }
 

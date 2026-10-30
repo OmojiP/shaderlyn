@@ -250,6 +250,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { vec4 tint; };\nvoid main() { tint = vec4(1.0); o = tint; }")]
     [InlineData("GL0309", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) readonly buffer B { float v; };\nvoid main() { v += 1.0; }")]
     [InlineData("GL0310", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) writeonly buffer B { float v; } b;\nvoid main() { float x = b.v; b.v = x + 1.0; }")]
+    [InlineData("GL0311", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 0) flat in int count;\nvoid main() { o = vec4(0.0); if (count) o = vec4(1.0); }")]
     [InlineData("GL0401", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float gl_scale = 1.0; o = vec4(gl_scale); }")]
     [InlineData("GL0401", "a.vert", "#version 140\nout vec4 gl_Position;\nvoid main() { }")]
     [InlineData("GL0401", "a.frag", "#version 100\nprecision mediump float;\nfloat a__b;\nvoid main() { gl_FragColor = vec4(a__b); }")]
