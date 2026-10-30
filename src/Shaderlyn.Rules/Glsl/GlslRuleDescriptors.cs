@@ -206,6 +206,32 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0308"));
 
+    /// <summary>書き込めない値に書き込んでいる。</summary>
+    /// <remarks>
+    /// glslang の <c>lValueErrorCheck</c> (「l-value required」「can't modify a const」「can't modify a uniform」
+    /// 「can't modify shader input」「can't modify a readonly buffer」など) に当たる。文の <c>{0}</c> は書き込む先、<c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor NotWritable { get; } = new(
+        id: "GL0309",
+        title: "書き込めない値です",
+        messageFormat: "{0} には書き込めません ({1})。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "const の変数、uniform、ステージの入力、readonly の buffer、変数でない値 (演算の結果など) に、代入・++ / --・out の実引数で書き込んでいます。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0309"));
+
+    /// <summary>writeonly の値を読んでいる。</summary>
+    /// <remarks>glslang の <c>rValueErrorCheck</c> (「can't read from writeonly object」) に当たる。文の <c>{0}</c> は変数。</remarks>
+    public static DiagnosticDescriptor WriteOnlyRead { get; } = new(
+        id: "GL0310",
+        title: "writeonly の値を読んでいます",
+        messageFormat: "writeonly の '{0}' は読めません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "writeonly を付けた buffer のブロック (かそのメンバー) の値を、演算・代入の右辺・初期化子などで読んでいます。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0310"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」
