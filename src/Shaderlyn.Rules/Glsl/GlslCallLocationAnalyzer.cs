@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Glsl;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -23,6 +24,10 @@ namespace Shaderlyn.Rules.Glsl;
 /// <para>
 /// 流れを分ける文は、if の枝、while・do・for の全体 (条件を含む)、switch の本体、<c>?:</c> の 2 つの枝。
 /// if と switch の条件、<c>?:</c> の条件は含まない。glslang の文法の動作 (glslang.y) に合わせている。
+/// </para>
+/// <para>
+/// テクスチャとサンプラーから作るサンプラーの値 (<c>sampler2D(t, s)</c>) は、使う場所 (組み込み関数の実引数など) に直接書く。
+/// 利用者の関数の実引数、<c>?:</c> の枝、カンマの演算子の項には書けない (glslang の <c>samplerConstructorLocationCheck</c>)。
 /// </para>
 /// </remarks>
 internal sealed class GlslCallLocationAnalyzer : SemanticRuleAnalyzer
@@ -50,7 +55,7 @@ internal sealed class GlslCallLocationAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: Barrier or BeginInterlock or EndInterlock } callee })
+            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation)
             {
                 continue;
             }
@@ -62,6 +67,17 @@ internal sealed class GlslCallLocationAnalyzer : SemanticRuleAnalyzer
                     && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types
                         ? new State(requirement, types)
                         : null;
+            }
+
+            if (state is not null && IsSamplerConstructor(invocation, callee))
+            {
+                CheckSamplerConstructor(compilation, program, state, invocation, callee);
+                continue;
+            }
+
+            if (callee.Name is not (Barrier or BeginInterlock or EndInterlock))
+            {
+                continue;
             }
 
             if (state is null
@@ -80,6 +96,47 @@ internal sealed class GlslCallLocationAnalyzer : SemanticRuleAnalyzer
             {
                 state.Requirement.Report(GlslRuleDescriptors.CallNotAllowedHere, callee.Identifier, callee.Name, problem);
             }
+        }
+    }
+
+    /// <summary>テクスチャとサンプラーから作るサンプラーの値 (<c>sampler2D(t, s)</c>) か。</summary>
+    private static bool IsSamplerConstructor(InvocationExpressionSyntax invocation, IdentifierExpressionSyntax callee)
+        => callee.Name.TrimStart('i', 'u').StartsWith("sampler", StringComparison.Ordinal)
+           && GlslKeywords.IsBuiltInType(callee.Name)
+           && invocation.ArgumentExpressions.Count() == 2;
+
+    /// <summary>サンプラーの値の作成を、使う場所に直接書いているか。</summary>
+    private static void CheckSamplerConstructor(
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
+        State state,
+        InvocationExpressionSyntax invocation,
+        IdentifierExpressionSyntax callee)
+    {
+        ShaderSyntaxNode node = invocation;
+
+        while (node.Parent is ParenthesizedExpressionSyntax parenthesized)
+        {
+            node = parenthesized;
+        }
+
+        string? place = node.Parent switch
+        {
+            InvocationExpressionSyntax { Target: IdentifierExpressionSyntax function } call
+                when !ReferenceEquals(call.Target, node) && !compilation.GetFunctionDeclarations(function.Name, program).IsEmpty
+                => "利用者の関数の実引数",
+            ConditionalExpressionSyntax conditional when !ReferenceEquals(conditional.Condition, node) => "?: の枝",
+            BinaryExpressionSyntax { OperatorToken.Text: "," } => "カンマの演算子の項",
+            _ => null,
+        };
+
+        if (place is not null)
+        {
+            state.Requirement.Report(
+                GlslRuleDescriptors.CallNotAllowedHere,
+                callee.Identifier,
+                callee.Name,
+                $"使う場所 (組み込み関数の実引数など) に直接書かなければなりません。{place}には書けません");
         }
     }
 

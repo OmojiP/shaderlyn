@@ -82,11 +82,13 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case StructDeclarationSyntax { NameOverride: not null } block:
                     CheckQualifiers(requirement, [.. block.Modifiers, block.Keyword], global);
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
+                    CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword]);
                     break;
 
                 case InterfaceBlockDeclarationSyntax block:
                     CheckQualifiers(requirement, block.Modifiers, global);
                     CheckCombination(requirement, block.Modifiers, vertexInput: false);
+                    CheckBlockStage(requirement, block.Modifiers);
                     break;
 
                 case VariableDeclaratorSyntax declarator:
@@ -211,6 +213,27 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
         if (vertexInput && requirement.Stage == GlslShaderStage.Vertex && storage == "in" && (auxiliary || interpolation || memory || invariant))
         {
             requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, qualifiers[0], "頂点シェーダーの入力には、補助・補間・メモリの修飾子と invariant を書けません。");
+        }
+    }
+
+    /// <summary>
+    /// 入力のブロックは頂点シェーダーとコンピュートシェーダーに、出力のブロックはフラグメントシェーダーとコンピュートシェーダーに書けない
+    /// (glslang の「input block」「output block」の requireStage)。
+    /// </summary>
+    private static void CheckBlockStage(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers)
+    {
+        if (requirement.Stage is not { } stage || TopLevel(modifiers).LastOrDefault(t => t.Text is "in" or "out") is not { } storage)
+        {
+            return;
+        }
+
+        bool input = storage.Text == "in";
+
+        if (stage == GlslShaderStage.Compute
+            || (input && stage == GlslShaderStage.Vertex)
+            || (!input && stage == GlslShaderStage.Fragment))
+        {
+            requirement.Report(GlslRuleDescriptors.NotAvailableInStage, storage, input ? "入力のブロック" : "出力のブロック", GlslRequirements.DescribeStage(stage));
         }
     }
 

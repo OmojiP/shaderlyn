@@ -23,7 +23,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     組み込みの関数と変数を、それが無い版とプロファイルで使うこと (1.20 の `trunc`、ES の `gl_ClipDistance`、ES の 3.00 以降の OpenGL 向けの `texture2D(…)` など)、
     大きさの決まっていないサンプラーとブロックの配列を定数でない添字で引くこと (`GL_EXT_nonuniform_qualifier`)、
     型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
-  - GL0002: そのステージでは使えない (頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex` など)
+  - GL0002: そのステージでは使えない (頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex`、頂点シェーダーの入力のブロックなど)
   - GL0101: 修飾子をここに書けない。関数の中の `in` / `out`、型の無い宣言にだけ書ける layout (`triangles`、`local_size_x` など) を変数に書いたもの、
     記憶域や型と合わない layout (`uniform` でない宣言の `offset`、ブロックのメンバーの `std140` など)。
     修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)
@@ -34,7 +34,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのものへの演算子と、`?:` の 2 つの枝の型が合わないものも報告する
   - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)
   - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外
-  - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ
+  - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ。サンプラーの値の作成 (`sampler2D(t, s)`) を、利用者の関数の実引数・`?:` の枝・カンマの演算子の項に書いた
   - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した。イメージのアトミックの関数に、形式が r32i / r32ui (ES の浮動小数点数は r32f) でないイメージを渡した
   - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上。組み込みの配列 (`gl_FragData`、`gl_BoundingBox`、`gl_SampleMask`、テッセレーションの制御シェーダーの `gl_out`) と、外側の大きさを省いて初期化した配列も見る
   - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った

@@ -158,7 +158,8 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "テッセレーションの制御シェーダーの barrier() と、beginInvocationInterlockARB() / endInvocationInterlockARB() は、"
-            + "main の中で、if・ループ・switch・?: の外に、return より前に書かなければなりません。glslang はコンパイルの誤りにします。",
+            + "main の中で、if・ループ・switch・?: の外に、return より前に書かなければなりません。"
+            + "サンプラーの値の作成 (sampler2D(t, s)) は、使う場所 (組み込み関数の実引数など) に直接書かなければなりません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0305"));
 
     /// <summary>組み込み関数に、決まった種類の変数でなければならない実引数として、別のものを渡している。</summary>
