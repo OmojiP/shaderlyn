@@ -373,6 +373,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { layout(location = 1) float f; };\nvoid main() { S s; s.f = 1.0; o = vec4(s.f); }")]
     [InlineData("GL0101", "a.vert", "#version 450\nflat out Block { vec4 c; } b;\nvoid main() { b.c = vec4(1.0); gl_Position = b.c; }")]
     [InlineData("GL0101", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nvolatile float v;\nvoid main() { v = 1.0; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) invariant in vec4 c;\nlayout(location = 0) out vec4 o;\nvoid main() { o = c; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nuniform vec4 u;\ninvariant u;\nlayout(location = 0) out vec4 o;\nvoid main() { o = u; }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { vec4 u; struct T { int a; } t; };\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { sampler2D s; };\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nlayout(location = 0) in vec4 c;\nvoid main() { gl_Position = c; EmitVertex(); }")]

@@ -73,6 +73,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     {
                         CheckInterfaceVariable(requirement, types, program, variable);
                         CheckMemoryQualifiers(requirement, program, variable);
+                        CheckInvariant(requirement, program, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens]);
                     }
 
                     if (variable.Parent is StructDeclarationSyntax { Keyword.Text: "struct" })
@@ -114,6 +115,12 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 // 修飾子だけの宣言 (layout(local_size_x = 8) in;、invariant gl_Position;)。
                 case IncompleteDeclarationSyntax incomplete:
                     CheckQualifiers(requirement, incomplete.Tokens, global);
+
+                    if (global)
+                    {
+                        CheckInvariant(requirement, program, incomplete.Tokens);
+                    }
+
                     break;
 
                 default:
@@ -358,6 +365,51 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
         }
 
         requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, memory, $"'{memory.Text}' は、イメージの変数と uniform・buffer の宣言にだけ書けます。");
+    }
+
+    /// <summary>
+    /// invariant は出力にだけ付けられる (glslang の invariantCheck)。ES の 3.00 より前とデスクトップの 4.20 より前は、頂点シェーダーでない入力にも付けられる。
+    /// 宣言し直し (<c>invariant name;</c>) は、関数の外で宣言した変数の記憶域で決める。組み込みの変数は見ない。
+    /// </summary>
+    private static void CheckInvariant(GlslRequirements requirement, AnalyzedProgram program, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        ShaderSyntaxToken[] qualifiers = [.. TopLevel(tokens)];
+
+        if (qualifiers.FirstOrDefault(t => t.Text == "invariant") is not { } invariant || requirement.Stage is not { } stage)
+        {
+            return;
+        }
+
+        string? storage = qualifiers.LastOrDefault(t => Storage.Contains(t.Text))?.Text;
+
+        // invariant name; は、名前の宣言の記憶域で決める。名前を並べたもの (invariant gl_Position, gl_PointSize;) は見ない。
+        if (storage is null)
+        {
+            if (qualifiers is not [_, { } name])
+            {
+                return;
+            }
+
+            if (name.Text.StartsWith("gl_", StringComparison.Ordinal)
+                || program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().FirstOrDefault(d => d.Variables.Any(v => v.Name == name.Text)) is not { } declared)
+            {
+                return;
+            }
+
+            storage = TopLevel([.. declared.ModifierTokens, .. declared.Type.ModifierTokens]).LastOrDefault(t => Storage.Contains(t.Text))?.Text;
+        }
+
+        bool output = storage is "out" || (storage is "varying" && stage != GlslShaderStage.Fragment);
+        bool input = storage is "in" or "attribute" || (storage is "varying" && stage == GlslShaderStage.Fragment);
+        bool strict = requirement.IsEs ? requirement.Version >= 300 : requirement.Version >= 420;
+
+        if (strict ? !output : (stage == GlslShaderStage.Vertex && input) || (!output && !input))
+        {
+            requirement.Report(
+                GlslRuleDescriptors.QualifierNotAllowed,
+                invariant,
+                strict ? "invariant は出力にだけ付けられます。" : "invariant は出力と、頂点シェーダーでない入力にだけ付けられます。");
+        }
     }
 
     /// <summary>括弧の外 (<c>layout(…)</c> の中でない) の修飾子のキーワード。</summary>
