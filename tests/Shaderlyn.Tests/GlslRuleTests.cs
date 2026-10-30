@@ -360,6 +360,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.vert", "#version 450\nsmooth flat out vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
     [InlineData("GL0101", "a.tese", "#version 450\nlayout(triangles) in;\nflat patch in vec4 p;\nvoid main() { gl_Position = p; }")]
     [InlineData("GL0101", "a.vert", "#version 450\nlayout(location = 0) flat in vec4 p;\nvoid main() { gl_Position = p; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) flat out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) in int i;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(i); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision lowp uint;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump vec4;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0002", "a.vert", "#version 450\nlayout(location = 0) in VertexIn { vec4 p; } vin;\nvoid main() { gl_Position = vin.p; }")]

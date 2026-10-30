@@ -6,6 +6,8 @@ using Shaderlyn.Glsl;
 using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics.Symbols;
 
 namespace Shaderlyn.Rules.Glsl;
 
@@ -66,6 +68,12 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclarationSyntax variable:
                     CheckQualifiers(requirement, variable.ModifierTokens, global);
                     CheckCombination(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens], vertexInput: variable.Parent is CompilationUnitSyntax);
+
+                    if (variable.Parent is CompilationUnitSyntax && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types)
+                    {
+                        CheckInterfaceVariable(requirement, types, program, variable);
+                    }
+
                     break;
 
                 // 仮引数の修飾子は、glslang では関数の外 (大域の範囲) で読む。
@@ -234,6 +242,58 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             || (!input && stage == GlslShaderStage.Fragment))
         {
             requirement.Report(GlslRuleDescriptors.NotAvailableInStage, storage, input ? "入力のブロック" : "出力のブロック", GlslRequirements.DescribeStage(stage));
+        }
+    }
+
+    /// <summary>
+    /// フラグメントシェーダーの出力と、整数の入出力の修飾子と型 (glslang の globalQualifierTypeCheck)。
+    /// フラグメントシェーダーの出力には補助・補間の修飾子を書けず、行列・構造体・double・64 ビットの整数にできない。
+    /// 整数と double の、フラグメントシェーダーの入力 (と ES の 3.00 の頂点シェーダーの出力) には flat が要る。
+    /// </summary>
+    private static void CheckInterfaceVariable(GlslRequirements requirement, GlslTypeSystem types, AnalyzedProgram program, VariableDeclarationSyntax declaration)
+    {
+        ShaderSyntaxToken[] qualifiers = [.. TopLevel([.. declaration.ModifierTokens, .. declaration.Type.ModifierTokens])];
+
+        if (requirement.Stage is not { } stage
+            || qualifiers.LastOrDefault(t => t.Text is "in" or "out" or "varying") is not { } storage)
+        {
+            return;
+        }
+
+        bool input = storage.Text == "in" || (storage.Text == "varying" && stage == GlslShaderStage.Fragment);
+        string type = declaration.Type.Name;
+        bool numeric = types.TryDescribeNumeric(type, out ShaderNumericShape shape);
+
+        if (stage == GlslShaderStage.Fragment && !input)
+        {
+            string? problem =
+                qualifiers.Any(t => Auxiliary.Contains(t.Text)) ? "補助の修飾子 (centroid・sample・patch) を書けません"
+                : qualifiers.Any(t => Interpolation.Contains(t.Text)) ? "補間の修飾子 (flat・smooth・noperspective) を書けません"
+                : numeric && shape.Kind == ShaderNumericKind.Matrix ? "行列にできません"
+                : program.Structs.Any(s => s.Name == type && s.Keyword.Text == "struct") ? "構造体にできません"
+                : numeric && shape.BaseName is "double" or "int64_t" or "uint64_t" ? "double・int64_t・uint64_t にできません"
+                : null;
+
+            if (problem is not null)
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, storage, $"フラグメントシェーダーの出力は{problem}。");
+            }
+
+            return;
+        }
+
+        bool needsFlat = (input && stage == GlslShaderStage.Fragment)
+                         || (!input && stage == GlslShaderStage.Vertex && requirement.IsEs && requirement.Version == 300);
+
+        if (needsFlat
+            && numeric
+            && shape.BaseName is "int" or "uint" or "double" or "int8_t" or "uint8_t" or "int16_t" or "uint16_t" or "int64_t" or "uint64_t"
+            && !qualifiers.Any(t => t.Text is "flat" or "__explicitInterpAMD" or "pervertexNV" or "pervertexEXT"))
+        {
+            requirement.Report(
+                GlslRuleDescriptors.QualifierNotAllowed,
+                storage,
+                $"整数と double の{(input ? "フラグメントシェーダーの入力" : "頂点シェーダーの出力")}には flat を付けなければなりません ('{type}')。");
         }
     }
 
