@@ -266,6 +266,17 @@ internal static class GlslRuleDescriptors
             + "または、イメージの形式 (layout(rgba8) など) が仮引数と違います。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0313"));
 
+    /// <summary>スコープとセマンティクスを取るアトミックとバリアの関数で、セマンティクスの組み合わせが正しくない。</summary>
+    public static DiagnosticDescriptor InvalidMemorySemantics { get; } = new(
+        id: "GL0314",
+        title: "メモリのセマンティクスの組み合わせが正しくありません",
+        messageFormat: "{0}() のセマンティクスが正しくありません。{1}。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "GL_KHR_memory_scope_semantics のアトミックとバリアの関数に渡したセマンティクス (gl_SemanticsAcquire など) と記憶域のセマンティクス (gl_StorageSemanticsBuffer など) の組み合わせが、決まりに合っていません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0314"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

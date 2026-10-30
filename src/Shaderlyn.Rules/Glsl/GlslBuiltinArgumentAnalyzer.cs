@@ -19,6 +19,10 @@ namespace Shaderlyn.Rules.Glsl;
 /// サブグループのクラスターの大きさ、SPIR-V 1.5 より前の <c>subgroupBroadcast</c> の id、<c>rayQueryGetIntersection*</c> の committed を見る。
 /// </para>
 /// <para>
+/// スコープとセマンティクスを取るアトミックとバリアの関数 (<c>GL_KHR_memory_scope_semantics</c>) は、それらの実引数が定数か、
+/// セマンティクスの組み合わせが正しいかも見る (GL0314。glslang の <c>memorySemanticsCheck</c>)。
+/// </para>
+/// <para>
 /// 定数でないと言い切れる式 (<c>const</c> でない変数・仮引数を使う式) だけを報告する。分からない式は報告しない。
 /// 値は glslang の既定の資源の上限 (<c>gl_MinProgramTexelOffset</c> = -8、<c>gl_MaxProgramTexelOffset</c> = 7) で確かめる。
 /// </para>
@@ -33,7 +37,7 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [GlslRuleDescriptors.ConstantArgumentRequired, GlslRuleDescriptors.ArgumentOutOfRange];
+        [GlslRuleDescriptors.ConstantArgumentRequired, GlslRuleDescriptors.ArgumentOutOfRange, GlslRuleDescriptors.InvalidMemorySemantics];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -108,7 +112,208 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
             {
                 RequireConstant(at, arguments[1], "committed");
             }
+
+            CheckMemorySemantics(at, name, arguments);
         }
+
+        /// <summary>メモリのセマンティクスの定数 (glslang の Initialize.cpp と同じ値)。</summary>
+        private static readonly Dictionary<string, long> SemanticsConstants = new(StringComparer.Ordinal)
+        {
+            ["gl_SemanticsRelaxed"] = 0x0,
+            ["gl_SemanticsAcquire"] = 0x2,
+            ["gl_SemanticsRelease"] = 0x4,
+            ["gl_SemanticsAcquireRelease"] = 0x8,
+            ["gl_SemanticsMakeAvailable"] = 0x2000,
+            ["gl_SemanticsMakeVisible"] = 0x4000,
+            ["gl_SemanticsVolatile"] = 0x8000,
+            ["gl_StorageSemanticsNone"] = 0x0,
+            ["gl_StorageSemanticsBuffer"] = 0x40,
+            ["gl_StorageSemanticsShared"] = 0x100,
+            ["gl_StorageSemanticsImage"] = 0x800,
+            ["gl_StorageSemanticsOutput"] = 0x1000,
+        };
+
+        private const long Acquire = 0x2;
+        private const long Release = 0x4;
+        private const long AcquireRelease = 0x8;
+        private const long MakeAvailable = 0x2000;
+        private const long MakeVisible = 0x4000;
+        private const long Volatile = 0x8000;
+        private const long MemoryOrder = Acquire | Release | AcquireRelease;
+
+        /// <summary>
+        /// スコープとセマンティクスを取るアトミックとバリアの関数の、最初の定数の実引数と、記憶域のセマンティクスとセマンティクスの位置
+        /// (glslang の memorySemanticsCheck)。比較と交換の関数は、等しくないときの組 (semStorageUnequal、semUnequal) も持つ。
+        /// </summary>
+        private (int First, int Storage, int Semantics, int Storage2, int Semantics2)? SemanticsOperands(string name, ExpressionSyntax[] arguments)
+        {
+            bool multisample = name.StartsWith("imageAtomic", StringComparison.Ordinal)
+                               && SamplerOf(arguments) is { } image && image.Contains("MS", StringComparison.Ordinal);
+            int ms = multisample ? 1 : 0;
+
+            return name switch
+            {
+                "atomicAdd" or "atomicMin" or "atomicMax" or "atomicAnd" or "atomicOr" or "atomicXor" or "atomicExchange" or "atomicStore"
+                    when arguments.Length > 3 => (2, 3, 4, -1, -1),
+                "atomicLoad" when arguments.Length > 3 => (1, 2, 3, -1, -1),
+                "atomicCompSwap" when arguments.Length > 3 => (3, 4, 5, 6, 7),
+                "imageAtomicAdd" or "imageAtomicMin" or "imageAtomicMax" or "imageAtomicAnd" or "imageAtomicOr" or "imageAtomicXor"
+                    or "imageAtomicExchange" or "imageAtomicStore"
+                    when arguments.Length > 4 + ms => (3 + ms, 4 + ms, 5 + ms, -1, -1),
+                "imageAtomicLoad" when arguments.Length > 4 + ms => (2 + ms, 3 + ms, 4 + ms, -1, -1),
+                "imageAtomicCompSwap" when arguments.Length > 4 + ms => (4 + ms, 5 + ms, 6 + ms, 7 + ms, 8 + ms),
+                "controlBarrier" or "controlBarrierArrive" or "controlBarrierWait" when arguments.Length > 0 => (0, 2, 3, -1, -1),
+                "memoryBarrier" when arguments.Length > 0 => (0, 1, 2, -1, -1),
+                _ => null,
+            };
+        }
+
+        /// <summary>スコープとセマンティクスの実引数を検査する (glslang の memorySemanticsCheck)。</summary>
+        private void CheckMemorySemantics(ShaderSyntaxToken at, string name, ExpressionSyntax[] arguments)
+        {
+            if (SemanticsOperands(name, arguments) is not { } operands)
+            {
+                return;
+            }
+
+            if (arguments.Skip(operands.First).Any(_evaluator.IsCertainlyNotConstant))
+            {
+                requirement.Report(GlslRuleDescriptors.ConstantArgumentRequired, at, "スコープとセマンティクスの実引数");
+                return;
+            }
+
+            long? Value(int index) => index < 0 ? 0 : index < arguments.Length ? SemanticsValue(arguments[index]) : null;
+
+            if (Value(operands.Storage) is not { } storage
+                || Value(operands.Semantics) is not { } semantics
+                || Value(operands.Storage2) is not { } storage2
+                || Value(operands.Semantics2) is not { } semantics2)
+            {
+                return;
+            }
+
+            bool compareSwap = operands.Storage2 >= 0;
+            bool store = name is "atomicStore" or "imageAtomicStore";
+            bool load = name is "atomicLoad" or "imageAtomicLoad";
+            List<string> problems = [];
+
+            if (((semantics | semantics2) & ~(MemoryOrder | MakeAvailable | MakeVisible | Volatile)) != 0)
+            {
+                problems.Add("セマンティクスに使えない値が入っています");
+            }
+
+            if (((storage | storage2) & ~(0x40L | 0x100L | 0x800L | 0x1000L)) != 0)
+            {
+                problems.Add("記憶域のセマンティクスに使えない値が入っています");
+            }
+
+            if (!IsSingleOrder(semantics) || !IsSingleOrder(semantics2))
+            {
+                problems.Add("セマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease を 1 つしか入れられません");
+            }
+
+            if (((semantics & MemoryOrder) != 0 && storage == 0) || ((semantics2 & MemoryOrder) != 0 && storage2 == 0))
+            {
+                problems.Add("gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease を使うときは、記憶域のセマンティクスを 0 にできません");
+            }
+
+            if ((storage != 0 && (semantics & MemoryOrder) == 0) || (storage2 != 0 && (semantics2 & MemoryOrder) == 0))
+            {
+                problems.Add("記憶域のセマンティクスが 0 でないときは、セマンティクスに gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+            }
+
+            if (storage != 0 && name == "controlBarrierArrive" && (semantics & ~MakeAvailable) != Release)
+            {
+                problems.Add("controlBarrierArrive のセマンティクスは gl_SemanticsRelease (と gl_SemanticsMakeAvailable) でなければなりません");
+            }
+
+            if (storage != 0 && name == "controlBarrierWait" && (semantics & ~MakeVisible) != Acquire)
+            {
+                problems.Add("controlBarrierWait のセマンティクスは gl_SemanticsAcquire (と gl_SemanticsMakeVisible) でなければなりません");
+            }
+
+            if (((semantics & MakeAvailable) != 0 && (semantics & (Release | AcquireRelease)) == 0)
+                || ((semantics2 & MakeAvailable) != 0 && (semantics2 & (Release | AcquireRelease)) == 0))
+            {
+                problems.Add("gl_SemanticsMakeAvailable には gl_SemanticsRelease か gl_SemanticsAcquireRelease が要ります");
+            }
+
+            if (((semantics & MakeVisible) != 0 && (semantics & (Acquire | AcquireRelease)) == 0)
+                || ((semantics2 & MakeVisible) != 0 && (semantics2 & (Acquire | AcquireRelease)) == 0))
+            {
+                problems.Add("gl_SemanticsMakeVisible には gl_SemanticsAcquire か gl_SemanticsAcquireRelease が要ります");
+            }
+
+            if (store && (semantics & Acquire) != 0)
+            {
+                problems.Add("ストアには gl_SemanticsAcquire を使えません");
+            }
+
+            if (load && (semantics & Release) != 0)
+            {
+                problems.Add("ロードには gl_SemanticsRelease を使えません");
+            }
+
+            if ((store || load) && (semantics & AcquireRelease) != 0)
+            {
+                problems.Add("ロードとストアには gl_SemanticsAcquireRelease を使えません");
+            }
+
+            if (name == "memoryBarrier" && (semantics & MemoryOrder) == 0)
+            {
+                problems.Add("memoryBarrier のセマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+            }
+
+            if (name is "memoryBarrier" or "controlBarrier" or "controlBarrierArrive" or "controlBarrierWait" && (semantics & Volatile) != 0)
+            {
+                problems.Add($"{name} には gl_SemanticsVolatile を使えません");
+            }
+
+            if (compareSwap)
+            {
+                if ((semantics2 & (Release | AcquireRelease)) != 0)
+                {
+                    problems.Add("等しくないときのセマンティクス (semUnequal) に gl_SemanticsRelease と gl_SemanticsAcquireRelease は使えません");
+                }
+
+                if ((semantics2 & Acquire) != 0 && (semantics & (Acquire | AcquireRelease)) == 0)
+                {
+                    problems.Add("等しいときのセマンティクス (semEqual) が gl_SemanticsAcquire か gl_SemanticsAcquireRelease でなければ、semUnequal に gl_SemanticsAcquire は使えません");
+                }
+
+                if ((semantics2 & MakeVisible) != 0 && (semantics & MakeVisible) == 0)
+                {
+                    problems.Add("semEqual に gl_SemanticsMakeVisible が無ければ、semUnequal にも使えません");
+                }
+
+                if ((storage2 & ~storage) != 0)
+                {
+                    problems.Add("等しくないときの記憶域のセマンティクス (semStorageUnequal) には、semStorageEqual に無いものを入れられません");
+                }
+
+                if (((semantics ^ semantics2) & Volatile) != 0)
+                {
+                    problems.Add("gl_SemanticsVolatile は semEqual と semUnequal の両方に入れるか、どちらにも入れないかにしてください");
+                }
+            }
+
+            foreach (string problem in problems)
+            {
+                requirement.Report(GlslRuleDescriptors.InvalidMemorySemantics, at, name, problem);
+            }
+
+            static bool IsSingleOrder(long value) => (value & MemoryOrder) is var order && (order & (order - 1)) == 0;
+        }
+
+        /// <summary>セマンティクスの実引数の値。gl_Semantics* の定数と、その | の組み合わせ。分からなければ <see langword="null"/>。</summary>
+        private long? SemanticsValue(ExpressionSyntax expression) => expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => SemanticsValue(parenthesized.Expression),
+            IdentifierExpressionSyntax identifier when SemanticsConstants.TryGetValue(identifier.Name, out long value) => value,
+            BinaryExpressionSyntax { OperatorToken.Text: "|" } binary
+                => SemanticsValue(binary.Left) is { } left && SemanticsValue(binary.Right) is { } right ? left | right : null,
+            _ => _evaluator.Evaluate(expression) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } constant ? constant.Integer : null,
+        };
 
         /// <summary>テクセルのオフセットの実引数の位置 (glslang の builtInOpCheck の EOpTextureOffset など)。</summary>
         private int? TexelOffsetIndex(string name, ExpressionSyntax[] arguments)
