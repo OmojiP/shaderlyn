@@ -90,6 +90,19 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
     }
 
+    /// <summary>修飾子と形式が仮引数と合えば渡せる。writeonly の仮引数には形式の無いイメージも渡せる。</summary>
+    [Fact]
+    public async Task 修飾子の合うイメージの実引数()
+    {
+        const string body = "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8) uniform coherent restrict writeonly image2D t;\n"
+                            + "void store(layout(rgba8) coherent writeonly image2D i) { imageStore(i, ivec2(0), vec4(1.0)); }\n"
+                            + "void store2(writeonly image2D i) { imageStore(i, ivec2(0), vec4(1.0)); }\n"
+                            + "layout(binding = 1) uniform writeonly image2D u;\n"
+                            + "void main() { store(t); store2(u); imageStore(t, ivec2(0), vec4(0.0)); }\n";
+
+        Assert.DoesNotContain("GL0313", await AnalyzeAsync("a.comp", body), StringComparison.Ordinal);
+    }
+
     /// <summary>4.20 からは修飾子の順を問わない。決まった順なら、それより前の版でも良い。</summary>
     [Theory]
     [InlineData("#version 420\nout flat vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
@@ -331,6 +344,9 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.vert", "#version 450\nlayout(location = 0) flat in vec4 p;\nvoid main() { gl_Position = p; }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision lowp uint;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump vec4;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0313", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8) uniform writeonly image2D t;\nlayout(binding = 1) buffer B { vec4 v; };\nvoid main() { v = imageLoad(t, ivec2(0)); }")]
+    [InlineData("GL0313", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8) uniform coherent writeonly image2D t;\nvoid store(writeonly image2D i) { imageStore(i, ivec2(0), vec4(1.0)); }\nvoid main() { store(t); }")]
+    [InlineData("GL0313", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8) uniform readonly image2D t;\nlayout(binding = 1) buffer B { vec4 v; };\nvec4 load(readonly image2D i) { return imageLoad(i, ivec2(0)); }\nvoid main() { v = load(t); }")]
     [InlineData("GL0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float degrees = 90.0; o = vec4(degrees(1.0)); }")]
     [InlineData("GL0405", "a.frag", "#version 100\nprecision mediump float;\nfloat sin(float x) { return x; }\nvoid main() { gl_FragColor = vec4(sin(1.0)); }")]
     [InlineData("GL0405", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nbool radians(bool x) { return x; }\nvoid main() { o = vec4(1.0); }")]

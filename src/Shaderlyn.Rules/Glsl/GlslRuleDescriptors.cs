@@ -254,6 +254,16 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0312"));
 
+    /// <summary>サンプラーかイメージの実引数の修飾子が、仮引数と合わない。</summary>
+    public static DiagnosticDescriptor ArgumentQualifierMismatch { get; } = new(
+        id: "GL0313",
+        title: "実引数の修飾子が仮引数と合いません",
+        messageFormat: "'{0}' を渡せません。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "メモリの修飾子 (coherent・readonly・writeonly など) を持つイメージを、その修飾子の無い仮引数に渡しています。"
+            + "または、イメージの形式 (layout(rgba8) など) が仮引数と違います。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0313"));
 
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
