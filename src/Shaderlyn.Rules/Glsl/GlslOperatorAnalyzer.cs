@@ -141,6 +141,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
                 case ConditionalExpressionSyntax conditional:
                     CheckCondition(conditional.QuestionToken, conditional.Condition);
+                    CheckSelection(conditional);
                     break;
 
                 default:
@@ -174,6 +175,13 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
         private void CheckBinary(ShaderSyntaxToken at, Op op, bool assign, ExpressionSyntax leftExpression, ExpressionSyntax rightExpression)
         {
+            // 配列そのものに使えるのは == と != と = だけ (glslang の handleBinaryMath)。
+            if (op != Op.Equality && (IsCertainlyArray(leftExpression) || IsCertainlyArray(rightExpression)))
+            {
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使えません。");
+                return;
+            }
+
             if (TypeOf(leftExpression) is not { } left || TypeOf(rightExpression) is not { } right)
             {
                 return;
@@ -421,6 +429,41 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 _ => new Operand(name, shape.BaseName, shape.Kind, 0, shape.Rows, shape.Columns),
             };
         }
+
+        /// <summary>
+        /// ?: の 2 つの枝の型がそろうか (glslang の addSelection)。暗黙の変換でどちらかを他方の型にできればよい。
+        /// 型が分からない枝、配列の枝があれば検査しない。
+        /// </summary>
+        private void CheckSelection(ConditionalExpressionSyntax conditional)
+        {
+            if (TypeOf(conditional.WhenTrue) is not { } whenTrue || TypeOf(conditional.WhenFalse) is not { } whenFalse
+                || whenTrue.SameType(whenFalse))
+            {
+                return;
+            }
+
+            bool sameShape = whenTrue.Kind == whenFalse.Kind && whenTrue.VectorSize == whenFalse.VectorSize
+                             && whenTrue.Columns == whenFalse.Columns && whenTrue.Rows == whenFalse.Rows;
+
+            if (sameShape && (types.IsBaseConvertible(whenFalse.Base, whenTrue.Base) || types.IsBaseConvertible(whenTrue.Base, whenFalse.Base)))
+            {
+                return;
+            }
+
+            requirement.Report(
+                GlslRuleDescriptors.WrongOperandTypes,
+                conditional.ColonToken,
+                $"?: の 2 つの枝の型 ({whenTrue.Name} と {whenFalse.Name}) がそろいません。");
+        }
+
+        /// <summary>添字を付けない配列の変数か (宣言を言い切れるもの)。</summary>
+        private bool IsCertainlyArray(ExpressionSyntax expression) => expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => IsCertainlyArray(parenthesized.Expression),
+            IdentifierExpressionSyntax identifier => binder.ResolveName(identifier) is { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: { IsEmpty: false } candidates }
+                                                     && candidates.All(c => c.Type.IsArray),
+            _ => false,
+        };
 
         /// <summary>添字を付けない配列の変数か、配列のメンバーか。</summary>
         private bool IsArrayValue(ExpressionSyntax expression) => expression switch
