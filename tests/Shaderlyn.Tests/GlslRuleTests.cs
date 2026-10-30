@@ -45,7 +45,7 @@ public sealed class GlslRuleTests : IDisposable
 
     [Theory]
     [InlineData("CF0310", "a.frag", "void main() { o = vec4(missingValue); }")]
-    [InlineData("CF0310", "a.vert", "void main() { gl_Position = gl_FragCoord; }")]
+    [InlineData("GL0002", "a.vert", "void main() { gl_Position = gl_FragCoord; }")]
     [InlineData("CF0301", "a.frag", "void notMain() { o = vec4(1.0); }")]
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = vec4(1.0); o = vec4(c, 1.0); }")]
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = 1.0; o = vec4(c, 1.0); }")]
@@ -397,6 +397,21 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.True(error.ToString().Length == 0, error.ToString());
         Assert.Equal(expected, output.ToString().Contains("error GL0104", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// その版に無い組み込みの関数と変数は GL0001、同じ版の別のステージにあるものは GL0002 で伝える。宣言されていない名前 (CF0310) とは言わない。
+    /// </summary>
+    [Theory]
+    [InlineData("a.vert", "#version 120\nvoid main() { gl_Position = vec4(trunc(1.5)); }", "GL0001")]
+    [InlineData("a.tese", "#version 450\nlayout(triangles) in;\nvoid main() { barrier(); gl_Position = vec4(1.0); }", "GL0002")]
+    [InlineData("a.vert", "#version 310 es\nvoid main() { gl_ClipDistance[0] = 1.0; gl_Position = vec4(1.0); }", "GL0001")]
+    [InlineData("a.frag", "#version 460\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(float(gl_VertexIndex)); }", "GL0002")]
+    public async Task その構成に無い組み込みの関数と変数(string fileName, string code, string id)
+    {
+        string output = await AnalyzeAsync(fileName, code + "\n");
+        Assert.Contains($"error {id}", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0310", output, StringComparison.Ordinal);
     }
 
     /// <summary>

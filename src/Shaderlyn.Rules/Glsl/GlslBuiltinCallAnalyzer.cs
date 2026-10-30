@@ -32,7 +32,7 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NoMatchingBuiltin, GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NoMatchingBuiltin, GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.NotAvailableInStage];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -68,7 +68,7 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
 
             if (s.Types.Builtins.GetFunctions(callee.Name) is not { IsEmpty: false } overloads)
             {
-                CheckRemovedTextureFunction(s.Requirement, callee);
+                CheckUnavailableBuiltin(s.Requirement, s.Types, callee);
                 continue;
             }
 
@@ -77,24 +77,30 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
-    /// OpenGL 向けの <c>texture2D(…)</c> などは、型の名前ではなく組み込み関数の名前である (glslang は Vulkan 向けでだけ型の名前と読む)。
-    /// その版とプロファイルに関数が無ければ (ES の 3.00 以降など)、glslang は「no matching overloaded function found」にする。
-    /// 宣言されていない名前 (CF0310) は、型の名前として読むので報告しない。
+    /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み関数の呼び出し。glslang は「no matching overloaded function found」にする。
+    /// OpenGL 向けの <c>texture2D(…)</c> なども関数の名前である。Vulkan 向けでは型の名前 (値の作成) なので、OpenGL 向けと分かるときだけ見る。
     /// </summary>
-    private static void CheckRemovedTextureFunction(GlslRequirements requirement, IdentifierExpressionSyntax callee)
+    private static void CheckUnavailableBuiltin(GlslRequirements requirement, GlslTypeSystem types, IdentifierExpressionSyntax callee)
     {
-        if (requirement.Vulkan != false
-            || !callee.Name.StartsWith("texture", StringComparison.Ordinal)
-            || !GlslKeywords.IsBuiltInType(callee.Name)
-            || !GlslBuiltins.Instance.Functions.ContainsKey(callee.Name))
+        string name = callee.Name;
+
+        if (!types.IsUnavailableBuiltinFunction(name) || (GlslKeywords.IsBuiltInType(name) && requirement.Vulkan != false))
         {
+            return;
+        }
+
+        if (types.IsBuiltinFunctionOfOtherStage(name) && requirement.Stage is { } stage)
+        {
+            requirement.Report(GlslRuleDescriptors.NotAvailableInStage, callee.Identifier, $"組み込み関数 '{name}'", GlslRequirements.DescribeStage(stage));
             return;
         }
 
         requirement.Report(
             GlslRuleDescriptors.NotAvailable,
             callee.Identifier,
-            $"組み込み関数 '{callee.Name}' は、この #version とプロファイルにはありません。texture などを使ってください。");
+            name.StartsWith("texture", StringComparison.Ordinal) && GlslKeywords.IsBuiltInType(name)
+                ? $"組み込み関数 '{name}' は、この #version とプロファイルにはありません。texture などを使ってください。"
+                : $"組み込み関数 '{name}' は、この #version とプロファイルにはありません。");
     }
 
     private static void Check(

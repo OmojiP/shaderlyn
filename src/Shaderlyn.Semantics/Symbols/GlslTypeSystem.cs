@@ -199,6 +199,63 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <summary>この構成で使える組み込みの関数と変数。表は初めて使うときに読む。</summary>
     internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage, _vulkan);
 
+    /// <summary>
+    /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み関数の名前か (1.20 の trunc、テッセレーションの評価シェーダーの barrier など)。
+    /// 表にこの構成が無い (どの組み込み関数も無い) ときは <see langword="false"/>。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>この構成に無い組み込み関数なら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinFunction(string name)
+        => GlslBuiltins.Instance.Functions.ContainsKey(name)
+           && Builtins.GetFunctions(name).IsEmpty
+           && !Builtins.FunctionNames.IsEmpty;
+
+    /// <summary>別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み変数の名前か (ES の gl_ClipDistance など)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>この構成に無い組み込み変数なら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinVariable(string name)
+        => GlslBuiltins.Instance.Variables.ContainsKey(name)
+           && Builtins.GetVariables(name).IsEmpty
+           && !Builtins.VariableNames.IsEmpty;
+
+    /// <summary>
+    /// 同じバージョンとプロファイルの、別のステージにある組み込み関数の名前か。
+    /// ステージは、そのバージョンで書けるもの (頂点とフラグメント、ジオメトリは 1.50・ES の 3.10、テッセレーションは 4.00・ES の 3.10、
+    /// コンピュートは 4.30・ES の 3.10) だけを見る。表には、そのバージョンで書けないステージの構成 (1.20 のコンピュートなど) もある。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>別のステージにあるなら <see langword="true"/>。</returns>
+    internal bool IsBuiltinFunctionOfOtherStage(string name) => IsOfOtherStage(view => !view.GetFunctions(name).IsEmpty);
+
+    /// <summary>同じバージョンとプロファイルの、別のステージにある組み込み変数の名前か (<see cref="IsBuiltinFunctionOfOtherStage"/> と同じステージを見る)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>別のステージにあるなら <see langword="true"/>。</returns>
+    internal bool IsBuiltinVariableOfOtherStage(string name) => IsOfOtherStage(view => !view.GetVariables(name).IsEmpty);
+
+    /// <summary>そのバージョンで書ける、別のステージの組み込みに当てはまるものがあるか。</summary>
+    private bool IsOfOtherStage(Func<GlslBuiltinView, bool> has)
+    {
+        if (_stage is null || _version is not { } version)
+        {
+            return false;
+        }
+
+        bool es = _profile == GlslProfile.Es;
+        (GlslShaderStage Stage, int Desktop, int Es)[] stages =
+        [
+            (GlslShaderStage.Vertex, 0, 0),
+            (GlslShaderStage.Fragment, 0, 0),
+            (GlslShaderStage.Geometry, 150, 310),
+            (GlslShaderStage.TessellationControl, 400, 310),
+            (GlslShaderStage.TessellationEvaluation, 400, 310),
+            (GlslShaderStage.Compute, 430, 310),
+        ];
+
+        return stages.Any(s => s.Stage != _stage
+                               && version >= (es ? s.Es : s.Desktop)
+                               && has(GlslBuiltins.Instance.For(_version, _profile, s.Stage, _vulkan)));
+    }
+
     /// <inheritdoc/>
     internal override ShaderTypeSystem ForTree(ShaderSyntaxTree tree)
     {

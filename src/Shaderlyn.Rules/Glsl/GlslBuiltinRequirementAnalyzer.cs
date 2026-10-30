@@ -31,7 +31,7 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.NotAvailableInStage];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -69,6 +69,23 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
                          && types.Builtins.GetVariable(identifier.Name) is { Extensions.IsEmpty: false } variable
                          && !program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Any(d => d.Variables.Any(v => v.Name == identifier.Name)):
                     requirement.RequireExtensions(identifier.Identifier, variable.Extensions, $"'{identifier.Name}'");
+                    break;
+
+                // 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み変数 (ES の gl_ClipDistance など)。glslang は「undeclared identifier」にする。
+                case IdentifierExpressionSyntax identifier
+                    when identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+                         && !(identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier))
+                         && types.IsUnavailableBuiltinVariable(identifier.Name)
+                         && compilation.GetExpressionTypeBinder(program).ResolveName(identifier).Kind == DeclaredNameKind.NotFound:
+                    if (types.IsBuiltinVariableOfOtherStage(identifier.Name) && requirement.Stage is { } stage)
+                    {
+                        requirement.Report(GlslRuleDescriptors.NotAvailableInStage, identifier.Identifier, $"組み込みの変数 '{identifier.Name}'", GlslRequirements.DescribeStage(stage));
+                    }
+                    else
+                    {
+                        requirement.Report(GlslRuleDescriptors.NotAvailable, identifier.Identifier, $"組み込みの変数 '{identifier.Name}' は、この #version とプロファイルにはありません。");
+                    }
+
                     break;
 
                 default:

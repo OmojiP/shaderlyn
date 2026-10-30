@@ -140,7 +140,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 組み込みは、その木の言語のバージョンとステージで使えるものだけを見る (GLSL の gl_FragCoord は頂点シェーダーに無い)。
         ShaderTypeSystem types = compilation.TypeSystem.ForTree(program.Tree);
 
+        // GLSL の、この構成に無い組み込みの関数の呼び出しと変数は、GL0001 / GL0002 が伝える (GlslBuiltinCallAnalyzer、GlslBuiltinRequirementAnalyzer)。
         if (types.IsKnownFunction(identifier.Name, program.Tree)
+            || (invoked && types is GlslTypeSystem glsl && glsl.IsUnavailableBuiltinFunction(identifier.Name))
+            || (!invoked && types is GlslTypeSystem glslVariables && glslVariables.IsUnavailableBuiltinVariable(identifier.Name))
             || types.IsKnownConstant(identifier.Name)
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
             || types.IsBuiltInTypeName(identifier.Name)
