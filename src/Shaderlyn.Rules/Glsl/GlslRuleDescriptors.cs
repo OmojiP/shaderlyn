@@ -243,6 +243,17 @@ internal static class GlslRuleDescriptors
         description: "if・while・do・for・?: の条件に、bool のスカラーでない値 (int、bvec2 など) を書いています。"
             + "GLSL は暗黙に bool へ変換しません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0311"));
+    /// <summary>変数を関数として呼んでいる。</summary>
+    public static DiagnosticDescriptor VariableCalled { get; } = new(
+        id: "GL0312",
+        title: "変数を関数として呼んでいます",
+        messageFormat: "'{0}' はここでは変数です。同じ名前の関数は、この変数に隠れて呼べません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の中の変数か仮引数が、同じ名前の関数 (組み込み関数を含む) を隠しています。その範囲では関数を呼べません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0312"));
+
 
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
@@ -301,6 +312,17 @@ internal static class GlslRuleDescriptors
         description: "テッセレーションの制御・評価のシェーダーの、patch でない入力の配列 (とブロックの配列) の大きさは、gl_MaxPatchVertices か、省いたものでなければなりません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0404"));
+    /// <summary>ES で組み込み関数を宣言し直している。</summary>
+    public static DiagnosticDescriptor BuiltinRedeclared { get; } = new(
+        id: "GL0405",
+        title: "組み込み関数を宣言し直せません",
+        messageFormat: "'{0}' は組み込み関数の名前です。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "ES では、組み込み関数と同じ形の関数を宣言できません。ES の 3.00 以降では、組み込み関数と同じ名前の関数と、関数の外の変数も宣言できません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0405"));
+
 
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>

@@ -40,10 +40,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0309: 書き込めない値 (`const`、uniform、ステージの入力、`readonly` の buffer、変数でない値など) に、代入・`++` / `--`・out の実引数で書き込んだ
   - GL0310: `writeonly` の buffer のブロックの値を読んだ
   - GL0311: `if`・`while`・`do`・`for`・`?:` の条件が `bool` のスカラーでない (`int`、`bvec2` など)
+  - GL0312: 関数の中の変数か仮引数に隠された関数を呼んだ (`float sin; sin(1.0);` など)
   - GL0401: 予約された名前 (`gl_` で始まる名前、ES の 3.00 より前の `__` を含む名前) の変数・仮引数・ブロックのメンバーを宣言した
   - GL0402: 配列の大きさを書かなければならない所 (関数の戻り値と仮引数、構造体のメンバー、配列の配列の内側の次元、ES の初期化子の無い変数とブロック) で省いた
   - GL0403: その宣言には使えない型 (uniform でない変数のサンプラーとイメージ、それを含む構造体、`void` の変数と名前のある仮引数)
   - GL0404: テッセレーションのシェーダーの入力の配列の大きさが `gl_MaxPatchVertices` でない
+  - GL0405: ES で組み込み関数を宣言し直した。同じ形の関数と、ES の 3.00 以降は同じ名前の関数と関数の外の変数
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、

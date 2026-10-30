@@ -87,6 +87,22 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// デスクトップでは組み込み関数を宣言し直せる (GL0405 は ES だけ)。1.10 では変数が関数を隠さない (GL0312)。
+    /// ES の 1.00 では、形の違う関数と関数の外の変数に組み込み関数の名前を使える。
+    /// </summary>
+    [Theory]
+    [InlineData("#version 450\nlayout(location = 0) out vec4 o;\nfloat sin(float x) { return x; }\nvoid main() { o = vec4(sin(1.0)); }")]
+    [InlineData("#version 110\nvoid main() { float sin = 1.0; gl_FragColor = vec4(sin(sin)); }")]
+    [InlineData("#version 100\nprecision mediump float;\nfloat tan;\nbool radians(bool x) { return x; }\nvoid main() { gl_FragColor = vec4(tan); }")]
+    [InlineData("#version 450\nlayout(location = 0) out vec4 o;\nstruct S { float x; };\nvoid main() { S S = S(1.0); o = vec4(S.x); }")]
+    public async Task 組み込み関数の名前を使えるもの(string code)
+    {
+        string output = await AnalyzeAsync("a.frag", code + "\n");
+        Assert.DoesNotContain("GL0312", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0405", output, StringComparison.Ordinal);
+    }
+
     /// <summary>ES には暗黙の変換が無いので、<c>int</c> を <c>float</c> に代入できない。デスクトップの 4.50 ではできる。</summary>
     [Fact]
     public async Task ESでは整数を浮動小数に代入できない()
@@ -282,6 +298,10 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D t;\nvoid main() { sampler2D s = t; o = texture(s, vec2(0.5)); }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { void v; o = vec4(1.0); }")]
     [InlineData("GL0404", "a.tese", "#version 450\nlayout(triangles) in;\nlayout(location = 0) in vec2 uvs[16];\nvoid main() { gl_Position = vec4(uvs[0], 0.0, 1.0); }")]
+    [InlineData("GL0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float degrees = 90.0; o = vec4(degrees(1.0)); }")]
+    [InlineData("GL0405", "a.frag", "#version 100\nprecision mediump float;\nfloat sin(float x) { return x; }\nvoid main() { gl_FragColor = vec4(sin(1.0)); }")]
+    [InlineData("GL0405", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nbool radians(bool x) { return x; }\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0405", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nfloat tan;\nvoid main() { o = vec4(tan); }")]
     [InlineData("GL0401", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float gl_scale = 1.0; o = vec4(gl_scale); }")]
     [InlineData("GL0401", "a.vert", "#version 140\nout vec4 gl_Position;\nvoid main() { }")]
     [InlineData("GL0401", "a.frag", "#version 100\nprecision mediump float;\nfloat a__b;\nvoid main() { gl_FragColor = vec4(a__b); }")]
