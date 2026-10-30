@@ -56,10 +56,21 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0402", "a.frag", "void main() { o = vec4(clamp(1.0, 0.0)); }")]
     [InlineData("CF0404", "a.frag", "void main() { o = vec4(1.0, 2.0); }")]
     [InlineData("CF0314", "a.frag", "float f(float x) { return x; }\nfloat f(float y) { return y; }\nvoid main() { o = vec4(f(1.0)); }")]
+    [InlineData("CF0314", "a.frag", "bool b;\nfloat b(int a);\nvoid main() { o = vec4(1.0); }")]
     public async Task GLSLの誤りを見つける(string id, string fileName, string body)
     {
         string output = await AnalyzeAsync(fileName, $"#version 450\nlayout(location = 0) out vec4 o;\n{body}\n");
         Assert.Contains($"error {id}", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>GLSL の 1.10 だけは、変数と関数の名前の空間が分かれている (glslang と同じ)。</summary>
+    [Fact]
+    public async Task 変数と関数の同じ名前は110だけ許す()
+    {
+        const string body = "bool b;\nfloat b(int a) { return 1.0; }\nvoid main() { gl_FragColor = vec4(b(1)); }\n";
+
+        Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.frag", "#version 110\n" + body), StringComparison.Ordinal);
+        Assert.Contains("error CF0314", await AnalyzeAsync("a.frag", "#version 120\n" + body), StringComparison.Ordinal);
     }
 
     /// <summary>ES には暗黙の変換が無いので、<c>int</c> を <c>float</c> に代入できない。デスクトップの 4.50 ではできる。</summary>
@@ -237,6 +248,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0306", "a.frag", "#version 450\nlayout(location = 0) in vec4 c;\nlayout(location = 0) out vec4 o;\nvoid main() { vec4 t = c; o = interpolateAtCentroid(t); }")]
     [InlineData("GL0306", "a.frag", "#version 430\nlayout(location = 0) in vec4 c;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(interpolateAtCentroid(c.xy), 0.0, 1.0); }")]
     [InlineData("GL0306", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nint counter;\nvoid main() { atomicAdd(counter, 1); }")]
+    [InlineData("GL0306", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8ui) uniform uimage2D img;\nvoid main() { imageAtomicAdd(img, ivec2(0), 1u); }")]
     [InlineData("GL0307", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float a[4]; a[0] = 1.0; o = vec4(a[4]); }")]
     [InlineData("GL0307", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec3 v = vec3(1.0); o = vec4(v[-1]); }")]
     [InlineData("GL0307", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat2x4 m = mat2x4(1.0); o = m[2]; }")]
@@ -248,10 +260,12 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0402", "a.comp", "#version 310 es\nlayout(local_size_x = 1) in;\nshared float values[];\nvoid main() { values[0] = 1.0; }")]
     [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) in vec4 c;\nlayout(location = 0) out vec4 o;\nvoid main() { c.x = 1.0; o = c; }")]
     [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { vec4 tint; };\nvoid main() { tint = vec4(1.0); o = tint; }")]
-    [InlineData("GL0306", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8ui) uniform uimage2D img;\nvoid main() { imageAtomicAdd(img, ivec2(0), 1u); }")]
     [InlineData("GL0309", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) readonly buffer B { float v; };\nvoid main() { v += 1.0; }")]
     [InlineData("GL0310", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) writeonly buffer B { float v; } b;\nvoid main() { float x = b.v; b.v = x + 1.0; }")]
     [InlineData("GL0311", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 0) flat in int count;\nvoid main() { o = vec4(0.0); if (count) o = vec4(1.0); }")]
+    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D t;\nvoid main() { sampler2D s = t; o = texture(s, vec2(0.5)); }")]
+    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { void v; o = vec4(1.0); }")]
+    [InlineData("GL0404", "a.tese", "#version 450\nlayout(triangles) in;\nlayout(location = 0) in vec2 uvs[16];\nvoid main() { gl_Position = vec4(uvs[0], 0.0, 1.0); }")]
     [InlineData("GL0401", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float gl_scale = 1.0; o = vec4(gl_scale); }")]
     [InlineData("GL0401", "a.vert", "#version 140\nout vec4 gl_Position;\nvoid main() { }")]
     [InlineData("GL0401", "a.frag", "#version 100\nprecision mediump float;\nfloat a__b;\nvoid main() { gl_FragColor = vec4(a__b); }")]
@@ -263,9 +277,6 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0001", "a.vert", "#version 300 es\nin vec4 positions[2];\nvoid main() { gl_Position = positions[0]; }")]
     [InlineData("GL0001", "a.frag", "#version 330\nuniform sampler2D s[4];\nuniform int i;\nout vec4 o;\nvoid main() { o = texture(s[i], vec2(0.5)); }")]
     [InlineData("GL0001", "a.frag", "#version 330\nuniform sampler2D s;\nout vec4 o;\nvoid main() { o = textureGather(s, vec2(0.5)); }")]
-    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D t;\nvoid main() { sampler2D s = t; o = texture(s, vec2(0.5)); }")]
-    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { void v; o = vec4(1.0); }")]
-    [InlineData("GL0404", "a.tese", "#version 450\nlayout(triangles) in;\nlayout(location = 0) in vec2 uvs[16];\nvoid main() { gl_Position = vec4(uvs[0], 0.0, 1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 430\nuniform sampler2DMS s;\nout vec4 o;\nvoid main() { o = vec4(textureSamples(s)); }")]
     [InlineData("GL0001", "a.geom", "#version 310 es\n#extension GL_EXT_geometry_shader : enable\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nvoid main() { gl_PointSize = 1.0; EmitVertex(); }")]
     [InlineData("GL0001", "a.frag", "#version 300 es\n#extension GL_OES_EGL_image_external : enable\nprecision mediump float;\nuniform samplerExternalOES s;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
