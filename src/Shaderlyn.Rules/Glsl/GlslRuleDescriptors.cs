@@ -222,6 +222,21 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0401"));
 
+    /// <summary>配列の大きさを書かなければならない所で、書いていない。</summary>
+    /// <remarks>
+    /// glslang の <c>arraySizeRequiredCheck</c> と <c>arraySizesCheck</c> (「array size required」
+    /// 「only outermost dimension of an array of arrays can be implicitly sized」) に当たる。文の <c>{0}</c> は場所。
+    /// </remarks>
+    public static DiagnosticDescriptor ArraySizeRequired { get; } = new(
+        id: "GL0402",
+        title: "配列の大きさが要ります",
+        messageFormat: "{0}の配列には、大きさを書かなければなりません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の戻り値・仮引数・構造体のメンバーの配列、配列の配列の内側の次元、ES の変数とブロックの配列 (初期化子と決まった例外を除く) は、"
+            + "大きさを書かなければなりません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0402"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(

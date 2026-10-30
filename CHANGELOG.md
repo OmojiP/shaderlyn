@@ -37,6 +37,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上
   - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った
   - GL0401: 予約された名前 (`gl_` で始まる名前、ES の 3.00 より前の `__` を含む名前) の変数・仮引数・ブロックのメンバーを宣言した
+  - GL0402: 配列の大きさを書かなければならない所 (関数の戻り値と仮引数、構造体のメンバー、配列の配列の内側の次元、ES の初期化子の無い変数とブロック) で省いた
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
