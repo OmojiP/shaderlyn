@@ -80,12 +80,24 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax or LocalDeclarationStatementSyntax } declaration } variable:
                     CheckOpaque(requirement, program, declaration, variable);
                     CheckPatchInput(requirement, declaration.ModifierTokens, variable.ArrayRankTokens, variable.NameToken);
+
+                    if (declaration.Parent is CompilationUnitSyntax && !variable.IsArray && !variable.Name.StartsWith("gl_", StringComparison.Ordinal))
+                    {
+                        CheckArrayedIo(requirement, declaration.ModifierTokens, variable.Name, variable.NameToken);
+                    }
+
                     break;
 
                 // 名前のあるブロックのインスタンス。glslang はブロックの位置で報告する。
                 case VariableDeclaratorSyntax { Parent: StructDeclarationSyntax { Keyword.Text: not "struct" } block } instance:
                     ImmutableArray<ShaderSyntaxToken> modifiers = [.. block.Modifiers, block.Keyword];
                     CheckPatchInput(requirement, modifiers, instance.ArrayRankTokens, modifiers[0]);
+
+                    if (!instance.IsArray && !instance.Name.StartsWith("gl_", StringComparison.Ordinal))
+                    {
+                        CheckArrayedIo(requirement, modifiers, instance.Name, modifiers[0]);
+                    }
+
                     break;
 
                 // 構造体とブロックの中の構造体の定義 (glslang の nestedStructCheck)。
@@ -175,6 +187,34 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
             at,
             value.Integer.ToString(CultureInfo.InvariantCulture),
             MaxPatchVertices.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// ジオメトリシェーダーの入力、テッセレーションの制御シェーダーの patch でない入力と出力、評価シェーダーの patch でない入力は、
+    /// 配列でなければならない (glslang の ioArrayCheck と isArrayedIo)。layout(passthrough) は除く。
+    /// </summary>
+    private static void CheckArrayedIo(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers, string name, ShaderSyntaxToken at)
+    {
+        bool input = HasStorage(modifiers, "in");
+        bool output = HasStorage(modifiers, "out");
+        bool patch = HasStorage(modifiers, "patch");
+
+        bool arrayed = requirement.Stage switch
+        {
+            GlslShaderStage.Geometry => input,
+            GlslShaderStage.TessellationControl => !patch && (input || output),
+            GlslShaderStage.TessellationEvaluation => !patch && input,
+            _ => false,
+        };
+
+        if (arrayed && !modifiers.Any(m => m.Text == "passthrough"))
+        {
+            requirement.Report(
+                GlslRuleDescriptors.TypeNotAllowedHere,
+                at,
+                name,
+                $"{GlslRequirements.DescribeStage(requirement.Stage!.Value)}の{(input ? "入力" : "出力")}は配列でなければなりません。");
+        }
     }
 
     /// <summary>修飾子 (<c>layout(…)</c> の外) に、その修飾子があるか。</summary>

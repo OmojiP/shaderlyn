@@ -375,6 +375,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nvolatile float v;\nvoid main() { v = 1.0; }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { vec4 u; struct T { int a; } t; };\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { sampler2D s; };\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0403", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nlayout(location = 0) in vec4 c;\nvoid main() { gl_Position = c; EmitVertex(); }")]
+    [InlineData("GL0403", "a.tese", "#version 450\nlayout(triangles) in;\nlayout(location = 0) in vec2 uv;\nvoid main() { gl_Position = vec4(uv, 0.0, 1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) in int i;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(i); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision lowp uint;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump vec4;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
