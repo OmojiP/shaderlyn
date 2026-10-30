@@ -20,6 +20,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     ステージの入力と出力の変数の宣言 (`in` / `out`、整数の入出力、頂点シェーダーの入力の配列、ES の構造体の入出力など)、
     定数でない添字で引くサンプラー・ブロック・フラグメントシェーダーの出力の配列、
     ES のジオメトリとテッセレーションのシェーダーの `gl_PointSize`、`samplerExternalOES` に要る拡張、
+    大きさの決まっていないサンプラーとブロックの配列を定数でない添字で引くこと (`GL_EXT_nonuniform_qualifier`)、
     型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
   - GL0002: そのステージでは使えない (頂点シェーダーの `shared` など)
   - GL0101: 修飾子をここに書けない。関数の中の `in` / `out`、型の無い宣言にだけ書ける layout (`triangles`、`local_size_x` など) を変数に書いたもの、
@@ -34,6 +35,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ
   - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した
   - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上
+  - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った
   - GL0401: 予約された名前 (`gl_` で始まる名前、ES の 3.00 より前の `__` を含む名前) の変数・仮引数・ブロックのメンバーを宣言した
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない

@@ -191,6 +191,21 @@ internal static class GlslRuleDescriptors
         description: "定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上です。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0307"));
 
+    /// <summary>大きさの決まっていない配列を、定数でない添字で引くか、<c>length()</c> で長さを求めている。</summary>
+    /// <remarks>
+    /// glslang の「array must be redeclared with a size before being indexed with a variable」
+    /// 「array must be declared with a size before using this method」に当たる。文の <c>{0}</c> は配列、<c>{1}</c> はしたこと。
+    /// </remarks>
+    public static DiagnosticDescriptor UnsizedArrayUse { get; } = new(
+        id: "GL0308",
+        title: "大きさの決まっていない配列です",
+        messageFormat: "大きさの決まっていない配列 '{0}' を{1}。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "大きさを書かずに宣言した配列 (buffer のブロックの最後のメンバーを除く) は、定数でない添字で引けず、length() も使えません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0308"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

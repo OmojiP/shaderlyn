@@ -85,6 +85,7 @@ public sealed class RuleFixtureTests
         ["GL0305"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0306"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0307"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0308"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0401"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0201"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
 
