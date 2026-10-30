@@ -86,6 +86,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslUnsizedArrayAnalyzer(),
         new Rules.Glsl.GlslArraySizeAnalyzer(),
         new Rules.Glsl.GlslAccessAnalyzer(),
+        new Rules.Glsl.GlslDeclarationTypeAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

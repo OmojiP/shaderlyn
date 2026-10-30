@@ -60,8 +60,15 @@ internal sealed class GlslVariableArgumentAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation
-                || Required(callee.Name) is not { } required)
+            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation)
+            {
+                continue;
+            }
+
+            (int Index, bool Interpolant, bool TaskPayload)? requiredOrNull = Required(callee.Name);
+            bool imageAtomic = callee.Name.StartsWith("imageAtomic", StringComparison.Ordinal);
+
+            if (requiredOrNull is null && !imageAtomic)
             {
                 continue;
             }
@@ -78,9 +85,22 @@ internal sealed class GlslVariableArgumentAnalyzer : SemanticRuleAnalyzer
             ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
 
             if (checker is null
-                || required.Index >= arguments.Length
+                || arguments.Length == 0
                 || checker.Types.Builtins.GetFunctions(callee.Name).IsEmpty
                 || !compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty)
+            {
+                continue;
+            }
+
+            if (imageAtomic)
+            {
+                checker.CheckImageFormat(callee, arguments[0]);
+                continue;
+            }
+
+            (int Index, bool Interpolant, bool TaskPayload) required = requiredOrNull!.Value;
+
+            if (required.Index >= arguments.Length)
             {
                 continue;
             }
@@ -136,6 +156,56 @@ internal sealed class GlslVariableArgumentAnalyzer : SemanticRuleAnalyzer
         public GlslRequirements Requirement => requirement;
 
         public GlslTypeSystem Types => types;
+
+        /// <summary>
+        /// イメージのアトミックの関数に渡すイメージの形式 (glslang の builtInOpCheck の EOpImageAtomic*)。
+        /// 整数のイメージは r32i / r32ui (64 ビットは r64i / r64ui)、ES の浮動小数点数のイメージは r32f でなければならない。
+        /// 宣言を言い切れるイメージ (関数の外の変数と仮引数、その配列の要素) だけを見る。
+        /// </summary>
+        public void CheckImageFormat(IdentifierExpressionSyntax callee, ExpressionSyntax argument)
+        {
+            ExpressionSyntax expression = Strip(argument);
+
+            while (expression is ElementAccessExpressionSyntax element)
+            {
+                expression = Strip(element.Target);
+            }
+
+            if (expression is not IdentifierExpressionSyntax identifier
+                || binder.ResolveName(identifier) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [var candidate] })
+            {
+                return;
+            }
+
+            ImmutableArray<ShaderSyntaxToken> modifiers = candidate.Declarator switch
+            {
+                ParameterSyntax parameter => parameter.ModifierTokens,
+                VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } declaration } => declaration.ModifierTokens,
+                _ => default,
+            };
+
+            if (modifiers.IsDefault)
+            {
+                return;
+            }
+
+            string type = candidate.Type.TypeName;
+            string? format = modifiers.Select(m => m.Text).FirstOrDefault(GlslLayoutAnalyzer.ImageFormats.Contains);
+            string? required = type switch
+            {
+                _ when type.StartsWith("iimage", StringComparison.Ordinal) || type.StartsWith("uimage", StringComparison.Ordinal)
+                    || type.StartsWith("i64image", StringComparison.Ordinal) || type.StartsWith("u64image", StringComparison.Ordinal)
+                    => format is "r32i" or "r32ui" or "r64i" or "r64ui" ? null : "layout(r32i) か layout(r32ui) のイメージ",
+                _ when type.StartsWith("image", StringComparison.Ordinal) && requirement.IsEs
+                    => format is "r32f" or "rg16f" or "rgba16f" ? null : "layout(r32f) のイメージ",
+                _ => null,
+            };
+
+            if (required is not null)
+            {
+                requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, callee.Identifier, callee.Name, 1, $"、{required}でなければなりません");
+            }
+        }
 
         /// <summary>補間できる入力か。分からなければ <see langword="null"/>。</summary>
         public bool? IsInterpolant(ExpressionSyntax argument)

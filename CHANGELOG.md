@@ -33,7 +33,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)
   - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ
-  - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した
+  - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した。イメージのアトミックの関数に、形式が r32i / r32ui (ES の浮動小数点数は r32f) でないイメージを渡した
   - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上
   - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った
   - GL0309: 書き込めない値 (`const`、uniform、ステージの入力、`readonly` の buffer、変数でない値など) に、代入・`++` / `--`・out の実引数で書き込んだ
@@ -41,6 +41,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0311: `if`・`while`・`do`・`for`・`?:` の条件が `bool` のスカラーでない (`int`、`bvec2` など)
   - GL0401: 予約された名前 (`gl_` で始まる名前、ES の 3.00 より前の `__` を含む名前) の変数・仮引数・ブロックのメンバーを宣言した
   - GL0402: 配列の大きさを書かなければならない所 (関数の戻り値と仮引数、構造体のメンバー、配列の配列の内側の次元、ES の初期化子の無い変数とブロック) で省いた
+  - GL0403: その宣言には使えない型 (uniform でない変数のサンプラーとイメージ、それを含む構造体、`void` の変数と名前のある仮引数)
+  - GL0404: テッセレーションのシェーダーの入力の配列の大きさが `gl_MaxPatchVertices` でない
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、

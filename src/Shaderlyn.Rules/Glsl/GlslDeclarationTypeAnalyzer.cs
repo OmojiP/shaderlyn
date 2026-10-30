@@ -1,0 +1,169 @@
+using System.Collections.Immutable;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using Shaderlyn.CFamily.Syntax;
+using Shaderlyn.Core.Analysis;
+using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Glsl;
+using Shaderlyn.Glsl.Parsing;
+using Shaderlyn.Glsl.Syntax;
+using Shaderlyn.Semantics;
+
+namespace Shaderlyn.Rules.Glsl;
+
+/// <summary>
+/// 宣言の型を検査する (GL0403 / GL0404)。
+/// glslang 16.6.0 の ParseHelper.cpp の <c>samplerCheck</c>・<c>voidErrorCheck</c>・<c>checkIoArrayConsistency</c> のテッセレーションの入力の検査を移したもの。
+/// </summary>
+/// <remarks>
+/// <para>
+/// サンプラー・イメージ・テクスチャの型と、それをメンバーに持つ構造体の変数は、uniform でなければならない
+/// (<c>GL_ARB_bindless_texture</c> を有効にしたときを除く)。関数の外と中の変数を見る。仮引数とブロックのメンバーは見ない。
+/// </para>
+/// <para>
+/// void の変数・構造体のメンバー・名前のある仮引数は宣言できない。
+/// </para>
+/// <para>
+/// テッセレーションの制御・評価のシェーダーの、patch でない入力の配列 (とブロックの配列) の大きさは、gl_MaxPatchVertices (glslang の既定の資源の 32) か、省いたもの。
+/// 大きさを数で書いたものだけを見る。
+/// </para>
+/// </remarks>
+internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
+{
+    /// <summary>glslang の既定の資源の gl_MaxPatchVertices。</summary>
+    private const int MaxPatchVertices = 32;
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.TypeNotAllowedHere, GlslRuleDescriptors.PatchInputSize];
+
+    /// <inheritdoc/>
+    protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
+    {
+        if (!compilation.IsGlsl)
+        {
+            return;
+        }
+
+        HashSet<(string? File, int Start, string Message)> reported = [];
+        Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        {
+            if (node is not (VariableDeclaratorSyntax or ParameterSyntax))
+            {
+                continue;
+            }
+
+            if (!requirements.TryGetValue(program, out GlslRequirements? requirement))
+            {
+                requirement = requirements[program] = GlslRequirements.Create(context, compilation, program, reported);
+            }
+
+            if (requirement is null)
+            {
+                continue;
+            }
+
+            switch (node)
+            {
+                case ParameterSyntax { Type.Name: "void", NameToken: { IsMissing: false, Text.Length: > 0 } name }:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, name, name.Text, "void の仮引数には名前を付けられません。");
+                    break;
+
+                case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Type.Name: "void" } } variable:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, "void の変数は宣言できません。");
+                    break;
+
+                case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax or LocalDeclarationStatementSyntax } declaration } variable:
+                    CheckOpaque(requirement, program, declaration, variable);
+                    CheckPatchInput(requirement, declaration.ModifierTokens, variable.ArrayRankTokens, variable.NameToken);
+                    break;
+
+                // 名前のあるブロックのインスタンス。glslang はブロックの位置で報告する。
+                case VariableDeclaratorSyntax { Parent: StructDeclarationSyntax { Keyword.Text: not "struct" } block } instance:
+                    ImmutableArray<ShaderSyntaxToken> modifiers = [.. block.Modifiers, block.Keyword];
+                    CheckPatchInput(requirement, modifiers, instance.ArrayRankTokens, modifiers[0]);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    /// <summary>サンプラーとイメージの型の変数は uniform でなければならない (samplerCheck)。</summary>
+    private static void CheckOpaque(GlslRequirements requirement, AnalyzedProgram program, VariableDeclarationSyntax declaration, VariableDeclaratorSyntax variable)
+    {
+        if (HasStorage(declaration.ModifierTokens, "uniform")
+            || HasStorage(declaration.ModifierTokens, "tileImageEXT")
+            || requirement.IsOn("GL_ARB_bindless_texture", variable.NameToken))
+        {
+            return;
+        }
+
+        string type = declaration.Type.Name;
+
+        if (IsOpaque(type))
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"{type} は uniform の変数と仮引数にしか使えません。");
+        }
+        else if (program.Structs.FirstOrDefault(s => s.Name == type && s.Keyword.Text == "struct") is { } structure
+                 && structure.Fields.Any(f => IsOpaque(f.Type.Name)))
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"サンプラーかイメージを含む構造体 {type} は uniform の変数にしか使えません。");
+        }
+    }
+
+    /// <summary>テッセレーションの入力の配列の大きさ。</summary>
+    private static void CheckPatchInput(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers, ImmutableArray<ShaderSyntaxToken> ranks, ShaderSyntaxToken at)
+    {
+        if (requirement.Stage is not (GlslShaderStage.TessellationControl or GlslShaderStage.TessellationEvaluation)
+            || !HasStorage(modifiers, "in")
+            || HasStorage(modifiers, "patch")
+            || ranks is not [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
+            || GlslConstantEvaluator.EvaluateLiteral(size) is not { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } value
+            || value.Integer == MaxPatchVertices)
+        {
+            return;
+        }
+
+        requirement.Report(
+            GlslRuleDescriptors.PatchInputSize,
+            at,
+            value.Integer.ToString(CultureInfo.InvariantCulture),
+            MaxPatchVertices.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>修飾子 (<c>layout(…)</c> の外) に、その修飾子があるか。</summary>
+    private static bool HasStorage(ImmutableArray<ShaderSyntaxToken> modifiers, string storage)
+    {
+        int depth = 0;
+
+        foreach (ShaderSyntaxToken modifier in modifiers)
+        {
+            depth += modifier.Kind switch
+            {
+                ShaderSyntaxKind.OpenParenToken => 1,
+                ShaderSyntaxKind.CloseParenToken => -1,
+                _ => 0,
+            };
+
+            if (depth == 0 && modifier.Text == storage)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>組み込みのサンプラー・イメージ・テクスチャ・サブパスの入力の型か (glslang の EbtSampler)。attachmentEXT は除く。</summary>
+    private static bool IsOpaque(string type) => GlslKeywords.IsBuiltInType(type) && Opaque().IsMatch(type);
+
+    /// <summary>サンプラー・イメージ・テクスチャ・サブパスの入力の型 (glslang の EbtSampler)。</summary>
+    [GeneratedRegex(@"^[iu]?(sampler|image|texture|subpassInput)[0-9A-Za-z_]*$")]
+    private static partial Regex Opaque();
+}

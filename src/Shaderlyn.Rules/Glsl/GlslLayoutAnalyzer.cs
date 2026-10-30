@@ -59,6 +59,10 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
         "size1x8", "size1x16", "size1x32", "size2x32", "size4x32",
     ];
 
+    /// <summary>イメージの形式の名前すべて。</summary>
+    internal static readonly ImmutableHashSet<string> ImageFormats =
+        [.. EsFloatFormats, .. FloatFormats, .. EsIntFormats, .. IntFormats, .. EsUintFormats, .. UintFormats];
+
     private static readonly string[] BlendEquations =
     [
         "blend_support_multiply", "blend_support_screen", "blend_support_overlay", "blend_support_darken", "blend_support_lighten",
@@ -107,7 +111,7 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
                 VariableDeclarationSyntax variable => variable.ModifierTokens,
                 ParameterSyntax parameter => parameter.ModifierTokens,
                 FunctionDeclarationSyntax function => function.ModifierTokens,
-                StructDeclarationSyntax block when IsBlock(block) => block.Modifiers,
+                StructDeclarationSyntax block when IsBlock(block) => [.. block.Modifiers, block.Keyword],
                 InterfaceBlockDeclarationSyntax block => block.Modifiers,
                 IncompleteDeclarationSyntax incomplete => incomplete.Tokens,
                 _ => [],

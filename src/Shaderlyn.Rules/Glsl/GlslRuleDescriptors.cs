@@ -275,6 +275,33 @@ internal static class GlslRuleDescriptors
             + "大きさを書かなければなりません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0402"));
 
+    /// <summary>その宣言には使えない型。</summary>
+    /// <remarks>
+    /// glslang の <c>samplerCheck</c> (「sampler/image types can only be used in uniform variables or function parameters」) と
+    /// <c>voidErrorCheck</c> (「illegal use of type 'void'」) に当たる。文の <c>{0}</c> は名前、<c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor TypeNotAllowedHere { get; } = new(
+        id: "GL0403",
+        title: "その宣言には使えない型です",
+        messageFormat: "'{0}' の型は使えません。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "サンプラーとイメージの型 (とそれを含む構造体) は uniform の変数と仮引数にしか使えません。void の変数と、名前のある void の仮引数は宣言できません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0403"));
+
+    /// <summary>テッセレーションのシェーダーの入力の配列の大きさが、gl_MaxPatchVertices でない。</summary>
+    /// <remarks>glslang の「tessellation input array size must be gl_MaxPatchVertices or implicitly sized」に当たる。文の <c>{0}</c> は大きさ。</remarks>
+    public static DiagnosticDescriptor PatchInputSize { get; } = new(
+        id: "GL0404",
+        title: "テッセレーションの入力の配列の大きさが違います",
+        messageFormat: "テッセレーションのシェーダーの入力の配列の大きさは、gl_MaxPatchVertices ({1}) にするか省いてください (今は {0})。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "テッセレーションの制御・評価のシェーダーの、patch でない入力の配列 (とブロックの配列) の大きさは、gl_MaxPatchVertices か、省いたものでなければなりません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0404"));
+
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>
     public static DiagnosticDescriptor PrecisionRequired { get; } = new(

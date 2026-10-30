@@ -276,7 +276,11 @@ internal sealed partial class GlslLayoutAnalyzer
                 }
                 else if (IsPrimitiveName(id))
                 {
-                    CheckPrimitive(at, id, name, storage);
+                    // 1 つの layout(…) の中では、後に書いたプリミティブが前のものを置き換える (glslang の mergeQualifiers)。
+                    if (entry == layout.Entries.Last(e => IsPrimitiveName(e.Name.Text.ToLowerInvariant())))
+                    {
+                        CheckPrimitive(at, id, name, storage);
+                    }
                 }
                 else if (IsTessellationInputName(id) || IsFragmentInputName(id) || IsWorkGroupName(id, entry))
                 {
