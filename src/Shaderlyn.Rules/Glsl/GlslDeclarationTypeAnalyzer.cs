@@ -52,7 +52,7 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (VariableDeclaratorSyntax or ParameterSyntax or IncompleteDeclarationSyntax))
+            if (node is not (VariableDeclaratorSyntax or ParameterSyntax or IncompleteDeclarationSyntax or StructDeclarationSyntax))
             {
                 continue;
             }
@@ -88,6 +88,17 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                     CheckPatchInput(requirement, modifiers, instance.ArrayRankTokens, modifiers[0]);
                     break;
 
+                // 構造体とブロックの中の構造体の定義 (glslang の nestedStructCheck)。
+                case StructDeclarationSyntax { Keyword.Text: "struct" } nested
+                    when nested.Ancestors().Any(a => a is StructDeclarationSyntax or InterfaceBlockDeclarationSyntax):
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, nested.Keyword, nested.Name.Length > 0 ? nested.Name : "struct", "構造体とブロックの中では、構造体を定義できません。");
+                    break;
+
+                // ブロックのメンバーのサンプラー・イメージ・atomic_uint (それを含む構造体を含む)。
+                case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: StructDeclarationSyntax { Keyword.Text: not "struct" } or InterfaceBlockDeclarationSyntax } member } variable:
+                    CheckBlockMember(requirement, program, member, variable);
+                    break;
+
                 // precision mediump float;
                 case IncompleteDeclarationSyntax { Tokens: [{ Text: "precision" }, { Text: "highp" or "mediump" or "lowp" }, { Kind: ShaderSyntaxKind.IdentifierToken } type, .. var rest] }
                     when !IsPrecisionType(type.Text) || rest is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, ..]:
@@ -97,6 +108,26 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                 default:
                     break;
             }
+        }
+    }
+
+    /// <summary>ブロックのメンバーは、サンプラー・イメージ・atomic_uint とそれを含む構造体にできない (GL_ARB_bindless_texture のサンプラーを除く)。</summary>
+    private static void CheckBlockMember(GlslRequirements requirement, AnalyzedProgram program, VariableDeclarationSyntax member, VariableDeclaratorSyntax variable)
+    {
+        if (requirement.IsOn("GL_EXT_structured_descriptor_heap", variable.NameToken))
+        {
+            return;
+        }
+
+        string type = member.Type.Name;
+        bool sampler = type.Contains("sampler", StringComparison.Ordinal) || type.Contains("texture", StringComparison.Ordinal);
+        bool opaque = IsOpaque(type) || type == "atomic_uint"
+                      || program.Structs.FirstOrDefault(s => s.Name == type && s.Keyword.Text == "struct") is { } structure
+                         && structure.Fields.Any(f => IsOpaque(f.Type.Name) || f.Type.Name == "atomic_uint");
+
+        if (opaque && !(sampler && requirement.IsOn("GL_ARB_bindless_texture", variable.NameToken)))
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, "ブロックのメンバーは、サンプラー・イメージ・atomic_uint とそれを含む構造体にできません。");
         }
     }
 

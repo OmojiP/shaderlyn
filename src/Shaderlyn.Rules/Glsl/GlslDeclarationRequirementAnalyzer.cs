@@ -72,6 +72,12 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     if (variable.Parent is CompilationUnitSyntax && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types)
                     {
                         CheckInterfaceVariable(requirement, types, program, variable);
+                        CheckMemoryQualifiers(requirement, program, variable);
+                    }
+
+                    if (variable.Parent is StructDeclarationSyntax { Keyword.Text: "struct" })
+                    {
+                        CheckStructMember(requirement, variable);
                     }
 
                     break;
@@ -91,12 +97,14 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckQualifiers(requirement, [.. block.Modifiers, block.Keyword], global);
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
                     CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword]);
+                    CheckBlockQualifiers(requirement, [.. block.Modifiers, block.Keyword]);
                     break;
 
                 case InterfaceBlockDeclarationSyntax block:
                     CheckQualifiers(requirement, block.Modifiers, global);
                     CheckCombination(requirement, block.Modifiers, vertexInput: false);
                     CheckBlockStage(requirement, block.Modifiers);
+                    CheckBlockQualifiers(requirement, block.Modifiers);
                     break;
 
                 case VariableDeclaratorSyntax declarator:
@@ -295,6 +303,61 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 storage,
                 $"整数と double の{(input ? "フラグメントシェーダーの入力" : "頂点シェーダーの出力")}には flat を付けなければなりません ('{type}')。");
         }
+    }
+
+    /// <summary>構造体のメンバーには、layout・記憶域・補助・補間・メモリの修飾子と invariant を書けない (glslang の addStructure の検査)。</summary>
+    private static void CheckStructMember(GlslRequirements requirement, VariableDeclarationSyntax member)
+    {
+        ImmutableArray<ShaderSyntaxToken> modifiers = [.. member.ModifierTokens, .. member.Type.ModifierTokens];
+        ShaderSyntaxToken[] qualifiers = [.. TopLevel(modifiers)];
+        ShaderSyntaxToken at = member.Variables.FirstOrDefault()?.NameToken ?? member.Type.NameToken;
+
+        string? problem =
+            modifiers.Any(t => t.Text == "layout") ? "layout"
+            : qualifiers.Any(t => Auxiliary.Contains(t.Text) || Interpolation.Contains(t.Text) || (Storage.Contains(t.Text) && t.Text != "const")) ? "記憶域・補助・補間の修飾子"
+            : qualifiers.Any(t => Memory.Contains(t.Text)) ? "メモリの修飾子"
+            : qualifiers.Any(t => t.Text == "invariant") ? "invariant"
+            : null;
+
+        if (problem is not null)
+        {
+            requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, at, $"構造体のメンバーには{problem}を書けません。");
+        }
+    }
+
+    /// <summary>ブロックには補間の修飾子 (flat・smooth・noperspective) と centroid を書けない (glslang の blockQualifierCheck)。pervertexEXT などは書ける。</summary>
+    private static void CheckBlockQualifiers(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers)
+    {
+        foreach (ShaderSyntaxToken token in TopLevel(modifiers))
+        {
+            if (token.Text is "flat" or "smooth" or "noperspective" or "__explicitInterpAMD" or "centroid")
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"ブロックには '{token.Text}' を書けません。メンバーに書いてください。");
+            }
+        }
+    }
+
+    /// <summary>
+    /// メモリの修飾子は、イメージ (とサンプラー) の変数と、uniform・buffer の宣言にだけ書ける (glslang の globalQualifierTypeCheck)。
+    /// 利用者の型 (buffer_reference の型など) は見ない。
+    /// </summary>
+    private static void CheckMemoryQualifiers(GlslRequirements requirement, AnalyzedProgram program, VariableDeclarationSyntax declaration)
+    {
+        ShaderSyntaxToken[] qualifiers = [.. TopLevel([.. declaration.ModifierTokens, .. declaration.Type.ModifierTokens])];
+        string type = declaration.Type.Name;
+
+        if (qualifiers.FirstOrDefault(t => Memory.Contains(t.Text) || t.Text == "restrict") is not { } memory
+            || qualifiers.Any(t => t.Text is "uniform" or "buffer")
+            || !GlslKeywords.IsBuiltInType(type)
+            || type.Contains("image", StringComparison.Ordinal)
+            || type.Contains("sampler", StringComparison.Ordinal)
+            || type.Contains("texture", StringComparison.Ordinal)
+            || type.StartsWith("tensor", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, memory, $"'{memory.Text}' は、イメージの変数と uniform・buffer の宣言にだけ書けます。");
     }
 
     /// <summary>括弧の外 (<c>layout(…)</c> の中でない) の修飾子のキーワード。</summary>
