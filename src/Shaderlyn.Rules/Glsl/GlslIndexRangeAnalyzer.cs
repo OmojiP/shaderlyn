@@ -3,6 +3,7 @@ using System.Globalization;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Glsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -17,7 +18,13 @@ namespace Shaderlyn.Rules.Glsl;
 /// <para>
 /// 負の添字は、何を添字で引いても報告する。大きすぎる添字は、添字で引くものの型を言い切れるときだけ報告する。
 /// 宣言の名前か、それを添字で引いた式 (<c>a[1][2]</c>、<c>m[1][3]</c>) で、配列の大きさが数で書かれているもの、
-/// またはベクトルか行列の変数である。<c>gl_</c> の組み込みの変数、構造体のメンバー、大きさを書かない配列は見ない。
+/// またはベクトルか行列の変数である。構造体のメンバーと、大きさを書かない配列は見ない。
+/// ただし外側の大きさを省いて初期化した配列 (<c>const int a[] = int[](3, 2);</c>) は、初期化子の大きさにする。
+/// </para>
+/// <para>
+/// 組み込みの変数は、大きさが決まった配列だけを見る。<c>gl_FragData</c> (gl_MaxDrawBuffers)、<c>gl_BoundingBox</c> 系 (2)、
+/// <c>gl_SampleMask</c> / <c>gl_SampleMaskIn</c> (gl_MaxSamples から 1)、テッセレーションの制御シェーダーの <c>gl_out</c> (<c>layout(vertices = …) out;</c> の値)。
+/// 大きさは glslang の既定の資源の値である。
 /// </para>
 /// <para>
 /// 添字は glslang の front-end の定数 (リテラルと <c>const</c> の変数) だけを見る。特殊化の定数 (<c>constant_id</c>) を使う添字は見ない。
@@ -25,6 +32,17 @@ namespace Shaderlyn.Rules.Glsl;
 /// </remarks>
 internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
 {
+    /// <summary>大きさが決まった組み込みの配列 (glslang の既定の資源の値)。</summary>
+    private static readonly Dictionary<string, (int Length, string Element)> BuiltinArrays = new(StringComparer.Ordinal)
+    {
+        ["gl_FragData"] = (32, "vec4"),
+        ["gl_BoundingBox"] = (2, "vec4"),
+        ["gl_BoundingBoxEXT"] = (2, "vec4"),
+        ["gl_BoundingBoxOES"] = (2, "vec4"),
+        ["gl_SampleMask"] = (1, "int"),
+        ["gl_SampleMaskIn"] = (1, "int"),
+    };
+
     /// <inheritdoc/>
     protected override bool AnalyzesGlsl => true;
 
@@ -54,12 +72,37 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
                 checker = checkers[program] =
                     GlslRequirements.Create(context, compilation, program, reported) is { } requirement
                     && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types
-                        ? new Checker(requirement, types, compilation.GetExpressionTypeBinder(program))
+                        ? new Checker(requirement, types, compilation.GetExpressionTypeBinder(program), OutputVertices(program, requirement))
                         : null;
             }
 
             checker?.Check(element, element.Index);
         }
+    }
+
+    /// <summary>テッセレーションの制御シェーダーの <c>layout(vertices = …) out;</c> の値。</summary>
+    private static int? OutputVertices(AnalyzedProgram program, GlslRequirements requirement)
+    {
+        if (requirement.Stage != GlslShaderStage.TessellationControl)
+        {
+            return null;
+        }
+
+        foreach (IncompleteDeclarationSyntax declaration in program.Tree.Root.Declarations.OfType<IncompleteDeclarationSyntax>())
+        {
+            foreach (GlslLayoutEntry entry in GlslLayoutQualifier.Read(declaration.Tokens))
+            {
+                if (entry.Name.Text == "vertices"
+                    && entry.Value is [var literal]
+                    && GlslConstantEvaluator.EvaluateLiteral(literal) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } value
+                    && value.Integer > 0)
+                {
+                    return (int)value.Integer;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>括弧を外す。</summary>
@@ -77,7 +120,7 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
     private readonly record struct IndexedShape(ImmutableArray<int?> Dimensions, string ElementType);
 
     /// <summary>1 つの木の添字を検査する。</summary>
-    private sealed class Checker(GlslRequirements requirement, GlslTypeSystem types, ExpressionTypeBinder binder)
+    private sealed class Checker(GlslRequirements requirement, GlslTypeSystem types, ExpressionTypeBinder binder, int? outputVertices)
     {
         private readonly GlslConstantEvaluator _evaluator = new(binder);
 
@@ -134,14 +177,39 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
         {
             switch (Strip(expression))
             {
-                case IdentifierExpressionSyntax identifier when !identifier.Name.StartsWith("gl_", StringComparison.Ordinal):
+                case IdentifierExpressionSyntax identifier when identifier.Name.StartsWith("gl_", StringComparison.Ordinal):
+                    if (binder.ResolveName(identifier).Kind != DeclaredNameKind.NotFound)
+                    {
+                        return null;
+                    }
+
+                    if (identifier.Name == "gl_out" && outputVertices is { } vertices)
+                    {
+                        return new IndexedShape([vertices], "gl_PerVertex");
+                    }
+
+                    return BuiltinArrays.TryGetValue(identifier.Name, out (int Length, string Element) builtin)
+                        ? new IndexedShape([builtin.Length], builtin.Element)
+                        : null;
+
+                case IdentifierExpressionSyntax identifier:
                     if (binder.ResolveName(identifier) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Declarator: VariableDeclaratorSyntax declarator }] }
                         || declarator.Parent is not VariableDeclarationSyntax declaration)
                     {
                         return null;
                     }
 
-                    return new IndexedShape(ReadDimensions([.. declarator.ArrayRankTokens, .. declaration.Type.ArrayRanks]), declaration.Type.Name);
+                    ImmutableArray<ShaderSyntaxToken> ranks = [.. declarator.ArrayRankTokens, .. declaration.Type.ArrayRanks];
+                    ImmutableArray<int?> dimensions = ReadDimensions(ranks);
+
+                    // 外側の大きさを省いて初期化した配列は、初期化子の大きさになる。
+                    if (ranks is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
+                        && InitializerLength(declarator.Initializer) is { } length)
+                    {
+                        dimensions = dimensions.SetItem(0, length);
+                    }
+
+                    return new IndexedShape(dimensions, declaration.Type.Name);
 
                 case ElementAccessExpressionSyntax element:
                     if (ShapeOf(element.Target) is not { } outer)
@@ -174,6 +242,15 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
                     return null;
             }
         }
+
+        /// <summary>初期化子の外側の要素の数。配列の値の作成 (<c>int[](3, 2)</c>) と波括弧の初期化子だけを見る。</summary>
+        private static int? InitializerLength(ExpressionSyntax? initializer) => initializer switch
+        {
+            InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax { ArrayRanks: [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..] } } invocation
+                => invocation.ArgumentExpressions.Count(),
+            InitializerListExpressionSyntax list => list.Elements.Count(e => e.Node is not null),
+            _ => null,
+        };
 
         /// <summary>配列の次元の大きさを読む。<c>[</c> 数 <c>]</c> でない次元は分からない (<see langword="null"/>)。</summary>
         private static ImmutableArray<int?> ReadDimensions(ImmutableArray<ShaderSyntaxToken> ranks)
