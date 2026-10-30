@@ -274,6 +274,47 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
                 break;
             }
 
+            case "textureGather" or "textureGatherOffset" or "textureGatherOffsets":
+            {
+                string feature = $"'{name}'";
+                requirement.ProfileRequires(at, GlslProfileMask.Es, 310, [], feature);
+
+                if (TypeOf(0) is not { } sampler)
+                {
+                    break;
+                }
+
+                bool shadow = sampler.Contains("Shadow", StringComparison.Ordinal);
+                bool rect = sampler.Contains("Rect", StringComparison.Ordinal);
+                bool twoD = sampler.Contains("2D", StringComparison.Ordinal) && !rect;
+                bool basic = name switch
+                {
+                    "textureGather" => arguments.Length <= 2 && !rect && !shadow,
+                    "textureGatherOffset" => twoD && !shadow && arguments.Length == 3,
+                    _ => false,
+                };
+
+                requirement.ProfileRequires(
+                    at,
+                    GlslProfileMask.NotEs,
+                    400,
+                    basic ? ["GL_ARB_texture_gather", "GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"] : ["GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"],
+                    feature);
+
+                int offset = shadow ? 3 : 2;
+
+                if (name == "textureGatherOffset" && offset < arguments.Length && new GlslConstantEvaluator(binder).IsCertainlyNotConstant(arguments[offset]))
+                {
+                    requirement.ProfileRequires(at, GlslProfileMask.Es, 320, ["GL_EXT_gpu_shader5", "GL_OES_gpu_shader5"], "textureGatherOffset の定数でないオフセット");
+                }
+
+                break;
+            }
+
+            case "textureSamples" or "imageSamples":
+                requirement.ProfileRequires(at, GlslProfileMask.NotEs, 450, ["GL_ARB_shader_texture_image_samples"], $"'{name}'");
+                break;
+
             default:
                 break;
         }

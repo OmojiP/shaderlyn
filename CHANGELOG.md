@@ -15,7 +15,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - GLSL にしか無いルール (GL) を足した。glslang 16.6.0 が誤りにするものを、glslang の検査を移して同じ所で伝える
   - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
     その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
-    実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize` など)、
+    実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize`、`textureGather` など)、`textureSamples` に要るバージョン、
     保存用の拡張だけで 16 ビット・8 ビットの型を uniform と buffer の外で使うこと、
     ステージの入力と出力の変数の宣言 (`in` / `out`、整数の入出力、頂点シェーダーの入力の配列、ES の構造体の入出力など)、
     定数でない添字で引くサンプラー・ブロック・フラグメントシェーダーの出力の配列、
