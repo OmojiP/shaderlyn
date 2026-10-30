@@ -316,6 +316,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0402", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { float values[]; };\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0402", "a.comp", "#version 310 es\nlayout(local_size_x = 1) in;\nshared float values[];\nvoid main() { values[0] = 1.0; }")]
     [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) in vec4 c;\nlayout(location = 0) out vec4 o;\nvoid main() { c.x = 1.0; o = c; }")]
+    [InlineData("GL0309", "a.vert", "#version 460\nvoid main() { gl_VertexIndex = 3; gl_Position = vec4(1.0); }")]
+    [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { gl_FragCoord.x = 1.0; o = gl_FragCoord; }")]
     [InlineData("GL0309", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { vec4 tint; };\nvoid main() { tint = vec4(1.0); o = tint; }")]
     [InlineData("GL0309", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) readonly buffer B { float v; };\nvoid main() { v += 1.0; }")]
     [InlineData("GL0310", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0) writeonly buffer B { float v; } b;\nvoid main() { float x = b.v; b.v = x + 1.0; }")]

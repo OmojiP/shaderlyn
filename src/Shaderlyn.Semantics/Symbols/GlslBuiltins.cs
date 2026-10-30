@@ -320,6 +320,14 @@ internal sealed class GlslBuiltinView
             ? [.. all.Where(f => _table.Intersects(f.Set, _selected)).Select(f => f.Function)]
             : []);
 
+    /// <summary>その名前の組み込み変数の、使える形をすべて引く (構成によって入力と出力が違うものがある)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>変数。無ければ空。</returns>
+    public ImmutableArray<GlslBuiltinVariable> GetVariables(string name)
+        => _table.Variables.TryGetValue(name, out ImmutableArray<(GlslBuiltinVariable Variable, int Set)> all)
+            ? [.. all.Where(v => _table.Intersects(v.Set, _selected)).Select(v => v.Variable)]
+            : [];
+
     /// <summary>その名前の組み込み変数を引く。</summary>
     /// <param name="name">名前。</param>
     /// <returns>変数。無ければ <see langword="null"/>。拡張の要らないものを先に返す。</returns>

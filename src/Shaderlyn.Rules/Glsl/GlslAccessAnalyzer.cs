@@ -8,6 +8,7 @@ using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics.Symbols;
 
 namespace Shaderlyn.Rules.Glsl;
 
@@ -42,6 +43,17 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="ReadOnlyReason">書き込めない理由。書き込めるなら <see langword="null"/>。</param>
     /// <param name="WriteOnly">writeonly か。</param>
     private readonly record struct Base(string Name, string? ReadOnlyReason, bool WriteOnly);
+
+    /// <summary>入力の組み込みの変数 (ステージの入力の記憶域を持つもの)。</summary>
+    private static readonly HashSet<string> BuiltinInputs = new(StringComparer.Ordinal)
+    {
+        "gl_VertexID", "gl_InstanceID", "gl_VertexIndex", "gl_InstanceIndex", "gl_BaseVertex", "gl_BaseInstance", "gl_DrawID",
+        "gl_BaseVertexARB", "gl_BaseInstanceARB", "gl_DrawIDARB", "gl_ViewIndex", "gl_DeviceIndex",
+        "gl_FragCoord", "gl_FrontFacing", "gl_PointCoord", "gl_SampleID", "gl_SamplePosition", "gl_SampleMaskIn", "gl_HelperInvocation",
+        "gl_PrimitiveIDIn", "gl_InvocationID", "gl_PatchVerticesIn", "gl_TessCoord", "gl_in",
+        "gl_GlobalInvocationID", "gl_LocalInvocationID", "gl_WorkGroupID", "gl_LocalInvocationIndex", "gl_NumWorkGroups",
+        "gl_NumSubgroups", "gl_SubgroupID", "gl_SubgroupSize", "gl_SubgroupInvocationID",
+    };
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -260,12 +272,26 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
         {
             string name = identifier.Name;
 
+            NameResolution resolution = _binder.ResolveName(identifier);
+
+            // 宣言し直していない組み込みの変数は、表の記憶域で決める (入力、定数、uniform)。構成によって記憶域が違うものは見ない。
+            // 表は、特別な記憶域の出力 (gl_Position、gl_FragColor、gl_FragDepth など) も in と書いている。in は入力と分かっている名前だけを信じる。
             if (name.StartsWith("gl_", StringComparison.Ordinal))
             {
-                return null;
+                return resolution.Kind == DeclaredNameKind.NotFound
+                       && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types
+                       && types.Builtins.GetVariables(name) is [{ } first, ..] variables
+                       && variables.All(v => v.Storage == first.Storage)
+                       && first.Storage switch
+                       {
+                           "in" when BuiltinInputs.Contains(name) => "ステージの入力",
+                           "const" => "定数",
+                           "uniform" => "uniform",
+                           _ => null,
+                       } is { } builtin
+                    ? new Base(name, builtin, WriteOnly: false)
+                    : null;
             }
-
-            NameResolution resolution = _binder.ResolveName(identifier);
 
             switch (resolution)
             {
