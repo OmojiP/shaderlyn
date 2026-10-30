@@ -5,6 +5,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Glsl;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -86,6 +87,10 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <param name="SharesFunctionNames">
     /// 変数と関数が同じ名前の空間にあるか。GLSL の 1.10 以外 (glslang は 1.10 だけ名前の空間を分ける。ShaderLang.cpp の setSeparateNameSpaces)。
     /// </param>
+    /// <param name="ReportAt">
+    /// 後の宣言として報告するときの位置。省けば <paramref name="Location"/>。
+    /// GLSL のブロックのインスタンスと名前の無いブロックのメンバーは、glslang と同じくブロックの名前の位置で報告する。
+    /// </param>
     private readonly record struct Declared(
         string Name,
         Location Location,
@@ -94,10 +99,17 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
         bool IsLoopVariable = false,
         bool IsGlsl = false,
         bool IsFunction = false,
-        bool SharesFunctionNames = false);
+        bool SharesFunctionNames = false,
+        Location? ReportAt = null);
 
     /// <summary>GLSL の関数の宣言だけ (プロトタイプ) の形の頭に付ける印。変数とだけぶつかる。</summary>
     private const string PrototypePrefix = "<prototype>";
+
+    /// <summary>
+    /// GLSL のブロックの名前の形の頭に付ける印。後ろに記憶域 (uniform など) を付ける。
+    /// ブロックの名前どうしは、記憶域が同じときだけぶつかる (SameName)。
+    /// </summary>
+    private const string BlockPrefix = "<block>";
 
     /// <summary>シンボルを有効にして展開した木 (バリアント) で見つかった宣言。</summary>
     /// <param name="EnabledSymbols">有効にしたシンボル。</param>
@@ -359,6 +371,54 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 break;
 
+            // GLSL のブロックの名前は、関数の外の名前の空間に入る (glslang の declareBlock)。インスタンスの名前も変数として入る。
+            case StructDeclarationSyntax block
+                when glsl && block.Keyword.Text != "struct" && block.NameToken is { IsMissing: false } blockName:
+                yield return new Declared(
+                    blockName.Text,
+                    blockName.GetLocation(),
+                    condition.GetCondition(block),
+                    BlockPrefix + block.Keyword.Text,
+                    SharesFunctionNames: sharesFunctionNames);
+
+                foreach (VariableDeclaratorSyntax instance in block.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    yield return new Declared(
+                        instance.Name,
+                        instance.NameToken.GetLocation(),
+                        condition.GetCondition(block),
+                        string.Empty,
+                        SharesFunctionNames: sharesFunctionNames,
+                        ReportAt: blockName.GetLocation());
+                }
+
+                break;
+
+            // 名前の無いブロックは、メンバーを関数の外の名前の空間に入れる。
+            case InterfaceBlockDeclarationSyntax block when glsl && !block.NameToken.IsMissing:
+                yield return new Declared(
+                    block.Name,
+                    block.NameToken.GetLocation(),
+                    condition.GetCondition(block),
+                    BlockPrefix + StorageOf(block.Modifiers),
+                    SharesFunctionNames: sharesFunctionNames);
+
+                foreach (VariableDeclarationSyntax member in block.Members.OfType<VariableDeclarationSyntax>())
+                {
+                    foreach (VariableDeclaratorSyntax declarator in member.Variables)
+                    {
+                        yield return new Declared(
+                            declarator.Name,
+                            declarator.NameToken.GetLocation(),
+                            condition.GetCondition(member),
+                            string.Empty,
+                            SharesFunctionNames: sharesFunctionNames,
+                            ReportAt: block.NameToken.GetLocation());
+                    }
+                }
+
+                break;
+
             // 構造体の名前は、変数や関数の名前とはぶつからない。C++ と同じく、同じ名前の変数は型の名前を隠すだけである
             // (ConstantBuffer<Constants> Constants。DXC はこれを受け付け、D3D12 のサンプルもこの書き方をする)。
             // 形を分けて、構造体どうしだけを比べる。
@@ -374,6 +434,30 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
             default:
                 break;
         }
+    }
+
+    /// <summary>名前の無いブロックの記憶域。<c>layout(…)</c> の外の最後の修飾子。</summary>
+    private static string StorageOf(ImmutableArray<ShaderSyntaxToken> modifiers)
+    {
+        int depth = 0;
+        string storage = string.Empty;
+
+        foreach (ShaderSyntaxToken modifier in modifiers)
+        {
+            depth += modifier.Kind switch
+            {
+                ShaderSyntaxKind.OpenParenToken => 1,
+                ShaderSyntaxKind.CloseParenToken => -1,
+                _ => 0,
+            };
+
+            if (depth == 0 && modifier.Kind != ShaderSyntaxKind.CloseParenToken)
+            {
+                storage = modifier.Text;
+            }
+        }
+
+        return storage;
     }
 
     /// <summary>関数を、多重定義として区別する形で表す。</summary>
@@ -430,7 +514,9 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                if (!reported.Add(KeyOf(later.Location)))
+                Location at = later.ReportAt ?? later.Location;
+
+                if (!reported.Add(KeyOf(at)))
                 {
                     break;
                 }
@@ -439,7 +525,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     HlslRuleDescriptors.Redeclaration,
-                    later.Location,
+                    at,
                     later.Name,
                     string.Equals(earlier.Location.FilePath, later.Location.FilePath, StringComparison.Ordinal)
                         ? line.ToString(CultureInfo.InvariantCulture)
@@ -453,10 +539,21 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 2 つの宣言が、同じ名前として重なるか。形が同じなら重なる (GLSL のプロトタイプどうしは除く)。
     /// GLSL では、関数の外の変数と関数 (プロトタイプを含む) も重なる (glslang の「redefinition」)。
+    /// GLSL のブロックの名前は、記憶域の違うブロックの名前とは重ならず、変数と関数とは重なる。
     /// </summary>
     private static bool SameName(Declared earlier, Declared later)
     {
         static bool IsVariable(Declared declared) => !declared.IsFunction && declared.Shape != StructShape;
+        static bool IsBlock(Declared declared) => declared.Shape.StartsWith(BlockPrefix, StringComparison.Ordinal);
+
+        if (IsBlock(earlier) || IsBlock(later))
+        {
+            Declared other = IsBlock(earlier) ? later : earlier;
+
+            return IsBlock(other)
+                ? string.Equals(earlier.Shape, later.Shape, StringComparison.Ordinal)
+                : other.IsFunction ? other.SharesFunctionNames : IsVariable(other);
+        }
 
         if (string.Equals(earlier.Shape, later.Shape, StringComparison.Ordinal))
         {

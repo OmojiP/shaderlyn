@@ -57,6 +57,11 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0404", "a.frag", "void main() { o = vec4(1.0, 2.0); }")]
     [InlineData("CF0314", "a.frag", "float f(float x) { return x; }\nfloat f(float y) { return y; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("CF0314", "a.frag", "bool b;\nfloat b(int a);\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("CF0314", "a.frag", "uniform U { float f; };\nuniform U { float g; };\nvoid main() { o = vec4(f); }")]
+    [InlineData("CF0314", "a.frag", "uniform U { float f; } u;\nuniform V { float g; } U;\nvoid main() { o = vec4(u.f); }")]
+    [InlineData("CF0314", "a.frag", "uniform U { float f; };\nfloat f;\nvoid main() { o = vec4(f); }")]
+    [InlineData("CF0314", "a.frag", "uniform U { float f; };\nuniform V { float f; };\nvoid main() { o = vec4(f); }")]
+    [InlineData("CF0314", "a.frag", "uniform U { float f; } u;\nint U;\nvoid main() { o = vec4(u.f); }")]
     public async Task GLSLの誤りを見つける(string id, string fileName, string body)
     {
         string output = await AnalyzeAsync(fileName, $"#version 450\nlayout(location = 0) out vec4 o;\n{body}\n");
@@ -71,6 +76,15 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.frag", "#version 110\n" + body), StringComparison.Ordinal);
         Assert.Contains("error CF0314", await AnalyzeAsync("a.frag", "#version 120\n" + body), StringComparison.Ordinal);
+    }
+
+    /// <summary>ブロックの名前は、記憶域 (in と out など) が違えば同じものを使える (glslang と同じ)。</summary>
+    [Fact]
+    public async Task 記憶域の違うブロックは同じ名前にできる()
+    {
+        const string body = "#version 450\nlayout(location = 0) in V { vec4 c; } i;\nlayout(location = 0) out V { vec4 c; };\nvoid main() { c = i.c; }\n";
+
+        Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
     }
 
     /// <summary>ES には暗黙の変換が無いので、<c>int</c> を <c>float</c> に代入できない。デスクトップの 4.50 ではできる。</summary>
