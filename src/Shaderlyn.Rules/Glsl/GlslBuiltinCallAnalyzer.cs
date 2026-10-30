@@ -32,7 +32,7 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NoMatchingBuiltin];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NoMatchingBuiltin, GlslRuleDescriptors.NotAvailable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -61,15 +61,40 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
                         : null;
             }
 
-            if (state is not { } s
-                || s.Types.Builtins.GetFunctions(callee.Name) is not { IsEmpty: false } overloads
-                || !compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty)
+            if (state is not { } s || !compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty)
             {
+                continue;
+            }
+
+            if (s.Types.Builtins.GetFunctions(callee.Name) is not { IsEmpty: false } overloads)
+            {
+                CheckRemovedTextureFunction(s.Requirement, callee);
                 continue;
             }
 
             Check(s.Requirement, s.Types, compilation.GetExpressionTypeBinder(program), invocation, callee, overloads);
         }
+    }
+
+    /// <summary>
+    /// OpenGL 向けの <c>texture2D(…)</c> などは、型の名前ではなく組み込み関数の名前である (glslang は Vulkan 向けでだけ型の名前と読む)。
+    /// その版とプロファイルに関数が無ければ (ES の 3.00 以降など)、glslang は「no matching overloaded function found」にする。
+    /// 宣言されていない名前 (CF0310) は、型の名前として読むので報告しない。
+    /// </summary>
+    private static void CheckRemovedTextureFunction(GlslRequirements requirement, IdentifierExpressionSyntax callee)
+    {
+        if (requirement.Vulkan != false
+            || !callee.Name.StartsWith("texture", StringComparison.Ordinal)
+            || !GlslKeywords.IsBuiltInType(callee.Name)
+            || !GlslBuiltins.Instance.Functions.ContainsKey(callee.Name))
+        {
+            return;
+        }
+
+        requirement.Report(
+            GlslRuleDescriptors.NotAvailable,
+            callee.Identifier,
+            $"組み込み関数 '{callee.Name}' は、この #version とプロファイルにはありません。texture などを使ってください。");
     }
 
     private static void Check(

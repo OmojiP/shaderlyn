@@ -316,6 +316,32 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Equal(expected, output.ToString().Contains("error GL0104", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// OpenGL 向けの <c>texture2D(…)</c> は組み込み関数で、ES の 3.00 には無い。Vulkan 向けでは型の名前なので報告しない。
+    /// </summary>
+    [Theory]
+    [InlineData("opengl", true)]
+    [InlineData("vulkan1.0", false)]
+    public async Task 無くなった組み込み関数のtexture2D(string target, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n  target: {target}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), """
+            #version 300 es
+            precision mediump float;
+            uniform sampler2D s;
+            out vec4 o;
+            void main() { o = texture2D(s, vec2(0.5)); }
+
+            """);
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("組み込み関数 'texture2D' は", StringComparison.Ordinal));
+    }
+
     /// <summary>値を返さない経路 (CF0501) は、GLSL では警告にする。設定で重要度を書けば、それに従う。</summary>
     [Theory]
     [InlineData("", "warning CF0501")]
