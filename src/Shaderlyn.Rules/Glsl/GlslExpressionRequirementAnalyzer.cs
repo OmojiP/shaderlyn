@@ -94,6 +94,16 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                     requirement.ArrayObjectCheck(assignment.OperatorToken, "array assignment");
                     break;
 
+                case IdentifierExpressionSyntax { Name: "gl_PointSize" } pointSize
+                    when compilation.GetExpressionTypeBinder(program).ResolveName(pointSize).Kind == DeclaredNameKind.NotFound:
+                    AnalyzePointSize(requirement, pointSize.Identifier);
+                    break;
+
+                case MemberAccessExpressionSyntax { NameToken.Text: "gl_PointSize" } member
+                    when RootName(member.Target) is "gl_in" or "gl_out":
+                    AnalyzePointSize(requirement, member.NameToken);
+                    break;
+
                 case ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax array } element
                     when !array.Name.StartsWith("gl_", StringComparison.Ordinal)
                          && new GlslConstantEvaluator(compilation.GetExpressionTypeBinder(program)).IsCertainlyNotConstant(element.Index):
@@ -169,6 +179,41 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                 break;
         }
     }
+
+    /// <summary>
+    /// ES のジオメトリとテッセレーションのシェーダーの <c>gl_PointSize</c> に要る拡張 (glslang の Initialize.cpp の setVariableExtensions)。
+    /// そのまま書いたものと、<c>gl_in[i].gl_PointSize</c> / <c>gl_out[i].gl_PointSize</c> を見る。
+    /// </summary>
+    private static void AnalyzePointSize(GlslRequirements requirement, ShaderSyntaxToken at)
+    {
+        if (!requirement.IsEs)
+        {
+            return;
+        }
+
+        switch (requirement.Stage)
+        {
+            case GlslShaderStage.Geometry:
+                requirement.RequireExtensions(at, ["GL_EXT_geometry_point_size", "GL_OES_geometry_point_size"], "'gl_PointSize'");
+                break;
+
+            case GlslShaderStage.TessellationControl or GlslShaderStage.TessellationEvaluation:
+                requirement.RequireExtensions(at, ["GL_EXT_tessellation_point_size", "GL_OES_tessellation_point_size"], "'gl_PointSize'");
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /// <summary>添字とメンバーを外した、もとの名前 (<c>gl_in[3].x</c> なら <c>gl_in</c>)。</summary>
+    private static string? RootName(ExpressionSyntax expression) => expression switch
+    {
+        IdentifierExpressionSyntax identifier => identifier.Name,
+        ElementAccessExpressionSyntax element => RootName(element.Target),
+        ParenthesizedExpressionSyntax parenthesized => RootName(parenthesized.Expression),
+        _ => null,
+    };
 
     /// <summary>
     /// 定数でない添字で引く配列に要る版と拡張 (glslang の handleBracketDereference)。

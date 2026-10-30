@@ -40,6 +40,16 @@ internal sealed partial class GlslRequirements
                 Bfloat16ScalarVectorCheck(at, "bfloat16_t");
                 break;
 
+            // 拡張を有効にしていなければ、glslang は型の名前と読まない (Scan.cpp)。
+            // 変数の宣言では、版で決まる方の拡張が要る (samplerCheck)。
+            case "samplerExternalOES":
+                RequireExtensions(at, [Version < 300 ? "GL_OES_EGL_image_external" : "GL_OES_EGL_image_external_essl3"], "'samplerExternalOES'");
+                break;
+
+            case "__samplerExternal2DY2YEXT":
+                RequireExtensions(at, ["GL_EXT_YUV_target"], "'__samplerExternal2DY2YEXT'");
+                break;
+
             case "floate5m2_t":
                 Floate5m2ScalarVectorCheck(at, "floate5m2_t");
                 break;
