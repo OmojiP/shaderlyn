@@ -52,7 +52,7 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (VariableDeclaratorSyntax or ParameterSyntax))
+            if (node is not (VariableDeclaratorSyntax or ParameterSyntax or IncompleteDeclarationSyntax))
             {
                 continue;
             }
@@ -88,11 +88,20 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                     CheckPatchInput(requirement, modifiers, instance.ArrayRankTokens, modifiers[0]);
                     break;
 
+                // precision mediump float;
+                case IncompleteDeclarationSyntax { Tokens: [{ Text: "precision" }, { Text: "highp" or "mediump" or "lowp" }, { Kind: ShaderSyntaxKind.IdentifierToken } type, .. var rest] }
+                    when !IsPrecisionType(type.Text) || rest is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, ..]:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, type, type.Text, "精度の文には float・int・サンプラーとイメージの型・atomic_uint (配列でないもの) しか書けません。");
+                    break;
+
                 default:
                     break;
             }
         }
     }
+
+    /// <summary>精度の文に書ける型か (glslang の setDefaultPrecision)。</summary>
+    private static bool IsPrecisionType(string type) => type is "float" or "int" or "atomic_uint" || IsOpaque(type);
 
     /// <summary>サンプラーとイメージの型の変数は uniform でなければならない (samplerCheck)。</summary>
     private static void CheckOpaque(GlslRequirements requirement, AnalyzedProgram program, VariableDeclarationSyntax declaration, VariableDeclaratorSyntax variable)
@@ -164,6 +173,6 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
     private static bool IsOpaque(string type) => GlslKeywords.IsBuiltInType(type) && Opaque().IsMatch(type);
 
     /// <summary>サンプラー・イメージ・テクスチャ・サブパスの入力の型 (glslang の EbtSampler)。</summary>
-    [GeneratedRegex(@"^[iu]?(sampler|image|texture|subpassInput)[0-9A-Za-z_]*$")]
+    [GeneratedRegex(@"^(__)?[iu]?(sampler|image|texture|subpassInput)[0-9A-Za-z_]*$")]
     private static partial Regex Opaque();
 }

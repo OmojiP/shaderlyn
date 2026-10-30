@@ -90,6 +90,16 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
     }
 
+    /// <summary>4.20 からは修飾子の順を問わない。決まった順なら、それより前の版でも良い。</summary>
+    [Theory]
+    [InlineData("#version 420\nout flat vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
+    [InlineData("#version 330\nflat centroid out vec4 v;\ninvariant gl_Position;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
+    [InlineData("#version 300 es\nprecision highp float;\nflat out highp vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
+    public async Task 修飾子の順が正しいもの(string code)
+    {
+        Assert.DoesNotContain("GL0101", await AnalyzeAsync("a.vert", code + "\n"), StringComparison.Ordinal);
+    }
+
     /// <summary>外側の大きさを省いた配列は、初期化の値の大きさになる。同じ大きさなら代入できる。</summary>
     [Fact]
     public async Task 大きさの合う配列の代入と初期化()
@@ -313,6 +323,12 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D t;\nvoid main() { sampler2D s = t; o = texture(s, vec2(0.5)); }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { void v; o = vec4(1.0); }")]
     [InlineData("GL0404", "a.tese", "#version 450\nlayout(triangles) in;\nlayout(location = 0) in vec2 uvs[16];\nvoid main() { gl_Position = vec4(uvs[0], 0.0, 1.0); }")]
+    [InlineData("GL0101", "a.vert", "#version 330\nout flat vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
+    [InlineData("GL0101", "a.vert", "#version 450\nsmooth flat out vec4 v;\nvoid main() { v = vec4(1.0); gl_Position = v; }")]
+    [InlineData("GL0101", "a.tese", "#version 450\nlayout(triangles) in;\nflat patch in vec4 p;\nvoid main() { gl_Position = p; }")]
+    [InlineData("GL0101", "a.vert", "#version 450\nlayout(location = 0) flat in vec4 p;\nvoid main() { gl_Position = p; }")]
+    [InlineData("GL0403", "a.frag", "#version 300 es\nprecision lowp uint;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump vec4;\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float degrees = 90.0; o = vec4(degrees(1.0)); }")]
     [InlineData("GL0405", "a.frag", "#version 100\nprecision mediump float;\nfloat sin(float x) { return x; }\nvoid main() { gl_FragColor = vec4(sin(1.0)); }")]
     [InlineData("GL0405", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nbool radians(bool x) { return x; }\nvoid main() { o = vec4(1.0); }")]
