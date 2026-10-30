@@ -463,6 +463,30 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Equal(expected, output.ToString().Contains("組み込み関数 'texture2D' は", StringComparison.Ordinal));
     }
 
+    /// <summary>マクロを中身を変えて定義し直すこと (CF0004) は、GLSL ではエラーにする。設定で重要度を書けば、それに従う。</summary>
+    [Theory]
+    [InlineData("", "error CF0004")]
+    [InlineData("rules:\n  CF0004: warning\n", "warning CF0004")]
+    public async Task マクロの定義し直しはGLSLではエラー(string rules, string expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\n{rules}");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), """
+            #version 450
+            #define SCALE 1.0
+            #define SCALE 2.0
+            layout(location = 0) out vec4 o;
+            void main() { o = vec4(SCALE); }
+
+            """);
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), "--config", config], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Contains(expected, output.ToString(), StringComparison.Ordinal);
+    }
+
     /// <summary>値を返さない経路 (CF0501) は、GLSL では警告にする。設定で重要度を書けば、それに従う。</summary>
     [Theory]
     [InlineData("", "warning CF0501")]

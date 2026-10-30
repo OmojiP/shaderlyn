@@ -40,7 +40,9 @@ internal static class GlslSyntaxTree
         SyntaxNode.WireParents(root);
 
         ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-        diagnostics.AddRange(preprocessed.Diagnostics);
+        // マクロを中身を変えて定義し直すこと (CF0004) は、glslang では誤り (「Macro redefined」) である。HLSL のコンパイラは警告に留める。
+        // 重要度だけを差し替える。既定の重要度は警告のままなので、解析は止めない (ShaderCompilation.BreaksAnalysis)。設定で重要度を書けば、そちらが勝つ。
+        diagnostics.AddRange(preprocessed.Diagnostics.Select(d => d.Descriptor == CFamily.ShaderDescriptors.MacroRedefinition ? d.WithSeverity(DiagnosticSeverity.Error) : d));
         diagnostics.AddRange(parseDiagnostics);
         AddReservedWords(diagnostics, preprocessed.Tokens, text, language);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
