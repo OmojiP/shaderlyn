@@ -90,6 +90,15 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
     }
 
+    /// <summary>32 ビットに収まる整数のリテラルと、正しい 8 進数は報告しない。int の 0xFFFFFFFF は負の数として読む。</summary>
+    [Fact]
+    public async Task 収まる整数のリテラル()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int a = 4294967295; uint b = 0xFFFFFFFFu; int c = 037777777777; int d = 0; int e = 007; o = vec4(a + c + d + e) + vec4(b); }\n";
+
+        Assert.DoesNotContain("GL0315", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
+    }
+
     /// <summary>セマンティクスの組み合わせが決まりに合っていれば報告しない。</summary>
     [Fact]
     public async Task 正しいメモリのセマンティクス()
@@ -367,6 +376,9 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0002", "a.vert", "#version 450\nlayout(location = 0) in VertexIn { vec4 p; } vin;\nvoid main() { gl_Position = vin.p; }")]
     [InlineData("GL0002", "a.frag", "#version 450\nlayout(location = 0) out FragOut { vec4 c; } fout;\nvoid main() { fout.c = vec4(1.0); }")]
     [InlineData("GL0305", "a.frag", "#version 450\nlayout(binding = 0) uniform texture2D t;\nlayout(binding = 1) uniform sampler s;\nlayout(location = 0) out vec4 o;\nvec4 f(sampler2D x) { return texture(x, vec2(0.5)); }\nvoid main() { o = f(sampler2D(t, s)) + texture(sampler2D(t, s), vec2(0.5)); }")]
+    [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 5000000000; o = vec4(i); }")]
+    [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
+    [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { uint i = 0x1FFFFFFFFu; o = vec4(i); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicStore(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicAdd(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed); }")]
     [InlineData("GL0313", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nlayout(binding = 0, rgba8) uniform writeonly image2D t;\nlayout(binding = 1) buffer B { vec4 v; };\nvoid main() { v = imageLoad(t, ivec2(0)); }")]

@@ -277,6 +277,17 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0314"));
 
+    /// <summary>整数のリテラルが 32 ビットに収まらないか、8 進数に 8 と 9 を書いている。</summary>
+    public static DiagnosticDescriptor LiteralOutOfRange { get; } = new(
+        id: "GL0315",
+        title: "整数のリテラルが正しくありません",
+        messageFormat: "'{0}': {1}。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "接尾辞の無い整数と u の付いた整数のリテラルは、32 ビット (0xFFFFFFFF) に収まらなければなりません。0 で始まるリテラルは 8 進数なので、8 と 9 は書けません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0315"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

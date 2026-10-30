@@ -27,7 +27,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.LiteralOutOfRange];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -70,6 +70,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
             {
                 case LiteralExpressionSyntax literal:
                     AnalyzeLiteral(requirement, literal.Token);
+                    AnalyzeIntegerLiteral(requirement, literal.Token);
                     break;
 
                 case PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.TildeToken } unary:
@@ -133,6 +134,65 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
         ShaderSyntaxKind.BarEqualsToken => "bitwise-or assign",
         _ => null,
     };
+
+    /// <summary>
+    /// 32 ビットの整数のリテラル (接尾辞が無いか u のもの) の大きさと、8 進数の桁 (glslang の Scan.cpp の字句の検査)。
+    /// 0xFFFFFFFF より大きいもの、8 進数に 8 と 9 を書いたものは誤りになる。
+    /// </summary>
+    private static void AnalyzeIntegerLiteral(GlslRequirements requirement, ShaderSyntaxToken token)
+    {
+        string suffix = ShaderLiteral.GetSuffix(token);
+
+        if (ShaderLiteral.GetKind(token) == ShaderLiteralKind.Floating || suffix is not ("" or "u" or "U"))
+        {
+            return;
+        }
+
+        string digits = token.Text[..^suffix.Length];
+        string? problem;
+
+        if (digits.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            problem = digits[2..].TrimStart('0').Length > 8 ? "16 進数のリテラルが 32 ビットに収まりません" : null;
+        }
+        else if (digits.Length > 1 && digits[0] == '0')
+        {
+            problem = digits.Any(c => c is '8' or '9') ? "8 進数のリテラルに 8 と 9 は書けません"
+                : !Fits(digits, 8) ? "8 進数のリテラルが 32 ビットに収まりません"
+                : null;
+        }
+        else
+        {
+            problem = !Fits(digits, 10) ? "数のリテラルが 32 ビットに収まりません" : null;
+        }
+
+        if (problem is not null)
+        {
+            requirement.Report(GlslRuleDescriptors.LiteralOutOfRange, token, token.Text, problem);
+        }
+
+        static bool Fits(string digits, int radix)
+        {
+            ulong value = 0;
+
+            foreach (char c in digits)
+            {
+                if (c is < '0' or > '9')
+                {
+                    return true;
+                }
+
+                value = (value * (ulong)radix) + (ulong)(c - '0');
+
+                if (value > uint.MaxValue)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
 
     /// <summary>リテラルの接尾辞に要る版と拡張 (glslang の primary_expression の規則)。</summary>
     private static void AnalyzeLiteral(GlslRequirements requirement, ShaderSyntaxToken token)
