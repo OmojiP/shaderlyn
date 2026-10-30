@@ -57,6 +57,9 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0404", "a.frag", "void main() { o = vec4(1.0, 2.0); }")]
     [InlineData("CF0314", "a.frag", "float f(float x) { return x; }\nfloat f(float y) { return y; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("CF0314", "a.frag", "bool b;\nfloat b(int a);\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("CF0410", "a.frag", "float a4[4];\nfloat a5[5];\nvoid main() { a5 = a4; o = vec4(a5[0]); }")]
+    [InlineData("CF0410", "a.frag", "void main() { int b[3] = int[](3, 2); o = vec4(b[0]); }")]
+    [InlineData("CF0410", "a.frag", "void main() { float c[2] = { 1.0, 2.0, 3.0 }; o = vec4(c[0]); }")]
     [InlineData("CF0314", "a.frag", "uniform U { float f; };\nuniform U { float g; };\nvoid main() { o = vec4(f); }")]
     [InlineData("CF0314", "a.frag", "uniform U { float f; } u;\nuniform V { float g; } U;\nvoid main() { o = vec4(u.f); }")]
     [InlineData("CF0314", "a.frag", "uniform U { float f; };\nfloat f;\nvoid main() { o = vec4(f); }")]
@@ -85,6 +88,15 @@ public sealed class GlslRuleTests : IDisposable
         const string body = "#version 450\nlayout(location = 0) in V { vec4 c; } i;\nlayout(location = 0) out V { vec4 c; };\nvoid main() { c = i.c; }\n";
 
         Assert.DoesNotContain("CF0314", await AnalyzeAsync("a.vert", body), StringComparison.Ordinal);
+    }
+
+    /// <summary>外側の大きさを省いた配列は、初期化の値の大きさになる。同じ大きさなら代入できる。</summary>
+    [Fact]
+    public async Task 大きさの合う配列の代入と初期化()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float d[] = float[](1.0, 2.0); float e[2]; e = d; float f[2][3]; float g[][3] = f; o = vec4(e[0] + g[0][0]); }\n";
+
+        Assert.DoesNotContain("CF0410", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
     /// <summary>
