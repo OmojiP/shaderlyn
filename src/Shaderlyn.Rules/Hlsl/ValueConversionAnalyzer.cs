@@ -73,14 +73,21 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
         {
-            if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
-            {
-                continue;
-            }
-
             if (!structsByProgram.TryGetValue(program, out Dictionary<string, StructDeclarationSyntax>? structs))
             {
                 structs = structsByProgram[program] = CollectStructs(compilation, program);
+            }
+
+            // GLSL の関数の外の変数の初期値 (int a = true; など)。glslang は関数の中と同じく変換を検査する。
+            if (compilation.IsGlsl && declaration is VariableDeclarationSyntax global && compilation.IsReportable(global))
+            {
+                AnalyzeInitializers(context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), global, structs, reported);
+                continue;
+            }
+
+            if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
+            {
+                continue;
             }
 
             AnalyzeReturnPaths(context, compilation, program, function, reported);

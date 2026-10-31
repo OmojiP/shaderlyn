@@ -21,7 +21,8 @@ namespace Shaderlyn.Rules.Glsl;
 /// </para>
 /// <para>
 /// 実引数の型がどれか 1 つでも分からないか、構成によって変わるか、配列か、型の引数を取る型 (<c>coopmat&lt;…&gt;</c>) なら検査しない。
-/// 引数の数が合う形が 1 つも無いときは、引数の数の検査 (CF0402) に任せる。利用者が同じ名前の関数を宣言していれば検査しない。
+/// 引数の数が合う形が 1 つも無いときは、引数の数の検査 (CF0402) が報告するならそちらに任せる。
+/// CF0402 は解析全体の表で数を見るので、この構成にだけ無い数 (ES の 3.00 の <c>textureSize(s2D)</c>) はこのルールが報告する。利用者が同じ名前の関数を宣言していれば検査しない。
 /// </para>
 /// </remarks>
 internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
@@ -72,7 +73,10 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            Check(s.Requirement, s.Types, compilation.GetExpressionTypeBinder(program), invocation, callee, overloads);
+            // 引数の数の検査 (CF0402) は、解析全体の組み込みの表で数を見る。この構成の表で数の合う形が無くても、そちらで合えば報告しない。
+            bool countChecked = !(compilation.TypeSystem.TryGetIntrinsicArity(callee.Name, out IntrinsicArity arity)
+                                  && arity.Accepts(invocation.ArgumentExpressions.Count()));
+            Check(s.Requirement, s.Types, compilation.GetExpressionTypeBinder(program), invocation, callee, overloads, countChecked);
         }
     }
 
@@ -109,7 +113,8 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         IdentifierExpressionSyntax callee,
-        ImmutableArray<GlslBuiltinFunction> overloads)
+        ImmutableArray<GlslBuiltinFunction> overloads,
+        bool countChecked)
     {
         ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
         GlslBuiltinFunction[] fitting =
@@ -118,7 +123,7 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
         ];
 
         // 表の仮引数の書き方のうち、型として照らし合わせられないもの (unknown、structure{…}、bfloat16_t<2> など) があれば決めない。
-        if (fitting.Length == 0 || fitting.Any(f => f.Parameters.Take(f.FixedParameterCount).Any(t => !IsComparable(types, t))))
+        if ((fitting.Length == 0 && countChecked) || fitting.Any(f => f.Parameters.Take(f.FixedParameterCount).Any(t => !IsComparable(types, t))))
         {
             return;
         }

@@ -195,6 +195,13 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
+            // サンプラー・イメージ・atomic_uint などの不透明な型と void は、どの演算子にも使えない。
+            if ((OpaqueTypeOf(leftExpression) ?? OpaqueTypeOf(rightExpression)) is { } opaque)
+            {
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
+                return;
+            }
+
             if (TypeOf(leftExpression) is not { } left || TypeOf(rightExpression) is not { } right)
             {
                 return;
@@ -212,8 +219,18 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         private void CheckUnary(ShaderSyntaxToken at, ExpressionSyntax operandExpression)
         {
             if (at.Kind is not (ShaderSyntaxKind.ExclamationToken or ShaderSyntaxKind.TildeToken or ShaderSyntaxKind.MinusToken
-                    or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken)
-                || TypeOf(operandExpression) is not { } operand)
+                    or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken))
+            {
+                return;
+            }
+
+            if (OpaqueTypeOf(operandExpression) is { } opaque)
+            {
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
+                return;
+            }
+
+            if (TypeOf(operandExpression) is not { } operand)
             {
                 return;
             }
@@ -481,6 +498,18 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         /// </summary>
         private void CheckSelection(ConditionalExpressionSyntax conditional)
         {
+            // void の枝は、もう一方も void のときだけ書ける。
+            if (OpaqueTypeOf(conditional.WhenTrue) is var trueOpaque && OpaqueTypeOf(conditional.WhenFalse) is var falseOpaque
+                && (trueOpaque == "void") != (falseOpaque == "void")
+                && (trueOpaque == "void" ? KnownType(conditional.WhenFalse) : KnownType(conditional.WhenTrue)) is { } other)
+            {
+                requirement.Report(
+                    GlslRuleDescriptors.WrongOperandTypes,
+                    conditional.ColonToken,
+                    $"?: の 2 つの枝の型 ({(trueOpaque == "void" ? "void" : other)} と {(trueOpaque == "void" ? other : "void")}) がそろいません。");
+                return;
+            }
+
             if (TypeOf(conditional.WhenTrue) is not { } whenTrue || TypeOf(conditional.WhenFalse) is not { } whenFalse
                 || whenTrue.SameType(whenFalse))
             {
@@ -500,6 +529,23 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 conditional.ColonToken,
                 $"?: の 2 つの枝の型 ({whenTrue.Name} と {whenFalse.Name}) がそろいません。");
         }
+
+        /// <summary>
+        /// サンプラー・イメージ・atomic_uint・void の式なら、その型。それ以外と分からなければ <see langword="null"/>。
+        /// texture2D などは古い GLSL の関数の名前でもあるので見ない。協調行列と長いベクトルは演算子を持つ。
+        /// </summary>
+        private string? OpaqueTypeOf(ExpressionSyntax expression)
+            => KnownType(expression) is { } name && (name is "void" or "atomic_uint" || IsSamplerOrImage(name)) ? name : null;
+
+        private static bool IsSamplerOrImage(string name)
+        {
+            string bare = name.StartsWith("f16", StringComparison.Ordinal) ? name[3..] : name.TrimStart('i', 'u');
+            return GlslKeywords.IsBuiltInType(name) && (bare.StartsWith("sampler", StringComparison.Ordinal) || bare.StartsWith("image", StringComparison.Ordinal));
+        }
+
+        /// <summary>式の型の名前。配列の値、分からない式、構成で変わる式なら <see langword="null"/>。</summary>
+        private string? KnownType(ExpressionSyntax expression)
+            => !IsArrayValue(expression) && binder.GetTypesByConfiguration(expression) is [{ Type: { } name }] ? name : null;
 
         /// <summary>添字を付けない配列の変数か (宣言を言い切れるもの)。</summary>
         private bool IsCertainlyArray(ExpressionSyntax expression) => expression switch

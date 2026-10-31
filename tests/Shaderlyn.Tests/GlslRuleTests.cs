@@ -99,6 +99,16 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("GL0315", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
+    /// <summary>数の型への演算子と、両方の枝が void の ?: は報告しない。</summary>
+    [Fact]
+    public async Task 演算子を使える値()
+    {
+        const string body = "#version 450\nlayout(binding = 0) uniform sampler2D s;\nlayout(location = 0) out vec4 o;\nvoid f() { }\nvoid g() { }\n"
+                            + "void main() { bool b = o.x > 0.0; b ? f() : g(); ivec2 n = textureSize(s, 0) + ivec2(1); o = vec4(n, 0.0, 1.0); }\n";
+
+        Assert.DoesNotContain("GL0301", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
+    }
+
     /// <summary>整数の添字・switch の条件・case のラベルは報告しない。</summary>
     [Fact]
     public async Task 整数のスカラーの添字と条件()
@@ -408,6 +418,11 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0002", "a.frag", "#version 450\nlayout(location = 0) out FragOut { vec4 c; } fout;\nvoid main() { fout.c = vec4(1.0); }")]
     [InlineData("GL0305", "a.frag", "#version 450\nlayout(binding = 0) uniform texture2D t;\nlayout(binding = 1) uniform sampler s;\nlayout(location = 0) out vec4 o;\nvec4 f(sampler2D x) { return texture(x, vec2(0.5)); }\nvoid main() { o = f(sampler2D(t, s)) + texture(sampler2D(t, s), vec2(0.5)); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 5000000000; o = vec4(i); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(binding = 0, offset = 0) uniform atomic_uint c;\nlayout(location = 0) out vec4 o;\nvoid main() { c + c; o = vec4(1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(binding = 0) uniform sampler2D s1;\nlayout(binding = 1) uniform sampler2D s2;\nlayout(location = 0) out vec4 o;\nvoid main() { if (s1 == s2) { o = vec4(1.0); } }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid f() { }\nvoid main() { bool b = o.x > 0.0; b ? f() : 4; o = vec4(1.0); }")]
+    [InlineData("GL0302", "a.vert", "#version 300 es\nuniform highp sampler2D s;\nvoid main() { ivec2 n = textureSize(s); gl_Position = vec4(n, 0.0, 1.0); }")]
+    [InlineData("CF0410", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nint a = true;\nvoid main() { o = vec4(a); }")]
     [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec4 v[2] = vec4[2](vec4(0.0), vec4(1.0)); o = v[1.0]; }")]
     [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform float f;\nvoid main() { switch (f) { default: break; } o = vec4(1.0); }")]
     [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int i;\nvoid main() { switch (i) { case 2.0: break; } o = vec4(1.0); }")]
