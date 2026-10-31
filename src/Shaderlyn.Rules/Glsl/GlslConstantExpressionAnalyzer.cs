@@ -10,15 +10,18 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules.Glsl;
 
 /// <summary>
-/// 定数の式でなければならない所を検査する (GL0317 / GL0001)。
+/// 定数の式でなければならない所と、const の変数の初期値を検査する (GL0317 / GL0318 / GL0001)。
 /// glslang 16.6.0 の ParseHelper.cpp の <c>arraySizeCheck</c> (「array size must be a constant integer expression」) と、
-/// <c>executeInitializer</c> の初期値の検査を移したもの。
+/// <c>executeInitializer</c> の初期値の検査、<c>nonInitConstCheck</c> を移したもの。
 /// </summary>
 /// <remarks>
 /// <para>
 /// 配列の大きさ、関数の外の <c>const</c> の変数と uniform の変数の初期値は、定数の式でなければならない (GL0317)。
 /// 関数の中の <c>const</c> の変数を定数でない式で初期化できるのは、ES でないプロファイルの 4.20 からか <c>GL_ARB_shading_language_420pack</c> から。
 /// ES では、関数の外の記憶域の無い変数を定数でない式で初期化するのに <c>GL_EXT_shader_non_constant_global_initializers</c> が要る (GL0001)。
+/// </para>
+/// <para>
+/// 関数の外と関数の中の <c>const</c> の変数には、初期値が要る (GL0318)。
 /// </para>
 /// <para>
 /// 定数でないと言い切れる式 (<see cref="GlslConstantEvaluator.IsCertainlyNotConstant"/>) だけを報告する。
@@ -37,7 +40,7 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.ConstantExpressionRequired, GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.ConstantExpressionRequired, GlslRuleDescriptors.ConstInitializerRequired, GlslRuleDescriptors.NotAvailable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -52,7 +55,7 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (VariableDeclaratorSyntax or ParameterSyntax))
+            if (node is not (VariableDeclaratorSyntax or ParameterSyntax or SwitchLabelStatementSyntax))
             {
                 continue;
             }
@@ -81,6 +84,22 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
                     CheckArraySizes(parameter, [.. parameter.ArrayRankTokens, .. parameter.Type.ArrayRanks]);
                     break;
 
+                // 構造体の宣言に続けて宣言した変数 (const struct S { float f; } s = S(u);)。修飾子は構造体の前にある。
+                case VariableDeclaratorSyntax { Parent: StructDeclarationSyntax { Keyword.Text: "struct" } structure } declarator:
+                    CheckArraySizes(declarator, declarator.ArrayRankTokens);
+
+                    if (declarator.Initializer is { } structInitializer)
+                    {
+                        bool global = structure.Parent is CompilationUnitSyntax;
+                        CheckInitializer(structure.Modifiers, global, declarator, structInitializer);
+                    }
+                    else
+                    {
+                        CheckConstWithoutInitializer(structure.Modifiers, declarator);
+                    }
+
+                    break;
+
                 case VariableDeclaratorSyntax declarator:
                     VariableDeclarationSyntax? declaration = declarator.Parent as VariableDeclarationSyntax;
                     CheckArraySizes(declarator, [.. declarator.ArrayRankTokens, .. declaration?.Type.ArrayRanks ?? []]);
@@ -89,7 +108,16 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
                     {
                         CheckInitializer(declaration.ModifierTokens, declaration.Parent is CompilationUnitSyntax, declarator, initializer);
                     }
+                    else if (declaration?.Parent is CompilationUnitSyntax or LocalDeclarationStatementSyntax)
+                    {
+                        CheckConstWithoutInitializer(declaration.ModifierTokens, declarator);
+                    }
 
+                    break;
+
+                // case のラベル (glslang の「constant expression required」)。
+                case SwitchLabelStatementSyntax { Value: { } value } label when evaluator.IsCertainlyNotConstant(value):
+                    requirement.Report(GlslRuleDescriptors.ConstantExpressionRequired, label.Keyword, "case のラベル");
                     break;
 
                 default:
@@ -97,21 +125,37 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
             }
         }
 
+        /// <summary>初期値の無い const の変数を報告する (glslang の nonInitConstCheck)。</summary>
+        private void CheckConstWithoutInitializer(ImmutableArray<ShaderSyntaxToken> modifiers, VariableDeclaratorSyntax declarator)
+        {
+            if (modifiers.Any(t => t.Text == "const"))
+            {
+                requirement.Report(GlslRuleDescriptors.ConstInitializerRequired, declarator.NameToken, declarator.Name);
+            }
+        }
+
         /// <summary>初期値が定数でなければならないか (glslang の executeInitializer)。</summary>
         private void CheckInitializer(ImmutableArray<ShaderSyntaxToken> modifiers, bool global, VariableDeclaratorSyntax declarator, ExpressionSyntax initializer)
         {
+            ShaderSyntaxToken at = declarator.NameToken;
+
+            // uniform の初期値には、専用化の定数も使えない (glslang の isFrontEndConstant)。
+            if (modifiers.Any(t => t.Text == "uniform"))
+            {
+                if (evaluator.IsCertainlyNotConstant(initializer) || UsesSpecializationConstant(initializer))
+                {
+                    requirement.Report(GlslRuleDescriptors.ConstantExpressionRequired, at, "uniform の変数の初期値");
+                }
+
+                return;
+            }
+
             if (!evaluator.IsCertainlyNotConstant(initializer))
             {
                 return;
             }
 
-            ShaderSyntaxToken at = declarator.NameToken;
-
-            if (modifiers.Any(t => t.Text == "uniform"))
-            {
-                requirement.Report(GlslRuleDescriptors.ConstantExpressionRequired, at, "uniform の変数の初期値");
-            }
-            else if (modifiers.Any(t => t.Text == "const"))
+            if (modifiers.Any(t => t.Text == "const"))
             {
                 if (global)
                 {
@@ -133,6 +177,12 @@ internal sealed class GlslConstantExpressionAnalyzer : SemanticRuleAnalyzer
                     "関数の外の変数を定数でない式で初期化すること");
             }
         }
+
+        /// <summary>式が、関数の外の専用化の定数 (<c>layout(constant_id = 0) const</c>) を使うか。</summary>
+        private bool UsesSpecializationConstant(ExpressionSyntax expression)
+            => expression.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>().Any(name =>
+                program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Any(d =>
+                    d.ModifierTokens.Any(t => t.Text == "constant_id") && d.Variables.Any(v => v.Name == name.Name)));
 
         /// <summary>
         /// 配列の大きさが定数の式か。呼び出しの名前と、後ろに . の付く名前は見ない。

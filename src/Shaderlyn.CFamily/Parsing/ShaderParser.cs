@@ -452,14 +452,10 @@ internal abstract class ShaderParser
         }
 
         // class と interface は、構造体と同じ形で構文木にする。FXC でも DXC のどの版でも使える (Unity でも使える)。
-        if (CurrentTextIs("class") || CurrentTextIs("interface"))
+        // 前の修飾子は、続けて宣言する変数に付く (GLSL の const struct S { ... } s = ...;)。
+        if (CurrentTextIs("class") || CurrentTextIs("interface") || CurrentTextIs("struct"))
         {
-            return ParseStruct();
-        }
-
-        if (CurrentTextIs("struct"))
-        {
-            return ParseStruct();
+            return ParseStruct(modifiers);
         }
 
         return ParseFunctionOrVariable(attributes, modifiers);
@@ -1121,12 +1117,13 @@ internal abstract class ShaderParser
     }
 
     /// <summary>構造体宣言を解析する。</summary>
+    /// <param name="modifiers">キーワードの前の修飾子。</param>
     /// <returns>解析した宣言。</returns>
     /// <remarks>
     /// 文法: <c>Struct := 'struct' Identifier? '{' Declaration* '}' Declarator* ';'</c>
     /// 無名構造体と、宣言に続けて変数を宣言する形の両方に対応する。
     /// </remarks>
-    private StructDeclarationSyntax ParseStruct()
+    private StructDeclarationSyntax ParseStruct(ImmutableArray<ShaderSyntaxToken> modifiers)
     {
         ShaderSyntaxToken keyword = Advance();
 
@@ -1209,7 +1206,10 @@ internal abstract class ShaderParser
 
         return new StructDeclarationSyntax(
             keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
-            specialization.ToImmutable());
+            specialization.ToImmutable())
+        {
+            Modifiers = modifiers,
+        };
     }
 
     /// <summary>

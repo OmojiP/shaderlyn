@@ -749,12 +749,17 @@ public sealed class StructDeclarationSyntax(
     public string? BaseTypeName => BaseType?.NameToken.Text;
 
     /// <summary>
-    /// キーワードの前の修飾子。ふつうの構造体では空。
+    /// キーワードの前の修飾子。
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// 構造体の前の修飾子は、続けて宣言した変数に付く (GLSL の <c>const struct S { float f; } s = S(1.0);</c>)。
+    /// </para>
+    /// <para>
     /// GLSL のインスタンスの名前を持つインターフェースブロック (<c>layout(std140) uniform UBO { mat4 m; } ubo;</c>) は、
     /// 構造体と、それに続けて宣言した変数 (<c>struct UBO { mat4 m; } ubo;</c>) と同じ形で表す。
     /// そのとき、最後の修飾子 (<c>uniform</c>) を <see cref="Keyword"/> に、それより前 (<c>layout(std140)</c>) をここに置く。
+    /// </para>
     /// </remarks>
     public ImmutableArray<ShaderSyntaxToken> Modifiers { get; init; } = [];
 

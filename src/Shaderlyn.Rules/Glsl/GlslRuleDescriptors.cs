@@ -319,6 +319,32 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0317"));
 
+    /// <summary><c>const</c> の変数に初期値が無い。</summary>
+    /// <remarks>glslang の <c>nonInitConstCheck</c> (「variables with qualifier 'const' must be initialized」) に当たる。文の <c>{0}</c> は変数の名前。</remarks>
+    public static DiagnosticDescriptor ConstInitializerRequired { get; } = new(
+        id: "GL0318",
+        title: "const の変数には初期値が要ります",
+        messageFormat: "const の変数 '{0}' に初期値がありません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "const を付けた変数を、初期値を書かずに宣言しています。const の変数は宣言で値を決めなければなりません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0318"));
+
+    /// <summary>配列を作る式の実引数の数が合わない。</summary>
+    /// <remarks>
+    /// glslang の <c>constructorError</c> の「array constructor must have at least one argument」
+    /// 「array constructor needs one argument per array element」に当たる。文の <c>{0}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor ArrayConstructorArguments { get; } = new(
+        id: "GL0319",
+        title: "配列を作る実引数の数が合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列を作る式 (float[3](a, b, c)) には、要素ごとに 1 つずつ実引数を渡さなければなりません。"
+            + "実引数の無い形 (float[]()) も書けません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0319"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

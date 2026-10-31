@@ -92,6 +92,13 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
 
                 case FunctionDeclarationSyntax function:
                     CheckQualifiers(requirement, function.ModifierTokens, global);
+
+                    // 戻り値の型に記憶域の修飾子は書けない (glslang の function_header の「no qualifiers allowed for function return」)。
+                    if (TopLevel([.. function.ModifierTokens, .. function.ReturnType.ModifierTokens]).FirstOrDefault(t => Storage.Contains(t.Text)) is { } storage)
+                    {
+                        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, storage, $"関数の戻り値には '{storage.Text}' を書けません。");
+                    }
+
                     break;
 
                 case StructDeclarationSyntax { NameOverride: not null } block:

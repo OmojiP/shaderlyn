@@ -131,6 +131,21 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("GL0001", output, StringComparison.Ordinal);
     }
 
+    /// <summary>初期値のある const の変数、const の仮引数、合った数の実引数で配列を作る式は報告しない。</summary>
+    [Fact]
+    public async Task 初期値と配列を作る式()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nconst struct S { int a; } s = S(1);\n"
+                            + "float f(const float x) { return x; }\n"
+                            + "void main() { const int c = 2; float a[2] = float[2](1.0, 2.0); float b[] = float[](1.0, 2.0, 3.0); o = vec4(a[0] + b[0] + f(float(c + s.a))); }\n";
+
+        string output = await AnalyzeAsync("a.frag", body);
+        Assert.DoesNotContain("GL0317", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0318", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0319", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0101", output, StringComparison.Ordinal);
+    }
+
     /// <summary>セマンティクスの組み合わせが決まりに合っていれば報告しない。</summary>
     [Fact]
     public async Task 正しいメモリのセマンティクス()
@@ -432,6 +447,15 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nvoid main() { const int c = n; float a[c]; o = vec4(a[0]); }")]
     [InlineData("GL0001", "a.frag", "#version 330\nlayout(location = 0) out vec4 o;\nuniform int n;\nvoid main() { const int c = n; o = vec4(c); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nfloat f = gl_FrontFacing ? 1.0 : 0.0;\nvoid main() { gl_FragColor = vec4(f); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nconst struct S { int a; } s = S(n);\nvoid main() { o = vec4(s.a); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nuniform int i;\nvoid main() { switch (i) { case n: break; } o = vec4(1.0); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(constant_id = 1) const float k = 0.5;\nlayout(location = 4) uniform float u = k;\nvoid main() { o = vec4(u); }")]
+    [InlineData("GL0318", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nconst int a;\nvoid main() { o = vec4(a); }")]
+    [InlineData("GL0318", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { const float f; o = vec4(f); }")]
+    [InlineData("GL0319", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int a[] = int[](); o = vec4(a.length()); }")]
+    [InlineData("GL0319", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float a[2] = float[2](1.0, 2.0, 3.0); o = vec4(a[0]); }")]
+    [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2]; a[0] = float[2](1.0, 2.0)[0]; gl_FragColor = vec4(a[0]); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nconst int f() { return 1; }\nvoid main() { o = vec4(f()); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { uint i = 0x1FFFFFFFFu; o = vec4(i); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicStore(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire); }")]
