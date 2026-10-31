@@ -526,15 +526,17 @@ internal sealed class CommandLineOptions
     /// <returns>標準出力へ表示する説明文。</returns>
     public static string GetUsage() =>
         """
-        shaderlyn - Unity ShaderLab / HLSL 静的解析ツール
+        shaderlyn - シェーダーの静的解析ツール (Unity ShaderLab / HLSL・Unreal Engine・GLSL)
 
         使い方:
           shaderlyn <パス...> [オプション]
 
         引数:
           <パス...>              解析対象のファイルまたはフォルダー。
-                                 フォルダーを指定すると再帰的に .shader と .compute を探索します。
-                                 .hlsl と .cginc は単体では成立しない断片であることが多いため
+                                 フォルダーを指定すると再帰的に探索し、環境のファイル
+                                 (unity は .shader と .compute、hlsl は .hlsl、unreal は .usf) と、
+                                 GLSL (.vert / .frag など)・Godot・Slang・WGSL のファイルを解析します。
+                                 Unity の .hlsl と .cginc は単体では成立しない断片であることが多いため
                                  探索しません。名前を挙げて指定すれば解析します。
 
         オプション:
