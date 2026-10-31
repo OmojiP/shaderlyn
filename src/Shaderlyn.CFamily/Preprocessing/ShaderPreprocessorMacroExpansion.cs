@@ -65,7 +65,13 @@ internal sealed partial class ShaderPreprocessor
         if (!macro.IsFunctionLike)
         {
             TakeToken();
-            PushExpansionSource(RelocateTokens(MarkMacroBody(macro), nameToken), macro.Name);
+
+            // オブジェクト形式のマクロの本体の ## も連結する (C の規則。#define T image1D dest ## 1)。
+            PushExpansionSource(
+                macro.Body.Any(t => t.Kind == ShaderSyntaxKind.HashHashToken)
+                    ? SubstituteMacroBody(macro, [], nameToken)
+                    : RelocateTokens(MarkMacroBody(macro), nameToken),
+                macro.Name);
             return true;
         }
 
