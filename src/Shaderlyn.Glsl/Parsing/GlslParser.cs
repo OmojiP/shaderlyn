@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Shaderlyn.CFamily.Parsing;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Glsl.Syntax;
@@ -19,8 +20,17 @@ internal sealed class GlslParser : ShaderParser
     /// <summary>語がキーワードかを決める規則。言語のバージョンが分からなければ無い (表の語はすべてキーワード)。</summary>
     private readonly GlslWordRules? _rules;
 
-    /// <summary>語ごとの、キーワードかの答え。</summary>
-    private readonly Dictionary<string, bool> _keywords = new(StringComparer.Ordinal);
+    /// <summary>語と、今の位置より前の <c>#extension</c> の数ごとの、キーワードかの答え。</summary>
+    private readonly Dictionary<(string Word, int Directives), bool> _keywords = [];
+
+    /// <summary>
+    /// <c>#extension</c> の指令。出力の中の位置 (この位置から後ろのトークンに効く)、拡張の名前 (<c>all</c> を含む)、有効にするか。出力の中の位置の順。
+    /// 無ければ、ファイルのどこかで有効にした拡張 (<see cref="GlslLanguageOptions.Extensions"/>) を見る。
+    /// </summary>
+    private readonly ImmutableArray<(int OutputIndex, string Name, bool On)> _extensionDirectives = [];
+
+    /// <summary>ファイルのどこかで有効にした拡張。<see cref="_extensionDirectives"/> が無いときに見る。</summary>
+    private readonly GlslExtensionSet _extensions = GlslExtensionSet.Empty;
 
     /// <summary>パーサを生成する。</summary>
     /// <param name="tokens">プリプロセス済みのトークン列。</param>
@@ -34,12 +44,67 @@ internal sealed class GlslParser : ShaderParser
     /// <param name="ownSource">解析しているファイル自身のテキスト。</param>
     /// <param name="isUserInclude">取り込んだファイルが利用者のものかをパスから判定する。</param>
     /// <param name="language">言語の設定。バージョンと拡張で、語がキーワードかが変わる (<see cref="GlslWordRules"/>)。</param>
-    public GlslParser(ImmutableArray<ShaderSyntaxToken> tokens, SourceText? ownSource, Func<string, bool>? isUserInclude = null, GlslLanguageOptions? language = null)
+    /// <param name="directives">
+    /// プリプロセッサが覚えた <c>#version</c> と <c>#extension</c>。<c>#extension</c> は書いた位置より後ろのトークンにだけ効く (glslang)。
+    /// 渡さなければ、ファイルのどこかで有効にした拡張をどの位置でも有効とする。
+    /// </param>
+    public GlslParser(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        SourceText? ownSource,
+        Func<string, bool>? isUserInclude = null,
+        GlslLanguageOptions? language = null,
+        ImmutableArray<RecordedDirective> directives = default)
         : base(tokens, ownSource, isUserInclude)
     {
+        _extensions = language?.Extensions ?? GlslExtensionSet.Empty;
+        _extensionDirectives =
+        [
+            .. (directives.IsDefault ? [] : directives)
+                .Where(d => d.Directive.Text == "extension" && d.Tokens is [_, { Kind: ShaderSyntaxKind.ColonToken }, _, ..])
+                .Select(d => (d.OutputIndex, d.Tokens[0].Text, d.Tokens[2].Text != "disable")),
+        ];
         _rules = language is { Version: { } version }
-            ? new GlslWordRules(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, language.Extensions.Contains)
+            ? new GlslWordRules(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, IsExtensionOnHere)
             : null;
+    }
+
+    /// <summary>今の位置で拡張が有効か。今の位置より前の、最後のその拡張 (か <c>all</c>) の <c>#extension</c> で決まる。</summary>
+    private bool IsExtensionOnHere(string name)
+    {
+        if (_extensionDirectives.IsEmpty)
+        {
+            return _extensions.Contains(name);
+        }
+
+        bool on = false;
+
+        foreach ((int outputIndex, string extension, bool enabled) in _extensionDirectives)
+        {
+            if (outputIndex > Position)
+            {
+                break;
+            }
+
+            if (extension == name || extension == "all")
+            {
+                on = enabled;
+            }
+        }
+
+        return on;
+    }
+
+    /// <summary>今の位置より前にある <c>#extension</c> の数。</summary>
+    private int DirectivesBefore()
+    {
+        int count = 0;
+
+        while (count < _extensionDirectives.Length && _extensionDirectives[count].OutputIndex <= Position)
+        {
+            count++;
+        }
+
+        return count;
     }
 
     /// <summary>
@@ -55,9 +120,11 @@ internal sealed class GlslParser : ShaderParser
             return true;
         }
 
-        if (!_keywords.TryGetValue(word, out bool keyword))
+        int directives = DirectivesBefore();
+
+        if (!_keywords.TryGetValue((word, directives), out bool keyword))
         {
-            keyword = _keywords[word] = _rules.Classify(word).Kind == GlslWordKind.Keyword;
+            keyword = _keywords[(word, directives)] = _rules.Classify(word).Kind == GlslWordKind.Keyword;
         }
 
         return keyword;

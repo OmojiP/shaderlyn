@@ -35,7 +35,7 @@ internal static class GlslSyntaxTree
         PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
 
         GlslLanguageOptions language = (GlslLanguageOptions)effective.Language!;
-        GlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude, language);
+        GlslParser parser = new(preprocessed.Tokens, text, options?.IsUserInclude, language, preprocessed.RecordedDirectives);
         CompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         SyntaxNode.WireParents(root);
 
@@ -81,7 +81,7 @@ internal static class GlslSyntaxTree
                 && token.GetLocation() is { } location)
             {
                 diagnostics.Add(Diagnostic.Create(
-                    CFamily.ShaderDescriptors.SyntaxError, location, $"'{token.Text}' はこのバージョンの GLSL の予約語なので使えません。"));
+                    CFamily.ShaderDescriptors.ReservedWord, location, $"'{token.Text}' はこのバージョンの GLSL の予約語なので使えません。"));
             }
         }
     }

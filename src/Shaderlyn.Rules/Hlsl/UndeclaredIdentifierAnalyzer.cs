@@ -59,7 +59,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 取り込めなかったヘッダがあるなら、宣言を把握できていない。
-        if (!compilation.HasCompleteDependencies)
+        // GLSL の構文の誤りより前の位置は、そこまでの宣言で判断できる (ShaderCompilation.FirstBreakOffset)。
+        if (!compilation.HasCompleteDependencies && compilation.FirstBreakOffset is null)
         {
             return;
         }
@@ -152,6 +153,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
+            || !compilation.HasCompleteDependenciesAt(identifier)
             || identifier.GetLocation() is not { } location
             || qualifiers.Contains((location.FilePath, location.Span.Start)))
         {
@@ -479,8 +481,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         declared.Add(bufferName.Text);
                         break;
 
-                    case InterfaceBlockDeclarationSyntax block:
-                        declared.Add(block.Name);
+                    // GLSL のインスタンスの名前が無いブロックの名前は、型でも変数でもないので式には書けない。メンバーは中の変数の宣言として足す。
+                    case InterfaceBlockDeclarationSyntax:
                         break;
 
                     case EnumDeclarationSyntax enumeration:

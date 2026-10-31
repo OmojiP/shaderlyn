@@ -19,6 +19,20 @@ internal static class ShaderDescriptors
             + "該当箇所にマクロが使われている場合はその定義も確認してください。",
         helpLinkUri: DocumentationLinks.For("CF0001"));
 
+    /// <summary>そのバージョンで使えない予約語 (GLSL の「Reserved word.」)。</summary>
+    /// <remarks>
+    /// <see cref="SyntaxError"/> と同じ CF0001 として報告する。glslang は予約語を報告した後もキーワードとして読み進めるので、
+    /// 構文木は壊れていない。宣言が無いことを根拠にする検査を止めない (ShaderCompilation.BreaksAnalysis)。
+    /// </remarks>
+    public static DiagnosticDescriptor ReservedWord { get; } = new(
+        id: "CF0001",
+        title: "構文エラー",
+        messageFormat: "{0}",
+        category: "Syntax",
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "そのバージョンの GLSL の予約語を、名前やキーワードとして使っています。",
+        helpLinkUri: DocumentationLinks.For("CF0001"));
+
     /// <summary>プリプロセッサ指令の誤り。</summary>
     public static DiagnosticDescriptor PreprocessorError { get; } = new(
         id: "CF0002",

@@ -1142,7 +1142,8 @@ public sealed class ExpressionTypeBinder
                 function,
                 _compilation.GetConditionMap(),
                 loopVariablesLeak: Program.Tree.Language is not Glsl.GlslLanguageOptions && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
-                ownNameInInitializer: Program.Tree.Language is not Glsl.GlslLanguageOptions);
+                ownNameInInitializer: Program.Tree.Language is not Glsl.GlslLanguageOptions,
+                unbracedBodyIsScope: Program.Tree.Language is Glsl.GlslLanguageOptions);
         }
 
         return scopes;

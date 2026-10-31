@@ -128,6 +128,10 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
     /// <remarks>分からなければ、SPIR-V のバージョンで決まる検査 (glslang の「requires SPIR-V 1.3」) をしない。</remarks>
     public int? SpirvVersion { get; init; }
 
+    /// <summary>OpenGL 向けの SPIR-V を作るか (glslang の <c>-G</c>)。</summary>
+    /// <remarks>組み込みが、SPIR-V を作らない OpenGL と違う (<c>gl_DepthRange</c> が無いなど)。</remarks>
+    public bool IsOpenGlSpirv => Vulkan == false && SpirvVersion > 0;
+
     /// <summary>入力と出力の location をコンパイラが決めるか (glslang の <c>--auto-map-locations</c>)。</summary>
     /// <remarks>決めるなら、SPIR-V を作るときに location を書かなくてよい。</remarks>
     public bool AutoMapLocations { get; init; }
@@ -360,7 +364,7 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
         }
 
         // OpenGL 向けの SPIR-V (glslang の -G)。
-        if (Vulkan == false && SpirvVersion > 0)
+        if (IsOpenGlSpirv)
         {
             macros["GL_SPIRV"] = "100";
         }

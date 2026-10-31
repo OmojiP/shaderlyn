@@ -336,6 +336,9 @@ internal abstract class ShaderParser
 
     protected ShaderSyntaxToken Current => Peek(0);
 
+    /// <summary>今の位置。トークン列 (プリプロセスの出力) の中の番号。</summary>
+    protected int Position => _index;
+
     protected bool AtEnd => _index >= _tokens.Length || Current.Kind == ShaderSyntaxKind.EndOfFileToken;
 
     /// <summary>

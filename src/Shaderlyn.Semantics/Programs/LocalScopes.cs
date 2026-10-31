@@ -54,6 +54,10 @@ internal readonly record struct LocalDeclaration(ResolvedTypeName Type, ShaderSy
 /// 位置を決められない宣言があるのに外側の宣言で型を決めると、別の変数の型で判定することになる。
 /// </para>
 /// <para>
+/// GLSL では、波括弧を書かない <c>if</c> / <c>else</c> / <c>while</c> / <c>do</c> / <c>for</c> の本体は、それだけで 1 つの範囲になる
+/// (glslang.y の <c>statement_scoped</c>)。そこに書いた宣言は、ほかのどの文からも見えないので、名前の解決に加えない。
+/// </para>
+/// <para>
 /// <b>同じ範囲に同じ名前の宣言が複数あれば、使う位置に近い (後に書いた) 宣言を採る。</b>
 /// 条件付きの宣言なら、それが無い構成ではその前の宣言も候補に残す。
 /// </para>
@@ -106,6 +110,9 @@ internal sealed class LocalScopes
     /// <summary>宣言の初期値の中で、宣言している名前がもう見えるか。</summary>
     private readonly bool _ownNameInInitializer;
 
+    /// <summary>波括弧を書かない制御文の本体が、それだけで範囲になるか (GLSL)。</summary>
+    private readonly bool _unbracedBodyIsScope;
+
     /// <summary>関数の中の宣言を集める。</summary>
     /// <param name="function">対象の関数。</param>
     /// <param name="conditions">出現条件の索引。条件付きの宣言が外側を隠すかどうかを決めるのに使う。</param>
@@ -116,7 +123,15 @@ internal sealed class LocalScopes
     /// 宣言の初期値の中で、宣言している名前がもう見えるか。HLSL (C と同じ) は見え、GLSL は初期値の後から見える
     /// (GLSL 4.60 の 4.2.2 節。<c>vec4 p = vec4(p, 1.0);</c> の右の <c>p</c> は外側の <c>p</c>)。
     /// </param>
-    public LocalScopes(FunctionDeclarationSyntax function, ConditionMap conditions, bool loopVariablesLeak = true, bool ownNameInInitializer = true)
+    /// <param name="unbracedBodyIsScope">
+    /// 波括弧を書かない制御文の本体が、それだけで範囲になるか。GLSL はなる (<c>if (c) int j = 1;</c> の <c>j</c> は後ろで見えない)。
+    /// </param>
+    public LocalScopes(
+        FunctionDeclarationSyntax function,
+        ConditionMap conditions,
+        bool loopVariablesLeak = true,
+        bool ownNameInInitializer = true,
+        bool unbracedBodyIsScope = false)
     {
         ArgumentNullException.ThrowIfNull(function);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -124,6 +139,7 @@ internal sealed class LocalScopes
         _conditions = conditions;
         _loopVariablesLeak = loopVariablesLeak;
         _ownNameInInitializer = ownNameInInitializer;
+        _unbracedBodyIsScope = unbracedBodyIsScope;
 
         foreach (ParameterSyntax parameter in function.ParameterList)
         {
@@ -186,6 +202,13 @@ internal sealed class LocalScopes
         {
             if (tracked.Contains(declaration)
                 || declaration.Ancestors().TakeWhile(a => a is not FunctionDeclarationSyntax).Any(a => a is StructDeclarationSyntax))
+            {
+                continue;
+            }
+
+            // 波括弧を書かない本体の宣言は、それ自身の範囲にしか無い。
+            if (_unbracedBodyIsScope
+                && declaration.Parent is LocalDeclarationStatementSyntax { Parent: not (BlockStatementSyntax or SwitchStatementSyntax) })
             {
                 continue;
             }

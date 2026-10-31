@@ -145,7 +145,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 取り込みを解決できていなければ、見えていない多重定義があるかもしれない (template の関数の呼び出しと同じ)。
         // Unreal Engine の LumenCardComputeShader.usf は、生成される VertexFactory.ush を通して取り込む多重定義
         // GetInstanceSceneData(inout FVisibleCluster, bool) を呼んでおり、見えている多重定義と照らして誤りと言っていた。
-        if (compilation.MayLackOverloadsOf(name))
+        if (compilation.MayLackOverloadsOf(name, invocation))
         {
             return;
         }
@@ -426,7 +426,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         string name,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(name)
+        if (compilation.MayLackOverloadsOf(name, invocation)
             || !compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
@@ -507,7 +507,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ImmutableArray<TemplateFunctionCandidate> candidates,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(name)
+        if (compilation.MayLackOverloadsOf(name, invocation)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
             || !condition.GetCondition(invocation).IsAlways
             || candidates.Any(c => !condition.GetCondition(c.Declaration).IsAlways))
@@ -605,7 +605,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(access.Name)
+        if (compilation.MayLackOverloadsOf(access.Name, invocation)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
             || !condition.GetCondition(invocation).IsAlways
             || binder.GetEvaluatorFor(invocation).Evaluate(access.Target) is not { } receiver
@@ -764,7 +764,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
+            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback)
+                && !IsGlslStructMismatch(binder, argumentTypes[i], parameter.Type.Name))
             {
                 continue;
             }
@@ -774,6 +775,30 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// GLSL で、構造体の値と、別の型 (別の構造体か数値の型) の間で渡そうとしているか。
+    /// </summary>
+    /// <param name="binder">名前が指す宣言を引く仕組み。</param>
+    /// <param name="argumentType">実引数の型。分からなければ <see langword="null"/>。</param>
+    /// <param name="parameterType">仮引数の型。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>GLSL の暗黙の変換は数値の型にしかない。構造体の仮引数には、同じ構造体の値しか渡せない。</remarks>
+    private static bool IsGlslStructMismatch(ExpressionTypeBinder binder, string? argumentType, string parameterType)
+    {
+        if (binder.TypeSystem is not GlslTypeSystem types || argumentType is null || argumentType == parameterType)
+        {
+            return false;
+        }
+
+        bool argumentIsStruct = IsStruct(argumentType);
+        bool parameterIsStruct = IsStruct(parameterType);
+
+        return (argumentIsStruct && (parameterIsStruct || types.TryDescribeNumeric(parameterType, out _)))
+               || (parameterIsStruct && types.TryDescribeNumeric(argumentType, out _));
+
+        bool IsStruct(string name) => binder.Program.Structs.Any(s => s.Keyword.Text == "struct" && s.Name == name);
     }
 
     /// <summary>書き戻す修飾の名前を返す。</summary>

@@ -88,11 +88,35 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
 
                     break;
 
+                // 別の構成にはあるが、この構成には無い組み込みのブロックのメンバー (ES の gl_in[i].gl_ClipDistance など)。
+                // 利用者がブロックを宣言し直していれば、その宣言のメンバーを使う。
+                case MemberAccessExpressionSyntax access
+                    when BlockVariable(access.Target) is { } block
+                         && types.IsUnavailableBuiltinMember(block.Name, access.NameToken.Text)
+                         && !IsRedeclaredBlock(program, block.Name):
+                    requirement.Report(
+                        GlslRuleDescriptors.NotAvailable,
+                        access.NameToken,
+                        $"組み込みのブロック '{block.Name}' のメンバー '{access.NameToken.Text}' は、この #version とプロファイルにはありません。");
+                    break;
+
                 default:
                     break;
             }
         }
     }
+
+    /// <summary>メンバーを引く式の、組み込みのブロックの変数 (<c>gl_in</c> / <c>gl_in[i]</c>)。</summary>
+    private static IdentifierExpressionSyntax? BlockVariable(ExpressionSyntax target) => target switch
+    {
+        IdentifierExpressionSyntax { Name: var name } identifier when name.StartsWith("gl_", StringComparison.Ordinal) => identifier,
+        ElementAccessExpressionSyntax { Target: var inner } => BlockVariable(inner),
+        _ => null,
+    };
+
+    /// <summary>組み込みのブロックの変数を、利用者が宣言し直しているか (<c>in gl_PerVertex { … } gl_in[];</c>)。</summary>
+    private static bool IsRedeclaredBlock(AnalyzedProgram program, string name)
+        => program.Tree.Root.Declarations.OfType<StructDeclarationSyntax>().Any(s => s.Declarators.Any(d => d.Node is VariableDeclaratorSyntax v && v.Name == name));
 
     /// <summary>組み込み関数の呼び出しを検査する。</summary>
     private static void AnalyzeCall(

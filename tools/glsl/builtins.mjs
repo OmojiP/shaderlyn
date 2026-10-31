@@ -36,10 +36,11 @@ const EsVersions = [100, 300, 310, 320];
 /** 構成の一覧。並びは、同じ組み込みを持つ構成が続くように、対象・プロファイル・ステージ・バージョンの順にする。 */
 const configs = [];
 
-for (const target of ['opengl', 'vulkan']) {
+// opengl-spirv は OpenGL 向けの SPIR-V (glslang の -G)。SPIR-V を作らない OpenGL と組み込みが違う (gl_DepthRange が無いなど)。
+for (const target of ['opengl', 'vulkan', 'opengl-spirv']) {
   for (const profile of ['core', 'compatibility', 'es']) {
-    // Vulkan は互換プロファイルを持たない。
-    if (target === 'vulkan' && profile === 'compatibility') {
+    // Vulkan と OpenGL 向けの SPIR-V は互換プロファイルを持たない。
+    if (target !== 'opengl' && profile === 'compatibility') {
       continue;
     }
 
@@ -49,6 +50,11 @@ for (const target of ['opengl', 'vulkan']) {
       for (const v of versions) {
         // Vulkan の GLSL は、デスクトップの 1.40 以降と ES の 3.10 以降 (GL_KHR_vulkan_glsl)。
         if (target === 'vulkan' && (profile === 'es' ? v < 310 : v < 140)) {
+          continue;
+        }
+
+        // OpenGL 向けの SPIR-V は、デスクトップの 3.30 以降と ES の 3.10 以降。
+        if (target === 'opengl-spirv' && (profile === 'es' ? v < 310 : v < 330)) {
           continue;
         }
 
@@ -285,11 +291,16 @@ try {
     const file = join(work, `main.${config.stage}`);
     writeFileSync(file, `${versionLine(config)}\nvoid main() { }\n`);
 
-    // Vulkan (SPIR-V を作る指定) では、表は標準エラーに出る。SPIR-V は作業用のフォルダーに書かせる。
+    // SPIR-V を作る指定 (Vulkan と OpenGL 向けの -G) では、表は標準エラーに出る。SPIR-V は作業用のフォルダーに書かせる。
     // レイトレーシングは SPIR-V 1.4 から使えるので、Vulkan 1.3 を対象にする (-V は Vulkan 1.0)。
     const run = spawnSync(
       glslang,
-      [...(config.target === 'vulkan' ? ['--target-env', 'vulkan1.3', '-o', join(work, 'main.spv')] : []), '--dump-builtin-symbols', file],
+      [
+        ...(config.target === 'vulkan' ? ['--target-env', 'vulkan1.3', '-o', join(work, 'main.spv')] : []),
+        ...(config.target === 'opengl-spirv' ? ['-G', '-o', join(work, 'main.spv')] : []),
+        '--dump-builtin-symbols',
+        file,
+      ],
       { encoding: 'utf8', cwd: work, maxBuffer: 1 << 28 });
     const text = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 
@@ -460,12 +471,14 @@ function setOf(indices) {
 }
 
 // glslang が受け付けるが、表に書き出さないもの。
-// - gl_HitTEXT / gl_HitTNV は gl_RayTmaxEXT / gl_RayTmaxNV の別名 (GL_EXT_ray_tracing / GL_NV_ray_tracing)。使える構成も同じにする
+// - gl_HitTEXT / gl_HitTNV は gl_RayTmaxEXT / gl_RayTmaxNV の別名 (GL_EXT_ray_tracing / GL_NV_ray_tracing)。
+//   glslang は any-hit と closest-hit のシェーダーにだけ宣言し (Initialize.cpp の hitDecls)、そこで別名にする。
+//   ほかのステージ (intersection・miss) では宣言していない名前になる
 // - nonuniformEXT (GL_EXT_nonuniform_qualifier) は、実引数と同じ型の値を返す。* はどの型にも合い、戻り値は実引数の型になる。
 //   どの構成で使えるかは表から分からないので、すべての構成で使えるものとする
 for (const [alias, original] of [['gl_HitTEXT', 'gl_RayTmaxEXT'], ['gl_HitTNV', 'gl_RayTmaxNV']]) {
   for (const [key, indices] of [...variables].filter(([k]) => k.startsWith(`${original}\t`))) {
-    for (const index of indices) {
+    for (const index of [...indices].filter(i => configs[i].stage === 'rahit' || configs[i].stage === 'rchit')) {
       add(variables, [alias, ...key.split('\t').slice(1)].join('\t'), index);
     }
   }

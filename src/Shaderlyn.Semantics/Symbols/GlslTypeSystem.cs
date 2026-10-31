@@ -155,7 +155,7 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>バージョン・プロファイル・ステージ・数値の機能ごとの型システム。</summary>
-    private static readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage, GlslNumericFeatures Features, bool? Vulkan), GlslTypeSystem> ByConfiguration = new();
+    private static readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage, GlslNumericFeatures Features, bool? Vulkan, bool OpenGlSpirv), GlslTypeSystem> ByConfiguration = new();
 
     /// <summary>組み込みの表で、どの型にも合う仮引数と、実引数と同じ型の戻り値を表す名前 (<c>nonuniformEXT</c>)。</summary>
     private const string AnyType = "*";
@@ -165,14 +165,16 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     private readonly GlslProfile _profile;
     private readonly GlslShaderStage? _stage;
     private readonly bool? _vulkan;
+    private readonly bool _openGlSpirv;
     private GlslBuiltinView? _builtins;
 
-    private GlslTypeSystem(int? version, GlslProfile profile, GlslShaderStage? stage, GlslNumericFeatures features, bool? vulkan)
+    private GlslTypeSystem(int? version, GlslProfile profile, GlslShaderStage? stage, GlslNumericFeatures features, bool? vulkan, bool openGlSpirv)
     {
         _version = version;
         _profile = profile;
         _stage = stage;
         _vulkan = vulkan;
+        _openGlSpirv = openGlSpirv;
         _features = version is null ? GlslNumericFeatures.All : features;
     }
 
@@ -185,19 +187,21 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <param name="stage">ステージ。分からなければ <see langword="null"/>。</param>
     /// <param name="features">有効にした拡張で決まる数値の機能。</param>
     /// <param name="vulkan">Vulkan 向けか。分からなければ <see langword="null"/> (組み込みは Vulkan と OpenGL を合わせる)。</param>
+    /// <param name="openGlSpirv">OpenGL 向けの SPIR-V を作るか (glslang の <c>-G</c>)。</param>
     /// <returns>型システム。</returns>
     public static GlslTypeSystem For(
         int? version,
         GlslProfile profile,
         GlslShaderStage? stage = null,
         GlslNumericFeatures features = GlslNumericFeatures.None,
-        bool? vulkan = null)
+        bool? vulkan = null,
+        bool openGlSpirv = false)
         => ByConfiguration.GetOrAdd(
-            (version, profile, stage, features, vulkan),
-            static key => new GlslTypeSystem(key.Version, key.Profile, key.Stage, key.Features, key.Vulkan));
+            (version, profile, stage, features, vulkan, openGlSpirv),
+            static key => new GlslTypeSystem(key.Version, key.Profile, key.Stage, key.Features, key.Vulkan, key.OpenGlSpirv));
 
     /// <summary>この構成で使える組み込みの関数と変数。表は初めて使うときに読む。</summary>
-    internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage, _vulkan);
+    internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage, _vulkan, _openGlSpirv);
 
     /// <summary>
     /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み関数の名前か (1.20 の trunc、テッセレーションの評価シェーダーの barrier など)。
@@ -209,6 +213,17 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         => GlslBuiltins.Instance.Functions.ContainsKey(name)
            && Builtins.GetFunctions(name).IsEmpty
            && !Builtins.FunctionNames.IsEmpty;
+
+    /// <summary>
+    /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込みのブロックのメンバーか (ES の <c>gl_in[i].gl_ClipDistance</c> など)。
+    /// </summary>
+    /// <param name="block">ブロックの変数の名前 (<c>gl_in</c>)。</param>
+    /// <param name="member">メンバーの名前。</param>
+    /// <returns>この構成に無いメンバーなら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinMember(string block, string member)
+        => GlslBuiltins.Instance.Members.ContainsKey(GlslBuiltins.MemberKey(block, member))
+           && Builtins.GetMember(block, member) is null
+           && !Builtins.VariableNames.IsEmpty;
 
     /// <summary>別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み変数の名前か (ES の gl_ClipDistance など)。</summary>
     /// <param name="name">名前。</param>
@@ -253,7 +268,7 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
 
         return stages.Any(s => s.Stage != _stage
                                && version >= (es ? s.Es : s.Desktop)
-                               && has(GlslBuiltins.Instance.For(_version, _profile, s.Stage, _vulkan)));
+                               && has(GlslBuiltins.Instance.For(_version, _profile, s.Stage, _vulkan, _openGlSpirv)));
     }
 
     /// <inheritdoc/>
@@ -261,7 +276,7 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     {
         ArgumentNullException.ThrowIfNull(tree);
         return tree.Language is GlslLanguageOptions language
-            ? For(language.Version, language.Profile, language.Stage, language.NumericFeatures, language.Vulkan)
+            ? For(language.Version, language.Profile, language.Stage, language.NumericFeatures, language.Vulkan, language.IsOpenGlSpirv)
             : this;
     }
 

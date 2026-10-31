@@ -523,6 +523,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("a.tese", "#version 450\nlayout(triangles) in;\nvoid main() { barrier(); gl_Position = vec4(1.0); }", "GL0002")]
     [InlineData("a.vert", "#version 310 es\nvoid main() { gl_ClipDistance[0] = 1.0; gl_Position = vec4(1.0); }", "GL0001")]
     [InlineData("a.frag", "#version 460\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(float(gl_VertexIndex)); }", "GL0002")]
+    [InlineData("a.tesc", "#version 320 es\nlayout(vertices = 3) out;\nvoid main() { float d = gl_in[1].gl_ClipDistance[0]; gl_out[gl_InvocationID].gl_Position = vec4(d); }", "GL0001")]
+    [InlineData("a.rint", "#version 460\n#extension GL_EXT_ray_tracing : enable\nvoid main() { float t = gl_HitTEXT; reportIntersectionEXT(t, 0u); }", "GL0001")]
     public async Task その構成に無い組み込みの関数と変数(string fileName, string code, string id)
     {
         string output = await AnalyzeAsync(fileName, code + "\n");
@@ -554,6 +556,73 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.True(error.ToString().Length == 0, error.ToString());
         Assert.Equal(expected, output.ToString().Contains("組み込み関数 'texture2D' は", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// OpenGL 向けの SPIR-V (<c>glsl: target: opengl</c> と <c>spirv</c>) には <c>gl_DepthRange</c> が無い (glslang の <c>-G</c>)。
+    /// SPIR-V を作らない OpenGL にはある。
+    /// </summary>
+    [Theory]
+    [InlineData("  spirv: \"1.0\"\n", true)]
+    [InlineData("", false)]
+    public async Task OpenGL向けのSPIRVの組み込み(string spirv, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n  target: opengl\n{spirv}");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.vert"), """
+            #version 450
+            void main() { gl_Position = vec4(gl_DepthRange.near); }
+
+            """);
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.vert"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("組み込みの変数 'gl_DepthRange' は", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 宣言されていない名前 (CF0310)。GLSL では、波括弧を書かない制御文の本体の宣言はその文の外で見えず、
+    /// インスタンスの名前の無いブロックの名前は式に書けない。拡張で決まる語は、その <c>#extension</c> より前では名前である。
+    /// 使えない予約語 (CF0001) があっても検査を続ける。
+    /// </summary>
+    [Theory]
+    [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 1; if (i == 1) int j = i; else int k = j; o = vec4(1.0); }")]
+    [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { while (o.x > 0.0) int j = 1; o = vec4(float(j)); }")]
+    [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform Blk { float f; };\nvoid main() { Blk; o = vec4(f); }")]
+    [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid f() { terminateInvocation; }\n#extension GL_EXT_terminate_invocation : enable\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("a.frag", "#version 310 es\nprecision mediump float;\nsample out vec4 o;\nvoid main() { o = vec4(missing); }")]
+    public async Task 宣言されていない名前(string fileName, string code)
+    {
+        Assert.Contains("error CF0310", await AnalyzeAsync(fileName, code + "\n"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 構文エラーがあっても、最初の構文エラーより前の位置は宣言が無いことを根拠にする検査をする (GLSL は使う前に宣言する)。
+    /// 構文エラーより後ろの位置は検査しない。
+    /// </summary>
+    [Fact]
+    public async Task 構文エラーより前の位置()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { float a; };\nfloat f(S s) { return s.a; }\n"
+                            + "void g() { o = vec4(f(1.0) + before); }\nfloat x = ;\nvoid h() { o = vec4(after); }\nvoid main() { g(); h(); }\n";
+
+        string output = await AnalyzeAsync("a.frag", body);
+        Assert.Contains("CF0401", output, StringComparison.Ordinal);
+        Assert.Contains("'before'", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
+        Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>波括弧の中の宣言、本体の中で使う宣言、#extension より後ろの terminateInvocation は報告しない。</summary>
+    [Fact]
+    public async Task 見える宣言()
+    {
+        const string body = "#version 450\n#extension GL_EXT_terminate_invocation : enable\nlayout(location = 0) out vec4 o;\n"
+                            + "void main() { int i = 1; if (i == 1) { int j = i; o = vec4(float(j)); } for (int k = 0; k < 2; k++) o += vec4(float(k)); if (o.x > 9.0) terminateInvocation; }\n";
+
+        Assert.DoesNotContain("CF0310", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
     /// <summary>マクロを中身を変えて定義し直すこと (CF0004) は、GLSL ではエラーにする。設定で重要度を書けば、それに従う。</summary>

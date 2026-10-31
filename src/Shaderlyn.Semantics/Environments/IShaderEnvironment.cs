@@ -150,7 +150,7 @@ public interface IShaderEnvironment
     /// <para>
     /// <b>これらが解決できなくても、ほかの名前の関数の多重定義は欠けていない。</b>
     /// 呼び出しを多重定義と照らす検査 (CF0401 / CF0402) は、その名前の多重定義が欠けていない限り続ける
-    /// (<see cref="ShaderCompilation.MayLackOverloadsOf"/>)。
+    /// (<see cref="ShaderCompilation.MayLackOverloadsOf(string)"/>)。
     /// </para>
     /// </remarks>
     ImmutableArray<string>? GetFunctionsDeclaredIn(string path) => null;
