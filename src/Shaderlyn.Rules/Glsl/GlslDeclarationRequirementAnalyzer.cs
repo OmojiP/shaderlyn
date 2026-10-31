@@ -93,6 +93,12 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case FunctionDeclarationSyntax function:
                     CheckQualifiers(requirement, function.ModifierTokens, global);
 
+                    // 配列を返す関数 (glslang の handleFunctionDeclarator の arrayObjectCheck)。
+                    if (!function.ReturnType.ArrayRanks.IsEmpty)
+                    {
+                        requirement.ArrayObjectCheck(function.NameToken, "array in function return type");
+                    }
+
                     // 戻り値の型に記憶域の修飾子は書けない (glslang の function_header の「no qualifiers allowed for function return」)。
                     if (TopLevel([.. function.ModifierTokens, .. function.ReturnType.ModifierTokens]).FirstOrDefault(t => Storage.Contains(t.Text)) is { } storage)
                     {
@@ -106,6 +112,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
                     CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword]);
                     CheckBlockQualifiers(requirement, [.. block.Modifiers, block.Keyword]);
+                    CheckUniformBlock(requirement, [.. block.Modifiers, block.Keyword]);
                     break;
 
                 case InterfaceBlockDeclarationSyntax block:
@@ -113,10 +120,38 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckCombination(requirement, block.Modifiers, vertexInput: false);
                     CheckBlockStage(requirement, block.Modifiers);
                     CheckBlockQualifiers(requirement, block.Modifiers);
+                    CheckUniformBlock(requirement, block.Modifiers);
                     break;
 
                 case VariableDeclaratorSyntax declarator:
                     requirement.ArrayOfArrayVersionCheck(declarator.NameToken, declarator.ArrayDimensions);
+
+                    // 初期値のある配列の変数 (glslang の declareVariable と executeInitializer の arrayObjectCheck)。
+                    if (declarator is { Initializer: not null, Parent: VariableDeclarationSyntax declaration }
+                        && (!declarator.ArrayRankTokens.IsEmpty || !declaration.Type.ArrayRanks.IsEmpty))
+                    {
+                        requirement.ArrayObjectCheck(declarator.NameToken, "array initializer");
+                    }
+
+                    break;
+
+                // 関数の外の余分な ; (glslang.y の external_declaration の SEMICOLON)。
+                // 前の宣言が ; か } で終わっているものだけを見る。構文の誤りから立ち直るときにも ; だけの宣言ができる。
+                case IncompleteDeclarationSyntax { Tokens: [{ Kind: ShaderSyntaxKind.SemicolonToken } semicolon], Parent: CompilationUnitSyntax unit } extra
+                    when (compilation.HasCompleteDependencies || compilation.IsBeforeFirstBreak(extra)) && FollowsCompleteDeclaration(unit, extra):
+                    requirement.RequireProfile(semicolon, GlslProfileMask.NotEs, "'extraneous semicolon'");
+                    requirement.ProfileRequires(semicolon, GlslProfileMask.NotEs, 460, [], "'extraneous semicolon'");
+                    break;
+
+                // 波括弧の初期化子 (glslang.y の initializer)。空の {} は GL_EXT_null_initializer が要る。
+                case InitializerListExpressionSyntax { Elements.IsEmpty: true } empty:
+                    requirement.ProfileRequires(empty.OpenBrace, GlslProfileMask.Es, 0, ["GL_EXT_null_initializer"], "'empty { } initializer'");
+                    requirement.ProfileRequires(empty.OpenBrace, GlslProfileMask.NotEs, 0, ["GL_EXT_null_initializer"], "'empty { } initializer'");
+                    break;
+
+                case InitializerListExpressionSyntax list:
+                    requirement.RequireProfile(list.OpenBrace, GlslProfileMask.NotEs, "'{ } style initializers'");
+                    requirement.ProfileRequires(list.OpenBrace, GlslProfileMask.NotEs, 420, ["GL_ARB_shading_language_420pack"], "'{ } style initializers'");
                     break;
 
                 // 修飾子だけの宣言 (layout(local_size_x = 8) in;、invariant gl_Position;)。
@@ -134,6 +169,27 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     break;
             }
         }
+    }
+
+    /// <summary>宣言が、; か } で終わる宣言の直後 (かファイルの先頭) にあるか。</summary>
+    private static bool FollowsCompleteDeclaration(CompilationUnitSyntax unit, DeclarationSyntax declaration)
+    {
+        int index = unit.Declarations.IndexOf(declaration);
+        return index <= 0 || unit.Declarations[index - 1].DescendantTokens().LastOrDefault() is { Kind: ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken };
+    }
+
+    /// <summary>
+    /// uniform のブロックに要るバージョンと拡張 (ES の 3.00、デスクトップの 1.40 か GL_ARB_uniform_buffer_object)。glslang の blockStageIoCheck。
+    /// </summary>
+    private static void CheckUniformBlock(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> qualifiers)
+    {
+        if (TopLevel(qualifiers).LastOrDefault(t => t.Text == "uniform") is not { } keyword)
+        {
+            return;
+        }
+
+        requirement.ProfileRequires(keyword, GlslProfileMask.Es, 300, [], "'uniform block'");
+        requirement.ProfileRequires(keyword, GlslProfileMask.None, 140, ["GL_ARB_uniform_buffer_object"], "'uniform block'");
     }
 
     /// <summary>補助の修飾子 (glslang の isAuxiliary)。</summary>
