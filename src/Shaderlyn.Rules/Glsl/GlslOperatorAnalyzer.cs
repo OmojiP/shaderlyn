@@ -30,7 +30,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.BooleanExpected];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.BooleanExpected, GlslRuleDescriptors.IntegerScalarRequired];
 
     private enum Op
     {
@@ -58,7 +58,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not (BinaryExpressionSyntax or AssignmentExpressionSyntax or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax
-                or IfStatementSyntax or WhileStatementSyntax or DoWhileStatementSyntax or ForStatementSyntax or ConditionalExpressionSyntax))
+                or ElementAccessExpressionSyntax or SwitchStatementSyntax or SwitchLabelStatementSyntax or IfStatementSyntax or WhileStatementSyntax or DoWhileStatementSyntax or ForStatementSyntax or ConditionalExpressionSyntax))
             {
                 continue;
             }
@@ -142,6 +142,19 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 case ConditionalExpressionSyntax conditional:
                     CheckCondition(conditional.QuestionToken, conditional.Condition);
                     CheckSelection(conditional);
+                    break;
+
+                case ElementAccessExpressionSyntax element:
+                    CheckInteger(element.OpenBracket, element.Index, "添字", allowSmall: true);
+                    break;
+
+                // switch の条件は int か uint だけ (glslang の addSwitch)。
+                case SwitchStatementSyntax statement:
+                    CheckInteger(statement.SwitchKeyword, statement.Expression, "switch の条件", allowSmall: false);
+                    break;
+
+                case SwitchLabelStatementSyntax { Value: { } value } label:
+                    CheckInteger(label.Keyword, value, "case のラベル", allowSmall: true);
                     break;
 
                 default:
@@ -408,6 +421,38 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
             if (name is not null && name != "bool")
             {
                 requirement.Report(GlslRuleDescriptors.BooleanExpected, at, name);
+            }
+        }
+
+        /// <summary>
+        /// 式が整数のスカラーか (glslang の integerCheck と addSwitch)。数の型でも、組み込みの不透明な型 (atomic_uint、サンプラーなど) でも、
+        /// 整数のスカラーでなければ誤り。型が分からない式、構成で型が変わる式、配列の値の式は検査しない。
+        /// </summary>
+        /// <param name="at">位置のトークン。</param>
+        /// <param name="expression">式。</param>
+        /// <param name="place">場所の名前。文に入れる。</param>
+        /// <param name="allowSmall">int と uint のほかの整数 (int8_t、int64_t など) も認めるか。</param>
+        private void CheckInteger(ShaderSyntaxToken at, ExpressionSyntax expression, string place, bool allowSmall)
+        {
+            if (expression is IdentifierExpressionSyntax identifier
+                && binder.ResolveName(identifier).Candidates is { IsEmpty: false } candidates && candidates.All(c => c.Type.IsArray))
+            {
+                requirement.Report(GlslRuleDescriptors.IntegerScalarRequired, at, place, "配列");
+                return;
+            }
+
+            if (IsArrayValue(expression) || binder.GetTypesByConfiguration(expression) is not [{ Type: { } name }])
+            {
+                return;
+            }
+
+            bool integerScalar = types.TryDescribeNumeric(name, out ShaderNumericShape shape)
+                ? shape.Kind == ShaderNumericKind.Scalar && (allowSmall ? GlslConversions.IntegerRank(shape.BaseName) is not null : shape.BaseName is "int" or "uint")
+                : !GlslKeywords.IsBuiltInType(name);
+
+            if (!integerScalar)
+            {
+                requirement.Report(GlslRuleDescriptors.IntegerScalarRequired, at, place, name);
             }
         }
 

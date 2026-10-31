@@ -288,6 +288,37 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0315"));
 
+    /// <summary>添字・switch の条件・case のラベルが整数のスカラーでない。</summary>
+    /// <remarks>
+    /// glslang の <c>integerCheck</c> (「scalar integer expression required」) と、<c>addSwitch</c> の
+    /// 「condition must be a scalar integer expression」に当たる。文の <c>{0}</c> は場所、<c>{1}</c> は型。
+    /// </remarks>
+    public static DiagnosticDescriptor IntegerScalarRequired { get; } = new(
+        id: "GL0316",
+        title: "整数のスカラーでなければなりません",
+        messageFormat: "{0}は整数のスカラーでなければなりません (今は {1})。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列・ベクトル・行列の添字、switch の条件、case のラベルに、整数のスカラーでない値 (float、ivec2、atomic_uint など) を書いています。"
+            + "GLSL はこれらを暗黙に整数へ変換しません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0316"));
+
+    /// <summary>定数の式でなければならない所に、定数でない式を書いた。</summary>
+    /// <remarks>
+    /// glslang の <c>arraySizeCheck</c> (「array size must be a constant integer expression」) と、
+    /// <c>executeInitializer</c> の「global const initializers must be constant」に当たる。文の <c>{0}</c> は場所。
+    /// </remarks>
+    public static DiagnosticDescriptor ConstantExpressionRequired { get; } = new(
+        id: "GL0317",
+        title: "定数の式が要ります",
+        messageFormat: "{0}は定数の式でなければなりません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列の大きさと、関数の外の const の変数の初期値には、定数の式を書かなければなりません。"
+            + "uniform などの変数、const でない変数、定数でない式で初期化した const の変数、コンマの演算子は定数の式になりません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0317"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

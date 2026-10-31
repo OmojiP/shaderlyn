@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics.Symbols;
 
 namespace Shaderlyn.Rules.Glsl;
 
@@ -45,7 +46,9 @@ internal enum GlslConstantKind
 /// 定数でないと言い切れるか (<see cref="IsCertainlyNotConstant"/>) は別に答える。
 /// </para>
 /// </remarks>
-internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder)
+/// <param name="binder">名前を解決する型の推論。</param>
+/// <param name="builtins">組み込みの変数の表。渡せば、定数でない組み込みの変数 (gl_FrontFacing など) も定数でないと言い切る。</param>
+internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder, GlslBuiltinView? builtins = null)
 {
     private const int MaxDepth = 32;
 
@@ -56,28 +59,32 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder)
 
     /// <summary>
     /// 式が定数でないと言い切れるかを判定する。<c>const</c> でない変数や、関数の呼び出しを含む式である。
+    /// コンマの演算子と、定数でない式で初期化した <c>const</c> の変数 (4.20 からのローカル変数) も定数でない。
     /// </summary>
     /// <param name="expression">式。</param>
     /// <returns>言い切れれば <see langword="true"/>。</returns>
-    public bool IsCertainlyNotConstant(ExpressionSyntax expression) => expression switch
+    public bool IsCertainlyNotConstant(ExpressionSyntax expression) => IsNotConstant(expression, 0);
+
+    private bool IsNotConstant(ExpressionSyntax expression, int depth) => depth <= MaxDepth && expression switch
     {
         LiteralExpressionSyntax => false,
-        ParenthesizedExpressionSyntax parenthesized => IsCertainlyNotConstant(parenthesized.Expression),
+        ParenthesizedExpressionSyntax parenthesized => IsNotConstant(parenthesized.Expression, depth),
         PrefixUnaryExpressionSyntax unary => unary.OperatorToken.Kind is ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken
-                                             || IsCertainlyNotConstant(unary.Operand),
+                                             || IsNotConstant(unary.Operand, depth),
         PostfixUnaryExpressionSyntax => true,
         AssignmentExpressionSyntax => true,
-        BinaryExpressionSyntax binary => IsCertainlyNotConstant(binary.Left) || IsCertainlyNotConstant(binary.Right),
-        ConditionalExpressionSyntax conditional => IsCertainlyNotConstant(conditional.Condition)
-                                                   || IsCertainlyNotConstant(conditional.WhenTrue)
-                                                   || IsCertainlyNotConstant(conditional.WhenFalse),
-        IdentifierExpressionSyntax identifier => IsNonConstantVariable(identifier),
-        MemberAccessExpressionSyntax member => IsCertainlyNotConstant(member.Target),
-        ElementAccessExpressionSyntax element => IsCertainlyNotConstant(element.Target) || IsCertainlyNotConstant(element.Index),
+        BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.CommaToken } => true,
+        BinaryExpressionSyntax binary => IsNotConstant(binary.Left, depth) || IsNotConstant(binary.Right, depth),
+        ConditionalExpressionSyntax conditional => IsNotConstant(conditional.Condition, depth)
+                                                   || IsNotConstant(conditional.WhenTrue, depth)
+                                                   || IsNotConstant(conditional.WhenFalse, depth),
+        IdentifierExpressionSyntax identifier => IsNonConstantVariable(identifier, depth),
+        MemberAccessExpressionSyntax member => IsNotConstant(member.Target, depth),
+        ElementAccessExpressionSyntax element => IsNotConstant(element.Target, depth) || IsNotConstant(element.Index, depth),
 
-        // 値の作成 (ivec2(x, 1)) は、実引数のどれかが定数でなければ定数でない。
-        InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation when GlslKeywords.IsBuiltInType(callee.Name)
-            => invocation.ArgumentExpressions.Any(IsCertainlyNotConstant),
+        // 値の作成 (ivec2(x, 1)、S(x, 1)) と関数の呼び出しは、実引数のどれかが定数でなければ定数でない。
+        InvocationExpressionSyntax { Target: IdentifierExpressionSyntax } invocation
+            => invocation.ArgumentExpressions.Any(argument => IsNotConstant(argument, depth)),
         _ => false,
     };
 
@@ -275,8 +282,13 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder)
     }
 
     /// <summary><c>const</c> でない変数と言い切れるか。</summary>
-    private bool IsNonConstantVariable(IdentifierExpressionSyntax identifier)
-        => binder.ResolveName(identifier) is { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: { IsEmpty: false } candidates }
-           && candidates.All(c => c.Declarator is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } && !declaration.HasModifier("const")
-                                  || c.Declarator is ParameterSyntax);
+    private bool IsNonConstantVariable(IdentifierExpressionSyntax identifier, int depth)
+        => binder.ResolveName(identifier) is { Kind: DeclaredNameKind.NotFound }
+            ? builtins is not null && identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+              && builtins.GetVariables(identifier.Name) is { IsEmpty: false } variables && variables.All(v => v.Storage != "const")
+            : binder.ResolveName(identifier) is { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: { IsEmpty: false } candidates }
+           && candidates.All(c => c.Declarator is ParameterSyntax
+                                  || c.Declarator is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } declarator
+                                     && (!declaration.HasModifier("const")
+                                         || declarator.Initializer is { } initializer && IsNotConstant(initializer, depth + 1)));
 }

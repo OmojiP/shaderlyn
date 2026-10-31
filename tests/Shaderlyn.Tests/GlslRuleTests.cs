@@ -99,6 +99,28 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("GL0315", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
+    /// <summary>整数の添字・switch の条件・case のラベルは報告しない。</summary>
+    [Fact]
+    public async Task 整数のスカラーの添字と条件()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nuniform uint u;\nvoid main() { vec4 v[2] = vec4[2](vec4(0.0), vec4(1.0)); int i = 1; o = v[i] + v[u];\n"
+                            + "switch (i) { case 1: break; default: break; } switch (u) { case 2u: break; } }\n";
+
+        Assert.DoesNotContain("GL0316", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
+    }
+
+    /// <summary>定数の式は報告しない。組み込み関数の値、定数の組み込みの変数、length()、4.20 からの関数の中の const の変数の初期値。</summary>
+    [Fact]
+    public async Task 定数の式()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nconst int k = 3;\nconst int m = k * 2;\nfloat g[m];\n"
+                            + "void main() { const int c = n; float a[int(sin(0.3)) + k]; float b[gl_MaxDrawBuffers]; float d[a.length()]; o = vec4(a[0] + b[0] + d[0] + g[0] + float(c)); }\n";
+
+        string output = await AnalyzeAsync("a.frag", body);
+        Assert.DoesNotContain("GL0317", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0001", output, StringComparison.Ordinal);
+    }
+
     /// <summary>セマンティクスの組み合わせが決まりに合っていれば報告しない。</summary>
     [Fact]
     public async Task 正しいメモリのセマンティクス()
@@ -386,6 +408,15 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0002", "a.frag", "#version 450\nlayout(location = 0) out FragOut { vec4 c; } fout;\nvoid main() { fout.c = vec4(1.0); }")]
     [InlineData("GL0305", "a.frag", "#version 450\nlayout(binding = 0) uniform texture2D t;\nlayout(binding = 1) uniform sampler s;\nlayout(location = 0) out vec4 o;\nvec4 f(sampler2D x) { return texture(x, vec2(0.5)); }\nvoid main() { o = f(sampler2D(t, s)) + texture(sampler2D(t, s), vec2(0.5)); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 5000000000; o = vec4(i); }")]
+    [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { vec4 v[2] = vec4[2](vec4(0.0), vec4(1.0)); o = v[1.0]; }")]
+    [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform float f;\nvoid main() { switch (f) { default: break; } o = vec4(1.0); }")]
+    [InlineData("GL0316", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int i;\nvoid main() { switch (i) { case 2.0: break; } o = vec4(1.0); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nvoid main() { float a[n]; o = vec4(a[0]); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat a[(2, 3)];\nvoid main() { o = vec4(a[0]); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nconst int c = n;\nvoid main() { o = vec4(c); }")]
+    [InlineData("GL0317", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int n;\nvoid main() { const int c = n; float a[c]; o = vec4(a[0]); }")]
+    [InlineData("GL0001", "a.frag", "#version 330\nlayout(location = 0) out vec4 o;\nuniform int n;\nvoid main() { const int c = n; o = vec4(c); }")]
+    [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nfloat f = gl_FrontFacing ? 1.0 : 0.0;\nvoid main() { gl_FragColor = vec4(f); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { uint i = 0x1FFFFFFFFu; o = vec4(i); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicStore(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire); }")]
