@@ -484,6 +484,127 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     internal bool IsBaseConvertible(string from, string to)
         => GlslConversions.CanImplicitlyPromote(from, to, _version ?? 460, _version is not null && _profile == GlslProfile.Es, _features);
 
+    /// <summary>
+    /// 利用者の関数の呼び出しを、多重定義からどう選ぶか (glslang 16.6.0 の ParseHelper.cpp の <c>findFunction</c>)。
+    /// バージョンが分からなければ <see cref="GlslFunctionMatching.Exact"/> (選び方を決めない)。
+    /// </summary>
+    internal GlslFunctionMatching FunctionMatching
+        => _version switch
+        {
+            null => GlslFunctionMatching.Exact,
+            int v when _profile == GlslProfile.Es
+                => v >= 310 && _features.HasFlag(GlslNumericFeatures.ExplicitArithmeticTypes) ? GlslFunctionMatching.ExplicitTypes
+                    : v >= 310 && _features.HasFlag(GlslNumericFeatures.ImplicitConversions) ? GlslFunctionMatching.Promotion
+                    : GlslFunctionMatching.Exact,
+            < 120 => GlslFunctionMatching.Exact,
+            < 400 => (_features & (GlslNumericFeatures.GpuShaderFp64 | GlslNumericFeatures.ArbGpuShader5 | GlslNumericFeatures.NvGpuShader5Types)) != 0
+                ? GlslFunctionMatching.Best
+                : GlslFunctionMatching.Promotion,
+            _ => _features.HasFlag(GlslNumericFeatures.ExplicitArithmeticTypes) ? GlslFunctionMatching.ExplicitTypes : GlslFunctionMatching.Best,
+        };
+
+    /// <summary>
+    /// 実引数の要素の型 <paramref name="from"/> から、<paramref name="to2"/> への変換が <paramref name="to1"/> への変換より良いか
+    /// (glslang の <c>findFunction400</c> の <c>better</c>)。どちらも変換できるものとして比べる。同じ良さなら <see langword="false"/>。
+    /// </summary>
+    /// <param name="from">実引数の要素の型。</param>
+    /// <param name="to1">1 つ目の仮引数の要素の型。</param>
+    /// <param name="to2">2 つ目の仮引数の要素の型。</param>
+    /// <returns>良ければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 同じ型 (変換しない) がいちばん良い。明示的な幅の算術型の拡張では、次に昇格、次に変換が良い (<c>findFunctionExplicitTypes</c>)。
+    /// それ以外では、<c>GL_NV_gpu_shader5</c> の整数を広げる変換の順位、<c>float</c> から <c>double</c>、<c>double</c> より <c>float</c> への変換の順に良い。
+    /// </remarks>
+    internal bool IsBetterConversion(string from, string to1, string to2)
+    {
+        if (to2 == from)
+        {
+            return to1 != from;
+        }
+
+        if (to1 == from)
+        {
+            return false;
+        }
+
+        // 明示的な幅の算術型の拡張では、昇格 (int8_t → int、float → double など)、変換の順に良い (glslang の findFunctionExplicitTypes)。
+        if (FunctionMatching == GlslFunctionMatching.ExplicitTypes)
+        {
+            bool promotion1 = IsPromotion(from, to1);
+            bool promotion2 = IsPromotion(from, to2);
+
+            if (promotion2)
+            {
+                return !promotion1;
+            }
+
+            return !promotion1 && IsArithmeticConversion(from, to2) && !IsArithmeticConversion(from, to1);
+        }
+
+        if (_features.HasFlag(GlslNumericFeatures.NvGpuShader5Types) && NvGpuShader5Conversions.TryGetValue(from, out string[]? destinations))
+        {
+            foreach (string destination in destinations)
+            {
+                if (to2 == destination && to1 != destination)
+                {
+                    return true;
+                }
+
+                if (to1 == destination && to2 != destination)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (from == "float" && to2 == "double" && to1 != "double")
+        {
+            return true;
+        }
+
+        return to2 == "float" && to1 == "double";
+    }
+
+    /// <summary>8 ビット・16 ビットより細かい浮動小数点数の型と <c>float16_t</c> (glslang の isFPPromotion / isFPConversion の元)。</summary>
+    private static readonly FrozenSet<string> SmallFloats = new[]
+    {
+        "float16_t", "bfloat16_t", "floate5m2_t", "floate4m3_t", "floate2m1_t", "floate3m2_t", "floate2m3_t", "floatmxint8_t",
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>昇格か (glslang の isIntegralPromotion / isFPPromotion)。</summary>
+    private static bool IsPromotion(string from, string to)
+        => (to == "int" && from is "int8_t" or "int16_t" or "uint8_t" or "uint16_t")
+           || (to == "double" && (from == "float" || SmallFloats.Contains(from)));
+
+    /// <summary>昇格でない変換か (glslang の isIntegralConversion / isFPConversion / isFPIntegralConversion)。</summary>
+    private bool IsArithmeticConversion(string from, string to)
+        => (from, to) switch
+        {
+            ("int", "uint") => _version >= 400,
+            ("int" or "uint", "int64_t" or "uint64_t") => true,
+            ("int8_t", "uint8_t" or "int16_t" or "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("uint8_t", "int16_t" or "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("int16_t", "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("uint16_t", "uint" or "int64_t" or "uint64_t") => true,
+            ("int64_t", "uint64_t") => true,
+            (_, "float") when SmallFloats.Contains(from) => true,
+            ("int" or "uint", "float" or "double") => true,
+            ("int8_t" or "uint8_t" or "int16_t" or "uint16_t", "float16_t" or "float" or "double") => true,
+            ("int64_t" or "uint64_t", "double") => true,
+            _ => false,
+        };
+
+    /// <summary><c>GL_NV_gpu_shader5</c> の、整数を広げる変換の順位 (良い順)。</summary>
+    private static readonly FrozenDictionary<string, string[]> NvGpuShader5Conversions = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        ["int8_t"] = ["int", "int64_t"],
+        ["int16_t"] = ["int", "int64_t"],
+        ["int"] = ["int64_t"],
+        ["uint8_t"] = ["uint", "uint64_t"],
+        ["uint16_t"] = ["uint", "uint64_t"],
+        ["uint"] = ["uint64_t"],
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
     /// <summary>二項の演算子で、両辺の要素の型をそろえる先を求める (glslang の <c>getConversionDestinationType</c>)。</summary>
     /// <param name="left">左の要素の型。</param>
     /// <param name="right">右の要素の型。</param>
@@ -665,4 +786,20 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
 
     /// <inheritdoc/>
     public override string? GetFixedType(string? name) => null;
+}
+
+/// <summary>利用者の関数の呼び出しを、多重定義からどう選ぶか (glslang の <c>findFunction</c> の分かれ方)。</summary>
+internal enum GlslFunctionMatching
+{
+    /// <summary>型がすべて同じ宣言だけを選ぶ (ES、1.20 より前)。</summary>
+    Exact,
+
+    /// <summary>暗黙の変換で合う宣言を選ぶ。2 つ以上合えば誤り (glslang の <c>findFunction120</c>)。</summary>
+    Promotion,
+
+    /// <summary>暗黙の変換で合う宣言から、いちばん良いものを選ぶ (glslang の <c>findFunction400</c>)。</summary>
+    Best,
+
+    /// <summary>明示的な幅の算術型の拡張の規則で選ぶ (glslang の <c>findFunctionExplicitTypes</c>)。</summary>
+    ExplicitTypes,
 }

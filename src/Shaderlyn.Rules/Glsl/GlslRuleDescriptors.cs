@@ -345,6 +345,21 @@ internal static class GlslRuleDescriptors
             + "実引数の無い形 (float[]()) も書けません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0319"));
 
+    /// <summary>利用者の関数の呼び出しに合う多重定義が 2 つ以上あり、どれを呼ぶか決まらない。</summary>
+    /// <remarks>
+    /// glslang の「ambiguous function signature match」(4.00 より前) と「ambiguous best function under implicit type conversion」(4.00 から) に当たる。
+    /// 文の <c>{0}</c> は関数の名前、<c>{1}</c> と <c>{2}</c> は決まらない 2 つの宣言の仮引数の型。
+    /// </remarks>
+    public static DiagnosticDescriptor AmbiguousCall { get; } = new(
+        id: "GL0320",
+        title: "どの多重定義を呼ぶか決まりません",
+        messageFormat: "関数 '{0}' の呼び出しには、暗黙の変換で {1} と {2} のどちらも合い、どれを呼ぶか決まりません。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "利用者の関数の呼び出しに型がすべて同じ宣言が無く、暗黙の変換で合う宣言が 2 つ以上あって、1 つに決まりません。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0320"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

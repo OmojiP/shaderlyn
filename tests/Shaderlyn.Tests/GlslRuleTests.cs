@@ -456,6 +456,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0319", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float a[2] = float[2](1.0, 2.0, 3.0); o = vec4(a[0]); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2]; a[0] = float[2](1.0, 2.0)[0]; gl_FragColor = vec4(a[0]); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nconst int f() { return 1; }\nvoid main() { o = vec4(f()); }")]
+    [InlineData("GL0320", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid g(float a, double b) { }\nvoid g(double a, float b) { }\nvoid main() { float f = 1.0; g(f, f); o = vec4(f); }")]
+    [InlineData("GL0320", "a.vert", "#version 130\nvoid g(float a, int b) { }\nvoid g(int a, float b) { }\nvoid main() { int i = 1; g(i, i); gl_Position = vec4(0.0); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { uint i = 0x1FFFFFFFFu; o = vec4(i); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicStore(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire); }")]
@@ -613,6 +615,17 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
         Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>型がすべて同じ宣言がある呼び出しと、変換の良さでいちばん良い宣言が決まる呼び出しは、多重定義があいまいとは言わない。</summary>
+    [Fact]
+    public async Task 決まる多重定義()
+    {
+        const string body = "#version 450\nlayout(location = 0) out vec4 o;\nvoid g(float a, double b) { }\nvoid g(double a, float b) { }\n"
+                            + "void h(double a) { }\nvoid h(int a) { }\n"
+                            + "void main() { float f = 1.0; double d = 1.0; g(f, d); g(d, f); h(f); o = vec4(f); }\n";
+
+        Assert.DoesNotContain("GL0320", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
     /// <summary>波括弧の中の宣言、本体の中で使う宣言、#extension より後ろの terminateInvocation は報告しない。</summary>
