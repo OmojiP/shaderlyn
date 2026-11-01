@@ -40,7 +40,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GL0104: layout に要る指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
   - GL0201: ES で、精度を決めていない型 (フラグメントシェーダーの `float` など) を宣言している
   - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのもの・サンプラー・イメージ・`atomic_uint`・`void` の値への演算子と、`?:` の 2 つの枝の型が合わないものも報告する
-  - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)。そのバージョンにだけ無い引数の数 (ES の 3.00 の `textureSize(s)`) も報告する
+  - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)。そのバージョンにだけ無い引数の数 (ES の 3.00 の `textureSize(s)`) も報告する。添字を付けない配列を、配列を取らない組み込み関数に渡したもの (`sin(a)`、`interpolateAtCentroid(inArray)`) も報告する
   - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ。サンプラーの値の作成 (`sampler2D(t, s)`) を、利用者の関数の実引数・`?:` の枝・カンマの演算子の項に書いた
   - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した。イメージのアトミックの関数に、形式が r32i / r32ui (ES の浮動小数点数は r32f) でないイメージを渡した

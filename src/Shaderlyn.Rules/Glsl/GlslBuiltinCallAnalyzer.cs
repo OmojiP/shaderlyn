@@ -20,7 +20,9 @@ namespace Shaderlyn.Rules.Glsl;
 /// 書き戻す仮引数 (<c>out</c> / <c>inout</c>) は、どちらの向きに変換できても合うものとする (表は <c>out</c> と <c>inout</c> を分けていない)。
 /// </para>
 /// <para>
-/// 実引数の型がどれか 1 つでも分からないか、構成によって変わるか、配列か、型の引数を取る型 (<c>coopmat&lt;…&gt;</c>) なら検査しない。
+/// 実引数の型がどれか 1 つでも分からないか、構成によって変わるか、型の引数を取る型 (<c>coopmat&lt;…&gt;</c>) なら検査しない。
+/// 配列 (添字を付けない配列の変数) は、配列の仮引数を持たない形には合わない (<c>interpolateAtCentroid(inArray)</c>、<c>sin(a)</c>)。
+/// 配列かどうか分からないか、その位置がどの型にも合う仮引数 (<c>*</c>) の形があれば検査しない。
 /// 引数の数が合う形が 1 つも無いときは、引数の数の検査 (CF0402) が報告するならそちらに任せる。
 /// CF0402 は解析全体の表で数を見るので、この構成にだけ無い数 (ES の 3.00 の <c>textureSize(s2D)</c>) はこのルールが報告する。利用者が同じ名前の関数を宣言していれば検査しない。
 /// </para>
@@ -122,8 +124,17 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
             .. overloads.Where(f => f.IsVariadic ? arguments.Length >= f.FixedParameterCount : f.Parameters.Length == arguments.Length),
         ];
 
+        if (fitting.Length == 0 && countChecked)
+        {
+            return;
+        }
+
+        // 型の引数を取る型 (長いベクトルの vector、coopmat など) の仮引数は、照らし合わせられる型の実引数とは合わない。
+        // 実引数の型はどれも照らし合わせられるものに限る (下) ので、その形は候補から除く。sin や abs にも vector の形がある。
+        fitting = [.. fitting.Where(f => !f.Parameters.Take(f.FixedParameterCount).Any(GlslKeywords.ParameterizedTypes.Contains))];
+
         // 表の仮引数の書き方のうち、型として照らし合わせられないもの (unknown、structure{…}、bfloat16_t<2> など) があれば決めない。
-        if ((fitting.Length == 0 && countChecked) || fitting.Any(f => f.Parameters.Take(f.FixedParameterCount).Any(t => !IsComparable(types, t))))
+        if (fitting.Any(f => f.Parameters.Take(f.FixedParameterCount).Any(t => !IsComparable(types, t))))
         {
             return;
         }
@@ -132,9 +143,27 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
 
         for (int i = 0; i < arguments.Length; i++)
         {
-            if (IsArrayValue(binder, arguments[i])
-                || binder.GetTypesByConfiguration(arguments[i]) is not [{ Type: { } type }]
-                || !IsComparable(types, type))
+            ArrayValue array = GetArrayValue(binder, arguments[i]);
+
+            if (array == ArrayValue.Unknown)
+            {
+                return;
+            }
+
+            if (array.ElementType is { } element)
+            {
+                // 配列は、表の配列でない仮引数のどれとも合わない (照らし合わせられない配列の仮引数を持つ形は、上で検査を外している)。
+                // どの型にも合う仮引数 (*) がその位置にある形があれば決めない。
+                if (!IsComparable(types, element) || fitting.Any(f => i < f.FixedParameterCount ? f.Parameters[i] == AnyType : f.IsVariadic))
+                {
+                    return;
+                }
+
+                argumentTypes[i] = element + "[]";
+                continue;
+            }
+
+            if (binder.GetTypesByConfiguration(arguments[i]) is not [{ Type: { } type }] || !IsComparable(types, type))
             {
                 return;
             }
@@ -200,13 +229,53 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
     /// <summary>glslang が同じ型として扱う名前をそろえる (表は accelerationStructureEXT を accelerationStructureNV と書く)。</summary>
     private static string Alias(string type) => type == "accelerationStructureEXT" ? "accelerationStructureNV" : type;
 
-    /// <summary>添字を付けない配列の変数か、配列のメンバーか。分からなければ配列とみなす (検査しない)。</summary>
-    private static bool IsArrayValue(ExpressionTypeBinder binder, ExpressionSyntax expression) => expression switch
+    /// <summary>添字を付けない配列の変数か、配列のメンバーか。</summary>
+    /// <returns>
+    /// 配列なら要素の型を持つ値。配列でなければ <see cref="ArrayValue.NotArray"/>、分からなければ (候補によって配列かが変わるなど) <see cref="ArrayValue.Unknown"/>。
+    /// </returns>
+    private static ArrayValue GetArrayValue(ExpressionTypeBinder binder, ExpressionSyntax expression)
     {
-        ParenthesizedExpressionSyntax parenthesized => IsArrayValue(binder, parenthesized.Expression),
-        IdentifierExpressionSyntax identifier => binder.ResolveName(identifier).Candidates.Any(c => c.Type.IsArray),
-        MemberAccessExpressionSyntax member => binder.GetTypesByConfiguration(member.Target) is not [{ Type: { } target }]
-                                               || (binder.TryGetStructField(target, member.NameToken.Text, out VariableDeclaratorSyntax? field, out _) && field.IsArray),
-        _ => false,
-    };
+        switch (expression)
+        {
+            case ParenthesizedExpressionSyntax parenthesized:
+                return GetArrayValue(binder, parenthesized.Expression);
+
+            case IdentifierExpressionSyntax identifier:
+            {
+                ImmutableArray<DeclaredName> candidates = binder.ResolveName(identifier).Candidates;
+
+                if (!candidates.Any(c => c.Type.IsArray))
+                {
+                    return ArrayValue.NotArray;
+                }
+
+                return candidates.All(c => c.Type.IsArray) && candidates.Select(c => c.Type.TypeName).Distinct(StringComparer.Ordinal).Count() == 1
+                    ? new ArrayValue(Known: true, candidates[0].Type.TypeName)
+                    : ArrayValue.Unknown;
+            }
+
+            case MemberAccessExpressionSyntax member:
+                if (binder.GetTypesByConfiguration(member.Target) is not [{ Type: { } target }])
+                {
+                    return ArrayValue.Unknown;
+                }
+
+                return binder.TryGetStructField(target, member.NameToken.Text, out VariableDeclaratorSyntax? field, out string? fieldType) && field.IsArray
+                    ? new ArrayValue(Known: true, fieldType)
+                    : ArrayValue.NotArray;
+
+            default:
+                return ArrayValue.NotArray;
+        }
+    }
+
+    /// <summary>実引数が配列か。</summary>
+    /// <param name="Known">配列かどうか分かるか。</param>
+    /// <param name="ElementType">配列なら要素の型。配列でなければ <see langword="null"/>。</param>
+    private readonly record struct ArrayValue(bool Known, string? ElementType)
+    {
+        public static ArrayValue NotArray { get; } = new(Known: true, ElementType: null);
+
+        public static ArrayValue Unknown { get; } = new(Known: false, ElementType: null);
+    }
 }
