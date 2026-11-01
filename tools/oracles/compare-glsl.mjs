@@ -23,6 +23,8 @@
 // 道具の場所は環境変数で渡す。SHADERLYN_GLSLANG (無ければ PATH の glslang)、
 // SHADERLYN_CLI (無ければ src/Shaderlyn.Cli.App の Release のビルドの出力)。
 //
+// glslang は #line で付け替えた行番号で報告する。Shaderlyn の指摘の行番号も、ファイルの #line を読んで同じ番号に直してから比べる (logicalLines)。
+//
 // 「誤報告」は glslang が誤りにしないファイルに Shaderlyn が出したエラー、
 // 「見落とし」は glslang の誤りの行に Shaderlyn のエラーが無いもの。行の無い誤り (リンクなど) は、ファイルにエラーがあればよいとする。
 // 終了コードは、食い違いが無ければ 0、あれば 1、使い方の誤りは 2。
@@ -188,7 +190,9 @@ try {
         const entry = byPath.get(resolve(scratch, diagnostic.file).toLowerCase());
 
         if (entry && !(entry.mode.compileOnly && diagnostic.id === "CF0301")) {
-          entry.ours.push({ id: diagnostic.id, severity: diagnostic.severity, line: diagnostic.line, message: diagnostic.message });
+          entry.lines ??= logicalLines(readFileSync(entry.file, "utf8"));
+          const line = entry.lines?.[diagnostic.line] ?? diagnostic.line;
+          entry.ours.push({ id: diagnostic.id, severity: diagnostic.severity, line, message: diagnostic.message });
         }
       }
     }
@@ -305,6 +309,82 @@ function runGlslang(file) {
   }
 
   return parseGlslang(`${result.stdout}\n${result.stderr}`);
+}
+
+/**
+ * #line で付け替えた後の行番号を、ファイルの行ごとに求める。#line が無ければ null。
+ * glslang と同じく、ES か #version 330 以降では #line N の次の行が N、それより前のバージョンでは N + 1 になる。
+ * 行番号の式は、整数を本体にする #define を展開して評価する (#line L1 + L2)。評価できなければ、そこから後ろは直さない。
+ * #if で読み飛ばす分岐は見ない (glslang の Test では #line を分岐の中に書かない)。
+ */
+function logicalLines(text) {
+  const physical = text.split(/\r?\n/);
+
+  if (!physical.some(line => /^\s*#\s*line\b/.test(line))) {
+    return null;
+  }
+
+  const version = text.match(/^\s*#\s*version\s+(\d+)\s*(\w*)/m);
+  const nextLineIsN = !version || version[2] === "es" || Number(version[1]) >= 330 || Number(version[1]) === 100;
+  const macros = new Map();
+  const mapped = [0];
+  let offset = 0;
+  let known = true;
+
+  for (let i = 0; i < physical.length; i++) {
+    const number = i + 1;
+    mapped[number] = known ? number + offset : undefined;
+    const define = physical[i].match(/^\s*#\s*define\s+(\w+)\s+(\d+)\s*$/);
+
+    if (define) {
+      macros.set(define[1], define[2]);
+    }
+
+    const directive = physical[i].match(/^\s*#\s*line\s+(.*?)\s*(\/\/.*)?$/);
+
+    if (!directive || !known) {
+      continue;
+    }
+
+    const value = evaluateLine(directive[1], macros);
+
+    if (value === undefined) {
+      known = false;
+      continue;
+    }
+
+    offset = value - (number + 1) + (nextLineIsN ? 0 : 1);
+
+    // #line の行そのものの誤り (後ろの余分な記述など) は、付け替えた後の番号で、次の行の 1 つ前として報告される。
+    mapped[number] = number + offset;
+  }
+
+  return mapped;
+}
+
+/** #line の行番号 (最初の式) を評価する。後ろの文字列の番号は読まない。評価できなければ undefined。 */
+function evaluateLine(expression, macros) {
+  // 識別子は整数のマクロなら展開し、それ以外 (中身の無いマクロなど) は消す。
+  const tokens = expression.replace(/[A-Za-z_]\w*/g, name => ` ${macros.get(name) ?? ""} `).match(/\d+|[-+*/%()]|\S/g) ?? [];
+  const first = [];
+
+  // 項 (数か閉じ括弧) の後ろに項の始まり (数か開き括弧) が来たら、そこで最初の式が終わる (後ろは文字列の番号)。
+  for (const token of tokens) {
+    const previous = first.at(-1);
+
+    if (previous !== undefined && /^(\d+|\))$/.test(previous) && /^(\d+|\()$/.test(token)) {
+      break;
+    }
+
+    first.push(token);
+  }
+
+  try {
+    const value = first.length > 0 ? Function(`"use strict"; return (${first.join(" ")});`)() : undefined;
+    return Number.isInteger(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** glslang の出力から ERROR の行を取り出す。行番号は「<文字列の番号かパス>:<行>:」の形。 */
