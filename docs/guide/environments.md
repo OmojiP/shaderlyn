@@ -267,7 +267,7 @@ symbols:
 GitHub Action は設定ファイルの `environment` に従います。設定ファイルを使わないなら、入力の `environment` で選びます。
 Unity 以外の環境では Unity プロジェクトの `Library/` は不要で、GitHub のホストランナーでも実行できます。
 Unity の環境でも、`--unity-generate` で解析に必要なヘッダを生成してリポジトリに含めれば、ホストランナーで実行できます
-([CI に組み込む「ホストランナーで動かす」](ci-setup.md#5-ホストランナーで動かす))。
+([CI に組み込む「GitHub-hosted runner で実行する」](ci-setup.md#1-github-hosted-runner-で実行する))。
 
 ```yaml
 - uses: OmojiP/shaderlyn/action@v0.3.2
