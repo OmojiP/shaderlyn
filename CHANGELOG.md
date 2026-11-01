@@ -20,7 +20,7 @@ GLSL を glslang と同じに検査する作業は 0.3.3 に移した。
 
 - `--unity-generate <フォルダー>`: 解析に使用するファイルとライセンス表示を書き出す
   - Unity のプロジェクトの `Library/PackageCache` と Unity Editor から、解析に使用するファイルとライセンスの表示を書き出す。
-  - 設定ファイルの `unity: generated` に出力先のフォルダーを指定すると、`Library` や Unity Editor がないマシン (GitHub のホストランナーなど) でも、パッケージのヘッダーーを取り込むシェーダーを解析できる。
+  - 設定ファイルの `unity: generated` に出力先のフォルダーを指定すると、`Library` や Unity Editor がないマシン (GitHub のホストランナーなど) でも、パッケージのヘッダーを取り込むシェーダーを解析できる。
   - 書き出す前に、パッケージとライセンスの一覧を表示して確認する (`[y/n]`)。入力を待てない環境 (CI など) では `--yes` が必要
   - プロジェクトと同じバージョンの Unity Editor からファイルをコピーする。見つからない場合は処理を中止する (`--unity-editor` で指定できる)
   - 書き出した後に Unity のバージョン・`packages-lock.json`・`Library/PackageCache` のパッケージが変わったら、解析開始時に通知する (CLI は標準エラー、VS Code 拡張は通知)
