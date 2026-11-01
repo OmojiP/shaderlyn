@@ -84,10 +84,14 @@ internal static partial class EnvironmentReport
             ? UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath)
             : null;
 
+        // 解析と同じ手順で、使う Editor のデータフォルダーを決める (--unity-generate で書き出したものを使うことがある)。
+        (string? editorData, bool generatedEditor) = isUnity ? SemanticsSetup.ResolveEditorData(options, settings) : (null, false);
+
         if (editor is not null)
         {
             WriteProject(builder, options);
-            WriteEditor(builder, editor);
+            WriteEditor(builder, editor, editorData, generatedEditor);
+            WriteGenerated(builder, options);
             WriteUnityCompiler(builder, settings);
         }
         else if (environment.ShaderEnvironment is Semantics.Environments.GlslEnvironment)
@@ -107,11 +111,11 @@ internal static partial class EnvironmentReport
 
         UnityPackageIncludeResolver? packages = editor is null
             ? null
-            : SemanticsSetup.CreatePackageResolver(options, editor.DataPath);
+            : SemanticsSetup.CreatePackageResolver(options, editorData);
 
-        WriteSearchOrder(builder, options, settings, editor?.DataPath, packages, isUnity);
+        WriteSearchOrder(builder, options, settings, editorData, packages, isUnity);
 
-        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editor?.DataPath);
+        IIncludeResolver resolver = SemanticsSetup.CreateIncludeResolver(options, settings, editorData);
         ImmutableArray<IncludeLine> includes = ReadDirectIncludes(files);
 
         if (editor is not null)
@@ -422,10 +426,21 @@ internal static partial class EnvironmentReport
 
     /// <summary>Unity Editor を書き出す。</summary>
     /// <param name="builder">書き出し先。</param>
-    /// <param name="editor">Editor を決めた結果。</param>
-    private static void WriteEditor(StringBuilder builder, EditorDataLookup editor)
+    /// <param name="editor">インストール済みの Editor を探した結果。</param>
+    /// <param name="editorData">解析で使うデータフォルダー。</param>
+    /// <param name="generated">使うのが <c>--unity-generate</c> で書き出したものか。</param>
+    private static void WriteEditor(StringBuilder builder, EditorDataLookup editor, string? editorData, bool generated)
     {
         Section(builder, "Unity Editor");
+
+        if (generated)
+        {
+            Line(builder, $"  データフォルダー: {editorData}");
+            Line(builder, "  決め方: プロジェクトと同じバージョンの Editor が見つからないため、unity: generated の中の Editor のヘッダを使う");
+            Line(builder, $"  探したインストール先: {(editor.HubRoots.IsEmpty ? "(なし)" : string.Join(", ", editor.HubRoots))}");
+            Line(builder, $"  インストール済み: {(editor.InstalledVersions.IsEmpty ? "(なし)" : string.Join(", ", editor.InstalledVersions))}");
+            return;
+        }
 
         string source = editor.Source switch
         {
@@ -449,6 +464,28 @@ internal static partial class EnvironmentReport
 
         Line(builder, $"  探したインストール先: {(editor.HubRoots.IsEmpty ? "(なし)" : string.Join(", ", editor.HubRoots))}");
         Line(builder, $"  インストール済み: {(editor.InstalledVersions.IsEmpty ? "(なし)" : string.Join(", ", editor.InstalledVersions))}");
+    }
+
+    /// <summary><c>--unity-generate</c> で書き出したフォルダー (<c>unity: generated</c>) を書き出す。指定が無ければ何も書かない。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    private static void WriteGenerated(StringBuilder builder, CommandLineOptions options)
+    {
+        if (options.UnityGeneratedDirectory is not { } generated)
+        {
+            return;
+        }
+
+        string full = Path.GetFullPath(generated);
+        bool exists = File.Exists(Path.Combine(full, UnityIncludeGeneration.RecordFileName));
+
+        Section(builder, "--unity-generate で書き出したもの (unity: generated)");
+        Line(builder, $"  {(exists ? string.Empty : Warning)}フォルダー: {full}{(exists ? string.Empty : " (書き出したものがありません。--unity-generate で書き出してください)")}");
+
+        if (exists)
+        {
+            Line(builder, "  プロジェクトの Library/PackageCache と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読みます。");
+        }
     }
 
     /// <summary><c>#include</c> を探す順序を書き出す。</summary>

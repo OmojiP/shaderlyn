@@ -6,6 +6,9 @@
 > **公開リポジトリではこの方法を使用しないでください。** 
 > セルフホストランナーはコードをそのマシンで実行します
 
+セルフホストランナーを用意しない方法もあります。`--unity-generate` で解析に要るヘッダを書き出してリポジトリに入れると、
+GitHub のホストランナーで解析できます ([5. ホストランナーで動かす](#5-ホストランナーで動かす))。
+
 ## 目次
 
 - [セルフホストランナーを使用する理由](#セルフホストランナーを使用する理由)
@@ -14,6 +17,7 @@
 - [2. セルフホストランナーを用意する](#2-セルフホストランナーを用意する)
 - [3. ワークフローを置く](#3-ワークフローを置く)
 - [4. キャッシュで 2 回目以降を速くする](#4-キャッシュで-2-回目以降を速くする)
+- [5. ホストランナーで動かす](#5-ホストランナーで動かす)
 
 ---
 
@@ -300,6 +304,45 @@ icacls D:\...\shaderlyn-cache /grant "NETWORK SERVICE:(OI)(CI)M"
   ただしそのままでは毎回遅くなるので、ログに `キャッシュを読み込めませんでした` / `キャッシュを書き出せませんでした` が出ていないか一度確かめてください
 - **結果がおかしいと思ったら、キャッシュファイルを消してください。** 次の実行で全件を解析し、作り直されます
 - **キャッシュはランナーのマシンごとのものです。** 記録は絶対パスで持っているので、別のマシンへ複製しても使えません
+
+---
+
+## 5. ホストランナーで動かす
+
+セルフホストランナーが要るのは、`Library/PackageCache` と Unity Editor のヘッダを読むためです。
+それを `--unity-generate` で書き出してリポジトリに入れておけば、GitHub のホストランナー (`ubuntu-latest` / `windows-latest`) で解析できます。
+
+1. 手元 (Unity でプロジェクトを開いたことのあるマシン) で書き出し、コミットする。
+   書き出すものとライセンスは [CLI の使い方「Library と Unity Editor の無いマシンで解析する」](cli-usage.md#library-と-unity-editor-の無いマシンで解析する) を読んでください
+
+   ```bash
+   my-shaderlyn --unity-project . --unity-generate .shaderlyn/unity
+   ```
+
+2. 設定ファイル `.shaderlyn.yaml` に書く
+
+   ```yaml
+   version: 1
+   unity:
+     generated: .shaderlyn/unity
+   ```
+
+3. ワークフローの `runs-on` をホストランナーにし、`Library` のリンクの手順を外す。自作ルール入りの CLI は、そのランナーの OS 向けにビルドしたものを使います
+   (1 章のワークフローで `--runtime linux-x64` の zip も作る)。自作ルールを使わないなら、Shaderlyn の GitHub Action をそのまま使えます
+
+   ```yaml
+   jobs:
+     analyze:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: OmojiP/shaderlyn/action@v0.3.2
+           with:
+             paths: Assets/Shaders
+             unity-project: .
+   ```
+
+4. Unity のバージョンかパッケージを上げたら、手元で書き出し直してコミットする。忘れていると、手元で解析したときと CI のログに「書き出し直してください」と出ます
 
 ---
 

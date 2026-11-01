@@ -366,6 +366,56 @@ shaderlyn Assets --unity-project . --unity-editor "/Applications/Unity/Hub/Edito
 shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0.30f1/Editor/Data"
 ```
 
+### Library と Unity Editor の無いマシンで解析する
+
+GitHub のホストランナーのように、プロジェクトの `Library` も Unity Editor も無いマシンでは、パッケージのヘッダ
+(`Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl` など) と `UnityCG.cginc` を読めません。
+`--unity-generate` で、解析に要るヘッダだけを手元で書き出しておき、それをリポジトリに入れると、そうしたマシンでも解析できます。
+
+```bash
+shaderlyn --unity-project . --unity-generate .shaderlyn/unity
+```
+
+```text
+次のパッケージのシェーダーのファイルを書き出します。
+  Unity Companion License (5 個):
+    com.unity.render-pipelines.core
+    com.unity.render-pipelines.universal
+    …
+  Unity Editor のヘッダ (CGIncludes。C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Data)
+合わせてファイル 475 個 (3.9 MB)。
+書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。
+書き出しますか? [y/n]
+```
+
+- 書き出すのは、パッケージの取り込まれうるファイル (`.hlsl` / `.cginc` / `.hlsli` など)・`package.json`・ライセンスの表示 (`LICENSE.md` など) と、Unity Editor のヘッダだけです。
+  URP のプロジェクトで 4 MB ほどです (`Library/PackageCache` そのものは 1 GB を超えます)
+- 書き出す前に、パッケージとライセンスの一覧を出して確かめます。`n` なら何も書きません。入力を待てないところ (CI など) では `--yes` を付けてください
+- プロジェクトと同じバージョンの Unity Editor から写します。見つからなければ止まるので、そのバージョンを入れるか `--unity-editor` で指定してください
+- 書き出す先には、空のフォルダーか、前に `--unity-generate` で書き出したフォルダーを指定します。前に書き出したものは消してから書き直します
+
+書き出したフォルダーを、設定ファイルの `unity: generated` に書きます。
+
+```yaml
+version: 1
+unity:
+  generated: .shaderlyn/unity
+```
+
+- `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor があれば、これまでどおりそちらを読みます。無いときに、書き出したものを読みます
+- 書き出したもの (Unity のファイルの写し) の中には指摘を出しません
+- どちらを読んでいるかは `--env` の「Unity Editor」に出ます
+- **Unity のバージョンかパッケージを上げたら、書き出し直してください。** 書き出した後に `ProjectVersion.txt`・`packages-lock.json`・`Library/PackageCache` のパッケージが変わると、
+  解析を始めるときに標準エラーに伝えます (VS Code 拡張では通知)。解析は止めません
+  ```text
+  --unity-generate で書き出したもの (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
+  ```
+
+> **ライセンスについて:** 書き出したものは Unity のパッケージと Unity Editor のファイルの写しです。
+> Unity のパッケージの多くは Unity Companion License で、Unity のコンテンツを作るための利用に限って写しと配布を認め、写しにライセンスの表示を添えることを求めます
+> (`--unity-generate` は `LICENSE.md` などを一緒に写します)。Asset Store などから入れたパッケージは、それぞれのライセンスに従います。
+> 書き出したものを入れるのは private のリポジトリにし、各パッケージのライセンスを確かめてください。
+
 ### 独自ヘッダの探索パス
 
 多くの用途では `--unity-project` だけで解決できるので、このオプションは要りません。

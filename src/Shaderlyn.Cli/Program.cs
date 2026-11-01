@@ -118,6 +118,11 @@ public static class Program
             return await GenerateUnrealAsync(settings, generateOutput, output, errorOutput).ConfigureAwait(false);
         }
 
+        if (options.UnityGenerateOutputPath is { } unityOutput)
+        {
+            return await GenerateUnityAsync(options, unityOutput, output, errorOutput).ConfigureAwait(false);
+        }
+
         if (!AnalysisEnvironments.TryCreate(settings, out IAnalysisEnvironment? environment))
         {
             await errorOutput.WriteLineAsync(AnalysisEnvironments.DescribeUnknown(settings.Environment, environments)).ConfigureAwait(false);
@@ -184,6 +189,7 @@ public static class Program
 
         await ReportUnsupportedFilesAsync(options, unsupportedFiles, errorOutput).ConfigureAwait(false);
         await ReportStaleUnrealGenerationAsync(groups, errorOutput).ConfigureAwait(false);
+        await ReportMismatchedUnityGenerationAsync(groups, errorOutput).ConfigureAwait(false);
 
         if (options.InspectOutputPath is { } inspectOutputPath)
         {
@@ -490,6 +496,161 @@ public static class Program
         await output.WriteLineAsync($"解析の中身を書き出しました: {outputPath}").ConfigureAwait(false);
         return ExitCode.Success;
     }
+
+    /// <summary>
+    /// 確かめる問いの答えを読む。答えられないとき (標準入力が端末でない) は <see langword="null"/> を返す。
+    /// </summary>
+    /// <remarks>テストが差し替える。</remarks>
+    internal static Func<string?> ReadConfirmation { get; set; } = () => Console.IsInputRedirected ? null : Console.ReadLine() ?? string.Empty;
+
+    /// <summary>
+    /// Unity のプロジェクトの <c>Library</c> と Unity Editor から、解析に要るヘッダを書き出す (<c>--unity-generate</c>)。
+    /// </summary>
+    /// <param name="options">コマンドラインの指定 (設定ファイルの <c>unity: project</c> / <c>editor</c> を埋めたもの)。</param>
+    /// <param name="outputDirectory">書き出す先。</param>
+    /// <param name="output">通常の出力先。</param>
+    /// <param name="errorOutput">エラーメッセージの出力先。</param>
+    /// <returns>終了コード。</returns>
+    /// <remarks>
+    /// <para>
+    /// 書き出す前に、パッケージとライセンスの一覧を出して y/n で確かめる。書き出したものは Unity のファイルの写しで、リポジトリに入れて使うからである。
+    /// <c>n</c> なら何も書かずに終わる (利用者が選んだことなので、ツールのエラーにしない)。
+    /// 入力を待てないとき (CI など) は、確かめずに書き出すことはせず、<c>--yes</c> を付けるよう伝えて終わる。
+    /// </para>
+    /// <para>
+    /// プロジェクトは <c>--unity-project</c> (か設定ファイルの <c>unity: project</c>) で、無ければ今のフォルダーから上へ探す。
+    /// Editor は解析と同じ手順で決める (<see cref="UnityInstallation.Lookup"/>)。Editor が見つからなくても、パッケージだけで書き出す。
+    /// </para>
+    /// </remarks>
+    private static async Task<ExitCode> GenerateUnityAsync(
+        CommandLineOptions options,
+        string outputDirectory,
+        TextWriter output,
+        TextWriter errorOutput)
+    {
+        string? project = options.UnityProjectPath ?? UnityInstallation.FindProjectAbove([Directory.GetCurrentDirectory()]);
+
+        if (project is null || !Directory.Exists(project))
+        {
+            await errorOutput.WriteLineAsync(
+                "--unity-generate には、--unity-project (か設定ファイルの unity: project) で Unity のプロジェクトのルートを指定してください。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        EditorDataLookup editor = UnityInstallation.Lookup(options.UnityEditorDataPath, project);
+
+        // 同梱パッケージとヘッダは Editor のバージョンで中身が違う。プロジェクトと違うバージョンの Editor から写すと、解析が別のヘッダを読む。
+        if (editor.Source == EditorDataSource.NewestInstalledInsteadOfProject)
+        {
+            await errorOutput.WriteLineAsync(
+                $"プロジェクトの Unity のバージョン ({editor.ProjectVersion}) の Editor が見つかりません。"
+                + "そのバージョンを入れるか、--unity-editor でそのバージョンの Editor のデータフォルダー (…/Editor/Data) を指定してください。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        string? editorData = editor.DataPath;
+        string? cgIncludes = editorData is null ? null : UnityInstallation.GetCgIncludesDirectory(editorData);
+        string fullOutput = Path.GetFullPath(outputDirectory);
+        UnityGenerationPlan plan = UnityIncludeGeneration.Plan(project, editorData, cgIncludes);
+
+        await output.WriteAsync(DescribeUnityGenerationPlan(plan, editorData)).ConfigureAwait(false);
+
+        if (plan.Packages.IsEmpty && plan.CgIncludesDirectory is null)
+        {
+            await errorOutput.WriteLineAsync(
+                $"書き出すものがありません。Unity でプロジェクトを開いて Library/PackageCache を作り、Unity Editor を --unity-editor で指定してください。プロジェクト: {project}")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        if (!options.AssumeYes)
+        {
+            await output.WriteAsync("書き出しますか? [y/n] ").ConfigureAwait(false);
+            await output.FlushAsync().ConfigureAwait(false);
+
+            if (ReadConfirmation() is not { } answer)
+            {
+                await output.WriteLineAsync().ConfigureAwait(false);
+                await errorOutput.WriteLineAsync("入力を待てないため、確かめられませんでした。一覧を確かめたうえで書き出すなら、--yes を付けてください。").ConfigureAwait(false);
+                return ExitCode.ToolError;
+            }
+
+            if (!answer.Trim().Equals("y", StringComparison.OrdinalIgnoreCase) && !answer.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase))
+            {
+                await output.WriteLineAsync("書き出しませんでした。").ConfigureAwait(false);
+                return ExitCode.Success;
+            }
+        }
+
+        try
+        {
+            UnityIncludeGeneration.Write(plan, fullOutput);
+        }
+        catch (InvalidOperationException exception)
+        {
+            await errorOutput.WriteLineAsync(exception.Message).ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            await errorOutput.WriteLineAsync($"書き出せませんでした: {FileErrorDescriber.Describe(exception, fullOutput)}").ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        StringBuilder report = new();
+        report.AppendLine(CultureInfo.InvariantCulture, $"ファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)}) を書き出しました: {fullOutput}");
+        report.AppendLine("解析に使うには、設定ファイルの unity: に次を書いてください (設定ファイルからの相対パスでも書けます):");
+        report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
+        report.AppendLine("Unity のバージョンかパッケージを変えたら、作り直してください。");
+        await output.WriteAsync(report.ToString()).ConfigureAwait(false);
+        return ExitCode.Success;
+    }
+
+    /// <summary>書き出すものの一覧を、ライセンスごとにまとめて文にする。</summary>
+    /// <param name="plan">書き出すもの。</param>
+    /// <param name="editorData">Unity Editor のデータフォルダー。見つからなければ <see langword="null"/>。</param>
+    /// <returns>表示する文。</returns>
+    private static string DescribeUnityGenerationPlan(UnityGenerationPlan plan, string? editorData)
+    {
+        StringBuilder builder = new();
+        builder.AppendLine("次のパッケージのシェーダーのファイルを書き出します。");
+
+        foreach (IGrouping<string, UnityGeneratedPackage> group in plan.Packages
+                     .GroupBy(p => p.License ?? $"ライセンスが分からない")
+                     .OrderBy(g => g.Key == "Unity Companion License" ? 0 : g.First().License is null ? 2 : 1)
+                     .ThenBy(g => g.Key, StringComparer.Ordinal))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"  {group.Key} ({group.Count()} 個):");
+
+            foreach (UnityGeneratedPackage package in group)
+            {
+                string note = package.LicenseNote is { } licenseNote ? $" ({licenseNote})" : string.Empty;
+                builder.AppendLine(CultureInfo.InvariantCulture, $"    {package.Name}{note}");
+            }
+        }
+
+        builder.AppendLine(plan.CgIncludesDirectory is null
+            ? "  Unity Editor が見つからないため、Unity Editor のヘッダ (CGIncludes) と同梱パッケージは書き出しません。--unity-editor で指定できます。"
+            : $"  Unity Editor のヘッダ (CGIncludes。{editorData})");
+
+        if (!plan.MissingPackages.IsEmpty)
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"packages-lock.json にあるが見つからないパッケージ: {string.Join(", ", plan.MissingPackages.Select(p => $"{p.Name} ({p.Source})"))}");
+            builder.AppendLine("  Unity でプロジェクトを開き直すと、Library/PackageCache に作られます。");
+        }
+
+        builder.AppendLine(CultureInfo.InvariantCulture, $"合わせてファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)})。");
+        builder.AppendLine("書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。");
+        return builder.ToString();
+    }
+
+    /// <summary>バイト数を読みやすくする (<c>3.9 MB</c>)。</summary>
+    private static string FormatBytes(long bytes)
+        => bytes >= 1024 * 1024
+            ? string.Create(CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024.0):0.0} MB")
+            : string.Create(CultureInfo.InvariantCulture, $"{bytes / 1024.0:0.0} KB");
 
     /// <summary>
     /// Unreal のエンジンとプロジェクトの C++ から、生成される取り込みを作って書き出す (<c>--unreal-generate</c>)。
@@ -806,6 +967,34 @@ public static class Program
         foreach (string directory in directories)
         {
             if (Unreal.UnrealGenerationStamp.Check(directory)?.Describe() is { } message)
+            {
+                await errorOutput.WriteLineAsync(message).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>--unity-generate</c> で書き出したものが、今のプロジェクトと合っていなければ伝える
+    /// (<see cref="UnityIncludeGeneration.DescribeMismatch"/>)。
+    /// </summary>
+    /// <param name="groups">解析設定。</param>
+    /// <param name="errorOutput">標準エラー。解析結果 (JSON や SARIF) には混ぜない。</param>
+    /// <returns>非同期操作。</returns>
+    /// <remarks>
+    /// CI では書き出し直せないので、伝えるだけでジョブは落とさない。解析するファイルのある Unity の解析設定だけで、組ごとに 1 度だけ確かめる。
+    /// </remarks>
+    private static async Task ReportMismatchedUnityGenerationAsync(ImmutableArray<AnalysisSetting> groups, TextWriter errorOutput)
+    {
+        IEnumerable<(string Generated, string Project)> pairs = groups
+            .Where(g => !g.Files.IsEmpty && g.Settings.Environment == UnityAnalysisEnvironment.EnvironmentName)
+            .Select(g => (Generated: g.Settings.Configuration.UnityGeneratedDirectory, Project: g.Settings.UnityProjectPath))
+            .Where(p => p.Generated is not null && p.Project is not null)
+            .Select(p => (Path.GetFullPath(p.Generated!), Path.GetFullPath(p.Project!)))
+            .Distinct();
+
+        foreach ((string generated, string project) in pairs)
+        {
+            if (UnityIncludeGeneration.DescribeMismatch(generated, project) is { } message)
             {
                 await errorOutput.WriteLineAsync(message).ConfigureAwait(false);
             }

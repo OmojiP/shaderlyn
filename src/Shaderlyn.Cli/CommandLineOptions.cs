@@ -73,6 +73,15 @@ internal sealed class CommandLineOptions
     /// </summary>
     public string? UnrealGenerateOutputPath { get; private set; }
 
+    /// <summary>
+    /// Unity のプロジェクトの <c>Library</c> と Unity Editor から、解析に要るヘッダを書き出すフォルダー (<c>--unity-generate</c>)。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    public string? UnityGenerateOutputPath { get; private set; }
+
+    /// <summary>確かめる問い (<c>--unity-generate</c> の書き出す前の確かめ) に、聞かずに「はい」と答える (<c>--yes</c>)。</summary>
+    public bool AssumeYes { get; private set; }
+
     /// <summary>設定ファイルのパス。指定が無い場合は <see langword="null"/>。</summary>
     public string? ConfigPath { get; private set; }
 
@@ -165,18 +174,29 @@ internal sealed class CommandLineOptions
     public string? UnityEditorDataPath { get; private set; }
 
     /// <summary>
+    /// <c>--unity-generate</c> で書き出したフォルダー (設定ファイルの <c>unity: generated</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// プロジェクトの <c>Library/PackageCache</c> と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読む。
+    /// コマンドラインでは指定しない (設定ファイルに書く)。
+    /// </remarks>
+    internal string? UnityGeneratedDirectory { get; private set; }
+
+    /// <summary>
     /// コマンドラインで指定されていない Unity のパスを、設定ファイルの値で埋める。
     /// </summary>
     /// <param name="projectPath">設定ファイルの <c>unity: project</c>。</param>
     /// <param name="editorDataPath">設定ファイルの <c>unity: editor</c>。</param>
+    /// <param name="generatedDirectory">設定ファイルの <c>unity: generated</c>。</param>
     /// <remarks>
     /// <b>コマンドラインの指定が勝つ。</b> 設定ファイルはリポジトリの既定で、コマンドラインはその場の指定である。
     /// ここで埋めておけば、パスを読む側 (include の解決、環境の表示、キャッシュの鍵) は出どころを区別しなくてよい。
     /// </remarks>
-    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath)
+    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath, string? generatedDirectory = null)
     {
         UnityProjectPath ??= projectPath;
         UnityEditorDataPath ??= editorDataPath;
+        UnityGeneratedDirectory ??= generatedDirectory;
     }
 
     /// <summary>
@@ -192,6 +212,7 @@ internal sealed class CommandLineOptions
         Profile = null;
         UnityProjectPath = null;
         UnityEditorDataPath = null;
+        UnityGeneratedDirectory = null;
     }
 
     /// <summary>
@@ -302,6 +323,7 @@ internal sealed class CommandLineOptions
             ["--annotate"] = o => o.Annotate = true,
             ["--timings"] = o => o.ReportTimings = true,
             ["--env"] = o => o.ShowEnvironment = true,
+            ["--yes"] = o => o.AssumeYes = true,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -334,6 +356,7 @@ internal sealed class CommandLineOptions
             ["--cache"] = (o, v) => Set(() => o.CachePath = v),
             ["--inspect"] = (o, v) => Set(() => o.InspectOutputPath = v),
             ["--unreal-generate"] = (o, v) => Set(() => o.UnrealGenerateOutputPath = v),
+            ["--unity-generate"] = (o, v) => Set(() => o.UnityGenerateOutputPath = v),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -365,7 +388,8 @@ internal sealed class CommandLineOptions
             && !parsed.ShowVersion
             && !parsed.ListRules
             && !parsed.ShowEnvironment
-            && parsed.UnrealGenerateOutputPath is null)
+            && parsed.UnrealGenerateOutputPath is null
+            && parsed.UnityGenerateOutputPath is null)
         {
             error = "解析対象のパスが指定されていません。ファイルまたはフォルダーを 1 つ以上指定してください。";
         }
@@ -604,6 +628,17 @@ internal sealed class CommandLineOptions
                                  対象は 1 ファイルに限ります。指摘は出力しません。
                                  誤検出の原因が構文解析・マクロ展開・型判定のどれかを
                                  切り分けるための機能です。
+
+        Unity:
+          --unity-generate <フォルダー>
+                                 解析はせずに、Unity のプロジェクトの Library/PackageCache と
+                                 Unity Editor から、解析に要るヘッダ (パッケージの .hlsl、
+                                 UnityCG.cginc など) とライセンスの表示だけをこのフォルダーに書き出します。
+                                 設定ファイルの unity: generated にこのフォルダーを書くと、
+                                 Library や Editor の無いマシン (GitHub のホストランナーなど) でも
+                                 解析できます。書き出す前にパッケージとライセンスの一覧を出して確かめます。
+          --yes                  --unity-generate の確かめに、聞かずに「はい」と答えます。
+                                 入力を待てないところ (CI など) で書き出すときに付けます。
 
         Unreal Engine:
           --unreal-generate <フォルダー>

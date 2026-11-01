@@ -10,6 +10,17 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+### 追加
+
+- `--unity-generate <フォルダー>`: Unity のプロジェクトの `Library/PackageCache` と Unity Editor から、解析に要るヘッダ (パッケージの `.hlsl`、`UnityCG.cginc` など) と
+  ライセンスの表示だけを書き出す。設定ファイルの `unity: generated` にそのフォルダーを書くと、`Library` や Unity Editor の無いマシン
+  (GitHub のホストランナーなど) でも、パッケージのヘッダを取り込むシェーダーを解析できる。
+  - 書き出す前に、パッケージとライセンスの一覧を出して確かめる (`[y/n]`)。入力を待てないところ (CI など) では `--yes` が要る
+  - プロジェクトと同じバージョンの Unity Editor から写す。見つからなければ止める (`--unity-editor` で指定できる)
+  - 本物の `Library` と Editor があれば本物を読み、無いときに書き出したものを読む。書き出したものの中には指摘を出さない
+  - 書き出した後に Unity のバージョン・`packages-lock.json`・`Library/PackageCache` のパッケージが変わったら、解析を始めるときに伝える (CLI は標準エラー、VS Code 拡張は通知)
+  - `--env` に、書き出したものを使っているかを出す
+
 ### 修正
 
 - オブジェクト形式のマクロ (`#define NAME value ## 1`) の本体の `##` を連結していなかった。C の規則どおり連結する

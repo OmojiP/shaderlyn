@@ -62,6 +62,7 @@ Unity の環境だけで使う設定です。
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が勝ちます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が勝ちます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が勝ちます                            |
+| `generated` | `--unity-generate` で書き出したフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読みます ([CI で Library を使わずに解析する](cli-usage.md#library-と-unity-editor-の無いマシンで解析する)) |
 | `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
 | `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
 | `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |

@@ -120,7 +120,7 @@ internal sealed class EffectiveSettings
 
         if (isUnity)
         {
-            options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath);
+            options.UseConfigurationDefaults(configuration.UnityProjectPath, configuration.UnityEditorPath, configuration.UnityGeneratedDirectory);
         }
         else
         {
