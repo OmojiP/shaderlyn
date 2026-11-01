@@ -33,6 +33,20 @@ internal static class ShaderDescriptors
         description: "そのバージョンの GLSL の予約語を、名前やキーワードとして使っています。",
         helpLinkUri: DocumentationLinks.For("CF0001"));
 
+    /// <summary>構文木を壊さない構文の誤り (GLSL の、仮引数の既定値など)。</summary>
+    /// <remarks>
+    /// <see cref="SyntaxError"/> と同じ CF0001 として報告する。<see cref="ReservedWord"/> と同じく、構文としては読めていて、
+    /// glslang も報告した後に読み進めるものに使う。宣言が無いことを根拠にする検査を止めない (ShaderCompilation.BreaksAnalysis)。
+    /// </remarks>
+    public static DiagnosticDescriptor RecoverableSyntaxError { get; } = new(
+        id: "CF0001",
+        title: "構文エラー",
+        messageFormat: "{0}",
+        category: "Syntax",
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "その言語では書けない記述があります。",
+        helpLinkUri: DocumentationLinks.For("CF0001"));
+
     /// <summary>プリプロセッサ指令の誤り。</summary>
     public static DiagnosticDescriptor PreprocessorError { get; } = new(
         id: "CF0002",

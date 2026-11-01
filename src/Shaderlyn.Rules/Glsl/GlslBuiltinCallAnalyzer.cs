@@ -143,6 +143,18 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
 
         for (int i = 0; i < arguments.Length; i++)
         {
+            // 文字列のリテラルは、どの型にも合う仮引数 (debugPrintfEXT の書式) にしか渡せない (length("…") は誤り)。
+            if (arguments[i] is LiteralExpressionSyntax { Token.Kind: ShaderSyntaxKind.StringLiteralToken })
+            {
+                if (fitting.Any(f => i < f.FixedParameterCount ? f.Parameters[i] == AnyType : f.IsVariadic))
+                {
+                    return;
+                }
+
+                argumentTypes[i] = "string";
+                continue;
+            }
+
             ArrayValue array = GetArrayValue(binder, arguments[i]);
 
             if (array == ArrayValue.Unknown)

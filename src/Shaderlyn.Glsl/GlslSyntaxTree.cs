@@ -51,9 +51,31 @@ internal static class GlslSyntaxTree
         diagnostics.AddRange(preprocessed.Diagnostics.Select(d => d.Descriptor == CFamily.ShaderDescriptors.MacroRedefinition ? d.WithSeverity(DiagnosticSeverity.Error) : d));
         diagnostics.AddRange(parseDiagnostics);
         AddReservedWords(diagnostics, preprocessed.Tokens, text, language);
+        AddParameterDefaults(diagnostics, root, text);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
         return new ShaderSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable(), effective.Language!, parser.UnanalyzedIdentifiers);
+    }
+
+    /// <summary>
+    /// 仮引数の既定値 (<c>void f(int x = 2)</c>) を、構文の誤り (CF0001) として報告する。
+    /// glslang の「default argument values are only available for builtins」。構文木は壊れていないので、解析は止めない。
+    /// </summary>
+    /// <param name="diagnostics">報告を足す先。</param>
+    /// <param name="root">構文木の根。</param>
+    /// <param name="text">解析しているファイル。このファイルに書いたものだけを報告する。</param>
+    private static void AddParameterDefaults(ImmutableArray<Diagnostic>.Builder diagnostics, CompilationUnitSyntax root, SourceText text)
+    {
+        foreach (ParameterSyntax parameter in root.DescendantNodesAndSelf().OfType<ParameterSyntax>())
+        {
+            if (parameter.EqualsToken is { } equals
+                && ReferenceEquals(equals.Source, text)
+                && equals.GetLocation() is { } location)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    CFamily.ShaderDescriptors.RecoverableSyntaxError, location, "GLSL では、仮引数に既定値を書けません。"));
+            }
+        }
     }
 
     /// <summary>

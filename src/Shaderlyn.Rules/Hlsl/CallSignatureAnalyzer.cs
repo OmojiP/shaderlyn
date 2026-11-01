@@ -171,7 +171,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         List<FunctionDeclarationSyntax> fitting =
-            [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
+            [.. candidates.Where(c => AcceptsArgumentCount(binder, c, arguments.Length))];
 
         // 組み込み関数と同じ名前で多重定義していれば、組み込み関数の側が受け付けることもある。
         bool intrinsicAccepts = compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity intrinsic)
@@ -195,7 +195,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
         {
             // 合わない構成は、木ごとにその一部しか見えない。木をまたいで和をとる。照らした宣言が違えば別の報告にする。
-            string accepted = DescribeAccepted([.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))]);
+            string accepted = DescribeAccepted([.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))], HonorsDefaults(binder));
             int actual = arguments.Length;
 
             if (invocation.GetLocation() is { } arityLocation)
@@ -256,6 +256,20 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         AddMismatch(reported, binder.Program, arguments[rejected.Mismatch.Index], typeMissing, location, name, rejected.Declaration, rejected.Mismatch);
     }
 
+    /// <summary>宣言が、その数の実引数を受け付けるか。</summary>
+    /// <param name="binder">式の型を引く仕組み。言語を見る。</param>
+    /// <param name="declaration">関数の宣言。</param>
+    /// <param name="count">実引数の数。</param>
+    /// <returns>受け付ければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// GLSL には仮引数の既定値が無い (書けば構文の誤り CF0001)。glslang は既定値を数えず、引数を省いた呼び出しを
+    /// 「no matching overloaded function found」にするので、仮引数と同じ数だけを受け付ける。
+    /// </remarks>
+    private static bool AcceptsArgumentCount(ExpressionTypeBinder binder, FunctionDeclarationSyntax declaration, int count)
+        => HonorsDefaults(binder)
+            ? CallCompatibility.AcceptsArgumentCount([.. declaration.ParameterList], count)
+            : declaration.ParameterList.Count() == count;
+
     /// <summary>バリアントの木の呼び出しを、その木を 1 つの構成として検査する。</summary>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
@@ -276,12 +290,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ReportedLocations reported)
     {
         List<FunctionDeclarationSyntax> fitting =
-            [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
+            [.. candidates.Where(c => AcceptsArgumentCount(binder, c, arguments.Length))];
 
         // 報告は、木の構成を掛けて木をまたいで和をとる (値ごとの木は、それぞれ値 1 つ分の構成しか表さない)。
         if (fitting.Count == 0)
         {
-            string accepted = DescribeAccepted(candidates);
+            string accepted = DescribeAccepted(candidates, HonorsDefaults(binder));
             int actual = arguments.Length;
 
             if (!intrinsicAccepts && invocation.GetLocation() is { } arityLocation)
@@ -661,23 +675,29 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            DescribeAccepted(candidates),
+            DescribeAccepted(candidates, honorDefaults: true),
             DescribeCondition(call)));
     }
 
     /// <summary>宣言が受け付ける引数の個数を並べる。同じ個数の宣言が複数あっても 1 度だけ書く。</summary>
     /// <param name="candidates">その構成に存在する宣言。</param>
+    /// <param name="honorDefaults">既定値のある仮引数を省けるか (GLSL では省けない)。</param>
     /// <returns>「必要な引数は … です」。</returns>
-    private static string DescribeAccepted(List<FunctionDeclarationSyntax> candidates)
+    private static string DescribeAccepted(List<FunctionDeclarationSyntax> candidates, bool honorDefaults)
     {
         IEnumerable<string> accepted = candidates
             .Select(c => (ImmutableArray<ParameterSyntax>)[.. c.ParameterList])
-            .Select(DescribeArity)
+            .Select(p => honorDefaults ? DescribeArity(p) : $"{p.Length} 個")
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
 
         return $"必要な引数は {string.Join(" / ", accepted)}です";
     }
+
+    /// <summary>仮引数の既定値を数えるか。GLSL には既定値が無い (<see cref="AcceptsArgumentCount(ExpressionTypeBinder, FunctionDeclarationSyntax, int)"/>)。</summary>
+    /// <param name="binder">式の型を引く仕組み。言語を見る。</param>
+    /// <returns>数えるなら <see langword="true"/>。</returns>
+    private static bool HonorsDefaults(ExpressionTypeBinder binder) => binder.TypeSystem is not GlslTypeSystem;
 
     /// <summary>宣言が受け付ける引数の個数を表す文字列を返す。</summary>
     /// <param name="parameters">仮引数。</param>

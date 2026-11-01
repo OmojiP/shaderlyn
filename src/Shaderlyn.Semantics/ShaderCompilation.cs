@@ -455,13 +455,15 @@ public sealed partial class ShaderCompilation
     /// 警告 (<c>#ifdef A || B</c> の CF0003、マクロの定義し直しの CF0004) は、コンパイルも解析も止めない。
     /// これらでブロックの検査を止めると、正しく読めたコードの誤りまで見送ることになる。
     /// 利用者が重要度を変えても、解析が壊れているかどうかは変わらないので、既定の重要度で決める。
-    /// GLSL の予約語 (CF0001 の <see cref="CFamily.ShaderDescriptors.ReservedWord"/>) は、構文木を壊さないので止めない。
+    /// GLSL の予約語 (CF0001 の <see cref="CFamily.ShaderDescriptors.ReservedWord"/>) と、構文木を壊さない構文の誤り
+    /// (<see cref="CFamily.ShaderDescriptors.RecoverableSyntaxError"/>) は止めない。
     /// </remarks>
     public static bool BreaksAnalysis(Diagnostic diagnostic)
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         return diagnostic.Descriptor.DefaultSeverity == DiagnosticSeverity.Error
-               && !ReferenceEquals(diagnostic.Descriptor, CFamily.ShaderDescriptors.ReservedWord);
+               && !ReferenceEquals(diagnostic.Descriptor, CFamily.ShaderDescriptors.ReservedWord)
+               && !ReferenceEquals(diagnostic.Descriptor, CFamily.ShaderDescriptors.RecoverableSyntaxError);
     }
 
     /// <summary>

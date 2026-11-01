@@ -264,6 +264,12 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
+        if (binder.TypeSystem is GlslTypeSystem glsl && access.Name == "length")
+        {
+            AnalyzeGlslLength(context, glsl, binder, access, reported);
+            return;
+        }
+
         if (access.DotToken.Kind != ShaderSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
@@ -280,6 +286,54 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             $"構造体 '{typeName}'",
             $"メンバー '{access.Name}' ",
             DescribeCandidates(AllMembers(structs, structure, includeMethods: true), "メンバー")));
+    }
+
+    /// <summary>
+    /// GLSL の <c>.length()</c> を、配列でもベクトルでも行列でもない値 (スカラー) に使っているかを検査する。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="types">GLSL の型の仕組み。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="access">呼び出しの対象の参照 (<c>x.length</c>)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// glslang は「'length' : does not operate on this type」にする (<c>bool b; b.length()</c>、<c>m43[3][1].length()</c>)。
+    /// 対象は名前と、名前に添字を付けたものに限る。名前の候補がどれも配列でなく、添字の数が配列の次元以上で、型がスカラーと分かるときだけ報告する。
+    /// </remarks>
+    private static void AnalyzeGlslLength(
+        SyntaxTreeAnalysisContext context,
+        GlslTypeSystem types,
+        ExpressionTypeBinder binder,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        int indices = 0;
+        ExpressionSyntax root = access.Target;
+
+        while (root is ElementAccessExpressionSyntax element)
+        {
+            indices++;
+            root = element.Target;
+        }
+
+        if (root is not IdentifierExpressionSyntax identifier
+            || binder.ResolveName(identifier).Candidates is not { IsEmpty: false } candidates
+            || candidates.Any(c => Math.Max(c.Type.ArrayDimensions, c.Type.IsArray ? 1 : 0) > indices)
+            || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
+            || !types.TryDescribeNumeric(typeName, out ShaderNumericShape shape)
+            || shape.Kind != ShaderNumericKind.Scalar
+            || access.NameToken.GetLocation() is not { } location
+            || !reported.Add(location))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.MemberNotFound,
+            location,
+            typeName,
+            "メソッド 'length()' ",
+            "length() は配列・ベクトル・行列にだけ使えます。"));
     }
 
     /// <summary>
