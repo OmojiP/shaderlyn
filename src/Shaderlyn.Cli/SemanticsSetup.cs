@@ -194,8 +194,57 @@ internal static class SemanticsSetup
             return null;
         }
 
-        return options.UnityEditorDataPath
-               ?? UnityInstallation.Lookup(null, options.UnityProjectPath).DataPath;
+        return ResolveEditorData(options, settings).Path;
+    }
+
+    /// <summary>
+    /// Unity Editor のデータフォルダーを決め、<c>--unity-generate</c> で書き出したものを使ったかも返す。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
+    /// <returns>データフォルダー (見つからなければ <see langword="null"/>) と、それが書き出したものか。</returns>
+    /// <remarks>
+    /// <c>--unity-editor</c> (か <c>unity: editor</c>) の指定と、プロジェクトと同じバージョンの Editor があれば、それを使う。
+    /// どちらも無く、<c>unity: generated</c> の中に Editor のヘッダがあれば、それを使う。
+    /// 書き出したものはプロジェクトと同じバージョンの Editor から写したものなので、違うバージョンのインストール済みの Editor より先に使う。
+    /// </remarks>
+    internal static (string? Path, bool Generated) ResolveEditorData(CommandLineOptions options, EffectiveSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (settings.Environment != UnityAnalysisEnvironment.EnvironmentName)
+        {
+            return (null, false);
+        }
+
+        EditorDataLookup lookup = UnityInstallation.Lookup(options.UnityEditorDataPath, options.UnityProjectPath);
+
+        if (lookup.Source is EditorDataSource.Explicit or EditorDataSource.ProjectVersion)
+        {
+            return (lookup.DataPath, false);
+        }
+
+        if (GeneratedEditorData(options) is { } generated)
+        {
+            return (generated, true);
+        }
+
+        return (lookup.DataPath, false);
+    }
+
+    /// <summary><c>unity: generated</c> の中の Editor のデータフォルダー。Editor のヘッダが無ければ <see langword="null"/>。</summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <returns>データフォルダー。</returns>
+    internal static string? GeneratedEditorData(CommandLineOptions options)
+    {
+        if (options.UnityGeneratedDirectory is not { } generated)
+        {
+            return null;
+        }
+
+        string data = Path.GetFullPath(Path.Combine(generated, UnityIncludeGeneration.EditorDataDirectory));
+        return Directory.Exists(UnityInstallation.GetCgIncludesDirectory(data)) ? data : null;
     }
 
     /// <summary>
@@ -243,7 +292,10 @@ internal static class SemanticsSetup
 
         if (options.UnityProjectPath is { } project)
         {
-            return UnityPackageIncludeResolver.ForProject(project, editorData);
+            return UnityPackageIncludeResolver.ForProject(
+                project,
+                editorData,
+                options.UnityGeneratedDirectory is { } generated ? Path.GetFullPath(generated) : null);
         }
 
         // プロジェクトの指定が無くても、Editor 同梱パッケージだけは解決できる。
@@ -469,6 +521,12 @@ internal static class SemanticsSetup
         if (editorData is not null)
         {
             external.Add(editorData);
+        }
+
+        // --unity-generate で書き出したものは、Library と Editor の写しである。
+        if (options.UnityGeneratedDirectory is { } generated)
+        {
+            external.Add(Path.GetFullPath(generated));
         }
 
 

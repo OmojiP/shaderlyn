@@ -6,8 +6,8 @@
 
 # 設定ファイル `.shaderlyn.yaml`
 
-解析するファイルごとに、そのファイルから上のフォルダーへ辿って、一番近い設定ファイルを使います (VS Code 拡張も同じです)。
-フォルダーごとに設定ファイルを置けば、そのフォルダーの下のファイルにだけ効きます。
+解析するファイルごとに、そのファイルから上位のフォルダーをたどり、最も近い設定ファイルを使います (VS Code 拡張も同じです)。
+フォルダーごとに設定ファイルを置くと、そのフォルダー以下のファイルにのみ適用されます。
 
 `--config <パス>` で明示的に指定することも、`--no-config` で探索を止めることもできます。
 
@@ -42,7 +42,7 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (この 4 つは作っているところで、今は GLSL の構文エラーだけを指摘する) |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (この 4 つは開発中で、現時点では GLSL の構文エラーだけを指摘する) |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
@@ -51,7 +51,7 @@ rules:
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`                      |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
-| `report`        | 出力に出す指摘の重要度。出力の形式ごとに変えられる ([下記](#report)) |
+| `report`        | 出力する指摘の重要度。出力形式ごとに変更できます ([下記](#report)) |
 
 ## unity
 
@@ -59,9 +59,10 @@ Unity の環境だけで使う設定です。
 
 | キー      | 内容                                                                                          |
 | --------- | --------------------------------------------------------------------------------------------- |
-| `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が勝ちます                    |
-| `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が勝ちます |
-| `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が勝ちます                            |
+| `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が優先されます                    |
+| `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が優先されます |
+| `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が優先されます                            |
+| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます ([CI で Library を使わずに解析する](cli-usage.md#library-と-unity-editor-の無いマシンで解析する)) |
 | `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
 | `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
 | `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
@@ -72,24 +73,24 @@ Unity は既定で FXC を使い、次の場合にパス (コンピュートシ�
 Shaderlyn はパスごと・API ごとにどちらでコンパイルされるかを決め、使える構文をそれで判断します。
 
 - `#pragma use_dxc` (API を書けばその API だけ)
-- DXC が要る `#pragma require` (`int64` / `native16bit` / ウェーブの命令など 12 個。`inlineraytracing` は 6.4 から)
+- DXC が必要な `#pragma require` (`int64` / `native16bit` / ウェーブの命令など 12 個。`inlineraytracing` は 6.4 から)
 - `multi_compile` の `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` / `UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING` が有効な構成
   (コンピュートシェーダーでは `UNITY_DEVICE_SUPPORTS_WAVE_*` も)
 - Unity 6.6 で Shader Compiler Backend を DXC にした API
 
-判定は Unity のバージョンで変わります (`use_dxc dx12` は 6.6 から効く、6.5 以前の `use_dxc` は DX11 も DXC にするなど)。
+判定は Unity のバージョンで変わります (`use_dxc dx12` は 6.6 から適用される、6.5 以前の `use_dxc` は DX11 も DXC にするなど)。
 バージョンが分からないときは、どのバージョンの結果も並べます。
-読んだ設定は `--env` の「シェーダーのコンパイラ」に出ます。
+読み込んだ設定は `--env` の「シェーダーのコンパイラ」に表示されます。
 
 `#pragma` はコードブロックと `HLSLINCLUDE` に直接書いたものを読みます。
-include ファイルの中の `use_dxc` / `require` は Unity 2022.3 だけで効くので、2022.3 (またはバージョンが分からないとき) だけ読みます。
+include ファイル内の `use_dxc` / `require` は Unity 2022.3 だけで有効なため、2022.3 (またはバージョンが分からない場合) に限って読み込みます。
 その場合 `#if` は評価せず、書かれた `#include` をすべてたどります。
 
 ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと判定が一致することを確かめています。
 
-節の外に書いた `profile` (v0.1 の書き方) も読みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) が出ます。
+節の外に記述した `profile` (v0.1 の書き方) も読み込みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) を表示します。
 既定の `--error-on warning` では、この警告でも終了コードが `1` になります（[0.1 から 0.2 へ移行する](migration-0.2.md#設定ファイル)）。
-両方に書いた場合は `unity:` の下を使います。
+両方に記述した場合は `unity:` の下の値を使います。
 
 ほかの環境では `unity:` の節を読みません。`--profile` / `--unity-project` / `--unity-editor` をほかの環境で指定するとエラーになります。
 
@@ -107,9 +108,9 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 
 汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
 `__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。
-ターゲットで決まるものは `units:` の `target` から決めます。`defines` で同じ名前を定義すると、そちらが勝ちます。
+ターゲットで決まるものは `units:` の `target` から決めます。同じ名前を `defines` で定義した場合は、`defines` の値が優先されます。
 
-フォルダーを指定したときは `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、名前を挙げたときだけ解析します。
+フォルダーを指定した場合は `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、明示的に指定した場合に限り解析します。
 
 ## unreal
 
@@ -122,7 +123,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
 | `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
-| `permutations`  | `true` で、`generated` に書き出したパーミュテーションの組を構成の軸にします (既定は `false`) |
+| `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
 ```yaml
 environment: unreal
@@ -140,7 +141,7 @@ units:
     target: ps_6_6
 ```
 
-- フォルダーを指定したときは `.usf` を探します。`.ush` は名前を挙げたときだけ解析します
+- フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
   欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unity 以外の環境で使う](environments.md))
@@ -198,7 +199,7 @@ rules:
     options: { maxParameters: 4 }
 ```
 
-どのルールにも無い ID を書くと、その行に TOOL0003 (警告) を出します。その設定は効いていません。
+どのルールにも存在しない ID を書くと、その行に TOOL0003 (警告) を表示します。その設定は適用されません。
 ID の一覧は `shaderlyn --list-rules` で表示できます (自作のルールも含みます)。
 
 ### 正規表現でまとめて指定する
@@ -212,10 +213,10 @@ rules:
   "/(CF|UN)03[0-9]{2}/": none
 ```
 
-- ID の**全体**と一致したものだけに効きます。`/SL/` は `SL0001` に当たりません (`/SL.*/` と書きます)。大文字と小文字は区別しません
-- ID をそのまま書いた設定が先に効きます。正規表現どうしで複数が当たるときは、後に書いたものが効きます
+- ID の**全体**と一致した場合にだけ適用されます。`/SL/` は `SL0001` に当たりません (`/SL.*/` と書きます)。大文字と小文字は区別しません
+- ID をそのまま書いた設定が優先されます。複数の正規表現が一致する場合は、後に書いたものが適用されます
 - `:` や空白、`#`、`{` などを含む式は `"…"` で囲んでください
-- 書けるのは重要度だけです (`options` は書けません)
+- 指定できるのは重要度だけです (`options` は指定できません)
 
 ### options
 
@@ -231,7 +232,7 @@ rules:
 
 `min-severity` に書いた重要度以上の指摘だけを出力します。`info` / `warning` / `error` のいずれかです。
 すべての形式に同じ値を書くことも、形式 (`text` / `json` / `sarif` / `github`) ごとに書くこともできます。
-形式ごとに書いたとき、書かなかった形式はすべての指摘を出します。
+形式別に設定した場合、設定を省略した形式ではすべての指摘を出力します。
 
 ```yaml
 report:
@@ -239,16 +240,16 @@ report:
 
 report:
   min-severity:              # 形式ごと
-    text: error              # 手元ではエラーだけ見る
+    text: error              # ローカルではエラーだけを表示
     sarif: info              # Code Scanning にはすべて送る
 ```
 
-- 絞るのは出力だけです。終了コードは、出力しなかった指摘も含めて `--error-on` で決めます。
+- 絞り込む対象は出力だけです。終了コードは、出力しなかった指摘も含めて `--error-on` で決まります。
   表示を絞ったことで CI の合否は変わりません
 - テキストの最後の行に、出力しなかった件数を「(重要度で絞り、ほかに 3 件を出力していません)」のように添えます
 - 設定ファイルの誤り (`TOOL0003` など) は絞りません
-- `--annotate` で書く注釈には `github` の値を使います
-- ベースラインの書き出し (`--write-baseline`) は、絞らずにすべての指摘を書きます
+- `--annotate` で出力する注釈には `github` の値を使います
+- ベースラインの出力 (`--write-baseline`) では、絞り込まずにすべての指摘を記録します
 - コマンドラインの `--min-severity` は、どの形式でもこの設定より優先します
 
 `include-trace` は、共通のヘッダの中の指摘に、どのシェーダーのどの Pass から取り込んだかの経路をどこまで添えるかです。

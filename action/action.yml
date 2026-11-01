@@ -31,6 +31,8 @@ inputs:
       Unity プロジェクトのルート (Unity の環境だけ)。
       これを指定しないと、プロパティと HLSL の対応検査 (SL1001 / SL1003 など) はほぼ働きません。
       パッケージ配下のヘッダを解決するために Library/PackageCache が必要です。
+      Library の無いランナー (GitHub のホストランナーなど) では、--unity-generate で書き出したものを
+      設定ファイルの unity: generated に書いておくと、そこから読みます。
     required: false
     default: ""
 

@@ -674,19 +674,7 @@ public sealed partial class ShaderLanguageServer
             {
                 if (Unreal.UnrealGenerationStamp.Check(directory)?.Describe() is { } message)
                 {
-                    await _connection.WriteAsync(writer =>
-                    {
-                        writer.WriteStartObject();
-                        writer.WriteString("jsonrpc", "2.0");
-                        writer.WriteString("method", "window/showMessage");
-
-                        writer.WriteStartObject("params");
-                        writer.WriteNumber("type", MessageTypeWarning);
-                        writer.WriteString("message", message);
-                        writer.WriteEndObject();
-
-                        writer.WriteEndObject();
-                    }, CancellationToken.None).ConfigureAwait(false);
+                    await ShowWarningAsync(message).ConfigureAwait(false);
                 }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -695,6 +683,54 @@ public sealed partial class ShaderLanguageServer
             }
         });
     }
+
+    /// <summary>
+    /// <c>--unity-generate</c> で書き出したものが、今のプロジェクトと合っていなければ、通知で伝える。
+    /// </summary>
+    /// <param name="session">解析に使う単位。</param>
+    /// <remarks>書き出したフォルダーごとに、サーバーが動いている間に 1 度だけ確かめる (<see cref="Unity.UnityIncludeGeneration.DescribeMismatch"/>)。</remarks>
+    private void CheckUnityGeneration(AnalysisSession session)
+    {
+        if (session.UnityGeneratedDirectory is not { } directory
+            || session.UnityProjectPath is not { } project
+            || !_checkedGeneratedDirectories.Add(Path.GetFullPath(directory)))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (Unity.UnityIncludeGeneration.DescribeMismatch(Path.GetFullPath(directory), project) is { } message)
+                {
+                    await ShowWarningAsync(message).ConfigureAwait(false);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                await LogFailureAsync("--unity-generate で書き出したものの確認", exception).ConfigureAwait(false);
+            }
+        });
+    }
+
+    /// <summary>警告の通知 (<c>window/showMessage</c>) を送る。</summary>
+    /// <param name="message">通知の文。</param>
+    /// <returns>非同期操作。</returns>
+    private Task ShowWarningAsync(string message)
+        => _connection.WriteAsync(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteString("jsonrpc", "2.0");
+            writer.WriteString("method", "window/showMessage");
+
+            writer.WriteStartObject("params");
+            writer.WriteNumber("type", MessageTypeWarning);
+            writer.WriteString("message", message);
+            writer.WriteEndObject();
+
+            writer.WriteEndObject();
+        }, CancellationToken.None);
 
     /// <summary>
     /// 開いたファイルの解析に使う設定を返す。
@@ -1323,6 +1359,7 @@ public sealed partial class ShaderLanguageServer
         bool inactiveRegionsRequested = _inactiveRegionsRequested;
         AnalysisSession session = SessionFor(document.Uri);
         CheckUnrealGeneration(session);
+        CheckUnityGeneration(session);
 
         _ = Task.Run(
             async () =>

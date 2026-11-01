@@ -127,6 +127,7 @@ internal sealed class AnalysisSession
             ? SemanticsSetup.CreateUnreal(settings).GeneratedDirectory
             : null;
         UnityProjectPath = options.UnityProjectPath;
+        UnityGeneratedDirectory = options.UnityGeneratedDirectory;
 
         _analyzers = all;
         _analyzerOptions = settings.AnalyzerOptions;
@@ -223,6 +224,9 @@ internal sealed class AnalysisSession
 
     /// <summary>Unreal の環境で使う生成物のフォルダー。Unreal の環境でなければ <see langword="null"/>。</summary>
     public string? UnrealGeneratedDirectory { get; }
+
+    /// <summary><c>--unity-generate</c> で書き出したフォルダー (<c>unity: generated</c>)。Unity の環境で書いていなければ <see langword="null"/>。</summary>
+    public string? UnityGeneratedDirectory { get; }
 
     /// <summary>設定ファイルの読み込みで見つかった問題。</summary>
     /// <remarks>

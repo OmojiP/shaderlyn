@@ -31,6 +31,9 @@ public sealed class ShaderLexer
     private int _position;
     private bool _atLineStart = true;
 
+    /// <summary>直前のトークンの本体の終わり。まだ無ければ -1。</summary>
+    private int _previousEnd = -1;
+
     /// <summary>
     /// 字句解析ツールを生成する。
     /// </summary>
@@ -106,7 +109,13 @@ public sealed class ShaderLexer
             ? []
             : LexTrivia(isTrailing: true);
 
-        return new ShaderSyntaxToken(kind, _text, span, text, atLineStart, leading, trailing, valueText);
+        bool followsWithoutSpace = span.Start == _previousEnd;
+        _previousEnd = trailing.IsEmpty ? span.End : -1;
+
+        return new ShaderSyntaxToken(kind, _text, span, text, atLineStart, leading, trailing, valueText)
+        {
+            FollowsWithoutSpace = followsWithoutSpace,
+        };
     }
 
     /// <summary>
