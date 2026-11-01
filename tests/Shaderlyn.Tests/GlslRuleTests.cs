@@ -381,6 +381,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nvoid main() { o = texture(s, vec3(0.5)); }")]
     [InlineData("GL0302", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(max(1, 2.0)); }")]
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(sin(true)); }")]
+    [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x) { return x; }\nvoid main() { float a[2]; o = vec4(f(a)); }")]
+    [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x[2]) { return x[0]; }\nvoid main() { float a[]; a[1] = 1.0; o = vec4(f(a)); }")]
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float a[2]; o = vec4(abs(a)); }")]
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) in vec3 v[2];\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(interpolateAtCentroid(v), 1.0); }")]
     [InlineData("GL0303", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform sampler2D s;\nlayout(location = 0) flat in ivec2 shift;\nvoid main() { o = textureOffset(s, vec2(0.5), shift); }")]

@@ -764,6 +764,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // GLSL の配列は、配列でない仮引数へは渡せない (暗黙の変換は数値の型にしかない)。
+            if (binder.TypeSystem is GlslTypeSystem && DescribeGlslArrayArgument(arguments[i], binder) is { } array)
+            {
+                return new Mismatch(MismatchKind.ArrayMismatch, i, $"{array} を渡しています", parameter.Type.Name);
+            }
+
             if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback)
                 && !IsGlslStructMismatch(binder, argumentTypes[i], parameter.Type.Name))
             {
@@ -860,6 +866,16 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         NameResolution resolution = binder.ResolveName(identifier);
 
+        // GLSL の大きさの決まっていない配列 (float a[];) は、定数の添字で引いて大きさが暗に決まっても、関数には渡せない
+        // (glslang は「no matching overloaded function found」)。
+        if (binder.TypeSystem is GlslTypeSystem
+            && resolution.Kind is DeclaredNameKind.Local or DeclaredNameKind.Global
+            && !resolution.Candidates.IsEmpty
+            && resolution.Candidates.All(c => c.Declarator is VariableDeclaratorSyntax variable && IsGlslUnsizedVariable(variable)))
+        {
+            return "大きさの決まっていない配列を渡しています";
+        }
+
         if (resolution.Kind is not (DeclaredNameKind.Local or DeclaredNameKind.Global)
             || !resolution.TryGetArrayLength(out int actualLength)
             || resolution.Candidates.Select(c => c.Type.TypeName).Distinct(StringComparer.Ordinal).ToArray()
@@ -922,6 +938,70 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
             : $"{elementType}[{actualLength}] を渡しています";
+    }
+
+    /// <summary>
+    /// GLSL で、実引数が添字を付けない配列なら、その形 (<c>float[5]</c>) を返す。
+    /// </summary>
+    /// <param name="argument">実引数。</param>
+    /// <param name="binder">名前が指す宣言を引く仕組み。</param>
+    /// <returns>配列なら形。配列でないか、分からなければ <see langword="null"/>。</returns>
+    /// <remarks>名前の候補がどれも配列のときと、構造体の配列のフィールドだけを配列とする。</remarks>
+    private static string? DescribeGlslArrayArgument(ExpressionSyntax argument, ExpressionTypeBinder binder)
+    {
+        switch (argument)
+        {
+            case ParenthesizedExpressionSyntax parenthesized:
+                return DescribeGlslArrayArgument(parenthesized.Expression, binder);
+
+            case IdentifierExpressionSyntax identifier:
+            {
+                NameResolution resolution = binder.ResolveName(identifier);
+
+                if (resolution.Kind is not (DeclaredNameKind.Local or DeclaredNameKind.Global)
+                    || resolution.Candidates.IsEmpty
+                    || !resolution.Candidates.All(c => c.Type.IsArray)
+                    || resolution.Candidates.Select(c => c.Type.TypeName).Distinct(StringComparer.Ordinal).ToArray() is not [string element])
+                {
+                    return null;
+                }
+
+                return resolution.TryGetArrayLength(out int length) ? $"{element}[{length}]" : $"{element} の配列";
+            }
+
+            case MemberAccessExpressionSyntax member
+                when binder.GetEvaluatorFor(member).Evaluate(member.Target) is { } structType
+                     && binder.TryGetStructField(structType, member.Name, out VariableDeclaratorSyntax? field, out string? element)
+                     && field.IsArray:
+                return field.TryGetArrayLength(out int fieldLength) ? $"{element}[{fieldLength}]" : $"{element} の配列";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// GLSL の、大きさを書かずに宣言した配列の変数か (外側の次元を <c>[]</c> と書き、初期化子が無い)。
+    /// </summary>
+    /// <param name="variable">変数の宣言子。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 入力と出力の変数 (ジオメトリシェーダーの <c>in</c> の配列など) は glslang が別に大きさを決めるので除く。
+    /// 宣言の型の側に書いた次元 (<c>float[] a</c>) も見る。
+    /// </remarks>
+    private static bool IsGlslUnsizedVariable(VariableDeclaratorSyntax variable)
+    {
+        if (variable.Initializer is not null
+            || variable.Parent is not VariableDeclarationSyntax declaration
+            || declaration.ModifierTokens.Any(m => m.Text is "in" or "out" or "inout" or "attribute" or "varying" or "patch"))
+        {
+            return false;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> ranks = [.. variable.ArrayRankTokens, .. declaration.Type.ArrayRanks];
+        return ranks.Length >= 2
+               && ranks[0].Kind == ShaderSyntaxKind.OpenBracketToken
+               && ranks[1].Kind == ShaderSyntaxKind.CloseBracketToken;
     }
 
     /// <summary>配列の仮引数を表す文字列を返す。</summary>
