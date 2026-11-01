@@ -77,6 +77,9 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 見えている名前を「宣言されていない」と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
         Dictionary<(string File, int Start), Uses> uses = [];
 
+        // GLSL の、使う位置より後ろにしか宣言の無い関数の外の名前。位置ごとに 1 度だけ報告する。
+        Dictionary<(string File, int Start), (Location Location, string Name)> declaredLater = [];
+
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
@@ -92,7 +95,17 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             if (node is IdentifierExpressionSyntax identifier)
             {
                 AnalyzeIdentifier(compilation, program, declared, identifier, qualifiers, uses);
+
+                if (compilation.IsGlsl && FindDeclaredLater(compilation, program, identifier) is { } later)
+                {
+                    declaredLater.TryAdd((later.FilePath, later.Span.Start), (later, identifier.Name));
+                }
             }
+        }
+
+        foreach ((Location location, string name) in declaredLater.Values)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.UndeclaredIdentifier, location, name, "この位置より前に"));
         }
 
         foreach (Uses use in uses.Values)
@@ -106,6 +119,55 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     missing.IsAlways ? "どこにも" : $" 構成：{missing} のとき"));
             }
         }
+    }
+
+    /// <summary>
+    /// GLSL で、関数の外の名前を、その宣言より前で使っているかを調べる。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">識別子がある木。</param>
+    /// <param name="identifier">検査する識別子。</param>
+    /// <returns>そうなら識別子の位置。そうでなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// GLSL では、関数の外の変数も、使う位置より前に宣言しなければならない (glslang は前から順に読み、まだ宣言していない名前を
+    /// 「undeclared identifier」にする)。名前の解決は位置を見ずに関数の外の宣言を引くので、ここで位置を比べる。
+    /// </para>
+    /// <para>
+    /// 名前が関数の外の宣言 (変数、ブロックのメンバー、ブロックのインスタンス) を指し、その候補がどれも、同じファイルの使う位置より後ろにあるときだけ報告する。
+    /// 別のファイル (取り込んだヘッダ) にある宣言は、前後を比べられないので見ない。
+    /// </para>
+    /// </remarks>
+    private static Location? FindDeclaredLater(ShaderCompilation compilation, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
+    {
+        // 組み込みの変数 (gl_ClipDistance など) は、後ろで宣言し直していても、その前から使える。
+        if (identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier)
+            || identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+            || !compilation.IsReportable(identifier)
+            || !compilation.HasCompleteDependenciesAt(identifier)
+            || identifier.GetLocation() is not { } location)
+        {
+            return null;
+        }
+
+        NameResolution resolution = compilation.GetExpressionTypeBinder(program).ResolveName(identifier);
+
+        if (resolution.Kind != DeclaredNameKind.Global || resolution.Candidates.IsEmpty)
+        {
+            return null;
+        }
+
+        foreach (DeclaredName candidate in resolution.Candidates)
+        {
+            if (candidate.Declarator.FirstToken is not { } first
+                || !ReferenceEquals(first.Source, identifier.Identifier.Source)
+                || first.Span.Start < identifier.Identifier.Span.Start)
+            {
+                return null;
+            }
+        }
+
+        return location;
     }
 
     /// <summary>

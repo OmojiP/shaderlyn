@@ -599,6 +599,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform Blk { float f; };\nvoid main() { Blk; o = vec4(f); }")]
     [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid f() { terminateInvocation; }\n#extension GL_EXT_terminate_invocation : enable\nvoid main() { o = vec4(1.0); }")]
     [InlineData("a.frag", "#version 310 es\nprecision mediump float;\nsample out vec4 o;\nvoid main() { o = vec4(missing); }")]
+    [InlineData("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(later); }\nfloat later = 1.0;")]
     public async Task 宣言されていない名前(string fileName, string code)
     {
         Assert.Contains("error CF0310", await AnalyzeAsync(fileName, code + "\n"), StringComparison.Ordinal);
@@ -632,12 +633,15 @@ public sealed class GlslRuleTests : IDisposable
         Assert.DoesNotContain("GL0320", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
 
-    /// <summary>波括弧の中の宣言、本体の中で使う宣言、#extension より後ろの terminateInvocation は報告しない。</summary>
+    /// <summary>
+    /// 波括弧の中の宣言、本体の中で使う宣言、#extension より後ろの terminateInvocation、前で宣言した関数の外の変数、
+    /// 後ろで宣言し直した組み込みの変数 (gl_ClipDistance) は報告しない。
+    /// </summary>
     [Fact]
     public async Task 見える宣言()
     {
-        const string body = "#version 450\n#extension GL_EXT_terminate_invocation : enable\nlayout(location = 0) out vec4 o;\n"
-                            + "void main() { int i = 1; if (i == 1) { int j = i; o = vec4(float(j)); } for (int k = 0; k < 2; k++) o += vec4(float(k)); if (o.x > 9.0) terminateInvocation; }\n";
+        const string body = "#version 450\n#extension GL_EXT_terminate_invocation : enable\nlayout(location = 0) out vec4 o;\nfloat earlier = 1.0;\n"
+                            + "void main() { int i = 1; if (i == 1) { int j = i; o = vec4(float(j)); } for (int k = 0; k < 2; k++) o += vec4(float(k)); if (o.x > 9.0) terminateInvocation; o += vec4(earlier); }\n";
 
         Assert.DoesNotContain("CF0310", await AnalyzeAsync("a.frag", body), StringComparison.Ordinal);
     }
