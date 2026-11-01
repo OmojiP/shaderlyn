@@ -113,7 +113,7 @@ internal sealed partial class ShaderPreprocessor
             // #error を診断として報告しないのは、それが非活性領域に置かれる
             // 「この構成では使えない」という印であることが多く、
             // 単一構成での展開では偽の指摘になりやすいためである。
-            // #line は報告の位置を付け替えるだけで、展開には影響しない。
+            // #line は報告の位置を付け替えるだけで、展開には影響しない。形だけを検査する (CheckLineDirective)。
             // 受け付けない環境は UnsupportedDirectives で報告する。
             case "error":
                 NoteErrorDirective(directiveToken);
@@ -127,8 +127,11 @@ internal sealed partial class ShaderPreprocessor
                 break;
 
             case "warning":
-            case "line":
                 SkipDirectiveLine();
+                break;
+
+            case "line":
+                CheckLineDirective(directiveToken, ReadDirectiveLine());
                 break;
 
             default:
@@ -1924,6 +1927,55 @@ internal sealed partial class ShaderPreprocessor
     /// <param name="filePath">取り込むファイルのパス。</param>
     /// <returns>取り込み済みなら <see langword="true"/>。</returns>
     private bool IsIncludedOnce(string filePath) => _macros.ContainsKey(OnceMarkerPrefix + filePath);
+
+    /// <summary>
+    /// <c>#line</c> の形を検査する。行番号は付け替えない。
+    /// </summary>
+    /// <param name="directiveToken">指令名のトークン。</param>
+    /// <param name="line">指令の行のトークン。</param>
+    /// <remarks>
+    /// <para>
+    /// 形は <c>#line 行</c> の後ろに、ファイル名の文字列 (C と HLSL、GLSL の GL_GOOGLE_cpp_style_line_directive) か
+    /// 文字列の番号の式 (GLSL) を 1 つ書けるものとする。どれもマクロを展開してから読む。
+    /// glslang の Pp.cpp の <c>CPPline</c> と同じく、行番号と文字列の番号は式として読み (<c>#line L1 + L2</c>)、
+    /// その後ろに残った記述を「unexpected tokens following directive」にする (<c>#line 1234 F1 + F2 extra</c>)。
+    /// </para>
+    /// </remarks>
+    private void CheckLineDirective(ShaderSyntaxToken directiveToken, ImmutableArray<ShaderSyntaxToken> line)
+    {
+        if (line.IsEmpty)
+        {
+            Report(ShaderDescriptors.PreprocessorError, directiveToken.GetLocation(), "#line の後には行番号が必要です。");
+            return;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(line, depth: 0);
+        int index = 0;
+
+        for (int operand = 0; operand < 2 && index < expanded.Length; operand++)
+        {
+            if (operand == 1 && expanded[index].Kind == ShaderSyntaxKind.StringLiteralToken)
+            {
+                index++;
+                break;
+            }
+
+            ConditionalExpressionEvaluator.EvaluatePrefix(expanded[index..], out int consumed, out string? error);
+
+            if (error is not null)
+            {
+                Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の式を読めません: {error}");
+                return;
+            }
+
+            index += consumed;
+        }
+
+        if (index < expanded.Length)
+        {
+            Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の後に余分な記述があります: '{expanded[index].Text}'");
+        }
+    }
 
     // --------------------------------------------------------------------
     // 指令の行の読み取り

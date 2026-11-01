@@ -228,6 +228,16 @@ public sealed record PreprocessorOptions
     public bool MergeSwitchedIncludes { get; init; }
 
     /// <summary>
+    /// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロを記録するか
+    /// (<see cref="PreprocessResult.UndefinedConditionIdentifiers"/>)。既定は記録しない。
+    /// </summary>
+    /// <remarks>
+    /// GLSL ES では、<c>#if</c> の式に定義されていないマクロを書くと誤りである (glslang の「undefined macro in expression not allowed in es profile」)。
+    /// C と HLSL と、ES でない GLSL では 0 として読む。
+    /// </remarks>
+    public bool RecordUndefinedConditionIdentifiers { get; init; }
+
+    /// <summary>
     /// 並べてよい領域の位置。<see langword="null"/> なら展開しながら決める。
     /// </summary>
     /// <remarks>
@@ -417,7 +427,7 @@ public sealed record PreprocessorOptions
     /// ("syntax error: unexpected token 'line'")。DXC はそのまま受け付ける。
     /// </para>
     /// <para>
-    /// 既定は空で、どれも報告しない。<c>#line</c> は読み飛ばす。
+    /// 既定は空で、どれも報告しない。<c>#line</c> は形だけを検査し、行番号は付け替えない。
     /// </para>
     /// </remarks>
     public ImmutableHashSet<string> UnsupportedDirectives { get; init; } =
@@ -568,6 +578,13 @@ public readonly record struct RecordedDirective(
     ShaderSyntaxToken Directive,
     ImmutableArray<ShaderSyntaxToken> Tokens,
     int OutputIndex);
+
+/// <summary>
+/// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロ 1 つ。
+/// </summary>
+/// <param name="Directive">指令の名前のトークン (<c>if</c> / <c>elif</c>)。</param>
+/// <param name="Name">マクロの名前。</param>
+public readonly record struct UndefinedConditionIdentifier(ShaderSyntaxToken Directive, string Name);
 
 /// <summary>
 /// 条件付きで出力へ入れたトークンの範囲。
@@ -873,6 +890,12 @@ public readonly record struct PreprocessResult(
 
     /// <summary>展開の順番を覚えた指令 (GLSL の <c>#version</c> と <c>#extension</c>)。読み飛ばした分岐の中のものは無い。</summary>
     public ImmutableArray<RecordedDirective> RecordedDirectives { get; init; } = [];
+
+    /// <summary>
+    /// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロ。
+    /// <see cref="PreprocessorOptions.RecordUndefinedConditionIdentifiers"/> のときだけ記録する。短絡で評価しない側のものは無い。
+    /// </summary>
+    public ImmutableArray<UndefinedConditionIdentifier> UndefinedConditionIdentifiers { get; init; } = [];
 
     /// <summary>
     /// 到達した、読んでいる <c>#error</c> の位置。並べた分岐の中のものは数えない。

@@ -25,14 +25,7 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private bool TryExpandPredefinedMacro(ShaderSyntaxToken nameToken)
     {
-        ShaderSyntaxToken? replacement = nameToken.Text switch
-        {
-            "__LINE__" => CreateNumericToken(nameToken, (nameToken.GetLocation()?.LineSpan.Start.Line ?? 0) + 1),
-            "__FILE__" => CreateStringToken(nameToken.Source.FilePath ?? string.Empty, nameToken),
-            _ => null,
-        };
-
-        if (replacement is null)
+        if (CreatePredefinedMacroToken(nameToken) is not { } replacement)
         {
             return false;
         }
@@ -41,6 +34,18 @@ internal sealed partial class ShaderPreprocessor
         PushExpansionSource([replacement], nameToken.Text);
         return true;
     }
+
+    /// <summary>
+    /// 識別子が、コンパイラが定義する <c>__LINE__</c> / <c>__FILE__</c> なら、展開した結果のトークンを作る。
+    /// </summary>
+    /// <param name="nameToken">識別子のトークン。</param>
+    /// <returns>展開した結果。そうでなければ <see langword="null"/>。</returns>
+    private ShaderSyntaxToken? CreatePredefinedMacroToken(ShaderSyntaxToken nameToken) => nameToken.Text switch
+    {
+        "__LINE__" => CreateNumericToken(nameToken, (nameToken.GetLocation()?.LineSpan.Start.Line ?? 0) + 1),
+        "__FILE__" => CreateStringToken(nameToken.Source.FilePath ?? string.Empty, nameToken),
+        _ => null,
+    };
 
     /// <summary>
     /// 現在位置の識別子がマクロなら展開する。
@@ -488,6 +493,15 @@ internal sealed partial class ShaderPreprocessor
             if (token.Kind == ShaderSyntaxKind.IdentifierToken && token.TextIs("defined"))
             {
                 i = CopyDefinedOperand(tokens, i, result);
+                continue;
+            }
+
+            // #if __LINE__ のように、条件式にもコンパイラが定義するマクロを書ける。
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken
+                && !_macros.ContainsKey(token.Text)
+                && CreatePredefinedMacroToken(token) is { } predefined)
+            {
+                result.Add(predefined);
                 continue;
             }
 

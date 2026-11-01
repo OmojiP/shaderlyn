@@ -74,6 +74,7 @@ public sealed class RuleFixtureTests
         // GLSL だけの規則。GlslRuleTests で、GLSL のファイルとして確かめている。
         ["GL0001"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0002"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0003"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0101"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0102"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0103"] = "GLSL だけの規則なので、Unity の .shader では起こせない",

@@ -40,6 +40,21 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0002"));
 
+    /// <summary>GLSL のプリプロセッサの指令の誤り。</summary>
+    /// <remarks>
+    /// glslang の Pp.cpp の誤り (「undefined macro in expression not allowed in es profile」など) に当たる。文の <c>{0}</c> は理由。
+    /// 構文の誤り (CF0001 / CF0002) と違い、解析は止めない。
+    /// </remarks>
+    public static DiagnosticDescriptor PreprocessorDirective { get; } = new(
+        id: "GL0003",
+        title: "GLSL のプリプロセッサの指令の誤りです",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "GLSL のプリプロセッサの指令に、glslang が誤りにする書き方があります。"
+            + "たとえば ES では、#if / #elif の式に定義されていないマクロを書けません。",
+        helpLinkUri: DocumentationLinks.For("GL0003"));
+
     /// <summary>修飾子をここに書けない。</summary>
     /// <remarks>glslang の <c>globalCheck</c> (「not allowed in nested scope」) などに当たる。文の <c>{0}</c> は、何をどこに書けないか。</remarks>
     public static DiagnosticDescriptor QualifierNotAllowed { get; } = new(

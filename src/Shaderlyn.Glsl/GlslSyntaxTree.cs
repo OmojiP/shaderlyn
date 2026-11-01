@@ -32,6 +32,12 @@ internal static class GlslSyntaxTree
             effective = effective with { Language = GlslLanguageOptions.Default };
         }
 
+        // ES では、#if の式に定義されていないマクロを書くと誤りである (GL0003)。その名前を記録させる。
+        if (effective.Language is GlslLanguageOptions { Profile: GlslProfile.Es })
+        {
+            effective = effective with { RecordUndefinedConditionIdentifiers = true };
+        }
+
         PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
 
         GlslLanguageOptions language = (GlslLanguageOptions)effective.Language!;

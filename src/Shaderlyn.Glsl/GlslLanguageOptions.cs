@@ -254,6 +254,7 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
     /// <returns>マクロ。バージョンが分からなければ空。</returns>
     /// <remarks>
     /// <list type="bullet">
+    ///   <item><description><c>__FILE__</c> は文字列の番号の 0 (C と HLSL と違い、ファイル名ではない)</description></item>
     ///   <item><description><c>__VERSION__</c> はバージョン。ES は <c>GL_ES</c>、デスクトップの 1.50 以降は <c>GL_core_profile</c> (互換プロファイルなら <c>GL_compatibility_profile</c> も)</description></item>
     ///   <item><description>glslang が読める拡張の名前のマクロ (<c>GL_EXT_ray_tracing</c> など)。拡張を有効にしていなくても定義する</description></item>
     ///   <item><description>デスクトップでは、ステージのマクロ (<c>GL_FRAGMENT_SHADER</c> など)</description></item>
@@ -263,6 +264,9 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
     public ImmutableDictionary<string, string> CreateCompilerMacros()
     {
         ImmutableDictionary<string, string>.Builder macros = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.Ordinal);
+
+        // GLSL の __FILE__ はファイル名の文字列でなく、文字列の番号 (整数) である。1 つのファイルを読むので 0 になる。
+        macros["__FILE__"] = "0";
 
         if (Version is not { } version)
         {

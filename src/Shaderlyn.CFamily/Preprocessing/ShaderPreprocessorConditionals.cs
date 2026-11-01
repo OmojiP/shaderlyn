@@ -989,11 +989,24 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
         ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
-        bool result = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error);
+        List<ShaderSyntaxToken>? undefined = _options.RecordUndefinedConditionIdentifiers ? [] : null;
+        bool result = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error, undefined);
 
         if (error is not null)
         {
             Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), error);
+        }
+
+        // 指令の名前は行の前にある。行の先頭のトークンの 1 つ前を探さずに、行の先頭のトークンで位置を表す。
+        // 引数を閉じずに展開できなかった関数形式のマクロ (#if foobar(1) は定義されているので除く。
+        foreach (ShaderSyntaxToken identifier in undefined ?? [])
+        {
+            if (_macros.ContainsKey(identifier.Text))
+            {
+                continue;
+            }
+
+            _undefinedConditionIdentifiers.Add(new UndefinedConditionIdentifier(line[0], identifier.Text));
         }
 
         return result;

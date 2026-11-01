@@ -462,6 +462,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2] = float[2](1.0, 2.0); gl_FragColor = vec4(a[0]); }")]
     [InlineData("GL0320", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid g(float a, double b) { }\nvoid g(double a, float b) { }\nvoid main() { float f = 1.0; g(f, f); o = vec4(f); }")]
     [InlineData("GL0320", "a.vert", "#version 130\nvoid g(float a, int b) { }\nvoid g(int a, float b) { }\nvoid main() { int i = 1; g(i, i); gl_Position = vec4(0.0); }")]
+    [InlineData("GL0003", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\n#if UNDEF\n#endif\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { uint i = 0x1FFFFFFFFu; o = vec4(i); }")]
     [InlineData("GL0314", "a.comp", "#version 450\n#extension GL_KHR_memory_scope_semantics : require\nlayout(local_size_x = 1) in;\nlayout(binding = 0) buffer B { uint x; } b;\nvoid main() { atomicStore(b.x, 1u, gl_ScopeDevice, gl_StorageSemanticsBuffer, gl_SemanticsAcquire); }")]
@@ -620,6 +621,23 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
         Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>GLSL の __FILE__ は文字列の番号 (整数) なので、#line の式に書ける。</summary>
+    [Fact]
+    public async Task lineの式の__FILE__()
+    {
+        string output = await AnalyzeAsync("a.vert", "#version 450\n#line __FILE__ + 2\n#line __FILE__ * __LINE__\nvoid main() { gl_Position = vec4(0.0); }\n");
+
+        Assert.DoesNotContain("CF0002", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>ES でない GLSL と、短絡で評価しない側の定義されていないマクロは報告しない。</summary>
+    [Fact]
+    public async Task 書ける条件式の未定義のマクロ()
+    {
+        Assert.DoesNotContain("GL0003", await AnalyzeAsync("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\n#if UNDEF\n#endif\nvoid main() { o = vec4(1.0); }\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0003", await AnalyzeAsync("a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\n#if defined(UNDEF) && UNDEF\n#endif\nvoid main() { o = vec4(1.0); }\n"), StringComparison.Ordinal);
     }
 
     /// <summary>型がすべて同じ宣言がある呼び出しと、変換の良さでいちばん良い宣言が決まる呼び出しは、多重定義があいまいとは言わない。</summary>
