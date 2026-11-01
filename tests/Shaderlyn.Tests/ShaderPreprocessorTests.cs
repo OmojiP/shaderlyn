@@ -198,6 +198,16 @@ public sealed class MacroExpansionTests
     }
 
     [Fact]
+    public void オブジェクト形式のマクロの本体の連結を行う()
+    {
+        // C の規則では、関数形式でないマクロの本体の ## も連結する。
+        Assert.Equal("float value1 ;", PreprocessorHarness.TextWithoutDiagnostics("""
+            #define NAME value ## 1
+            float NAME;
+            """));
+    }
+
+    [Fact]
     public void 実引数の数字に続けて書いた名前を1つのトークンとして連結する()
     {
         // 実引数の 1D も 1 つの字句である。マクロを一段通しても同じ (glslang の Test の cppMerge.frag)。

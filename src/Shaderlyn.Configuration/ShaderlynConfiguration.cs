@@ -64,6 +64,15 @@ internal sealed record ShaderlynConfiguration
     public string? UnityEditorPath { get; init; }
 
     /// <summary>
+    /// <c>--unity-generate</c> で書き出したフォルダー (<c>unity: generated</c>)。設定ファイルからの相対で解決済み。
+    /// </summary>
+    /// <remarks>
+    /// プロジェクトの <c>Library/PackageCache</c> と、プロジェクトと同じバージョンの Unity Editor が見つからないとき、代わりにここから読む
+    /// (GitHub のホストランナーなど)。見つかれば本物を読む。
+    /// </remarks>
+    public string? UnityGeneratedDirectory { get; init; }
+
+    /// <summary>
     /// Unity のバージョン (<c>unity: version</c>、<c>6.3</c> / <c>6000.3.0f1</c> / <c>2022.3</c> など)。指定が無い場合は <see langword="null"/>。
     /// </summary>
     /// <remarks>指定が無ければ、プロジェクトの <c>ProjectSettings/ProjectVersion.txt</c> から読む。</remarks>

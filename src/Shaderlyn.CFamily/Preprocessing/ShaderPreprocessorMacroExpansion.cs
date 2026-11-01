@@ -66,7 +66,7 @@ internal sealed partial class ShaderPreprocessor
         {
             TakeToken();
 
-            // オブジェクト形式のマクロの本体の ## も連結する (C の規則。glslang の Test の cppMerge.frag の #define T image1D dest ## 1;)。
+            // オブジェクト形式のマクロの本体の ## も連結する (C の規則。#define T image1D dest ## 1)。
             PushExpansionSource(
                 macro.Body.Any(t => t.Kind == ShaderSyntaxKind.HashHashToken)
                     ? SubstituteMacroBody(macro, [], nameToken)

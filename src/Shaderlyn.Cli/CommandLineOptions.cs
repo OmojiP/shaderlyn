@@ -22,7 +22,7 @@ internal enum OutputFormat
 
     /// <summary>
     /// GitHub Actions のワークフローコマンド形式。
-    /// Code Scanning を有効化していないリポジトリでも PR にインライン注釈が出る。
+/// Code Scanning を有効化していないリポジトリでも、PR にインライン注釈が表示される。
     /// </summary>
     GitHub,
 }
@@ -60,18 +60,27 @@ internal sealed class CommandLineOptions
     public string? Environment { get; private set; }
 
     /// <summary>
-    /// 解析の中身を書き出すビューアーの出力先。指定が無い場合は <see langword="null"/>。
+    /// 解析の内容を表示する HTML ビューアーの出力先。指定が無い場合は <see langword="null"/>。
     /// </summary>
     /// <remarks>
-    /// 構文木・トークン・解決した型を 1 つの HTML にまとめて書き出す。
+    /// 構文木・トークン・解決した型を 1 つの HTML にまとめて出力する。
     /// </remarks>
     public string? InspectOutputPath { get; private set; }
 
     /// <summary>
-    /// Unreal の C++ から、生成される取り込み (uniform buffer の宣言など) を作って書き出すフォルダー (<c>--unreal-generate</c>)。
+    /// Unreal の C++ から生成される取り込み (uniform buffer の宣言など) を作成して出力するフォルダー (<c>--unreal-generate</c>)。
     /// 指定が無い場合は <see langword="null"/>。
     /// </summary>
     public string? UnrealGenerateOutputPath { get; private set; }
+
+    /// <summary>
+    /// Unity プロジェクトの <c>Library</c> と Unity Editor から、解析に必要なヘッダを出力するフォルダー (<c>--unity-generate</c>)。
+    /// 指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    public string? UnityGenerateOutputPath { get; private set; }
+
+    /// <summary><c>--unity-generate</c> の実行前の確認に応答せず、「はい」と回答する (<c>--yes</c>)。</summary>
+    public bool AssumeYes { get; private set; }
 
     /// <summary>設定ファイルのパス。指定が無い場合は <see langword="null"/>。</summary>
     public string? ConfigPath { get; private set; }
@@ -87,7 +96,7 @@ internal sealed class CommandLineOptions
     /// GitHub はリポジトリのルートからの相対パスでファイルを特定するため、
     /// 絶対パスのままではリポジトリ内のファイルへ対応づけられない。
     /// 対応づかない指摘は何も伝えられずに捨てられ、
-    /// 「アップロードは成功したのに何も出ない」という分かりにくい失敗になる。
+    /// 「アップロードは成功したのに結果が表示されない」という分かりにくい失敗になる。
     /// <para>
     /// 省略時は現在の作業フォルダーを使う。
     /// GitHub Actions では既定でリポジトリのルートになる。
@@ -101,18 +110,18 @@ internal sealed class CommandLineOptions
     /// <remarks>
     /// <para>
     /// <c>--format sarif --output &lt;パス&gt; --annotate</c> という使い方を想定している。
-    /// SARIF をファイルへ書きつつ、PR には即座に注釈を出す、という 2 つの目的を
+    /// SARIF をファイルへ出力しながら、PR に注釈をすぐに表示するという 2 つの目的を
     /// <b>1 回の解析で</b>果たすためのものである。
     /// </para>
     /// </remarks>
     public bool Annotate { get; private set; }
 
     /// <summary>
-    /// 解析の内訳を標準エラーへ出すかどうか。
+    /// 解析の内訳を標準エラーへ出力するかどうか。
     /// </summary>
     /// <remarks>
     /// <b>速さを測るためのもの。</b>
-    /// 標準出力ではなく標準エラーへ出すのは、
+    /// 標準出力ではなく標準エラーへ出力するのは、
     /// JSON や SARIF の出力へ混ぜないためである。
     /// </remarks>
     public bool ReportTimings { get; private set; }
@@ -122,7 +131,7 @@ internal sealed class CommandLineOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>指定されたときだけ働く。</b>
+    /// <b>指定時にのみ有効になる。</b>
     /// </para>
     /// </remarks>
     public string? CachePath { get; private set; }
@@ -130,9 +139,9 @@ internal sealed class CommandLineOptions
     /// <summary>照合に使うベースラインファイルのパス。</summary>
     public string? BaselinePath { get; private set; }
 
-    /// <summary>ベースラインを書き出す先のパス。</summary>
+    /// <summary>ベースラインの出力先パス。</summary>
     /// <remarks>
-    /// 指定された場合、解析結果をベースラインとして書き出す。
+    /// 指定された場合、解析結果をベースラインとして出力する。
     /// 既存の指摘を凍結して導入するための操作であり、
     /// このとき指摘があっても終了コードは 0 になる。
     /// </remarks>
@@ -145,8 +154,8 @@ internal sealed class CommandLineOptions
     /// <b>利用者に明示的に指定してもらうものである。</b>
     /// URP のシェーダーは <c>Packages/com.unity.render-pipelines.universal/...</c> の形で
     /// ヘッダを参照しており、パッケージの実体はプロジェクト配下にある。
-    /// 指定が無い場合に引けるのは、インストール済みの Editor に同梱されたパッケージだけになる。
-    /// どちらからも引けなければ uniform の一覧が不完全になり、
+    /// 指定が無い場合に解決できるのは、インストール済みの Editor に同梱されたパッケージだけになる。
+    /// どちらからも解決できなければ uniform の一覧が不完全になり、
     /// 誤検出を避けるためにルールが自ら検査を見送る (<c>CF0101</c>)。
     /// <c>#include</c> を 1 つも解決できなかった場合は <c>TOOL0004</c> のエラーになる。
     /// </remarks>
@@ -157,7 +166,7 @@ internal sealed class CommandLineOptions
     /// </summary>
     /// <remarks>
     /// Unity 同梱のヘッダ (<c>CGIncludes</c>) と、Editor に同梱された
-    /// URP / HDRP のパッケージ (<c>BuiltInPackages</c>) はここから引く。
+    /// URP / HDRP のパッケージ (<c>BuiltInPackages</c>) はここから解決する。
     /// 省略した場合、<see cref="UnityProjectPath"/> の
     /// <c>ProjectSettings/ProjectVersion.txt</c> から推定を試み、
     /// プロジェクトの指定も無ければインストール済みで最も新しいものを使う。
@@ -165,18 +174,29 @@ internal sealed class CommandLineOptions
     public string? UnityEditorDataPath { get; private set; }
 
     /// <summary>
+    /// <c>--unity-generate</c> で生成したフォルダー (設定ファイルの <c>unity: generated</c>)。指定が無い場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// プロジェクトの <c>Library/PackageCache</c> と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読み込む。
+    /// コマンドラインでは指定しない (設定ファイルに書く)。
+    /// </remarks>
+    internal string? UnityGeneratedDirectory { get; private set; }
+
+    /// <summary>
     /// コマンドラインで指定されていない Unity のパスを、設定ファイルの値で埋める。
     /// </summary>
     /// <param name="projectPath">設定ファイルの <c>unity: project</c>。</param>
     /// <param name="editorDataPath">設定ファイルの <c>unity: editor</c>。</param>
+    /// <param name="generatedDirectory">設定ファイルの <c>unity: generated</c>。</param>
     /// <remarks>
-    /// <b>コマンドラインの指定が勝つ。</b> 設定ファイルはリポジトリの既定で、コマンドラインはその場の指定である。
-    /// ここで埋めておけば、パスを読む側 (include の解決、環境の表示、キャッシュの鍵) は出どころを区別しなくてよい。
+    /// <b>コマンドラインの指定が優先される。</b> 設定ファイルはリポジトリの既定で、コマンドラインは実行時の指定である。
+    /// ここで補完すると、パスを参照する側 (include の解決、環境の表示、キャッシュの鍵) は出どころを区別する必要がない。
     /// </remarks>
-    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath)
+    internal void UseConfigurationDefaults(string? projectPath, string? editorDataPath, string? generatedDirectory = null)
     {
         UnityProjectPath ??= projectPath;
         UnityEditorDataPath ??= editorDataPath;
+        UnityGeneratedDirectory ??= generatedDirectory;
     }
 
     /// <summary>
@@ -185,13 +205,14 @@ internal sealed class CommandLineOptions
     /// <remarks>
     /// Unity 以外の環境で、Unity のプロジェクトのパスが探索パスに混ざらないようにする。
     /// CLI は外す前に指定を覚えておき、エラーにする (<see cref="EffectiveSettings.UnityOnlyCommandLineOptions"/>)。
-    /// 言語サーバーはワークスペースから推定した <c>--unity-project</c> を渡すので、ここで黙って外れる。
+    /// 言語サーバーはワークスペースから推定した <c>--unity-project</c> を渡すため、この処理で通知せずに解除される。
     /// </remarks>
     internal void ClearUnityOptions()
     {
         Profile = null;
         UnityProjectPath = null;
         UnityEditorDataPath = null;
+        UnityGeneratedDirectory = null;
     }
 
     /// <summary>
@@ -257,16 +278,16 @@ internal sealed class CommandLineOptions
     public DiagnosticSeverity ErrorOn { get; private set; } = DiagnosticSeverity.Warning;
 
     /// <summary>
-    /// 出力に出す指摘の最低の重要度 (<c>--min-severity</c>)。設定ファイルの <c>report: min-severity</c> より優先する。
+    /// 出力対象とする指摘の最低重要度 (<c>--min-severity</c>)。設定ファイルの <c>report: min-severity</c> より優先する。
     /// </summary>
     /// <remarks>
-    /// 出力を絞るだけで、終了コードは <see cref="ErrorOn"/> に従ってすべての指摘で決める。
+    /// 出力対象を絞り込みますが、終了コードは <see cref="ErrorOn"/> に従い、すべての指摘を基に決定する。
     /// 表示を絞ったことで CI の合否が変わらないようにするためである。
     /// </remarks>
     public DiagnosticSeverity? MinSeverity { get; private set; }
 
     /// <summary>
-    /// ヘッダの中の指摘に、どのシェーダーから取り込んだかの経路をどこまで出すか (<c>--include-trace</c>)。
+    /// ヘッダ内の指摘に、どのシェーダーから取り込んだかの経路をどこまで表示するか (<c>--include-trace</c>)。
     /// 設定ファイルの <c>report: include-trace</c> より優先する。指定が無ければ <see langword="null"/>。
     /// </summary>
     public Reporting.IncludeTraceMode? IncludeTrace { get; private set; }
@@ -302,6 +323,7 @@ internal sealed class CommandLineOptions
             ["--annotate"] = o => o.Annotate = true,
             ["--timings"] = o => o.ReportTimings = true,
             ["--env"] = o => o.ShowEnvironment = true,
+            ["--yes"] = o => o.AssumeYes = true,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -334,6 +356,7 @@ internal sealed class CommandLineOptions
             ["--cache"] = (o, v) => Set(() => o.CachePath = v),
             ["--inspect"] = (o, v) => Set(() => o.InspectOutputPath = v),
             ["--unreal-generate"] = (o, v) => Set(() => o.UnrealGenerateOutputPath = v),
+            ["--unity-generate"] = (o, v) => Set(() => o.UnityGenerateOutputPath = v),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -344,9 +367,9 @@ internal sealed class CommandLineOptions
     /// <param name="error">解析に失敗した場合のエラーメッセージ。</param>
     /// <returns>解析に成功した場合は <see langword="true"/>。</returns>
     /// <remarks>
-    /// <b>オプションは表 (<see cref="Flags"/> / <see cref="ValueOptions"/>) で引く。</b>
+    /// <b>オプションは表 (<see cref="Flags"/> / <see cref="ValueOptions"/>) を参照する。</b>
     /// 値の取り出しと失敗したときの後始末をオプションごとに書くと、
-    /// 足すたびに同じ手順を書き写すことになり、書き忘れた 1 つだけが壊れる。
+    /// オプションを追加するたびに同じ手順を記述することになり、記述漏れのあるオプションだけが機能しなくなる。
     /// </remarks>
     public static bool TryParse(
         string[] args,
@@ -365,7 +388,8 @@ internal sealed class CommandLineOptions
             && !parsed.ShowVersion
             && !parsed.ListRules
             && !parsed.ShowEnvironment
-            && parsed.UnrealGenerateOutputPath is null)
+            && parsed.UnrealGenerateOutputPath is null
+            && parsed.UnityGenerateOutputPath is null)
         {
             error = "解析対象のパスが指定されていません。ファイルまたはフォルダーを 1 つ以上指定してください。";
         }
@@ -537,7 +561,7 @@ internal sealed class CommandLineOptions
                                  (unity は .shader と .compute、hlsl は .hlsl、unreal は .usf) と、
                                  GLSL (.vert / .frag など)・Godot・Slang・WGSL のファイルを解析します。
                                  Unity の .hlsl と .cginc は単体では成立しない断片であることが多いため
-                                 探索しません。名前を挙げて指定すれば解析します。
+                                 探索しません。明示的に指定した場合は解析します。
 
         オプション:
           --environment <名前>   解析する環境: unity (既定), hlsl, unreal, glsl。設定ファイルの environment より優先します。
@@ -549,7 +573,7 @@ internal sealed class CommandLineOptions
                                  終了コードは出力しなかった指摘も含めて --error-on で決めます。
           --include-trace <範囲> ヘッダの中の指摘に、どのシェーダーのどの Pass から、どの #include をたどって
                                  取り込んだかを添える: first (既定。1 本と残りの本数), all, none。
-                                 json / sarif は none でなければすべて出します。
+                                 json / sarif は none でなければ、すべての経路を出力します。
                                  設定ファイルの report: include-trace より優先します。
           -o, --output <パス>    出力先ファイル。省略時は標準出力へ書きます。
           --base-path <パス>     出力するパスを相対化する基点。省略時は現在のフォルダー。
@@ -559,15 +583,15 @@ internal sealed class CommandLineOptions
                                  --format sarif --output <パス> --annotate とすることで、
                                  1 回の解析で SARIF の生成と PR への注釈を同時に行えます。
           --timings              解析の内訳 (構文解析・展開・ルール) を標準エラーへ出します。
-                                 どこに時間が行っているかを測るためのものです。
+                                 どの処理に時間がかかっているかを測定するための機能です。
           --list-rules           実装されている全ルールを一覧表示します。
           --version              バージョンを表示します。
           -h, --help             このヘルプを表示します。
 
         意味解析のオプション:
-          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダの解決に使います (Unity の環境だけ)。
+          --unity-project <パス> Unity プロジェクトのルート。パッケージ配下のヘッダを解決するために使います (Unity の環境だけ)。
                                  明示的に指定してください (推定はしません)。
-          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを引きます (Unity の環境だけ)。
+          --unity-editor <パス>  Unity Editor のデータフォルダー。Unity 同梱のヘッダを解決します (Unity の環境だけ)。
                                  省略時は ProjectSettings/ProjectVersion.txt から推定し、
                                  --unity-project も無ければインストール済みの最新バージョンを使います。
           --include-path <パス>  #include の追加探索パス。複数回指定できます。
@@ -576,7 +600,7 @@ internal sealed class CommandLineOptions
           --max-symbol-variants <数>
                                  #pragma shader_feature / multi_compile で宣言された
                                  シンボルを 1 つずつ有効にして解析する上限 (既定 8)。
-                                 上げると見落としは減り、解析時間は伸びます。
+                                 上限を増やすと見落としは減り、解析時間は長くなります。
                                  調べきれなかった経路は CF0102 として報告されます。
 
         設定ファイルとベースライン:
@@ -584,13 +608,13 @@ internal sealed class CommandLineOptions
           --no-config            設定ファイルを探しません。
           --baseline <パス>      ベースラインに記録済みの指摘を除外します。
           --write-baseline <パス>
-                                 現在の指摘をベースラインとして書き出します。
+                                 現在の指摘をベースラインとして出力します。
                                  既存プロジェクトへ導入する際に、既存の指摘を凍結する操作です。
 
-        2 回目以降を速くする:
-          --cache <パス>         前回の結果をこのファイルへ残し、次回に使い回します。
+        解析を高速化する:
+          --cache <パス>         前回の結果をこのファイルに保存し、次回の解析で再利用します。
                                  シェーダー自身と、それが取り込んだヘッダのすべてが
-                                 前回と同じ内容のときだけ使い回します。
+                                 前回と同じ内容の場合に限り、結果を再利用します。
                                  設定・ルール・このツール自体が変われば全件を解析し直します。
                                  指定しなければ何も作りません。消せば必ず元の挙動に戻ります。
                                  マシンごとのものなので、バージョン管理へは入れないでください。
@@ -599,19 +623,30 @@ internal sealed class CommandLineOptions
           --env                  解析はせずに、解析が使う環境を表示します。
                                  見つけた設定ファイル、Unity Editor とその決め方、#include を探す順序、
                                  パッケージの解決先、解析対象に書かれた #include を解決できるかを確かめます。
-                                 指摘が出ないときに、ヘッダが読めていないのかを切り分けるための機能です。
-          --inspect <パス>       構文木・トークン・解決した型を 1 つの HTML に書き出します。
+                                 指摘が報告されない場合に、ヘッダを読み込めていないのかを切り分けるための機能です。
+          --inspect <パス>       構文木・トークン・解決した型を 1 つの HTML に出力します。
                                  対象は 1 ファイルに限ります。指摘は出力しません。
                                  誤検出の原因が構文解析・マクロ展開・型判定のどれかを
                                  切り分けるための機能です。
 
+        Unity:
+          --unity-generate <フォルダー>
+                                 解析はせずに、Unity のプロジェクトの Library/PackageCache と
+                                 Unity Editor から、解析に必要なヘッダ (パッケージの .hlsl、
+                                 UnityCG.cginc など) とライセンス表示だけをこのフォルダーに出力します。
+                                 設定ファイルの unity: generated にこのフォルダーを指定すると、
+                                 Library や Editor の無いマシン (GitHub のホストランナーなど) でも
+                                 解析できます。出力前にパッケージとライセンスの一覧を表示して確認します。
+          --yes                  --unity-generate の確認プロンプトを表示せず、「はい」と回答します。
+                                 入力待ちができない環境 (CI など) で出力するときに指定します。
+
         Unreal Engine:
           --unreal-generate <フォルダー>
                                  解析はせずに、設定ファイルの unreal: engine と project の C++ を読み、
-                                 ビルドのときに生成される取り込み (uniform buffer の宣言など) を
-                                 このフォルダーに書き出します。設定ファイルの unreal: generated に
-                                 このフォルダーを書くと、/Engine/Generated の宣言を読んで解析します。
-                                 エンジンやプロジェクトの C++ を変えたら作り直してください。
+                                 ビルド時に生成される取り込み (uniform buffer の宣言など) を
+                                 このフォルダーに出力します。設定ファイルの unreal: generated に
+                                 このフォルダーを指定すると、/Engine/Generated の宣言を読み込んで解析します。
+                                 エンジンやプロジェクトの C++ を変更した場合は再生成してください。
 
         プロパティと HLSL の対応検査 (SL1001 / SL1003 など) は、埋め込みコードの
         依存関係を解決できて初めて働きます。見送ったことは CF0101 として報告されます。

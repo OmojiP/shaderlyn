@@ -39,7 +39,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownReportFormats = ["text", "json", "sarif", "github"];
 
     /// <summary><c>unity:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownUnityKeys = ["profile", "project", "editor", "version", "graphics-apis", "shader-compiler-backend"];
+    private static readonly string[] KnownUnityKeys = ["profile", "project", "editor", "generated", "version", "graphics-apis", "shader-compiler-backend"];
 
     /// <summary><c>unity: graphics-apis</c> で受け付ける名前。</summary>
     private static readonly string[] KnownGraphicsApis = ["dx11", "dx12", "vulkan", "metal", "gles3", "glcore"];
@@ -210,7 +210,7 @@ internal static class ConfigurationLoader
             }
 
             ReportNonScalars(root, string.Empty, "version", "environment", "profile");
-            ReportNonScalars(unity, "unity: の ", "profile", "project", "editor", "version", "shader-compiler-backend");
+            ReportNonScalars(unity, "unity: の ", "profile", "project", "editor", "generated", "version", "shader-compiler-backend");
             ReportNonScalars(unreal, "unreal: の ", "engine", "project");
             ReportNonScalars(hlsl, "hlsl: の ", "compiler", "version", "enable-16bit-types");
 
@@ -233,6 +233,7 @@ internal static class ConfigurationLoader
                 Profile = ReadProfile(unity),
                 UnityProjectPath = ResolvePath(ReadOptionalScalar(unity, "project")),
                 UnityEditorPath = ResolvePath(ReadOptionalScalar(unity, "editor")),
+                UnityGeneratedDirectory = ResolvePath(ReadOptionalScalar(unity, "generated")),
                 UnityVersion = ReadUnityVersion(unity),
                 UnityGraphicsApis = ReadUnityGraphicsApis(unity),
                 UnityShaderCompilerBackend = ReadUnityShaderCompilerBackend(unity),

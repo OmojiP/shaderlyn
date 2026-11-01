@@ -2884,6 +2884,51 @@ public sealed class HlslRuleTests
     }
 
     [Fact]
+    public void キーワードを付けたtargetのキーワードは分岐を並べずに展開する()
+    {
+        // 分岐の中に #error しか無いと、キーワードの両方の分岐を 1 本の木に並べ、#if SHADER_TARGET < 45 を既定の target (2.0) で読んでいた。
+        // Unity 6.6 の URP の Lit などで、UnityInstancing.hlsl の #error に到達したと報告していた (0.3.1)。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma target 2.0",
+            "#pragma multi_compile _ _DOTS",
+            "#pragma target 4.5 _DOTS",
+            "#if defined(_DOTS)",
+            "#if SHADER_TARGET < 45",
+            "#error _DOTS requires shader model 4.5",
+            "#endif",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Assert.False(Has(diagnostics, "UN0103"), Describe(diagnostics));
+        Assert.False(Has(diagnostics, "CF0104"), Describe(diagnostics));
+    }
+
+    [Fact]
+    public void キーワードを付けたtargetが足りなければその構成のエラーを報告する()
+    {
+        // キーワードの構成のシェーダーモデルが 3.5 なら、#error に到達する。Unity でもコンパイルに失敗する。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma target 2.0",
+            "#pragma multi_compile _ _DOTS",
+            "#pragma target 3.5 _DOTS",
+            "#if defined(_DOTS)",
+            "#if SHADER_TARGET < 45",
+            "#error _DOTS requires shader model 4.5",
+            "#endif",
+            "#endif",
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return 1; }"));
+
+        Diagnostic error = Assert.Single(diagnostics, d => d.Id == "UN0103");
+        Assert.Contains("構成：_DOTS は", error.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void 先頭がマクロの宣言も構成ごとの選択肢にする()
     {
         // Unity の CGPROGRAM の fixed4 はマクロである。インスタンシングの有無で初期化子が変わる形 (Animation Rigging の BoneHandles.shader)。

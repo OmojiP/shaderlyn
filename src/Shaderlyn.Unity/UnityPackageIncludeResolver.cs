@@ -68,10 +68,15 @@ internal sealed class UnityPackageIncludeResolver : IIncludeResolver
     /// </summary>
     /// <param name="projectDirectory">Unity プロジェクトのルート。</param>
     /// <param name="unityEditorDataDirectory">Unity Editor のデータフォルダー。無い場合は <see langword="null"/>。</param>
+    /// <param name="generatedDirectory">
+    /// <c>--unity-generate</c> で書き出したフォルダー。無い場合は <see langword="null"/>。
+    /// その中の <c>Library/PackageCache</c> を、本物の置き場所のどれにも無いパッケージのために最後に探す。
+    /// </param>
     /// <returns>生成した解決器。</returns>
     public static UnityPackageIncludeResolver ForProject(
         string projectDirectory,
-        string? unityEditorDataDirectory = null)
+        string? unityEditorDataDirectory = null,
+        string? generatedDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(projectDirectory);
 
@@ -84,6 +89,11 @@ internal sealed class UnityPackageIncludeResolver : IIncludeResolver
         if (unityEditorDataDirectory is not null)
         {
             roots.Add(Path.Combine(unityEditorDataDirectory, "Resources", "PackageManager", "BuiltInPackages"));
+        }
+
+        if (generatedDirectory is not null)
+        {
+            roots.Add(Path.GetFullPath(Path.Combine(generatedDirectory, UnityIncludeGeneration.PackageCacheDirectory)));
         }
 
         return new UnityPackageIncludeResolver(roots);

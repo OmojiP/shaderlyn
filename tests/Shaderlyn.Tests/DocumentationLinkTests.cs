@@ -20,7 +20,8 @@ namespace Shaderlyn.Tests;
 public sealed partial class DocumentationLinkTests
 {
     /// <summary>走査しないフォルダー。</summary>
-    private static readonly string[] ExcludedDirectories = ["node_modules", "bin", "obj", "out", "artifacts", ".git", ".vs"];
+    /// <remarks><c>.work</c> は手元の作業用 (取ってきたシェーダー集や作業の記録) で、リポジトリには入れない。</remarks>
+    private static readonly string[] ExcludedDirectories = ["node_modules", "bin", "obj", "out", "artifacts", ".git", ".vs", ".work"];
 
     [Fact]
     public void ドキュメントの中のリンクが切れていない()
