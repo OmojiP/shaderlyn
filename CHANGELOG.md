@@ -109,6 +109,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 修正
 
+- Unity: `unity: generated` を指定し、プロジェクト (`--unity-project` / `unity: project`) を指定しないと、書き出したパッケージ (`Packages/com.unity.render-pipelines.universal/...` など) を読まず、
+  取り込みの誤り (CF0021) と CF0101 になっていた。Editor のヘッダは読めていた
 - GLSL: glslang がエラーにしない書き方を誤りにしていた。glslang の Test (glslang がエラーにしない 757 ファイル) で、誤りを出したファイルが 148 から 3 になった
   - `for` の初期化の変数がループの外へ漏れるとしていた。GLSL では漏れない
   - 宣言の初期値の中で、宣言している名前が見えるとしていた (`vec4 p = vec4(p, 1.0);` の右の `p` は外側の `p`)
