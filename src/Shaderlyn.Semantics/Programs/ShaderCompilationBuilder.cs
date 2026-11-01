@@ -117,7 +117,7 @@ internal static class ShaderCompilationBuilder
             PreprocessorOptions blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, []);
 
             ShaderSyntaxTree tree = ParseWithoutMergedMacroConflicts(
-                environment, unit.Text, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
+                environment, unit, blockOptions, options.SyntaxTimings, out ImmutableArray<string> macroConflicts);
 
             VariantSpace treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
 
@@ -129,7 +129,7 @@ internal static class ShaderCompilationBuilder
                 blockOptions = BlockOptions(baseOptions, blockSymbols, constraints, options, includedSymbols);
 
                 tree = ParseWithoutMergedMacroConflicts(
-                    environment, unit.Text, blockOptions, options.SyntaxTimings, out macroConflicts);
+                    environment, unit, blockOptions, options.SyntaxTimings, out macroConflicts);
                 treeVariants = environment.ReadVariants(unit, tree.PreprocessResult);
             }
 
@@ -1656,7 +1656,7 @@ internal static class ShaderCompilationBuilder
     /// 並べた分岐のマクロがコードとして展開されたら、そのシンボルを並べずに展開し直す。
     /// </summary>
     /// <param name="environment">環境。単位のコードを読む言語を与える。</param>
-    /// <param name="maskedText">対象のコードブロック。</param>
+    /// <param name="unit">対象の単位。</param>
     /// <param name="options">プリプロセッサの設定。</param>
     /// <param name="syntaxTimings">段ごとの時間を受け取る先。測らない場合は <see langword="null"/>。</param>
     /// <param name="removed">並べる対象から外したシンボル。名前順に並ぶ。</param>
@@ -1674,22 +1674,33 @@ internal static class ShaderCompilationBuilder
     /// (<see cref="PreprocessResult.MergedMacroConflicts"/>)。
     /// </para>
     /// <para>
+    /// <b>有効にすると環境のマクロが変わるシンボルも並べない</b> (<see cref="IShaderEnvironment.PrepareVariant"/>)。
+    /// Unity の <c>#pragma target 4.5 DOTS_INSTANCING_ON</c> は、<c>DOTS_INSTANCING_ON</c> の構成だけを <c>SHADER_TARGET</c> 45 でコンパイルする。
+    /// 並べると、その分岐の中の <c>#if (SHADER_TARGET &lt; 45)</c> を既定の構成の値 (<c>#pragma target 2.0</c> なら 20) で読み、
+    /// URP の <c>UnityInstancing.hlsl</c> の「4.5 以上が要る」<c>#error</c> に到達したことにしていた (Unity 6.6 の URP の Lit など)。
+    /// 並べなければ、そのシンボルを有効にした構成を、環境が調整したマクロで展開し直す。
+    /// これも、指令 (<c>#pragma target</c>) は取り込んだヘッダにも書けるので、展開してから判断する。
+    /// </para>
+    /// <para>
     /// 繰り返しは、外したシンボルが増えなくなるまで。並べる対象は毎回減るので必ず終わる。
     /// </para>
     /// </remarks>
     private static ShaderSyntaxTree ParseWithoutMergedMacroConflicts(
         IShaderEnvironment environment,
-        SourceText maskedText,
+        ShaderCompilationUnit unit,
         PreprocessorOptions options,
         ISyntaxTimingRecorder? syntaxTimings,
         out ImmutableArray<string> removed)
     {
         ImmutableHashSet<string> original = options.BothBranchSymbols;
-        ShaderSyntaxTree tree = environment.Parse(maskedText, options, syntaxTimings);
+        ShaderSyntaxTree tree = environment.Parse(unit.Text, options, syntaxTimings);
 
-        while (!tree.PreprocessResult.MergedMacroConflicts.IsDefaultOrEmpty)
+        while (true)
         {
-            ImmutableHashSet<string> kept = options.BothBranchSymbols.Except(tree.PreprocessResult.MergedMacroConflicts);
+            ImmutableArray<string> conflicts = tree.PreprocessResult.MergedMacroConflicts.IsDefault ? [] : tree.PreprocessResult.MergedMacroConflicts;
+            ImmutableHashSet<string> kept = options.BothBranchSymbols
+                .Except(conflicts)
+                .Except(SymbolsChangingEnvironmentMacros(environment, unit, tree.PreprocessResult, options));
 
             if (kept.Count == options.BothBranchSymbols.Count)
             {
@@ -1697,12 +1708,33 @@ internal static class ShaderCompilationBuilder
             }
 
             options = options with { BothBranchSymbols = kept };
-            tree = environment.Parse(maskedText, options, syntaxTimings);
+            tree = environment.Parse(unit.Text, options, syntaxTimings);
         }
 
         removed = [.. original.Except(options.BothBranchSymbols).Order(StringComparer.Ordinal)];
         return tree;
     }
+
+    /// <summary>
+    /// 並べるシンボルのうち、それだけを有効にすると環境が定義済みのマクロを変えるもの (<see cref="IShaderEnvironment.PrepareVariant"/>)。
+    /// </summary>
+    /// <param name="environment">環境。</param>
+    /// <param name="unit">対象の単位。</param>
+    /// <param name="baseline">既定の構成で展開した結果。</param>
+    /// <param name="options">展開に使った設定。</param>
+    /// <returns>そういうシンボル。</returns>
+    private static IEnumerable<string> SymbolsChangingEnvironmentMacros(
+        IShaderEnvironment environment,
+        ShaderCompilationUnit unit,
+        PreprocessResult baseline,
+        PreprocessorOptions options)
+        => options.BothBranchSymbols.Where(symbol =>
+        {
+            ImmutableDictionary<string, string> adjusted = environment.PrepareVariant(unit, baseline, [symbol], options.PredefinedMacros);
+            return !ReferenceEquals(adjusted, options.PredefinedMacros)
+                   && (adjusted.Count != options.PredefinedMacros.Count
+                       || adjusted.Any(pair => !options.PredefinedMacros.TryGetValue(pair.Key, out string? value) || value != pair.Value));
+        });
 
     /// <summary>既定の構成で定義するシンボルを求める。</summary>
     /// <param name="predefined">構成に関わらず定義するマクロ。</param>

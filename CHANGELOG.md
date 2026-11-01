@@ -26,6 +26,11 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - オブジェクト形式のマクロ (`#define NAME value ## 1`) の本体の `##` を連結していなかった。C の規則どおり連結する
 - `##` の右の実引数が数字で始まる字句 (`1D` など) のとき、数字だけを連結していた (`image ## 1D` が `image1 D` になっていた)。
   C の規則どおり、空白を挟まずに続く名前と数字まで 1 つの字句として連結する
+- Unity: キーワードを添えた `#pragma target` (URP の `DOTS.hlsl` の `#pragma target 4.5 DOTS_INSTANCING_ON`) のキーワードの構成を、
+  既定の `#pragma target` のシェーダーモデルで読むことがあった。Unity 6.6 の URP の Lit・SimpleLit・ComplexLit・BakedLit・Unlit・Particles などに、
+  `UnityInstancing.hlsl` の「4.5 以上が要る」`#error` に到達する (UN0103) と、計 23 件の誤ったエラーを出していた。
+  そのキーワードの両方の分岐を 1 本の木に並べると、分岐の中の `#if SHADER_TARGET < 45` を既定の値で読んでいた。
+  こうしたキーワードは並べずに、そのキーワードを有効にした構成を、そのシェーダーモデルで展開する
 - `--help` の見出しが「Unity ShaderLab / HLSL 静的解析ツール」のままで、フォルダーを渡したときに探すファイルの説明が Unity のものだけだった。
   今の対象 (Unity・汎用の HLSL・Unreal Engine・GLSL など) に合わせた
 
