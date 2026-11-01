@@ -10,6 +10,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.2] - 2026-11-02
+
+Unity のプロジェクトを、`Library` と Unity Editor の無いマシン (GitHub のホストランナーなど) でも解析できるようにした (`--unity-generate`)。
+Unity 6.3.26f1 以降の URP の標準のシェーダーに出ていた誤ったエラーと、マクロの `##` の不具合を直した。
+GLSL を glslang と同じに検査する作業は 0.3.3 に移した。
+
 ### 追加
 
 - `--unity-generate <フォルダー>`: 解析に使用するファイルとライセンス表示を書き出す
@@ -643,7 +649,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/OmojiP/shaderlyn/compare/v0.2.0...v0.2.1

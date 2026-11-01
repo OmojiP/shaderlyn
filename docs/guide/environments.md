@@ -270,7 +270,7 @@ Unity の環境でも、`--unity-generate` で解析に必要なヘッダを生�
 ([CI に組み込む「ホストランナーで動かす」](ci-setup.md#5-ホストランナーで動かす))。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.3.1
+- uses: OmojiP/shaderlyn/action@v0.3.2
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment
