@@ -114,6 +114,12 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                     CheckBinary(assignment.OperatorToken, op, assign: true, assignment.Left, assignment.Right);
                     break;
 
+                // サンプラーなどと、それを含む構造体は代入できない (glslang の「can't use with samplers or structs containing samplers」)。
+                case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken } assignment
+                    when KnownType(assignment.Left) is { } target && (IsSamplerOrImage(target) || StructContainsOpaque(target, depth: 0)):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, assignment.OperatorToken, $"サンプラー・イメージと、それを含む構造体 ({target}) には代入できません。");
+                    break;
+
                 case PrefixUnaryExpressionSyntax prefix:
                     CheckUnary(prefix.OperatorToken, prefix.Operand);
                     break;
@@ -199,6 +205,13 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
             if ((OpaqueTypeOf(leftExpression) ?? OpaqueTypeOf(rightExpression)) is { } opaque)
             {
                 requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
+                return;
+            }
+
+            // サンプラーなどを含む構造体は、== と != で比べられない。
+            if (op == Op.Equality && KnownType(leftExpression) is { } structure && StructContainsOpaque(structure, depth: 0))
+            {
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は、サンプラー・イメージを含む構造体 ({structure}) に使えません。");
                 return;
             }
 
@@ -536,6 +549,12 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         /// </summary>
         private string? OpaqueTypeOf(ExpressionSyntax expression)
             => KnownType(expression) is { } name && (name is "void" or "atomic_uint" || IsSamplerOrImage(name)) ? name : null;
+
+        /// <summary>構造体が、サンプラー・イメージ・atomic_uint のメンバーを持つか。入れ子の構造体も見る。</summary>
+        private bool StructContainsOpaque(string type, int depth)
+            => depth <= 8
+               && binder.Program.Structs.FirstOrDefault(s => s.Keyword.Text == "struct" && s.Name == type) is { } structure
+               && structure.Fields.Any(f => f.Type.Name == "atomic_uint" || IsSamplerOrImage(f.Type.Name) || StructContainsOpaque(f.Type.Name, depth + 1));
 
         private static bool IsSamplerOrImage(string name)
         {

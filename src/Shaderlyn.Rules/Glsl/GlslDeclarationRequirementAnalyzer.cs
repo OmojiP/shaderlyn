@@ -142,6 +142,16 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclaratorSyntax declarator:
                     requirement.ArrayOfArrayVersionCheck(declarator.NameToken, declarator.ArrayDimensions);
 
+                    // 仮引数でない変数の nonuniformEXT は、in か記憶域の無いものにだけ書ける (glslang の nonUniformCheck)。宣言の最初の名前で 1 度だけ見る。
+                    if (declarator.Parent is VariableDeclarationSyntax { Parent: not (StructDeclarationSyntax or InterfaceBlockDeclarationSyntax) } owner
+                        && owner.Variables.FirstOrDefault() == declarator
+                        && TopLevel([.. owner.ModifierTokens, .. owner.Type.ModifierTokens]).ToArray() is var top
+                        && top.FirstOrDefault(t => t.Text == "nonuniformEXT") is { } nonuniform
+                        && top.FirstOrDefault(t => Storage.Contains(t.Text) && t.Text != "in") is { } badStorage)
+                    {
+                        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, nonuniform, $"nonuniformEXT は、仮引数でない変数では in か記憶域の無いものにだけ書けます ('{badStorage.Text}')。");
+                    }
+
                     // 初期値のある、配列か配列を含む構造体の変数 (glslang の declareVariable と executeInitializer の containsArray と arrayObjectCheck)。
                     if (declarator is { Initializer: not null, Parent: VariableDeclarationSyntax declaration }
                         && (!declarator.ArrayRankTokens.IsEmpty || !declaration.Type.ArrayRanks.IsEmpty
@@ -174,6 +184,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 // 修飾子だけの宣言 (layout(local_size_x = 8) in;、invariant gl_Position;)。
                 case IncompleteDeclarationSyntax incomplete:
                     CheckQualifiers(requirement, incomplete.Tokens, global);
+                    CheckQualifierToExisting(requirement, incomplete.Tokens);
 
                     if (global)
                     {
@@ -316,6 +327,58 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
         if (vertexInput && requirement.Stage == GlslShaderStage.Vertex && storage == "in" && (auxiliary || interpolation || memory || invariant))
         {
             requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, qualifiers[0], "頂点シェーダーの入力には、補助・補間・メモリの修飾子と invariant を書けません。");
+        }
+    }
+
+    /// <summary>
+    /// 既にある名前に修飾子を足す宣言 (<c>invariant gl_Position;</c>) には、<c>invariant</c> と <c>precise</c> しか書けない
+    /// (glslang の addQualifierToExisting)。<c>layout(buffer_reference)</c> の前方宣言は除く。
+    /// </summary>
+    private static void CheckQualifierToExisting(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        // 精度の文 (precision mediump float;)、buffer_reference の前方宣言、特殊化の定数の組み込み (layout(constant_id = 1) gl_MaxImageUnits;) は除く。
+        if (tokens.IsEmpty
+            || tokens[0].Text == "precision"
+            || tokens.Any(t => t.Text is "buffer_reference" or "constant_id"))
+        {
+            return;
+        }
+
+        // 修飾子は、括弧の外で最初の名前 (修飾子のキーワードでない識別子) より前。その後ろは名前とカンマ (invariant gl_Position, gl_PointSize;)。
+        int depth = 0;
+        int nameIndex = -1;
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            depth += tokens[i].Kind switch
+            {
+                ShaderSyntaxKind.OpenParenToken => 1,
+                ShaderSyntaxKind.CloseParenToken => -1,
+                _ => 0,
+            };
+
+            if (depth == 0 && tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && !GlslKeywords.Qualifiers.Contains(tokens[i].Text) && tokens[i].Text != "layout")
+            {
+                nameIndex = i;
+                break;
+            }
+        }
+
+        if (nameIndex <= 0
+            || tokens[nameIndex..].Any(t => t.Kind is not (ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.SemicolonToken)))
+        {
+            return;
+        }
+
+        ShaderSyntaxToken name = tokens[nameIndex];
+        ImmutableArray<ShaderSyntaxToken> qualifiers = tokens[..nameIndex];
+
+        if ((qualifiers.FirstOrDefault(t => t.Text == "layout") ?? TopLevel(qualifiers).FirstOrDefault(t => t.Text is not ("invariant" or "precise"))) is { } other)
+        {
+            requirement.Report(
+                GlslRuleDescriptors.QualifierNotAllowed,
+                other,
+                $"既にある名前 '{name.Text}' に足せる修飾子は invariant と precise だけです ('{other.Text}')。");
         }
     }
 

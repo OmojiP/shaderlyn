@@ -387,6 +387,11 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
     [InlineData("GL0308", "a.geom", "#version 450\nlayout(points, max_vertices = 1) out;\nvoid f() { int n = gl_in.length(); }\nlayout(triangles) in;\nvoid main() { f(); }")]
     [InlineData("GL0308", "a.tesc", "#version 450\nint a[gl_out.length()];\nlayout(vertices = 3) out;\nvoid main() { }")]
+    [InlineData("GL0301", "a.frag", "#version 450\nstruct S { int i; sampler2D s; };\nuniform S a;\nuniform S b;\nlayout(location = 0) out vec4 o;\nvoid main() { if (a == b) o = vec4(1.0); }")]
+    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { atomic_uint c; o = vec4(1.0); }")]
+    [InlineData("GL0304", "a.frag", "#version 450\nlayout(binding = 0) uniform sampler2D s;\nlayout(location = 0) out vec4 o;\nvoid main() { const ivec2[2] offsets = ivec2[2](ivec2(1, 2), ivec2(15, 16)); o = textureOffset(s, vec2(0.5), offsets[1]); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\n#extension GL_EXT_nonuniform_qualifier : enable\nnonuniformEXT uniform vec4 u;\nlayout(location = 0) out vec4 o;\nvoid main() { o = u; }")]
+    [InlineData("GL0101", "a.vert", "#version 120\ncentroid gl_Position;\nvoid main() { gl_Position = vec4(0.0); }")]
     [InlineData("GL0406", "a.frag", "#version 420 core\nlayout(depth_any) out float gl_FragDepth;\nlayout(depth_greater) out float gl_FragDepth;\nvoid main() { gl_FragDepth = 0.5; }")]
     [InlineData("GL0406", "a.frag", "#version 150 core\nin vec4 gl_FragCoord;\nlayout(origin_upper_left) in vec4 gl_FragCoord;\nout vec4 o;\nvoid main() { o = gl_FragCoord; }")]
     [InlineData("GL0406", "a.frag", "#version 130\nflat in vec3 gl_Color;\nvoid main() { gl_FragColor = vec4(1.0); }")]
@@ -654,6 +659,17 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
         Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>精度の文、名前を並べた invariant、特殊化の定数の組み込みは、既にある名前に修飾子を足す宣言の誤りにしない。</summary>
+    [Fact]
+    public async Task 既にある名前に足せる修飾子()
+    {
+        string output = await AnalyzeAsync(
+            "a.vert",
+            "#version 450\nprecision mediump float;\ninvariant gl_Position, gl_PointSize;\nlayout(constant_id = 1) gl_MaxImageUnits;\nvoid main() { gl_Position = vec4(0.0); gl_PointSize = 1.0; }\n");
+
+        Assert.DoesNotContain("GL0101", output, StringComparison.Ordinal);
     }
 
     /// <summary>layout で大きさを決めた後の gl_in と gl_out は、length() と定数でない添字で使える。</summary>

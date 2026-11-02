@@ -105,6 +105,12 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder, GlslBui
             return [scalar];
         }
 
+        // const の変数 (const ivec2 o = ivec2(1, 2);) と、const の配列の要素 (offsets[2]) は、初期値からたどる。
+        if (ConstantInitializer(expression) is { } initializer)
+        {
+            return EvaluateComponents(initializer);
+        }
+
         if (expression is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } invocation || !GlslKeywords.IsBuiltInType(callee.Name))
         {
             return null;
@@ -264,6 +270,41 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder, GlslBui
             ShaderSyntaxKind.CaretCaretToken => Boolean((left.Value != 0) != (right.Value != 0)),
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// <c>const</c> の変数の初期値 (配列でないもの) か、<c>const</c> の配列を定数の添字で引いた要素の式 (配列を作る式の実引数)。
+    /// 分からなければ <see langword="null"/>。
+    /// </summary>
+    private ExpressionSyntax? ConstantInitializer(ExpressionSyntax expression)
+    {
+        IdentifierExpressionSyntax? name = expression switch
+        {
+            IdentifierExpressionSyntax identifier => identifier,
+            ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax target } => target,
+            _ => null,
+        };
+
+        if (name is null
+            || binder.ResolveName(name) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Declarator: VariableDeclaratorSyntax declarator }] }
+            || declarator.Parent is not VariableDeclarationSyntax declaration
+            || !declaration.HasModifier("const")
+            || declarator.Initializer is not { } initializer)
+        {
+            return null;
+        }
+
+        if (expression is ElementAccessExpressionSyntax element)
+        {
+            return declarator.IsArray
+                   && Evaluate(element.Index) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } index
+                   && initializer is InvocationExpressionSyntax constructor
+                   && constructor.ArgumentExpressions.ElementAtOrDefault((int)index.Integer) is { } item
+                ? item
+                : null;
+        }
+
+        return declarator.IsArray ? null : initializer;
     }
 
     /// <summary><c>const</c> の変数の値を、初期値から求める。</summary>
