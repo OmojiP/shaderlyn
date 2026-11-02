@@ -25,6 +25,12 @@ namespace Shaderlyn.Rules.Glsl;
 /// 入力と出力の配列 (ジオメトリシェーダーの <c>in</c> の配列など) は、glslang が別に大きさを決めるので見ない。
 /// 同じ名前を大きさを付けて宣言し直していれば見ない。
 /// </para>
+/// <para>
+/// ジオメトリシェーダーの入力の配列 (<c>gl_in</c> と、大きさを書かない <c>in</c> の配列) は <c>layout(triangles) in;</c> などで、
+/// テッセレーションの制御シェーダーの出力の配列 (<c>gl_out</c> と、大きさを書かない <c>out</c> の配列) は <c>layout(vertices = N) out;</c> で大きさが決まる。
+/// それより前 (書いていなければどこでも) では、<c>length()</c> を使えず、定数でない添字で引けない
+/// (glslang の「array must first be sized by a redeclaration or layout qualifier」)。
+/// </para>
 /// </remarks>
 internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
 {
@@ -51,6 +57,19 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start, string Message)> reported = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+        Dictionary<AnalyzedProgram, IoArrays?> ioArrays = [];
+
+        // ステージの layout で大きさが決まる入出力の配列。配列の大きさに書いた length() は式の木に無いので、木ごとに先に見る。
+        foreach (AnalyzedProgram program in compilation.Programs)
+        {
+            GlslRequirements? requirement = requirements[program] = GlslRequirements.Create(context, compilation, program, reported);
+
+            if (requirement is not null && IoArrays.Read(program, requirement.Stage) is { } io)
+            {
+                ioArrays[program] = io;
+                CheckIoArrayInSizes(requirement, io, program);
+            }
+        }
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -70,6 +89,11 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
             }
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+
+            if (ioArrays.GetValueOrDefault(program) is { } io && CheckIoArray(requirement, new GlslConstantEvaluator(binder), io, node))
+            {
+                continue;
+            }
 
             switch (node)
             {
@@ -202,6 +226,128 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// ステージの layout で大きさが決まる入出力の配列を、大きさが決まる前に使っているかを検査する。
+    /// </summary>
+    /// <returns>その配列の使い方だったら <see langword="true"/> (ほかの検査をしない)。</returns>
+    private static bool CheckIoArray(GlslRequirements requirement, GlslConstantEvaluator evaluator, IoArrays io, ShaderSyntaxNode node)
+    {
+        switch (node)
+        {
+            case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax { NameToken.Text: "length", Target: IdentifierExpressionSyntax target } method } invocation
+                when !invocation.ArgumentExpressions.Any() && io.Names.Contains(target.Name):
+                if (!io.IsSizedAt(target.Identifier))
+                {
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, method.NameToken, target.Name, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使ってください");
+                }
+
+                return true;
+
+            case ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax target } element when io.Names.Contains(target.Name):
+                if (!io.IsSizedAt(target.Identifier) && evaluator.IsCertainlyNotConstant(element.Index))
+                {
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, element.OpenBracket, target.Name, $"定数でない添字で引けません。{io.Sizing} で大きさを決めてから引いてください");
+                }
+
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// 配列の大きさに書いた <c>gl_out.length()</c> (<c>int a[gl_out.length()];</c>) を見る。配列の大きさは構文木の式にならず、トークンのまま残る。
+    /// </summary>
+    private static void CheckIoArrayInSizes(GlslRequirements requirement, IoArrays io, AnalyzedProgram program)
+    {
+        foreach (VariableDeclaratorSyntax declarator in program.Tree.Root.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>())
+        {
+            ImmutableArray<ShaderSyntaxToken> ranks = declarator.ArrayRankTokens;
+
+            for (int i = 0; i + 3 < ranks.Length; i++)
+            {
+                if (ranks[i].Kind == ShaderSyntaxKind.IdentifierToken
+                    && io.Names.Contains(ranks[i].Text)
+                    && ranks[i + 1].Kind == ShaderSyntaxKind.DotToken
+                    && ranks[i + 2].Text == "length"
+                    && ranks[i + 3].Kind == ShaderSyntaxKind.OpenParenToken
+                    && !io.IsSizedAt(ranks[i]))
+                {
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, ranks[i + 2], ranks[i].Text, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使ってください");
+                }
+            }
+        }
+    }
+
+    /// <summary>ステージの layout で大きさが決まる入出力の配列と、大きさを決める宣言の位置。</summary>
+    /// <param name="Names">配列の名前 (<c>gl_in</c> / <c>gl_out</c> と、大きさを書かない入出力の配列)。</param>
+    /// <param name="SizedFrom">大きさを決める宣言のトークン。無ければ <see langword="null"/>。</param>
+    /// <param name="Sizing">大きさを決める宣言の例 (文に入れる)。</param>
+    private sealed record IoArrays(HashSet<string> Names, ShaderSyntaxToken? SizedFrom, string Sizing)
+    {
+        /// <summary>その位置で、大きさが決まっているか。同じファイルで、大きさを決める宣言より後ろにあれば決まっている。</summary>
+        public bool IsSizedAt(ShaderSyntaxToken use)
+            => SizedFrom is { } sized && (!ReferenceEquals(sized.Source, use.Source) || sized.Span.Start < use.Span.Start);
+
+        /// <summary>木から読む。ジオメトリシェーダーとテッセレーションの制御シェーダーでなければ <see langword="null"/>。</summary>
+        public static IoArrays? Read(AnalyzedProgram program, Shaderlyn.Glsl.GlslShaderStage? stage)
+        {
+            (string builtIn, string storage, string sizing, Func<string, bool> sizes) = stage switch
+            {
+                Shaderlyn.Glsl.GlslShaderStage.Geometry => ("gl_in", "in", "layout(triangles) in; など",
+                    (Func<string, bool>)(id => id is "points" or "lines" or "lines_adjacency" or "triangles" or "triangles_adjacency")),
+                Shaderlyn.Glsl.GlslShaderStage.TessellationControl => ("gl_out", "out", "layout(vertices = N) out;", id => id == "vertices"),
+                _ => (string.Empty, string.Empty, string.Empty, _ => false),
+            };
+
+            if (builtIn.Length == 0)
+            {
+                return null;
+            }
+
+            HashSet<string> names = new(StringComparer.Ordinal) { builtIn };
+            ShaderSyntaxToken? sizedFrom = null;
+
+            foreach (DeclarationSyntax declaration in program.Tree.Root.Declarations)
+            {
+                switch (declaration)
+                {
+                    // layout(triangles) in; / layout(vertices = 3) out;
+                    case IncompleteDeclarationSyntax { Tokens: [_, ..] tokens }
+                        when sizedFrom is null && tokens.Any(t => t.Text == storage) && GlslLayoutQualifier.Read(tokens).Any(e => sizes(e.Name.Text.ToLowerInvariant())):
+                        sizedFrom = tokens[0];
+                        break;
+
+                    // 大きさを書かない入出力の配列 (in vec4 color[];)。patch の出力は見ない。
+                    case VariableDeclarationSyntax variable
+                        when variable.ModifierTokens.Any(t => t.Text == storage) && !variable.ModifierTokens.Any(t => t.Text == "patch"):
+                        foreach (VariableDeclaratorSyntax declarator in variable.Variables)
+                        {
+                            if (IsUnsized(declarator, variable))
+                            {
+                                names.Add(declarator.Name);
+                            }
+                        }
+
+                        break;
+
+                    // 大きさを書いて宣言し直した gl_in / gl_out。
+                    case StructDeclarationSyntax block
+                        when block.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().FirstOrDefault(d => d.Name == builtIn) is { } instance
+                             && !IsUnsized(instance, null):
+                        names.Remove(builtIn);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            return new IoArrays(names, sizedFrom, sizing);
+        }
     }
 
     /// <summary>外側の次元の大きさを書いておらず、初期化子も無いか。</summary>

@@ -385,6 +385,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4x3 m; o = vec4(m[3][1].length()); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 0) out vec4 a;\nlayout(xfb_buffer = 1, xfb_offset = 8) out vec4 b;\nvoid main() { a = b = vec4(0.0); gl_Position = a; }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
+    [InlineData("GL0308", "a.geom", "#version 450\nlayout(points, max_vertices = 1) out;\nvoid f() { int n = gl_in.length(); }\nlayout(triangles) in;\nvoid main() { f(); }")]
+    [InlineData("GL0308", "a.tesc", "#version 450\nint a[gl_out.length()];\nlayout(vertices = 3) out;\nvoid main() { }")]
     [InlineData("GL0406", "a.frag", "#version 420 core\nlayout(depth_any) out float gl_FragDepth;\nlayout(depth_greater) out float gl_FragDepth;\nvoid main() { gl_FragDepth = 0.5; }")]
     [InlineData("GL0406", "a.frag", "#version 150 core\nin vec4 gl_FragCoord;\nlayout(origin_upper_left) in vec4 gl_FragCoord;\nout vec4 o;\nvoid main() { o = gl_FragCoord; }")]
     [InlineData("GL0406", "a.frag", "#version 130\nflat in vec3 gl_Color;\nvoid main() { gl_FragColor = vec4(1.0); }")]
@@ -652,6 +654,17 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
         Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>layout で大きさを決めた後の gl_in と gl_out は、length() と定数でない添字で使える。</summary>
+    [Fact]
+    public async Task 大きさの決まった入出力の配列()
+    {
+        string geometry = await AnalyzeAsync("a.geom", "#version 450\nlayout(triangles) in;\nlayout(points, max_vertices = 1) out;\nuniform int i;\nvoid main() { gl_Position = gl_in[i].gl_Position * float(gl_in.length()); EmitVertex(); }\n");
+        string control = await AnalyzeAsync("a.tesc", "#version 450\nlayout(vertices = 3) out;\nint a[gl_out.length()];\nvoid main() { gl_out[gl_InvocationID].gl_Position = vec4(a.length()); }\n");
+
+        Assert.DoesNotContain("GL0308", geometry, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0308", control, StringComparison.Ordinal);
     }
 
     /// <summary>組み込みの変数とブロックを、変えてよいものだけ変えて宣言し直すのは報告しない。</summary>
