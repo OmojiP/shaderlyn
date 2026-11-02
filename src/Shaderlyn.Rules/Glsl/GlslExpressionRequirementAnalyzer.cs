@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.RegularExpressions;
+using Shaderlyn.CFamily.Preprocessing;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
@@ -52,6 +53,30 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                     fileRequirement.ProfileRequires(token, GlslProfileMask.NotEs, 420, ["GL_ARB_shading_language_420pack"], "行の継続 (行末の \\)");
                 }
             }
+
+            // マクロの本体のトークンの連結 (##) と文字列化 (#)。ES では書けず、デスクトップでは 1.30 から (glslang の Pp.cpp の CPPdefine)。
+            // 最後に残った定義を、#define の名前の位置で見る。
+            foreach (MacroDefinition macro in first.Tree.PreprocessResult.Macros.Values)
+            {
+                if (!compilation.IsReportable(macro.NameToken))
+                {
+                    continue;
+                }
+
+                foreach (string feature in macro.Body
+                             .Select(t => t.Kind switch
+                             {
+                                 ShaderSyntaxKind.HashHashToken => "'token pasting (##)'",
+                                 ShaderSyntaxKind.HashToken => "'stringify (#)'",
+                                 _ => null,
+                             })
+                             .OfType<string>()
+                             .Distinct(StringComparer.Ordinal))
+                {
+                    fileRequirement.RequireProfile(macro.NameToken, GlslProfileMask.NotEs, feature);
+                    fileRequirement.ProfileRequires(macro.NameToken, GlslProfileMask.NotEs, 130, [], feature);
+                }
+            }
         }
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
@@ -93,6 +118,13 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                 case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken } assignment
                     when ContainsArray(compilation, program, assignment.Left):
                     requirement.ArrayObjectCheck(assignment.OperatorToken, "array assignment");
+                    break;
+
+                // 配列の .length() (glslang の handleDotDereference。配列でない値の .length() は CF0312)。
+                case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax { Name: "length", Target: IdentifierExpressionSyntax target } length }
+                    when compilation.GetExpressionTypeBinder(program).ResolveName(target).Candidates is { IsEmpty: false } candidates
+                         && candidates.All(c => c.Type.IsArray):
+                    requirement.ArrayObjectCheck(length.NameToken, ".length");
                     break;
 
                 case IdentifierExpressionSyntax { Name: "gl_PointSize" } pointSize
@@ -226,6 +258,12 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                 requirement.ExplicitInt16Check(token, "16-bit unsigned integer literal");
                 break;
 
+            // 1.0f (glslang の Scan.cpp。ES の 3.00、デスクトップの 1.20 から)。
+            case "f" when floating:
+                requirement.ProfileRequires(token, GlslProfileMask.Es, 300, [], "'floating-point suffix'");
+                requirement.ProfileRequires(token, GlslProfileMask.NotEs, 120, [], "'floating-point suffix'");
+                break;
+
             case "lf":
                 requirement.RequireProfile(token, GlslProfileMask.Core | GlslProfileMask.Compatibility, "'double literal'");
                 requirement.DoubleCheck(token, "double literal");
@@ -347,30 +385,52 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
     {
         ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 
-        if (expression is IdentifierExpressionSyntax identifier && binder.ResolveName(identifier).Candidates.Any(c => c.Type.IsArray))
+        // 名前は、その宣言の型で見る (関数の中で宣言した構造体の変数は、式の型が求まらないことがある)。
+        // 構造体の宣言と同時に宣言した変数 (struct S { … } s1, s2;) は、その構造体を見る。
+        if (expression is IdentifierExpressionSyntax identifier
+            && binder.ResolveName(identifier).Candidates.Any(c => c.Type.IsArray
+                || (c.Declarator.Parent is StructDeclarationSyntax { Keyword.Text: "struct" } own
+                    ? FieldsContainArray(program, own, expression, depth: 0)
+                    : StructContainsArray(program, c.Type.TypeName, expression))))
         {
             return true;
         }
 
-        return binder.GetEvaluatorFor(expression).Evaluate(expression) is { } type && StructContainsArray(program, type, depth: 0);
+        return binder.GetEvaluatorFor(expression).Evaluate(expression) is { } type && StructContainsArray(program, type, expression);
     }
 
     /// <summary>構造体が配列のメンバーを持つか。入れ子の構造体も見る。</summary>
-    private static bool StructContainsArray(AnalyzedProgram program, string type, int depth)
-    {
-        if (depth > 8 || program.Structs.FirstOrDefault(s => s.Name == type) is not { } structure)
-        {
-            return false;
-        }
+    /// <param name="program">木。</param>
+    /// <param name="type">構造体の名前。</param>
+    /// <param name="at">使う位置。それを囲む関数の中で、それより前に宣言した同じ名前の構造体を、関数の外のものより先に引く。</param>
+    /// <param name="depth">入れ子の深さ。</param>
+    internal static bool StructContainsArray(AnalyzedProgram program, string type, ShaderSyntaxNode? at = null, int depth = 0)
+        => depth <= 8 && FindStruct(program, type, at) is { } structure && FieldsContainArray(program, structure, at, depth);
 
-        foreach (VariableDeclarationSyntax field in structure.Fields)
+    /// <summary>構造体のメンバーに、配列か配列を含む構造体があるか。</summary>
+    private static bool FieldsContainArray(AnalyzedProgram program, StructDeclarationSyntax structure, ShaderSyntaxNode? at, int depth)
+        => structure.Fields.Any(field => field.Variables.Any(v => v.IsArray) || StructContainsArray(program, field.Type.Name, at, depth + 1));
+
+    /// <summary>その位置から見える構造体の宣言を引く。関数の中で、使う位置より前に宣言したものを先に引く。</summary>
+    private static StructDeclarationSyntax? FindStruct(AnalyzedProgram program, string type, ShaderSyntaxNode? at)
+    {
+        if (at?.FirstToken is { } use)
         {
-            if (field.Variables.Any(v => v.IsArray) || StructContainsArray(program, field.Type.Name, depth + 1))
+            for (Shaderlyn.Core.Syntax.SyntaxNode? node = at.Parent; node is not null; node = node.Parent)
             {
-                return true;
+                if (node is FunctionDeclarationSyntax function)
+                {
+                    if (function.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                            .LastOrDefault(s => s.Keyword.Text == "struct" && s.Name == type && s.Keyword.Span.Start < use.Span.Start) is { } local)
+                    {
+                        return local;
+                    }
+
+                    break;
+                }
             }
         }
 
-        return false;
+        return program.Structs.FirstOrDefault(s => s.Keyword.Text == "struct" && s.Name == type);
     }
 }

@@ -93,8 +93,17 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case FunctionDeclarationSyntax function:
                     CheckQualifiers(requirement, function.ModifierTokens, global);
 
-                    // 配列を返す関数 (glslang の handleFunctionDeclarator の arrayObjectCheck)。
-                    if (!function.ReturnType.ArrayRanks.IsEmpty)
+                    // 関数の中の関数の宣言 (glslang の「local function declaration」。ES では書けない)。
+                    if (function.Parent is LocalDeclarationStatementSyntax)
+                    {
+                        requirement.RequireProfile(function.NameToken, GlslProfileMask.NotEs, "'local function declaration'");
+                    }
+
+                    // 配列の配列を返す関数 (int[2][3] f())。
+                    requirement.ArrayOfArrayVersionCheck(function.NameToken, ShaderSyntaxFacts.CountArrayDimensions(function.ReturnType.ArrayRanks));
+
+                    // 配列か、配列を含む構造体を返す関数 (glslang の handleFunctionDeclarator の containsArray と arrayObjectCheck)。
+                    if (!function.ReturnType.ArrayRanks.IsEmpty || GlslExpressionRequirementAnalyzer.StructContainsArray(program, function.ReturnType.Name))
                     {
                         requirement.ArrayObjectCheck(function.NameToken, "array in function return type");
                     }
@@ -110,15 +119,22 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case StructDeclarationSyntax { NameOverride: not null } block:
                     CheckQualifiers(requirement, [.. block.Modifiers, block.Keyword], global);
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
-                    CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword]);
+                    CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword], block.Name);
                     CheckBlockQualifiers(requirement, [.. block.Modifiers, block.Keyword]);
                     CheckUniformBlock(requirement, [.. block.Modifiers, block.Keyword]);
+
+                    // ES では、ブロックのインスタンスを配列の配列にできない (glslang の declareBlock の「array-of-array of block」)。
+                    if (block.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().Any(d => d.ArrayDimensions > 1))
+                    {
+                        requirement.RequireProfile(block.Keyword, GlslProfileMask.NotEs, "'array-of-array of block'");
+                    }
+
                     break;
 
                 case InterfaceBlockDeclarationSyntax block:
                     CheckQualifiers(requirement, block.Modifiers, global);
                     CheckCombination(requirement, block.Modifiers, vertexInput: false);
-                    CheckBlockStage(requirement, block.Modifiers);
+                    CheckBlockStage(requirement, block.Modifiers, block.Name);
                     CheckBlockQualifiers(requirement, block.Modifiers);
                     CheckUniformBlock(requirement, block.Modifiers);
                     break;
@@ -126,9 +142,10 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclaratorSyntax declarator:
                     requirement.ArrayOfArrayVersionCheck(declarator.NameToken, declarator.ArrayDimensions);
 
-                    // 初期値のある配列の変数 (glslang の declareVariable と executeInitializer の arrayObjectCheck)。
+                    // 初期値のある、配列か配列を含む構造体の変数 (glslang の declareVariable と executeInitializer の containsArray と arrayObjectCheck)。
                     if (declarator is { Initializer: not null, Parent: VariableDeclarationSyntax declaration }
-                        && (!declarator.ArrayRankTokens.IsEmpty || !declaration.Type.ArrayRanks.IsEmpty))
+                        && (!declarator.ArrayRankTokens.IsEmpty || !declaration.Type.ArrayRanks.IsEmpty
+                            || GlslExpressionRequirementAnalyzer.StructContainsArray(program, declaration.Type.Name, declarator)))
                     {
                         requirement.ArrayObjectCheck(declarator.NameToken, "array initializer");
                     }
@@ -305,8 +322,10 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 入力のブロックは頂点シェーダーとコンピュートシェーダーに、出力のブロックはフラグメントシェーダーとコンピュートシェーダーに書けない
     /// (glslang の「input block」「output block」の requireStage)。
+    /// 入出力のブロックに要る版も見る (glslang の blockStageIoCheck の profileRequires)。デスクトップは 1.50 から、
+    /// ES の頂点シェーダーの出力とフラグメントシェーダーの入力は 3.20 か GL_EXT_shader_io_blocks から。組み込みのブロックの宣言し直し (gl_PerVertex) は見ない。
     /// </summary>
-    private static void CheckBlockStage(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers)
+    private static void CheckBlockStage(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> modifiers, string name)
     {
         if (requirement.Stage is not { } stage || TopLevel(modifiers).LastOrDefault(t => t.Text is "in" or "out") is not { } storage)
         {
@@ -320,6 +339,22 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             || (!input && stage == GlslShaderStage.Fragment))
         {
             requirement.Report(GlslRuleDescriptors.NotAvailableInStage, storage, input ? "入力のブロック" : "出力のブロック", GlslRequirements.DescribeStage(stage));
+        }
+
+        if (name.StartsWith("gl_", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        requirement.ProfileRequires(storage, GlslProfileMask.NotEs, 150, ["GL_ARB_separate_shader_objects"], input ? "'input block'" : "'output block'");
+
+        if (input && stage == GlslShaderStage.Fragment)
+        {
+            requirement.ProfileRequires(storage, GlslProfileMask.Es, 320, ["GL_EXT_shader_io_blocks", "GL_OES_shader_io_blocks"], "'fragment input block'");
+        }
+        else if (!input && stage == GlslShaderStage.Vertex)
+        {
+            requirement.ProfileRequires(storage, GlslProfileMask.Es, 320, ["GL_EXT_shader_io_blocks", "GL_OES_shader_io_blocks"], "'vertex output block'");
         }
     }
 

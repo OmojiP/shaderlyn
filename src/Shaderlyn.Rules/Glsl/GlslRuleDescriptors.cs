@@ -52,7 +52,7 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "GLSL のプリプロセッサの指令に、glslang が誤りにする書き方があります。"
-            + "たとえば ES では、#if / #elif の式に定義されていないマクロを書けません。",
+            + "たとえば ES では、#if / #elif の式に定義されていないマクロを書けません。#extension は「名前 : 振る舞い」の形で書きます。",
         helpLinkUri: DocumentationLinks.For("GL0003"));
 
     /// <summary>修飾子をここに書けない。</summary>

@@ -79,6 +79,9 @@ internal sealed class GlslExtensionTimeline
     /// <summary>指令ごとの、その指令の後の振る舞い。出力の中の位置の順。</summary>
     private readonly ImmutableArray<(int OutputIndex, FrozenDictionary<string, GlslExtensionBehavior> State)> _states;
 
+    /// <summary>指令ごとの、指令の名前のトークンとその指令の後の振る舞い。<see cref="_states"/> と同じ順。</summary>
+    private readonly ImmutableArray<(ShaderSyntaxToken Directive, FrozenDictionary<string, GlslExtensionBehavior> State)> _directives;
+
     /// <summary>展開した木から作る。</summary>
     /// <param name="tree">GLSL の木。</param>
     public GlslExtensionTimeline(ShaderSyntaxTree tree)
@@ -95,6 +98,8 @@ internal sealed class GlslExtensionTimeline
 
         Dictionary<string, GlslExtensionBehavior> current = new(StringComparer.Ordinal);
         ImmutableArray<(int, FrozenDictionary<string, GlslExtensionBehavior>)>.Builder states = ImmutableArray.CreateBuilder<(int, FrozenDictionary<string, GlslExtensionBehavior>)>();
+        ImmutableArray<(ShaderSyntaxToken, FrozenDictionary<string, GlslExtensionBehavior>)>.Builder directives =
+            ImmutableArray.CreateBuilder<(ShaderSyntaxToken, FrozenDictionary<string, GlslExtensionBehavior>)>();
 
         foreach (RecordedDirective directive in tree.PreprocessResult.RecordedDirectives)
         {
@@ -104,20 +109,40 @@ internal sealed class GlslExtensionTimeline
             }
 
             Apply(current, extension.Name, extension.Behavior);
-            states.Add((directive.OutputIndex, current.ToFrozenDictionary(StringComparer.Ordinal)));
+            FrozenDictionary<string, GlslExtensionBehavior> after = current.ToFrozenDictionary(StringComparer.Ordinal);
+            states.Add((directive.OutputIndex, after));
+            directives.Add((directive.Directive, after));
         }
 
         _states = states.ToImmutable();
+        _directives = directives.ToImmutable();
     }
 
     /// <summary>トークンの時点での、拡張の振る舞いを返す。</summary>
     /// <param name="extension">拡張の名前。</param>
-    /// <param name="at">位置のトークン。展開した出力に無いトークン (欠けたトークンなど) なら、ファイルの終わりの時点とする。</param>
+    /// <param name="at">
+    /// 位置のトークン。展開した出力に無いトークンのうち、書かれたとおりのトークン (指令の行のトークンなど) は、同じファイルの指令と書いた位置で比べる。
+    /// それ以外 (欠けたトークンなど) は、ファイルの終わりの時点とする。
+    /// </param>
     /// <returns>振る舞い。</returns>
     public GlslExtensionBehavior GetBehavior(string extension, ShaderSyntaxToken? at)
     {
-        int index = at is not null && _tokenIndex.TryGetValue(at, out int found) ? found : int.MaxValue;
         FrozenDictionary<string, GlslExtensionBehavior>? state = null;
+
+        if (at is not null && !_tokenIndex.ContainsKey(at) && !at.IsMissing && _directives.Any(d => ReferenceEquals(d.Directive.Source, at.Source)))
+        {
+            foreach ((ShaderSyntaxToken directive, FrozenDictionary<string, GlslExtensionBehavior> after) in _directives)
+            {
+                if (ReferenceEquals(directive.Source, at.Source) && directive.Span.Start < at.Span.Start)
+                {
+                    state = after;
+                }
+            }
+
+            return Lookup(state, extension);
+        }
+
+        int index = at is not null && _tokenIndex.TryGetValue(at, out int found) ? found : int.MaxValue;
 
         // 位置より前の、最後の指令の後の振る舞い。指令の数は少ないので、前から見る。
         foreach ((int outputIndex, FrozenDictionary<string, GlslExtensionBehavior> after) in _states)
@@ -130,10 +155,14 @@ internal sealed class GlslExtensionTimeline
             state = after;
         }
 
-        return state is null ? GlslExtensionBehavior.Disable
+        return Lookup(state, extension);
+    }
+
+    /// <summary>指令の後の振る舞いから、拡張 1 つの振る舞いを引く。</summary>
+    private static GlslExtensionBehavior Lookup(FrozenDictionary<string, GlslExtensionBehavior>? state, string extension)
+        => state is null ? GlslExtensionBehavior.Disable
             : state.TryGetValue(extension, out GlslExtensionBehavior behavior) ? behavior
             : state.GetValueOrDefault(AllExtensions, GlslExtensionBehavior.Disable);
-    }
 
     /// <summary>トークンの時点で、拡張を有効にしているか (<c>enable</c> / <c>require</c> / <c>warn</c>。glslang の extensionTurnedOn)。</summary>
     /// <param name="extension">拡張の名前。</param>

@@ -49,6 +49,11 @@ internal sealed partial class GlslInterfaceRequirementAnalyzer : SemanticRuleAna
                         Check(requirement, program, stage, variable.ModifierTokens, variable.Type.Name, variable.Type.ArrayRanks, [.. variable.Variables]);
                         break;
 
+                    // 構造体の宣言と同時に宣言した変数 (varying struct S { … } s;)。
+                    case StructDeclarationSyntax { Keyword.Text: "struct", Name: { } name } structure when !structure.Modifiers.IsEmpty:
+                        Check(requirement, program, stage, structure.Modifiers, name, [], [.. structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>()]);
+                        break;
+
                     default:
                         break;
                 }
