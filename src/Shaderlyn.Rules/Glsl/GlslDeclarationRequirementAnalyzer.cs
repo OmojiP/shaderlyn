@@ -341,8 +341,11 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             requirement.Report(GlslRuleDescriptors.NotAvailableInStage, storage, input ? "入力のブロック" : "出力のブロック", GlslRequirements.DescribeStage(stage));
         }
 
+        // 組み込みのブロックの宣言し直し (glslang の redeclareBuiltinBlock の profileRequires)。
         if (name.StartsWith("gl_", StringComparison.Ordinal))
         {
+            requirement.ProfileRequires(storage, GlslProfileMask.Es, 320, ["GL_EXT_shader_io_blocks", "GL_OES_shader_io_blocks"], "'built-in block redeclaration'");
+            requirement.ProfileRequires(storage, GlslProfileMask.NotEs, 410, ["GL_ARB_separate_shader_objects"], "'built-in block redeclaration'");
             return;
         }
 

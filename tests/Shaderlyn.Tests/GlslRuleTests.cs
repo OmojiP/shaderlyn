@@ -383,6 +383,12 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(sin(true)); }")]
     [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x) { return x; }\nvoid main() { float a[2]; o = vec4(f(a)); }")]
     [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4x3 m; o = vec4(m[3][1].length()); }")]
+    [InlineData("GL0406", "a.frag", "#version 420 core\nlayout(depth_any) out float gl_FragDepth;\nlayout(depth_greater) out float gl_FragDepth;\nvoid main() { gl_FragDepth = 0.5; }")]
+    [InlineData("GL0406", "a.frag", "#version 150 core\nin vec4 gl_FragCoord;\nlayout(origin_upper_left) in vec4 gl_FragCoord;\nout vec4 o;\nvoid main() { o = gl_FragCoord; }")]
+    [InlineData("GL0406", "a.frag", "#version 130\nflat in vec3 gl_Color;\nvoid main() { gl_FragColor = vec4(1.0); }")]
+    [InlineData("GL0406", "a.vert", "#version 450\nout gl_PerVertex { vec4 gl_Position; vec4 t; };\nvoid main() { gl_Position = vec4(0.0); }")]
+    [InlineData("GL0406", "a.vert", "#version 450\nout gl_PerVertex { vec4 gl_Position; };\nvoid main() { gl_Position = vec4(0.0); gl_PointSize = 1.0; }")]
+    [InlineData("GL0406", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nin gl_PerVertex { vec4 gl_Position; } myIn[];\nvoid main() { }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { struct S { float a[2]; } s1, s2; s1 = s2; gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nstruct S { float a[2]; };\nS f() { S s; return s; }\nvoid main() { gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2]; gl_FragColor = vec4(a.length()); }")]
@@ -644,6 +650,21 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
         Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>組み込みの変数とブロックを、変えてよいものだけ変えて宣言し直すのは報告しない。</summary>
+    [Fact]
+    public async Task 正しい組み込みの宣言し直し()
+    {
+        string fragment = await AnalyzeAsync(
+            "a.frag",
+            "#version 450\nlayout(origin_upper_left) in vec4 gl_FragCoord;\nlayout(origin_upper_left) in vec4 gl_FragCoord;\n"
+            + "layout(depth_greater) out float gl_FragDepth;\nout float gl_FragDepth;\nin float gl_ClipDistance[4];\nlayout(location = 0) out vec4 o;\n"
+            + "void main() { o = gl_FragCoord + vec4(gl_ClipDistance[0]); gl_FragDepth = 1.0; }\n");
+        string vertex = await AnalyzeAsync("a.vert", "#version 450\nout gl_PerVertex { vec4 gl_Position; float gl_PointSize; };\nvoid main() { gl_Position = vec4(0.0); gl_PointSize = 1.0; }\n");
+
+        Assert.DoesNotContain("GL0406", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("GL0406", vertex, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL の __FILE__ は文字列の番号 (整数) なので、#line の式に書ける。</summary>

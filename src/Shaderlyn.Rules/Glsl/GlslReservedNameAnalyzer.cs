@@ -156,7 +156,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
     /// 組み込みの変数を宣言し直しているかもしれないか (glslang の redeclareBuiltinVariable が名前を受け付けるか)。
     /// その版とステージに組み込みの変数があるかは確かめず、あるかもしれなければ報告しない側に倒す。
     /// </summary>
-    private static bool MayRedeclare(GlslRequirements requirement, string name, ShaderSyntaxToken at)
+    internal static bool MayRedeclare(GlslRequirements requirement, string name, ShaderSyntaxToken at)
     {
         bool desktop = !requirement.IsEs && (requirement.Version >= 130 || name == "gl_TexCoord");
         bool es = requirement.IsEs

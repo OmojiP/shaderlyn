@@ -104,6 +104,7 @@ public sealed class RuleFixtureTests
         ["GL0403"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0404"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0405"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
+        ["GL0406"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
         ["GL0201"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。

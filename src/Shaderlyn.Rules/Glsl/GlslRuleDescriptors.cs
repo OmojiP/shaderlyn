@@ -443,6 +443,21 @@ internal static class GlslRuleDescriptors
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0405"));
 
+    /// <summary>組み込みの変数とブロックの宣言し直しが正しくない。</summary>
+    /// <remarks>
+    /// glslang の ParseHelper.cpp の <c>redeclareBuiltinVariable</c>・<c>redeclareBuiltinBlock</c> と <c>declareVariable</c> の誤りに当たる。文の <c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor BuiltinVariableRedeclaration { get; } = new(
+        id: "GL0406",
+        title: "組み込みの変数とブロックの宣言し直しが正しくありません",
+        messageFormat: "'{0}' を、この形では宣言し直せません。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込みの変数 (gl_FragCoord・gl_FragDepth・gl_ClipDistance など) とブロック (gl_PerVertex) を宣言し直すときは、型と記憶域を変えられず、変えられる修飾子も決まっています。"
+            + "使った後には宣言し直せないものもあります。ブロックは 1 度だけ、組み込みのメンバーだけで宣言し直せ、含めなかったメンバーは使えなくなります。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0406"));
+
 
     /// <summary>ES で、精度を決めていない型を使っている。</summary>
     /// <remarks>glslang の <c>precisionQualifierCheck</c> (「type requires declaration of default precision qualifier」) に当たる。</remarks>

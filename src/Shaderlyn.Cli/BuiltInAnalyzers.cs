@@ -92,6 +92,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslArrayConstructorAnalyzer(),
         new Rules.Glsl.GlslOverloadAnalyzer(),
         new Rules.Glsl.GlslPreprocessorAnalyzer(),
+        new Rules.Glsl.GlslBuiltinRedeclarationAnalyzer(),
         new Rules.Glsl.GlslArrayAssignmentAnalyzer(),
         new Rules.Glsl.GlslArgumentQualifierAnalyzer(),
         new CompileTargetAnalyzer(),
