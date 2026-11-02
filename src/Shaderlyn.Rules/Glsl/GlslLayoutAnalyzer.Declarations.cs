@@ -356,7 +356,11 @@ internal sealed partial class GlslLayoutAnalyzer
                     _bufferPacking = layout.Packing ?? _bufferPacking;
                     break;
 
-                case Storage.In or Storage.Out or Storage.Shared:
+                case Storage.Out:
+                    XfbDefaults(at, layout);
+                    break;
+
+                case Storage.In or Storage.Shared:
                     break;
 
                 default:
@@ -766,6 +770,11 @@ internal sealed partial class GlslLayoutAnalyzer
                 CheckObject(declarator.NameToken, declarator.Name, layout, storage, type, declarator.IsArray,
                     declarator.TryGetArrayLength(out int length) ? length : null,
                     variable.ModifierTokens);
+
+                if (storage == Storage.Out)
+                {
+                    XfbVariable(declarator.NameToken, layout, variable.Type.NameToken.Text, declarator);
+                }
             }
         }
 
@@ -1062,6 +1071,11 @@ internal sealed partial class GlslLayoutAnalyzer
             ShaderSyntaxToken at = QualifierLocation(modifiers, layout);
             Storage storage = StorageOf(modifiers, Stage);
             CheckNoShaderLayouts(layout);
+
+            if (storage == Storage.Out && name is not "struct")
+            {
+                XfbBlock(at, layout, members, builtIn: name is not null && name.StartsWith("gl_", StringComparison.Ordinal));
+            }
 
             // uniform struct { … } s; は、名前が struct のブロックとして読まれる。構造体の変数なので、ブロックとして検査しない。
             if (storage == Storage.Other || name is "struct" || name is not null && name.StartsWith("gl_", StringComparison.Ordinal))

@@ -383,6 +383,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(sin(true)); }")]
     [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x) { return x; }\nvoid main() { float a[2]; o = vec4(f(a)); }")]
     [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4x3 m; o = vec4(m[3][1].length()); }")]
+    [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 0) out vec4 a;\nlayout(xfb_buffer = 1, xfb_offset = 8) out vec4 b;\nvoid main() { a = b = vec4(0.0); gl_Position = a; }")]
+    [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
     [InlineData("GL0406", "a.frag", "#version 420 core\nlayout(depth_any) out float gl_FragDepth;\nlayout(depth_greater) out float gl_FragDepth;\nvoid main() { gl_FragDepth = 0.5; }")]
     [InlineData("GL0406", "a.frag", "#version 150 core\nin vec4 gl_FragCoord;\nlayout(origin_upper_left) in vec4 gl_FragCoord;\nout vec4 o;\nvoid main() { o = gl_FragCoord; }")]
     [InlineData("GL0406", "a.frag", "#version 130\nflat in vec3 gl_Color;\nvoid main() { gl_FragColor = vec4(1.0); }")]
