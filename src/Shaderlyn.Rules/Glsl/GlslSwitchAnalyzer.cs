@@ -10,7 +10,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules.Glsl;
 
 /// <summary>
-/// <c>switch</c> の文の組み立てと、<c>break</c> / <c>continue</c> の置き場所を検査する (GL0321)。
+/// <c>switch</c> の文の組み立てと、<c>break</c> / <c>continue</c> の置き場所を検査する (GL0321)。文の属性に要る拡張 (GL0001) と値 (GL0304) も見る。
 /// glslang 16.6.0 の glslang.y の <c>case_label</c> と <c>jump_statement</c>、ParseHelper.cpp の <c>wrapupSwitchSubsequence</c> と <c>addSwitch</c> を移したもの。
 /// </summary>
 /// <remarks>
@@ -33,7 +33,8 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.SwitchStatement];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [GlslRuleDescriptors.SwitchStatement, GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.ArgumentOutOfRange];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -48,7 +49,7 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (SwitchStatementSyntax or SwitchLabelStatementSyntax or JumpStatementSyntax))
+            if (node is not (SwitchStatementSyntax or SwitchLabelStatementSyntax or JumpStatementSyntax or IfStatementSyntax or ForStatementSyntax or WhileStatementSyntax or DoWhileStatementSyntax))
             {
                 continue;
             }
@@ -68,6 +69,8 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
             }
 
             (GlslRequirements requirement, GlslConstantEvaluator evaluator) = found;
+
+            CheckAttributes(requirement, node);
 
             switch (node)
             {
@@ -94,6 +97,43 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
 
                 default:
                     break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 文の属性 (<c>[[unroll]]</c> など) は <c>GL_EXT_control_flow_attributes</c> が要る (ループは <c>GL_EXT_control_flow_attributes2</c> などでも良い)。
+    /// <c>dependency_length</c> の値は正の数でなければならない (glslang の glslang.y と attribute.cpp の handleLoopAttributes)。
+    /// </summary>
+    private static void CheckAttributes(GlslRequirements requirement, ShaderSyntaxNode node)
+    {
+        (ImmutableArray<AttributeSyntax> attributes, bool loop) = node switch
+        {
+            IfStatementSyntax statement => (statement.Attributes, false),
+            SwitchStatementSyntax statement => (statement.Attributes, false),
+            ForStatementSyntax statement => (statement.Attributes, true),
+            WhileStatementSyntax statement => (statement.Attributes, true),
+            DoWhileStatementSyntax statement => (statement.Attributes, true),
+            _ => ([], false),
+        };
+
+        if (attributes.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        requirement.RequireExtensions(
+            attributes[0].NameToken,
+            loop ? ["GL_EXT_control_flow_attributes", "GL_EXT_control_flow_attributes2", "GL_QCOM_multiple_wait_queues"] : ["GL_EXT_control_flow_attributes"],
+            "文の属性 ([[…]])");
+
+        foreach (AttributeSyntax attribute in attributes)
+        {
+            if (loop
+                && attribute.Name == "dependency_length"
+                && attribute.ArgumentTokens is [{ Kind: ShaderSyntaxKind.MinusToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken }] or [{ Text: "0" }])
+            {
+                requirement.Report(GlslRuleDescriptors.ArgumentOutOfRange, attribute.NameToken, "dependency_length の値", "正の数");
             }
         }
     }

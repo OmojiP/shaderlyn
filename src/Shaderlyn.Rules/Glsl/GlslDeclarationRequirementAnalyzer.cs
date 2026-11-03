@@ -68,6 +68,13 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclarationSyntax variable:
                     CheckQualifiers(requirement, variable.ModifierTokens, global);
                     CheckStorageCount(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens]);
+
+                    // ブロックと構造体のメンバーには nonuniformEXT を書けない (glslang の「not allowed on block or structure members」)。
+                    if (variable.Parent is StructDeclarationSyntax or InterfaceBlockDeclarationSyntax
+                        && TopLevel([.. variable.ModifierTokens, .. variable.Type.ModifierTokens]).FirstOrDefault(t => t.Text == "nonuniformEXT") is { } memberNonuniform)
+                    {
+                        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, memberNonuniform, "ブロックと構造体のメンバーには nonuniformEXT を書けません。");
+                    }
                     CheckCombination(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens], vertexInput: variable.Parent is CompilationUnitSyntax);
 
                     if (variable.Parent is CompilationUnitSyntax)

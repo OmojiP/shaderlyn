@@ -147,6 +147,19 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // GLSL の配列の length を、括弧を付けずに書いたもの (glslang の「incomplete method syntax」)。
+        if (binder.TypeSystem is GlslTypeSystem && access.Name == "length" && IsGlslArrayValue(binder, access.Target)
+            && access.NameToken.GetLocation() is { } lengthLocation && reported.Add(lengthLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                lengthLocation,
+                "配列",
+                "メンバー 'length' ",
+                "length() と括弧を付けて呼んでください。"));
+            return;
+        }
+
         // 対象の型が分からないなら報告しない。
         // 分からないものを根拠に「メンバーが無い」と言ってはならない。
         // 構成によって型が変わる名前なら、構成ごとに型を求めて検査する。
@@ -307,6 +320,22 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
+        // length() は実引数を取らない (glslang の「method does not accept any arguments」)。
+        if (access.Parent is InvocationExpressionSyntax invocation && invocation.ArgumentExpressions.Any())
+        {
+            if (access.NameToken.GetLocation() is { } argumentsLocation && reported.Add(argumentsLocation))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.MemberNotFound,
+                    argumentsLocation,
+                    "配列・ベクトル・行列",
+                    "実引数を取る 'length(…)' ",
+                    "length() には実引数を書けません。"));
+            }
+
+            return;
+        }
+
         int indices = 0;
         ExpressionSyntax root = access.Target;
 
@@ -665,6 +694,25 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         }
 
         return members;
+    }
+
+    /// <summary>GLSL の配列そのものの値 (添字を付けきっていない配列の名前) か。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="target">対象の式。</param>
+    /// <returns>どの候補も配列で、添字の数が次元より少なければ <see langword="true"/>。</returns>
+    private static bool IsGlslArrayValue(ExpressionTypeBinder binder, ExpressionSyntax target)
+    {
+        int indices = 0;
+
+        while (target is ElementAccessExpressionSyntax element)
+        {
+            indices++;
+            target = element.Target;
+        }
+
+        return target is IdentifierExpressionSyntax identifier
+               && binder.ResolveName(identifier).Candidates is { IsEmpty: false } candidates
+               && candidates.All(c => Math.Max(c.Type.ArrayDimensions, c.Type.IsArray ? 1 : 0) > indices);
     }
 
     /// <summary>メソッド呼び出しの対象かどうかを判定する。</summary>

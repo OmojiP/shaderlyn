@@ -133,6 +133,9 @@ internal abstract class ShaderParser
     /// </summary>
     protected virtual bool AcceptsArrayTypes => false;
 
+    /// <summary>二重角括弧の属性 (GLSL の <c>[[unroll]]</c>) を、読み飛ばさずに構文木に残すか。</summary>
+    protected virtual bool KeepsDoubleBracketAttributes => false;
+
     /// <summary>
     /// <c>discard</c> と同じ形で、語と <c>;</c> だけで書く文 (GLSL の <c>ignoreIntersectionEXT;</c>) の語かを判定する。既定は無い。
     /// </summary>
@@ -1545,6 +1548,12 @@ internal abstract class ShaderParser
             // SPIR-V 向けの割り当てを指示するもので、この解析ツールが見る意味を持たない。
             if (Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
             {
+                if (KeepsDoubleBracketAttributes && Peek(2).Kind == ShaderSyntaxKind.IdentifierToken && Peek(3).Kind != ShaderSyntaxKind.ColonColonToken)
+                {
+                    attributes.Add(ParseDoubleBracketAttribute());
+                    continue;
+                }
+
                 SkipDoubleBracketAnnotation();
                 continue;
             }
@@ -1597,6 +1606,64 @@ internal abstract class ShaderParser
         }
 
         return attributes.ToImmutable();
+    }
+
+    /// <summary>
+    /// 二重角括弧の属性 (GLSL の <c>[[unroll]]</c>、<c>[[dependency_length(4)]]</c>) を読む。
+    /// </summary>
+    /// <returns>最初の属性。開き角括弧は外側の <c>[</c>、閉じ角括弧は外側の <c>]</c> にする。</returns>
+    /// <remarks>
+    /// <c>[[unroll, dependency_infinite]]</c> のように並べた 2 つ目からと、内側の角括弧は構文木に残さない (今までどおり読み飛ばす)。
+    /// 残すのは、属性があること (要る拡張の検査) と最初の属性の値を見るためである。
+    /// </remarks>
+    private AttributeSyntax ParseDoubleBracketAttribute()
+    {
+        ShaderSyntaxToken openBracket = Advance();
+        Advance();
+        ShaderSyntaxToken name = Advance();
+        ShaderSyntaxToken? openParen = null;
+        ShaderSyntaxToken? closeParen = null;
+        ImmutableArray<ShaderSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
+
+        if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
+        {
+            openParen = Advance();
+            int depth = 0;
+
+            while (!AtEnd && (depth > 0 || Current.Kind != ShaderSyntaxKind.CloseParenToken))
+            {
+                depth += Current.Kind switch
+                {
+                    ShaderSyntaxKind.OpenParenToken => 1,
+                    ShaderSyntaxKind.CloseParenToken => -1,
+                    _ => 0,
+                };
+
+                arguments.Add(Advance());
+            }
+
+            closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+        }
+
+        // 並べた残りの属性と、閉じる 2 つの角括弧まで読む。最後の ] を閉じ角括弧にする。
+        ShaderSyntaxToken closeBracket = Current;
+        int brackets = 2;
+
+        while (!AtEnd && brackets > 0)
+        {
+            if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                brackets++;
+            }
+            else if (Current.Kind == ShaderSyntaxKind.CloseBracketToken)
+            {
+                brackets--;
+            }
+
+            closeBracket = Advance();
+        }
+
+        return new AttributeSyntax(openBracket, name, openParen, arguments.ToImmutable(), closeParen, closeBracket);
     }
 
     /// <summary>

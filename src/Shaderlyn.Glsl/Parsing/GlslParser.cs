@@ -149,6 +149,10 @@ internal sealed class GlslParser : ShaderParser
     protected override bool AcceptsArrayTypes => true;
 
     /// <inheritdoc/>
+    /// <remarks>文の属性 (GL_EXT_control_flow_attributes) に要る拡張と値を検査するため。</remarks>
+    protected override bool KeepsDoubleBracketAttributes => true;
+
+    /// <inheritdoc/>
     /// <remarks>
     /// レイトレーシングの <c>ignoreIntersectionEXT;</c> / <c>terminateRayEXT;</c> (GL_EXT_ray_tracing)、
     /// <c>demote;</c> (GL_EXT_demote_to_helper_invocation)、<c>terminateInvocation;</c> (GL_EXT_terminate_invocation)。

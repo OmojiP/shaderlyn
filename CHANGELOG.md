@@ -48,7 +48,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     テッセレーションの制御シェーダーの `patch in` と評価シェーダーの `patch out`、`bool` を含む構造体の入力と出力、
     ブロックと違う記憶域のメンバー (`uniform U { in float a; }`)、uniform と buffer のブロックのメンバーの補助・補間の修飾子、2 つの記憶域の修飾子 (`in uniform`)、
     gl_FragCoord でない変数の `origin_upper_left` と gl_FragDepth でない変数の `depth_less` など、構造体の定義の型の無い宣言にだけ書ける layout、
-    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)。
+    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、ブロックと構造体のメンバーの `nonuniformEXT`。
     修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)。
     フラグメントシェーダーの出力の修飾子と型 (`flat out`、`out mat2x3` など)、`flat` の無い整数の入力、
     構造体のメンバーの layout などの修飾子、ブロックの補間の修飾子、イメージでない変数のメモリの修飾子、出力でない変数の `invariant`、関数の戻り値の `const` などの記憶域の修飾子。
@@ -125,10 +125,13 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - CF0404 (値の作成に渡す成分の数が合わない) は、GLSL では閉じ括弧の位置で報告する。glslang と同じ行になる
 - CF0401 (実引数を仮引数の型へ変換できない) は、GLSL では構造体の仮引数に別の型の値を渡したもの (`f(1.0)` の仮引数が構造体) と、数値の仮引数に構造体を渡したものも報告する
 - CF0405 (配列の実引数が合わない) は、GLSL では配列を配列でない仮引数に渡したもの (`f(a)` の仮引数が `float`) と、大きさを書かずに宣言した配列 (`float a[];`) を配列の仮引数に渡したものも報告する
+- GL0104 (layout に要る指定が無い) は、計算シェーダーでワークグループの大きさ (`layout(local_size_x = …) in;`) を宣言する前の `gl_WorkGroupSize` も報告する
+- GL0001 は、文の属性 (`[[unroll]]` など。`GL_EXT_control_flow_attributes` が要る) も検査する。GL0304 は、正の数でない `[[dependency_length(…)]]` も報告する
 - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。
   実引数が 1 つの書き方は `GL_ARB_bindless_texture` が要る (GL0001)
 - CF0411 (戻り値の型が合わない) は、GLSL では値を返す `return` が 1 つも無い関数 (glslang の誤り。値を返さない経路の CF0501 は GLSL では警告) と、
   サンプラー・イメージ・`atomic_uint` などを別の型として返すもの (`uint f() { return counter; }`) も報告する
+- CF0312 (存在しないメンバー) は、GLSL では括弧を付けない配列の `length` (`f.length`) と、実引数を書いた `length(…)` も報告する
 - CF0312 (存在しないメンバー) は、GLSL では `.length()` を配列でもベクトルでも行列でもない値に使ったもの (`bool b; b.length()`、`m43[3][1].length()`) も報告する
 - CF0402 (引数の数が合わない) は、GLSL では仮引数の既定値を数えない。GLSL には既定値が無く、glslang は引数を省いた呼び出しを誤りにする
 - CF0001 (構文エラー) は、GLSL の仮引数の既定値 (`void f(int x = 2)`) も報告する。この誤りでは、宣言が無いことを根拠にする検査を止めない
