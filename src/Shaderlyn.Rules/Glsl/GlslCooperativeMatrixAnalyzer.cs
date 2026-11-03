@@ -53,6 +53,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start, string Message)> reported = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+        Dictionary<AnalyzedProgram, HashSet<string>> specConstants = [];
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -72,13 +73,24 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            Checker checker = new(requirement, compilation.GetExpressionTypeBinder(program), name => compilation.GetFunctionDeclarations(name, program));
+            if (!specConstants.TryGetValue(program, out HashSet<string>? specs))
+            {
+                specs = specConstants[program] = CollectSpecConstants(program);
+            }
+
+            Checker checker = new(requirement, compilation.GetExpressionTypeBinder(program), name => compilation.GetFunctionDeclarations(name, program), specs);
             checker.Check(node);
         }
     }
 
+    /// <summary>特殊化の定数 (layout(constant_id = …) const) の名前。</summary>
+    private static HashSet<string> CollectSpecConstants(AnalyzedProgram program)
+        => [.. program.Tree.Root.ChildNodes().OfType<VariableDeclarationSyntax>()
+            .Where(d => GlslLayoutQualifier.Read(d.ModifierTokens).Any(e => e.Name.Text == "constant_id"))
+            .SelectMany(d => d.Variables.Select(v => v.Name))];
+
     /// <summary>1 つの木の協調行列の式を検査する。</summary>
-    private sealed class Checker(GlslRequirements requirement, ExpressionTypeBinder binder, Func<string, ImmutableArray<FunctionDeclarationSyntax>> functions)
+    private sealed class Checker(GlslRequirements requirement, ExpressionTypeBinder binder, Func<string, ImmutableArray<FunctionDeclarationSyntax>> functions, HashSet<string> specConstants)
     {
         public void Check(ShaderSyntaxNode node)
         {
@@ -107,7 +119,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, member.NameToken, $"協調行列には成分の選択 ('.{member.Name}') を書けません。");
                     break;
 
-                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "coopMatTransposeEXT" or "coopMatTransposeNV" or "coopMatReduceEXT" or "coopMatReduceNV" or "coopMatPerElementEXT" or "coopMatPerElementNV" } callee } call
+                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "coopMatTransposeEXT" or "coopMatTransposeNV" or "coopMatReduceEXT" or "coopMatReduceNV" or "coopMatPerElementEXT" or "coopMatPerElementNV" or "coopMatLoadTensorNV" or "coopMatMulAdd" or "coopMatMulAddNV" } callee } call
                     when functions(callee.Name).IsEmpty:
                     CheckBuiltin(callee, [.. call.ArgumentExpressions]);
                     break;
@@ -255,6 +267,25 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
             string name = callee.Name;
 
             void Report(string message) => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, at, $"{name}: {message}");
+
+            // coopMatPerElement は仮引数の無い宣言なので、どの実引数でも呼び出せてしまう。
+            if (name.StartsWith("coopMatPerElement", StringComparison.Ordinal) && arguments.Length < 3)
+            {
+                Report("結果の協調行列、入力の協調行列、要素ごとの関数の 3 つの実引数が要ります。");
+                return;
+            }
+
+            if (name.StartsWith("coopMatMulAdd", StringComparison.Ordinal))
+            {
+                CheckMulAdd(arguments, Report);
+                return;
+            }
+
+            if (name == "coopMatLoadTensorNV")
+            {
+                CheckDecode(arguments, Report);
+                return;
+            }
 
             if (arguments.Length < 2 || TypeOf(arguments[0]) is not { } result || TypeOf(arguments[1]) is not { } input)
             {
@@ -442,15 +473,169 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
                && (identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
                    || binder.ResolveName(identifier).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } }] && declaration.HasModifier("const"));
 
+        /// <summary>
+        /// coopMatLoadTensorNV (mat, buf, off, t [, view] [, decodeFunc [, decodeVectorFunc]]) の復号の関数。
+        /// 仮引数は 3 つ (バッファの参照、uint32_t の配列 2 つ) で、decodeFunc は要素の型を、decodeVectorFunc は要素の型の 2・4・8 成分のベクトルを返す。
+        /// </summary>
+        private void CheckDecode(ExpressionSyntax[] arguments, Action<string> report)
+        {
+            if (arguments.Length < 5 || TypeOf(arguments[0]) is not { } matrix)
+            {
+                return;
+            }
+
+            FunctionDeclarationSyntax[] decoders = [.. arguments.Skip(4).Select(Callback).OfType<FunctionDeclarationSyntax>()];
+
+            for (int i = 0; i < decoders.Length && i < 2; i++)
+            {
+                FunctionDeclarationSyntax decoder = decoders[i];
+                ParameterSyntax[] parameters = [.. decoder.ParameterList];
+                CheckConstIn(decoder, report);
+
+                if (parameters.Length != 3)
+                {
+                    report($"復号の関数 '{decoder.Name}' の仮引数は 3 つでなければなりません。");
+                    continue;
+                }
+
+                if (Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(parameters[0].Type.Name))
+                {
+                    report($"復号の関数 '{decoder.Name}' の 1 つ目の仮引数は、バッファの参照の型でなければなりません。");
+                }
+
+                if (parameters.Skip(1).Any(p => Canonical(p.Type.Name) != "uint" || !p.IsArray))
+                {
+                    report($"復号の関数 '{decoder.Name}' の座標の仮引数は、uint32_t の配列でなければなりません。");
+                }
+
+                string returnType = decoder.ReturnType.Name;
+
+                if (i == 0)
+                {
+                    if (Canonical(returnType) != Canonical(matrix.Element))
+                    {
+                        report($"復号の関数 '{decoder.Name}' の戻り値は、協調行列の要素の型 ({matrix.Element}) のスカラーでなければなりません。");
+                    }
+                }
+                else if (VectorOf(returnType) is not var (component, size))
+                {
+                    if (Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(returnType) && !returnType.Contains("vector", StringComparison.Ordinal))
+                    {
+                        report($"ベクトルの復号の関数 '{decoder.Name}' の戻り値は、協調行列の要素の型のベクトルでなければなりません。");
+                    }
+                }
+                else if (Canonical(component) != Canonical(matrix.Element))
+                {
+                    report($"ベクトルの復号の関数 '{decoder.Name}' の戻り値の成分の型は、協調行列の要素の型 ({matrix.Element}) でなければなりません。");
+                }
+                else if (size is not (2 or 4 or 8))
+                {
+                    report($"ベクトルの復号の関数 '{decoder.Name}' の戻り値の成分の数は 2・4・8 のどれかでなければなりません。");
+                }
+            }
+        }
+
+        /// <summary>
+        /// coopMatMulAdd (A, B, C) の形と用途 (glslang の ParseHelper.cpp の MulAdd の検査)。A の列と B の行、A の行と C の行、B の列と C の列が同じで、
+        /// 用途は A・B・Accumulator の順でなければならない。
+        /// </summary>
+        private void CheckMulAdd(ExpressionSyntax[] arguments, Action<string> report)
+        {
+            if (arguments.Length != 3 || TypeOf(arguments[0]) is not { } a || TypeOf(arguments[1]) is not { } b || TypeOf(arguments[2]) is not { } c)
+            {
+                return;
+            }
+
+            string[] x = a.Parameters.Split(", ");
+            string[] y = b.Parameters.Split(", ");
+            string[] z = c.Parameters.Split(", ");
+
+            // NV の協調行列は [スコープ, 行, 列]、KHR は [スコープ, 行, 列, 用途]。
+            if (x.Length < 3 || y.Length != x.Length || z.Length != x.Length)
+            {
+                return;
+            }
+
+            if (SameSize(x[2], y[1]) == false)
+            {
+                report($"掛ける協調行列の形が合いません (A の列 {x[2]} と B の行 {y[1]})。");
+            }
+            else if (SameSize(x[1], z[1]) == false || SameSize(y[2], z[2]) == false)
+            {
+                report($"足す協調行列の形が合いません (積 {x[1]} x {y[2]} と C の {z[1]} x {z[2]})。");
+            }
+            else if (x.Length == 4)
+            {
+                (string Use, string Expected, string Name)[] uses = [(x[3], "gl_MatrixUseA", "A"), (y[3], "gl_MatrixUseB", "B"), (z[3], "gl_MatrixUseAccumulator", "C")];
+
+                if (uses.FirstOrDefault(u => u.Use.StartsWith("gl_MatrixUse", StringComparison.Ordinal) && u.Use != u.Expected) is { Name: not null } wrong)
+                {
+                    report($"{wrong.Name} の協調行列の用途は {wrong.Expected} でなければなりません ({wrong.Use} です)。");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 型の引数の大きさが同じか。整数のリテラルどうしは値を、特殊化の定数は名前を比べる (glslang は特殊化の定数とリテラルを違う大きさとみなす)。
+        /// 分からなければ <see langword="null"/>。
+        /// </summary>
+        private bool? SameSize(string left, string right)
+        {
+            if (left == right)
+            {
+                return true;
+            }
+
+            bool leftLiteral = long.TryParse(left, out long leftValue);
+            bool rightLiteral = long.TryParse(right, out long rightValue);
+
+            if (leftLiteral && rightLiteral)
+            {
+                return leftValue == rightValue;
+            }
+
+            return (leftLiteral || specConstants.Contains(left)) && (rightLiteral || specConstants.Contains(right)) ? false : null;
+        }
+
+        /// <summary>組み込みのベクトルの型 (vec2、f16vec3 など) の成分の型と数。</summary>
+        private static (string Component, int Size)? VectorOf(string type)
+        {
+            int at = type.IndexOf("vec", StringComparison.Ordinal);
+
+            if (at < 0 || at + 4 != type.Length || type[^1] is not (>= '2' and <= '4'))
+            {
+                return null;
+            }
+
+            string? component = type[..at] switch
+            {
+                "" or "f32" => "float",
+                "f16" => "float16_t",
+                "d" or "f64" => "double",
+                "i" or "i32" => "int",
+                "u" or "u32" => "uint",
+                "i8" => "int8_t",
+                "i16" => "int16_t",
+                "i64" => "int64_t",
+                "u8" => "uint8_t",
+                "u16" => "uint16_t",
+                "u64" => "uint64_t",
+                "b" => "bool",
+                _ => null,
+            };
+
+            return component is null ? null : (component, type[^1] - '0');
+        }
+
         /// <summary>関数を渡す実引数 (利用者の関数の名前) の定義。</summary>
         private FunctionDeclarationSyntax? Callback(ExpressionSyntax argument)
             => argument is IdentifierExpressionSyntax identifier && functions(identifier.Name) is [var only, ..] ? only : null;
 
-        /// <summary>渡す関数の仮引数は、どれも const in でなければならない。</summary>
+        /// <summary>渡す関数の仮引数は、どれも const in (const だけでもよい) でなければならない。</summary>
         private static void CheckConstIn(FunctionDeclarationSyntax function, Action<string> report)
         {
-            if (function.ParameterList.Any(p => !(p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text == "const")
-                                                 && p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text == "in"))))
+            if (function.ParameterList.Any(p => !p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text == "const")
+                                                || p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text is "out" or "inout")))
             {
                 report($"渡す関数 '{function.Name}' の仮引数には、どれも const in を書かなければなりません。");
             }
@@ -534,6 +719,9 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
         {
             ParenthesizedExpressionSyntax parenthesized => TypeOf(parenthesized.Expression),
             IdentifierExpressionSyntax identifier => binder.ResolveName(identifier).Candidates is [{ } candidate] ? FromDeclarator(candidate.Declarator) : null,
+            // coopMatMulAdd の結果は C の型。
+            InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "coopMatMulAdd" or "coopMatMulAddNV" } callee } call
+                when functions(callee.Name).IsEmpty && call.ArgumentExpressions.Count() == 3 => TypeOf(call.ArgumentExpressions.Last()),
             InvocationExpressionSyntax invocation => ConstructedType(invocation),
             AssignmentExpressionSyntax assignment => TypeOf(assignment.Left),
             BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken } binary

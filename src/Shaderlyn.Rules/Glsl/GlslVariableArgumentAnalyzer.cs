@@ -20,7 +20,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// 成分の選び出し (<c>.xy</c>) とベクトルの添字は、デスクトップの 4.40 からしか使えない。ES では、構造体 (ブロックでない) のメンバーも使えない。
 /// </para>
 /// <para>
-/// アトミックの関数 (<c>atomicAdd</c> など) の第 1 引数と、協調行列の読み書きの関数 (<c>coopMatLoad</c> など) の第 2 引数は、
+/// アトミックの関数 (<c>atomicAdd</c> など) の第 1 引数と、協調行列と協調ベクトルの読み書きの関数 (<c>coopMatLoad</c>、<c>coopVecLoadNV</c> など) の第 2 引数は、
 /// buffer のブロックか shared の変数 (アトミックは <c>taskPayloadSharedEXT</c> も) か、その要素・メンバー。
 /// </para>
 /// <para>
@@ -130,7 +130,7 @@ internal sealed class GlslVariableArgumentAnalyzer : SemanticRuleAnalyzer
         "atomicAdd" or "atomicMin" or "atomicMax" or "atomicAnd" or "atomicOr" or "atomicXor"
             or "atomicExchange" or "atomicCompSwap" or "atomicLoad" or "atomicStore" => (0, false, true),
         "coopMatLoad" or "coopMatStore" or "coopMatLoadNV" or "coopMatStoreNV"
-            or "coopMatLoadTensorNV" or "coopMatStoreTensorNV" => (1, false, false),
+            or "coopMatLoadTensorNV" or "coopMatStoreTensorNV" or "coopVecLoadNV" or "coopVecStoreNV" => (1, false, false),
         _ => null,
     };
 

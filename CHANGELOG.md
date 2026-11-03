@@ -150,6 +150,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- `coopMatLoadTensorNV` の復号の関数の仮引数 (`const in`、バッファの参照、`uint32_t` の配列) と戻り値、`coopMatPerElementNV` の実引数の数、
+  `coopMatMulAdd` の協調行列の形と用途を報告する (GL0325)。渡す関数の仮引数は `const` だけでもよいものとした
+- 協調ベクトル (`coopvecNV`) の定数でなければならない実引数と、`coopVecLoadNV` / `coopVecStoreNV` の関数の中の変数 (GL0306)、
+  `coopVecOuterProductAccumulateNV` の要素の型の違う協調ベクトル (GL0302)、範囲の外の定数の添字 (GL0307)、成分の選択 (CF0312) を報告する
+- アトミックの関数の 1 つ目の実引数は `inout` なので、両方の向きに変換できる型だけを合うものとする (`atomicAdd(intVar, 1.0)` を GL0302 にする)
+- `saturatedConvertEXT` の実引数の数・型・形の誤りを報告する (GL0302)
 - 64 ビットの整数の添字、`length64()`、協調行列と協調ベクトルの読み書きの関数への 64 ビットの整数の実引数に、
   `GL_EXT_shader_64bit_indexing` が無いことを報告する (GL0001)
 - `debugPrintfEXT` と `abortEXT` の 1 つ目の実引数が文字列のリテラルでないもの、`abortEXT` の不透明な型・大きさの決まっていない配列・bool を含む集まり・文字列の実引数 (GL0306)、

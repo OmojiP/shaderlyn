@@ -66,6 +66,11 @@ internal sealed class GlslSmallFloatAnalyzer : SemanticRuleAnalyzer
                     CheckDeclaration(requirement, program, declaration, first);
                     break;
 
+                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "saturatedConvertEXT" } callee } call
+                    when compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty:
+                    CheckSaturatedConvert(requirement, compilation.GetExpressionTypeBinder(program), callee, [.. call.ArgumentExpressions]);
+                    break;
+
                 case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee, OpenAngle: null } call
                     when call.ArgumentExpressions.Count() == 1 && compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty:
                     CheckConstructor(requirement, compilation.GetExpressionTypeBinder(program), callee, call.ArgumentExpressions.First());
@@ -103,6 +108,45 @@ internal sealed class GlslSmallFloatAnalyzer : SemanticRuleAnalyzer
         {
             requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, first.NameToken, first.Name, $"ブロックのメンバーは、8 ビットより小さい型 ({type}) とそれを含む構造体にできません。");
         }
+    }
+
+    /// <summary>
+    /// saturatedConvertEXT (to, from)。実引数は 2 つで、1 つ目は 8 ビットの浮動小数 (floate5m2_t / floate4m3_t) の、2 つ目はそれ以外の型の、
+    /// 形 (スカラー・ベクトルの成分の数、協調行列のスコープと行と列の数) の同じ値でなければならない (glslang の EOpConstructSaturated の検査)。
+    /// </summary>
+    private static void CheckSaturatedConvert(GlslRequirements requirement, ExpressionTypeBinder binder, IdentifierExpressionSyntax callee, ExpressionSyntax[] arguments)
+    {
+        (string Base, string Shape)?[] shapes = [.. arguments.Select(a => ShapeOf(binder, a))];
+
+        if (shapes.Any(s => s is null))
+        {
+            return;
+        }
+
+        string described = string.Join(", ", arguments.Select(a => binder.GetTypesByConfiguration(a) is [{ Type: { } type }] ? type : "?"));
+
+        if (arguments.Length != 2
+            || shapes[0]!.Value.Base is not ("floate5m2_t" or "floate4m3_t")
+            || shapes[1]!.Value.Base is "floate5m2_t" or "floate4m3_t"
+            || shapes[0]!.Value.Shape != shapes[1]!.Value.Shape)
+        {
+            requirement.Report(GlslRuleDescriptors.NoMatchingBuiltin, callee.Identifier, callee.Name, described);
+        }
+    }
+
+    /// <summary>値の要素の型と形。協調行列は型の引数から、ほかは数の型から求める。分からなければ <see langword="null"/>。</summary>
+    private static (string Base, string Shape)? ShapeOf(ExpressionTypeBinder binder, ExpressionSyntax argument)
+    {
+        if (argument is IdentifierExpressionSyntax identifier
+            && binder.ResolveName(identifier).Candidates is [{ Declarator: VariableDeclaratorSyntax { IsArray: false, Parent: VariableDeclarationSyntax { Type: { Name: "coopmat", OpenAngle: not null } type } } }])
+        {
+            string[] parameters = string.Concat(type.TemplateArguments.Select(t => t.Text)).Split(',');
+            return parameters.Length == 5 ? (parameters[0], "coopmat " + string.Join(",", parameters[1..4])) : null;
+        }
+
+        return binder.GetTypesByConfiguration(argument) is [{ Type: { } name }] && binder.TypeSystem.TryDescribeNumeric(name, out ShaderNumericShape shape)
+            ? (shape.BaseName, $"{shape.Kind} {shape.Rows}x{shape.Columns}")
+            : null;
     }
 
     /// <summary>値の作成。</summary>

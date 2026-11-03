@@ -18,6 +18,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// 実引数の型と同じ仮引数を持つ形が無ければ、暗黙の変換で合う形を探す。
 /// 変換できるかは glslang と同じく <c>#version</c> と有効にした拡張で決まる (ES の 3.10 より前と 1.10 では変換しない)。
 /// 書き戻す仮引数 (<c>out</c> / <c>inout</c>) は、どちらの向きに変換できても合うものとする (表は <c>out</c> と <c>inout</c> を分けていない)。
+/// ただし、アトミックの関数 (<c>atomicStore</c> を除く) の 1 つ目の仮引数は inout なので、両方の向きに変換できなければならない (<c>atomicAdd(intVar, 1.0)</c>)。
 /// </para>
 /// <para>
 /// 実引数の型がどれか 1 つでも分からないか、構成によって変わるか、型の引数を取る型 (<c>coopmat&lt;…&gt;</c>) なら検査しない。
@@ -183,7 +184,9 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
             argumentTypes[i] = type;
         }
 
-        if (fitting.Any(f => Matches(types, f, argumentTypes, exact: true)) || fitting.Any(f => Matches(types, f, argumentTypes, exact: false)))
+        bool inOutFirst = callee.Name.StartsWith("atomic", StringComparison.Ordinal) && callee.Name != "atomicStore";
+
+        if (fitting.Any(f => Matches(types, f, argumentTypes, exact: true, inOutFirst)) || fitting.Any(f => Matches(types, f, argumentTypes, exact: false, inOutFirst)))
         {
             return;
         }
@@ -195,8 +198,8 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
             string.Join(", ", argumentTypes));
     }
 
-    /// <summary>多重定義 1 つが実引数の型に合うか。</summary>
-    private static bool Matches(GlslTypeSystem types, GlslBuiltinFunction function, string[] arguments, bool exact)
+    /// <summary>多重定義 1 つが実引数の型に合うか。<paramref name="inOutFirst"/> なら 1 つ目の仮引数は inout で、両方の向きに変換できなければならない。</summary>
+    private static bool Matches(GlslTypeSystem types, GlslBuiltinFunction function, string[] arguments, bool exact, bool inOutFirst)
     {
         for (int i = 0; i < Math.Min(arguments.Length, function.FixedParameterCount); i++)
         {
@@ -215,8 +218,10 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
                 return false;
             }
 
-            bool convertible = types.IsBaseConvertible(argument.BaseName, formal.BaseName)
-                               || (function.WritesBack[i] && types.IsBaseConvertible(formal.BaseName, argument.BaseName));
+            bool convertible = i == 0 && inOutFirst && function.WritesBack[i]
+                ? types.IsBaseConvertible(argument.BaseName, formal.BaseName) && types.IsBaseConvertible(formal.BaseName, argument.BaseName)
+                : types.IsBaseConvertible(argument.BaseName, formal.BaseName)
+                  || (function.WritesBack[i] && types.IsBaseConvertible(formal.BaseName, argument.BaseName));
 
             if (!convertible)
             {
