@@ -148,6 +148,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   ブロックのメンバーの配列の代入をしたものも報告する
 - レイトレーシング: 任意ヒットでないシェーダーの `terminateRayEXT` / `ignoreIntersectionEXT` (GL0002)、ペイロードと呼び出しのデータの location の重なり (GL0103)、
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
+- 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
+  定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- 64 ビットの整数の添字、`length64()`、協調行列と協調ベクトルの読み書きの関数への 64 ビットの整数の実引数に、
+  `GL_EXT_shader_64bit_indexing` が無いことを報告する (GL0001)
 - `debugPrintfEXT` と `abortEXT` の 1 つ目の実引数が文字列のリテラルでないもの、`abortEXT` の不透明な型・大きさの決まっていない配列・bool を含む集まり・文字列の実引数 (GL0306)、
   文字列のリテラルの誤ったエスケープ (`\x` の後に桁が無い、`\8` など。GL0315)、数の型の値の作成の文字列 (GL0302) を報告する
 - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。

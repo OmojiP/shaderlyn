@@ -72,13 +72,13 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            Checker checker = new(requirement, compilation.GetExpressionTypeBinder(program));
+            Checker checker = new(requirement, compilation.GetExpressionTypeBinder(program), name => compilation.GetFunctionDeclarations(name, program));
             checker.Check(node);
         }
     }
 
     /// <summary>1 つの木の協調行列の式を検査する。</summary>
-    private sealed class Checker(GlslRequirements requirement, ExpressionTypeBinder binder)
+    private sealed class Checker(GlslRequirements requirement, ExpressionTypeBinder binder, Func<string, ImmutableArray<FunctionDeclarationSyntax>> functions)
     {
         public void Check(ShaderSyntaxNode node)
         {
@@ -105,6 +105,11 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
                 // 成分の選択は書けない (glslang の「cannot apply to a cooperative matrix type」)。
                 case MemberAccessExpressionSyntax member when member.Parent is not InvocationExpressionSyntax && TypeOf(member.Target) is not null:
                     requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, member.NameToken, $"協調行列には成分の選択 ('.{member.Name}') を書けません。");
+                    break;
+
+                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "coopMatTransposeEXT" or "coopMatTransposeNV" or "coopMatReduceEXT" or "coopMatReduceNV" or "coopMatPerElementEXT" or "coopMatPerElementNV" } callee } call
+                    when functions(callee.Name).IsEmpty:
+                    CheckBuiltin(callee, [.. call.ArgumentExpressions]);
                     break;
 
                 case InvocationExpressionSyntax invocation when ConstructedType(invocation) is not null:
@@ -239,6 +244,233 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
         private void ReportLimited(ShaderSyntaxToken op, CoopType type)
             => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, $"要素が {type.Element} の協調行列には、代入のほかの演算子 ('{op.Text}') を使えません。");
+
+        /// <summary>
+        /// 協調行列の組み込み関数 (glslang の ParseHelper.cpp の coopMatTranspose・coopMatReduce・coopMatPerElement の検査)。
+        /// 行と列の数は、どちらも整数のリテラルのときだけ比べる。
+        /// </summary>
+        private void CheckBuiltin(IdentifierExpressionSyntax callee, ExpressionSyntax[] arguments)
+        {
+            ShaderSyntaxToken at = callee.Identifier;
+            string name = callee.Name;
+
+            void Report(string message) => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, at, $"{name}: {message}");
+
+            if (arguments.Length < 2 || TypeOf(arguments[0]) is not { } result || TypeOf(arguments[1]) is not { } input)
+            {
+                return;
+            }
+
+            string[] r = result.Parameters.Split(", ");
+            string[] s = input.Parameters.Split(", ");
+
+            if (r.Length != s.Length || r.Length < 3)
+            {
+                return;
+            }
+
+            bool hasUse = r.Length == 4;
+            const string Accumulator = "gl_MatrixUseAccumulator";
+
+            if (name.StartsWith("coopMatTranspose", StringComparison.Ordinal))
+            {
+                if (name.EndsWith("EXT", StringComparison.Ordinal) && hasUse)
+                {
+                    if (s[3] != Accumulator)
+                    {
+                        Report("変換元の協調行列の用途は Accumulator でなければなりません。");
+                    }
+
+                    if (r[3] == Accumulator)
+                    {
+                        Report("結果の協調行列の用途は Accumulator にできません。");
+                    }
+                }
+
+                if (ScopesDiffer(r[0], s[0]))
+                {
+                    Report("結果と変換元の協調行列のスコープは同じでなければなりません。");
+                }
+                else if (Numbers(r, s) is var (rows, cols, inRows, inCols) && (rows != inCols || cols != inRows))
+                {
+                    Report("結果の協調行列は、変換元の行と列の数を入れ替えた形でなければなりません。");
+                }
+
+                return;
+            }
+
+            if (name.StartsWith("coopMatReduce", StringComparison.Ordinal))
+            {
+                if (arguments.Length >= 3)
+                {
+                    long? mask = arguments[2] switch
+                    {
+                        IdentifierExpressionSyntax { Name: var maskName } when maskName.StartsWith("gl_CooperativeMatrixReduce", StringComparison.Ordinal)
+                            => maskName.Replace("gl_CooperativeMatrixReduce", string.Empty, StringComparison.Ordinal).TrimEnd('T', 'X', 'E', 'N', 'V') switch
+                            {
+                                "Row" => 1,
+                                "Column" => 2,
+                                "RowAndColumn" => 3,
+                                "2x2" => 4,
+                                _ => null,
+                            },
+                        _ => new GlslConstantEvaluator(binder).Evaluate(arguments[2])?.Integer,
+                    };
+
+                    if (mask is null && !IsConstantName(arguments[2]))
+                    {
+                        Report("reduceMask (3 つ目の実引数) は定数の式でなければなりません。");
+                    }
+                    else if (mask is { } value && value is < 1 or > 4)
+                    {
+                        Report("reduceMask (3 つ目の実引数) は gl_CooperativeMatrixReduce… の値でなければなりません。");
+                    }
+                    else if (Numbers(r, s) is var (rows, cols, inRows, inCols))
+                    {
+                        if (mask == 4 && (rows * 2 != inRows || cols * 2 != inCols))
+                        {
+                            Report("2x2 の縮約の結果の行と列の数は、入力の半分でなければなりません。");
+                        }
+                        else if (mask == 1 && rows != inRows)
+                        {
+                            Report("行の縮約の結果の行の数は、入力と同じでなければなりません。");
+                        }
+                        else if (mask == 2 && cols != inCols)
+                        {
+                            Report("列の縮約の結果の列の数は、入力と同じでなければなりません。");
+                        }
+                    }
+                }
+
+                if (Canonical(result.Element) != Canonical(input.Element))
+                {
+                    Report("結果と入力の協調行列の要素の型は同じでなければなりません。");
+                }
+                else if (ScopesDiffer(r[0], s[0]))
+                {
+                    Report("結果と入力の協調行列のスコープは同じでなければなりません。");
+                }
+                else if (hasUse && (r[3] != Accumulator || s[3] != Accumulator))
+                {
+                    Report("結果と入力の協調行列の用途は Accumulator でなければなりません。");
+                }
+
+                if (arguments.Length >= 4 && Callback(arguments[3]) is { } combine)
+                {
+                    ParameterSyntax[] parameters = [.. combine.ParameterList];
+                    CheckConstIn(combine, Report);
+
+                    if (parameters.Any(p => Canonical(p.Type.Name) != Canonical(input.Element)))
+                    {
+                        Report($"縮約の関数 '{combine.Name}' の仮引数は、協調行列の要素の型 ({input.Element}) でなければなりません。");
+                    }
+                    else if (Canonical(combine.ReturnType.Name) != Canonical(input.Element))
+                    {
+                        Report($"縮約の関数 '{combine.Name}' の戻り値は、協調行列の要素の型 ({input.Element}) でなければなりません。");
+                    }
+                }
+
+                return;
+            }
+
+            // coopMatPerElement (result, input, func, 追加の実引数…)。
+            if (result != input)
+            {
+                Report("結果と入力の協調行列の型は同じでなければなりません。");
+            }
+
+            if (arguments.Length < 3 || Callback(arguments[2]) is not { } function)
+            {
+                return;
+            }
+
+            ParameterSyntax[] elementParameters = [.. function.ParameterList];
+            CheckConstIn(function, Report);
+
+            if (elementParameters.Length != arguments.Length)
+            {
+                Report($"要素ごとの関数 '{function.Name}' の仮引数の数は、呼び出しの実引数の数 ({arguments.Length}) と同じでなければなりません。");
+                return;
+            }
+
+            if (elementParameters.Take(2).Any(p => Canonical(p.Type.Name) != "uint"))
+            {
+                Report($"要素ごとの関数 '{function.Name}' の行と列の仮引数は uint32_t でなければなりません。");
+            }
+
+            if (Canonical(elementParameters[2].Type.Name) != Canonical(input.Element))
+            {
+                Report($"要素ごとの関数 '{function.Name}' の 3 つ目の仮引数は、協調行列の要素の型 ({input.Element}) でなければなりません。");
+            }
+
+            if (Canonical(function.ReturnType.Name) != Canonical(result.Element))
+            {
+                Report($"要素ごとの関数 '{function.Name}' の戻り値は、協調行列の要素の型 ({result.Element}) でなければなりません。");
+            }
+
+            for (int i = 3; i < arguments.Length; i++)
+            {
+                string parameter = Canonical(elementParameters[i].Type.Name);
+
+                if (TypeOf(arguments[i]) is { } extra)
+                {
+                    if (extra != input)
+                    {
+                        Report("追加の協調行列は、入力の協調行列と同じ型でなければなりません。");
+                    }
+                    else if (parameter != Canonical(input.Element))
+                    {
+                        Report($"協調行列に当たる仮引数は、協調行列の要素の型 ({input.Element}) でなければなりません。");
+                    }
+                }
+                else if (KnownNonCoopType(arguments[i]) is { } other && Canonical(other) != parameter)
+                {
+                    Report($"{i + 1} つ目の実引数の型 ({other}) は、要素ごとの関数の仮引数の型と同じでなければなりません。");
+                }
+            }
+        }
+
+        /// <summary>スコープが違うと分かるか。組み込みの定数 (gl_Scope…) か整数のリテラルどうしだけを比べる (特殊化の定数は値が分からない)。</summary>
+        private static bool ScopesDiffer(string left, string right)
+            => left != right && IsKnownScope(left) && IsKnownScope(right);
+
+        private static bool IsKnownScope(string scope) => scope.StartsWith("gl_", StringComparison.Ordinal) || scope.All(char.IsAsciiDigit);
+
+        /// <summary>組み込みの定数か、const の変数の名前か (値の分からない定数)。</summary>
+        private bool IsConstantName(ExpressionSyntax expression)
+            => expression is IdentifierExpressionSyntax identifier
+               && (identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+                   || binder.ResolveName(identifier).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } }] && declaration.HasModifier("const"));
+
+        /// <summary>関数を渡す実引数 (利用者の関数の名前) の定義。</summary>
+        private FunctionDeclarationSyntax? Callback(ExpressionSyntax argument)
+            => argument is IdentifierExpressionSyntax identifier && functions(identifier.Name) is [var only, ..] ? only : null;
+
+        /// <summary>渡す関数の仮引数は、どれも const in でなければならない。</summary>
+        private static void CheckConstIn(FunctionDeclarationSyntax function, Action<string> report)
+        {
+            if (function.ParameterList.Any(p => !(p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text == "const")
+                                                 && p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text == "in"))))
+            {
+                report($"渡す関数 '{function.Name}' の仮引数には、どれも const in を書かなければなりません。");
+            }
+        }
+
+        /// <summary>行と列の数 (結果の行・列、入力の行・列)。どれかが整数のリテラルでなければ <see langword="null"/>。</summary>
+        private static (long Rows, long Cols, long InRows, long InCols)? Numbers(string[] result, string[] input)
+            => long.TryParse(result[1], out long rows) && long.TryParse(result[2], out long cols)
+               && long.TryParse(input[1], out long inRows) && long.TryParse(input[2], out long inCols)
+                ? (rows, cols, inRows, inCols)
+                : null;
+
+        private static string Canonical(string type) => type switch
+        {
+            "float32_t" => "float",
+            "float64_t" => "double",
+            "int32_t" => "int",
+            "uint32_t" => "uint",
+            _ => type,
+        };
 
         /// <summary>値の作成。実引数は 1 つで、スカラーか協調行列。</summary>
         private void CheckConstructor(InvocationExpressionSyntax invocation)
