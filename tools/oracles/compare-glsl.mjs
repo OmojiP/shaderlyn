@@ -356,7 +356,10 @@ function logicalLines(text) {
     offset = value - (number + 1) + (nextLineIsN ? 0 : 1);
 
     // #line の行そのものの誤り (後ろの余分な記述など) は、付け替えた後の番号で、次の行の 1 つ前として報告される。
-    mapped[number] = number + offset;
+    // 式の 0 での割り算は付け替える前に報告されるので、前の番号のままにする。
+    if (!/[/%]\s*0\b/.test(directive[1])) {
+      mapped[number] = number + offset;
+    }
   }
 
   return mapped;
@@ -381,7 +384,8 @@ function evaluateLine(expression, macros) {
 
   try {
     const value = first.length > 0 ? Function(`"use strict"; return (${first.join(" ")});`)() : undefined;
-    return Number.isInteger(value) ? value : undefined;
+    // 0 で割ると、glslang は誤りにして 0 とする (#line 200 % 0)。
+    return Number.isInteger(value) ? value : Number.isNaN(value) || value === Infinity || value === -Infinity ? 0 : undefined;
   } catch {
     return undefined;
   }

@@ -375,6 +375,13 @@ internal sealed partial class ShaderPreprocessor
             }
         }
 
+        // GLSL (glslang) は #if の入れ子を 65 段までにし、それを越えるとコンパイルを止める (maxIfNesting)。
+        if (_options.GlslRules && _conditionals.Count >= 65 && _nestingExceeded is null)
+        {
+            _nestingExceeded = directive;
+            Report(ShaderDescriptors.PreprocessorError, directive.GetLocation(), "#if の入れ子が深すぎます (65 段まで)。");
+        }
+
         _conditionals.Add(new ConditionalState(directive)
         {
             IsBranchActive = active && !impossible,
@@ -1870,6 +1877,9 @@ internal sealed partial class ShaderPreprocessor
         }
     }
 
+    /// <summary>GLSL で、#if の入れ子が深すぎた最初の指令。</summary>
+    private ShaderSyntaxToken? _nestingExceeded;
+
     /// <summary>ファイル終端まで閉じられなかった条件分岐を報告する。</summary>
     /// <remarks>
     /// 閉じ忘れは、以降のコードが丸ごと無効化されるか丸ごと有効化されるという形で
@@ -1877,6 +1887,19 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private void ReportUnterminatedConditionals()
     {
+        // GLSL (glslang) はファイルの終わりで 1 度だけ報告する。閉じていない #if の行は文に書く。
+        if (_options.GlslRules && _conditionals.Count > 0)
+        {
+            ConditionalState outer = _conditionals.Last();
+            SourceText source = outer.Directive.Source;
+            int line = outer.Directive.GetLocation().LineSpan.Start.Line + 1;
+
+            // 入れ子が深すぎてコンパイルを止めたなら、そこで報告する。
+            Report(ShaderDescriptors.PreprocessorError, _nestingExceeded?.GetLocation() ?? Location.Create(source, new TextSpan(source.Length, 0)),
+                $"#if ({line.ToString(System.Globalization.CultureInfo.InvariantCulture)} 行目) に対応する #endif が存在しません。");
+            return;
+        }
+
         foreach (ConditionalState state in _conditionals)
         {
             Report(ShaderDescriptors.PreprocessorError, state.Directive.GetLocation(),

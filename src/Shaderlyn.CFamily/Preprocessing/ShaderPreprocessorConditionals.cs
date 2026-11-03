@@ -986,7 +986,18 @@ internal sealed partial class ShaderPreprocessor
         }
 
         ImmutableArray<ShaderSyntaxToken> withoutDefined = ResolveDefinedOperators(line);
-        ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
+        ImmutableArray<ShaderSyntaxToken> expanded;
+        _expandingCondition = true;
+
+        try
+        {
+            expanded = ExpandTokenList(withoutDefined, depth: 0);
+        }
+        finally
+        {
+            _expandingCondition = false;
+        }
+
         ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
         List<ShaderSyntaxToken>? undefined = _options.RecordUndefinedConditionIdentifiers ? [] : null;

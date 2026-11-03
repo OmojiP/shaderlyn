@@ -548,6 +548,9 @@ internal sealed partial class ShaderPreprocessor
     private static string Stringize(ImmutableArray<ShaderSyntaxToken> tokens)
         => string.Join(" ", tokens.Select(t => t.Text));
 
+    /// <summary>#if / #elif の条件式を展開しているか。</summary>
+    private bool _expandingCondition;
+
     /// <summary>
     /// トークン列をマクロ展開する。
     /// </summary>
@@ -606,12 +609,25 @@ internal sealed partial class ShaderPreprocessor
                 _sources.Add(new TokenSource([], IsFile: false, MacroName: macro.Name, IncludePath: null));
                 result.AddRange(ExpandTokenList(macro.Body, depth + 1));
                 _sources.RemoveAt(_sources.Count - 1);
+
+                // GLSL (glslang) は、マクロの展開で出てきた defined を条件式の誤りにする (値は求める)。
+                if (_options.GlslRules && _expandingCondition && result.Count > 0 && result[^1].Kind == ShaderSyntaxKind.IdentifierToken && result[^1].TextIs("defined"))
+                {
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"マクロ '{macro.Name}' の展開で出てきた defined は、条件式に使えません。");
+                }
+
                 i = CopyOperandOfExpandedDefined(tokens, i, result);
                 continue;
             }
 
             if (i + 1 >= tokens.Length || tokens[i + 1].Kind != ShaderSyntaxKind.OpenParenToken)
             {
+                // GLSL (glslang) は、条件式の実引数の無い関数形式マクロを求められない式にする。
+                if (_options.GlslRules && _expandingCondition && depth == 0)
+                {
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"条件式の関数形式マクロ '{macro.Name}' に実引数の括弧がありません。");
+                }
+
                 result.Add(token);
                 continue;
             }
