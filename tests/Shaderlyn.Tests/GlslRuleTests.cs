@@ -549,6 +549,10 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0306", "a.comp", "#version 460 core\n#extension GL_ARM_tensors : enable\nlayout(local_size_x = 1) in;\nuniform tensorARM<int, 2> t;\nvoid main() { int i = 1; tensorWriteARM(t, uint[](0), i); }")]
     [InlineData("GL0306", "a.comp", "#version 460 core\n#extension GL_ARM_tensors : enable\nlayout(local_size_x = 1) in;\nuniform tensorARM<int, 2> t;\nvoid main() { float f = 1.0; tensorWriteARM(t, uint[](0, 0), f); }")]
     [InlineData("GL0324", "a.comp", "#version 460 core\n#extension GL_ARM_tensors : enable\nlayout(local_size_x = 1) in;\nuniform tensorARM<int, 2> t;\nuint f(tensorARM x) { return 0u; }\nvoid main() { }")]
+    [InlineData("GL0301", "a.frag", "#version 450\n#extension GL_EXT_buffer_reference2 : enable\n#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable\nlayout(buffer_reference) buffer T1 { int x[]; };\nlayout(buffer_reference) buffer T2 { int x[2]; };\nlayout(location = 0) out vec4 o;\nvoid main() { T2 a; T2 b; bool c = a == b; o = vec4(1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\n#extension GL_EXT_buffer_reference2 : enable\n#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable\nlayout(buffer_reference) buffer T1 { int x[]; };\nlayout(buffer_reference) buffer T2 { int x[2]; };\nlayout(location = 0) out vec4 o;\nvoid main() { T2 a; a += a; o = vec4(1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\n#extension GL_EXT_buffer_reference2 : enable\n#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable\nlayout(buffer_reference) buffer T1 { int x[]; };\nlayout(buffer_reference) buffer T2 { int x[2]; };\nlayout(location = 0) out vec4 o;\nvoid main() { T1 a; T1 b = a + 1; o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\n#extension GL_EXT_buffer_reference2 : enable\n#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable\nlayout(buffer_reference) buffer T1 { int x[]; };\nlayout(buffer_reference) buffer T2 { int x[2]; };\nlayout(location = 0) out vec4 o;\nvoid main() { T2 a; const T2 b = a; o = vec4(1.0); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 3) struct S { vec3 a; } s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(s.a, 1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 320 es\nprecision mediump float;\nlayout(blend_support_multiply) struct T { int i; };\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
@@ -907,6 +911,15 @@ public sealed class GlslRuleTests : IDisposable
         string output = await AnalyzeAsync("a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<float, 5> a; vector<float, 5> b; vector<bool, 5> m; vector<uint, 5> u; a = max(a, b); a = mix(a, b, m); u = max(u, 1); a = a + b; }\n");
 
         Assert.DoesNotContain("GL0302", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>参照の正しい足し引き (整数との + と -、参照どうしの差) は報告しない。</summary>
+    [Fact]
+    public async Task 正しい参照の足し引き()
+    {
+        string output = await AnalyzeAsync("a.frag", "#version 450\n#extension GL_EXT_buffer_reference2 : enable\n#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable\nlayout(buffer_reference) buffer T1 { int x[]; };\nlayout(buffer_reference) buffer T2 { int x[2]; };\nlayout(location = 0) out vec4 o;\nvoid main() { T2 j; T2 k = j + 6; j += 3; j = 5 + j; int64_t d = k - j; o = vec4(1.0); }\n");
+
+        Assert.DoesNotContain("GL0301", output, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>
