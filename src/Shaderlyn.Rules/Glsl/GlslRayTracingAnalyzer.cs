@@ -76,6 +76,11 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
                     CheckCall(requirement, compilation.GetExpressionTypeBinder(program), locations, callee, [.. call.ArgumentExpressions]);
                     break;
 
+                // レイクエリは rayQueryInitializeEXT でしか初期化できない (glslang の「ray queries can only be initialized by using the rayQueryInitializeEXT intrinsic」)。
+                case VariableDeclarationSyntax { Type.Name: "rayQueryEXT" } query when query.Variables.FirstOrDefault(v => v.Initializer is not null) is { } initialized:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, initialized.NameToken, initialized.Name, "レイクエリ (rayQueryEXT) の変数には初期値を書けません。rayQueryInitializeEXT で初期化してください。");
+                    break;
+
                 // hitObject を含む構造体の変数 (glslang の「struct is not allowed to contain hitObjectEXT」)。
                 case VariableDeclarationSyntax declaration when declaration.Parent is not (StructDeclarationSyntax or InterfaceBlockDeclarationSyntax)
                                                               && program.Structs.FirstOrDefault(s => s.Name == declaration.Type.Name && s.Keyword.Text == "struct") is { } structure

@@ -47,11 +47,22 @@ internal sealed class GlslFunctionRedeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             Dictionary<string, FunctionDeclarationSyntax> first = new(StringComparer.Ordinal);
+            Dictionary<string, int> controls = new(StringComparer.Ordinal);
 
             foreach (FunctionDeclarationSyntax function in program.Tree.Root.ChildNodes().OfType<FunctionDeclarationSyntax>())
             {
                 ParameterSyntax[] parameters = [.. Parameters(function)];
                 string key = function.Name + "(" + string.Join(",", parameters.Select(TypeKey)) + ")";
+
+                // 関数の属性 (GL_EXT_function_control_attributes) は前の宣言の分と合わせ、inline と noinline の両方があれば誤り。
+                int control = controls.GetValueOrDefault(key) | FunctionControl(compilation, function);
+                controls[key] = control;
+
+                if (control == (Inline | NoInline) && !function.Attributes.IsEmpty && compilation.IsReportable(function.NameToken))
+                {
+                    requirement.Report(GlslRuleDescriptors.FunctionRedeclarationMismatch, function.NameToken,
+                        $"関数 '{function.Name}' の属性 inline と noinline は一緒に使えません (前の宣言の属性も合わせます)。");
+                }
 
                 if (!first.TryGetValue(key, out FunctionDeclarationSyntax? previous))
                 {
@@ -91,6 +102,34 @@ internal sealed class GlslFunctionRedeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    private const int Inline = 1;
+    private const int NoInline = 2;
+
+    /// <summary>関数の属性 ([[inline]] / [[noinline]]) の並び。属性の構文木は最初の名前だけを持つので、角括弧の中の字句を見る。</summary>
+    private static int FunctionControl(ShaderCompilation compilation, FunctionDeclarationSyntax function)
+    {
+        int control = 0;
+
+        foreach (AttributeSyntax attribute in function.Attributes)
+        {
+            foreach (ShaderSyntaxToken token in compilation.CodeTokens)
+            {
+                if (ReferenceEquals(token.Source, attribute.OpenBracket.Source)
+                    && token.Span.Start >= attribute.OpenBracket.Span.Start && token.Span.End <= attribute.CloseBracket.Span.End)
+                {
+                    control |= token.Text switch
+                    {
+                        "inline" => Inline,
+                        "noinline" or "dont_inline" => NoInline,
+                        _ => 0,
+                    };
+                }
+            }
+        }
+
+        return control;
     }
 
     /// <summary>仮引数。<c>(void)</c> は仮引数の無いものとする。</summary>

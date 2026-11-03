@@ -911,6 +911,20 @@ internal sealed partial class GlslLayoutAnalyzer
 
             bool builtIn = name.StartsWith("gl_", StringComparison.Ordinal);
 
+            // descriptor_heap の変数 (glslang の untypedHeapCheck)。組み合わせたサンプラー (sampler2D など) にはできず、配列でなければならない。
+            if (layout.Has("descriptor_heap") && !layout.Has("set") && !layout.Has("binding") && _r.SpirvVersion > 0 && _r.Vulkan != false
+                && _r.IsOn("GL_EXT_descriptor_heap", at) && storage is Storage.Uniform or Storage.Buffer && !type.IsBlock)
+            {
+                if (type.Name.Contains("sampler", StringComparison.Ordinal) && type.Name is not ("sampler" or "samplerShadow"))
+                {
+                    Place("descriptor_heap には、組み合わせたサンプラー (" + type.Name + ") を書けません。");
+                }
+                else if (!isArray)
+                {
+                    Place("descriptor_heap を書いた変数は、配列でなければなりません。");
+                }
+            }
+
             // tileImageEXT の変数 (glslang の layoutTypeCheck と layoutQualifierCheck)。
             if (storage == Storage.Other && modifiers.Any(t => t.Text == "tileImageEXT") && !layout.IsEmpty)
             {

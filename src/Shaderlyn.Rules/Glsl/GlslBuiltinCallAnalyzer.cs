@@ -76,6 +76,16 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // textureOffset は sampler2DArrayShadow を取れない (ES と 4.20 以前。glslang の builtInOpCheck)。GL_EXT_texture_shadow_lod の 4 つの実引数の形を除く。
+            if (callee.Name == "textureOffset" && invocation.ArgumentExpressions.Count() == 3 && (s.Requirement.IsEs || s.Requirement.Version <= 420)
+                && invocation.ArgumentExpressions.First() is var sampler
+                && compilation.GetExpressionTypeBinder(program).GetTypesByConfiguration(sampler) is [{ Type: "sampler2DArrayShadow" }])
+            {
+                s.Requirement.Report(GlslRuleDescriptors.NotAvailable, callee.Identifier,
+                    s.Requirement.IsEs ? "textureOffset は、ES では sampler2DArrayShadow を取れません。" : "textureOffset は、4.20 以前では sampler2DArrayShadow を取れません。");
+                continue;
+            }
+
             // 引数の数の検査 (CF0402) は、解析全体の組み込みの表で数を見る。この構成の表で数の合う形が無くても、そちらで合えば報告しない。
             bool countChecked = !(compilation.TypeSystem.TryGetIntrinsicArity(callee.Name, out IntrinsicArity arity)
                                   && arity.Accepts(invocation.ArgumentExpressions.Count()));

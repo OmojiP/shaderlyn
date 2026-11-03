@@ -168,6 +168,13 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // atomic_uint の配列は大きさを書かなければならない (glslang の「array must be explicitly sized」)。
+        if (unsized[0] && declarator.Parent is VariableDeclarationSyntax { Type.Name: "atomic_uint" })
+        {
+            requirement.Report(GlslRuleDescriptors.ArraySizeRequired, at, "atomic_uint ");
+            return;
+        }
+
         // 内側の次元の大きさは省けない。ただし perviewNV のビューの次元は除く。
         if (unsized.Select((u, i) => u && i > 0 && !(HasStorage(modifiers, "perviewNV") && i == viewDimension)).Any(u => u))
         {
