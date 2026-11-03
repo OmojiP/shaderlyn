@@ -71,6 +71,12 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, constant, "参照の型の変数には const を書けません。");
                     break;
 
+                // ステージの入力と出力は、参照の型にできない (glslang の「cannot contain any structs with buffer_reference」)。uint64_t か uvec2 に変えて渡す。
+                case VariableDeclarationSyntax io when io.Parent is CompilationUnitSyntax && references.ContainsKey(io.Type.Name)
+                                                    && io.ModifierTokens.FirstOrDefault(t => t.Text is "in" or "out") is { } storage:
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, storage, $"入力と出力 ({storage.Text}) は、バッファの参照の型 ({io.Type.Name}) にできません。uint64_t か uvec2 に変えて渡してください。");
+                    break;
+
                 // 別の参照の型の値での初期化。
                 case VariableDeclarationSyntax initialized when references.ContainsKey(initialized.Type.Name)
                                                               && initialized.Variables.FirstOrDefault(v => v.Initializer is { } value && ReferenceOf(binder, references, value) is { } source && source != initialized.Type.Name) is { Initializer: { } other } variable:

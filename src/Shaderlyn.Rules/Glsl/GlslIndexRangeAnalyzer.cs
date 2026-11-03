@@ -72,7 +72,7 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
                 checker = checkers[program] =
                     GlslRequirements.Create(context, compilation, program, reported) is { } requirement
                     && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types
-                        ? new Checker(requirement, types, compilation.GetExpressionTypeBinder(program), OutputVertices(program, requirement))
+                        ? new Checker(requirement, types, compilation.GetExpressionTypeBinder(program), OutputVertices(program, requirement), NamedSizes(program))
                         : null;
             }
 
@@ -120,7 +120,31 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
     private readonly record struct IndexedShape(ImmutableArray<int?> Dimensions, string ElementType);
 
     /// <summary>1 つの木の添字を検査する。</summary>
-    private sealed class Checker(GlslRequirements requirement, GlslTypeSystem types, ExpressionTypeBinder binder, int? outputVertices)
+    /// <summary>
+    /// 関数の外の、整数のリテラルを初期値にした const の変数 (特殊化の定数を含む) の値。配列の大きさに名前で書いたものに使う。
+    /// 特殊化の定数で大きさを決めた配列も、glslang は既定の値の大きさで添字を検査する。
+    /// </summary>
+    private static Dictionary<string, int> NamedSizes(AnalyzedProgram program)
+    {
+        Dictionary<string, int> sizes = new(StringComparer.Ordinal);
+
+        foreach (VariableDeclarationSyntax declaration in program.Tree.Root.ChildNodes().OfType<VariableDeclarationSyntax>().Where(d => d.HasModifier("const")))
+        {
+            foreach (VariableDeclaratorSyntax variable in declaration.Variables)
+            {
+                if (variable is { IsArray: false, Initializer: LiteralExpressionSyntax { Token: var literal } }
+                    && GlslConstantEvaluator.EvaluateLiteral(literal) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } value
+                    && !sizes.TryAdd(variable.Name, (int)value.Integer))
+                {
+                    sizes.Remove(variable.Name);
+                }
+            }
+        }
+
+        return sizes;
+    }
+
+    private sealed class Checker(GlslRequirements requirement, GlslTypeSystem types, ExpressionTypeBinder binder, int? outputVertices, Dictionary<string, int> namedSizes)
     {
         private readonly GlslConstantEvaluator _evaluator = new(binder);
 
@@ -200,7 +224,7 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
                     }
 
                     ImmutableArray<ShaderSyntaxToken> ranks = [.. declarator.ArrayRankTokens, .. declaration.Type.ArrayRanks];
-                    ImmutableArray<int?> dimensions = ReadDimensions(ranks);
+                    ImmutableArray<int?> dimensions = ReadDimensions(ranks, namedSizes);
 
                     // 外側の大きさを省いて初期化した配列は、初期化子の大きさになる。
                     if (ranks is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
@@ -252,8 +276,8 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
             _ => null,
         };
 
-        /// <summary>配列の次元の大きさを読む。<c>[</c> 数 <c>]</c> でない次元は分からない (<see langword="null"/>)。</summary>
-        private static ImmutableArray<int?> ReadDimensions(ImmutableArray<ShaderSyntaxToken> ranks)
+        /// <summary>配列の次元の大きさを読む。<c>[</c> 数 <c>]</c> と <c>[</c> 定数の名前 <c>]</c> でない次元は分からない (<see langword="null"/>)。</summary>
+        private static ImmutableArray<int?> ReadDimensions(ImmutableArray<ShaderSyntaxToken> ranks, Dictionary<string, int> namedSizes)
         {
             ImmutableArray<int?>.Builder dimensions = ImmutableArray.CreateBuilder<int?>();
             int start = -1;
@@ -267,8 +291,9 @@ internal sealed class GlslIndexRangeAnalyzer : SemanticRuleAnalyzer
                         break;
 
                     case ShaderSyntaxKind.CloseBracketToken:
-                        dimensions.Add(i == start + 2 && GlslConstantEvaluator.EvaluateLiteral(ranks[start + 1]) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } size
-                            ? (int)size.Integer
+                        dimensions.Add(i != start + 2 ? null
+                            : GlslConstantEvaluator.EvaluateLiteral(ranks[start + 1]) is { Kind: GlslConstantKind.Int or GlslConstantKind.Uint } size ? (int)size.Integer
+                            : ranks[start + 1].Kind == ShaderSyntaxKind.IdentifierToken && namedSizes.TryGetValue(ranks[start + 1].Text, out int named) ? named
                             : null);
                         break;
 

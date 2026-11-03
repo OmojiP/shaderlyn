@@ -197,6 +197,7 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
             {
                 bool output = functions.IsEmpty
                     ? callee.Name is "modf" or "frexp" && i == 1
+                      || callee.Name is "atomicAdd" or "atomicMin" or "atomicMax" or "atomicAnd" or "atomicOr" or "atomicXor" or "atomicExchange" or "atomicCompSwap" or "atomicStore" && i == 0
                     : functions.Where(f => ParametersOf(f).Count == arguments.Length).ToList() is { Count: > 0 } matching
                       && matching.All(f => ParametersOf(f)[i].ModifierTokens.Any(t => t.Text is "out" or "inout"));
 
