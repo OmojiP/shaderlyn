@@ -27,12 +27,13 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.QualifierNotAllowed, GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.QualifierNotAllowed, GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.UnsizedArrayUse];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
-        if (!compilation.IsGlsl || !compilation.CodeTokens.Any(t => t.Text == "buffer_reference"))
+        if (!compilation.IsGlsl)
         {
             return;
         }
@@ -42,7 +43,7 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (BinaryExpressionSyntax or AssignmentExpressionSyntax or VariableDeclarationSyntax or ElementAccessExpressionSyntax))
+            if (node is not (BinaryExpressionSyntax or AssignmentExpressionSyntax or VariableDeclarationSyntax or ElementAccessExpressionSyntax or InvocationExpressionSyntax or CastExpressionSyntax))
             {
                 continue;
             }
@@ -68,6 +69,29 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclarationSyntax declaration when references.ContainsKey(declaration.Type.Name) && declaration.HasModifier("const")
                                                               && declaration.ModifierTokens.FirstOrDefault(t => t.Text == "const") is { } constant:
                     requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, constant, "参照の型の変数には const を書けません。");
+                    break;
+
+                // 別の参照の型の値での初期化。
+                case VariableDeclarationSyntax initialized when references.ContainsKey(initialized.Type.Name)
+                                                              && initialized.Variables.FirstOrDefault(v => v.Initializer is { } value && ReferenceOf(binder, references, value) is { } source && source != initialized.Type.Name) is { Initializer: { } other } variable:
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, variable.NameToken,
+                        $"参照の型 {ReferenceOf(binder, references, other)} の値で、別の参照の型 {initialized.Type.Name} の変数を初期化できません。{initialized.Type.Name}(…) と書いて変えてください。");
+                    break;
+
+                // 参照の型の値 (変数とメンバー。buffer_reference のブロックのインスタンスそのものは除く) の先のブロックの大きさの決まっていない配列には length() を使えない (glslang の「array must be declared with a size before using this method」)。
+                case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax { Name: "length", Target: MemberAccessExpressionSyntax { Target: var holder } array } method }
+                    when (holder is MemberAccessExpressionSyntax || holder is IdentifierExpressionSyntax local && binder.ResolveName(local).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax } }])
+                         && ReferenceOf(binder, references, holder) is { } referenced && references[referenced] && IsUnsizedMember(program, referenced, array.Name):
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, method.NameToken, array.Name, $"length() で長さを求められません (参照 {referenced} の先のブロックの配列です)");
+                    break;
+
+                // GL_NV_explicit_typecast の型の変換 ((T) x)。構造体へは変換できず、uvec2 から参照への変換には GL_EXT_buffer_reference_uvec2 が要る。
+                case CastExpressionSyntax cast when program.Structs.Any(t => t.Name == cast.Type.Name && t.Keyword.Text == "struct"):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, cast.OpenParen, $"型の変換 ((T) x) は、スカラー・ベクトル・行列・バッファの参照にだけ書けます (構造体 {cast.Type.Name} には書けません)。");
+                    break;
+
+                case CastExpressionSyntax cast when references.ContainsKey(cast.Type.Name) && binder.GetTypesByConfiguration(cast.Operand) is [{ Type: "uvec2" }]:
+                    requirement.RequireExtensions(cast.OpenParen, ["GL_EXT_buffer_reference_uvec2"], "uvec2 から参照の型への変換");
                     break;
 
                 case BinaryExpressionSyntax binary:
@@ -161,6 +185,13 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
             && references.ContainsKey(declaration.Type.Name) => declaration.Type.Name,
         _ => binder.GetTypesByConfiguration(expression) is [{ Type: { } name }] && references.ContainsKey(name) ? name : null,
     };
+
+    /// <summary>参照の型のブロックの、その名前のメンバーが大きさを書かない配列か。</summary>
+    private static bool IsUnsizedMember(AnalyzedProgram program, string reference, string member)
+        => program.Tree.Root.DescendantNodesAndSelf()
+            .Where(n => n is InterfaceBlockDeclarationSyntax { Name: var name } && name == reference || n is StructDeclarationSyntax { NameToken.Text: var structName } && structName == reference)
+            .SelectMany(n => n.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>())
+            .Any(v => v.Name == member && v.ArrayRankTokens is [.., { Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }]);
 
     /// <summary>参照の型の名前と、そのブロックが大きさの決まっていない配列を含むか。</summary>
     private static Dictionary<string, bool> CollectReferences(AnalyzedProgram program)
