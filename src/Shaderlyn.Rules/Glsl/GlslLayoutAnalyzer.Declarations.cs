@@ -1339,6 +1339,15 @@ internal sealed partial class GlslLayoutAnalyzer
                 }
             }
 
+            // 配列のブロックの要素ごとに location が要るなら、メンバーには location を書けない (glslang の layoutMemberLocationArrayCheck)。
+            // ステージの入出力で配列になるもの (テッセレーションとジオメトリの頂点ごとの配列など) は、一番外の次元を除く。
+            if (storage is Storage.In or Storage.Out && instance is not null
+                && members.OfType<VariableDeclarationSyntax>().Any(m => new LayoutSet(m.ModifierTokens).HasLocation)
+                && instance.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken) > (IsArrayedIo(storage, modifiers) ? 1 : 0))
+            {
+                Invalid(GlslRuleDescriptors.QualifierNotAllowed, at, "配列のブロックの要素ごとに location が要るので、メンバーには location を書けません。ブロックに書いてください。");
+            }
+
             if (storage is Storage.Uniform or Storage.Buffer)
             {
                 CheckBlockOffsets(members, packing, layout.Has("row_major") || _rowMajorDefault);
@@ -1358,6 +1367,22 @@ internal sealed partial class GlslLayoutAnalyzer
             {
                 Invalid(GlslRuleDescriptors.QualifierNotAllowed, at, $"{(storage == Storage.In ? "入力 (in)" : "出力 (out)")} のブロックは bool を含められません。");
             }
+        }
+
+        /// <summary>ステージの入出力で、頂点ごとに配列になるもの (glslang の isArrayedIo)。</summary>
+        private bool IsArrayedIo(Storage storage, ImmutableArray<ShaderSyntaxToken> modifiers)
+        {
+            bool patch = modifiers.Any(t => t.Text == "patch");
+
+            return Stage switch
+            {
+                GlslShaderStage.Geometry => storage == Storage.In,
+                GlslShaderStage.TessellationControl => !patch,
+                GlslShaderStage.TessellationEvaluation => storage == Storage.In && !patch,
+                GlslShaderStage.Mesh => storage == Storage.Out,
+                GlslShaderStage.Fragment => storage == Storage.In && modifiers.Any(t => t.Text is "pervertexEXT" or "pervertexNV"),
+                _ => false,
+            };
         }
     }
 

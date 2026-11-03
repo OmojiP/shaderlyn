@@ -305,6 +305,11 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
         }
         else if (Colors.Contains(name))
         {
+            if (declarator.IsArray)
+            {
+                yield return "配列にできません。";
+            }
+
             if (qualifiers.HasLayout)
             {
                 yield return "layout を書けません。";
@@ -326,6 +331,14 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
             // 大きさを書いた後は、違う大きさにできない (declareVariable の「redeclaration of array with size」)。
             if (declarator.TryGetArrayLength(out int length))
             {
+                // 大きさの上限 (glslang の arrayLimitCheck。上限は glslang の既定の資源の値)。
+                (string limitName, int limit) = name == "gl_TexCoord" ? ("gl_MaxTextureCoords", 32) : name == "gl_ClipDistance" ? ("gl_MaxClipDistances", 8) : ("gl_MaxCullDistances", 8);
+
+                if (length > limit)
+                {
+                    yield return $"大きさは {limitName} ({limit}) 以下でなければなりません。";
+                }
+
                 if (state.Sizes.TryGetValue(name, out int previous) && previous != length)
                 {
                     yield return $"前の宣言し直しで大きさを {previous} にしています。";

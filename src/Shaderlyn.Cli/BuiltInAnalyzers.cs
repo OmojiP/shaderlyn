@@ -110,6 +110,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslCooperativeVectorAnalyzer(),
         new Rules.Glsl.GlslArrayRedeclarationAnalyzer(),
         new Rules.Glsl.GlslComputeDerivativeAnalyzer(),
+        new Rules.Glsl.GlslArrayValueAnalyzer(),
         new Rules.Glsl.GlslArrayAssignmentAnalyzer(),
         new Rules.Glsl.GlslArgumentQualifierAnalyzer(),
         new CompileTargetAnalyzer(),

@@ -59,6 +59,12 @@ internal sealed partial class GlslLayoutAnalyzer
 
             long buffer = layout.Get("xfb_buffer") is { } b && ValueOf(b) is { } value ? value : _xfbDefaultBuffer;
 
+            // 大きさを書かない配列は、変換フィードバックのバッファに置けない (glslang の「unsized array in buffer N」)。
+            if (layout.Has("xfb_offset") && declarator.ArrayRankTokens is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..])
+            {
+                Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"大きさを書かない配列 '{declarator.Name}' は、変換フィードバックのバッファ {buffer} に置けません (xfb_offset)。");
+            }
+
             if (layout.Get("xfb_offset") is { } offset && ValueOf(offset) is { } start && XfbSize(typeName, declarator) is { } size)
             {
                 CheckXfbAlignment(at, start, size.Alignment);
