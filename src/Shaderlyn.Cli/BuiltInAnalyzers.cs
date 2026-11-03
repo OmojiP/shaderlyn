@@ -104,6 +104,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslSmallFloatAnalyzer(),
         new Rules.Glsl.GlslTensorAnalyzer(),
         new Rules.Glsl.GlslBufferReferenceAnalyzer(),
+        new Rules.Glsl.GlslRayTracingAnalyzer(),
         new Rules.Glsl.GlslArrayAssignmentAnalyzer(),
         new Rules.Glsl.GlslArgumentQualifierAnalyzer(),
         new CompileTargetAnalyzer(),
