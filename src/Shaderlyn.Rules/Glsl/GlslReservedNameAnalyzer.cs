@@ -94,6 +94,10 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
                     {
                         Check(requirement, member.NameToken, member.NameToken, mayRedeclare: false);
                     }
+                    else if (IsStruct(structure))
+                    {
+                        CheckKeyword(requirement, member.NameToken, member.NameToken);
+                    }
 
                     break;
 
@@ -127,6 +131,23 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
     /// <summary>ブロックでなく構造体の宣言か。</summary>
     private static bool IsStruct(StructDeclarationSyntax structure) => structure.Keyword.Text == "struct";
 
+    /// <summary>
+    /// そのバージョンと拡張でキーワードの語 (4.00 の precise、GL_EXT_terminate_invocation の terminateInvocation) は名前にできない。
+    /// glslang は構文の誤りにする。予約語の誤りは構文の検査 (CF0001) が伝える。
+    /// </summary>
+    /// <returns>報告したなら <see langword="true"/>。</returns>
+    private static bool CheckKeyword(GlslRequirements requirement, ShaderSyntaxToken name, ShaderSyntaxToken at)
+    {
+        if (new Shaderlyn.Glsl.Parsing.GlslWordRules(requirement.Version, requirement.IsEs, requirement.Stage, requirement.Vulkan, extension => requirement.IsOn(extension, name))
+                .Classify(name.Text) is not { Kind: Shaderlyn.Glsl.Parsing.GlslWordKind.Keyword, IsReservedError: false })
+        {
+            return false;
+        }
+
+        requirement.Report(GlslRuleDescriptors.ReservedName, at, name.Text, "このバージョンと拡張ではキーワードなので、名前に使えません。");
+        return true;
+    }
+
     /// <summary>名前を検査する。</summary>
     /// <param name="requirement">版と拡張。</param>
     /// <param name="name">名前のトークン。</param>
@@ -137,6 +158,11 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
         string text = name.Text;
 
         if (requirement.IsOn(SpirvIntrinsics, name))
+        {
+            return;
+        }
+
+        if (CheckKeyword(requirement, name, at))
         {
             return;
         }

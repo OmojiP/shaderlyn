@@ -524,6 +524,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0309", "a.frag", "#version 330 compatibility\nvoid main() { gl_FragColor = vec4(1.0); gl_FragData[1] = vec4(0.0); }")]
     [InlineData("GL0104", "a.tesc", "#version 450\nvoid main() { }")]
     [InlineData("GL0104", "a.geom", "#version 450\nlayout(triangles) in;\nvoid main() { }")]
+    [InlineData("CF0310", "a.frag", "#version 140\nuniform sampler2DMS s;\nvoid main() { gl_FragColor = vec4(1.0); }")]
+    [InlineData("GL0401", "a.frag", "#version 400\nstruct S { int precise; };\nvoid main() { gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 3) struct S { vec3 a; } s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(s.a, 1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 320 es\nprecision mediump float;\nlayout(blend_support_multiply) struct T { int i; };\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
