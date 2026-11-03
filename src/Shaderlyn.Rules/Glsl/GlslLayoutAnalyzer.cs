@@ -112,6 +112,7 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
                 ParameterSyntax parameter => parameter.ModifierTokens,
                 FunctionDeclarationSyntax function => function.ModifierTokens,
                 StructDeclarationSyntax block when IsBlock(block) => [.. block.Modifiers, block.Keyword],
+                StructDeclarationSyntax structure => structure.Modifiers,
                 InterfaceBlockDeclarationSyntax block => block.Modifiers,
                 IncompleteDeclarationSyntax incomplete => incomplete.Tokens,
                 _ => [],

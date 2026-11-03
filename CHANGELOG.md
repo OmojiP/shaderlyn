@@ -48,7 +48,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     テッセレーションの制御シェーダーの `patch in` と評価シェーダーの `patch out`、`bool` を含む構造体の入力と出力、
     ブロックと違う記憶域のメンバー (`uniform U { in float a; }`)、uniform と buffer のブロックのメンバーの補助・補間の修飾子、2 つの記憶域の修飾子 (`in uniform`)、
     gl_FragCoord でない変数の `origin_upper_left` と gl_FragDepth でない変数の `depth_less` など、構造体の定義の型の無い宣言にだけ書ける layout、
-    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`、ブロックの数の型のメンバーの `binding`、使った後の入力と出力に足す `invariant`。
+    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、構造体の定義の layout (型の無い宣言にだけ書けるもの、記憶域の無い変数の `location`、変数の `component`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`、ブロックの数の型のメンバーの `binding`、使った後の入力と出力に足す `invariant`。
     修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)。
     フラグメントシェーダーの出力の修飾子と型 (`flat out`、`out mat2x3` など)、`flat` の無い整数の入力、
     構造体のメンバーの layout などの修飾子、ブロックの補間の修飾子、イメージでない変数のメモリの修飾子、出力でない変数の `invariant`、関数の戻り値の `const` などの記憶域の修飾子。

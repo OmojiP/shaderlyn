@@ -519,6 +519,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(flat float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("GL0101", "a.frag", "#version 450\n#extension GL_EXT_nonuniform_qualifier : enable\nlayout(location = 0) out vec4 o;\nlayout(location = 1) in struct S { float a; nonuniformEXT float b; } s;\nvoid main() { o = vec4(s.a); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 3) struct S { vec3 a; } s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(s.a, 1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 320 es\nprecision mediump float;\nlayout(blend_support_multiply) struct T { int i; };\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nint f(int a, void);\nvoid main() { o = vec4(1.0); }")]
     [InlineData("CF0001", "a.frag", "#version 310 es\nprecision mediump float;\nsample in vec4 c;\nout vec4 o;\n#extension GL_OES_shader_multisample_interpolation : enable\nvoid main() { o = c; }")]
     [InlineData("GL0401", "a.frag", "#version 430\nin vec4 gl_Color;\nlayout(location = 0) out vec4 o;\nvoid main() { o = gl_Color; }")]

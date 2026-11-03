@@ -227,16 +227,16 @@ internal sealed partial class GlslLayoutAnalyzer
                     CheckNoShaderLayouts(structLayout);
 
                     // 構造体の定義と一緒に宣言した変数 (layout(component = 1) out struct S { … } s;)。
-                    if (!structure.Declarators.IsEmpty && structLayout.Get("component") is { } structComponent)
+                    if (!structure.Declarators.IsEmpty && structLayout.Has("component"))
                     {
-                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structComponent.Name, "'component' は行列・構造体・ブロックに書けません。");
+                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().First().NameToken, "'component' は行列・構造体・ブロックに書けません。");
                     }
 
                     // 記憶域の無い構造体の変数の location (layout(location = 3) struct S { … } s;)。
-                    if (!structure.Declarators.IsEmpty && structLayout.Get("location") is { } structLocation
+                    if (!structure.Declarators.IsEmpty && structLayout.HasLocation
                         && !structure.Modifiers.Any(t => t.Text is "in" or "out" or "uniform" or "buffer" or "varying" or "attribute"))
                     {
-                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structLocation.Name, "'location' は uniform / buffer / in / out の宣言にだけ書けます。");
+                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().First().NameToken, "'location' は uniform / buffer / in / out の宣言にだけ書けます。");
                     }
 
                     break;
@@ -1199,6 +1199,11 @@ internal sealed partial class GlslLayoutAnalyzer
             }
 
             // uniform struct { … } s; は、名前が struct のブロックとして読まれる。構造体の変数なので、ブロックとして検査しない。
+            // 構造体の変数には component を書けない (layout(location = 33, component = 1) out struct S { int a; } s;)。
+            if (name is "struct" && layout.Get("component") is { } structComponent)
+            {
+                Invalid(GlslRuleDescriptors.QualifierNotAllowed, structComponent.Name, "'component' は行列・構造体・ブロックに書けません。");
+            }
 
             if (storage == Storage.Other || name is "struct" || name is not null && name.StartsWith("gl_", StringComparison.Ordinal))
             {
