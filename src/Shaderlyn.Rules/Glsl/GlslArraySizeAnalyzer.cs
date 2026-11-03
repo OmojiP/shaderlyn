@@ -29,7 +29,10 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.ArraySizeRequired];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.ArraySizeRequired, GlslRuleDescriptors.TypeNotAllowedHere];
+
+    /// <summary>gl_MaxMeshViewCountNV (glslang の既定の資源の値)。</summary>
+    private const long MaxMeshViewCount = 4;
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -133,14 +136,33 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
         }
 
         ImmutableArray<bool> unsized = Dimensions(ranks);
+        bool perView = HasStorage(modifiers, "perviewNV") && requirement.Stage == GlslShaderStage.Mesh && HasStorage(modifiers, "out")
+                       && declarator.Parent is VariableDeclarationSyntax;
+
+        // perviewNV の出力は、ビューの次元 (ブロックのメンバーは一番外、ほかは外から 2 番目) を持たなければならない。
+        // その次元は省くか gl_MaxMeshViewCountNV にする (glslang が gl_MaxMeshViewCountNV に決める。checkAndResizeMeshViewDim)。
+        int viewDimension = declarator.Parent is VariableDeclarationSyntax { Parent: InterfaceBlockDeclarationSyntax or StructDeclarationSyntax } ? 0 : 1;
+
+        if (perView && unsized.Length <= viewDimension)
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, at, declarator.Name, "perviewNV の出力は、ビューの次元を持つ配列でなければなりません。");
+            return;
+        }
+
+        if (perView && !unsized[viewDimension]
+            && GlslLayoutQualifier.Evaluate(DimensionTokens(ranks)[viewDimension], t => t.Text == "gl_MaxMeshViewCountNV" ? new GlslConstant(MaxMeshViewCount, GlslConstantKind.Int, IsLiteral: false) : null) is { } viewCount
+            && viewCount.Value != MaxMeshViewCount)
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, at, declarator.Name, "perviewNV の出力のビューの次元の大きさは、gl_MaxMeshViewCountNV にするか省かなければなりません。");
+        }
 
         if (unsized.IsEmpty)
         {
             return;
         }
 
-        // perviewNV の 2 番目の次元は、glslang が gl_MaxMeshViewCountNV に決める (checkAndResizeMeshViewDim)。
-        if (unsized.Skip(1).Any(u => u) && !HasStorage(modifiers, "perviewNV"))
+        // 内側の次元の大きさは省けない。ただし perviewNV のビューの次元は除く。
+        if (unsized.Select((u, i) => u && i > 0 && !(HasStorage(modifiers, "perviewNV") && i == viewDimension)).Any(u => u))
         {
             requirement.Report(GlslRuleDescriptors.ArraySizeRequired, at, "配列の配列の内側の次元");
         }
@@ -189,6 +211,32 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
             if (ranks[i].Kind == ShaderSyntaxKind.OpenBracketToken)
             {
                 dimensions.Add(i + 1 < ranks.Length && ranks[i + 1].Kind == ShaderSyntaxKind.CloseBracketToken);
+            }
+        }
+
+        return dimensions.ToImmutable();
+    }
+
+    /// <summary>次元ごとの、角括弧の中のトークン。</summary>
+    private static ImmutableArray<ImmutableArray<ShaderSyntaxToken>> DimensionTokens(ImmutableArray<ShaderSyntaxToken> ranks)
+    {
+        ImmutableArray<ImmutableArray<ShaderSyntaxToken>>.Builder dimensions = ImmutableArray.CreateBuilder<ImmutableArray<ShaderSyntaxToken>>();
+        ImmutableArray<ShaderSyntaxToken>.Builder current = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
+        int depth = 0;
+
+        foreach (ShaderSyntaxToken token in ranks)
+        {
+            if (token.Kind == ShaderSyntaxKind.OpenBracketToken && depth++ == 0)
+            {
+                current.Clear();
+            }
+            else if (token.Kind == ShaderSyntaxKind.CloseBracketToken && --depth == 0)
+            {
+                dimensions.Add(current.ToImmutable());
+            }
+            else
+            {
+                current.Add(token);
             }
         }
 

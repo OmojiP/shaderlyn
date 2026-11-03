@@ -102,9 +102,73 @@ internal sealed partial class ShaderPreprocessor
             return true;
         }
 
+        // GLSL (glslang) は、使わない仮引数の分も含めて実引数を先に展開し、その中で閉じない関数形式マクロの呼び出しを誤りにする
+        // (「End of input in macro」)。
+        if (_options.GlslRules && FindUnterminatedCall(arguments.Value) is { } unterminated)
+        {
+            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
+                $"マクロ '{macro.Name}' の実引数を展開したマクロ '{unterminated}' の呼び出しの括弧が、実引数の中で閉じられていません。");
+            return true;
+        }
+
         ImmutableArray<ShaderSyntaxToken> substituted = SubstituteMacroBody(macro, arguments.Value, nameToken);
         PushExpansionSource(substituted, macro.Name);
         return true;
+    }
+
+    /// <summary>
+    /// 実引数を展開した結果に、マクロの本体から出てきた閉じない関数形式マクロの呼び出し (<c>b (</c> で終わるもの) があれば、そのマクロの名前を返す。
+    /// 実引数にもとから書いてあるマクロの名前は見ない (後ろの括弧を展開で作るものは、glslang も呼び出しとみなさないため)。
+    /// </summary>
+    private string? FindUnterminatedCall(ImmutableArray<ImmutableArray<ShaderSyntaxToken>> arguments)
+    {
+        foreach (ImmutableArray<ShaderSyntaxToken> argument in arguments)
+        {
+            if (!argument.Any(t => t.Kind == ShaderSyntaxKind.IdentifierToken && _macros.ContainsKey(t.Text)))
+            {
+                continue;
+            }
+
+            HashSet<ShaderSyntaxToken> written = new(argument, ReferenceEqualityComparer.Instance);
+            ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(argument, depth: 0);
+
+            // 本体に # を含むマクロは glslang が定義しないことがあるので、見ない。
+            if (expanded.Any(t => t.Kind is ShaderSyntaxKind.HashToken or ShaderSyntaxKind.HashHashToken))
+            {
+                continue;
+            }
+
+            for (int i = 0; i + 1 < expanded.Length; i++)
+            {
+                if (expanded[i].Kind != ShaderSyntaxKind.IdentifierToken || written.Contains(expanded[i])
+                    || !_macros.TryGetValue(expanded[i].Text, out MacroDefinition? callee) || !callee.IsFunctionLike
+                    || expanded[i + 1].Kind != ShaderSyntaxKind.OpenParenToken)
+                {
+                    continue;
+                }
+
+                int depth = 0;
+                bool closed = false;
+
+                for (int j = i + 1; j < expanded.Length && !closed; j++)
+                {
+                    depth += expanded[j].Kind switch
+                    {
+                        ShaderSyntaxKind.OpenParenToken => 1,
+                        ShaderSyntaxKind.CloseParenToken => -1,
+                        _ => 0,
+                    };
+                    closed = depth == 0;
+                }
+
+                if (!closed)
+                {
+                    return callee.Name;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>次に読めるトークンが開き括弧かどうかを判定する。</summary>

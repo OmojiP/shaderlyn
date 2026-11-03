@@ -108,6 +108,7 @@ public static class BuiltInAnalyzers
         new Rules.Glsl.GlslStringArgumentAnalyzer(),
         new Rules.Glsl.Glsl64BitIndexingAnalyzer(),
         new Rules.Glsl.GlslCooperativeVectorAnalyzer(),
+        new Rules.Glsl.GlslArrayRedeclarationAnalyzer(),
         new Rules.Glsl.GlslArrayAssignmentAnalyzer(),
         new Rules.Glsl.GlslArgumentQualifierAnalyzer(),
         new CompileTargetAnalyzer(),

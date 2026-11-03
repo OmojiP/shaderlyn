@@ -150,6 +150,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- GLSL で、マクロの実引数を展開して出てきた関数形式マクロの呼び出しの括弧が実引数の中で閉じないものを報告する (CF0002。glslang の「End of input in macro」)
+- メッシュシェーダーの `perviewNV` の出力の、ビューの次元が無いもの・大きさが `gl_MaxMeshViewCountNV` でないもの (GL0403)、内側の次元の大きさを省いたもの (GL0402) を報告する
+- 大きさを書かない配列を、要素の型や内側の次元の違う形で宣言し直したものを報告する (CF0314)
+- ジオメトリシェーダーの入力の配列とテッセレーションの制御シェーダーの出力の配列の大きさが、入力のプリミティブの頂点の数・`vertices` と違うものを報告する (GL0103)
 - `coopMatLoadTensorNV` の復号の関数の仮引数 (`const in`、バッファの参照、`uint32_t` の配列) と戻り値、`coopMatPerElementNV` の実引数の数、
   `coopMatMulAdd` の協調行列の形と用途を報告する (GL0325)。渡す関数の仮引数は `const` だけでもよいものとした
 - 協調ベクトル (`coopvecNV`) の定数でなければならない実引数と、`coopVecLoadNV` / `coopVecStoreNV` の関数の中の変数 (GL0306)、

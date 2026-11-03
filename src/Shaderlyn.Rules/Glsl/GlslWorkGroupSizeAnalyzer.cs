@@ -24,7 +24,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.LayoutRequired];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.LayoutRequired, GlslRuleDescriptors.InvalidLayoutValue];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -46,6 +46,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
             if (requirement.Stage is GlslShaderStage.TessellationControl or GlslShaderStage.TessellationEvaluation or GlslShaderStage.Geometry)
             {
                 CheckStageLayouts(requirement, program);
+                CheckArrayedInterface(requirement, program);
                 continue;
             }
 
@@ -82,6 +83,89 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>
+    /// ジオメトリシェーダーの入力の配列は入力のプリミティブの頂点の数と、テッセレーションの制御シェーダーの出力の配列 (patch でないもの) は
+    /// layout(vertices = …) の数と、大きさが同じでなければならない (glslang の ParseHelper.cpp の checkIoArraysConsistency)。
+    /// 配列が layout より前にあれば layout の位置で、後にあれば配列の名前の位置で報告する。大きさが整数のリテラルの配列だけを見る。
+    /// </summary>
+    private static void CheckArrayedInterface(GlslRequirements requirement, AnalyzedProgram program)
+    {
+        (string storage, Func<ImmutableArray<ShaderSyntaxToken>, (ShaderSyntaxToken At, long Size)?> sizeOf, string what) = requirement.Stage switch
+        {
+            GlslShaderStage.Geometry => ("in", (Func<ImmutableArray<ShaderSyntaxToken>, (ShaderSyntaxToken, long)?>)PrimitiveSize, "入力のプリミティブの頂点の数"),
+            GlslShaderStage.TessellationControl => ("out", OutputVertices, "出力のパッチの頂点の数 (vertices)"),
+            _ => ("", _ => null, ""),
+        };
+
+        if (storage.Length == 0)
+        {
+            return;
+        }
+
+        (ShaderSyntaxToken At, long Size)? layout = program.Tree.Root.ChildNodes().OfType<IncompleteDeclarationSyntax>()
+            .Where(d => d.Tokens.Any(t => t.Text == storage))
+            .Select(d => sizeOf(d.Tokens))
+            .FirstOrDefault(found => found is not null);
+
+        if (layout is not { } declared || !ReferenceEquals(declared.At.Source, program.Tree.Text))
+        {
+            return;
+        }
+
+        foreach (ShaderSyntaxNode node in program.Tree.Root.ChildNodes())
+        {
+            (ImmutableArray<ShaderSyntaxToken> modifiers, IEnumerable<VariableDeclaratorSyntax> declarators) = node switch
+            {
+                VariableDeclarationSyntax variable => (variable.ModifierTokens, variable.Variables),
+                StructDeclarationSyntax { Keyword.Text: not "struct" } block => ([.. block.Modifiers, block.Keyword], block.ChildNodes().OfType<VariableDeclaratorSyntax>()),
+                InterfaceBlockDeclarationSyntax block => (block.Modifiers, block.ChildNodes().OfType<VariableDeclaratorSyntax>()),
+                _ => ([], []),
+            };
+
+            if (!modifiers.Any(t => t.Text == storage) || modifiers.Any(t => t.Text == "patch"))
+            {
+                continue;
+            }
+
+            foreach (VariableDeclaratorSyntax declarator in declarators)
+            {
+                if (declarator.ArrayRankTokens is not [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
+                    || !long.TryParse(size.Text.TrimEnd('u', 'U'), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long length)
+                    || length == declared.Size
+                    || !ReferenceEquals(declarator.NameToken.Source, program.Tree.Text))
+                {
+                    continue;
+                }
+
+                // ブロックは、glslang と同じくブロックの頭で報告する。
+                ShaderSyntaxToken own = node is VariableDeclarationSyntax ? declarator.NameToken : modifiers[0];
+                ShaderSyntaxToken at = declarator.NameToken.Span.Start < declared.At.Span.Start ? declared.At : own;
+                requirement.Report(GlslRuleDescriptors.InvalidLayoutValue, at,
+                    $"'{declarator.Name}' の配列の大きさ ({length}) が、{what} ({declared.Size}) と違います。");
+            }
+        }
+    }
+
+    /// <summary>入力のプリミティブ (layout(triangles) in; など) の頂点の数。</summary>
+    private static (ShaderSyntaxToken At, long Size)? PrimitiveSize(ImmutableArray<ShaderSyntaxToken> tokens)
+        => tokens.FirstOrDefault(t => t.Text is "points" or "lines" or "lines_adjacency" or "triangles" or "triangles_adjacency") is { } primitive
+            ? (primitive, primitive.Text switch
+            {
+                "points" => 1,
+                "lines" => 2,
+                "lines_adjacency" => 4,
+                "triangles" => 3,
+                _ => 6,
+            })
+            : null;
+
+    /// <summary>layout(vertices = N) out; の N。</summary>
+    private static (ShaderSyntaxToken At, long Size)? OutputVertices(ImmutableArray<ShaderSyntaxToken> tokens)
+        => GlslLayoutQualifier.Read(tokens).Where(e => e.Name.Text == "vertices").Select(e => (GlslLayoutEntry?)e).FirstOrDefault() is { } entry
+           && GlslLayoutQualifier.Evaluate(entry.Value, _ => null) is { } value
+            ? (entry.Name, (long)value.Value)
+            : null;
 
     /// <summary>
     /// テッセレーションとジオメトリのシェーダーに要る、型の無い宣言の layout (glslang の linkValidate.cpp の finalCheck)。
