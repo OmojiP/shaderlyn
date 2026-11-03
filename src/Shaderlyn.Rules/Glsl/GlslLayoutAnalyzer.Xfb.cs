@@ -55,6 +55,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
             if (layout.Get("xfb_offset") is { } offset && ValueOf(offset) is { } start && XfbSize(typeName, declarator) is { } size)
             {
+                CheckXfbAlignment(at, start, size.Alignment);
                 AddXfbRange(at, buffer, start, size.Size);
             }
 
@@ -87,7 +88,11 @@ internal sealed partial class GlslLayoutAnalyzer
                     (long Size, int Alignment)? size = XfbSize(member.Type.NameToken.Text, declarator);
                     long? offset = memberLayout.Get("xfb_offset") is { } ownOffset ? ValueOf(ownOffset) : null;
 
-                    if (offset is null && assigns && next is { } auto && size is { } known)
+                    if (offset is { } written && size is { } writtenSize)
+                    {
+                        CheckXfbAlignment(memberAt, written, writtenSize.Alignment);
+                    }
+                    else if (offset is null && assigns && next is { } auto && size is { } known)
                     {
                         offset = RoundUp(auto, known.Alignment);
                     }
@@ -112,6 +117,20 @@ internal sealed partial class GlslLayoutAnalyzer
             if (layout.Get("xfb_stride") is { } blockStride && ValueOf(blockStride) is { } blockStrideValue)
             {
                 SetXfbStride(at, buffer, blockStrideValue);
+            }
+        }
+
+        /// <summary>
+        /// 書いた xfb_offset が、型の最初の成分の大きさの倍数か (layoutTypeCheck)。64 ビットの型を含めば 8、32 ビットの型を含めば 4 の倍数でなければならない。
+        /// 16 ビットと 8 ビットの型だけのものは、glslang も見ない。
+        /// </summary>
+        private void CheckXfbAlignment(ShaderSyntaxToken at, long offset, int alignment)
+        {
+            if (alignment >= 4 && offset % alignment != 0)
+            {
+                Invalid(GlslRuleDescriptors.InvalidLayoutValue, at,
+                    $"xfb_offset {offset.ToString(CultureInfo.InvariantCulture)} は {alignment.ToString(CultureInfo.InvariantCulture)} の倍数でなければなりません"
+                    + (alignment == 8 ? " (double か 64 ビットの整数を含む型)。" : " (型の最初の成分の大きさ)。"));
             }
         }
 

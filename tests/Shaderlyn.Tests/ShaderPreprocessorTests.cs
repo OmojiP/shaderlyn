@@ -387,6 +387,39 @@ public sealed class ConditionalCompilationTests
     }
 
     [Fact]
+    public void マクロの展開から出たdefinedも演算子として読む()
+    {
+        // C では未定義の振る舞いだが、clang と glslang は defined の演算子として読む。後ろの MAC は展開しない。
+        Assert.Equal("yes", PreprocessorHarness.TextWithoutDiagnostics("""
+            #define MAC
+            #define DEF defined
+            #if DEF MAC && DEF(MAC)
+            yes
+            #else
+            no
+            #endif
+            """));
+    }
+
+    [Fact]
+    public void GLSLの規則では条件式を32ビットで計算し評価できない式を通る分岐とする()
+    {
+        const string Source = """
+            #if (-2147483648 / -1) != 0 || (0xFFFFFFFF + 1) != 0
+            c
+            #else
+            glsl
+            #endif
+            #if (1
+            glsl
+            #endif
+            """;
+
+        Assert.Equal("c", PreprocessorHarness.Text(Source));
+        Assert.Equal("glsl glsl", PreprocessorHarness.Text(Source, new PreprocessorOptions { GlslRules = true }));
+    }
+
+    [Fact]
     public void ifdefとifndefを扱える()
     {
         Assert.Equal("defined notdefined", PreprocessorHarness.TextWithoutDiagnostics("""

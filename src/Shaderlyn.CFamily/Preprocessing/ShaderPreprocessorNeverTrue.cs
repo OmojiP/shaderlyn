@@ -82,7 +82,9 @@ internal sealed partial class ShaderPreprocessor
 
             bool value = ConditionalExpressionEvaluator.Evaluate(
                 SubstituteSymbols(line, symbols, mask),
-                out string? error);
+                out string? error,
+                undefinedIdentifiers: null,
+                _options.GlslRules);
 
             // 評価できない式は判断しない。誤りは行全体の評価が報告している。
             if (error is not null || value)

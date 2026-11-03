@@ -52,7 +52,8 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "GLSL のプリプロセッサの指令に、glslang が誤りにする書き方があります。"
-            + "たとえば ES では、#if / #elif の式に定義されていないマクロを書けません。#extension は「名前 : 振る舞い」の形で書きます。",
+            + "たとえば ES では、#if / #elif の式に定義されていないマクロを書けません。#extension は「名前 : 振る舞い」の形で書きます。"
+            + "GL_ で始まる名前は #define できず、#version はファイルの最初に 1 つだけ書けます。到達した #error もコンパイルを止めます。",
         helpLinkUri: DocumentationLinks.For("GL0003"));
 
     /// <summary>修飾子をここに書けない。</summary>
@@ -374,6 +375,35 @@ internal static class GlslRuleDescriptors
         description: "利用者の関数の呼び出しに型がすべて同じ宣言が無く、暗黙の変換で合う宣言が 2 つ以上あって、1 つに決まりません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0320"));
+
+    /// <summary><c>switch</c> の文の組み立てか、<c>break</c> / <c>continue</c> の置き場所が正しくない。</summary>
+    /// <remarks>
+    /// glslang の glslang.y の <c>case_label</c> と <c>jump_statement</c> (「cannot be nested inside control flow」「break statement only allowed in switch and loops」など)、
+    /// ParseHelper.cpp の <c>wrapupSwitchSubsequence</c> と <c>addSwitch</c> (「duplicated value」「last case/default label not followed by statements」など) に当たる。文の <c>{0}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor SwitchStatement { get; } = new(
+        id: "GL0321",
+        title: "switch と break / continue の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "case / default を switch の波括弧の中にそのまま書いていない、同じ値の case や 2 つ目の default がある、"
+            + "最初の case より前に文がある、最後の case の後に文が無い、ループと switch の外に break を書いた、ループの外に continue を書いた、のどれかです。"
+            + "glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0321"));
+
+    /// <summary><c>main</c> の定義の形が正しくない。</summary>
+    /// <remarks>
+    /// glslang の <c>handleFunctionDefinition</c> の「function cannot take any parameter(s)」と「entry point cannot return a value」に当たる。文の <c>{0}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor MainSignature { get; } = new(
+        id: "GL0322",
+        title: "main の定義の形が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "main に仮引数を書いたか、戻り値を void 以外にしています。GLSL の main は仮引数を取らず、値を返しません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0322"));
 
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>

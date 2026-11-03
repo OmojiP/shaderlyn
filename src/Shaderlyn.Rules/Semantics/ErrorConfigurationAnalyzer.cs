@@ -19,6 +19,9 @@ namespace Shaderlyn.Rules;
 /// キーワードの構成なら Unity のルール (UN0103、エラー) が伝える。キーワードに関わらない構成 (どの構成でも到達する) は、
 /// 解析のマクロの状態が実際と違うためのことが多いので、Unity でもここで情報として伝える。
 /// </para>
+/// <para>
+/// GLSL には構成を選ぶエンジンが無いので、どの構成でも到達するものは GL0003 (エラー) が伝え、ここでは伝えない。
+/// </para>
 /// </remarks>
 internal sealed class ErrorConfigurationAnalyzer : SemanticRuleAnalyzer
 {
@@ -36,7 +39,7 @@ internal sealed class ErrorConfigurationAnalyzer : SemanticRuleAnalyzer
 
         foreach (ErrorConfigurationReport report in Describe(compilation))
         {
-            if (unity && !report.Condition.IsAlways)
+            if (unity && !report.Condition.IsAlways || compilation.IsGlsl && report.Condition.IsAlways)
             {
                 continue;
             }

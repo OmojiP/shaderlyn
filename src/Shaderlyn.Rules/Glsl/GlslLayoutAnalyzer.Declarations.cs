@@ -778,6 +778,16 @@ internal sealed partial class GlslLayoutAnalyzer
             }
         }
 
+        /// <summary>構造体が bool のメンバーを持つか。入れ子の構造体も見る。</summary>
+        private bool StructContainsBool(string name, int depth)
+        {
+            _structs ??= ReadStructs();
+
+            return depth <= 8
+                   && _structs.TryGetValue(name, out ImmutableArray<(string Type, VariableDeclaratorSyntax Declarator)> members)
+                   && members.Any(m => TypeShape.Of(_types, m.Type).IsBool || StructContainsBool(m.Type, depth + 1));
+        }
+
         /// <summary>変数とブロックの、型と組み合わせた検査 (glslang の layoutTypeCheck と layoutObjectCheck)。</summary>
         private void CheckObject(
             ShaderSyntaxToken at,
@@ -999,7 +1009,7 @@ internal sealed partial class GlslLayoutAnalyzer
                 }
             }
 
-            if (!builtIn && storage is Storage.In or Storage.Out && type.ContainsBool)
+            if (!builtIn && storage is Storage.In or Storage.Out && (type.ContainsBool || StructContainsBool(type.Name, 0)))
             {
                 Place(type.IsBool
                     ? $"{(storage == Storage.In ? "入力 (in)" : "出力 (out)")} は bool にできません。"

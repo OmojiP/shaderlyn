@@ -89,7 +89,8 @@ internal static class SemanticRuleDescriptors
         description: "その構成の展開が #error に到達しました。#error に到達する構成はコンパイルできないので、エンジンもその構成をコンパイルしないはずです "
             + "(Unreal Engine は C++ の ShouldCompilePermutation で除きます)。その構成のコードは、宣言の有無を見る検査 (CF0310 / CF0315 など) で考えません。"
             + "どの構成でも到達するなら、解析のマクロの状態 (設定の defines、Unreal の生成したファイル) が実際と違う見込みがあります。"
-            + "Unity では、宣言したキーワードの構成はコンパイルされるので、UN0103 (エラー) が伝えます。",
+            + "Unity では、宣言したキーワードの構成はコンパイルされるので、UN0103 (エラー) が伝えます。"
+            + "GLSL では、どの構成でも到達するものを GL0003 (エラー) が伝えます。",
         helpLinkUri: DocumentationLinks.For("CF0104"));
 
     /// <summary>条件を追えなかった箇所がある。</summary>

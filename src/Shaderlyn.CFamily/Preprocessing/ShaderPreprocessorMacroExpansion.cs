@@ -520,6 +520,7 @@ internal sealed partial class ShaderPreprocessor
                 _sources.Add(new TokenSource([], IsFile: false, MacroName: macro.Name, IncludePath: null));
                 result.AddRange(ExpandTokenList(macro.Body, depth + 1));
                 _sources.RemoveAt(_sources.Count - 1);
+                i = CopyOperandOfExpandedDefined(tokens, i, result);
                 continue;
             }
 
@@ -557,7 +558,7 @@ internal sealed partial class ShaderPreprocessor
             result.AddRange(ExpandTokenList(substituted, depth + 1));
             _sources.RemoveAt(_sources.Count - 1);
 
-            i = index - 1;
+            i = CopyOperandOfExpandedDefined(tokens, index - 1, result);
         }
 
         return result.ToImmutable();
@@ -581,7 +582,38 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken>.Builder result)
     {
         result.Add(tokens[index]);
+        return CopyOperandAfter(tokens, index, result);
+    }
 
+    /// <summary>
+    /// マクロの展開が <c>defined</c> で終わったなら、その後ろの被演算子を展開せずに複写する。
+    /// </summary>
+    /// <param name="tokens">対象のトークン列。</param>
+    /// <param name="index">展開したマクロの呼び出しの最後のトークンの位置。</param>
+    /// <param name="result">複写先。展開の結果を足した後のもの。</param>
+    /// <returns>複写し終えた最後のトークンの位置。</returns>
+    /// <remarks>
+    /// <c>#define DEF defined</c> と <c>#if DEF MAC</c> の <c>MAC</c> は、展開すると <c>defined</c> の被演算子が消える。
+    /// C では未定義の振る舞いだが、clang と glslang はどちらも <c>defined</c> の演算子として読む (glslang は誤りとしても伝える)。
+    /// </remarks>
+    private static int CopyOperandOfExpandedDefined(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        int index,
+        ImmutableArray<ShaderSyntaxToken>.Builder result)
+        => result.Count > 0 && result[^1].Kind == ShaderSyntaxKind.IdentifierToken && result[^1].TextIs("defined")
+            ? CopyOperandAfter(tokens, index, result)
+            : index;
+
+    /// <summary><c>defined</c> の被演算子 (<c>X</c> か <c>( X )</c>) を複写する。</summary>
+    /// <param name="tokens">対象のトークン列。</param>
+    /// <param name="index">被演算子の直前のトークンの位置。</param>
+    /// <param name="result">複写先。</param>
+    /// <returns>複写し終えた最後のトークンの位置。</returns>
+    private static int CopyOperandAfter(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        int index,
+        ImmutableArray<ShaderSyntaxToken>.Builder result)
+    {
         int next = index + 1;
 
         if (next < tokens.Length && tokens[next].Kind == ShaderSyntaxKind.OpenParenToken)

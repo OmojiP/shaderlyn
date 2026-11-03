@@ -32,6 +32,9 @@ internal static class GlslSyntaxTree
             effective = effective with { Language = GlslLanguageOptions.Default };
         }
 
+        // glslang の Pp.cpp の規則で前処理する。#if の式は int (32 ビット) で計算し、評価できない式は通る分岐とする。
+        effective = effective with { GlslRules = true };
+
         // ES では、#if の式に定義されていないマクロを書くと誤りである (GL0003)。その名前を記録させる。
         if (effective.Language is GlslLanguageOptions { Profile: GlslProfile.Es })
         {

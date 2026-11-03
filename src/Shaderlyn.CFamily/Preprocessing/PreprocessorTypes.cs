@@ -237,6 +237,22 @@ public sealed record PreprocessorOptions
     /// </remarks>
     public bool RecordUndefinedConditionIdentifiers { get; init; }
 
+    /// <summary>GLSL (glslang の Pp.cpp) の規則で前処理するか。既定は C の規則。</summary>
+    /// <remarks>
+    /// <para>
+    /// <c>#if</c> / <c>#elif</c> の式を、GLSL は <c>int</c> (32 ビット) で計算する。C は <c>intmax_t</c> (64 ビット) である。
+    /// <c>#if (-2147483648 / -1) != 0</c> は C では真、GLSL では偽である (glslang は INT_MIN / -1 を 0 にする)。
+    /// </para>
+    /// <para>
+    /// 評価できなかった式は、誤りを伝えたうえで通る分岐とする (<c>CPPif</c> は誤りのとき読み飛ばさない)。C の規則では通らない分岐とする。
+    /// </para>
+    /// <para>
+    /// 行の頭の <c>##</c> も指令の始まりとして読み、誤りにする (glslang の字句解析は <c>#</c> を 1 つずつ読む)。C では <c>##</c> の演算子である。
+    /// <c>#define</c> と <c>#undef</c> は、名前と一緒に <see cref="PreprocessResult.RecordedDirectives"/> に覚える (GLSL の予約された名前の検査に使う)。
+    /// </para>
+    /// </remarks>
+    public bool GlslRules { get; init; }
+
     /// <summary>
     /// 並べてよい領域の位置。<see langword="null"/> なら展開しながら決める。
     /// </summary>
@@ -888,7 +904,10 @@ public readonly record struct PreprocessResult(
     /// <remarks>既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。</remarks>
     public ImmutableArray<PragmaDirective> IgnoredPragmas { get; init; }
 
-    /// <summary>展開の順番を覚えた指令 (GLSL の <c>#version</c> と <c>#extension</c>)。読み飛ばした分岐の中のものは無い。</summary>
+    /// <summary>
+    /// 展開の順番を覚えた指令 (GLSL の <c>#version</c> と <c>#extension</c>、どの構成でも到達する <c>#error</c>。
+    /// <see cref="PreprocessorOptions.GlslRules"/> なら <c>#define</c> と <c>#undef</c> も)。読み飛ばした分岐の中のものは無い。
+    /// </summary>
     public ImmutableArray<RecordedDirective> RecordedDirectives { get; init; } = [];
 
     /// <summary>

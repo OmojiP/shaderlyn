@@ -53,7 +53,7 @@ internal sealed partial class ShaderPreprocessor
             && _macros.TryGetValue(nameToken.Text, out MacroDefinition? previous)
             && IsInRootSource(previous.NameToken)
             && IsInRootSource(nameToken)
-            && !HasSameBody(previous, definition)
+            && !HasSameBody(previous, definition, _options.GlslRules)
             && !IsReportedConditionally(nameToken.Text))
         {
             Report(ShaderDescriptors.MacroRedefinition, nameToken.GetLocation(),
@@ -915,11 +915,13 @@ internal sealed partial class ShaderPreprocessor
     /// </summary>
     /// <param name="left">比べる定義。</param>
     /// <param name="right">比べる定義。</param>
+    /// <param name="spacing">トークンの間の空白の有無も比べるか。</param>
     /// <returns>同じであれば <see langword="true"/>。</returns>
     /// <remarks>
-    /// トークンの文字列で比べる。空白や改行の違いは中身の違いではない。
+    /// トークンの文字列で比べる。空白や改行の量の違いは中身の違いではない。
+    /// GLSL (glslang) は、トークンの間に空白があるかどうかの違いも誤りにする (<c>#define m (a)</c> と <c>#define m ( a)</c>)。
     /// </remarks>
-    private static bool HasSameBody(MacroDefinition left, MacroDefinition right)
+    private static bool HasSameBody(MacroDefinition left, MacroDefinition right, bool spacing)
     {
         if (left.IsFunctionLike != right.IsFunctionLike
             || left.IsVariadic != right.IsVariadic
@@ -935,9 +937,17 @@ internal sealed partial class ShaderPreprocessor
             {
                 return false;
             }
+
+            if (spacing && i > 0 && IsSpaced(left.Body, i) != IsSpaced(right.Body, i))
+            {
+                return false;
+            }
         }
 
         return true;
+
+        static bool IsSpaced(ImmutableArray<ShaderSyntaxToken> body, int i)
+            => body[i].Span.Start > body[i - 1].Span.End;
     }
 
     /// <summary><c>#undef</c> を処理する。</summary>

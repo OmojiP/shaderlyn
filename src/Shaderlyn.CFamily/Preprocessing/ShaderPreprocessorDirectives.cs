@@ -91,6 +91,12 @@ internal sealed partial class ShaderPreprocessor
             return;
         }
 
+        // GLSL の予約された名前 (GL_ で始まる名前など) の検査のために、#define と #undef の名前を覚える。
+        if (_options.GlslRules && directive is "define" or "undef" && PeekInCurrentSource() is { IsAtLineStart: false } defined)
+        {
+            _recordedDirectives.Add(new RecordedDirective(directiveToken, [defined], _output.Count));
+        }
+
         switch (directive)
         {
             case "define":
@@ -115,9 +121,16 @@ internal sealed partial class ShaderPreprocessor
             // 単一構成での展開では偽の指摘になりやすいためである。
             // #line は報告の位置を付け替えるだけで、展開には影響しない。形だけを検査する (CheckLineDirective)。
             // 受け付けない環境は UnsupportedDirectives で報告する。
+            // どの構成でも到達する #error は、行と一緒に RecordedDirectives にも覚える (GLSL では誤りとして伝える)。
             case "error":
-                NoteErrorDirective(directiveToken);
-                SkipDirectiveLine();
+                bool reached = NoteErrorDirective(directiveToken);
+                ImmutableArray<ShaderSyntaxToken> message = SkipDirectiveLine();
+
+                if (reached)
+                {
+                    _recordedDirectives.Add(new RecordedDirective(directiveToken, message, _output.Count));
+                }
+
                 break;
 
             // GLSL の #version と #extension は、展開の順番とともに覚える (書いた位置より後ろにだけ効く)。
@@ -159,11 +172,12 @@ internal sealed partial class ShaderPreprocessor
     /// (<see cref="PreprocessResult.ConditionalErrorDirectives"/>)。条件が制約で起こりえないなら覚えない。
     /// </para>
     /// </remarks>
-    private void NoteErrorDirective(ShaderSyntaxToken directive)
+    /// <returns>並べた分岐の中でなく、到達したものとして覚えたなら <see langword="true"/>。</returns>
+    private bool NoteErrorDirective(ShaderSyntaxToken directive)
     {
         if (IsSkipping || directive.GetLocation() is not { } location)
         {
-            return;
+            return false;
         }
 
         if (_conditionals.Exists(state => state.KeptCondition is not null))
@@ -177,11 +191,12 @@ internal sealed partial class ShaderPreprocessor
                 Record(recording => recording.ConditionalErrorDirectives.Add(entry));
             }
 
-            return;
+            return false;
         }
 
         _reachedErrorDirectives.Add(location);
         Record(recording => recording.ReachedErrorDirectives.Add(location));
+        return true;
     }
 
     /// <summary>条件分岐に関わる指令を処理する。</summary>
@@ -2013,6 +2028,7 @@ internal sealed partial class ShaderPreprocessor
     /// 非活性領域にある指令の残りの行を読み飛ばす。
     /// </summary>
     /// <param name="isDefine"><c>#define</c> の行かどうか。条件付きで覚えるために名前と中身を読む。</param>
+    /// <returns>読み飛ばした行のトークン列。</returns>
     /// <remarks>
     /// <para>
     /// <b>読み飛ばす行に現れた識別子は記録する。</b>
@@ -2030,7 +2046,7 @@ internal sealed partial class ShaderPreprocessor
     /// 「宣言だけで使われていない」と誤って報告することになる。
     /// </para>
     /// </remarks>
-    private void SkipDirectiveLine(bool isDefine = false)
+    private ImmutableArray<ShaderSyntaxToken> SkipDirectiveLine(bool isDefine = false)
     {
         ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
@@ -2067,6 +2083,8 @@ internal sealed partial class ShaderPreprocessor
                 AddSkippedIdentifier(token);
             }
         }
+
+        return line;
     }
 
     /// <summary>

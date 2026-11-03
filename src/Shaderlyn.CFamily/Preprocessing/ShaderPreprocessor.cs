@@ -473,6 +473,21 @@ internal sealed partial class ShaderPreprocessor
                 return true;
             }
 
+            // GLSL は行の頭の ## も指令の始まりとして読む (glslang の「invalid directive」)。
+            if (_options.GlslRules && token.Kind == ShaderSyntaxKind.HashHashToken && token.IsAtLineStart && CurrentSource.IsFile)
+            {
+                TakeToken();
+
+                if (!IsSkipping)
+                {
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), "不明なプリプロセッサ指令です: '##'");
+                }
+
+                SkipDirectiveLine();
+                MoveUnitAnchorPastDirective();
+                return true;
+            }
+
             if (IsSkipping)
             {
                 ShaderSyntaxToken skipped = TakeToken();

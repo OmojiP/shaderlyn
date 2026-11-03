@@ -259,6 +259,7 @@ Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.Sym
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText LeadingText { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions)
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean GlslRules { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean HonorPragmaOnce { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean MergeSwitchedIncludes { get; set; }

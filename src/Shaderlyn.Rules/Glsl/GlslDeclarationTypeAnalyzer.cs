@@ -18,7 +18,8 @@ namespace Shaderlyn.Rules.Glsl;
 /// <remarks>
 /// <para>
 /// サンプラー・イメージ・テクスチャの型と、それをメンバーに持つ構造体の変数は、uniform でなければならない
-/// (<c>GL_ARB_bindless_texture</c> を有効にしたときを除く)。関数の外と中の変数を見る。仮引数とブロックのメンバーは見ない。
+/// (<c>GL_ARB_bindless_texture</c> を有効にしたときを除く)。関数の外と中の変数を見る。
+/// これらの型と <c>atomic_uint</c> の仮引数は、<c>out</c> / <c>inout</c> にできない (<c>parameterTypeCheck</c>)。
 /// </para>
 /// <para>
 /// void の変数・構造体のメンバー・名前のある仮引数は宣言できない。
@@ -73,6 +74,14 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, name, name.Text, "void の仮引数には名前を付けられません。");
                     break;
 
+                // サンプラー・イメージ・atomic_uint は、out / inout の仮引数にできない (glslang の parameterTypeCheck)。
+                case ParameterSyntax { NameToken.IsMissing: false } parameter
+                    when parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Any(t => t.Text is "out" or "inout")
+                         && (IsOpaque(parameter.Type.Name) || parameter.Type.Name == "atomic_uint")
+                         && !requirement.IsOn("GL_ARB_bindless_texture", parameter.Type.NameToken):
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, parameter.Type.NameToken, parameter.Name, "サンプラー・イメージ・atomic_uint は、out / inout の仮引数にできません。");
+                    break;
+
                 case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Type.Name: "void" } } variable:
                     requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, "void の変数は宣言できません。");
                     break;
@@ -109,6 +118,11 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                 // ブロックのメンバーのサンプラー・イメージ・atomic_uint (それを含む構造体を含む)。
                 case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: StructDeclarationSyntax { Keyword.Text: not "struct" } or InterfaceBlockDeclarationSyntax } member } variable:
                     CheckBlockMember(requirement, program, member, variable);
+                    break;
+
+                // atomic_uint の精度は highp だけ (glslang の checkPrecisionQualifier)。
+                case IncompleteDeclarationSyntax { Tokens: [{ Text: "precision" }, { Text: "mediump" or "lowp" }, { Text: "atomic_uint" } atomic, ..] }:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, atomic, atomic.Text, "atomic_uint の精度には highp しか書けません。");
                     break;
 
                 // precision mediump float;

@@ -22,6 +22,17 @@ namespace Shaderlyn.Rules.Glsl;
 /// 名前・<c>:</c>・振る舞い (<c>require</c> / <c>enable</c> / <c>warn</c> / <c>disable</c>) の順に書き、後ろには何も書けない。
 /// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張を <c>require</c> にした誤りは、知っている拡張の一覧が要るので見ない。
 /// </para>
+/// <para>
+/// 到達した <c>#error</c> も伝える (<c>CPPerror</c>)。GLSL には構成を選ぶエンジンが無く、到達すればコンパイルが止まる。
+/// HLSL と同じく情報として伝える CF0104 は、GLSL では構成によらないものを出さない (<see cref="ErrorConfigurationAnalyzer"/>)。
+/// </para>
+/// <para>
+/// <c>#define</c> と <c>#undef</c> の予約された名前 (ParseHelper.cpp の <c>reservedPpErrorCheck</c>) と、
+/// <c>#pragma optimize</c> / <c>#pragma debug</c> と、SPIR-V を作るときの <c>#pragma STDGL</c> の形 (<c>handlePragma</c>) も見る。
+/// </para>
+/// <para>
+/// <c>#version</c> は、ファイルの最初 (前にはコメントと空白だけ) に 1 つだけ書ける (Pp.cpp の <c>CPPversion</c> の「must occur first in shader」)。
+/// </para>
 /// </remarks>
 internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
 {
@@ -56,14 +67,162 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                     $"ES では、#if / #elif の式に定義されていないマクロ '{undefined.Name}' を書けません。");
             }
 
+            bool versionSeen = false;
+
             foreach (RecordedDirective directive in program.Tree.PreprocessResult.RecordedDirectives)
             {
-                if (directive.Directive.Text == "extension" && compilation.IsReportable(directive.Directive) && DescribeExtensionError(directive.Tokens) is { } message)
+                if (directive.Directive.Text == "version")
+                {
+                    if (compilation.IsReportable(directive.Directive) && (versionSeen || HasTokenBefore(directive.Directive)))
+                    {
+                        requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, "#version はファイルの最初に 1 つだけ書けます。");
+                    }
+
+                    versionSeen = true;
+                }
+                else if (directive.Directive.Text == "extension" && compilation.IsReportable(directive.Directive) && DescribeExtensionError(directive.Tokens) is { } message)
                 {
                     requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, message);
                 }
+                else if (directive.Directive.Text is "define" or "undef" && compilation.IsReportable(directive.Directive)
+                         && DescribeReservedName(requirement, directive) is { } reserved)
+                {
+                    requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Tokens[0], reserved);
+                }
+                else if (directive.Directive.Text == "error" && compilation.IsReportable(directive.Directive))
+                {
+                    requirement.Report(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        directive.Directive,
+                        $"#error に到達しました: {string.Join(" ", directive.Tokens.Select(token => token.Text))}");
+                }
+            }
+
+            foreach (PragmaDirective pragma in program.Tree.PreprocessResult.Pragmas)
+            {
+                if (pragma.Name is "optimize" or "debug" && compilation.IsReportable(pragma.NameToken) && !IsOnOffPragma(pragma.Tokens))
+                {
+                    requirement.Report(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        pragma.NameToken,
+                        $"#pragma {pragma.Name} の形が誤っています。#pragma {pragma.Name}(on) か #pragma {pragma.Name}(off) と書いてください。");
+                }
+                else if (pragma.Name == "STDGL" && requirement.SpirvVersion > 0 && compilation.IsReportable(pragma.NameToken) && !IsInvariantAllPragma(pragma.Tokens))
+                {
+                    requirement.Report(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        pragma.NameToken,
+                        "#pragma STDGL の形が誤っています。SPIR-V を作るときは #pragma STDGL invariant(all) だけを書けます。");
+                }
             }
         }
+    }
+
+    /// <summary>指令の <c>#</c> より前に、コメントと空白でないものがあるか。</summary>
+    /// <param name="directive">指令の名前のトークン。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    private static bool HasTokenBefore(ShaderSyntaxToken directive)
+    {
+        string text = directive.Source.ToString();
+        int end = text.LastIndexOf('#', Math.Min(directive.Span.Start, text.Length - 1));
+
+        for (int i = 0; i < end; i++)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                continue;
+            }
+
+            // 行のコメントは、行末の \ で次の行に続く。
+            if (text[i] == '/' && i + 1 < end && text[i + 1] == '/')
+            {
+                int newline = text.IndexOf('\n', i);
+
+                while (newline > 0 && text.AsSpan(i, newline - i).TrimEnd('\r').EndsWith("\\", StringComparison.Ordinal))
+                {
+                    newline = text.IndexOf('\n', newline + 1);
+                }
+
+                i = newline < 0 ? end : newline;
+                continue;
+            }
+
+            if (text[i] == '/' && i + 1 < end && text[i + 1] == '*')
+            {
+                int close = text.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = close < 0 ? end : close + 1;
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// <c>#pragma optimize</c> / <c>#pragma debug</c> の形か。名前・<c>(</c>・1 つのトークン・<c>)</c> の 4 つである。
+    /// </summary>
+    /// <param name="tokens">指令の名前の後ろのトークン。</param>
+    /// <returns>形が合えば <see langword="true"/>。</returns>
+    /// <remarks>括弧の中が <c>on</c> でも <c>off</c> でもないものは、glslang も誤りにしない (知らない <c>#pragma</c> と同じく無視する)。</remarks>
+    private static bool IsOnOffPragma(ImmutableArray<ShaderSyntaxToken> tokens)
+        => tokens.Length == 4
+           && tokens[1].Kind == ShaderSyntaxKind.OpenParenToken
+           && (tokens[2].Text is not ("on" or "off") || tokens[3].Kind == ShaderSyntaxKind.CloseParenToken);
+
+    /// <summary><c>#pragma STDGL invariant(all)</c> の形か。</summary>
+    /// <param name="tokens">指令の名前の後ろのトークン。</param>
+    /// <returns>形が合えば <see langword="true"/>。</returns>
+    /// <remarks>
+    /// glslang は、括弧の片方だけが合わないものは誤りにしない (<c>(</c> と <c>)</c> の両方が違うときだけ「Invalid STDGL declaration」)。
+    /// </remarks>
+    private static bool IsInvariantAllPragma(ImmutableArray<ShaderSyntaxToken> tokens)
+        => tokens.Length == 5
+           && (tokens[2].Kind == ShaderSyntaxKind.OpenParenToken || tokens[4].Kind == ShaderSyntaxKind.CloseParenToken)
+           && tokens[1].Text == "invariant"
+           && tokens[3].Text == "all";
+
+    /// <summary><c>#define</c> / <c>#undef</c> の名前が予約されていれば、その説明を返す。</summary>
+    /// <param name="requirement">バージョンと拡張。</param>
+    /// <param name="directive">指令。<see cref="RecordedDirective.Tokens"/> は名前のトークン 1 つ。</param>
+    /// <returns>誤りの説明。誤りが無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <c>GL_</c> で始まる名前と <c>defined</c> は定義も取り消しもできない。<c>__</c> を含む名前は、ES の 3.00 より前では誤り、
+    /// ES の 3.00 から (ES でなければ警告で、ここでは伝えない) は <c>__LINE__</c>・<c>__FILE__</c>・<c>__VERSION__</c> だけが誤りである。
+    /// <c>GL_EXT_spirv_intrinsics</c> を有効にすると、<c>GL_</c> と <c>__</c> の名前は書ける。
+    /// </remarks>
+    private static string? DescribeReservedName(GlslRequirements requirement, RecordedDirective directive)
+    {
+        if (directive.Tokens is not [{ Kind: ShaderSyntaxKind.IdentifierToken } name])
+        {
+            return null;
+        }
+
+        string text = name.Text;
+        bool spirv = requirement.IsOn("GL_EXT_spirv_intrinsics", directive.Directive);
+
+        if (text.StartsWith("GL_", StringComparison.Ordinal) && !spirv)
+        {
+            return $"GL_ で始まる名前 '{text}' は #{directive.Directive.Text} できません。";
+        }
+
+        if (text == "defined")
+        {
+            return $"'defined' は #{directive.Directive.Text} できません。";
+        }
+
+        if (!text.Contains("__", StringComparison.Ordinal) || spirv || !requirement.IsEs)
+        {
+            return null;
+        }
+
+        if (requirement.Version < 300)
+        {
+            return $"ES の 3.00 より前では、__ を含む名前 '{text}' は #{directive.Directive.Text} できません。";
+        }
+
+        return text is "__LINE__" or "__FILE__" or "__VERSION__" ? $"あらかじめ定義された名前 '{text}' は #{directive.Directive.Text} できません。" : null;
     }
 
     /// <summary><c>#extension</c> の形の誤りを述べる。</summary>

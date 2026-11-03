@@ -990,11 +990,12 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
         List<ShaderSyntaxToken>? undefined = _options.RecordUndefinedConditionIdentifiers ? [] : null;
-        bool result = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error, undefined);
+        bool result = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error, undefined, _options.GlslRules);
 
         if (error is not null)
         {
             Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), error);
+            result = _options.GlslRules;
         }
 
         // 指令の名前は行の前にある。行の先頭のトークンの 1 つ前を探さずに、行の先頭のトークンで位置を表す。
@@ -1025,7 +1026,7 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(withoutDefined, depth: 0);
         ImmutableArray<ShaderSyntaxToken> resolved = ResolveDefinedOperators(expanded);
 
-        value = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error);
+        value = ConditionalExpressionEvaluator.Evaluate(resolved, out string? error, undefinedIdentifiers: null, _options.GlslRules);
         return error is null;
     }
 

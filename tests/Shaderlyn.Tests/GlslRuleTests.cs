@@ -50,6 +50,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = vec4(1.0); o = vec4(c, 1.0); }")]
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = 1.0; o = vec4(c, 1.0); }")]
     [InlineData("CF0411", "a.frag", "vec3 make() { return vec4(1.0); }\nvoid main() { o = vec4(make(), 1.0); }")]
+    [InlineData("CF0411", "a.frag", "vec4 none() { }\nvoid main() { o = none(); }")]
+    [InlineData("CF0411", "a.frag", "layout(binding = 0) uniform atomic_uint counter;\nuint count() { return counter; }\nvoid main() { o = vec4(count()); }")]
     [InlineData("CF0312", "a.frag", "void main() { vec2 v = vec2(1.0); o = vec4(v.z); }")]
     [InlineData("CF0312", "a.frag", "struct Light { vec3 color; };\nvoid main() { Light l; l.color = vec3(1.0); o = vec4(l.colour, 1.0); }")]
     [InlineData("CF0402", "a.frag", "float twice(float x) { return x * 2.0; }\nvoid main() { o = vec4(twice(1.0, 2.0)); }")]
@@ -384,6 +386,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x) { return x; }\nvoid main() { float a[2]; o = vec4(f(a)); }")]
     [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4x3 m; o = vec4(m[3][1].length()); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 0) out vec4 a;\nlayout(xfb_buffer = 1, xfb_offset = 8) out vec4 b;\nvoid main() { a = b = vec4(0.0); gl_Position = a; }")]
+    [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 2) out float a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
+    [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 4) out double a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
     [InlineData("GL0308", "a.geom", "#version 450\nlayout(points, max_vertices = 1) out;\nvoid f() { int n = gl_in.length(); }\nlayout(triangles) in;\nvoid main() { f(); }")]
     [InlineData("GL0308", "a.tesc", "#version 450\nint a[gl_out.length()];\nlayout(vertices = 3) out;\nvoid main() { }")]
@@ -497,8 +501,27 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0001", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }\n;")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2] = float[2](1.0, 2.0); gl_FragColor = vec4(a[0]); }")]
     [InlineData("GL0320", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid g(float a, double b) { }\nvoid g(double a, float b) { }\nvoid main() { float f = 1.0; g(f, f); o = vec4(f); }")]
+    [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int c;\nvoid main() { o = vec4(0.0); switch (c) { case 0: if (o.x > 0.5) { case 1: o.y = 1.0; } break; } }")]
+    [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int c;\nvoid main() { o = vec4(0.0); switch (c) { case 0: break; case 0: break; } }")]
+    [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int c;\nvoid main() { o = vec4(0.0); switch (c) { o.x = 1.0; case 0: break; } }")]
+    [InlineData("GL0321", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nuniform int c;\nvoid main() { o = vec4(0.0); switch (c) { case 0: break; default: int x; } }")]
+    [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(0.0); break; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(flat float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
+    [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
+    [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nint main() { o = vec4(1.0); return 0; }")]
+    [InlineData("GL0101", "a.tesc", "#version 450\nlayout(vertices = 3) out;\npatch in vec4 p;\nvoid main() { }")]
+    [InlineData("GL0101", "a.vert", "#version 450\ninvariant out Block { vec4 v; } b;\nvoid main() { b.v = vec4(0.0); gl_Position = vec4(0.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nstruct S { bool b; };\nlayout(location = 0) in S s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(invariant float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nbuffer float b;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nshared vec4 s = vec4(1.0);\nvoid main() { }")]
+    [InlineData("GL0002", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nin vec4 a;\nvoid main() { }")]
+    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid f(out sampler2D s) { }\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0403", "a.comp", "#version 450\nlayout(local_size_x = 1) in;\nprecision lowp atomic_uint;\nvoid main() { }")]
+    [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nuniform int c;\nvoid main() { o = vec4(0.0); switch (c) { case 0: continue; } }")]
     [InlineData("GL0320", "a.vert", "#version 130\nvoid g(float a, int b) { }\nvoid g(int a, float b) { }\nvoid main() { int i = 1; g(i, i); gl_Position = vec4(0.0); }")]
     [InlineData("GL0003", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\n#if UNDEF\n#endif\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0003", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\n#error not supported\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0003", "a.frag", "#version 450\n#extension all : enable\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0003", "a.frag", "#version 450\n#extension GL_EXT_ray_query : on\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0315", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { int i = 08; o = vec4(i); }")]
@@ -713,6 +736,49 @@ public sealed class GlslRuleTests : IDisposable
     {
         Assert.DoesNotContain("GL0003", await AnalyzeAsync("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\n#if UNDEF\n#endif\nvoid main() { o = vec4(1.0); }\n"), StringComparison.Ordinal);
         Assert.DoesNotContain("GL0003", await AnalyzeAsync("a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\n#if defined(UNDEF) && UNDEF\n#endif\nvoid main() { o = vec4(1.0); }\n"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 正しい switch と break / continue は報告しない。glslang がコードを作らないと数える文 (初期値の無い宣言) だけの前の文と、
+    /// 最後のラベルの後に文が無いことが警告になるバージョン (4.50) も報告しない。
+    /// </summary>
+    [Fact]
+    public async Task 正しいswitch()
+    {
+        const string Body = "layout(location = 0) out vec4 o;\nuniform int c;\n"
+            + "void main() { o = vec4(0.0); for (int i = 0; i < 4; i++) { switch (c) { int t; case 0: case 1: o.x = 1.0; continue; default: { o.y = 1.0; } break; } if (i > 2) break; } switch (c) { case 1: break; default: } }\n";
+
+        Assert.DoesNotContain("GL0321", await AnalyzeAsync("a.frag", "#version 450\n" + Body), StringComparison.Ordinal);
+        Assert.Contains("GL0321", await AnalyzeAsync("a.frag", "#version 460\n" + Body), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// GLSL の前処理の誤り: 予約された名前の #define / #undef、#pragma optimize / debug の形、2 つ目の #version と最初でない #version、行の頭の ##。
+    /// </summary>
+    [Fact]
+    public async Task GLSLの前処理の誤り()
+    {
+        string output = await AnalyzeAsync("a.frag", "// comment \\\ncontinued\n#version 450\n#version 450\n#define GL_FOO 1\n#undef defined\n#pragma optimize(on) extra\n#pragma debug(off)\n## x\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }\n");
+
+        Assert.Contains("(4:2): error GL0003", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("(3:2): error GL0003", output, StringComparison.Ordinal);
+        Assert.Contains("(5:9): error GL0003", output, StringComparison.Ordinal);
+        Assert.Contains("(6:8): error GL0003", output, StringComparison.Ordinal);
+        Assert.Contains("(7:9): error GL0003", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("(8:", output, StringComparison.Ordinal);
+        Assert.Contains("(9:1): error CF0002", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>
+    [Fact]
+    public async Task 到達したerror()
+    {
+        string output = await AnalyzeAsync("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\n#if (-2147483648 / -1) != 0\n#error intmin\n#endif\n#ifdef UNDEF\n#error undef\n#endif\n#error reached\nvoid main() { o = vec4(1.0); }\n");
+
+        Assert.Contains("GL0003: #error に到達しました: reached", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("intmin", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("undef", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0104", output, StringComparison.Ordinal);
     }
 
     /// <summary>型がすべて同じ宣言がある呼び出しと、変換の良さでいちばん良い宣言が決まる呼び出しは、多重定義があいまいとは言わない。</summary>

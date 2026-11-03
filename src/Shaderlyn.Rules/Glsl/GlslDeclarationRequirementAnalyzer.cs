@@ -69,6 +69,11 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckQualifiers(requirement, variable.ModifierTokens, global);
                     CheckCombination(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens], vertexInput: variable.Parent is CompilationUnitSyntax);
 
+                    if (variable.Parent is CompilationUnitSyntax)
+                    {
+                        CheckGlobalStorage(requirement, variable);
+                    }
+
                     if (variable.Parent is CompilationUnitSyntax && compilation.TypeSystem.ForTree(program.Tree) is GlslTypeSystem types)
                     {
                         CheckInterfaceVariable(requirement, types, program, variable);
@@ -86,6 +91,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 // 仮引数の修飾子は、glslang では関数の外 (大域の範囲) で読む。
                 case ParameterSyntax parameter:
                     CheckQualifiers(requirement, parameter.ModifierTokens, global: true);
+                    CheckParameterQualifiers(requirement, [.. parameter.ModifierTokens, .. parameter.Type.ModifierTokens]);
                     CheckCombination(requirement, [.. parameter.ModifierTokens, .. parameter.Type.ModifierTokens], vertexInput: false);
                     requirement.ArrayOfArrayVersionCheck(parameter.NameToken, parameter.ArrayDimensions);
                     break;
@@ -505,6 +511,12 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             {
                 requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"ブロックには '{token.Text}' を書けません。メンバーに書いてください。");
             }
+
+            // glslang の blockQualifierCheck の「cannot use invariant qualifier on an interface block」。
+            if (token.Text == "invariant")
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "ブロックには invariant を書けません。メンバーに書いてください。");
+            }
         }
     }
 
@@ -573,6 +585,73 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 GlslRuleDescriptors.QualifierNotAllowed,
                 invariant,
                 strict ? "invariant は出力にだけ付けられます。" : "invariant は出力と、頂点シェーダーでない入力にだけ付けられます。");
+        }
+    }
+
+    /// <summary>
+    /// 仮引数に書けない修飾子 (glslang の <c>paramCheckFix</c>)。補助・補間の修飾子、layout、invariant は書けない。
+    /// </summary>
+    /// <param name="requirement">バージョンと拡張。</param>
+    /// <param name="tokens">仮引数とその型の修飾子。</param>
+    private static void CheckParameterQualifiers(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        if (tokens.FirstOrDefault(t => t.Text == "layout") is { } layout)
+        {
+            requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, layout, "仮引数には layout を書けません。");
+        }
+
+        foreach (ShaderSyntaxToken token in TopLevel(tokens))
+        {
+            if (Auxiliary.Contains(token.Text) || Interpolation.Contains(token.Text))
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"仮引数には補助・補間の修飾子 '{token.Text}' を書けません。");
+            }
+            else if (token.Text == "invariant")
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "仮引数には invariant を書けません。");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 関数の外の変数の記憶域を見る (glslang の <c>declareVariable</c> と <c>globalQualifierTypeCheck</c>)。
+    /// </summary>
+    /// <param name="requirement">バージョンと拡張。</param>
+    /// <param name="variable">関数の外の変数の宣言。</param>
+    /// <remarks>
+    /// <c>buffer</c> はブロックにしか書けない。計算シェーダーには <c>in</c> / <c>out</c> の変数を宣言できない。
+    /// <c>shared</c> の変数の初期値には <c>{}</c> しか書けない (<c>GL_EXT_null_initializer</c>)。
+    /// </remarks>
+    private static void CheckGlobalStorage(GlslRequirements requirement, VariableDeclarationSyntax variable)
+    {
+        foreach (ShaderSyntaxToken token in TopLevel([.. variable.ModifierTokens, .. variable.Type.ModifierTokens]))
+        {
+            switch (token.Text)
+            {
+                case "buffer":
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "buffer はブロックにしか書けません。変数には書けません。");
+                    break;
+
+                // テッセレーションの制御シェーダーの patch は出力だけ、評価シェーダーの patch は入力だけ (glslang の globalQualifierTypeCheck)。
+                case "in" when requirement.Stage == GlslShaderStage.TessellationControl && TopLevel([.. variable.ModifierTokens]).Any(t => t.Text == "patch"):
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "テッセレーションの制御シェーダーでは、patch は出力にだけ付けられます。");
+                    break;
+
+                case "out" when requirement.Stage == GlslShaderStage.TessellationEvaluation && TopLevel([.. variable.ModifierTokens]).Any(t => t.Text == "patch"):
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "テッセレーションの評価シェーダーでは、patch は入力にだけ付けられます。");
+                    break;
+
+                case "in" or "out" when requirement.Stage == GlslShaderStage.Compute:
+                    requirement.Report(GlslRuleDescriptors.NotAvailableInStage, token, $"関数の外の '{token.Text}' の変数", GlslRequirements.DescribeStage(GlslShaderStage.Compute));
+                    break;
+
+                case "shared" when variable.Variables.FirstOrDefault(v => v.Initializer is not null and not InitializerListExpressionSyntax { Elements.IsEmpty: true }) is { } initialized:
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"shared の変数 '{initialized.Name}' の初期値には {{}} しか書けません。");
+                    break;
+
+                default:
+                    break;
+            }
         }
     }
 

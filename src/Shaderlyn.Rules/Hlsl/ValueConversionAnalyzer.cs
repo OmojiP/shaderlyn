@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -184,6 +185,18 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             || function.NameToken.GetLocation() is not { } location
             || ReachesErrorInside(program, body))
         {
+            return;
+        }
+
+        // GLSL で値を返す return が 1 つも無い関数は、glslang が誤りにする (glslang.y の「function does not return a value」)。
+        // 経路によらないので、値を返さない経路 (CF0501。GLSL では警告) としてでなく、戻り値の誤り (CF0411) として伝える。
+        if (compilation.IsGlsl && !body.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any(statement => statement.Expression is not null))
+        {
+            if (reported.Add(location))
+            {
+                Report(context, function.Name, returnType, "値を返す return がありません", location);
+            }
+
             return;
         }
 
@@ -1037,7 +1050,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.TypeSystem.IsConvertible(valueType, returnType)
+        if (binder.TypeSystem.IsConvertible(valueType, returnType) && !IsGlslOpaqueMismatch(binder.TypeSystem, valueType, returnType)
             || !reported.Add(location))
         {
             return;
@@ -1045,6 +1058,30 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         Report(context, function.Name, returnType, $"{valueType} を返しています", location);
     }
+
+    /// <summary>
+    /// GLSL で、片方が数でない組み込みの型 (サンプラー・イメージ・<c>atomic_uint</c> など) の、違う型どうしか。
+    /// </summary>
+    /// <param name="types">型の体系。</param>
+    /// <param name="valueType">値の型。</param>
+    /// <param name="targetType">受け取る側の型。</param>
+    /// <returns>違う型どうしなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// glslang の暗黙の変換は数の型どうしだけで、これらの型は同じ型にしか渡せない (<c>handleReturnValue</c> の「type does not match, or is not convertible to」)。
+    /// 型の体系の <see cref="ShaderTypeSystem.IsConvertible(string?, string?, bool)"/> は、数でない型を分からないものとして通す。
+    /// </remarks>
+    private static bool IsGlslOpaqueMismatch(ShaderTypeSystem types, string valueType, string targetType)
+        => types is GlslTypeSystem
+           && !string.Equals(valueType, targetType, StringComparison.Ordinal)
+           && (IsOpaque(valueType) || IsOpaque(targetType));
+
+    /// <summary>GLSL の組み込みの、サンプラー・イメージ・テクスチャ・<c>subpassInput</c>・<c>atomic_uint</c> の型の名前か。</summary>
+    /// <param name="name">型の名前。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsOpaque(string name)
+        => GlslKeywords.IsBuiltInType(name)
+           && (name == "atomic_uint" || name.Contains("sampler", StringComparison.Ordinal) || name.Contains("image", StringComparison.Ordinal)
+               || name.Contains("texture", StringComparison.Ordinal) || name.Contains("subpassInput", StringComparison.Ordinal));
 
     /// <summary>
     /// 型が構成によって変わる <c>return</c> を検査する。
