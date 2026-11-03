@@ -39,6 +39,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
         }
 
         HashSet<(string? File, int Start, string Message)> reported = [];
+        HashSet<Shaderlyn.Core.Text.SourceText> hashLiterals = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
 
         // 行の継続 (行末の \)。プリプロセッサの指令の行も含めて、書かれたとおりのトークンで探す (glslang の lineContinuationCheck)。
@@ -95,7 +96,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
             {
                 case LiteralExpressionSyntax literal:
                     AnalyzeLiteral(requirement, literal.Token);
-                    AnalyzeIntegerLiteral(requirement, literal.Token);
+                    AnalyzeIntegerLiteral(requirement, literal.Token, hashLiterals);
                     break;
 
                 case PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.TildeToken } unary:
@@ -171,8 +172,21 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
     /// 32 ビットの整数のリテラル (接尾辞が無いか u のもの) の大きさと、8 進数の桁 (glslang の Scan.cpp の字句の検査)。
     /// 0xFFFFFFFF より大きいもの、8 進数に 8 と 9 を書いたものは誤りになる。
     /// </summary>
-    private static void AnalyzeIntegerLiteral(GlslRequirements requirement, ShaderSyntaxToken token)
+    private static void AnalyzeIntegerLiteral(GlslRequirements requirement, ShaderSyntaxToken token, HashSet<Shaderlyn.Core.Text.SourceText> hashLiterals)
     {
+        // MSVC 流の無限大と非数 (1.#INF) は GLSL には無い (glslang は # を前処理の指令の始まりとして読み、誤りにする)。
+        // glslang はそこから後を読まないので、ファイルごとに最初のものだけを報告する。
+        if (token.Text.Contains('#', StringComparison.Ordinal))
+        {
+            if (!hashLiterals.Add(token.Source))
+            {
+                return;
+            }
+
+            requirement.Report(GlslRuleDescriptors.LiteralOutOfRange, token, token.Text, "GLSL には 1.#INF のような書き方がありません (行の途中に # を書けません)");
+            return;
+        }
+
         string suffix = ShaderLiteral.GetSuffix(token);
 
         if (ShaderLiteral.GetKind(token) == ShaderLiteralKind.Floating || suffix is not ("" or "u" or "U"))

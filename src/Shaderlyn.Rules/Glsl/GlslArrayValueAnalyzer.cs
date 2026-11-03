@@ -81,6 +81,11 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
             switch (node)
             {
+                // 構造体の定義と一緒に宣言した変数の初期化子 (struct { float a; int b; } e = { … };)。
+                case VariableDeclaratorSyntax { Initializer: { } structInitializer, Parent: StructDeclarationSyntax { Keyword.Text: "struct" } inline } structVariable:
+                    CheckInlineStruct(requirement, structVariable, inline, structInitializer);
+                    break;
+
                 case VariableDeclaratorSyntax { Initializer: { } initializer } declarator:
                     if (specs.Count > 0 && (IsSpecSized(declarator, specs) || IsSpecSizedValue(binder, initializer, specs)))
                     {
@@ -131,6 +136,38 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// 構造体の定義と一緒に宣言した変数の初期化子。波括弧の要素の数はメンバーの数と同じでなければならず (glslang の「wrong number of structure members」)、
+    /// 配列なら、要素に別の構造体の値の作成を書けない。
+    /// </summary>
+    private static void CheckInlineStruct(GlslRequirements requirement, VariableDeclaratorSyntax variable, StructDeclarationSyntax inline, ExpressionSyntax initializer)
+    {
+        if (initializer is not InitializerListExpressionSyntax list)
+        {
+            return;
+        }
+
+        ExpressionSyntax[] elements = [.. list.ChildNodes().OfType<ExpressionSyntax>()];
+        int members = inline.Fields.Sum(f => f.Variables.Count());
+        string type = inline.NameToken is { IsMissing: false } name ? name.Text : "名前の無い構造体";
+
+        if (!variable.IsArray)
+        {
+            if (elements.Length != members)
+            {
+                requirement.Report(HlslRuleDescriptors.ValueNotConvertible, variable.NameToken, $"{type} ({members} 個のメンバー)", $"{elements.Length} 個の要素の初期化子", string.Empty);
+            }
+
+            return;
+        }
+
+        if (elements.FirstOrDefault(e => e is InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } && callee.Name != inline.Name
+                                         && !Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(callee.Name)) is InvocationExpressionSyntax { Target: IdentifierExpressionSyntax other })
+        {
+            requirement.Report(HlslRuleDescriptors.ValueNotConvertible, variable.NameToken, $"配列の要素 ({type})", $"構造体 {other.Name} の値", string.Empty);
+        }
+    }
+
     /// <summary>配列の値の作成の実引数は、内側の次元の形の配列でなければならない (glslang の constructor の検査)。</summary>
     private static void CheckConstructor(GlslRequirements requirement, Shapes shapes, ArrayTypeExpressionSyntax arrayType, ExpressionSyntax[] arguments)
     {
@@ -145,8 +182,24 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
         foreach (ExpressionSyntax argument in arguments)
         {
-            if (shapes.Of(argument) is not { } actual
-                || actual.Dimensions.Length == expected.Dimensions.Length && SameDimensions(actual.Dimensions, expected.Dimensions) != false)
+            if (shapes.Of(argument) is not { } actual)
+            {
+                continue;
+            }
+
+            // 配列でない要素は、暗黙に変換できる同じ形 (スカラー・ベクトル・行列の成分の数) の値でなければならない。
+            if (actual.Dimensions.IsEmpty && expected.Dimensions.IsEmpty)
+            {
+                if (shapes.Inconvertible(actual.Element, expected.Element))
+                {
+                    requirement.Report(HlslRuleDescriptors.ValueNotConvertible, arrayType.ElementType.Identifier, $"配列の要素 ({expected})", actual.ToString(), string.Empty);
+                    return;
+                }
+
+                continue;
+            }
+
+            if (actual.Dimensions.Length == expected.Dimensions.Length && SameDimensions(actual.Dimensions, expected.Dimensions) != false)
             {
                 continue;
             }
@@ -220,6 +273,13 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
     /// <summary>式の配列の形を求める。</summary>
     private sealed class Shapes(ExpressionTypeBinder binder, Func<string, ImmutableArray<FunctionDeclarationSyntax>> functions)
     {
+        /// <summary>数の型どうしで、形が違うか、暗黙に変換できないか。どちらかが数の型でなければ <see langword="false"/>。</summary>
+        public bool Inconvertible(string from, string to)
+            => binder.TypeSystem is GlslTypeSystem types
+               && types.TryDescribeNumeric(from, out ShaderNumericShape source) && types.TryDescribeNumeric(to, out ShaderNumericShape target)
+               && (source.Kind != target.Kind || source.Rows != target.Rows || source.Columns != target.Columns
+                   || source.BaseName != target.BaseName && !types.IsBaseConvertible(source.BaseName, target.BaseName));
+
         /// <summary>式の形。分からなければ <see langword="null"/>。配列でない値は次元の無い形。</summary>
         public Shape? Of(ExpressionSyntax expression) => expression switch
         {

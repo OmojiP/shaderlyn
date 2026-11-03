@@ -488,6 +488,12 @@ internal sealed partial class ShaderPreprocessor
                 return true;
             }
 
+            // GLSL は行の途中の # を誤りにする (glslang の「preprocessor directive cannot be preceded by another token」)。
+            if (_options.GlslRules && !IsSkipping && token.Kind == ShaderSyntaxKind.HashToken && !token.IsAtLineStart && CurrentSource.IsFile)
+            {
+                Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), "行の途中に # を書けません (プリプロセッサ指令の前には字句を書けません)。");
+            }
+
             if (IsSkipping)
             {
                 ShaderSyntaxToken skipped = TakeToken();
