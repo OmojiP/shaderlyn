@@ -527,6 +527,20 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0310", "a.frag", "#version 140\nuniform sampler2DMS s;\nvoid main() { gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0401", "a.frag", "#version 400\nstruct S { int precise; };\nvoid main() { gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0003", "a.vert", "#version 435\nvoid main() { gl_Position = vec4(0.0); }")]
+    [InlineData("GL0324", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\ncoopmat<float16_t, gl_ScopeSubgroup, 8, gl_MatrixUseA> a;\nvoid main() { }")]
+    [InlineData("GL0324", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nint rows = 8;\ncoopmat<float16_t, gl_ScopeSubgroup, rows, 8, gl_MatrixUseA> b;\nvoid main() { }")]
+    [InlineData("GL0324", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nfloat<16> c;\nvoid main() { }")]
+    [InlineData("GL0403", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nshared coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> s;\nvoid main() { }")]
+    [InlineData("GL0325", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nvoid main() { coopmat<float16_t, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> a; coopmat<float16_t, gl_ScopeSubgroup, 8, 8, gl_MatrixUseA> b; coopmat<float, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> f; a + b; }")]
+    [InlineData("GL0325", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nvoid main() { coopmat<float16_t, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> a; coopmat<float16_t, gl_ScopeSubgroup, 8, 8, gl_MatrixUseA> b; coopmat<float, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> f; a * 2.0; }")]
+    [InlineData("GL0325", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nvoid main() { coopmat<float16_t, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> a; coopmat<float16_t, gl_ScopeSubgroup, 8, 8, gl_MatrixUseA> b; coopmat<float, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> f; a.x; }")]
+    [InlineData("GL0325", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nvoid main() { coopmat<float16_t, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> a; coopmat<float16_t, gl_ScopeSubgroup, 8, 8, gl_MatrixUseA> b; coopmat<float, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> f; transpose(a); }")]
+    [InlineData("CF0410", "a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nvoid main() { coopmat<float16_t, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> a; coopmat<float16_t, gl_ScopeSubgroup, 8, 8, gl_MatrixUseA> b; coopmat<float, gl_ScopeSubgroup, 16, 8, gl_MatrixUseA> f; f = a; }")]
+    [InlineData("GL0302", "a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<uint, 5> vu; int i = 1; vu = max(vu, i); }")]
+    [InlineData("GL0302", "a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<double, 5> vd; vd = sin(vd); }")]
+    [InlineData("GL0302", "a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<uint, 5> vu; vu = max(vu, vector<uint, 6>(0)); }")]
+    [InlineData("GL0307", "a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<float, 8> v = vector<float, 8>(1.0); float f = v[8]; }")]
+    [InlineData("GL0324", "a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<float>(0); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 3) struct S { vec3 a; } s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(s.a, 1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 320 es\nprecision mediump float;\nlayout(blend_support_multiply) struct T { int i; };\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
@@ -867,6 +881,24 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.Contains("(4:7): error GL0003", output, StringComparison.Ordinal);
         Assert.DoesNotContain("(3:7): error GL0003", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>正しい型の引数 (括弧の中の比べる演算子、constant_id の特殊化の定数を含む) は GL0324 を報告しない。</summary>
+    [Fact]
+    public async Task 正しい型の引数()
+    {
+        string output = await AnalyzeAsync("a.comp", "#version 450 core\n#extension GL_KHR_cooperative_matrix : enable\n#extension GL_KHR_memory_scope_semantics : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 64) in;\nlayout(constant_id = 0) const int Y = 8;\nvoid main() { coopmat<float, gl_ScopeSubgroup, 16, (2>1?8:4), gl_MatrixUseAccumulator> m; coopmat<float16_t, gl_ScopeSubgroup, 8, Y, gl_MatrixUseA> n; }\n");
+
+        Assert.DoesNotContain("GL0324", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>長いベクトルの正しい組み込み関数の呼び出し (同じ型、リテラルの実引数、mix の bool のベクトル) は報告しない。</summary>
+    [Fact]
+    public async Task 正しい長いベクトルの組み込み関数()
+    {
+        string output = await AnalyzeAsync("a.comp", "#version 450\n#extension GL_EXT_long_vector : enable\n#extension GL_EXT_shader_explicit_arithmetic_types : enable\nlayout(local_size_x = 1) in;\nvoid main() { vector<float, 5> a; vector<float, 5> b; vector<bool, 5> m; vector<uint, 5> u; a = max(a, b); a = mix(a, b, m); u = max(u, 1); a = a + b; }\n");
+
+        Assert.DoesNotContain("GL0302", output, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>

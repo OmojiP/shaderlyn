@@ -420,6 +420,37 @@ internal static class GlslRuleDescriptors
             + "GLSL は仮引数の型だけで関数を区別するので、これらは同じ関数の食い違った宣言になります。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0323"));
 
+    /// <summary>型の引数が正しくない。</summary>
+    /// <remarks>
+    /// glslang の <c>typeParametersCheck</c> と <c>declareVariable</c> (「unexpected type parameters」「expected four type parameters」
+    /// 「coopmat invalid basic type」「expected positive number of components」「type parameter must be a constant integer expression」など) に当たる。
+    /// 文の <c>{0}</c> は型、<c>{1}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor InvalidTypeParameters { get; } = new(
+        id: "GL0324",
+        title: "型の引数が正しくありません",
+        messageFormat: "{0} の型の引数が正しくありません。{1}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "協調行列 (coopmat、fcoopmatNV など)、協調ベクトル (coopvecNV)、長いベクトル (vector)、テンソル (tensorARM など) の型の引数の数・要素の型・値が正しくないか、"
+            + "型の引数を取らない型 (float<16> など) に型の引数を書いています。数の引数は定数の整数の式でなければなりません。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0324"));
+
+    /// <summary>協調行列の使い方が正しくない。</summary>
+    /// <remarks>
+    /// glslang の協調行列の演算子・添字・成分・値の作成・組み込み関数の検査 (「wrong operand types」「left of '[' is not of type array」
+    /// 「cannot apply to a cooperative matrix type」「Cooperative matrix constructor argument must be scalar or cooperative matrix」など) に当たる。文の <c>{0}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor CooperativeMatrixUse { get; } = new(
+        id: "GL0325",
+        title: "協調行列の使い方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "協調行列 (coopmat、fcoopmatNV など) に、使えない演算子・添字・成分の選択・値の作成を書いています。"
+            + "協調行列どうしの演算は同じ型どうしだけで、スカラーとは要素と同じ型の * だけが使えます。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0325"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

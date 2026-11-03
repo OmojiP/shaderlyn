@@ -1,0 +1,369 @@
+using System.Collections.Immutable;
+using Shaderlyn.CFamily.Syntax;
+using Shaderlyn.Core.Analysis;
+using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics.Symbols;
+
+namespace Shaderlyn.Rules.Glsl;
+
+/// <summary>
+/// 協調行列 (<c>coopmat</c>、<c>fcoopmatNV</c> など) の式を検査する (GL0325 / CF0410)。
+/// glslang 16.6.0 の Intermediate.cpp の <c>promoteBinary</c> と <c>addConversion</c>、ParseHelper.cpp の協調行列の検査を移したもの。
+/// </summary>
+/// <remarks>
+/// <para>
+/// 協調行列の型は、要素の型と型の引数 (スコープ・行の数・列の数・用途) で決まる。型の引数は、書いた式のまま比べる
+/// (特殊化の定数の <c>Y</c> と <c>(Y+1)</c> は別の型)。整数のリテラルだけの式は値で比べる。
+/// </para>
+/// <para>
+/// 型の違う協調行列どうしの代入と演算、協調行列でない値の代入 (値の作成を除く)、協調行列と協調行列でない値の <c>+</c>・<c>-</c>・<c>/</c>、
+/// 要素の型と違う型のスカラーとの <c>*</c>、NV の協調行列どうしの <c>*</c>、<c>[ ][ ]</c> と成分の選択 (<c>.x</c>)、
+/// 値の作成の 2 つ以上の実引数と、スカラーでも協調行列でもない実引数を報告する。
+/// </para>
+/// <para>
+/// 式の型は、名前 (宣言の型)、値の作成、括弧、演算子、代入から求める。分からない式は見ない。
+/// </para>
+/// </remarks>
+internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
+{
+    /// <inheritdoc/>
+    protected override bool AnalyzesGlsl => true;
+
+    /// <inheritdoc/>
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.CooperativeMatrixUse, HlslRuleDescriptors.ValueNotConvertible];
+
+    /// <summary>協調行列の型。</summary>
+    /// <param name="Nv">NV の協調行列か。</param>
+    /// <param name="Element">要素の型。</param>
+    /// <param name="Parameters">要素の型の後ろの型の引数。</param>
+    private sealed record CoopType(bool Nv, string Element, string Parameters)
+    {
+        public override string ToString() => Nv ? $"協調行列<{Element}, {Parameters}> (NV)" : $"coopmat<{Element}, {Parameters}>";
+    }
+
+    /// <inheritdoc/>
+    protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
+    {
+        if (!compilation.IsGlsl || !compilation.CodeTokens.Any(t => t.Text is "coopmat" or "fcoopmatNV" or "icoopmatNV" or "ucoopmatNV"))
+        {
+            return;
+        }
+
+        HashSet<(string? File, int Start, string Message)> reported = [];
+        Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+
+        foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
+        {
+            if (node is not (AssignmentExpressionSyntax or BinaryExpressionSyntax or ElementAccessExpressionSyntax or MemberAccessExpressionSyntax
+                or InvocationExpressionSyntax or VariableDeclaratorSyntax))
+            {
+                continue;
+            }
+
+            if (!requirements.TryGetValue(program, out GlslRequirements? requirement))
+            {
+                requirement = requirements[program] = GlslRequirements.Create(context, compilation, program, reported);
+            }
+
+            if (requirement is null)
+            {
+                continue;
+            }
+
+            Checker checker = new(requirement, compilation.GetExpressionTypeBinder(program));
+            checker.Check(node);
+        }
+    }
+
+    /// <summary>1 つの木の協調行列の式を検査する。</summary>
+    private sealed class Checker(GlslRequirements requirement, ExpressionTypeBinder binder)
+    {
+        public void Check(ShaderSyntaxNode node)
+        {
+            switch (node)
+            {
+                case VariableDeclaratorSyntax { Initializer: { } initializer, Parent: VariableDeclarationSyntax declaration } declarator
+                    when !declarator.IsArray && FromType(declaration.Type) is { } target:
+                    CheckAssign(declarator.NameToken, target, initializer);
+                    break;
+
+                case AssignmentExpressionSyntax assignment when TypeOf(assignment.Left) is { } left:
+                    CheckCompound(assignment, left);
+                    break;
+
+                case BinaryExpressionSyntax binary:
+                    CheckBinary(binary.OperatorToken, binary.Left, binary.Right);
+                    break;
+
+                // [ ] は 1 つだけ書ける (glslang の「left of '[' is not of type array, matrix, or vector」)。
+                case ElementAccessExpressionSyntax { Target: ElementAccessExpressionSyntax inner } element when TypeOf(inner.Target) is not null:
+                    requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, element.OpenBracket, "協調行列の要素は [ ] を 1 つだけ書いて引きます。");
+                    break;
+
+                // 成分の選択は書けない (glslang の「cannot apply to a cooperative matrix type」)。
+                case MemberAccessExpressionSyntax member when member.Parent is not InvocationExpressionSyntax && TypeOf(member.Target) is not null:
+                    requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, member.NameToken, $"協調行列には成分の選択 ('.{member.Name}') を書けません。");
+                    break;
+
+                case InvocationExpressionSyntax invocation when ConstructedType(invocation) is not null:
+                    CheckConstructor(invocation);
+                    break;
+
+                // 行列の組み込み関数に協調行列を渡したもの (transpose(m))。協調行列は GLSL の行列ではない。
+                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "transpose" or "inverse" or "determinant" or "matrixCompMult" or "outerProduct" } callee } call
+                    when call.ArgumentExpressions.Any(a => TypeOf(a) is not null):
+                    requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, callee.Identifier, $"組み込み関数 '{callee.Name}' には協調行列を渡せません。");
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>代入と初期値。協調行列には、同じ型の協調行列しか代入できない。</summary>
+        private void CheckAssign(ShaderSyntaxToken at, CoopType target, ExpressionSyntax value)
+        {
+            if (TypeOf(value) is { } source)
+            {
+                if (source != target)
+                {
+                    requirement.Report(HlslRuleDescriptors.ValueNotConvertible, at, target.ToString(), source.ToString(), "協調行列は、同じ型の協調行列にしか変換できません。");
+                }
+
+                return;
+            }
+
+            if (KnownNonCoopType(value) is { } other)
+            {
+                requirement.Report(HlslRuleDescriptors.ValueNotConvertible, at, target.ToString(), other, "協調行列でない値を、暗黙に協調行列へ変換できません。値の作成 (coopmat<…>(x)) を使ってください。");
+            }
+        }
+
+        /// <summary>代入の演算子 (<c>=</c>、<c>+=</c> など)。</summary>
+        private void CheckCompound(AssignmentExpressionSyntax assignment, CoopType left)
+        {
+            switch (assignment.OperatorToken.Kind)
+            {
+                case ShaderSyntaxKind.EqualsToken:
+                    CheckAssign(assignment.OperatorToken, left, assignment.Right);
+                    break;
+
+                // 型の違う協調行列の += など (glslang は代入の変換の誤りにする)。
+                case ShaderSyntaxKind.PlusEqualsToken or ShaderSyntaxKind.MinusEqualsToken or ShaderSyntaxKind.SlashEqualsToken or ShaderSyntaxKind.AsteriskEqualsToken
+                    when TypeOf(assignment.Right) is { } right && right != left:
+                    requirement.Report(HlslRuleDescriptors.ValueNotConvertible, assignment.OperatorToken, left.ToString(), right.ToString(), "協調行列は、同じ型の協調行列にしか変換できません。");
+                    break;
+
+                case ShaderSyntaxKind.PlusEqualsToken or ShaderSyntaxKind.MinusEqualsToken or ShaderSyntaxKind.SlashEqualsToken
+                    when TypeOf(assignment.Right) is null && KnownNonCoopType(assignment.Right) is { } other:
+                    requirement.Report(HlslRuleDescriptors.ValueNotConvertible, assignment.OperatorToken, left.ToString(), other, "協調行列の + - / の相手は、同じ型の協調行列でなければなりません。");
+                    break;
+
+                case ShaderSyntaxKind.AsteriskEqualsToken:
+                    CheckBinary(assignment.OperatorToken, assignment.Left, assignment.Right);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>二項演算子。</summary>
+        private void CheckBinary(ShaderSyntaxToken op, ExpressionSyntax leftExpression, ExpressionSyntax rightExpression)
+        {
+            CoopType? left = TypeOf(leftExpression);
+            CoopType? right = TypeOf(rightExpression);
+
+            if (left is null && right is null)
+            {
+                return;
+            }
+
+            string text = op.Text.TrimEnd('=');
+
+            if (left is not null && right is not null)
+            {
+                if (left != right)
+                {
+                    Report($"型の違う協調行列 ({left} と {right}) に演算子 '{text}' は使えません。");
+                }
+                else if (text == "*" && left.Nv)
+                {
+                    Report("NV の協調行列どうしに演算子 '*' は使えません。");
+                }
+                else if (text is not ("+" or "-" or "*" or "/"))
+                {
+                    Report($"協調行列に演算子 '{text}' は使えません。");
+                }
+
+                return;
+            }
+
+            CoopType matrix = left ?? right!;
+            ExpressionSyntax otherExpression = left is null ? leftExpression : rightExpression;
+
+            if (KnownNonCoopType(otherExpression) is not { } other)
+            {
+                return;
+            }
+
+            if (text != "*")
+            {
+                Report($"協調行列と協調行列でない値 ({other}) に演算子 '{text}' は使えません。");
+            }
+            else if (other != matrix.Element)
+            {
+                Report($"協調行列に掛けるスカラーは、要素と同じ型 ({matrix.Element}) でなければなりません (今は {other})。");
+            }
+
+            void Report(string message) => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, message);
+        }
+
+        /// <summary>値の作成。実引数は 1 つで、スカラーか協調行列。</summary>
+        private void CheckConstructor(InvocationExpressionSyntax invocation)
+        {
+            ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+            ShaderSyntaxToken at = invocation.OpenParen;
+
+            if (arguments.Length == 1 && TypeOf(arguments[0]) is { } source && ConstructedType(invocation) is { } constructed
+                && source.Nv == constructed.Nv && ShapeDiffers(source, constructed, at))
+            {
+                requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, at, $"協調行列の値の作成では、要素の型だけを変えられます。スコープ・行の数・列の数・用途は同じでなければなりません ({source} から {constructed})。");
+            }
+            else if (arguments.Length > 1)
+            {
+                requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, at, "協調行列の値の作成には、実引数を 1 つだけ書けます。");
+            }
+            else if (arguments.Length == 1 && TypeOf(arguments[0]) is null && KnownNonCoopType(arguments[0]) is { } other
+                     && (!binder.TypeSystem.TryDescribeNumeric(other, out ShaderNumericShape shape) || shape.Kind != ShaderNumericKind.Scalar))
+            {
+                requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, at, $"協調行列の値の作成の実引数は、スカラーか協調行列でなければなりません (今は {other})。");
+            }
+        }
+
+        /// <summary>
+        /// 値の作成で変えられない形が違うか。スコープと、値の分かる行と列の数を比べる。
+        /// 用途は、GL_EXT_cooperative_matrix_maintenance1 なら Accumulator と A / B の間で、GL_NV_cooperative_matrix2 なら Accumulator から A / B へ変えられる。
+        /// </summary>
+        private bool ShapeDiffers(CoopType source, CoopType target, ShaderSyntaxToken at)
+        {
+            string[] from = source.Parameters.Split(", ");
+            string[] to = target.Parameters.Split(", ");
+
+            if (from.Length != to.Length || from[0] != to[0])
+            {
+                return from.Length == to.Length;
+            }
+
+            for (int i = 1; i <= 2 && i < from.Length; i++)
+            {
+                if (from[i].All(char.IsAsciiDigit) && to[i].All(char.IsAsciiDigit) && from[i] != to[i])
+                {
+                    return true;
+                }
+            }
+
+            if (from.Length != 4 || from[3] == to[3])
+            {
+                return false;
+            }
+
+            bool fromAccumulator = from[3] == "gl_MatrixUseAccumulator";
+            bool toAccumulator = to[3] == "gl_MatrixUseAccumulator";
+
+            return requirement.IsOn("GL_EXT_cooperative_matrix_maintenance1", at) ? !(fromAccumulator ^ toAccumulator)
+                : requirement.IsOn("GL_NV_cooperative_matrix2", at) ? !(fromAccumulator && !toAccumulator)
+                : true;
+        }
+
+        /// <summary>式の協調行列の型。協調行列でないか分からなければ <see langword="null"/>。</summary>
+        private CoopType? TypeOf(ExpressionSyntax expression) => expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => TypeOf(parenthesized.Expression),
+            IdentifierExpressionSyntax identifier => binder.ResolveName(identifier).Candidates is [{ } candidate] ? FromDeclarator(candidate.Declarator) : null,
+            InvocationExpressionSyntax invocation => ConstructedType(invocation),
+            AssignmentExpressionSyntax assignment => TypeOf(assignment.Left),
+            BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken } binary
+                => TypeOf(binary.Left) is { } left ? (TypeOf(binary.Right) is not { } right || right == left ? left : null) : TypeOf(binary.Right),
+            _ => null,
+        };
+
+        /// <summary>協調行列でない式の型 (スカラー・ベクトル・行列など)。分からないか協調行列なら <see langword="null"/>。</summary>
+        private string? KnownNonCoopType(ExpressionSyntax expression)
+            => TypeOf(expression) is null && ContainsNoCoop(expression) && binder.GetTypesByConfiguration(expression) is [{ Type: { } name }]
+               && binder.TypeSystem.TryDescribeNumeric(name, out _)
+                ? name
+                : null;
+
+        /// <summary>式の中に、協調行列の名前と値の作成が無いか (型を求められない協調行列の式を、協調行列でないと取り違えないため)。</summary>
+        private static bool ContainsNoCoop(ExpressionSyntax expression)
+            => !expression.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Any(i => i.Target is IdentifierExpressionSyntax { Name: "coopmat" or "fcoopmatNV" or "icoopmatNV" or "ucoopmatNV" })
+               && !expression.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>().Any(i => i.Name.StartsWith("coopMat", StringComparison.Ordinal));
+
+        /// <summary>値の作成 (<c>coopmat&lt;…&gt;(x)</c>) の型。</summary>
+        private static CoopType? ConstructedType(InvocationExpressionSyntax invocation)
+            => invocation.Target is IdentifierExpressionSyntax { Name: var name } && invocation.OpenAngle is not null
+                ? FromParts(name, invocation.TypeArgumentTokens)
+                : null;
+
+        /// <summary>宣言の型。</summary>
+        private static CoopType? FromDeclarator(ShaderSyntaxNode declarator) => declarator switch
+        {
+            VariableDeclaratorSyntax { IsArray: false, Parent: VariableDeclarationSyntax declaration } => FromType(declaration.Type),
+            ParameterSyntax { IsArray: false } parameter => FromType(parameter.Type),
+            _ => null,
+        };
+
+        private static CoopType? FromType(TypeSyntax type) => type.OpenAngle is null ? null : FromParts(type.Name, type.TemplateArguments);
+
+        /// <summary>型の名前と型の引数のトークンから、協調行列の型を作る。</summary>
+        private static CoopType? FromParts(string name, ImmutableArray<ShaderSyntaxToken> arguments)
+        {
+            List<string> parts = Split(arguments);
+
+            return name switch
+            {
+                "coopmat" when parts.Count == 5 => new CoopType(false, parts[0], string.Join(", ", parts.Skip(1))),
+                "fcoopmatNV" when parts.Count == 4 => new CoopType(true, parts[0] switch { "16" => "float16_t", "64" => "double", _ => "float" }, string.Join(", ", parts.Skip(1))),
+                "icoopmatNV" when parts.Count == 4 => new CoopType(true, parts[0] switch { "8" => "int8_t", "16" => "int16_t", _ => "int" }, string.Join(", ", parts.Skip(1))),
+                "ucoopmatNV" when parts.Count == 4 => new CoopType(true, parts[0] switch { "8" => "uint8_t", "16" => "uint16_t", _ => "uint" }, string.Join(", ", parts.Skip(1))),
+                _ => null,
+            };
+        }
+
+        /// <summary>型の引数を括弧の外のカンマで分け、空白を詰めた文字列にする。整数のリテラルを括弧で囲んだだけのものは、括弧を外す。</summary>
+        private static List<string> Split(ImmutableArray<ShaderSyntaxToken> tokens)
+        {
+            List<string> parts = [];
+            List<string> current = [];
+            int parens = 0;
+
+            foreach (ShaderSyntaxToken token in tokens)
+            {
+                parens += token.Kind switch
+                {
+                    ShaderSyntaxKind.OpenParenToken => 1,
+                    ShaderSyntaxKind.CloseParenToken => -1,
+                    _ => 0,
+                };
+
+                if (parens == 0 && token.Kind == ShaderSyntaxKind.CommaToken)
+                {
+                    parts.Add(Normalize(current));
+                    current.Clear();
+                    continue;
+                }
+
+                current.Add(token.Text);
+            }
+
+            parts.Add(Normalize(current));
+            return parts;
+
+            static string Normalize(List<string> texts)
+                => texts is ["(", var only, ")"] && only.All(char.IsAsciiDigit) ? only : string.Concat(texts);
+        }
+    }
+}
