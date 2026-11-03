@@ -150,6 +150,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- `gl_EnableOpacityMicromapEXT` の宣言し直しの形 (GL0406) と、構造体の定義と一緒に宣言した変数の名前の重複 (CF0314) を報告する
 - アトミックの関数の 1 つ目の実引数への書き込み (メッシュシェーダーの `taskPayloadSharedEXT` など。GL0309)、バッファの参照の型の入力と出力 (GL0101)、
   定数の名前 (特殊化の定数は既定の値) で大きさを書いた配列の範囲の外の定数の添字 (GL0307) を報告する
 - バッファの参照の先のブロックの大きさを書かない配列の `length()` (GL0308)、別の参照の型の値での初期化と構造体への型の変換 `(S) x` (GL0301)、

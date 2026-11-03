@@ -419,6 +419,21 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 break;
 
+            // GLSL の構造体の定義と一緒に宣言した変数 (struct { … } e;) も変数の名前の空間に入る。
+            case StructDeclarationSyntax { Keyword.Text: "struct" } inline
+                when glsl && inline.Declarators.Any(d => d.Node is VariableDeclaratorSyntax):
+                if (inline.NameToken is { IsMissing: false } inlineName)
+                {
+                    yield return new Declared(inline.Name, inlineName.GetLocation(), condition.GetCondition(inline), StructShape);
+                }
+
+                foreach (VariableDeclaratorSyntax variable in inline.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    yield return new Declared(variable.Name, variable.NameToken.GetLocation(), condition.GetCondition(inline), string.Empty, SharesFunctionNames: sharesFunctionNames);
+                }
+
+                break;
+
             // 構造体の名前は、変数や関数の名前とはぶつからない。C++ と同じく、同じ名前の変数は型の名前を隠すだけである
             // (ConstantBuffer<Constants> Constants。DXC はこれを受け付け、D3D12 のサンプルもこの書き方をする)。
             // 形を分けて、構造体どうしだけを比べる。

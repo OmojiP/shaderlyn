@@ -31,7 +31,8 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [GlslRuleDescriptors.NotAvailableInStage, GlslRuleDescriptors.InvalidLayoutValue, GlslRuleDescriptors.VariableArgumentRequired, GlslRuleDescriptors.TypeNotAllowedHere];
+        [GlslRuleDescriptors.NotAvailableInStage, GlslRuleDescriptors.InvalidLayoutValue, GlslRuleDescriptors.VariableArgumentRequired, GlslRuleDescriptors.TypeNotAllowedHere,
+         GlslRuleDescriptors.BuiltinVariableRedeclaration];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -74,6 +75,22 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
                 case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } call
                     when compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty:
                     CheckCall(requirement, compilation.GetExpressionTypeBinder(program), locations, callee, [.. call.ArgumentExpressions]);
+                    break;
+
+                // gl_EnableOpacityMicromapEXT (GL_EXT_opacity_micromap_ray_query_mode) は、const bool の定数か、型と値を書かない特殊化の定数 (layout(constant_id = N) gl_EnableOpacityMicromapEXT;) にだけ宣言し直せる。
+                case VariableDeclarationSyntax { Type.Name: not "gl_EnableOpacityMicromapEXT" } micromap
+                    when micromap.Variables.FirstOrDefault(v => v.Name == "gl_EnableOpacityMicromapEXT") is { } redeclared:
+                    if (GlslLayoutQualifier.Read(micromap.ModifierTokens).Any(e => e.Name.Text == "constant_id"))
+                    {
+                        requirement.Report(GlslRuleDescriptors.BuiltinVariableRedeclaration, redeclared.NameToken, redeclared.Name,
+                            "特殊化の定数にするときは、型と値を書かずに layout(constant_id = N) gl_EnableOpacityMicromapEXT; と書いてください。");
+                    }
+                    else if (!micromap.HasModifier("const") || micromap.Type.Name != "bool" || redeclared.Initializer is null)
+                    {
+                        requirement.Report(GlslRuleDescriptors.BuiltinVariableRedeclaration, redeclared.NameToken, redeclared.Name,
+                            "const bool gl_EnableOpacityMicromapEXT = true; (か false) か、layout(constant_id = N) gl_EnableOpacityMicromapEXT; にだけ宣言し直せます。");
+                    }
+
                     break;
 
                 // レイクエリは rayQueryInitializeEXT でしか初期化できない (glslang の「ray queries can only be initialized by using the rayQueryInitializeEXT intrinsic」)。
