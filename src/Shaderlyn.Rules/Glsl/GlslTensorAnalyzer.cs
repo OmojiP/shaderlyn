@@ -101,6 +101,13 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
                 requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 3, $"テンソルの要素と同じ型 ({tensor.Element}) でなければなりません (今は {data})");
             }
 
+            // テンソルの演算子の指定 (4 つ目の実引数) は、定数の整数の式でなければならない。
+            if (arguments.Length >= 4 && evaluator.IsCertainlyNotConstant(arguments[3]))
+            {
+                requirement.Report(GlslRuleDescriptors.ConstantArgumentRequired, at, $"{name} のテンソルの演算子の指定 (4 つ目の実引数)");
+                continue;
+            }
+
             if (arguments.Length >= 4 && arguments[3] is IdentifierExpressionSyntax { Name: "gl_TensorOperandsOutOfBoundsValueARM" })
             {
                 if (name == "tensorWriteARM")

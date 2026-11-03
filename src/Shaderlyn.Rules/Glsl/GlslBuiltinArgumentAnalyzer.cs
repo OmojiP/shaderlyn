@@ -85,7 +85,12 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
         public void Check(IdentifierExpressionSyntax callee, ExpressionSyntax[] arguments)
         {
             string name = callee.Name;
-            ShaderSyntaxToken at = callee.Identifier;
+
+            // glslang は組み込み関数の呼び出しの誤りを閉じ括弧の位置で報告する。何行にもまたがる呼び出しは、閉じ括弧の行で報告する。
+            ShaderSyntaxToken at = callee.Parent is InvocationExpressionSyntax { CloseParen: { IsMissing: false } close }
+                                   && close.GetLocation().LineSpan.Start.Line != callee.Identifier.GetLocation().LineSpan.Start.Line
+                ? close
+                : callee.Identifier;
 
             if (TexelOffsetIndex(name, arguments) is { } offset && offset < arguments.Length)
             {

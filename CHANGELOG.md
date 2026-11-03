@@ -150,6 +150,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- 定数でない `tensorReadARM` / `tensorWriteARM` のテンソルの演算子の指定 (GL0303) を報告する。何行にもまたがる組み込み関数の呼び出しの実引数の誤りは、glslang と同じく閉じ括弧の行で報告する
 - GLSL の行の途中の `#` (CF0002) と `1.#INF` の書き方 (GL0315)、構造体の定義と一緒に宣言した変数の初期化子の要素の数と要素の構造体の型、
   配列の値の作成の、暗黙に変換できない要素 (`vec4[2](vec4(0.0), mat2(1.0))`) を報告する (CF0410)
 - `gl_EnableOpacityMicromapEXT` の宣言し直しの形 (GL0406) と、構造体の定義と一緒に宣言した変数の名前の重複 (CF0314) を報告する
