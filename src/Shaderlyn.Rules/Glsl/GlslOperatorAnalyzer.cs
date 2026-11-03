@@ -106,6 +106,15 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         {
             switch (node)
             {
+                // 文字列 (GL_EXT_debug_printf の書式) には、どの演算子も使えない。
+                case BinaryExpressionSyntax binary when IsString(binary.Left) || IsString(binary.Right):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"文字列に演算子 '{binary.OperatorToken.Text}' は使えません。");
+                    break;
+
+                case ConditionalExpressionSyntax conditional when IsString(conditional.WhenTrue) || IsString(conditional.WhenFalse):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, conditional.ColonToken, "文字列に演算子 '?:' は使えません。");
+                    break;
+
                 case BinaryExpressionSyntax binary when Classify(binary.OperatorToken.Kind) is { } op:
                     CheckBinary(binary.OperatorToken, op, assign: false, binary.Left, binary.Right);
                     break;
@@ -549,6 +558,14 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
         /// </summary>
         private string? OpaqueTypeOf(ExpressionSyntax expression)
             => KnownType(expression) is { } name && (name is "void" or "atomic_uint" || IsSamplerOrImage(name)) ? name : null;
+
+        /// <summary>文字列のリテラル (括弧で囲んだものも) か。</summary>
+        private static bool IsString(ExpressionSyntax expression) => expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => IsString(parenthesized.Expression),
+            LiteralExpressionSyntax literal => literal.Token.Kind == ShaderSyntaxKind.StringLiteralToken,
+            _ => false,
+        };
 
         /// <summary>構造体が、サンプラー・イメージ・atomic_uint のメンバーを持つか。入れ子の構造体も見る。</summary>
         private bool StructContainsOpaque(string type, int depth)

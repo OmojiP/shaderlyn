@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Glsl;
 using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
@@ -34,7 +35,7 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [GlslRuleDescriptors.SwitchStatement, GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.ArgumentOutOfRange];
+        [GlslRuleDescriptors.SwitchStatement, GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.NotAvailableInStage, GlslRuleDescriptors.ArgumentOutOfRange];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -93,6 +94,11 @@ internal sealed class GlslSwitchAnalyzer : SemanticRuleAnalyzer
 
                 case JumpStatementSyntax { Keyword.Text: "continue" } jump when !HasAncestor<ForStatementSyntax, WhileStatementSyntax, DoWhileStatementSyntax, ForStatementSyntax>(jump):
                     requirement.Report(GlslRuleDescriptors.SwitchStatement, jump.Keyword, "continue はループの中にだけ書けます。");
+                    break;
+
+                // discard と terminateInvocation と demote は、フラグメントシェーダーにだけ書ける (glslang の requireStage)。
+                case JumpStatementSyntax { Keyword.Text: "discard" or "terminateInvocation" or "demote" } jump:
+                    requirement.RequireStage(jump.Keyword, [GlslShaderStage.Fragment], $"'{jump.Keyword.Text}'");
                     break;
 
                 default:

@@ -133,6 +133,9 @@ internal abstract class ShaderParser
     /// </summary>
     protected virtual bool AcceptsArrayTypes => false;
 
+    /// <summary>名前の無い宣言 (GLSL の <c>uniform atomic_uint;</c>) を、型の無い宣言と同じく読むか。</summary>
+    protected virtual bool AcceptsDeclarationWithoutName => false;
+
     /// <summary>二重角括弧の属性 (GLSL の <c>[[unroll]]</c>) を、読み飛ばさずに構文木に残すか。</summary>
     protected virtual bool KeepsDoubleBracketAttributes => false;
 
@@ -665,6 +668,12 @@ internal abstract class ShaderParser
             return AcceptsOperatorOverloading
                 ? ParseOperatorFunction(attributes, modifiers, type)
                 : ParseUnsupportedTypeDeclaration(endsWithSemicolon: false, report: true);
+        }
+
+        // GLSL の名前の無い宣言 (layout(binding = 0, offset = 4) uniform atomic_uint;)。型の無い宣言と同じく読む。
+        if (AcceptsDeclarationWithoutName && Current.Kind == ShaderSyntaxKind.SemicolonToken && type.ArrayRanks.IsEmpty)
+        {
+            return new IncompleteDeclarationSyntax([.. modifiers, .. type.ModifierTokens, type.NameToken, Advance()]);
         }
 
         if (Current.Kind != ShaderSyntaxKind.IdentifierToken)

@@ -390,6 +390,9 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 0) out vec4 a;\nlayout(xfb_buffer = 1, xfb_offset = 8) out vec4 b;\nvoid main() { a = b = vec4(0.0); gl_Position = a; }")]
     [InlineData("GL0103", "a.vert", "#version 440\nout Block { layout(xfb_buffer = 2, xfb_offset = 0) vec4 v; } b;\nvoid main() { b.v = vec4(0.0); gl_Position = b.v; }")]
     [InlineData("GL0103", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nlayout(stream = 1) out Block { layout(stream = 2) vec4 v; } b;\nvoid main() { b.v = vec4(0.0); EmitStreamVertex(1); }")]
+    [InlineData("GL0103", "a.frag", "#version 440\nlayout(location = 0) out vec4 o;\nlayout(std140, binding = 0) uniform U { vec4 a; layout(offset = 20) vec4 b; };\nvoid main() { o = a; }")]
+    [InlineData("GL0103", "a.frag", "#version 440\nlayout(location = 0) out vec4 o;\nlayout(std140, binding = 0) uniform U { vec4 a; layout(offset = 68) double h; };\nvoid main() { o = a; }")]
+    [InlineData("GL0103", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform atomic_uint a;\nlayout(binding = 0) uniform atomic_uint b[2];\nlayout(binding = 0, offset = 4) uniform atomic_uint c;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 2) out float a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 4) out double a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
@@ -515,7 +518,11 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(flat float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("GL0101", "a.frag", "#version 450\n#extension GL_EXT_nonuniform_qualifier : enable\nlayout(location = 0) out vec4 o;\nlayout(location = 1) in struct S { float a; nonuniformEXT float b; } s;\nvoid main() { o = vec4(s.a); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
+    [InlineData("GL0301", "a.frag", "#version 450\n#extension GL_EXT_debug_printf : enable\nlayout(location = 0) out vec4 o;\nvoid main() { \"o\" + \"k\"; o = vec4(1.0); }")]
+    [InlineData("GL0002", "a.vert", "#version 450\nvoid main() { gl_Position = vec4(0.0); discard; }")]
+    [InlineData("GL0003", "a.frag", "// comment\n#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nin uniform vec4 v;\nvoid main() { o = v; }")]
+    [InlineData("GL0101", "a.vert", "#version 440\nout Block { layout(location = 1, component = 1) mat2 m; } b;\nvoid main() { b.m = mat2(1.0); gl_Position = vec4(0.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 1, depth_less) in float d;\nvoid main() { o = vec4(d); }")]
     [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { mediump bvec2 b = bvec2(true); o = vec4(b.x); }")]
     [InlineData("GL0323", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(in float a);\nfloat f(out float a) { a = 1.0; return a; }\nvoid main() { float x; o = vec4(f(x)); }")]
@@ -812,6 +819,19 @@ public sealed class GlslRuleTests : IDisposable
         string output = await AnalyzeAsync("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(const in float a, highp int b);\nfloat f(const float a, int b) { return a; }\nint f(int a) { return a; }\nfloat g(void);\nfloat g() { return 1.0; }\nvoid main() { o = vec4(f(1.0, 1) + float(f(1)) + g()); }\n");
 
         Assert.DoesNotContain("GL0323", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>std140 / std430 の規則どおりの offset と、重ならない atomic_uint の offset は報告しない。</summary>
+    [Fact]
+    public async Task 正しいoffset()
+    {
+        string output = await AnalyzeAsync("a.frag", "#version 440\nlayout(location = 0) out vec4 o;\n"
+            + "layout(std140, binding = 0) uniform U { vec4 a; layout(offset = 32) vec3 b; layout(offset = 48) vec2 d; layout(align = 16) float e; layout(align = 2) double f; layout(offset = 80) float h; layout(align = 64) dvec3 i; layout(offset = 164, align = 8) float j; };\n"
+            + "layout(std430, binding = 1) buffer B { float x; layout(offset = 8) vec2 y; mat2 m; layout(offset = 32) float z[3]; };\n"
+            + "layout(binding = 0, offset = 4) uniform atomic_uint;\nlayout(binding = 0) uniform atomic_uint c1;\nlayout(binding = 0) uniform atomic_uint c2[2];\nlayout(binding = 0, offset = 0) uniform atomic_uint c0;\n"
+            + "void main() { o = a; }\n");
+
+        Assert.DoesNotContain("GL0103", output, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>

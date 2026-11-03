@@ -356,7 +356,8 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
         // 精度の文 (precision mediump float;)、buffer_reference の前方宣言、特殊化の定数の組み込み (layout(constant_id = 1) gl_MaxImageUnits;) は除く。
         if (tokens.IsEmpty
             || tokens[0].Text == "precision"
-            || tokens.Any(t => t.Text is "buffer_reference" or "constant_id"))
+            || tokens.Any(t => t.Text is "buffer_reference" or "constant_id")
+            || tokens.Length >= 2 && GlslKeywords.IsBuiltInType(tokens[^2].Text))
         {
             return;
         }

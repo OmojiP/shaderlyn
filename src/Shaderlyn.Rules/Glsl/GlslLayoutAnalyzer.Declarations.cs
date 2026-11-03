@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Glsl;
 using Shaderlyn.Glsl.Parsing;
@@ -166,6 +167,18 @@ internal sealed partial class GlslLayoutAnalyzer
     {
         private readonly Dictionary<string, long> _shaderSettings = new(StringComparer.Ordinal);
         private string? _uniformPacking;
+
+        /// <summary>atomic_uint の binding ごとの、次の既定の offset (glslang の atomicUintOffsets)。</summary>
+        private readonly Dictionary<long, long> _atomicNextOffsets = [];
+
+        /// <summary>atomic_uint の binding ごとの、使った offset の範囲。</summary>
+        private readonly Dictionary<long, List<(long Start, long End)>> _atomicRanges = [];
+
+        /// <summary>offset を数えた atomic_uint の名前。</summary>
+        private readonly HashSet<string> _atomicNames = new(StringComparer.Ordinal);
+
+        /// <summary>行の順の行列を既定にした宣言 (<c>layout(row_major) uniform;</c>) があったか。</summary>
+        private bool _rowMajorDefault;
         private string? _bufferPacking;
 
         /// <summary>宣言を検査する。</summary>
@@ -210,7 +223,15 @@ internal sealed partial class GlslLayoutAnalyzer
 
                 // 構造体の定義の layout (glslang の checkNoShaderLayouts)。
                 case StructDeclarationSyntax { Keyword.Text: "struct", Modifiers: [_, ..] } structure:
-                    CheckNoShaderLayouts(new LayoutSet(structure.Modifiers));
+                    LayoutSet structLayout = new(structure.Modifiers);
+                    CheckNoShaderLayouts(structLayout);
+
+                    // 構造体の定義と一緒に宣言した変数 (layout(component = 1) out struct S { … } s;)。
+                    if (!structure.Declarators.IsEmpty && structLayout.Get("component") is { } structComponent)
+                    {
+                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structComponent.Name, "'component' は行列・構造体・ブロックに書けません。");
+                    }
+
                     break;
 
                 default:
@@ -233,6 +254,21 @@ internal sealed partial class GlslLayoutAnalyzer
             // 最後が名前なら、既にある名前に修飾子を足す宣言である。
             ShaderSyntaxToken last = qualifiers[^1];
             bool addsToExisting = last.Kind == ShaderSyntaxKind.IdentifierToken && !GlslKeywords.Qualifiers.Contains(last.Text);
+
+            // layout(binding = 0, offset = 4) uniform atomic_uint; は、その binding の次の offset を決める (glslang の declareTypeDefaults)。
+            if (last.Text == "atomic_uint" && layout.Get("binding") is { } defaultBinding && ValueOf(defaultBinding) is { } atomicBinding)
+            {
+                if (atomicBinding >= MaxAtomicCounterBindings)
+                {
+                    Invalid(GlslRuleDescriptors.InvalidLayoutValue, defaultBinding.Name, $"atomic_uint の 'binding' が大きすぎます (gl_MaxAtomicCounterBindings は {MaxAtomicCounterBindings})。");
+                }
+                else if (layout.Get("offset") is { } defaultOffset && ValueOf(defaultOffset) is { } atomicOffset)
+                {
+                    _atomicNextOffsets[atomicBinding] = atomicOffset;
+                }
+
+                return;
+            }
 
             if (addsToExisting)
             {
@@ -350,6 +386,8 @@ internal sealed partial class GlslLayoutAnalyzer
             }
 
             CheckQualifier(at, layout, storage);
+
+            _rowMajorDefault |= layout.Has("row_major");
 
             switch (storage)
             {
@@ -773,6 +811,38 @@ internal sealed partial class GlslLayoutAnalyzer
             }
         }
 
+        /// <summary>
+        /// atomic_uint の offset の範囲を使う (glslang の fixOffset)。offset を書かなければその binding の次の offset を使い、前の範囲と重なれば誤り。
+        /// </summary>
+        private void AddAtomicOffsets(ShaderSyntaxToken at, string name, long binding, LayoutSet layout, bool isArray, long? arraySize)
+        {
+            // 同じ名前の 2 度目の宣言は、glslang が宣言し直しの誤りにして登録しない。
+            if (isArray && arraySize is null || !_atomicNames.Add(name))
+            {
+                return;
+            }
+
+            long offset = layout.Get("offset") is { } entry && ValueOf(entry) is { } written ? written : _atomicNextOffsets.GetValueOrDefault(binding);
+            long count = 4 * (isArray ? arraySize!.Value : 1);
+
+            if (!_atomicRanges.TryGetValue(binding, out List<(long Start, long End)>? ranges))
+            {
+                ranges = _atomicRanges[binding] = [];
+            }
+
+            foreach ((long start, long end) in ranges)
+            {
+                if (offset < end && start < offset + count)
+                {
+                    Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"atomic_uint の offset {Math.Max(offset, start).ToString(CultureInfo.InvariantCulture)} は、同じ binding のほかのカウンターと重なります。");
+                    break;
+                }
+            }
+
+            ranges.Add((offset, offset + count));
+            _atomicNextOffsets[binding] = offset + count;
+        }
+
         /// <summary>関数の外の変数の宣言 (glslang の layoutObjectCheck)。</summary>
         private void VisitVariable(VariableDeclarationSyntax variable)
         {
@@ -917,6 +987,11 @@ internal sealed partial class GlslLayoutAnalyzer
                     Value($"atomic_uint の 'binding' が大きすぎます (gl_MaxAtomicCounterBindings は {MaxAtomicCounterBindings})。");
                     return;
                 }
+
+                if (type.IsAtomic && binding is { } atomicBinding)
+                {
+                    AddAtomicOffsets(at, name, atomicBinding, layout, isArray, arraySize);
+                }
             }
             else if (!_r.AutoMapBindings)
             {
@@ -992,7 +1067,7 @@ internal sealed partial class GlslLayoutAnalyzer
                     Place("'constant_id' は const のスカラーにだけ書けます。");
                 }
 
-                if (!type.IsScalar && !type.IsUnknown)
+                if ((!type.IsScalar || isArray) && !type.IsUnknown)
                 {
                     Place("'constant_id' はスカラーにだけ書けます。");
                 }
@@ -1201,6 +1276,16 @@ internal sealed partial class GlslLayoutAnalyzer
                 {
                     Invalid(GlslRuleDescriptors.InvalidLayoutValue, memberAt, "'component' から型の成分が 4 つを越えます。");
                 }
+
+                if (memberLayout.Has("component") && (memberType.IsMatrix || memberType.IsStruct))
+                {
+                    Invalid(GlslRuleDescriptors.QualifierNotAllowed, memberAt, "'component' は行列・構造体・ブロックに書けません。");
+                }
+            }
+
+            if (storage is Storage.Uniform or Storage.Buffer)
+            {
+                CheckBlockOffsets(members, packing, layout.Has("row_major") || _rowMajorDefault);
             }
 
             CheckObject(at, name ?? string.Empty, layout, storage, TypeShape.Block, instance?.IsArray ?? false, null, modifiers);

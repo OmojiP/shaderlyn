@@ -73,9 +73,16 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
             {
                 if (directive.Directive.Text == "version")
                 {
-                    if (compilation.IsReportable(directive.Directive) && (versionSeen || HasTokenBefore(directive.Directive)))
+                    if (compilation.IsReportable(directive.Directive))
                     {
-                        requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, "#version はファイルの最初に 1 つだけ書けます。");
+                        if (versionSeen || HasTokenBefore(directive.Directive))
+                        {
+                            requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, "#version はファイルの最初に 1 つだけ書けます。");
+                        }
+                        else if (requirement.IsEs && requirement.Version >= 300 && HasNonBlankBefore(directive.Directive))
+                        {
+                            requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, "ES の 3.00 からは、#version の前にコメントや空の行も書けません。");
+                        }
                     }
 
                     versionSeen = true;
@@ -116,6 +123,16 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>指令の <c>#</c> より前に、空白とタブでないもの (コメントと改行を含む) があるか。ES の 3.00 からは、#version の前にはこれらも書けない (glslang の scanVersion)。</summary>
+    /// <param name="directive">指令の名前のトークン。</param>
+    /// <returns>あれば <see langword="true"/>。</returns>
+    private static bool HasNonBlankBefore(ShaderSyntaxToken directive)
+    {
+        string text = directive.Source.ToString();
+        int end = text.LastIndexOf('#', Math.Min(directive.Span.Start, text.Length - 1));
+        return text.AsSpan(0, Math.Max(end, 0)).TrimStart('﻿').ContainsAnyExcept(' ', '	');
     }
 
     /// <summary>指令の <c>#</c> より前に、コメントと空白でないものがあるか。</summary>

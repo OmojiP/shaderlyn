@@ -32,12 +32,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     関数の外の余分な `;` (デスクトップの 4.60 から。ES では書けない)、
     関数の中の `const` の変数を定数でない式で初期化すること (デスクトップの 4.20 から)、ES で関数の外の変数を定数でない式で初期化すること (`GL_EXT_shader_non_constant_global_initializers`)、
     型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
-  - GL0002: そのステージでは使えない (頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex`、頂点シェーダーの入力のブロック、計算シェーダーの関数の外の `in` / `out` の変数など)
+  - GL0002: そのステージでは使えない (フラグメントシェーダーでない `discard`・`terminateInvocation`・`demote`、頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex`、頂点シェーダーの入力のブロック、計算シェーダーの関数の外の `in` / `out` の変数など)
   - GL0003: プリプロセッサの指令の誤り。ES で、`#if` / `#elif` の式に定義されていないマクロを書いた (短絡で評価しない側は除く。glslang と同じ)。
     `#extension` の形の誤り (`:` や振る舞いが無い、`require` / `enable` / `warn` / `disable` でない振る舞い、後ろの余分な記述、`all` の `require` / `enable`)。
     到達した `#error` (glslang はコンパイルを止める。HLSL と同じ CF0104 の情報では伝えない)。
     予約された名前の `#define` / `#undef` (`GL_` で始まる名前、`defined`、ES の `__LINE__` など)、`#pragma optimize` / `#pragma debug` と SPIR-V を作るときの `#pragma STDGL` の形、
-    ファイルの最初でない `#version` と 2 つ目の `#version`
+    ファイルの最初でない `#version` と 2 つ目の `#version`、ES の 3.00 からの、前にコメントや空の行がある `#version`
   - GL0323: 同じ形の関数の宣言どうしの食い違い (仮引数の記憶域 `in` / `out` / `inout`、仮引数の精度、戻り値の型)
   - GL0322: `main` の定義の形が正しくない (仮引数がある、戻り値が `void` でない)
   - GL0321: `switch` の組み立てと `break` / `continue` の置き場所が正しくない。`switch` の波括弧の中にそのまま書いていない `case` / `default`、同じ値の `case` と 2 つ目の `default`、
@@ -48,16 +48,17 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     テッセレーションの制御シェーダーの `patch in` と評価シェーダーの `patch out`、`bool` を含む構造体の入力と出力、
     ブロックと違う記憶域のメンバー (`uniform U { in float a; }`)、uniform と buffer のブロックのメンバーの補助・補間の修飾子、2 つの記憶域の修飾子 (`in uniform`)、
     gl_FragCoord でない変数の `origin_upper_left` と gl_FragDepth でない変数の `depth_less` など、構造体の定義の型の無い宣言にだけ書ける layout、
-    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、ブロックと構造体のメンバーの `nonuniformEXT`。
+    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`。
     修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)。
     フラグメントシェーダーの出力の修飾子と型 (`flat out`、`out mat2x3` など)、`flat` の無い整数の入力、
     構造体のメンバーの layout などの修飾子、ブロックの補間の修飾子、イメージでない変数のメモリの修飾子、出力でない変数の `invariant`、関数の戻り値の `const` などの記憶域の修飾子。
     仮引数でない変数の `in` 以外の記憶域の `nonuniformEXT`、既にある名前に `invariant` と `precise` 以外の修飾子を足す宣言 (`centroid gl_Position;`、`layout(std140) inst;`)
   - GL0102: layout に無い名前を書いた (そのステージに無い名前を含む)
-  - GL0103: layout の値が正しくない (負の数、上限を越える数、2 のべき乗でない `align`、リテラルでない値、前の宣言と違うプリミティブ、`location` の重なり、変換フィードバックの `xfb_offset` の重なりと揃え (最初の成分の大きさ、double を含めば 8 の倍数) と `xfb_stride` の食い違い、ブロックと違うメンバーの `xfb_buffer` と `stream` など)
+  - GL0103: layout の値が正しくない (負の数 (`4294967295` のように int で負になる数も)、上限を越える数、2 のべき乗でない `align`、リテラルでない値、前の宣言と違うプリミティブ、`location` の重なり、変換フィードバックの `xfb_offset` の重なりと揃え (最初の成分の大きさ、double を含めば 8 の倍数) と `xfb_stride` の食い違い、ブロックと違うメンバーの `xfb_buffer` と `stream`、
+    std140 / std430 のブロックのメンバーの揃わない `offset` と前のメンバーに重なる `offset`、同じ binding で重なる `atomic_uint` の `offset` など)
   - GL0104: layout に要る指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
   - GL0201: ES で、精度を決めていない型 (フラグメントシェーダーの `float` など) を宣言している
-  - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのもの・サンプラー・イメージ・`atomic_uint`・`void` の値への演算子と、`?:` の 2 つの枝の型が合わないものも報告する。サンプラーとイメージ (とそれを含む構造体) への代入と、それを含む構造体の `==` / `!=` も報告する
+  - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのもの・サンプラー・イメージ・`atomic_uint`・`void` の値への演算子と、`?:` の 2 つの枝の型が合わないものも報告する。サンプラーとイメージ (とそれを含む構造体) への代入と、それを含む構造体の `==` / `!=`、文字列への演算子 (`"o" + "k"`) も報告する
   - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)。そのバージョンにだけ無い引数の数 (ES の 3.00 の `textureSize(s)`) も報告する。添字を付けない配列を、配列を取らない組み込み関数に渡したもの (`sin(a)`、`interpolateAtCentroid(inArray)`) と、文字列のリテラルを渡したもの (`length("abc")`) も報告する
   - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外。`const` の変数と `const` の配列の要素 (`offsets[2]`) の値も見る
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ。サンプラーの値の作成 (`sampler2D(t, s)`) を、利用者の関数の実引数・`?:` の枝・カンマの演算子の項に書いた
@@ -142,6 +143,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - GLSL: 構造体の宣言の前の修飾子 (`const struct S { … } s = …;` の `const`) を構文木に残す。今までは読み捨てていた
 - CF0002 (プリプロセッサの指令の誤り) は、`#line` の形も検査する。行番号の後ろには、ファイル名の文字列か、GLSL の文字列の番号の式を 1 つだけ書ける。
   式はマクロを展開してから読む (`#line L1 + L2`)。後ろに余分な記述があるもの (`#line 10 5 extra`) と、式を評価できないもの (0 による除算など) を報告する。行番号は今までどおり付け替えない
+- GLSL: 名前の無い宣言 (`layout(binding = 0, offset = 4) uniform atomic_uint;`、`flat out int;`) を構文エラー (CF0001) にしていた。glslang と同じく型の無い宣言として読む。
+  GLSL の文の属性 (`[[unroll]]`) を読み飛ばさずに構文木に残す
 - GLSL: `__FILE__` を、ファイル名の文字列でなく文字列の番号の 0 に展開する (glslang と同じ)
 - GLSL: `#if` / `#elif` の式を glslang と同じく `int` (32 ビット) で計算する (`-2147483648 / -1` は 0)。評価できない式 (閉じていない括弧など) は、誤りを伝えたうえで通る分岐とする。
   行の頭の `##` を、指令の誤り (CF0002) とする (glslang と同じ。C では `##` の演算子)

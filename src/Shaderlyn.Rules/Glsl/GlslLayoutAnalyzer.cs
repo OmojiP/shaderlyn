@@ -545,7 +545,8 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
                     Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"'{name}' の値は整数でなければなりません。");
                 }
 
-                value = c.Kind == GlslConstantKind.Uint ? unchecked((int)(uint)c.Integer) : c.Integer;
+                // 32 ビットの整数として読む (4294967295 は -1。glslang の layout-id の値は int)。
+                value = c.Kind is GlslConstantKind.Uint or GlslConstantKind.Int ? unchecked((int)(uint)c.Integer) : c.Integer;
 
                 if (!c.IsLiteral)
                 {
