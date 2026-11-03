@@ -144,6 +144,12 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
         /// <summary>代入の演算子 (<c>=</c>、<c>+=</c> など)。</summary>
         private void CheckCompound(AssignmentExpressionSyntax assignment, CoopType left)
         {
+            if (assignment.OperatorToken.Kind != ShaderSyntaxKind.EqualsToken && IsLimited(left))
+            {
+                ReportLimited(assignment.OperatorToken, left);
+                return;
+            }
+
             switch (assignment.OperatorToken.Kind)
             {
                 case ShaderSyntaxKind.EqualsToken:
@@ -178,6 +184,12 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
             if (left is null && right is null)
             {
+                return;
+            }
+
+            if ((left ?? right) is { } limited && (IsLimited(limited) || right is not null && IsLimited(right)))
+            {
+                ReportLimited(op, IsLimited(limited) ? limited : right!);
                 return;
             }
 
@@ -220,6 +232,13 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
             void Report(string message) => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, message);
         }
+
+        /// <summary>bfloat16_t と 8 ビットの浮動小数の協調行列か。代入のほかの演算子を使えない (glslang の hasLimitedFloatCoopMat)。</summary>
+        private static bool IsLimited(CoopType type)
+            => type.Element is "bfloat16_t" or "floate5m2_t" or "floate4m3_t";
+
+        private void ReportLimited(ShaderSyntaxToken op, CoopType type)
+            => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, $"要素が {type.Element} の協調行列には、代入のほかの演算子 ('{op.Text}') を使えません。");
 
         /// <summary>値の作成。実引数は 1 つで、スカラーか協調行列。</summary>
         private void CheckConstructor(InvocationExpressionSyntax invocation)

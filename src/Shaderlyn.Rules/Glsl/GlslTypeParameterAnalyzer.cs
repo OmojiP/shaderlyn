@@ -46,7 +46,7 @@ internal sealed class GlslTypeParameterAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.InvalidTypeParameters, GlslRuleDescriptors.TypeNotAllowedHere];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.InvalidTypeParameters, GlslRuleDescriptors.TypeNotAllowedHere, GlslRuleDescriptors.NotAvailable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -83,6 +83,28 @@ internal sealed class GlslTypeParameterAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // 仮引数のテンソル (void f(tensorARM t) と void f(tensorARM<int> t))。
+            if (node is ParameterSyntax { Type: { Name: "tensorARM" } parameterType } parameter)
+            {
+                if (!checkers.TryGetValue(program, out var parameterChecker))
+                {
+                    parameterChecker = checkers[program] = GlslRequirements.Create(context, compilation, program, reported) is { } created
+                        ? (created, CollectConstants(program))
+                        : null;
+                }
+
+                string? parameterError = parameterType.OpenAngle is null
+                    ? "tensorARM には型の引数 (要素の型・階数) が要ります。"
+                    : parameterChecker is { } p ? DescribeError(parameterType, p.Constants) : null;
+
+                if (parameterChecker is { } pc && parameterError is not null)
+                {
+                    pc.Requirement.Report(GlslRuleDescriptors.InvalidTypeParameters, parameterType.NameToken, "tensorARM", parameterError);
+                }
+
+                continue;
+            }
+
             if (node is not VariableDeclarationSyntax declaration || declaration.Variables.FirstOrDefault() is not { } first)
             {
                 continue;
@@ -106,6 +128,13 @@ internal sealed class GlslTypeParameterAnalyzer : SemanticRuleAnalyzer
             if (DescribeError(type, constants) is { } error)
             {
                 requirement.Report(GlslRuleDescriptors.InvalidTypeParameters, first.NameToken, type.Name, error);
+            }
+
+            // テンソルの要素の bfloat16_t と 8 ビットの浮動小数の型は、それぞれの拡張が要る (glslang の declareVariable)。
+            if (type is { Name: "tensorARM", TemplateArguments: [{ } tensorElement, ..] }
+                && tensorElement.Text switch { "bfloat16_t" => "GL_ARM_tensors_bfloat16", "floate5m2_t" => "GL_ARM_tensors_float_e5m2", "floate4m3_t" => "GL_ARM_tensors_float_e4m3", _ => null } is { } tensorExtension)
+            {
+                requirement.RequireExtensions(tensorElement, [tensorExtension], $"'tensorARM<{tensorElement.Text}, …>'");
             }
 
             if (CooperativeMatrices.Contains(type.Name))
