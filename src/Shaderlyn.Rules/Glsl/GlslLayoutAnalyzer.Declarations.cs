@@ -232,6 +232,13 @@ internal sealed partial class GlslLayoutAnalyzer
                         Invalid(GlslRuleDescriptors.QualifierNotAllowed, structComponent.Name, "'component' は行列・構造体・ブロックに書けません。");
                     }
 
+                    // 記憶域の無い構造体の変数の location (layout(location = 3) struct S { … } s;)。
+                    if (!structure.Declarators.IsEmpty && structLayout.Get("location") is { } structLocation
+                        && !structure.Modifiers.Any(t => t.Text is "in" or "out" or "uniform" or "buffer" or "varying" or "attribute"))
+                    {
+                        Invalid(GlslRuleDescriptors.QualifierNotAllowed, structLocation.Name, "'location' は uniform / buffer / in / out の宣言にだけ書けます。");
+                    }
+
                     break;
 
                 default:
@@ -1280,6 +1287,12 @@ internal sealed partial class GlslLayoutAnalyzer
                 if (memberLayout.Has("component") && (memberType.IsMatrix || memberType.IsStruct))
                 {
                     Invalid(GlslRuleDescriptors.QualifierNotAllowed, memberAt, "'component' は行列・構造体・ブロックに書けません。");
+                }
+
+                // メンバーの binding (glslang の layoutTypeCheck の「requires block, or sampler/image, or atomic-counter type」)。
+                if (memberLayout.Has("binding") && !memberType.IsOpaque && !memberType.IsUnknown)
+                {
+                    Invalid(GlslRuleDescriptors.QualifierNotAllowed, memberAt, "'binding' はブロック・サンプラー・イメージ・アトミックカウンターにだけ書けます。");
                 }
             }
 

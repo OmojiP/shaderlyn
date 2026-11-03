@@ -179,6 +179,26 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // GLSL のサンプラー・イメージなどにはメンバーも成分も無い (glslang の「does not apply to this type」)。
+        // 関数の呼び出し (OpenGL の texture2D(…)) は、型の名前と同じでも値を返すので、変数だけを見る。
+        if (binder.TypeSystem is GlslTypeSystem glslTypes
+            && access.Target is IdentifierExpressionSyntax or ElementAccessExpressionSyntax or MemberAccessExpressionSyntax
+            && Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(typeName)
+            && typeName != "void"
+            && !glslTypes.TryDescribeNumeric(typeName, out _)
+            && (typeName.Contains("sampler", StringComparison.Ordinal) || typeName.Contains("image", StringComparison.Ordinal) || typeName.Contains("texture", StringComparison.Ordinal))
+            && access.NameToken.GetLocation() is { } opaqueLocation
+            && reported.Add(opaqueLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                opaqueLocation,
+                typeName,
+                $"メンバー '{access.Name}' ",
+                "サンプラーとイメージには、メンバーも成分もありません。"));
+            return;
+        }
+
         AnalyzeSwizzle(context, binder.TypeSystem, typeName, access, reported);
     }
 
@@ -280,6 +300,22 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         if (binder.TypeSystem is GlslTypeSystem glsl && access.Name == "length")
         {
             AnalyzeGlslLength(context, glsl, binder, access, reported);
+            return;
+        }
+
+        // GLSL のメソッドは length() だけである (glslang の「can't use function syntax on variable」)。変数の名前に付けたものだけを見る。
+        if (binder.TypeSystem is GlslTypeSystem
+            && access.Target is IdentifierExpressionSyntax target
+            && binder.ResolveName(target).Candidates is { IsEmpty: false }
+            && access.NameToken.GetLocation() is { } methodLocation
+            && reported.Add(methodLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                methodLocation,
+                $"'{target.Name}'",
+                $"メソッド '{access.Name}()' ",
+                "GLSL の変数のメソッドは length() だけです。"));
             return;
         }
 

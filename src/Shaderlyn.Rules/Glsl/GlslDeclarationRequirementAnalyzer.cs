@@ -202,6 +202,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case IncompleteDeclarationSyntax incomplete:
                     CheckQualifiers(requirement, incomplete.Tokens, global);
                     CheckQualifierToExisting(requirement, incomplete.Tokens);
+                    CheckInvariantAfterUse(requirement, program, incomplete.Tokens);
 
                     if (global)
                     {
@@ -344,6 +345,31 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
         if (vertexInput && requirement.Stage == GlslShaderStage.Vertex && storage == "in" && (auxiliary || interpolation || memory || invariant))
         {
             requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, qualifiers[0], "頂点シェーダーの入力には、補助・補間・メモリの修飾子と invariant を書けません。");
+        }
+    }
+
+    /// <summary>
+    /// 使った後の入力と出力に invariant を足せない (glslang の addQualifierToExisting の「cannot change qualification after use」)。
+    /// 関数の外の in / out の変数を、その宣言より前に (同じファイルで) 使ったものを報告する。
+    /// </summary>
+    private static void CheckInvariantAfterUse(GlslRequirements requirement, AnalyzedProgram program, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        if (tokens is not [{ Text: "invariant" } keyword, .., { Kind: ShaderSyntaxKind.SemicolonToken }]
+            || !ReferenceEquals(keyword.Source, program.Tree.Text))
+        {
+            return;
+        }
+
+        foreach (ShaderSyntaxToken name in tokens[1..^1].Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken))
+        {
+            bool io = program.Tree.Root.ChildNodes().OfType<VariableDeclarationSyntax>()
+                .Any(d => d.Variables.Any(v => v.Name == name.Text) && TopLevel([.. d.ModifierTokens]).Any(t => t.Text is "in" or "out" or "varying"));
+
+            if (io && program.Tree.Root.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>()
+                    .Any(use => use.Name == name.Text && ReferenceEquals(use.Identifier.Source, program.Tree.Text) && use.Identifier.Span.Start < keyword.Span.Start))
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, name, $"使った後の '{name.Text}' には invariant を足せません。宣言に invariant を書いてください。");
+            }
         }
     }
 

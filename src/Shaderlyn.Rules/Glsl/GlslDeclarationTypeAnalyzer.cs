@@ -119,6 +119,15 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
                     break;
 
+                // 構造体の定義と一緒に宣言した、サンプラーかイメージを含む構造体の uniform でない変数 (struct S { sampler2D s; } v;)。
+                case StructDeclarationSyntax { Keyword.Text: "struct", Parent: CompilationUnitSyntax or LocalDeclarationStatementSyntax } inline
+                    when inline.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>().FirstOrDefault() is { } inlineVariable
+                         && inline.Fields.Any(f => IsOpaque(f.Type.Name))
+                         && !inline.Modifiers.Any(t => t.Text == "uniform")
+                         && !requirement.IsOn("GL_ARB_bindless_texture", inlineVariable.NameToken):
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, inlineVariable.NameToken, inlineVariable.Name, "サンプラーかイメージを含む構造体の変数は、uniform でなければなりません。");
+                    break;
+
                 // 構造体とブロックの中の構造体の定義 (glslang の nestedStructCheck)。
                 case StructDeclarationSyntax { Keyword.Text: "struct" } nested
                     when nested.Ancestors().Any(a => a is StructDeclarationSyntax or InterfaceBlockDeclarationSyntax):

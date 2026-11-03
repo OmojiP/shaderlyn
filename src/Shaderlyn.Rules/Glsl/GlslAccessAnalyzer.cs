@@ -140,6 +140,13 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
         /// <summary>バッファの参照 (buffer_reference) を宣言しているか。メンバーの先が参照なら、書き込む先は参照の指す buffer になる。</summary>
         private readonly bool _hasReferences = compilation.CodeTokens.Any(t => t.Text == "buffer_reference");
 
+        /// <summary>layout(early_fragment_tests) in; の位置 (同じファイルのもの)。無ければ <see langword="null"/>。</summary>
+        private readonly int? _earlyFragmentTests = program.Tree.Root.DescendantNodesAndSelf()
+            .OfType<IncompleteDeclarationSyntax>()
+            .Where(d => d.Tokens.Any(t => t.Text == "early_fragment_tests") && ReferenceEquals(d.Tokens[0].Source, program.Tree.Text))
+            .Select(d => (int?)d.Tokens[0].Span.Start)
+            .Min();
+
         /// <summary>関数の呼び出し。値の作成の実引数を読み、out の仮引数に渡す実引数に書く。</summary>
         public void CheckCall(IdentifierExpressionSyntax callee, ExpressionSyntax[] arguments)
         {
@@ -195,6 +202,12 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
                         if (!(viaMember && _hasReferences) && Resolve(identifier, firstMember) is { ReadOnlyReason: { } reason } variable)
                         {
                             requirement.Report(GlslRuleDescriptors.NotWritable, at, $"'{variable.Name}'", reason);
+                        }
+                        else if (identifier.Name == "gl_FragDepth" && _earlyFragmentTests is { } early
+                                 && ReferenceEquals(identifier.Identifier.Source, program.Tree.Text) && early < identifier.Identifier.Span.Start)
+                        {
+                            // glslang の lValueErrorCheck の「can't modify gl_FragDepth if using early_fragment_tests」。
+                            requirement.Report(GlslRuleDescriptors.NotWritable, at, "'gl_FragDepth'", "early_fragment_tests を宣言した後");
                         }
 
                         return;

@@ -49,6 +49,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0301", "a.frag", "void notMain() { o = vec4(1.0); }")]
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = vec4(1.0); o = vec4(c, 1.0); }")]
     [InlineData("CF0410", "a.frag", "void main() { vec3 c = 1.0; o = vec4(c, 1.0); }")]
+    [InlineData("CF0412", "a.frag", "void main() { mat2 m = { 1.0, 0.0, 0.0, 1.0 }; o = vec4(m[0], m[1]); }")]
     [InlineData("CF0411", "a.frag", "vec3 make() { return vec4(1.0); }\nvoid main() { o = vec4(make(), 1.0); }")]
     [InlineData("CF0411", "a.frag", "vec4 none() { }\nvoid main() { o = none(); }")]
     [InlineData("CF0312", "a.frag", "void main() { float f[7]; int n = f.length; o = vec4(n); }")]
@@ -518,6 +519,12 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(flat float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("GL0101", "a.frag", "#version 450\n#extension GL_EXT_nonuniform_qualifier : enable\nlayout(location = 0) out vec4 o;\nlayout(location = 1) in struct S { float a; nonuniformEXT float b; } s;\nvoid main() { o = vec4(s.a); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
+    [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { float a[3]; a.method(); o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.vert", "#version 300 es\nout vec3 v;\nvoid f() { v = vec3(1.0); }\ninvariant v;\nvoid main() { f(); gl_Position = vec4(0.0); }")]
+    [InlineData("GL0403", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { sampler2D t; } v;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0309", "a.frag", "#version 450\nlayout(early_fragment_tests) in;\nlayout(location = 0) out vec4 o;\nvoid main() { gl_FragDepth = 0.5; o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 1) uniform U { layout(binding = 2) float f; } u;\nvoid main() { o = vec4(u.f); }")]
+    [InlineData("CF0312", "a.frag", "#version 450\nlayout(binding = 0) uniform sampler2D s;\nlayout(location = 0) out vec4 o;\nvoid main() { vec2 v = s.rr; o = vec4(v, 0.0, 1.0); }")]
     [InlineData("GL0301", "a.frag", "#version 450\n#extension GL_EXT_debug_printf : enable\nlayout(location = 0) out vec4 o;\nvoid main() { \"o\" + \"k\"; o = vec4(1.0); }")]
     [InlineData("GL0002", "a.vert", "#version 450\nvoid main() { gl_Position = vec4(0.0); discard; }")]
     [InlineData("GL0003", "a.frag", "// comment\n#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
@@ -832,6 +839,18 @@ public sealed class GlslRuleTests : IDisposable
             + "void main() { o = a; }\n");
 
         Assert.DoesNotContain("GL0103", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>1024 文字を越える名前は GL0003 で伝える (glslang の「name too long」)。1024 文字ちょうどは伝えない。</summary>
+    [Fact]
+    public async Task 長すぎるトークン()
+    {
+        string ok = new('a', 1024);
+        string ng = new('b', 1025);
+        string output = await AnalyzeAsync("a.frag", $"#version 450\nlayout(location = 0) out vec4 o;\nfloat {ok} = 1.0;\nfloat {ng} = 2.0;\nvoid main() {{ o = vec4({ok} + {ng}); }}\n");
+
+        Assert.Contains("(4:7): error GL0003", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("(3:7): error GL0003", output, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>

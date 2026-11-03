@@ -51,6 +51,7 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
         }
 
         HashSet<(string? File, int Start, string Message)> reported = [];
+        ReportLongTokens(context, compilation.Text);
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
@@ -122,6 +123,74 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                         "#pragma STDGL の形が誤っています。SPIR-V を作るときは #pragma STDGL invariant(all) だけを書けます。");
                 }
             }
+        }
+    }
+
+    /// <summary>glslang の 1 つのトークンの長さの上限 (MaxTokenLength)。</summary>
+    private const int MaxTokenLength = 1024;
+
+    /// <summary>
+    /// 1024 文字を越える名前と数のリテラルを報告する (PpScanner.cpp の「name too long」「numeric literal too long」「float literal too long」)。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="text">解析しているファイル。</param>
+    /// <remarks>
+    /// 前処理の指令の中のトークンも数えるので、展開した後のトークンでなく、ファイルの文字列をコメントと文字列を除いて読む。
+    /// </remarks>
+    private static void ReportLongTokens(SyntaxTreeAnalysisContext context, Core.Text.SourceText text)
+    {
+        string content = text.ToString();
+        int i = 0;
+
+        while (i < content.Length)
+        {
+            char c = content[i];
+
+            if (c == '/' && i + 1 < content.Length && content[i + 1] == '/')
+            {
+                int newline = content.IndexOf('\n', i);
+                i = newline < 0 ? content.Length : newline;
+                continue;
+            }
+
+            if (c == '/' && i + 1 < content.Length && content[i + 1] == '*')
+            {
+                int close = content.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = close < 0 ? content.Length : close + 2;
+                continue;
+            }
+
+            if (c == '"')
+            {
+                int close = content.IndexOf('"', i + 1);
+                i = close < 0 ? content.Length : close + 1;
+                continue;
+            }
+
+            if (char.IsAsciiLetter(c) || c == '_' || char.IsAsciiDigit(c) || c == '.' && i + 1 < content.Length && char.IsAsciiDigit(content[i + 1]))
+            {
+                bool number = !(char.IsAsciiLetter(c) || c == '_');
+                int start = i;
+
+                while (i < content.Length && (char.IsAsciiLetterOrDigit(content[i]) || content[i] == '_' || number && content[i] == '.'))
+                {
+                    i++;
+                }
+
+                if (i - start > MaxTokenLength)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        Location.Create(text, new Core.Text.TextSpan(start, 1)),
+                        number
+                            ? $"数のリテラルが長すぎます ({i - start} 文字。{MaxTokenLength} 文字まで)。"
+                            : $"名前が長すぎます ({i - start} 文字。{MaxTokenLength} 文字まで)。"));
+                }
+
+                continue;
+            }
+
+            i++;
         }
     }
 

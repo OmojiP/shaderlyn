@@ -357,6 +357,20 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
+                // GLSL は波括弧を平らにしない。行列は列ごと、構造体はメンバーごとに、入れ子の波括弧で書く。
+                if (binder.TypeSystem is GlslTypeSystem glsl
+                    && FindGlslListMismatch(glsl, structs, list, declaration.Type.Name, variable.IsArray ? (variable.ArrayDimensions == 1 && variable.TryGetArrayLength(out int length) ? length : -2) : -1, target, 0) is { } mismatch)
+                {
+                    // glslang は入れ子の誤りも、宣言の波括弧の位置で報告する。
+                    if (list.GetLocation() is { } mismatchLocation && reported.Add(mismatchLocation))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            HlslRuleDescriptors.InitializerCountMismatch, mismatchLocation, mismatch.What, mismatch.Wrote, mismatch.Need, string.Empty));
+                    }
+
+                    continue;
+                }
+
                 CheckInitializerList(
                     context, compilation, program, binder, list, declaration, variable, structs, target, reported);
                 continue;
@@ -370,6 +384,109 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
             Check(context, conditions, binder, initializer, declaration.Type.Name, target, reported);
         }
+    }
+
+    /// <summary>
+    /// GLSL の波括弧の初期化子の形を、型に合わせて入れ子ごとに数える (glslang の convertInitializerList)。
+    /// </summary>
+    /// <param name="types">GLSL の型の仕組み。</param>
+    /// <param name="structs">このシェーダーが書いた構造体。</param>
+    /// <param name="list">波括弧の初期化子。</param>
+    /// <param name="type">初期化する型の名前。</param>
+    /// <param name="arrayLength">配列の大きさ。配列でなければ -1、大きさが分からなければ -2。</param>
+    /// <param name="what">報告に出す初期化先の呼び名。</param>
+    /// <param name="depth">入れ子の深さ。</param>
+    /// <returns>数が合わない波括弧と、その数。合っているか分からなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 配列は要素の数、行列は列の数 (列ごとに入れ子の波括弧か列のベクトル)、ベクトルは成分の数、構造体はメンバーの数だけ書く。
+    /// 平らにしては数えない (<c>mat2 m = { 1.0, 0.0, 0.0, 1.0 };</c> は誤り)。型が分からないところは見ない。
+    /// </remarks>
+    private static (InitializerListExpressionSyntax List, int Wrote, int Need, string What)? FindGlslListMismatch(
+        GlslTypeSystem types,
+        IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
+        InitializerListExpressionSyntax list,
+        string type,
+        int arrayLength,
+        string what,
+        int depth)
+    {
+        if (depth > 8 || arrayLength == -2)
+        {
+            return null;
+        }
+
+        ExpressionSyntax[] elements = [.. list.Elements.Select(e => e.Node).OfType<ExpressionSyntax>()];
+
+        if (arrayLength >= 0)
+        {
+            if (elements.Length != arrayLength)
+            {
+                return (list, elements.Length, arrayLength, what);
+            }
+
+            return elements.OfType<InitializerListExpressionSyntax>()
+                .Select(element => FindGlslListMismatch(types, structs, element, type, -1, $"{what} の要素", depth + 1))
+                .FirstOrDefault(found => found is not null);
+        }
+
+        if (types.TryDescribeNumeric(type, out ShaderNumericShape shape))
+        {
+            switch (shape.Kind)
+            {
+                // matCxR は C 列 R 行。Rows に列の数、Columns に行の数を持つ。
+                case ShaderNumericKind.Matrix:
+                    if (elements.Length != shape.Rows)
+                    {
+                        return (list, elements.Length, shape.Rows, $"{what} の列");
+                    }
+
+                    foreach (InitializerListExpressionSyntax column in elements.OfType<InitializerListExpressionSyntax>())
+                    {
+                        int wrote = column.Elements.Count(e => e.Node is ExpressionSyntax);
+
+                        if (wrote != shape.Columns)
+                        {
+                            return (column, wrote, shape.Columns, $"{what} の列の成分");
+                        }
+                    }
+
+                    return null;
+
+                case ShaderNumericKind.Vector:
+                    return elements.Length != shape.Rows * shape.Columns ? (list, elements.Length, shape.Rows * shape.Columns, $"{what} の成分") : null;
+
+                default:
+                    return null;
+            }
+        }
+
+        if (!structs.TryGetValue(type, out StructDeclarationSyntax? structure))
+        {
+            return null;
+        }
+
+        (string Type, VariableDeclaratorSyntax Field)[] fields = [.. structure.Fields.SelectMany(f => f.Variables.Select(v => (f.Type.Name, v)))];
+
+        if (elements.Length != fields.Length)
+        {
+            return (list, elements.Length, fields.Length, $"{what} のメンバー");
+        }
+
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (elements[i] is InitializerListExpressionSyntax nested)
+            {
+                VariableDeclaratorSyntax field = fields[i].Field;
+                int length = field.IsArray ? (field.ArrayDimensions == 1 && field.TryGetArrayLength(out int n) ? n : -2) : -1;
+
+                if (FindGlslListMismatch(types, structs, nested, fields[i].Type, length, $"{what} のメンバー '{field.Name}'", depth + 1) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
