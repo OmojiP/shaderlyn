@@ -507,6 +507,12 @@ internal sealed partial class ShaderPreprocessor
         ShaderLexer lexer = new(fusedText);
         ImmutableArray<ShaderSyntaxToken> fusedTokens = lexer.Lex(out _);
 
+        // GLSL (glslang) は、名前と演算子の記号にしか ## を使えず、演算子は 1 つの演算子にならなければならない。長さは 1024 文字まで。
+        if (_options.GlslRules && PasteError(left[^1], fused, fusedTokens.Count(t => t.Kind != ShaderSyntaxKind.EndOfFileToken)) is { } error)
+        {
+            Report(ShaderDescriptors.PreprocessorError, callSite.GetLocation(), $"## の連結: {error}");
+        }
+
         foreach (ShaderSyntaxToken token in fusedTokens)
         {
             if (token.Kind != ShaderSyntaxKind.EndOfFileToken)
@@ -518,6 +524,22 @@ internal sealed partial class ShaderPreprocessor
 
         result.AddRange(right.Skip(fuse));
         return result.ToImmutable();
+    }
+
+    /// <summary>GLSL の ## の連結の誤り (glslang の tokenPaste)。</summary>
+    private static string? PasteError(ShaderSyntaxToken left, string fused, int fusedCount)
+    {
+        if (left.Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            return fused.Length > 1024 ? "連結した字句が長すぎます (1024 文字まで)。" : null;
+        }
+
+        if (left.Text is not ("=" or "!" or "-" or "~" or "+" or "*" or "/" or "%" or "<" or ">" or "|" or "^" or "&" or ">>" or "<<" or "&&" or "||" or "^^"))
+        {
+            return $"'{left.Text}' には ## を使えません。名前か演算子の記号にだけ使えます。";
+        }
+
+        return fusedCount == 1 ? null : $"連結した '{fused}' は 1 つの演算子になりません。";
     }
 
     /// <summary>トークン列を文字列リテラルの中身へ変換する。</summary>

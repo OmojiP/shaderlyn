@@ -112,6 +112,7 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
         (int index, HashSet<long> declared, string kind) = callee.Name switch
         {
             "traceRayEXT" or "traceRayNV" when arguments.Length == 11 => (10, locations.Payloads, "rayPayloadEXT / rayPayloadInEXT"),
+            "traceRayMotionNV" when arguments.Length == 12 => (11, locations.Payloads, "rayPayloadEXT / rayPayloadInEXT"),
             "executeCallableEXT" or "executeCallableNV" when arguments.Length == 2 => (1, locations.Callables, "callableDataEXT / callableDataInEXT"),
             _ => (-1, locations.Payloads, string.Empty),
         };

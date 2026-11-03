@@ -61,6 +61,9 @@ internal sealed partial class GlslLayoutAnalyzer
                 case Storage.Buffer:
                     set = 3;
                     break;
+                case Storage.Other when modifiers.Any(m => m.Text == "tileImageEXT"):
+                    set = 4;
+                    break;
                 default:
                     return;
             }
@@ -69,7 +72,7 @@ internal sealed partial class GlslLayoutAnalyzer
             TypeShape type = TypeShape.Of(_types, typeName);
             long? size;
 
-            if (storage is Storage.Uniform or Storage.Buffer)
+            if (set == 4 || storage is Storage.Uniform or Storage.Buffer)
             {
                 size = declarator is null || !declarator.IsArray ? 1 : declarator.TryGetArrayLength(out int length) ? length : 1;
             }
@@ -95,7 +98,8 @@ internal sealed partial class GlslLayoutAnalyzer
             long? component = layout.Get("component") is { } componentEntry ? ValueOf(componentEntry) : null;
             long index = layout.Get("index") is { } indexEntry ? ValueOf(indexEntry) ?? 0 : 0;
             string interpolation = string.Join(" ", modifiers.Where(m => m.Text is "centroid" or "smooth" or "flat" or "sample" or "patch").Select(m => m.Text).Order(StringComparer.Ordinal));
-            string baseType = type.BaseType;
+            // タイルのイメージ (attachmentEXT) の型は、読む値の型とする (iattachmentEXT は int)。
+            string baseType = set == 4 ? typeName switch { "iattachmentEXT" => "int", "uattachmentEXT" => "uint", _ => "float" } : type.BaseType;
 
             // 頂点シェーダーの入力は、デスクトップの OpenGL 向けなら重ねてよい。
             bool check = !(!_r.IsEs && Stage == GlslShaderStage.Vertex && storage == Storage.In) || _r.Vulkan == true;
@@ -133,7 +137,7 @@ internal sealed partial class GlslLayoutAnalyzer
                     {
                         Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"location {number} は、ほかの宣言の location と重なります。");
                     }
-                    else if (storage is Storage.In or Storage.Out)
+                    else if (storage is Storage.In or Storage.Out || set == 4)
                     {
                         Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"location {number} を分け合う宣言は、型と補間の修飾子を同じにしなければなりません。");
                     }
@@ -147,6 +151,12 @@ internal sealed partial class GlslLayoutAnalyzer
 
         private (UsedLocation Location, bool TypeMismatch)? Collide(UsedLocation range)
         {
+            // タイルのイメージ (tileImageEXT) と出力は location を分け合い、重なるなら型が同じでなければならない。
+            if (range.Set is 1 or 4 && _usedLocations.FirstOrDefault(u => u.Set == (range.Set == 4 ? 1 : 4) && range.First <= u.Last && u.First <= range.Last && u.BaseType != range.BaseType) is { } aliased)
+            {
+                return (aliased, true);
+            }
+
             foreach (UsedLocation used in _usedLocations.Where(u => u.Set == range.Set))
             {
                 bool locations = range.First <= used.Last && used.First <= range.Last;

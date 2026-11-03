@@ -150,6 +150,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- `tileImageEXT` の変数と出力の location の重なりと、location を分け合う型の違い (GL0103)、`traceRayMotionNV` のペイロードの location (GL0306) を報告する
+- GLSL のマクロの `##` で、名前と演算子の記号でないものの連結、1 つの演算子にならない演算子の連結、1024 文字を越える連結を報告する (CF0002)
 - 配列の値の作成の、内側の次元と形の違う実引数 (CF0410)、形の違う配列どうしの `==` / `!=` (GL0301)、内側の次元の大きさを書かない配列の初期化子の、大きさのそろわない要素 (CF0410) を報告する
 - 大きさを書かない `atomic_uint` の配列 (GL0402)、初期値を書いた `rayQueryEXT` の変数 (GL0403)、関数の属性 `[[inline]]` と `[[noinline]]` の食い違い (GL0323)、
   ES と 4.20 以前の `textureOffset` の `sampler2DArrayShadow` (GL0001)、`descriptor_heap` の組み合わせたサンプラーと配列でない変数 (GL0101) を報告する
