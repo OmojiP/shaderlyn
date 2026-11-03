@@ -185,7 +185,9 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
 
         if (digits.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
-            problem = digits[2..].TrimStart('0').Length > 8 ? "16 進数のリテラルが 32 ビットに収まりません" : null;
+            problem = digits.Length == 2 ? "16 進数のリテラルに桁がありません"
+                : digits[2..].TrimStart('0').Length > 8 ? "16 進数のリテラルが 32 ビットに収まりません"
+                : null;
         }
         else if (digits.Length > 1 && digits[0] == '0')
         {

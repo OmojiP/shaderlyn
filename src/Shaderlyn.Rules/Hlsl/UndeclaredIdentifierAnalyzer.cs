@@ -80,6 +80,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // GLSL の、使う位置より後ろにしか宣言の無い関数の外の名前。位置ごとに 1 度だけ報告する。
         Dictionary<(string File, int Start), (Location Location, string Name)> declaredLater = [];
 
+        // GLSL の、どこにも宣言の無い型の名前。
+        Dictionary<(string File, int Start), (Location Location, string Name)> undeclaredTypes = [];
+        Dictionary<AnalyzedProgram, HashSet<string>> typeNames = [];
+
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
@@ -92,6 +96,21 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // GLSL の宣言の型 (vec5 color;)。組み込みの型でも、どこかで宣言した構造体とブロックの名前でもないものは、glslang が「undeclared identifier」にする。
+            if (compilation.IsGlsl
+                && node is TypeSyntax { Parent: VariableDeclarationSyntax or ParameterSyntax or FunctionDeclarationSyntax } type
+                && (compilation.HasCompleteDependencies || compilation.IsBeforeFirstBreak(type))
+                && compilation.IsReportable(type.NameToken)
+                && !Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(type.Name)
+                && type.Name is not ("void" or "struct" or "spirv_type")
+                && !type.Name.StartsWith("gl_", StringComparison.Ordinal)
+                && !TypeNamesOf(typeNames, program).Contains(type.Name)
+                && type.NameToken.GetLocation() is { } typeLocation)
+            {
+                undeclaredTypes.TryAdd((typeLocation.FilePath, typeLocation.Span.Start), (typeLocation, type.Name));
+                continue;
+            }
+
             if (node is IdentifierExpressionSyntax identifier)
             {
                 AnalyzeIdentifier(compilation, program, declared, identifier, qualifiers, uses);
@@ -101,6 +120,11 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     declaredLater.TryAdd((later.FilePath, later.Span.Start), (later, identifier.Name));
                 }
             }
+        }
+
+        foreach ((Location location, string name) in undeclaredTypes.Values)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.UndeclaredIdentifier, location, name, "どこにも"));
         }
 
         foreach ((Location location, string name) in declaredLater.Values)
@@ -119,6 +143,41 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     missing.IsAlways ? "どこにも" : $" 構成：{missing} のとき"));
             }
         }
+    }
+
+    /// <summary>GLSL の木で宣言した型の名前 (構造体、ブロック、buffer_reference の前方宣言の名前)。取り込んだヘッダも含む。</summary>
+    /// <param name="cache">木ごとに求めた結果。</param>
+    /// <param name="program">型を使う木。</param>
+    /// <returns>名前の集まり。</returns>
+    private static HashSet<string> TypeNamesOf(Dictionary<AnalyzedProgram, HashSet<string>> cache, AnalyzedProgram program)
+    {
+        if (!cache.TryGetValue(program, out HashSet<string>? names))
+        {
+            names = cache[program] = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
+            {
+                switch (node)
+                {
+                    case StructDeclarationSyntax { NameToken: { } name }:
+                        names.Add(name.Text);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        names.Add(block.Name);
+                        break;
+
+                    case IncompleteDeclarationSyntax incomplete:
+                        names.UnionWith(incomplete.Tokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        return names;
     }
 
     /// <summary>

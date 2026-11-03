@@ -65,6 +65,7 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start, string Message)> reported = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+        Dictionary<AnalyzedProgram, int?> earlyFragmentTests = [];
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -84,7 +85,12 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            Checker checker = new(requirement, compilation, program);
+            if (!earlyFragmentTests.TryGetValue(program, out int? early))
+            {
+                early = earlyFragmentTests[program] = FindEarlyFragmentTests(program);
+            }
+
+            Checker checker = new(requirement, compilation, program, early);
 
             switch (node)
             {
@@ -130,10 +136,39 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
                     break;
             }
         }
+
+        // フラグメントシェーダーで gl_FragColor と gl_FragData の両方を使うと、glslang のリンクが「Cannot use both gl_FragColor and gl_FragData」にする。
+        foreach (AnalyzedProgram program in compilation.Programs)
+        {
+            if (requirements.GetValueOrDefault(program) is not { Stage: Shaderlyn.Glsl.GlslShaderStage.Fragment } requirement)
+            {
+                continue;
+            }
+
+            IdentifierExpressionSyntax[] uses =
+            [
+                .. program.Tree.Root.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>()
+                    .Where(u => u.Name is "gl_FragColor" or "gl_FragData" && ReferenceEquals(u.Identifier.Source, program.Tree.Text)),
+            ];
+
+            if (uses.Any(u => u.Name == "gl_FragColor") && uses.Any(u => u.Name == "gl_FragData"))
+            {
+                IdentifierExpressionSyntax second = uses.First(u => u.Name != uses[0].Name);
+                requirement.Report(GlslRuleDescriptors.NotWritable, second.Identifier, $"'{second.Name}'", "gl_FragColor と gl_FragData の両方は使えません");
+            }
+        }
     }
 
+    /// <summary>layout(early_fragment_tests) in; の位置 (同じファイルのもの)。無ければ <see langword="null"/>。</summary>
+    private static int? FindEarlyFragmentTests(AnalyzedProgram program)
+        => program.Tree.Root.DescendantNodesAndSelf()
+            .OfType<IncompleteDeclarationSyntax>()
+            .Where(d => d.Tokens.Any(t => t.Text == "early_fragment_tests") && ReferenceEquals(d.Tokens[0].Source, program.Tree.Text))
+            .Select(d => (int?)d.Tokens[0].Span.Start)
+            .Min();
+
     /// <summary>1 つの木の読み書きを検査する。</summary>
-    private sealed class Checker(GlslRequirements requirement, ShaderCompilation compilation, AnalyzedProgram program)
+    private sealed class Checker(GlslRequirements requirement, ShaderCompilation compilation, AnalyzedProgram program, int? earlyFragmentTests)
     {
         private readonly ExpressionTypeBinder _binder = compilation.GetExpressionTypeBinder(program);
 
@@ -141,11 +176,7 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
         private readonly bool _hasReferences = compilation.CodeTokens.Any(t => t.Text == "buffer_reference");
 
         /// <summary>layout(early_fragment_tests) in; の位置 (同じファイルのもの)。無ければ <see langword="null"/>。</summary>
-        private readonly int? _earlyFragmentTests = program.Tree.Root.DescendantNodesAndSelf()
-            .OfType<IncompleteDeclarationSyntax>()
-            .Where(d => d.Tokens.Any(t => t.Text == "early_fragment_tests") && ReferenceEquals(d.Tokens[0].Source, program.Tree.Text))
-            .Select(d => (int?)d.Tokens[0].Span.Start)
-            .Min();
+        private readonly int? _earlyFragmentTests = earlyFragmentTests;
 
         /// <summary>関数の呼び出し。値の作成の実引数を読み、out の仮引数に渡す実引数に書く。</summary>
         public void CheckCall(IdentifierExpressionSyntax callee, ExpressionSyntax[] arguments)

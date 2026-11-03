@@ -362,6 +362,14 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
 
         foreach (ShaderSyntaxToken name in tokens[1..^1].Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken))
         {
+            // 宣言の無い名前 (glslang の「identifier not previously declared」)。組み込みの gl_ の名前は見ない。
+            if (!name.Text.StartsWith("gl_", StringComparison.Ordinal)
+                && !program.Tree.Root.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>().Any(v => v.Name == name.Text))
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, name, $"invariant を足す名前 '{name.Text}' は宣言されていません。");
+                continue;
+            }
+
             bool io = program.Tree.Root.ChildNodes().OfType<VariableDeclarationSyntax>()
                 .Any(d => d.Variables.Any(v => v.Name == name.Text) && TopLevel([.. d.ModifierTokens]).Any(t => t.Text is "in" or "out" or "varying"));
 
