@@ -148,6 +148,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   ブロックのメンバーの配列の代入をしたものも報告する
 - レイトレーシング: 任意ヒットでないシェーダーの `terminateRayEXT` / `ignoreIntersectionEXT` (GL0002)、ペイロードと呼び出しのデータの location の重なり (GL0103)、
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
+- `debugPrintfEXT` と `abortEXT` の 1 つ目の実引数が文字列のリテラルでないもの、`abortEXT` の不透明な型・大きさの決まっていない配列・bool を含む集まり・文字列の実引数 (GL0306)、
+  文字列のリテラルの誤ったエスケープ (`\x` の後に桁が無い、`\8` など。GL0315)、数の型の値の作成の文字列 (GL0302) を報告する
 - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。
   実引数が 1 つの書き方は `GL_ARB_bindless_texture` が要る (GL0001)
 - CF0412 (初期化子の要素の数が合わない) は、GLSL では波括弧を平らにせずに数える。行列は列ごと (`mat2 m = { {1.0, 0.0}, {0.0, 1.0} };`)、構造体はメンバーごとに書かなければならない
