@@ -1087,6 +1087,13 @@ internal sealed partial class GlslLayoutAnalyzer
                 Required("SPIR-V を作るとき、利用者の入力と出力には layout(location = …) が要ります。");
             }
 
+            // OpenGL 向けの SPIR-V では、ブロックの外の数の型の uniform にも location が要る (glslang の「non-opaque uniform variables need a layout(location=L)」)。
+            if (_r.SpirvVersion > 0 && _r.Vulkan == false && !_r.AutoMapLocations && !builtIn && !layout.HasLocation && storage == Storage.Uniform
+                && !type.IsBlock && !type.IsOpaque && !type.IsUnknown)
+            {
+                Required("OpenGL 向けの SPIR-V を作るとき、ブロックの外の uniform の変数には layout(location = …) が要ります。");
+            }
+
             if (uniformOrBuffer(storage) && !type.IsBlock)
             {
                 if (layout.HasMatrix)

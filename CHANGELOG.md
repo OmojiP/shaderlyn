@@ -37,6 +37,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
     `#extension` の形の誤り (`:` や振る舞いが無い、`require` / `enable` / `warn` / `disable` でない振る舞い、後ろの余分な記述、`all` の `require` / `enable`)。
     到達した `#error` (glslang はコンパイルを止める。HLSL と同じ CF0104 の情報では伝えない)。
     予約された名前の `#define` / `#undef` (`GL_` で始まる名前、`defined`、ES の `__LINE__` など)、`#pragma optimize` / `#pragma debug` と SPIR-V を作るときの `#pragma STDGL` の形、
+    無いバージョンの `#version` (`#version 435`) と、SPIR-V を作るときに使えないバージョンとプロファイル (ES の 3.10 より前、互換のプロファイル、Vulkan 向けの 1.40 より前、OpenGL 向けの 3.30 より前)、
     1024 文字を越える名前と数のリテラル、ファイルの最初でない `#version` と 2 つ目の `#version`、ES の 3.00 からの、前にコメントや空の行がある `#version`
   - GL0323: 同じ形の関数の宣言どうしの食い違い (仮引数の記憶域 `in` / `out` / `inout`、仮引数の精度、戻り値の型)
   - GL0322: `main` の定義の形が正しくない (仮引数がある、戻り値が `void` でない)
@@ -126,7 +127,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - CF0404 (値の作成に渡す成分の数が合わない) は、GLSL では閉じ括弧の位置で報告する。glslang と同じ行になる
 - CF0401 (実引数を仮引数の型へ変換できない) は、GLSL では構造体の仮引数に別の型の値を渡したもの (`f(1.0)` の仮引数が構造体) と、数値の仮引数に構造体を渡したものも報告する
 - CF0405 (配列の実引数が合わない) は、GLSL では配列を配列でない仮引数に渡したもの (`f(a)` の仮引数が `float`) と、大きさを書かずに宣言した配列 (`float a[];`) を配列の仮引数に渡したものも報告する
-- GL0104 (layout に要る指定が無い) は、テッセレーションの制御シェーダーの `layout(vertices = …) out;`、評価シェーダーの入力のプリミティブ、
+- GL0104 (layout に要る指定が無い) は、OpenGL 向けの SPIR-V を作るときの location の無いブロックの外の uniform、テッセレーションの制御シェーダーの `layout(vertices = …) out;`、評価シェーダーの入力のプリミティブ、
   ジオメトリシェーダーの入力と出力のプリミティブと `max_vertices` が無いもの (glslang のリンクの誤り。`main` の位置で報告する) と、計算シェーダーでワークグループの大きさ (`layout(local_size_x = …) in;`) を宣言する前の `gl_WorkGroupSize` も報告する
 - GL0001 は、文の属性 (`[[unroll]]` など。`GL_EXT_control_flow_attributes` が要る) も検査する。GL0304 は、正の数でない `[[dependency_length(…)]]` も報告する
 - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。

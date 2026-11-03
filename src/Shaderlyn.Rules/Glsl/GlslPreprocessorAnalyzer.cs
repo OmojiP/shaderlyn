@@ -84,6 +84,11 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                         {
                             requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, "ES の 3.00 からは、#version の前にコメントや空の行も書けません。");
                         }
+
+                        if (!versionSeen && DescribeVersionError(requirement, directive.Tokens) is { } versionError)
+                        {
+                            requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, versionError);
+                        }
                     }
 
                     versionSeen = true;
@@ -124,6 +129,40 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// #version の番号とプロファイルの誤り (glslang の ShaderLang.cpp の DeduceVersionProfile)。
+    /// 無いバージョン、SPIR-V を作るときの ES の 3.10 より前・互換のプロファイル・Vulkan 向けの 1.40 より前・OpenGL 向けの 3.30 より前。
+    /// </summary>
+    /// <param name="requirement">SPIR-V と Vulkan の設定。</param>
+    /// <param name="tokens">指令の名前の後ろのトークン。</param>
+    /// <returns>誤りの説明。誤りが無いか、番号が読めなければ <see langword="null"/>。</returns>
+    private static string? DescribeVersionError(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        if (tokens.IsEmpty || !int.TryParse(tokens[0].Text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int version))
+        {
+            return null;
+        }
+
+        string profile = tokens.Length > 1 ? tokens[1].Text : string.Empty;
+        bool es = profile == "es" || version == 100;
+
+        if (version is not (100 or 300 or 310 or 320 or 110 or 120 or 130 or 140 or 150 or 330 or 400 or 410 or 420 or 430 or 440 or 450 or 460))
+        {
+            return $"#version {version} というバージョンはありません。";
+        }
+
+        if (requirement.SpirvVersion is not > 0)
+        {
+            return null;
+        }
+
+        return es && version < 310 ? "SPIR-V を作るとき、ES のシェーダーは #version 310 es 以上でなければなりません。"
+            : profile == "compatibility" ? "SPIR-V を作るとき、互換のプロファイル (compatibility) は使えません。"
+            : !es && requirement.Vulkan == true && version < 140 ? "Vulkan 向けの SPIR-V を作るとき、デスクトップのシェーダーは #version 140 以上でなければなりません。"
+            : !es && requirement.Vulkan == false && version < 330 ? "OpenGL 向けの SPIR-V を作るとき、デスクトップのシェーダーは #version 330 以上でなければなりません。"
+            : null;
     }
 
     /// <summary>glslang の 1 つのトークンの長さの上限 (MaxTokenLength)。</summary>
