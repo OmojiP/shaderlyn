@@ -150,6 +150,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- GLSL の配列の成分の選択とメンバー (`a.y`。CF0312)、配列への単項の演算子 (`a--`、`!a`、`~a`。GL0301)、0 以下の配列の大きさ (GL0403) を報告する
+- 加速構造 (`accelerationStructureEXT`) とテンソル (`tensorARM`) の、uniform でない変数を報告する (GL0403)
+- `readonly` のテンソルへの `tensorWriteARM` と、`writeonly` のテンソルからの `tensorReadARM` を報告する (GL0306)
 - `GL_KHR_compute_shader_derivatives` を有効にしたのに `derivative_group_quadsKHR` / `derivative_group_linearKHR` の無いもの、微分の関数より前に derivative_group の無いもの、
   derivative_group_quads の 2 の倍数でない local_size_x / local_size_y と derivative_group_linear の 4 の倍数でないワークグループの大きさを報告する (GL0104)。
   タスクとメッシュのシェーダーの微分の関数に `GL_KHR_compute_shader_derivatives` が無いことも報告する (GL0001)

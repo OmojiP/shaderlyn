@@ -81,6 +81,16 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // 書けないテンソル (readonly) には書けず、読めないテンソル (writeonly) からは読めない (glslang の「argument cannot drop memory qualifier」)。
+            string dropped = name == "tensorWriteARM" ? "readonly" : "writeonly";
+
+            if (arguments[0] is IdentifierExpressionSyntax target
+                && binder.ResolveName(target).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } declaration } }]
+                && declaration.HasModifier(dropped))
+            {
+                requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 1, $"{dropped} でないテンソルでなければなりません");
+            }
+
             if (tensor.Rank is { } coordinates && CoordinateCount(binder, arguments[1]) is { } count && count != coordinates)
             {
                 requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 2, $"テンソルの階数と同じ {coordinates} 個の要素の座標の配列でなければなりません (今は {count} 個)");

@@ -160,6 +160,19 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // GLSL の配列には、成分もメンバーも無い (glslang の「cannot apply to an array」)。
+        if (binder.TypeSystem is GlslTypeSystem && access.Name != "length" && IsGlslArrayValue(binder, access.Target)
+            && access.NameToken.GetLocation() is { } arrayLocation && reported.Add(arrayLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                arrayLocation,
+                "配列",
+                $"メンバー '{access.Name}' ",
+                "配列には成分もメンバーもありません。要素を [ ] で引いてから選んでください。"));
+            return;
+        }
+
         // 対象の型が分からないなら報告しない。
         // 分からないものを根拠に「メンバーが無い」と言ってはならない。
         // 構成によって型が変わる名前なら、構成ごとに型を求めて検査する。

@@ -196,8 +196,8 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
         string type = declaration.Type.Name;
 
-        // atomic_uint も uniform の変数と仮引数にしか使えない (glslang の atomicUintCheck)。
-        if (IsOpaque(type) || type == "atomic_uint")
+        // atomic_uint・加速構造・テンソルも uniform の変数と仮引数にしか使えない (glslang の atomicUintCheck、accStructCheck、samplerCheck)。
+        if (IsOpaque(type) || type is "atomic_uint" or "accelerationStructureEXT" or "accelerationStructureNV" or "tensorARM")
         {
             requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"{type} は uniform の変数と仮引数にしか使えません。");
         }

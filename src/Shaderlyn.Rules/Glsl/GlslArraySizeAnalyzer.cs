@@ -67,6 +67,13 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
     /// <summary>1 つの宣言を検査する。</summary>
     private static void Check(GlslRequirements requirement, ShaderSyntaxNode node)
     {
+        // 配列の大きさは正の整数 (glslang の arraySizeCheck の「must be a positive integer」)。整数のリテラルの式だけを見る。
+        if (node is VariableDeclaratorSyntax sized
+            && DimensionTokens(sized.ArrayRankTokens).Select(d => d.IsEmpty ? null : GlslLayoutQualifier.Evaluate(d, _ => null)).FirstOrDefault(v => v is { } size && size.Value <= 0) is { } negative)
+        {
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, sized.NameToken, sized.Name, $"配列の大きさは正の整数でなければなりません (今は {negative.Integer})。");
+        }
+
         switch (node)
         {
             case FunctionDeclarationSyntax function when HasUnsized(function.ReturnType.ArrayRanks):

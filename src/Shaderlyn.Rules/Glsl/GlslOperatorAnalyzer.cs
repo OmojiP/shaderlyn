@@ -246,6 +246,13 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
+            // 配列そのものには、単項の演算子を使えない (glslang の handleUnaryMath)。
+            if (IsCertainlyArray(operandExpression))
+            {
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使えません。");
+                return;
+            }
+
             if (OpaqueTypeOf(operandExpression) is { } opaque)
             {
                 requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
