@@ -1199,6 +1199,7 @@ internal sealed partial class GlslLayoutAnalyzer
             }
 
             // uniform struct { … } s; は、名前が struct のブロックとして読まれる。構造体の変数なので、ブロックとして検査しない。
+
             if (storage == Storage.Other || name is "struct" || name is not null && name.StartsWith("gl_", StringComparison.Ordinal))
             {
                 return;
@@ -1215,6 +1216,12 @@ internal sealed partial class GlslLayoutAnalyzer
                     _ => "none",
                 };
             bool standardPacking = packing is "std140" or "std430" or "scalar";
+
+            // uniform のブロックに書いた std430 は GL_EXT_scalar_block_layout が要る (glslang の blockStageIoCheck)。
+            if (storage == Storage.Uniform && layout.Packing == "std430" && !layout.Has("push_constant"))
+            {
+                _r.RequireExtensions(at, ["GL_EXT_scalar_block_layout"], "uniform のブロックの std430");
+            }
 
             if (layout.Get("align") is { } align && packing is not null && !standardPacking)
             {

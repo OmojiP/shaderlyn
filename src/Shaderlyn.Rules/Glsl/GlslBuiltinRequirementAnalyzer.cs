@@ -71,6 +71,20 @@ internal sealed class GlslBuiltinRequirementAnalyzer : SemanticRuleAnalyzer
                     requirement.RequireExtensions(identifier.Identifier, variable.Extensions, $"'{identifier.Name}'");
                     break;
 
+                // 配列の大きさに書いた組み込みの定数 (int a[gl_MaxTransformFeedbackBuffers];)。大きさのトークンは式の構文木にならない。
+                case VariableDeclaratorSyntax declarator when !declarator.ArrayRankTokens.IsEmpty:
+                    foreach (ShaderSyntaxToken token in declarator.ArrayRankTokens)
+                    {
+                        if (token.Kind == ShaderSyntaxKind.IdentifierToken
+                            && token.Text.StartsWith("gl_", StringComparison.Ordinal)
+                            && types.Builtins.GetVariable(token.Text) is { Extensions.IsEmpty: false } constant)
+                        {
+                            requirement.RequireExtensions(token, constant.Extensions, $"'{token.Text}'");
+                        }
+                    }
+
+                    break;
+
                 // 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み変数 (ES の gl_ClipDistance など)。glslang は「undeclared identifier」にする。
                 case IdentifierExpressionSyntax identifier
                     when identifier.Name.StartsWith("gl_", StringComparison.Ordinal)

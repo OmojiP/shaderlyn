@@ -53,7 +53,7 @@ internal static class GlslSyntaxTree
         // 重要度だけを差し替える。既定の重要度は警告のままなので、解析は止めない (ShaderCompilation.BreaksAnalysis)。設定で重要度を書けば、そちらが勝つ。
         diagnostics.AddRange(preprocessed.Diagnostics.Select(d => d.Descriptor == CFamily.ShaderDescriptors.MacroRedefinition ? d.WithSeverity(DiagnosticSeverity.Error) : d));
         diagnostics.AddRange(parseDiagnostics);
-        AddReservedWords(diagnostics, preprocessed.Tokens, text, language);
+        AddReservedWords(diagnostics, preprocessed.Tokens, text, language, preprocessed.RecordedDirectives);
         AddParameterDefaults(diagnostics, root, text);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
@@ -88,6 +88,7 @@ internal static class GlslSyntaxTree
     /// <param name="tokens">展開したトークン。</param>
     /// <param name="text">解析しているファイル。このファイルに書いた語だけを報告する。</param>
     /// <param name="language">言語の設定。バージョンが分からなければ報告しない。</param>
+    /// <param name="directives">展開の順番を覚えた指令。拡張は、書いた位置より後ろでだけ有効とする (構文解析と同じ)。</param>
     /// <remarks>
     /// <c>class</c> や <c>union</c> のようにどのバージョンでも予約語のものと、<c>double</c> を 1.40 で書くように、そのバージョンでは予約語のものがある。
     /// </remarks>
@@ -95,17 +96,53 @@ internal static class GlslSyntaxTree
         ImmutableArray<Diagnostic>.Builder diagnostics,
         ImmutableArray<ShaderSyntaxToken> tokens,
         SourceText text,
-        GlslLanguageOptions language)
+        GlslLanguageOptions language,
+        ImmutableArray<RecordedDirective> directives)
     {
         if (language.Version is not { } version)
         {
             return;
         }
 
-        GlslWordRules rules = new(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, language.Extensions.Contains);
+        (int OutputIndex, string Name, bool On)[] extensions =
+        [
+            .. (directives.IsDefault ? [] : directives)
+                .Where(d => d.Directive.Text == "extension" && d.Tokens is [_, { Kind: ShaderSyntaxKind.ColonToken }, _, ..])
+                .Select(d => (d.OutputIndex, d.Tokens[0].Text, d.Tokens[2].Text != "disable")),
+        ];
+        int position = 0;
 
-        foreach (ShaderSyntaxToken token in tokens)
+        bool IsOn(string name)
         {
+            if (extensions.Length == 0)
+            {
+                return language.Extensions.Contains(name);
+            }
+
+            bool on = false;
+
+            foreach ((int outputIndex, string extension, bool enabled) in extensions)
+            {
+                if (outputIndex > position)
+                {
+                    break;
+                }
+
+                if (extension == name || extension == "all")
+                {
+                    on = enabled;
+                }
+            }
+
+            return on;
+        }
+
+        GlslWordRules rules = new(version, language.Profile == GlslProfile.Es, language.Stage, language.Vulkan, IsOn);
+
+        for (position = 0; position < tokens.Length; position++)
+        {
+            ShaderSyntaxToken token = tokens[position];
+
             if (token.Kind == ShaderSyntaxKind.IdentifierToken
                 && ReferenceEquals(token.Source, text)
                 && rules.Classify(token.Text).IsReservedError

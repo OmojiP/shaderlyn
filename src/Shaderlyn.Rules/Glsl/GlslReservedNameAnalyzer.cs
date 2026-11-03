@@ -54,6 +54,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start, string Message)> reported = [];
         Dictionary<AnalyzedProgram, GlslRequirements?> requirements = [];
+        HashSet<string> declaredGlobals = new(StringComparer.Ordinal);
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
@@ -106,7 +107,12 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case VariableDeclaratorSyntax variable:
-                    Check(requirement, variable.NameToken, variable.NameToken, mayRedeclare: !variable.Ancestors().Any(a => a is FunctionDeclarationSyntax));
+                    // 関数の外の同じ gl_ の名前の 2 度目は、glslang は伝えない (1 度目で利用者の変数になる)。
+                    if (variable.Ancestors().Any(a => a is FunctionDeclarationSyntax) || !IsBuiltInName(variable.Name) || declaredGlobals.Add(variable.Name))
+                    {
+                        Check(requirement, variable.NameToken, variable.NameToken, mayRedeclare: !variable.Ancestors().Any(a => a is FunctionDeclarationSyntax));
+                    }
+
                     break;
 
                 default:
@@ -155,6 +161,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// 組み込みの変数を宣言し直しているかもしれないか (glslang の redeclareBuiltinVariable が名前を受け付けるか)。
     /// その版とステージに組み込みの変数があるかは確かめず、あるかもしれなければ報告しない側に倒す。
+    /// gl_Color は、互換のプロファイルか 1.30 までのフラグメントシェーダーにだけある (glslang の IncludeLegacy)。
     /// </summary>
     internal static bool MayRedeclare(GlslRequirements requirement, string name, ShaderSyntaxToken at)
     {
@@ -178,6 +185,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
             || name == "gl_FragDepth" && (desktop && requirement.Version >= 420 || es)
             || name == "gl_FragCoord" && (desktop && requirement.Version >= 140 || es)
             || name == "gl_Color" && requirement.Stage == Shaderlyn.Glsl.GlslShaderStage.Fragment
+               && (requirement.Version <= 130 || requirement.Profile == GlslProfileMask.Compatibility)
             || name == "gl_FragStencilRefARB" && desktop && requirement.Version >= 140 && requirement.Stage == Shaderlyn.Glsl.GlslShaderStage.Fragment;
     }
 }

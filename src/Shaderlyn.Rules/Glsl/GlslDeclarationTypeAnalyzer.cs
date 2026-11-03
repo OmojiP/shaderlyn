@@ -74,6 +74,11 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, name, name.Text, "void の仮引数には名前を付けられません。");
                     break;
 
+                // void はほかの仮引数と並べられない (glslang の「cannot be an argument type except for '(void)'」)。
+                case ParameterSyntax { Type.Name: "void", Parent: FunctionDeclarationSyntax function } parameter when function.ParameterList.Count() > 1:
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, parameter.Type.NameToken, "void", "void は、仮引数の無いことを示す (void) の形でしか書けません。");
+                    break;
+
                 // サンプラー・イメージ・atomic_uint は、out / inout の仮引数にできない (glslang の parameterTypeCheck)。
                 case ParameterSyntax { NameToken.IsMissing: false } parameter
                     when parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Any(t => t.Text is "out" or "inout")
