@@ -88,6 +88,16 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
                 case VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax or LocalDeclarationStatementSyntax } declaration } variable:
                     CheckOpaque(requirement, program, declaration, variable);
+
+                    // ES では、bool の型に精度の修飾子を書けない (glslang の checkPrecisionQualifier の「type cannot have precision qualifier」)。
+                    if (requirement.IsEs
+                        && declaration.Type.Name is "bool" or "bvec2" or "bvec3" or "bvec4"
+                        && declaration.ModifierTokens.Concat(declaration.Type.ModifierTokens).Any(t => t.Text is "highp" or "mediump" or "lowp")
+                        && declaration.Variables.FirstOrDefault() == variable)
+                    {
+                        requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, declaration.Type.NameToken, declaration.Type.Name, "bool の型には精度の修飾子を書けません。");
+                    }
+
                     CheckPatchInput(requirement, declaration.ModifierTokens, variable.ArrayRankTokens, variable.NameToken);
 
                     if (declaration.Parent is CompilationUnitSyntax && !variable.IsArray && !variable.Name.StartsWith("gl_", StringComparison.Ordinal))

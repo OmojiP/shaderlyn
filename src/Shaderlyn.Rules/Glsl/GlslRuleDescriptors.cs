@@ -405,6 +405,21 @@ internal static class GlslRuleDescriptors
         description: "main に仮引数を書いたか、戻り値を void 以外にしています。GLSL の main は仮引数を取らず、値を返しません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0322"));
 
+    /// <summary>同じ形の関数の宣言どうしで、仮引数の修飾子か戻り値の型が違う。</summary>
+    /// <remarks>
+    /// glslang の <c>handleFunctionDeclarator</c> の「overloaded functions must have the same parameter storage qualifiers」
+    /// 「… same parameter precision qualifiers」「… same return type」に当たる。文の <c>{0}</c> は理由。
+    /// </remarks>
+    public static DiagnosticDescriptor FunctionRedeclarationMismatch { get; } = new(
+        id: "GL0323",
+        title: "関数の宣言どうしが食い違っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "仮引数の型が同じ関数を 2 度宣言し (プロトタイプと定義など)、仮引数の記憶域 (in・const in・out・inout) か精度の修飾子、または戻り値の型が前の宣言と違います。"
+            + "GLSL は仮引数の型だけで関数を区別するので、これらは同じ関数の食い違った宣言になります。glslang はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GL0323"));
+
     /// <summary>予約された名前を宣言している。</summary>
     /// <remarks>
     /// glslang の <c>reservedErrorCheck</c> (「identifiers starting with "gl_" are reserved」

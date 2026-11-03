@@ -67,6 +67,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
 
                 case VariableDeclarationSyntax variable:
                     CheckQualifiers(requirement, variable.ModifierTokens, global);
+                    CheckStorageCount(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens]);
                     CheckCombination(requirement, [.. variable.ModifierTokens, .. variable.Type.ModifierTokens], vertexInput: variable.Parent is CompilationUnitSyntax);
 
                     if (variable.Parent is CompilationUnitSyntax)
@@ -92,6 +93,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case ParameterSyntax parameter:
                     CheckQualifiers(requirement, parameter.ModifierTokens, global: true);
                     CheckParameterQualifiers(requirement, [.. parameter.ModifierTokens, .. parameter.Type.ModifierTokens]);
+                    CheckStorageCount(requirement, [.. parameter.ModifierTokens, .. parameter.Type.ModifierTokens]);
                     CheckCombination(requirement, [.. parameter.ModifierTokens, .. parameter.Type.ModifierTokens], vertexInput: false);
                     requirement.ArrayOfArrayVersionCheck(parameter.NameToken, parameter.ArrayDimensions);
                     break;
@@ -127,6 +129,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
                     CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword], block.Name);
                     CheckBlockQualifiers(requirement, [.. block.Modifiers, block.Keyword]);
+                    CheckBlockMembers(requirement, block.Keyword.Text, block.Fields);
                     CheckUniformBlock(requirement, [.. block.Modifiers, block.Keyword]);
 
                     // ES では、ブロックのインスタンスを配列の配列にできない (glslang の declareBlock の「array-of-array of block」)。
@@ -142,6 +145,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     CheckCombination(requirement, block.Modifiers, vertexInput: false);
                     CheckBlockStage(requirement, block.Modifiers, block.Name);
                     CheckBlockQualifiers(requirement, block.Modifiers);
+                    CheckBlockMembers(requirement, TopLevel(block.Modifiers).LastOrDefault(t => t.Text is "in" or "out" or "uniform" or "buffer")?.Text, block.Members.OfType<VariableDeclarationSyntax>());
                     CheckUniformBlock(requirement, block.Modifiers);
                     break;
 
@@ -521,6 +525,39 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
+    /// ブロックのメンバーの修飾子 (glslang の addBlock)。メンバーの記憶域はブロックと同じでなければならず、
+    /// uniform と buffer のブロックのメンバーには補助・補間の修飾子を書けない。
+    /// </summary>
+    private static void CheckBlockMembers(GlslRequirements requirement, string? storage, IEnumerable<VariableDeclarationSyntax> fields)
+    {
+        if (storage is not ("in" or "out" or "uniform" or "buffer"))
+        {
+            return;
+        }
+
+        foreach (VariableDeclarationSyntax member in fields)
+        {
+            ShaderSyntaxToken[] qualifiers = [.. TopLevel([.. member.ModifierTokens, .. member.Type.ModifierTokens])];
+
+            if (member.Variables.FirstOrDefault() is not { } first)
+            {
+                continue;
+            }
+
+            if (qualifiers.FirstOrDefault(t => t.Text is "in" or "out" or "inout" or "uniform" or "buffer" or "shared" or "const" or "attribute" or "varying") is { } own
+                && own.Text != storage)
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, first.NameToken, $"ブロックのメンバー '{first.Name}' の記憶域 '{own.Text}' は、ブロックの記憶域 '{storage}' と違います。");
+            }
+
+            if (storage is "uniform" or "buffer" && qualifiers.FirstOrDefault(t => Auxiliary.Contains(t.Text) || Interpolation.Contains(t.Text)) is { } interpolation)
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, first.NameToken, $"{storage} のブロックのメンバー '{first.Name}' には、補助・補間の修飾子 '{interpolation.Text}' を書けません。");
+            }
+        }
+    }
+
+    /// <summary>
     /// メモリの修飾子は、イメージ (とサンプラー) の変数と、uniform・buffer の宣言にだけ書ける (glslang の globalQualifierTypeCheck)。
     /// 利用者の型 (buffer_reference の型など) は見ない。
     /// </summary>
@@ -589,6 +626,37 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
+    /// 記憶域の修飾子は 1 つだけ書ける (glslang の mergeQualifiers の「too many storage qualifiers」)。
+    /// <c>in</c> と <c>out</c> (<c>inout</c> になる)、<c>const</c> と <c>in</c> の組は書ける。
+    /// </summary>
+    private static void CheckStorageCount(GlslRequirements requirement, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        string? storage = null;
+
+        foreach (ShaderSyntaxToken token in TopLevel(tokens))
+        {
+            if (!Storage.Contains(token.Text))
+            {
+                continue;
+            }
+
+            storage = (storage, token.Text) switch
+            {
+                (null, string text) => text,
+                ("in", "out") or ("out", "in") => "inout",
+                ("in", "const") or ("const", "in") => "const in",
+                _ => null,
+            };
+
+            if (storage is null)
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"記憶域の修飾子は 1 つしか書けません ('{token.Text}')。");
+                return;
+            }
+        }
+    }
+
+    /// <summary>
     /// 仮引数に書けない修飾子 (glslang の <c>paramCheckFix</c>)。補助・補間の修飾子、layout、invariant は書けない。
     /// </summary>
     /// <param name="requirement">バージョンと拡張。</param>
@@ -641,6 +709,11 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, "テッセレーションの評価シェーダーでは、patch は入力にだけ付けられます。");
                     break;
 
+                // Vulkan では、数の型の uniform の変数はブロックの外に置けない (glslang の vulkanRemoved の「non-opaque uniforms outside a block」)。
+                case "uniform" when requirement.Vulkan == true && IsNumericTypeName(variable.Type.Name):
+                    requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, token, $"Vulkan 向けの GLSL では、{variable.Type.Name} の uniform の変数はブロックの外に置けません。uniform のブロックのメンバーにしてください。");
+                    break;
+
                 case "in" or "out" when requirement.Stage == GlslShaderStage.Compute:
                     requirement.Report(GlslRuleDescriptors.NotAvailableInStage, token, $"関数の外の '{token.Text}' の変数", GlslRequirements.DescribeStage(GlslShaderStage.Compute));
                     break;
@@ -654,6 +727,11 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>スカラー・ベクトル・行列の組み込みの型の名前か。</summary>
+    private static bool IsNumericTypeName(string name)
+        => System.Text.RegularExpressions.Regex.IsMatch(name,
+            "^(bool|int|uint|float|double|[biud]?vec[234]|d?mat[234](x[234])?)$");
 
     /// <summary>括弧の外 (<c>layout(…)</c> の中でない) の修飾子のキーワード。</summary>
     private static IEnumerable<ShaderSyntaxToken> TopLevel(ImmutableArray<ShaderSyntaxToken> tokens)

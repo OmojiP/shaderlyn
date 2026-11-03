@@ -386,6 +386,8 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("CF0405", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float x) { return x; }\nvoid main() { float a[2]; o = vec4(f(a)); }")]
     [InlineData("CF0312", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { mat4x3 m; o = vec4(m[3][1].length()); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 0) out vec4 a;\nlayout(xfb_buffer = 1, xfb_offset = 8) out vec4 b;\nvoid main() { a = b = vec4(0.0); gl_Position = a; }")]
+    [InlineData("GL0103", "a.vert", "#version 440\nout Block { layout(xfb_buffer = 2, xfb_offset = 0) vec4 v; } b;\nvoid main() { b.v = vec4(0.0); gl_Position = b.v; }")]
+    [InlineData("GL0103", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nlayout(stream = 1) out Block { layout(stream = 2) vec4 v; } b;\nvoid main() { b.v = vec4(0.0); EmitStreamVertex(1); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 2) out float a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_offset = 4) out double a;\nvoid main() { a = 0.0; gl_Position = vec4(a); }")]
     [InlineData("GL0103", "a.vert", "#version 440\nlayout(xfb_buffer = 1, xfb_stride = 32) out;\nlayout(xfb_buffer = 1, xfb_offset = 0, xfb_stride = 16) out vec4 a;\nvoid main() { a = vec4(0.0); gl_Position = a; }")]
@@ -508,6 +510,17 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0321", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(0.0); break; }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(flat float x) { return x; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nin uniform vec4 v;\nvoid main() { o = v; }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 1, depth_less) in float d;\nvoid main() { o = vec4(d); }")]
+    [InlineData("GL0403", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nvoid main() { mediump bvec2 b = bvec2(true); o = vec4(b.x); }")]
+    [InlineData("GL0323", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(in float a);\nfloat f(out float a) { a = 1.0; return a; }\nvoid main() { float x; o = vec4(f(x)); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { in float a; };\nvoid main() { o = vec4(a); }")]
+    [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nlayout(binding = 0) uniform U { centroid float a; };\nvoid main() { o = vec4(a); }")]
+    [InlineData("GL0306", "a.frag", "#version 450\nlayout(binding = 0) uniform texture3D t;\nlayout(binding = 1) uniform sampler s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = texture(sampler2D(t, s), vec2(0.5)); }")]
+    [InlineData("GL0306", "a.frag", "#version 450\nlayout(binding = 0) uniform texture2D t;\nlayout(binding = 1) uniform texture2D u;\nlayout(location = 0) out vec4 o;\nvoid main() { o = texture(sampler2D(t, u), vec2(0.5)); }")]
+    [InlineData("GL0001", "a.frag", "#version 450\nlayout(binding = 0) uniform texture2D t;\nlayout(location = 0) out vec4 o;\nvoid main() { o = texture(sampler2D(t), vec2(0.5)); }")]
+    [InlineData("GL0323", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(float a);\nint f(float a) { return 1; }\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0323", "a.frag", "#version 300 es\nprecision mediump float;\nout vec4 o;\nfloat f(mediump float a);\nfloat f(highp float a) { return a; }\nvoid main() { o = vec4(f(1.0)); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nint main() { o = vec4(1.0); return 0; }")]
     [InlineData("GL0101", "a.tesc", "#version 450\nlayout(vertices = 3) out;\npatch in vec4 p;\nvoid main() { }")]
     [InlineData("GL0101", "a.vert", "#version 450\ninvariant out Block { vec4 v; } b;\nvoid main() { b.v = vec4(0.0); gl_Position = vec4(0.0); }")]
@@ -554,6 +567,23 @@ public sealed class GlslRuleTests : IDisposable
     {
         string output = await AnalyzeAsync(fileName, code + "\n");
         Assert.Contains($"error {id}", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>Vulkan 向けでは、ブロックの外の数の型の uniform の変数を GL0101 で伝える。OpenGL 向けでは伝えない。</summary>
+    [Theory]
+    [InlineData("vulkan1.0", true)]
+    [InlineData("opengl", false)]
+    public async Task Vulkanのブロックの外のuniform(string target, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n  target: {target}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), "#version 450\nlayout(location = 0) out vec4 o;\nlayout(location = 0) uniform vec4 v;\nvoid main() { o = v; }\n");
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("error GL0101", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -767,6 +797,15 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("(7:9): error GL0003", output, StringComparison.Ordinal);
         Assert.DoesNotContain("(8:", output, StringComparison.Ordinal);
         Assert.Contains("(9:1): error CF0002", output, StringComparison.Ordinal);
+    }
+
+    /// <summary>プロトタイプと定義が同じ修飾子なら、書き方 (const in と const、精度の有無) が違っても GL0323 を報告しない。多重定義も報告しない。</summary>
+    [Fact]
+    public async Task 食い違わない関数の宣言()
+    {
+        string output = await AnalyzeAsync("a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nfloat f(const in float a, highp int b);\nfloat f(const float a, int b) { return a; }\nint f(int a) { return a; }\nfloat g(void);\nfloat g() { return 1.0; }\nvoid main() { o = vec4(f(1.0, 1) + float(f(1)) + g()); }\n");
+
+        Assert.DoesNotContain("GL0323", output, StringComparison.Ordinal);
     }
 
     /// <summary>GLSL で到達した #error は GL0003 (エラー) で伝え、CF0104 (情報) は重ねない。到達しない #error は伝えない。</summary>

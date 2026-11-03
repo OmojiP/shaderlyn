@@ -28,6 +28,7 @@ internal sealed partial class GlslLayoutAnalyzer
         private readonly Dictionary<long, long> _xfbStrides = [];
         private readonly Dictionary<long, List<(long Start, long End)>> _xfbRanges = [];
         private long _xfbDefaultBuffer;
+        private long _defaultStream;
 
         /// <summary>型の無い出力の宣言 (<c>layout(xfb_buffer = 3, xfb_stride = 64) out;</c>)。既定のバッファを変え、その stride を決める。</summary>
         private void XfbDefaults(ShaderSyntaxToken at, LayoutSet layout)
@@ -35,6 +36,11 @@ internal sealed partial class GlslLayoutAnalyzer
             if (layout.Get("xfb_buffer") is { } buffer && ValueOf(buffer) is { } value)
             {
                 _xfbDefaultBuffer = value;
+            }
+
+            if (layout.Get("stream") is { } stream && ValueOf(stream) is { } streamValue)
+            {
+                _defaultStream = streamValue;
             }
 
             if (layout.Get("xfb_stride") is { } stride && ValueOf(stride) is { } strideValue)
@@ -69,6 +75,7 @@ internal sealed partial class GlslLayoutAnalyzer
         private void XfbBlock(ShaderSyntaxToken at, LayoutSet layout, ImmutableArray<DeclarationSyntax> members, bool builtIn)
         {
             long buffer = layout.Get("xfb_buffer") is { } b && ValueOf(b) is { } value ? value : _xfbDefaultBuffer;
+            long stream = layout.Get("stream") is { } s && ValueOf(s) is { } streamValue ? streamValue : _defaultStream;
 
             // ブロックに xfb_offset があるときだけ、オフセットを書いていないメンバーに割り当てる。
             bool assigns = layout.Has("xfb_offset");
@@ -80,6 +87,22 @@ internal sealed partial class GlslLayoutAnalyzer
 
                 // メンバーが xfb_buffer を書いていれば、それを使う (ブロックと食い違う誤りは別に報告する)。
                 long memberBuffer = memberLayout.Get("xfb_buffer") is { } own && ValueOf(own) is { } ownValue ? ownValue : buffer;
+
+                // メンバーの xfb_buffer と stream は、ブロック (と、ブロックが既定から受け継いだもの) と同じでなければならない (addBlock)。
+                if (member.Variables.FirstOrDefault() is { } firstMember)
+                {
+                    if (memberLayout.Has("xfb_buffer") && memberBuffer != buffer)
+                    {
+                        Invalid(GlslRuleDescriptors.InvalidLayoutValue, firstMember.NameToken,
+                            $"メンバーの xfb_buffer {memberBuffer.ToString(CultureInfo.InvariantCulture)} は、ブロックの xfb_buffer {buffer.ToString(CultureInfo.InvariantCulture)} と違います。");
+                    }
+
+                    if (memberLayout.Get("stream") is { } ownStream && ValueOf(ownStream) is { } memberStream && memberStream != stream)
+                    {
+                        Invalid(GlslRuleDescriptors.InvalidLayoutValue, firstMember.NameToken,
+                            $"メンバーの stream {memberStream.ToString(CultureInfo.InvariantCulture)} は、ブロックの stream {stream.ToString(CultureInfo.InvariantCulture)} と違います。");
+                    }
+                }
 
                 foreach (VariableDeclaratorSyntax declarator in member.Variables)
                 {

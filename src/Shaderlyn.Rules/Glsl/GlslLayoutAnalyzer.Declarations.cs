@@ -208,6 +208,11 @@ internal sealed partial class GlslLayoutAnalyzer
                     VisitBlock(block.Modifiers, block.NameToken.Text, block.Members, instance: null);
                     break;
 
+                // 構造体の定義の layout (glslang の checkNoShaderLayouts)。
+                case StructDeclarationSyntax { Keyword.Text: "struct", Modifiers: [_, ..] } structure:
+                    CheckNoShaderLayouts(new LayoutSet(structure.Modifiers));
+                    break;
+
                 default:
                     break;
             }
@@ -745,12 +750,36 @@ internal sealed partial class GlslLayoutAnalyzer
             }
         }
 
+        /// <summary>
+        /// <c>origin_upper_left</c> / <c>pixel_center_integer</c> は gl_FragCoord に、深度の layout (<c>depth_less</c> など) は gl_FragDepth にだけ書ける
+        /// (glslang の declareVariable)。
+        /// </summary>
+        private void CheckFragmentBuiltinLayouts(LayoutSet layout, VariableDeclarationSyntax variable)
+        {
+            foreach (GlslLayoutEntry entry in layout.Entries)
+            {
+                string id = entry.Name.Text.ToLowerInvariant();
+                string? target = id switch
+                {
+                    "origin_upper_left" or "pixel_center_integer" => "gl_FragCoord",
+                    "depth_any" or "depth_greater" or "depth_less" or "depth_unchanged" => "gl_FragDepth",
+                    _ => null,
+                };
+
+                if (target is not null && variable.Variables.Any(v => v.Name != target))
+                {
+                    Invalid(GlslRuleDescriptors.QualifierNotAllowed, entry.Name, $"'{entry.Name.Text}' は {target} にだけ書けます。");
+                }
+            }
+        }
+
         /// <summary>関数の外の変数の宣言 (glslang の layoutObjectCheck)。</summary>
         private void VisitVariable(VariableDeclarationSyntax variable)
         {
             LayoutSet layout = new(variable.ModifierTokens);
             bool global = !variable.Ancestors().Any(a => a is FunctionDeclarationSyntax);
             CheckNoShaderLayouts(layout);
+            CheckFragmentBuiltinLayouts(layout, variable);
 
             if (!global)
             {
