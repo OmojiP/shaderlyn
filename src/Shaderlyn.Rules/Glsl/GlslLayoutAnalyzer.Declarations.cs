@@ -911,6 +911,30 @@ internal sealed partial class GlslLayoutAnalyzer
 
             bool builtIn = name.StartsWith("gl_", StringComparison.Ordinal);
 
+            // tileImageEXT の変数 (glslang の layoutTypeCheck と layoutQualifierCheck)。
+            if (storage == Storage.Other && modifiers.Any(t => t.Text == "tileImageEXT") && !layout.IsEmpty)
+            {
+                if (layout.Has("set"))
+                {
+                    Place("tileImageEXT の変数には 'set' を書けません。");
+                }
+
+                if (layout.Has("binding"))
+                {
+                    Place("'binding' は uniform と buffer の変数とブロックにしか書けません。");
+                }
+
+                if (layout.Has("input_attachment_index") && !type.Name.Contains("subpassInput", StringComparison.Ordinal))
+                {
+                    Place("'input_attachment_index' はサブパスの入力 (subpassInput) にしか書けません。");
+                }
+            }
+
+            if (storage == Storage.Other && modifiers.Any(t => t.Text == "tileImageEXT") && !layout.HasLocation)
+            {
+                Required("tileImageEXT の変数には 'location' を書かなければなりません。");
+            }
+
             if (storage == Storage.Other)
             {
                 return;

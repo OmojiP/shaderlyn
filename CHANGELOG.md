@@ -150,6 +150,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- `GL_KHR_compute_shader_derivatives` を有効にしたのに `derivative_group_quadsKHR` / `derivative_group_linearKHR` の無いもの、微分の関数より前に derivative_group の無いもの、
+  derivative_group_quads の 2 の倍数でない local_size_x / local_size_y と derivative_group_linear の 4 の倍数でないワークグループの大きさを報告する (GL0104)。
+  タスクとメッシュのシェーダーの微分の関数に `GL_KHR_compute_shader_derivatives` が無いことも報告する (GL0001)
+- `tileImageEXT` の変数の `set`・`binding`・`input_attachment_index` (GL0101) と、`location` の無いもの (GL0104) を報告する
 - GLSL で、マクロの実引数を展開して出てきた関数形式マクロの呼び出しの括弧が実引数の中で閉じないものを報告する (CF0002。glslang の「End of input in macro」)
 - メッシュシェーダーの `perviewNV` の出力の、ビューの次元が無いもの・大きさが `gl_MaxMeshViewCountNV` でないもの (GL0403)、内側の次元の大きさを省いたもの (GL0402) を報告する
 - 大きさを書かない配列を、要素の型や内側の次元の違う形で宣言し直したものを報告する (CF0314)
