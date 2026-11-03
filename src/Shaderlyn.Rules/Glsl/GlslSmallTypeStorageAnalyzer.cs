@@ -106,6 +106,11 @@ internal sealed class GlslSmallTypeStorageAnalyzer : SemanticRuleAnalyzer
                     CheckCall(invocation, callee);
                     break;
 
+                // 16 ビット・8 ビットの型の配列の値の作成 (f16vec2[2](…))。
+                case InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax arrayType }:
+                    Require(arrayType.ElementType.Identifier, Of(arrayType.ElementType.Name, depth: 0), $"{arrayType.ElementType.Name}[]", "arrays not supported");
+                    break;
+
                 case ElementAccessExpressionSyntax element when !IsArrayValue(element.Target) && TypeOf(element.Target) is { } indexed
                                                                 && types.TryDescribeNumeric(indexed, out ShaderNumericShape shape) && shape.Kind == ShaderNumericKind.Vector:
                     Require(element.OpenBracket, Of(indexed, depth: 0), "[", "does not operate on types containing");
@@ -145,6 +150,20 @@ internal sealed class GlslSmallTypeStorageAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
+            // 16 ビット・8 ビットの型を含む構造体の値の作成 (glslang の「can't construct structure containing 16-bit type」)。
+            if (program.Structs.Any(s => s.Name == callee.Name && s.Keyword.Text == "struct"))
+            {
+                foreach (ExpressionSyntax argument in arguments)
+                {
+                    if (TypeOf(argument) is { } argumentType)
+                    {
+                        Require(callee.Identifier, Of(argumentType, depth: 0), callee.Name, "can't construct structure containing");
+                    }
+                }
+
+                return;
+            }
+
             if (types.Builtins.GetFunctions(callee.Name).IsEmpty || !compilation.GetFunctionDeclarations(callee.Name, program).IsEmpty)
             {
                 return;
@@ -167,7 +186,7 @@ internal sealed class GlslSmallTypeStorageAnalyzer : SemanticRuleAnalyzer
         /// <summary>構造体と配列を丸ごと代入するか返すとき (glslang の storage16BitAssignmentCheck)。</summary>
         private void CheckWhole(ShaderSyntaxToken at, ExpressionSyntax expression, string op)
         {
-            if (TypeOf(expression) is not { } type)
+            if ((TypeOf(expression) ?? BlockMemberType(expression)) is not { } type)
             {
                 return;
             }
@@ -230,13 +249,34 @@ internal sealed class GlslSmallTypeStorageAnalyzer : SemanticRuleAnalyzer
         private string? TypeOf(ExpressionSyntax expression)
             => binder.GetTypesByConfiguration(expression) is [{ Type: { } type }] ? type : null;
 
+        /// <summary>ブロックのインスタンスのメンバーの型 (型の求め方がブロックのメンバーを引けないときのため)。</summary>
+        private string? BlockMemberType(ExpressionSyntax expression)
+            => expression is MemberAccessExpressionSyntax { Target: IdentifierExpressionSyntax instance } member
+               && BlockOf(instance.Name) is { } block
+               && block.Fields.FirstOrDefault(f => f.Variables.Any(v => v.Name == member.NameToken.Text)) is { } field
+                ? field.Type.NameToken.Text
+                : null;
+
+        /// <summary>インスタンスの名前からブロックの宣言を引く。</summary>
+        private StructDeclarationSyntax? BlockOf(string instance)
+            => program.Tree.Root.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>()
+                .FirstOrDefault(v => v.Name == instance && v.Parent is StructDeclarationSyntax { Keyword.Text: not "struct" })?.Parent as StructDeclarationSyntax;
+
+        /// <summary>ブロックのインスタンスのメンバーで、配列のものか (b2.r)。ブロックの型は構造体として引けないので、ブロックの宣言を探す。</summary>
+        private bool IsBlockArrayMember(MemberAccessExpressionSyntax member)
+            => member.Target is IdentifierExpressionSyntax instance
+               && program.Tree.Root.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>()
+                   .FirstOrDefault(v => v.Name == instance.Name && v.Parent is StructDeclarationSyntax { Keyword.Text: not "struct" }) is { Parent: StructDeclarationSyntax block }
+               && block.Fields.SelectMany(f => f.Variables).FirstOrDefault(v => v.Name == member.NameToken.Text) is { IsArray: true };
+
         /// <summary>添字を付けない配列の変数か、配列のメンバーか。</summary>
         private bool IsArrayValue(ExpressionSyntax expression) => expression switch
         {
             ParenthesizedExpressionSyntax parenthesized => IsArrayValue(parenthesized.Expression),
             IdentifierExpressionSyntax identifier => binder.ResolveName(identifier).Candidates.Any(c => c.Type.IsArray),
             MemberAccessExpressionSyntax member => TypeOf(member.Target) is { } target
-                                                   && binder.TryGetStructField(target, member.NameToken.Text, out VariableDeclaratorSyntax? field, out _) && field.IsArray,
+                                                   && binder.TryGetStructField(target, member.NameToken.Text, out VariableDeclaratorSyntax? field, out _) && field.IsArray
+                                                   || IsBlockArrayMember(member),
             _ => false,
         };
     }
