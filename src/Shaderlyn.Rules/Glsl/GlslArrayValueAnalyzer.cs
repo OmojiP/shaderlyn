@@ -22,6 +22,12 @@ namespace Shaderlyn.Rules.Glsl;
 /// 大きさを書かない配列の変数の初期値は、大きさの決まった配列でなければならない。大きさを書かない配列 (と実行時に大きさの決まるブロックのメンバー) と、
 /// 空の初期化子 (<c>{ }</c>) では大きさを決められない。
 /// </para>
+/// <para>
+/// 配列の値の作成 (<c>float[4][7](a, b, c, d)</c>) の実引数は、内側の次元の形の配列でなければならない (CF0410)。
+/// 配列どうしの <c>==</c> / <c>!=</c> は、同じ形の配列どうしでなければならない (GL0301)。
+/// 内側の次元の大きさを書かない配列の初期化子の要素は、どれも同じ大きさの配列でなければならない (CF0410)。
+/// 次元の大きさは整数のリテラルのときだけ比べる。
+/// </para>
 /// </remarks>
 internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 {
@@ -29,7 +35,14 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.TypeNotAllowedHere];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.TypeNotAllowedHere, HlslRuleDescriptors.ValueNotConvertible];
+
+    /// <summary>配列の形。次元は外から順で、大きさを書かない次元は空の文字列。</summary>
+    private sealed record Shape(string Element, ImmutableArray<string> Dimensions)
+    {
+        public override string ToString() => Element + string.Concat(Dimensions.Select(d => $"[{d}]"));
+    }
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -44,7 +57,8 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not (VariableDeclaratorSyntax { Initializer: not null } or AssignmentExpressionSyntax or BinaryExpressionSyntax))
+            if (node is not (VariableDeclaratorSyntax { Initializer: not null } or AssignmentExpressionSyntax or BinaryExpressionSyntax
+                or InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax }))
             {
                 continue;
             }
@@ -63,6 +77,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
             (GlslRequirements requirement, HashSet<string> specs) = found;
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+            Shapes shapes = new(binder, name => compilation.GetFunctionDeclarations(name, program));
 
             switch (node)
             {
@@ -79,6 +94,13 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                     {
                         requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, declarator.NameToken, declarator.Name, "大きさを書かない配列の初期値は、大きさの決まった配列でなければなりません。");
                     }
+                    else if (initializer is InitializerListExpressionSyntax list && Dims(declarator.ArrayRankTokens) is [_, "", ..]
+                             && list.ChildNodes().OfType<ExpressionSyntax>().Select(shapes.Of).ToArray() is { Length: > 1 } elements
+                             && elements.All(e => e is { Dimensions.Length: > 0 })
+                             && elements.Skip(1).FirstOrDefault(e => SameDimensions(e!.Dimensions, elements[0]!.Dimensions) == false) is { } different)
+                    {
+                        requirement.Report(HlslRuleDescriptors.ValueNotConvertible, declarator.NameToken, $"最初の要素と同じ形の配列 ({elements[0]})", different.ToString(), string.Empty);
+                    }
 
                     break;
 
@@ -92,9 +114,139 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"特殊化の定数で大きさを決めた配列は、'{binary.OperatorToken.Text}' で比べられません。");
                     break;
 
+                // 形の違う配列どうしは比べられない。
+                case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken } compared
+                    when shapes.Of(compared.Left) is { Dimensions.Length: > 0 } left && shapes.Of(compared.Right) is { Dimensions.Length: > 0 } right
+                         && (left.Element != right.Element || SameDimensions(left.Dimensions, right.Dimensions) == false):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, compared.OperatorToken, $"演算子 '{compared.OperatorToken.Text}' は、形の違う配列 ({left} と {right}) に使えません。");
+                    break;
+
+                case InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax arrayType } constructor:
+                    CheckConstructor(requirement, shapes, arrayType, [.. constructor.ArgumentExpressions]);
+                    break;
+
                 default:
                     break;
             }
+        }
+    }
+
+    /// <summary>配列の値の作成の実引数は、内側の次元の形の配列でなければならない (glslang の constructor の検査)。</summary>
+    private static void CheckConstructor(GlslRequirements requirement, Shapes shapes, ArrayTypeExpressionSyntax arrayType, ExpressionSyntax[] arguments)
+    {
+        ImmutableArray<string> dimensions = Dims(arrayType.ArrayRanks);
+
+        if (dimensions.IsEmpty)
+        {
+            return;
+        }
+
+        Shape expected = new(arrayType.ElementType.Name, dimensions[1..]);
+
+        foreach (ExpressionSyntax argument in arguments)
+        {
+            if (shapes.Of(argument) is not { } actual
+                || actual.Dimensions.Length == expected.Dimensions.Length && SameDimensions(actual.Dimensions, expected.Dimensions) != false)
+            {
+                continue;
+            }
+
+            // 要素の型が配列でないのに、配列を渡した (glslang の「constructing non-array constituent from array argument」)。
+            // 次元の数か大きさが違う (glslang の「array constructor argument not correct type to construct array element」)。
+            requirement.Report(HlslRuleDescriptors.ValueNotConvertible, arrayType.ElementType.Identifier, $"配列の要素 ({expected})", actual.ToString(), string.Empty);
+            return;
+        }
+    }
+
+    /// <summary>次元が同じか。大きさを書かない次元はどれとも同じとし、リテラルでない大きさは分からないとする。</summary>
+    private static bool? SameDimensions(ImmutableArray<string> left, ImmutableArray<string> right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        bool? same = true;
+
+        for (int i = 0; i < left.Length; i++)
+        {
+            if (left[i] == right[i] || left[i].Length == 0 || right[i].Length == 0)
+            {
+                continue;
+            }
+
+            if (long.TryParse(left[i], out long a) && long.TryParse(right[i], out long b))
+            {
+                if (a != b)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                same = null;
+            }
+        }
+
+        return same;
+    }
+
+    /// <summary>角括弧の並びの、次元ごとの大きさの字句。</summary>
+    private static ImmutableArray<string> Dims(ImmutableArray<ShaderSyntaxToken> ranks)
+    {
+        ImmutableArray<string>.Builder dimensions = ImmutableArray.CreateBuilder<string>();
+        List<string> current = [];
+        int depth = 0;
+
+        foreach (ShaderSyntaxToken token in ranks)
+        {
+            if (token.Kind == ShaderSyntaxKind.OpenBracketToken && depth++ == 0)
+            {
+                current.Clear();
+            }
+            else if (token.Kind == ShaderSyntaxKind.CloseBracketToken && --depth == 0)
+            {
+                dimensions.Add(string.Concat(current));
+            }
+            else
+            {
+                current.Add(token.Text);
+            }
+        }
+
+        return dimensions.ToImmutable();
+    }
+
+    /// <summary>式の配列の形を求める。</summary>
+    private sealed class Shapes(ExpressionTypeBinder binder, Func<string, ImmutableArray<FunctionDeclarationSyntax>> functions)
+    {
+        /// <summary>式の形。分からなければ <see langword="null"/>。配列でない値は次元の無い形。</summary>
+        public Shape? Of(ExpressionSyntax expression) => expression switch
+        {
+            ParenthesizedExpressionSyntax parenthesized => Of(parenthesized.Expression),
+            IdentifierExpressionSyntax identifier => binder.ResolveName(identifier).Candidates is [{ Declarator: var declarator }] ? FromDeclarator(declarator) : null,
+            ElementAccessExpressionSyntax element => Of(element.Target) is { Dimensions.Length: > 0 } outer ? outer with { Dimensions = outer.Dimensions[1..] } : null,
+            InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax arrayType } constructor => FromConstructor(arrayType, constructor.ArgumentExpressions.Count()),
+            InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } call when functions(callee.Name) is { IsEmpty: false } declared
+                => declared.Select(f => new Shape(f.ReturnType.Name, Dims(f.ReturnType.ArrayRanks))).DistinctBy(s => s.ToString()).ToArray() is [var only] ? only : null,
+            LiteralExpressionSyntax or InvocationExpressionSyntax { Target: IdentifierExpressionSyntax }
+                => binder.GetTypesByConfiguration(expression) is [{ Type: { } type }] && binder.TypeSystem.TryDescribeNumeric(type, out _) ? new Shape(type, []) : null,
+            _ => null,
+        };
+
+        private static Shape? FromDeclarator(ShaderSyntaxNode declarator) => declarator switch
+        {
+            VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } variable
+                => new Shape(declaration.Type.Name, [.. Dims(variable.ArrayRankTokens), .. Dims(declaration.Type.ArrayRanks)]),
+            ParameterSyntax parameter => new Shape(parameter.Type.Name, [.. Dims(parameter.ArrayRankTokens), .. Dims(parameter.Type.ArrayRanks)]),
+            _ => null,
+        };
+
+        private static Shape FromConstructor(ArrayTypeExpressionSyntax arrayType, int count)
+        {
+            ImmutableArray<string> dimensions = Dims(arrayType.ArrayRanks);
+
+            return new Shape(arrayType.ElementType.Name, dimensions is [ "", .. var rest ] ? [count.ToString(System.Globalization.CultureInfo.InvariantCulture), .. rest] : dimensions);
         }
     }
 
