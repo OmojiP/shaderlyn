@@ -150,6 +150,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- `GL_EXT_post_depth_coverage` の `early_fragment_tests` の無い `post_depth_coverage` (GL0104)、ブロックの中と外に混ぜた shared の変数 (GL0101)、
+  括弧を付けずに残った関数形式マクロの名前 (GLSL。CF0310) を報告する
 - GLSL の `#if` の、マクロの展開で出てきた `defined` と実引数の括弧の無い関数形式マクロ、65 段を越える `#if` の入れ子を報告する (CF0002)。
   閉じていない `#if` は、glslang と同じくファイルの終わりで 1 度だけ報告する
 - 定数でない `tensorReadARM` / `tensorWriteARM` のテンソルの演算子の指定 (GL0303) を報告する。何行にもまたがる組み込み関数の呼び出しの実引数の誤りは、glslang と同じく閉じ括弧の行で報告する

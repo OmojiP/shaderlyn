@@ -24,7 +24,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.LayoutRequired, GlslRuleDescriptors.InvalidLayoutValue];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.LayoutRequired, GlslRuleDescriptors.InvalidLayoutValue, GlslRuleDescriptors.QualifierNotAllowed];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -42,6 +42,8 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
             {
                 continue;
             }
+
+            CheckLinkRules(requirement, program);
 
             if (requirement.Stage is GlslShaderStage.TessellationControl or GlslShaderStage.TessellationEvaluation or GlslShaderStage.Geometry)
             {
@@ -80,6 +82,43 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.LayoutRequired, use.Identifier,
                         "gl_WorkGroupSize を読む前に、ワークグループの大きさ (layout(local_size_x = …) in;) を宣言してください。");
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// glslang がリンクの時に調べる決まり (linkValidate.cpp の finalCheck)。main を定義したファイルだけを見て、main の名前の位置で報告する。
+    /// GL_EXT_post_depth_coverage の post_depth_coverage には early_fragment_tests が要り (GL_ARB_post_depth_coverage は自動で付ける)、
+    /// shared の変数はブロックの中と外に混ぜられない (GL_EXT_shared_memory_block)。
+    /// </summary>
+    private static void CheckLinkRules(GlslRequirements requirement, AnalyzedProgram program)
+    {
+        if (program.Tree.Root.ChildNodes().OfType<FunctionDeclarationSyntax>().FirstOrDefault(f => f.Name == "main" && f.Body is not null) is not { } main
+            || !ReferenceEquals(main.NameToken.Source, program.Tree.Text))
+        {
+            return;
+        }
+
+        ShaderSyntaxNode[] globals = [.. program.Tree.Root.ChildNodes().OfType<ShaderSyntaxNode>()];
+
+        if (requirement.Stage == GlslShaderStage.Fragment && !requirement.Extensions.IsOn("GL_ARB_post_depth_coverage", null))
+        {
+            string[][] layouts = [.. globals.OfType<IncompleteDeclarationSyntax>().Select(d => d.Tokens.Select(t => t.Text).ToArray())];
+
+            if (layouts.Any(t => t.Contains("post_depth_coverage")) && !layouts.Any(t => t.Contains("early_fragment_tests")))
+            {
+                requirement.Report(GlslRuleDescriptors.LayoutRequired, main.NameToken, "post_depth_coverage を書いたら、layout(early_fragment_tests) in; も書いてください。");
+            }
+        }
+
+        if (requirement.Stage is GlslShaderStage.Compute or GlslShaderStage.Task or GlslShaderStage.Mesh)
+        {
+            bool sharedBlock = globals.Any(n => n is StructDeclarationSyntax { Keyword.Text: "shared" } || n is InterfaceBlockDeclarationSyntax block && block.Modifiers.Any(t => t.Text == "shared"));
+            bool sharedVariable = globals.OfType<VariableDeclarationSyntax>().Any(v => v.ModifierTokens.Any(t => t.Text == "shared"));
+
+            if (sharedBlock && sharedVariable)
+            {
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, main.NameToken, "shared の変数は、ブロックの中と外に混ぜられません。");
             }
         }
     }

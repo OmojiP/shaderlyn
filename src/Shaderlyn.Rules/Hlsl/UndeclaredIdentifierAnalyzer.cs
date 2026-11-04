@@ -296,7 +296,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || (invoked && types is GlslTypeSystem glsl && glsl.IsUnavailableBuiltinFunction(identifier.Name))
             || (!invoked && types is GlslTypeSystem glslVariables && glslVariables.IsUnavailableBuiltinVariable(identifier.Name))
             || types.IsKnownConstant(identifier.Name)
-            || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
+            // GLSL (glslang) は、括弧を付けずに残った関数形式マクロの名前も宣言されていない名前にする。
+            || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name) && !compilation.IsGlsl)
             || types.IsBuiltInTypeName(identifier.Name)
             || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
@@ -547,7 +548,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         /// 表に名前があることだけで「宣言されている」とすると、<c>!_B</c> の構成で使っている箇所を見落とす。
         /// </para>
         /// <para>
-        /// 関数形式マクロは、括弧を付けずに名前だけを書けば展開されない。それは定義されていても残る。
+        /// 関数形式マクロは、括弧を付けずに名前だけを書けば展開されない。それは定義されていても残る (GLSL では glslang と同じく宣言されていない名前にする)。
         /// </para>
         /// </remarks>
         public bool Contains(string name, AnalyzedProgram program, bool invoked)
@@ -556,7 +557,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                    && !_compilation.LocalOnlyDeclaredNames.Contains(name))
                || (program.Tree.PreprocessResult.Macros.TryGetValue(name, out MacroDefinition? macro)
                    && macro.IsFunctionLike
-                   && !invoked)
+                   && !invoked
+                   && !_compilation.IsGlsl)
                || Own(program).Contains(name);
 
         /// <summary>
