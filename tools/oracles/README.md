@@ -66,6 +66,18 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
 | --- | --- |
 | `godot` | Godot をヘッドレスで起動し、シェーダーのコードを `Shader` に渡して、コンパイラの誤り (`SHADER ERROR`) を集めます。Godot は最初の誤りで止まるので、誤りはファイルごとに 1 つです。元のプロジェクトは開かず、`project.godot` の下のシェーダーと取り込まれる断片だけを作業用のプロジェクトに写して読みます (`res://` の取り込みはそのまま解決できます) |
 
+Godot には誤りの試験の集まりが無いので、誤りを出す所ごとに最小の例を作って使います (`godot-errors/make.mjs`)。
+
+```sh
+node tools/oracles/godot-errors/make.mjs
+SHADERLYN_GODOT=<Godot の場所> node tools/oracles/record.mjs godot .work/v0.3.4/godot-errors/cases --out=.work/v0.3.4/oracle/godot/errors.json
+```
+
+この記録の仕方では、次のものはエディタと違う結果になります。
+
+- `shader_type` が無いか正しくないファイルは、誤りになりません (Godot がコンパイラに掛けないため)
+- プリプロセッサの誤りは、その文ではなく「`#` は知らない文字」という誤りになります (Godot がプリプロセッサの失敗を伝えず、元のコードのまま読み直すため)。行は指令の行なので、行ごとに比べることはできます
+
 `compare.mjs` は、コンパイラが誤りにしないファイルに出たエラーと警告を「誤報告」、コンパイラの誤りの行に Shaderlyn のエラーが無いものを「見落とし」、
 コンパイラの最初の誤りより前の行に出たエラーを「先走り」(誤報告の疑い) として数えます。
 
