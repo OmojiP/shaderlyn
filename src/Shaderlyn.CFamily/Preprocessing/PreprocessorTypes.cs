@@ -254,6 +254,12 @@ public sealed record PreprocessorOptions
     public bool GlslRules { get; init; }
 
     /// <summary>
+    /// 行末に <c>\</c> を書いた <c>//</c> のコメントを、次の行へ続けるか。既定は続ける。
+    /// </summary>
+    /// <remarks>行の継続の無い GLSL のバージョンでは、コメントは行の終わりで終わる (<see cref="ShaderLexer.CommentLineContinuation"/>)。</remarks>
+    public bool CommentLineContinuation { get; init; } = true;
+
+    /// <summary>
     /// 並べてよい領域の位置。<see langword="null"/> なら展開しながら決める。
     /// </summary>
     /// <remarks>
@@ -472,6 +478,7 @@ public sealed record PreprocessorOptions
             HashCode hash = default;
 
             hash.Add(MaxIncludeDepth);
+            hash.Add(CommentLineContinuation);
 
             // 単位ごとに取り込みの中身が変わる (Unreal の GeneratedUniformBuffers.ush)。
             // 入れないと、その取り込みを含むヘッダ (Common.ush) の展開結果を、別の単位の中身のまま使い回す。

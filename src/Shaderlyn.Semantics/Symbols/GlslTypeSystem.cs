@@ -477,6 +477,20 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <remarks>GLSL は成分を減らす変換を誤りにする (<see cref="IsConvertible(string?, string?, bool)"/> が通さない)。</remarks>
     public override bool IsTruncating(string? valueType, string? targetType) => false;
 
+    /// <summary>
+    /// ES で、その暗黙の変換が GL_EXT_shader_implicit_conversions に頼っているか。拡張を有効にした位置と無効にした位置で、変換できるかが変わる
+    /// (型の体系はファイルのどこかで有効にした拡張で決めるので、無効にした後ろの位置は使う側が確かめる)。
+    /// </summary>
+    /// <param name="valueType">値の型。</param>
+    /// <param name="targetType">変換先の型。</param>
+    /// <returns>拡張が無ければ変換できないなら <see langword="true"/>。</returns>
+    internal bool NeedsImplicitConversionsExtension(string? valueType, string? targetType)
+        => _profile == GlslProfile.Es && _features.HasFlag(GlslNumericFeatures.ImplicitConversions)
+           && TryDescribeNumeric(valueType, out ShaderNumericShape value) && TryDescribeNumeric(targetType, out ShaderNumericShape target)
+           && value.Kind == target.Kind && value.Rows == target.Rows && value.Columns == target.Columns
+           && !string.Equals(value.BaseName, target.BaseName, StringComparison.Ordinal)
+           && !GlslConversions.CanImplicitlyPromote(value.BaseName, target.BaseName, _version ?? 460, es: true, _features & ~GlslNumericFeatures.ImplicitConversions);
+
     /// <summary>要素の型を、別の要素の型へ暗黙に変換できるかを判定する。</summary>
     /// <param name="from">値の要素の型。</param>
     /// <param name="to">変換先の要素の型。</param>

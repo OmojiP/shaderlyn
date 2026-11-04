@@ -45,6 +45,15 @@ public sealed class ShaderLexer
     }
 
     /// <summary>
+    /// 行末に <c>\</c> を書いた <c>//</c> のコメントを、次の行へ続けるか。既定は続ける (C と HLSL)。
+    /// </summary>
+    /// <remarks>
+    /// 行の継続の無い GLSL (ES の 3.00 より前と、デスクトップの 4.20 より前。glslang の lineContinuationCheck) では、
+    /// コメントは行の終わりで終わる。
+    /// </remarks>
+    public bool CommentLineContinuation { get; init; } = true;
+
+    /// <summary>
     /// 字句解析の過程で検出した問題。
     /// </summary>
     /// <param name="Span">問題のある範囲。</param>
@@ -209,7 +218,7 @@ public sealed class ShaderLexer
                 break;
             }
 
-            if (_text[_position] == '\\' && IsLineBreakAt(SkipHorizontalWhitespaceFrom(_position + 1)))
+            if (CommentLineContinuation && _text[_position] == '\\' && IsLineBreakAt(SkipHorizontalWhitespaceFrom(_position + 1)))
             {
                 _position = SkipHorizontalWhitespaceFrom(_position + 1);
                 ConsumeLineBreak();

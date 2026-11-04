@@ -921,7 +921,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
+            if (!IsConvertibleAt(binder, valueType, targetType, assignment))
             {
                 reported.AddConditional(
                     binder.Program,
@@ -956,6 +956,16 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 withTreeConfiguration: false);
         }
     }
+
+    /// <summary>
+    /// 暗黙に変換できるか。ES の GL_EXT_shader_implicit_conversions に頼る変換は、その位置で拡張が有効かも見る
+    /// (型の体系はファイルのどこかで有効にした拡張で決まるので、#extension … : disable の後ろの位置をここで確かめる)。
+    /// </summary>
+    private static bool IsConvertibleAt(ExpressionTypeBinder binder, string? valueType, string? targetType, ShaderSyntaxNode at)
+        => binder.TypeSystem.IsConvertible(valueType, targetType)
+           && !(binder.TypeSystem is GlslTypeSystem glsl && glsl.NeedsImplicitConversionsExtension(valueType, targetType)
+                && at.DescendantTokens().FirstOrDefault() is { } token
+                && !new Glsl.GlslExtensionTimeline(binder.Program.Tree).IsOn("GL_EXT_shader_implicit_conversions", token));
 
     /// <summary>値が受け取る側に収まっているかを確かめ、収まらなければ報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -1014,7 +1024,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.TypeSystem.IsConvertible(valueType, targetType) || !reported.Add(location))
+        if (IsConvertibleAt(binder, valueType, targetType, value) || !reported.Add(location))
         {
             return;
         }
@@ -1069,7 +1079,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
+            if (!IsConvertibleAt(binder, valueType, targetType, value))
             {
                 return new ConfigurationFinding(assumption, valueType, Convertible: false);
             }
@@ -1167,7 +1177,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.TypeSystem.IsConvertible(valueType, returnType) && !IsGlslOpaqueMismatch(binder.TypeSystem, valueType, returnType)
+        if (IsConvertibleAt(binder, valueType, returnType, value) && !IsGlslOpaqueMismatch(binder.TypeSystem, valueType, returnType)
             || !reported.Add(location))
         {
             return;

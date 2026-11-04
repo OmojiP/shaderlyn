@@ -54,7 +54,9 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                     fileRequirement.Report(GlslRuleDescriptors.NotAvailable, token, "GLSL には :: (スコープの演算子) がありません。");
                 }
 
-                if (token.TrailingTrivia.Concat(token.LeadingTrivia).Any(t => t.Kind == ShaderSyntaxKind.LineContinuationTrivia))
+                // 文字列のリテラルの中の行の継続は、字句の中に残る (#define QUOTE "ab\ の次の行に cd")。
+                if (token.TrailingTrivia.Concat(token.LeadingTrivia).Any(t => t.Kind == ShaderSyntaxKind.LineContinuationTrivia)
+                    || token.Kind == ShaderSyntaxKind.StringLiteralToken && (token.Text.Contains("\\\n", StringComparison.Ordinal) || token.Text.Contains("\\\r\n", StringComparison.Ordinal)))
                 {
                     fileRequirement.ProfileRequires(token, GlslProfileMask.Es, 300, [], "行の継続 (行末の \\)");
                     fileRequirement.ProfileRequires(token, GlslProfileMask.NotEs, 420, ["GL_ARB_shading_language_420pack"], "行の継続 (行末の \\)");

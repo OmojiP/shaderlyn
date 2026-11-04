@@ -258,6 +258,7 @@ Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.CFamily.Preproc
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.SymbolConstraints SymbolConstraints { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText LeadingText { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean CommentLineContinuation { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions)
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean GlslRules { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
@@ -606,6 +607,7 @@ Shaderlyn.CFamily.Syntax.SemanticSyntax :: System.String Name { get; }
 Shaderlyn.CFamily.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.ShaderLexer : sealed class
 Shaderlyn.CFamily.Syntax.ShaderLexer :: .ctor(Shaderlyn.Core.Text.SourceText)
+Shaderlyn.CFamily.Syntax.ShaderLexer :: System.Boolean CommentLineContinuation { get; set; }
 Shaderlyn.CFamily.Syntax.ShaderLexer :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Lex(out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic : struct (System.IEquatable`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: .ctor(Shaderlyn.Core.Text.TextSpan, System.String)

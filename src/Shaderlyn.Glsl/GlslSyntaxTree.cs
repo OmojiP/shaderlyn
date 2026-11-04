@@ -35,6 +35,15 @@ internal static class GlslSyntaxTree
         // glslang の Pp.cpp の規則で前処理する。#if の式は int (32 ビット) で計算し、評価できない式は通る分岐とする。
         effective = effective with { GlslRules = true };
 
+        // 行の継続の無いバージョン (ES の 3.00 より前と、デスクトップの 4.20 より前) では、行末に \ を書いた // のコメントも行の終わりで終わる
+        // (glslang の lineContinuationCheck。GL_ARB_shading_language_420pack を有効にすれば続く)。
+        if (effective.Language is GlslLanguageOptions { Version: { } version } glsl
+            && (glsl.Profile == GlslProfile.Es ? version < 300 : version < 420)
+            && !text.ToString().Contains("GL_ARB_shading_language_420pack", StringComparison.Ordinal))
+        {
+            effective = effective with { CommentLineContinuation = false };
+        }
+
         // ES では、#if の式に定義されていないマクロを書くと誤りである (GL0003)。その名前を記録させる。
         if (effective.Language is GlslLanguageOptions { Profile: GlslProfile.Es })
         {
