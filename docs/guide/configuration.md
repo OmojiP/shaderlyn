@@ -117,12 +117,18 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 
 GLSL のファイルで使う設定です。
 
-| キー     | 内容 |
-| -------- | ---- |
-| `target` | どこ向けにコンパイルするか (glslang の `--target-env`): `vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`。書かなければ分からないものとして、どちらにしかない書き方も誤りにしません |
-| `spirv`  | 作る SPIR-V のバージョン: `1.0` ～ `1.6`。書かなければ `target` の Vulkan のバージョンから決めます (`vulkan1.0` は `1.0`、`vulkan1.1` は `1.3`、`vulkan1.2` は `1.5`、`vulkan1.3` と `vulkan1.4` は `1.6`。glslang と同じ)。`opengl` に付けると OpenGL 向けの SPIR-V (glslang の `-G`) になります |
-| `auto-map-locations` | 入力と出力の `location` をコンパイラに決めさせる (glslang の `--auto-map-locations`、glslc の `-fauto-map-locations`)。`true` なら、SPIR-V を作るときに `location` を書かなくても [GL0104](../rules/GL0104.md) を報告しません。既定は `false` |
-| `auto-map-bindings` | uniform と buffer の `binding` をコンパイラに決めさせる (glslang の `--auto-map-bindings`、glslc の `-fauto-bind-uniforms`)。`true` なら、SPIR-V を作るときに `binding` を書かなくても [GL0104](../rules/GL0104.md) を報告しません。既定は `false` |
+| キー | 内容 |
+| ---- | ---- |
+| `target` | コンパイル先。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl` を指定します (glslang の `--target-env`) |
+| `spirv` | 生成する SPIR-V のバージョン (`1.0` ～ `1.6`) |
+| `auto-map-locations` | コンパイラに入力・出力の `location` を割り当てさせるかどうか |
+| `auto-map-bindings` | コンパイラに uniform・buffer の `binding` を割り当てさせるかどうか |
+
+`target` を省略すると、コンパイル先は不明として扱います。そのため、Vulkan と OpenGL のどちらかでしか使えない書き方も誤りにしません。
+
+`spirv` を省略すると、`target` に指定した Vulkan のバージョンから決めます。対応は `vulkan1.0` が `1.0`、`vulkan1.1` が `1.3`、`vulkan1.2` が `1.5`、`vulkan1.3` と `vulkan1.4` が `1.6` です (glslang と同じ)。`target: opengl` と `spirv` を併記すると、OpenGL 向けの SPIR-V を生成します (glslang の `-G`)。
+
+`auto-map-locations` と `auto-map-bindings` は、既定では `false` です。`true` にすると、SPIR-V を作るときにそれぞれ `location` と `binding` を省略しても [GL0104](../rules/GL0104.md) を報告しません。対応する glslang / glslc のオプションは、`auto-map-locations` が `--auto-map-locations` / `-fauto-map-locations`、`auto-map-bindings` が `--auto-map-bindings` / `-fauto-bind-uniforms` です。
 
 `target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから引きます。
 `opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。

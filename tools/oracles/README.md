@@ -28,8 +28,14 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 
 ## GLSL を glslang と行ごとに比べる
 
-`compare-glsl.mjs` は、GLSL のシェーダーを glslang と Shaderlyn の両方に掛け、指摘を行ごとに比べます。
-Shaderlyn の CLI は Release でビルドしたもの (`dotnet build src/Shaderlyn.Cli.App -c Release`) を使います。別の場所なら `SHADERLYN_CLI` で渡します。
+`compare-glsl.mjs` は GLSL シェーダーを glslang と Shaderlyn で検査し、指摘の行を比べます。
+Shaderlyn の CLI は Release 構成でビルドして使います。
+
+```sh
+dotnet build src/Shaderlyn.Cli.App -c Release
+```
+
+別の場所にある CLI を使う場合は、`SHADERLYN_CLI` にそのパスを指定します。
 
 ```sh
 # glslang の Test を、付いている正解 (baseResults) と比べる (glslang は動かさない)

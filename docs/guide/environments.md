@@ -221,10 +221,9 @@ GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` 
 **C 系の言語に共通のルール (`CF` で始まるもの) で検査します。** HLSL にしか無いルール (`HL` で始まるもの) は出しません。
 
 - glslang 16.6.0 が読む書き方は、拡張のもの (協調行列の `coopmat<…>`、長いベクトルの `vector<T, N>`、`GL_EXT_spirv_intrinsics` など) も含めてすべて読みます。
-  語がキーワードかは、glslang と同じく `#version` と有効にした拡張で決めます (4.00 より前の `sample` は名前に使えます)。予約語 (`class` など) を名前に使うと [CF0001](../rules/CF0001.md) です
-- 型は GLSL の決まりで判断します。暗黙の変換は glslang と同じく `#version` と有効にした拡張で変わり (ES の 3.10 より前と 1.10 には無く、4.00 以降は `int` → `uint` → `float` → `double`。
-  `GL_ARB_gpu_shader5` や `GL_EXT_shader_explicit_arithmetic_types` などで増えます)、
-  成分の数の違う値は変換しません (`vec3 c = 1.0;` も `vec3 c = vec4(1.0);` も誤り)。行列を含む `*` は行列の積です
+  語がキーワードかどうかは、glslang と同じく `#version` と有効な拡張で決まります。たとえば、4.00 より前の `sample` は名前に使えます。予約語 (`class` など) を名前に使うと [CF0001](../rules/CF0001.md) になります。
+- 型は GLSL の決まりで判断します。暗黙の変換が使えるかどうかは、glslang と同じく `#version` と有効な拡張で変わります。ES の 3.10 より前と GLSL 1.10 では暗黙の変換は使えません。GLSL 4.00 以降では、`int` → `uint` → `float` → `double` の順に変換できます。`GL_ARB_gpu_shader5` や `GL_EXT_shader_explicit_arithmetic_types` などの拡張でも、使える変換が増えます。
+  成分数の異なる値は変換できません (`vec3 c = 1.0;` と `vec3 c = vec4(1.0);` はどちらも誤りです)。行列を含む `*` は行列の積です。
 - glslang から作った一覧を使い、ファイルのステージと `#version` で使える組み込み関数と変数 (`texture`、`gl_FragCoord` など) を解析対象にします。
   頂点シェーダーで `gl_FragCoord` を使うと、宣言されていない名前 ([CF0310](../rules/CF0310.md)) になります
 - Vulkan 向けか OpenGL 向けかは、設定ファイルの [`glsl: target`](configuration.md#glsl) で決めます。書かなければ、Vulkan と OpenGL の組み込みはどちらも使えるものとします
