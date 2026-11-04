@@ -119,6 +119,12 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                     requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"特殊化の定数で大きさを決めた配列は、'{binary.OperatorToken.Text}' で比べられません。");
                     break;
 
+                // 大きさの決まっていない配列 (ブロックの最後のメンバー) には代入できない。
+                case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken, Left: MemberAccessExpressionSyntax target } unsizedAssignment
+                    when FindBlockMember(target) is { } unsizedMember && IsOuterUnsized(unsizedMember):
+                    requirement.Report(HlslRuleDescriptors.ValueNotConvertible, unsizedAssignment.OperatorToken, $"大きさの決まっていない配列 '{unsizedMember.Name}'", "配列の値", "大きさの決まっていない配列には代入できません。");
+                    break;
+
                 // 形の違う配列どうしは比べられない。
                 case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken } compared
                     when shapes.Of(compared.Left) is { Dimensions.Length: > 0 } left && shapes.Of(compared.Right) is { Dimensions.Length: > 0 } right
@@ -359,7 +365,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
     /// <summary>名前のあるブロックのインスタンスのメンバーの宣言子。</summary>
     private static VariableDeclaratorSyntax? FindBlockMember(MemberAccessExpressionSyntax member)
     {
-        if (member.Target is not IdentifierExpressionSyntax instance
+        if ((member.Target is ElementAccessExpressionSyntax { Target: var indexed } ? indexed : member.Target) is not IdentifierExpressionSyntax instance
             || member.Ancestors().OfType<CompilationUnitSyntax>().FirstOrDefault() is not { } unit)
         {
             return null;

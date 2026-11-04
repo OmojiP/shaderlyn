@@ -30,7 +30,7 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [GlslRuleDescriptors.ConstantArgumentRequired, GlslRuleDescriptors.ArgumentOutOfRange, GlslRuleDescriptors.VariableArgumentRequired];
+        [GlslRuleDescriptors.ConstantArgumentRequired, GlslRuleDescriptors.ArgumentOutOfRange, GlslRuleDescriptors.VariableArgumentRequired, HlslRuleDescriptors.ArgumentNotConvertible];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -45,8 +45,20 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "tensorReadARM" or "tensorWriteARM" or "tensorSizeARM" } callee } call)
+            if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee } call)
             {
+                continue;
+            }
+
+            if (callee.Name is not ("tensorReadARM" or "tensorWriteARM" or "tensorSizeARM"))
+            {
+                if (compilation.GetFunctionDeclarations(callee.Name, program) is [var function, ..] declarations
+                    && declarations.All(d => d.ParameterList.Count() == function.ParameterList.Count())
+                    && (requirements.TryGetValue(program, out GlslRequirements? caller) ? caller : requirements[program] = GlslRequirements.Create(context, compilation, program, reported)) is { } callerRequirement)
+                {
+                    CheckTensorParameters(callerRequirement, compilation.GetExpressionTypeBinder(program), callee, function, [.. call.ArgumentExpressions]);
+                }
+
                 continue;
             }
 
@@ -96,7 +108,7 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
                 requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 2, $"テンソルの階数と同じ {coordinates} 個の要素の座標の配列でなければなりません (今は {count} 個)");
             }
 
-            if (arguments.Length >= 3 && TypeOf(binder, arguments[2]) is { } data && Canonical(data) != Canonical(tensor.Element))
+            if (arguments.Length >= 3 && TypeOf(binder, arguments[2]) is { } data && tensor.Element.Length > 0 && Canonical(data) != Canonical(tensor.Element))
             {
                 requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 3, $"テンソルの要素と同じ型 ({tensor.Element}) でなければなりません (今は {data})");
             }
@@ -122,7 +134,7 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
                 {
                     requirement.Report(GlslRuleDescriptors.ConstantArgumentRequired, at, "tensorReadARM の範囲の外の値");
                 }
-                else if (TypeOf(binder, arguments[4]) is { } outType && Canonical(outType) != Canonical(tensor.Element))
+                else if (TypeOf(binder, arguments[4]) is { } outType && tensor.Element.Length > 0 && Canonical(outType) != Canonical(tensor.Element))
                 {
                     requirement.Report(GlslRuleDescriptors.VariableArgumentRequired, at, name, 5, $"テンソルの要素と同じ型 ({tensor.Element}) でなければなりません (今は {outType})");
                 }
@@ -132,6 +144,28 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>テンソルの要素の型と階数。</summary>
     private sealed record Tensor(string Element, int? Rank);
+
+    /// <summary>
+    /// 利用者の関数のテンソルの仮引数。型の引数を書かない tensorARM はどのテンソルも受け取るが、要素の型を書いた仮引数は、
+    /// 同じ要素の型と階数 (書かなければ 1) のテンソルしか受け取らない (glslang の tensorParameterOK)。
+    /// </summary>
+    private static void CheckTensorParameters(GlslRequirements requirement, ExpressionTypeBinder binder, IdentifierExpressionSyntax callee, FunctionDeclarationSyntax function, ExpressionSyntax[] arguments)
+    {
+        ParameterSyntax[] parameters = [.. function.ParameterList];
+
+        for (int i = 0; i < Math.Min(parameters.Length, arguments.Length); i++)
+        {
+            if (FromType(parameters[i].Type) is not { Element.Length: > 0 } formal || TensorOf(binder, arguments[i]) is not { Element.Length: > 0 } actual
+                || Canonical(formal.Element) == Canonical(actual.Element) && formal.Rank == actual.Rank)
+            {
+                continue;
+            }
+
+            requirement.Report(HlslRuleDescriptors.ArgumentNotConvertible, callee.Identifier, callee.Name, i + 1,
+                $"tensorARM<{actual.Element}, {actual.Rank}>", $"tensorARM<{formal.Element}, {formal.Rank}>", "要素の型か階数を書いた tensorARM の仮引数は、同じ要素の型と階数のテンソルしか受け取れません。");
+            return;
+        }
+    }
 
     /// <summary>名前の宣言の型から、テンソルを求める。</summary>
     private static Tensor? TensorOf(ExpressionTypeBinder binder, ExpressionSyntax expression)
@@ -145,17 +179,38 @@ internal sealed class GlslTensorAnalyzer : SemanticRuleAnalyzer
             }
             : null;
 
-        if (type is not { Name: "tensorARM", OpenAngle: not null } || type.TemplateArguments is not [{ } element, { Kind: ShaderSyntaxKind.CommaToken }, .. var rest])
+        return type is null ? null : FromType(type);
+    }
+
+    /// <summary>
+    /// 型からテンソルを求める。階数を書かないもの (<c>tensorARM</c>、<c>tensorARM&lt;int&gt;</c>) は、glslang と同じく階数 1 とする。
+    /// 型の引数を書かない tensorARM の要素の型は空の文字列。
+    /// </summary>
+    private static Tensor? FromType(TypeSyntax type)
+    {
+        if (type is not { Name: "tensorARM" })
         {
             return null;
         }
 
-        int? rank = rest is [{ Kind: ShaderSyntaxKind.NumericLiteralToken } literal]
-                    && int.TryParse(literal.Text.TrimEnd('u', 'U'), NumberStyles.None, CultureInfo.InvariantCulture, out int value)
-            ? value
-            : null;
+        switch (type.TemplateArguments)
+        {
+            case [] when type.OpenAngle is null:
+                return new Tensor(string.Empty, 1);
 
-        return new Tensor(element.Text, rank);
+            case [{ } only]:
+                return new Tensor(only.Text, 1);
+
+            case [{ } element, { Kind: ShaderSyntaxKind.CommaToken }, .. var rest]:
+                int? rank = rest is [{ Kind: ShaderSyntaxKind.NumericLiteralToken } literal]
+                            && int.TryParse(literal.Text.TrimEnd('u', 'U'), NumberStyles.None, CultureInfo.InvariantCulture, out int value)
+                    ? value
+                    : null;
+                return new Tensor(element.Text, rank);
+
+            default:
+                return null;
+        }
     }
 
     /// <summary>座標の配列の要素の数 (配列の値の作成 uint[](0, 0) か、大きさの分かる配列の名前)。</summary>

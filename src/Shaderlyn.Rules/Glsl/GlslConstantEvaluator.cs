@@ -307,9 +307,17 @@ internal sealed class GlslConstantEvaluator(ExpressionTypeBinder binder, GlslBui
         return declarator.IsArray ? null : initializer;
     }
 
-    /// <summary><c>const</c> の変数の値を、初期値から求める。</summary>
+    /// <summary><c>const</c> の変数の値を、初期値から求める。組み込みの整数の定数は、glslang の既定の資源の値にする。</summary>
     private GlslConstant? EvaluateVariable(IdentifierExpressionSyntax identifier, int depth)
     {
+        // 組み込みの整数の定数 (gl_MaxSamples など) は、glslang の既定の資源の値にする。
+        if (identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+            && GlslResourceLimits.Values.TryGetValue(identifier.Name, out int limit)
+            && binder.ResolveName(identifier) is { Kind: DeclaredNameKind.NotFound })
+        {
+            return new GlslConstant(limit, GlslConstantKind.Int, IsLiteral: false);
+        }
+
         if (binder.ResolveName(identifier) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Declarator: VariableDeclaratorSyntax declarator }] }
             || declarator.Parent is not VariableDeclarationSyntax declaration
             || !declaration.HasModifier("const")

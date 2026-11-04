@@ -169,8 +169,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
 
             foreach (VariableDeclaratorSyntax declarator in declarators)
             {
-                if (declarator.ArrayRankTokens is not [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
-                    || !long.TryParse(size.Text.TrimEnd('u', 'U'), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long length)
+                if (OuterSize(program, declarator.ArrayRankTokens) is not { } length
                     || length == declared.Size
                     || !ReferenceEquals(declarator.NameToken.Source, program.Tree.Text))
                 {
@@ -183,6 +182,35 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
                 requirement.Report(GlslRuleDescriptors.InvalidLayoutValue, at,
                     $"'{declarator.Name}' の配列の大きさ ({length}) が、{what} ({declared.Size}) と違います。");
             }
+        }
+    }
+
+    /// <summary>
+    /// 配列の一番外の大きさ。整数のリテラルか、大きさを書いた配列の length() (<c>gl_out.length()</c>。宣言し直した組み込みのブロックも) だけを求める。
+    /// </summary>
+    private static long? OuterSize(AnalyzedProgram program, ImmutableArray<ShaderSyntaxToken> ranks)
+    {
+        switch (ranks)
+        {
+            case [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
+                when long.TryParse(size.Text.TrimEnd('u', 'U'), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long literal):
+                return literal;
+
+            case [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.IdentifierToken } array, { Kind: ShaderSyntaxKind.DotToken }, { Text: "length" },
+                  { Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.CloseParenToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]:
+                VariableDeclaratorSyntax[] named = [.. program.Tree.Root.ChildNodes().SelectMany(n => n switch
+                {
+                    VariableDeclarationSyntax variable => variable.Variables,
+                    StructDeclarationSyntax or InterfaceBlockDeclarationSyntax => n.ChildNodes().OfType<VariableDeclaratorSyntax>(),
+                    _ => [],
+                }).Where(v => v.Name == array.Text)];
+                return named is [var only] && only.ArrayRankTokens is [_, { Kind: ShaderSyntaxKind.NumericLiteralToken } counted, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..]
+                       && long.TryParse(counted.Text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long length)
+                    ? length
+                    : null;
+
+            default:
+                return null;
         }
     }
 

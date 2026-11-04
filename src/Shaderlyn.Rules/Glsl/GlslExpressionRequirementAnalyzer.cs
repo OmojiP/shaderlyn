@@ -48,6 +48,12 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
         {
             foreach (ShaderSyntaxToken token in compilation.CodeTokens)
             {
+                // GLSL には :: (スコープの演算子) が無い (glslang の「'::' : not supported」)。
+                if (token.Kind == ShaderSyntaxKind.ColonColonToken && compilation.IsReportable(token))
+                {
+                    fileRequirement.Report(GlslRuleDescriptors.NotAvailable, token, "GLSL には :: (スコープの演算子) がありません。");
+                }
+
                 if (token.TrailingTrivia.Concat(token.LeadingTrivia).Any(t => t.Kind == ShaderSyntaxKind.LineContinuationTrivia))
                 {
                     fileRequirement.ProfileRequires(token, GlslProfileMask.Es, 300, [], "行の継続 (行末の \\)");

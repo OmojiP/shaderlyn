@@ -354,6 +354,12 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
                         _ => null,
                     };
 
+                // 関数の外で 2 度宣言した名前 (宣言の重複は CF0314 が伝える)。どの宣言でも書き込めない理由が同じなら、それを使う。
+                case { Kind: DeclaredNameKind.Global, Candidates: { Length: > 1 } candidates }
+                    when candidates.All(c => c.Declarator is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } })
+                         && candidates.Select(c => Classify(name, ((VariableDeclarationSyntax)c.Declarator.Parent!).ModifierTokens, isBlock: false).ReadOnlyReason).Distinct().ToArray() is [{ } same]:
+                    return new Base(name, same, WriteOnly: false);
+
                 // インスタンスの名前を持つブロック。名前の解決に載らない。
                 case { Kind: DeclaredNameKind.NotFound } when FindBlockInstance(name) is { } block:
                     ImmutableArray<ShaderSyntaxToken> memberModifiers = member is null

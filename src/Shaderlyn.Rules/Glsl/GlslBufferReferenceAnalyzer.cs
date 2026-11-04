@@ -92,6 +92,11 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 // GL_NV_explicit_typecast の型の変換 ((T) x)。構造体へは変換できず、uvec2 から参照への変換には GL_EXT_buffer_reference_uvec2 が要る。
+                case CastExpressionSyntax functionCast when !compilation.GetFunctionDeclarations(functionCast.Type.Name, program).IsEmpty
+                                                            && !program.Structs.Any(t => t.Name == functionCast.Type.Name):
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, functionCast.OpenParen, $"'{functionCast.Type.Name}' は関数の名前で、型ではありません。型の変換 ((T) x) には型を書いてください。");
+                    break;
+
                 case CastExpressionSyntax cast when program.Structs.Any(t => t.Name == cast.Type.Name && t.Keyword.Text == "struct"):
                     requirement.Report(GlslRuleDescriptors.WrongOperandTypes, cast.OpenParen, $"型の変換 ((T) x) は、スカラー・ベクトル・行列・バッファの参照にだけ書けます (構造体 {cast.Type.Name} には書けません)。");
                     break;

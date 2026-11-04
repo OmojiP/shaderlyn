@@ -150,6 +150,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
 - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
   定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+- GLSL の `::` (GL0001)、2 度宣言した uniform への代入 (GL0309)、大きさの決まっていない配列への代入 (CF0410)、`gl_out.length()` で大きさを書いた出力の配列の大きさ (GL0103)、
+  関数の名前への型の変換 `(func) x` (GL0301) を報告する
+- 定数の式で、組み込みの整数の定数 (`gl_MaxSamples` など) を glslang の既定の資源の値として畳む (`gl_SampleMask[(gl_MaxSamples + 31) / 32]` を GL0307 にする)
+- 階数を書かない `tensorARM` を階数 1 として扱い、要素の型を書いたテンソルの仮引数に違う形のテンソルを渡したものを報告する (GL0304 / CF0401)
+- 組み込み関数の戻り値の型を、暗黙の変換で選んだ多重定義から求めるとき、長いベクトルの `vector` の形を数の型の実引数に合わせない
+  (`abs(uintVar)` を `float` と求め、`uint u = abs(uintVar);` を CF0410 にする)
 - 数の型の値の作成に渡した構造体 (`mat4(s)`) を報告する (GL0302)
 - `GL_EXT_post_depth_coverage` の `early_fragment_tests` の無い `post_depth_coverage` (GL0104)、ブロックの中と外に混ぜた shared の変数 (GL0101)、
   括弧を付けずに残った関数形式マクロの名前 (GLSL。CF0310) を報告する

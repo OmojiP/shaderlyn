@@ -750,6 +750,12 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
                     continue;
                 }
 
+                // 型の引数を取る型 (長いベクトルの vector など) の仮引数は、数の型の実引数には合わない (IsConvertible は数の型でない型を通してしまう)。
+                if (Glsl.Parsing.GlslKeywords.ParameterizedTypes.Contains(parameter) && TryDescribeNumeric(argument, out _))
+                {
+                    return false;
+                }
+
                 if (exact ? !SameType(argument, parameter) : !IsConvertible(argument, parameter, function.WritesBack[i]))
                 {
                     return false;
