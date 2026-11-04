@@ -55,7 +55,7 @@ const baselineExclusions = [
   ["spv.glsl.register.", "HLSL のレジスタの割り当ての試験"],
 ];
 
-/** Shaderlyn が意図して glslang と違う結果を出すファイル (docs/guide/environments.md の「glslang と違う所」)。比べない。 */
+/** Shaderlyn が意図して glslang と違う結果を出すファイル (docs/guide/environments/glsl.md の「glslang と違う所」)。比べない。 */
 const knownDifferences = [
   ["cppMerge.frag", "マクロを通した実引数の、空白を挟んだ字句を ## で連結する glslang の動き。C の規則どおり連結しない"],
 ];

@@ -379,7 +379,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - GLSL の環境 `glsl` を足した。`.vert` / `.frag` / `.comp` などと `.glsl` を、設定ファイルが無くても GLSL として解析し、
   構文の誤り (HL0001)・プリプロセッサ指令の誤り・解決できない `#include` (HL0321) を指摘する。VS Code 拡張でも同じく指摘する。
   宣言・型・呼び出しの検査と、VS Code 拡張の説明・定義へ移動・補完は 0.3.1 で対応する予定
-  ([GLSL](docs/guide/environments.md#glsl))
+  ([GLSL](docs/guide/environments/glsl.md))
 - 環境 `godot` / `slang` / `wgsl` を追加した (開発中)。拡張子でファイルを集めるが、まだ何も指摘しない
 - 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
   - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
@@ -396,7 +396,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   組み込みルールで対応できるかを先に確認し、ソースを文字列検索せず、構文木とセマンティックモデルで判定するよう案内する
 - Unreal Engine: `--unreal-generate` が、エンジンとプロジェクトの C++ から次の情報を読み取り、ファイルに出力する。
   解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する
-  ([Unreal Engine の環境](docs/guide/environments.md#c-から生成されるファイルを作る))
+  ([Unreal Engine の環境](docs/guide/environments/unreal.md#c-から生成されるファイルを作る))
   - **シェーダーの登録** (`IMPLEMENT_GLOBAL_SHADER` など)。登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) も展開し、
     `typedef` / `using` の別名で登録したクラスは、テンプレートの引数を書いたクラスとして読む
     (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。読み取れなかった登録のマクロは、名前と件数を通知する
@@ -579,7 +579,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
   設定ファイルの `unreal: generated` にそのフォルダーを書くと、`/Engine/Generated` に割り当てて解析する。
   C++ がシェーダーに定義するマクロ (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元) の名前も書き出し、HL0310 にしない。
   UE 5.5 のエンジンのシェーダーでは、宣言の検査を行えるシェーダーが 522 個中 8 個から 460 個に増える
-  ([C++ から生成されるファイルを作る](docs/guide/environments.md#c-から生成されるファイルを作る))
+  ([C++ から生成されるファイルを作る](docs/guide/environments/unreal.md#c-から生成されるファイルを作る))
 - Unreal Engine: エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す
   `/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush` を読む
 - `sizeof` を組み込みの名前として扱う (HL0310 にしない)

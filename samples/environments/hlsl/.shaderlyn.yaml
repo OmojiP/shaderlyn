@@ -1,5 +1,5 @@
 # 汎用の HLSL (DXC で直接コンパイルする構成) の設定ファイルのテンプレート。
-# 詳しくは docs/guide/environments.md と docs/guide/configuration.md にある。
+# 詳しくは docs/guide/environments/hlsl.md と docs/guide/configuration.md にある。
 version: 1
 environment: hlsl
 

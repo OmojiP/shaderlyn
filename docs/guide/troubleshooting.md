@@ -18,7 +18,7 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 
 ### CF0101 が全ファイルに出る
 
-`--unity-project` の指定先が正しくないか、一部のヘッダだけ引けていません（[CLI の使い方 5 章](cli-usage.md#5-プロジェクトの解析設定)）。
+`--unity-project` の指定先が正しくないか、一部のヘッダだけ引けていません（[Unity「プロジェクトを指定する」](environments/unity.md#プロジェクトを指定する)）。
 1 つも引けていない場合は `CF0101` と一緒に `TOOL0004` のエラーが出ます。
 `TOOL0004` のメッセージに原因と対処方法が書かれています。
 
@@ -31,7 +31,7 @@ CLI、設定ファイル、CI、VS Code 拡張、自作ルールの順に並べ�
 宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) だけを止めています。型の検査などは行っています。
 
 どちらも、`--unreal-generate` で生成ファイルを作って `unreal: generated` に書くと消えます
-([C++ から生成されるファイルを作る](environments.md#c-から生成されるファイルを作る))。
+([C++ から生成されるファイルを作る](environments/unreal.md#c-から生成されるファイルを作る))。
 
 - [UE0001](../rules/UE0001.md) は、uniform buffer の宣言などのためです
 - [UE0002](../rules/UE0002.md) は、マテリアルのシェーダーが取り込む `Material.ush` / `VertexFactory.ush` のためです

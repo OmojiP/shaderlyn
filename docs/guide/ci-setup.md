@@ -52,7 +52,7 @@ unity:
   generated: .shaderlyn/unity
 ```
 
-`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [CLI の使い方「Library と Unity Editor の無いマシンで解析する」](cli-usage.md#library-と-unity-editor-の無いマシンで解析する) を確認してください。
+`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [Unity「Library と Unity Editor の無いマシンで解析する」](environments/unity.md#library-と-unity-editor-の無いマシンで解析する) を確認してください。
 
 ワークフローが作成するキャッシュファイルをコミットしないよう、`.shaderlyn-cache.json` を `.gitignore` に追加します。
 

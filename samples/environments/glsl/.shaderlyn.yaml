@@ -1,5 +1,5 @@
 # GLSL の設定ファイルのテンプレート。
-# 詳しくは docs/guide/environments.md と docs/guide/configuration.md にある。
+# 詳しくは docs/guide/environments/glsl.md と docs/guide/configuration.md にある。
 version: 1
 environment: glsl         # .vert / .frag などは、設定ファイルが無くても GLSL として解析する。.mesh は glsl を指定したときだけ読む
 

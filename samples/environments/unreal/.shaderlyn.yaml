@@ -1,5 +1,5 @@
 # Unreal Engine の設定ファイルのテンプレート。
-# 詳しくは docs/guide/environments.md と docs/guide/configuration.md にある。
+# 詳しくは docs/guide/environments/unreal.md と docs/guide/configuration.md にある。
 version: 1
 environment: unreal
 

@@ -63,7 +63,7 @@ Unity の環境だけで使う設定です。
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が優先されます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が優先されます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が優先されます                            |
-| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使わずに解析する](cli-usage.md#library-と-unity-editor-の無いマシンで解析する)) |
+| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使わずに解析する](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)) |
 | `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
 | `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
 | `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
@@ -155,7 +155,7 @@ glsl:
 | --------------- | -------------------------------------------------------------------------------------- |
 | `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
-| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使い方](environments.md#c-から生成されるファイルを作る)) |
+| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使い方](environments/unreal.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 | `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
@@ -178,7 +178,7 @@ units:
 - フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([環境ごとの使い方](environments.md))
+  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルがない場合」](environments/unreal.md#生成ファイルがない場合))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
