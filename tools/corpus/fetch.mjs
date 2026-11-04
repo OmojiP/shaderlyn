@@ -114,6 +114,68 @@ const corpora = [
     patterns: ["/examples/**/*.slang", "/LICENSE"],
   },
   {
+    // Godot のシェーダーのコンパイラのソースとテスト。0.3.4 の答え合わせに使う (Godot 4.7.2 と同じ版)。
+    // 組み込みの表 (shader_types.cpp)、誤りの文 (shader_language.cpp の _set_error)、プリプロセッサ、
+    // 材質から作るシェーダー (material.cpp) を読む。シェーダーの例ではないので GodotCorpusTests では読まない。
+    name: "godot",
+    url: "https://github.com/godotengine/godot.git",
+    commit: "ed1daf0bf001b61586d9930840f2f1394092c079",
+    license: "MIT",
+    languages: ["godot"],
+    patterns: ["/servers/rendering/shader_*", "/tests/servers/rendering/**", "/scene/resources/material.cpp",
+      "/scene/resources/particle_process_material.cpp", "/scene/resources/canvas_item_material.cpp", "/LICENSE.txt"],
+  },
+  {
+    // シェーダーは MIT (画像とモデルは CC BY-NC-SA なので取らない)。Godot 4 へ移している途中で、Godot 3 の書き方のものも残る。
+    name: "godot-shaders",
+    url: "https://github.com/gdquest-demos/godot-shaders.git",
+    commit: "05a3931acc85513b67b80b6e88671a596a3f9693",
+    license: "MIT (シェーダー)",
+    languages: ["godot"],
+    patterns: ["*.gdshader", "*.gdshaderinc", "project.godot", "/LICENSE"],
+  },
+  {
+    // slang の試験。誤りになるものも含む (tests/diagnostics など)。正解は slangc 2026.19 を流して記録する。
+    // 標準ライブラリの宣言 (source/slang/*.meta.slang) も、組み込みの表を作るために取る。
+    // 誤りを含むので、上の slang (例だけ) とは分ける。
+    name: "slang-tests",
+    url: "https://github.com/shader-slang/slang.git",
+    commit: "0fb6b7587a94fa33d88141ec9930766eedc6f59a",
+    license: "Apache-2.0 WITH LLVM-exception",
+    languages: ["slang"],
+    patterns: ["/tests/**/*.slang", "/tests/**/*.slang.*", "/tests/**/*.slangh", "/tests/**/*.expected*",
+      "/source/slang/*.meta.slang", "/source/slang/*.slang", "/LICENSE"],
+  },
+  {
+    // Falcor のシェーダー。import とモジュールを使う実物の Slang。
+    name: "Falcor",
+    url: "https://github.com/NVIDIAGameWorks/Falcor.git",
+    commit: "759aad033ff610fb0d82c74f7e0a508d0096d5f2",
+    license: "BSD-3-Clause",
+    languages: ["slang"],
+    patterns: ["*.slang", "*.slangh", "/LICENSE.md"],
+  },
+  {
+    // naga のテストと WGSL の読み手・検証のソース (naga 30.0.1 と同じ版)。誤りの試験は wgsl_errors.rs などの Rust の中に WGSL の断片として書かれている。
+    // 正解は naga を流して記録する。
+    name: "naga",
+    url: "https://github.com/gfx-rs/wgpu.git",
+    commit: "40f4a34ebaf56f9a046231f54125ad046239d3f3",
+    license: "MIT OR Apache-2.0",
+    languages: ["wgsl"],
+    patterns: ["/naga/tests/in/**", "/naga/tests/*.rs", "/naga/tests/naga/**", "/naga/src/front/wgsl/**", "/naga/src/valid/**",
+      "/LICENSE.MIT", "/LICENSE.APACHE"],
+  },
+  {
+    // Bevy の WGSL。多くは naga_oil の #import / #ifdef を使い、Shaderlyn は読まない (0.3.0 の決定)。それを使わないファイルだけを比べる。
+    name: "bevy",
+    url: "https://github.com/bevyengine/bevy.git",
+    commit: "566358363126dd69f6e457e47f306c68f8041d2a",
+    license: "MIT OR Apache-2.0",
+    languages: ["wgsl"],
+    patterns: ["*.wgsl", "/LICENSE-MIT", "/LICENSE-APACHE"],
+  },
+  {
     name: "webgpu-samples",
     url: "https://github.com/webgpu/webgpu-samples.git",
     commit: "e040ec1a20dbbe01afed30c812e825b2639cfe5b",
