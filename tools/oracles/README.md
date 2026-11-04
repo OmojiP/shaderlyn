@@ -24,7 +24,7 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 | `glsl` | glslang | Vulkan 1.3 向けに SPIR-V を生成します (`-V --target-env vulkan1.3`)。ステージは拡張子から判断します。ステージの分からない `.glsl` ファイルは検査しません |
 | `slang` | slangc | モジュールとしてコンパイルするため、エントリポイントのないファイルも意味解析できます |
 | `wgsl` | naga | WGSL を検証します |
-| `godot` | Godot | 起動してバージョンを表示します。シェーダーの検査は GD4 で行います |
+| `godot` | Godot | 起動してバージョンを表示します。シェーダーの検査は `record.mjs` で行います (下記) |
 
 ## GLSL を glslang と行ごとに比べる
 
@@ -51,6 +51,26 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/
 
 `--details` を指定すると、食い違いを1件ずつ表示します。`--json=<パス>` を指定すると、ファイルごとの結果を JSON で出力します。
 glslang の Test のうち、単一ファイルのコンパイル結果ではないもの (`-E` の出力、複数ファイルをつないだ結果、HLSL として読ませた結果) は比較しません。
+
+## Godot・Slang・WGSL をコンパイラと行ごとに比べる
+
+`record.mjs` でコンパイラの誤りの行を JSON に記録し、`compare.mjs` で Shaderlyn の指摘と比べます。
+記録した正解はコンパイラのバージョンに固定されるので、コンパイラを上げたら記録し直してください。
+
+```sh
+SHADERLYN_GODOT=<Godot の場所> node tools/oracles/record.mjs godot .work/corpus/godot-shaders --out=.work/v0.3.4/oracle/godot/godot-shaders.json
+node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
+```
+
+| 言語 | 記録の仕方 |
+| --- | --- |
+| `godot` | Godot をヘッドレスで起動し、シェーダーのコードを `Shader` に渡して、コンパイラの誤り (`SHADER ERROR`) を集めます。Godot は最初の誤りで止まるので、誤りはファイルごとに 1 つです。元のプロジェクトは開かず、`project.godot` の下のシェーダーと取り込まれる断片だけを作業用のプロジェクトに写して読みます (`res://` の取り込みはそのまま解決できます) |
+
+`compare.mjs` は、コンパイラが誤りにしないファイルに出たエラーと警告を「誤報告」、コンパイラの誤りの行に Shaderlyn のエラーが無いものを「見落とし」、
+コンパイラの最初の誤りより前の行に出たエラーを「先走り」(誤報告の疑い) として数えます。
+
+> 手元の .NET SDK が 10.0.401 のままだと、Native AOT の脆弱性の勧告 (NU1903) で Release のビルドが止まります。
+> SDK を 10.0.403 以降に上げるか、`dotnet build src/Shaderlyn.Cli.App -c Release -p:PublishAot=false` でビルドしてください。
 
 ## 記録した道具 (2026-10-17)
 
