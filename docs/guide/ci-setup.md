@@ -81,12 +81,12 @@ jobs:
           restore-keys: |
             shaderlyn-${{ runner.os }}-${{ github.ref }}-
 
-      - uses: OmojiP/shaderlyn/action@v0.3.2
+      - uses: OmojiP/shaderlyn/action@v0.3.3
         with:
           paths: Assets/Shaders
           unity-project: .
           cache: .shaderlyn-cache.json
-          version: v0.3.2
+          version: v0.3.3
           upload-sarif: false
 ```
 
