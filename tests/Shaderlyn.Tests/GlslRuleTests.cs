@@ -638,6 +638,7 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0104", "a.frag", "#version 450\n#extension GL_EXT_post_depth_coverage : enable\nlayout(post_depth_coverage) in;\nvoid main() { }")]
     [InlineData("GL0101", "a.comp", "#version 430 core\n#extension GL_EXT_shared_memory_block : enable\nlayout(local_size_x = 8) in;\nshared first { int a; };\nshared int b;\nvoid main() { a = 2; b = 3; }")]
     [InlineData("CF0310", "a.vert", "#version 450\n#define FOOOM(a, b) a + b\nint aoeua = FOOOM;\nvoid main() { gl_Position = vec4(1.0); }")]
+    [InlineData("GL0302", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nstruct S { vec4 v; };\nvoid main() { S s; o = vec4(mat4(s)[0]); }")]
     [InlineData("GL0322", "a.frag", "#version 450\nlayout(location = 0) out vec4 o;\nvoid main(int a) { o = vec4(1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 450\nlayout(location = 3) struct S { vec3 a; } s;\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(s.a, 1.0); }")]
     [InlineData("GL0101", "a.frag", "#version 320 es\nprecision mediump float;\nlayout(blend_support_multiply) struct T { int i; };\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]

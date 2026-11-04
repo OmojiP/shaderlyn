@@ -36,7 +36,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.TypeNotAllowedHere, HlslRuleDescriptors.ValueNotConvertible];
+        [GlslRuleDescriptors.WrongOperandTypes, GlslRuleDescriptors.TypeNotAllowedHere, HlslRuleDescriptors.ValueNotConvertible, GlslRuleDescriptors.NoMatchingBuiltin];
 
     /// <summary>配列の形。次元は外から順で、大きさを書かない次元は空の文字列。</summary>
     private sealed record Shape(string Element, ImmutableArray<string> Dimensions)
@@ -58,7 +58,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
             if (node is not (VariableDeclaratorSyntax { Initializer: not null } or AssignmentExpressionSyntax or BinaryExpressionSyntax
-                or InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax }))
+                or InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax or IdentifierExpressionSyntax }))
             {
                 continue;
             }
@@ -124,6 +124,14 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                     when shapes.Of(compared.Left) is { Dimensions.Length: > 0 } left && shapes.Of(compared.Right) is { Dimensions.Length: > 0 } right
                          && (left.Element != right.Element || SameDimensions(left.Dimensions, right.Dimensions) == false):
                     requirement.Report(GlslRuleDescriptors.WrongOperandTypes, compared.OperatorToken, $"演算子 '{compared.OperatorToken.Text}' は、形の違う配列 ({left} と {right}) に使えません。");
+                    break;
+
+                // 数の型の値の作成には、構造体を渡せない (glslang の「not enough data provided for construction」)。
+                case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax numeric, OpenAngle: null } numericConstructor
+                    when binder.TypeSystem is GlslTypeSystem types && types.TryDescribeNumeric(numeric.Name, out _)
+                         && numericConstructor.ArgumentExpressions.Select(a => binder.GetTypesByConfiguration(a) is [{ Type: { } type }] ? type : null)
+                             .FirstOrDefault(t => t is not null && program.Structs.Any(s => s.Name == t && s.Keyword.Text == "struct")) is { } structure:
+                    requirement.Report(GlslRuleDescriptors.NoMatchingBuiltin, numeric.Identifier, numeric.Name, $"構造体 {structure}");
                     break;
 
                 case InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax arrayType } constructor:
