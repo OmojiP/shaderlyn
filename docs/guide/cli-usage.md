@@ -99,7 +99,7 @@ shaderlyn Assets/Shaders Packages/com.mycompany.shaders
 Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、直せないので報告しません。
 
 上は Unity の環境の場合です。設定ファイルの `environment` で選んだほかの環境では、フォルダーの指定で探す拡張子が変わります
-(汎用の HLSL は `.hlsl`、Unreal は `.usf`。[Unity 以外の環境で使う](environments.md))。
+(汎用の HLSL は `.hlsl`、Unreal は `.usf`。[環境ごとの使い方](environments.md))。
 
 ### 解析対象は自分のシェーダーに絞る
 
@@ -323,7 +323,7 @@ Assets/Shaders/Lib/Inner.hlsl(1:36): error CF0310: 'undefinedTint' はどこに�
 
 ## 5. プロジェクトの解析設定
 
-この章は Unity の環境の設定です。汎用の HLSL・Unreal の設定は [Unity 以外の環境で使う](environments.md) にあります。
+この章は Unity の環境の設定です。ほかの環境の設定は [環境ごとの使い方](environments.md) にあります。
 
 ### --unity-project
 
@@ -650,14 +650,14 @@ shaderlyn <パス...> [オプション]
 
 | オプション                        | 説明                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl`（構文の誤りだけを指摘する）/ `godot` / `slang` / `wgsl`（この 3 つは作っているところで、今は何も指摘しない）。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
+| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`（この 3 つは開発中で、今は何も指摘しない）。設定ファイルの `environment` より優先（[環境ごとの使い方](environments.md)） |
 | `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です。Unity の環境だけ |
 | `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定。Unity の環境だけ |
 | `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります |
 | `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`。Unity の環境だけ |
 | `--define <名前[=値]>`            | 定義済みマクロ。複数回指定できます                                 |
 | `--max-symbol-variants <数>`     | シンボルを 1 つずつ有効にして解析する上限（既定 8）。0 で無効    |
-| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルド時に生成される uniform buffer の宣言などをこのフォルダーに保存する。`unreal: generated` に指定すると解析に使用する（[Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)） |
+| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルド時に生成される uniform buffer の宣言などをこのフォルダーに保存する。`unreal: generated` に指定すると解析に使用する（[環境ごとの使い方](environments.md#c-から生成されるファイルを作る)） |
 
 ### 設定ファイルとベースライン
 

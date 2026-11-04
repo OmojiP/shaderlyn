@@ -1,7 +1,7 @@
 # Shaderlyn for VS Code
 
 Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.compute`）のリアルタイム静的解析・コーディング支援を提供する VS Code 拡張機能です。
-DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[Unity 以外の環境で使う](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
+DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使い方](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
 GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
 
 ## 主な機能
@@ -137,7 +137,7 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 ### 動作条件
 
 * Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
-* Unity 以外の環境（汎用の HLSL・Unreal）では、`.shaderlyn.yaml` に `environment` を書いてください（[Unity 以外の環境で使う](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
+* Unity 以外の環境（汎用の HLSL・Unreal など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使い方](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
 
 ### 設定項目 (`settings.json`)
 

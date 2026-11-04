@@ -1,16 +1,17 @@
-# Unity 以外の環境で使う
+# 環境ごとの使い方
 
-Shaderlyn は Unity のほか、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、独自エンジンのシェーダーも解析できます。
-環境ごとの違いは設定ファイルで指定します。解析ルールと出力方法 (CLI・VS Code 拡張・GitHub Actions) は、どの環境でも共通です。
+Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、GLSL、独自エンジンのシェーダーを解析します。
+どのエンジンと言語のシェーダーとして解析するかを「環境」と呼び、設定ファイルの `environment` で選びます。このページは、環境ごとの設定と違いをまとめたものです。解析ルールと出力方法 (CLI・VS Code 拡張・GitHub Actions) は、どの環境でも共通です。
 
 環境別の設定ファイルのテンプレートと、試すためのサンプルシェーダーが [samples/environments](../../samples/environments/) にあります。
 テンプレートをコピーし、環境に合わせて編集すると、すぐに試せます。
 
 ## 目次
 
-- [Unity 以外の環境で使う](#unity-以外の環境で使う)
+- [環境ごとの使い方](#環境ごとの使い方)
   - [目次](#目次)
   - [環境の選び方](#環境の選び方)
+  - [Unity (既定の環境)](#unity-既定の環境)
   - [汎用の HLSL (DXC)](#汎用の-hlsl-dxc)
   - [Unreal Engine](#unreal-engine)
     - [C++ から生成されるファイルを作る](#c-から生成されるファイルを作る)
@@ -42,6 +43,12 @@ HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) は、`environment` に関係
 ```sh
 shaderlyn Shaders --env      # どの環境で、何を解析するかを表示する (解析はしない)
 ```
+
+## Unity (既定の環境)
+
+設定ファイルが無いか、`environment` を書いていなければ、Unity の環境で解析します。
+プロジェクト・Unity Editor・レンダーパイプラインの指定は [CLI の使い方「プロジェクトの解析設定」](cli-usage.md#5-プロジェクトの解析設定) と [設定ファイルの `unity:`](configuration.md#unity) に、
+Unity がパスごとに FXC と DXC のどちらを使うかは [下記](#unity) にあります。
 
 ## 汎用の HLSL (DXC)
 

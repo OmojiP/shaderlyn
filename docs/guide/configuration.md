@@ -42,7 +42,7 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (この 4 つは開発中で、現時点では GLSL の構文エラーだけを指摘する) |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (後ろの 3 つは開発中で、現時点では何も指摘しない) |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
@@ -148,7 +148,7 @@ glsl:
 | --------------- | -------------------------------------------------------------------------------------- |
 | `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
-| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)) |
+| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使い方](environments.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 | `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
@@ -171,7 +171,7 @@ units:
 - フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unity 以外の環境で使う](environments.md))
+  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([環境ごとの使い方](environments.md))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください

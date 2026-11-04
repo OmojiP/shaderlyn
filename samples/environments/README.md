@@ -5,7 +5,7 @@
 どれも Unity や Unreal Engine、glslang が無くても解析できます。
 
 自分のプロジェクトで使うときは、フォルダーの `.shaderlyn.yaml` を写し、パスと構成の軸を書き換えてください。
-キーの説明は [設定](../../docs/guide/configuration.md)、環境の説明は [Unity 以外の環境で使う](../../docs/guide/environments.md) にあります。
+キーの説明は [設定](../../docs/guide/configuration.md)、環境の説明は [環境ごとの使い方](../../docs/guide/environments.md) にあります。
 
 | フォルダー | 環境 | 中身 |
 | --- | --- | --- |

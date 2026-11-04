@@ -209,5 +209,5 @@ Unity 以外の環境でルールを確かめるときは、`ShaderCompilation.C
 
 ## Unity 以外の環境を使い始める
 
-DXC で直接コンパイルする HLSL と Unreal Engine は、[Unity 以外の環境で使う](environments.md) を見てください。
+DXC で直接コンパイルする HLSL と Unreal Engine は、[環境ごとの使い方](environments.md) を見てください。
 環境ごとの設定ファイルのテンプレートが [samples/environments](../../samples/environments/) にあります。
