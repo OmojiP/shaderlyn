@@ -11,8 +11,11 @@ unreal:
   project: .              # /Project を <project>/Shaders に割り当てる
   virtual-paths:          # そのほかの割り当て (プラグインなど)
     /Plugin/MyPlugin: Plugins/MyPlugin/Shaders
+  # generated: Generated   # --unreal-generate で C++ から作ったフォルダー。/Engine/Generated に割り当てる
+  # permutations: true    # generated に作ったパーミュテーションの組を構成の軸にする (既定は false)
 
 hlsl:
+  # compiler: dxc         # dxc (既定) / fxc
   version: 2018           # Unreal の既定は 2018。HLSL 2021 で書いたシェーダーなら 2021
 
 # defines:                # シェーダーコンパイラのマクロ (既定は COMPILER_HLSL / COMPILER_DXC / SM6_PROFILE) を上書き・追加する
@@ -30,3 +33,6 @@ units:
   - files: Shaders/**/*.usf
     entry: MainPS
     target: ps_6_6
+
+# report:
+#   min-severity: warning # 出力する指摘の重要度 (info / warning / error)。形式 (text / json / sarif / github) ごとにも書ける

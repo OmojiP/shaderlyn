@@ -4,6 +4,7 @@ version: 1
 environment: hlsl
 
 hlsl:
+  # compiler: dxc         # dxc (既定) / fxc。fxc のときは version を使わず、DXC のマクロも定義しない
   version: 2021           # DXC の -HV: 2018 / 2021 (既定)
   # enable-16bit-types: true   # DXC の -enable-16bit-types。__HLSL_ENABLE_16_BIT=1 を定義する
 
@@ -37,3 +38,6 @@ units:
 
 rules:
   CF0202: none            # 例: 使われていないシンボルの指摘を止める
+
+# report:
+#   min-severity: warning # 出力する指摘の重要度 (info / warning / error)。形式 (text / json / sarif / github) ごとにも書ける
