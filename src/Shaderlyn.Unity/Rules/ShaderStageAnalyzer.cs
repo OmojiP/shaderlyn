@@ -53,17 +53,54 @@ internal sealed class ShaderStageAnalyzer : SemanticRuleAnalyzer
         }
 
         // コンピュートシェーダーの入口は #pragma kernel である。頂点・フラグメントを求めると、直し方を誤らせる。
-        string expected = string.Equals(Path.GetExtension(compilation.Text.FilePath), ".compute", StringComparison.OrdinalIgnoreCase)
-            ? "#pragma kernel"
-            : "#pragma vertex / #pragma fragment";
+        bool compute = string.Equals(Path.GetExtension(compilation.Text.FilePath), ".compute", StringComparison.OrdinalIgnoreCase);
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             if (!program.Tree.Pragmas.Any(pragma => StagePragmas.Contains(pragma.Name)))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    UnityRuleDescriptors.MissingShaderStage, program.GetBlockLocation(), expected));
+                    UnityRuleDescriptors.MissingShaderStage,
+                    program.GetBlockLocation(),
+                    compute ? "#pragma kernel" : "#pragma vertex / #pragma fragment",
+                    compute ? "" : PassExcluded));
+            }
+            else if (!compute && MissingVertexOrFragment(program) is { } missing)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    UnityRuleDescriptors.MissingShaderStage, program.GetBlockLocation(), missing, PassExcluded));
             }
         }
+    }
+
+    /// <summary>ステージの指定が足りない Pass について、Unity がすること。</summary>
+    private const string PassExcluded = "Unity はこの Pass をコンパイルから外し、SubShader ごと使えなくなります。";
+
+    /// <summary>
+    /// 頂点とフラグメントの片方だけを指定しているなら、足りない方の <c>#pragma</c> を返す。
+    /// </summary>
+    /// <param name="program">検査するコードブロック。</param>
+    /// <returns>足りない <c>#pragma</c>。足りていれば null。</returns>
+    /// <remarks>
+    /// Unity は「Both vertex and fragment programs must be present in a shader snippet. Excluding it from compilation.」の警告を出し、
+    /// その Pass を外す。ほかの Pass が正しくても SubShader ごと使えなくなる (Unity 6.3 で確かめた)。
+    /// サーフェスシェーダー (<c>surface</c>) とレイトレーシング (<c>raytracing</c>) は、頂点とフラグメントを書かない。
+    /// </remarks>
+    private static string? MissingVertexOrFragment(AnalyzedProgram program)
+    {
+        HashSet<string> names = [.. program.Tree.Pragmas.Select(pragma => pragma.Name)];
+
+        if (names.Contains("surface") || names.Contains("raytracing"))
+        {
+            return null;
+        }
+
+        return (names.Contains("vertex"), names.Contains("fragment")) switch
+        {
+            (true, false) => "#pragma fragment",
+            (false, true) => "#pragma vertex",
+            (false, false) => "#pragma vertex / #pragma fragment",
+            _ => null,
+        };
     }
 }

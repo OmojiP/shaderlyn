@@ -74,11 +74,11 @@ internal static class UnityRuleDescriptors
     public static DiagnosticDescriptor MissingShaderStage { get; } = new(
         id: "UN0301",
         title: "シェーダーステージが指定されていません",
-        messageFormat: "コードブロックに {0} が存在しません。",
+        messageFormat: "コードブロックに {0} が存在しません。{1}",
         category: CorrectnessCategory,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Error,
         description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使うかが指定されていません。"
-            + "この Pass はコンパイルできません。"
+            + "Unity はこの Pass をコンパイルから外し (警告だけを出す)、SubShader ごと使えなくなります。"
             + "共通コード片 (HLSLINCLUDE) に書いたつもりの #pragma が、"
             + "別の SubShader に属していて届いていない場合によく起きます。",
         helpLinkUri: DocumentationLinks.For("UN0301"));
