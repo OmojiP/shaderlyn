@@ -135,7 +135,7 @@ Assets/Shaders/Lit.shader(24:18): warning SL1021: 'Cull' に指定された値 '
 
 ※ `text` 形式では、解決後の絶対パスが出力されます（ここでは読みやすさのために短く記載しています）。
 多くのターミナルとエディタがこの書式をファイル位置として認識し、クリックで該当行へ飛べます。
-相対パスが必要な場合は `--format json` 等と `--base-path` を使ってください。
+相対パスが必要な場合は、`--format json` などの形式と `--base-path` を指定してください。
 
 ### 重要度
 
@@ -327,7 +327,7 @@ Assets/Shaders/Lib/Inner.hlsl(1:36): error CF0310: 'undefinedTint' はどこに�
 
 ### --unity-project
 
-Unityで用意された関数等のヘッダ取得に利用します
+Unity が用意する関数などのヘッダーを探すときに使います。
 
 ```bash
 shaderlyn Assets --unity-project .

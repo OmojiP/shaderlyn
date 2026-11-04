@@ -128,7 +128,14 @@ GLSL のファイルで使う設定です。
 
 `spirv` を省略すると、`target` に指定した Vulkan のバージョンから決めます。対応は `vulkan1.0` が `1.0`、`vulkan1.1` が `1.3`、`vulkan1.2` が `1.5`、`vulkan1.3` と `vulkan1.4` が `1.6` です (glslang と同じ)。`target: opengl` と `spirv` を併記すると、OpenGL 向けの SPIR-V を生成します (glslang の `-G`)。
 
-`auto-map-locations` と `auto-map-bindings` は、既定では `false` です。`true` にすると、SPIR-V を作るときにそれぞれ `location` と `binding` を省略しても [GL0104](../rules/GL0104.md) を報告しません。対応する glslang / glslc のオプションは、`auto-map-locations` が `--auto-map-locations` / `-fauto-map-locations`、`auto-map-bindings` が `--auto-map-bindings` / `-fauto-bind-uniforms` です。
+`auto-map-locations` と `auto-map-bindings` は、既定では `false` です。`true` にすると、SPIR-V を作るときにそれぞれ `location` と `binding` を省略しても [GL0104](../rules/GL0104.md) を報告しません。
+
+対応するオプションは次のとおりです。
+
+| 設定 | glslang | glslc |
+| --- | --- | --- |
+| `auto-map-locations` | `--auto-map-locations` | `-fauto-map-locations` |
+| `auto-map-bindings` | `--auto-map-bindings` | `-fauto-bind-uniforms` |
 
 `target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから引きます。
 `opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。
@@ -247,7 +254,7 @@ rules:
 
 ### options
 
-`options` はルールごとの設定値で、ルールの閾値変更などに等に利用できます。
+`options` はルールごとの設定値で、閾値の変更などに利用できます。
 
 オプションを自作ルールで使用する方法：[ルールの実例集](../custom-rules/cookbook.md#設定ファイルの-options-から閾値を受け取る)
 

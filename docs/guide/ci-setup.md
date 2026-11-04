@@ -265,8 +265,8 @@ Unity プロジェクトの `Library/PackageCache` をランナーのマシン�
 
 ### 4-1. トークンを登録する
 
-ツールのリポジトリは private なので、`GITHUB_TOKEN` ではリリースを取得できません。
-そのため、Fine-grained PAT 等を使用してリポジトリへのアクセスを可能にします。
+ツールのリポジトリは private のため、`GITHUB_TOKEN` ではリリースを取得できません。
+Fine-grained PAT など、ツールのリポジトリにアクセスできるトークンを用意します。
 
 1. `Profile > Settings > Developer Settings > Personal access tokens` を開き、ツールリポジトリに `Contents: Read-only` の権限を持つ Fine-grained PAT を作成します。
 2. 作成したトークンを Unity プロジェクトのリポジトリで `Settings > Secrets and variables > Actions > Secrets > New repository secret` から `SHADERLYN_TOKEN` として登録します。

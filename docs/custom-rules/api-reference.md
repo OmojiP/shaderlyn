@@ -513,7 +513,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `Text`               | 対象ファイルのソーステキスト                  |
 | `Root`               | 構文木の根。パースに至らなかった場合は `null` |
 | `FilePath`           | 対象ファイルのパス                            |
-| `GetModel<TModel>()` | 添えられたモデル。無ければ `null`             |
+| `GetModel<TModel>()` | 対応するモデル。見つからない場合は `null`      |
 
 ### `ShaderCompilation` (`Shaderlyn.Semantics`)
 

@@ -12,12 +12,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [0.3.3] - 2026-11-04
 
-GLSL を glslang 16.6.0 と同じに検査するようにした。GLSL にしか無いルール (GL0001 など) を足し、glslang がエラーにするものを glslang と同じ行で報告する。
-glslang のテスト用のシェーダーで、glslang がエラーにしないファイルには誤りを出さない。
+GLSL の検査結果を glslang 16.6.0 に合わせた。GLSL 固有のルール (GL0001 など) を追加し、glslang がエラーにする箇所を同じ行で報告する。
+glslang のテスト用シェーダーのうち、glslang がエラーにしないファイルでは、Shaderlyn もエラーを出さない。
 
 ### 追加
 
-- GLSL にしか無いルール (GL) を足した。glslang 16.6.0 が誤りにするものを、glslang の検査を移して同じ所で伝える
+- GLSL 固有のルール (GL) を追加した。glslang 16.6.0 がエラーにする箇所を検査し、同じ行で報告する
   - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない (配列の大きさに書いた組み込みの定数、uniform のブロックの `std430` を含む)。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
     その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
     実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize`、`textureGather` など)、`textureSamples` に要るバージョン、
