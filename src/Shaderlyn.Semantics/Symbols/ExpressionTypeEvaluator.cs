@@ -259,7 +259,7 @@ public sealed class ExpressionTypeEvaluator
             return EvaluateTextureMethod(access);
         }
 
-        if (TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
+        if (TypeSystem.IsBuiltInTypeName(name))
         {
             return name;
         }
@@ -1093,7 +1093,7 @@ public sealed class ExpressionTypeEvaluator
         ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken
             or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
             or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken
-            or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken
+            or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken or ShaderSyntaxKind.CaretCaretToken
             => TypeSystem.ComparesWholeValues ? "bool" : ToBool(Combine(binary.Left, binary.Right)),
 
         // ビット演算は整数どうしに限る。型の揃え方は算術と同じである。

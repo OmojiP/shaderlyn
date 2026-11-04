@@ -2,6 +2,8 @@
 
 `shaderlyn` コマンドのインストール、実行、出力の読み方、オプションをまとめたページです。
 
+どの環境でも同じ使い方をまとめています。Unity のプロジェクトの指定や Unreal のエンジンのフォルダーなど、環境ごとの使い方は [環境ごとの使い方](environments.md) にあります。
+
 設定：[configuration.md](configuration.md)
 
 ---
@@ -12,7 +14,7 @@
 2. [基本的な実行](#2-基本的な実行)
 3. [出力の読み方](#3-出力の読み方)
 4. [終了コード](#4-終了コード)
-5. [プロジェクトの解析設定](#5-プロジェクトの解析設定)
+5. [解析の設定](#5-解析の設定)
 6. [ベースライン](#6-ベースライン)
 7. [キャッシュ](#7-キャッシュ)
 8. [解析の中身を見る](#8-解析の中身を見る)
@@ -84,36 +86,21 @@ shaderlyn --version
 
 ```bash
 # 単一ファイル
-shaderlyn Assets/Shaders/MyShader.shader
+shaderlyn Shaders/Lit.shader
 
-# フォルダー配下の .shader , .compute を解析
-shaderlyn Assets
+# フォルダー配下のシェーダーを解析
+shaderlyn Shaders
 
 # 複数パス指定
-shaderlyn Assets/Shaders Packages/com.mycompany.shaders
+shaderlyn Shaders Packages/com.mycompany.shaders
 ```
 
-`.hlsl` や `.cginc` は単体では成立しない断片であることがあるため、フォルダー指定では解析しません。
+フォルダーを指定したときに探すファイルは、環境で決まります。Unity は `.shader` / `.compute`、汎用の HLSL は `.hlsl`、Unreal は `.usf`、GLSL は `.vert` / `.frag` などです
+([環境の選び方](environments.md#環境の選び方))。環境は設定ファイルの `environment` か `--environment` で選び、どちらも無ければ Unity です。
+
+取り込まれる前提のヘッダ (Unity の `.hlsl` / `.cginc`、汎用の HLSL の `.hlsli`、Unreal の `.ush` など) は、単体では成立しない断片であることがあるため、フォルダーの指定では探しません。
 それらのファイルは、取り込んでいるシェーダーの解析の中で、取り込む側の文脈で検査されます。指摘はヘッダの位置に報告されます。
 同じヘッダを取り込むシェーダーが複数あっても 1 件にまとまります。
-Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、直せないので報告しません。
-
-上は Unity の環境の場合です。設定ファイルの `environment` で選んだほかの環境では、フォルダーの指定で探す拡張子が変わります
-(汎用の HLSL は `.hlsl`、Unreal は `.usf`。[Unity 以外の環境で使う](environments.md))。
-
-### 解析対象は自分のシェーダーに絞る
-
-Unityプロジェクト全体を解析する場合、Assets 以下を指定してください。
-
-プロジェクトルートを指定すると Unity 同梱のシェーダーやパッケージを解析してしまいます。
-
-```bash
-# Good
-shaderlyn Assets/Shaders --unity-project .
-
-# Bad（Unity のパッケージまで解析してしまう）
-shaderlyn . --unity-project .
-```
 
 ---
 
@@ -135,7 +122,7 @@ Assets/Shaders/Lit.shader(24:18): warning SL1021: 'Cull' に指定された値 '
 
 ※ `text` 形式では、解決後の絶対パスが出力されます（ここでは読みやすさのために短く記載しています）。
 多くのターミナルとエディタがこの書式をファイル位置として認識し、クリックで該当行へ飛べます。
-相対パスが必要な場合は `--format json` 等と `--base-path` を使ってください。
+相対パスが必要な場合は、`--format json` などの形式と `--base-path` を指定してください。
 
 ### 重要度
 
@@ -253,11 +240,10 @@ D:\...\Shader.shader(68:17): error CF0310: 'a' は !_A && _C のとき宣言さ�
 }
 ```
 
-
 #### `--output` 
 
 ```bash
-shaderlyn Assets --unity-project . --format json --output result.json
+shaderlyn Shaders --format json --output result.json
 ```
 
 SARIF をリポジトリ外のフォルダーから作る場合は、`--base-path` にリポジトリのルートを渡してください。
@@ -282,10 +268,10 @@ shaderlyn /path/to/repo/Assets --format sarif --output result.sarif \
 
 ```bash
 # エラーだけで失敗させる（警告は表示するが終了コードは 0）
-shaderlyn Assets --error-on error
+shaderlyn Shaders --error-on error
 
 # 情報レベルの指摘でも失敗させる
-shaderlyn Assets --error-on info
+shaderlyn Shaders --error-on info
 ```
 
 出力する指摘は `--min-severity` で絞れます。絞っても終了コードは変わりません（出力しなかった指摘も含めて `--error-on` で決めます）。
@@ -293,7 +279,7 @@ shaderlyn Assets --error-on info
 
 ```bash
 # エラーだけを表示する（警告があれば終了コードは 1 のまま）
-shaderlyn Assets --min-severity error
+shaderlyn Shaders --min-severity error
 ```
 
 ### ヘッダの指摘がどこから来たか（`--include-trace`）
@@ -321,138 +307,43 @@ Assets/Shaders/Lib/Inner.hlsl(1:36): error CF0310: 'undefinedTint' はどこに�
 
 ---
 
-## 5. プロジェクトの解析設定
+## 5. 解析の設定
 
-この章は Unity の環境の設定です。汎用の HLSL・Unreal の設定は [Unity 以外の環境で使う](environments.md) にあります。
+どの環境でも使う設定です。Unity のプロジェクトと Unity Editor、Unreal のエンジンのフォルダーのような環境ごとの設定は、[環境ごとの使い方](environments.md) の各ページにあります。
 
-### --unity-project
+### 環境を選ぶ
 
-Unityで用意された関数等のヘッダ取得に利用します
-
-```bash
-shaderlyn Assets --unity-project .
-```
-
-指定しない場合は、そのマシンにインストール済みの Unity Editor からヘッダを探します。プロジェクトは推定しません。
-そのため `Assets/...` と `Packages/...` の `#include`、解析対象のフォルダーより上を指す `../...` の `#include` は解決できません。
-これらは [CF0021](../rules/CF0021.md) のメッセージで、解決できない理由と、解析対象の上位で見つけた Unity プロジェクトを添えて報告します。
-`--env` には、見つけたプロジェクトと解決できない項目も表示されます。
-
-見つからない場合、次のエラーが発生します。
-
-```
-Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つも解決できません ('Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl')。
-    Unity プロジェクトとして解析する場合は --unity-project "C:\Work\MyGame" を指定してください。
-```
-
-### Unity Editor の場所
-
-通常は指定不要です。プロジェクトの `ProjectSettings/ProjectVersion.txt` のバージョンを、Unity Hub の既定のインストール先
-(Windows は `C:\Program Files\Unity\Hub\Editor`) から探します。
-
-Unity Hub でインストール先を変えた場合 (別のドライブなど) は見つからないので、`--unity-editor` で Editor のデータフォルダーを指定してください
-(設定ファイルなら `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱ヘッダを解決できず、
-[CF0021](../rules/CF0021.md) か [TOOL0004](../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
-Unity 6.3.26f1 以降の Editor は、同梱のヘッダを `Editor/Data/Resources/CGIncludes` に置いています。指定するのはどちらでも `Editor/Data` です。
+設定ファイルの `environment` で選ぶのが普通です。`--environment` を指定すると、設定ファイルより優先します ([環境の選び方](environments.md#環境の選び方))。
 
 ```bash
-# Windows
-shaderlyn Assets --unity-project . --unity-editor "C:\Program Files\Unity\Hub\Editor\6000.0.30f1\Editor\Data"
-
-# macOS
-shaderlyn Assets --unity-project . --unity-editor "/Applications/Unity/Hub/Editor/6000.0.30f1/Unity.app/Contents"
-
-# Linux
-shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0.30f1/Editor/Data"
+shaderlyn Shaders --environment hlsl
 ```
 
-### Library と Unity Editor の無いマシンで解析する
+### `#include` の追加探索パス
 
-GitHub のホストランナーのように、プロジェクトの `Library` も Unity Editor も無いマシンでは、パッケージのヘッダ
-(`Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl` など) と `UnityCG.cginc` を読めません。
-`--unity-generate` で、解析に必要なヘッダだけをあらかじめ生成してリポジトリに含めると、そうしたマシンでも解析できます。
+環境の規則 (Unity のプロジェクトとパッケージ、Unreal の仮想パスなど) で解決できない場所にヘッダを置いている場合に、`--include-path` で指定します。
+複数回指定できます。設定ファイルなら `include-paths` に書きます。
 
 ```bash
-shaderlyn --unity-project . --unity-generate .shaderlyn/unity
-```
-
-```text
-次のパッケージのシェーダーのファイルを書き出します。
-  Unity Companion License (5 個):
-    com.unity.render-pipelines.core
-    com.unity.render-pipelines.universal
-    …
-  Unity Editor のヘッダ (CGIncludes。C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Data)
-合わせてファイル 475 個 (3.9 MB)。
-書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。
-書き出しますか? [y/n]
-```
-
-- 生成するのは、パッケージの取り込まれうるファイル (`.hlsl` / `.cginc` / `.hlsli` など)・`package.json`・ライセンスの表示 (`LICENSE.md` など) と、Unity Editor のヘッダだけです。
-  URP のプロジェクトで 4 MB ほどです (`Library/PackageCache` そのものは 1 GB を超えます)
-- 生成前にパッケージとライセンスの一覧を表示して確認します。`n` を入力すると何も書き込みません。入力を受け付けられない環境 (CI など) では `--yes` を指定してください。
-- プロジェクトと同じバージョンの Unity Editor から写します。見つからなければ止まるので、そのバージョンを入れるか `--unity-editor` で指定してください
-- 生成先には、空のフォルダーか、以前 `--unity-generate` で生成したフォルダーを指定します。既存のファイルは削除してから再生成します。
-
-生成したフォルダーを、設定ファイルの `unity: generated` に指定します。
-
-```yaml
-version: 1
-unity:
-  generated: .shaderlyn/unity
-```
-
-- `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor があれば、これまでどおりそちらを読みます。無いときに、書き出したものを読みます
-- 生成したファイル (Unity のファイルの写し) については指摘を報告しません
-- どちらを参照しているかは `--env` の「Unity Editor」に表示されます
-- **Unity のバージョンかパッケージを上げたら、書き出し直してください。** 書き出した後に `ProjectVersion.txt`・`packages-lock.json`・`Library/PackageCache` のパッケージが変わると、
-  解析を始めるときに標準エラーに伝えます (VS Code 拡張では通知)。解析は止めません
-  ```text
-  --unity-generate で書き出したもの (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
-  ```
-
-> **ライセンスについて:** 書き出したものは Unity のパッケージと Unity Editor のファイルの写しです。
-> Unity のパッケージの多くは Unity Companion License で、Unity のコンテンツを作るための利用に限って写しと配布を認め、写しにライセンスの表示を添えることを求めます
-> (`--unity-generate` は `LICENSE.md` などを一緒に写します)。Asset Store などから入れたパッケージは、それぞれのライセンスに従います。
-> 書き出したものを入れるのは private のリポジトリにし、各パッケージのライセンスを確かめてください。
-
-### 独自ヘッダの探索パス
-
-多くの場合、`--unity-project` だけで解決できるため、このオプションは不要です。
-
-Unity の解決規則（`#include` を書いたファイルからの相対パス、ヘッダ内ではシェーダーからの相対パス ([UN0102](../rules/UN0102.md) の警告付き)、`Assets/...` 形式、Editor 同梱ヘッダ）で解決できない場所にヘッダを置いている場合に指定します。
-
-```bash
-shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
+shaderlyn Shaders --include-path ../SharedShaderLibrary
 ```
 
 ### `#include` が読む範囲
 
 - コマンドラインで渡した解析対象
-- `--unity-project` とその `Assets`
 - 設定ファイルを置いたフォルダー
-- `--unity-editor` の同梱ヘッダ
 - `--include-path` で渡したパス
+- 環境の設定で指定した場所 (Unity の `--unity-project` とその `Assets` と `--unity-editor` の同梱ヘッダ、Unreal の `unreal: engine` / `project` / `virtual-paths` など)
 
 範囲の外を指した場合、そのファイルは読まず、[CF0021](../rules/CF0021.md) の文に「読んでよい範囲の外にあるため読みません」と添えます。
 意図した取り込みであれば `--include-path` を追加してください。
 
-### レンダーパイプライン
+### 定義済みマクロ
 
-既定は `urp` で、`urp` / `brp` / `hdrp` から選べます。
-
-対応の度合いはパイプラインで違います。
-
-| プロファイル | 対応 |
-| --- | --- |
-| `urp` | すべてのルール (URP0001〜URP0003 を含む) |
-| `brp` | 共通のルールだけ。BRP だけのルールは足しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使えます) |
-| `hdrp` | 共通のルールと SRP Batcher の検査 (URP0001 / URP0002) だけ |
-
-どのプロファイルでも、誤検出の報告は直します。
+`--define` で、どのシェーダーにも定義するマクロを渡します。複数回指定できます。設定ファイルなら `defines` に書きます。
 
 ```bash
-shaderlyn Assets --unity-project . --profile brp
+shaderlyn Shaders --define PLATFORM_PC=1
 ```
 
 ### シンボルの展開数
@@ -464,7 +355,7 @@ shaderlyn Assets --unity-project . --profile brp
 上限は `--max-symbol-variants` で変更できます。
 
 ```bash
-shaderlyn Assets/Shaders --unity-project . --max-symbol-variants 16
+shaderlyn Shaders --max-symbol-variants 16
 ```
 
 解析時間は展開するシンボルの数に比例して伸びます。
@@ -489,11 +380,11 @@ CLI は解析するファイルごとに、そのファイルから上のフォ�
 
 ```bash
 # 現在の指摘を記録する
-shaderlyn Assets --unity-project . --write-baseline .shaderlyn-baseline.json
+shaderlyn Shaders --write-baseline .shaderlyn-baseline.json
 143 件の指摘をベースラインへ記録しました: .shaderlyn-baseline.json
 
 # 記録と照合して実行する
-shaderlyn Assets --unity-project . --baseline .shaderlyn-baseline.json
+shaderlyn Shaders --baseline .shaderlyn-baseline.json
 ```
 
 - 指摘が出ている行の内容を正規化した fingerprint で照合
@@ -508,7 +399,7 @@ shaderlyn Assets --unity-project . --baseline .shaderlyn-baseline.json
 変更のないファイルを解析しないため、２回目以降が高速になります。
 
 ```bash
-shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
+shaderlyn Shaders --cache .shaderlyn-cache.json
 ```
 
 - キャッシュには絶対パスが記録されるため、`.gitignore` へ追加してください
@@ -518,7 +409,6 @@ shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 ```
 キャッシュを書き出せません (C:/Windows/System32/cache.json): アクセスする権限がありません。 解析は続けますが、キャッシュは残りません。
 ```
-
 
 > 解析の内訳を確認するには `--timings` を指定します。構文解析・展開・ルールにかかった時間が標準エラーへ出力されます。
 
@@ -530,6 +420,7 @@ shaderlyn Assets --unity-project . --cache .shaderlyn-cache.json
 
 指摘が報告されないときは、まずヘッダを読み込めているか確認します。
 `--env` を付けると、解析はせずに、解析が使う環境を表示します。
+下は Unity の環境の例です。表示する項目は環境で変わります (Unreal なら仮想パスの割り当てなど)。
 
 ```bash
 shaderlyn Assets --unity-project . --env
@@ -649,14 +540,28 @@ shaderlyn <パス...> [オプション]
 
 | オプション                        | 説明                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl`（構文の誤りだけを指摘する）/ `godot` / `slang` / `wgsl`（この 3 つは作っているところで、今は何も指摘しない）。設定ファイルの `environment` より優先（[Unity 以外の環境で使う](environments.md)） |
-| `--unity-project <パス>`          | Unity プロジェクトのルート。対応検査にはこれが必要です。Unity の環境だけ |
-| `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定。Unity の環境だけ |
-| `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります |
-| `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`。Unity の環境だけ |
+| `--environment <名前>`            | 解析する環境: `unity`（既定）/ `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`（この 3 つは開発中で、今は何も指摘しない）。設定ファイルの `environment` より優先（[環境ごとの使い方](environments.md)） |
+| `--include-path <パス>`           | `#include` の追加探索パス。複数回指定できます。ここで許した場所だけが読み込みの対象になります（[5 章](#include-の追加探索パス)） |
 | `--define <名前[=値]>`            | 定義済みマクロ。複数回指定できます                                 |
 | `--max-symbol-variants <数>`     | シンボルを 1 つずつ有効にして解析する上限（既定 8）。0 で無効    |
-| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルド時に生成される uniform buffer の宣言などをこのフォルダーに保存する。`unreal: generated` に指定すると解析に使用する（[Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)） |
+
+### Unity の環境
+
+| オプション                        | 説明                                                               |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `--unity-project <パス>`          | Unity プロジェクトのルート。パッケージのヘッダの解決に使います（[Unity](environments/unity.md#プロジェクトを指定する)） |
+| `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定（[Unity](environments/unity.md#unity-editor-の場所)） |
+| `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`（[Unity](environments/unity.md#レンダーパイプライン)） |
+| `--unity-generate <フォルダー>`   | 解析はせずに、Library と Unity Editor から解析に必要なヘッダとライセンスの表示をこのフォルダーに書き出す。`unity: generated` に指定すると解析に使用する（[Unity](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)） |
+| `--yes`                           | `--unity-generate` の確認を表示せずに「はい」と答える。CI など入力を受け付けられない環境で使う |
+
+`--unity-project` / `--unity-editor` / `--profile` は、ほかの環境で指定するとエラーになります。
+
+### Unreal Engine の環境
+
+| オプション                        | 説明                                                               |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `--unreal-generate <フォルダー>` | 解析はせずに、設定ファイルの `unreal: engine` / `project` の C++ から、ビルド時に生成される uniform buffer の宣言などをこのフォルダーに保存する。`unreal: generated` に指定すると解析に使用する（[Unreal Engine](environments/unreal.md#c-から生成されるファイルを作る)） |
 
 ### 設定ファイルとベースライン
 

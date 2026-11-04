@@ -108,6 +108,20 @@ public sealed class ParenthesizedExpressionSyntax(
     }
 }
 
+/// <summary>条件に書いた変数の宣言 (GLSL の <c>while (bool b = x &lt; 45)</c>)。値は初期値で、変数はループの中で見える。</summary>
+/// <param name="declaration">宣言。セミコロンは持たない (欠けたトークンを持つ)。</param>
+public sealed class ConditionDeclarationExpressionSyntax(VariableDeclarationSyntax declaration) : ExpressionSyntax
+{
+    /// <summary>宣言。</summary>
+    public VariableDeclarationSyntax Declaration { get; } = declaration;
+
+    /// <inheritdoc/>
+    public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
+    {
+        yield return Declaration;
+    }
+}
+
 /// <summary>二項演算。</summary>
 /// <param name="left">左辺。</param>
 /// <param name="operatorToken">演算子。</param>

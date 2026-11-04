@@ -145,7 +145,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         // 取り込みを解決できていなければ、見えていない多重定義があるかもしれない (template の関数の呼び出しと同じ)。
         // Unreal Engine の LumenCardComputeShader.usf は、生成される VertexFactory.ush を通して取り込む多重定義
         // GetInstanceSceneData(inout FVisibleCluster, bool) を呼んでおり、見えている多重定義と照らして誤りと言っていた。
-        if (compilation.MayLackOverloadsOf(name))
+        if (compilation.MayLackOverloadsOf(name, invocation))
         {
             return;
         }
@@ -171,7 +171,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
         List<FunctionDeclarationSyntax> fitting =
-            [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
+            [.. candidates.Where(c => AcceptsArgumentCount(binder, c, arguments.Length))];
 
         // 組み込み関数と同じ名前で多重定義していれば、組み込み関数の側が受け付けることもある。
         bool intrinsicAccepts = compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity intrinsic)
@@ -195,7 +195,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             && FindUncovered(compilation, binder.Program, condition, call.And(anyPresent), fitting) is { } arityMissing)
         {
             // 合わない構成は、木ごとにその一部しか見えない。木をまたいで和をとる。照らした宣言が違えば別の報告にする。
-            string accepted = DescribeAccepted([.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))]);
+            string accepted = DescribeAccepted([.. candidates.Where(c => CallCompatibility.IsPresentWith(condition, c, arityMissing))], HonorsDefaults(binder));
             int actual = arguments.Length;
 
             if (invocation.GetLocation() is { } arityLocation)
@@ -256,6 +256,20 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         AddMismatch(reported, binder.Program, arguments[rejected.Mismatch.Index], typeMissing, location, name, rejected.Declaration, rejected.Mismatch);
     }
 
+    /// <summary>宣言が、その数の実引数を受け付けるか。</summary>
+    /// <param name="binder">式の型を引く仕組み。言語を見る。</param>
+    /// <param name="declaration">関数の宣言。</param>
+    /// <param name="count">実引数の数。</param>
+    /// <returns>受け付ければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// GLSL には仮引数の既定値が無い (書けば構文の誤り CF0001)。glslang は既定値を数えず、引数を省いた呼び出しを
+    /// 「no matching overloaded function found」にするので、仮引数と同じ数だけを受け付ける。
+    /// </remarks>
+    private static bool AcceptsArgumentCount(ExpressionTypeBinder binder, FunctionDeclarationSyntax declaration, int count)
+        => HonorsDefaults(binder)
+            ? CallCompatibility.AcceptsArgumentCount([.. declaration.ParameterList], count)
+            : declaration.ParameterList.Count() == count;
+
     /// <summary>バリアントの木の呼び出しを、その木を 1 つの構成として検査する。</summary>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
@@ -276,12 +290,12 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ReportedLocations reported)
     {
         List<FunctionDeclarationSyntax> fitting =
-            [.. candidates.Where(c => CallCompatibility.AcceptsArgumentCount([.. c.ParameterList], arguments.Length))];
+            [.. candidates.Where(c => AcceptsArgumentCount(binder, c, arguments.Length))];
 
         // 報告は、木の構成を掛けて木をまたいで和をとる (値ごとの木は、それぞれ値 1 つ分の構成しか表さない)。
         if (fitting.Count == 0)
         {
-            string accepted = DescribeAccepted(candidates);
+            string accepted = DescribeAccepted(candidates, HonorsDefaults(binder));
             int actual = arguments.Length;
 
             if (!intrinsicAccepts && invocation.GetLocation() is { } arityLocation)
@@ -426,11 +440,11 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         string name,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(name)
+        if (compilation.MayLackOverloadsOf(name, invocation)
             || !compilation.TypeSystem.TryGetIntrinsicArity(name, out IntrinsicArity arity)
             || !compilation.GetFunctionDeclarations(name).IsEmpty
             || compilation.IsFunctionLikeMacro(name)
-            || compilation.TypeSystem.Classify(name) != ShaderTypeClass.Unknown)
+            || compilation.TypeSystem.IsBuiltInTypeName(name))
         {
             return;
         }
@@ -507,7 +521,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         ImmutableArray<TemplateFunctionCandidate> candidates,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(name)
+        if (compilation.MayLackOverloadsOf(name, invocation)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
             || !condition.GetCondition(invocation).IsAlways
             || candidates.Any(c => !condition.GetCondition(c.Declaration).IsAlways))
@@ -605,7 +619,7 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
-        if (compilation.MayLackOverloadsOf(access.Name)
+        if (compilation.MayLackOverloadsOf(access.Name, invocation)
             || !binder.Program.EnabledSymbols.IsDefaultOrEmpty
             || !condition.GetCondition(invocation).IsAlways
             || binder.GetEvaluatorFor(invocation).Evaluate(access.Target) is not { } receiver
@@ -661,23 +675,29 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             location,
             name,
             actual,
-            DescribeAccepted(candidates),
+            DescribeAccepted(candidates, honorDefaults: true),
             DescribeCondition(call)));
     }
 
     /// <summary>宣言が受け付ける引数の個数を並べる。同じ個数の宣言が複数あっても 1 度だけ書く。</summary>
     /// <param name="candidates">その構成に存在する宣言。</param>
+    /// <param name="honorDefaults">既定値のある仮引数を省けるか (GLSL では省けない)。</param>
     /// <returns>「必要な引数は … です」。</returns>
-    private static string DescribeAccepted(List<FunctionDeclarationSyntax> candidates)
+    private static string DescribeAccepted(List<FunctionDeclarationSyntax> candidates, bool honorDefaults)
     {
         IEnumerable<string> accepted = candidates
             .Select(c => (ImmutableArray<ParameterSyntax>)[.. c.ParameterList])
-            .Select(DescribeArity)
+            .Select(p => honorDefaults ? DescribeArity(p) : $"{p.Length} 個")
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
 
         return $"必要な引数は {string.Join(" / ", accepted)}です";
     }
+
+    /// <summary>仮引数の既定値を数えるか。GLSL には既定値が無い (<see cref="AcceptsArgumentCount(ExpressionTypeBinder, FunctionDeclarationSyntax, int)"/>)。</summary>
+    /// <param name="binder">式の型を引く仕組み。言語を見る。</param>
+    /// <returns>数えるなら <see langword="true"/>。</returns>
+    private static bool HonorsDefaults(ExpressionTypeBinder binder) => binder.TypeSystem is not GlslTypeSystem;
 
     /// <summary>宣言が受け付ける引数の個数を表す文字列を返す。</summary>
     /// <param name="parameters">仮引数。</param>
@@ -764,7 +784,14 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback))
+            // GLSL の配列は、配列でない仮引数へは渡せない (暗黙の変換は数値の型にしかない)。
+            if (binder.TypeSystem is GlslTypeSystem && DescribeGlslArrayArgument(arguments[i], binder) is { } array)
+            {
+                return new Mismatch(MismatchKind.ArrayMismatch, i, $"{array} を渡しています", parameter.Type.Name);
+            }
+
+            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback)
+                && !IsGlslStructMismatch(binder, argumentTypes[i], parameter.Type.Name))
             {
                 continue;
             }
@@ -774,6 +801,30 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// GLSL で、構造体の値と、別の型 (別の構造体か数値の型) の間で渡そうとしているか。
+    /// </summary>
+    /// <param name="binder">名前が指す宣言を引く仕組み。</param>
+    /// <param name="argumentType">実引数の型。分からなければ <see langword="null"/>。</param>
+    /// <param name="parameterType">仮引数の型。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>GLSL の暗黙の変換は数値の型にしかない。構造体の仮引数には、同じ構造体の値しか渡せない。</remarks>
+    private static bool IsGlslStructMismatch(ExpressionTypeBinder binder, string? argumentType, string parameterType)
+    {
+        if (binder.TypeSystem is not GlslTypeSystem types || argumentType is null || argumentType == parameterType)
+        {
+            return false;
+        }
+
+        bool argumentIsStruct = IsStruct(argumentType);
+        bool parameterIsStruct = IsStruct(parameterType);
+
+        return (argumentIsStruct && (parameterIsStruct || types.TryDescribeNumeric(parameterType, out _)))
+               || (parameterIsStruct && types.TryDescribeNumeric(argumentType, out _));
+
+        bool IsStruct(string name) => binder.Program.Structs.Any(s => s.Keyword.Text == "struct" && s.Name == name);
     }
 
     /// <summary>書き戻す修飾の名前を返す。</summary>
@@ -834,6 +885,16 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         }
 
         NameResolution resolution = binder.ResolveName(identifier);
+
+        // GLSL の大きさの決まっていない配列 (float a[];) は、定数の添字で引いて大きさが暗に決まっても、関数には渡せない
+        // (glslang は「no matching overloaded function found」)。
+        if (binder.TypeSystem is GlslTypeSystem
+            && resolution.Kind is DeclaredNameKind.Local or DeclaredNameKind.Global
+            && !resolution.Candidates.IsEmpty
+            && resolution.Candidates.All(c => c.Declarator is VariableDeclaratorSyntax variable && IsGlslUnsizedVariable(variable)))
+        {
+            return "大きさの決まっていない配列を渡しています";
+        }
 
         if (resolution.Kind is not (DeclaredNameKind.Local or DeclaredNameKind.Global)
             || !resolution.TryGetArrayLength(out int actualLength)
@@ -897,6 +958,70 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
         return string.Equals(elementType, parameter.Type.Name, StringComparison.Ordinal)
             ? null
             : $"{elementType}[{actualLength}] を渡しています";
+    }
+
+    /// <summary>
+    /// GLSL で、実引数が添字を付けない配列なら、その形 (<c>float[5]</c>) を返す。
+    /// </summary>
+    /// <param name="argument">実引数。</param>
+    /// <param name="binder">名前が指す宣言を引く仕組み。</param>
+    /// <returns>配列なら形。配列でないか、分からなければ <see langword="null"/>。</returns>
+    /// <remarks>名前の候補がどれも配列のときと、構造体の配列のフィールドだけを配列とする。</remarks>
+    private static string? DescribeGlslArrayArgument(ExpressionSyntax argument, ExpressionTypeBinder binder)
+    {
+        switch (argument)
+        {
+            case ParenthesizedExpressionSyntax parenthesized:
+                return DescribeGlslArrayArgument(parenthesized.Expression, binder);
+
+            case IdentifierExpressionSyntax identifier:
+            {
+                NameResolution resolution = binder.ResolveName(identifier);
+
+                if (resolution.Kind is not (DeclaredNameKind.Local or DeclaredNameKind.Global)
+                    || resolution.Candidates.IsEmpty
+                    || !resolution.Candidates.All(c => c.Type.IsArray)
+                    || resolution.Candidates.Select(c => c.Type.TypeName).Distinct(StringComparer.Ordinal).ToArray() is not [string element])
+                {
+                    return null;
+                }
+
+                return resolution.TryGetArrayLength(out int length) ? $"{element}[{length}]" : $"{element} の配列";
+            }
+
+            case MemberAccessExpressionSyntax member
+                when binder.GetEvaluatorFor(member).Evaluate(member.Target) is { } structType
+                     && binder.TryGetStructField(structType, member.Name, out VariableDeclaratorSyntax? field, out string? element)
+                     && field.IsArray:
+                return field.TryGetArrayLength(out int fieldLength) ? $"{element}[{fieldLength}]" : $"{element} の配列";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// GLSL の、大きさを書かずに宣言した配列の変数か (外側の次元を <c>[]</c> と書き、初期化子が無い)。
+    /// </summary>
+    /// <param name="variable">変数の宣言子。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 入力と出力の変数 (ジオメトリシェーダーの <c>in</c> の配列など) は glslang が別に大きさを決めるので除く。
+    /// 宣言の型の側に書いた次元 (<c>float[] a</c>) も見る。
+    /// </remarks>
+    private static bool IsGlslUnsizedVariable(VariableDeclaratorSyntax variable)
+    {
+        if (variable.Initializer is not null
+            || variable.Parent is not VariableDeclarationSyntax declaration
+            || declaration.ModifierTokens.Any(m => m.Text is "in" or "out" or "inout" or "attribute" or "varying" or "patch"))
+        {
+            return false;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> ranks = [.. variable.ArrayRankTokens, .. declaration.Type.ArrayRanks];
+        return ranks.Length >= 2
+               && ranks[0].Kind == ShaderSyntaxKind.OpenBracketToken
+               && ranks[1].Kind == ShaderSyntaxKind.CloseBracketToken;
     }
 
     /// <summary>配列の仮引数を表す文字列を返す。</summary>

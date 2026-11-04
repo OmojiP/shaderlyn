@@ -29,7 +29,7 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "unreal", "hlsl", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
+        "version", "environment", "unity", "unreal", "hlsl", "glsl", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
     ];
 
     /// <summary><c>report:</c> の節で認識するキー。</summary>
@@ -49,6 +49,15 @@ internal static class ConfigurationLoader
 
     /// <summary><c>hlsl:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
+
+    /// <summary><c>glsl:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownGlslKeys = ["target", "spirv", "auto-map-locations", "auto-map-bindings"];
+
+    /// <summary><c>glsl: target</c> に書ける値 (glslang の <c>--target-env</c> と同じ名前)。</summary>
+    private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
+
+    /// <summary><c>glsl: spirv</c> に書ける値。</summary>
+    private static readonly string[] KnownSpirvVersions = ["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"];
 
     /// <summary><c>units:</c> の要素で認識するキー。</summary>
     private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "defines", "symbols"];
@@ -205,6 +214,15 @@ internal static class ConfigurationLoader
             ReportNonScalars(unreal, "unreal: の ", "engine", "project");
             ReportNonScalars(hlsl, "hlsl: の ", "compiler", "version", "enable-16bit-types");
 
+            YamlMapping? glsl = ReadSection("glsl");
+
+            if (glsl is not null)
+            {
+                ReportUnknownKeys(glsl, KnownGlslKeys, "glsl:");
+            }
+
+            ReportNonScalars(glsl, "glsl: の ", "target", "spirv", "auto-map-locations", "auto-map-bindings");
+
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
             return new ShaderlynConfiguration
@@ -227,6 +245,10 @@ internal static class ConfigurationLoader
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
+                GlslTarget = ReadGlslTarget(glsl),
+                GlslSpirv = ReadGlslSpirv(glsl),
+                GlslAutoMapLocations = ReadOptionalBoolean(glsl, "auto-map-locations", "glsl:") ?? false,
+                GlslAutoMapBindings = ReadOptionalBoolean(glsl, "auto-map-bindings", "glsl:") ?? false,
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),
@@ -527,6 +549,50 @@ internal static class ConfigurationLoader
 
             problems.Add(new ConfigurationProblem(
                 compiler.Line, $"hlsl: の compiler には dxc か fxc を指定してください ('{compiler.Value}')。"));
+            return null;
+        }
+
+        /// <summary>GLSL をどちら向けにコンパイルするか (<c>glsl: target</c>) を読む。</summary>
+        /// <param name="glsl"><c>glsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns><c>vulkan</c> / <c>vulkan1.0</c> ～ <c>vulkan1.4</c> / <c>opengl</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadGlslTarget(YamlMapping? glsl)
+        {
+            if (glsl is null || !glsl.TryGetScalar("target", out YamlScalar? target) || target.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = target.Value.Trim().ToLowerInvariant();
+
+            if (KnownGlslTargets.Contains(value))
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                target.Line, $"glsl: の target には {string.Join(" / ", KnownGlslTargets)} のどれかを指定してください ('{target.Value}')。"));
+            return null;
+        }
+
+        /// <summary>SPIR-V のバージョン (<c>glsl: spirv</c>) を読む。</summary>
+        /// <param name="glsl"><c>glsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns><c>1.0</c> ～ <c>1.6</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadGlslSpirv(YamlMapping? glsl)
+        {
+            if (glsl is null || !glsl.TryGetScalar("spirv", out YamlScalar? spirv) || spirv.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = spirv.Value.Trim();
+
+            if (KnownSpirvVersions.Contains(value))
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                spirv.Line, $"glsl: の spirv には {string.Join(" / ", KnownSpirvVersions)} のどれかを指定してください ('{spirv.Value}')。"));
             return null;
         }
 

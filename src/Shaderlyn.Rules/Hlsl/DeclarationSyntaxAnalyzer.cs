@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -63,14 +64,17 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             switch (node)
             {
                 case InvocationExpressionSyntax invocation:
-                    AnalyzeConstructor(context, compilation.GetExpressionTypeBinder(program), invocation, reported);
+                    AnalyzeConstructor(context, compilation.GetExpressionTypeBinder(program), invocation, compilation.IsGlsl, reported);
                     break;
 
                 case ElementAccessExpressionSyntax access:
                     AnalyzeIndex(context, compilation.GetExpressionTypeBinder(program), access, reported);
                     break;
 
-                case LiteralExpressionSyntax literal:
+                // GLSL の 64 ビットの整数のリテラル (1l / 1ul、GL_ARB_gpu_shader_int64) は 32 ビットに収める必要が無い。
+                case LiteralExpressionSyntax literal
+                    when !(program.Tree.Language is GlslLanguageOptions
+                           && compilation.TypeSystem.ForTree(program.Tree).GetLiteralTypeName(literal.Token) is "int64_t" or "uint64_t"):
                     AnalyzeLiteral(context, literal, reported);
                     break;
 
@@ -97,6 +101,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
+    /// <param name="glsl">GLSL のファイルか。</param>
     /// <param name="reported">報告済みの位置。</param>
     /// <remarks>
     /// <para>
@@ -112,11 +117,15 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <para>
     /// GLSL は、行列 1 つから大きさの違う行列を作れる (<c>mat4(mat3)</c>。足りない成分は単位行列で埋める)。
     /// </para>
+    /// <para>
+    /// GLSL では閉じ括弧の位置で報告する。glslang は呼び出しの位置を閉じ括弧にする (glslang.y の <c>function_call_generic</c>)。
+    /// </para>
     /// </remarks>
     private static void AnalyzeConstructor(
         SyntaxTreeAnalysisContext context,
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
+        bool glsl,
         ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
@@ -140,7 +149,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
                 ? written >= required && CountComponents(binder, [arguments[^1]]) is { } last && written - last < required
                 : written == required;
 
-        if (valid || invocation.GetLocation() is not { } location || !reported.Add(location))
+        if (valid || (glsl ? invocation.CloseParen.GetLocation() : invocation.GetLocation()) is not { } location || !reported.Add(location))
         {
             return;
         }

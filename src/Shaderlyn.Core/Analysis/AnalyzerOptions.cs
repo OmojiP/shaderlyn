@@ -109,18 +109,24 @@ public sealed class AnalyzerOptions
     public DiagnosticSeverity GetEffectiveSeverity(DiagnosticDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
+        return GetConfiguredSeverity(descriptor.Id) ?? descriptor.DefaultSeverity;
+    }
 
-        if (_severityOverrides.TryGetValue(descriptor.Id, out DiagnosticSeverity severity))
+    /// <summary>
+    /// 設定でルールに指定した重要度を返す。
+    /// </summary>
+    /// <param name="ruleId">ルール ID。</param>
+    /// <returns>ID をそのまま書いた上書きか、当たった正規表現の重要度。どちらも無ければ <see langword="null"/>。</returns>
+    public DiagnosticSeverity? GetConfiguredSeverity(string ruleId)
+    {
+        ArgumentNullException.ThrowIfNull(ruleId);
+
+        if (_severityOverrides.TryGetValue(ruleId, out DiagnosticSeverity severity))
         {
             return severity;
         }
 
-        if (_severityPatterns.IsEmpty)
-        {
-            return descriptor.DefaultSeverity;
-        }
-
-        return _patternCache.GetOrAdd(descriptor.Id, MatchPatterns) ?? descriptor.DefaultSeverity;
+        return _severityPatterns.IsEmpty ? null : _patternCache.GetOrAdd(ruleId, MatchPatterns);
     }
 
     /// <summary>後に書かれた正規表現から順に、ルール ID に当たるものを探す。</summary>

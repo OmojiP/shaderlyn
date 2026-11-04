@@ -10,6 +10,248 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.3] - 2026-11-05
+
+GLSL の検査結果を glslang 16.6.0 に合わせた。GLSL 固有のルール (GL0001 など) を追加し、glslang がエラーにする箇所を同じ行で報告する。
+glslang のテスト用シェーダーのうち、glslang がエラーにしないファイルでは、Shaderlyn もエラーを出さない。
+
+### 追加
+
+- GLSL 固有のルール (GL) を追加した。glslang 16.6.0 がエラーにする箇所を検査し、同じ行で報告する
+  - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない (配列の大きさに書いた組み込みの定数、uniform のブロックの `std430` を含む)。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
+    その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
+    実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize`、`textureGather` など)、`textureSamples` に要るバージョン、
+    保存用の拡張だけで 16 ビット・8 ビットの型を uniform と buffer の外で使うこと、
+    ステージの入力と出力の変数の宣言 (`in` / `out`、整数の入出力、頂点シェーダーの入力の配列、ES の構造体の入出力など)、
+    定数でない添字で引くサンプラー・ブロック・フラグメントシェーダーの出力の配列、
+    ES のジオメトリとテッセレーションのシェーダーの `gl_PointSize`、`samplerExternalOES` に要る拡張、
+    組み込みの関数と変数を、それが無い版とプロファイルで使うこと (1.20 の `trunc`、ES の `gl_ClipDistance`、ES の 3.00 以降の OpenGL 向けの `texture2D(…)` など)、
+    組み込みのブロックのメンバーを、それが無い版とプロファイルで使うこと (ES の `gl_in[i].gl_ClipDistance` など)、
+    大きさの決まっていないサンプラーとブロックの配列を定数でない添字で引くこと (`GL_EXT_nonuniform_qualifier`)、
+    配列を作る式 (`float[3](…)`)・初期値のある配列の変数・配列を返す関数・配列の `.length()` (デスクトップの 1.20・ES の 3.00 から。配列を含む構造体と、関数の中で宣言した構造体も見る)、
+    配列の配列を返す関数、ES のブロックのインスタンスの配列の配列、ES の関数の中の関数の宣言、
+    マクロの本体のトークンの連結 (`##`) と文字列化 (`#`) (デスクトップの 1.30 から。ES では書けない)、浮動小数点数の接尾辞 `f` (デスクトップの 1.20・ES の 3.00 から)、
+    入出力のブロック (デスクトップの 1.50 から。ES の頂点シェーダーの出力とフラグメントシェーダーの入力は 3.20 か `GL_EXT_shader_io_blocks` から)、
+    構造体の宣言と同時に宣言したステージの入出力 (`varying struct S { … } s;`)、組み込みのブロックの宣言し直し (デスクトップの 4.10・ES の 3.20 から。拡張でも使える)、
+    uniform のブロック (デスクトップの 1.40・ES の 3.00 から)、波括弧の初期化子 (デスクトップの 4.20 から。ES では書けない)、空の `{}` (`GL_EXT_null_initializer`)、
+    関数の外の余分な `;` (デスクトップの 4.60 から。ES では書けない)、
+    関数の中の `const` の変数を定数でない式で初期化すること (デスクトップの 4.20 から)、ES で関数の外の変数を定数でない式で初期化すること (`GL_EXT_shader_non_constant_global_initializers`)、
+    型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
+  - GL0002: そのステージでは使えない (フラグメントシェーダーでない `discard`・`terminateInvocation`・`demote`、頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex`、頂点シェーダーの入力のブロック、計算シェーダーの関数の外の `in` / `out` の変数など)
+  - GL0003: プリプロセッサの指令の誤り。ES で、`#if` / `#elif` の式に定義されていないマクロを書いた (短絡で評価しない側は除く。glslang と同じ)。
+    `#extension` の形の誤り (`:` や振る舞いが無い、`require` / `enable` / `warn` / `disable` でない振る舞い、後ろの余分な記述、`all` の `require` / `enable`)。
+    到達した `#error` (glslang はコンパイルを止める。HLSL と同じ CF0104 の情報では伝えない)。
+    予約された名前の `#define` / `#undef` (`GL_` で始まる名前、`defined`、ES の `__LINE__` など)、`#pragma optimize` / `#pragma debug` と SPIR-V を作るときの `#pragma STDGL` の形、
+    無いバージョンの `#version` (`#version 435`) と、SPIR-V を作るときに使えないバージョンとプロファイル (ES の 3.10 より前、互換のプロファイル、Vulkan 向けの 1.40 より前、OpenGL 向けの 3.30 より前)、
+    1024 文字を越える名前と数のリテラル、ファイルの最初でない `#version` と 2 つ目の `#version`、ES の 3.00 からの、前にコメントや空の行がある `#version`
+  - GL0325: 協調行列の使い方が正しくない (要素が `bfloat16_t` と 8 ビットの浮動小数の協調行列の、代入のほかの演算子、型の違う協調行列どうしの演算、協調行列でない値との `+` / `-` / `/`、要素と違う型のスカラーとの `*`、NV の協調行列どうしの `*`、`[ ][ ]`、成分の選択、値の作成の実引数)。
+    型の違う協調行列と協調行列でない値の代入は CF0410 で報告する
+  - GL0324: 型の引数が正しくない (協調行列・協調ベクトル・長いベクトル・テンソルの型の引数の数・要素の型・定数でない値、`float<16>` のように型の引数を取らない型)
+  - GL0323: 同じ形の関数の宣言どうしの食い違い (仮引数の記憶域 `in` / `out` / `inout`、仮引数の精度、戻り値の型)
+  - GL0322: `main` の定義の形が正しくない (仮引数がある、戻り値が `void` でない)
+  - GL0321: `switch` の組み立てと `break` / `continue` の置き場所が正しくない。`switch` の波括弧の中にそのまま書いていない `case` / `default`、同じ値の `case` と 2 つ目の `default`、
+    最初のラベルより前の文、最後のラベルの後に文が無いもの (ES の 3.00 まで・3.20 から、デスクトップの 4.30 まで・4.60 から)、ループと `switch` の外の `break`、ループの外の `continue`
+  - GL0101: 修飾子をここに書けない。関数の中の `in` / `out`、型の無い宣言にだけ書ける layout (`triangles`、`local_size_x` など) を変数に書いたもの、
+    記憶域や型と合わない layout (`uniform` でない宣言の `offset`、ブロックのメンバーの `std140` など)。
+    仮引数の補助・補間の修飾子・layout・`invariant`、ブロックでない `buffer` の変数、`{}` でない `shared` の変数の初期値、ブロックの `invariant`、
+    テッセレーションの制御シェーダーの `patch in` と評価シェーダーの `patch out`、`bool` を含む構造体の入力と出力、
+    ブロックと違う記憶域のメンバー (`uniform U { in float a; }`)、uniform と buffer のブロックのメンバーの補助・補間の修飾子、2 つの記憶域の修飾子 (`in uniform`)、
+    gl_FragCoord でない変数の `origin_upper_left` と gl_FragDepth でない変数の `depth_less` など、構造体の定義の型の無い宣言にだけ書ける layout、
+    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、構造体の定義の layout (型の無い宣言にだけ書けるもの、記憶域の無い変数の `location`、変数の `component`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`、ブロックの数の型のメンバーの `binding`、使った後の入力と出力に足す `invariant`、宣言の無い名前に足す `invariant`。
+    修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)。
+    フラグメントシェーダーの出力の修飾子と型 (`flat out`、`out mat2x3` など)、`flat` の無い整数の入力、
+    構造体のメンバーの layout などの修飾子、ブロックの補間の修飾子、イメージでない変数のメモリの修飾子、出力でない変数の `invariant`、関数の戻り値の `const` などの記憶域の修飾子。
+    仮引数でない変数の `in` 以外の記憶域の `nonuniformEXT`、既にある名前に `invariant` と `precise` 以外の修飾子を足す宣言 (`centroid gl_Position;`、`layout(std140) inst;`)
+  - GL0102: layout に無い名前を書いた (そのステージに無い名前を含む)
+  - GL0103: layout の値が正しくない (負の数 (`4294967295` のように int で負になる数も)、上限を越える数、2 のべき乗でない `align`、リテラルでない値、前の宣言と違うプリミティブ、`location` の重なり、変換フィードバックの `xfb_offset` の重なりと揃え (最初の成分の大きさ、double を含めば 8 の倍数) と `xfb_stride` の食い違い、ブロックと違うメンバーの `xfb_buffer` と `stream`、
+    std140 / std430 のブロックのメンバーの揃わない `offset` と前のメンバーに重なる `offset`、同じ binding で重なる `atomic_uint` の `offset` など)
+  - GL0104: layout に要る指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
+  - GL0201: ES で、精度を決めていない型 (フラグメントシェーダーの `float` など) を宣言している
+  - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのもの・サンプラー・イメージ・`atomic_uint`・`void` の値への演算子と、`?:` の 2 つの枝の型が合わないものも報告する。サンプラーとイメージ (とそれを含む構造体) への代入と、それを含む構造体の `==` / `!=`、文字列への演算子 (`"o" + "k"`) も報告する
+  - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)。そのバージョンにだけ無い引数の数 (ES の 3.00 の `textureSize(s)`) も報告する。添字を付けない配列を、配列を取らない組み込み関数に渡したもの (`sin(a)`、`interpolateAtCentroid(inArray)`) と、文字列のリテラルを渡したもの (`length("abc")`) も報告する
+  - GL0303 / GL0304: 組み込み関数の、定数でなければならない実引数 (テクセルのオフセット、サブグループのクラスターの大きさなど) に定数でない式を渡した / 値が範囲の外。`const` の変数と `const` の配列の要素 (`offsets[2]`) の値も見る
+  - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ。サンプラーの値の作成 (`sampler2D(t, s)`) を、利用者の関数の実引数・`?:` の枝・カンマの演算子の項に書いた
+  - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した。イメージのアトミックの関数に、形式が r32i / r32ui (ES の浮動小数点数は r32f) でないイメージを渡した
+  - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上。組み込みの配列 (`gl_FragData`、`gl_BoundingBox`、`gl_SampleMask`、テッセレーションの制御シェーダーの `gl_out`) と、外側の大きさを省いて初期化した配列も見る
+  - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った。
+    ジオメトリシェーダーの `gl_in` などとテッセレーションの制御シェーダーの `gl_out` などを、`layout(triangles) in;` / `layout(vertices = N) out;` で大きさが決まる前に使ったものも報告する
+  - GL0309: 書き込めない値 (`const`、uniform、ステージの入力、`readonly` の buffer、変数でない値、入力と定数の組み込みの変数、`early_fragment_tests` を宣言した後の `gl_FragDepth`、`gl_FragColor` と一緒に使う `gl_FragData` など) に、代入・`++` / `--`・out の実引数で書き込んだ
+  - GL0310: `writeonly` の buffer のブロックの値を読んだ
+  - GL0311: `if`・`while`・`do`・`for`・`?:` の条件が `bool` のスカラーでない (`int`、`bvec2` など)
+  - GL0312: 関数の中の変数か仮引数に隠された関数を呼んだ (`float sin; sin(1.0);` など)
+  - GL0313: メモリの修飾子 (`coherent`・`readonly`・`writeonly` など) を持つイメージを、その修飾子の無い仮引数 (`imageLoad` の `writeonly` など) に渡した。利用者の関数に、イメージの形式の違うイメージを渡した
+  - GL0314: スコープとセマンティクスを取るアトミックとバリアの関数 (`GL_KHR_memory_scope_semantics`) の、セマンティクスの組み合わせが正しくない (ストアの `gl_SemanticsAcquire` など)。スコープとセマンティクスの実引数が定数でないもの (GL0303) も報告する
+  - GL0315: 整数のリテラル (接尾辞が無いか `u`) が 32 ビットに収まらない、桁の無い 16 進数のリテラル (`0x`) (`5000000000`、`0x1FFFFFFFF`)、8 進数のリテラルに 8 と 9 を書いた (`08`)
+  - GL0316: 添字・`switch` の条件・`case` のラベルが整数のスカラーでない (`v[1.0]`、`switch (f)` など)
+  - GL0317: 配列の大きさ、関数の外の `const` の変数と uniform の変数の初期値、`case` のラベルが定数の式でない (uniform の変数、定数でない式で初期化した `const` の変数、コンマの演算子など)。
+    `const struct S { … } s = …;` の初期値と、uniform の変数の初期値に使った専用化の定数も報告する
+  - GL0318: `const` の変数に初期値が無い (`const int a;`)
+  - GL0319: 配列を作る式の実引数の数が合わない (`int[]()`、`mat3[2](m, m, m)`)
+  - GL0320: 利用者の関数の呼び出しに、暗黙の変換で合う多重定義が 2 つ以上あり、どれを呼ぶか決まらない (glslang と同じ選び方。4.00 からは変換の良さを比べる)
+  - GL0401: 予約された名前 (`gl_` で始まる名前、ES の 3.00 より前の `__` を含む名前) の変数・仮引数・ブロックのメンバーを宣言した。コア プロファイルの `gl_Color` のように、その構成に無い組み込みの変数の宣言し直しと、そのバージョンと拡張でキーワードの語 (4.00 の `precise`) の名前も含む
+  - GL0402: 配列の大きさを書かなければならない所 (関数の戻り値と仮引数、構造体のメンバー、配列の配列の内側の次元、ES の初期化子の無い変数とブロック) で省いた
+  - GL0403: その宣言には使えない型 (uniform でない変数のサンプラーとイメージと `atomic_uint`、それを含む構造体、`void` の変数と名前のある仮引数、精度の文の `uint`・ベクトル・配列・構造体など、入れ子の構造体の定義、ブロックのメンバーのサンプラー、配列でないジオメトリ・テッセレーションのシェーダーの入力、`out` / `inout` のサンプラー・イメージ・`atomic_uint` の仮引数、`highp` でない `atomic_uint` の精度の文、ES の精度の修飾子を付けた `bool` の変数、構造体の定義と一緒に宣言した、サンプラーを含む構造体の uniform でない変数、shared の変数とブロックのメンバーの協調行列、入力と出力の `bfloat16_t`・8 ビットの浮動小数・マイクロスケーリングの型 (とそれを含む構造体)、
+    shared の変数とブロックのメンバーの 8 ビットより小さい型 (`floate2m1_t` など)、ほかの仮引数と並べた `void`)
+  - GL0404: テッセレーションのシェーダーの入力の配列の大きさが `gl_MaxPatchVertices` でない
+  - GL0405: ES で組み込み関数を宣言し直した。同じ形の関数と、ES の 3.00 以降は同じ名前の関数と関数の外の変数
+  - GL0406: 組み込みの変数とブロックの宣言し直しが正しくない。型・記憶域・修飾子の変更、使った後の宣言し直し、`gl_FragCoord` の layout と `gl_FragDepth` の depth の食い違い、
+    配列の大きさの変更、`gl_PerVertex` の 2 度目の宣言し直し・余分なメンバー・メンバーの型と配列かどうかの変更・含めなかったメンバーの使用など (glslang と同じ)
+- GL のルールは、上に加えて次のものも報告する
+  - GL0104 (layout に要る指定が無い) は、OpenGL 向けの SPIR-V を作るときの location の無いブロックの外の uniform、テッセレーションの制御シェーダーの `layout(vertices = …) out;`、評価シェーダーの入力のプリミティブ、
+    ジオメトリシェーダーの入力と出力のプリミティブと `max_vertices` が無いもの (glslang のリンクの誤り。`main` の位置で報告する) と、計算シェーダーでワークグループの大きさ (`layout(local_size_x = …) in;`) を宣言する前の `gl_WorkGroupSize` も報告する
+  - GL0001 は、文の属性 (`[[unroll]]` など。`GL_EXT_control_flow_attributes` が要る) も検査する。GL0304 は、正の数でない `[[dependency_length(…)]]` も報告する
+  - GL0302 (組み込み関数に合う形が無い) は、長いベクトル (`GL_EXT_long_vector` の `vector<T, N>`) を渡す呼び出しも見る。長いベクトルは暗黙に変換しないので、
+    要素の型と要素の数が違う長いベクトルどうし、要素と違う型の変数 (`max(vector<uint, 5>, int)`)、その型の多重定義の無い関数 (`sin(vector<double, 5>)`) を報告する。
+    GL0307 (添字が範囲の外) は、長いベクトルの定数の添字も見る
+  - GL0303 (定数でなければならない実引数) は、マイクロスケーリングの型 (`floate2m1_t` など) の値の作成の、定数でない実引数も報告する。
+    GL0302 は、`bool` と `bfloat16_t`・8 ビットの浮動小数の型の間の値の作成も報告する
+  - テンソル (`GL_ARM_tensors`) の組み込み関数: `tensorSizeARM` の定数でない・階数以上の次元 (GL0303 / GL0304)、
+    `tensorReadARM` / `tensorWriteARM` の階数と違う数の座標、要素と違う型のデータ、範囲の外の値の誤り (GL0306 / GL0303) を報告する。
+    仮引数の型の引数の無いテンソル (GL0324) と、拡張の要る要素の型 (`bfloat16_t` など。GL0001) も報告する
+  - バッファの参照 (`layout(buffer_reference)` の型): `==` / `!=`、参照どうしの `+` と `+=` / `-=`、整数から参照を引くもの、
+    大きさの決まっていない配列を含むブロックの参照の足し引きと `[ ]`、別の参照の型への代入 (GL0301)、参照の `[ ]` に要る拡張 (GL0001)、`const` の参照の変数 (GL0101) を報告する
+  - GL0001 は、保存用の拡張 (`GL_EXT_shader_16bit_storage` など) だけで、16 ビット・8 ビットの型の配列の値の作成、それを含む構造体の値の作成、
+    ブロックのメンバーの配列の代入をしたものも報告する
+  - レイトレーシング: 任意ヒットでないシェーダーの `terminateRayEXT` / `ignoreIntersectionEXT` (GL0002)、ペイロードと呼び出しのデータの location の重なり (GL0103)、
+    宣言の無い location の `traceRayEXT` / `executeCallableEXT` (GL0306)、記憶域の修飾子を付けた `hitObjectEXT` / `hitObjectNV` とそれを含む構造体の変数 (GL0403) を報告する
+  - 協調行列の組み込み関数 `coopMatTransposeEXT`・`coopMatReduceEXT`・`coopMatPerElementEXT` (と NV のもの) の実引数の協調行列の形・スコープ・用途、
+    定数でない・範囲の外の `reduceMask`、渡す関数の仮引数と戻り値の型と `const in` を報告する (GL0325)
+  - GLSL の `::` (GL0001)、2 度宣言した uniform への代入 (GL0309)、大きさの決まっていない配列への代入 (CF0410)、`gl_out.length()` で大きさを書いた出力の配列の大きさ (GL0103)、
+    関数の名前への型の変換 `(func) x` (GL0301) を報告する
+  - 定数の式で、組み込みの整数の定数 (`gl_MaxSamples` など) を glslang の既定の資源の値として畳む (`gl_SampleMask[(gl_MaxSamples + 31) / 32]` を GL0307 にする)
+  - 階数を書かない `tensorARM` を階数 1 として扱い、要素の型を書いたテンソルの仮引数に違う形のテンソルを渡したものを報告する (GL0304 / CF0401)
+  - 数の型の値の作成に渡した構造体 (`mat4(s)`) を報告する (GL0302)
+  - `GL_EXT_post_depth_coverage` の `early_fragment_tests` の無い `post_depth_coverage` (GL0104)、ブロックの中と外に混ぜた shared の変数 (GL0101)、
+    括弧を付けずに残った関数形式マクロの名前 (GLSL。CF0310) を報告する
+  - 定数でない `tensorReadARM` / `tensorWriteARM` のテンソルの演算子の指定 (GL0303) を報告する。何行にもまたがる組み込み関数の呼び出しの実引数の誤りは、glslang と同じく閉じ括弧の行で報告する
+  - アトミックの関数の 1 つ目の実引数への書き込み (メッシュシェーダーの `taskPayloadSharedEXT` など。GL0309)、バッファの参照の型の入力と出力 (GL0101)、
+    定数の名前 (特殊化の定数は既定の値) で大きさを書いた配列の範囲の外の定数の添字 (GL0307) を報告する
+  - バッファの参照の先のブロックの大きさを書かない配列の `length()` (GL0308)、別の参照の型の値での初期化と構造体への型の変換 `(S) x` (GL0301)、
+    `uvec2` から参照の型への変換に要る `GL_EXT_buffer_reference_uvec2` (GL0001) を報告する
+  - `tileImageEXT` の変数と出力の location の重なりと、location を分け合う型の違い (GL0103)、`traceRayMotionNV` のペイロードの location (GL0306) を報告する
+  - 大きさを書かない `atomic_uint` の配列 (GL0402)、初期値を書いた `rayQueryEXT` の変数 (GL0403)、関数の属性 `[[inline]]` と `[[noinline]]` の食い違い (GL0323)、
+    ES と 4.20 以前の `textureOffset` の `sampler2DArrayShadow` (GL0001)、`descriptor_heap` の組み合わせたサンプラーと配列でない変数 (GL0101) を報告する
+  - 変換フィードバックの `xfb_offset` を書いた大きさを書かない配列 (GL0103) と、要素ごとに location が要る配列のブロックのメンバーの `location` (GL0101) を報告する
+  - 特殊化の定数で大きさを決めた配列の初期値・代入・比較 (GL0403 / GL0301)、大きさを書かない配列の、大きさの決まっていない配列と空の初期化子での初期化 (GL0403) を報告する
+  - `gl_TexCoord`・`gl_ClipDistance`・`gl_CullDistance` の宣言し直しの大きさの上限と、`gl_Color` などの配列への宣言し直しを報告する (GL0406)
+  - 加速構造 (`accelerationStructureEXT`) とテンソル (`tensorARM`) の、uniform でない変数を報告する (GL0403)
+  - `readonly` のテンソルへの `tensorWriteARM` と、`writeonly` のテンソルからの `tensorReadARM` を報告する (GL0306)
+  - `GL_KHR_compute_shader_derivatives` を有効にしたのに `derivative_group_quadsKHR` / `derivative_group_linearKHR` の無いもの、微分の関数より前に derivative_group の無いもの、
+    derivative_group_quads の 2 の倍数でない local_size_x / local_size_y と derivative_group_linear の 4 の倍数でないワークグループの大きさを報告する (GL0104)。
+    タスクとメッシュのシェーダーの微分の関数に `GL_KHR_compute_shader_derivatives` が無いことも報告する (GL0001)
+  - `tileImageEXT` の変数の `set`・`binding`・`input_attachment_index` (GL0101) と、`location` の無いもの (GL0104) を報告する
+  - メッシュシェーダーの `perviewNV` の出力の、ビューの次元が無いもの・大きさが `gl_MaxMeshViewCountNV` でないもの (GL0403)、内側の次元の大きさを省いたもの (GL0402) を報告する
+  - ジオメトリシェーダーの入力の配列とテッセレーションの制御シェーダーの出力の配列の大きさが、入力のプリミティブの頂点の数・`vertices` と違うものを報告する (GL0103)
+  - `coopMatLoadTensorNV` の復号の関数の仮引数 (`const in`、バッファの参照、`uint32_t` の配列) と戻り値、`coopMatPerElementNV` の実引数の数、
+    `coopMatMulAdd` の協調行列の形と用途を報告する (GL0325)。渡す関数の仮引数は `const` だけでもよいものとした
+  - 協調ベクトル (`coopvecNV`) の定数でなければならない実引数と、`coopVecLoadNV` / `coopVecStoreNV` の関数の中の変数 (GL0306)、
+    `coopVecOuterProductAccumulateNV` の要素の型の違う協調ベクトル (GL0302)、範囲の外の定数の添字 (GL0307)、成分の選択 (CF0312) を報告する
+  - アトミックの関数の 1 つ目の実引数は `inout` なので、両方の向きに変換できる型だけを合うものとする (`atomicAdd(intVar, 1.0)` を GL0302 にする)
+  - `saturatedConvertEXT` の実引数の数・型・形の誤りを報告する (GL0302)
+  - 64 ビットの整数の添字、`length64()`、協調行列と協調ベクトルの読み書きの関数への 64 ビットの整数の実引数に、
+    `GL_EXT_shader_64bit_indexing` が無いことを報告する (GL0001)
+  - `debugPrintfEXT` と `abortEXT` の 1 つ目の実引数が文字列のリテラルでないもの、`abortEXT` の不透明な型・大きさの決まっていない配列・bool を含む集まり・文字列の実引数 (GL0306)、
+    文字列のリテラルの誤ったエスケープ (`\x` の後に桁が無い、`\8` など。GL0315)、数の型の値の作成の文字列 (GL0302) を報告する
+  - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。
+    実引数が 1 つの書き方は `GL_ARB_bindless_texture` が要る (GL0001)
+- 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
+  `true` にすると GL0104 を報告しない
+- 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
+  `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものから引く
+- GLSL: glslang 16.6.0 が読む書き方を、拡張のものも含めてすべて読む。次の書き方を構文の誤り (CF0001) にしていた
+  - `^^`、16 ビットの整数の接尾辞 `s` / `us` (0.3.1 の既知の問題)、8 ビットの浮動小数点数の接尾辞 (`1.0fe2m1` など)
+  - 型の引数を取る型 (`coopmat<…>`、`vector<float, 5>`、`coopvecNV<…>`、テンソル)、`GL_EXT_spirv_intrinsics` (`spirv_instruction(…)`、`spirv_type(…)` など)、
+    関数の後ろの属性 (`void main() [[maximally_reconverges]]`)、ディスクリプターヒープのブロック
+  - 型の名前で始まる式の文 (`vec4(x);`)、型の側に配列を書いた構造体の変数 (`S[10] s;`)、`while` の条件の中の宣言、カンマ演算子 (`a = 1, b = 2;`)
+  - glslang の文法にあって表に無かった型と修飾子 (`f16sampler2D`、`hitObjectEXT`、`nontemporal`、`shadercallcoherent` など)
+- GLSL: 語がキーワードかを、glslang と同じく `#version` と有効にした拡張で決める。後のバージョンでキーワードになった語 (4.00 より前の `sample` など) を名前に使える。
+  予約語 (`class` など) を名前に使うと CF0001
+- GLSL: glslang と同じマクロを定義する。glslang が読める拡張の名前のマクロ (`GL_EXT_ray_tracing` など) と、デスクトップのステージのマクロ (`GL_FRAGMENT_SHADER` など)
+- `PreprocessorOptions.GlslRules`: GLSL (glslang) の規則で前処理する (`#if` を 32 ビットで計算する、行の頭の `##` を誤りにするなど)。GLSL の構文木は自動で使う
+- 自作ルール向け: `AnalyzerOptions.GetConfiguredSeverity` (設定で指定した重要度)。重要度を明示していない診断は、
+  `Diagnostic.WithSeverity` で差し替えた重要度を既定として使い、設定ファイルの指定があればそれが勝つ。
+  `ShaderSyntaxKind.CaretCaretToken` (`^^`)、`ConditionDeclarationExpressionSyntax`、`StructDeclarationSyntax.NameOverride`、
+  `ShaderLiteral.GetSuffix`、`PreprocessResult.RecordedDirectives`
+
+### 変更
+
+- HL0210 (セマンティクスの重複) は、DXC でコンパイルするエントリポイントの入出力に届く構造体 (メンバーの構造体を含む) ではエラーにする。DXC はコンパイルを止める (FXC は警告で通す)。設定ファイルの `rules:` に HL0210 の重要度を書けば、それに従う
+- SL1030 (プロパティの名前が `_` で始まらない) の既定の重要度を、警告から情報にした。命名の慣習で、Unity の動きは変わらないため
+- UN0301 (シェーダーステージの指定が無い) の既定の重要度を、警告からエラーにした。Unity は警告を出してその Pass をコンパイルから外し、SubShader ごと使えなくなるため。
+  `#pragma vertex` と `#pragma fragment` の片方だけのもの (サーフェスシェーダーとレイトレーシングを除く) も報告する
+- GLSL の暗黙の変換を glslang と同じにした。有効にした拡張 (`GL_ARB_gpu_shader5`、`GL_NV_gpu_shader5` など) で増える変換を通す。
+  明示的な幅の算術型 (`int16_t` など) の変換は、今までは同じ型でなくても通していたが、glslang と同じく拡張が要るものは誤り (CF0410) にする
+- ES で、`#extension GL_EXT_shader_implicit_conversions : disable` の後ろの暗黙の変換を報告する (CF0410。拡張を有効にしているかを位置ごとに見る)
+- CF0004 (マクロを中身を変えて定義し直す) は、GLSL のファイルではエラーにする。glslang はコンパイルの誤りにするため。
+  GLSL では、トークンの間の空白の有無の違い (`#define m (a)` と `#define m ( a)`) も中身の違いとする (glslang と同じ)
+  設定ファイルの `rules:` に CF0004 の重要度を書けば、それに従う
+- CF0501 (値を返さない経路がある) は、GLSL のファイルでは警告にする。glslang はコンパイルを通すため (返る値は決まらない)。
+  設定ファイルの `rules:` に CF0501 の重要度を書けば、それに従う
+- CF0406 (構造体に使えない演算子) は、GLSL では GLSL の規則で判断する。`==` / `!=` / `?:` は使え、`layout(buffer_reference)` の型はアドレスの足し引きができる
+- CF0314 (宣言の重複) は、GLSL では関数の外の変数と同じ名前の関数 (宣言だけのものを含む) も報告する。glslang と同じく、GLSL の 1.10 では報告しない
+- CF0314 (宣言の重複) は、GLSL ではブロックの名前も見る。記憶域が同じブロックの名前どうし、ブロックの名前と変数、ブロックのインスタンスの名前、名前の無いブロックのメンバーと関数の外の変数を報告する
+- CF0410 (値を代入先の型へ変換できない) は、GLSL では配列の大きさの違う代入と初期化 (`float a5[5] = a4;`、`int b[3] = int[](3, 2);`、要素の数の違う波括弧の初期化子) と、大きさを書かない配列への代入も報告する。関数の外の変数の初期値 (`int a = true;` など) も検査する
+- CF0310 (宣言されていない名前) は、GLSL では宣言の型の名前 (`vec5 c;`。組み込みの型でも、宣言した構造体とブロックでもないもの。1.40 の `sampler2DMS` のように、そのバージョンと拡張では型のキーワードでないものも) と、次のものも報告する。
+  波括弧を書かない `if` / `else` / `while` / `for` の本体で宣言した変数をその外で使ったもの (`if (c) int j = 1; int k = j;`。glslang と同じく、本体がそれだけで範囲になる)、
+  インスタンスの名前の無いブロックの名前を式に書いたもの (`uniform Block { … }; Block;`)、
+  拡張で決まる語を、その拡張の `#extension` より前で書いたもの (`terminateInvocation` など)、
+  関数の外の変数を、その宣言より前で使ったもの (「この位置より前に宣言されていません」。組み込みの変数の宣言し直しは除く)
+- CF0404 (値の作成に渡す成分の数が合わない) は、GLSL では閉じ括弧の位置で報告する。glslang と同じ行になる
+- CF0401 (実引数を仮引数の型へ変換できない) は、GLSL では構造体の仮引数に別の型の値を渡したもの (`f(1.0)` の仮引数が構造体) と、数値の仮引数に構造体を渡したものも報告する
+- CF0405 (配列の実引数が合わない) は、GLSL では配列を配列でない仮引数に渡したもの (`f(a)` の仮引数が `float`) と、大きさを書かずに宣言した配列 (`float a[];`) を配列の仮引数に渡したものも報告する
+- GLSL: 行の継続の無いバージョン (ES の 3.00 より前とデスクトップの 4.20 より前) では、行末に `\` を書いた `//` のコメントを行の終わりで終える (glslang と同じ)。
+  文字列のリテラルの中の行の継続も報告する (GL0001)
+- 組み込み関数の戻り値の型を、暗黙の変換で選んだ多重定義から求めるとき、長いベクトルの `vector` の形を数の型の実引数に合わせない
+  (`abs(uintVar)` を `float` と求め、`uint u = abs(uintVar);` を CF0410 にする)
+- GLSL の `#if` の、マクロの展開で出てきた `defined` と実引数の括弧の無い関数形式マクロ、65 段を越える `#if` の入れ子を報告する (CF0002)。
+  閉じていない `#if` は、glslang と同じくファイルの終わりで 1 度だけ報告する
+- GLSL の行の途中の `#` (CF0002) と `1.#INF` の書き方 (GL0315)、構造体の定義と一緒に宣言した変数の初期化子の要素の数と要素の構造体の型、
+  配列の値の作成の、暗黙に変換できない要素 (`vec4[2](vec4(0.0), mat2(1.0))`) を報告する (CF0410)
+- `gl_EnableOpacityMicromapEXT` の宣言し直しの形 (GL0406) と、構造体の定義と一緒に宣言した変数の名前の重複 (CF0314) を報告する
+- GLSL のマクロの `##` で、名前と演算子の記号でないものの連結、1 つの演算子にならない演算子の連結、1024 文字を越える連結を報告する (CF0002)
+- 配列の値の作成の、内側の次元と形の違う実引数 (CF0410)、形の違う配列どうしの `==` / `!=` (GL0301)、内側の次元の大きさを書かない配列の初期化子の、大きさのそろわない要素 (CF0410) を報告する
+- GLSL の配列の成分の選択とメンバー (`a.y`。CF0312)、配列への単項の演算子 (`a--`、`!a`、`~a`。GL0301)、0 以下の配列の大きさ (GL0403) を報告する
+- GLSL で、マクロの実引数を展開して出てきた関数形式マクロの呼び出しの括弧が実引数の中で閉じないものを報告する (CF0002。glslang の「End of input in macro」)
+- 大きさを書かない配列を、要素の型や内側の次元の違う形で宣言し直したものを報告する (CF0314)
+- CF0412 (初期化子の要素の数が合わない) は、GLSL では波括弧を平らにせずに数える。行列は列ごと (`mat2 m = { {1.0, 0.0}, {0.0, 1.0} };`)、構造体はメンバーごとに書かなければならない
+- CF0411 (戻り値の型が合わない) は、GLSL では値を返す `return` が 1 つも無い関数 (glslang の誤り。値を返さない経路の CF0501 は GLSL では警告) と、
+  サンプラー・イメージ・`atomic_uint` などを別の型として返すもの (`uint f() { return counter; }`) も報告する
+- CF0312 (存在しないメンバー) は、GLSL では length() でないメソッドの呼び出し (`a.method()`)、サンプラーとイメージの変数のメンバーと成分 (`s.rr`)、括弧を付けない配列の `length` (`f.length`) と、実引数を書いた `length(…)` も報告する
+- CF0312 (存在しないメンバー) は、GLSL では `.length()` を配列でもベクトルでも行列でもない値に使ったもの (`bool b; b.length()`、`m43[3][1].length()`) も報告する
+- CF0402 (引数の数が合わない) は、GLSL では仮引数の既定値を数えない。GLSL には既定値が無く、glslang は引数を省いた呼び出しを誤りにする
+- CF0001 (構文エラー) は、GLSL の仮引数の既定値 (`void f(int x = 2)`) も報告する。この誤りでは、宣言が無いことを根拠にする検査を止めない
+- GLSL: 解析しているファイルに構文エラーがあっても、最初の構文エラーより前の位置は、宣言が無いことを根拠にする検査 (CF0310、CF0401 / CF0402 など) を行う。
+  GLSL では使う位置より前に宣言しなければならないため。CF0101 の文は「… より後ろの位置で、宣言が無いことを根拠にする検査 … を行っていません」になる
+- GLSL: 語が拡張でキーワードか予約語になるかを、`#extension` を書いた位置より後ろでだけ有効として決める (glslang と同じ。`#extension` より前の `sample` は ES の 3.10 では予約語)
+- GLSL: そのバージョンで使えない予約語 (CF0001) があっても、宣言が無いことを根拠にする検査 (CF0310 など) を止めない。glslang は予約語を報告した後も読み進める
+- GLSL: 構造体の宣言の前の修飾子 (`const struct S { … } s = …;` の `const`) を構文木に残す。今までは読み捨てていた
+- CF0002 (プリプロセッサの指令の誤り) は、`#line` の形も検査する。行番号の後ろには、ファイル名の文字列か、GLSL の文字列の番号の式を 1 つだけ書ける。
+  式はマクロを展開してから読む (`#line L1 + L2`)。後ろに余分な記述があるもの (`#line 10 5 extra`) と、式を評価できないもの (0 による除算など) を報告する。行番号は今までどおり付け替えない
+- GLSL: 名前の無い宣言 (`layout(binding = 0, offset = 4) uniform atomic_uint;`、`flat out int;`) を構文エラー (CF0001) にしていた。glslang と同じく型の無い宣言として読む。
+  GLSL の文の属性 (`[[unroll]]`) を読み飛ばさずに構文木に残す
+- GLSL: `__FILE__` を、ファイル名の文字列でなく文字列の番号の 0 に展開する (glslang と同じ)
+- GLSL: `#if` / `#elif` の式を glslang と同じく `int` (32 ビット) で計算する (`-2147483648 / -1` は 0)。評価できない式 (閉じていない括弧など) は、誤りを伝えたうえで通る分岐とする。
+  行の頭の `##` を、指令の誤り (CF0002) とする (glslang と同じ。C では `##` の演算子)
+- `#if` で、マクロの展開から出た `defined` を演算子として読む (`#define DEF defined` と `#if DEF MAC`)。clang と glslang と同じ。今までは後ろのマクロを展開して偽にしていた
+- GLSL: 設定ファイルの `glsl: target` が `opengl` で `spirv` を書いたとき (glslang の `-G`)、組み込みの関数と変数を OpenGL 向けの SPIR-V のものから引く (`gl_DepthRange` が無いなど)
+
+### 修正
+
+- Unity: `unity: generated` を指定し、プロジェクト (`--unity-project` / `unity: project`) を指定しないと、書き出したパッケージ (`Packages/com.unity.render-pipelines.universal/...` など) を読まず、
+  取り込みの誤り (CF0021) と CF0101 になっていた。Editor のヘッダは読めていた
+- GLSL: glslang がエラーにしない書き方を誤りにしていた。glslang の Test (glslang がエラーにしない 755 ファイル) で、誤りを出したファイルが 148 から 0 になった
+  - `for` の初期化の変数がループの外へ漏れるとしていた。GLSL では漏れない
+  - 宣言の初期値の中で、宣言している名前が見えるとしていた (`vec4 p = vec4(p, 1.0);` の右の `p` は外側の `p`)
+  - 関数の中で構造体の宣言と同時に宣言した変数 (`struct S { … } s;`) を、宣言されていない名前 (CF0310) にしていた
+  - 組み込みの宣言し直し (`layout(origin_upper_left) in vec4 gl_FragCoord;`) と、大きさを書かない配列の宣言し直しを、宣言の重複 (CF0314) にしていた
+  - ジオメトリシェーダーの入力と出力の同じ名前のブロック (`in block { … } In[]; out block { … } Out;`) を、宣言の重複 (CF0314) と存在しないメンバー (CF0312) にしていた
+  - 実引数の数が決まらない組み込み (`abortEXT`、`coopMatPerElementNV` など) に、引数の数の誤り (CF0402) を出していた
+  - `spirv_instruction` を付けた関数の宣言に、定義が無い (CF0311) と言っていた
+  - 64 ビットの整数のリテラル (`1ul`) に、32 ビットに収まらない (CF0511) と言っていた
+- CF0101 の文が、GLSL のファイルでも「HLSL を解析できませんでした」と言っていた
+- `#if` / `#elif` の式の `__LINE__` / `__FILE__` を展開せず、0 として読んでいた
+- GLSL: `gl_HitTEXT` / `gl_HitTNV` を、intersection と miss のシェーダーでも使えるとしていた。glslang は any-hit と closest-hit のシェーダーにだけ宣言する
+
 ## [0.3.2] - 2026-11-02
 
 Unity のプロジェクトを、`Library` と Unity Editor の無いマシン (GitHub のホストランナーなど) でも解析できるようにした (`--unity-generate`)。
@@ -137,7 +379,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - GLSL の環境 `glsl` を足した。`.vert` / `.frag` / `.comp` などと `.glsl` を、設定ファイルが無くても GLSL として解析し、
   構文の誤り (HL0001)・プリプロセッサ指令の誤り・解決できない `#include` (HL0321) を指摘する。VS Code 拡張でも同じく指摘する。
   宣言・型・呼び出しの検査と、VS Code 拡張の説明・定義へ移動・補完は 0.3.1 で対応する予定
-  ([GLSL](docs/guide/environments.md#glsl))
+  ([GLSL](docs/guide/environments/glsl.md))
 - 環境 `godot` / `slang` / `wgsl` を追加した (開発中)。拡張子でファイルを集めるが、まだ何も指摘しない
 - 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
   - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
@@ -154,7 +396,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   組み込みルールで対応できるかを先に確認し、ソースを文字列検索せず、構文木とセマンティックモデルで判定するよう案内する
 - Unreal Engine: `--unreal-generate` が、エンジンとプロジェクトの C++ から次の情報を読み取り、ファイルに出力する。
   解析は、設定の `units:` に書いていない `.usf` を、登録されたエントリポイントとステージごとに解析する
-  ([Unreal Engine の環境](docs/guide/environments.md#c-から生成されるファイルを作る))
+  ([Unreal Engine の環境](docs/guide/environments/unreal.md#c-から生成されるファイルを作る))
   - **シェーダーの登録** (`IMPLEMENT_GLOBAL_SHADER` など)。登録を包んだ独自のマクロ (`IMPLEMENT_SHADOW_PROJECTION_PIXEL_SHADER(…)` など) も展開し、
     `typedef` / `using` の別名で登録したクラスは、テンプレートの引数を書いたクラスとして読む
     (UE 5.5 のエンジンで、読めなかった登録が 253 個から 96 個になった)。読み取れなかった登録のマクロは、名前と件数を通知する
@@ -337,7 +579,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
   設定ファイルの `unreal: generated` にそのフォルダーを書くと、`/Engine/Generated` に割り当てて解析する。
   C++ がシェーダーに定義するマクロ (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元) の名前も書き出し、HL0310 にしない。
   UE 5.5 のエンジンのシェーダーでは、宣言の検査を行えるシェーダーが 522 個中 8 個から 460 個に増える
-  ([C++ から生成されるファイルを作る](docs/guide/environments.md#c-から生成されるファイルを作る))
+  ([C++ から生成されるファイルを作る](docs/guide/environments/unreal.md#c-から生成されるファイルを作る))
 - Unreal Engine: エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に書き出す
   `/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush` を読む
 - `sizeof` を組み込みの名前として扱う (HL0310 にしない)
@@ -649,7 +891,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/OmojiP/shaderlyn/compare/v0.2.1...v0.3.0

@@ -298,10 +298,21 @@ internal static class SemanticsSetup
                 options.UnityGeneratedDirectory is { } generated ? Path.GetFullPath(generated) : null);
         }
 
-        // プロジェクトの指定が無くても、Editor 同梱パッケージだけは解決できる。
-        return editorData is not null
-            ? new UnityPackageIncludeResolver([Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages")])
-            : null;
+        // プロジェクトの指定が無くても、Editor 同梱パッケージと、--unity-generate で書き出したパッケージは解決できる。
+        // 順はプロジェクトがあるとき (ForProject) の、プロジェクトのフォルダーを除いたものと同じにする。
+        List<string> roots = [];
+
+        if (editorData is not null)
+        {
+            roots.Add(Path.Combine(editorData, "Resources", "PackageManager", "BuiltInPackages"));
+        }
+
+        if (options.UnityGeneratedDirectory is { } generatedDirectory)
+        {
+            roots.Add(Path.GetFullPath(Path.Combine(generatedDirectory, UnityIncludeGeneration.PackageCacheDirectory)));
+        }
+
+        return roots.Count > 0 ? new UnityPackageIncludeResolver(roots) : null;
     }
 
     /// <summary>

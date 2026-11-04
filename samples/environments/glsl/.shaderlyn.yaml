@@ -1,0 +1,25 @@
+# GLSL の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments/glsl.md と docs/guide/configuration.md にある。
+version: 1
+environment: glsl         # .vert / .frag などは、設定ファイルが無くても GLSL として解析する。.mesh は glsl を指定したときだけ読む
+
+glsl:
+  target: vulkan1.3       # glslang の --target-env: vulkan / vulkan1.0 ～ vulkan1.4 / opengl。省略すると、どちら向けかを決めない
+  # spirv: "1.6"          # 作る SPIR-V のバージョン (1.0 ～ 1.6)。省略すると target から決める
+  # auto-map-locations: true   # glslang の --auto-map-locations。location の無い入出力を GL0104 にしない
+  # auto-map-bindings: true    # glslang の --auto-map-bindings。binding の無い uniform・buffer を GL0104 にしない
+
+include-paths:            # #include (GL_GOOGLE_include_directive) の追加探索パス (設定ファイルからの相対)
+  - shaders/include
+# defines:                # どのファイルにも定義するマクロ。NAME または NAME=VALUE
+#   - MAX_LIGHTS=4
+
+# 構成の軸。#ifdef USE_FOG の両方の分岐を読む
+symbols:
+  - name: USE_FOG
+
+rules:
+  CF0501: error           # 例: 値を返さない経路 (GLSL では既定で警告) をエラーにする
+
+# report:
+#   min-severity: warning # 出力する指摘の重要度 (info / warning / error)

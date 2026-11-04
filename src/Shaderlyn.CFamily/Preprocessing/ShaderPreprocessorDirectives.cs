@@ -91,6 +91,12 @@ internal sealed partial class ShaderPreprocessor
             return;
         }
 
+        // GLSL の予約された名前 (GL_ で始まる名前など) の検査のために、#define と #undef の名前を覚える。
+        if (_options.GlslRules && directive is "define" or "undef" && PeekInCurrentSource() is { IsAtLineStart: false } defined)
+        {
+            _recordedDirectives.Add(new RecordedDirective(directiveToken, [defined], _output.Count));
+        }
+
         switch (directive)
         {
             case "define":
@@ -113,18 +119,32 @@ internal sealed partial class ShaderPreprocessor
             // #error を診断として報告しないのは、それが非活性領域に置かれる
             // 「この構成では使えない」という印であることが多く、
             // 単一構成での展開では偽の指摘になりやすいためである。
-            // #line は報告の位置を付け替えるだけで、展開には影響しない。
+            // #line は報告の位置を付け替えるだけで、展開には影響しない。形だけを検査する (CheckLineDirective)。
             // 受け付けない環境は UnsupportedDirectives で報告する。
+            // どの構成でも到達する #error は、行と一緒に RecordedDirectives にも覚える (GLSL では誤りとして伝える)。
             case "error":
-                NoteErrorDirective(directiveToken);
-                SkipDirectiveLine();
+                bool reached = NoteErrorDirective(directiveToken);
+                ImmutableArray<ShaderSyntaxToken> message = SkipDirectiveLine();
+
+                if (reached)
+                {
+                    _recordedDirectives.Add(new RecordedDirective(directiveToken, message, _output.Count));
+                }
+
+                break;
+
+            // GLSL の #version と #extension は、展開の順番とともに覚える (書いた位置より後ろにだけ効く)。
+            case "version":
+            case "extension":
+                _recordedDirectives.Add(new RecordedDirective(directiveToken, ReadDirectiveLine(), _output.Count));
                 break;
 
             case "warning":
-            case "version":
-            case "extension":
-            case "line":
                 SkipDirectiveLine();
+                break;
+
+            case "line":
+                CheckLineDirective(directiveToken, ReadDirectiveLine());
                 break;
 
             default:
@@ -152,11 +172,12 @@ internal sealed partial class ShaderPreprocessor
     /// (<see cref="PreprocessResult.ConditionalErrorDirectives"/>)。条件が制約で起こりえないなら覚えない。
     /// </para>
     /// </remarks>
-    private void NoteErrorDirective(ShaderSyntaxToken directive)
+    /// <returns>並べた分岐の中でなく、到達したものとして覚えたなら <see langword="true"/>。</returns>
+    private bool NoteErrorDirective(ShaderSyntaxToken directive)
     {
         if (IsSkipping || directive.GetLocation() is not { } location)
         {
-            return;
+            return false;
         }
 
         if (_conditionals.Exists(state => state.KeptCondition is not null))
@@ -170,11 +191,12 @@ internal sealed partial class ShaderPreprocessor
                 Record(recording => recording.ConditionalErrorDirectives.Add(entry));
             }
 
-            return;
+            return false;
         }
 
         _reachedErrorDirectives.Add(location);
         Record(recording => recording.ReachedErrorDirectives.Add(location));
+        return true;
     }
 
     /// <summary>条件分岐に関わる指令を処理する。</summary>
@@ -351,6 +373,13 @@ internal sealed partial class ShaderPreprocessor
             {
                 outer.BranchSplit |= outer.BranchStart is not null;
             }
+        }
+
+        // GLSL (glslang) は #if の入れ子を 65 段までにし、それを越えるとコンパイルを止める (maxIfNesting)。
+        if (_options.GlslRules && _conditionals.Count >= 65 && _nestingExceeded is null)
+        {
+            _nestingExceeded = directive;
+            Report(ShaderDescriptors.PreprocessorError, directive.GetLocation(), "#if の入れ子が深すぎます (65 段まで)。");
         }
 
         _conditionals.Add(new ConditionalState(directive)
@@ -1848,6 +1877,9 @@ internal sealed partial class ShaderPreprocessor
         }
     }
 
+    /// <summary>GLSL で、#if の入れ子が深すぎた最初の指令。</summary>
+    private ShaderSyntaxToken? _nestingExceeded;
+
     /// <summary>ファイル終端まで閉じられなかった条件分岐を報告する。</summary>
     /// <remarks>
     /// 閉じ忘れは、以降のコードが丸ごと無効化されるか丸ごと有効化されるという形で
@@ -1855,6 +1887,19 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private void ReportUnterminatedConditionals()
     {
+        // GLSL (glslang) はファイルの終わりで 1 度だけ報告する。閉じていない #if の行は文に書く。
+        if (_options.GlslRules && _conditionals.Count > 0)
+        {
+            ConditionalState outer = _conditionals.Last();
+            SourceText source = outer.Directive.Source;
+            int line = outer.Directive.GetLocation().LineSpan.Start.Line + 1;
+
+            // 入れ子が深すぎてコンパイルを止めたなら、そこで報告する。
+            Report(ShaderDescriptors.PreprocessorError, _nestingExceeded?.GetLocation() ?? Location.Create(source, new TextSpan(source.Length, 0)),
+                $"#if ({line.ToString(System.Globalization.CultureInfo.InvariantCulture)} 行目) に対応する #endif が存在しません。");
+            return;
+        }
+
         foreach (ConditionalState state in _conditionals)
         {
             Report(ShaderDescriptors.PreprocessorError, state.Directive.GetLocation(),
@@ -1921,6 +1966,55 @@ internal sealed partial class ShaderPreprocessor
     /// <returns>取り込み済みなら <see langword="true"/>。</returns>
     private bool IsIncludedOnce(string filePath) => _macros.ContainsKey(OnceMarkerPrefix + filePath);
 
+    /// <summary>
+    /// <c>#line</c> の形を検査する。行番号は付け替えない。
+    /// </summary>
+    /// <param name="directiveToken">指令名のトークン。</param>
+    /// <param name="line">指令の行のトークン。</param>
+    /// <remarks>
+    /// <para>
+    /// 形は <c>#line 行</c> の後ろに、ファイル名の文字列 (C と HLSL、GLSL の GL_GOOGLE_cpp_style_line_directive) か
+    /// 文字列の番号の式 (GLSL) を 1 つ書けるものとする。どれもマクロを展開してから読む。
+    /// glslang の Pp.cpp の <c>CPPline</c> と同じく、行番号と文字列の番号は式として読み (<c>#line L1 + L2</c>)、
+    /// その後ろに残った記述を「unexpected tokens following directive」にする (<c>#line 1234 F1 + F2 extra</c>)。
+    /// </para>
+    /// </remarks>
+    private void CheckLineDirective(ShaderSyntaxToken directiveToken, ImmutableArray<ShaderSyntaxToken> line)
+    {
+        if (line.IsEmpty)
+        {
+            Report(ShaderDescriptors.PreprocessorError, directiveToken.GetLocation(), "#line の後には行番号が必要です。");
+            return;
+        }
+
+        ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(line, depth: 0);
+        int index = 0;
+
+        for (int operand = 0; operand < 2 && index < expanded.Length; operand++)
+        {
+            if (operand == 1 && expanded[index].Kind == ShaderSyntaxKind.StringLiteralToken)
+            {
+                index++;
+                break;
+            }
+
+            ConditionalExpressionEvaluator.EvaluatePrefix(expanded[index..], out int consumed, out string? error);
+
+            if (error is not null)
+            {
+                Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の式を読めません: {error}");
+                return;
+            }
+
+            index += consumed;
+        }
+
+        if (index < expanded.Length)
+        {
+            Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の後に余分な記述があります: '{expanded[index].Text}'");
+        }
+    }
+
     // --------------------------------------------------------------------
     // 指令の行の読み取り
     // --------------------------------------------------------------------
@@ -1957,6 +2051,7 @@ internal sealed partial class ShaderPreprocessor
     /// 非活性領域にある指令の残りの行を読み飛ばす。
     /// </summary>
     /// <param name="isDefine"><c>#define</c> の行かどうか。条件付きで覚えるために名前と中身を読む。</param>
+    /// <returns>読み飛ばした行のトークン列。</returns>
     /// <remarks>
     /// <para>
     /// <b>読み飛ばす行に現れた識別子は記録する。</b>
@@ -1974,7 +2069,7 @@ internal sealed partial class ShaderPreprocessor
     /// 「宣言だけで使われていない」と誤って報告することになる。
     /// </para>
     /// </remarks>
-    private void SkipDirectiveLine(bool isDefine = false)
+    private ImmutableArray<ShaderSyntaxToken> SkipDirectiveLine(bool isDefine = false)
     {
         ImmutableArray<ShaderSyntaxToken> line = ReadDirectiveLine();
 
@@ -2011,6 +2106,8 @@ internal sealed partial class ShaderPreprocessor
                 AddSkippedIdentifier(token);
             }
         }
+
+        return line;
     }
 
     /// <summary>

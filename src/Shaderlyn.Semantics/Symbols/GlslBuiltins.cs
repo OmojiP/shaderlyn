@@ -57,7 +57,7 @@ internal sealed record GlslBuiltinVariable(string Type, string Storage, Immutabl
 /// <para>
 /// <b>分からないものは、ありうるすべての構成を合わせる。</b>
 /// ステージの分からない断片 (<c>.glsl</c>) はすべてのステージの、バージョンの分からない木はすべてのバージョンの組み込みを使う。
-/// glslang に渡す指定 (<c>-V</c>) はソースから分からないので、Vulkan と OpenGL の組み込みはいつも合わせる。
+/// Vulkan 向けか OpenGL 向けか (glslang の <c>-V</c>) が分からなければ、両方の組み込みを合わせる。
 /// 多く知っているほうが、正しいコードを「宣言されていない」と言わずに済む。
 /// </para>
 /// </remarks>
@@ -68,22 +68,24 @@ internal sealed class GlslBuiltins
 
     private static readonly Lazy<GlslBuiltins> Table = new(Load);
 
-    private readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage), GlslBuiltinView> _views = new();
+    private readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage, bool? Vulkan, bool OpenGlSpirv), GlslBuiltinView> _views = new();
 
     private GlslBuiltins(
-        ImmutableArray<(string Profile, int Version, string Stage)> configurations,
+        ImmutableArray<(string Target, string Profile, int Version, string Stage)> configurations,
         ImmutableArray<BitArray> sets,
         FrozenDictionary<string, ImmutableArray<(GlslBuiltinFunction Function, int Set)>> functions,
-        FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Variable, int Set)>> variables)
+        FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Variable, int Set)>> variables,
+        FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Member, int Set)>> members)
     {
         Configurations = configurations;
         Sets = sets;
         Functions = functions;
         Variables = variables;
+        Members = members;
     }
 
-    /// <summary>表の構成 (プロファイル・バージョン・ステージ)。番号は表の構成の番号。</summary>
-    private ImmutableArray<(string Profile, int Version, string Stage)> Configurations { get; }
+    /// <summary>表の構成 (Vulkan か OpenGL・プロファイル・バージョン・ステージ)。番号は表の構成の番号。</summary>
+    private ImmutableArray<(string Target, string Profile, int Version, string Stage)> Configurations { get; }
 
     /// <summary>構成の集まり。番号は表の集まりの番号。</summary>
     private ImmutableArray<BitArray> Sets { get; }
@@ -94,6 +96,18 @@ internal sealed class GlslBuiltins
     /// <summary>変数の名前から、型と、使える構成の集まり。</summary>
     internal FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Variable, int Set)>> Variables { get; }
 
+    /// <summary>
+    /// ブロックの変数とメンバーの名前 (<c>gl_in.gl_ClipDistance</c>) から、メンバーの型と、使える構成の集まり。
+    /// 記憶域 (<see cref="GlslBuiltinVariable.Storage"/>) は空。
+    /// </summary>
+    internal FrozenDictionary<string, ImmutableArray<(GlslBuiltinVariable Member, int Set)>> Members { get; }
+
+    /// <summary>ブロックの変数とメンバーの名前を、<see cref="Members"/> の鍵にする。</summary>
+    /// <param name="block">ブロックの変数の名前 (<c>gl_in</c>)。</param>
+    /// <param name="member">メンバーの名前。</param>
+    /// <returns>鍵。</returns>
+    internal static string MemberKey(string block, string member) => $"{block}.{member}";
+
     /// <summary>表。初めて使うときに読む。</summary>
     public static GlslBuiltins Instance => Table.Value;
 
@@ -103,13 +117,38 @@ internal sealed class GlslBuiltins
     /// <param name="version">バージョン。分からなければ <see langword="null"/> (すべてのバージョンを合わせる)。</param>
     /// <param name="profile">プロファイル。</param>
     /// <param name="stage">ステージ。分からなければ <see langword="null"/> (すべてのステージを合わせる)。</param>
+    /// <param name="vulkan">Vulkan 向けか。分からなければ <see langword="null"/> (Vulkan と OpenGL を合わせる)。</param>
+    /// <param name="openGlSpirv">OpenGL 向けの SPIR-V を作るか (glslang の <c>-G</c>)。<paramref name="vulkan"/> が <see langword="false"/> のときだけ見る。</param>
     /// <returns>使える組み込み。</returns>
-    public GlslBuiltinView For(int? version, GlslProfile profile, GlslShaderStage? stage)
-        => _views.GetOrAdd((version, profile, stage), key => new GlslBuiltinView(this, Select(key.Version, key.Profile, key.Stage)));
+    public GlslBuiltinView For(int? version, GlslProfile profile, GlslShaderStage? stage, bool? vulkan = null, bool openGlSpirv = false)
+        => _views.GetOrAdd(
+            (version, profile, stage, vulkan, openGlSpirv),
+            key => new GlslBuiltinView(this, Select(key.Version, key.Profile, key.Stage, key.Vulkan, key.OpenGlSpirv)));
 
     /// <summary>当てはまる構成を選ぶ。</summary>
-    private BitArray Select(int? version, GlslProfile profile, GlslShaderStage? stage)
+    private BitArray Select(int? version, GlslProfile profile, GlslShaderStage? stage, bool? vulkan, bool openGlSpirv)
     {
+        string? targetName = vulkan switch
+        {
+            true => "vulkan",
+            false when openGlSpirv => "opengl-spirv",
+            false => "opengl",
+            null => null,
+        };
+
+        // OpenGL 向けの SPIR-V は、デスクトップの 3.30 以降と ES の 3.10 以降にしか無い。それより前は、SPIR-V を作らない OpenGL の表で引く。
+        if (targetName == "opengl-spirv" && (profile == GlslProfile.Compatibility || version is { } old && old < (profile == GlslProfile.Es ? 310 : 330)))
+        {
+            targetName = "opengl";
+        }
+
+        // Vulkan の GLSL は、デスクトップの 1.40 以降と ES の 3.10 以降にしか無い。それより前のバージョンを Vulkan 向けに書いたものは、OpenGL の表で引く。
+        // バージョンの合う構成が glslang の誤りになるかは、別の検査が伝える。
+        if (targetName == "vulkan" && version is { } early && early < (profile == GlslProfile.Es ? 310 : 140))
+        {
+            targetName = null;
+        }
+
         string? stageName = stage is { } s ? StageName(s) : null;
         string profileName = profile switch
         {
@@ -120,16 +159,17 @@ internal sealed class GlslBuiltins
 
         // 表に無いバージョン (#version 500 など) は、表にある、それより前でいちばん新しいバージョンとして読む。
         int? listed = version is { } v
-            ? Configurations.Where(c => c.Profile == profileName && c.Version <= v).Select(c => (int?)c.Version).Max()
+            ? Configurations.Where(c => c.Profile == profileName && c.Version <= v && (targetName is null || c.Target == targetName)).Select(c => (int?)c.Version).Max()
             : null;
 
         BitArray selected = new(Configurations.Length);
 
         for (int i = 0; i < Configurations.Length; i++)
         {
-            (string p, int ver, string st) = Configurations[i];
+            (string target, string p, int ver, string st) = Configurations[i];
 
             selected[i] = (stageName is null || st == stageName)
+                          && (targetName is null || target == targetName)
                           && (version is null || listed is null || (p == profileName && ver == listed));
         }
 
@@ -179,10 +219,11 @@ internal sealed class GlslBuiltins
         using StreamReader reader = new(stream);
 
         Dictionary<int, int> configurationIndex = [];
-        List<(string Profile, int Version, string Stage)> configurations = [];
+        List<(string Target, string Profile, int Version, string Stage)> configurations = [];
         List<string> setLines = [];
         Dictionary<string, List<(GlslBuiltinFunction, int)>> functions = new(StringComparer.Ordinal);
         Dictionary<string, List<(GlslBuiltinVariable, int)>> variables = new(StringComparer.Ordinal);
+        Dictionary<string, List<(GlslBuiltinVariable, int)>> members = new(StringComparer.Ordinal);
 
         while (reader.ReadLine() is { } line)
         {
@@ -197,7 +238,7 @@ internal sealed class GlslBuiltins
             {
                 case "C":
                     configurationIndex[int.Parse(fields[1], CultureInfo.InvariantCulture)] = configurations.Count;
-                    configurations.Add((fields[3], int.Parse(fields[4], CultureInfo.InvariantCulture), fields[5]));
+                    configurations.Add((fields[2], fields[3], int.Parse(fields[4], CultureInfo.InvariantCulture), fields[5]));
                     break;
 
                 case "S":
@@ -215,6 +256,11 @@ internal sealed class GlslBuiltins
 
                 case "V":
                     Add(variables, fields[1], (new GlslBuiltinVariable(fields[2], fields[3], SplitExtensions(fields[4])),
+                        int.Parse(fields[5], CultureInfo.InvariantCulture)));
+                    break;
+
+                case "M":
+                    Add(members, MemberKey(fields[1], fields[2]), (new GlslBuiltinVariable(fields[3], string.Empty, SplitExtensions(fields[4])),
                         int.Parse(fields[5], CultureInfo.InvariantCulture)));
                     break;
 
@@ -253,7 +299,8 @@ internal sealed class GlslBuiltins
             [.. configurations],
             sets,
             functions.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal),
-            variables.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal));
+            variables.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal),
+            members.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal));
 
         static void Add<T>(Dictionary<string, List<T>> map, string name, T item)
         {
@@ -304,11 +351,28 @@ internal sealed class GlslBuiltinView
             ? [.. all.Where(f => _table.Intersects(f.Set, _selected)).Select(f => f.Function)]
             : []);
 
+    /// <summary>その名前の組み込み変数の、使える形をすべて引く (構成によって入力と出力が違うものがある)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>変数。無ければ空。</returns>
+    public ImmutableArray<GlslBuiltinVariable> GetVariables(string name)
+        => _table.Variables.TryGetValue(name, out ImmutableArray<(GlslBuiltinVariable Variable, int Set)> all)
+            ? [.. all.Where(v => _table.Intersects(v.Set, _selected)).Select(v => v.Variable)]
+            : [];
+
     /// <summary>その名前の組み込み変数を引く。</summary>
     /// <param name="name">名前。</param>
     /// <returns>変数。無ければ <see langword="null"/>。拡張の要らないものを先に返す。</returns>
     public GlslBuiltinVariable? GetVariable(string name)
         => _table.Variables.TryGetValue(name, out ImmutableArray<(GlslBuiltinVariable Variable, int Set)> all)
             ? all.Where(v => _table.Intersects(v.Set, _selected)).Select(v => v.Variable).OrderBy(v => v.Extensions.Length).FirstOrDefault()
+            : null;
+
+    /// <summary>組み込みのブロックの変数 (<c>gl_in</c> など) のメンバーを引く。</summary>
+    /// <param name="block">ブロックの変数の名前。</param>
+    /// <param name="member">メンバーの名前。</param>
+    /// <returns>メンバー。この構成に無ければ <see langword="null"/>。</returns>
+    public GlslBuiltinVariable? GetMember(string block, string member)
+        => _table.Members.TryGetValue(GlslBuiltins.MemberKey(block, member), out ImmutableArray<(GlslBuiltinVariable Member, int Set)> all)
+            ? all.Where(m => _table.Intersects(m.Set, _selected)).Select(m => m.Member).OrderBy(m => m.Extensions.Length).FirstOrDefault()
             : null;
 }

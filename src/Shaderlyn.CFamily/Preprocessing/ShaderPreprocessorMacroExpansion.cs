@@ -25,14 +25,7 @@ internal sealed partial class ShaderPreprocessor
     /// </remarks>
     private bool TryExpandPredefinedMacro(ShaderSyntaxToken nameToken)
     {
-        ShaderSyntaxToken? replacement = nameToken.Text switch
-        {
-            "__LINE__" => CreateNumericToken(nameToken, (nameToken.GetLocation()?.LineSpan.Start.Line ?? 0) + 1),
-            "__FILE__" => CreateStringToken(nameToken.Source.FilePath ?? string.Empty, nameToken),
-            _ => null,
-        };
-
-        if (replacement is null)
+        if (CreatePredefinedMacroToken(nameToken) is not { } replacement)
         {
             return false;
         }
@@ -41,6 +34,18 @@ internal sealed partial class ShaderPreprocessor
         PushExpansionSource([replacement], nameToken.Text);
         return true;
     }
+
+    /// <summary>
+    /// 識別子が、コンパイラが定義する <c>__LINE__</c> / <c>__FILE__</c> なら、展開した結果のトークンを作る。
+    /// </summary>
+    /// <param name="nameToken">識別子のトークン。</param>
+    /// <returns>展開した結果。そうでなければ <see langword="null"/>。</returns>
+    private ShaderSyntaxToken? CreatePredefinedMacroToken(ShaderSyntaxToken nameToken) => nameToken.Text switch
+    {
+        "__LINE__" => CreateNumericToken(nameToken, (nameToken.GetLocation()?.LineSpan.Start.Line ?? 0) + 1),
+        "__FILE__" => CreateStringToken(nameToken.Source.FilePath ?? string.Empty, nameToken),
+        _ => null,
+    };
 
     /// <summary>
     /// 現在位置の識別子がマクロなら展開する。
@@ -97,9 +102,73 @@ internal sealed partial class ShaderPreprocessor
             return true;
         }
 
+        // GLSL (glslang) は、使わない仮引数の分も含めて実引数を先に展開し、その中で閉じない関数形式マクロの呼び出しを誤りにする
+        // (「End of input in macro」)。
+        if (_options.GlslRules && FindUnterminatedCall(arguments.Value) is { } unterminated)
+        {
+            Report(ShaderDescriptors.PreprocessorError, nameToken.GetLocation(),
+                $"マクロ '{macro.Name}' の実引数を展開したマクロ '{unterminated}' の呼び出しの括弧が、実引数の中で閉じられていません。");
+            return true;
+        }
+
         ImmutableArray<ShaderSyntaxToken> substituted = SubstituteMacroBody(macro, arguments.Value, nameToken);
         PushExpansionSource(substituted, macro.Name);
         return true;
+    }
+
+    /// <summary>
+    /// 実引数を展開した結果に、マクロの本体から出てきた閉じない関数形式マクロの呼び出し (<c>b (</c> で終わるもの) があれば、そのマクロの名前を返す。
+    /// 実引数にもとから書いてあるマクロの名前は見ない (後ろの括弧を展開で作るものは、glslang も呼び出しとみなさないため)。
+    /// </summary>
+    private string? FindUnterminatedCall(ImmutableArray<ImmutableArray<ShaderSyntaxToken>> arguments)
+    {
+        foreach (ImmutableArray<ShaderSyntaxToken> argument in arguments)
+        {
+            if (!argument.Any(t => t.Kind == ShaderSyntaxKind.IdentifierToken && _macros.ContainsKey(t.Text)))
+            {
+                continue;
+            }
+
+            HashSet<ShaderSyntaxToken> written = new(argument, ReferenceEqualityComparer.Instance);
+            ImmutableArray<ShaderSyntaxToken> expanded = ExpandTokenList(argument, depth: 0);
+
+            // 本体に # を含むマクロは glslang が定義しないことがあるので、見ない。
+            if (expanded.Any(t => t.Kind is ShaderSyntaxKind.HashToken or ShaderSyntaxKind.HashHashToken))
+            {
+                continue;
+            }
+
+            for (int i = 0; i + 1 < expanded.Length; i++)
+            {
+                if (expanded[i].Kind != ShaderSyntaxKind.IdentifierToken || written.Contains(expanded[i])
+                    || !_macros.TryGetValue(expanded[i].Text, out MacroDefinition? callee) || !callee.IsFunctionLike
+                    || expanded[i + 1].Kind != ShaderSyntaxKind.OpenParenToken)
+                {
+                    continue;
+                }
+
+                int depth = 0;
+                bool closed = false;
+
+                for (int j = i + 1; j < expanded.Length && !closed; j++)
+                {
+                    depth += expanded[j].Kind switch
+                    {
+                        ShaderSyntaxKind.OpenParenToken => 1,
+                        ShaderSyntaxKind.CloseParenToken => -1,
+                        _ => 0,
+                    };
+                    closed = depth == 0;
+                }
+
+                if (!closed)
+                {
+                    return callee.Name;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>次に読めるトークンが開き括弧かどうかを判定する。</summary>
@@ -438,6 +507,12 @@ internal sealed partial class ShaderPreprocessor
         ShaderLexer lexer = new(fusedText);
         ImmutableArray<ShaderSyntaxToken> fusedTokens = lexer.Lex(out _);
 
+        // GLSL (glslang) は、名前と演算子の記号にしか ## を使えず、演算子は 1 つの演算子にならなければならない。長さは 1024 文字まで。
+        if (_options.GlslRules && PasteError(left[^1], fused, fusedTokens.Count(t => t.Kind != ShaderSyntaxKind.EndOfFileToken)) is { } error)
+        {
+            Report(ShaderDescriptors.PreprocessorError, callSite.GetLocation(), $"## の連結: {error}");
+        }
+
         foreach (ShaderSyntaxToken token in fusedTokens)
         {
             if (token.Kind != ShaderSyntaxKind.EndOfFileToken)
@@ -451,11 +526,30 @@ internal sealed partial class ShaderPreprocessor
         return result.ToImmutable();
     }
 
+    /// <summary>GLSL の ## の連結の誤り (glslang の tokenPaste)。</summary>
+    private static string? PasteError(ShaderSyntaxToken left, string fused, int fusedCount)
+    {
+        if (left.Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            return fused.Length > 1024 ? "連結した字句が長すぎます (1024 文字まで)。" : null;
+        }
+
+        if (left.Text is not ("=" or "!" or "-" or "~" or "+" or "*" or "/" or "%" or "<" or ">" or "|" or "^" or "&" or ">>" or "<<" or "&&" or "||" or "^^"))
+        {
+            return $"'{left.Text}' には ## を使えません。名前か演算子の記号にだけ使えます。";
+        }
+
+        return fusedCount == 1 ? null : $"連結した '{fused}' は 1 つの演算子になりません。";
+    }
+
     /// <summary>トークン列を文字列リテラルの中身へ変換する。</summary>
     /// <param name="tokens">変換するトークン列。</param>
     /// <returns>文字列化した結果。</returns>
     private static string Stringize(ImmutableArray<ShaderSyntaxToken> tokens)
         => string.Join(" ", tokens.Select(t => t.Text));
+
+    /// <summary>#if / #elif の条件式を展開しているか。</summary>
+    private bool _expandingCondition;
 
     /// <summary>
     /// トークン列をマクロ展開する。
@@ -491,6 +585,15 @@ internal sealed partial class ShaderPreprocessor
                 continue;
             }
 
+            // #if __LINE__ のように、条件式にもコンパイラが定義するマクロを書ける。
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken
+                && !_macros.ContainsKey(token.Text)
+                && CreatePredefinedMacroToken(token) is { } predefined)
+            {
+                result.Add(predefined);
+                continue;
+            }
+
             if (token.Kind != ShaderSyntaxKind.IdentifierToken
                 || !_macros.TryGetValue(token.Text, out MacroDefinition? macro)
                 || IsMacroBeingExpanded(macro.Name))
@@ -506,11 +609,25 @@ internal sealed partial class ShaderPreprocessor
                 _sources.Add(new TokenSource([], IsFile: false, MacroName: macro.Name, IncludePath: null));
                 result.AddRange(ExpandTokenList(macro.Body, depth + 1));
                 _sources.RemoveAt(_sources.Count - 1);
+
+                // GLSL (glslang) は、マクロの展開で出てきた defined を条件式の誤りにする (値は求める)。
+                if (_options.GlslRules && _expandingCondition && result.Count > 0 && result[^1].Kind == ShaderSyntaxKind.IdentifierToken && result[^1].TextIs("defined"))
+                {
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"マクロ '{macro.Name}' の展開で出てきた defined は、条件式に使えません。");
+                }
+
+                i = CopyOperandOfExpandedDefined(tokens, i, result);
                 continue;
             }
 
             if (i + 1 >= tokens.Length || tokens[i + 1].Kind != ShaderSyntaxKind.OpenParenToken)
             {
+                // GLSL (glslang) は、条件式の実引数の無い関数形式マクロを求められない式にする。
+                if (_options.GlslRules && _expandingCondition && depth == 0)
+                {
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"条件式の関数形式マクロ '{macro.Name}' に実引数の括弧がありません。");
+                }
+
                 result.Add(token);
                 continue;
             }
@@ -543,7 +660,7 @@ internal sealed partial class ShaderPreprocessor
             result.AddRange(ExpandTokenList(substituted, depth + 1));
             _sources.RemoveAt(_sources.Count - 1);
 
-            i = index - 1;
+            i = CopyOperandOfExpandedDefined(tokens, index - 1, result);
         }
 
         return result.ToImmutable();
@@ -567,7 +684,38 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken>.Builder result)
     {
         result.Add(tokens[index]);
+        return CopyOperandAfter(tokens, index, result);
+    }
 
+    /// <summary>
+    /// マクロの展開が <c>defined</c> で終わったなら、その後ろの被演算子を展開せずに複写する。
+    /// </summary>
+    /// <param name="tokens">対象のトークン列。</param>
+    /// <param name="index">展開したマクロの呼び出しの最後のトークンの位置。</param>
+    /// <param name="result">複写先。展開の結果を足した後のもの。</param>
+    /// <returns>複写し終えた最後のトークンの位置。</returns>
+    /// <remarks>
+    /// <c>#define DEF defined</c> と <c>#if DEF MAC</c> の <c>MAC</c> は、展開すると <c>defined</c> の被演算子が消える。
+    /// C では未定義の振る舞いだが、clang と glslang はどちらも <c>defined</c> の演算子として読む (glslang は誤りとしても伝える)。
+    /// </remarks>
+    private static int CopyOperandOfExpandedDefined(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        int index,
+        ImmutableArray<ShaderSyntaxToken>.Builder result)
+        => result.Count > 0 && result[^1].Kind == ShaderSyntaxKind.IdentifierToken && result[^1].TextIs("defined")
+            ? CopyOperandAfter(tokens, index, result)
+            : index;
+
+    /// <summary><c>defined</c> の被演算子 (<c>X</c> か <c>( X )</c>) を複写する。</summary>
+    /// <param name="tokens">対象のトークン列。</param>
+    /// <param name="index">被演算子の直前のトークンの位置。</param>
+    /// <param name="result">複写先。</param>
+    /// <returns>複写し終えた最後のトークンの位置。</returns>
+    private static int CopyOperandAfter(
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        int index,
+        ImmutableArray<ShaderSyntaxToken>.Builder result)
+    {
         int next = index + 1;
 
         if (next < tokens.Length && tokens[next].Kind == ShaderSyntaxKind.OpenParenToken)

@@ -52,7 +52,7 @@ unity:
   generated: .shaderlyn/unity
 ```
 
-`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [CLI の使い方「Library と Unity Editor の無いマシンで解析する」](cli-usage.md#library-と-unity-editor-の無いマシンで解析する) を確認してください。
+`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [Unity「Library と Unity Editor の無いマシンで解析する」](environments/unity.md#library-と-unity-editor-の無いマシンで解析する) を確認してください。
 
 ワークフローが作成するキャッシュファイルをコミットしないよう、`.shaderlyn-cache.json` を `.gitignore` に追加します。
 
@@ -81,12 +81,12 @@ jobs:
           restore-keys: |
             shaderlyn-${{ runner.os }}-${{ github.ref }}-
 
-      - uses: OmojiP/shaderlyn/action@v0.3.2
+      - uses: OmojiP/shaderlyn/action@v0.3.3
         with:
           paths: Assets/Shaders
           unity-project: .
           cache: .shaderlyn-cache.json
-          version: v0.3.2
+          version: v0.3.3
           upload-sarif: false
 ```
 
@@ -265,8 +265,8 @@ Unity プロジェクトの `Library/PackageCache` をランナーのマシン�
 
 ### 4-1. トークンを登録する
 
-ツールのリポジトリは private なので、`GITHUB_TOKEN` ではリリースを取得できません。
-そのため、Fine-grained PAT 等を使用してリポジトリへのアクセスを可能にします。
+ツールのリポジトリは private のため、`GITHUB_TOKEN` ではリリースを取得できません。
+Fine-grained PAT など、ツールのリポジトリにアクセスできるトークンを用意します。
 
 1. `Profile > Settings > Developer Settings > Personal access tokens` を開き、ツールリポジトリに `Contents: Read-only` の権限を持つ Fine-grained PAT を作成します。
 2. 作成したトークンを Unity プロジェクトのリポジトリで `Settings > Secrets and variables > Actions > Secrets > New repository secret` から `SHADERLYN_TOKEN` として登録します。

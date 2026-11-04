@@ -19,6 +19,7 @@ public sealed class EnvironmentTemplateTests
     [InlineData("unity")]
     [InlineData("hlsl")]
     [InlineData("unreal")]
+    [InlineData("glsl")]
     public void テンプレートの設定ファイルは問題なく読める(string name)
     {
         ShaderlynConfiguration configuration =
@@ -34,6 +35,7 @@ public sealed class EnvironmentTemplateTests
     [InlineData("unity", new[] { "SL1003", "CF0201", "CF0312" }, "1 ファイルを解析")]
     [InlineData("hlsl", new[] { "CF0301", "CF0312", "HL0345", "CF0312" }, "4 ファイルを解析")]
     [InlineData("unreal", new[] { "UE0001", "CF0312" }, "1 ファイルを解析")]
+    [InlineData("glsl", new[] { "GL0104", "CF0312", "GL0001", "CF0101" }, "4 ファイルを解析")]
     public async Task テンプレートでREADMEに書いた指摘が出る(string name, string[] expected, string summary)
     {
         StringWriter output = new();

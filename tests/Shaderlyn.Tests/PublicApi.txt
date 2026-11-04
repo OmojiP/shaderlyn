@@ -219,7 +219,9 @@ Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.MergedRegion] MergedRegions { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.PragmaDirective] IgnoredPragmas { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.PragmaDirective] Pragmas { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.RecordedDirective] RecordedDirectives { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.SymbolCombination] RequiredSymbolCombinations { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier] UndefinedConditionIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ConditionalIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SkippedRootIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessResult :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SkippedUserHeaderIdentifiers { get; set; }
@@ -256,10 +258,13 @@ Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.CFamily.Preproc
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Syntax.SymbolConstraints SymbolConstraints { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText LeadingText { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: Shaderlyn.Core.Text.SourceText Prelude { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean CommentLineContinuation { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.PreprocessorOptions)
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean GlslRules { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean HoistConditionalMacros { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean HonorPragmaOnce { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean MergeSwitchedIncludes { get; set; }
+Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean RecordUndefinedConditionIdentifiers { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Boolean ReportUnresolvedIncludes { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.Collections.Immutable.ImmutableArray`1[System.Int32]] ValueSymbols { get; set; }
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: System.Collections.Immutable.ImmutableDictionary`2[System.String,System.String] PredefinedMacros { get; set; }
@@ -283,6 +288,18 @@ Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: static System.Int32 Defau
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: virtual System.Int32 GetHashCode()
 Shaderlyn.CFamily.Preprocessing.PreprocessorOptions :: virtual System.String ToString()
+Shaderlyn.CFamily.Preprocessing.RecordedDirective : struct (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.RecordedDirective])
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], System.Int32)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Directive { get; set; }
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.RecordedDirective)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; set; }
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: System.Int32 OutputIndex { get; set; }
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken], out System.Int32)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: static System.Boolean op_Equality(Shaderlyn.CFamily.Preprocessing.RecordedDirective, Shaderlyn.CFamily.Preprocessing.RecordedDirective)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: static System.Boolean op_Inequality(Shaderlyn.CFamily.Preprocessing.RecordedDirective, Shaderlyn.CFamily.Preprocessing.RecordedDirective)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: virtual System.Int32 GetHashCode()
+Shaderlyn.CFamily.Preprocessing.RecordedDirective :: virtual System.String ToString()
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions : abstract class (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions])
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: abstract Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions <Clone>$()
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: abstract System.Boolean IsCompleteUnits(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
@@ -311,6 +328,17 @@ Shaderlyn.CFamily.Preprocessing.SymbolCombination :: virtual System.String ToStr
 Shaderlyn.CFamily.Preprocessing.TokenCache : sealed class
 Shaderlyn.CFamily.Preprocessing.TokenCache :: .ctor()
 Shaderlyn.CFamily.Preprocessing.TokenCache :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] GetOrLex(Shaderlyn.Core.Text.SourceText, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier : struct (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier])
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, System.String)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken Directive { get; set; }
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: System.String Name { get; set; }
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: System.Void Deconstruct(out Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.String)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: static System.Boolean op_Equality(Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier, Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: static System.Boolean op_Inequality(Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier, Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: virtual System.Int32 GetHashCode()
+Shaderlyn.CFamily.Preprocessing.UndefinedConditionIdentifier :: virtual System.String ToString()
 Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
 Shaderlyn.CFamily.Syntax.ArrayTypeExpressionSyntax :: Shaderlyn.CFamily.Syntax.IdentifierExpressionSyntax ElementType { get; }
@@ -357,6 +385,10 @@ Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: Shaderlyn.CFamily.Syntax.Shade
 Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: System.Collections.Frozen.FrozenDictionary`2[System.String,System.String] TypeAliases { get; set; }
 Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Declarations { get; }
 Shaderlyn.CFamily.Syntax.CompilationUnitSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
+Shaderlyn.CFamily.Syntax.ConditionDeclarationExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
+Shaderlyn.CFamily.Syntax.ConditionDeclarationExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax)
+Shaderlyn.CFamily.Syntax.ConditionDeclarationExpressionSyntax :: Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax Declaration { get; }
+Shaderlyn.CFamily.Syntax.ConditionDeclarationExpressionSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.CFamily.Syntax.ConditionalExpressionSyntax :: Shaderlyn.CFamily.Syntax.ExpressionSyntax Condition { get; }
@@ -575,6 +607,7 @@ Shaderlyn.CFamily.Syntax.SemanticSyntax :: System.String Name { get; }
 Shaderlyn.CFamily.Syntax.SemanticSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.ShaderLexer : sealed class
 Shaderlyn.CFamily.Syntax.ShaderLexer :: .ctor(Shaderlyn.Core.Text.SourceText)
+Shaderlyn.CFamily.Syntax.ShaderLexer :: System.Boolean CommentLineContinuation { get; set; }
 Shaderlyn.CFamily.Syntax.ShaderLexer :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Lex(out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic : struct (System.IEquatable`1[Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic])
 Shaderlyn.CFamily.Syntax.ShaderLexer+LexerDiagnostic :: .ctor(Shaderlyn.Core.Text.TextSpan, System.String)
@@ -592,6 +625,7 @@ Shaderlyn.CFamily.Syntax.ShaderLiteral :: static Shaderlyn.CFamily.Syntax.Shader
 Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.Boolean TryGetDouble(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Double)
 Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.Boolean TryGetInt64(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, out System.Int64)
 Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.String GetDigits(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
+Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.String GetSuffix(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.CFamily.Syntax.ShaderLiteral :: static System.String GetTypeName(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
 Shaderlyn.CFamily.Syntax.ShaderLiteralKind : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.CFamily.Syntax.ShaderLiteralKind :: Binary = 5
@@ -631,6 +665,7 @@ Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: BadToken = 0
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: BarBarToken = 38
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: BarEqualsToken = 47
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: BarToken = 41
+Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: CaretCaretToken = 58
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: CaretEqualsToken = 48
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: CaretToken = 42
 Shaderlyn.CFamily.Syntax.ShaderSyntaxKind :: CharacterLiteralToken = 5
@@ -749,6 +784,7 @@ Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String Name { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String NameOverride { get; set; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax : sealed class (Shaderlyn.CFamily.Syntax.StatementSyntax)
 Shaderlyn.CFamily.Syntax.SwitchLabelStatementSyntax :: .ctor(Shaderlyn.CFamily.Syntax.ShaderSyntaxToken, Shaderlyn.CFamily.Syntax.ExpressionSyntax, Shaderlyn.CFamily.Syntax.ShaderSyntaxToken)
@@ -885,6 +921,7 @@ Shaderlyn.Core.Analysis.AnalyzerOptions :: Shaderlyn.Core.Diagnostics.Diagnostic
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Boolean IsEnabled(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Boolean TryGetOption(System.String, System.String, out System.String)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Int32 GetIntOption(System.String, System.String, System.Int32)
+Shaderlyn.Core.Analysis.AnalyzerOptions :: System.Nullable`1[Shaderlyn.Core.Diagnostics.DiagnosticSeverity] GetConfiguredSeverity(System.String)
 Shaderlyn.Core.Analysis.AnalyzerOptions :: TExtension GetExtension<TExtension>()
 Shaderlyn.Core.Analysis.AnalyzerOptions :: static Shaderlyn.Core.Analysis.AnalyzerOptions Default { get; }
 Shaderlyn.Core.Analysis.DiagnosticAnalyzer : abstract class
@@ -1847,6 +1884,7 @@ Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetFixedB
 Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetFixedType(System.String)
 Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: abstract System.String GetWiderBaseName(System.String, System.String)
 Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: protected .ctor()
+Shaderlyn.Semantics.Symbols.ShaderTypeSystem :: virtual System.Boolean IsBuiltInTypeName(System.String)
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Element = 1
 Shaderlyn.Semantics.Symbols.TextureMethodReturnType :: Gathered = 3

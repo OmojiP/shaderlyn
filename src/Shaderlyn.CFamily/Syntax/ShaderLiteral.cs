@@ -49,8 +49,11 @@ public enum ShaderLiteralKind
 /// </remarks>
 public static class ShaderLiteral
 {
-    /// <summary>型を決める接尾辞に使える文字。</summary>
-    private const string SuffixCharacters = "uUlLfFhH";
+    /// <summary>型を決める接尾辞に使える文字。<c>s</c> は GLSL の 16 ビットの整数 (<c>3s</c> / <c>3us</c>)。</summary>
+    private const string SuffixCharacters = "uUlLfFhHsS";
+
+    /// <summary>GLSL の 8 ビットの浮動小数点数の接尾辞 (glslang)。文字ごとには落とせない (<c>e</c> は指数と紛れる) ので、まとめて落とす。</summary>
+    private static readonly string[] Float8Suffixes = ["fe2m1", "fe3m2", "fe2m3", "fue8m0", "fmxint8"];
 
     /// <summary>
     /// リテラルの書き方を求める。
@@ -111,6 +114,18 @@ public static class ShaderLiteral
         ArgumentNullException.ThrowIfNull(token);
 
         return token.Kind == ShaderSyntaxKind.NumericLiteralToken ? Split(token.Text).Digits : string.Empty;
+    }
+
+    /// <summary>
+    /// 型を決める接尾辞を返す。
+    /// </summary>
+    /// <param name="token">対象のトークン。</param>
+    /// <returns>接尾辞。無いか、数値リテラルでない場合は空文字列。</returns>
+    public static string GetSuffix(ShaderSyntaxToken token)
+    {
+        ArgumentNullException.ThrowIfNull(token);
+
+        return token.Kind == ShaderSyntaxKind.NumericLiteralToken ? Split(token.Text).Suffix : string.Empty;
     }
 
     /// <summary>
@@ -334,13 +349,21 @@ public static class ShaderLiteral
         {
             int hexEnd = text.Length;
 
-            // 16 進で接尾辞になりうるのは u と l だけである。
-            while (hexEnd > 2 && text[hexEnd - 1] is 'u' or 'U' or 'l' or 'L')
+            // 16 進で接尾辞になりうるのは u と l と s (GLSL) だけである。
+            while (hexEnd > 2 && text[hexEnd - 1] is 'u' or 'U' or 'l' or 'L' or 's' or 'S')
             {
                 hexEnd--;
             }
 
             return (text[..hexEnd], text[hexEnd..]);
+        }
+
+        foreach (string suffix in Float8Suffixes)
+        {
+            if (text.Length > suffix.Length && text.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return (text[..^suffix.Length], suffix);
+            }
         }
 
         int end = text.Length;

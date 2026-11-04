@@ -2,16 +2,17 @@
 
 `.shaderlyn.yaml` を環境ごとに書いた例と、動作を確かめるためのシェーダーです。
 シェーダーには意図的に誤りを入れてあり、下の表の指摘が出れば正しく動いています。
-どれも Unity や Unreal Engine が無くても解析できます。
+どれも Unity や Unreal Engine、glslang が無くても解析できます。
 
 自分のプロジェクトで使うときは、フォルダーの `.shaderlyn.yaml` を写し、パスと構成の軸を書き換えてください。
-キーの説明は [設定](../../docs/guide/configuration.md)、環境の説明は [Unity 以外の環境で使う](../../docs/guide/environments.md) にあります。
+キーの説明は [設定](../../docs/guide/configuration.md)、環境の説明は [環境ごとの使い方](../../docs/guide/environments.md) にあります。
 
 | フォルダー | 環境 | 中身 |
 | --- | --- | --- |
 | [unity](unity/) | `unity` | `.shader` 1 つ。Unity のヘッダは取り込まない |
 | [hlsl](hlsl/) | `hlsl` (DXC で直接コンパイルする HLSL) | 頂点・ピクセルの 2 つの単位を持つ `.hlsl`、取り込まれる `.hlsli`、シェーダーモデル 6 の書き方を使う `.hlsl`、HLSL 2021 の構文 (`enum class`・ビットフィールド・演算子の多重定義・`template` と明示的な特殊化・`class` と継承) を使う `.hlsl`、DXR のライブラリ (`lib_6_6`) の単位 |
 | [unreal](unreal/) | `unreal` | `.usf` と、エンジンの代わりの小さなフォルダー (`Engine/`)、プラグインの仮想パス |
+| [glsl](glsl/) | `glsl` (Vulkan 1.3 向けの GLSL) | 頂点・フラグメント・計算のシェーダーと、`include-paths` から取り込む `.glsl` |
 
 独自エンジンの環境は設定ファイルだけでは選べません (自前の CLI に環境を足す)。
 [ルールの実例集「独自エンジンの環境」](../../docs/custom-rules/cookbook.md#独自エンジンの環境) を見てください。
@@ -24,6 +25,7 @@
 shaderlyn samples/environments/unity
 shaderlyn samples/environments/hlsl
 shaderlyn samples/environments/unreal
+shaderlyn samples/environments/glsl
 
 # 解析はせずに、環境と設定 (構成の軸・コンパイル単位・仮想パス) を表示する
 shaderlyn samples/environments/hlsl --env
@@ -36,6 +38,7 @@ shaderlyn samples/environments/hlsl --env
 | unity | `SL1003` (Color のプロパティを float で受けている)、`CF0201` (`_SHADOWS_SOFTT` の綴り)、`CF0312` (`_SHADOWS_SOFT` のとき float3 に `.w` は無い) |
 | hlsl | `Lit.hlsl`: `CF0301` (entry の `MainPS` が無い。関数は `MainPs`)、`CF0312` (`QUALITY == 2 のとき` float3 に `.a` は無い)。<br>`Hlsl2021.hlsl`: `HL0345` (`MaxOf(1.0, adapt.Scale())` の接尾辞の無い `1.0` と `float` で型引数 `T` が決まらない)、`CF0312` (演算子 `*` の結果の `Rgb` に `.alpha` は無い)。<br>`Blur.hlsl` と `Library/Raytracing.hlsl` には何も出ない (`Raytracing.hlsl` の宣言だけの関数 `SkyColor` は、ライブラリなので誤りにしない) |
 | unreal | `UE0001` (情報。エンジンが生成するファイル `/Engine/Generated/GeneratedUniformBuffers.ush` が無い。`--unreal-generate` で作れる)、`CF0312` (`PERMUTATION_HIGH_QUALITY == 1 のとき`)。`View.PreExposure` は報告されない |
+| glsl | `lit.vert`: `GL0104` (Vulkan 向けでは出力の `vNormal` に `layout(location = …)` が要る)。<br>`lit.frag`: `CF0312` (`USE_FOG` を定義したときの分岐で、vec3 に `.w` は無い)。<br>`average.comp`: `GL0001` (`subgroupAdd` には `GL_KHR_shader_subgroup_arithmetic` が要る)。<br>`include/lighting.glsl`: `CF0101` (情報。取り込まれる断片なので、単体では宣言が無いことを根拠にする検査をしない) |
 
 ## VS Code 拡張で確かめる
 
@@ -46,4 +49,5 @@ shaderlyn samples/environments/hlsl --env
 - エディタの右上の「条件のシンボルを選ぶ」で構成を選ぶと、効いていない `#if` の範囲が薄くなる。
   hlsl では `QUALITY = 0 / 1 / 2` のように値を選ぶ。unreal では `PERMUTATION_SAMPLES = 2` を選ぶと `#if PERMUTATION_SAMPLES > 1` の中が濃くなる
 - hlsl の `Hlsl2021.hlsl` で `MaxOf(1.0, adapt.Scale())` を `MaxOf(1.0f, adapt.Scale())` か `MaxOf<float>(1.0, adapt.Scale())` に直すと、HL0345 が消える
-- hlsl / unreal では、`#pragma` の補完と説明は出ない (Unity の書き方なので)
+- glsl の `lit.vert` の `out vec3 vNormal;` を `layout(location = 1) out vec3 vNormal;` に直すと、GL0104 が消える。`.shaderlyn.yaml` の `glsl: target` を消しても消える (どちら向けか決めないので)
+- hlsl / unreal / glsl では、`#pragma` の補完と説明は出ない (Unity の書き方なので)

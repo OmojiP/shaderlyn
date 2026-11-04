@@ -27,6 +27,13 @@ public abstract class ShaderTypeSystem
     /// <returns>分類。知らない名前は <see cref="ShaderTypeClass.Unknown"/>。</returns>
     public abstract ShaderTypeClass Classify(string? typeName);
 
+    /// <summary>
+    /// 言語の組み込みの型の名前かを判定する。<see cref="Classify"/> が分類しない型 (GLSL の <c>accelerationStructureEXT</c>、<c>coopmat</c> など) も含む。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>組み込みの型なら <see langword="true"/>。既定は <see cref="Classify"/> が分類するものだけ。</returns>
+    public virtual bool IsBuiltInTypeName(string? name) => Classify(name) != ShaderTypeClass.Unknown;
+
     /// <summary>数値の型の名前を、形 (要素の型・行・列) に分ける。</summary>
     /// <param name="typeName">型の名前。</param>
     /// <param name="shape">形。</param>

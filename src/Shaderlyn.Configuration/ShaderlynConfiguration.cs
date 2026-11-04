@@ -127,6 +127,31 @@ internal sealed record ShaderlynConfiguration
     /// <summary>16 ビットの型を使うか (<c>hlsl: enable-16bit-types</c>、DXC の <c>-enable-16bit-types</c>)。指定が無い場合は <see langword="null"/>。</summary>
     public bool? HlslEnable16BitTypes { get; init; }
 
+    /// <summary>
+    /// GLSL をどこ向けにコンパイルするか (<c>glsl: target</c>、glslang の <c>--target-env</c>)。
+    /// <c>vulkan</c> (バージョンを決めない)、<c>vulkan1.0</c> ～ <c>vulkan1.4</c>、<c>opengl</c>。
+    /// 指定が無い場合は <see langword="null"/> で、どちらにしかない書き方も誤りにしない。
+    /// </summary>
+    public string? GlslTarget { get; init; }
+
+    /// <summary>
+    /// 作る SPIR-V のバージョン (<c>glsl: spirv</c>。<c>1.0</c> ～ <c>1.6</c>)。指定が無い場合は <see langword="null"/> で、<see cref="GlslTarget"/> の Vulkan のバージョンから決める。
+    /// <c>opengl</c> に付けると、OpenGL 向けの SPIR-V (glslang の <c>-G</c>) になる。
+    /// </summary>
+    public string? GlslSpirv { get; init; }
+
+    /// <summary>
+    /// 入力と出力の location を、コンパイラが決めるか (<c>glsl: auto-map-locations</c>。glslang の <c>--auto-map-locations</c>、glslc の <c>-fauto-map-locations</c>)。
+    /// 決めるなら、SPIR-V を作るときに location を書かなくてよい。
+    /// </summary>
+    public bool GlslAutoMapLocations { get; init; }
+
+    /// <summary>
+    /// uniform と buffer の binding を、コンパイラが決めるか (<c>glsl: auto-map-bindings</c>。glslang の <c>--auto-map-bindings</c>、glslc の <c>-fauto-bind-uniforms</c>)。
+    /// 決めるなら、SPIR-V を作るときに binding を書かなくてよい。
+    /// </summary>
+    public bool GlslAutoMapBindings { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

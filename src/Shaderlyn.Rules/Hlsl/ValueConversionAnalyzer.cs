@@ -3,6 +3,7 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl.Parsing;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 using Shaderlyn.Semantics.Programs;
@@ -73,14 +74,21 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         foreach ((DeclarationSyntax declaration, AnalyzedProgram program) in compilation.EnumerateRuleDeclarations())
         {
-            if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
-            {
-                continue;
-            }
-
             if (!structsByProgram.TryGetValue(program, out Dictionary<string, StructDeclarationSyntax>? structs))
             {
                 structs = structsByProgram[program] = CollectStructs(compilation, program);
+            }
+
+            // GLSL の関数の外の変数の初期値 (int a = true; など)。glslang は関数の中と同じく変換を検査する。
+            if (compilation.IsGlsl && declaration is VariableDeclarationSyntax global && compilation.IsReportable(global))
+            {
+                AnalyzeInitializers(context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), global, structs, reported);
+                continue;
+            }
+
+            if (declaration is not FunctionDeclarationSyntax { Body: not null } function)
+            {
+                continue;
             }
 
             AnalyzeReturnPaths(context, compilation, program, function, reported);
@@ -90,7 +98,10 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         foreach (Diagnostic diagnostic in reported.BuildConditional())
         {
-            context.ReportDiagnostic(diagnostic);
+            // GLSL では、値を返さない経路があっても glslang は通す (返す値は不定)。誤りではなく警告にする。設定で重要度を書けば、そちらが勝つ。
+            context.ReportDiagnostic(compilation.IsGlsl && diagnostic.Descriptor == HlslRuleDescriptors.MissingReturn
+                ? diagnostic.WithSeverity(DiagnosticSeverity.Warning)
+                : diagnostic);
         }
     }
 
@@ -174,6 +185,18 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             || function.NameToken.GetLocation() is not { } location
             || ReachesErrorInside(program, body))
         {
+            return;
+        }
+
+        // GLSL で値を返す return が 1 つも無い関数は、glslang が誤りにする (glslang.y の「function does not return a value」)。
+        // 経路によらないので、値を返さない経路 (CF0501。GLSL では警告) としてでなく、戻り値の誤り (CF0411) として伝える。
+        if (compilation.IsGlsl && !body.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any(statement => statement.Expression is not null))
+        {
+            if (reported.Add(location))
+            {
+                Report(context, function.Name, returnType, "値を返す return がありません", location);
+            }
+
             return;
         }
 
@@ -326,8 +349,28 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             string target = $"{declaration.Type.Name} の '{variable.Name}'";
 
             // 波括弧による初期化は、型ではなく要素の個数で見る。
+            // GLSL の空の波括弧 (S s = { };) は、すべてを 0 にする初期化である (GL_EXT_null_initializer)。拡張が要るかは別の検査が見る。
             if (initializer is InitializerListExpressionSyntax list)
             {
+                if (list.Elements.IsEmpty && program.Tree.Language is Shaderlyn.Glsl.GlslLanguageOptions)
+                {
+                    continue;
+                }
+
+                // GLSL は波括弧を平らにしない。行列は列ごと、構造体はメンバーごとに、入れ子の波括弧で書く。
+                if (binder.TypeSystem is GlslTypeSystem glsl
+                    && FindGlslListMismatch(glsl, structs, list, declaration.Type.Name, variable.IsArray ? (variable.ArrayDimensions == 1 && variable.TryGetArrayLength(out int length) ? length : -2) : -1, target, 0) is { } mismatch)
+                {
+                    // glslang は入れ子の誤りも、宣言の波括弧の位置で報告する。
+                    if (list.GetLocation() is { } mismatchLocation && reported.Add(mismatchLocation))
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            HlslRuleDescriptors.InitializerCountMismatch, mismatchLocation, mismatch.What, mismatch.Wrote, mismatch.Need, string.Empty));
+                    }
+
+                    continue;
+                }
+
                 CheckInitializerList(
                     context, compilation, program, binder, list, declaration, variable, structs, target, reported);
                 continue;
@@ -341,6 +384,109 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
             Check(context, conditions, binder, initializer, declaration.Type.Name, target, reported);
         }
+    }
+
+    /// <summary>
+    /// GLSL の波括弧の初期化子の形を、型に合わせて入れ子ごとに数える (glslang の convertInitializerList)。
+    /// </summary>
+    /// <param name="types">GLSL の型の仕組み。</param>
+    /// <param name="structs">このシェーダーが書いた構造体。</param>
+    /// <param name="list">波括弧の初期化子。</param>
+    /// <param name="type">初期化する型の名前。</param>
+    /// <param name="arrayLength">配列の大きさ。配列でなければ -1、大きさが分からなければ -2。</param>
+    /// <param name="what">報告に出す初期化先の呼び名。</param>
+    /// <param name="depth">入れ子の深さ。</param>
+    /// <returns>数が合わない波括弧と、その数。合っているか分からなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 配列は要素の数、行列は列の数 (列ごとに入れ子の波括弧か列のベクトル)、ベクトルは成分の数、構造体はメンバーの数だけ書く。
+    /// 平らにしては数えない (<c>mat2 m = { 1.0, 0.0, 0.0, 1.0 };</c> は誤り)。型が分からないところは見ない。
+    /// </remarks>
+    private static (InitializerListExpressionSyntax List, int Wrote, int Need, string What)? FindGlslListMismatch(
+        GlslTypeSystem types,
+        IReadOnlyDictionary<string, StructDeclarationSyntax> structs,
+        InitializerListExpressionSyntax list,
+        string type,
+        int arrayLength,
+        string what,
+        int depth)
+    {
+        if (depth > 8 || arrayLength == -2)
+        {
+            return null;
+        }
+
+        ExpressionSyntax[] elements = [.. list.Elements.Select(e => e.Node).OfType<ExpressionSyntax>()];
+
+        if (arrayLength >= 0)
+        {
+            if (elements.Length != arrayLength)
+            {
+                return (list, elements.Length, arrayLength, what);
+            }
+
+            return elements.OfType<InitializerListExpressionSyntax>()
+                .Select(element => FindGlslListMismatch(types, structs, element, type, -1, $"{what} の要素", depth + 1))
+                .FirstOrDefault(found => found is not null);
+        }
+
+        if (types.TryDescribeNumeric(type, out ShaderNumericShape shape))
+        {
+            switch (shape.Kind)
+            {
+                // matCxR は C 列 R 行。Rows に列の数、Columns に行の数を持つ。
+                case ShaderNumericKind.Matrix:
+                    if (elements.Length != shape.Rows)
+                    {
+                        return (list, elements.Length, shape.Rows, $"{what} の列");
+                    }
+
+                    foreach (InitializerListExpressionSyntax column in elements.OfType<InitializerListExpressionSyntax>())
+                    {
+                        int wrote = column.Elements.Count(e => e.Node is ExpressionSyntax);
+
+                        if (wrote != shape.Columns)
+                        {
+                            return (column, wrote, shape.Columns, $"{what} の列の成分");
+                        }
+                    }
+
+                    return null;
+
+                case ShaderNumericKind.Vector:
+                    return elements.Length != shape.Rows * shape.Columns ? (list, elements.Length, shape.Rows * shape.Columns, $"{what} の成分") : null;
+
+                default:
+                    return null;
+            }
+        }
+
+        if (!structs.TryGetValue(type, out StructDeclarationSyntax? structure))
+        {
+            return null;
+        }
+
+        (string Type, VariableDeclaratorSyntax Field)[] fields = [.. structure.Fields.SelectMany(f => f.Variables.Select(v => (f.Type.Name, v)))];
+
+        if (elements.Length != fields.Length)
+        {
+            return (list, elements.Length, fields.Length, $"{what} のメンバー");
+        }
+
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (elements[i] is InitializerListExpressionSyntax nested)
+            {
+                VariableDeclaratorSyntax field = fields[i].Field;
+                int length = field.IsArray ? (field.ArrayDimensions == 1 && field.TryGetArrayLength(out int n) ? n : -2) : -1;
+
+                if (FindGlslListMismatch(types, structs, nested, fields[i].Type, length, $"{what} のメンバー '{field.Name}'", depth + 1) is { } found)
+                {
+                    return found;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -775,7 +921,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
+            if (!IsConvertibleAt(binder, valueType, targetType, assignment))
             {
                 reported.AddConditional(
                     binder.Program,
@@ -810,6 +956,16 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 withTreeConfiguration: false);
         }
     }
+
+    /// <summary>
+    /// 暗黙に変換できるか。ES の GL_EXT_shader_implicit_conversions に頼る変換は、その位置で拡張が有効かも見る
+    /// (型の体系はファイルのどこかで有効にした拡張で決まるので、#extension … : disable の後ろの位置をここで確かめる)。
+    /// </summary>
+    private static bool IsConvertibleAt(ExpressionTypeBinder binder, string? valueType, string? targetType, ShaderSyntaxNode at)
+        => binder.TypeSystem.IsConvertible(valueType, targetType)
+           && !(binder.TypeSystem is GlslTypeSystem glsl && glsl.NeedsImplicitConversionsExtension(valueType, targetType)
+                && at.DescendantTokens().FirstOrDefault() is { } token
+                && !new Glsl.GlslExtensionTimeline(binder.Program.Tree).IsOn("GL_EXT_shader_implicit_conversions", token));
 
     /// <summary>値が受け取る側に収まっているかを確かめ、収まらなければ報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -868,7 +1024,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.TypeSystem.IsConvertible(valueType, targetType) || !reported.Add(location))
+        if (IsConvertibleAt(binder, valueType, targetType, value) || !reported.Add(location))
         {
             return;
         }
@@ -923,7 +1079,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            if (!binder.TypeSystem.IsConvertible(valueType, targetType))
+            if (!IsConvertibleAt(binder, valueType, targetType, value))
             {
                 return new ConfigurationFinding(assumption, valueType, Convertible: false);
             }
@@ -1021,7 +1177,7 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (binder.TypeSystem.IsConvertible(valueType, returnType)
+        if (IsConvertibleAt(binder, valueType, returnType, value) && !IsGlslOpaqueMismatch(binder.TypeSystem, valueType, returnType)
             || !reported.Add(location))
         {
             return;
@@ -1029,6 +1185,30 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         Report(context, function.Name, returnType, $"{valueType} を返しています", location);
     }
+
+    /// <summary>
+    /// GLSL で、片方が数でない組み込みの型 (サンプラー・イメージ・<c>atomic_uint</c> など) の、違う型どうしか。
+    /// </summary>
+    /// <param name="types">型の体系。</param>
+    /// <param name="valueType">値の型。</param>
+    /// <param name="targetType">受け取る側の型。</param>
+    /// <returns>違う型どうしなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// glslang の暗黙の変換は数の型どうしだけで、これらの型は同じ型にしか渡せない (<c>handleReturnValue</c> の「type does not match, or is not convertible to」)。
+    /// 型の体系の <see cref="ShaderTypeSystem.IsConvertible(string?, string?, bool)"/> は、数でない型を分からないものとして通す。
+    /// </remarks>
+    private static bool IsGlslOpaqueMismatch(ShaderTypeSystem types, string valueType, string targetType)
+        => types is GlslTypeSystem
+           && !string.Equals(valueType, targetType, StringComparison.Ordinal)
+           && (IsOpaque(valueType) || IsOpaque(targetType));
+
+    /// <summary>GLSL の組み込みの、サンプラー・イメージ・テクスチャ・<c>subpassInput</c>・<c>atomic_uint</c> の型の名前か。</summary>
+    /// <param name="name">型の名前。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsOpaque(string name)
+        => GlslKeywords.IsBuiltInType(name)
+           && (name == "atomic_uint" || name.Contains("sampler", StringComparison.Ordinal) || name.Contains("image", StringComparison.Ordinal)
+               || name.Contains("texture", StringComparison.Ordinal) || name.Contains("subpassInput", StringComparison.Ordinal));
 
     /// <summary>
     /// 型が構成によって変わる <c>return</c> を検査する。

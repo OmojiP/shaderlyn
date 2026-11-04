@@ -228,6 +228,38 @@ public sealed record PreprocessorOptions
     public bool MergeSwitchedIncludes { get; init; }
 
     /// <summary>
+    /// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロを記録するか
+    /// (<see cref="PreprocessResult.UndefinedConditionIdentifiers"/>)。既定は記録しない。
+    /// </summary>
+    /// <remarks>
+    /// GLSL ES では、<c>#if</c> の式に定義されていないマクロを書くと誤りである (glslang の「undefined macro in expression not allowed in es profile」)。
+    /// C と HLSL と、ES でない GLSL では 0 として読む。
+    /// </remarks>
+    public bool RecordUndefinedConditionIdentifiers { get; init; }
+
+    /// <summary>GLSL (glslang の Pp.cpp) の規則で前処理するか。既定は C の規則。</summary>
+    /// <remarks>
+    /// <para>
+    /// <c>#if</c> / <c>#elif</c> の式を、GLSL は <c>int</c> (32 ビット) で計算する。C は <c>intmax_t</c> (64 ビット) である。
+    /// <c>#if (-2147483648 / -1) != 0</c> は C では真、GLSL では偽である (glslang は INT_MIN / -1 を 0 にする)。
+    /// </para>
+    /// <para>
+    /// 評価できなかった式は、誤りを伝えたうえで通る分岐とする (<c>CPPif</c> は誤りのとき読み飛ばさない)。C の規則では通らない分岐とする。
+    /// </para>
+    /// <para>
+    /// 行の頭の <c>##</c> も指令の始まりとして読み、誤りにする (glslang の字句解析は <c>#</c> を 1 つずつ読む)。C では <c>##</c> の演算子である。
+    /// <c>#define</c> と <c>#undef</c> は、名前と一緒に <see cref="PreprocessResult.RecordedDirectives"/> に覚える (GLSL の予約された名前の検査に使う)。
+    /// </para>
+    /// </remarks>
+    public bool GlslRules { get; init; }
+
+    /// <summary>
+    /// 行末に <c>\</c> を書いた <c>//</c> のコメントを、次の行へ続けるか。既定は続ける。
+    /// </summary>
+    /// <remarks>行の継続の無い GLSL のバージョンでは、コメントは行の終わりで終わる (<see cref="ShaderLexer.CommentLineContinuation"/>)。</remarks>
+    public bool CommentLineContinuation { get; init; } = true;
+
+    /// <summary>
     /// 並べてよい領域の位置。<see langword="null"/> なら展開しながら決める。
     /// </summary>
     /// <remarks>
@@ -417,7 +449,7 @@ public sealed record PreprocessorOptions
     /// ("syntax error: unexpected token 'line'")。DXC はそのまま受け付ける。
     /// </para>
     /// <para>
-    /// 既定は空で、どれも報告しない。<c>#line</c> は読み飛ばす。
+    /// 既定は空で、どれも報告しない。<c>#line</c> は形だけを検査し、行番号は付け替えない。
     /// </para>
     /// </remarks>
     public ImmutableHashSet<string> UnsupportedDirectives { get; init; } =
@@ -446,6 +478,7 @@ public sealed record PreprocessorOptions
             HashCode hash = default;
 
             hash.Add(MaxIncludeDepth);
+            hash.Add(CommentLineContinuation);
 
             // 単位ごとに取り込みの中身が変わる (Unreal の GeneratedUniformBuffers.ush)。
             // 入れないと、その取り込みを含むヘッダ (Common.ush) の展開結果を、別の単位の中身のまま使い回す。
@@ -553,6 +586,28 @@ public readonly record struct PragmaDirective(
     /// <summary>指令名を除いた引数のトークン。</summary>
     public IEnumerable<ShaderSyntaxToken> Arguments => Tokens.Skip(1);
 }
+
+/// <summary>
+/// 展開の順番を覚えておく指令 (GLSL の <c>#version</c> と <c>#extension</c>)。
+/// </summary>
+/// <param name="Directive">指令の名前のトークン (<c>extension</c> など)。</param>
+/// <param name="Tokens">指令の名前の後ろのトークン。</param>
+/// <param name="OutputIndex">この指令の後に出力したトークンの、出力の中での最初の位置。指令より前に出力したトークンは、これより前にある。</param>
+/// <remarks>
+/// GLSL の <c>#extension</c> は、書いた位置より後ろのコードにだけ効く (glslang)。
+/// 構文木のトークンを出力の中の位置と比べれば、そのトークンの時点で有効な拡張が分かる。
+/// </remarks>
+public readonly record struct RecordedDirective(
+    ShaderSyntaxToken Directive,
+    ImmutableArray<ShaderSyntaxToken> Tokens,
+    int OutputIndex);
+
+/// <summary>
+/// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロ 1 つ。
+/// </summary>
+/// <param name="Directive">指令の名前のトークン (<c>if</c> / <c>elif</c>)。</param>
+/// <param name="Name">マクロの名前。</param>
+public readonly record struct UndefinedConditionIdentifier(ShaderSyntaxToken Directive, string Name);
 
 /// <summary>
 /// 条件付きで出力へ入れたトークンの範囲。
@@ -855,6 +910,18 @@ public readonly record struct PreprocessResult(
     /// </summary>
     /// <remarks>既定値 (<c>default</c>) のままのこともあるので、<c>IsDefaultOrEmpty</c> で確かめること。</remarks>
     public ImmutableArray<PragmaDirective> IgnoredPragmas { get; init; }
+
+    /// <summary>
+    /// 展開の順番を覚えた指令 (GLSL の <c>#version</c> と <c>#extension</c>、どの構成でも到達する <c>#error</c>。
+    /// <see cref="PreprocessorOptions.GlslRules"/> なら <c>#define</c> と <c>#undef</c> も)。読み飛ばした分岐の中のものは無い。
+    /// </summary>
+    public ImmutableArray<RecordedDirective> RecordedDirectives { get; init; } = [];
+
+    /// <summary>
+    /// <c>#if</c> / <c>#elif</c> の式で評価した、定義されていないマクロ。
+    /// <see cref="PreprocessorOptions.RecordUndefinedConditionIdentifiers"/> のときだけ記録する。短絡で評価しない側のものは無い。
+    /// </summary>
+    public ImmutableArray<UndefinedConditionIdentifier> UndefinedConditionIdentifiers { get; init; } = [];
 
     /// <summary>
     /// 到達した、読んでいる <c>#error</c> の位置。並べた分岐の中のものは数えない。

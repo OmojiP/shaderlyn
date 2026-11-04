@@ -455,11 +455,15 @@ public sealed partial class ShaderCompilation
     /// 警告 (<c>#ifdef A || B</c> の CF0003、マクロの定義し直しの CF0004) は、コンパイルも解析も止めない。
     /// これらでブロックの検査を止めると、正しく読めたコードの誤りまで見送ることになる。
     /// 利用者が重要度を変えても、解析が壊れているかどうかは変わらないので、既定の重要度で決める。
+    /// GLSL の予約語 (CF0001 の <see cref="CFamily.ShaderDescriptors.ReservedWord"/>) と、構文木を壊さない構文の誤り
+    /// (<see cref="CFamily.ShaderDescriptors.RecoverableSyntaxError"/>) は止めない。
     /// </remarks>
     public static bool BreaksAnalysis(Diagnostic diagnostic)
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
-        return diagnostic.Descriptor.DefaultSeverity == DiagnosticSeverity.Error;
+        return diagnostic.Descriptor.DefaultSeverity == DiagnosticSeverity.Error
+               && !ReferenceEquals(diagnostic.Descriptor, CFamily.ShaderDescriptors.ReservedWord)
+               && !ReferenceEquals(diagnostic.Descriptor, CFamily.ShaderDescriptors.RecoverableSyntaxError);
     }
 
     /// <summary>
@@ -478,6 +482,94 @@ public sealed partial class ShaderCompilation
     public bool MayLackOverloadsOf(string name)
         => Programs.Any(p => p.Diagnostics.Any(BreaksAnalysis))
            || UnresolvedIncludes.Any(path => Environment.GetFunctionsDeclaredIn(path) is not { } functions || functions.Contains(name));
+
+    /// <summary>
+    /// 呼び出しの位置で、指定した名前の関数の多重定義が見えていないかもしれないかを判定する。
+    /// </summary>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="at">呼び出し。</param>
+    /// <returns>見えていないかもしれないなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <see cref="MayLackOverloadsOf(string)"/> に加えて、GLSL の構文の誤りより前の呼び出しは、見えている宣言で判断する
+    /// (<see cref="IsBeforeFirstBreak"/>)。
+    /// </remarks>
+    internal bool MayLackOverloadsOf(string name, ShaderSyntaxNode at)
+        => MayLackOverloadsOf(name) && !IsBeforeFirstBreak(at);
+
+    /// <summary>
+    /// その位置で、宣言が無いことを根拠にする検査ができるか。
+    /// </summary>
+    /// <param name="node">使っている位置。</param>
+    /// <returns>できるなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <see cref="HasCompleteDependencies"/> に加えて、GLSL の構文の誤りより前の位置ではできる (<see cref="IsBeforeFirstBreak"/>)。
+    /// </remarks>
+    internal bool HasCompleteDependenciesAt(ShaderSyntaxNode node)
+        => HasCompleteDependencies || IsBeforeFirstBreak(node);
+
+    /// <summary>
+    /// 解析を止める誤りがあっても、宣言が無いことを根拠にできる範囲の終わり (解析しているファイルの中の文字位置)。
+    /// GLSL で、解析を止める誤りがどれも解析しているファイルにあり、取り込みをすべて解決できたときの、最初の誤りの位置。
+    /// それ以外は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// GLSL では、関数も変数も型も、使う位置より前に宣言しなければならない (glslang は前から順に読み、まだ宣言していない名前を誤りにする)。
+    /// 構文の誤りより前の位置で使う名前は、その位置より前の宣言しか指せず、その宣言は読めている。
+    /// glslang も、構文の誤りの位置まで読んだところの誤りを報告する。
+    /// </para>
+    /// <para>
+    /// HLSL は、取り込んだヘッダとマクロが宣言を作ることが多く、位置で区切っても宣言が揃っているとは言えないので、区切らない。
+    /// </para>
+    /// </remarks>
+    internal int? FirstBreakOffset
+    {
+        get
+        {
+            if (_firstBreakOffsetKnown)
+            {
+                return _firstBreakOffset;
+            }
+
+            int? offset = null;
+
+            if (IsGlsl && !IsIncludedFragment && UnresolvedIncludes.IsEmpty)
+            {
+                foreach (Diagnostic diagnostic in Programs.SelectMany(p => p.Diagnostics).Where(BreaksAnalysis))
+                {
+                    if (!string.Equals(diagnostic.Location.FilePath, Text.FilePath, StringComparison.Ordinal))
+                    {
+                        offset = null;
+                        break;
+                    }
+
+                    offset = Math.Min(offset ?? int.MaxValue, diagnostic.Location.Span.Start);
+                }
+            }
+
+            _firstBreakOffset = offset;
+            _firstBreakOffsetKnown = true;
+            return offset;
+        }
+    }
+
+    /// <summary><see cref="FirstBreakOffset"/> を求めた結果。</summary>
+    private int? _firstBreakOffset;
+
+    /// <summary><see cref="FirstBreakOffset"/> を求めたか。</summary>
+    private bool _firstBreakOffsetKnown;
+
+    /// <summary>
+    /// 解析しているファイルの中で、解析を止める最初の誤りより前にある位置か (<see cref="FirstBreakOffset"/>)。
+    /// </summary>
+    /// <param name="node">位置。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    /// <remarks>マクロを展開してできたトークンは、展開した位置の範囲を持つ。展開した位置で比べる。</remarks>
+    internal bool IsBeforeFirstBreak(ShaderSyntaxNode node)
+        => FirstBreakOffset is { } end
+           && node.FirstToken is { } first
+           && ReferenceEquals(first.Source, Text)
+           && node.Span.End <= end;
 
     /// <summary>
     /// 名前から uniform を引く。
@@ -1314,9 +1406,9 @@ public sealed partial class ShaderCompilation
                     outside.Add(name.Text);
                     break;
 
-                case InterfaceBlockDeclarationSyntax block:
-                    names.Add(block.Name);
-                    outside.Add(block.Name);
+                // GLSL のインスタンスの名前が無いブロック (uniform Block { … };)。メンバーは中の変数の宣言として数える。
+                // ブロックの名前は型でも変数でもないので、式には書けない (glslang は「undeclared identifier」にする)。
+                case InterfaceBlockDeclarationSyntax:
                     break;
 
                 // enum の型の名前と、スコープの無い列挙子 (enum Mode { A } の A)。enum class の列挙子は Mode::A とだけ書くので足さない。

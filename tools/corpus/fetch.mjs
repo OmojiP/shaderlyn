@@ -65,6 +65,37 @@ const corpora = [
     ],
   },
   {
+    // glslang の試験。誤りになるものも含み、glslang の出力 (Test/baseResults) が正解として付いている。
+    // tools/oracles/compare-glsl.mjs の --baseline で比べる。どのファイルをどの意味 (Vulkan / OpenGL) でコンパイルしたかは gtests にある。
+    // 誤りを含むので GlslCorpusTests では読まない。
+    name: "glslang",
+    url: "https://github.com/KhronosGroup/glslang.git",
+    commit: "e1b562a8bed273a02f30b59b66a5d499793cede5",
+    license: "BSD-3-Clause ほか (glslang の LICENSE.txt)",
+    languages: ["glsl"],
+    patterns: ["/Test/*", "/gtests/*.FromFile.cpp", "/LICENSE.txt"],
+  },
+  {
+    // OpenGL 3.0〜4.6 と GLSL ES の、機能ごとの例。glslang が誤りにするもの (ドライバーは通す拡張の使い方など) を含む。
+    name: "ogl-samples",
+    url: "https://github.com/g-truc/ogl-samples.git",
+    commit: "38cada7a9458864265e25415ae61586d500ff5fc",
+    license: "MIT",
+    languages: ["glsl"],
+    patterns: ["/data/**/*.vert", "/data/**/*.frag", "/data/**/*.geom", "/data/**/*.tesc", "/data/**/*.tese", "/data/**/*.comp",
+      "/data/**/*.mesh", "/data/**/*.task", "/data/**/*.glsl", "/LICENSE.md"],
+  },
+  {
+    // デスクトップの OpenGL 3.3 のシェーダー。拡張子が .vs / .fs / .gs なので、compare-glsl.mjs の --stage-map で読む。
+    // 取ってきて手元で読むだけにする (CC BY-NC 4.0)。
+    name: "LearnOpenGL",
+    url: "https://github.com/JoeyDeVries/LearnOpenGL.git",
+    commit: "a545a703f95893258d16dbe32f5ccbb6400fd213",
+    license: "CC BY-NC 4.0",
+    languages: ["glsl"],
+    patterns: ["/src/**/*.vs", "/src/**/*.fs", "/src/**/*.gs", "/LICENSE.md"],
+  },
+  {
     // res:// の根を決めるため、project.godot も取る。
     name: "godot-demo-projects",
     url: "https://github.com/godotengine/godot-demo-projects.git",

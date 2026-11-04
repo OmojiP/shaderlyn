@@ -45,6 +45,15 @@ public sealed class ShaderLexer
     }
 
     /// <summary>
+    /// 行末に <c>\</c> を書いた <c>//</c> のコメントを、次の行へ続けるか。既定は続ける (C と HLSL)。
+    /// </summary>
+    /// <remarks>
+    /// 行の継続の無い GLSL (ES の 3.00 より前と、デスクトップの 4.20 より前。glslang の lineContinuationCheck) では、
+    /// コメントは行の終わりで終わる。
+    /// </remarks>
+    public bool CommentLineContinuation { get; init; } = true;
+
+    /// <summary>
     /// 字句解析の過程で検出した問題。
     /// </summary>
     /// <param name="Span">問題のある範囲。</param>
@@ -209,7 +218,7 @@ public sealed class ShaderLexer
                 break;
             }
 
-            if (_text[_position] == '\\' && IsLineBreakAt(SkipHorizontalWhitespaceFrom(_position + 1)))
+            if (CommentLineContinuation && _text[_position] == '\\' && IsLineBreakAt(SkipHorizontalWhitespaceFrom(_position + 1)))
             {
                 _position = SkipHorizontalWhitespaceFrom(_position + 1);
                 ConsumeLineBreak();
@@ -331,6 +340,7 @@ public sealed class ShaderLexer
             ('>', '=') => ShaderSyntaxKind.GreaterThanEqualsToken,
             ('&', '&') => ShaderSyntaxKind.AmpersandAmpersandToken,
             ('|', '|') => ShaderSyntaxKind.BarBarToken,
+            ('^', '^') => ShaderSyntaxKind.CaretCaretToken,
             ('&', '=') => ShaderSyntaxKind.AmpersandEqualsToken,
             ('|', '=') => ShaderSyntaxKind.BarEqualsToken,
             ('^', '=') => ShaderSyntaxKind.CaretEqualsToken,
@@ -531,10 +541,45 @@ public sealed class ShaderLexer
         return ShaderSyntaxKind.NumericLiteralToken;
     }
 
+    /// <summary>
+    /// 8 ビットの浮動小数点数のリテラルの接尾辞の、<c>f</c> の後ろ (glslang の <c>1.0fe2m1</c> など)。
+    /// </summary>
+    private static readonly string[] Float8SuffixTails = ["e2m1", "e3m2", "e2m3", "ue8m0", "mxint8"];
+
     /// <summary>数値リテラルの型接尾辞を読み飛ばす。</summary>
+    /// <remarks>
+    /// <para>
+    /// HLSL の接尾辞 (<c>f</c> <c>h</c> <c>u</c> <c>l</c> の並び) に加えて、GLSL の接尾辞も 1 つのトークンにする。
+    /// 16 ビットの整数の <c>s</c> / <c>us</c> (GL_EXT_shader_explicit_arithmetic_types) と、
+    /// 8 ビットの浮動小数点数の <c>fe2m1</c> などである。分けて読むと、数値と識別子が並んだ構文エラーになる。
+    /// </para>
+    /// <para>
+    /// その言語で書ける接尾辞かは、構文解析が判定する (HLSL の <c>3s</c> は誤り)。
+    /// </para>
+    /// </remarks>
     private void ConsumeNumericSuffix()
     {
+        // fue8m0 の u を、ほかの接尾辞の文字として先に読まないよう、8 ビットの浮動小数点数の接尾辞を先に試す。
+        if (_position < _text.Length && _text[_position] == 'f')
+        {
+            foreach (string tail in Float8SuffixTails)
+            {
+                if (_position + 1 + tail.Length <= _text.Length
+                    && string.CompareOrdinal(_text.ToString(new TextSpan(_position + 1, tail.Length)), tail) == 0
+                    && !IsIdentifierPart(Peek(1 + tail.Length)))
+                {
+                    _position += 1 + tail.Length;
+                    return;
+                }
+            }
+        }
+
         while (_position < _text.Length && _text[_position] is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L')
+        {
+            _position++;
+        }
+
+        if (_position < _text.Length && _text[_position] is 's' or 'S' && !IsIdentifierPart(Peek(1)))
         {
             _position++;
         }

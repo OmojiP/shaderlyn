@@ -364,7 +364,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | --------------------------------- | -------------------------------------------------------------------- |
 | `FunctionDeclarationSyntax`       | 関数。`Name` / `ReturnType` / `Parameters` / `Body` / `IsDefinition`。演算子の多重定義 (HLSL 2021) は `IsOperator` が真で、`Name` が `operator+` のようになる。明示的な特殊化の型引数は `SpecializationTokens` |
 | `VariableDeclarationSyntax`       | 変数・uniform。`Type` / `Variables`                                  |
-| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseType` / `BaseTypeName`。HLSL 2021 の `class` / `interface` もこの形 (`Keyword` で区別)。明示的な特殊化の型引数は `SpecializationTokens` |
+| `StructDeclarationSyntax`         | 構造体。`Name` / `Members` / `Fields`。継承 (HLSL 2021 の `struct D : B`) は `BaseType` / `BaseTypeName`。HLSL 2021 の `class` / `interface` もこの形 (`Keyword` で区別)。明示的な特殊化の型引数は `SpecializationTokens`。GLSL のインスタンスの名前を持つインターフェースブロックの `Name` は、修飾子と合わせた名前 (`in block`。`NameOverride`) |
 | `ConstantBufferDeclarationSyntax` | `cbuffer`。`CBUFFER_START` の展開結果もこの形                        |
 | `NamespaceDeclarationSyntax`      | `namespace X { ... }`                                                |
 | `EnumDeclarationSyntax`           | `enum` / `enum class` (HLSL 2021)。`Name` / `IsScoped` / `Members` (`EnumMemberSyntax`。`Name` / `Value`) |
@@ -391,6 +391,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `ParenthesizedExpressionSyntax`   | `( a )`                            |
 | `InitializerListExpressionSyntax` | `{ 1, 2 }`                         |
 | `ArrayTypeExpressionSyntax`       | 配列の型を名前として書いた式 (GLSL の配列のコンストラクタ `float[](0.1, 0.2)` の呼び出し先)。`ElementType` / `ArrayRanks`。HLSL の木には現れない |
+| `ConditionDeclarationExpressionSyntax` | `while` と `for` の条件に書いた変数の宣言 (GLSL の `while (bool b = x < 45)`)。`Declaration`。HLSL の木には現れない |
 | `IncompleteExpressionSyntax`      | 式として解析しきれなかったトークン |
 
 `StatementSyntax` の派生:
@@ -512,7 +513,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `Text`               | 対象ファイルのソーステキスト                  |
 | `Root`               | 構文木の根。パースに至らなかった場合は `null` |
 | `FilePath`           | 対象ファイルのパス                            |
-| `GetModel<TModel>()` | 添えられたモデル。無ければ `null`             |
+| `GetModel<TModel>()` | 対応するモデル。見つからない場合は `null`      |
 
 ### `ShaderCompilation` (`Shaderlyn.Semantics`)
 

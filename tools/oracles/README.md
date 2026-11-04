@@ -1,7 +1,7 @@
 # 照合用の公式コンパイラ
 
-各言語の公式のコンパイラでシェーダーを検査し、Shaderlyn の結果と照らすためのものです。
-道具とコーパスはリポジトリに入れません。道具は各自で入れ、場所を環境変数で渡します。
+各言語の公式コンパイラでシェーダーを検査し、その結果を Shaderlyn と照合します。
+コンパイラとテスト用コーパスはリポジトリに含めません。各自で用意し、必要に応じてコンパイラの場所を環境変数に指定してください。
 
 ## 使い方
 
@@ -10,21 +10,47 @@ node tools/corpus/fetch.mjs --only=glsl,godot,slang,wgsl   # コーパスを .wo
 SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/corpus/SaschaWillems-Vulkan/shaders/glsl --failures
 ```
 
-| 環境変数 | 道具 | 渡さなければ |
+| 環境変数 | コンパイラ | 環境変数が未設定の場合に探す名前 |
 | --- | --- | --- |
-| `SHADERLYN_GLSLANG` | glslang | PATH の `glslang` |
-| `SHADERLYN_SLANGC` | slangc | PATH の `slangc` |
-| `SHADERLYN_NAGA` | naga | PATH の `naga` |
-| `SHADERLYN_GODOT` | Godot (コンソール版の実行ファイル) | PATH の `godot` |
+| `SHADERLYN_GLSLANG` | glslang | PATH から `glslang` を探す |
+| `SHADERLYN_SLANGC` | slangc | PATH から `slangc` を探す |
+| `SHADERLYN_NAGA` | naga | PATH から `naga` を探す |
+| `SHADERLYN_GODOT` | Godot (コンソール版の実行ファイル) | PATH から `godot` を探す |
 
-`check.mjs` は 1 ファイル 1 行で `ok` / `error` / `skip` を出し、最後に件数をまとめます。`--failures` を付けると通らないものだけを出します。
+`check.mjs` はファイルごとに `ok` / `error` / `skip` のいずれかを1行で表示し、最後に状態ごとの件数を集計します。`--failures` を指定すると、`error` のファイルだけを表示します。
 
-| 言語 | 道具 | 何をするか |
+| 言語 | コンパイラ | 検査方法 |
 | --- | --- | --- |
-| `glsl` | glslang | Vulkan の意味で SPIR-V を作る (`-V --target-env vulkan1.3`)。ステージは拡張子で決まる。`.glsl` (取り込まれる側) は検査しない |
-| `slang` | slangc | モジュールとしてコンパイルする。エントリポイントを持たないファイルも意味まで検査できる |
-| `wgsl` | naga | 検証する |
-| `godot` | Godot | 起動して版を出すだけ。シェーダーの検査は GD4 で作る |
+| `glsl` | glslang | Vulkan 1.3 向けに SPIR-V を生成します (`-V --target-env vulkan1.3`)。ステージは拡張子から判断します。ステージの分からない `.glsl` ファイルは検査しません |
+| `slang` | slangc | モジュールとしてコンパイルするため、エントリポイントのないファイルも意味解析できます |
+| `wgsl` | naga | WGSL を検証します |
+| `godot` | Godot | 起動してバージョンを表示します。シェーダーの検査は GD4 で行います |
+
+## GLSL を glslang と行ごとに比べる
+
+`compare-glsl.mjs` は GLSL シェーダーを glslang と Shaderlyn で検査し、指摘の行を比べます。
+Shaderlyn の CLI は Release 構成でビルドして使います。
+
+```sh
+dotnet build src/Shaderlyn.Cli.App -c Release
+```
+
+別の場所にある CLI を使う場合は、`SHADERLYN_CLI` にそのパスを指定します。
+
+```sh
+# glslang の Test を、付いている正解 (baseResults) と比べる (glslang は動かさない)
+node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults --gtests=.work/corpus/glslang/gtests
+# glslang を動かして比べる (OpenGL の意味。Vulkan の意味なら --vulkan)
+SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/ogl-samples/data
+# 拡張子がステージを表さないシェーダー集
+SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/LearnOpenGL/src --stage-map=vs:vert,fs:frag,gs:geom
+```
+
+- **誤報告:** glslang がコンパイルを通すファイルに、Shaderlyn がエラーを出すこと
+- **見落とし:** glslang がエラーを出した行に、Shaderlyn のエラーがないこと。行番号のないエラーは、Shaderlyn がそのファイルにエラーを1つ以上出していれば一致とします
+
+`--details` を指定すると、食い違いを1件ずつ表示します。`--json=<パス>` を指定すると、ファイルごとの結果を JSON で出力します。
+glslang の Test のうち、単一ファイルのコンパイル結果ではないもの (`-E` の出力、複数ファイルをつないだ結果、HLSL として読ませた結果) は比較しません。
 
 ## 記録した道具 (2026-10-17)
 
@@ -39,7 +65,7 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 
 ## コーパスでの結果 (2026-10-17)
 
-`tools/corpus/fetch.mjs` で取った版での結果です。通らないものは、単体では読めない (文脈が要る) ものです。
+`tools/corpus/fetch.mjs` で取得したコーパスでの結果です。通らなかったファイルには、取り込み先やホスト側で用意する情報が必要なものが含まれます。
 
 | 言語 | コーパス | 通った | 通らない | 通らない理由 |
 | --- | --- | --- | --- | --- |

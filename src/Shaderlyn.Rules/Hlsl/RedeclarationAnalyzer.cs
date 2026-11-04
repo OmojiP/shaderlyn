@@ -4,6 +4,8 @@ using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Syntax;
+using Shaderlyn.Glsl;
+using Shaderlyn.Glsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Conditional;
 
@@ -80,12 +82,34 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// 変数なら空。
     /// </param>
     /// <param name="IsLoopVariable"><c>for</c> の初期化で宣言した変数か。</param>
+    /// <param name="IsGlsl">GLSL の宣言か。</param>
+    /// <param name="IsFunction">関数 (プロトタイプを含む) か。</param>
+    /// <param name="SharesFunctionNames">
+    /// 変数と関数が同じ名前の空間にあるか。GLSL の 1.10 以外 (glslang は 1.10 だけ名前の空間を分ける。ShaderLang.cpp の setSeparateNameSpaces)。
+    /// </param>
+    /// <param name="ReportAt">
+    /// 後の宣言として報告するときの位置。省けば <paramref name="Location"/>。
+    /// GLSL のブロックのインスタンスと名前の無いブロックのメンバーは、glslang と同じくブロックの名前の位置で報告する。
+    /// </param>
     private readonly record struct Declared(
         string Name,
         Location Location,
         SymbolCondition Condition,
         string Shape,
-        bool IsLoopVariable = false);
+        bool IsLoopVariable = false,
+        bool IsGlsl = false,
+        bool IsFunction = false,
+        bool SharesFunctionNames = false,
+        Location? ReportAt = null);
+
+    /// <summary>GLSL の関数の宣言だけ (プロトタイプ) の形の頭に付ける印。変数とだけぶつかる。</summary>
+    private const string PrototypePrefix = "<prototype>";
+
+    /// <summary>
+    /// GLSL のブロックの名前の形の頭に付ける印。後ろに記憶域 (uniform など) を付ける。
+    /// ブロックの名前どうしは、記憶域が同じときだけぶつかる (SameName)。
+    /// </summary>
+    private const string BlockPrefix = "<block>";
 
     /// <summary>シンボルを有効にして展開した木 (バリアント) で見つかった宣言。</summary>
     /// <param name="EnabledSymbols">有効にしたシンボル。</param>
@@ -195,11 +219,12 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                             Collect(local.Declaration, KeyOf(open.GetLocation()));
                         }
 
-                        // for の初期化の変数は、囲む波括弧へ漏れる。
+                        // for の初期化の変数は、囲む波括弧へ漏れる (HLSL)。GLSL では漏れない (ループの中だけの範囲)。
                         if (statement is ForStatementSyntax { Initializer: VariableDeclarationSyntax initializer }
+                            && program.Tree.Language is not GlslLanguageOptions
                             && compilation.IsReportable(initializer))
                         {
-                            foreach (Declared declared in Describe(initializer, condition))
+                            foreach (Declared declared in Describe(initializer, condition, glsl: false, sharesFunctionNames: false))
                             {
                                 Add(declared with { IsLoopVariable = true }, KeyOf(open.GetLocation()));
                             }
@@ -223,8 +248,25 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
             void Collect(DeclarationSyntax declaration, (string File, int Start) scope)
             {
-                foreach (Declared declared in Describe(declaration, condition))
+                bool glsl = program.Tree.Language is GlslLanguageOptions;
+                bool sharesFunctionNames = program.Tree.Language is GlslLanguageOptions { Version: { } version } && version != 110;
+
+                // GLSL では、大きさを書かない配列 (float u[][7];) を、後から大きさを書いて宣言し直せる (GLSL 4.60 の 4.1.9 節)。
+                HashSet<string> unsized = glsl && declaration is VariableDeclarationSyntax variable
+                    ? [.. variable.Variables
+                        .Where(v => v.ArrayRankTokens is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..])
+                        .Select(v => v.Name)]
+                    : [];
+
+                foreach (Declared declared in Describe(declaration, condition, glsl, sharesFunctionNames))
                 {
+                    // GLSL の組み込みの宣言し直し (layout(origin_upper_left) in vec4 gl_FragCoord;) は、何度書いても重複ではない。
+                    // 宣言し直せる組み込みかは glslang が別に調べる。
+                    if (glsl && (declared.Name.StartsWith("gl_", StringComparison.Ordinal) || unsized.Contains(declared.Name)))
+                    {
+                        continue;
+                    }
+
                     Add(declared, scope);
                 }
             }
@@ -280,10 +322,14 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <summary>宣言 1 つを、名前と形に分解する。</summary>
     /// <param name="declaration">対象の宣言。</param>
     /// <param name="condition">出現条件の索引。</param>
+    /// <param name="glsl">GLSL の宣言か。</param>
+    /// <param name="sharesFunctionNames">変数と関数が同じ名前の空間にあるか。</param>
     /// <returns>分解した宣言。対象外なら空。</returns>
     private static IEnumerable<Declared> Describe(
         DeclarationSyntax declaration,
-        ConditionMap condition)
+        ConditionMap condition,
+        bool glsl,
+        bool sharesFunctionNames)
     {
         switch (declaration)
         {
@@ -294,7 +340,22 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     function.Name,
                     function.NameToken.GetLocation(),
                     condition.GetCondition(function),
-                    DescribeShape(function));
+                    DescribeShape(function),
+                    IsGlsl: glsl,
+                    IsFunction: true,
+                    SharesFunctionNames: sharesFunctionNames);
+                break;
+
+            // GLSL のプロトタイプは、同じ名前の変数とだけぶつかる (Collides)。
+            case FunctionDeclarationSyntax function when glsl && !function.NameToken.IsMissing:
+                yield return new Declared(
+                    function.Name,
+                    function.NameToken.GetLocation(),
+                    condition.GetCondition(function),
+                    PrototypePrefix + DescribeShape(function),
+                    IsGlsl: glsl,
+                    IsFunction: true,
+                    SharesFunctionNames: sharesFunctionNames);
                 break;
 
             case VariableDeclarationSyntax variable:
@@ -304,7 +365,71 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         declarator.Name,
                         declarator.NameToken.GetLocation(),
                         condition.GetCondition(variable),
-                        string.Empty);
+                        string.Empty,
+                        SharesFunctionNames: sharesFunctionNames);
+                }
+
+                break;
+
+            // GLSL のブロックの名前は、関数の外の名前の空間に入る (glslang の declareBlock)。インスタンスの名前も変数として入る。
+            case StructDeclarationSyntax block
+                when glsl && block.Keyword.Text != "struct" && block.NameToken is { IsMissing: false } blockName:
+                yield return new Declared(
+                    blockName.Text,
+                    blockName.GetLocation(),
+                    condition.GetCondition(block),
+                    BlockPrefix + block.Keyword.Text,
+                    SharesFunctionNames: sharesFunctionNames);
+
+                foreach (VariableDeclaratorSyntax instance in block.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    yield return new Declared(
+                        instance.Name,
+                        instance.NameToken.GetLocation(),
+                        condition.GetCondition(block),
+                        string.Empty,
+                        SharesFunctionNames: sharesFunctionNames,
+                        ReportAt: blockName.GetLocation());
+                }
+
+                break;
+
+            // 名前の無いブロックは、メンバーを関数の外の名前の空間に入れる。
+            case InterfaceBlockDeclarationSyntax block when glsl && !block.NameToken.IsMissing:
+                yield return new Declared(
+                    block.Name,
+                    block.NameToken.GetLocation(),
+                    condition.GetCondition(block),
+                    BlockPrefix + StorageOf(block.Modifiers),
+                    SharesFunctionNames: sharesFunctionNames);
+
+                foreach (VariableDeclarationSyntax member in block.Members.OfType<VariableDeclarationSyntax>())
+                {
+                    foreach (VariableDeclaratorSyntax declarator in member.Variables)
+                    {
+                        yield return new Declared(
+                            declarator.Name,
+                            declarator.NameToken.GetLocation(),
+                            condition.GetCondition(member),
+                            string.Empty,
+                            SharesFunctionNames: sharesFunctionNames,
+                            ReportAt: block.NameToken.GetLocation());
+                    }
+                }
+
+                break;
+
+            // GLSL の構造体の定義と一緒に宣言した変数 (struct { … } e;) も変数の名前の空間に入る。
+            case StructDeclarationSyntax { Keyword.Text: "struct" } inline
+                when glsl && inline.Declarators.Any(d => d.Node is VariableDeclaratorSyntax):
+                if (inline.NameToken is { IsMissing: false } inlineName)
+                {
+                    yield return new Declared(inline.Name, inlineName.GetLocation(), condition.GetCondition(inline), StructShape);
+                }
+
+                foreach (VariableDeclaratorSyntax variable in inline.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    yield return new Declared(variable.Name, variable.NameToken.GetLocation(), condition.GetCondition(inline), string.Empty, SharesFunctionNames: sharesFunctionNames);
                 }
 
                 break;
@@ -324,6 +449,30 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
             default:
                 break;
         }
+    }
+
+    /// <summary>名前の無いブロックの記憶域。<c>layout(…)</c> の外の最後の修飾子。</summary>
+    private static string StorageOf(ImmutableArray<ShaderSyntaxToken> modifiers)
+    {
+        int depth = 0;
+        string storage = string.Empty;
+
+        foreach (ShaderSyntaxToken modifier in modifiers)
+        {
+            depth += modifier.Kind switch
+            {
+                ShaderSyntaxKind.OpenParenToken => 1,
+                ShaderSyntaxKind.CloseParenToken => -1,
+                _ => 0,
+            };
+
+            if (depth == 0 && modifier.Kind != ShaderSyntaxKind.CloseParenToken)
+            {
+                storage = modifier.Text;
+            }
+        }
+
+        return storage;
     }
 
     /// <summary>関数を、多重定義として区別する形で表す。</summary>
@@ -380,7 +529,9 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                if (!reported.Add(KeyOf(later.Location)))
+                Location at = later.ReportAt ?? later.Location;
+
+                if (!reported.Add(KeyOf(at)))
                 {
                     break;
                 }
@@ -389,7 +540,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 context.ReportDiagnostic(Diagnostic.Create(
                     HlslRuleDescriptors.Redeclaration,
-                    later.Location,
+                    at,
                     later.Name,
                     string.Equals(earlier.Location.FilePath, later.Location.FilePath, StringComparison.Ordinal)
                         ? line.ToString(CultureInfo.InvariantCulture)
@@ -398,6 +549,36 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// 2 つの宣言が、同じ名前として重なるか。形が同じなら重なる (GLSL のプロトタイプどうしは除く)。
+    /// GLSL では、関数の外の変数と関数 (プロトタイプを含む) も重なる (glslang の「redefinition」)。
+    /// GLSL のブロックの名前は、記憶域の違うブロックの名前とは重ならず、変数と関数とは重なる。
+    /// </summary>
+    private static bool SameName(Declared earlier, Declared later)
+    {
+        static bool IsVariable(Declared declared) => !declared.IsFunction && declared.Shape != StructShape;
+        static bool IsBlock(Declared declared) => declared.Shape.StartsWith(BlockPrefix, StringComparison.Ordinal);
+
+        if (IsBlock(earlier) || IsBlock(later))
+        {
+            Declared other = IsBlock(earlier) ? later : earlier;
+
+            return IsBlock(other)
+                ? string.Equals(earlier.Shape, later.Shape, StringComparison.Ordinal)
+                : other.IsFunction ? other.SharesFunctionNames : IsVariable(other);
+        }
+
+        if (string.Equals(earlier.Shape, later.Shape, StringComparison.Ordinal))
+        {
+            // 仮引数の無い関数と変数は、どちらも形が空になる。GLSL の 1.10 では、関数と変数の名前の空間が分かれている。
+            return !earlier.Shape.StartsWith(PrototypePrefix, StringComparison.Ordinal)
+                   && (earlier.IsFunction == later.IsFunction || !earlier.IsGlsl || earlier.SharesFunctionNames);
+        }
+
+        return earlier.SharesFunctionNames && later.SharesFunctionNames
+               && (IsVariable(earlier) && later.IsFunction || IsVariable(later) && earlier.IsFunction);
     }
 
     /// <summary>2 つの宣言が同時に存在しうるかを判定する。</summary>
@@ -438,8 +619,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
         List<AnalyzedConfiguration> configurations)
     {
         // 後の宣言が for の初期化なら、前の宣言より優先されるだけで誤りではない (X3078)。
-        if (later.IsLoopVariable
-            || !string.Equals(earlier.Shape, later.Shape, StringComparison.Ordinal))
+        if (later.IsLoopVariable || !SameName(earlier, later))
         {
             return false;
         }

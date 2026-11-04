@@ -54,6 +54,10 @@ internal readonly record struct LocalDeclaration(ResolvedTypeName Type, ShaderSy
 /// 位置を決められない宣言があるのに外側の宣言で型を決めると、別の変数の型で判定することになる。
 /// </para>
 /// <para>
+/// GLSL では、波括弧を書かない <c>if</c> / <c>else</c> / <c>while</c> / <c>do</c> / <c>for</c> の本体は、それだけで 1 つの範囲になる
+/// (glslang.y の <c>statement_scoped</c>)。そこに書いた宣言は、ほかのどの文からも見えないので、名前の解決に加えない。
+/// </para>
+/// <para>
 /// <b>同じ範囲に同じ名前の宣言が複数あれば、使う位置に近い (後に書いた) 宣言を採る。</b>
 /// 条件付きの宣言なら、それが無い構成ではその前の宣言も候補に残す。
 /// </para>
@@ -103,19 +107,39 @@ internal sealed class LocalScopes
     /// <summary><c>for</c> の初期化の変数を、囲む波括弧の範囲へ漏らすか。</summary>
     private readonly bool _loopVariablesLeak;
 
+    /// <summary>宣言の初期値の中で、宣言している名前がもう見えるか。</summary>
+    private readonly bool _ownNameInInitializer;
+
+    /// <summary>波括弧を書かない制御文の本体が、それだけで範囲になるか (GLSL)。</summary>
+    private readonly bool _unbracedBodyIsScope;
+
     /// <summary>関数の中の宣言を集める。</summary>
     /// <param name="function">対象の関数。</param>
     /// <param name="conditions">出現条件の索引。条件付きの宣言が外側を隠すかどうかを決めるのに使う。</param>
     /// <param name="loopVariablesLeak">
     /// <c>for</c> の初期化の変数を、ループの後でも見えるようにするか (FXC と DXC 2021 より前)。
     /// </param>
-    public LocalScopes(FunctionDeclarationSyntax function, ConditionMap conditions, bool loopVariablesLeak = true)
+    /// <param name="ownNameInInitializer">
+    /// 宣言の初期値の中で、宣言している名前がもう見えるか。HLSL (C と同じ) は見え、GLSL は初期値の後から見える
+    /// (GLSL 4.60 の 4.2.2 節。<c>vec4 p = vec4(p, 1.0);</c> の右の <c>p</c> は外側の <c>p</c>)。
+    /// </param>
+    /// <param name="unbracedBodyIsScope">
+    /// 波括弧を書かない制御文の本体が、それだけで範囲になるか。GLSL はなる (<c>if (c) int j = 1;</c> の <c>j</c> は後ろで見えない)。
+    /// </param>
+    public LocalScopes(
+        FunctionDeclarationSyntax function,
+        ConditionMap conditions,
+        bool loopVariablesLeak = true,
+        bool ownNameInInitializer = true,
+        bool unbracedBodyIsScope = false)
     {
         ArgumentNullException.ThrowIfNull(function);
         ArgumentNullException.ThrowIfNull(conditions);
 
         _conditions = conditions;
         _loopVariablesLeak = loopVariablesLeak;
+        _ownNameInInitializer = ownNameInInitializer;
+        _unbracedBodyIsScope = unbracedBodyIsScope;
 
         foreach (ParameterSyntax parameter in function.ParameterList)
         {
@@ -151,6 +175,21 @@ internal sealed class LocalScopes
 
                 case ForStatementSyntax loop when loop.Initializer is VariableDeclarationSyntax initializer:
                     AddDeclaration(loop, -1, initializer, tracked);
+
+                    if (loop.Condition is ConditionDeclarationExpressionSyntax forCondition)
+                    {
+                        AddDeclaration(loop, -1, forCondition.Declaration, tracked);
+                    }
+
+                    break;
+
+                // 条件に書いた宣言 (GLSL の while (bool b = x < 45)) は、ループの中で見える。
+                case ForStatementSyntax { Condition: ConditionDeclarationExpressionSyntax condition } loop:
+                    AddDeclaration(loop, -1, condition.Declaration, tracked);
+                    break;
+
+                case WhileStatementSyntax { Condition: ConditionDeclarationExpressionSyntax condition } loop:
+                    AddDeclaration(loop, -1, condition.Declaration, tracked);
                     break;
 
                 default:
@@ -163,6 +202,13 @@ internal sealed class LocalScopes
         {
             if (tracked.Contains(declaration)
                 || declaration.Ancestors().TakeWhile(a => a is not FunctionDeclarationSyntax).Any(a => a is StructDeclarationSyntax))
+            {
+                continue;
+            }
+
+            // 波括弧を書かない本体の宣言は、それ自身の範囲にしか無い。
+            if (_unbracedBodyIsScope
+                && declaration.Parent is LocalDeclarationStatementSyntax { Parent: not (BlockStatementSyntax or SwitchStatementSyntax) })
             {
                 continue;
             }
@@ -241,7 +287,8 @@ internal sealed class LocalScopes
                 // 使う位置に近い宣言から見る。確実に存在する宣言があれば、それより前と外側の同じ名前は隠れている。
                 IEnumerable<Entry> visible = entries
                     .Where(entry => entry.Statement < position
-                                    || (entry.Statement == position && entry.Declarator <= declarator))
+                                    || (entry.Statement == position
+                                        && (entry.Declarator < declarator || (entry.Declarator == declarator && _ownNameInInitializer))))
                     .OrderByDescending(entry => entry.Statement)
                     .ThenByDescending(entry => entry.Declarator);
 
@@ -359,6 +406,11 @@ internal sealed class LocalScopes
             {
                 AddDeclaration(scope, i, declaration, tracked);
             }
+            else if (statements[i] is LocalDeclarationStatementSyntax { Declaration: StructDeclarationSyntax structure })
+            {
+                // 構造体の宣言と同時に宣言した変数 (struct S { float y[5]; } str;)。
+                AddStructInstances(scope, i, structure);
+            }
             else if (_loopVariablesLeak && statements[i] is ForStatementSyntax { Initializer: VariableDeclarationSyntax initializer })
             {
                 // 初期化の変数は囲む範囲へ漏れる。その for 文より後の文から見える。
@@ -382,6 +434,29 @@ internal sealed class LocalScopes
                     AddLoopNames(scope, i, nestedInitializer);
                 }
             }
+        }
+    }
+
+    /// <summary>関数の中で構造体の宣言と同時に宣言した変数を、その文より後から見えるものとして載せる。</summary>
+    /// <param name="scope">範囲の節。</param>
+    /// <param name="statement">文の番号。</param>
+    /// <param name="structure">構造体の宣言。</param>
+    private void AddStructInstances(SyntaxNode scope, int statement, StructDeclarationSyntax structure)
+    {
+        int index = 0;
+
+        foreach (VariableDeclaratorSyntax variable in structure.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+        {
+            Add(
+                scope,
+                variable.Name,
+                new Entry(
+                    statement,
+                    index++,
+                    new LocalDeclaration(
+                        new ResolvedTypeName(structure.Name, variable.IsArray, null, variable.ArrayDimensions),
+                        variable,
+                        _conditions.GetCondition(structure))));
         }
     }
 

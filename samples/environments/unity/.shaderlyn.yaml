@@ -5,9 +5,13 @@ environment: unity
 
 unity:
   profile: urp            # レンダーパイプライン: urp / brp / hdrp
-  # project: .            # Unity プロジェクトのルート (Assets と ProjectSettings があるフォルダー)。
+  project: .            # Unity プロジェクトのルート (Assets と ProjectSettings があるフォルダー)。
   #                       # 実際のプロジェクトでは指定する。パッケージのヘッダ (Packages/...) の解決に要る
   # editor: C:/Program Files/Unity/Hub/Editor/6000.0.0f1/Editor/Data   # 省略時は自動で推定
+  # generated: .shaderlyn/unity   # --unity-generate で書き出したフォルダー。Library と Unity Editor の無いマシン (CI など) で使う
+  # version: 6.3          # Unity のバージョン。省略すると ProjectSettings/ProjectVersion.txt から読む
+  # graphics-apis: [dx11, dx12]   # dx11 / dx12 / vulkan / metal / gles3 / glcore。省略するとプロジェクトの Windows 向けの設定から読む
+  # shader-compiler-backend: dxc  # Unity 6.6 から: fxc / dxc。省略するとビルドプロファイルから読む
 
 # include-paths:          # #include の追加探索パス (設定ファイルからの相対)
 #   - Assets/ShaderLibrary
@@ -16,3 +20,6 @@ unity:
 
 rules:
   SL1004: none            # 例: 使われていないプロパティの指摘を止める
+
+# report:
+#   min-severity: warning # 出力する指摘の重要度 (info / warning / error)。形式 (text / json / sarif / github) ごとにも書ける

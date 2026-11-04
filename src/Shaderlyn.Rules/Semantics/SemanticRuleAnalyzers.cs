@@ -110,11 +110,14 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// <remarks>
     /// Unity (ファイル全体の木を持つ環境) では、プロパティと uniform の対応検査が主である。
     /// ファイル全体の木を持たない環境 (汎用の HLSL) には対応検査が無いので、「無いこと」を根拠にする検査を挙げる。
+    /// GLSL で最初の構文エラーより前の位置を検査しているなら (ShaderCompilation.FirstBreakOffset)、行っていないのはそれより後ろの位置である。
     /// </remarks>
     private static string DescribeSkipped(ShaderCompilation compilation)
-        => compilation.Source.Root is null
-            ? "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
-            : "プロパティと uniform の対応検査";
+        => compilation.Source.Root is not null ? "プロパティと uniform の対応検査"
+            : compilation.FirstBreakOffset is not null
+              && compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } first
+                ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
+                : "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)";
 
     /// <summary>
     /// 検査を行えなかった理由を短くまとめる。
@@ -165,8 +168,11 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         // 検査を止めるのはエラーだけである (ShaderCompilation.BreaksAnalysis)。警告を原因として示さない。
         if (compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } reported)
         {
-            return "このファイルの HLSL を解析できませんでした。"
-                + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
+            // GLSL は、最初の誤りより前の位置を検査している (ShaderCompilation.FirstBreakOffset)。
+            return compilation.FirstBreakOffset is not null
+                ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Id} を直すと、ファイル全体が検査されるようになります。"
+                : $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
+                  + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
         }
 
         // include 先のヘッダの中の問題は、それ自体は報告していない。
@@ -176,8 +182,14 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
             return "原因を特定できませんでした。";
         }
 
-        return "include したファイルの HLSL を解析できませんでした。"
+        return $"include したファイルの {LanguageOf(compilation)} を解析できませんでした。"
             + $"{Path.GetFileName(first.Location.FilePath)}({first.Location.LineSpan.Start}): "
             + $"{first.Id} {first.GetMessage()}";
     }
+
+    /// <summary>解析しているコードの言語の名前。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <returns><c>GLSL</c> か <c>HLSL</c>。</returns>
+    private static string LanguageOf(ShaderCompilation compilation)
+        => compilation.Environment.Name == Semantics.Environments.GlslEnvironment.EnvironmentName ? "GLSL" : "HLSL";
 }

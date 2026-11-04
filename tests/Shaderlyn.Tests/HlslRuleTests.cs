@@ -96,6 +96,29 @@ public sealed class HlslRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "HL0210");
         Assert.Contains("TEXCOORD0", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("Varyings", diagnostic.GetMessage(), StringComparison.Ordinal);
+
+        // FXC は警告 (X4711) で通す。
+        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+    }
+
+    [Fact]
+    public void DXCでコンパイルするエントリポイントの入出力のセマンティクスの重複はエラーにする()
+    {
+        // DXC は「Semantic 'TEXCOORD' overlap」の検証の誤りでコンパイルを止める。メンバーの構造体も入出力になる。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            "#pragma vertex vert",
+            "#pragma fragment frag",
+            "#pragma use_dxc",
+            "struct Inner { float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD0; };",
+            "struct Varyings { float4 positionCS : SV_POSITION; Inner inner; };",
+            "struct Helper { float2 a : TEXCOORD1; float2 b : TEXCOORD1; };",
+            "Varyings vert(float4 p : POSITION) { Varyings o = (Varyings)0; o.positionCS = p; return o; }",
+            "half4 frag(Varyings i) : SV_Target { Helper h = (Helper)0; return half4(i.inner.uv, h.a); }"));
+
+        Assert.Equal(DiagnosticSeverity.Error, Assert.Single(diagnostics, d => d.Id == "HL0210" && d.GetMessage().Contains("Inner", StringComparison.Ordinal)).Severity);
+
+        // 入出力に使わない構造体は、DXC も何も言わない。
+        Assert.Equal(DiagnosticSeverity.Warning, Assert.Single(diagnostics, d => d.Id == "HL0210" && d.GetMessage().Contains("Helper", StringComparison.Ordinal)).Severity);
     }
 
     [Fact]
@@ -229,7 +252,26 @@ public sealed class HlslRuleTests
         ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
             "half4 frag() : SV_Target { return 0; }"));
 
-        Assert.Single(diagnostics, d => d.Id == "UN0301");
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0301");
+
+        // Unity は警告を出して Pass を外し、SubShader ごと使えなくなる。
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("SubShader ごと使えなくなります", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("#pragma vertex vert", "#pragma fragment")]
+    [InlineData("#pragma fragment frag", "#pragma vertex")]
+    public void 頂点とフラグメントの片方だけの指定を報告する(string pragma, string missing)
+    {
+        // Unity は「Both vertex and fragment programs must be present in a shader snippet.」で Pass を外す。
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Shader(
+            pragma,
+            "float4 vert(float4 p : POSITION) : SV_POSITION { return p; }",
+            "half4 frag() : SV_Target { return 0; }"));
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0301");
+        Assert.StartsWith($"コードブロックに {missing} が存在しません。", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]

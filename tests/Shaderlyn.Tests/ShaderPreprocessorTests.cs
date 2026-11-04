@@ -387,6 +387,39 @@ public sealed class ConditionalCompilationTests
     }
 
     [Fact]
+    public void マクロの展開から出たdefinedも演算子として読む()
+    {
+        // C では未定義の振る舞いだが、clang と glslang は defined の演算子として読む。後ろの MAC は展開しない。
+        Assert.Equal("yes", PreprocessorHarness.TextWithoutDiagnostics("""
+            #define MAC
+            #define DEF defined
+            #if DEF MAC && DEF(MAC)
+            yes
+            #else
+            no
+            #endif
+            """));
+    }
+
+    [Fact]
+    public void GLSLの規則では条件式を32ビットで計算し評価できない式を通る分岐とする()
+    {
+        const string Source = """
+            #if (-2147483648 / -1) != 0 || (0xFFFFFFFF + 1) != 0
+            c
+            #else
+            glsl
+            #endif
+            #if (1
+            glsl
+            #endif
+            """;
+
+        Assert.Equal("c", PreprocessorHarness.Text(Source));
+        Assert.Equal("glsl glsl", PreprocessorHarness.Text(Source, new PreprocessorOptions { GlslRules = true }));
+    }
+
+    [Fact]
     public void ifdefとifndefを扱える()
     {
         Assert.Equal("defined notdefined", PreprocessorHarness.TextWithoutDiagnostics("""
@@ -561,6 +594,61 @@ public sealed class ConditionalCompilationTests
             """);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "CF0002");
+    }
+
+    [Theory]
+    [InlineData("#line 10")]
+    [InlineData("#line 10 \"a.hlsl\"")]
+    [InlineData("#line 10 5")]
+    [InlineData("#define L1 14000\n#define L2 13\n#define E\n#line L1 + L2 (5) E")]
+    public void 正しいlineは報告しない(string directive)
+    {
+        Assert.DoesNotContain(PreprocessorHarness.Run(directive + "\nint x;\n").Diagnostics, d => d.Id == "CF0002");
+    }
+
+    [Theory]
+    [InlineData("#line", "行番号が必要")]
+    [InlineData("#line 10 5 extra", "余分な記述があります: 'extra'")]
+    [InlineData("#line 10 \"a.hlsl\" 5", "余分な記述があります: '5'")]
+    [InlineData("#line 200 % 0", "読めません")]
+    public void lineの誤りを報告する(string directive, string expected)
+    {
+        PreprocessResult result = PreprocessorHarness.Run(directive + "\nint x;\n");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "CF0002" && d.GetMessage().Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 条件式の__LINE__を展開する()
+    {
+        Assert.Equal("yes", PreprocessorHarness.TextWithoutDiagnostics("""
+            #if __LINE__ == 1
+            yes
+            #endif
+            """));
+    }
+
+    [Fact]
+    public void 条件式で評価した定義されていないマクロを記録する()
+    {
+        // && の左が 0、|| の左が 0 でないときの右は評価しないので記録しない。関数形式のマクロの名前は定義されているので記録しない。
+        PreprocessorOptions options = new() { RecordUndefinedConditionIdentifiers = true };
+        PreprocessResult result = PreprocessorHarness.Run("""
+            #define F(x) x
+            #if A
+            #endif
+            #if defined(B) && B
+            #endif
+            #if 1 || C
+            #endif
+            #if 0 || D
+            #endif
+            #if F
+            #endif
+            """, options);
+
+        Assert.Equal(["A", "D"], result.UndefinedConditionIdentifiers.Select(u => u.Name));
+        Assert.Empty(PreprocessorHarness.Run("#if A\n#endif\n").UndefinedConditionIdentifiers);
     }
 
     [Fact]

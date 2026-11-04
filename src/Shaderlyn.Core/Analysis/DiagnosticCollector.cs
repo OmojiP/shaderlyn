@@ -86,7 +86,9 @@ internal sealed class DiagnosticCollector
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
 
-        DiagnosticSeverity severity = _options.GetEffectiveSeverity(diagnostic.Descriptor);
+        // 明示していない診断の重要度は、ルールが言語などで決めた既定 (WithSeverity で差し替えたもの) で、設定が勝つ。
+        DiagnosticSeverity severity = _options.GetConfiguredSeverity(diagnostic.Id)
+            ?? (diagnostic.IsSeverityExplicit ? diagnostic.Descriptor.DefaultSeverity : diagnostic.Severity);
         if (severity == DiagnosticSeverity.None)
         {
             return;

@@ -147,6 +147,32 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // GLSL の配列の length を、括弧を付けずに書いたもの (glslang の「incomplete method syntax」)。
+        if (binder.TypeSystem is GlslTypeSystem && access.Name == "length" && IsGlslArrayValue(binder, access.Target)
+            && access.NameToken.GetLocation() is { } lengthLocation && reported.Add(lengthLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                lengthLocation,
+                "配列",
+                "メンバー 'length' ",
+                "length() と括弧を付けて呼んでください。"));
+            return;
+        }
+
+        // GLSL の配列には、成分もメンバーも無い (glslang の「cannot apply to an array」)。
+        if (binder.TypeSystem is GlslTypeSystem && access.Name != "length" && IsGlslArrayValue(binder, access.Target)
+            && access.NameToken.GetLocation() is { } arrayLocation && reported.Add(arrayLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                arrayLocation,
+                "配列",
+                $"メンバー '{access.Name}' ",
+                "配列には成分もメンバーもありません。要素を [ ] で引いてから選んでください。"));
+            return;
+        }
+
         // 対象の型が分からないなら報告しない。
         // 分からないものを根拠に「メンバーが無い」と言ってはならない。
         // 構成によって型が変わる名前なら、構成ごとに型を求めて検査する。
@@ -163,6 +189,26 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
             AnalyzeStructMember(context, structs, typeName, structure, access, program, reported, reports);
+            return;
+        }
+
+        // GLSL のサンプラー・イメージなどにはメンバーも成分も無い (glslang の「does not apply to this type」)。
+        // 関数の呼び出し (OpenGL の texture2D(…)) は、型の名前と同じでも値を返すので、変数だけを見る。
+        if (binder.TypeSystem is GlslTypeSystem glslTypes
+            && access.Target is IdentifierExpressionSyntax or ElementAccessExpressionSyntax or MemberAccessExpressionSyntax
+            && Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(typeName)
+            && typeName != "void"
+            && !glslTypes.TryDescribeNumeric(typeName, out _)
+            && (typeName.Contains("sampler", StringComparison.Ordinal) || typeName.Contains("image", StringComparison.Ordinal) || typeName.Contains("texture", StringComparison.Ordinal))
+            && access.NameToken.GetLocation() is { } opaqueLocation
+            && reported.Add(opaqueLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                opaqueLocation,
+                typeName,
+                $"メンバー '{access.Name}' ",
+                "サンプラーとイメージには、メンバーも成分もありません。"));
             return;
         }
 
@@ -264,6 +310,28 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         MemberAccessExpressionSyntax access,
         ReportedLocations reported)
     {
+        if (binder.TypeSystem is GlslTypeSystem glsl && access.Name == "length")
+        {
+            AnalyzeGlslLength(context, glsl, binder, access, reported);
+            return;
+        }
+
+        // GLSL のメソッドは length() だけである (glslang の「can't use function syntax on variable」)。変数の名前に付けたものだけを見る。
+        if (binder.TypeSystem is GlslTypeSystem
+            && access.Target is IdentifierExpressionSyntax target
+            && binder.ResolveName(target).Candidates is { IsEmpty: false }
+            && access.NameToken.GetLocation() is { } methodLocation
+            && reported.Add(methodLocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                HlslRuleDescriptors.MemberNotFound,
+                methodLocation,
+                $"'{target.Name}'",
+                $"メソッド '{access.Name}()' ",
+                "GLSL の変数のメソッドは length() だけです。"));
+            return;
+        }
+
         if (access.DotToken.Kind != ShaderSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
@@ -280,6 +348,70 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             $"構造体 '{typeName}'",
             $"メンバー '{access.Name}' ",
             DescribeCandidates(AllMembers(structs, structure, includeMethods: true), "メンバー")));
+    }
+
+    /// <summary>
+    /// GLSL の <c>.length()</c> を、配列でもベクトルでも行列でもない値 (スカラー) に使っているかを検査する。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="types">GLSL の型の仕組み。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="access">呼び出しの対象の参照 (<c>x.length</c>)。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// glslang は「'length' : does not operate on this type」にする (<c>bool b; b.length()</c>、<c>m43[3][1].length()</c>)。
+    /// 対象は名前と、名前に添字を付けたものに限る。名前の候補がどれも配列でなく、添字の数が配列の次元以上で、型がスカラーと分かるときだけ報告する。
+    /// </remarks>
+    private static void AnalyzeGlslLength(
+        SyntaxTreeAnalysisContext context,
+        GlslTypeSystem types,
+        ExpressionTypeBinder binder,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        // length() は実引数を取らない (glslang の「method does not accept any arguments」)。
+        if (access.Parent is InvocationExpressionSyntax invocation && invocation.ArgumentExpressions.Any())
+        {
+            if (access.NameToken.GetLocation() is { } argumentsLocation && reported.Add(argumentsLocation))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.MemberNotFound,
+                    argumentsLocation,
+                    "配列・ベクトル・行列",
+                    "実引数を取る 'length(…)' ",
+                    "length() には実引数を書けません。"));
+            }
+
+            return;
+        }
+
+        int indices = 0;
+        ExpressionSyntax root = access.Target;
+
+        while (root is ElementAccessExpressionSyntax element)
+        {
+            indices++;
+            root = element.Target;
+        }
+
+        if (root is not IdentifierExpressionSyntax identifier
+            || binder.ResolveName(identifier).Candidates is not { IsEmpty: false } candidates
+            || candidates.Any(c => Math.Max(c.Type.ArrayDimensions, c.Type.IsArray ? 1 : 0) > indices)
+            || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
+            || !types.TryDescribeNumeric(typeName, out ShaderNumericShape shape)
+            || shape.Kind != ShaderNumericKind.Scalar
+            || access.NameToken.GetLocation() is not { } location
+            || !reported.Add(location))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            HlslRuleDescriptors.MemberNotFound,
+            location,
+            typeName,
+            "メソッド 'length()' ",
+            "length() は配列・ベクトル・行列にだけ使えます。"));
     }
 
     /// <summary>
@@ -613,6 +745,25 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         return members;
     }
 
+    /// <summary>GLSL の配列そのものの値 (添字を付けきっていない配列の名前) か。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="target">対象の式。</param>
+    /// <returns>どの候補も配列で、添字の数が次元より少なければ <see langword="true"/>。</returns>
+    private static bool IsGlslArrayValue(ExpressionTypeBinder binder, ExpressionSyntax target)
+    {
+        int indices = 0;
+
+        while (target is ElementAccessExpressionSyntax element)
+        {
+            indices++;
+            target = element.Target;
+        }
+
+        return target is IdentifierExpressionSyntax identifier
+               && binder.ResolveName(identifier).Candidates is { IsEmpty: false } candidates
+               && candidates.All(c => Math.Max(c.Type.ArrayDimensions, c.Type.IsArray ? 1 : 0) > indices);
+    }
+
     /// <summary>メソッド呼び出しの対象かどうかを判定する。</summary>
     /// <param name="access">対象の参照。</param>
     /// <returns>メソッド呼び出しであれば <see langword="true"/>。</returns>
@@ -720,6 +871,16 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             else if (member is TemplateDeclarationSyntax { Declaration: FunctionDeclarationSyntax { IsOperator: false } generic })
             {
                 info.Methods.Add(generic.Name);
+            }
+
+            // 中に宣言した構造体とその変数 (GLSL のディスクリプターヒープの中の名前の無いブロック)。
+            else if (member is StructDeclarationSyntax nested)
+            {
+                foreach (VariableDeclaratorSyntax variable in nested.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
+                {
+                    ((HashSet<string>)info.Members).Add(variable.Name);
+                    info.Unconditional.Add(variable.Name);
+                }
             }
         }
 

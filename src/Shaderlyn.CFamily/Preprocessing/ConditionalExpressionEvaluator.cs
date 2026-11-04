@@ -32,8 +32,23 @@ internal static class ConditionalExpressionEvaluator
     /// 解釈できない条件式 1 つでファイル全体の解析を諦めるのは避けたい。
     /// </remarks>
     public static bool Evaluate(ImmutableArray<ShaderSyntaxToken> tokens, out string? error)
+        => Evaluate(tokens, out error, undefinedIdentifiers: null);
+
+    /// <summary>
+    /// 条件式を評価し、評価した側に残った識別子 (定義されていないマクロ) を集める。
+    /// </summary>
+    /// <param name="tokens">評価する式のトークン列。マクロ展開済みであること。</param>
+    /// <param name="error">評価に失敗した場合の説明。</param>
+    /// <param name="undefinedIdentifiers">
+    /// 評価した側に残った識別子を足す先。<see langword="null"/> なら集めない。
+    /// <c>&amp;&amp;</c> の左が 0、<c>||</c> の左が 0 でないと、その後ろは評価しないので集めない
+    /// (glslang の Pp.cpp の <c>eval</c> の shortCircuit。ES の「undefined macro in expression not allowed in es profile」)。
+    /// </param>
+    /// <param name="int32">32 ビットの整数で計算するか (GLSL。<see cref="PreprocessorOptions.GlslRules"/>)。</param>
+    /// <returns>評価結果。失敗した場合は <see langword="false"/> を返す。</returns>
+    public static bool Evaluate(ImmutableArray<ShaderSyntaxToken> tokens, out string? error, List<ShaderSyntaxToken>? undefinedIdentifiers, bool int32 = false)
     {
-        Parser parser = new(tokens);
+        Parser parser = new(tokens) { UndefinedIdentifiers = undefinedIdentifiers, Int32 = int32 };
         long value = parser.ParseExpression();
 
         if (parser.Error is not null)
@@ -53,6 +68,25 @@ internal static class ConditionalExpressionEvaluator
     }
 
     /// <summary>
+    /// 先頭から式を 1 つだけ読んで評価する。後ろに残ったトークンは誤りにしない。
+    /// </summary>
+    /// <param name="tokens">評価する式のトークン列。マクロ展開済みであること。</param>
+    /// <param name="consumed">読んだトークンの数。</param>
+    /// <param name="error">評価に失敗した場合の説明。</param>
+    /// <returns>評価結果。失敗した場合は 0。</returns>
+    /// <remarks>
+    /// <c>#line 行 文字列の番号</c> のように、式を並べて書く指令に使う (glslang の Pp.cpp の <c>CPPline</c> は、式を 1 つずつ <c>eval</c> で読む)。
+    /// </remarks>
+    public static long EvaluatePrefix(ImmutableArray<ShaderSyntaxToken> tokens, out int consumed, out string? error)
+    {
+        Parser parser = new(tokens);
+        long value = parser.ParseExpression();
+        error = parser.Error;
+        consumed = parser.Index;
+        return error is null ? value : 0;
+    }
+
+    /// <summary>
     /// 条件式を再帰下降で解析しながら評価する。
     /// </summary>
     /// <remarks>
@@ -67,8 +101,22 @@ internal static class ConditionalExpressionEvaluator
         /// <summary>解析中に発生した最初のエラー。</summary>
         public string? Error { get; private set; }
 
+        /// <summary>評価した側に残った識別子を足す先。<see langword="null"/> なら集めない。</summary>
+        public List<ShaderSyntaxToken>? UndefinedIdentifiers { get; init; }
+
+        /// <summary>32 ビットの整数で計算するか。値はその範囲に折り返す。</summary>
+        public bool Int32 { get; init; }
+
+        /// <summary>
+        /// 短絡で評価しない部分を読んでいるか。glslang と同じく、いったん入ると、その部分式の残りも評価しないものとして読む。
+        /// </summary>
+        private bool _shortCircuit;
+
         /// <summary>すべてのトークンを読み終えたかどうか。</summary>
         public bool AtEnd => _index >= _tokens.Length;
+
+        /// <summary>次に読むトークンの位置。</summary>
+        public int Index => _index;
 
         /// <summary>現在位置のトークンのテキスト。</summary>
         public string CurrentText => AtEnd ? "<式の終わり>" : _tokens[_index].Text;
@@ -117,6 +165,7 @@ internal static class ConditionalExpressionEvaluator
         /// </remarks>
         private long ParseBinary(int minimumPrecedence)
         {
+            bool outerShortCircuit = _shortCircuit;
             long left = ParseUnary();
 
             while (!AtEnd)
@@ -129,6 +178,13 @@ internal static class ConditionalExpressionEvaluator
 
                 ShaderSyntaxKind operatorKind = CurrentKind;
                 _index++;
+
+                // 左で結果が決まる && と || の右は評価しない。glslang はこの部分式の残りも評価しないものとして読む。
+                if ((operatorKind == ShaderSyntaxKind.AmpersandAmpersandToken && left == 0)
+                    || (operatorKind == ShaderSyntaxKind.BarBarToken && left != 0))
+                {
+                    _shortCircuit = true;
+                }
 
                 // && と || は短絡評価する。
                 // 右辺に 0 除算があっても左辺で結果が決まるなら評価してはならない。
@@ -146,9 +202,10 @@ internal static class ConditionalExpressionEvaluator
                     continue;
                 }
 
-                left = Apply(operatorKind, left, ParseBinary(precedence + 1));
+                left = Wrap(Apply(operatorKind, left, ParseBinary(precedence + 1)));
             }
 
+            _shortCircuit = outerShortCircuit;
             return left;
         }
 
@@ -170,7 +227,7 @@ internal static class ConditionalExpressionEvaluator
 
                 case ShaderSyntaxKind.MinusToken:
                     _index++;
-                    return -ParseUnary();
+                    return Wrap(-ParseUnary());
 
                 case ShaderSyntaxKind.PlusToken:
                     _index++;
@@ -178,7 +235,7 @@ internal static class ConditionalExpressionEvaluator
 
                 case ShaderSyntaxKind.TildeToken:
                     _index++;
-                    return ~ParseUnary();
+                    return Wrap(~ParseUnary());
 
                 case ShaderSyntaxKind.OpenParenToken:
                 {
@@ -200,6 +257,11 @@ internal static class ConditionalExpressionEvaluator
 
                 case ShaderSyntaxKind.IdentifierToken:
                     // マクロ展開後に残った識別子は 0 とみなす (C の規則)。
+                    if (!_shortCircuit)
+                    {
+                        UndefinedIdentifiers?.Add(_tokens[_index]);
+                    }
+
                     _index++;
                     return 0;
 
@@ -228,7 +290,7 @@ internal static class ConditionalExpressionEvaluator
             {
                 if (long.TryParse(digits[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out long hex))
                 {
-                    return hex;
+                    return Wrap(hex);
                 }
 
                 Fail($"16 進数として解釈できません: '{text}'");
@@ -237,12 +299,17 @@ internal static class ConditionalExpressionEvaluator
 
             if (long.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out long value))
             {
-                return value;
+                return Wrap(value);
             }
 
             Fail($"条件式には整数しか書けません: '{text}'");
             return 0;
         }
+
+        /// <summary>32 ビットの整数で計算するなら、値をその範囲に折り返す。</summary>
+        /// <param name="value">値。</param>
+        /// <returns>折り返した値。</returns>
+        private long Wrap(long value) => Int32 ? (int)value : value;
 
         /// <summary>二項演算を適用する。</summary>
         /// <param name="operatorKind">演算子の種別。</param>
@@ -276,7 +343,8 @@ internal static class ConditionalExpressionEvaluator
                         return 0;
                     }
 
-                    return left / right;
+                    // glslang は int の INT_MIN / -1 を 0 にする (Pp.cpp の op_div)。剰余も同じ。
+                    return Int32 && left == int.MinValue && right == -1 ? 0 : left / right;
 
                 case ShaderSyntaxKind.PercentToken:
                     if (right == 0)
@@ -285,7 +353,7 @@ internal static class ConditionalExpressionEvaluator
                         return 0;
                     }
 
-                    return left % right;
+                    return Int32 && left == int.MinValue && right == -1 ? 0 : left % right;
 
                 default:
                     Fail($"条件式に使えない演算子です: '{operatorKind}'");

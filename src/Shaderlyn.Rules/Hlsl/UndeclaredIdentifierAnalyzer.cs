@@ -59,7 +59,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
         // 取り込めなかったヘッダがあるなら、宣言を把握できていない。
-        if (!compilation.HasCompleteDependencies)
+        // GLSL の構文の誤りより前の位置は、そこまでの宣言で判断できる (ShaderCompilation.FirstBreakOffset)。
+        if (!compilation.HasCompleteDependencies && compilation.FirstBreakOffset is null)
         {
             return;
         }
@@ -76,6 +77,14 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 見えている名前を「宣言されていない」と報告していた (HDRP の SubpixelMorphologicalAntialiasing.hlsl)。
         Dictionary<(string File, int Start), Uses> uses = [];
 
+        // GLSL の、使う位置より後ろにしか宣言の無い関数の外の名前。位置ごとに 1 度だけ報告する。
+        Dictionary<(string File, int Start), (Location Location, string Name)> declaredLater = [];
+
+        // GLSL の、どこにも宣言の無い型の名前。
+        Dictionary<(string File, int Start), (Location Location, string Name, string Where)> undeclaredTypes = [];
+        Dictionary<AnalyzedProgram, HashSet<string>> typeNames = [];
+        Dictionary<AnalyzedProgram, Glsl.GlslExtensionTimeline> timelines = [];
+
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
@@ -88,10 +97,42 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // GLSL の宣言の型 (vec5 color;)。組み込みの型でも、どこかで宣言した構造体とブロックの名前でもないものは、glslang が「undeclared identifier」にする。
+            if (compilation.IsGlsl
+                && node is TypeSyntax { Parent: VariableDeclarationSyntax or ParameterSyntax or FunctionDeclarationSyntax } type
+                && (compilation.HasCompleteDependencies || compilation.IsBeforeFirstBreak(type))
+                && compilation.IsReportable(type.NameToken)
+                && (!Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(type.Name) || !IsTypeKeywordHere(timelines, program, type.NameToken))
+                && type.Name is not ("void" or "struct" or "spirv_type")
+                && !type.Name.StartsWith("gl_", StringComparison.Ordinal)
+                && !TypeNamesOf(typeNames, program).Contains(type.Name)
+                && type.NameToken.GetLocation() is { } typeLocation)
+            {
+                undeclaredTypes.TryAdd(
+                    (typeLocation.FilePath, typeLocation.Span.Start),
+                    (typeLocation, type.Name, Shaderlyn.Glsl.Parsing.GlslKeywords.IsBuiltInType(type.Name) ? "このバージョンと拡張では型として" : "どこにも"));
+                continue;
+            }
+
             if (node is IdentifierExpressionSyntax identifier)
             {
                 AnalyzeIdentifier(compilation, program, declared, identifier, qualifiers, uses);
+
+                if (compilation.IsGlsl && FindDeclaredLater(compilation, program, identifier) is { } later)
+                {
+                    declaredLater.TryAdd((later.FilePath, later.Span.Start), (later, identifier.Name));
+                }
             }
+        }
+
+        foreach ((Location location, string name, string where) in undeclaredTypes.Values)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.UndeclaredIdentifier, location, name, where));
+        }
+
+        foreach ((Location location, string name) in declaredLater.Values)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.UndeclaredIdentifier, location, name, "この位置より前に"));
         }
 
         foreach (Uses use in uses.Values)
@@ -105,6 +146,116 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                     missing.IsAlways ? "どこにも" : $" 構成：{missing} のとき"));
             }
         }
+    }
+
+    /// <summary>
+    /// 組み込みの型の名前が、その位置のバージョンと拡張で型のキーワードになるか (glslang の Scan.cpp)。
+    /// <c>sampler2DMS</c> は 1.40 では名前で、型として書けば glslang は構文の誤りにする。予約語の誤りは構文の検査 (CF0001) が伝えるので、ここではキーワードとみなす。
+    /// </summary>
+    /// <param name="cache">木ごとの拡張の振る舞い。</param>
+    /// <param name="program">型を使う木。</param>
+    /// <param name="token">型の名前のトークン。</param>
+    /// <returns>キーワードになるか、バージョンが分からなければ <see langword="true"/>。</returns>
+    private static bool IsTypeKeywordHere(Dictionary<AnalyzedProgram, Glsl.GlslExtensionTimeline> cache, AnalyzedProgram program, ShaderSyntaxToken token)
+    {
+        if (program.Tree.Language is not Shaderlyn.Glsl.GlslLanguageOptions { Version: { } version } language)
+        {
+            return true;
+        }
+
+        if (!cache.TryGetValue(program, out Glsl.GlslExtensionTimeline? timeline))
+        {
+            timeline = cache[program] = new Glsl.GlslExtensionTimeline(program.Tree);
+        }
+
+        Shaderlyn.Glsl.Parsing.GlslWord word = new Shaderlyn.Glsl.Parsing.GlslWordRules(
+            version, language.Profile == Shaderlyn.Glsl.GlslProfile.Es, language.Stage, language.Vulkan, extension => timeline.IsOn(extension, token)).Classify(token.Text);
+
+        return word.Kind == Shaderlyn.Glsl.Parsing.GlslWordKind.Keyword || word.IsReservedError;
+    }
+
+    /// <summary>GLSL の木で宣言した型の名前 (構造体、ブロック、buffer_reference の前方宣言の名前)。取り込んだヘッダも含む。</summary>
+    /// <param name="cache">木ごとに求めた結果。</param>
+    /// <param name="program">型を使う木。</param>
+    /// <returns>名前の集まり。</returns>
+    private static HashSet<string> TypeNamesOf(Dictionary<AnalyzedProgram, HashSet<string>> cache, AnalyzedProgram program)
+    {
+        if (!cache.TryGetValue(program, out HashSet<string>? names))
+        {
+            names = cache[program] = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
+            {
+                switch (node)
+                {
+                    case StructDeclarationSyntax { NameToken: { } name }:
+                        names.Add(name.Text);
+                        break;
+
+                    case InterfaceBlockDeclarationSyntax block:
+                        names.Add(block.Name);
+                        break;
+
+                    case IncompleteDeclarationSyntax incomplete:
+                        names.UnionWith(incomplete.Tokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// GLSL で、関数の外の名前を、その宣言より前で使っているかを調べる。
+    /// </summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">識別子がある木。</param>
+    /// <param name="identifier">検査する識別子。</param>
+    /// <returns>そうなら識別子の位置。そうでなければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// GLSL では、関数の外の変数も、使う位置より前に宣言しなければならない (glslang は前から順に読み、まだ宣言していない名前を
+    /// 「undeclared identifier」にする)。名前の解決は位置を見ずに関数の外の宣言を引くので、ここで位置を比べる。
+    /// </para>
+    /// <para>
+    /// 名前が関数の外の宣言 (変数、ブロックのメンバー、ブロックのインスタンス) を指し、その候補がどれも、同じファイルの使う位置より後ろにあるときだけ報告する。
+    /// 別のファイル (取り込んだヘッダ) にある宣言は、前後を比べられないので見ない。
+    /// </para>
+    /// </remarks>
+    private static Location? FindDeclaredLater(ShaderCompilation compilation, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
+    {
+        // 組み込みの変数 (gl_ClipDistance など) は、後ろで宣言し直していても、その前から使える。
+        if (identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier)
+            || identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
+            || !compilation.IsReportable(identifier)
+            || !compilation.HasCompleteDependenciesAt(identifier)
+            || identifier.GetLocation() is not { } location)
+        {
+            return null;
+        }
+
+        NameResolution resolution = compilation.GetExpressionTypeBinder(program).ResolveName(identifier);
+
+        if (resolution.Kind != DeclaredNameKind.Global || resolution.Candidates.IsEmpty)
+        {
+            return null;
+        }
+
+        foreach (DeclaredName candidate in resolution.Candidates)
+        {
+            if (candidate.Declarator.FirstToken is not { } first
+                || !ReferenceEquals(first.Source, identifier.Identifier.Source)
+                || first.Span.Start < identifier.Identifier.Span.Start)
+            {
+                return null;
+            }
+        }
+
+        return location;
     }
 
     /// <summary>
@@ -140,15 +291,20 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         // 組み込みは、その木の言語のバージョンとステージで使えるものだけを見る (GLSL の gl_FragCoord は頂点シェーダーに無い)。
         ShaderTypeSystem types = compilation.TypeSystem.ForTree(program.Tree);
 
+        // GLSL の、この構成に無い組み込みの関数の呼び出しと変数は、GL0001 / GL0002 が伝える (GlslBuiltinCallAnalyzer、GlslBuiltinRequirementAnalyzer)。
         if (types.IsKnownFunction(identifier.Name, program.Tree)
+            || (invoked && types is GlslTypeSystem glsl && glsl.IsUnavailableBuiltinFunction(identifier.Name))
+            || (!invoked && types is GlslTypeSystem glslVariables && glslVariables.IsUnavailableBuiltinVariable(identifier.Name))
             || types.IsKnownConstant(identifier.Name)
-            || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name))
-            || types.Classify(identifier.Name) != ShaderTypeClass.Unknown
+            // GLSL (glslang) は、括弧を付けずに残った関数形式マクロの名前も宣言されていない名前にする。
+            || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name) && !compilation.IsGlsl)
+            || types.IsBuiltInTypeName(identifier.Name)
             || IsBuiltInTemplateConstruction(identifier)
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
             || !compilation.IsReportable(identifier)
+            || !compilation.HasCompleteDependenciesAt(identifier)
             || identifier.GetLocation() is not { } location
             || qualifiers.Contains((location.FilePath, location.Span.Start)))
         {
@@ -392,7 +548,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         /// 表に名前があることだけで「宣言されている」とすると、<c>!_B</c> の構成で使っている箇所を見落とす。
         /// </para>
         /// <para>
-        /// 関数形式マクロは、括弧を付けずに名前だけを書けば展開されない。それは定義されていても残る。
+        /// 関数形式マクロは、括弧を付けずに名前だけを書けば展開されない。それは定義されていても残る (GLSL では glslang と同じく宣言されていない名前にする)。
         /// </para>
         /// </remarks>
         public bool Contains(string name, AnalyzedProgram program, bool invoked)
@@ -401,7 +557,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                    && !_compilation.LocalOnlyDeclaredNames.Contains(name))
                || (program.Tree.PreprocessResult.Macros.TryGetValue(name, out MacroDefinition? macro)
                    && macro.IsFunctionLike
-                   && !invoked)
+                   && !invoked
+                   && !_compilation.IsGlsl)
                || Own(program).Contains(name);
 
         /// <summary>
@@ -476,8 +633,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                         declared.Add(bufferName.Text);
                         break;
 
-                    case InterfaceBlockDeclarationSyntax block:
-                        declared.Add(block.Name);
+                    // GLSL のインスタンスの名前が無いブロックの名前は、型でも変数でもないので式には書けない。メンバーは中の変数の宣言として足す。
+                    case InterfaceBlockDeclarationSyntax:
                         break;
 
                     case EnumDeclarationSyntax enumeration:

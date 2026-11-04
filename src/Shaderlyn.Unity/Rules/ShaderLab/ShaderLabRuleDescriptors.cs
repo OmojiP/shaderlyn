@@ -117,7 +117,7 @@ internal static class ShaderLabRuleDescriptors
         title: "プロパティ名がアンダースコア '_' で始まっていません",
         messageFormat: "プロパティ名 '{0}' はアンダースコアで始めてください ('_{0}')。",
         category: NamingCategory,
-        defaultSeverity: DiagnosticSeverity.Warning,
+        defaultSeverity: DiagnosticSeverity.Info,
         description: "Unity のシェーダープロパティはアンダースコア始まりにするのが慣習です。"
             + "これに従わないと、HLSL 側の組み込み変数や関数名と衝突する危険があり、"
             + "またプロジェクト内で機械的にプロパティを探す仕組みからも漏れます。",

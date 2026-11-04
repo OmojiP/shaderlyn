@@ -114,4 +114,8 @@ public enum ShaderSyntaxKind
 
     /// <summary><c>/*</c> から <c>*/</c> までのコメント。</summary>
     MultiLineCommentTrivia,
+
+    /// <summary><c>^^</c>。GLSL の論理の排他的論理和。</summary>
+    /// <remarks>後から足したので最後に置く (値を変えると、作った自作ルールが別の種別を読む)。</remarks>
+    CaretCaretToken,
 }

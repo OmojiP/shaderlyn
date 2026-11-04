@@ -30,9 +30,13 @@ internal sealed class GlslAnalysisEnvironment(ShaderlynConfiguration configurati
         ".mesh", ".task", ".rgen", ".rint", ".rahit", ".rchit", ".rmiss", ".rcall", ".glsl",
     ];
 
-    private readonly GlslEnvironment _environment = new(new GlslEnvironmentOptions
+    private readonly GlslEnvironment _environment = new(GlslEnvironmentOptions.FromConfiguration(
+        (configuration ?? throw new ArgumentNullException(nameof(configuration))).GlslTarget,
+        configuration.GlslSpirv,
+        HlslAnalysisEnvironment.BuildVariants(configuration, null)) with
     {
-        Variants = HlslAnalysisEnvironment.BuildVariants(configuration ?? throw new ArgumentNullException(nameof(configuration)), null),
+        AutoMapLocations = configuration.GlslAutoMapLocations,
+        AutoMapBindings = configuration.GlslAutoMapBindings,
     });
 
     /// <inheritdoc/>

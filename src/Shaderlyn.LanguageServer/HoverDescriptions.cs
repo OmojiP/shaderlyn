@@ -198,7 +198,7 @@ internal static partial class HoverBuilder
         ShaderTypeSystem types = binder.TypeSystem;
         string name = identifier.Name;
 
-        if (types.Classify(name) != ShaderTypeClass.Unknown)
+        if (types.IsBuiltInTypeName(name))
         {
             HoverResult type = DescribeType(types, name, identifier.Span);
             return type with { Markdown = type.Markdown + "\n\nこの位置ではコンストラクタとして使われている。" };

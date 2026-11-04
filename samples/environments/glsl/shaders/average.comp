@@ -1,0 +1,17 @@
+#version 450
+#extension GL_KHR_shader_subgroup_basic : enable
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) buffer Data
+{
+    float values[];
+};
+
+void main()
+{
+    // subgroupAdd は GL_KHR_shader_subgroup_arithmetic の関数。basic だけでは使えない
+    float sum = subgroupAdd(values[gl_GlobalInvocationID.x]);
+    if (subgroupElect())
+        values[gl_GlobalInvocationID.x] = sum / float(gl_SubgroupSize);
+}

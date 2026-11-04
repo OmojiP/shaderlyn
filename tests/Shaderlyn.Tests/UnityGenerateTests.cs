@@ -162,6 +162,35 @@ public sealed class UnityGenerateTests : IDisposable
     }
 
     /// <summary>
+    /// <c>--unity-project</c> (<c>unity: project</c>) を指定しなくても、書き出したもののパッケージと Editor のヘッダを読む。
+    /// プロジェクトの指定はプロジェクトのファイル (<c>Assets/...</c>) の解決に要るが、書き出したものを読む条件ではない。
+    /// </summary>
+    [Fact]
+    public async Task 書き出したものをプロジェクトの指定無しで読む()
+    {
+        Assert.Equal(ExitCode.Success, (await GenerateAsync("--yes")).Code);
+
+        string ci = Path.Combine(_root, "CI");
+        CopyDirectory(Path.Combine(Project, "Assets"), Path.Combine(ci, "Assets"));
+        CopyDirectory(Output, Path.Combine(ci, ".shaderlyn", "unity"));
+        File.WriteAllText(Path.Combine(ci, ".shaderlyn.yaml"), "version: 1\nunity:\n  generated: .shaderlyn/unity\n");
+
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync(
+            [Path.Combine(ci, "Assets", "Toon.shader"), "--config", Path.Combine(ci, ".shaderlyn.yaml")],
+            BuiltInAnalyzers.All,
+            output,
+            error);
+
+        string text = output + error.ToString();
+        Assert.DoesNotContain("TOOL0004", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0021", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0101", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(".shaderlyn", output.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 書き出した後に、Unity のバージョン・packages-lock.json・Library/PackageCache のパッケージが変わったら、解析を始めるときに伝える。
     /// 変わっていなければ何も言わない。
     /// </summary>

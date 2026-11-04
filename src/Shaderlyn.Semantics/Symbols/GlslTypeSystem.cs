@@ -19,16 +19,11 @@ namespace Shaderlyn.Semantics.Symbols;
 /// </para>
 /// <para>
 /// <b>暗黙の変換は HLSL よりずっと狭い。</b> 成分の数が違えば変換できない (切り捨ても、スカラーの複製も無い)。
-/// 要素の型の変換は、言語のバージョンで変わる (GLSL 4.60 の 4.1.10 節、GLSL ES 3.20 の 4.1.10 節)。
+/// 要素の型の変換は、言語のバージョンと、有効にした拡張で変わる (<see cref="GlslConversions"/>。glslang と同じ)。
+/// ES の 3.10 より前と、デスクトップの 1.10 には暗黙の変換が無い。
 /// </para>
-/// <list type="bullet">
-///   <item><description>ES と、デスクトップの 1.10: 暗黙の変換は無い</description></item>
-///   <item><description>デスクトップの 1.20 から 3.30: <c>int</c> と <c>uint</c> から <c>float</c></description></item>
-///   <item><description>デスクトップの 4.00 以降: <c>int</c> から <c>uint</c>、<c>int</c> と <c>uint</c> から <c>float</c>、<c>int</c> と <c>uint</c> と <c>float</c> から <c>double</c></description></item>
-/// </list>
 /// <para>
-/// バージョンが分からない木 (取り込まれる断片) は、4.00 以降として読む (いちばん多くの変換を通す)。
-/// 明示的な幅の算術型の変換は、拡張で決まる規則がまだ無いので、同じ型でなければ通す。
+/// バージョンが分からない木 (取り込まれる断片) は、4.60 ですべての拡張を有効にしたものとして読む (いちばん多くの変換を通す)。
 /// </para>
 /// <para>
 /// 組み込みの関数と変数は、glslang から作った表 (<see cref="GlslBuiltins"/>) を、木のバージョン・プロファイル・ステージで絞って引く。
@@ -36,19 +31,6 @@ namespace Shaderlyn.Semantics.Symbols;
 /// </remarks>
 internal sealed class GlslTypeSystem : ShaderTypeSystem
 {
-    /// <summary>暗黙の変換の範囲。</summary>
-    private enum ConversionLevel
-    {
-        /// <summary>暗黙の変換は無い (ES、デスクトップの 1.10)。</summary>
-        None,
-
-        /// <summary>整数から <c>float</c> (デスクトップの 1.20 から 3.30)。</summary>
-        IntegerToFloat,
-
-        /// <summary>4.00 以降の変換 (<c>int</c> → <c>uint</c> → <c>float</c> → <c>double</c>)。</summary>
-        Full,
-    }
-
     /// <summary>スカラーの型の名前。値は、同じ型の別の名前 (<c>float32_t</c> は <c>float</c>) を揃えた名前。</summary>
     private static readonly FrozenDictionary<string, string> Scalars = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -68,6 +50,16 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["float16_t"] = "float16_t",
         ["float32_t"] = "float",
         ["float64_t"] = "double",
+
+        // bfloat16 (GL_EXT_bfloat16) と 8 ビットの浮動小数点数 (GL_EXT_float_e5m2 / GL_EXT_float_e4m3 など)
+        ["bfloat16_t"] = "bfloat16_t",
+        ["floate5m2_t"] = "floate5m2_t",
+        ["floate4m3_t"] = "floate4m3_t",
+        ["floate2m1_t"] = "floate2m1_t",
+        ["floate3m2_t"] = "floate3m2_t",
+        ["floate2m3_t"] = "floate2m3_t",
+        ["floatue8m0_t"] = "floatue8m0_t",
+        ["floatmxint8_t"] = "floatmxint8_t",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>ベクトルの名前の接頭辞 (<c>ivec3</c> の <c>i</c>) から要素の型。</summary>
@@ -89,6 +81,14 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["f16"] = "float16_t",
         ["f32"] = "float",
         ["f64"] = "double",
+        ["bf16"] = "bfloat16_t",
+        ["fe5m2"] = "floate5m2_t",
+        ["fe4m3"] = "floate4m3_t",
+        ["fe2m1"] = "floate2m1_t",
+        ["fe3m2"] = "floate3m2_t",
+        ["fe2m3"] = "floate2m3_t",
+        ["fue8m0"] = "floatue8m0_t",
+        ["fmxint8"] = "floatmxint8_t",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>行列の名前の接頭辞 (<c>dmat3</c> の <c>d</c>) から要素の型。</summary>
@@ -116,6 +116,14 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["int64_t"] = "i64",
         ["uint64_t"] = "u64",
         ["float16_t"] = "f16",
+        ["bfloat16_t"] = "bf16",
+        ["floate5m2_t"] = "fe5m2",
+        ["floate4m3_t"] = "fe4m3",
+        ["floate2m1_t"] = "fe2m1",
+        ["floate3m2_t"] = "fe3m2",
+        ["floate2m3_t"] = "fe2m3",
+        ["floatue8m0_t"] = "fue8m0",
+        ["floatmxint8_t"] = "fmxint8",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>要素の型から、行列の名前の接頭辞。</summary>
@@ -124,15 +132,6 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["float"] = "",
         ["double"] = "d",
         ["float16_t"] = "f16",
-    }.ToFrozenDictionary(StringComparer.Ordinal);
-
-    /// <summary>4.00 以降の変換の順位。低いほうから高いほうへ変換できる (<c>bool</c> は変換できない)。</summary>
-    private static readonly FrozenDictionary<string, int> Ranks = new Dictionary<string, int>(StringComparer.Ordinal)
-    {
-        ["int"] = 1,
-        ["uint"] = 2,
-        ["float"] = 3,
-        ["double"] = 4,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>サンプラー・テクスチャ・イメージの次元 (<c>sampler2DArray</c> の <c>2DArray</c>) から分類。</summary>
@@ -155,31 +154,28 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
         ["ExternalOES"] = ShaderTypeClass.Texture2D,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    /// <summary>バージョン・プロファイル・ステージごとの型システム。</summary>
-    private static readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage), GlslTypeSystem> ByConfiguration = new();
+    /// <summary>バージョン・プロファイル・ステージ・数値の機能ごとの型システム。</summary>
+    private static readonly ConcurrentDictionary<(int? Version, GlslProfile Profile, GlslShaderStage? Stage, GlslNumericFeatures Features, bool? Vulkan, bool OpenGlSpirv), GlslTypeSystem> ByConfiguration = new();
 
     /// <summary>組み込みの表で、どの型にも合う仮引数と、実引数と同じ型の戻り値を表す名前 (<c>nonuniformEXT</c>)。</summary>
     private const string AnyType = "*";
 
-    private readonly ConversionLevel _level;
+    private readonly GlslNumericFeatures _features;
     private readonly int? _version;
     private readonly GlslProfile _profile;
     private readonly GlslShaderStage? _stage;
+    private readonly bool? _vulkan;
+    private readonly bool _openGlSpirv;
     private GlslBuiltinView? _builtins;
 
-    private GlslTypeSystem(int? version, GlslProfile profile, GlslShaderStage? stage)
+    private GlslTypeSystem(int? version, GlslProfile profile, GlslShaderStage? stage, GlslNumericFeatures features, bool? vulkan, bool openGlSpirv)
     {
         _version = version;
         _profile = profile;
         _stage = stage;
-        _level = version switch
-        {
-            null => ConversionLevel.Full,
-            _ when profile == GlslProfile.Es => ConversionLevel.None,
-            < 120 => ConversionLevel.None,
-            < 400 => ConversionLevel.IntegerToFloat,
-            _ => ConversionLevel.Full,
-        };
+        _vulkan = vulkan;
+        _openGlSpirv = openGlSpirv;
+        _features = version is null ? GlslNumericFeatures.All : features;
     }
 
     /// <summary>言語のバージョンもステージも分からないときの型システム (4.00 以降の変換、すべての組み込み)。</summary>
@@ -189,18 +185,99 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <param name="version">バージョン。分からなければ <see langword="null"/>。</param>
     /// <param name="profile">プロファイル。</param>
     /// <param name="stage">ステージ。分からなければ <see langword="null"/>。</param>
+    /// <param name="features">有効にした拡張で決まる数値の機能。</param>
+    /// <param name="vulkan">Vulkan 向けか。分からなければ <see langword="null"/> (組み込みは Vulkan と OpenGL を合わせる)。</param>
+    /// <param name="openGlSpirv">OpenGL 向けの SPIR-V を作るか (glslang の <c>-G</c>)。</param>
     /// <returns>型システム。</returns>
-    public static GlslTypeSystem For(int? version, GlslProfile profile, GlslShaderStage? stage = null)
-        => ByConfiguration.GetOrAdd((version, profile, stage), static key => new GlslTypeSystem(key.Version, key.Profile, key.Stage));
+    public static GlslTypeSystem For(
+        int? version,
+        GlslProfile profile,
+        GlslShaderStage? stage = null,
+        GlslNumericFeatures features = GlslNumericFeatures.None,
+        bool? vulkan = null,
+        bool openGlSpirv = false)
+        => ByConfiguration.GetOrAdd(
+            (version, profile, stage, features, vulkan, openGlSpirv),
+            static key => new GlslTypeSystem(key.Version, key.Profile, key.Stage, key.Features, key.Vulkan, key.OpenGlSpirv));
 
     /// <summary>この構成で使える組み込みの関数と変数。表は初めて使うときに読む。</summary>
-    internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage);
+    internal GlslBuiltinView Builtins => _builtins ??= GlslBuiltins.Instance.For(_version, _profile, _stage, _vulkan, _openGlSpirv);
+
+    /// <summary>
+    /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み関数の名前か (1.20 の trunc、テッセレーションの評価シェーダーの barrier など)。
+    /// 表にこの構成が無い (どの組み込み関数も無い) ときは <see langword="false"/>。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>この構成に無い組み込み関数なら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinFunction(string name)
+        => GlslBuiltins.Instance.Functions.ContainsKey(name)
+           && Builtins.GetFunctions(name).IsEmpty
+           && !Builtins.FunctionNames.IsEmpty;
+
+    /// <summary>
+    /// 別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込みのブロックのメンバーか (ES の <c>gl_in[i].gl_ClipDistance</c> など)。
+    /// </summary>
+    /// <param name="block">ブロックの変数の名前 (<c>gl_in</c>)。</param>
+    /// <param name="member">メンバーの名前。</param>
+    /// <returns>この構成に無いメンバーなら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinMember(string block, string member)
+        => GlslBuiltins.Instance.Members.ContainsKey(GlslBuiltins.MemberKey(block, member))
+           && Builtins.GetMember(block, member) is null
+           && !Builtins.VariableNames.IsEmpty;
+
+    /// <summary>別のバージョン・プロファイル・ステージにはあるが、この構成には無い組み込み変数の名前か (ES の gl_ClipDistance など)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>この構成に無い組み込み変数なら <see langword="true"/>。</returns>
+    internal bool IsUnavailableBuiltinVariable(string name)
+        => GlslBuiltins.Instance.Variables.ContainsKey(name)
+           && Builtins.GetVariables(name).IsEmpty
+           && !Builtins.VariableNames.IsEmpty;
+
+    /// <summary>
+    /// 同じバージョンとプロファイルの、別のステージにある組み込み関数の名前か。
+    /// ステージは、そのバージョンで書けるもの (頂点とフラグメント、ジオメトリは 1.50・ES の 3.10、テッセレーションは 4.00・ES の 3.10、
+    /// コンピュートは 4.30・ES の 3.10) だけを見る。表には、そのバージョンで書けないステージの構成 (1.20 のコンピュートなど) もある。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <returns>別のステージにあるなら <see langword="true"/>。</returns>
+    internal bool IsBuiltinFunctionOfOtherStage(string name) => IsOfOtherStage(view => !view.GetFunctions(name).IsEmpty);
+
+    /// <summary>同じバージョンとプロファイルの、別のステージにある組み込み変数の名前か (<see cref="IsBuiltinFunctionOfOtherStage"/> と同じステージを見る)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>別のステージにあるなら <see langword="true"/>。</returns>
+    internal bool IsBuiltinVariableOfOtherStage(string name) => IsOfOtherStage(view => !view.GetVariables(name).IsEmpty);
+
+    /// <summary>そのバージョンで書ける、別のステージの組み込みに当てはまるものがあるか。</summary>
+    private bool IsOfOtherStage(Func<GlslBuiltinView, bool> has)
+    {
+        if (_stage is null || _version is not { } version)
+        {
+            return false;
+        }
+
+        bool es = _profile == GlslProfile.Es;
+        (GlslShaderStage Stage, int Desktop, int Es)[] stages =
+        [
+            (GlslShaderStage.Vertex, 0, 0),
+            (GlslShaderStage.Fragment, 0, 0),
+            (GlslShaderStage.Geometry, 150, 310),
+            (GlslShaderStage.TessellationControl, 400, 310),
+            (GlslShaderStage.TessellationEvaluation, 400, 310),
+            (GlslShaderStage.Compute, 430, 310),
+        ];
+
+        return stages.Any(s => s.Stage != _stage
+                               && version >= (es ? s.Es : s.Desktop)
+                               && has(GlslBuiltins.Instance.For(_version, _profile, s.Stage, _vulkan, _openGlSpirv)));
+    }
 
     /// <inheritdoc/>
     internal override ShaderTypeSystem ForTree(ShaderSyntaxTree tree)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        return tree.Language is GlslLanguageOptions language ? For(language.Version, language.Profile, language.Stage) : this;
+        return tree.Language is GlslLanguageOptions language
+            ? For(language.Version, language.Profile, language.Stage, language.NumericFeatures, language.Vulkan, language.IsOpenGlSpirv)
+            : this;
     }
 
     /// <inheritdoc/>
@@ -261,6 +338,10 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
 
         return ShaderTypeClass.Unknown;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>構文解析の型の表 (glslang 16.6.0 の文法の型) と同じ。</remarks>
+    public override bool IsBuiltInTypeName(string? name) => name is not null && Glsl.Parsing.GlslKeywords.IsBuiltInType(name);
 
     /// <inheritdoc/>
     public override bool TryDescribeNumeric(string? typeName, out ShaderNumericShape shape)
@@ -396,74 +477,193 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
     /// <remarks>GLSL は成分を減らす変換を誤りにする (<see cref="IsConvertible(string?, string?, bool)"/> が通さない)。</remarks>
     public override bool IsTruncating(string? valueType, string? targetType) => false;
 
+    /// <summary>
+    /// ES で、その暗黙の変換が GL_EXT_shader_implicit_conversions に頼っているか。拡張を有効にした位置と無効にした位置で、変換できるかが変わる
+    /// (型の体系はファイルのどこかで有効にした拡張で決めるので、無効にした後ろの位置は使う側が確かめる)。
+    /// </summary>
+    /// <param name="valueType">値の型。</param>
+    /// <param name="targetType">変換先の型。</param>
+    /// <returns>拡張が無ければ変換できないなら <see langword="true"/>。</returns>
+    internal bool NeedsImplicitConversionsExtension(string? valueType, string? targetType)
+        => _profile == GlslProfile.Es && _features.HasFlag(GlslNumericFeatures.ImplicitConversions)
+           && TryDescribeNumeric(valueType, out ShaderNumericShape value) && TryDescribeNumeric(targetType, out ShaderNumericShape target)
+           && value.Kind == target.Kind && value.Rows == target.Rows && value.Columns == target.Columns
+           && !string.Equals(value.BaseName, target.BaseName, StringComparison.Ordinal)
+           && !GlslConversions.CanImplicitlyPromote(value.BaseName, target.BaseName, _version ?? 460, es: true, _features & ~GlslNumericFeatures.ImplicitConversions);
+
     /// <summary>要素の型を、別の要素の型へ暗黙に変換できるかを判定する。</summary>
     /// <param name="from">値の要素の型。</param>
     /// <param name="to">変換先の要素の型。</param>
-    /// <returns>変換できるか、明示的な幅の算術型が絡んで分からなければ <see langword="true"/>。</returns>
-    private bool IsBaseConvertible(string from, string to)
+    /// <returns>変換できれば <see langword="true"/>。</returns>
+    internal bool IsBaseConvertible(string from, string to)
+        => GlslConversions.CanImplicitlyPromote(from, to, _version ?? 460, _version is not null && _profile == GlslProfile.Es, _features);
+
+    /// <summary>
+    /// 利用者の関数の呼び出しを、多重定義からどう選ぶか (glslang 16.6.0 の ParseHelper.cpp の <c>findFunction</c>)。
+    /// バージョンが分からなければ <see cref="GlslFunctionMatching.Exact"/> (選び方を決めない)。
+    /// </summary>
+    internal GlslFunctionMatching FunctionMatching
+        => _version switch
+        {
+            null => GlslFunctionMatching.Exact,
+            int v when _profile == GlslProfile.Es
+                => v >= 310 && _features.HasFlag(GlslNumericFeatures.ExplicitArithmeticTypes) ? GlslFunctionMatching.ExplicitTypes
+                    : v >= 310 && _features.HasFlag(GlslNumericFeatures.ImplicitConversions) ? GlslFunctionMatching.Promotion
+                    : GlslFunctionMatching.Exact,
+            < 120 => GlslFunctionMatching.Exact,
+            < 400 => (_features & (GlslNumericFeatures.GpuShaderFp64 | GlslNumericFeatures.ArbGpuShader5 | GlslNumericFeatures.NvGpuShader5Types)) != 0
+                ? GlslFunctionMatching.Best
+                : GlslFunctionMatching.Promotion,
+            _ => _features.HasFlag(GlslNumericFeatures.ExplicitArithmeticTypes) ? GlslFunctionMatching.ExplicitTypes : GlslFunctionMatching.Best,
+        };
+
+    /// <summary>
+    /// 実引数の要素の型 <paramref name="from"/> から、<paramref name="to2"/> への変換が <paramref name="to1"/> への変換より良いか
+    /// (glslang の <c>findFunction400</c> の <c>better</c>)。どちらも変換できるものとして比べる。同じ良さなら <see langword="false"/>。
+    /// </summary>
+    /// <param name="from">実引数の要素の型。</param>
+    /// <param name="to1">1 つ目の仮引数の要素の型。</param>
+    /// <param name="to2">2 つ目の仮引数の要素の型。</param>
+    /// <returns>良ければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 同じ型 (変換しない) がいちばん良い。明示的な幅の算術型の拡張では、次に昇格、次に変換が良い (<c>findFunctionExplicitTypes</c>)。
+    /// それ以外では、<c>GL_NV_gpu_shader5</c> の整数を広げる変換の順位、<c>float</c> から <c>double</c>、<c>double</c> より <c>float</c> への変換の順に良い。
+    /// </remarks>
+    internal bool IsBetterConversion(string from, string to1, string to2)
     {
-        if (string.Equals(from, to, StringComparison.Ordinal))
+        if (to2 == from)
+        {
+            return to1 != from;
+        }
+
+        if (to1 == from)
+        {
+            return false;
+        }
+
+        // 明示的な幅の算術型の拡張では、昇格 (int8_t → int、float → double など)、変換の順に良い (glslang の findFunctionExplicitTypes)。
+        if (FunctionMatching == GlslFunctionMatching.ExplicitTypes)
+        {
+            bool promotion1 = IsPromotion(from, to1);
+            bool promotion2 = IsPromotion(from, to2);
+
+            if (promotion2)
+            {
+                return !promotion1;
+            }
+
+            return !promotion1 && IsArithmeticConversion(from, to2) && !IsArithmeticConversion(from, to1);
+        }
+
+        if (_features.HasFlag(GlslNumericFeatures.NvGpuShader5Types) && NvGpuShader5Conversions.TryGetValue(from, out string[]? destinations))
+        {
+            foreach (string destination in destinations)
+            {
+                if (to2 == destination && to1 != destination)
+                {
+                    return true;
+                }
+
+                if (to1 == destination && to2 != destination)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (from == "float" && to2 == "double" && to1 != "double")
         {
             return true;
         }
 
-        // 明示的な幅の算術型 (int16_t など) の変換は、拡張の規則をまだ持たない。誤りと言わない。
-        if (!Ranks.ContainsKey(from) && from != "bool" || !Ranks.ContainsKey(to) && to != "bool")
-        {
-            return true;
-        }
+        return to2 == "float" && to1 == "double";
+    }
 
-        return _level switch
+    /// <summary>8 ビット・16 ビットより細かい浮動小数点数の型と <c>float16_t</c> (glslang の isFPPromotion / isFPConversion の元)。</summary>
+    private static readonly FrozenSet<string> SmallFloats = new[]
+    {
+        "float16_t", "bfloat16_t", "floate5m2_t", "floate4m3_t", "floate2m1_t", "floate3m2_t", "floate2m3_t", "floatmxint8_t",
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>昇格か (glslang の isIntegralPromotion / isFPPromotion)。</summary>
+    private static bool IsPromotion(string from, string to)
+        => (to == "int" && from is "int8_t" or "int16_t" or "uint8_t" or "uint16_t")
+           || (to == "double" && (from == "float" || SmallFloats.Contains(from)));
+
+    /// <summary>昇格でない変換か (glslang の isIntegralConversion / isFPConversion / isFPIntegralConversion)。</summary>
+    private bool IsArithmeticConversion(string from, string to)
+        => (from, to) switch
         {
-            ConversionLevel.Full => Ranks.TryGetValue(from, out int a) && Ranks.TryGetValue(to, out int b) && a < b,
-            ConversionLevel.IntegerToFloat => from is "int" or "uint" && to == "float",
+            ("int", "uint") => _version >= 400,
+            ("int" or "uint", "int64_t" or "uint64_t") => true,
+            ("int8_t", "uint8_t" or "int16_t" or "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("uint8_t", "int16_t" or "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("int16_t", "uint16_t" or "uint" or "int64_t" or "uint64_t") => true,
+            ("uint16_t", "uint" or "int64_t" or "uint64_t") => true,
+            ("int64_t", "uint64_t") => true,
+            (_, "float") when SmallFloats.Contains(from) => true,
+            ("int" or "uint", "float" or "double") => true,
+            ("int8_t" or "uint8_t" or "int16_t" or "uint16_t", "float16_t" or "float" or "double") => true,
+            ("int64_t" or "uint64_t", "double") => true,
             _ => false,
         };
-    }
+
+    /// <summary><c>GL_NV_gpu_shader5</c> の、整数を広げる変換の順位 (良い順)。</summary>
+    private static readonly FrozenDictionary<string, string[]> NvGpuShader5Conversions = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        ["int8_t"] = ["int", "int64_t"],
+        ["int16_t"] = ["int", "int64_t"],
+        ["int"] = ["int64_t"],
+        ["uint8_t"] = ["uint", "uint64_t"],
+        ["uint16_t"] = ["uint", "uint64_t"],
+        ["uint"] = ["uint64_t"],
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <summary>二項の演算子で、両辺の要素の型をそろえる先を求める (glslang の <c>getConversionDestinationType</c>)。</summary>
+    /// <param name="left">左の要素の型。</param>
+    /// <param name="right">右の要素の型。</param>
+    /// <returns>そろえる先の要素の型。そろえられなければ <see langword="null"/>。</returns>
+    internal string? GetConversionDestination(string left, string right)
+        => GlslConversions.GetConversionDestination(left, right, _version ?? 460, _version is not null && _profile == GlslProfile.Es, _features);
 
     /// <inheritdoc/>
     /// <remarks>
-    /// 接尾辞は GLSL の書き方で読む。<c>u</c> は <c>uint</c>、<c>f</c> は <c>float</c>、<c>lf</c> は <c>double</c>。
-    /// 明示的な幅の算術型の接尾辞 (<c>hf</c>、<c>l</c>、<c>ul</c>) も読む。
-    /// 16 ビットの整数の接尾辞 (<c>s</c>、<c>us</c>) は、共通の字句解析が読まない (1 つのトークンにならない) ので、ここには来ない。
+    /// 接尾辞は GLSL の書き方で読む (glslang 16.6.0 の字句解析)。<c>u</c> は <c>uint</c>、<c>f</c> は <c>float</c>、<c>lf</c> は <c>double</c>。
+    /// 明示的な幅の算術型の接尾辞 (<c>hf</c>、<c>l</c>、<c>ul</c>、<c>s</c>、<c>us</c>) と、8 ビットの浮動小数点数の接尾辞 (<c>fe2m1</c> など) も読む。
+    /// <c>l</c> と <c>s</c> を両方持つもの (<c>uls</c>) は、glslang と同じく 64 ビットとする。
     /// </remarks>
     internal override string? GetLiteralTypeName(ShaderSyntaxToken token)
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken)
+        if (token.Kind != ShaderSyntaxKind.NumericLiteralToken || ShaderLiteral.GetDigits(token).Length == 0)
         {
             return null;
         }
 
-        // 16 進では f と h は桁なので、接尾辞にならない。
-        string text = token.Text;
-        bool hex = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
-        string suffixCharacters = hex ? "uUlL" : "uUlLfFhH";
-        int end = text.Length;
+        bool floating = ShaderLiteral.GetKind(token) == ShaderLiteralKind.Floating;
+        string suffix = ShaderLiteral.GetSuffix(token);
 
-        while (end > (hex ? 2 : 0) && suffixCharacters.Contains(text[end - 1], StringComparison.Ordinal))
+        return suffix switch
         {
-            end--;
-        }
-
-        if (end == 0)
-        {
-            return null;
-        }
-
-        bool floating = !hex && text.AsSpan(0, end).IndexOfAny(".eE") >= 0;
-
-        return text[end..].ToLowerInvariant() switch
-        {
-            "lf" => "double",
-            "hf" => "float16_t",
-            "f" => "float",
-            "ul" or "lu" => "uint64_t",
-            "l" => floating ? "double" : "int64_t",
-            "u" => "uint",
-            "" => floating ? "float" : "int",
-            _ => null,
+            "fe2m1" => "floate2m1_t",
+            "fe3m2" => "floate3m2_t",
+            "fe2m3" => "floate2m3_t",
+            "fue8m0" => "floatue8m0_t",
+            "fmxint8" => "floatmxint8_t",
+            _ => suffix.ToLowerInvariant() switch
+            {
+                "lf" => "double",
+                "hf" => "float16_t",
+                "f" => "float",
+                "ul" or "uls" => "uint64_t",
+                "l" => floating ? "double" : "int64_t",
+                "us" => "uint16_t",
+                "s" => "int16_t",
+                "u" => "uint",
+                "" => floating ? "float" : "int",
+                _ => null,
+            },
         };
     }
 
@@ -526,6 +726,13 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
             return false;
         }
 
+        // 型の引数を取る型 (vector<float16_t, 5>、coopmat<…>) の値を渡すと、戻り値の型は型の引数で決まる。
+        // 表には型の引数の無い形 (float length(vector)) しか無いので、型を決めない。
+        if (argumentTypes.Any(t => t is not null && Glsl.Parsing.GlslKeywords.ParameterizedTypes.Contains(t)))
+        {
+            return true;
+        }
+
         GlslBuiltinFunction[] fitting =
             [.. overloads.Where(f => f.IsVariadic ? argumentTypes.Length >= f.FixedParameterCount : f.Parameters.Length == argumentTypes.Length)];
         GlslBuiltinFunction[] exact = [.. fitting.Where(f => Matches(f, exact: true))];
@@ -555,6 +762,12 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
                 if (parameter == AnyType)
                 {
                     continue;
+                }
+
+                // 型の引数を取る型 (長いベクトルの vector など) の仮引数は、数の型の実引数には合わない (IsConvertible は数の型でない型を通してしまう)。
+                if (Glsl.Parsing.GlslKeywords.ParameterizedTypes.Contains(parameter) && TryDescribeNumeric(argument, out _))
+                {
+                    return false;
                 }
 
                 if (exact ? !SameType(argument, parameter) : !IsConvertible(argument, parameter, function.WritesBack[i]))
@@ -593,4 +806,20 @@ internal sealed class GlslTypeSystem : ShaderTypeSystem
 
     /// <inheritdoc/>
     public override string? GetFixedType(string? name) => null;
+}
+
+/// <summary>利用者の関数の呼び出しを、多重定義からどう選ぶか (glslang の <c>findFunction</c> の分かれ方)。</summary>
+internal enum GlslFunctionMatching
+{
+    /// <summary>型がすべて同じ宣言だけを選ぶ (ES、1.20 より前)。</summary>
+    Exact,
+
+    /// <summary>暗黙の変換で合う宣言を選ぶ。2 つ以上合えば誤り (glslang の <c>findFunction120</c>)。</summary>
+    Promotion,
+
+    /// <summary>暗黙の変換で合う宣言から、いちばん良いものを選ぶ (glslang の <c>findFunction400</c>)。</summary>
+    Best,
+
+    /// <summary>明示的な幅の算術型の拡張の規則で選ぶ (glslang の <c>findFunctionExplicitTypes</c>)。</summary>
+    ExplicitTypes,
 }

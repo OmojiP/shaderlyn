@@ -31,7 +31,20 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
         ".mesh", ".task", ".rgen", ".rint", ".rahit", ".rchit", ".rmiss", ".rcall",
     };
 
+    /// <summary>
+    /// glslang がすべて通すコーパス。誤りを含むもの (glslang の Test、ogl-samples) は、
+    /// <c>tools/oracles/compare-glsl.mjs</c> で glslang と比べる。
+    /// </summary>
+    internal static readonly string[] CompilableCorpora = ["SaschaWillems-Vulkan", "Vulkan-Samples", "opengl-es-sdk-for-android"];
+
     private readonly ITestOutputHelper _output = output;
+
+    /// <summary><see cref="CompilableCorpora"/> のうち、<paramref name="root"/> の下にあるもののファイル。</summary>
+    internal static IEnumerable<string> CompilableCorpusFiles(string root) =>
+        CompilableCorpora
+            .Select(corpus => Path.Combine(root, corpus))
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories));
 
     [Fact]
     public void GLSLのコーパスに構文エラーが無い()
@@ -49,7 +62,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
         Dictionary<string, List<string>> byMessage = new(StringComparer.Ordinal);
         Dictionary<string, int> nodeCounts = new(StringComparer.Ordinal);
 
-        foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+        foreach (string path in CompilableCorpusFiles(root)
                      .Where(p => StageExtensions.Contains(Path.GetExtension(p)) && !p.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
                      .Order(StringComparer.Ordinal))
         {

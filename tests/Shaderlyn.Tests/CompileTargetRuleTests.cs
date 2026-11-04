@@ -315,6 +315,7 @@ public sealed class CompileTargetRuleTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0301");
         Assert.Equal("コードブロックに #pragma kernel が存在しません。", diagnostic.GetMessage());
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
 
     /// <summary><c>sampler_state { ... }</c> を、宣言されていない名前として報告しないことを検証する。</summary>

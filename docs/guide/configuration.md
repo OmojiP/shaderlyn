@@ -42,10 +42,11 @@ rules:
 | キー            | 内容                                                            |
 | --------------- | --------------------------------------------------------------- |
 | `version`       | 設定ファイルのバージョン。現在は `1`                                    |
-| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (この 4 つは開発中で、現時点では GLSL の構文エラーだけを指摘する) |
+| `environment`   | 解析する環境。`unity` (既定) / `hlsl` (DXC で直接コンパイルする汎用の HLSL) / `unreal` / `glsl` / `godot` / `slang` / `wgsl` (後ろの 3 つは開発中で、現時点では何も指摘しない) |
 | `unity`         | Unity の環境の設定 ([下記](#unity))                             |
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
+| `glsl`          | GLSL の設定 ([下記](#glsl))                                     |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
@@ -62,7 +63,7 @@ Unity の環境だけで使う設定です。
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が優先されます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が優先されます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が優先されます                            |
-| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます ([CI で Library を使わずに解析する](cli-usage.md#library-と-unity-editor-の無いマシンで解析する)) |
+| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使わずに解析する](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)) |
 | `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
 | `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
 | `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
@@ -112,6 +113,39 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 
 フォルダーを指定した場合は `.hlsl` を探します。`.hlsli` は取り込まれる断片なので、明示的に指定した場合に限り解析します。
 
+## glsl
+
+GLSL のファイルで使う設定です。
+
+| キー | 内容 |
+| ---- | ---- |
+| `target` | コンパイル先。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl` を指定します (glslang の `--target-env`) |
+| `spirv` | 生成する SPIR-V のバージョン (`1.0` ～ `1.6`) |
+| `auto-map-locations` | コンパイラに入力・出力の `location` を割り当てさせるかどうか |
+| `auto-map-bindings` | コンパイラに uniform・buffer の `binding` を割り当てさせるかどうか |
+
+`target` を省略すると、コンパイル先は不明として扱います。そのため、Vulkan と OpenGL のどちらかでしか使えない書き方も誤りにしません。
+
+`spirv` を省略すると、`target` に指定した Vulkan のバージョンから決めます。対応は `vulkan1.0` が `1.0`、`vulkan1.1` が `1.3`、`vulkan1.2` が `1.5`、`vulkan1.3` と `vulkan1.4` が `1.6` です (glslang と同じ)。`target: opengl` と `spirv` を併記すると、OpenGL 向けの SPIR-V を生成します (glslang の `-G`)。
+
+`auto-map-locations` と `auto-map-bindings` は、既定では `false` です。`true` にすると、SPIR-V を作るときにそれぞれ `location` と `binding` を省略しても [GL0104](../rules/GL0104.md) を報告しません。
+
+対応するオプションは次のとおりです。
+
+| 設定 | glslang | glslc |
+| --- | --- | --- |
+| `auto-map-locations` | `--auto-map-locations` | `-fauto-map-locations` |
+| `auto-map-bindings` | `--auto-map-bindings` | `-fauto-bind-uniforms` |
+
+`target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから引きます。
+`opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。
+`target: vulkan` だけではバージョンが分からないので、SPIR-V のバージョンで決まる検査をしません。
+
+```yaml
+glsl:
+  target: vulkan1.3   # glslang -V --target-env vulkan1.3 でコンパイルする
+```
+
 ## unreal
 
 `environment: unreal` で使う設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
@@ -121,7 +155,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 | --------------- | -------------------------------------------------------------------------------------- |
 | `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
-| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([Unity 以外の環境で使う](environments.md#c-から生成されるファイルを作る)) |
+| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使い方](environments/unreal.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 | `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
@@ -144,7 +178,7 @@ units:
 - フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unity 以外の環境で使う](environments.md))
+  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルがない場合」](environments/unreal.md#生成ファイルがない場合))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
@@ -220,7 +254,7 @@ rules:
 
 ### options
 
-`options` はルールごとの設定値で、ルールの閾値変更などに等に利用できます。
+`options` はルールごとの設定値で、閾値の変更などに利用できます。
 
 オプションを自作ルールで使用する方法：[ルールの実例集](../custom-rules/cookbook.md#設定ファイルの-options-から閾値を受け取る)
 
