@@ -122,7 +122,7 @@ internal sealed class EntryPointAnalyzer : SemanticRuleAnalyzer
     /// <summary>関数の宣言を列挙する。cbuffer の中に書いた関数も含む。</summary>
     /// <param name="declarations">宣言の並び。</param>
     /// <returns>関数の宣言。</returns>
-    private static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<DeclarationSyntax> declarations)
+    internal static IEnumerable<FunctionDeclarationSyntax> EnumerateFunctions(IEnumerable<DeclarationSyntax> declarations)
     {
         foreach (DeclarationSyntax declaration in declarations)
         {
