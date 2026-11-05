@@ -40,9 +40,10 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
     /// <summary>WGSL の環境の名前。</summary>
     public const string WgslName = "wgsl";
 
-    /// <summary>Godot の環境を作る。まだ読まない (GD1 で読む)。</summary>
+    /// <summary>Godot の環境を作る。構文だけを読む (意味解析は GD2 で足す)。</summary>
     /// <returns>環境。</returns>
-    public static SyntaxOnlyAnalysisEnvironment CreateGodot() => new(GodotName, "Godot", [".gdshader", ".gdshaderinc"], null);
+    public static SyntaxOnlyAnalysisEnvironment CreateGodot()
+        => new(GodotName, "Godot", [".gdshader", ".gdshaderinc"], static (text, options) => Godot.GodotSyntaxTree.Parse(text, options));
 
     /// <summary>Slang の環境を作る。まだ読まない (SG1 で読む)。</summary>
     /// <returns>環境。</returns>

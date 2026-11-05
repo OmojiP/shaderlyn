@@ -53,6 +53,10 @@ public sealed class ShaderLexer
     /// </remarks>
     public bool CommentLineContinuation { get; init; } = true;
 
+    /// <summary>閉じていない複数行コメント (<c>/*</c>) を誤りとして報告するか。既定は報告する。</summary>
+    /// <remarks>Godot シェーダー言語は報告せず、ファイルの終わりまでをコメントとして読む。</remarks>
+    public bool ReportsUnterminatedComment { get; init; } = true;
+
     /// <summary>
     /// 字句解析の過程で検出した問題。
     /// </summary>
@@ -250,9 +254,12 @@ public sealed class ShaderLexer
             _position++;
         }
 
-        _diagnostics.Add(new LexerDiagnostic(
-            TextSpan.FromBounds(start, Math.Min(start + 2, _text.Length)),
-            "複数行コメントが '*/' で閉じられていません。"));
+        if (ReportsUnterminatedComment)
+        {
+            _diagnostics.Add(new LexerDiagnostic(
+                TextSpan.FromBounds(start, Math.Min(start + 2, _text.Length)),
+                "複数行コメントが '*/' で閉じられていません。"));
+        }
 
         return new ShaderSyntaxTrivia(ShaderSyntaxKind.MultiLineCommentTrivia, TextSpan.FromBounds(start, _position));
     }

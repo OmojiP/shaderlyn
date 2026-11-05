@@ -165,6 +165,13 @@ internal abstract class ShaderParser
     /// <returns>取るなら <see langword="true"/>。</returns>
     protected virtual bool TakesParenthesizedTypeArguments(string name) => false;
 
+    /// <summary>
+    /// セマンティクスの後ろのカンマに続く語を、同じ並びの続きとして読むか (Godot の <c>uniform vec4 c : source_color, filter_linear;</c>)。既定は読まない。
+    /// </summary>
+    /// <param name="name">カンマの後ろの語。</param>
+    /// <returns>続きとして読むなら <see langword="true"/>。読まなければ、カンマは次の宣言子の区切りである。</returns>
+    protected virtual bool ContinuesSemanticList(string name) => false;
+
     /// <summary>組み込みの型の名前かを判定する。</summary>
     /// <param name="name">判定する名前。</param>
     /// <returns>組み込みの型なら <see langword="true"/>。</returns>
@@ -1501,9 +1508,11 @@ internal abstract class ShaderParser
             }
         }
 
-        while (Current.Kind == ShaderSyntaxKind.ColonToken
+        while ((Current.Kind == ShaderSyntaxKind.ColonToken
+                || (Current.Kind == ShaderSyntaxKind.CommaToken && semantics.Count > 0 && ContinuesSemanticList(Peek(1).Text)))
             && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
+            // Godot のヒントの並びでは、2 つ目からはカンマで区切る。区切りの記号をコロンの位置に置く。
             ShaderSyntaxToken colon = Advance();
             ShaderSyntaxToken name = Advance();
 

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
+    <ProjectReference Include="..\Shaderlyn.CFamily\Shaderlyn.CFamily.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <Description>Shaderlyn の Godot シェーダー言語の構文解析 (Godot に固有の構文)。</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- 型は internal にしておく (どれを公開するかは GD2 以降で決める)。CLI と言語サーバーからは使う -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shaderlyn.Semantics" />
+    <InternalsVisibleTo Include="Shaderlyn.Rules" />
+    <InternalsVisibleTo Include="Shaderlyn.Cli" />
+    <InternalsVisibleTo Include="Shaderlyn.LanguageServer" />
+    <InternalsVisibleTo Include="Shaderlyn.Tests" />
+  </ItemGroup>
+
+</Project>

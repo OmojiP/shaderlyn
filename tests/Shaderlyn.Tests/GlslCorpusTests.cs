@@ -182,7 +182,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
             return;
         }
 
-        Measure(root, [".gdshader"], "Godot (GLSL として読む)", text => GlslSyntaxTree.Parse(text));
+        Measure(root, [".gdshader"], "Godot", text => Godot.GodotSyntaxTree.Parse(text));
         Measure(root, [".slang"], "Slang (HLSL 2021 で読む)", text => Hlsl.HlslSyntaxTree.Parse(text, new PreprocessorOptions
         {
             Language = new Hlsl.Parsing.HlslLanguageOptions { LanguageVersion = Hlsl.Parsing.HlslLanguageVersion.Hlsl2021 },

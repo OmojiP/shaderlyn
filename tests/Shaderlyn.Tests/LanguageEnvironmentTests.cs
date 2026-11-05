@@ -302,7 +302,6 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     [Theory]
-    [InlineData("godot", "a.gdshader", "shader_type spatial;\nvoid fragment() { ALBEDO = vec3(1.0); }\n")]
     [InlineData("slang", "a.slang", "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n")]
     [InlineData("wgsl", "a.wgsl", "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n")]
     public async Task まだ読めない言語はファイルを集めるが何も指摘しない(string environment, string file, string code)

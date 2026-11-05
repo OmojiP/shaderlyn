@@ -45,13 +45,17 @@ internal sealed partial class ShaderPreprocessor
         ImmutableArray<ShaderSyntaxToken> tokens;
         ImmutableArray<ShaderLexer.LexerDiagnostic> lexerDiagnostics;
 
-        if (_options.TokenCache is { } cache && _options.CommentLineContinuation)
+        if (_options.TokenCache is { } cache && _options.CommentLineContinuation && _options.ReportsUnterminatedComment)
         {
             tokens = cache.GetOrLex(text, out lexerDiagnostics);
         }
         else
         {
-            ShaderLexer lexer = new(text) { CommentLineContinuation = _options.CommentLineContinuation };
+            ShaderLexer lexer = new(text)
+            {
+                CommentLineContinuation = _options.CommentLineContinuation,
+                ReportsUnterminatedComment = _options.ReportsUnterminatedComment,
+            };
             tokens = lexer.Lex(out lexerDiagnostics);
         }
 

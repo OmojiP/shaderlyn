@@ -10,6 +10,13 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+### 追加
+
+- Godot: `.gdshader` / `.gdshaderinc` を Godot シェーダー言語として読み、構文の誤りを報告する (CF0001)。
+  `shader_type` / `render_mode` / `stencil_mode` / `group_uniforms`、uniform のヒント (`: source_color, hint_range(0.0, 1.0)`)、
+  `instance uniform` / `global uniform`、`varying` と補間・精度の修飾子を読む。閉じていない `/* … ` は、Godot と同じく誤りにしない
+- `PreprocessorOptions.ReportsUnterminatedComment` / `ShaderLexer.ReportsUnterminatedComment`: 閉じていない複数行コメントを誤りとして報告するか (既定は報告する)
+
 ## [0.3.3] - 2026-11-05
 
 GLSL の検査結果を glslang 16.6.0 に合わせた。GLSL 固有のルール (GL0001 など) を追加し、glslang がエラーにする箇所を同じ行で報告する。
