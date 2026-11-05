@@ -29,6 +29,9 @@ internal sealed class UnresolvedConditionAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
+    protected override bool AnalyzesGodot => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnresolvedCondition];
 

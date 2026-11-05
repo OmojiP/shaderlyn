@@ -38,6 +38,9 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
+    protected override bool AnalyzesGodot => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         HlslRuleDescriptors.ArgumentNotConvertible,
@@ -790,7 +793,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
                 return new Mismatch(MismatchKind.ArrayMismatch, i, $"{array} を渡しています", parameter.Type.Name);
             }
 
-            if (binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback)
+            if ((binder.TypeSystem.IsConvertible(argumentTypes[i], parameter.Type.Name, writeback)
+                 || (!writeback && binder.TypeSystem.ConvertsLiteralArgument(arguments[i], parameter.Type.Name)))
                 && !IsGlslStructMismatch(binder, argumentTypes[i], parameter.Type.Name))
             {
                 continue;

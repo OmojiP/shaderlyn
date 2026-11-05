@@ -96,7 +96,8 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
             // セマンティックモデルが無いのは「問題が無い」ではなく「調べていない」である。
             // 報告しないのが正しい。
             if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation
-                || (compilation.IsGlsl && !AnalyzesGlsl))
+                || (compilation.IsGlsl && !AnalyzesGlsl)
+                || (compilation.IsGodot && !AnalyzesGodot))
             {
                 return;
             }
@@ -119,6 +120,15 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// </para>
     /// </remarks>
     internal virtual bool AnalyzesGlsl => false;
+
+    /// <summary>
+    /// Godot シェーダー言語のモデルも調べるか。既定は <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// GLSL と同じく、組み込みのルールは Godot で確かめたものだけがこれを立てる (<see cref="AnalyzesGlsl"/>)。
+    /// Godot の型と組み込み関数は GLSL ES と同じでも、組み込みの変数とステージの決まりが違うので、GLSL で確かめたルールをそのまま当てない。
+    /// </remarks>
+    internal virtual bool AnalyzesGodot => false;
 
     /// <summary>
     /// HLSL のノードに対する関心を登録する。

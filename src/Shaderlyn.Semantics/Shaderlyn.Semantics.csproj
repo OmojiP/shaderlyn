@@ -4,6 +4,7 @@
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
     <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Godot\Shaderlyn.Godot.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -16,6 +17,11 @@
   <!-- GLSL の組み込みの関数と変数の表。tools/glsl/builtins.mjs が glslang から作る -->
   <ItemGroup>
     <EmbeddedResource Include="Symbols\GlslBuiltins.g.txt" LogicalName="Shaderlyn.Semantics.GlslBuiltins.txt" />
+  </ItemGroup>
+
+  <!-- Godot シェーダー言語の組み込みの変数と描画のモードの表。tools/godot/builtins.mjs が Godot のソースから作る -->
+  <ItemGroup>
+    <EmbeddedResource Include="Symbols\GodotBuiltins.g.txt" LogicalName="Shaderlyn.Semantics.GodotBuiltins.txt" />
   </ItemGroup>
 
   <ItemGroup>

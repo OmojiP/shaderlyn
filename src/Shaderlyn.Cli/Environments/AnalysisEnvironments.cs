@@ -26,7 +26,7 @@ internal static class AnalysisEnvironments
         Semantics.Environments.HlslEnvironment.EnvironmentName,
         Unreal.UnrealOptions.EnvironmentName,
         GlslEnvironment.EnvironmentName,
-        SyntaxOnlyAnalysisEnvironment.GodotName,
+        Semantics.Environments.GodotEnvironment.EnvironmentName,
         SyntaxOnlyAnalysisEnvironment.SlangName,
         SyntaxOnlyAnalysisEnvironment.WgslName,
     ];
@@ -80,7 +80,7 @@ internal static class AnalysisEnvironments
             Semantics.Environments.HlslEnvironment.EnvironmentName => new HlslAnalysisEnvironment(settings.Configuration),
             Unreal.UnrealOptions.EnvironmentName => CreateUnreal(settings),
             GlslEnvironment.EnvironmentName => new GlslAnalysisEnvironment(settings.Configuration),
-            SyntaxOnlyAnalysisEnvironment.GodotName => SyntaxOnlyAnalysisEnvironment.CreateGodot(),
+            Semantics.Environments.GodotEnvironment.EnvironmentName => new GodotAnalysisEnvironment(settings.Configuration),
             SyntaxOnlyAnalysisEnvironment.SlangName => SyntaxOnlyAnalysisEnvironment.CreateSlang(),
             SyntaxOnlyAnalysisEnvironment.WgslName => SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
             _ => settings.HostEnvironments.FirstOrDefault(h => h.Name == settings.Environment) is { } host

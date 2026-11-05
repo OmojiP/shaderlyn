@@ -206,6 +206,10 @@ public sealed partial class ShaderCompilation
     /// <remarks>GLSL で確かめていないルールは、GLSL のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesGlsl"/>)。</remarks>
     internal bool IsGlsl => Environment is Environments.GlslEnvironment;
 
+    /// <summary>Godot シェーダー言語のモデルか。</summary>
+    /// <remarks>Godot で確かめていないルールは、Godot のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesGodot"/>)。</remarks>
+    internal bool IsGodot => Environment is Environments.GodotEnvironment;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。

@@ -36,6 +36,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGlsl => true;
 
+    /// <inheritdoc/>
+    protected override bool AnalyzesGodot => true;
+
     /// <summary>値を返さない関数の戻り値の型名。</summary>
     private const string VoidTypeName = "void";
 

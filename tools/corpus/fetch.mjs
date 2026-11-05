@@ -123,7 +123,7 @@ const corpora = [
     license: "MIT",
     languages: ["godot"],
     patterns: ["/servers/rendering/shader_*", "/tests/servers/rendering/**", "/scene/resources/material.cpp",
-      "/scene/resources/particle_process_material.cpp", "/scene/resources/canvas_item_material.cpp", "/LICENSE.txt"],
+      "/scene/resources/particle_process_material.cpp", "/scene/resources/canvas_item_material.cpp", "/version.py", "/LICENSE.txt"],
   },
   {
     // シェーダーは MIT (画像とモデルは CC BY-NC-SA なので取らない)。Godot 4 へ移している途中で、Godot 3 の書き方のものも残る。

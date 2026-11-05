@@ -29,6 +29,9 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGlsl => true;
 
+    /// <inheritdoc/>
+    protected override bool AnalyzesGodot => true;
+
     /// <summary>レジスタを指定する修飾の名前。</summary>
     private const string RegisterAnnotation = "register";
 
@@ -72,9 +75,11 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 // GLSL の 64 ビットの整数のリテラル (1l / 1ul、GL_ARB_gpu_shader_int64) は 32 ビットに収める必要が無い。
+                // Godot は 32 ビットに収まらないリテラルを何も言わずに通す (Godot 4.7.2 で確かめた) ので、報告しない。
                 case LiteralExpressionSyntax literal
-                    when !(program.Tree.Language is GlslLanguageOptions
-                           && compilation.TypeSystem.ForTree(program.Tree).GetLiteralTypeName(literal.Token) is "int64_t" or "uint64_t"):
+                    when !compilation.IsGodot
+                         && !(program.Tree.Language is GlslLanguageOptions
+                              && compilation.TypeSystem.ForTree(program.Tree).GetLiteralTypeName(literal.Token) is "int64_t" or "uint64_t"):
                     AnalyzeLiteral(context, literal, reported);
                     break;
 

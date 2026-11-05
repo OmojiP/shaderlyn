@@ -121,6 +121,14 @@ public abstract class ShaderTypeSystem
     }
 
     /// <summary>
+    /// 関数の呼び出しの実引数に書いたリテラルを、暗黙に変換できない型の仮引数へも変換して渡すか (Godot の <c>f(0)</c> を <c>float</c> の仮引数へ)。既定は渡さない。
+    /// </summary>
+    /// <param name="argument">実引数の式。</param>
+    /// <param name="parameterType">仮引数の型。</param>
+    /// <returns>変換して渡すなら <see langword="true"/>。</returns>
+    internal virtual bool ConvertsLiteralArgument(CFamily.Syntax.ExpressionSyntax argument, string? parameterType) => false;
+
+    /// <summary>
     /// 数値の型のコンストラクタが、最後の引数の余った成分を捨て、行列 1 つから大きさの違う行列を作れるか (GLSL)。
     /// <see langword="false"/> なら、2 つ以上の引数の成分の数がちょうど合わなければならない (HLSL)。
     /// </summary>

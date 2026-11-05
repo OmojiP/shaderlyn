@@ -19,6 +19,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   `global` / `instance` の後の `uniform` 抜け、`const` の戻り値、`const out` の仮引数、式の中の文字列、2 つ目の `shader_type` など)。
   プリプロセッサは Godot の規則で、マクロの定義し直しと `#ifdef A B` を誤りにし、`#define F(a b)`、マクロの本体の先頭と末尾の `##`、条件の無い `#if`、
   Godot が知らない `#pragma`、到達する `#error` を報告する (CF0002)
+- Godot: 宣言・型・呼び出しを検査する (CF0310 / CF0312 / CF0314 / CF0401 / CF0402 / CF0410 など、GLSL と同じ C 系の共通のルール)。
+  組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表から引く。
+  Godot は暗黙の変換をしない (`float a = 1;` は誤り) が、関数の呼び出しの実引数に書いた整数のリテラル (`f(0)`、`vec2(1, 2)`) は仮引数の型へ変換して渡す。Godot と同じに扱う。
+  32 ビットに収まらない整数のリテラルは、Godot が何も言わないので報告しない (CF0511)
 - `PreprocessorOptions.ReportsUnterminatedComment` / `ShaderLexer.ReportsUnterminatedComment`: 閉じていない複数行コメントを誤りとして報告するか (既定は報告する)
 
 ## [0.3.3] - 2026-11-05

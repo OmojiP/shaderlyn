@@ -40,6 +40,9 @@ internal sealed class UnexploredSymbolAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
+    protected override bool AnalyzesGodot => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.UnexploredSymbols];
 
