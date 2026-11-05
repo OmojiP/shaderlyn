@@ -38,8 +38,9 @@ internal static class GodotSyntaxTree
         SyntaxNode.WireParents(root);
 
         ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-        diagnostics.AddRange(preprocessed.Diagnostics);
+        GodotDirectives.Check(text, preprocessed, diagnostics);
         diagnostics.AddRange(parseDiagnostics);
+        GodotGrammar.Check(root, preprocessed.Tokens, text, diagnostics);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 
         return new ShaderSyntaxTree(text, root, preprocessed, diagnostics.ToImmutable(), effective.Language!, parser.UnanalyzedIdentifiers);

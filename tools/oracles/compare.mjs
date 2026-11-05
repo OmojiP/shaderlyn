@@ -12,6 +12,7 @@
 //   見落とし コンパイラの誤りの行に、Shaderlyn のエラーが無いもの。取り込んだファイルの中の誤りは、そのファイルの同じ行で探す
 //   先走り   コンパイラが誤りにするファイルで、コンパイラの最初の誤りより前の行に Shaderlyn が出したエラー。
 //            Godot のように最初の誤りで止まるコンパイラでは、その前は正しいはずなので、誤報告の疑いがある
+//   Godot のプリプロセッサの失敗 (最初の # の行に出る) は、行を比べず、ファイルにエラーがあれば合うとする
 // 終了コードは、食い違いが無ければ 0、あれば 1、使い方の誤りは 2。
 
 import { spawnSync } from "node:child_process";
@@ -59,8 +60,9 @@ for (const oraclePath of oracles) {
       row.falsePositives = reported.filter(d => d.severity !== "info");
     } else {
       failing++;
-      row.misses = expected.filter(e => !reported.some(d => d.severity === "error" && key(d.file) === key(e.path) && d.line === e.line));
-      const first = expected.find(e => key(e.path) === key(path));
+      // 行が記録の仕方で決まる誤り (Godot のプリプロセッサの失敗) は、ファイルのどこかに Shaderlyn のエラーがあれば合うとする。
+      row.misses = expected.filter(e => !reported.some(d => d.severity === "error" && key(d.file) === key(e.path) && (d.line === e.line || anyLine(e))));
+      const first = expected.find(e => key(e.path) === key(path) && !anyLine(e));
       row.early = first ? reported.filter(d => d.severity === "error" && key(d.file) === key(path) && d.line < first.line) : [];
     }
 
@@ -108,6 +110,14 @@ function analyze(paths, language) {
     }
   }
   return results;
+}
+
+/**
+ * 行が記録の仕方で決まり、本当の誤りの行とは限らない誤りか。
+ * Godot はプリプロセッサが失敗すると、元のコードのまま読み直して、最初の # の行に「Unknown character #35」を出す (README)。
+ */
+function anyLine(error) {
+  return error.message.startsWith("Tokenizer: Unknown character #35");
 }
 
 /** 取り込んだファイルの誤り (Godot なら res://...) の、ディスクの上のパス。 */

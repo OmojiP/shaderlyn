@@ -14,7 +14,11 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 - Godot: `.gdshader` / `.gdshaderinc` を Godot シェーダー言語として読み、構文の誤りを報告する (CF0001)。
   `shader_type` / `render_mode` / `stencil_mode` / `group_uniforms`、uniform のヒント (`: source_color, hint_range(0.0, 1.0)`)、
-  `instance uniform` / `global uniform`、`varying` と補間・精度の修飾子を読む。閉じていない `/* … ` は、Godot と同じく誤りにしない
+  `instance uniform` / `global uniform`、`varying` と補間・精度の修飾子を読む。閉じていない `/* … ` は、Godot と同じく誤りにしない。
+  Godot の文法で書けない形も構文の誤りとして報告する (関数の外の const でない変数、配列の配列、関数の中のサンプラーの変数、`flat uniform`、
+  `global` / `instance` の後の `uniform` 抜け、`const` の戻り値、`const out` の仮引数、式の中の文字列、2 つ目の `shader_type` など)。
+  プリプロセッサは Godot の規則で、マクロの定義し直しと `#ifdef A B` を誤りにし、`#define F(a b)`、マクロの本体の先頭と末尾の `##`、条件の無い `#if`、
+  Godot が知らない `#pragma`、到達する `#error` を報告する (CF0002)
 - `PreprocessorOptions.ReportsUnterminatedComment` / `ShaderLexer.ReportsUnterminatedComment`: 閉じていない複数行コメントを誤りとして報告するか (既定は報告する)
 
 ## [0.3.3] - 2026-11-05
