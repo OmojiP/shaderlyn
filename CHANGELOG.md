@@ -23,6 +23,15 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表から引く。
   Godot は暗黙の変換をしない (`float a = 1;` は誤り) が、関数の呼び出しの実引数に書いた整数のリテラル (`f(0)`、`vec2(1, 2)`) は仮引数の型へ変換して渡す。Godot と同じに扱う。
   32 ビットに収まらない整数のリテラルは、Godot が何も言わないので報告しない (CF0511)
+- Godot シェーダー言語にしか無いルール (GD) を足した。Godot 4.7.2 がエラーにする箇所を同じ行で報告する
+  - GD0301: 演算子を使えない型の組に使った (`float + int`、`-mat4`、ベクトルの `<` など。Godot の `_validate_operator` と同じ型の組)
+  - GD0302: 組み込み関数と値の作成に、実引数の型に合う形が無い (`sin(vec2, float)`、`vec2(int, float)`)。組み込み関数の表は Godot のソースから作る
+  - GD0311: `if`・`while`・`do`・`for`・`?:` の条件が bool でない
+  - GD0002: そのステージでは使えない (`vertex` の中と、`vertex` から呼ぶ関数の中の `dFdx`・`texture_sdf`、`particles`・`fog` の `dFdx`)
+  - GD0322: ステージ関数の形が正しくない (仮引数がある、戻り値が `void` でない)
+- Godot: 組み込みの変数は、使う位置で使えるものだけを認める (CF0310)。ステージ関数の中ではその関数のものが、利用者の関数の中ではどの関数でも使えるもの (`TIME` など) と定数が、
+  関数の外では定数 (`PI` など) だけが使える。後ろで定義した関数の呼び出しも報告する (Godot には前方宣言が無い)。
+  ステージ関数の中でだけ使える組み込み関数 (`canvas_item` の `texture_sdf`、`particles` の `emit_subparticle` など) を読む
 - `PreprocessorOptions.ReportsUnterminatedComment` / `ShaderLexer.ReportsUnterminatedComment`: 閉じていない複数行コメントを誤りとして報告するか (既定は報告する)
 
 ## [0.3.3] - 2026-11-05

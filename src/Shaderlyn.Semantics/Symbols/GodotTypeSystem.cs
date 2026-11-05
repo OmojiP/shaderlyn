@@ -12,11 +12,11 @@ namespace Shaderlyn.Semantics.Symbols;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Godot シェーダー言語の型・演算・組み込み関数は GLSL ES 3.0 と同じで、暗黙の変換も無い (<c>float a = 1;</c> は誤り)。
-/// それらは GLSL の型システム (ES の 3.20 のフラグメントシェーダー) に任せる。Godot が持たない ES の組み込み関数もあるが、それは見落としになるだけで誤報告にはならない。
+/// Godot シェーダー言語の型と演算は GLSL ES 3.0 と同じで、暗黙の変換も無い (<c>float a = 1;</c> は誤り)。
+/// 型の名前・形・変換は GLSL の型システム (ES の 3.20 のフラグメントシェーダー) に任せる。
 /// </para>
 /// <para>
-/// 組み込みの変数と定数 (<c>ALBEDO</c>、<c>TIME</c>、<c>PI</c>) だけは Godot の表 (<see cref="GodotBuiltins"/>) から引く。GLSL の <c>gl_</c> の変数は無い。
+/// 組み込みの変数と定数 (<c>ALBEDO</c>、<c>TIME</c>、<c>PI</c>) と組み込み関数は Godot の表 (<see cref="GodotBuiltins"/>) から引く。GLSL の <c>gl_</c> の変数は無い。
 /// どの関数で使えるかは関数ごとに違うが、ここでは、そのシェーダーの種類のどの関数のものも使えるとする (使う位置の検査は GD のルールが行う)。
 /// </para>
 /// </remarks>
@@ -30,16 +30,81 @@ internal sealed class GodotTypeSystem : ShaderTypeSystem
     /// <summary>組み込みの変数と定数。同じ名前が関数ごとにあれば、最初のものの型を使う。</summary>
     private readonly FrozenDictionary<string, GodotBuiltinVariable> _variables;
 
+    /// <summary>組み込みの変数と定数の名前ごとの、使える関数 (<c>global</c> と <c>constants</c> を含む)。</summary>
+    private readonly FrozenDictionary<string, FrozenSet<string>> _functionsByVariable;
+
+    /// <summary>このシェーダーの種類のステージ関数 (<c>vertex</c> / <c>fragment</c> など)。</summary>
+    private readonly FrozenSet<string> _stageFunctions;
+
+    /// <summary>
+    /// 組み込み関数 (値の作成を含む) と、このシェーダーの種類のステージ関数の中でだけ使える組み込み関数 (<c>texture_sdf</c> など)。
+    /// ステージ関数のものは、どのステージ関数のものも使えるとする (使う位置の検査は GD のルールが行う)。
+    /// </summary>
+    internal FrozenDictionary<string, ImmutableArray<GodotBuiltinFunction>> Functions { get; }
+
     private GodotTypeSystem(string? shaderType)
     {
         ShaderType = shaderType;
         IEnumerable<GodotBuiltinVariable> variables = shaderType is null
             ? GodotBuiltins.Instance.ShaderTypes.SelectMany(t => GodotBuiltins.Instance.GetVariables(t))
             : GodotBuiltins.Instance.GetVariables(shaderType);
-        _variables = variables
+        GodotBuiltinVariable[] all = [.. variables];
+        _variables = all
             .GroupBy(v => v.Name, StringComparer.Ordinal)
             .ToFrozenDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        _functionsByVariable = all
+            .GroupBy(v => v.Name, StringComparer.Ordinal)
+            .ToFrozenDictionary(g => g.Key, g => g.Select(v => v.Function).ToFrozenSet(StringComparer.Ordinal), StringComparer.Ordinal);
+        _stageFunctions = all
+            .Select(v => v.Function)
+            .Where(f => f is not ("global" or "constants"))
+            .ToFrozenSet(StringComparer.Ordinal);
+
+        Dictionary<string, ImmutableArray<GodotBuiltinFunction>> functions = new(GodotBuiltins.Instance.Functions, StringComparer.Ordinal);
+
+        foreach (IGrouping<string, GodotStageFunction> group in GodotBuiltins.Instance.StageFunctions
+                     .Where(f => shaderType is null || f.ShaderType == shaderType)
+                     .GroupBy(f => f.Function.Name, StringComparer.Ordinal))
+        {
+            functions[group.Key] = [.. functions.GetValueOrDefault(group.Key, []), .. group.Select(f => f.Function).Distinct()];
+        }
+
+        Functions = functions.ToFrozenDictionary(StringComparer.Ordinal);
+        FunctionNames = [.. Functions.Keys.Order(StringComparer.Ordinal)];
     }
+
+    /// <summary>
+    /// 組み込みの変数か定数を、その位置で使えるか。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <param name="function">囲んでいる関数の名前。関数の外なら <see langword="null"/>。</param>
+    /// <returns>使えるなら <see langword="true"/>。組み込みでない名前は <see langword="false"/>。</returns>
+    /// <remarks>
+    /// ステージ関数 (<c>fragment</c> など) の中では、その関数の組み込みと、どの関数でも使える組み込み (<c>TIME</c>)・定数 (<c>PI</c>) が使える。
+    /// 利用者の関数の中では、どこから呼ばれていても、どの関数でも使える組み込みと定数だけが使える (<c>FRAGCOORD</c> は「Unknown identifier」)。
+    /// 関数の外 (uniform の既定値など) では定数だけが使える。Godot 4.7.2 で確かめた。
+    /// シェーダーの種類が分からないときは、どこでも使えるとする。
+    /// </remarks>
+    internal bool IsBuiltinVariableAvailable(string name, string? function)
+    {
+        if (!_functionsByVariable.TryGetValue(name, out FrozenSet<string>? functions))
+        {
+            return false;
+        }
+
+        if (ShaderType is null || functions.Contains("constants"))
+        {
+            return true;
+        }
+
+        return function is not null
+               && (functions.Contains("global") || (_stageFunctions.Contains(function) && functions.Contains(function)));
+    }
+
+    /// <summary>このシェーダーの種類のステージ関数か (<c>vertex</c> / <c>fragment</c> / <c>light</c> / <c>start</c> / <c>process</c> / <c>sky</c> / <c>fog</c> など)。</summary>
+    /// <param name="name">関数の名前。</param>
+    /// <returns>ステージ関数なら <see langword="true"/>。</returns>
+    internal bool IsStageFunction(string name) => _stageFunctions.Contains(name);
 
     /// <summary>シェーダーの種類が分からないときの型システム (どの種類の組み込みも使えるとする)。</summary>
     public static GodotTypeSystem Instance { get; } = new(null);
@@ -125,8 +190,61 @@ internal sealed class GodotTypeSystem : ShaderTypeSystem
         => _variables.TryGetValue(name, out GodotBuiltinVariable? variable) ? new ResolvedTypeName(variable.Type, IsArray: false) : null;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// 実引数の数が合う多重定義のうち、型がちょうど合うもの (型の分からない実引数はどれにも合う)、無ければ <c>int</c> の実引数を
+    /// <c>float</c> / <c>uint</c> の仮引数にも合わせたもの (実引数が整数のリテラルなら Godot は変換する) を選ぶ。戻り値の型が 1 つに決まるときだけ答える。
+    /// </remarks>
     internal override bool TryResolveIntrinsic(string name, ImmutableArray<string?> argumentTypes, out string? resultType)
-        => _glsl.TryResolveIntrinsic(name, argumentTypes, out resultType);
+    {
+        resultType = null;
+
+        if (!Functions.TryGetValue(name, out ImmutableArray<GodotBuiltinFunction> overloads))
+        {
+            return false;
+        }
+
+        foreach (bool literal in (bool[])[false, true])
+        {
+            string[] results = [.. overloads
+                .Where(f => Matches(f, argumentTypes, literal))
+                .Select(f => f.ReturnType)
+                .Distinct(StringComparer.Ordinal)];
+
+            if (results.Length > 0)
+            {
+                resultType = results.Length == 1 ? results[0] : null;
+                return true;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>多重定義が実引数の型に合うか。</summary>
+    /// <param name="function">多重定義。</param>
+    /// <param name="argumentTypes">実引数の型。分からないものは <see langword="null"/>。</param>
+    /// <param name="literal"><c>int</c> の実引数を <c>float</c> / <c>uint</c> の仮引数にも合わせるか (整数のリテラルの変換)。</param>
+    /// <returns>合えば <see langword="true"/>。</returns>
+    internal static bool Matches(GodotBuiltinFunction function, ImmutableArray<string?> argumentTypes, bool literal)
+    {
+        if (function.Parameters.Length != argumentTypes.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < argumentTypes.Length; i++)
+        {
+            string? argument = argumentTypes[i];
+            string parameter = function.Parameters[i];
+
+            if (argument is not null && argument != parameter && !(literal && argument == "int" && parameter is "float" or "uint"))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <inheritdoc/>
     public override bool IsConvertible(string? valueType, string? targetType, bool exact = false) => _glsl.IsConvertible(valueType, targetType, exact);
@@ -141,13 +259,23 @@ internal sealed class GodotTypeSystem : ShaderTypeSystem
     public override bool IsKnownConstant(string? name) => name is not null && _variables.ContainsKey(name);
 
     /// <inheritdoc/>
-    public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree) => name is not null && !_glsl.Builtins.GetFunctions(name).IsEmpty;
+    public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree) => name is not null && Functions.ContainsKey(name);
 
     /// <inheritdoc/>
-    public override IReadOnlyCollection<string> FunctionNames => _glsl.FunctionNames;
+    public override IReadOnlyCollection<string> FunctionNames { get; }
 
     /// <inheritdoc/>
-    internal override bool TryGetIntrinsicArity(string name, out IntrinsicArity arity) => _glsl.TryGetIntrinsicArity(name, out arity);
+    internal override bool TryGetIntrinsicArity(string name, out IntrinsicArity arity)
+    {
+        if (!Functions.TryGetValue(name, out ImmutableArray<GodotBuiltinFunction> overloads))
+        {
+            arity = default;
+            return false;
+        }
+
+        arity = new IntrinsicArity([.. overloads.Select(f => f.Parameters.Length).Distinct().Order()], -1);
+        return true;
+    }
 
     /// <inheritdoc/>
     public override TextureMethodReturnType GetTextureMethodReturnType(string? name) => _glsl.GetTextureMethodReturnType(name);

@@ -121,7 +121,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             {
                 AnalyzeIdentifier(compilation, program, declared, identifier, qualifiers, uses);
 
-                if (compilation.IsGlsl && FindDeclaredLater(compilation, program, identifier) is { } later)
+                if ((compilation.IsGlsl || compilation.IsGodot) && FindDeclaredLater(compilation, program, identifier) is { } later)
                 {
                     declaredLater.TryAdd((later.FilePath, later.Span.Start), (later, identifier.Name));
                 }
@@ -231,8 +231,24 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static Location? FindDeclaredLater(ShaderCompilation compilation, AnalyzedProgram program, IdentifierExpressionSyntax identifier)
     {
+        bool isCall = identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier);
+
+        // Godot には関数の前方宣言が無いので、後ろで定義した関数は呼べない (「No matching function found」)。GLSL は前方宣言で呼べる。
+        if (isCall && compilation.IsGodot)
+        {
+            ImmutableArray<FunctionDeclarationSyntax> declarations = compilation.GetFunctionDeclarations(identifier.Name, program);
+
+            return !declarations.IsEmpty
+                   && compilation.IsReportable(identifier)
+                   && declarations.All(d => d.NameToken is { } name
+                                            && ReferenceEquals(name.Source, identifier.Identifier.Source)
+                                            && name.Span.Start > identifier.Identifier.Span.Start)
+                ? identifier.GetLocation()
+                : null;
+        }
+
         // 組み込みの変数 (gl_ClipDistance など) は、後ろで宣言し直していても、その前から使える。
-        if (identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier)
+        if (isCall
             || identifier.Name.StartsWith("gl_", StringComparison.Ordinal)
             || !compilation.IsReportable(identifier)
             || !compilation.HasCompleteDependenciesAt(identifier)
@@ -271,6 +287,23 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
            && identifier.Parent is InvocationExpressionSyntax { OpenAngle: not null } invocation
            && ReferenceEquals(invocation.Target, identifier);
 
+    /// <summary>識別子を囲んでいる関数の名前。関数の外なら <see langword="null"/>。</summary>
+    /// <param name="node">識別子。</param>
+    /// <returns>関数の名前。</returns>
+    /// <remarks>Godot の組み込みの変数は、囲んでいる関数 (ステージ関数か、利用者の関数か) で使えるものが変わる。</remarks>
+    private static string? EnclosingFunctionName(ShaderSyntaxNode node)
+    {
+        for (Core.Syntax.SyntaxNode? current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (current is FunctionDeclarationSyntax function)
+            {
+                return function.Name;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>識別子 1 つを、それがある木で見えるかどうかとともに覚える。</summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
     /// <param name="program">識別子がある木。</param>
@@ -298,7 +331,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         if (types.IsKnownFunction(identifier.Name, program.Tree)
             || (invoked && types is GlslTypeSystem glsl && glsl.IsUnavailableBuiltinFunction(identifier.Name))
             || (!invoked && types is GlslTypeSystem glslVariables && glslVariables.IsUnavailableBuiltinVariable(identifier.Name))
-            || types.IsKnownConstant(identifier.Name)
+            || (types.IsKnownConstant(identifier.Name)
+                && (types is not GodotTypeSystem godot || godot.IsBuiltinVariableAvailable(identifier.Name, EnclosingFunctionName(identifier))))
             // GLSL (glslang) は、括弧を付けずに残った関数形式マクロの名前も宣言されていない名前にする。
             || (!invoked && compilation.IsFunctionLikeMacro(identifier.Name) && !compilation.IsGlsl)
             || types.IsBuiltInTypeName(identifier.Name)
