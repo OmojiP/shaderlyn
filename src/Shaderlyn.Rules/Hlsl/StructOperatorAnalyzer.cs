@@ -39,8 +39,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGlsl => true;
 
-    /// <inheritdoc/>
-    protected override bool AnalyzesGodot => true;
+    // Godot では働かせない。Godot は構造体の ==・!=・?: を通し、通さない演算子は GD0301 (GodotOperatorAnalyzer) が Godot と同じ規則で報告する。
 
     /// <summary>多重定義できない演算子。</summary>
     private static readonly FrozenSet<string> NotOverloadable = new[]

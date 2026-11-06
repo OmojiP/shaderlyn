@@ -233,6 +233,8 @@ public sealed class GodotRuleTests : IDisposable
     [InlineData("shader_type spatial;\nconst float A = 1.0;\nconst vec2 B = vec2(A, 2.0) * 2.0;\nconst float C[2] = { 1.0, 2.0 };\nconst float S = sin(1.0);\nvoid fragment() {\n  const float e = A * 2.0 + B.x + C[0] + TIME;\n  const float f = true ? 1.0 : 2.0;\n  int a = 4 / 0;\n  float b = 1.0 / 0.0;\n  uvec2 c = uvec2(4u) / uvec2(0u);\n  int z = 0;\n  ivec2 d = ivec2(4) / ivec2(z);\n}\n")]
     // サンプラーの仮引数: 同じフィルターの uniform (ほかのヒントは比べない)、同じ組み込み、仮引数ごとに違う設定
     [InlineData("shader_type canvas_item;\nuniform sampler2D a : filter_linear, source_color;\nuniform sampler2D b : filter_linear, hint_default_white;\nvec4 f(sampler2D s) { return texture(s, vec2(0.0)); }\nvec4 g(sampler2D s, sampler2D t) { return texture(s, vec2(0.0)) + texture(t, vec2(0.0)); }\nvoid fragment() {\n  COLOR = f(a) + f(b) + g(TEXTURE, a) + g(TEXTURE, b);\n}\n")]
+    // 構造体の ==・!=・?:・代入・{ } と値の作成 (HLSL と違い Godot は通す。CF0406 を働かせない)
+    [InlineData("shader_type spatial;\nstruct S { float a; vec3 v; };\nvoid fragment() {\n  S x = S(1.0, vec3(0.0));\n  S y = x;\n  bool b = x == y || x != y;\n  S z = b ? x : y;\n  S arr[2] = { x, y };\n  y.v.xz = vec2(1.0);\n}\n")]
     public async Task Godotが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

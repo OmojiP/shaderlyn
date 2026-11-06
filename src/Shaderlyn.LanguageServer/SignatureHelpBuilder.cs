@@ -101,6 +101,22 @@ internal static class SignatureHelpBuilder
             }
         }
 
+        // Godot の組み込み関数 (値の作成 vec3(…) を含む)。
+        if (signatures.Count == 0
+            && !compilation.Programs.IsEmpty
+            && compilation.TypeSystem.ForTree(compilation.Programs[0].Tree) is GodotTypeSystem godot
+            && godot.Functions.TryGetValue(name, out ImmutableArray<GodotBuiltinFunction> godotOverloads))
+        {
+            ExpressionTypeEvaluator evaluator = compilation.GetExpressionTypeBinder(compilation.Programs[0]).GetEvaluatorFor(invocation);
+            string?[] arguments = [.. invocation.ArgumentExpressions.Select(evaluator.Evaluate)];
+
+            foreach (GodotBuiltinFunction function in OrderGodotBuiltins(godotOverloads, arguments).Take(MaxBuiltinSignatures))
+            {
+                ImmutableArray<string> parameters = [.. GodotParameters(function)];
+                signatures.Add(new SignatureInfo(FormatGodotBuiltin(function), parameters));
+            }
+        }
+
         return signatures.Count == 0
             ? null
             : new SignatureHelp(signatures.ToImmutable(), CountCommasBefore(invocation, offset));
@@ -120,6 +136,35 @@ internal static class SignatureHelpBuilder
             .OrderByDescending(Matches)
             .ThenBy(f => f.UsesExtensionTypes)
             .ThenBy(f => f.Extensions.Length);
+    }
+
+    /// <summary>Godot の組み込み関数の多重定義を、見せる順に並べる。</summary>
+    /// <param name="overloads">多重定義。</param>
+    /// <param name="argumentTypes">書いた実引数の型。分からないものは <see langword="null"/>。</param>
+    /// <returns>実引数の型と同じ仮引数が多い形、実引数の数が合う形の順。</returns>
+    internal static IEnumerable<GodotBuiltinFunction> OrderGodotBuiltins(IEnumerable<GodotBuiltinFunction> overloads, IReadOnlyList<string?> argumentTypes)
+    {
+        int Matches(GodotBuiltinFunction function)
+            => Enumerable.Range(0, Math.Min(argumentTypes.Count, function.Parameters.Length))
+                .Count(i => argumentTypes[i] == function.Parameters[i]);
+
+        return overloads
+            .OrderByDescending(Matches)
+            .ThenBy(f => f.Parameters.Length < argumentTypes.Count ? 1 : 0)
+            .ThenBy(f => f.Parameters.Length);
+    }
+
+    /// <summary>Godot の組み込み関数の形を 1 行で表す (<c>float modf(float, out float)</c>)。</summary>
+    /// <param name="function">多重定義 1 つ。</param>
+    /// <returns>組み立てた文字列。</returns>
+    internal static string FormatGodotBuiltin(GodotBuiltinFunction function)
+        => $"{function.ReturnType} {function.Name}({string.Join(", ", GodotParameters(function))})";
+
+    /// <summary>Godot の組み込み関数の仮引数。書き戻すもの (<c>modf</c> の 2 つ目など) には out を付ける。</summary>
+    private static IEnumerable<string> GodotParameters(GodotBuiltinFunction function)
+    {
+        ImmutableArray<int> outs = GodotBuiltins.Instance.OutArguments.GetValueOrDefault(function.Name, []);
+        return function.Parameters.Select((p, i) => outs.Contains(i) ? $"out {p}" : p);
     }
 
     /// <summary>組み込み関数の多重定義を出す数。16 ビットの型の形などで数十になる関数がある。</summary>

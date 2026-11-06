@@ -53,7 +53,8 @@ internal static partial class HoverBuilder
                               ?? BuildForProperty(compilation, offset);
 
         // 説明の中のコードは、言語に合わせて色を付けてもらう。説明を組み立てる側は HLSL として書いている。
-        return compilation.IsGlsl && result is { } glsl
+        // Godot のシェーダー言語は GLSL に近く、VS Code には Godot の色付けが無いので、GLSL として色を付けてもらう。
+        return (compilation.IsGlsl || compilation.IsGodot) && result is { } glsl
             ? glsl with { Markdown = glsl.Markdown.Replace("```hlsl\n", "```glsl\n", StringComparison.Ordinal) }
             : result;
     }

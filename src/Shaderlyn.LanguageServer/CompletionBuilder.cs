@@ -78,6 +78,19 @@ internal static partial class CompletionBuilder
             case CompletionPlace.MacroName:
                 return BuildMacroNames(compilation);
 
+            case CompletionPlace.GodotShaderType:
+                return [.. GodotBuiltins.Instance.ShaderTypes.Order(StringComparer.Ordinal).Select(t => new CompletionItem(t, KindKeyword, "シェーダーの種類"))];
+
+            case CompletionPlace.GodotRenderMode:
+                return BuildGodotModes(compilation, stencil: false);
+
+            case CompletionPlace.GodotStencilMode:
+                return BuildGodotModes(compilation, stencil: true);
+
+            case CompletionPlace.GodotUniformHint:
+                return [.. Godot.Parsing.GodotKeywords.Hints.Order(StringComparer.Ordinal).Select(h => new CompletionItem(h, KindKeyword,
+                    h.StartsWith("filter_", StringComparison.Ordinal) ? "フィルター" : h.StartsWith("repeat_", StringComparison.Ordinal) ? "繰り返し" : "ヒント"))];
+
             default:
                 break;
         }
@@ -280,10 +293,33 @@ internal static partial class CompletionBuilder
 
         foreach (string name in types.FunctionNames)
         {
+            // Godot の表は値の作成 (vec3(…)) も関数として持つ。型は型として出す。
+            if (types is GodotTypeSystem && types.IsBuiltInTypeName(name))
+            {
+                continue;
+            }
+
             Add(name, KindFunction, "組み込み関数");
         }
 
-        if (types is GlslTypeSystem glsl)
+        if (types is GodotTypeSystem godot)
+        {
+            // 組み込みの変数は、カーソルを囲む関数で使えるものだけを出す (fragment の中で vertex だけの INSTANCE_ID を出さない)。
+            string? function = compilation.Programs
+                .SelectMany(p => p.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>())
+                .FirstOrDefault(f => compilation.IsWrittenHere(f) && f.Span.IntersectsWith(offset))?.Name;
+
+            foreach (GodotBuiltinVariable variable in godot.GetAvailableBuiltinVariables(function).OrderBy(v => v.Name, StringComparer.Ordinal))
+            {
+                Add(variable.Name, KindVariable, $"{variable.Type} ({DescribeGodotBuiltin(variable)})");
+            }
+
+            foreach (string name in Godot.Parsing.GodotKeywords.BuiltInTypes)
+            {
+                Add(name, KindKeyword, "型");
+            }
+        }
+        else if (types is GlslTypeSystem glsl)
         {
             foreach (string name in glsl.Builtins.VariableNames)
             {
@@ -310,6 +346,35 @@ internal static partial class CompletionBuilder
 
         return [.. items.Values.OrderBy(i => i.Label, StringComparer.Ordinal)];
     }
+
+    /// <summary>Godot の描画のモードかステンシルのモードを候補にする。選択肢のあるモードは「名前_選択肢」(<c>blend_mix</c>) で出す。</summary>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="stencil">ステンシルのモードか。</param>
+    /// <returns>候補。シェーダーの種類が分からなければ (<c>.gdshaderinc</c>)、どの種類のものも出す。</returns>
+    private static ImmutableArray<CompletionItem> BuildGodotModes(ShaderCompilation compilation, bool stencil)
+    {
+        string? shaderType = compilation.Programs.IsEmpty ? null : (compilation.Programs[0].Tree.Language as Godot.GodotLanguageOptions)?.ShaderType;
+        IEnumerable<string> types = shaderType is null ? GodotBuiltins.Instance.ShaderTypes : [shaderType];
+        string detail = stencil ? "ステンシルのモード" : "描画のモード";
+
+        return
+        [
+            .. types
+                .SelectMany(t => stencil ? GodotBuiltins.Instance.GetStencilModes(t) : GodotBuiltins.Instance.GetRenderModes(t))
+                .SelectMany(m => m.Options.IsEmpty ? [m.Name] : m.Options.Select(o => $"{m.Name}_{o}"))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .Select(name => new CompletionItem(name, KindKeyword, detail)),
+        ];
+    }
+
+    /// <summary>Godot の組み込みの変数の種類を短く表す。</summary>
+    /// <param name="variable">組み込みの変数。</param>
+    /// <returns>「組み込みの定数」「組み込み変数、読むだけ」など。</returns>
+    internal static string DescribeGodotBuiltin(GodotBuiltinVariable variable)
+        => variable.Function == "constants"
+            ? "組み込みの定数"
+            : variable.IsConstant ? "組み込み変数、読むだけ" : "組み込み変数";
 
     /// <summary>関数の中で宣言された名前を候補に足す。</summary>
     /// <param name="function">対象の関数。</param>

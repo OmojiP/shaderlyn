@@ -52,6 +52,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Godot: レンダラーを設定ファイルの `godot: renderer` (`forward_plus` / `mobile` / `gl_compatibility`) か、`project.godot` の `rendering/renderer/rendering_method` から決める。
   プリプロセッサの `CURRENT_RENDERER` と `RENDERER_FORWARD_PLUS` / `RENDERER_MOBILE` / `RENDERER_COMPATIBILITY` を定義する (今までは定義しておらず、`#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` が常に真になっていた)
 - Godot: `#include "res://..."` を、`project.godot` のあるフォルダー (設定ファイルの `godot: project` でも決められる) から解決する。プロジェクトの中なら、`../` で上がる相対パスも読む
+- VS Code 拡張: Godot のシェーダー (`.gdshader` / `.gdshaderinc`) を解析する。説明 (ホバー表示)・定義への移動・補完・引数の案内は、Godot の型と組み込み関数、
+  カーソルのあるステージ関数で使える組み込みの変数 (`ALBEDO`・`TIME` など) で答える。uniform の説明にはヒントを添える。
+  `shader_type` の種類、`render_mode` / `stencil_mode` のモード (`blend_mix` など、そのシェーダーの種類のもの)、uniform のヒント・フィルター・繰り返しも補完する
+- Godot: 構造体の演算子は GD0301 だけで報告する (CF0406 は Godot では働かせない。Godot は構造体の `==`・`!=`・`?:` を通す)
 - 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)

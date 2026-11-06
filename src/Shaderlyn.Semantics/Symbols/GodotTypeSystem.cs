@@ -127,6 +127,38 @@ internal sealed class GodotTypeSystem : ShaderTypeSystem
         return found is { IsConstant: true };
     }
 
+    /// <summary>
+    /// 組み込みの変数か定数を、その位置で使えるものから引く (説明と補完のため)。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <param name="function">囲んでいる関数の名前。関数の外なら <see langword="null"/>。</param>
+    /// <returns>その関数のもの、どの関数でも使えるもの、定数の順に見つけたもの。その位置で使えなければ <see langword="null"/>。</returns>
+    internal GodotBuiltinVariable? FindBuiltinVariable(string name, string? function)
+    {
+        if (!IsBuiltinVariableAvailable(name, function))
+        {
+            return null;
+        }
+
+        IEnumerable<GodotBuiltinVariable> variables = ShaderType is null
+            ? GodotBuiltins.Instance.ShaderTypes.SelectMany(t => GodotBuiltins.Instance.GetVariables(t))
+            : GodotBuiltins.Instance.GetVariables(ShaderType);
+        GodotBuiltinVariable[] named = [.. variables.Where(v => v.Name == name)];
+
+        return named.FirstOrDefault(v => v.Function == function)
+               ?? named.FirstOrDefault(v => v.Function == "global")
+               ?? named.FirstOrDefault(v => v.Function == "constants")
+               ?? named.FirstOrDefault();
+    }
+
+    /// <summary>その位置で使える組み込みの変数と定数を挙げる (補完のため)。</summary>
+    /// <param name="function">囲んでいる関数の名前。関数の外なら <see langword="null"/>。</param>
+    /// <returns>名前ごとに 1 つ。</returns>
+    internal IEnumerable<GodotBuiltinVariable> GetAvailableBuiltinVariables(string? function)
+        => _functionsByVariable.Keys
+            .Select(name => FindBuiltinVariable(name, function))
+            .OfType<GodotBuiltinVariable>();
+
     /// <summary>このシェーダーの種類のステージ関数か (<c>vertex</c> / <c>fragment</c> / <c>light</c> / <c>start</c> / <c>process</c> / <c>sky</c> / <c>fog</c> など)。</summary>
     /// <param name="name">関数の名前。</param>
     /// <returns>ステージ関数なら <see langword="true"/>。</returns>

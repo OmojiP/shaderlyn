@@ -115,6 +115,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // GLSL は構文エラーだけを指摘する (サーバの SyntaxOnlyAnalysisEnvironment.GlslExtensions と揃えること)。
       // .mesh は Unity のメッシュのアセットと同じ拡張子なので選ばない。
       { scheme: "file", pattern: "**/*.{vert,frag,comp,geom,tesc,tese,task,rgen,rint,rahit,rchit,rmiss,rcall,glsl}" },
+      // Godot のシェーダー (サーバの GodotAnalysisEnvironment.Extensions と揃えること)。
+      { scheme: "file", pattern: "**/*.{gdshader,gdshaderinc}" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。

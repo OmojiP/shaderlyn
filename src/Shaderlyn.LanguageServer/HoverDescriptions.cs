@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Syntax;
 using Shaderlyn.Core.Text;
@@ -70,7 +71,20 @@ internal static partial class HoverBuilder
         string type = declaration.Type.Name + (declarator.IsArray ? "[]" : string.Empty);
         string body = $"```hlsl\n{type} {declarator.Name}\n```";
 
-        if (compilation.TryGetUniform(declarator.Name, out UniformSymbol? uniform))
+        if (compilation.IsGodot)
+        {
+            // Godot には定数バッファが無い。uniform と varying は、ヒントと補間の修飾子を添える。
+            string[] hints = [.. declarator.Semantics.Select(h => h.Name)];
+            string[] modifiers = [.. declaration.ModifierTokens.Select(t => t.Text).Where(t => t is "instance" or "global" or "flat" or "smooth")];
+            string kind = declaration.HasModifier("uniform") ? "uniform" : declaration.HasModifier("varying") ? "varying" : declaration.HasModifier("const") ? "定数" : string.Empty;
+
+            if (kind.Length > 0)
+            {
+                body += $"\n\n{string.Join(" ", modifiers.Append(kind))}"
+                        + (hints.Length == 0 ? string.Empty : $" (ヒント: {string.Join(", ", hints)})");
+            }
+        }
+        else if (compilation.TryGetUniform(declarator.Name, out UniformSymbol? uniform))
         {
             body += uniform.ContainingBufferName is { } buffer
                 ? $"\n\nuniform (`{buffer}` の中)"
@@ -232,6 +246,16 @@ internal static partial class HoverBuilder
             return new HoverResult($"```hlsl\n{forms}\n```\n\n宣言されている関数{note}", identifier.Span);
         }
 
+        // Godot も組み込み関数の多重定義の表 (Godot のソースから作ったもの) を持つ。
+        if (types is GodotTypeSystem godot && godot.Functions.TryGetValue(name, out ImmutableArray<GodotBuiltinFunction> godotOverloads))
+        {
+            ExpressionTypeEvaluator godotEvaluator = binder.GetEvaluatorFor(identifier);
+            string?[] godotArguments = identifier.Parent is InvocationExpressionSyntax godotInvocation
+                ? [.. godotInvocation.ArgumentExpressions.Select(godotEvaluator.Evaluate)]
+                : [];
+            return new HoverResult(DescribeGodotBuiltin(name, godotOverloads, godotArguments), identifier.Span);
+        }
+
         // GLSL は組み込み関数の多重定義の表を持つので、形を並べる。
         if (types is GlslTypeSystem glsl && !glsl.Builtins.GetFunctions(name).IsEmpty)
         {
@@ -344,7 +368,57 @@ internal static partial class HoverBuilder
             body += $"\n\n組み込み変数 ({builtin.Storage}{(builtin.Extensions.IsEmpty ? string.Empty : $"、{string.Join(" か ", builtin.Extensions)} が要る")})";
         }
 
+        // Godot の組み込みの変数と定数 (ALBEDO、TIME、PI)。どの関数で使えるかと、書き込めるかを添える。
+        if (expression is IdentifierExpressionSyntax godotName
+            && binder.TypeSystem is GodotTypeSystem godot
+            && binder.ResolveName(godotName).Kind == DeclaredNameKind.NotFound
+            && godot.FindBuiltinVariable(godotName.Name, EnclosingFunction(godotName)) is { } variable)
+        {
+            string where = variable.Function switch
+            {
+                "constants" => "どこでも使える",
+                "global" => "どの関数でも使える",
+                { } stage => $"{stage} 関数で使える",
+            };
+            body += $"\n\n{CompletionBuilder.DescribeGodotBuiltin(variable)} ({where})";
+        }
+
         return new HoverResult($"```hlsl\n{text}\n```\n\n{body}", expression.Span);
+    }
+
+    /// <summary>ノードを囲む関数の名前。関数の外なら <see langword="null"/>。</summary>
+    /// <param name="node">ノード。</param>
+    /// <returns>関数の名前。</returns>
+    private static string? EnclosingFunction(SyntaxNode node)
+    {
+        for (SyntaxNode? current = node; current is not null; current = current.Parent)
+        {
+            if (current is FunctionDeclarationSyntax function)
+            {
+                return function.Name;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Godot の組み込み関数の多重定義を並べる。</summary>
+    /// <param name="name">関数の名前。</param>
+    /// <param name="overloads">多重定義。</param>
+    /// <param name="argumentTypes">呼び出しの実引数の型。合う形を先に並べる。</param>
+    /// <returns>説明の Markdown。</returns>
+    private static string DescribeGodotBuiltin(string name, ImmutableArray<GodotBuiltinFunction> overloads, IReadOnlyList<string?> argumentTypes)
+    {
+        GodotBuiltinFunction[] ordered = [.. SignatureHelpBuilder.OrderGodotBuiltins(overloads, argumentTypes)];
+        IEnumerable<string> forms = ordered.Take(MaxListedOverloads).Select(SignatureHelpBuilder.FormatGodotBuiltin);
+        string rest = ordered.Length > MaxListedOverloads ? $"\n\nほかに {ordered.Length - MaxListedOverloads} 個の形がある。" : string.Empty;
+        string highEnd = overloads.All(f => f.HighEnd)
+            ? "\n\nhigh-end の関数。Compatibility のレンダラーでは使えない (Forward+ と Mobile で使える)。"
+            : string.Empty;
+        string[] stages = [.. GodotBuiltins.Instance.StageFunctions.Where(f => f.Function.Name == name).Select(f => f.StageFunction).Distinct(StringComparer.Ordinal)];
+        string stage = stages.Length > 0 ? $"\n\n{string.Join(" と ", stages)} 関数の中でだけ使える。" : string.Empty;
+
+        return $"```hlsl\n{string.Join("\n", forms)}\n```\n\n組み込み関数{rest}{highEnd}{stage}";
     }
 
     /// <summary>

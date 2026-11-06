@@ -196,7 +196,12 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>解析しているコードの言語の名前。</summary>
     /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
-    /// <returns><c>GLSL</c> か <c>HLSL</c>。</returns>
+    /// <returns><c>GLSL</c>・<c>Godot シェーダー言語</c>・<c>HLSL</c>。</returns>
     private static string LanguageOf(ShaderCompilation compilation)
-        => compilation.Environment.Name == Semantics.Environments.GlslEnvironment.EnvironmentName ? "GLSL" : "HLSL";
+        => compilation.Environment.Name switch
+        {
+            Semantics.Environments.GlslEnvironment.EnvironmentName => "GLSL",
+            Semantics.Environments.GodotEnvironment.EnvironmentName => "Godot シェーダー言語",
+            _ => "HLSL",
+        };
 }
