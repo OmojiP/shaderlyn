@@ -11,6 +11,11 @@ namespace Shaderlyn.Semantics.Symbols;
 /// <param name="IsConstant">書き込めないか。</param>
 internal sealed record GodotBuiltinVariable(string Name, string Type, string Function, bool IsConstant);
 
+/// <summary>Godot の描画のモードかステンシルのモード 1 つ (<c>shader_types.cpp</c> の <c>ModeInfo</c>)。</summary>
+/// <param name="Name">名前 (<c>blend</c>、<c>unshaded</c>)。</param>
+/// <param name="Options">選択肢 (<c>mix</c>、<c>add</c> など)。あれば「名前_選択肢」(<c>blend_mix</c>) と書く。空なら名前だけを書く。</param>
+internal sealed record GodotMode(string Name, ImmutableArray<string> Options);
+
 /// <summary>Godot の組み込み関数の多重定義 1 つ (値の作成 <c>vec2(…)</c> を含む)。</summary>
 /// <param name="Name">名前。</param>
 /// <param name="ReturnType">戻り値の型。</param>
@@ -45,13 +50,13 @@ internal sealed class GodotBuiltins
     private static readonly Lazy<GodotBuiltins> Table = new(Load);
 
     private readonly FrozenDictionary<string, ImmutableArray<GodotBuiltinVariable>> _variables;
-    private readonly FrozenDictionary<string, FrozenSet<string>> _renderModes;
-    private readonly FrozenDictionary<string, FrozenSet<string>> _stencilModes;
+    private readonly FrozenDictionary<string, ImmutableArray<GodotMode>> _renderModes;
+    private readonly FrozenDictionary<string, ImmutableArray<GodotMode>> _stencilModes;
 
     private GodotBuiltins(
         FrozenDictionary<string, ImmutableArray<GodotBuiltinVariable>> variables,
-        FrozenDictionary<string, FrozenSet<string>> renderModes,
-        FrozenDictionary<string, FrozenSet<string>> stencilModes,
+        FrozenDictionary<string, ImmutableArray<GodotMode>> renderModes,
+        FrozenDictionary<string, ImmutableArray<GodotMode>> stencilModes,
         FrozenDictionary<string, ImmutableArray<GodotBuiltinFunction>> functions,
         FrozenDictionary<string, ImmutableArray<int>> outArguments,
         FrozenDictionary<string, ImmutableArray<GodotConstantArgument>> constantArguments,
@@ -95,17 +100,17 @@ internal sealed class GodotBuiltins
     public ImmutableArray<GodotBuiltinVariable> GetVariables(string shaderType)
         => _variables.TryGetValue(shaderType, out ImmutableArray<GodotBuiltinVariable> variables) ? variables : [];
 
-    /// <summary>そのシェーダーの種類の描画のモード (<c>render_mode</c> に書く名前)。</summary>
+    /// <summary>そのシェーダーの種類の描画のモード (<c>render_mode</c> に書くもの)。Godot が調べる順に並ぶ。</summary>
     /// <param name="shaderType">シェーダーの種類。</param>
     /// <returns>描画のモード。知らない種類なら空。</returns>
-    public FrozenSet<string> GetRenderModes(string shaderType)
-        => _renderModes.TryGetValue(shaderType, out FrozenSet<string>? modes) ? modes : FrozenSet<string>.Empty;
+    public ImmutableArray<GodotMode> GetRenderModes(string shaderType)
+        => _renderModes.TryGetValue(shaderType, out ImmutableArray<GodotMode> modes) ? modes : [];
 
-    /// <summary>そのシェーダーの種類のステンシルのモード (<c>stencil_mode</c> に書く名前)。</summary>
+    /// <summary>そのシェーダーの種類のステンシルのモード (<c>stencil_mode</c> に書くもの)。Godot が調べる順に並ぶ。</summary>
     /// <param name="shaderType">シェーダーの種類。</param>
     /// <returns>ステンシルのモード。知らない種類なら空。</returns>
-    public FrozenSet<string> GetStencilModes(string shaderType)
-        => _stencilModes.TryGetValue(shaderType, out FrozenSet<string>? modes) ? modes : FrozenSet<string>.Empty;
+    public ImmutableArray<GodotMode> GetStencilModes(string shaderType)
+        => _stencilModes.TryGetValue(shaderType, out ImmutableArray<GodotMode> modes) ? modes : [];
 
     /// <summary>埋め込んだ表を読む。</summary>
     /// <returns>表。</returns>
@@ -116,8 +121,8 @@ internal sealed class GodotBuiltins
         using StreamReader reader = new(stream);
 
         Dictionary<string, ImmutableArray<GodotBuiltinVariable>.Builder> variables = new(StringComparer.Ordinal);
-        Dictionary<string, HashSet<string>> renderModes = new(StringComparer.Ordinal);
-        Dictionary<string, HashSet<string>> stencilModes = new(StringComparer.Ordinal);
+        Dictionary<string, ImmutableArray<GodotMode>.Builder> renderModes = new(StringComparer.Ordinal);
+        Dictionary<string, ImmutableArray<GodotMode>.Builder> stencilModes = new(StringComparer.Ordinal);
         Dictionary<string, ImmutableArray<GodotBuiltinFunction>.Builder> functions = new(StringComparer.Ordinal);
         Dictionary<string, ImmutableArray<int>.Builder> outArguments = new(StringComparer.Ordinal);
         Dictionary<string, ImmutableArray<GodotConstantArgument>.Builder> constantArguments = new(StringComparer.Ordinal);
@@ -144,12 +149,9 @@ internal sealed class GodotBuiltins
                     list.Add(new GodotBuiltinVariable(fields[3], fields[4], fields[2], fields[5] == "const"));
                     break;
 
-                case "R":
-                    Add(renderModes, fields[1], fields[2]);
-                    break;
-
-                case "S":
-                    Add(stencilModes, fields[1], fields[2]);
+                case "R" or "S":
+                    BuilderOf(fields[0] == "R" ? renderModes : stencilModes, fields[1])
+                        .Add(new GodotMode(fields[2], fields[3].Length == 0 ? [] : [.. fields[3].Split(',')]));
                     break;
 
                 case "B":
@@ -187,8 +189,8 @@ internal sealed class GodotBuiltins
 
         return new GodotBuiltins(
             variables.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
-            renderModes.ToFrozenDictionary(p => p.Key, p => p.Value.ToFrozenSet(StringComparer.Ordinal), StringComparer.Ordinal),
-            stencilModes.ToFrozenDictionary(p => p.Key, p => p.Value.ToFrozenSet(StringComparer.Ordinal), StringComparer.Ordinal),
+            renderModes.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
+            stencilModes.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
             functions.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
             outArguments.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
             constantArguments.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutable(), StringComparer.Ordinal),
@@ -203,16 +205,6 @@ internal sealed class GodotBuiltins
             }
 
             return builder;
-        }
-
-        static void Add(Dictionary<string, HashSet<string>> table, string shaderType, string mode)
-        {
-            if (!table.TryGetValue(shaderType, out HashSet<string>? modes))
-            {
-                table[shaderType] = modes = new HashSet<string>(StringComparer.Ordinal);
-            }
-
-            modes.Add(mode);
         }
     }
 }

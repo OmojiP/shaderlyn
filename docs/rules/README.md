@@ -246,11 +246,20 @@ Godot シェーダー言語にしか無いものです。Godot 4.7.2 がエラ�
 
 | ID                  | 内容                                                       | 既定   |
 | ------------------- | ---------------------------------------------------------- | ------ |
-| [GD0002](GD0002.md) | そのステージでは使えない (vertex の中と vertex から呼ぶ関数の中の dFdx・texture_sdf、particles の dFdx など) | エラー |
+| [GD0002](GD0002.md) | そのステージでは使えない (vertex の中と vertex から呼ぶ関数の中の dFdx・texture_sdf・discard、particles の dFdx・discard など) | エラー |
+| [GD0101](GD0101.md) | 修飾子を書けないところに書いた (サンプラー・行列・配列の instance uniform、配列の global uniform、particles・sky・fog の varying など) | エラー |
+| [GD0102](GD0102.md) | render_mode・stencil_mode が正しくない (そのシェーダーの種類に無い、2 度書いた、blend_mix と blend_add など) | エラー |
+| [GD0103](GD0103.md) | uniform のヒントか既定値が正しくない (float の source_color、2 つ目のヒント、instance_index の範囲、既定値の型など) | エラー |
 | [GD0301](GD0301.md) | 演算子を使えない型の組に使った (float + int、-mat4、ベクトルの < など) | エラー |
 | [GD0302](GD0302.md) | 組み込み関数と値の作成に、実引数の型に合う形が無い (sin(vec2, float)、vec2(int, float) など) | エラー |
+| [GD0306](GD0306.md) | out / inout の仮引数に渡せない値 (uniform、const の変数、式、ベクトルの添字、書き込めない組み込みなど) | エラー |
+| [GD0307](GD0307.md) | 添字が正しくない (範囲の外のリテラル、int / uint でない添字、float や構造体の添字) | エラー |
+| [GD0309](GD0309.md) | 書き込めない値に書き込んだ (uniform、const、TIME、fragment の VERTEX、関数の呼び出しの結果、v.xx など) | エラー |
 | [GD0311](GD0311.md) | if・while・do・for・?: の条件が bool でない | エラー |
+| [GD0321](GD0321.md) | switch と break / continue の書き方が正しくない (int でない switch の式、型の違う case の値、2 つ目の default、switch の中の continue など) | エラー |
 | [GD0322](GD0322.md) | ステージ関数の形が正しくない (仮引数がある、戻り値が void でない) | エラー |
+| [GD0403](GD0403.md) | その宣言には使えない型 (構造体と void の uniform、サンプラーの varying、サンプラーの構造体のメンバーなど) | エラー |
+| [GD0405](GD0405.md) | 組み込みの名前を宣言し直した (局所変数の TIME、const の PI、uniform の ALBEDO、関数の sin など) | エラー |
 
 ## レンダーパイプライン固有
 

@@ -4,8 +4,8 @@
 #
 # V shader_type 関数 (global はどの関数でも、constants は関数の外でも使える) 名前 型 (const は書き込めない)
 # F shader_type 関数 (ステージ関数) discard を使えるか (discard / -)
-# R shader_type 描画のモード (render_mode に書く名前)
-# S shader_type ステンシルのモード (stencil_mode に書く名前。参照値の数は別に書く)
+# R shader_type 描画のモードの名前 選択肢 (, で区切る。選択肢があれば render_mode に「名前_選択肢」と書く。Godot が調べる順)
+# S shader_type ステンシルのモードの名前 選択肢 (R と同じ形。stencil_mode に書く。参照値の数は別に書く)
 # P shader_type 関数 (ステージ関数) 組み込み関数の名前 戻り値の型 仮引数の型 (, で区切る。その関数の中でだけ使える)
 # B 組み込み関数の名前 戻り値の型 仮引数の型 (, で区切る) high_end (high-end の描画でだけ使える) か - (shader_language.cpp の builtin_func_defs)
 # O 組み込み関数の名前 out の仮引数の位置 (0 から。builtin_func_out_args)
@@ -334,77 +334,47 @@ F	spatial	light	discard
 F	canvas_item	vertex	-
 F	canvas_item	fragment	discard
 F	canvas_item	light	discard
-R	spatial	blend_mix
-R	spatial	blend_add
-R	spatial	blend_sub
-R	spatial	blend_mul
-R	spatial	blend_premul_alpha
-R	spatial	depth_draw_opaque
-R	spatial	depth_draw_always
-R	spatial	depth_draw_never
-R	spatial	depth_prepass_alpha
-R	spatial	depth_test_default
-R	spatial	depth_test_disabled
-R	spatial	depth_test_inverted
-R	spatial	sss_mode_skin
-R	spatial	cull_back
-R	spatial	cull_front
-R	spatial	cull_disabled
-R	spatial	unshaded
-R	spatial	wireframe
-R	spatial	diffuse_lambert
-R	spatial	diffuse_lambert_wrap
-R	spatial	diffuse_burley
-R	spatial	diffuse_toon
-R	spatial	specular_schlick_ggx
-R	spatial	specular_toon
-R	spatial	specular_disabled
-R	spatial	skip_vertex_transform
-R	spatial	world_vertex_coords
-R	spatial	ensure_correct_normals
-R	spatial	shadows_disabled
-R	spatial	ambient_light_disabled
-R	spatial	shadow_to_opacity
-R	spatial	vertex_lighting
-R	spatial	particle_trails
-R	spatial	alpha_to_coverage
-R	spatial	alpha_to_coverage_and_one
-R	spatial	debug_shadow_splits
-R	spatial	fog_disabled
-R	spatial	specular_occlusion_disabled
-S	spatial	read
-S	spatial	write
-S	spatial	write_depth_fail
-S	spatial	compare_always
-S	spatial	compare_less
-S	spatial	compare_equal
-S	spatial	compare_less_or_equal
-S	spatial	compare_greater
-S	spatial	compare_not_equal
-S	spatial	compare_greater_or_equal
-R	canvas_item	skip_vertex_transform
-R	canvas_item	blend_mix
-R	canvas_item	blend_add
-R	canvas_item	blend_sub
-R	canvas_item	blend_mul
-R	canvas_item	blend_premul_alpha
-R	canvas_item	blend_disabled
-R	canvas_item	unshaded
-R	canvas_item	light_only
-R	canvas_item	world_vertex_coords
-R	particles	collision_use_scale
-R	particles	disable_force
-R	particles	disable_velocity
-R	particles	keep_data
-R	sky	use_half_res_pass
-R	sky	use_quarter_res_pass
-R	sky	disable_fog
-R	sky	use_debanding
-R	texture_blit	blend_mix
-R	texture_blit	blend_add
-R	texture_blit	blend_sub
-R	texture_blit	blend_mul
-R	texture_blit	blend_disabled
+R	spatial	blend	mix,add,sub,mul,premul_alpha
+R	spatial	depth_draw	opaque,always,never
+R	spatial	depth_prepass_alpha	
+R	spatial	depth_test	default,disabled,inverted
+R	spatial	sss_mode_skin	
+R	spatial	cull	back,front,disabled
+R	spatial	unshaded	
+R	spatial	wireframe	
+R	spatial	diffuse	lambert,lambert_wrap,burley,toon
+R	spatial	specular	schlick_ggx,toon,disabled
+R	spatial	skip_vertex_transform	
+R	spatial	world_vertex_coords	
+R	spatial	ensure_correct_normals	
+R	spatial	shadows_disabled	
+R	spatial	ambient_light_disabled	
+R	spatial	shadow_to_opacity	
+R	spatial	vertex_lighting	
+R	spatial	particle_trails	
+R	spatial	alpha_to_coverage	
+R	spatial	alpha_to_coverage_and_one	
+R	spatial	debug_shadow_splits	
+R	spatial	fog_disabled	
+R	spatial	specular_occlusion_disabled	
+S	spatial	read	
+S	spatial	write	
+S	spatial	write_depth_fail	
+S	spatial	compare	always,less,equal,less_or_equal,greater,not_equal,greater_or_equal
+R	canvas_item	skip_vertex_transform	
+R	canvas_item	blend	mix,add,sub,mul,premul_alpha,disabled
+R	canvas_item	unshaded	
+R	canvas_item	light_only	
+R	canvas_item	world_vertex_coords	
+R	particles	collision_use_scale	
+R	particles	disable_force	
+R	particles	disable_velocity	
+R	particles	keep_data	
+R	sky	use_half_res_pass	
+R	sky	use_quarter_res_pass	
+R	sky	disable_fog	
+R	sky	use_debanding	
+R	texture_blit	blend	mix,add,sub,mul,disabled
 P	canvas_item	fragment	texture_sdf	float	vec2
 P	canvas_item	light	texture_sdf	float	vec2
 P	canvas_item	fragment	sdf_to_screen_uv	vec2	vec2

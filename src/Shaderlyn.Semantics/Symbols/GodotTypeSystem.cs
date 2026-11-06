@@ -101,6 +101,32 @@ internal sealed class GodotTypeSystem : ShaderTypeSystem
                && (functions.Contains("global") || (_stageFunctions.Contains(function) && functions.Contains(function)));
     }
 
+    /// <summary>
+    /// 組み込みの変数か定数が、その関数の中で書き込めないものか。
+    /// </summary>
+    /// <param name="name">名前。</param>
+    /// <param name="function">囲んでいる関数の名前。</param>
+    /// <returns>書き込めないと分かれば <see langword="true"/>。シェーダーの種類が分からないとき、その関数で使えないときは <see langword="false"/>。</returns>
+    /// <remarks>
+    /// 同じ名前が関数ごとに書き込めたり書き込めなかったりする (<c>spatial</c> の <c>VERTEX</c> は <c>vertex</c> では書き込めて、<c>fragment</c> では書き込めない)。
+    /// その関数のもの、どの関数でも使えるもの (<c>TIME</c>)、定数 (<c>PI</c>) の順に引く。
+    /// </remarks>
+    internal bool IsBuiltinVariableReadOnly(string name, string function)
+    {
+        if (ShaderType is null)
+        {
+            return false;
+        }
+
+        ImmutableArray<GodotBuiltinVariable> variables = GodotBuiltins.Instance.GetVariables(ShaderType);
+        GodotBuiltinVariable? found =
+            (_stageFunctions.Contains(function) ? variables.FirstOrDefault(v => v.Name == name && v.Function == function) : null)
+            ?? variables.FirstOrDefault(v => v.Name == name && v.Function == "global")
+            ?? variables.FirstOrDefault(v => v.Name == name && v.Function == "constants");
+
+        return found is { IsConstant: true };
+    }
+
     /// <summary>このシェーダーの種類のステージ関数か (<c>vertex</c> / <c>fragment</c> / <c>light</c> / <c>start</c> / <c>process</c> / <c>sky</c> / <c>fog</c> など)。</summary>
     /// <param name="name">関数の名前。</param>
     /// <returns>ステージ関数なら <see langword="true"/>。</returns>

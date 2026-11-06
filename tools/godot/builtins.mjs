@@ -30,8 +30,8 @@ const lines = [
   '#',
   '# V shader_type 関数 (global はどの関数でも、constants は関数の外でも使える) 名前 型 (const は書き込めない)',
   '# F shader_type 関数 (ステージ関数) discard を使えるか (discard / -)',
-  '# R shader_type 描画のモード (render_mode に書く名前)',
-  '# S shader_type ステンシルのモード (stencil_mode に書く名前。参照値の数は別に書く)',
+  '# R shader_type 描画のモードの名前 選択肢 (, で区切る。選択肢があれば render_mode に「名前_選択肢」と書く。Godot が調べる順)',
+  '# S shader_type ステンシルのモードの名前 選択肢 (R と同じ形。stencil_mode に書く。参照値の数は別に書く)',
   '# P shader_type 関数 (ステージ関数) 組み込み関数の名前 戻り値の型 仮引数の型 (, で区切る。その関数の中でだけ使える)',
   '# B 組み込み関数の名前 戻り値の型 仮引数の型 (, で区切る) high_end (high-end の描画でだけ使える) か - (shader_language.cpp の builtin_func_defs)',
   '# O 組み込み関数の名前 out の仮引数の位置 (0 から。builtin_func_out_args)',
@@ -56,16 +56,14 @@ for (const m of text.matchAll(discard)) {
   lines.push(['F', shaderType(m[1]), m[2], m[3] === 'true' ? 'discard' : '-'].join('\t'));
 }
 
-// shader_modes[RSE::SHADER_SPATIAL].modes.push_back({ PNAME("blend"), "mix", "add" });       → blend_mix, blend_add
+// shader_modes[RSE::SHADER_SPATIAL].modes.push_back({ PNAME("blend"), "mix", "add" });       → blend mix,add (blend_mix と blend_add)
 // shader_modes[RSE::SHADER_SPATIAL].modes.push_back({ PNAME("depth_test"), { "default", "disabled" } });
-// shader_modes[RSE::SHADER_SPATIAL].modes.push_back({ PNAME("unshaded") });                 → unshaded
-// ステンシルのモード (stencil_modes) も同じ形である。
+// shader_modes[RSE::SHADER_SPATIAL].modes.push_back({ PNAME("unshaded") });                 → unshaded (選択肢は空)
+// ステンシルのモード (stencil_modes) も同じ形である。Godot は書いた名前をこの順に調べる (_parse_shader_mode)。
 const mode = /shader_modes\[RSE::SHADER_(\w+)\]\.(modes|stencil_modes)\.push_back\(\{ PNAME\("(\w+)"\)(.*)\}\);/g;
 for (const m of text.matchAll(mode)) {
   const options = [...m[4].matchAll(/"(\w+)"/g)].map(o => o[1]);
-  for (const name of options.length === 0 ? [m[3]] : options.map(o => `${m[3]}_${o}`)) {
-    lines.push([m[2] === 'modes' ? 'R' : 'S', shaderType(m[1]), name].join('\t'));
-  }
+  lines.push([m[2] === 'modes' ? 'R' : 'S', shaderType(m[1]), m[3], options.join(',')].join('\t'));
 }
 
 // ステージ関数ごとの組み込み関数 (canvas_item の texture_sdf、particles の emit_subparticle など)。

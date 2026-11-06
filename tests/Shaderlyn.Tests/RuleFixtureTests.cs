@@ -114,9 +114,18 @@ public sealed class RuleFixtureTests
 
         // Godot シェーダー言語だけの規則。GodotRuleTests で、.gdshader として確かめている。
         ["GD0002"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0101"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0102"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0103"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0405"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0403"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0301"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0302"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0311"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0306"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0307"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0309"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0321"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0322"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。

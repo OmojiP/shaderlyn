@@ -20,6 +20,9 @@ namespace Shaderlyn.Rules.Godot;
 /// Godot 4.7.2 の <c>_validate_restricted_func</c> と同じで、Godot に読ませて確かめた。
 /// </para>
 /// <para>
+/// <c>discard</c> は <c>spatial</c> / <c>canvas_item</c> でだけ使え、<c>vertex</c> の中と <c>vertex</c> から呼ぶ利用者の関数の中では使えない (dFdx などと同じ扱い)。
+/// </para>
+/// <para>
 /// ステージ関数 (そのシェーダーの種類の <c>vertex</c> / <c>fragment</c> など) は、仮引数を持てず、戻り値は <c>void</c> である。
 /// ほかの種類のステージ関数の名前 (<c>particles</c> の <c>fragment</c>) は、ただの利用者の関数である。
 /// </para>
@@ -28,6 +31,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 {
     /// <summary>フラグメントだけの組み込み関数を使えるシェーダーの種類 (<c>is_supported_frag_only_funcs</c>)。</summary>
     private static readonly ImmutableHashSet<string> FragmentFunctionShaderTypes = ["spatial", "canvas_item", "sky"];
+
+    /// <summary><c>discard</c> を使えるシェーダーの種類 (<c>is_discard_supported</c>)。</summary>
+    private static readonly ImmutableHashSet<string> DiscardShaderTypes = ["spatial", "canvas_item"];
 
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
@@ -73,15 +79,30 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
             // 関数ごとの、呼んでいる利用者の関数と、最初に使った「vertex で使えないもの」。
             Dictionary<string, HashSet<string>> calls = new(StringComparer.Ordinal);
-            Dictionary<string, IdentifierExpressionSyntax> firstRestricted = new(StringComparer.Ordinal);
+            Dictionary<string, (ShaderSyntaxToken Token, string Name)> firstRestricted = new(StringComparer.Ordinal);
+            bool discard = DiscardShaderTypes.Contains(shaderType);
 
             foreach (FunctionDeclarationSyntax function in functions)
             {
                 HashSet<string> callees = calls[function.Name] = new(StringComparer.Ordinal);
 
-                foreach (InvocationExpressionSyntax invocation in function.Body!.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+                foreach (ShaderSyntaxNode node in function.Body!.DescendantNodesAndSelf().OfType<ShaderSyntaxNode>())
                 {
-                    if (invocation.Target is not IdentifierExpressionSyntax callee)
+                    if (node is JumpStatementSyntax { Keyword.Text: "discard" } jump)
+                    {
+                        if (!discard)
+                        {
+                            Report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, $"discard は、{shaderType} のシェーダーでは使えません。");
+                        }
+                        else
+                        {
+                            firstRestricted.TryAdd(function.Name, (jump.Keyword, "discard"));
+                        }
+
+                        continue;
+                    }
+
+                    if (node is not InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee })
                     {
                         continue;
                     }
@@ -102,9 +123,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
                         continue;
                     }
 
-                    if ((fragmentOnly || stageOnly.Contains(callee.Name)) && !firstRestricted.ContainsKey(function.Name))
+                    if (fragmentOnly || stageOnly.Contains(callee.Name))
                     {
-                        firstRestricted[function.Name] = callee;
+                        firstRestricted.TryAdd(function.Name, (callee.Identifier, callee.Name));
                     }
                 }
             }
@@ -115,9 +136,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             }
 
             // vertex の中と、vertex から呼ぶ利用者の関数の中。
-            if (firstRestricted.TryGetValue("vertex", out IdentifierExpressionSyntax? inVertex))
+            if (firstRestricted.TryGetValue("vertex", out var inVertex))
             {
-                Report(GodotRuleDescriptors.NotAvailableInStage, inVertex.Identifier,
+                Report(GodotRuleDescriptors.NotAvailableInStage, inVertex.Token,
                     $"'{inVertex.Name}' は vertex 関数の中では使えません。");
             }
 
@@ -131,9 +152,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                if (firstRestricted.TryGetValue(name, out IdentifierExpressionSyntax? used))
+                if (firstRestricted.TryGetValue(name, out var used))
                 {
-                    Report(GodotRuleDescriptors.NotAvailableInStage, used.Identifier,
+                    Report(GodotRuleDescriptors.NotAvailableInStage, used.Token,
                         $"'{used.Name}' はここでは使えません。関数 '{name}' は vertex 関数から呼ばれています。");
                 }
 

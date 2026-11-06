@@ -27,8 +27,20 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GD0301: 演算子を使えない型の組に使った (`float + int`、`-mat4`、ベクトルの `<` など。Godot の `_validate_operator` と同じ型の組)
   - GD0302: 組み込み関数と値の作成に、実引数の型に合う形が無い (`sin(vec2, float)`、`vec2(int, float)`)。組み込み関数の表は Godot のソースから作る
   - GD0311: `if`・`while`・`do`・`for`・`?:` の条件が bool でない
-  - GD0002: そのステージでは使えない (`vertex` の中と、`vertex` から呼ぶ関数の中の `dFdx`・`texture_sdf`、`particles`・`fog` の `dFdx`)
+  - GD0002: そのステージでは使えない (`vertex` の中と、`vertex` から呼ぶ関数の中の `dFdx`・`texture_sdf`・`discard`、`particles`・`fog` の `dFdx` と `discard`)
   - GD0322: ステージ関数の形が正しくない (仮引数がある、戻り値が `void` でない)
+  - GD0101: 修飾子を書けないところに書いた (サンプラー・行列・配列の `instance uniform`、配列の `global uniform`、`particles`・`sky`・`fog` の `varying` など)
+  - GD0102: `render_mode`・`stencil_mode` が正しくない (そのシェーダーの種類に無い、2 度書いた、`blend_mix` と `blend_add` のように同じモードの別の選択肢、ステンシルの参照値)
+  - GD0103: uniform のヒントか既定値が正しくない (`float` の `source_color`、2 つ目のヒントやフィルター、`instance_index` の範囲、既定値の型など)
+  - GD0403: その宣言には使えない型 (構造体と `void` の uniform、サンプラーと構造体の `varying`、サンプラーと `void` の構造体のメンバー)
+  - GD0321: `switch` と `break` / `continue` の書き方が正しくない (`int` / `uint` でない `switch` の式、型の違う `case` の値、同じ `case` の値、2 つ目の `default`、
+    `switch` の外の `case`、ループの外の `break`、`switch` の中の `continue`)
+  - GD0309: 書き込めない値に書き込んだ (uniform、`const` の変数と仮引数、`TIME`、`fragment` の `VERTEX` のようにその関数で書き込めない組み込み、関数の呼び出しの結果、`v.xx`)
+  - GD0307: 添字が正しくない (範囲の外のリテラル、`int` / `uint` でない添字、`float` や構造体の添字)
+  - GD0306: `out` / `inout` の仮引数に渡せない値 (uniform、`const` の変数、式、ベクトルの添字 `v[0]`、書き込めない組み込み。組み込み関数の `out` の仮引数も)
+  - GD0405: 組み込みの名前を宣言し直した (局所変数の `TIME`、`const` の `PI`、uniform の `ALBEDO`、関数の `sin`、仮引数の `ALBEDO` など)
+- Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
+- Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
 - Godot: 組み込みの変数は、使う位置で使えるものだけを認める (CF0310)。ステージ関数の中ではその関数のものが、利用者の関数の中ではどの関数でも使えるもの (`TIME` など) と定数が、
   関数の外では定数 (`PI` など) だけが使える。後ろで定義した関数の呼び出しも報告する (Godot には前方宣言が無い)。
   ステージ関数の中でだけ使える組み込み関数 (`canvas_item` の `texture_sdf`、`particles` の `emit_subparticle` など) を読む

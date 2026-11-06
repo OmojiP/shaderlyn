@@ -94,6 +94,16 @@ internal static class GodotGrammar
                     report(structure.Keyword, "構造体には名前が要ります。");
                     break;
 
+                // for (i = 0; …) (最初は変数の宣言でなければならない)
+                case ForStatementSyntax { Initializer: ExpressionSyntax initializer } when initializer.FirstToken is { } initializerToken:
+                    report(initializerToken, "for の最初には変数の宣言を書きます。");
+                    break;
+
+                // struct S { }; (メンバーの無い構造体)
+                case StructDeclarationSyntax { Members.IsEmpty: true } structure:
+                    report(structure.CloseBrace, "構造体には 1 つ以上のメンバーが要ります。");
+                    break;
+
                 // switch の中の、最初の case / default より前の文。
                 case SwitchStatementSyntax { Statements: [var first and not SwitchLabelStatementSyntax, ..] }:
                     if (first.FirstToken is { } firstToken)

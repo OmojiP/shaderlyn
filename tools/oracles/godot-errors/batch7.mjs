@@ -1,0 +1,21 @@
+// 書き込めない値への書き込みと、out / inout の実引数。a-ok- は Godot が通すもの。
+export const cases = {
+  "a-uniform-write": "shader_type spatial;\nuniform float u;\nvoid fragment() {\n  u = 1.0;\n}\n",
+  "a-uniform-member-write": "shader_type spatial;\nuniform vec3 u;\nvoid fragment() {\n  u.x = 1.0;\n}\n",
+  "a-const-increment": "shader_type spatial;\nconst int K = 1;\nvoid fragment() {\n  int a = K++;\n}\n",
+  "a-const-param-write": "shader_type spatial;\nvoid f(const float x) {\n  x = 1.0;\n}\n",
+  "a-const-array-element-write": "shader_type spatial;\nvoid fragment() {\n  const float a[2] = { 1.0, 2.0 };\n  a[0] = 3.0;\n}\n",
+  "a-time-compound": "shader_type spatial;\nvoid fragment() {\n  TIME += 1.0;\n}\n",
+  "a-swizzle-duplicate": "shader_type spatial;\nvoid fragment() {\n  vec3 a = vec3(1.0);\n  a.xx = vec2(1.0);\n}\n",
+  "a-call-write": "shader_type spatial;\nfloat f() { return 1.0; }\nvoid fragment() {\n  f() = 1.0;\n}\n",
+  "a-ok-writes": "shader_type spatial;\nvoid f(inout float x, out vec2 y) {\n  x += 1.0;\n  y = vec2(x);\n}\nvoid vertex() {\n  VERTEX.y += 1.0;\n  float a[2] = { 1.0, 2.0 };\n  vec3 v = vec3(1.0);\n  vec2 w;\n  f(a[0], w);\n  f(v.x, v.yz);\n  a[1]++;\n  v.zx = vec2(0.0);\n}\nvoid fragment() {\n  ALBEDO.r = 1.0;\n  float i;\n  float r = modf(1.5, i);\n}\n",
+  "a-ok-local-shadows-builtin": "shader_type spatial;\nfloat f() {\n  float TIME_X = 1.0;\n  TIME_X = 2.0;\n  return TIME_X;\n}\n",
+  "a-out-uniform": "shader_type spatial;\nuniform float u;\nvoid f(out float x) { x = 1.0; }\nvoid fragment() {\n  f(u);\n}\n",
+  "a-out-builtin-const": "shader_type spatial;\nvoid f(out float x) { x = 1.0; }\nvoid fragment() {\n  f(TIME);\n}\n",
+  "a-out-expression": "shader_type spatial;\nvoid f(out float x) { x = 1.0; }\nvoid fragment() {\n  float a = 1.0;\n  f(a + 1.0);\n}\n",
+  "a-out-vector-index": "shader_type spatial;\nvoid f(out float x) { x = 1.0; }\nvoid fragment() {\n  vec3 v = vec3(1.0);\n  f(v[0]);\n}\n",
+  "a-ok-out-uniform-member": "shader_type spatial;\nuniform vec3 u;\nvoid f(in float x) { }\nvoid g(const float x) { }\nvoid fragment() {\n  f(u.x);\n  g(u.x);\n  g(1.0);\n}\n",
+  "a-out-const-member": "shader_type spatial;\nconst vec3 K = vec3(1.0);\nvoid f(out float x) { x = 1.0; }\nvoid fragment() {\n  f(K.x);\n}\n",
+  "a-modf-literal": "shader_type spatial;\nvoid fragment() {\n  float r = modf(1.5, 2.0);\n}\n",
+  "a-modf-const": "shader_type spatial;\nconst float K = 1.0;\nvoid fragment() {\n  float r = modf(1.5, K);\n}\n",
+};

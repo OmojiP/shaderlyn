@@ -1,0 +1,21 @@
+// 文の規則 (switch・case・break・continue・discard・for)。w-ok- は Godot が通すもの。
+export const cases = {
+  "w-ok-switch": "shader_type spatial;\nconst int K = 3;\nvoid fragment() {\n  const int L = 4;\n  int a = 1;\n  switch (a) {\n    case -1:\n      break;\n    case 0x10:\n    case K:\n    case L: {\n      break;\n    }\n    default:\n      break;\n  }\n  uint b = 1u;\n  switch (b) {\n    case 1u:\n      break;\n    case 2u:\n      break;\n  }\n}\n",
+  "w-switch-vec": "shader_type spatial;\nvoid fragment() {\n  switch (ivec2(1)) {\n    case 1:\n      break;\n  }\n}\n",
+  "w-case-const-duplicate": "shader_type spatial;\nconst int K = 1;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case 1:\n      break;\n    case K:\n      break;\n  }\n}\n",
+  "w-case-negative-duplicate": "shader_type spatial;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case -1:\n      break;\n    case -1:\n      break;\n  }\n}\n",
+  "w-case-variable": "shader_type spatial;\nvoid fragment() {\n  int a = 1;\n  int k = 2;\n  switch (a) {\n    case k:\n      break;\n  }\n}\n",
+  "w-case-uint-const-in-int": "shader_type spatial;\nconst uint K = 1u;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case K:\n      break;\n  }\n}\n",
+  "w-case-expression": "shader_type spatial;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case (1):\n      break;\n  }\n}\n",
+  "w-case-in-block": "shader_type spatial;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case 1: {\n      case 2:\n        break;\n    }\n  }\n}\n",
+  "w-continue-in-switch-in-loop": "shader_type spatial;\nvoid fragment() {\n  for (int i = 0; i < 2; i++) {\n    switch (i) {\n      case 0:\n        continue;\n    }\n  }\n}\n",
+  "w-ok-continue-in-loop-in-switch": "shader_type spatial;\nvoid fragment() {\n  int a = 1;\n  switch (a) {\n    case 1:\n      for (int i = 0; i < 2; i++) {\n        continue;\n      }\n      break;\n  }\n}\n",
+  "w-ok-break-in-loop": "shader_type spatial;\nvoid fragment() {\n  int i = 0;\n  while (true) {\n    if (i > 2) {\n      break;\n    }\n    i++;\n  }\n  do {\n    break;\n  } while (true);\n}\n",
+  "w-break-in-if": "shader_type spatial;\nvoid fragment() {\n  if (true) {\n    break;\n  }\n}\n",
+  "w-discard-in-user-from-vertex": "shader_type spatial;\nvoid f() {\n  discard;\n}\nvoid vertex() {\n  f();\n}\n",
+  "w-ok-discard-in-user-from-fragment": "shader_type spatial;\nvoid f() {\n  discard;\n}\nvoid fragment() {\n  f();\n}\nvoid light() {\n  discard;\n}\n",
+  "w-discard-in-sky": "shader_type sky;\nvoid sky() {\n  discard;\n}\n",
+  "w-discard-in-user-particles": "shader_type particles;\nvoid f() {\n  discard;\n}\nvoid process() {\n}\n",
+  "w-for-empty-init": "shader_type spatial;\nvoid fragment() {\n  int i = 0;\n  for (; i < 2; i++) {\n  }\n}\n",
+  "w-for-empty-condition": "shader_type spatial;\nvoid fragment() {\n  for (int i = 0; ; i++) {\n    break;\n  }\n}\n",
+};
