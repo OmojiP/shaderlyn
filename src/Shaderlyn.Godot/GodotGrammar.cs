@@ -70,6 +70,54 @@ internal static class GodotGrammar
         CheckStrings(root, tokens, Report);
         CheckHintArguments(root, Report);
         CheckStatementsAndExpressions(root, tokens, Report);
+        CheckBrackets(tokens, Report);
+    }
+
+    /// <summary>
+    /// 閉じていない [ と ( を、Godot と同じく、閉じる前に出会った ; や波括弧の位置で報告する
+    /// (共通の構文解析器は、ファイルの末尾まで読んでから報告する)。for の ( ) の中の ; は区切りである。最初の 1 つだけを報告する。
+    /// </summary>
+    private static void CheckBrackets(ImmutableArray<ShaderSyntaxToken> tokens, Action<ShaderSyntaxToken, string> report)
+    {
+        Stack<(ShaderSyntaxKind Kind, bool For)> open = new();
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            ShaderSyntaxToken token = tokens[i];
+
+            switch (token.Kind)
+            {
+                case ShaderSyntaxKind.OpenParenToken:
+                    open.Push((token.Kind, i > 0 && tokens[i - 1].TextIs("for")));
+                    break;
+
+                case ShaderSyntaxKind.OpenBracketToken:
+                    open.Push((token.Kind, false));
+                    break;
+
+                case ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken:
+                    ShaderSyntaxKind expected = token.Kind == ShaderSyntaxKind.CloseParenToken ? ShaderSyntaxKind.OpenParenToken : ShaderSyntaxKind.OpenBracketToken;
+
+                    if (open.Count == 0 || open.Peek().Kind != expected)
+                    {
+                        return;
+                    }
+
+                    open.Pop();
+                    break;
+
+                case ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken when open.Count > 0:
+                    (ShaderSyntaxKind kind, bool isFor) = open.Peek();
+
+                    if (kind == ShaderSyntaxKind.OpenParenToken && isFor && token.Kind == ShaderSyntaxKind.SemicolonToken)
+                    {
+                        break;
+                    }
+
+                    report(token, kind == ShaderSyntaxKind.OpenBracketToken ? "']' が要ります。" : "')' が要ります。");
+                    return;
+            }
+        }
     }
 
     /// <summary>構造体・switch・式の、Godot の文法で書けない形を調べる。</summary>
@@ -90,6 +138,11 @@ internal static class GodotGrammar
             switch (node)
             {
                 // struct { float a; }; (名前の無い構造体)
+                // do { } (true); (do の後ろの while が無い)
+                case DoWhileStatementSyntax { WhileKeyword.IsMissing: true } loop:
+                    report(loop.OpenParen.IsMissing ? loop.DoKeyword : loop.OpenParen, "do の文の後ろには while が要ります。");
+                    break;
+
                 case StructDeclarationSyntax { NameToken: null } structure:
                     report(structure.Keyword, "構造体には名前が要ります。");
                     break;
@@ -159,6 +212,12 @@ internal static class GodotGrammar
                     if (shaderType)
                     {
                         report(tokens[0], "shader_type は 1 度だけ書けます。");
+                    }
+
+                    // shader_type spatial void … (名前の後ろに ; が無い)
+                    if (body.Length > 1)
+                    {
+                        report(body[0], $"shader_type {body[0].Text} の後ろには ';' が要ります。");
                     }
 
                     shaderType = true;
@@ -248,6 +307,12 @@ internal static class GodotGrammar
     /// <summary>関数の宣言 (戻り値と仮引数) を調べる。</summary>
     private static void CheckFunction(FunctionDeclarationSyntax function, Action<ShaderSyntaxToken, string> report)
     {
+        // float f(float x); (Godot には関数の前方宣言が無い)
+        if (function.Body is null)
+        {
+            report(function.NameToken, $"関数 '{function.Name}' には本体 {{ … }} が要ります (Godot では前方宣言を書けません)。");
+        }
+
         if (function.ModifierTokens.FirstOrDefault(m => m.Text == "const") is { } constToken)
         {
             report(constToken, "関数の戻り値に const は付けられません。");
@@ -313,7 +378,19 @@ internal static class GodotGrammar
         foreach (VariableDeclaratorSyntax variable in declaration.Variables)
         {
             // 要素の数を書かない配列は、{ … } か配列の値の作成でしか初期化できない (float a[] = 1.0; は誤り)。
-            if (variable.IsArray && variable.Initializer is LiteralExpressionSyntax literal)
+            if (IsUnsized(variable))
+            {
+                // float a[]; / float a[] = float[](…); (大きさを書かない配列は { … } でだけ初期化できる)
+                if (variable.Initializer is null)
+                {
+                    report(variable.NameToken, $"大きさを書かない配列 '{variable.Name}' には、初期値 {{ … }} が要ります。");
+                }
+                else if (variable.Initializer is not InitializerListExpressionSyntax && variable.Initializer.FirstToken is { } first)
+                {
+                    report(first, $"大きさを書かない配列 '{variable.Name}' は {{ … }} で初期化します。");
+                }
+            }
+            else if (variable.IsArray && variable.Initializer is LiteralExpressionSyntax literal)
             {
                 report(literal.Token, $"配列 '{variable.Name}' の初期化には {{ … }} か配列の値の作成が要ります。");
             }
@@ -322,24 +399,14 @@ internal static class GodotGrammar
         CheckArrayDimensions(declaration, report);
     }
 
+    /// <summary>大きさを書かない配列 (<c>float a[]</c>、<c>float[] a</c>) か。</summary>
+    private static bool IsUnsized(VariableDeclaratorSyntax variable)
+        => variable.ArrayRankTokens is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }]
+           || (variable.ArrayRankTokens.IsEmpty && variable.Parent is VariableDeclarationSyntax { Type.ArrayRanks: [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }] });
+
     /// <summary>配列の配列 (<c>float a[2][3]</c>) を報告する。Godot の配列は 1 次元だけである。</summary>
     private static void CheckArrayDimensions(VariableDeclarationSyntax declaration, Action<ShaderSyntaxToken, string> report)
     {
-        // float a[-1] / float a[0]: 大きさは正の整数の定数でなければならない。
-        foreach (VariableDeclaratorSyntax variable in declaration.Variables)
-        {
-            ImmutableArray<ShaderSyntaxToken> ranks = variable.ArrayRankTokens;
-
-            for (int i = 1; i < ranks.Length; i++)
-            {
-                if (ranks[i - 1].Kind == ShaderSyntaxKind.OpenBracketToken
-                    && (ranks[i].Kind == ShaderSyntaxKind.MinusToken || ranks[i] is { Kind: ShaderSyntaxKind.NumericLiteralToken, Text: "0" or "0u" }))
-                {
-                    report(ranks[i], "配列の大きさは正の整数の定数でなければなりません。");
-                }
-            }
-        }
-
         foreach (VariableDeclaratorSyntax variable in declaration.Variables.Where(v => v.ArrayDimensions > 1))
         {
             ShaderSyntaxToken second = variable.ArrayRankTokens.Where(t => t.Kind == ShaderSyntaxKind.OpenBracketToken).Skip(1).FirstOrDefault()

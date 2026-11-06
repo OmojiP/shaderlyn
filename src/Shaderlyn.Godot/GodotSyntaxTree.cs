@@ -39,7 +39,14 @@ internal static class GodotSyntaxTree
 
         ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         GodotDirectives.Check(text, preprocessed, diagnostics);
-        diagnostics.AddRange(parseDiagnostics);
+        // ファイルの終わりで閉じていないもの (} 抜けなど) は、Godot と同じくファイルの終わりの位置で報告する (最後のトークンの行ではない)。
+        foreach (Diagnostic diagnostic in parseDiagnostics)
+        {
+            diagnostics.Add(
+                diagnostic.Location.FilePath == text.FilePath && diagnostic.GetMessage().StartsWith("ファイルの末尾には", StringComparison.Ordinal)
+                    ? diagnostic.WithLocation(Location.Create(text, new TextSpan(text.Length, 0)))
+                    : diagnostic);
+        }
         GodotGrammar.Check(root, preprocessed.Tokens, text, diagnostics);
         diagnostics.Sort(Diagnostic.DocumentOrderComparer);
 

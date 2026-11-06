@@ -246,7 +246,7 @@ Godot シェーダー言語にしか無いものです。Godot 4.7.2 がエラ�
 
 | ID                  | 内容                                                       | 既定   |
 | ------------------- | ---------------------------------------------------------- | ------ |
-| [GD0002](GD0002.md) | そのステージでは使えない (vertex の中と vertex から呼ぶ関数の中の dFdx・texture_sdf・discard、particles の dFdx・discard など) | エラー |
+| [GD0002](GD0002.md) | そのステージでは使えない (vertex の中と vertex から呼ぶ関数の中の dFdx・texture_sdf・discard、particles の dFdx・discard、light で書き込んだ varying など) | エラー |
 | [GD0101](GD0101.md) | 修飾子を書けないところに書いた (サンプラー・行列・配列の instance uniform、配列の global uniform、particles・sky・fog の varying など) | エラー |
 | [GD0102](GD0102.md) | render_mode・stencil_mode が正しくない (そのシェーダーの種類に無い、2 度書いた、blend_mix と blend_add など) | エラー |
 | [GD0103](GD0103.md) | uniform のヒントか既定値が正しくない (float の source_color、2 つ目のヒント、instance_index の範囲、既定値の型など) | エラー |
@@ -254,10 +254,17 @@ Godot シェーダー言語にしか無いものです。Godot 4.7.2 がエラ�
 | [GD0302](GD0302.md) | 組み込み関数と値の作成に、実引数の型に合う形が無い (sin(vec2, float)、vec2(int, float) など) | エラー |
 | [GD0306](GD0306.md) | out / inout の仮引数に渡せない値 (uniform、const の変数、式、ベクトルの添字、書き込めない組み込みなど) | エラー |
 | [GD0307](GD0307.md) | 添字が正しくない (範囲の外のリテラル、int / uint でない添字、float や構造体の添字) | エラー |
+| [GD0308](GD0308.md) | 配列の大きさが正しくない (0・負・浮動小数点数・変数の大きさ、uniform や仮引数で大きさを省いた) | エラー |
 | [GD0309](GD0309.md) | 書き込めない値に書き込んだ (uniform、const、TIME、fragment の VERTEX、関数の呼び出しの結果、v.xx など) | エラー |
 | [GD0311](GD0311.md) | if・while・do・for・?: の条件が bool でない | エラー |
+| [GD0312](GD0312.md) | 関数を値として使った (float a = f; など) | エラー |
+| [GD0317](GD0317.md) | const の初期値に定数でないもの (uniform、const でない変数、利用者の関数の呼び出し) を書いた | エラー |
+| [GD0319](GD0319.md) | 配列の大きさが合わない (初期値の要素の数、大きさの違う配列の代入と受け渡し) | エラー |
 | [GD0321](GD0321.md) | switch と break / continue の書き方が正しくない (int でない switch の式、型の違う case の値、2 つ目の default、switch の中の continue など) | エラー |
 | [GD0322](GD0322.md) | ステージ関数の形が正しくない (仮引数がある、戻り値が void でない) | エラー |
+| [GD0332](GD0332.md) | 関数が自分自身を呼んでいる (再帰) | エラー |
+| [GD0333](GD0333.md) | 定数の整数のベクトルを 0 の成分で割っている | エラー |
+| [GD0334](GD0334.md) | サンプラーの仮引数に設定の違うテクスチャを渡した (フィルター・繰り返し・ヒントの違う uniform、uniform と組み込みの混在、RADIANCE) | エラー |
 | [GD0403](GD0403.md) | その宣言には使えない型 (構造体と void の uniform、サンプラーの varying、サンプラーの構造体のメンバーなど) | エラー |
 | [GD0405](GD0405.md) | 組み込みの名前を宣言し直した (局所変数の TIME、const の PI、uniform の ALBEDO、関数の sin など) | エラー |
 

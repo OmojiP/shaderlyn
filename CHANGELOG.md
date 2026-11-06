@@ -27,9 +27,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GD0301: 演算子を使えない型の組に使った (`float + int`、`-mat4`、ベクトルの `<` など。Godot の `_validate_operator` と同じ型の組)
   - GD0302: 組み込み関数と値の作成に、実引数の型に合う形が無い (`sin(vec2, float)`、`vec2(int, float)`)。組み込み関数の表は Godot のソースから作る
   - GD0311: `if`・`while`・`do`・`for`・`?:` の条件が bool でない
-  - GD0002: そのステージでは使えない (`vertex` の中と、`vertex` から呼ぶ関数の中の `dFdx`・`texture_sdf`・`discard`、`particles`・`fog` の `dFdx` と `discard`)
+  - GD0002: そのステージでは使えない (`vertex` の中と、`vertex` から呼ぶ関数の中の `dFdx`・`texture_sdf`・`discard`、`particles`・`fog` の `dFdx` と `discard`)。
+    varying のステージ (`vertex` と `fragment` でだけ書き込める、`vertex` で書き込んだものは `fragment` で書き換えられない、`bool` は `fragment` で書き込んでから使う、`vertex` から呼ぶ関数の中の `fragment` の varying、out の仮引数への受け渡し)
   - GD0322: ステージ関数の形が正しくない (仮引数がある、戻り値が `void` でない)
-  - GD0101: 修飾子を書けないところに書いた (サンプラー・行列・配列の `instance uniform`、配列の `global uniform`、`particles`・`sky`・`fog` の `varying` など)
+  - GD0101: 修飾子を書けないところに書いた (サンプラー・行列・配列の `instance uniform`、配列の `global uniform`、`particles`・`sky`・`fog` の `varying`、`flat` の無い整数の `varying` など)
   - GD0102: `render_mode`・`stencil_mode` が正しくない (そのシェーダーの種類に無い、2 度書いた、`blend_mix` と `blend_add` のように同じモードの別の選択肢、ステンシルの参照値)
   - GD0103: uniform のヒントか既定値が正しくない (`float` の `source_color`、2 つ目のヒントやフィルター、`instance_index` の範囲、既定値の型など)
   - GD0403: その宣言には使えない型 (構造体と `void` の uniform、サンプラーと構造体の `varying`、サンプラーと `void` の構造体のメンバー)
@@ -39,8 +40,17 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GD0307: 添字が正しくない (範囲の外のリテラル、`int` / `uint` でない添字、`float` や構造体の添字)
   - GD0306: `out` / `inout` の仮引数に渡せない値 (uniform、`const` の変数、式、ベクトルの添字 `v[0]`、書き込めない組み込み。組み込み関数の `out` の仮引数も)
   - GD0405: 組み込みの名前を宣言し直した (局所変数の `TIME`、`const` の `PI`、uniform の `ALBEDO`、関数の `sin`、仮引数の `ALBEDO` など)
+  - GD0308: 配列の大きさが正しくない (0・負の数・浮動小数点数・変数の大きさ、uniform・varying・仮引数・戻り値・構造体のメンバーで大きさを省いた)
+  - GD0319: 配列の大きさが合わない (`{ … }` と `float[](…)` の要素の数、大きさの違う配列の代入と仮引数への受け渡し)
+  - GD0317: `const` の初期値に定数でないもの (uniform、`const` でない変数、利用者の関数の呼び出し) を書いた
+  - GD0312: 関数の名前を値として使った (`float a = f;`)
+  - GD0332: 関数が自分自身を呼んでいる (再帰)
+  - GD0333: 定数の整数のベクトルを 0 の成分で割っている (`ivec2(4) / ivec2(0)`)
+  - GD0334: 利用者の関数の同じサンプラーの仮引数に、設定 (フィルター・繰り返し・ヒント) の違うテクスチャを渡した。`sky` の `RADIANCE` を関数に渡した
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
+- Godot: 構文の誤りを Godot と同じ行で報告する。閉じていない `[` と `(` は `;` や波括弧の行で、`shader_type` の `;` 抜けは名前の行で、ファイルの終わりで閉じていないものはファイルの終わりの行で報告する。`do { } (true);` の `while` 抜けを報告する (CF0001)
+- Godot: 関数の前方宣言、大きさを書かない局所の配列の `{ … }` でない初期値と初期値の無いものを報告する (CF0001)。配列の `{ … }` の要素の型の違いを報告する (CF0410)
 - Godot: 組み込みの変数は、使う位置で使えるものだけを認める (CF0310)。ステージ関数の中ではその関数のものが、利用者の関数の中ではどの関数でも使えるもの (`TIME` など) と定数が、
   関数の外では定数 (`PI` など) だけが使える。後ろで定義した関数の呼び出しも報告する (Godot には前方宣言が無い)。
   ステージ関数の中でだけ使える組み込み関数 (`canvas_item` の `texture_sdf`、`particles` の `emit_subparticle` など) を読む

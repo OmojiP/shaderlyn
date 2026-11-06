@@ -22,6 +22,7 @@ internal static class GodotRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "フラグメントだけの組み込み関数 (dFdx など) とステージ関数の中でだけ使える組み込み関数 (texture_sdf など) を、"
             + "vertex 関数の中か vertex 関数から呼ぶ関数の中で使っています。dFdx などは spatial・canvas_item・sky のシェーダーでだけ使えます。"
+            + "discard は spatial・canvas_item でだけ、vertex の外で使えます。varying は vertex と fragment でだけ書き込め、最初に書き込んだ関数で使えるところが決まります。"
             + "Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0002"));
 
@@ -33,7 +34,7 @@ internal static class GodotRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "instance uniform をサンプラー・行列・配列に使うか、spatial と canvas_item 以外のシェーダーで使っています。"
-            + "または、global uniform を配列にするか、varying を particles・sky・fog のシェーダーで使っています。Godot はコンパイルの誤りにします。",
+            + "または、global uniform を配列にするか、varying を particles・sky・fog のシェーダーで使うか、整数の varying に flat を書いていません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0101"));
 
     /// <summary>描画のモードかステンシルのモードが正しくない。</summary>
@@ -92,6 +93,80 @@ internal static class GodotRuleDescriptors
         description: "添字がリテラルで、配列の長さ・ベクトルの成分の数・行列の列の数の外にあるか、添字が int / uint のスカラーでないか、"
             + "配列・ベクトル・行列でない値 (float、構造体など) に添字を付けています。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0307"));
+
+    /// <summary>配列の大きさが正しくない。</summary>
+    public static DiagnosticDescriptor InvalidArraySize { get; } = new(
+        id: "GD0308",
+        title: "配列の大きさが正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列の大きさが正の整数の定数でないか (0、負の数、浮動小数点数、変数)、大きさを省けないところ "
+            + "(仮引数・戻り値・uniform・varying・構造体のメンバー) で大きさを省いています。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0308"));
+
+    /// <summary>関数の名前を値として使った。</summary>
+    public static DiagnosticDescriptor FunctionAsValue { get; } = new(
+        id: "GD0312",
+        title: "関数を値として使っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "利用者の関数か組み込み関数の名前を、呼び出しの外で値として使っています (float a = f;)。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0312"));
+
+    /// <summary>定数の式が要る。</summary>
+    public static DiagnosticDescriptor ConstantExpressionExpected { get; } = new(
+        id: "GD0317",
+        title: "定数の式が要ります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "const の初期値に、const でない変数・uniform・varying か、利用者の関数の呼び出しを書いています。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0317"));
+
+    /// <summary>配列の大きさが合わない。</summary>
+    public static DiagnosticDescriptor ArraySizeMismatch { get; } = new(
+        id: "GD0319",
+        title: "配列の大きさが合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列の初期値 ({ … }・float[](…)) の要素の数が配列の大きさと違うか、大きさの違う配列を代入するか仮引数に渡しています。"
+            + "Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0319"));
+
+    /// <summary>再帰。</summary>
+    public static DiagnosticDescriptor Recursion { get; } = new(
+        id: "GD0332",
+        title: "関数は自分自身を呼べません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の中で、その関数自身を呼んでいます。Godot シェーダー言語では再帰を使えません。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0332"));
+
+    /// <summary>整数のベクトルの 0 での割り算。</summary>
+    public static DiagnosticDescriptor DivisionByZero { get; } = new(
+        id: "GD0333",
+        title: "整数のベクトルを 0 で割っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "定数の整数のベクトル (ivec2(4) など) を、0 の成分を持つ定数で割っているか、その剰余を求めています。"
+            + "Godot はコンパイルのときに計算し、誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0333"));
+
+    /// <summary>サンプラーの仮引数に、設定の違うテクスチャを渡した。</summary>
+    public static DiagnosticDescriptor SamplerArgumentMismatch { get; } = new(
+        id: "GD0334",
+        title: "サンプラーの仮引数に設定の違うテクスチャを渡しています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "利用者の関数の同じサンプラーの仮引数に、フィルター・繰り返し・ヒントの違う uniform を渡すか、uniform と組み込みのテクスチャを混ぜるか、"
+            + "違う組み込みのテクスチャを渡しています。sky の RADIANCE は利用者の関数に渡せません。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0334"));
 
     /// <summary>書き込めない値に書き込んだ。</summary>
     public static DiagnosticDescriptor ReadOnlyTarget { get; } = new(

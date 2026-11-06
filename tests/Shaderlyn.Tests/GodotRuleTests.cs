@@ -146,6 +146,47 @@ public sealed class GodotRuleTests : IDisposable
     [InlineData("GD0405", "shader_type spatial;\nfloat sin(float x) { return x; }\n")]
     [InlineData("GD0405", "shader_type spatial;\nfloat f(float ALBEDO) { return ALBEDO; }\n")]
     [InlineData("CF0314", "shader_type spatial;\nuniform float u;\nvoid fragment() {\n  float u = 1.0;\n}\n")]
+    // varying のステージ (GD0002)、整数の varying の flat (GD0101)、組み込み関数の out (GD0306)
+    [InlineData("GD0002", "shader_type spatial;\nvarying float v;\nvoid vertex() {\n  v = 1.0;\n}\nvoid fragment() {\n  v = 2.0;\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying float v;\nvoid fragment() {\n  v = 2.0;\n}\nvoid vertex() {\n  v = 1.0;\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying vec3 v;\nvoid light() {\n  v = vec3(1.0);\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying bool b;\nvoid vertex() {\n  b = true;\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying bvec2 b;\nvoid fragment() {\n  b.x = true;\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying float v;\nvoid fragment() {\n  v = 1.0;\n}\nfloat f() {\n  return v;\n}\nvoid vertex() {\n  float a = f();\n}\n")]
+    [InlineData("GD0002", "shader_type spatial;\nvarying float v;\nvoid g(out float x) { x = 1.0; }\nvoid vertex() {\n  v = 1.0;\n}\nvoid fragment() {\n  g(v);\n}\n")]
+    [InlineData("GD0101", "shader_type spatial;\nvarying ivec2 k;\n")]
+    [InlineData("GD0306", "shader_type spatial;\nvarying float v;\nvoid fragment() {\n  float r = modf(1.5, v);\n}\n")]
+    // 配列 (GD0308・GD0319・CF0410・CF0001)、定数の式 (GD0317)、関数の名前 (GD0312)、再帰 (GD0332)、0 での割り算 (GD0333)
+    [InlineData("GD0308", "shader_type spatial;\nuniform float u[];\n")]
+    [InlineData("GD0308", "shader_type spatial;\nvoid f(float x[]) {}\n")]
+    [InlineData("GD0308", "shader_type spatial;\nvoid fragment() {\n  float a[0];\n}\n")]
+    [InlineData("GD0308", "shader_type spatial;\nvoid fragment() {\n  float a[2.0];\n}\n")]
+    [InlineData("GD0308", "shader_type spatial;\nvoid fragment() {\n  float a[-1];\n}\n")]
+    [InlineData("GD0308", "shader_type spatial;\nvoid fragment() {\n  int n = 2;\n  float a[n];\n}\n")]
+    [InlineData("GD0319", "shader_type spatial;\nconst float G[3] = { 1.0, 2.0 };\n")]
+    [InlineData("GD0319", "shader_type spatial;\nvoid fragment() {\n  float a[2] = float[](1.0, 2.0, 3.0);\n}\n")]
+    [InlineData("GD0319", "shader_type spatial;\nvoid fragment() {\n  float a[2] = float[2](1.0, 2.0, 3.0);\n}\n")]
+    [InlineData("GD0319", "shader_type spatial;\nvoid fragment() {\n  float a[2];\n  float b[3];\n  a = b;\n}\n")]
+    [InlineData("GD0319", "shader_type spatial;\nvoid f(float x[2]) {}\nvoid fragment() {\n  float a[3];\n  f(a);\n}\n")]
+    [InlineData("CF0410", "shader_type spatial;\nvoid fragment() {\n  float a[2] = { 1, 2 };\n}\n")]
+    [InlineData("CF0410", "shader_type spatial;\nvoid fragment() {\n  float a[2] = int[2](1, 2);\n}\n")]
+    [InlineData("CF0001", "shader_type spatial;\nvoid fragment() {\n  float a[];\n}\n")]
+    [InlineData("CF0001", "shader_type spatial;\nvoid fragment() {\n  float b[] = float[](1.0, 2.0);\n}\n")]
+    [InlineData("CF0001", "shader_type spatial;\nfloat g(float x);\nfloat f(float x) { return x; }\n")]
+    [InlineData("GD0317", "shader_type spatial;\nuniform float u;\nconst float A = u;\n")]
+    [InlineData("GD0317", "shader_type spatial;\nvoid fragment() {\n  float a = 1.0;\n  const float b = a;\n}\n")]
+    [InlineData("GD0317", "shader_type spatial;\nfloat f() { return 1.0; }\nvoid fragment() {\n  const float b = f();\n}\n")]
+    [InlineData("GD0312", "shader_type spatial;\nfloat f() { return 1.0; }\nvoid fragment() {\n  float a = f;\n}\n")]
+    [InlineData("GD0312", "shader_type spatial;\nvoid fragment() {\n  float a = sin;\n}\n")]
+    [InlineData("GD0332", "shader_type spatial;\nfloat f(float x) { return f(x); }\n")]
+    [InlineData("GD0333", "shader_type spatial;\nvoid fragment() {\n  ivec2 a = ivec2(4) / ivec2(1, 0);\n}\n")]
+    [InlineData("GD0333", "shader_type spatial;\nvoid fragment() {\n  ivec2 a = ivec2(4) / 0;\n}\n")]
+    [InlineData("GD0333", "shader_type spatial;\nvoid fragment() {\n  uvec2 a = uvec2(4u) % uvec2(0u);\n}\n")]
+    // サンプラーの仮引数 (GD0334)
+    [InlineData("GD0334", "shader_type canvas_item;\nuniform sampler2D a : repeat_enable;\nuniform sampler2D b;\nvec4 f(sampler2D s) { return texture(s, vec2(0.0)); }\nvoid fragment() {\n  COLOR = f(a) + f(b);\n}\n")]
+    [InlineData("GD0334", "shader_type canvas_item;\nuniform sampler2D a;\nvec4 f(sampler2D s) { return texture(s, vec2(0.0)); }\nvoid fragment() {\n  COLOR = f(TEXTURE) + f(a);\n}\n")]
+    [InlineData("GD0334", "shader_type canvas_item;\nuniform sampler2D a : filter_nearest;\nuniform sampler2D b : filter_linear;\nvec4 g(sampler2D s) { return texture(s, vec2(0.0)); }\nvec4 f(sampler2D s) { return g(s); }\nvoid fragment() {\n  COLOR = g(b) + f(a);\n}\n")]
+    [InlineData("GD0334", "shader_type sky;\nvec4 f(samplerCube s) { return texture(s, vec3(0.0)); }\nvoid sky() {\n  COLOR = f(RADIANCE).rgb;\n}\n")]
     public async Task Godotが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -180,6 +221,18 @@ public sealed class GodotRuleTests : IDisposable
     [InlineData("shader_type spatial;\nstruct S { float a[3]; vec3 v; };\nconst int K = 7;\nvoid fragment() {\n  float a[2] = { 1.0, 2.0 };\n  vec4 v = vec4(1.0);\n  mat3 m = mat3(1.0);\n  S s;\n  uint u = 1u;\n  float b = a[1] + v[3] + m[2][2] + s.a[2] + s.v[2] + v[u] + v.xyz[2] + a[K - 6];\n}\n")]
     // 名前: vertex の局所変数 ALBEDO、利用者の関数の局所変数 ALBEDO、const の sin、関数と同じ名前の局所変数、外側の局所変数と同じ名前、組み込みと同じ名前の構造体
     [InlineData("shader_type spatial;\nconst float sin = 1.0;\nstruct TIME { float a; };\nfloat g() {\n  float ALBEDO = 1.0;\n  return ALBEDO;\n}\nvoid vertex() {\n  vec3 ALBEDO = vec3(1.0);\n  float g = 2.0;\n  float a = 1.0;\n  {\n    float a = 2.0;\n  }\n  for (int i = 0; i < 1; i++) {\n  }\n  for (int i = 0; i < 1; i++) {\n  }\n}\n")]
+    // varying: vertex → fragment / light、fragment → light (整数は flat が要らない)、vertex で書く前の読み込み (後ろに呼び出しが無い)、
+    // vertex で書いた varying を最初に使う関数の dFdx (Godot はそこで調べるのをやめる)、vertex での out への受け渡し
+    [InlineData("shader_type spatial;\nvarying vec3 v;\nvarying flat int k;\nvoid vertex() {\n  v = VERTEX;\n  v.x += 1.0;\n  k = 1;\n}\nvoid fragment() {\n  ALBEDO = v * float(k);\n}\nvoid light() {\n  DIFFUSE_LIGHT = v;\n}\n")]
+    [InlineData("shader_type spatial;\nvarying vec3 v;\nvarying int k;\nvarying bool b;\nvoid fragment() {\n  v = vec3(1.0);\n  k = 2;\n  b = true;\n}\nvoid light() {\n  DIFFUSE_LIGHT = v * float(k);\n  if (b) {\n    DIFFUSE_LIGHT = vec3(0.0);\n  }\n}\n")]
+    [InlineData("shader_type spatial;\nvarying float v;\nvoid vertex() {\n  float a = v;\n  v = sin(1.0);\n}\n")]
+    [InlineData("shader_type spatial;\nvarying float v;\nfloat f() {\n  float a = v;\n  return dFdx(a);\n}\nvoid g(out float x) { x = 1.0; }\nvoid vertex() {\n  v = 1.0;\n  float b = f();\n  g(v);\n}\n")]
+    // 配列: { } の大きさの省略、const の大きさの式、大きさの同じ代入と受け渡し、配列を返す関数
+    [InlineData("shader_type spatial;\nconst int N = 2;\nuniform float u[N];\nvoid f(float x[2]) {}\nfloat[2] g() { return float[2](1.0, 2.0); }\nvoid fragment() {\n  float a[] = { 1.0, 2.0 };\n  float c[N] = float[2](1.0, 2.0);\n  float[2] d = { 1.0, 2.0 };\n  float e[N + 1];\n  float h[2u];\n  float b[2] = g();\n  f(b);\n  c = b;\n}\n")]
+    // 定数の式 (組み込み関数、組み込みの変数、メンバー、添字、?:)、スカラーと float と uvec の 0 での割り算 (Godot は何も言わない)
+    [InlineData("shader_type spatial;\nconst float A = 1.0;\nconst vec2 B = vec2(A, 2.0) * 2.0;\nconst float C[2] = { 1.0, 2.0 };\nconst float S = sin(1.0);\nvoid fragment() {\n  const float e = A * 2.0 + B.x + C[0] + TIME;\n  const float f = true ? 1.0 : 2.0;\n  int a = 4 / 0;\n  float b = 1.0 / 0.0;\n  uvec2 c = uvec2(4u) / uvec2(0u);\n  int z = 0;\n  ivec2 d = ivec2(4) / ivec2(z);\n}\n")]
+    // サンプラーの仮引数: 同じフィルターの uniform (ほかのヒントは比べない)、同じ組み込み、仮引数ごとに違う設定
+    [InlineData("shader_type canvas_item;\nuniform sampler2D a : filter_linear, source_color;\nuniform sampler2D b : filter_linear, hint_default_white;\nvec4 f(sampler2D s) { return texture(s, vec2(0.0)); }\nvec4 g(sampler2D s, sampler2D t) { return texture(s, vec2(0.0)) + texture(t, vec2(0.0)); }\nvoid fragment() {\n  COLOR = f(a) + f(b) + g(TEXTURE, a) + g(TEXTURE, b);\n}\n")]
     public async Task Godotが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 }

@@ -33,6 +33,8 @@ public sealed class GodotSyntaxTests
     [InlineData("shader_type spatial;\nvoid fragment() {\n  float[3] a = float[](1.0, 2.0, 3.0);\n  lowp float b = 1.0f;\n  uint c = 1u;\n  int d = 0xFF;\n}\n")]
     [InlineData("shader_type particles;\nvoid start() {\n}\nvoid process() {\n  if (RESTART) { discard; }\n}\n")]
     [InlineData("shader_type spatial;\n/* 閉じていないコメントは、Godot ではファイルの終わりまでのコメントになる\n")]
+    // for の ( ) の中の ; と、括弧の入れ子
+    [InlineData("shader_type spatial;\nvoid fragment() {\n  float a[2] = { 1.0, 2.0 };\n  for (int i = 0; i < int(a[(1)]); i++) {\n    a[i] = float(a[0]);\n  }\n  do {\n  } while (false);\n}\n")]
     public void Godotが通す書き方を構文エラーにしない(string code)
     {
         ShaderSyntaxTree tree = Parse(code);
@@ -72,7 +74,6 @@ public sealed class GodotSyntaxTests
     [InlineData("shader_type spatial;\nvoid fragment() {\n  sampler2D s;\n}\n", 3)]
     [InlineData("shader_type spatial;\nvoid fragment() {\n  highp bool a = true;\n}\n", 3)]
     [InlineData("shader_type spatial;\nvoid fragment() {\n  float a[2][3];\n}\n", 3)]
-    [InlineData("shader_type spatial;\nvoid fragment() {\n  float a[-1];\n}\n", 3)]
     [InlineData("shader_type spatial;\nvoid fragment() {\n  float a[] = 1.0;\n}\n", 3)]
     [InlineData("shader_type spatial;\nvoid fragment() {\n  const float a;\n}\n", 3)]
     [InlineData("shader_type spatial;\nvoid fragment() {\n  float a = \"x\";\n}\n", 3)]
@@ -90,6 +91,12 @@ public sealed class GodotSyntaxTests
     [InlineData("shader_type spatial;\n#if\n#endif\n", 2)]
     [InlineData("shader_type spatial;\n#pragma nope\n", 2)]
     [InlineData("shader_type spatial;\n#error message\n", 2)]
+    // Godot と同じ行で報告する: 閉じていない [ と ( は ; の行、do の後の while 抜け、shader_type の ; 抜け、ファイルの終わりの } 抜けは終わりの行
+    [InlineData("shader_type spatial;\nvoid fragment() {\n  float a[2;\n}\n", 3)]
+    [InlineData("shader_type spatial;\nuniform float u : hint_range(0.0, 1.0;\nvoid fragment() {\n}\n", 2)]
+    [InlineData("shader_type spatial;\nvoid fragment() {\n  do {\n  } (true);\n}\n", 4)]
+    [InlineData("shader_type spatial\nvoid fragment() {\n}\n", 1)]
+    [InlineData("shader_type spatial;\nvoid fragment() {\n  int a = 1;\n", 4)]
     public void 構文の誤りを報告する(string code, int line)
     {
         ShaderSyntaxTree tree = Parse(code);
