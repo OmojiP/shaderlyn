@@ -86,6 +86,11 @@ function extraArguments() {
   return args.map((a, i) => (args[i - 1] === "-I" ? resolve(a) : a));
 }
 
+/** プリプロセッサだけを動かすテスト (-E) は、構文を読まないので記録しない。 */
+function withoutPreprocessOnly(settings) {
+  return settings && !settings.args.includes("-E") ? settings : undefined;
+}
+
 /** 空白で区切る (引用符の中は区切らない)。 */
 function split(text) {
   return [...text.trim().matchAll(/"([^"]*)"|(\S+)/g)].map(m => m[1] ?? m[2]);
@@ -151,7 +156,7 @@ export async function recordSlang(paths) {
 
   for (const path of paths) {
     const text = readFileSync(path, "utf8");
-    const settings = slangArguments(text)
+    const settings = withoutPreprocessOnly(slangArguments(text))
       ?? (resolve(path).split(sep).includes("tests") || /TEST_IGNORE_FILE/.test(text)
         ? undefined
         : { args: ["-target", "spirv", ...extraArguments()], directive: "none" });

@@ -56,6 +56,14 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   カーソルのあるステージ関数で使える組み込みの変数 (`ALBEDO`・`TIME` など) で答える。uniform の説明にはヒントを添える。
   `shader_type` の種類、`render_mode` / `stencil_mode` のモード (`blend_mix` など、そのシェーダーの種類のもの)、uniform のヒント・フィルター・繰り返しも補完する
 - Godot: 構造体の演算子は GD0301 だけで報告する (CF0406 は Godot では働かせない。Godot は構造体の `==`・`!=`・`?:` を通す)
+- Slang: `.slang` を Slang として読み、構文の誤りを報告する (CF0001 / CF0002)。HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、
+  ジェネリック (`<T : IFoo>`、`where`、`f<float>(x)`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
+  `;` を省いた構造体と列挙型、ポインター (`T*`・`*p`・`p->x`)、`Type<T>.Member` の型、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、
+  `[vk::binding(0)]` と `,` で並べた属性、GLSL の書き方 (`layout(…)`・`precision`)、`#language` を足した。
+  宣言・型・呼び出しの検査はまだ行わない
+- 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
+- `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
+  `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令) を足した
 - 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)

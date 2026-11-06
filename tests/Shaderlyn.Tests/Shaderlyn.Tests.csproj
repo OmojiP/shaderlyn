@@ -70,6 +70,7 @@
     <ProjectReference Include="..\..\src\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Godot\Shaderlyn.Godot.csproj" />
+    <ProjectReference Include="..\..\src\Shaderlyn.Slang\Shaderlyn.Slang.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
     <ProjectReference Include="..\..\src\Shaderlyn.Testing\Shaderlyn.Testing.csproj" />

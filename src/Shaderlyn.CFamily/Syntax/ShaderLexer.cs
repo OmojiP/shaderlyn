@@ -280,6 +280,12 @@ public sealed class ShaderLexer
             return LexStringLiteral('"', ShaderSyntaxKind.StringLiteralToken);
         }
 
+        // 生の文字列 (Slang・C++ の R"(…)"、R"delim(…)delim")。複数の行にまたがってよい。
+        if (current == 'R' && Peek(1) == '"' && TryLexRawString() is { } raw)
+        {
+            return raw;
+        }
+
         if (current == '\'')
         {
             return LexStringLiteral('\'', ShaderSyntaxKind.CharacterLiteralToken);
@@ -399,6 +405,37 @@ public sealed class ShaderLexer
         return oneCharacter ?? ShaderSyntaxKind.BadToken;
     }
 
+    /// <summary>生の文字列 (<c>R"delim(…)delim"</c>) を読む。形が合わなければ読まない。</summary>
+    /// <returns>読んだトークン。生の文字列でなければ <see langword="null"/> (位置を動かさない)。</returns>
+    private (ShaderSyntaxKind Kind, string? ValueText)? TryLexRawString()
+    {
+        int open = _position + 2;
+        int paren = open;
+
+        while (paren < _text.Length && paren - open <= 16 && _text[paren] is not ('(' or '"' or ' ' or '\\' or ')') && !IsLineBreakAt(paren))
+        {
+            paren++;
+        }
+
+        if (paren >= _text.Length || _text[paren] != '(')
+        {
+            return null;
+        }
+
+        string close = ")" + _text.ToString(TextSpan.FromBounds(open, paren)) + "\"";
+        string rest = _text.ToString(TextSpan.FromBounds(paren + 1, _text.Length));
+        int end = rest.IndexOf(close, StringComparison.Ordinal);
+
+        if (end < 0)
+        {
+            return null;
+        }
+
+        string value = rest[..end];
+        _position = paren + 1 + end + close.Length;
+        return (ShaderSyntaxKind.StringLiteralToken, value);
+    }
+
     /// <summary>
     /// 引用符で囲まれたリテラルを読み進める。
     /// </summary>
@@ -451,6 +488,11 @@ public sealed class ShaderLexer
     }
 
     /// <summary>MSVC 流の、無限大と非数を表す浮動小数の書き方 (<c>1.#INF</c>)。長いものを先に並べる。</summary>
+    /// <summary>成分の名前の文字 (x・y・z・w・r・g・b・a) か。</summary>
+    /// <param name="c">文字。</param>
+    /// <returns>成分の名前なら <see langword="true"/>。</returns>
+    private static bool IsSwizzleLetter(char c) => c is 'x' or 'y' or 'z' or 'w' or 'r' or 'g' or 'b' or 'a';
+
     private static readonly string[] SpecialFloatSuffixes = ["#QNAN", "#SNAN", "#INF", "#IND"];
 
     /// <summary>
@@ -478,6 +520,31 @@ public sealed class ShaderLexer
                 _position++;
             }
 
+            // 16 進数の浮動小数 (Slang・C の 0x1p-24、0x1.8p3)。2 の指数 (p) が付くときだけ読む。
+            int hexEnd = _position;
+
+            if (Peek(0) == '.')
+            {
+                _position++;
+                while (_position < _text.Length && Uri.IsHexDigit(_text[_position]))
+                {
+                    _position++;
+                }
+            }
+
+            if (Peek(0) is 'p' or 'P' && (char.IsDigit(Peek(1)) || (Peek(1) is '+' or '-' && char.IsDigit(Peek(2)))))
+            {
+                _position += Peek(1) is '+' or '-' ? 2 : 1;
+                while (_position < _text.Length && char.IsDigit(_text[_position]))
+                {
+                    _position++;
+                }
+            }
+            else
+            {
+                _position = hexEnd;
+            }
+
             ConsumeNumericSuffix();
             return ShaderSyntaxKind.NumericLiteralToken;
         }
@@ -501,22 +568,28 @@ public sealed class ShaderLexer
             _position++;
         }
 
-        if (_position < _text.Length && _text[_position] == '.')
+        // 整数のスウィズル (0.xx、1.xxx)。. の後ろが成分の名前なら、数はそこで終わる (DXC と slangc が受け付ける)。
+        bool swizzle = Peek(0) == '.'
+                       && IsSwizzleLetter(Peek(1))
+                       && (IsSwizzleLetter(Peek(2)) || !(char.IsLetterOrDigit(Peek(2)) || Peek(2) == '_'));
+
+        if (!swizzle && _position < _text.Length && _text[_position] == '.')
         {
             _position++;
             while (_position < _text.Length && char.IsDigit(_text[_position]))
             {
                 _position++;
             }
+        }
 
-            // MSVC 流の無限大と非数 (1.#INF / 1.#IND / 1.#QNAN)。FXC と DXC が受け付ける。
-            foreach (string special in SpecialFloatSuffixes)
+        // MSVC 流の無限大と非数 (1.#INF / 1.#IND / 1.#QNAN、slangc は 1#INF も)。FXC と DXC が受け付ける。後ろに型の接尾辞を書ける (2.4#INFf)。
+        foreach (string special in SpecialFloatSuffixes)
+        {
+            if (string.CompareOrdinal(_text.ToString(new TextSpan(_position, Math.Min(special.Length, _text.Length - _position))), special) == 0)
             {
-                if (string.CompareOrdinal(_text.ToString(new TextSpan(_position, Math.Min(special.Length, _text.Length - _position))), special) == 0)
-                {
-                    _position += special.Length;
-                    return ShaderSyntaxKind.NumericLiteralToken;
-                }
+                _position += special.Length;
+                ConsumeNumericSuffix();
+                return ShaderSyntaxKind.NumericLiteralToken;
             }
         }
 
@@ -587,6 +660,12 @@ public sealed class ShaderLexer
         }
 
         if (_position < _text.Length && _text[_position] is 's' or 'S' && !IsIdentifierPart(Peek(1)))
+        {
+            _position++;
+        }
+
+        // Slang の符号付きの大きさの整数 (0x8000000000000000Z)。使えるかは構文解析が言語ごとに決める (IsNumericSuffixAccepted)。
+        if (_position < _text.Length && _text[_position] is 'z' or 'Z' && !IsIdentifierPart(Peek(1)))
         {
             _position++;
         }

@@ -24,7 +24,8 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 | `hlsl` | DXC で直接コンパイルする HLSL ([汎用の HLSL](environments/hlsl.md)) | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー ([Unreal Engine](environments/unreal.md)) | `.usf` |
 | `glsl` | GLSL (OpenGL・Vulkan・GLSL ES。[GLSL](environments/glsl.md)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
-| `godot` / `slang` / `wgsl` | Godot / Slang / WGSL (開発中。現在は何も指摘しません) | `.gdshader` / `.slang` / `.wgsl` |
+| `godot` | Godot シェーダー言語 (Godot 4) | `.gdshader` / `.gdshaderinc` |
+| `slang` / `wgsl` | Slang / WGSL (開発中。Slang は構文の誤りだけを、WGSL は何も指摘しません) | `.slang` / `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、明示的に指定した場合に限り解析します。

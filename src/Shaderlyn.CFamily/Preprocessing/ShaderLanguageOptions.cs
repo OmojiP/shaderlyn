@@ -25,4 +25,9 @@ public abstract record ShaderLanguageOptions
     /// <returns>読めれば <see langword="true"/>。</returns>
     /// <remarks>巻き上げで複製した断片を採るかどうかの判定に使う。</remarks>
     public abstract bool IsCompleteUnits(ImmutableArray<ShaderSyntaxToken> tokens);
+
+    /// <summary>その言語に固有のプリプロセッサの指令か (Slang の <c>#language</c>)。展開には影響しないものに限る。</summary>
+    /// <param name="name">指令の名前 (<c>#</c> を除く)。</param>
+    /// <returns>固有の指令なら <see langword="true"/>。既定は <see langword="false"/>。</returns>
+    public virtual bool IsLanguageDirective(string name) => false;
 }

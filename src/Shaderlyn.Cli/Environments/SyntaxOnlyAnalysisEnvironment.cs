@@ -37,9 +37,9 @@ internal sealed class SyntaxOnlyAnalysisEnvironment(
     /// <summary>WGSL の環境の名前。</summary>
     public const string WgslName = "wgsl";
 
-    /// <summary>Slang の環境を作る。まだ読まない (SG1 で読む)。</summary>
+    /// <summary>Slang の環境を作る。構文の誤りを報告する (意味解析は SG2 で足す)。</summary>
     /// <returns>環境。</returns>
-    public static SyntaxOnlyAnalysisEnvironment CreateSlang() => new(SlangName, "Slang", [".slang"], null);
+    public static SyntaxOnlyAnalysisEnvironment CreateSlang() => new(SlangName, "Slang", [".slang"], Shaderlyn.Slang.SlangSyntaxTree.Parse);
 
     /// <summary>WGSL の環境を作る。まだ読まない (WG1 で読む)。</summary>
     /// <returns>環境。</returns>

@@ -107,6 +107,21 @@ public sealed class TypeSyntax(
     /// <remarks>HLSL では書けないので、HLSL の木では常に空である。名前 (<see cref="Name"/>) には含めない。</remarks>
     public ImmutableArray<ShaderSyntaxToken> ArrayRanks { get; init; } = [];
 
+    /// <summary>
+    /// 型の後ろに書いたポインターの <c>*</c> (Slang の <c>float4* p</c>)。無ければ空。
+    /// </summary>
+    /// <remarks>HLSL・GLSL では書けないので、それらの木では常に空である。名前 (<see cref="Name"/>) には含めない。</remarks>
+    public ImmutableArray<ShaderSyntaxToken> PointerTokens { get; init; } = [];
+
+    /// <summary>
+    /// 型引数を書いた型の後ろの、中の型の名前 (Slang の <c>RWStructuredBuffer&lt;float&gt;.Handle</c> の <c>.Handle</c>)。無ければ空。
+    /// </summary>
+    /// <remarks>名前 (<see cref="Name"/>) には含めない。中の型は、今は分からない型として扱う。</remarks>
+    public ImmutableArray<ShaderSyntaxToken> NestedTypeTokens { get; init; } = [];
+
+    /// <summary>ポインターの型か。</summary>
+    public bool IsPointer => !PointerTokens.IsEmpty;
+
     /// <inheritdoc/>
     public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
     {
@@ -135,6 +150,16 @@ public sealed class TypeSyntax(
         if (CloseAngle is not null)
         {
             yield return CloseAngle;
+        }
+
+        foreach (ShaderSyntaxToken token in NestedTypeTokens)
+        {
+            yield return token;
+        }
+
+        foreach (ShaderSyntaxToken token in PointerTokens)
+        {
+            yield return token;
         }
 
         foreach (ShaderSyntaxToken token in ArrayRanks)

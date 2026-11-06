@@ -228,6 +228,90 @@ internal abstract class ShaderParser
     protected virtual DeclarationSyntax? TryParseLanguageDeclaration() => null;
 
     /// <summary>
+    /// 言語に固有の宣言を読む。属性を読んだ後に呼ぶ。既定は <see cref="TryParseLanguageDeclaration()"/> を呼ぶ。
+    /// </summary>
+    /// <param name="attributes">宣言の前の属性 (Slang の <c>[shader("compute")]</c> など)。</param>
+    /// <returns>読んだ宣言。その言語の宣言でなければ <see langword="null"/>。</returns>
+    protected virtual DeclarationSyntax? TryParseLanguageDeclaration(ImmutableArray<AttributeSyntax> attributes) => TryParseLanguageDeclaration();
+
+    /// <summary>修飾子と同じ綴りの語 (<c>out</c>・<c>point</c>・<c>buffer</c>) を、後ろに名前が続かないときは変数の名前として読むか (Slang)。</summary>
+    protected virtual bool ModifierWordsCanBeNames => false;
+
+    /// <summary>型の名前を <c>.</c> で修飾してよいか (Slang の <c>BCTile.Differential</c>)。型引数を書いた型の後ろの <c>.</c> も静的なメンバーとして読む (<c>MLVec&lt;4&gt;.fromArray</c>)。</summary>
+    protected virtual bool AcceptsDottedTypeNames => false;
+
+    /// <summary>型引数を書いて呼べる名前 (ジェネリックの関数と型) として覚える。</summary>
+    /// <param name="name">名前。</param>
+    protected void RegisterTemplateName(string name) => _templateNames.Add(name);
+
+    /// <summary>構造体と列挙型の閉じ波括弧の後ろの <c>;</c> を省いてよいか (Slang)。</summary>
+    protected virtual bool AllowsOmittedTypeSemicolon => false;
+
+    /// <summary>型の宣言の終わりの <c>;</c> を読む。省いてよい言語で無ければ、省いたことにする。</summary>
+    /// <returns>読んだ <c>;</c>。省いたなら、欠けたトークン。</returns>
+    private ShaderSyntaxToken ExpectTypeSemicolon()
+        => AllowsOmittedTypeSemicolon && Current.Kind != ShaderSyntaxKind.SemicolonToken
+            ? CreateMissingToken(ShaderSyntaxKind.SemicolonToken)
+            : Expect(ShaderSyntaxKind.SemicolonToken, "';'");
+
+    /// <summary>
+    /// 言語に固有の文を読む (Slang の <c>let</c> / <c>var</c> など)。文の属性を読んだ後、ほかの文より先に呼ぶ。
+    /// </summary>
+    /// <returns>読んだ文。その言語の文でなければ <see langword="null"/> (位置を動かさない)。</returns>
+    protected virtual StatementSyntax? TryParseLanguageStatement() => null;
+
+    /// <summary>
+    /// 宣言の名前の後ろのジェネリックの仮引数 (Slang の <c>T f&lt;T : IFoo&gt;(T x)</c>、<c>struct Box&lt;T&gt;</c>) を読む。
+    /// </summary>
+    /// <returns>読んだなら <see langword="true"/>。</returns>
+    protected virtual bool TryParseGenericParameters() => false;
+
+    /// <summary>
+    /// 関数の仮引数の後ろと構造体の基底の後ろに書く、言語に固有のもの (Slang の <c>-&gt; T</c>、<c>where T : IFoo</c>、2 つ目からの基底) を読み飛ばす。
+    /// </summary>
+    protected virtual void SkipDeclarationSuffix()
+    {
+    }
+
+    /// <summary>型の後ろの <c>*</c> をポインターの型として読むか (Slang の <c>float4* p</c>)。</summary>
+    protected virtual bool AcceptsPointerTypes => false;
+
+    /// <summary>文の先頭が、言語に固有の形の宣言か (Slang の <c>float4* p = …;</c>)。</summary>
+    /// <returns>宣言なら <see langword="true"/>。</returns>
+    protected virtual bool LooksLikeLanguageDeclaration() => false;
+
+    /// <summary>
+    /// 式の後ろに続く、言語に固有のもの (Slang の <c>x is T</c>、<c>x as T</c>、<c>p-&gt;x</c>) を読む。
+    /// </summary>
+    /// <param name="expression">ここまでの式。</param>
+    /// <returns>読んだ式。続くものが無ければ <see langword="null"/> (位置を動かさない)。</returns>
+    protected virtual ExpressionSyntax? TryParseLanguagePostfix(ExpressionSyntax expression) => null;
+
+    /// <summary>
+    /// 式の先頭の、言語に固有の形 (Slang のラムダ式 <c>(int x) =&gt; x</c> など) を読む。
+    /// </summary>
+    /// <returns>読んだ式。その形でなければ <see langword="null"/> (位置を動かさない)。</returns>
+    protected virtual ExpressionSyntax? TryParseLanguagePrimary() => null;
+
+    /// <summary>
+    /// if・while などの条件の、言語に固有の形 (Slang の <c>if (let x = optional)</c>) を読む。
+    /// </summary>
+    /// <returns>読んだ条件。その形でなければ <see langword="null"/> (位置を動かさない)。</returns>
+    protected virtual ExpressionSyntax? TryParseLanguageCondition() => null;
+
+    /// <summary>今の位置。トークン列 (プリプロセスの出力) の中の番号。言語に固有の形を先読みして、違えば戻すためにも使う。</summary>
+    protected int Position
+    {
+        get => _index;
+        set => _index = value;
+    }
+
+    /// <summary>構文木にせずに読み飛ばしたトークンの識別子を、名前を解析していない場所の名前として残す。</summary>
+    /// <param name="tokens">読み飛ばしたトークン。</param>
+    protected void MarkUnanalyzed(IEnumerable<ShaderSyntaxToken> tokens)
+        => _unanalyzedIdentifiers.AddRange(tokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken));
+
+    /// <summary>
     /// 構文木にせずに読み飛ばした宣言に現れた識別子。<see cref="ParseCompilationUnit"/> のあとで揃う。
     /// </summary>
     /// <remarks>
@@ -349,8 +433,6 @@ internal abstract class ShaderParser
 
     protected ShaderSyntaxToken Current => Peek(0);
 
-    /// <summary>今の位置。トークン列 (プリプロセスの出力) の中の番号。</summary>
-    protected int Position => _index;
 
     protected bool AtEnd => _index >= _tokens.Length || Current.Kind == ShaderSyntaxKind.EndOfFileToken;
 
@@ -396,7 +478,7 @@ internal abstract class ShaderParser
     /// 文法:
     /// <c>Declaration := Attribute* Modifier* (StructDeclaration | LanguageDeclaration | Typedef | FunctionOrVariable)</c>
     /// </remarks>
-    private DeclarationSyntax ParseDeclaration()
+    protected DeclarationSyntax ParseDeclaration()
     {
         if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
@@ -433,7 +515,7 @@ internal abstract class ShaderParser
             return ParseStaticAssert();
         }
 
-        if (TryParseLanguageDeclaration() is { } languageDeclaration)
+        if (TryParseLanguageDeclaration(attributes) is { } languageDeclaration)
         {
             return languageDeclaration;
         }
@@ -458,6 +540,12 @@ internal abstract class ShaderParser
         }
 
         ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
+
+        // 修飾子の後ろの enum (Slang の public enum Mode { … })。
+        if (!modifiers.IsEmpty && AcceptsEnums && CurrentTextIs("enum"))
+        {
+            return ParseEnum();
+        }
 
         // 前方宣言 (struct Light; / class ObjModelLoader;)。名前を知らせるだけで中身は無い。
         if ((CurrentTextIs("struct") || CurrentTextIs("class") || CurrentTextIs("interface"))
@@ -662,7 +750,9 @@ internal abstract class ShaderParser
         ImmutableArray<AttributeSyntax> attributes,
         ImmutableArray<ShaderSyntaxToken> modifiers)
     {
-        if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
+        // 大域の名前空間の :: で始まる型 (Slang の static ::Number foo) は、型として読む。
+        if (Current.Kind != ShaderSyntaxKind.IdentifierToken
+            && !(AcceptsDottedTypeNames && Current.Kind == ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken))
         {
             return RecoverDeclaration(DescribeExpected("型名"));
         }
@@ -689,6 +779,7 @@ internal abstract class ShaderParser
         }
 
         ShaderSyntaxToken name = Advance();
+        _ = TryParseGenericParameters();
 
         // 構造体の外でのメソッドの定義: uint Wave::GetIndex() { ... }
         // 修飾の後ろは関数名で、必ず関数の宣言になる。
@@ -786,6 +877,7 @@ internal abstract class ShaderParser
 
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         ImmutableArray<SemanticSyntax> semantics = ParseSemantics();
+        SkipDeclarationSuffix();
 
         // 仮引数の後ろの属性 (GLSL の GL_EXT_maximal_reconvergence の void main() [[maximally_reconverges]])。
         while (Current.Kind == ShaderSyntaxKind.OpenBracketToken && Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
@@ -838,6 +930,8 @@ internal abstract class ShaderParser
             symbols.Add(Advance());
         }
 
+        _ = TryParseGenericParameters();
+
         if (symbols.Count == 0 || Current.Kind != ShaderSyntaxKind.OpenParenToken)
         {
             return RecoverDeclaration(DescribeExpected("演算子と '('"));
@@ -848,7 +942,7 @@ internal abstract class ShaderParser
 
     /// <summary>関数の仮引数を 1 つ解析する。</summary>
     /// <returns>解析した仮引数。</returns>
-    private ParameterSyntax ParseParameter()
+    protected ParameterSyntax ParseParameter()
     {
         // 引数に付ける属性 (ワークグラフの [MaxRecords(2)] NodeOutput<T> output)。型の判定には関わらないので読み飛ばす。
         if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
@@ -970,7 +1064,7 @@ internal abstract class ShaderParser
 
     /// <summary>初期化子を解析する。</summary>
     /// <returns>解析した式。</returns>
-    private ExpressionSyntax ParseInitializer()
+    protected ExpressionSyntax ParseInitializer()
         => Current.Kind == ShaderSyntaxKind.OpenBraceToken ? ParseInitializerList() : ParseExpression();
 
     /// <summary>波括弧による初期化子を解析する。</summary>
@@ -1133,7 +1227,7 @@ internal abstract class ShaderParser
         }
 
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
-        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = ExpectTypeSemicolon();
 
         return new EnumDeclarationSyntax(keyword, scope, name, baseType.ToImmutable(), openBrace, members.ToImmutable(), closeBrace, semicolon);
     }
@@ -1156,11 +1250,12 @@ internal abstract class ShaderParser
         }
 
         ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
+        bool generic = name is not null && TryParseGenericParameters();
 
         // 明示的な特殊化の構造体名に付く型引数 (template<> struct Box<float> { ... })。
         ImmutableArray<ShaderSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        if (name is not null && AcceptsTemplates && Current.Kind == ShaderSyntaxKind.LessThanToken)
+        if (name is not null && !generic && AcceptsTemplates && Current.Kind == ShaderSyntaxKind.LessThanToken)
         {
             int depth = 0;
 
@@ -1192,6 +1287,8 @@ internal abstract class ShaderParser
             }
         }
 
+        SkipDeclarationSuffix();
+
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<DeclarationSyntax>.Builder members =
             ImmutableArray.CreateBuilder<DeclarationSyntax>();
@@ -1212,7 +1309,10 @@ internal abstract class ShaderParser
         ImmutableArray<ShaderNodeOrTokenEntry>.Builder declarators =
             ImmutableArray.CreateBuilder<ShaderNodeOrTokenEntry>();
 
-        while (Current.Kind == ShaderSyntaxKind.IdentifierToken)
+        // ; を省ける言語では、閉じ波括弧の後ろの名前は、; ・ ,・ =・ [ が続くときだけ変数の宣言である (struct A { } struct B { } を読み違えない)。
+        while (Current.Kind == ShaderSyntaxKind.IdentifierToken
+               && (!AllowsOmittedTypeSemicolon
+                   || Peek(1).Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.OpenBracketToken))
         {
             declarators.Add(ShaderNodeOrTokenEntry.FromNode(ParseDeclaratorRest(Advance())));
 
@@ -1224,7 +1324,9 @@ internal abstract class ShaderParser
             declarators.Add(ShaderNodeOrTokenEntry.FromToken(Advance()));
         }
 
-        ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
+        ShaderSyntaxToken semicolon = declarators.Count > 0
+            ? Expect(ShaderSyntaxKind.SemicolonToken, "';'")
+            : ExpectTypeSemicolon();
 
         return new StructDeclarationSyntax(
             keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
@@ -1269,7 +1371,7 @@ internal abstract class ShaderParser
     /// 別名を型として扱わないだけで、今までどおり分からない型になる。
     /// </para>
     /// </remarks>
-    private TypedefDeclarationSyntax ParseTypedef()
+    protected TypedefDeclarationSyntax ParseTypedef()
     {
         ShaderSyntaxToken keyword = Advance();
         int start = _index;
@@ -1288,6 +1390,17 @@ internal abstract class ShaderParser
         for (int i = start; i < _index; i++)
         {
             tokens.Add(_tokens[i]);
+        }
+
+        // ; を省ける言語 (Slang の typedef uint Type の後ろに改行だけ) では、型と名前の後ろに ; が無ければ、そこで終わる。
+        if (AllowsOmittedTypeSemicolon
+            && target is not null
+            && Current.Kind == ShaderSyntaxKind.IdentifierToken
+            && Peek(1).Kind is not (ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.CommaToken))
+        {
+            _typeAliases[Current.Text] = target.Name;
+            tokens.Add(Advance());
+            return new TypedefDeclarationSyntax(keyword, tokens.ToImmutable(), CreateMissingToken(ShaderSyntaxKind.SemicolonToken));
         }
 
         while (!AtEnd && Current.Kind != ShaderSyntaxKind.SemicolonToken)
@@ -1317,7 +1430,7 @@ internal abstract class ShaderParser
     /// 名前空間の修飾に対応するのは、Unity のレイトレーシング関連のコードが
     /// <c>UnifiedRT::InstanceData</c> のような修飾名を使うためである。
     /// </remarks>
-    private TypeSyntax ParseType()
+    protected TypeSyntax ParseType()
     {
         // 型名の前に置かれた修飾子を先に取る。
         // (const int) や (unsigned int) の形で型変換の中にも現れる。
@@ -1332,13 +1445,20 @@ internal abstract class ShaderParser
             modifiers.Add(Advance());
         }
 
+        // 大域の名前空間を指す :: (Slang の static ::Number foo)。
+        if (AcceptsDottedTypeNames && Current.Kind == ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            modifiers.Add(Advance());
+        }
+
         ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
             ? Advance()
             : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
 
         ImmutableArray<ShaderSyntaxToken>.Builder qualifiers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
-        while (Current.Kind == ShaderSyntaxKind.ColonColonToken)
+        while (Current.Kind == ShaderSyntaxKind.ColonColonToken
+               || (AcceptsDottedTypeNames && Current.Kind == ShaderSyntaxKind.DotToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken))
         {
             qualifiers.Add(name);
             qualifiers.Add(Advance());
@@ -1390,6 +1510,20 @@ internal abstract class ShaderParser
                     break;
                 }
 
+                // 入れ子の型引数を閉じる >> (Box<Pair<T>>)。内側と外側を一度に閉じる。
+                if (Current.Kind == ShaderSyntaxKind.GreaterThanGreaterThanToken && depth == 1 && parenthesisDepth == 0)
+                {
+                    break;
+                }
+
+                // さらに深い入れ子の >> (A<B<C<T>>>) は、内側の 2 つを閉じる。
+                if (Current.Kind == ShaderSyntaxKind.GreaterThanGreaterThanToken && depth >= 2 && parenthesisDepth == 0)
+                {
+                    depth -= 2;
+                    templateArguments.Add(Advance());
+                    continue;
+                }
+
                 if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
                 {
                     parenthesisDepth++;
@@ -1420,7 +1554,7 @@ internal abstract class ShaderParser
                 templateArguments.Add(Advance());
             }
 
-            closeAngle = Current.Kind == ShaderSyntaxKind.GreaterThanToken
+            closeAngle = Current.Kind is ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken
                 ? Advance()
                 : CreateMissingToken(ShaderSyntaxKind.GreaterThanToken);
         }
@@ -1431,6 +1565,23 @@ internal abstract class ShaderParser
             : null;
 
         ImmutableArray<ShaderSyntaxToken> arguments = templateArguments.ToImmutable();
+
+        // 型引数を書いた型の中の型 (Slang の RWStructuredBuffer<float>.Handle)。
+        ImmutableArray<ShaderSyntaxToken>.Builder nested = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
+
+        while (AcceptsDottedTypeNames && openAngle is not null && Current.Kind == ShaderSyntaxKind.DotToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+        {
+            nested.Add(Advance());
+            nested.Add(Advance());
+        }
+
+        // ポインターの型 (Slang の float4* p)。
+        ImmutableArray<ShaderSyntaxToken>.Builder pointers = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
+
+        while (AcceptsPointerTypes && Current.Kind == ShaderSyntaxKind.AsteriskToken)
+        {
+            pointers.Add(Advance());
+        }
 
         // 型の側の配列 (GLSL の vec4[3] positions)。
         ImmutableArray<ShaderSyntaxToken> arrayRanks = AcceptsArrayTypes && Current.Kind == ShaderSyntaxKind.OpenBracketToken
@@ -1448,6 +1599,8 @@ internal abstract class ShaderParser
             GetCanonicalTypeName(name, openAngle, arguments))
         {
             ArrayRanks = arrayRanks,
+            PointerTokens = pointers.ToImmutable(),
+            NestedTypeTokens = nested.ToImmutable(),
         };
     }
 
@@ -1555,16 +1708,19 @@ internal abstract class ShaderParser
 
     /// <summary>属性の並びを解析する。</summary>
     /// <returns>解析した属性。</returns>
-    private ImmutableArray<AttributeSyntax> ParseAttributes()
+    protected ImmutableArray<AttributeSyntax> ParseAttributes()
     {
         ImmutableArray<AttributeSyntax>.Builder attributes =
             ImmutableArray.CreateBuilder<AttributeSyntax>();
 
-        while (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
+        // 1 つの角括弧に , で並べた属性の 2 つ目から (Slang の [shader("compute"), numthreads(1, 1, 1)])。
+        bool continued = false;
+
+        while (continued || Current.Kind == ShaderSyntaxKind.OpenBracketToken)
         {
             // [[vk::binding(0, 0)]] のような二重角括弧の注釈は読み飛ばす。
             // SPIR-V 向けの割り当てを指示するもので、この解析ツールが見る意味を持たない。
-            if (Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
+            if (!continued && Peek(1).Kind == ShaderSyntaxKind.OpenBracketToken)
             {
                 if (KeepsDoubleBracketAttributes && Peek(2).Kind == ShaderSyntaxKind.IdentifierToken && Peek(3).Kind != ShaderSyntaxKind.ColonColonToken)
                 {
@@ -1576,16 +1732,24 @@ internal abstract class ShaderParser
                 continue;
             }
 
-            ShaderSyntaxToken openBracket = Advance();
+            ShaderSyntaxToken openBracket = continued ? CreateMissingToken(ShaderSyntaxKind.OpenBracketToken) : Advance();
 
-            if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
+            if (!continued && Current.Kind != ShaderSyntaxKind.IdentifierToken)
             {
                 // 属性ではなかった。読み過ぎた開き角括弧を戻す。
                 _index--;
                 break;
             }
 
+            continued = false;
             ShaderSyntaxToken name = Advance();
+
+            // 名前空間の付いた属性 (Slang の [vk::binding(0)])。名前は最後の部分にする。
+            while (AcceptsDottedTypeNames && Current.Kind == ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                Advance();
+                name = Advance();
+            }
 
             ShaderSyntaxToken? openParen = null;
             ShaderSyntaxToken? closeParen = null;
@@ -1616,6 +1780,15 @@ internal abstract class ShaderParser
                 }
 
                 closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+            }
+
+            if (AcceptsDottedTypeNames && Current.Kind == ShaderSyntaxKind.CommaToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                Advance();
+                attributes.Add(new AttributeSyntax(
+                    openBracket, name, openParen, arguments.ToImmutable(), closeParen, CreateMissingToken(ShaderSyntaxKind.CloseBracketToken)));
+                continued = true;
+                continue;
             }
 
             ShaderSyntaxToken closeBracket = Expect(ShaderSyntaxKind.CloseBracketToken, "']'");
@@ -1726,7 +1899,7 @@ internal abstract class ShaderParser
 
     /// <summary>波括弧で囲まれた文の並びを解析する。</summary>
     /// <returns>解析したブロック。</returns>
-    private BlockStatementSyntax ParseBlock()
+    protected BlockStatementSyntax ParseBlock()
     {
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<StatementSyntax>.Builder statements =
@@ -1756,7 +1929,7 @@ internal abstract class ShaderParser
     /// 自身のテキストを渡されていない場合 (ヘッダ単体の解析など) は、
     /// すべてを自身のものとして扱う。読み飛ばさない側へ倒す。
     /// </remarks>
-    private bool IsFromOwnSource(ShaderSyntaxToken token)
+    protected bool IsFromOwnSource(ShaderSyntaxToken token)
     {
         // 同じファイルを別にマスクしたテキスト (Unity の HLSLINCLUDE を先に読むもの) も、このファイルのものである。
         if (_ownSource is null
@@ -1789,7 +1962,7 @@ internal abstract class ShaderParser
     /// 取り込んだヘッダの関数の中身は、どのルールも見ていない。
     /// 作れば構文解析でも親の設定でも走査でも費用がかかる。
     /// </remarks>
-    private BlockStatementSyntax SkipBlock()
+    protected BlockStatementSyntax SkipBlock()
     {
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         int depth = 1;
@@ -1819,9 +1992,14 @@ internal abstract class ShaderParser
 
     /// <summary>文を 1 つ解析する。</summary>
     /// <returns>解析した文。</returns>
-    private StatementSyntax ParseStatement()
+    protected StatementSyntax ParseStatement()
     {
         ImmutableArray<AttributeSyntax> attributes = ParseAttributes();
+
+        if (TryParseLanguageStatement() is { } languageStatement)
+        {
+            return languageStatement;
+        }
 
         switch (Current.Kind)
         {
@@ -1894,7 +2072,9 @@ internal abstract class ShaderParser
             return false;
         }
 
-        if (IsDeclarationModifier(Current.Text) || Current.Text == "struct")
+        if ((IsDeclarationModifier(Current.Text) && !(ModifierWordsCanBeNames && Peek(1).Kind != ShaderSyntaxKind.IdentifierToken))
+            || Current.Text == "struct"
+            || LooksLikeLanguageDeclaration())
         {
             return true;
         }
@@ -1902,6 +2082,12 @@ internal abstract class ShaderParser
         if (TakesParenthesizedTypeArguments(Current.Text) && Peek(1).Kind == ShaderSyntaxKind.OpenParenToken)
         {
             return true;
+        }
+
+        // 型と同じ綴りの変数 (Slang の sampler.GetDimensions(…))。
+        if (ModifierWordsCanBeNames && IsKnownTypeName(Current.Text) && Peek(1).Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.EqualsToken)
+        {
+            return false;
         }
 
         if (IsKnownTypeName(Current.Text))
@@ -2067,7 +2253,7 @@ internal abstract class ShaderParser
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
-        ExpressionSyntax condition = ParseCommaExpression();
+        ExpressionSyntax condition = TryParseLanguageCondition() ?? ParseCommaExpression();
         ShaderSyntaxToken closeParen = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
         StatementSyntax thenStatement = ParseStatement();
 
@@ -2240,7 +2426,7 @@ internal abstract class ShaderParser
 
     /// <summary>式を解析する。</summary>
     /// <returns>解析した式。</returns>
-    private ExpressionSyntax ParseExpression() => ParseAssignment();
+    protected ExpressionSyntax ParseExpression() => ParseAssignment();
 
     /// <summary>
     /// <c>while</c> と <c>for</c> の条件を解析する。GLSL では変数の宣言も書ける (<c>while (bool b = x &lt; 45)</c>)。
@@ -2248,6 +2434,11 @@ internal abstract class ShaderParser
     /// <returns>解析した式。宣言なら <see cref="ConditionDeclarationExpressionSyntax"/>。</returns>
     private ExpressionSyntax ParseCondition()
     {
+        if (TryParseLanguageCondition() is { } language)
+        {
+            return language;
+        }
+
         if (!ReadsTypeNameCallAsExpression || !LooksLikeDeclaration())
         {
             return ParseCommaExpression();
@@ -2357,7 +2548,7 @@ internal abstract class ShaderParser
 
     /// <summary>単項式を解析する。</summary>
     /// <returns>解析した式。</returns>
-    private ExpressionSyntax ParseUnary()
+    protected ExpressionSyntax ParseUnary()
     {
         if (Current.Kind is ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken
             or ShaderSyntaxKind.ExclamationToken or ShaderSyntaxKind.TildeToken
@@ -2429,6 +2620,11 @@ internal abstract class ShaderParser
             else if (kind == ShaderSyntaxKind.GreaterThanToken)
             {
                 angleDepth--;
+            }
+            else if (kind == ShaderSyntaxKind.GreaterThanGreaterThanToken && angleDepth >= 2)
+            {
+                // 入れ子の型引数を一度に閉じる >> ((Box<Pair<T>>)x)。
+                angleDepth -= 2;
             }
             else if (kind == ShaderSyntaxKind.CloseParenToken && angleDepth == 0)
             {
@@ -2519,6 +2715,12 @@ internal abstract class ShaderParser
     {
         while (!AtEnd)
         {
+            if (TryParseLanguagePostfix(expression) is { } extended)
+            {
+                expression = extended;
+                continue;
+            }
+
             switch (Current.Kind)
             {
                 case ShaderSyntaxKind.OpenParenToken:
@@ -2536,7 +2738,9 @@ internal abstract class ShaderParser
                 case ShaderSyntaxKind.OpenBracketToken:
                 {
                     ShaderSyntaxToken openBracket = Advance();
-                    ExpressionSyntax index = ParseExpression();
+
+                    // 複数の添字 (Slang の tensor[0, 1])。
+                    ExpressionSyntax index = AcceptsDottedTypeNames ? ParseCommaExpression() : ParseExpression();
                     ShaderSyntaxToken closeBracket = Expect(ShaderSyntaxKind.CloseBracketToken, "']'");
                     expression = new ElementAccessExpressionSyntax(expression, openBracket, index, closeBracket);
                     break;
@@ -2568,8 +2772,9 @@ internal abstract class ShaderParser
                 case ShaderSyntaxKind.LessThanToken
                     when AcceptsTemplates
                          && expression is IdentifierExpressionSyntax identifier
-                         && _templateNames.Contains(identifier.Name)
-                         && FindTypeArgumentsEnd(ShaderSyntaxKind.ColonColonToken, allowsValues: true) is int qualifiedClose:
+                         && (_templateNames.Contains(identifier.Name) || (AcceptsDottedTypeNames && IsKnownTypeName(identifier.Name)))
+                         && (FindTypeArgumentsEnd(ShaderSyntaxKind.ColonColonToken, allowsValues: true)
+                             ?? (AcceptsDottedTypeNames ? FindTypeArgumentsEnd(ShaderSyntaxKind.DotToken, allowsValues: true) : null)) is int qualifiedClose:
                 {
                     ShaderSyntaxToken openAngle = Advance();
                     ImmutableArray<ShaderSyntaxToken>.Builder typeArguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -2674,6 +2879,10 @@ internal abstract class ShaderParser
 
                     break;
 
+                // 入れ子の型引数を一度に閉じる >> (f<Box<T>>(x))。型引数を読める言語でだけ。
+                case ShaderSyntaxKind.GreaterThanGreaterThanToken when AcceptsDottedTypeNames && depth == 2:
+                    return Peek(offset + 1).Kind == following ? offset : null;
+
                 case ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken
                     or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.ColonColonToken:
                     break;
@@ -2741,6 +2950,11 @@ internal abstract class ShaderParser
     /// <returns>解析した式。</returns>
     private ExpressionSyntax ParsePrimary()
     {
+        if (TryParseLanguagePrimary() is { } language)
+        {
+            return language;
+        }
+
         switch (Current.Kind)
         {
             case ShaderSyntaxKind.NumericLiteralToken:
@@ -2836,7 +3050,7 @@ internal abstract class ShaderParser
     /// 同期点はセミコロンと波括弧である。
     /// 宣言はこのいずれかで終わるため、そこまで捨てれば次の宣言から解析を再開できる。
     /// </remarks>
-    private IncompleteDeclarationSyntax RecoverDeclaration(string message)
+    protected IncompleteDeclarationSyntax RecoverDeclaration(string message)
     {
         ReportError(message);
 
@@ -2884,7 +3098,7 @@ internal abstract class ShaderParser
     }
 
     /// <summary>対応の取れた波括弧の組を読み飛ばす。</summary>
-    private void SkipBalancedBraces()
+    protected void SkipBalancedBraces()
     {
         int depth = 0;
 
@@ -2974,7 +3188,7 @@ internal abstract class ShaderParser
     /// <summary>今の位置で何かが要ることを伝える文を作る。</summary>
     /// <param name="expectation">要るもの (<c>';'</c> / <c>式</c> など)。</param>
     /// <returns>文。ファイルの終わりなら「ファイルの末尾には … が必要です。」</returns>
-    private string DescribeExpected(string expectation)
+    protected string DescribeExpected(string expectation)
         => Current.Kind == ShaderSyntaxKind.EndOfFileToken
             ? $"ファイルの末尾には {expectation}{Space(expectation)}が必要です。"
             : $"{expectation}{Space(expectation)}が必要ですが '{Current.Text}' がありました。";
@@ -3018,7 +3232,7 @@ internal abstract class ShaderParser
     /// <summary>欠落トークンを合成する。</summary>
     /// <param name="kind">合成するトークンの種別。</param>
     /// <returns>合成したトークン。</returns>
-    private ShaderSyntaxToken CreateMissingToken(ShaderSyntaxKind kind)
+    protected ShaderSyntaxToken CreateMissingToken(ShaderSyntaxKind kind)
         => new(kind, Current.Source, new TextSpan(Current.Span.Start, 0), string.Empty, isMissing: true);
 
     /// <summary>終端トークンを合成する。</summary>
@@ -3040,7 +3254,7 @@ internal abstract class ShaderParser
     /// 1 ファイルから数千件のエラーが出ることがあり、
     /// そのすべてを報告しても読み手の役に立たないためである。
     /// </remarks>
-    private void ReportError(string message)
+    protected void ReportError(string message)
     {
         if (_reportedErrors >= MaxReportedErrors)
         {

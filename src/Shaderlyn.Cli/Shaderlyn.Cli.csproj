@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Shaderlyn.Core\Shaderlyn.Core.csproj" />
     <ProjectReference Include="..\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Godot\Shaderlyn.Godot.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Slang\Shaderlyn.Slang.csproj" />
     <ProjectReference Include="..\Shaderlyn.ShaderLab\Shaderlyn.ShaderLab.csproj" />
     <ProjectReference Include="..\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
     <ProjectReference Include="..\Shaderlyn.Unity\Shaderlyn.Unity.csproj" />

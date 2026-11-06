@@ -147,6 +147,11 @@ internal sealed partial class ShaderPreprocessor
                 CheckLineDirective(directiveToken, ReadDirectiveLine());
                 break;
 
+            // 言語に固有の指令 (Slang の #language slang 2026)。展開には影響しないので、行ごと覚える。
+            case var name when _options.Language?.IsLanguageDirective(name) == true:
+                _recordedDirectives.Add(new RecordedDirective(directiveToken, ReadDirectiveLine(), _output.Count));
+                break;
+
             default:
                 Report(
                     ShaderDescriptors.PreprocessorError,
