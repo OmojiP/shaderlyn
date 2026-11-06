@@ -364,12 +364,22 @@ internal static class SemanticsSetup
             ? CreateUnreal(settings).GetVirtualPathMappings()
             : ImmutableDictionary<string, string>.Empty;
 
+        // Godot のシェーダーは、プロジェクト (project.godot のフォルダー) の中ならどこでも取り込める (res://... と、../ で上がる相対パス)。
+        bool godot = settings.Environment == Semantics.Environments.GodotEnvironment.EnvironmentName;
+        string[] godotRoots = godot
+            ? [.. new[] { settings.Configuration.GodotProjectPath }
+                .Concat(options.InputPaths.Select(p => Godot.GodotProject.FindRoot(InputRoot(p))))
+                .OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)]
+            : [];
+
         IncludeBoundary boundary = options.InputPaths.IsEmpty
             ? IncludeBoundary.Unrestricted
             : new IncludeBoundary(
             [
                 .. searchPaths,
                 .. virtualPaths.Values,
+                .. godotRoots,
                 .. options.InputPaths.Select(InputRoot),
 
                 // 設定ファイルを置いたフォルダーはプロジェクトの根である。解析対象から "../common/..." と上がっても、その中なら読む。
@@ -384,6 +394,12 @@ internal static class SemanticsSetup
         if (!virtualPaths.IsEmpty)
         {
             resolvers.Add(new UnrealVirtualPathResolver(virtualPaths, boundary));
+        }
+
+        // res://... は Godot のプロジェクトのフォルダーから引く。
+        if (godot)
+        {
+            resolvers.Add(new Godot.GodotResourceIncludeResolver(settings.Configuration.GodotProjectPath, boundary));
         }
 
         resolvers.Add(new FileSystemIncludeResolver(searchPaths, boundary));

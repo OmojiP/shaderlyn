@@ -29,7 +29,12 @@ internal static class GodotSyntaxTree
         }
 
         // Godot の字句解析は、閉じていない /* を誤りにせず、ファイルの終わりまでをコメントとして読む。
-        effective = effective with { ReportsUnterminatedComment = false };
+        // Godot のプリプロセッサが定義するマクロ (CURRENT_RENDERER など) は、設定で与えたマクロに負ける。
+        effective = effective with
+        {
+            ReportsUnterminatedComment = false,
+            PredefinedMacros = ((GodotLanguageOptions)effective.Language!).Renderer.CreateBuiltinMacros().SetItems(effective.PredefinedMacros),
+        };
 
         PreprocessResult preprocessed = new ShaderPreprocessor(effective).Preprocess(text);
 

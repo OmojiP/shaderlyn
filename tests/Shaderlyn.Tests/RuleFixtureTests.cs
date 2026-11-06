@@ -113,8 +113,10 @@ public sealed class RuleFixtureTests
         ["GL0201"] = "GLSL だけの規則なので、Unity の .shader では起こせない",
 
         // Godot シェーダー言語だけの規則。GodotRuleTests で、.gdshader として確かめている。
+        ["GD0001"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0002"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0101"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["GD0104"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0102"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0103"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0405"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",

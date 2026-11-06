@@ -26,7 +26,9 @@ internal sealed class GodotAnalysisEnvironment(ShaderlynConfiguration configurat
     public static ImmutableArray<string> Extensions { get; } = [".gdshader", ".gdshaderinc"];
 
     private readonly GodotEnvironment _environment = new(
-        HlslAnalysisEnvironment.BuildVariants(configuration ?? throw new ArgumentNullException(nameof(configuration)), null));
+        HlslAnalysisEnvironment.BuildVariants(configuration ?? throw new ArgumentNullException(nameof(configuration)), null),
+        Godot.GodotRenderers.TryParse(configuration.GodotRenderer, out Godot.GodotRenderer renderer) ? renderer : null,
+        configuration.GodotProjectPath);
 
     /// <inheritdoc/>
     public string Name => GodotEnvironment.EnvironmentName;
@@ -48,7 +50,10 @@ internal sealed class GodotAnalysisEnvironment(ShaderlynConfiguration configurat
         // 意味解析をしないときも、構文は読む。
         if (semantics is null)
         {
-            CFamily.Syntax.ShaderSyntaxTree tree = Godot.GodotSyntaxTree.Parse(text);
+            CFamily.Syntax.ShaderSyntaxTree tree = Godot.GodotSyntaxTree.Parse(text, new CFamily.Preprocessing.PreprocessorOptions
+            {
+                Language = Godot.GodotLanguageOptions.Default with { Renderer = _environment.ResolveRenderer(text.FilePath) },
+            });
             return new PreparedFile(new AnalysisTarget(text, tree.Root, tree.Diagnostics), [], null);
         }
 

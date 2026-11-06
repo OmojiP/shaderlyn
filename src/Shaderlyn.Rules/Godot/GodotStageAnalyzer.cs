@@ -32,6 +32,10 @@ namespace Shaderlyn.Rules.Godot;
 /// 整数の varying は、<c>fragment</c> で書き込んだものでなければ <c>flat</c> が要る。
 /// </para>
 /// <para>
+/// varying の数 (行列は列の数、配列は要素の数) は、レンダラーの組み込みの varying の分 (<see cref="GodotRenderers.BaseVaryingIndex"/>) と合わせて
+/// <see cref="GodotRenderers.MaxVaryings"/> までである (GD0104)。Godot と同じく、宣言した順に数えて、最初に超えた varying で報告する。
+/// </para>
+/// <para>
 /// ステージ関数 (そのシェーダーの種類の <c>vertex</c> / <c>fragment</c> など) は、仮引数を持てず、戻り値は <c>void</c> である。
 /// ほかの種類のステージ関数の名前 (<c>particles</c> の <c>fragment</c>) は、ただの利用者の関数である。
 /// </para>
@@ -57,7 +61,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         GodotRuleDescriptors.NotAvailableInStage, GodotRuleDescriptors.StageFunctionSignature,
-        GodotRuleDescriptors.QualifierNotAllowed, GodotRuleDescriptors.InvalidOutArgument,
+        GodotRuleDescriptors.QualifierNotAllowed, GodotRuleDescriptors.InvalidOutArgument, GodotRuleDescriptors.TooManyVaryings,
     ];
 
     /// <inheritdoc/>
@@ -83,7 +87,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             if (compilation.TypeSystem.ForTree(program.Tree) is not GodotTypeSystem types
-                || program.Tree.Language is not GodotLanguageOptions { ShaderType: { } shaderType })
+                || program.Tree.Language is not GodotLanguageOptions { ShaderType: { } shaderType } language)
             {
                 continue;
             }
@@ -91,7 +95,54 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             ImmutableArray<FunctionDeclarationSyntax> functions = [.. program.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>().Where(f => f.Body is not null)];
             CheckSignatures(functions, types, Report);
             new Walker(program, compilation.GetExpressionTypeBinder(program), types, shaderType, Report).Run(functions);
+            CheckVaryingCount(program, shaderType, language.Renderer, Report);
         }
+    }
+
+    /// <summary>varying の数を、宣言した順に数える (Godot の <c>_parse_shader</c> の終わりの検査)。</summary>
+    private static void CheckVaryingCount(
+        AnalyzedProgram program,
+        string shaderType,
+        GodotRenderer renderer,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        int baseIndex = renderer.BaseVaryingIndex(shaderType);
+        long used = baseIndex;
+
+        foreach (VariableDeclarationSyntax declaration in program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Where(d => d.HasModifier("varying")))
+        {
+            foreach (VariableDeclaratorSyntax declarator in declaration.Variables)
+            {
+                used += VaryingSize(declaration.Type, declarator);
+
+                if (used > GodotRenderers.MaxVaryings)
+                {
+                    string builtin = baseIndex > 0 ? $"{renderer.DisplayName()} のレンダラーの {shaderType} のシェーダーでは組み込みの varying が {baseIndex} を使い、" : string.Empty;
+                    report(GodotRuleDescriptors.TooManyVaryings, declarator.NameToken,
+                        $"varying が多すぎます。{builtin}'{declarator.Name}' までで {used} になり、上限の {GodotRenderers.MaxVaryings} を超えます。");
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>varying 1 つが使う数 (<c>ShaderNode::Varying::get_size</c>)。行列は列の数、配列は要素の数を掛ける。</summary>
+    /// <remarks>配列の大きさが整数のリテラルでなければ 1 とする (少なく数えて、誤報告しない)。</remarks>
+    private static long VaryingSize(TypeSyntax type, VariableDeclaratorSyntax declarator)
+    {
+        ImmutableArray<ShaderSyntaxToken> ranks = declarator.ArrayRankTokens.IsEmpty ? type.ArrayRanks : declarator.ArrayRankTokens;
+        long size = ranks is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, var length, { Kind: ShaderSyntaxKind.CloseBracketToken }]
+            && GodotLiterals.TryParseInteger(length.Text, out long value) && value > 0
+            ? value
+            : 1;
+
+        return type.Name switch
+        {
+            "mat2" => size * 2,
+            "mat3" => size * 3,
+            "mat4" => size * 4,
+            _ => size,
+        };
     }
 
     /// <summary>ステージ関数の仮引数と戻り値を調べる。</summary>

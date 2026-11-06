@@ -152,6 +152,18 @@ internal sealed record ShaderlynConfiguration
     /// </summary>
     public bool GlslAutoMapBindings { get; init; }
 
+    /// <summary>
+    /// Godot のプロジェクトのフォルダー (<c>godot: project</c>。<c>project.godot</c> のあるフォルダー)。設定ファイルからの相対で解決済み。
+    /// 指定が無ければ、解析するファイルから上へ辿って最初に見つけた <c>project.godot</c> のフォルダーを使う。
+    /// </summary>
+    public string? GodotProjectPath { get; init; }
+
+    /// <summary>
+    /// Godot のレンダラー (<c>godot: renderer</c>。<c>forward_plus</c> / <c>mobile</c> / <c>gl_compatibility</c>)。
+    /// 指定が無ければ、<c>project.godot</c> の <c>rendering/renderer/rendering_method</c> (それも無ければ <c>forward_plus</c>) を使う。
+    /// </summary>
+    public string? GodotRenderer { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

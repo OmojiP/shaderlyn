@@ -9,6 +9,9 @@
 //   godot  Godot (コンソール版)。SHADERLYN_GODOT (無ければ PATH の godot)。.gdshader を読む (.gdshaderinc は取り込まれる断片なので単体では読まない)
 //
 // Godot はヘッドレス (--headless) でも、シェーダーのコードを渡すとコンパイラ (ShaderLanguage) に掛ける (dummy の material_storage)。
+// ただしヘッドレスでは描画が dummy になり、varying の数の上限 (31) と組み込みの varying の数 (0)、Compatibility の high-end の組み込み関数の扱いが
+// エディターと違う。SHADERLYN_GODOT_WINDOW=1 なら、ウィンドウを開いて本物のレンダラーで読む (GPU と画面が要る)。
+// レンダラーは、元の project.godot の rendering/renderer/rendering_method を作業用のプロジェクトに写して選ぶ。
 // 誤りは「SHADER ERROR: <文>」と「at: (null) (<ファイル>:<行>)」で出る。コンパイラは最初の誤りで止まるので、誤りはファイルごとに 1 つ。
 // res:// は、ファイルから上へ辿って最初に見つけた project.godot のフォルダー (無ければファイルのフォルダー) にする。
 //
@@ -18,7 +21,7 @@
 // 終了コードは、記録できれば 0、使い方の誤りは 2。
 
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
@@ -104,7 +107,7 @@ function recordGodot(paths) {
   for (const [root, group] of groups) {
     const project = join(scratch, `project${index++}`);
     mkdirSync(project);
-    writeFileSync(join(project, "project.godot"), "config_version=5\n");
+    writeFileSync(join(project, "project.godot"), `config_version=5\n${renderingMethod(root)}`);
     const copies = new Map();
     for (const source of collect([root], [".gdshader", ".gdshaderinc"])) {
       const copy = join(project, relative(root, source));
@@ -115,7 +118,8 @@ function recordGodot(paths) {
 
     for (let i = 0; i < group.length; i += 100) {
       const batch = group.slice(i, i + 100).map(path => join(project, relative(root, path)));
-      const run = spawnSync(godot, ["--headless", "--path", project, "--script", script, "--", ...batch],
+      const window = process.env.SHADERLYN_GODOT_WINDOW === "1";
+      const run = spawnSync(godot, [...(window ? [] : ["--headless"]), "--path", project, "--script", script, "--", ...batch],
         { encoding: "utf8", maxBuffer: 1 << 30, timeout: 600000 });
       const output = run.stderr;
       tool ||= run.stdout.match(/^Godot Engine (v\S+)/m)?.[1] ?? "";
@@ -152,6 +156,27 @@ function recordGodot(paths) {
   }
 
   return { tool: `Godot ${tool}`, files };
+}
+
+/** 元のプロジェクトのレンダラーの設定を、作業用の project.godot に書く形で返す。無ければ空 (Godot の既定の Forward+)。 */
+function renderingMethod(root) {
+  const path = join(root, "project.godot");
+  if (!existsSync(path)) {
+    return "";
+  }
+
+  let section = "";
+  for (const raw of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    const header = line.match(/^\[(.*)\]$/);
+    if (header) {
+      section = header[1];
+    } else if (section === "rendering" && /^renderer\/rendering_method\s*=/.test(line)) {
+      return `[rendering]\n${line}\n`;
+    }
+  }
+
+  return "";
 }
 
 /** ファイルから上へ辿って、project.godot のあるフォルダーを探す。 */

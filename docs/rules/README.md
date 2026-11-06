@@ -246,10 +246,12 @@ Godot シェーダー言語にしか無いものです。Godot 4.7.2 がエラ�
 
 | ID                  | 内容                                                       | 既定   |
 | ------------------- | ---------------------------------------------------------- | ------ |
+| [GD0001](GD0001.md) | そのレンダラーでは使えない (Compatibility の textureGather・dFdxFine など high-end の組み込み関数、Mobile と Compatibility の hint_normal_roughness_texture) | エラー |
 | [GD0002](GD0002.md) | そのステージでは使えない (vertex の中と vertex から呼ぶ関数の中の dFdx・texture_sdf・discard、particles の dFdx・discard、light で書き込んだ varying など) | エラー |
 | [GD0101](GD0101.md) | 修飾子を書けないところに書いた (サンプラー・行列・配列の instance uniform、配列の global uniform、particles・sky・fog の varying など) | エラー |
 | [GD0102](GD0102.md) | render_mode・stencil_mode が正しくない (そのシェーダーの種類に無い、2 度書いた、blend_mix と blend_add など) | エラー |
 | [GD0103](GD0103.md) | uniform のヒントか既定値が正しくない (float の source_color、2 つ目のヒント、instance_index の範囲、既定値の型など) | エラー |
+| [GD0104](GD0104.md) | varying が多すぎる (組み込みの varying と合わせて 32 を超える。Forward+ と Mobile では spatial が 15、canvas_item が 9 を先に使う) | エラー |
 | [GD0301](GD0301.md) | 演算子を使えない型の組に使った (float + int、-mat4、ベクトルの < など) | エラー |
 | [GD0302](GD0302.md) | 組み込み関数と値の作成に、実引数の型に合う形が無い (sin(vec2, float)、vec2(int, float) など) | エラー |
 | [GD0306](GD0306.md) | out / inout の仮引数に渡せない値 (uniform、const の変数、式、ベクトルの添字、書き込めない組み込みなど) | エラー |

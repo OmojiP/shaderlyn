@@ -47,6 +47,7 @@ rules:
 | `unreal`        | Unreal Engine の環境の設定 ([下記](#unreal))                    |
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
 | `glsl`          | GLSL の設定 ([下記](#glsl))                                     |
+| `godot`         | Godot の設定 ([下記](#godot))                                   |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
@@ -144,6 +145,32 @@ GLSL のファイルで使う設定です。
 ```yaml
 glsl:
   target: vulkan1.3   # glslang -V --target-env vulkan1.3 でコンパイルする
+```
+
+## godot
+
+Godot のシェーダー (`.gdshader` / `.gdshaderinc`) で使う設定です。
+
+| キー | 内容 |
+| ---- | ---- |
+| `project` | Godot のプロジェクトのフォルダー (`project.godot` のあるフォルダー)。設定ファイルからの相対で解決されます |
+| `renderer` | レンダラー。`forward_plus` / `mobile` / `gl_compatibility` を指定します (Godot のプロジェクトの設定 `rendering/renderer/rendering_method` と同じ名前) |
+
+`project` を省略すると、解析するファイルから上へ辿って最初に見つけた `project.godot` のフォルダーを使います。
+このフォルダーが `res://` の根になり、`#include "res://shaders/common.gdshaderinc"` をここから探します。プロジェクトの中のファイルは、`../` で上がる相対パスでも取り込めます。
+
+`renderer` を省略すると、`project.godot` の `rendering/renderer/rendering_method` を使います。それも無ければ Godot の既定の Forward+ です。
+レンダラーは次のものを変えます。
+
+- プリプロセッサの `CURRENT_RENDERER` の値 (`RENDERER_FORWARD_PLUS` は 2、`RENDERER_MOBILE` は 1、`RENDERER_COMPATIBILITY` は 0)
+- Compatibility で使えない high-end の組み込み関数と、Forward+ でだけ使える `hint_normal_roughness_texture` ([GD0001](../rules/GD0001.md))
+- varying の数の上限 ([GD0104](../rules/GD0104.md))
+
+`project.godot` の `rendering_method.mobile` と `rendering_method.web` (書き出し先ごとの設定) は読みません。書き出し先のレンダラーで検査したいときは `renderer` を指定してください。
+
+```yaml
+godot:
+  renderer: gl_compatibility   # Web 向けに Compatibility で検査する
 ```
 
 ## unreal

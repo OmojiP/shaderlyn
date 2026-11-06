@@ -47,6 +47,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   - GD0332: 関数が自分自身を呼んでいる (再帰)
   - GD0333: 定数の整数のベクトルを 0 の成分で割っている (`ivec2(4) / ivec2(0)`)
   - GD0334: 利用者の関数の同じサンプラーの仮引数に、設定 (フィルター・繰り返し・ヒント) の違うテクスチャを渡した。`sky` の `RADIANCE` を関数に渡した
+  - GD0001: そのレンダラーでは使えない (Compatibility の `textureGather`・`dFdxFine` など high-end の組み込み関数、Mobile と Compatibility の `hint_normal_roughness_texture`)
+  - GD0104: varying が多すぎる (行列は列の数、配列は要素の数で数え、組み込みの varying と合わせて 32 まで。Forward+ と Mobile では `spatial` が 15、`canvas_item` が 9 を先に使う)
+- Godot: レンダラーを設定ファイルの `godot: renderer` (`forward_plus` / `mobile` / `gl_compatibility`) か、`project.godot` の `rendering/renderer/rendering_method` から決める。
+  プリプロセッサの `CURRENT_RENDERER` と `RENDERER_FORWARD_PLUS` / `RENDERER_MOBILE` / `RENDERER_COMPATIBILITY` を定義する (今までは定義しておらず、`#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` が常に真になっていた)
+- Godot: `#include "res://..."` を、`project.godot` のあるフォルダー (設定ファイルの `godot: project` でも決められる) から解決する。プロジェクトの中なら、`../` で上がる相対パスも読む
+- 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
 - Godot: 構文の誤りを Godot と同じ行で報告する。閉じていない `[` と `(` は `;` や波括弧の行で、`shader_type` の `;` 抜けは名前の行で、ファイルの終わりで閉じていないものはファイルの終わりの行で報告する。`do { } (true);` の `while` 抜けを報告する (CF0001)

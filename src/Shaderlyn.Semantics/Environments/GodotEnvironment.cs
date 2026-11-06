@@ -22,9 +22,14 @@ namespace Shaderlyn.Semantics.Environments;
 /// <para>
 /// 設定ファイルの <c>symbols:</c> を構成の軸にする (GLSL の環境と同じ)。
 /// </para>
+/// <para>
+/// レンダラーは、設定 (<c>godot: renderer</c>)、ファイルのプロジェクトの <c>project.godot</c>、Forward+ の順に決める (<see cref="ResolveRenderer"/>)。
+/// </para>
 /// </remarks>
 /// <param name="variants">構成の軸。</param>
-internal sealed class GodotEnvironment(VariantSpace? variants = null) : IShaderEnvironment
+/// <param name="renderer">設定で決めたレンダラー。<see langword="null"/> なら <c>project.godot</c> から読む。</param>
+/// <param name="projectRoot">設定で決めたプロジェクトのフォルダー。<see langword="null"/> なら、ファイルから上へ辿って探す。</param>
+internal sealed class GodotEnvironment(VariantSpace? variants = null, GodotRenderer? renderer = null, string? projectRoot = null) : IShaderEnvironment
 {
     /// <summary>環境の名前。</summary>
     public const string EnvironmentName = "godot";
@@ -66,8 +71,19 @@ internal sealed class GodotEnvironment(VariantSpace? variants = null) : IShaderE
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(options);
 
-        return options with { Language = new GodotLanguageOptions(GodotLanguageOptions.ReadShaderType(tokens)) };
+        return options with
+        {
+            Language = new GodotLanguageOptions(GodotLanguageOptions.ReadShaderType(tokens)) { Renderer = ResolveRenderer(filePath) },
+        };
     }
+
+    /// <summary>ファイルを描くレンダラーを決める。設定、プロジェクトの <c>project.godot</c>、Forward+ の順。</summary>
+    /// <param name="filePath">ファイルのパス。</param>
+    /// <returns>レンダラー。</returns>
+    public GodotRenderer ResolveRenderer(string? filePath)
+        => renderer
+            ?? ((projectRoot ?? GodotProject.FindRoot(filePath)) is { } root ? GodotProject.ReadRenderer(root) : null)
+            ?? GodotRenderer.ForwardPlus;
 
     /// <inheritdoc/>
     public VariantSpace ReadDeclaredVariants(ShaderCompilationUnit unit, ImmutableArray<ShaderSyntaxToken> tokens) => VariantsOf(unit);

@@ -29,7 +29,7 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "unreal", "hlsl", "glsl", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
+        "version", "environment", "unity", "unreal", "hlsl", "glsl", "godot", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
     ];
 
     /// <summary><c>report:</c> の節で認識するキー。</summary>
@@ -55,6 +55,12 @@ internal static class ConfigurationLoader
 
     /// <summary><c>glsl: target</c> に書ける値 (glslang の <c>--target-env</c> と同じ名前)。</summary>
     private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
+
+    /// <summary><c>godot:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownGodotKeys = ["project", "renderer"];
+
+    /// <summary><c>godot: renderer</c> に書ける値 (Godot のプロジェクトの設定 <c>rendering/renderer/rendering_method</c> と同じ名前)。</summary>
+    private static readonly string[] KnownGodotRenderers = ["forward_plus", "mobile", "gl_compatibility"];
 
     /// <summary><c>glsl: spirv</c> に書ける値。</summary>
     private static readonly string[] KnownSpirvVersions = ["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"];
@@ -223,6 +229,15 @@ internal static class ConfigurationLoader
 
             ReportNonScalars(glsl, "glsl: の ", "target", "spirv", "auto-map-locations", "auto-map-bindings");
 
+            YamlMapping? godot = ReadSection("godot");
+
+            if (godot is not null)
+            {
+                ReportUnknownKeys(godot, KnownGodotKeys, "godot:");
+            }
+
+            ReportNonScalars(godot, "godot: の ", "project", "renderer");
+
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
             return new ShaderlynConfiguration
@@ -249,6 +264,8 @@ internal static class ConfigurationLoader
                 GlslSpirv = ReadGlslSpirv(glsl),
                 GlslAutoMapLocations = ReadOptionalBoolean(glsl, "auto-map-locations", "glsl:") ?? false,
                 GlslAutoMapBindings = ReadOptionalBoolean(glsl, "auto-map-bindings", "glsl:") ?? false,
+                GodotProjectPath = ResolvePath(ReadOptionalScalar(godot, "project")),
+                GodotRenderer = ReadGodotRenderer(godot),
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),
@@ -571,6 +588,28 @@ internal static class ConfigurationLoader
 
             problems.Add(new ConfigurationProblem(
                 target.Line, $"glsl: の target には {string.Join(" / ", KnownGlslTargets)} のどれかを指定してください ('{target.Value}')。"));
+            return null;
+        }
+
+        /// <summary>Godot のレンダラー (<c>godot: renderer</c>) を読む。</summary>
+        /// <param name="godot"><c>godot:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns><c>forward_plus</c> / <c>mobile</c> / <c>gl_compatibility</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadGodotRenderer(YamlMapping? godot)
+        {
+            if (godot is null || !godot.TryGetScalar("renderer", out YamlScalar? renderer) || renderer.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = renderer.Value.Trim().ToLowerInvariant();
+
+            if (KnownGodotRenderers.Contains(value))
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                renderer.Line, $"godot: の renderer には {string.Join(" / ", KnownGodotRenderers)} のどれかを指定してください ('{renderer.Value}')。"));
             return null;
         }
 

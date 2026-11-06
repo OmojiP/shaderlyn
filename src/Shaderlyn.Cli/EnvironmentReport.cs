@@ -98,6 +98,10 @@ internal static partial class EnvironmentReport
         {
             WriteGlsl(builder, settings.Configuration);
         }
+        else if (environment.ShaderEnvironment is Semantics.Environments.GodotEnvironment godot)
+        {
+            WriteGodot(builder, settings.Configuration, godot, files);
+        }
         else if (environment.ShaderEnvironment is not null)
         {
             bool isUnreal = environment.Name == Unreal.UnrealOptions.EnvironmentName;
@@ -409,6 +413,30 @@ internal static partial class EnvironmentReport
         Section(builder, "GLSL");
         Line(builder, "  ステージ: ファイルの拡張子で決める (.vert / .frag など。.glsl は取り込まれる断片)");
         Line(builder, "  言語のバージョン: ファイルの #version で決める (無ければ glslang と同じく ES の 100)");
+        WriteSymbols(builder, configuration);
+    }
+
+    /// <summary>Godot の環境の設定 (プロジェクトのフォルダーとレンダラー) を書き出す。</summary>
+    /// <param name="builder">書き出し先。</param>
+    /// <param name="configuration">設定ファイルの内容。</param>
+    /// <param name="environment">Godot の環境。</param>
+    /// <param name="files">解析対象のファイル。プロジェクトは最初のファイルから探す。</param>
+    private static void WriteGodot(StringBuilder builder, ShaderlynConfiguration configuration, Semantics.Environments.GodotEnvironment environment, ImmutableArray<string> files)
+    {
+        Section(builder, "Godot");
+        Line(builder, "  シェーダーの種類: ファイルの shader_type で決める (.gdshaderinc は取り込まれる断片)");
+
+        string? first = files.IsDefaultOrEmpty ? null : files[0];
+        string? root = configuration.GodotProjectPath ?? Godot.GodotProject.FindRoot(first);
+        string rootSource = configuration.GodotProjectPath is not null ? "godot: project" : root is not null ? "ファイルから上へ辿って見つけた project.godot" : "project.godot が見つからない";
+        Line(builder, $"  プロジェクト (res://): {root ?? "(なし)"} ({rootSource})");
+
+        string rendererSource = configuration.GodotRenderer is not null
+            ? "godot: renderer"
+            : root is not null && Godot.GodotProject.ReadRenderer(root) is not null
+                ? "project.godot の rendering/renderer/rendering_method"
+                : "既定";
+        Line(builder, $"  レンダラー: {Godot.GodotRenderers.DisplayName(environment.ResolveRenderer(first))} ({rendererSource})");
         WriteSymbols(builder, configuration);
     }
 

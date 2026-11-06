@@ -82,7 +82,7 @@ internal static class AnalysisSettings
     /// <param name="primary">最初の解析対象から探した設定ファイルで作った解析設定 (今までの 1 つの設定と環境)。<see cref="AnalysisSetting.Files"/> は使わない。</param>
     /// <param name="hosts">足した環境。</param>
     /// <param name="files">集めたファイル。</param>
-    /// <param name="explicitFiles">コマンドラインで直接指定したファイル。拡張子に関わらず、設定の環境で読む。</param>
+    /// <param name="explicitFiles">コマンドラインで直接指定したファイル。拡張子に関わらず、設定の環境で読む (環境を決めていなければ、ほかの言語の拡張子はその言語で読む)。</param>
     /// <param name="unusableConfigurations">
     /// 環境を作れなかった設定ファイル (知らない環境の名前を書いたものなど) の問題。その設定ファイルの下の HLSL のファイルは解析しないので、理由を伝えるために返す。
     /// </param>
@@ -116,8 +116,13 @@ internal static class AnalysisSettings
             }
 
             string extension = Path.GetExtension(file);
+
+            // 直接指定したファイルは設定の環境で読む。ただし環境を決めていない (既定の Unity) ときは、ほかの言語の拡張子 (.gdshader など) をその言語で読む。
+            bool environmentChosen = original.Environment is not null || configured?.Settings.Configuration.Environment is not null;
             string? environment =
-                configured is not null && (configured.Environment.DefaultExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase) || explicitFiles.Contains(file))
+                configured is not null
+                && (configured.Environment.DefaultExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
+                    || (explicitFiles.Contains(file) && (environmentChosen || !LanguageByExtension.ContainsKey(extension))))
                     ? configured.Environment.Name
                     : LanguageByExtension.TryGetValue(extension, out string? language) ? language : null;
 

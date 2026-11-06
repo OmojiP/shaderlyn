@@ -13,6 +13,18 @@ internal static class GodotRuleDescriptors
 {
     private const string CorrectnessCategory = "Correctness";
 
+    /// <summary>そのレンダラーでは使えない。</summary>
+    public static DiagnosticDescriptor NotAvailableInRenderer { get; } = new(
+        id: "GD0001",
+        title: "このレンダラーでは使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "Compatibility のレンダラーでは、high-end の組み込み関数 (textureGather・dFdxFine など) を使えません。"
+            + "hint_normal_roughness_texture は Forward+ のレンダラーでだけ使えます。"
+            + "レンダラーは godot: renderer か project.godot で決まります。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0001"));
+
     /// <summary>そのステージ (シェーダーの種類・ステージ関数) では使えない。</summary>
     public static DiagnosticDescriptor NotAvailableInStage { get; } = new(
         id: "GD0002",
@@ -60,6 +72,17 @@ internal static class GodotRuleDescriptors
             + "同じ種類のヒントを 2 度書いたか、そのシェーダーの種類で使えないヒント (sky の hint_screen_texture など) を書いています。"
             + "または、instance_index の範囲・instance uniform の数・既定値の型が正しくありません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0103"));
+
+    /// <summary>varying が多すぎる。</summary>
+    public static DiagnosticDescriptor TooManyVaryings { get; } = new(
+        id: "GD0104",
+        title: "varying が多すぎます",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "varying の数 (行列は列の数、配列は要素の数で数える) が上限の 32 を超えています。"
+            + "Forward+ と Mobile のレンダラーでは、組み込みの varying が spatial で 15、canvas_item で 9 を先に使います。Godot はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("GD0104"));
 
     /// <summary>その宣言には使えない型。</summary>
     public static DiagnosticDescriptor TypeNotAllowed { get; } = new(

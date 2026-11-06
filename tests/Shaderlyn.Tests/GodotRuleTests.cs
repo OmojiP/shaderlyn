@@ -235,4 +235,120 @@ public sealed class GodotRuleTests : IDisposable
     [InlineData("shader_type canvas_item;\nuniform sampler2D a : filter_linear, source_color;\nuniform sampler2D b : filter_linear, hint_default_white;\nvec4 f(sampler2D s) { return texture(s, vec2(0.0)); }\nvec4 g(sampler2D s, sampler2D t) { return texture(s, vec2(0.0)) + texture(t, vec2(0.0)); }\nvoid fragment() {\n  COLOR = f(a) + f(b) + g(TEXTURE, a) + g(TEXTURE, b);\n}\n")]
     public async Task Godotが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
+
+    /// <summary>project.godot にレンダラーを書いて解析する。<paramref name="renderer"/> が空なら書かない (Forward+)。</summary>
+    private Task<string> AnalyzeWithRendererAsync(string renderer, string code)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "project.godot"),
+            renderer.Length == 0 ? "config_version=5\n" : $"config_version=5\n\n[rendering]\n\nrenderer/rendering_method=\"{renderer}\"\n");
+        return AnalyzeAsync(code);
+    }
+
+    private static string Varyings(string shaderType, int count)
+    {
+        IEnumerable<string> names = Enumerable.Range(0, count).Select(i => $"v{i}");
+        return $"shader_type {shaderType};\n{string.Concat(names.Select(n => $"varying vec4 {n};\n"))}void vertex() {{\n{string.Concat(names.Select(n => $"  {n} = vec4(1.0);\n"))}}}\n";
+    }
+
+    [Theory]
+    // Compatibility では high-end の組み込み関数を使えない。hint_normal_roughness_texture は Forward+ だけ (種類より先に調べる)
+    [InlineData("gl_compatibility", "GD0001", "shader_type spatial;\nuniform sampler2D t;\nvoid fragment() {\n  ALBEDO = textureGather(t, vec2(0.0)).rgb;\n}\n")]
+    [InlineData("gl_compatibility", "GD0001", "shader_type spatial;\nvoid fragment() {\n  float a = fma(1.0, 2.0, 3.0) + dFdxFine(UV.x);\n}\n")]
+    [InlineData("mobile", "GD0001", "shader_type spatial;\nuniform sampler2D t : hint_normal_roughness_texture;\n")]
+    [InlineData("mobile", "GD0001", "shader_type canvas_item;\nuniform sampler2D t : hint_normal_roughness_texture;\n")]
+    [InlineData("gl_compatibility", "GD0001", "shader_type spatial;\nuniform sampler2D t : hint_normal_roughness_texture;\n")]
+    // CURRENT_RENDERER はレンダラーで決まる
+    [InlineData("", "CF0001", "shader_type spatial;\n#if CURRENT_RENDERER == RENDERER_FORWARD_PLUS\nint a = 1;\n#endif\n")]
+    [InlineData("mobile", "CF0001", "shader_type spatial;\n#if CURRENT_RENDERER == RENDERER_MOBILE\nint a = 1;\n#endif\n")]
+    [InlineData("gl_compatibility", "CF0001", "shader_type spatial;\n#if CURRENT_RENDERER == RENDERER_COMPATIBILITY\nint a = 1;\n#endif\n")]
+    public async Task レンダラーで変わる誤りを報告する(string renderer, string id, string code)
+        => Assert.Contains($"error {id}", await AnalyzeWithRendererAsync(renderer, code), StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("", "shader_type spatial;\nuniform sampler2D t : hint_normal_roughness_texture;\nvoid fragment() {\n  ALBEDO = textureGather(t, vec2(0.0)).rgb;\n}\n")]
+    [InlineData("mobile", "shader_type spatial;\nuniform sampler2D t;\nvoid fragment() {\n  ALBEDO = textureGather(t, vec2(0.0)).rgb + vec3(dFdx(UV.x));\n}\n")]
+    [InlineData("gl_compatibility", "shader_type spatial;\nvoid fragment() {\n  ALBEDO = vec3(dFdx(UV.x));\n}\n")]
+    [InlineData("", "shader_type spatial;\n#if CURRENT_RENDERER == RENDERER_MOBILE\nint a = 1;\n#endif\n")]
+    [InlineData("mobile", "shader_type spatial;\n#if CURRENT_RENDERER != RENDERER_MOBILE\nint a = 1;\n#endif\n")]
+    public async Task レンダラーで通るものに誤りを出さない(string renderer, string code)
+        => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeWithRendererAsync(renderer, code), StringComparison.Ordinal);
+
+    [Theory]
+    // Forward+ と Mobile は組み込みの varying が spatial で 15、canvas_item で 9 を使う。Compatibility は 0。上限は 32
+    [InlineData("", "spatial", 17, false)]
+    [InlineData("", "spatial", 18, true)]
+    [InlineData("mobile", "spatial", 18, true)]
+    [InlineData("", "canvas_item", 23, false)]
+    [InlineData("", "canvas_item", 24, true)]
+    [InlineData("gl_compatibility", "spatial", 32, false)]
+    [InlineData("gl_compatibility", "spatial", 33, true)]
+    public async Task varyingの数の上限はレンダラーで変わる(string renderer, string shaderType, int count, bool reported)
+    {
+        string output = await AnalyzeWithRendererAsync(renderer, Varyings(shaderType, count));
+
+        Assert.Equal(reported, output.Contains("error GD0104", StringComparison.Ordinal));
+        if (reported)
+        {
+            // 最初に上限を超えた varying (最後のもの) で報告する
+            Assert.Contains($"a.gdshader({count + 1}:", output, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task 行列と配列のvaryingは列と要素の数で数える()
+    {
+        Assert.Contains("a.gdshader(6:", await AnalyzeAsync(
+            "shader_type spatial;\nvarying mat4 a;\nvarying mat4 b;\nvarying mat4 c;\nvarying mat4 d;\nvarying mat4 e;\nvoid vertex() {\n  e = mat4(1.0);\n}\n"), StringComparison.Ordinal);
+        Assert.Contains("a.gdshader(3:", await AnalyzeAsync(
+            "shader_type spatial;\nvarying vec4 a[10];\nvarying vec4 b[8];\nvoid vertex() {\n  a[0] = vec4(1.0);\n  b[0] = vec4(1.0);\n}\n"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 環境の表示にプロジェクトとレンダラーを書く()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "project.godot"), "config_version=5\n\n[rendering]\n\nrenderer/rendering_method=\"mobile\"\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.gdshader"), "shader_type spatial;\n");
+        StringWriter output = new();
+        StringWriter error = new();
+
+        await Program.RunAsync([_workDirectory, "--no-config", "--env"], BuiltInAnalyzers.All, output, error);
+
+        Assert.Contains($"プロジェクト (res://): {_workDirectory} (ファイルから上へ辿って見つけた project.godot)", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("レンダラー: Mobile (project.godot の rendering/renderer/rendering_method)", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("HLSL", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 設定のレンダラーはproject_godotより優先する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "project.godot"), "config_version=5\n");
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "godot:\n  renderer: gl_compatibility\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.gdshader"), "shader_type spatial;\nvoid fragment() {\n  float a = fma(1.0, 2.0, 3.0);\n}\n");
+        StringWriter output = new();
+        StringWriter error = new();
+
+        await Program.RunAsync([_workDirectory], BuiltInAnalyzers.All, output, error);
+
+        Assert.Contains("error GD0001", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task res_の取り込みをプロジェクトのフォルダーから解決する()
+    {
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "shaders", "include"));
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "materials"));
+        File.WriteAllText(Path.Combine(_workDirectory, "project.godot"), "config_version=5\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "shaders", "include", "a.gdshaderinc"), "float helper_a() { return 1.0; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "shaders", "include", "b.gdshaderinc"), "float helper_b() { return 2.0; }\n");
+        string shader = Path.Combine(_workDirectory, "materials", "m.gdshader");
+        File.WriteAllText(shader,
+            "shader_type spatial;\n#include \"res://shaders/include/a.gdshaderinc\"\n#include \"../shaders/include/b.gdshaderinc\"\nvoid fragment() {\n  ALBEDO = vec3(helper_a() + helper_b());\n}\n");
+        StringWriter output = new();
+        StringWriter error = new();
+
+        // ファイルを直接渡す (フォルダーの外の ../ と res:// も、プロジェクトの中なら読む)。環境は拡張子で決まる。
+        await Program.RunAsync([shader, "--no-config"], BuiltInAnalyzers.All, output, error);
+
+        Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", output.ToString(), StringComparison.Ordinal);
+    }
 }

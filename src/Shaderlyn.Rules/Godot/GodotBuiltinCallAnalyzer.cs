@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Godot;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 using Shaderlyn.Semantics.Symbols;
@@ -10,6 +11,7 @@ namespace Shaderlyn.Rules.Godot;
 
 /// <summary>
 /// Godot シェーダー言語の組み込み関数と値の作成に、実引数の型に合う形があるかを検査する (GD0302)。
+/// Compatibility のレンダラーでは、high-end の組み込み関数 (<c>textureGather</c> など) を使えないことも検査する (GD0001)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,7 +29,7 @@ internal sealed class GodotBuiltinCallAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesGodot => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GodotRuleDescriptors.NoMatchingBuiltin];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GodotRuleDescriptors.NoMatchingBuiltin, GodotRuleDescriptors.NotAvailableInRenderer];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -50,12 +52,28 @@ internal sealed class GodotBuiltinCallAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
+
+            // high-end の組み込み関数は、Compatibility では形が合っても誤りになる (Godot の is_low_end)。同じ名前の形はどれも high-end なので、名前で決まる。
+            if (program.Tree.Language is GodotLanguageOptions { Renderer: var renderer }
+                && renderer.IsLowEnd()
+                && overloads.All(f => f.HighEnd))
+            {
+                if (compilation.IsReportable(callee.Identifier)
+                    && callee.Identifier.GetLocation() is { } highEnd
+                    && reported.Add((highEnd.FilePath, highEnd.Span.Start)))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(GodotRuleDescriptors.NotAvailableInRenderer, highEnd,
+                        $"組み込み関数 '{callee.Name}' は high-end の関数で、{renderer.DisplayName()} のレンダラーでは使えません (Forward+ と Mobile で使えます)。"));
+                }
+
+                continue;
+            }
+
             if (!binders.TryGetValue(program, out ExpressionTypeBinder? binder))
             {
                 binder = binders[program] = compilation.GetExpressionTypeBinder(program);
             }
-
-            ImmutableArray<ExpressionSyntax> arguments = [.. invocation.ArgumentExpressions];
 
             // 実引数の数が合う形が無ければ CF0402 が報告する。
             if (!overloads.Any(f => f.Parameters.Length == arguments.Length))

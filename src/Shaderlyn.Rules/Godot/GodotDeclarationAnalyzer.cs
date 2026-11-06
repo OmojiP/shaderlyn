@@ -24,7 +24,7 @@ namespace Shaderlyn.Rules.Godot;
 /// 選択肢の無いモードは、名前で始まれば通る (Godot と同じ)。<c>.gdshaderinc</c> (シェーダーの種類が無い) では、どの種類のモードも書ける。
 /// </para>
 /// <para>
-/// <c>hint_normal_roughness_texture</c> が Forward+ の描画でしか使えないことは、レンダラーの設定 (GD5) が無いので検査しない。
+/// <c>hint_normal_roughness_texture</c> は Forward+ のレンダラーでだけ使える (GD0001)。Godot と同じく、シェーダーの種類より先に調べる。
 /// </para>
 /// </remarks>
 internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
@@ -60,7 +60,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         GodotRuleDescriptors.QualifierNotAllowed, GodotRuleDescriptors.InvalidMode,
-        GodotRuleDescriptors.InvalidUniformHint, GodotRuleDescriptors.TypeNotAllowed,
+        GodotRuleDescriptors.InvalidUniformHint, GodotRuleDescriptors.TypeNotAllowed, GodotRuleDescriptors.NotAvailableInRenderer,
     ];
 
     /// <inheritdoc/>
@@ -118,7 +118,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                         break;
 
                     case VariableDeclarationSyntax variable when variable.HasModifier("uniform"):
-                        CheckUniform(variable, shaderType, structs, constants, binder, ref instanceUniforms, Report);
+                        CheckUniform(variable, shaderType, language.Renderer, structs, constants, binder, ref instanceUniforms, Report);
                         break;
 
                     case VariableDeclarationSyntax variable when variable.HasModifier("varying"):
@@ -257,6 +257,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
     private static void CheckUniform(
         VariableDeclarationSyntax variable,
         string? shaderType,
+        GodotRenderer renderer,
         HashSet<string> structs,
         HashSet<string> constants,
         ExpressionTypeBinder binder,
@@ -318,7 +319,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (!CheckHints(declarator, type, sampler, array, shaderType, constants, out bool customIndex, report))
+        if (!CheckHints(declarator, type, sampler, array, shaderType, renderer, constants, out bool customIndex, report))
         {
             return;
         }
@@ -351,6 +352,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
         bool sampler,
         bool array,
         string? shaderType,
+        GodotRenderer renderer,
         HashSet<string> constants,
         out bool customIndex,
         Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
@@ -471,6 +473,11 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 case "hint_screen_texture" when shaderType is not (null or "spatial" or "canvas_item"):
                     return Error(at, $"hint_screen_texture は、{shaderType} のシェーダーでは使えません。");
+
+                case "hint_normal_roughness_texture" when renderer != GodotRenderer.ForwardPlus:
+                    report(GodotRuleDescriptors.NotAvailableInRenderer, at,
+                        $"hint_normal_roughness_texture は Forward+ のレンダラーでだけ使えます (今は {renderer.DisplayName()})。");
+                    return false;
 
                 case "hint_normal_roughness_texture" or "hint_depth_texture" when shaderType is not (null or "spatial"):
                     return Error(at, $"{name} は、{shaderType} のシェーダーでは使えません。");

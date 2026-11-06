@@ -11,8 +11,11 @@ namespace Shaderlyn.Godot;
 /// <param name="ShaderType">シェーダーの種類 (<c>shader_type spatial;</c> の <c>spatial</c>)。分からなければ <see langword="null"/> (取り込まれる断片など)。</param>
 internal sealed record GodotLanguageOptions(string? ShaderType = null) : ShaderLanguageOptions
 {
-    /// <summary>既定の設定 (シェーダーの種類が分からない)。</summary>
+    /// <summary>既定の設定 (シェーダーの種類が分からない。レンダラーは Forward+)。</summary>
     public static GodotLanguageOptions Default { get; } = new();
+
+    /// <summary>レンダラー。プリプロセッサの <c>CURRENT_RENDERER</c> と、レンダラーで変わる検査が使う。</summary>
+    public GodotRenderer Renderer { get; init; } = GodotRenderer.ForwardPlus;
 
     /// <inheritdoc/>
     public override string DescribeUnavailable() => "Godot";

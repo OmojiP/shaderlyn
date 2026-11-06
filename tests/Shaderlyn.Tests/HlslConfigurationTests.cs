@@ -99,6 +99,8 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("units:\n  - files: a.hlsl\n    entry: { name: Main }\n", "units の要素の entry には値を 1 つだけ")]
     [InlineData("symbols:\n  - name: [Q]\n", "symbols の要素の name には値を 1 つだけ")]
     [InlineData("rules:\n  CF0301:\n    severity: [error]\n", "ルール CF0301 の severity には値を 1 つだけ")]
+    [InlineData("godot:\n  renderer: vulkan\n", "forward_plus / mobile / gl_compatibility")]
+    [InlineData("godot:\n  renderers: mobile\n", "'renderers'")]
     public void 書き誤りを報告する(string content, string expected)
     {
         ShaderlynConfiguration configuration = Parse(content);
