@@ -6,6 +6,7 @@
 //   node tools/oracles/record.mjs godot .work/corpus/godot-demo-projects --out=.work/v0.3.4/oracle/godot/godot-demo-projects.json
 //
 // 言語と道具:
+//   slang  slangc。SHADERLYN_SLANGC (無ければ PATH の slangc)。テストの指示の行から引数を読む (slang.mjs)
 //   godot  Godot (コンソール版)。SHADERLYN_GODOT (無ければ PATH の godot)。.gdshader を読む (.gdshaderinc は取り込まれる断片なので単体では読まない)
 //
 // Godot はヘッドレス (--headless) でも、シェーダーのコードを渡すとコンパイラ (ShaderLanguage) に掛ける (dummy の material_storage)。
@@ -24,6 +25,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
+import { recordSlang } from "./slang.mjs";
 
 const args = process.argv.slice(2);
 const language = args[0];
@@ -32,10 +34,11 @@ const targets = args.slice(1).filter(a => !a.startsWith("--"));
 
 const languages = {
   godot: { extensions: [".gdshader"], record: recordGodot },
+  slang: { extensions: [".slang"], record: recordSlang },
 };
 
 if (!languages[language] || !out || targets.length === 0) {
-  console.error("使い方: node tools/oracles/record.mjs <godot> <ファイルかフォルダー>... --out=<JSON のパス>");
+  console.error("使い方: node tools/oracles/record.mjs <godot|slang> <ファイルかフォルダー>... --out=<JSON のパス>");
   process.exit(2);
 }
 
@@ -43,7 +46,7 @@ const files = collect(targets, languages[language].extensions);
 const scratch = mkdtempSync(join(tmpdir(), "shaderlyn-record-"));
 
 try {
-  const result = languages[language].record(files);
+  const result = await languages[language].record(files);
   mkdirSync(dirname(resolve(out)), { recursive: true });
   writeFileSync(out, JSON.stringify({ language, ...result }, null, 1));
   const failed = Object.values(result.files).filter(f => f.errors.length > 0).length;
