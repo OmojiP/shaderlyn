@@ -41,6 +41,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0310", "float f()\n{\n    return nope;\n}\n")]
     [InlineData("CF0402", "float g(float x) { return x; }\nfloat f()\n{\n    return g(1.0, 2.0);\n}\n")]
     [InlineData("CF0021", "import missing.module;\nfloat f() { return 1.0; }\n")]
+    // 型を書かない let / var は、初期値の式の型になる
+    [InlineData("CF0410", "void f()\n{\n    let a = float3(1, 2, 3);\n    var b = a.xy;\n    float4 c = b;\n}\n")]
+    [InlineData("CF0312", "void f()\n{\n    let a = float3(1, 2, 3);\n    let d = a.w;\n}\n")]
     // 構造体の { } の要素が多すぎる (足りないのは既定の値で埋める)
     [InlineData("CF0412", "struct S { float a; float b; }\nvoid f()\n{\n    S s = { 1.0, 2.0, 3.0 };\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)

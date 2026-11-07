@@ -800,9 +800,52 @@ public sealed class ExpressionTypeBinder
             return (global ?? LookupGlobal)(identifier.Name);
         }
 
-        ResolvedTypeName[] types = [.. narrow(candidates).Select(c => c.Type).Distinct()];
+        LocalDeclaration[] visible = [.. narrow(candidates)];
+        ResolvedTypeName[] types = [.. visible.Select(c => c.Type).Distinct()];
 
-        return types.Length == 1 ? types[0] : null;
+        if (types.Length != 1)
+        {
+            return null;
+        }
+
+        // Slang の型を書かない let / var は、初期値の式の型になる。
+        return TypeSystem is SlangTypeSystem && types[0].TypeName is "let" or "var"
+            ? InferImplicitType(visible)
+            : types[0];
+    }
+
+    /// <summary>型を書かずに宣言した変数 (Slang の let / var) の宣言をたどっている途中のもの。自分を参照する初期値で回り続けないため。</summary>
+    [ThreadStatic]
+    private static HashSet<ShaderSyntaxNode>? _inferring;
+
+    /// <summary>型を書かずに宣言した変数 (Slang の <c>let x = 1.0;</c>) の型を、初期値の式から求める。</summary>
+    /// <param name="declarations">見える宣言。</param>
+    /// <returns>型。宣言が 1 つでないか、初期値が無いか、初期値の型が分からなければ <see langword="null"/>。</returns>
+    private ResolvedTypeName? InferImplicitType(LocalDeclaration[] declarations)
+    {
+        if (declarations is not [{ Declarator: VariableDeclaratorSyntax { Initializer: { } initializer } declarator }]
+            || initializer is InitializerListExpressionSyntax)
+        {
+            return null;
+        }
+
+        _inferring ??= [];
+
+        if (!_inferring.Add(declarator))
+        {
+            return null;
+        }
+
+        try
+        {
+            return GetEvaluatorFor(initializer).Evaluate(initializer) is { } type
+                ? new ResolvedTypeName(type, IsArray: false)
+                : null;
+        }
+        finally
+        {
+            _inferring.Remove(declarator);
+        }
     }
 
     /// <summary>
