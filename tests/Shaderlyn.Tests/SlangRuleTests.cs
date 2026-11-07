@@ -55,8 +55,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("float f(float v)\n{\n    float v = 2.0;\n    return v;\n}\n__generic<T : __BuiltinFloatingPointType>\nbool h() { return true; }\n__generic<T : __BuiltinIntegerType>\nbool h() { return false; }\nint count<each T>(T values) { return 0; }\nvoid k() { int n = count(1, 2, 3) + count(); }\n")]
     // extension で足したメソッドと property (まだメンバーの検査をしない)
     [InlineData("struct V { float x; }\nextension V { float twice() { return x * 2; } }\nfloat f(V v) { return v.twice(); }\n")]
-    // 64 ビットに広がる整数のリテラル、少ない成分の値の作成 (slangc は非推奨の警告)
-    [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n    float2 v = float2(1, 2);\n    float4 c = float4(v, 1);\n}\n")]
+    // 64 ビットに広がる整数のリテラル
+    [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
     // ポインター
     [InlineData("void f(float3x4* p)\n{\n    float3x4 m = p[0];\n    float4* q = (float4*)p;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
@@ -80,6 +80,15 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
     }
+
+    [Theory]
+    // ベクトルを含んで成分が足りない形は、slangc が非推奨の警告 (E31200) にとどめるので警告。スカラーだけの形は呼び出しが曖昧になるので誤り
+    [InlineData("float4(v, 1)", "warning CF0404")]
+    [InlineData("float4(1.0, v)", "warning CF0404")]
+    [InlineData("float4(1, 2, 3)", "error CF0404")]
+    [InlineData("float4(v, 1, 2, 3)", "error CF0404")]
+    public async Task 成分の足りない値の作成はslangcに合わせて警告か誤りにする(string construction, string expected)
+        => Assert.Contains(expected, await AnalyzeAsync($"void f()\n{{\n    float2 v = float2(1, 2);\n    float4 c = {construction};\n}}\n"), StringComparison.Ordinal);
 
     [Fact]
     public async Task 値を返さない経路は警告にする()

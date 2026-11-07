@@ -162,23 +162,26 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
                 ? written >= required && CountComponents(binder, [arguments[^1]]) is { } last && written - last < required
                 : written == required;
 
-        // Slang は、2 つ以上渡して足りない形 (float4(v.xy, 1)) の多くを、非推奨の警告にとどめる (slangc 2026.19)。足りない形は報告しない。
-        if (slang && !valid && arguments.Length > 1 && written < required)
-        {
-            return;
-        }
+        // Slang は、2 つ以上渡して足りない形のうち、ベクトルを含むもの (float4(v.xy, 1)) を非推奨の警告にとどめる (slangc 2026.19 の E31200)。
+        // スカラーだけのもの (float4(1, 2, 3)) は、呼び出しが曖昧になるので誤りである。
+        bool deprecated = slang
+                          && !valid
+                          && arguments.Length > 1
+                          && written < required
+                          && arguments.Any(a => CountComponents(binder, [a]) is > 1);
 
         if (valid || (glsl ? invocation.CloseParen.GetLocation() : invocation.GetLocation()) is not { } location || !reported.Add(location))
         {
             return;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(
+        Diagnostic diagnostic = Diagnostic.Create(
             HlslRuleDescriptors.ConstructorArgumentMismatch,
             location,
             name,
             required,
-            written));
+            written);
+        context.ReportDiagnostic(deprecated ? diagnostic.WithSeverity(DiagnosticSeverity.Warning) : diagnostic);
     }
 
     /// <summary>行列を、行列 1 つから作っているか (GLSL)。</summary>
