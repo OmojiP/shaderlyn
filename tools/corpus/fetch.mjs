@@ -136,7 +136,7 @@ const corpora = [
   },
   {
     // slang の試験。誤りになるものも含む (tests/diagnostics など)。正解は slangc 2026.19 を流して記録する。
-    // 標準ライブラリの宣言 (source/slang/*.meta.slang) も、組み込みの表を作るために取る。
+    // 標準ライブラリの宣言 (source/slang/*.meta.slang) と標準のモジュール (source/standard-modules) も、組み込みの表を作るために取る。
     // 誤りを含むので、上の slang (例だけ) とは分ける。
     name: "slang-tests",
     url: "https://github.com/shader-slang/slang.git",
@@ -144,7 +144,7 @@ const corpora = [
     license: "Apache-2.0 WITH LLVM-exception",
     languages: ["slang"],
     patterns: ["/tests/**/*.slang", "/tests/**/*.slang.*", "/tests/**/*.slangh", "/tests/**/*.expected*",
-      "/source/slang/*.meta.slang", "/source/slang/*.slang", "/LICENSE"],
+      "/source/slang/*.meta.slang", "/source/slang/*.slang", "/source/standard-modules/**/*.slang", "/LICENSE"],
   },
   {
     // Falcor のシェーダー。import とモジュールを使う実物の Slang。

@@ -53,8 +53,12 @@ public sealed class TypeSyntax(
     /// 型名で比べるすべての判定が、書き方の違いを知らずに済む。
     /// typedef の別名 (<c>typedef float3 V3;</c> の <c>V3</c>) は元の型の名前 (<c>float3</c>) を返す。
     /// 書かれたとおりの名前は <see cref="NameToken"/> にある。
+    /// ポインターの型 (Slang の <c>float4*</c>) と、型引数を書いた型の中の型 (<c>RWStructuredBuffer&lt;float&gt;.Handle</c>) は、
+    /// 指す先の型や外側の型とは別の型なので、名前に <c>*</c> と <c>.Handle</c> を付ける。
     /// </remarks>
-    public string Name => AliasOf ?? CanonicalName ?? NameToken.Text;
+    public string Name => (AliasOf ?? CanonicalName ?? NameToken.Text)
+                          + string.Concat(NestedTypeTokens.Select(t => t.Text))
+                          + string.Concat(PointerTokens.Select(t => t.Text));
 
     /// <summary>
     /// シェーダー言語が決めた、同じ型の短い名前。当てはまらなければ <see langword="null"/>。
@@ -601,6 +605,17 @@ public sealed class FunctionDeclarationSyntax(
     ImmutableArray<ShaderSyntaxToken> operatorTokens = default,
     ImmutableArray<ShaderSyntaxToken> specializationTokens = default) : DeclarationSyntax
 {
+    /// <summary>
+    /// 名前の後ろに書いたジェネリックの仮引数の並び (Slang の <c>&lt;T : IFoo, let N : int&gt;</c>、<c>__generic&lt;…&gt;</c>)。山括弧を含む。無ければ空。
+    /// </summary>
+    /// <remarks>構文木にはせず、トークンのまま持つ (子のトークンには入れない)。HLSL・GLSL の木では常に空である。</remarks>
+    public ImmutableArray<ShaderSyntaxToken> GenericParameterTokens { get; init; } = [];
+
+    /// <summary>ジェネリックの仮引数の並びのうち、可変長の型の名前 (<c>each T</c> の <c>T</c>)。</summary>
+    public IEnumerable<string> GenericPackNames
+        => GenericParameterTokens.Select((t, i) => (t, i))
+            .Where(p => p.t.Text == "each" && p.i + 1 < GenericParameterTokens.Length && GenericParameterTokens[p.i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            .Select(p => GenericParameterTokens[p.i + 1].Text);
     /// <summary>明示的な特殊化の、関数名に付く型引数 (山括弧を含む)。ふつうの関数では空。</summary>
     public ImmutableArray<ShaderSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
 
@@ -760,6 +775,17 @@ public sealed class StructDeclarationSyntax(
     TypeSyntax? baseType = null,
     ImmutableArray<ShaderSyntaxToken> specializationTokens = default) : DeclarationSyntax
 {
+    /// <summary>
+    /// 名前の後ろに書いたジェネリックの仮引数の並び (Slang の <c>&lt;T : IFoo, let N : int&gt;</c>、<c>__generic&lt;…&gt;</c>)。山括弧を含む。無ければ空。
+    /// </summary>
+    /// <remarks>構文木にはせず、トークンのまま持つ (子のトークンには入れない)。HLSL・GLSL の木では常に空である。</remarks>
+    public ImmutableArray<ShaderSyntaxToken> GenericParameterTokens { get; init; } = [];
+
+    /// <summary>ジェネリックの仮引数の並びのうち、可変長の型の名前 (<c>each T</c> の <c>T</c>)。</summary>
+    public IEnumerable<string> GenericPackNames
+        => GenericParameterTokens.Select((t, i) => (t, i))
+            .Where(p => p.t.Text == "each" && p.i + 1 < GenericParameterTokens.Length && GenericParameterTokens[p.i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            .Select(p => GenericParameterTokens[p.i + 1].Text);
     /// <summary>明示的な特殊化の、構造体名に付く型引数 (山括弧を含む)。ふつうの構造体では空。</summary>
     public ImmutableArray<ShaderSyntaxToken> SpecializationTokens { get; } = specializationTokens.IsDefault ? [] : specializationTokens;
 

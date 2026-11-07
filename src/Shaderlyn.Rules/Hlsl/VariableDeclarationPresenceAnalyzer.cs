@@ -54,6 +54,11 @@ internal sealed class VariableDeclarationPresenceAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.VariableDeclarationNotPresent];

@@ -37,6 +37,11 @@ internal sealed class ShaderSymbolAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [ShaderDescriptors.UndeclaredSymbol, ShaderDescriptors.UnusedSymbol, ShaderDescriptors.NeverTrueCondition];

@@ -48,12 +48,12 @@ internal static class AnalysisSettings
     private static readonly FrozenDictionary<string, string> LanguageByExtension =
         ((SyntaxOnlyAnalysisEnvironment[])
         [
-            SyntaxOnlyAnalysisEnvironment.CreateSlang(),
             SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
         ])
         .SelectMany(e => e.DefaultExtensions.Select(x => (Extension: x, e.Name)))
         .Concat(GlslAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.GlslEnvironment.EnvironmentName)))
         .Concat(GodotAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.GodotEnvironment.EnvironmentName)))
+        .Concat(SlangAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.SlangEnvironment.EnvironmentName)))
         .Where(p => !AmbiguousExtensions.Contains(p.Extension))
         .ToFrozenDictionary(p => p.Extension, p => p.Name, StringComparer.OrdinalIgnoreCase);
 

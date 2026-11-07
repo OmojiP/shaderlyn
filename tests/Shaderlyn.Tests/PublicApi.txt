@@ -476,9 +476,11 @@ Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsDefinitio
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsMethodDefinition { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Boolean IsOperator { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ParameterSyntax] ParameterList { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[System.String] GenericPackNames { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.AttributeSyntax] Attributes { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.SemanticSyntax] Semantics { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Parameters { get; }
+Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] GenericParameterTokens { get; set; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] ModifierTokens { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] OperatorTokens { get; }
 Shaderlyn.CFamily.Syntax.FunctionDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] QualifierTokens { get; }
@@ -781,8 +783,10 @@ Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.Sha
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: Shaderlyn.CFamily.Syntax.TypeSyntax BaseType { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.VariableDeclarationSyntax] Fields { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Generic.IEnumerable`1[System.String] GenericPackNames { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] Members { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrTokenEntry] Declarators { get; }
+Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] GenericParameterTokens { get; set; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Modifiers { get; set; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] SpecializationTokens { get; }
 Shaderlyn.CFamily.Syntax.StructDeclarationSyntax :: System.String BaseTypeName { get; }
@@ -1580,6 +1584,7 @@ Shaderlyn.Semantics.Programs.CallCompatibility : static class
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean AcceptsArgumentCount(System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ParameterSyntax], System.Int32)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsAssignable(Shaderlyn.CFamily.Syntax.ExpressionSyntax)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsPresentWith(Shaderlyn.Semantics.Conditional.ConditionMap, Shaderlyn.CFamily.Syntax.ShaderSyntaxNode, Shaderlyn.Core.Syntax.SymbolCondition)
+Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsVariadic(Shaderlyn.CFamily.Syntax.ParameterSyntax)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWriteback(Shaderlyn.CFamily.Syntax.ParameterSyntax)
 Shaderlyn.Semantics.Programs.CallCompatibility :: static System.Boolean IsWritebackModifier(System.String)
 Shaderlyn.Semantics.Programs.ConditionalType : struct (System.IEquatable`1[Shaderlyn.Semantics.Programs.ConditionalType])

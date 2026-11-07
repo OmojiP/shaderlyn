@@ -266,6 +266,22 @@ internal abstract class ShaderParser
     /// <returns>読んだなら <see langword="true"/>。</returns>
     protected virtual bool TryParseGenericParameters() => false;
 
+    /// <summary>読んだジェネリックの仮引数の並び。次に作る関数か構造体の宣言に付ける (<see cref="TakeGenericParameters"/>)。</summary>
+    private ImmutableArray<ShaderSyntaxToken> _pendingGenericParameters = [];
+
+    /// <summary>読んだジェネリックの仮引数の並びを、次に作る関数か構造体の宣言のために覚える。</summary>
+    /// <param name="tokens">山括弧を含むトークン。</param>
+    protected void RememberGenericParameters(ImmutableArray<ShaderSyntaxToken> tokens) => _pendingGenericParameters = tokens;
+
+    /// <summary>覚えたジェネリックの仮引数の並びを取り出す (取り出したら忘れる)。</summary>
+    /// <returns>覚えた並び。無ければ空。</returns>
+    protected ImmutableArray<ShaderSyntaxToken> TakeGenericParameters()
+    {
+        ImmutableArray<ShaderSyntaxToken> tokens = _pendingGenericParameters;
+        _pendingGenericParameters = [];
+        return tokens;
+    }
+
     /// <summary>
     /// 関数の仮引数の後ろと構造体の基底の後ろに書く、言語に固有のもの (Slang の <c>-&gt; T</c>、<c>where T : IFoo</c>、2 つ目からの基底) を読み飛ばす。
     /// </summary>
@@ -849,6 +865,8 @@ internal abstract class ShaderParser
         ImmutableArray<ShaderSyntaxToken> operatorTokens = default,
         ImmutableArray<ShaderSyntaxToken> specializationTokens = default)
     {
+        // 本体の中の宣言が上書きする前に、この関数のジェネリックの仮引数を取り出す。
+        ImmutableArray<ShaderSyntaxToken> genericParameters = TakeGenericParameters();
         ShaderSyntaxToken openParen = Advance();
         ImmutableArray<ShaderNodeOrTokenEntry>.Builder parameters =
             ImmutableArray.CreateBuilder<ShaderNodeOrTokenEntry>();
@@ -890,13 +908,19 @@ internal abstract class ShaderParser
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
             return new FunctionDeclarationSyntax(
                 attributes, modifiers, returnType, name, openParen,
-                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens, specializationTokens);
+                parameters.ToImmutable(), closeParen, semantics, body, null, qualifiers, operatorTokens, specializationTokens)
+            {
+                GenericParameterTokens = genericParameters,
+            };
         }
 
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
         return new FunctionDeclarationSyntax(
             attributes, modifiers, returnType, name, openParen,
-            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens, specializationTokens);
+            parameters.ToImmutable(), closeParen, semantics, null, semicolon, qualifiers, operatorTokens, specializationTokens)
+        {
+            GenericParameterTokens = genericParameters,
+        };
     }
 
     /// <summary>
@@ -1006,6 +1030,7 @@ internal abstract class ShaderParser
         TypeSyntax type,
         ShaderSyntaxToken firstName)
     {
+        _ = TakeGenericParameters();
         ImmutableArray<ShaderNodeOrTokenEntry>.Builder declarators =
             ImmutableArray.CreateBuilder<ShaderNodeOrTokenEntry>();
 
@@ -1251,6 +1276,7 @@ internal abstract class ShaderParser
 
         ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
         bool generic = name is not null && TryParseGenericParameters();
+        ImmutableArray<ShaderSyntaxToken> genericParameters = TakeGenericParameters();
 
         // 明示的な特殊化の構造体名に付く型引数 (template<> struct Box<float> { ... })。
         ImmutableArray<ShaderSyntaxToken>.Builder specialization = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -1333,6 +1359,7 @@ internal abstract class ShaderParser
             specialization.ToImmutable())
         {
             Modifiers = modifiers,
+            GenericParameterTokens = genericParameters,
         };
     }
 

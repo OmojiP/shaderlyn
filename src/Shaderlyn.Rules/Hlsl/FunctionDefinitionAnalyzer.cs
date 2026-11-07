@@ -42,6 +42,10 @@ internal sealed class FunctionDefinitionAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    // Slang では働かせない。本体の無い宣言は、別のモジュールの定義とリンクのときに結び付く (extern、export)。
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [HlslRuleDescriptors.FunctionDefinitionNotFound];

@@ -46,6 +46,10 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <summary>
     /// 宣言なしで使える名前。
     /// </summary>

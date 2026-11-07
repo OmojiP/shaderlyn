@@ -32,7 +32,8 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
         {
             if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation
                 && (!compilation.IsGlsl || AnalyzesGlsl)
-                && (!compilation.IsGodot || AnalyzesGodot))
+                && (!compilation.IsGodot || AnalyzesGodot)
+                && (!compilation.IsSlang || AnalyzesSlang))
             {
                 Analyze(treeContext, compilation);
             }
@@ -44,6 +45,9 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 
     /// <summary>Godot シェーダー言語のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
     protected virtual bool AnalyzesGodot => false;
+
+    /// <summary>Slang のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
+    protected virtual bool AnalyzesSlang => false;
 
     /// <summary>セマンティックモデルを使って検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -67,6 +71,10 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
 
     /// <summary>メッセージに列挙する未解決 include の最大数。</summary>
     /// <remarks>
@@ -202,6 +210,7 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         {
             Semantics.Environments.GlslEnvironment.EnvironmentName => "GLSL",
             Semantics.Environments.GodotEnvironment.EnvironmentName => "Godot シェーダー言語",
+            Semantics.Environments.SlangEnvironment.EnvironmentName => "Slang",
             _ => "HLSL",
         };
 }

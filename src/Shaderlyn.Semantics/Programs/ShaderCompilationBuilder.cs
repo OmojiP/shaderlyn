@@ -288,7 +288,7 @@ internal static class ShaderCompilationBuilder
             [.. unexploredSymbols],
             [.. unexploredCombinations.Values])
         {
-            IsUserInclude = options.IsUserInclude,
+            IsUserInclude = ExcludeImportedModules(options.IsUserInclude, programs),
             DescribeUnresolvedInclude = options.DescribeUnresolvedInclude,
             IsFixedSymbolConfiguration = options.FixedSymbolConfiguration,
             NotCompiledUnits = notCompiled.ToImmutable(),
@@ -591,6 +591,29 @@ internal static class ShaderCompilationBuilder
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 利用者のヘッダかを決める手続きから、import で取り込んだモジュール (Slang) のファイルを除く。
+    /// </summary>
+    /// <param name="isUserInclude">元の手続き。</param>
+    /// <param name="programs">プログラム。取り込みの記録から、モジュールのファイルを引く。</param>
+    /// <returns>モジュールのファイルを除いた手続き。モジュールが無ければ元のまま。</returns>
+    /// <remarks>
+    /// モジュールは、それぞれ単独で解析するファイルである。取り込む側の解析で、モジュールの中に指摘を出さない
+    /// (関数の本体は読んでいないので、戻り値の無い経路などを誤って報告する)。
+    /// </remarks>
+    private static Func<string, bool>? ExcludeImportedModules(Func<string, bool>? isUserInclude, ImmutableArray<AnalyzedProgram>.Builder programs)
+    {
+        HashSet<string> modules = new(
+            programs.SelectMany(p => p.Tree.PreprocessResult.Includes)
+                .Where(i => i.Directive == "import" && i.ResolvedFilePath is not null)
+                .Select(i => i.ResolvedFilePath!),
+            StringComparer.OrdinalIgnoreCase);
+
+        return isUserInclude is null || modules.Count == 0
+            ? isUserInclude
+            : path => !modules.Contains(path) && !modules.Contains(Path.GetFullPath(path)) && isUserInclude(path);
     }
 
     /// <summary>

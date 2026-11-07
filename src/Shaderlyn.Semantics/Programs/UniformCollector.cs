@@ -210,6 +210,13 @@ internal static class UniformCollector
 
             foreach (ParameterSyntax parameter in function.ParameterList)
             {
+                // Slang の可変長の仮引数 (expand each T values) は、0 個以上の実引数を受け取る。
+                if (CallCompatibility.IsVariadic(parameter))
+                {
+                    total = int.MaxValue / 2;
+                    continue;
+                }
+
                 total++;
 
                 if (parameter.DefaultValue is null)

@@ -243,8 +243,9 @@ internal sealed class SlangParser : ShaderParser
 
         switch (Current.Text)
         {
+            // モジュールの名前は、名前の修飾 (mylib.f()) にも使えるので、名前を解析していない場所の名前にする。
             case "import" or "__import" or "module" or "implementing" or "__include":
-                return SkipToSemicolon(markNames: false);
+                return SkipToSemicolon(markNames: true);
 
             case "cbuffer" or "tbuffer":
                 return ParseConstantBuffer();
@@ -315,6 +316,7 @@ internal sealed class SlangParser : ShaderParser
         }
 
         MarkUnanalyzed(skipped);
+        RememberGenericParameters([.. skipped]);
 
         if (declared.Kind == ShaderSyntaxKind.IdentifierToken)
         {
@@ -666,8 +668,8 @@ internal sealed class SlangParser : ShaderParser
 
         (ShaderSyntaxToken openParen, ImmutableArray<ShaderNodeOrTokenEntry> parameters, ShaderSyntaxToken closeParen) = ParseParameterList(typeAfterName: true);
 
-        // -> R
-        TypeSyntax returnType = MakeType(CreateMissingToken(ShaderSyntaxKind.IdentifierToken));
+        // -> R。書かなければ void。
+        TypeSyntax returnType = MakeType(SynthesizeVoid(keyword));
 
         if (IsArrow())
         {
@@ -693,7 +695,7 @@ internal sealed class SlangParser : ShaderParser
 
         (ShaderSyntaxToken openParen, ImmutableArray<ShaderNodeOrTokenEntry> parameters, ShaderSyntaxToken closeParen) = ParseParameterList(typeAfterName: false);
         SkipDeclarationSuffix();
-        return FinishFunction(attributes, modifiers, MakeType(CreateMissingToken(ShaderSyntaxKind.IdentifierToken)), name, openParen, parameters, closeParen);
+        return FinishFunction(attributes, modifiers, MakeType(SynthesizeVoid(name)), name, openParen, parameters, closeParen);
     }
 
     /// <summary>関数の本体か <c>;</c> を読んで、関数の宣言を作る。</summary>
@@ -706,14 +708,22 @@ internal sealed class SlangParser : ShaderParser
         ImmutableArray<ShaderNodeOrTokenEntry> parameters,
         ShaderSyntaxToken closeParen)
     {
+        ImmutableArray<ShaderSyntaxToken> genericParameters = TakeGenericParameters();
+
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
             BlockStatementSyntax body = IsFromOwnSource(Current) ? ParseBlock() : SkipBlock();
-            return new FunctionDeclarationSyntax(attributes, modifiers, returnType, name, openParen, parameters, closeParen, [], body, null, default, default, default);
+            return new FunctionDeclarationSyntax(attributes, modifiers, returnType, name, openParen, parameters, closeParen, [], body, null, default, default, default)
+            {
+                GenericParameterTokens = genericParameters,
+            };
         }
 
         ShaderSyntaxToken semicolon = Expect(ShaderSyntaxKind.SemicolonToken, "';'");
-        return new FunctionDeclarationSyntax(attributes, modifiers, returnType, name, openParen, parameters, closeParen, [], null, semicolon, default, default, default);
+        return new FunctionDeclarationSyntax(attributes, modifiers, returnType, name, openParen, parameters, closeParen, [], null, semicolon, default, default, default)
+        {
+            GenericParameterTokens = genericParameters,
+        };
     }
 
     /// <summary>仮引数の並び <c>( … )</c> を読む。</summary>
@@ -881,12 +891,17 @@ internal sealed class SlangParser : ShaderParser
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken? name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : null;
+        List<ShaderSyntaxToken> names = name is null ? [] : [name];
 
         while (Current.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
         {
             Advance();
             name = Advance();
+            names.Add(name);
         }
+
+        // 名前空間の名前は、名前の修飾 (ns1.ns2.g()) に使う。宣言として残らないので、名前を解析していない場所の名前にする。
+        MarkUnanalyzed(names);
 
         // namespace a; (ファイル全体の名前空間)
         if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
@@ -1198,6 +1213,10 @@ internal sealed class SlangParser : ShaderParser
         => Current.Kind == ShaderSyntaxKind.EqualsToken
            && Peek(1).Kind == ShaderSyntaxKind.GreaterThanToken
            && Peek(1).Span.Start == Current.Span.End;
+
+    /// <summary>書かれていない戻り値の型 void を、キーワードの位置に幅 0 のトークンとして作る。</summary>
+    private static ShaderSyntaxToken SynthesizeVoid(ShaderSyntaxToken at)
+        => new(ShaderSyntaxKind.IdentifierToken, at.Source, new TextSpan(at.Span.Start, 0), "void");
 
     /// <summary>名前のトークンだけの型を作る。</summary>
     private static TypeSyntax MakeType(ShaderSyntaxToken name) => new([], name, [], null, [], null, null, null);

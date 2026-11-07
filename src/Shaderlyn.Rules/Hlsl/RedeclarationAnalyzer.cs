@@ -69,6 +69,11 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <summary>構造体の宣言の形。関数の形 (仮引数の型の並び) や変数の形 (空) とは重ならない。</summary>
     private const string StructShape = "<struct>";
 
@@ -208,8 +213,8 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                         continue;
                     }
 
-                    // 仮引数は、関数のいちばん外の波括弧と同じ範囲にある。
-                    if (node.Parent is FunctionDeclarationSyntax function)
+                    // 仮引数は、関数のいちばん外の波括弧と同じ範囲にある。Slang は、局所変数で仮引数を隠せる (別の範囲として扱う)。
+                    if (node.Parent is FunctionDeclarationSyntax function && !compilation.IsSlang)
                     {
                         CollectParameters(function, KeyOf(open.GetLocation()));
                     }
@@ -263,6 +268,13 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 foreach (Declared declared in Describe(declaration, condition, glsl, sharesFunctionNames))
                 {
+                    // Slang の関数は、ジェネリックの制約 (__generic<T : IFloat> と <T : IInteger>) やコンパイル先 (__specialized_for_target) だけで
+                    // 多重定義できる。今は仮引数の型しか比べられないので、関数の重複は報告しない。
+                    if (compilation.IsSlang && declared.IsFunction)
+                    {
+                        continue;
+                    }
+
                     // GLSL の組み込みの宣言し直し (layout(origin_upper_left) in vec4 gl_FragCoord;) は、何度書いても重複ではない。
                     // 宣言し直せる組み込みかは glslang が別に調べる。
                     if (glsl && (declared.Name.StartsWith("gl_", StringComparison.Ordinal) || unsized.Contains(declared.Name)))

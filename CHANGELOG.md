@@ -60,10 +60,16 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   ジェネリック (`<T : IFoo>`、`where`、`f<float>(x)`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
   `;` を省いた構造体と列挙型、ポインター (`T*`・`*p`・`p->x`)、`Type<T>.Member` の型、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、
   `[vk::binding(0)]` と `,` で並べた属性、GLSL の書き方 (`layout(…)`・`precision`)、`#language` を足した。
-  宣言・型・呼び出しの検査はまだ行わない
+  宣言・型・呼び出しを検査する (CF0310・CF0402・CF0410・CF0412 など、C 系の共通のルール)。`import` するモジュール (`import a.b;` は `a/b.slang`) を、
+  ファイルのフォルダーと `include-paths` から探し、その宣言を使う。slangc に入っている標準のモジュール (`slang.neural` など) と、
+  標準ライブラリの名前 (slang 2026.19 のソースから作った表) を知っている。見つからないモジュールは CF0021 で報告する。
+  Slang に合わせて、構造体の空の `{ }` と足りない `{ }`、`float4(v.xy, 1)`、64 ビットに広がる整数のリテラル、void の関数から void の式を返すこと、
+  局所変数で仮引数を隠すことを報告しない。値を返さない経路 (CF0501) は警告にする (slangc と同じ)。
+  構造体のメンバー (CF0312) と関数の重複 (CF0314) は、extension・property・ジェネリックの制約を読むまで検査しない
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
-  `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令) を足した
+  `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の
+  `GenericParameterTokens` / `GenericPackNames` (Slang のジェネリックの仮引数)、`CallCompatibility.IsVariadic` (可変長の仮引数) を足した
 - 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)

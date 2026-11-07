@@ -20,6 +20,16 @@ namespace Shaderlyn.Semantics.Programs;
 /// </remarks>
 public static class CallCompatibility
 {
+    /// <summary>Slang の可変長の仮引数か (<c>expand each T values</c>、ジェネリックの <c>each T</c> の型 <c>T</c> の仮引数)。</summary>
+    /// <param name="parameter">仮引数。</param>
+    /// <returns>可変長なら <see langword="true"/>。</returns>
+    public static bool IsVariadic(ParameterSyntax parameter)
+    {
+        ArgumentNullException.ThrowIfNull(parameter);
+        return parameter.ModifierTokens.Any(m => m.Text is "expand" or "each")
+               || (parameter.Parent is FunctionDeclarationSyntax function && function.GenericPackNames.Contains(parameter.Type.Name, StringComparer.Ordinal));
+    }
+
     /// <summary>
     /// 実引数の個数が、仮引数の並びに収まるかを判定する。
     /// </summary>
@@ -36,6 +46,12 @@ public static class CallCompatibility
 
         foreach (ParameterSyntax parameter in parameters)
         {
+            // Slang の可変長の仮引数 (expand each T values、<each T> の T の仮引数) は、0 個以上の実引数を受け取る。
+            if (IsVariadic(parameter))
+            {
+                return count >= required;
+            }
+
             total++;
 
             if (parameter.DefaultValue is null)

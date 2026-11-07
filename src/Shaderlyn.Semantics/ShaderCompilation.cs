@@ -210,6 +210,10 @@ public sealed partial class ShaderCompilation
     /// <remarks>Godot で確かめていないルールは、Godot のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesGodot"/>)。</remarks>
     internal bool IsGodot => Environment is Environments.GodotEnvironment;
 
+    /// <summary>Slang のモデルか。</summary>
+    /// <remarks>Slang で確かめていないルールは、Slang のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesSlang"/>)。</remarks>
+    internal bool IsSlang => Environment is Environments.SlangEnvironment;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。

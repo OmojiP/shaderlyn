@@ -97,7 +97,8 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
             // 報告しないのが正しい。
             if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation
                 || (compilation.IsGlsl && !AnalyzesGlsl)
-                || (compilation.IsGodot && !AnalyzesGodot))
+                || (compilation.IsGodot && !AnalyzesGodot)
+                || (compilation.IsSlang && !AnalyzesSlang))
             {
                 return;
             }
@@ -129,6 +130,14 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// Godot の型と組み込み関数は GLSL ES と同じでも、組み込みの変数とステージの決まりが違うので、GLSL で確かめたルールをそのまま当てない。
     /// </remarks>
     internal virtual bool AnalyzesGodot => false;
+
+    /// <summary>
+    /// Slang のモデルも調べるか。既定は <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// Slang は HLSL の型と組み込み関数を持つが、ジェネリック・インターフェイス・モジュールがあるので、HLSL で確かめたルールをそのまま当てない (<see cref="AnalyzesGlsl"/>)。
+    /// </remarks>
+    internal virtual bool AnalyzesSlang => false;
 
     /// <summary>
     /// HLSL のノードに対する関心を登録する。

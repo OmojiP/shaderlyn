@@ -32,6 +32,11 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <summary>レジスタを指定する修飾の名前。</summary>
     private const string RegisterAnnotation = "register";
 
@@ -67,7 +72,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             switch (node)
             {
                 case InvocationExpressionSyntax invocation:
-                    AnalyzeConstructor(context, compilation.GetExpressionTypeBinder(program), invocation, compilation.IsGlsl, reported);
+                    AnalyzeConstructor(context, compilation.GetExpressionTypeBinder(program), invocation, compilation.IsGlsl, compilation.IsSlang, reported);
                     break;
 
                 case ElementAccessExpressionSyntax access:
@@ -76,8 +81,9 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
 
                 // GLSL の 64 ビットの整数のリテラル (1l / 1ul、GL_ARB_gpu_shader_int64) は 32 ビットに収める必要が無い。
                 // Godot は 32 ビットに収まらないリテラルを何も言わずに通す (Godot 4.7.2 で確かめた) ので、報告しない。
+                // Slang は 32 ビットに収まらない整数のリテラルを 64 ビットの整数にする (slangc 2026.19。0x1122334455667788、9223372036854775807) ので、報告しない。
                 case LiteralExpressionSyntax literal
-                    when !compilation.IsGodot
+                    when !compilation.IsGodot && !compilation.IsSlang
                          && !(program.Tree.Language is GlslLanguageOptions
                               && compilation.TypeSystem.ForTree(program.Tree).GetLiteralTypeName(literal.Token) is "int64_t" or "uint64_t"):
                     AnalyzeLiteral(context, literal, reported);
@@ -107,6 +113,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="invocation">検査する呼び出し。</param>
     /// <param name="glsl">GLSL のファイルか。</param>
+    /// <param name="slang">Slang のファイルか。</param>
     /// <param name="reported">報告済みの位置。</param>
     /// <remarks>
     /// <para>
@@ -131,6 +138,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         bool glsl,
+        bool slang,
         ReportedLocations reported)
     {
         if (invocation.TargetName is not { } name
@@ -153,6 +161,12 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             : binder.TypeSystem.ConstructorsDropExtraComponents
                 ? written >= required && CountComponents(binder, [arguments[^1]]) is { } last && written - last < required
                 : written == required;
+
+        // Slang は、2 つ以上渡して足りない形 (float4(v.xy, 1)) の多くを、非推奨の警告にとどめる (slangc 2026.19)。足りない形は報告しない。
+        if (slang && !valid && arguments.Length > 1 && written < required)
+        {
+            return;
+        }
 
         if (valid || (glsl ? invocation.CloseParen.GetLocation() : invocation.GetLocation()) is not { } location || !reported.Add(location))
         {

@@ -39,6 +39,11 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <summary>値を返さない関数の戻り値の型名。</summary>
     private const string VoidTypeName = "void";
 
@@ -102,7 +107,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         foreach (Diagnostic diagnostic in reported.BuildConditional())
         {
             // GLSL では、値を返さない経路があっても glslang は通す (返す値は不定)。誤りではなく警告にする。設定で重要度を書けば、そちらが勝つ。
-            context.ReportDiagnostic(compilation.IsGlsl && diagnostic.Descriptor == HlslRuleDescriptors.MissingReturn
+            // Slang も同じく警告にとどめる (slangc 2026.19 の E41010)。
+            context.ReportDiagnostic((compilation.IsGlsl || compilation.IsSlang) && diagnostic.Descriptor == HlslRuleDescriptors.MissingReturn
                 ? diagnostic.WithSeverity(DiagnosticSeverity.Warning)
                 : diagnostic);
         }
@@ -355,7 +361,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             // GLSL の空の波括弧 (S s = { };) は、すべてを 0 にする初期化である (GL_EXT_null_initializer)。拡張が要るかは別の検査が見る。
             if (initializer is InitializerListExpressionSyntax list)
             {
-                if (list.Elements.IsEmpty && program.Tree.Language is Shaderlyn.Glsl.GlslLanguageOptions)
+                // Slang の空の波括弧 (S s = {};) も、既定の値で作る。
+                if (list.Elements.IsEmpty && (program.Tree.Language is Shaderlyn.Glsl.GlslLanguageOptions || compilation.IsSlang))
                 {
                     continue;
                 }
@@ -605,7 +612,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        if (first is not { } counts)
+        // Slang は、足りないメンバーと要素を既定の値で埋める (slangc 2026.19)。多すぎるときだけ報告する。
+        if (first is not { } counts || (compilation.IsSlang && counts.Wrote < counts.Need))
         {
             return;
         }
@@ -1164,6 +1172,13 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
 
         if (isVoid)
         {
+            // Slang は、void の関数から void の式を返せる (return f();)。値の型が分からないときも報告しない。
+            if (binder.TypeSystem is SlangTypeSystem
+                && binder.GetEvaluatorFor(value).Evaluate(value) is null or VoidTypeName)
+            {
+                return;
+            }
+
             if (reported.Add(location))
             {
                 Report(context, function.Name, returnType, "値を返しています", location);

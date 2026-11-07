@@ -37,6 +37,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesGodot => true;
 
+
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesSlang => true;
+
     /// <summary>成分名の組を、利用者に見せるときの呼び名。</summary>
     private static readonly FrozenDictionary<string, string> ComponentSetNames = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -143,6 +148,13 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // Slang の構造体のメンバーは、extension・property・インターフェイスの要件・ジェネリックの仮引数からも来る。
+        // まだそれらを型の情報に入れていないので、構造体のメンバーとメソッドは見ない (成分の名前は見る)。
+        if (compilation.IsSlang && IsMethodCall(access))
+        {
+            return;
+        }
+
         // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。構造体のメソッドだけを見る。
         if (IsMethodCall(access))
         {
@@ -191,6 +203,11 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
+            if (compilation.IsSlang)
+            {
+                return;
+            }
+
             AnalyzeStructMember(context, structs, typeName, structure, access, program, reported, reports);
             return;
         }

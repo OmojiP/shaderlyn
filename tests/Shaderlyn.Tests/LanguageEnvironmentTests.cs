@@ -302,7 +302,6 @@ public sealed class LanguageEnvironmentTests : IDisposable
     }
 
     [Theory]
-    [InlineData("slang", "a.slang", "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n")]
     [InlineData("wgsl", "a.wgsl", "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n")]
     public async Task まだ読めない言語はファイルを集めるが何も指摘しない(string environment, string file, string code)
     {
@@ -312,5 +311,18 @@ public sealed class LanguageEnvironmentTests : IDisposable
 
         Assert.Equal(ExitCode.Success, exit);
         Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Slangのファイルをimportとジェネリックを読んで解析する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "utils.slang"), "module utils;\npublic interface IFoo { float get(); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n");
+
+        (ExitCode exit, string output) = await RunAsync("--environment", "slang");
+
+        // 取り込まれるモジュールも、それ自身を 1 つのファイルとして解析する。
+        Assert.Equal(ExitCode.Success, exit);
+        Assert.Contains("2 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", output, StringComparison.Ordinal);
     }
 }
