@@ -148,17 +148,10 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // Slang の構造体のメンバーは、extension・property・インターフェイスの要件・ジェネリックの仮引数からも来る。
-        // まだそれらを型の情報に入れていないので、構造体のメンバーとメソッドは見ない (成分の名前は見る)。
-        if (compilation.IsSlang && IsMethodCall(access))
-        {
-            return;
-        }
-
         // メソッド呼び出しは形が違う。テクスチャの Sample などがこれに当たる。構造体のメソッドだけを見る。
         if (IsMethodCall(access))
         {
-            AnalyzeMethodCall(context, structs, binder, access, reported);
+            AnalyzeMethodCall(context, structs, binder, access, compilation.IsSlang ? SlangOpenTypes.Of(compilation) : null, reported);
             return;
         }
 
@@ -203,7 +196,8 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
 
         if (structs.TryGetValue(typeName, out StructInfo structure))
         {
-            if (compilation.IsSlang)
+            // Slang の、メンバーが extension や property から来うる型は見ない (SlangOpenTypes)。
+            if (compilation.IsSlang && SlangOpenTypes.Of(compilation).Contains(typeName))
             {
                 return;
             }
@@ -318,6 +312,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="structs">このシェーダーが書いた構造体のうち、参照と同じコードブロックのもの。</param>
     /// <param name="binder">式の型を引く仕組み。</param>
     /// <param name="access">呼び出しの対象の参照。</param>
+    /// <param name="openTypes">メンバーが extension などから来うるので、見ない型 (Slang)。Slang でなければ <see langword="null"/>。</param>
     /// <param name="reported">報告済みの位置。</param>
     /// <remarks>
     /// フィールドと同じ名前なら報告しない (フィールドを呼ぶ誤りは扱わない)。
@@ -328,6 +323,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, StructInfo> structs,
         ExpressionTypeBinder binder,
         MemberAccessExpressionSyntax access,
+        IReadOnlySet<string>? openTypes,
         ReportedLocations reported)
     {
         if (binder.TypeSystem is GlslTypeSystem glsl && access.Name == "length")
@@ -355,6 +351,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
         if (access.DotToken.Kind != ShaderSyntaxKind.DotToken
             || binder.GetEvaluatorFor(access).Evaluate(access.Target) is not { } typeName
             || !structs.TryGetValue(typeName, out StructInfo structure)
+            || openTypes?.Contains(typeName) == true
             || FindMember(structs, structure, access.Name, depth: 0, includeMethods: true) != MemberLookup.Missing
             || access.GetLocation() is not { } location
             || !reported.Add(location))

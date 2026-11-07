@@ -44,6 +44,9 @@ public sealed class SlangRuleTests : IDisposable
     // 型を書かない let / var は、初期値の式の型になる
     [InlineData("CF0410", "void f()\n{\n    let a = float3(1, 2, 3);\n    var b = a.xy;\n    float4 c = b;\n}\n")]
     [InlineData("CF0312", "void f()\n{\n    let a = float3(1, 2, 3);\n    let d = a.w;\n}\n")]
+    // 構造体のメンバーとメソッド (extension や property から足されない型)
+    [InlineData("CF0312", "struct S { float a; float get() { return a; } }\nfloat f(S s) { return s.b; }\n")]
+    [InlineData("CF0312", "struct S { float a; float get() { return a; } }\nfloat f(S s) { return s.put(); }\n")]
     // 構造体の { } の要素が多すぎる (足りないのは既定の値で埋める)
     [InlineData("CF0412", "struct S { float a; float b; }\nvoid f()\n{\n    S s = { 1.0, 2.0, 3.0 };\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
@@ -56,8 +59,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct S { float a = 1; float b = 2; }\nvoid g() { }\nvoid f()\n{\n    S s = {};\n    S t = { 1.0 };\n    return g();\n}\n")]
     // 局所変数で仮引数を隠す、ジェネリックの制約だけが違う多重定義、可変長の仮引数
     [InlineData("float f(float v)\n{\n    float v = 2.0;\n    return v;\n}\n__generic<T : __BuiltinFloatingPointType>\nbool h() { return true; }\n__generic<T : __BuiltinIntegerType>\nbool h() { return false; }\nint count<each T>(T values) { return 0; }\nvoid k() { int n = count(1, 2, 3) + count(); }\n")]
-    // extension で足したメソッドと property (まだメンバーの検査をしない)
+    // extension で足したメソッド、インターフェイスの extension で足して基底から来るメソッド、property
     [InlineData("struct V { float x; }\nextension V { float twice() { return x * 2; } }\nfloat f(V v) { return v.twice(); }\n")]
+    [InlineData("interface ICounter { int add(int x); }\nextension ICounter { int increment() { return add(1); } }\nstruct C : ICounter { int s; int add(int x) { return s + x; } }\nint f(C c) { return c.increment(); }\n")]
+    [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
     // ポインター
