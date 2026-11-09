@@ -91,7 +91,19 @@ internal sealed class WgslExtensionAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesWgsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [WgslRuleDescriptors.ExtensionNotEnabled];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [WgslRuleDescriptors.ExtensionNotEnabled, WgslRuleDescriptors.UnknownExtension];
+
+    /// <summary>naga 30 が知っている enable の拡張 (<c>parse/directive/enable_extension.rs</c>)。</summary>
+    private static readonly FrozenSet<string> KnownEnableExtensions = FrozenSet.ToFrozenSet(
+    [
+        "clip_distances", "draw_index", "dual_source_blending", "f16", "primitive_index", "subgroups", "wgpu_binding_array", "wgpu_cooperative_matrix",
+        "wgpu_int16", "wgpu_mesh_shader", "wgpu_per_vertex", "wgpu_ray_query", "wgpu_ray_query_vertex_return", "wgpu_ray_tracing_pipeline",
+    ], StringComparer.Ordinal);
+
+    /// <summary>naga 30 が知っている言語の拡張 (requires。<c>parse/directive/language_extension.rs</c>)。</summary>
+    private static readonly FrozenSet<string> KnownLanguageExtensions = FrozenSet.ToFrozenSet(
+        ["packed_4x8_integer_dot_product", "pointer_composite_access", "readonly_and_readwrite_storage_textures", "unrestricted_pointer_parameters"],
+        StringComparer.Ordinal);
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -115,6 +127,21 @@ internal sealed class WgslExtensionAnalyzer : SemanticRuleAnalyzer
                     if (directive.Text == "enable")
                     {
                         enabled.UnionWith(directives.Skip(1).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                    }
+
+                    // naga が知らない拡張の名前 (WG0003)。
+                    if (directive.Text is "enable" or "requires")
+                    {
+                        FrozenSet<string> known = directive.Text == "enable" ? KnownEnableExtensions : KnownLanguageExtensions;
+
+                        foreach (ShaderSyntaxToken name in directives.Skip(1).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken && !known.Contains(t.Text)))
+                        {
+                            if (compilation.IsReportable(name) && name.GetLocation() is { } unknownLocation)
+                            {
+                                context.ReportDiagnostic(Diagnostic.Create(WgslRuleDescriptors.UnknownExtension, unknownLocation,
+                                    $"'{name.Text}' という{(directive.Text == "enable" ? "" : "言語の")}拡張はありません ({string.Join("・", known.Order(StringComparer.Ordinal))})。"));
+                            }
+                        }
                     }
 
                     continue;

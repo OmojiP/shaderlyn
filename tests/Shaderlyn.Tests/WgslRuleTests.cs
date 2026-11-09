@@ -121,6 +121,21 @@ public sealed class WgslRuleTests : IDisposable
     [InlineData("WG0101", "@must_use\nfn use_me(a: i32) {\n    let x = a;\n}\n")]
     [InlineData("WG0101", "@must_use\n@must_use\nfn use_me(a: i32) -> i32 {\n    return 10;\n}\n")]
     [InlineData("WG0338", "@must_use\nfn use_me(a: i32) -> i32 {\n    return 10;\n}\nfn useless() -> i32 {\n    use_me(1);\n    return 0;\n}\n")]
+    // 無い拡張、演算子、組み込み関数と値の作成の実引数
+    [InlineData("WG0003", "requires buffer_view;\n")]
+    [InlineData("WG0003", "enable f61;\n")]
+    [InlineData("WG0301", "fn foo(a: vec2<bool>, b: vec2<bool>) {\n    let y = a && b;\n}\n")]
+    [InlineData("WG0302", "fn x() -> f32 {\n    return cross(vec4(0., 1., 2., 3.), vec4(0., 1., 2., 3.)).x;\n}\n")]
+    [InlineData("WG0302", "fn foo() -> f32 {\n    return dot(vec4<f32>(), vec3<f32>());\n}\n")]
+    [InlineData("WG0302", "fn foo() -> f32 {\n    return distance(vec2<f32>(), 0i);\n}\n")]
+    [InlineData("WG0302", "fn x() -> i32 {\n    return i32(vec2<f32>(0.0));\n}\n")]
+    [InlineData("WG0302", "fn x(a: u32) -> vec2f {\n    return vec2f(a);\n}\n")]
+    [InlineData("WG0302", "fn f() {\n    var a: array<i32, 1> = array<i32, 1>(1.0);\n}\n")]
+    [InlineData("WG0302", "fn x() {\n    _ = mat2x2<f32>(array(0, 1), vec2(2, 3));\n}\n")]
+    [InlineData("WG0302", "fn f() {\n    _ = select(true, 1, false);\n}\n")]
+    [InlineData("WG0302", "struct S { member: i32 }\nfn f(which: bool) -> S {\n    var x: S = S(1);\n    var y: S = S(2);\n    return select(x, y, which);\n}\n")]
+    [InlineData("WG0302", "@group(0) @binding(0) var s: sampler;\nfn f() -> vec4f {\n    let a = 3;\n    return textureSample(a, s, vec2<f32>(0.0));\n}\n")]
+    [InlineData("WG0302", "enable wgpu_int16;\nfn f() {\n    var v = i16(1);\n    v = subgroupAnd(v);\n}\n")]
     // 型引数を書かない値の作成の成分の数
     [InlineData("CF0404", "fn f() {\n    _ = vec4(1, 2, 3);\n}\n")]
     // enable していない拡張の機能
@@ -149,6 +164,8 @@ public sealed class WgslRuleTests : IDisposable
     [InlineData("enable dual_source_blending;\nstruct VsOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f, }\nstruct FsOut { @location(0) @blend_src(0) a: vec4f, @location(0) @blend_src(1) b: vec4f, }\n@group(0) @binding(0) var t: texture_2d<f32>;\n@group(0) @binding(1) var s: sampler;\n@vertex\nfn vs(@builtin(vertex_index) i: u32) -> VsOut { return VsOut(vec4f(), vec2f()); }\n@fragment\nfn fs(input: VsOut) -> FsOut {\n    if input.uv.x < 0.0 { discard; }\n    let c = textureSample(t, s, input.uv) * dpdx(input.uv.x);\n    return FsOut(c, c);\n}\n@compute @workgroup_size(64)\nfn cs(@builtin(global_invocation_id) id: vec3u) {\n    workgroupBarrier();\n}\n")]
     // 正しい配置 (uniform の vec4 の配列、@align(16) の構造体、@size)、@must_use の戻り値を使う呼び出し
     [InlineData("struct Light { @align(16) pos: vec3f, @size(16) power: f32, }\nstruct U { lights: array<Light, 4>, weights: array<vec4f, 2>, }\n@group(0) @binding(0) var<uniform> u: U;\n@must_use\nfn twice(x: f32) -> f32 { return x * 2.0; }\nfn f() -> f32 {\n    _ = twice(1.0);\n    let y = twice(2.0);\n    return y + u.lights[0].power;\n}\n")]
+    // 正しい実引数: 変換の作成、抽象的な数、成分ごとの論理演算、textureGather の成分の番号、知っている拡張
+    [InlineData("enable f16;\nrequires readonly_and_readwrite_storage_textures;\n@group(0) @binding(0) var t: texture_2d<f32>;\n@group(0) @binding(1) var s: sampler;\nfn f(a: u32, b: vec2<bool>, c: vec2<bool>) -> vec4f {\n    let v = vec2f(f32(a), 1);\n    let w = vec2f(vec2u(a));\n    let x = cross(vec3f(1.0), vec3(0.0, 1.0, 0.0)) * dot(v, w) * distance(v, vec2(0.0));\n    let y = select(vec2(0.0), v, b & c);\n    let z = sin(1) + clamp(0.5, 0.0, 1.0);\n    return textureGather(0, t, s, v) + vec4f(x, z) * f32(all(y > vec2(0.0)) || any(b));\n}\n")]
     // enable した拡張、自分で宣言した同じ名前の型
     [InlineData("enable f16;\nenable wgpu_ray_tracing_pipeline;\nfn f() -> f16 {\n    let h: vec3h = vec3<f16>(1.0h);\n    return h.x;\n}\n@group(0) @binding(0) var a: acceleration_structure;\n")]
     [InlineData("struct RayDesc { flags: u32, }\nfn f(r: RayDesc) -> u32 { return r.flags; }\n")]

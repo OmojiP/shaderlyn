@@ -35,6 +35,16 @@ internal static class WgslRuleDescriptors
             + "変数でない値 (演算の結果など) に、代入か ++ / -- で書き込んでいます。naga はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("WG0309"));
 
+    /// <summary>無い拡張の名前。</summary>
+    public static DiagnosticDescriptor UnknownExtension { get; } = new(
+        id: "WG0003",
+        title: "無い拡張の名前です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "enable か requires に、naga が知らない拡張の名前を書いています。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0003"));
+
     /// <summary>そのステージでは使えない。</summary>
     public static DiagnosticDescriptor NotAvailableInStage { get; } = new(
         id: "WG0002",
@@ -100,6 +110,27 @@ internal static class WgslRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "配列・構造体の大きさが 2147483647 バイト (2 GiB から 1 を引いた大きさ) を超えています。naga はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("WG0339"));
+
+    /// <summary>演算子を使えない型の組。</summary>
+    public static DiagnosticDescriptor OperatorNotApplicable { get; } = new(
+        id: "WG0301",
+        title: "この型には演算子を使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "&& と || を bool のスカラーでない値 (vec2<bool> など) に使っています。ベクトルの成分ごとの論理演算は & と | で書きます。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0301"));
+
+    /// <summary>組み込み関数と値の作成に、実引数の型に合う形が無い。</summary>
+    public static DiagnosticDescriptor NoMatchingBuiltin { get; } = new(
+        id: "WG0302",
+        title: "実引数の型に合う形がありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込み関数 (cross・dot・distance・select・textureSample・subgroupAnd など) か値の作成 (vec2f(…)・i32(…)・array<i32, 1>(…)・mat2x2<f32>(…)) に、"
+            + "受け付けない型の実引数を渡しています。WGSL は i32・u32・f32 の間を暗黙に変換しません。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0302"));
 
     /// <summary>定数式でなければならない実引数に、実行時の値を渡した。</summary>
     public static DiagnosticDescriptor ConstantArgumentRequired { get; } = new(
