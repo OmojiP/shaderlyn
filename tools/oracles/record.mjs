@@ -6,6 +6,7 @@
 //   node tools/oracles/record.mjs godot .work/corpus/godot-demo-projects --out=.work/v0.3.4/oracle/godot/godot-demo-projects.json
 //
 // 言語と道具:
+//   wgsl   naga。SHADERLYN_NAGA (無ければ PATH の naga)。naga_oil の # の行を含むファイルは読まない (naga.mjs)
 //   slang  slangc。SHADERLYN_SLANGC (無ければ PATH の slangc)。テストの指示の行から引数を読む (slang.mjs)
 //   godot  Godot (コンソール版)。SHADERLYN_GODOT (無ければ PATH の godot)。.gdshader を読む (.gdshaderinc は取り込まれる断片なので単体では読まない)
 //
@@ -25,6 +26,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
+import { recordNaga } from "./naga.mjs";
 import { recordSlang } from "./slang.mjs";
 
 const args = process.argv.slice(2);
@@ -35,10 +37,11 @@ const targets = args.slice(1).filter(a => !a.startsWith("--"));
 const languages = {
   godot: { extensions: [".gdshader"], record: recordGodot },
   slang: { extensions: [".slang"], record: recordSlang },
+  wgsl: { extensions: [".wgsl"], record: recordNaga },
 };
 
 if (!languages[language] || !out || targets.length === 0) {
-  console.error("使い方: node tools/oracles/record.mjs <godot|slang> <ファイルかフォルダー>... --out=<JSON のパス>");
+  console.error("使い方: node tools/oracles/record.mjs <godot|slang|wgsl> <ファイルかフォルダー>... --out=<JSON のパス>");
   process.exit(2);
 }
 
