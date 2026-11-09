@@ -37,6 +37,9 @@ internal sealed class ErrorConfigurationAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
+    protected override bool AnalyzesWgsl => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [SemanticRuleDescriptors.ErrorConfiguration];
 

@@ -7,6 +7,7 @@
     <Project Path="src/Shaderlyn.Glsl/Shaderlyn.Glsl.csproj" />
     <Project Path="src/Shaderlyn.Godot/Shaderlyn.Godot.csproj" />
     <Project Path="src/Shaderlyn.Slang/Shaderlyn.Slang.csproj" />
+    <Project Path="src/Shaderlyn.Wgsl/Shaderlyn.Wgsl.csproj" />
     <Project Path="src/Shaderlyn.Hlsl/Shaderlyn.Hlsl.csproj" />
     <Project Path="src/Shaderlyn.LanguageServer/Shaderlyn.LanguageServer.csproj" />
     <Project Path="src/Shaderlyn.LanguageServer.App/Shaderlyn.LanguageServer.App.csproj" />

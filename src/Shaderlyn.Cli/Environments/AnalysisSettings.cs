@@ -46,11 +46,7 @@ internal static class AnalysisSettings
 
     /// <summary>拡張子から、HLSL 以外の言語の環境の名前への対応。</summary>
     private static readonly FrozenDictionary<string, string> LanguageByExtension =
-        ((SyntaxOnlyAnalysisEnvironment[])
-        [
-            SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
-        ])
-        .SelectMany(e => e.DefaultExtensions.Select(x => (Extension: x, e.Name)))
+        WgslAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.WgslEnvironment.EnvironmentName))
         .Concat(GlslAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.GlslEnvironment.EnvironmentName)))
         .Concat(GodotAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.GodotEnvironment.EnvironmentName)))
         .Concat(SlangAnalysisEnvironment.Extensions.Select(x => (Extension: x, Name: Semantics.Environments.SlangEnvironment.EnvironmentName)))

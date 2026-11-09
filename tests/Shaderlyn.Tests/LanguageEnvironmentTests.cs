@@ -6,7 +6,7 @@ namespace Shaderlyn.Tests;
 /// HLSL 以外の言語の環境 (GLSL・Godot・Slang・WGSL) の検証。
 /// </summary>
 /// <remarks>
-/// GLSL は意味解析のモデルを作り、C 系の言語に共通のルールを働かせる。まだ読めない言語は何も指摘しない。
+/// どの言語も意味解析のモデルを作り、その言語で確かめた C 系の言語に共通のルールを働かせる。
 /// GLSL の型と組み込みを知っているので、<c>vec3</c> を宣言されていない名前と読むような誤検出は出ない。
 /// </remarks>
 public sealed class LanguageEnvironmentTests : IDisposable
@@ -301,16 +301,17 @@ public sealed class LanguageEnvironmentTests : IDisposable
         Assert.Contains("解析設定 2/2: 環境 GLSL", output, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("wgsl", "a.wgsl", "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n")]
-    public async Task まだ読めない言語はファイルを集めるが何も指摘しない(string environment, string file, string code)
+    [Fact]
+    public async Task WGSLのファイルを読んで解析する()
     {
-        File.WriteAllText(Path.Combine(_workDirectory, file), code);
+        File.WriteAllText(Path.Combine(_workDirectory, "a.wgsl"), "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "b.wgsl"), "fn f() -> f32 { return nope; }\n");
 
-        (ExitCode exit, string output) = await RunAsync("--environment", environment);
+        (ExitCode exit, string output) = await RunAsync("--environment", "wgsl");
 
-        Assert.Equal(ExitCode.Success, exit);
-        Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", output, StringComparison.Ordinal);
+        Assert.Equal(ExitCode.DiagnosticsFound, exit);
+        Assert.Contains("2 ファイルを解析: エラー 1 件, 警告 0 件, 情報 0 件", output, StringComparison.Ordinal);
+        Assert.Contains("b.wgsl(1:24): error CF0310", output, StringComparison.Ordinal);
     }
 
     [Fact]

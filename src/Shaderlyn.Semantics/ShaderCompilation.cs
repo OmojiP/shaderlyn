@@ -214,6 +214,10 @@ public sealed partial class ShaderCompilation
     /// <remarks>Slang で確かめていないルールは、Slang のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesSlang"/>)。</remarks>
     internal bool IsSlang => Environment is Environments.SlangEnvironment;
 
+    /// <summary>WGSL のモデルか。</summary>
+    /// <remarks>WGSL で確かめていないルールは、WGSL のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesWgsl"/>)。</remarks>
+    internal bool IsWgsl => Environment is Environments.WgslEnvironment;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。

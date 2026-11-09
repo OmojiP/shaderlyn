@@ -33,7 +33,8 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
             if (treeContext.Unit.GetModel<ShaderCompilation>() is { } compilation
                 && (!compilation.IsGlsl || AnalyzesGlsl)
                 && (!compilation.IsGodot || AnalyzesGodot)
-                && (!compilation.IsSlang || AnalyzesSlang))
+                && (!compilation.IsSlang || AnalyzesSlang)
+                && (!compilation.IsWgsl || AnalyzesWgsl))
             {
                 Analyze(treeContext, compilation);
             }
@@ -48,6 +49,9 @@ internal abstract class SemanticRuleAnalyzer : DiagnosticAnalyzer
 
     /// <summary>Slang のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
     protected virtual bool AnalyzesSlang => false;
+
+    /// <summary>WGSL のモデルも調べるか。既定は <see langword="false"/> (<see cref="Semantics.Analysis.ShaderRuleAnalyzer"/> と同じ)。</summary>
+    protected virtual bool AnalyzesWgsl => false;
 
     /// <summary>セマンティックモデルを使って検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -75,6 +79,9 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
+
+    /// <inheritdoc/>
+    protected override bool AnalyzesWgsl => true;
 
     /// <summary>メッセージに列挙する未解決 include の最大数。</summary>
     /// <remarks>

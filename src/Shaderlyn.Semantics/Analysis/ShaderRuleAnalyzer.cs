@@ -98,7 +98,8 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
             if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation
                 || (compilation.IsGlsl && !AnalyzesGlsl)
                 || (compilation.IsGodot && !AnalyzesGodot)
-                || (compilation.IsSlang && !AnalyzesSlang))
+                || (compilation.IsSlang && !AnalyzesSlang)
+                || (compilation.IsWgsl && !AnalyzesWgsl))
             {
                 return;
             }
@@ -138,6 +139,14 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// Slang は HLSL の型と組み込み関数を持つが、ジェネリック・インターフェイス・モジュールがあるので、HLSL で確かめたルールをそのまま当てない (<see cref="AnalyzesGlsl"/>)。
     /// </remarks>
     internal virtual bool AnalyzesSlang => false;
+
+    /// <summary>
+    /// WGSL のモデルも調べるか。既定は <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// WGSL は型の名前も、暗黙の変換 (抽象的な数だけ) も、宣言の順序 (関数の外の名前は後ろで宣言してよい) も C 系の言語と違うので、ほかの言語で確かめたルールをそのまま当てない (<see cref="AnalyzesGlsl"/>)。
+    /// </remarks>
+    internal virtual bool AnalyzesWgsl => false;
 
     /// <summary>
     /// HLSL のノードに対する関心を登録する。

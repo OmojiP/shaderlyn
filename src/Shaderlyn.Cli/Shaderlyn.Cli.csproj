@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Shaderlyn.Rules\Shaderlyn.Rules.csproj" />
     <ProjectReference Include="..\Shaderlyn.Unity\Shaderlyn.Unity.csproj" />
     <ProjectReference Include="..\Shaderlyn.Unreal\Shaderlyn.Unreal.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Wgsl\Shaderlyn.Wgsl.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -28,7 +28,7 @@ internal static class AnalysisEnvironments
         GlslEnvironment.EnvironmentName,
         Semantics.Environments.GodotEnvironment.EnvironmentName,
         Semantics.Environments.SlangEnvironment.EnvironmentName,
-        SyntaxOnlyAnalysisEnvironment.WgslName,
+        Semantics.Environments.WgslEnvironment.EnvironmentName,
     ];
 
     /// <summary>指定できる環境の名前。</summary>
@@ -82,7 +82,7 @@ internal static class AnalysisEnvironments
             GlslEnvironment.EnvironmentName => new GlslAnalysisEnvironment(settings.Configuration),
             Semantics.Environments.GodotEnvironment.EnvironmentName => new GodotAnalysisEnvironment(settings.Configuration),
             Semantics.Environments.SlangEnvironment.EnvironmentName => new SlangAnalysisEnvironment(settings.Configuration),
-            SyntaxOnlyAnalysisEnvironment.WgslName => SyntaxOnlyAnalysisEnvironment.CreateWgsl(),
+            Semantics.Environments.WgslEnvironment.EnvironmentName => new WgslAnalysisEnvironment(),
             _ => settings.HostEnvironments.FirstOrDefault(h => h.Name == settings.Environment) is { } host
                 ? host.CreateAnalysisEnvironment?.Invoke()
                   ?? new HlslAnalysisEnvironment(settings.Configuration, host.CreateEnvironment(), host.DisplayName, host.DefaultExtensions)

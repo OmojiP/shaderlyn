@@ -809,9 +809,20 @@ public sealed class ExpressionTypeBinder
         }
 
         // Slang の型を書かない let / var は、初期値の式の型になる。
-        return TypeSystem is SlangTypeSystem && types[0].TypeName is "let" or "var"
-            ? InferImplicitType(visible)
-            : types[0];
+        // WGSL の let / var / const / override も同じ (const 以外は、抽象的な数を具体的な型にする)。
+        if (TypeSystem is SlangTypeSystem && types[0].TypeName is "let" or "var")
+        {
+            return InferImplicitType(visible);
+        }
+
+        if (TypeSystem is WgslTypeSystem wgsl && WgslTypeSystem.IsDeclarationKeyword(types[0].TypeName))
+        {
+            return InferImplicitType(visible) is { } inferred
+                ? inferred with { TypeName = wgsl.Concretize(types[0].TypeName, inferred.TypeName) }
+                : null;
+        }
+
+        return types[0];
     }
 
     /// <summary>型を書かずに宣言した変数 (Slang の let / var) の宣言をたどっている途中のもの。自分を参照する初期値で回り続けないため。</summary>
@@ -1184,7 +1195,7 @@ public sealed class ExpressionTypeBinder
             scopes = _scopes[function] = new LocalScopes(
                 function,
                 _compilation.GetConditionMap(),
-                loopVariablesLeak: Program.Tree.Language is not Glsl.GlslLanguageOptions && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
+                loopVariablesLeak: Program.Tree.Language is not (Glsl.GlslLanguageOptions or Wgsl.WgslLanguageOptions) && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
                 ownNameInInitializer: Program.Tree.Language is not Glsl.GlslLanguageOptions,
                 unbracedBodyIsScope: Program.Tree.Language is Glsl.GlslLanguageOptions);
         }
@@ -1251,12 +1262,23 @@ public sealed class ExpressionTypeBinder
             return null;
         }
 
-        if (_ownUniforms.TryGetValue(name, out UniformSymbol? uniform) || _compilation.TryGetUniform(name, out uniform))
+        ResolvedTypeName? found = _ownUniforms.TryGetValue(name, out UniformSymbol? uniform) || _compilation.TryGetUniform(name, out uniform)
+            ? UniformType(uniform)
+            : _fileVariables.TryGetValue(name, out ResolvedTypeName? variable) ? variable : null;
+
+        // WGSL の関数の外の、型を書かない const / override / var は、初期値の型になる。
+        if (TypeSystem is WgslTypeSystem wgsl
+            && found is { } keyword
+            && WgslTypeSystem.IsDeclarationKeyword(keyword.TypeName))
         {
-            return UniformType(uniform);
+            return _globalNames.TryGetValue(name, out ImmutableArray<(VariableDeclarationSyntax Declaration, VariableDeclaratorSyntax Declarator)> declarations)
+                   && declarations is [{ Declarator: { } declarator }]
+                   && InferImplicitType([new LocalDeclaration(keyword, declarator, SymbolCondition.Always)]) is { } inferred
+                ? inferred with { TypeName = wgsl.Concretize(keyword.TypeName, inferred.TypeName) }
+                : null;
         }
 
-        return _fileVariables.TryGetValue(name, out ResolvedTypeName? variable) ? variable : null;
+        return found;
     }
 
     /// <summary>uniform の宣言の型。</summary>

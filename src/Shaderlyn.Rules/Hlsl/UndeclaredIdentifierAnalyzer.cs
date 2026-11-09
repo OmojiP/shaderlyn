@@ -50,6 +50,9 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
 
+    /// <inheritdoc/>
+    protected override bool AnalyzesWgsl => true;
+
     /// <summary>
     /// 宣言なしで使える名前。
     /// </summary>

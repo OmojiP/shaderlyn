@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Shaderlyn.Glsl\Shaderlyn.Glsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Godot\Shaderlyn.Godot.csproj" />
     <ProjectReference Include="..\Shaderlyn.Slang\Shaderlyn.Slang.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Wgsl\Shaderlyn.Wgsl.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

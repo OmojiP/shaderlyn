@@ -57,6 +57,10 @@ public sealed class ShaderLexer
     /// <remarks>Godot シェーダー言語は報告せず、ファイルの終わりまでをコメントとして読む。</remarks>
     public bool ReportsUnterminatedComment { get; init; } = true;
 
+    /// <summary>複数行コメントの中の <c>/*</c> を、入れ子のコメントとして読むか。既定は読まない (C 系の言語)。</summary>
+    /// <remarks>WGSL のコメントは入れ子にできる (<c>/* a /* b */ c */</c> の全体が 1 つのコメント)。</remarks>
+    public bool NestedBlockComments { get; init; }
+
     /// <summary>
     /// 字句解析の過程で検出した問題。
     /// </summary>
@@ -240,10 +244,24 @@ public sealed class ShaderLexer
     private ShaderSyntaxTrivia LexMultiLineComment()
     {
         int start = _position;
+        int depth = 1;
         _position += 2;
 
         while (_position < _text.Length)
         {
+            if (NestedBlockComments && _text[_position] == '/' && Peek(1) == '*')
+            {
+                depth++;
+                _position += 2;
+                continue;
+            }
+
+            if (_text[_position] == '*' && Peek(1) == '/' && --depth > 0)
+            {
+                _position += 2;
+                continue;
+            }
+
             if (_text[_position] == '*' && Peek(1) == '/')
             {
                 _position += 2;

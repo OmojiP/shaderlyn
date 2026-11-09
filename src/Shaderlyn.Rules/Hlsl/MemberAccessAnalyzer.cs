@@ -42,6 +42,9 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
 
+    /// <inheritdoc/>
+    protected override bool AnalyzesWgsl => true;
+
     /// <summary>成分名の組を、利用者に見せるときの呼び名。</summary>
     private static readonly FrozenDictionary<string, string> ComponentSetNames = new Dictionary<string, string>(StringComparer.Ordinal)
     {

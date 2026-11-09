@@ -74,6 +74,9 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
 
+    /// <inheritdoc/>
+    protected override bool AnalyzesWgsl => true;
+
     /// <summary>構造体の宣言の形。関数の形 (仮引数の型の並び) や変数の形 (空) とは重ならない。</summary>
     private const string StructShape = "<struct>";
 

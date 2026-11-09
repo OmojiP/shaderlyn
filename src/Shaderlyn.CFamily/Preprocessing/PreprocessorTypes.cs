@@ -262,6 +262,9 @@ public sealed record PreprocessorOptions
     /// <summary>閉じていない複数行コメントを誤りとして報告するか。既定は報告する (<see cref="ShaderLexer.ReportsUnterminatedComment"/>)。</summary>
     public bool ReportsUnterminatedComment { get; init; } = true;
 
+    /// <summary>複数行コメントを入れ子にできるか (WGSL)。既定はできない (<see cref="ShaderLexer.NestedBlockComments"/>)。</summary>
+    public bool NestedBlockComments { get; init; }
+
     /// <summary>
     /// 並べてよい領域の位置。<see langword="null"/> なら展開しながら決める。
     /// </summary>
@@ -483,6 +486,7 @@ public sealed record PreprocessorOptions
             hash.Add(MaxIncludeDepth);
             hash.Add(CommentLineContinuation);
             hash.Add(ReportsUnterminatedComment);
+            hash.Add(NestedBlockComments);
 
             // 単位ごとに取り込みの中身が変わる (Unreal の GeneratedUniformBuffers.ush)。
             // 入れないと、その取り込みを含むヘッダ (Common.ush) の展開結果を、別の単位の中身のまま使い回す。
