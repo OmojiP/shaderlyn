@@ -139,6 +139,19 @@ public sealed class RuleFixtureTests
         ["WG0001"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
         ["WG0309"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
         ["WG0330"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0322"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0002"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0403"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0324"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0337"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0336"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0332"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0317"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0315"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0311"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0308"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0307"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
+        ["WG0303"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。

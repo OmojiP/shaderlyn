@@ -278,8 +278,21 @@ WGSL にしか無いものです。naga 30 (wgpu の WGSL のコンパイラ) �
 | ID                  | 内容                                                       | 既定   |
 | ------------------- | ---------------------------------------------------------- | ------ |
 | [WG0001](WG0001.md) | enable していない拡張の機能を使った (f16、binding_array、光線の照会、メッシュシェーダー、@blend_src、@builtin(clip_distances) など) | エラー |
+| [WG0002](WG0002.md) | そのステージでは使えない (頂点・計算の discard と微分と textureSample、頂点・フラグメントの workgroupBarrier など) | エラー |
+| [WG0303](WG0303.md) | subgroupBroadcast・quadBroadcast の呼び出しの番号が定数式でない | エラー |
+| [WG0307](WG0307.md) | 定数の添字が範囲の外か負の数、添字が整数でない | エラー |
+| [WG0308](WG0308.md) | array<T, N> の N が 0 以下か、整数でない | エラー |
 | [WG0309](WG0309.md) | 書き込めない値に書き込んだ (let・const・仮引数、var<uniform> と読み取りだけの var<storage>、2 成分以上のスウィズル、演算の結果) | エラー |
+| [WG0311](WG0311.md) | if・while・for・break if・const_assert・select の条件が bool でない | エラー |
+| [WG0315](WG0315.md) | 数のリテラルが型に収まらない (0x80000000i)、型を書かない整数を収まらない型に変換した (u32 に -1) | エラー |
+| [WG0317](WG0317.md) | const の初期値・const_assert の条件に、let・var・仮引数・override の値を使った | エラー |
+| [WG0322](WG0322.md) | エントリポイントの入出力が正しくない (@location / @builtin が無い、頂点の @builtin(position) が無い、@blend_src・clip_distances の書き方) | エラー |
+| [WG0324](WG0324.md) | 型の引数が正しくない (vec2<vec2f>、mat3x3<i32>、texture_2d<bool>、無い形式・アドレス空間・アクセス、mat2x2()) | エラー |
 | [WG0330](WG0330.md) | ベクトルの成分 (v.x、v[0]) のアドレスを & で取った | エラー |
+| [WG0332](WG0332.md) | 関数が自分自身を呼ぶ (直接、またはほかの関数を通して) | エラー |
+| [WG0336](WG0336.md) | シフトの量が型のビットの幅以上、const の初期値の演算のあふれ | エラー |
+| [WG0337](WG0337.md) | const_assert の条件が false | エラー |
+| [WG0403](WG0403.md) | その場所では使えない型 (構造体のメンバーのテクスチャ、局所の var のアトミック、storage のポインターの仮引数、アドレス空間を書かない数の var、大きさを決めない配列の値の作成など) | エラー |
 
 ## レンダーパイプライン固有
 

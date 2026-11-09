@@ -796,11 +796,16 @@ internal sealed class WgslParser
                     case "break" or "continue" or "discard":
                         return new JumpStatementSyntax(Advance(), ExpectSemicolon());
 
+                    // const_assert c; は、組み込みの const_assert を呼ぶ形にする (括弧は補う)。
                     case "const_assert":
                     {
-                        Advance();
+                        ShaderSyntaxToken keyword = Advance();
+                        ShaderSyntaxToken openParen = CreateMissingToken(ShaderSyntaxKind.OpenParenToken);
                         ExpressionSyntax condition = ParseExpression();
-                        return new ExpressionStatementSyntax(condition, ExpectSemicolon());
+                        ShaderSyntaxToken closeParen = CreateMissingToken(ShaderSyntaxKind.CloseParenToken);
+                        InvocationExpressionSyntax assertion = new(
+                            new IdentifierExpressionSyntax(keyword), openParen, [ShaderNodeOrTokenEntry.FromNode(condition)], closeParen);
+                        return new ExpressionStatementSyntax(assertion, ExpectSemicolon());
                     }
                 }
 

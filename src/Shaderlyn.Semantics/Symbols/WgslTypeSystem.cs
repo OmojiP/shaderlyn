@@ -135,6 +135,7 @@ internal sealed class WgslTypeSystem : ShaderTypeSystem
         ["rayQueryGenerateIntersection"] = "void",
         ["rayQueryConfirmIntersection"] = "void",
         ["rayQueryProceed"] = "bool",
+        ["const_assert"] = "void",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>結果の型を答えない組み込み関数 (要素の型・中身・構造体が引数の型からは分からないもの)。</summary>
@@ -539,7 +540,7 @@ internal sealed class WgslTypeSystem : ShaderTypeSystem
         ["dot4I8Packed"] = 2, ["dot4U8Packed"] = 2,
         ["clamp"] = 3, ["faceForward"] = 3, ["fma"] = 3, ["mix"] = 3, ["refract"] = 3, ["smoothstep"] = 3, ["select"] = 3, ["extractBits"] = 3,
         ["insertBits"] = 4,
-        ["workgroupBarrier"] = 0, ["storageBarrier"] = 0, ["textureBarrier"] = 0, ["subgroupBarrier"] = 0,
+        ["const_assert"] = 1, ["workgroupBarrier"] = 0, ["storageBarrier"] = 0, ["textureBarrier"] = 0, ["subgroupBarrier"] = 0,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <inheritdoc/>
