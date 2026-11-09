@@ -126,6 +126,7 @@ public static class BuiltInAnalyzers
         new Rules.Godot.GodotSamplerAnalyzer(),
         new Rules.Wgsl.WgslExtensionAnalyzer(),
         new Rules.Wgsl.WgslDeclarationAnalyzer(),
+        new Rules.Wgsl.WgslAssignmentAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

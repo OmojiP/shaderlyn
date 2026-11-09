@@ -145,8 +145,10 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         bool slang,
         ReportedLocations reported)
     {
+        // WGSL の型を作る名前 (vec4(1, 2, 3)) も、成分の数は名前で決まる。
         if (invocation.TargetName is not { } name
-            || !binder.TypeSystem.TryDescribeNumeric(name, out ShaderNumericShape shape))
+            || !(binder.TypeSystem.TryDescribeNumeric(name, out ShaderNumericShape shape)
+                 || (binder.TypeSystem is WgslTypeSystem && WgslTypeSystem.TryDescribeGenerator(name, out shape))))
         {
             return;
         }

@@ -259,7 +259,8 @@ public sealed class ExpressionTypeEvaluator
             return EvaluateTextureMethod(access);
         }
 
-        if (TypeSystem.IsBuiltInTypeName(name))
+        // WGSL の型を作る名前 (vec3(…)・mat2x2(…)) は、要素の型を引数から決める (組み込み関数の表で答える)。
+        if (TypeSystem.IsBuiltInTypeName(name) && !(TypeSystem is WgslTypeSystem && WgslTypeSystem.IsTypeGenerator(name)))
         {
             return name;
         }

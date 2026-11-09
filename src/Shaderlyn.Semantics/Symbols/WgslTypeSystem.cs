@@ -178,6 +178,28 @@ internal sealed class WgslTypeSystem : ShaderTypeSystem
         "array",
     ], StringComparer.Ordinal);
 
+    /// <summary>型引数を書かずに値を作れる、型を作る名前か (<c>vec3</c>・<c>mat2x2</c>・<c>array</c>)。</summary>
+    /// <param name="name">名前。</param>
+    /// <returns>型を作る名前なら <see langword="true"/>。</returns>
+    internal static bool IsTypeGenerator(string name) => Generators.Contains(name);
+
+    /// <summary>型を作る名前 (<c>vec3</c>・<c>mat2x3</c>) の形。要素の型は決まらないので AbstractFloat にする。</summary>
+    /// <param name="name">名前。</param>
+    /// <param name="shape">形。</param>
+    /// <returns>ベクトルか行列を作る名前なら <see langword="true"/>。</returns>
+    internal static bool TryDescribeGenerator(string name, out ShaderNumericShape shape)
+    {
+        shape = name switch
+        {
+            "vec2" or "vec3" or "vec4" => new ShaderNumericShape(ShaderNumericKind.Vector, AbstractFloat, 1, name[3] - '0'),
+            _ when Generators.Contains(name) && name.StartsWith("mat", StringComparison.Ordinal)
+                => new ShaderNumericShape(ShaderNumericKind.Matrix, AbstractFloat, name[3] - '0', name[5] - '0'),
+            _ => default,
+        };
+
+        return shape.Kind != ShaderNumericKind.None;
+    }
+
     private readonly FrozenSet<string> _functions;
 
     private WgslTypeSystem()
