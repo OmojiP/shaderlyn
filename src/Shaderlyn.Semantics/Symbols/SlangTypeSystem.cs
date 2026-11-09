@@ -28,6 +28,7 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     private readonly FrozenSet<string> _functions;
     private readonly FrozenSet<string> _values;
     private readonly FrozenSet<string> _modules;
+    private readonly ImmutableArray<string> _functionPrefixes;
 
     private SlangTypeSystem()
     {
@@ -36,6 +37,12 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
 
         // 自動微分の演算子 (bwd_diff(f)(…)) と、型を引数に取る演算子 (countof・alignof)。関数のように呼ぶ。
         HashSet<string> functions = new(StringComparer.Ordinal) { "bwd_diff", "fwd_diff", "__bwd_diff", "__fwd_diff", "countof", "alignof", "sizeof" };
+
+        // GLSL の組み込み関数 (Slang は GLSL の組み込みも読む。atomicAdd・imageAtomicAdd など)。
+        functions.UnionWith(GlslBuiltins.Instance.Functions.Keys);
+
+        // C++ のコードで名前を組み立てる関数の、名前の前半 (WaveMulti$(opName) の WaveMulti)。
+        List<string> prefixes = [];
 
         // 言語の値 (none は空の Optional、This は自分の型) と、GLSL の組み込みの変数 (Slang は GLSL の組み込みも読む)。
         HashSet<string> values = new(GlslBuiltins.Instance.Variables.Keys, StringComparer.Ordinal) { "none", "nullptr", "This" };
@@ -59,14 +66,21 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
                 "T" => types,
                 "F" => functions,
                 "M" => modules,
+                "P" => null,
                 _ => values,
-            }).Add(name);
+            })?.Add(name);
+
+            if (kind == "P")
+            {
+                prefixes.Add(name);
+            }
         }
 
         _types = types.ToFrozenSet(StringComparer.Ordinal);
         _functions = functions.ToFrozenSet(StringComparer.Ordinal);
         _values = values.ToFrozenSet(StringComparer.Ordinal);
         _modules = modules.ToFrozenSet(StringComparer.Ordinal);
+        _functionPrefixes = [.. prefixes];
         FunctionNames = [.. _hlsl.FunctionNames.Concat(_functions).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
     }
 
@@ -77,6 +91,9 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     /// <param name="name">モジュールの名前 (区切りは <c>/</c>)。</param>
     /// <returns>標準のモジュールなら <see langword="true"/>。</returns>
     internal bool IsStandardModule(string name) => _modules.Contains(name);
+
+    /// <summary>標準ライブラリの型の名前 (補完のため)。</summary>
+    internal IEnumerable<string> StandardLibraryTypeNames => _types;
 
     /// <summary>コンパイラが組み込みで持つ名前 (<c>__</c> で始まるもの。<c>__floatAsInt</c>、<c>__first</c> など)。</summary>
     private static bool IsCompilerIntrinsic(string? name) => name is not null && name.StartsWith("__", StringComparison.Ordinal);
@@ -136,7 +153,10 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
 
     /// <inheritdoc/>
     public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree)
-        => _hlsl.IsKnownFunction(name, tree) || (name is not null && _functions.Contains(name)) || IsStandardLibraryType(name) || IsCompilerIntrinsic(name);
+        => _hlsl.IsKnownFunction(name, tree)
+           || (name is not null && (_functions.Contains(name) || _functionPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal))))
+           || IsStandardLibraryType(name)
+           || IsCompilerIntrinsic(name);
 
     /// <inheritdoc/>
     public override IReadOnlyCollection<string> FunctionNames { get; }

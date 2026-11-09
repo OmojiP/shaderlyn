@@ -69,6 +69,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   型を書かない `let` / `var` の変数は、初期値の式の型として検査する。
   構造体のメンバーとメソッド (CF0312) は、`extension` や `property` でメンバーが足されうる型 (インターフェイスの `extension` があれば、基底を持つ構造体) を除いて検査する。
   関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
+- VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
   `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の

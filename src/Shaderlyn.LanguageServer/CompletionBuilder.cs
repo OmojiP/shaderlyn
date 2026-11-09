@@ -240,6 +240,17 @@ internal static partial class CompletionBuilder
             _ = items.TryAdd(label, new CompletionItem(label, kind, detail));
         }
 
+        // Slang の import したモジュールのファイル。その関数と型も、このファイルから名前で使える。
+        HashSet<string> modules = new(
+            compilation.Programs.SelectMany(p => p.Tree.PreprocessResult.Includes)
+                .Where(i => i.Directive == "import" && i.ResolvedFilePath is not null)
+                .Select(i => i.ResolvedFilePath!),
+            StringComparer.OrdinalIgnoreCase);
+
+        bool Visible(ShaderSyntaxNode node)
+            => compilation.IsWrittenHere(node)
+               || (modules.Count > 0 && node.FirstToken is { } first && modules.Contains(first.Source.FilePath));
+
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             // カーソルを囲む関数の中の名前が最も近い。
@@ -257,11 +268,11 @@ internal static partial class CompletionBuilder
             {
                 switch (declaration)
                 {
-                    case FunctionDeclarationSyntax function when compilation.IsWrittenHere(function):
+                    case FunctionDeclarationSyntax function when Visible(function):
                         Add(function.Name, KindFunction, DescribeSignature(function));
                         break;
 
-                    case StructDeclarationSyntax structure when compilation.IsWrittenHere(structure):
+                    case StructDeclarationSyntax structure when Visible(structure):
                         Add(structure.Name, KindStruct, "struct");
 
                         // 構造体に続けて宣言した変数 (struct Light { … } light;、GLSL の uniform UBO { … } ubo;)。
@@ -341,6 +352,15 @@ internal static partial class CompletionBuilder
             foreach (string name in HlslKeywords.ObjectTypes)
             {
                 Add(name, KindKeyword, "型");
+            }
+
+            // Slang の標準ライブラリの型 (CoopVec・Optional・Tuple など)。__ で始まる内部の型は出さない。
+            if (types is SlangTypeSystem slang)
+            {
+                foreach (string name in slang.StandardLibraryTypeNames.Where(n => !n.StartsWith("__", StringComparison.Ordinal)))
+                {
+                    Add(name, KindKeyword, "型");
+                }
             }
         }
 

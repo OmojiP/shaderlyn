@@ -117,6 +117,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       { scheme: "file", pattern: "**/*.{vert,frag,comp,geom,tesc,tese,task,rgen,rint,rahit,rchit,rmiss,rcall,glsl}" },
       // Godot のシェーダー (サーバの GodotAnalysisEnvironment.Extensions と揃えること)。
       { scheme: "file", pattern: "**/*.{gdshader,gdshaderinc}" },
+      // Slang (サーバの SlangAnalysisEnvironment.Extensions と揃えること)。
+      { scheme: "file", pattern: "**/*.slang" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。

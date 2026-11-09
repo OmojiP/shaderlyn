@@ -355,7 +355,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         bool visible = true;
         SymbolCondition? declaredWhen = null;
 
-        if (compilation.LocalOnlyDeclaredNames.Contains(identifier.Name))
+        // 読み飛ばした宣言の名前 (Slang のジェネリックの仮引数 <int v> など) は、局所変数として別の所で宣言されていても、ここで見えうる。
+        if (compilation.LocalOnlyDeclaredNames.Contains(identifier.Name) && !(compilation.IsSlang && compilation.UnanalyzedIdentifiers.Contains(identifier.Name)))
         {
             // 関数の中の変数としてしか宣言されていない名前は、その位置で見えるかを確かめる。
             // 見えるか決められないなら、見えるものとする。
