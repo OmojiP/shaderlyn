@@ -3,7 +3,8 @@
 // naga は SHADERLYN_NAGA (無ければ PATH の naga)。naga <ファイル> で読みと検証をする。誤りは最初の 1 つで止まり、
 //   error: <文>
 //     ┌─ <パス>:<行>:<桁>
-// の形で標準エラーに出る (検証の誤りは色付きなので、色の符号を除いて読む)。
+// の形で標準エラーに出る (検証の誤りは色付きなので、色の符号を除いて読む)。続けて示すコードの行 (「<行> │」) は lines に残し、
+// 照合はそのどれかの行で合えばよいとする (compare.mjs)。
 //
 // Bevy のシェーダーの多くは naga_oil の #import / #define_import_path / #ifdef を使う。Shaderlyn は読まない (0.3.0 の決定) ので、
 // # で始まる行のあるファイルは記録しない。
@@ -52,7 +53,16 @@ export function parseNaga(stderr) {
       }
     }
 
-    errors.push({ line, message: head[1] });
+    // naga が誤りの範囲として示した行 (「<行> │ <コード>」)。再定義は最初の宣言と 2 つ目の宣言を、関数の検証の誤りは関数全体を示す。
+    const shown = [];
+    for (let j = i + 1; j < lines.length && !/^(error|warning):/.test(lines[j]); j++) {
+      const code = lines[j].match(/^\s*(\d+) │/);
+      if (code) {
+        shown.push(Number(code[1]));
+      }
+    }
+
+    errors.push(shown.length > 1 ? { line, message: head[1], lines: [...new Set(shown)] } : { line, message: head[1] });
     break;
   }
 

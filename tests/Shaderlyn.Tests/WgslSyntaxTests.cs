@@ -39,6 +39,18 @@ public sealed class WgslSyntaxTests
     [InlineData("fn f() {\n    let a = (1.0 + 2.0;\n}\n", 2)]
     [InlineData("struct S {\n    a: f32\n    b: f32,\n}\n", 3)]
     [InlineData("fn f() -> i32 {\n    return 1 +;\n}\n", 2)]
+    // キーワード・予約語・__ で始まる語は名前にできない
+    [InlineData("fn f() {\n    var default: f32 = 1.0;\n}\n", 2)]
+    [InlineData("struct Foo {\n    switch: f32,\n}\n", 2)]
+    [InlineData("var<private> __bad: f32;\n", 1)]
+    [InlineData("const typedef = 1;\n", 1)]
+    // 文として書けない式、continuing の外の break if、型も初期値も無い var、初期値の無い let
+    [InlineData("fn f() {\n    3 + 5;\n}\n", 2)]
+    [InlineData("fn f() {\n    loop {\n        break if true;\n    }\n}\n", 3)]
+    [InlineData("fn f() {\n    var x;\n}\n", 2)]
+    [InlineData("fn f() {\n    let x: f32;\n}\n", 2)]
+    // アドレス空間に型引数は書けない
+    [InlineData("var<private<x>> v: u32;\n", 1)]
     public void 構文の誤りを報告する(string code, int line)
     {
         ShaderSyntaxTree tree = Parse(code);

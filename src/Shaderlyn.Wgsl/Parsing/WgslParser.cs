@@ -404,7 +404,7 @@ internal sealed class WgslParser
     {
         ShaderSyntaxToken keyword = Advance();
         ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
-        tokens.Add(Expect(ShaderSyntaxKind.IdentifierToken, "別名"));
+        tokens.Add(ExpectName("別名"));
         tokens.Add(Expect(ShaderSyntaxKind.EqualsToken, "'='"));
         tokens.AddRange(ParseType().DescendantTokens());
         return new TypedefDeclarationSyntax(keyword, tokens.ToImmutable(), Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
@@ -414,7 +414,7 @@ internal sealed class WgslParser
     private DeclarationSyntax ParseStruct()
     {
         ShaderSyntaxToken keyword = Advance();
-        ShaderSyntaxToken name = Expect(ShaderSyntaxKind.IdentifierToken, "構造体の名前");
+        ShaderSyntaxToken name = ExpectName("構造体の名前");
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
         ImmutableArray<DeclarationSyntax>.Builder members = ImmutableArray.CreateBuilder<DeclarationSyntax>();
 
@@ -422,7 +422,7 @@ internal sealed class WgslParser
         {
             int start = _index;
             ImmutableArray<ShaderSyntaxToken> modifiers = AttributeTokens(ParseAttributes());
-            ShaderSyntaxToken member = Expect(ShaderSyntaxKind.IdentifierToken, "メンバーの名前");
+            ShaderSyntaxToken member = ExpectName("メンバーの名前");
             _ = Expect(ShaderSyntaxKind.ColonToken, "':'");
             TypeSyntax type = ParseType();
             ShaderSyntaxToken separator = Current.Kind == ShaderSyntaxKind.CommaToken
@@ -457,7 +457,7 @@ internal sealed class WgslParser
     private DeclarationSyntax ParseFunction(ImmutableArray<AttributeSyntax> attributes)
     {
         ShaderSyntaxToken keyword = Advance();
-        ShaderSyntaxToken name = Expect(ShaderSyntaxKind.IdentifierToken, "関数の名前");
+        ShaderSyntaxToken name = ExpectName("関数の名前");
         ShaderSyntaxToken openParen = Expect(ShaderSyntaxKind.OpenParenToken, "'('");
         ImmutableArray<ShaderNodeOrTokenEntry>.Builder parameters = ImmutableArray.CreateBuilder<ShaderNodeOrTokenEntry>();
 
@@ -465,7 +465,7 @@ internal sealed class WgslParser
         {
             int start = _index;
             ImmutableArray<ShaderSyntaxToken> modifiers = AttributeTokens(ParseAttributes());
-            ShaderSyntaxToken parameter = Expect(ShaderSyntaxKind.IdentifierToken, "引数の名前");
+            ShaderSyntaxToken parameter = ExpectName("引数の名前");
             _ = Expect(ShaderSyntaxKind.ColonToken, "':'");
             TypeSyntax type = ParseType();
             parameters.Add(ShaderNodeOrTokenEntry.FromNode(new ParameterSyntax(modifiers, type, parameter, [], [], null, null)));
@@ -530,17 +530,25 @@ internal sealed class WgslParser
         {
             while (_index <= end)
             {
+                // アドレス空間とアクセスの指定 (var<storage, read>) は名前だけで、型引数を書けない (var<private<x>> は誤り)。
+                if (_index > 0 && _index < end && Current.Kind == ShaderSyntaxKind.IdentifierToken && _templateEnds.ContainsKey(_index + 1))
+                {
+                    ReportErrorAt(Current, $"'{Current.Text}' に型引数は書けません。");
+                }
+
                 modifiers.Add(Advance());
             }
         }
 
-        ShaderSyntaxToken name = Expect(ShaderSyntaxKind.IdentifierToken, "変数の名前");
+        ShaderSyntaxToken name = ExpectName("変数の名前");
         TypeSyntax type = MakeType(keyword);
+        bool typed = false;
 
         if (Current.Kind == ShaderSyntaxKind.ColonToken)
         {
             Advance();
             type = ParseType();
+            typed = true;
         }
 
         ShaderSyntaxToken? equals = null;
@@ -550,6 +558,19 @@ internal sealed class WgslParser
         {
             equals = Advance();
             initializer = ParseExpression();
+        }
+
+        // var x; (型も初期値も無い) は型が決まらない。let と const は初期値が要る。
+        if (!name.IsMissing && initializer is null)
+        {
+            if (!typed && keyword.Text is "var" or "override")
+            {
+                ReportErrorAt(name, $"'{name.Text}' の宣言には、型か初期値が必要です。");
+            }
+            else if (keyword.Text is "let" or "const")
+            {
+                ReportErrorAt(name, $"{keyword.Text} の '{name.Text}' には初期値が必要です。");
+            }
         }
 
         ShaderSyntaxToken semicolon = requireSemicolon ? ExpectSemicolon() : CreateMissingToken(ShaderSyntaxKind.SemicolonToken);
@@ -647,10 +668,32 @@ internal sealed class WgslParser
     /// <summary><c>{ … }</c> を読む。</summary>
     private BlockStatementSyntax ParseBlock()
     {
-        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = ExpectOpenBrace();
         ImmutableArray<StatementSyntax> statements = ParseStatements();
+        _braceDepth--;
         return new BlockStatementSyntax(openBrace, statements, Expect(ShaderSyntaxKind.CloseBraceToken, "'}'"));
     }
+
+    /// <summary>波括弧の入れ子の深さ (関数の本体が 1)。naga は 127 までしか読まない。</summary>
+    private int _braceDepth;
+
+    /// <summary>今読んでいる continuing のブロックの深さ。continuing の外なら 0。break if はこの深さでだけ書ける。</summary>
+    private int _continuingDepth;
+
+    /// <summary>文の並びを開く <c>{</c> を読み、入れ子の深さを 1 つ増やす (閉じるときに呼び手が減らす)。</summary>
+    private ShaderSyntaxToken ExpectOpenBrace()
+    {
+        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
+
+        if (++_braceDepth == MaxBraceDepth + 1 && !openBrace.IsMissing)
+        {
+            ReportErrorAt(openBrace, $"波括弧の入れ子が深すぎます ({MaxBraceDepth} まで)。");
+        }
+
+        return openBrace;
+    }
+
+    private const int MaxBraceDepth = 127;
 
     /// <summary><c>}</c> の手前までの文を読む。</summary>
     private ImmutableArray<StatementSyntax> ParseStatements(bool inLoop = false)
@@ -666,7 +709,10 @@ internal sealed class WgslParser
             {
                 Advance();
                 _ = ParseAttributes();
+                int outer = _continuingDepth;
+                _continuingDepth = _braceDepth + 1;
                 statements.Add(ParseBlock());
+                _continuingDepth = outer;
                 continue;
             }
 
@@ -731,7 +777,12 @@ internal sealed class WgslParser
 
                     case "break" when Peek(1) is { Kind: ShaderSyntaxKind.IdentifierToken, Text: "if" }:
                     {
-                        // break if c; → if (c) break;
+                        // break if c; → if (c) break;。continuing のブロックの直下にだけ書ける。
+                        if (_continuingDepth != _braceDepth)
+                        {
+                            ReportErrorAt(Current, "break if は loop の continuing のブロックの中にだけ書けます。");
+                        }
+
                         ShaderSyntaxToken keyword = Advance();
                         Advance();
                         ShaderSyntaxToken openParen = CreateMissingToken(ShaderSyntaxKind.OpenParenToken);
@@ -757,11 +808,18 @@ internal sealed class WgslParser
         }
 
         int start = _index;
+        ShaderSyntaxToken first = Current;
         ExpressionSyntax? simple = ParseSimpleStatement();
 
         if (simple is null || _index == start)
         {
             return new IncompleteStatementSyntax([]);
+        }
+
+        // 式だけの文は、関数の呼び出しに限る (3 + 5; や (f()); は書けない)。
+        if (simple is not (AssignmentExpressionSyntax or PostfixUnaryExpressionSyntax or InvocationExpressionSyntax))
+        {
+            ReportErrorAt(first, "文として書けるのは、代入・増減・関数の呼び出しだけです。");
         }
 
         return new ExpressionStatementSyntax(simple, ExpectSemicolon());
@@ -828,7 +886,7 @@ internal sealed class WgslParser
         ExpressionSyntax value = ParseExpression();
         ShaderSyntaxToken closeParen = CreateMissingToken(ShaderSyntaxKind.CloseParenToken);
         _ = ParseAttributes();
-        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = ExpectOpenBrace();
         ImmutableArray<StatementSyntax>.Builder statements = ImmutableArray.CreateBuilder<StatementSyntax>();
 
         while (Current.Kind is not (ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.EndOfFileToken))
@@ -894,6 +952,7 @@ internal sealed class WgslParser
             }
         }
 
+        _braceDepth--;
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         return new SwitchStatementSyntax(attributes, keyword, openParen, value, closeParen, openBrace, statements.ToImmutable(), closeBrace);
     }
@@ -907,8 +966,9 @@ internal sealed class WgslParser
         ShaderSyntaxToken alwaysTrue = new(ShaderSyntaxKind.IdentifierToken, keyword.Source, new TextSpan(keyword.Span.End, 0), "true", isMissing: true);
         ShaderSyntaxToken closeParen = CreateMissingToken(ShaderSyntaxKind.CloseParenToken);
 
-        ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
+        ShaderSyntaxToken openBrace = ExpectOpenBrace();
         ImmutableArray<StatementSyntax> statements = ParseStatements(inLoop: true);
+        _braceDepth--;
         BlockStatementSyntax body = new(openBrace, statements, Expect(ShaderSyntaxKind.CloseBraceToken, "'}'"));
 
         return new WhileStatementSyntax(attributes, keyword, openParen, new IdentifierExpressionSyntax(alwaysTrue), closeParen, body);
@@ -1244,6 +1304,22 @@ internal sealed class WgslParser
 
     private ShaderSyntaxToken ExpectSemicolon() => Expect(ShaderSyntaxKind.SemicolonToken, "';'");
 
+    /// <summary>宣言する名前を読む。キーワード・予約語・<c>__</c> で始まる語は、名前にできないと報告する (読み進める)。</summary>
+    private ShaderSyntaxToken ExpectName(string expectation)
+    {
+        if (Current is { Kind: ShaderSyntaxKind.IdentifierToken } name && WgslKeywords.IsReserved(name.Text))
+        {
+            ReportErrorAt(name, name.Text.StartsWith("__", StringComparison.Ordinal)
+                ? $"'{name.Text}' は名前にできません (__ で始まる名前は予約されています)。"
+                : WgslKeywords.Keywords.Contains(name.Text)
+                    ? $"'{name.Text}' は WGSL のキーワードなので、名前にできません。"
+                    : $"'{name.Text}' は WGSL の予約語なので、名前にできません。");
+            return Advance();
+        }
+
+        return Expect(ShaderSyntaxKind.IdentifierToken, expectation);
+    }
+
     private ShaderSyntaxToken CreateMissingToken(ShaderSyntaxKind kind)
         => new(kind, Current.Source, new TextSpan(Current.Span.Start, 0), string.Empty, isMissing: true);
 
@@ -1251,6 +1327,18 @@ internal sealed class WgslParser
         => Current.Kind == ShaderSyntaxKind.EndOfFileToken
             ? $"ファイルの末尾には {expectation} が必要です。"
             : $"{expectation} が必要ですが '{Current.Text}' がありました。";
+
+    /// <summary>指定のトークンの位置で構文エラーを記録する。</summary>
+    private void ReportErrorAt(ShaderSyntaxToken token, string message)
+    {
+        if (_reportedErrors >= MaxReportedErrors)
+        {
+            return;
+        }
+
+        _reportedErrors++;
+        _diagnostics.Add(Diagnostic.Create(ShaderDescriptors.SyntaxError, token.GetLocation(), message));
+    }
 
     private void ReportError(string message)
     {

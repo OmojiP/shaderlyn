@@ -124,6 +124,20 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // WGSL の宣言の型 (const a: Vec = 10;)。あらかじめ宣言された型でも、構造体と別名でもないものは、naga が「no definition in scope」にする。
+            if (compilation.IsWgsl
+                && node is TypeSyntax { Parent: VariableDeclarationSyntax or ParameterSyntax or FunctionDeclarationSyntax, NameToken.IsMissing: false } wgslType
+                && compilation.IsReportable(wgslType.NameToken)
+                && !compilation.TypeSystem.IsBuiltInTypeName(wgslType.Name)
+                && !WgslTypeSystem.IsDeclarationKeyword(wgslType.Name)
+                && wgslType.Name != "void"
+                && !TypeNamesOf(typeNames, program).Contains(wgslType.NameToken.Text)
+                && wgslType.NameToken.GetLocation() is { } wgslLocation)
+            {
+                undeclaredTypes.TryAdd((wgslLocation.FilePath, wgslLocation.Span.Start), (wgslLocation, wgslType.NameToken.Text, "どこにも"));
+                continue;
+            }
+
             if (node is IdentifierExpressionSyntax identifier)
             {
                 AnalyzeIdentifier(compilation, program, declared, identifier, qualifiers, uses);
@@ -204,6 +218,11 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
 
                     case InterfaceBlockDeclarationSyntax block:
                         names.Add(block.Name);
+                        break;
+
+                    // WGSL の別名 (alias A = T;)。
+                    case TypedefDeclarationSyntax { Keyword.Text: "alias", Tokens: [{ } alias, ..] }:
+                        names.Add(alias.Text);
                         break;
 
                     case IncompleteDeclarationSyntax incomplete:

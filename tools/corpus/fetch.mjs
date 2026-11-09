@@ -163,7 +163,7 @@ const corpora = [
     commit: "40f4a34ebaf56f9a046231f54125ad046239d3f3",
     license: "MIT OR Apache-2.0",
     languages: ["wgsl"],
-    patterns: ["/naga/tests/in/**", "/naga/tests/*.rs", "/naga/tests/naga/**", "/naga/src/front/wgsl/**", "/naga/src/valid/**",
+    patterns: ["/naga/tests/in/**", "/naga/tests/*.rs", "/naga/tests/naga/**", "/naga/src/front/wgsl/**", "/naga/src/valid/**", "/naga/src/keywords/**",
       "/LICENSE.MIT", "/LICENSE.APACHE"],
   },
   {

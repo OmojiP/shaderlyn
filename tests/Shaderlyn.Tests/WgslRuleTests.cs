@@ -45,6 +45,14 @@ public sealed class WgslRuleTests : IDisposable
     [InlineData("CF0312", "fn f() {\n    let a = vec3<f32>(1.0);\n    let d = a.w;\n}\n")]
     // i32 と f32 の間は暗黙に変換しない
     [InlineData("CF0410", "fn f() {\n    let a = 1i;\n    var b: f32 = a;\n}\n")]
+    // 関数の外の初期値、構造体どうし、宣言されていない型、組み込み関数の引数の数、構造体のメンバーの重複
+    [InlineData("CF0410", "const x: i32 = 1.0;\n")]
+    [InlineData("CF0410", "var<private> a: vec2<f32> = vec2<i32>(1i, 2i);\n")]
+    [InlineData("CF0410", "struct Foo { a: u32 }\nstruct Bar { a: u32 }\nfn f() {\n    let x: Bar = Foo(1);\n}\n")]
+    [InlineData("CF0411", "struct Foo { a: u32 }\nstruct Bar { a: u32 }\nfn f() -> Bar {\n    return Foo(1);\n}\n")]
+    [InlineData("CF0310", "const a: Vec = 10;\n")]
+    [InlineData("CF0402", "fn f() -> f32 {\n    return sin(1.0, 2.0);\n}\n")]
+    [InlineData("CF0314", "struct A {\n    a: f32,\n    a: f32,\n}\n")]
     // enable していない拡張の機能
     [InlineData("WG0001", "fn f() {\n    let h = 1.0h;\n}\n")]
     [InlineData("WG0001", "var<private> v: vec3<f16>;\n")]

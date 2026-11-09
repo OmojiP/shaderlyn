@@ -61,7 +61,7 @@ for (const oraclePath of oracles) {
     } else {
       failing++;
       // 行が記録の仕方で決まる誤り (Godot のプリプロセッサの失敗) は、ファイルのどこかに Shaderlyn のエラーがあれば合うとする。
-      row.misses = expected.filter(e => !reported.some(d => d.severity === "error" && key(d.file) === key(e.path) && (d.line === e.line || anyLine(e))));
+      row.misses = expected.filter(e => !reported.some(d => d.severity === "error" && key(d.file) === key(e.path) && (d.line === e.line || e.lines?.includes(d.line) || anyLine(e))));
       const first = expected.find(e => key(e.path) === key(path) && !anyLine(e));
       row.early = first ? reported.filter(d => d.severity === "error" && key(d.file) === key(path) && d.line < first.line) : [];
     }
@@ -117,7 +117,8 @@ function analyze(paths, language) {
  * Godot はプリプロセッサが失敗すると、元のコードのまま読み直して、最初の # の行に「Unknown character #35」を出す (README)。
  */
 function anyLine(error) {
-  return error.message.startsWith("Tokenizer: Unknown character #35");
+  // naga は検証の誤りの一部 (型や入口の誤り) に位置を付けない (行 0)。
+  return error.message.startsWith("Tokenizer: Unknown character #35") || error.line === 0;
 }
 
 /** 取り込んだファイルの誤り (Godot なら res://...) の、ディスクの上のパス。 */

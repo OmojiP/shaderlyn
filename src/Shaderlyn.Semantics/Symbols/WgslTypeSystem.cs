@@ -422,11 +422,40 @@ internal sealed class WgslTypeSystem : ShaderTypeSystem
     // --------------------------------------------------------------------
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// 利用者の型 (構造体) は、同じ名前の型にだけ変換できる (<c>let x: Bar = Foo(1);</c> は誤り)。数の型と利用者の型の間も変換しない。
+    /// あらかじめ宣言された型 (<c>array</c>・<c>ptr</c>・テクスチャなど) は型引数を名前に含めないので、比べない。
+    /// </remarks>
     public override bool IsConvertible(string? valueType, string? targetType, bool exact = false)
-        => valueType != "void"
-           && (!TryDescribeNumeric(valueType, out ShaderNumericShape value)
-               || !TryDescribeNumeric(targetType, out ShaderNumericShape target)
-               || IsConvertible(value, target, exact));
+    {
+        if (valueType == "void")
+        {
+            return false;
+        }
+
+        bool valueNumeric = TryDescribeNumeric(valueType, out ShaderNumericShape value);
+        bool targetNumeric = TryDescribeNumeric(targetType, out ShaderNumericShape target);
+
+        if (valueNumeric && targetNumeric)
+        {
+            return IsConvertible(value, target, exact);
+        }
+
+        bool valueUser = IsUserTypeName(valueType);
+        bool targetUser = IsUserTypeName(targetType);
+
+        return !((valueUser && targetUser && valueType != targetType)
+                 || (valueUser && targetNumeric)
+                 || (valueNumeric && targetUser));
+    }
+
+    /// <summary>利用者が宣言した型 (構造体) の名前か。あらかじめ宣言された型と、型を書かない宣言のキーワードは除く。</summary>
+    private bool IsUserTypeName(string? name)
+        => !string.IsNullOrEmpty(name)
+           && (char.IsAsciiLetter(name[0]) || name[0] == '_')
+           && !IsBuiltInTypeName(name)
+           && !IsDeclarationKeyword(name)
+           && name is not ("void" or "bool");
 
     /// <inheritdoc/>
     public override bool IsConvertible(ShaderNumericShape value, ShaderNumericShape target, bool exact)
@@ -470,6 +499,39 @@ internal sealed class WgslTypeSystem : ShaderTypeSystem
 
     /// <summary>組み込みの値の名前と型 (<c>true</c>、光線の照会の定数)。</summary>
     internal IEnumerable<KeyValuePair<string, string>> BuiltinValues => Values.OrderBy(v => v.Key, StringComparer.Ordinal);
+
+    /// <summary>引数の数が決まっている組み込み関数 (WGSL の仕様の組み込み関数の表)。</summary>
+    private static readonly FrozenDictionary<string, int> Arities = new Dictionary<string, int>(StringComparer.Ordinal)
+    {
+        ["abs"] = 1, ["acos"] = 1, ["acosh"] = 1, ["asin"] = 1, ["asinh"] = 1, ["atan"] = 1, ["atanh"] = 1, ["ceil"] = 1, ["cos"] = 1, ["cosh"] = 1,
+        ["countLeadingZeros"] = 1, ["countOneBits"] = 1, ["countTrailingZeros"] = 1, ["degrees"] = 1, ["determinant"] = 1, ["exp"] = 1, ["exp2"] = 1,
+        ["firstLeadingBit"] = 1, ["firstTrailingBit"] = 1, ["floor"] = 1, ["fract"] = 1, ["frexp"] = 1, ["inverseSqrt"] = 1, ["length"] = 1,
+        ["log"] = 1, ["log2"] = 1, ["modf"] = 1, ["normalize"] = 1, ["quantizeToF16"] = 1, ["radians"] = 1, ["reverseBits"] = 1, ["round"] = 1,
+        ["saturate"] = 1, ["sign"] = 1, ["sin"] = 1, ["sinh"] = 1, ["sqrt"] = 1, ["tan"] = 1, ["tanh"] = 1, ["transpose"] = 1, ["trunc"] = 1,
+        ["all"] = 1, ["any"] = 1, ["arrayLength"] = 1,
+        ["dpdx"] = 1, ["dpdy"] = 1, ["fwidth"] = 1, ["dpdxCoarse"] = 1, ["dpdyCoarse"] = 1, ["fwidthCoarse"] = 1, ["dpdxFine"] = 1, ["dpdyFine"] = 1, ["fwidthFine"] = 1,
+        ["pack4x8snorm"] = 1, ["pack4x8unorm"] = 1, ["pack2x16snorm"] = 1, ["pack2x16unorm"] = 1, ["pack2x16float"] = 1,
+        ["pack4xI8"] = 1, ["pack4xU8"] = 1, ["pack4xI8Clamp"] = 1, ["pack4xU8Clamp"] = 1,
+        ["unpack4x8snorm"] = 1, ["unpack4x8unorm"] = 1, ["unpack2x16snorm"] = 1, ["unpack2x16unorm"] = 1, ["unpack2x16float"] = 1, ["unpack4xI8"] = 1, ["unpack4xU8"] = 1,
+        ["atan2"] = 2, ["cross"] = 2, ["distance"] = 2, ["dot"] = 2, ["ldexp"] = 2, ["max"] = 2, ["min"] = 2, ["pow"] = 2, ["reflect"] = 2, ["step"] = 2,
+        ["dot4I8Packed"] = 2, ["dot4U8Packed"] = 2,
+        ["clamp"] = 3, ["faceForward"] = 3, ["fma"] = 3, ["mix"] = 3, ["refract"] = 3, ["smoothstep"] = 3, ["select"] = 3, ["extractBits"] = 3,
+        ["insertBits"] = 4,
+        ["workgroupBarrier"] = 0, ["storageBarrier"] = 0, ["textureBarrier"] = 0, ["subgroupBarrier"] = 0,
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <inheritdoc/>
+    internal override bool TryGetIntrinsicArity(string name, out IntrinsicArity arity)
+    {
+        if (Arities.TryGetValue(name, out int count))
+        {
+            arity = new IntrinsicArity([count], -1);
+            return true;
+        }
+
+        arity = default;
+        return false;
+    }
 
     /// <inheritdoc/>
     internal override bool ResolvesIntrinsicsByOverloads => true;

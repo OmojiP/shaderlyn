@@ -264,6 +264,12 @@ public sealed class ExpressionTypeEvaluator
             return name;
         }
 
+        // WGSL の構造体の値の作成 (S(1, 2)) は、その構造体の値になる。
+        if (TypeSystem is WgslTypeSystem && _structFields.ContainsKey(name))
+        {
+            return name;
+        }
+
         // typedef の別名で値を作る式 (V3(1, 2, 3)) は、元の型の値になる。
         if (TypeAliases.TryGetValue(name, out string? aliasOf))
         {

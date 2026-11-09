@@ -90,8 +90,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                 structs = structsByProgram[program] = CollectStructs(compilation, program);
             }
 
-            // GLSL の関数の外の変数の初期値 (int a = true; など)。glslang は関数の中と同じく変換を検査する。
-            if (compilation.IsGlsl && declaration is VariableDeclarationSyntax global && compilation.IsReportable(global))
+            // GLSL の関数の外の変数の初期値 (int a = true; など)。glslang は関数の中と同じく変換を検査する。WGSL の const・override・var も同じ (naga)。
+            if ((compilation.IsGlsl || compilation.IsWgsl) && declaration is VariableDeclarationSyntax global && compilation.IsReportable(global))
             {
                 AnalyzeInitializers(context, compilation, program, conditions, compilation.GetExpressionTypeBinder(program), global, structs, reported);
                 continue;
