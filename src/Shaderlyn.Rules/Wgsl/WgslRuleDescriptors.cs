@@ -59,6 +59,48 @@ internal static class WgslRuleDescriptors
             + "または @builtin(clip_distances) の型が array<f32, N> (N は 8 以下) でありません。naga はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("WG0322"));
 
+    /// <summary>属性をその場所に書けない。</summary>
+    public static DiagnosticDescriptor AttributeNotAllowed { get; } = new(
+        id: "WG0101",
+        title: "この属性はここに書けません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "@must_use を関数でないもの (変数・構造体のメンバー) か値を返さない関数に書いた、同じ属性を 2 度書いた、"
+            + "または構造体のメンバーに書けない属性を書いています。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0101"));
+
+    /// <summary>@must_use の関数の戻り値を使っていない。</summary>
+    public static DiagnosticDescriptor UnusedMustUseResult { get; } = new(
+        id: "WG0338",
+        title: "戻り値を使わなければならない関数です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "@must_use を書いた関数を、戻り値を使わずに文として呼んでいます。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0338"));
+
+    /// <summary>メモリの配置の指定が正しくない。</summary>
+    public static DiagnosticDescriptor InvalidLayout { get; } = new(
+        id: "WG0103",
+        title: "メモリの配置の指定が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "構造体のメンバーの @align が 2 の累乗でないか、型の揃えより小さい、@size が型の大きさより小さい、"
+            + "または var<uniform> の配列の要素の間隔が 16 の倍数でありません。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0103"));
+
+    /// <summary>型が大きすぎる。</summary>
+    public static DiagnosticDescriptor TypeTooLarge { get; } = new(
+        id: "WG0339",
+        title: "型が大きすぎます",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列・構造体の大きさが 2147483647 バイト (2 GiB から 1 を引いた大きさ) を超えています。naga はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("WG0339"));
+
     /// <summary>定数式でなければならない実引数に、実行時の値を渡した。</summary>
     public static DiagnosticDescriptor ConstantArgumentRequired { get; } = new(
         id: "WG0303",

@@ -131,6 +131,8 @@ public static class BuiltInAnalyzers
         new Rules.Wgsl.WgslRecursionAnalyzer(),
         new Rules.Wgsl.WgslTypeAnalyzer(),
         new Rules.Wgsl.WgslEntryPointAnalyzer(),
+        new Rules.Wgsl.WgslLayoutAnalyzer(),
+        new Rules.Wgsl.WgslAttributeAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

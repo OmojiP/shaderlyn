@@ -110,6 +110,17 @@ public sealed class WgslRuleTests : IDisposable
     [InlineData("WG0322", "enable dual_source_blending;\nstruct FragmentOutput {\n    @location(0) @blend_src(0) output0: vec4<f32>,\n    @location(0) @blend_src(1) output1: f32,\n}\n")]
     [InlineData("WG0002", "@vertex\nfn main() -> @builtin(position) vec4<f32> {\n    if true {\n        discard;\n    }\n    return vec4<f32>();\n}\n")]
     [InlineData("WG0002", "fn helper() {\n    workgroupBarrier();\n}\n@fragment\nfn main() -> @location(0) vec4f {\n    helper();\n    return vec4f();\n}\n")]
+    // メモリの配置、大きさ、属性
+    [InlineData("WG0103", "struct Bar {\n    @align(7) data: array<f32>,\n}\n")]
+    [InlineData("WG0103", "struct Bar {\n    @align(8) data: vec3<f32>,\n}\n")]
+    [InlineData("WG0103", "struct Bar {\n    @size(0) data: array<f32, 1>,\n}\n")]
+    [InlineData("WG0103", "@group(0) @binding(0) var<uniform> input: array<vec2<u32>, 2>;\n")]
+    [InlineData("WG0339", "alias LargeArray = array<u32, 1 << 29>;\n")]
+    [InlineData("WG0339", "struct TwoArrays {\n    arr1: array<u32, 1 << 28>,\n    arr2: array<u32, 1 << 28>,\n}\n")]
+    [InlineData("WG0101", "struct S {\n    @must_use a: i32,\n}\n")]
+    [InlineData("WG0101", "@must_use\nfn use_me(a: i32) {\n    let x = a;\n}\n")]
+    [InlineData("WG0101", "@must_use\n@must_use\nfn use_me(a: i32) -> i32 {\n    return 10;\n}\n")]
+    [InlineData("WG0338", "@must_use\nfn use_me(a: i32) -> i32 {\n    return 10;\n}\nfn useless() -> i32 {\n    use_me(1);\n    return 0;\n}\n")]
     // 型引数を書かない値の作成の成分の数
     [InlineData("CF0404", "fn f() {\n    _ = vec4(1, 2, 3);\n}\n")]
     // enable していない拡張の機能
@@ -136,6 +147,8 @@ public sealed class WgslRuleTests : IDisposable
     [InlineData("struct Particles { count: u32, data: array<vec4f>, }\n@group(0) @binding(0) var<storage, read_write> particles: Particles;\n@group(0) @binding(1) var tex: texture_2d<f32>;\n@group(0) @binding(2) var out: texture_storage_2d<rgba8unorm, write>;\n@group(0) @binding(3) var samp: sampler;\nvar<workgroup> shared_data: array<atomic<u32>, 64>;\nfn g(p: ptr<function, f32>) -> f32 { return *p; }\nfn f() -> vec2<i32> {\n    var x = 1.0;\n    let m = mat2x2<f32>();\n    _ = g(&x);\n    return vec2();\n}\n")]
     // 正しいエントリポイント: 構造体の入出力、@blend_src の 2 つの出力、計算シェーダーの同期、フラグメントシェーダーの discard と微分
     [InlineData("enable dual_source_blending;\nstruct VsOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f, }\nstruct FsOut { @location(0) @blend_src(0) a: vec4f, @location(0) @blend_src(1) b: vec4f, }\n@group(0) @binding(0) var t: texture_2d<f32>;\n@group(0) @binding(1) var s: sampler;\n@vertex\nfn vs(@builtin(vertex_index) i: u32) -> VsOut { return VsOut(vec4f(), vec2f()); }\n@fragment\nfn fs(input: VsOut) -> FsOut {\n    if input.uv.x < 0.0 { discard; }\n    let c = textureSample(t, s, input.uv) * dpdx(input.uv.x);\n    return FsOut(c, c);\n}\n@compute @workgroup_size(64)\nfn cs(@builtin(global_invocation_id) id: vec3u) {\n    workgroupBarrier();\n}\n")]
+    // 正しい配置 (uniform の vec4 の配列、@align(16) の構造体、@size)、@must_use の戻り値を使う呼び出し
+    [InlineData("struct Light { @align(16) pos: vec3f, @size(16) power: f32, }\nstruct U { lights: array<Light, 4>, weights: array<vec4f, 2>, }\n@group(0) @binding(0) var<uniform> u: U;\n@must_use\nfn twice(x: f32) -> f32 { return x * 2.0; }\nfn f() -> f32 {\n    _ = twice(1.0);\n    let y = twice(2.0);\n    return y + u.lights[0].power;\n}\n")]
     // enable した拡張、自分で宣言した同じ名前の型
     [InlineData("enable f16;\nenable wgpu_ray_tracing_pipeline;\nfn f() -> f16 {\n    let h: vec3h = vec3<f16>(1.0h);\n    return h.x;\n}\n@group(0) @binding(0) var a: acceleration_structure;\n")]
     [InlineData("struct RayDesc { flags: u32, }\nfn f(r: RayDesc) -> u32 { return r.flags; }\n")]
