@@ -70,6 +70,14 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   構造体のメンバーとメソッド (CF0312) は、`extension` や `property` でメンバーが足されうる型 (インターフェイスの `extension` があれば、基底を持つ構造体) を除いて検査する。
   関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
 - VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
+- WGSL: `.wgsl` を WGSL として読み、構文の誤りを報告する (CF0001)。属性 (`@group(0)`・`@vertex`)、`fn` と `->`、`var<storage, read_write>`・`let`・`const`・`override`、
+  構造体、`alias`、型引数を書いた型 (`vec3<f32>`・`array<f32, 4>`・`ptr<function, f32>`) と短い名前 (`vec3f`)、`enable`・`requires`・`diagnostic`、`const_assert`、
+  `loop` と `continuing`・`break if`、`case` の値を並べた `switch`、`_ =`、入れ子のコメントを読む。型引数の `<` と比べる `<` は、WGSL の仕様と同じ手順で見分ける。
+  宣言・型・呼び出しを検査する (CF0310・CF0402・CF0410 など、C 系の共通のルール)。型を書かない数は抽象的な数として扱い、具体的な型への変換だけを暗黙に行う
+  (`i32` と `f32` の間は変換しない)。型を書かない `let` / `var` / `override` は初期値の型を具体的にしたもの、`const` は初期値の型として検査する。
+  関数の外の名前は、宣言より前でも使える。組み込み関数の名前は naga 30 のものを知っている
+- VS Code 拡張: WGSL (`.wgsl`) を解析する。説明・定義へ移動・補完は WGSL の型と組み込み関数で答える
+- `PreprocessorOptions.NestedBlockComments` / `ShaderLexer.NestedBlockComments`: 複数行コメントを入れ子にできるか (WGSL。既定はできない)
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
   `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の

@@ -136,6 +136,7 @@ public sealed class RuleFixtureTests
         ["GD0309"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0321"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
         ["GD0322"] = "Godot シェーダー言語だけの規則なので、Unity の .shader では起こせない",
+        ["WG0001"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
 
         // Unity のバージョンが分かるときだけ報告する (use_dxc d3d11 の非推奨は 6.6、inlineraytracing は 2023.2〜6.3)。
         // fixture はバージョンを渡さずに解析するので起こせない。CompileTargetRuleTests で確かめている。

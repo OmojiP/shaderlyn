@@ -7,10 +7,11 @@ ID の接頭辞から、ルールの種類と報告される環境が分かり�
 
 | 接頭辞 | 対象 | 出る環境 |
 | --- | --- | --- |
-| `CF` | C 系の言語に共通 (構文、宣言、型、解析の状況の知らせ) | どの環境でも (HLSL・GLSL・Godot) |
+| `CF` | C 系の言語に共通 (構文、宣言、型、解析の状況の知らせ) | どの環境でも (HLSL・GLSL・Godot・Slang・WGSL) |
 | `HL` | HLSL にしか無いもの (セマンティクス、レジスタ、cbuffer、template など) | HLSL を使う環境 (Unity・汎用の HLSL・Unreal) |
 | `GL` | GLSL にしか無いもの (バージョンと拡張、ステージ、layout など) | GLSL |
 | `GD` | Godot シェーダー言語にしか無いもの (演算子の型、組み込み、ステージ、ヒントなど) | Godot |
+| `WG` | WGSL にしか無いもの (拡張の enable など) | WGSL |
 | `SL` | ShaderLab (`.shader` の構文、Properties と HLSL の対応) | Unity |
 | `UN` | Unity のシェーダーコンパイラ・プリプロセッサ・ファイルの読み込みの振る舞い (`.hlsl` に出るものもある) | Unity |
 | `URP` | レンダーパイプライン (URP / HDRP) | Unity |
@@ -269,6 +270,14 @@ Godot シェーダー言語にしか無いものです。Godot 4.7.2 がエラ�
 | [GD0334](GD0334.md) | サンプラーの仮引数に設定の違うテクスチャを渡した (フィルター・繰り返し・ヒントの違う uniform、uniform と組み込みの混在、RADIANCE) | エラー |
 | [GD0403](GD0403.md) | その宣言には使えない型 (構造体と void の uniform、サンプラーの varying、サンプラーの構造体のメンバーなど) | エラー |
 | [GD0405](GD0405.md) | 組み込みの名前を宣言し直した (局所変数の TIME、const の PI、uniform の ALBEDO、関数の sin など) | エラー |
+
+## WGSL
+
+WGSL にしか無いものです。naga 30 (wgpu の WGSL のコンパイラ) がエラーにする箇所を報告します。
+
+| ID                  | 内容                                                       | 既定   |
+| ------------------- | ---------------------------------------------------------- | ------ |
+| [WG0001](WG0001.md) | enable していない拡張の機能を使った (f16、binding_array、光線の照会、メッシュシェーダー、@blend_src、@builtin(clip_distances) など) | エラー |
 
 ## レンダーパイプライン固有
 

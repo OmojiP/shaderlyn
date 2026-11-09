@@ -119,6 +119,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       { scheme: "file", pattern: "**/*.{gdshader,gdshaderinc}" },
       // Slang (サーバの SlangAnalysisEnvironment.Extensions と揃えること)。
       { scheme: "file", pattern: "**/*.slang" },
+      // WGSL (サーバの WgslAnalysisEnvironment.Extensions と揃えること)。
+      { scheme: "file", pattern: "**/*.wgsl" },
     ],
     synchronize: {
       // 設定を書き換えたらサーバへ伝える。

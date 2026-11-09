@@ -5,6 +5,7 @@ DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine
 GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
 Godot のシェーダー（`.gdshader` / `.gdshaderinc`）も、設定なしで Godot 4 のコンパイラと同じ誤りを報告し、説明・定義へ移動・補完・引数の案内も Godot の型と組み込み（`ALBEDO`・`TIME` など）で答えます。`render_mode` のモードと uniform のヒントも補完します。レンダラー（Forward+ / Mobile / Compatibility）は `project.godot` から読みます。
 Slang（`.slang`）も、構文と宣言・呼び出しを検査し（開発中）、説明・定義へ移動・補完では `import` したモジュールと標準ライブラリ（`CoopVec` など）を使います。
+WGSL（`.wgsl`）も、構文と宣言・型・呼び出しを検査し（開発中）、説明・定義へ移動・補完も WGSL の型と組み込み関数で答えます。
 
 ## 主な機能
 

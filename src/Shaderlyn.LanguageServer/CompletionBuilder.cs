@@ -304,8 +304,8 @@ internal static partial class CompletionBuilder
 
         foreach (string name in types.FunctionNames)
         {
-            // Godot の表は値の作成 (vec3(…)) も関数として持つ。型は型として出す。
-            if (types is GodotTypeSystem && types.IsBuiltInTypeName(name))
+            // Godot の表は値の作成 (vec3(…)) も関数として持つ。型は型として出す (WGSL の vec3・array も同じ)。
+            if (types is GodotTypeSystem or WgslTypeSystem && types.IsBuiltInTypeName(name))
             {
                 continue;
             }
@@ -326,6 +326,18 @@ internal static partial class CompletionBuilder
             }
 
             foreach (string name in Godot.Parsing.GodotKeywords.BuiltInTypes)
+            {
+                Add(name, KindKeyword, "型");
+            }
+        }
+        else if (types is WgslTypeSystem wgsl)
+        {
+            foreach ((string name, string type) in wgsl.BuiltinValues)
+            {
+                Add(name, KindVariable, $"{type} (組み込みの値)");
+            }
+
+            foreach (string name in wgsl.CompletionTypeNames)
             {
                 Add(name, KindKeyword, "型");
             }
