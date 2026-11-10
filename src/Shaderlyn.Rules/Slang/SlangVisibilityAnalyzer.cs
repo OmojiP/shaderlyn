@@ -25,7 +25,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.NotAccessible];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.NotAccessible, SlangRuleDescriptors.InvalidVisibility];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -38,6 +38,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             AnalyzeModules(context, compilation, program);
+            AnalyzeDeclaredVisibility(context, compilation, program);
         }
 
         Dictionary<AnalyzedProgram, Dictionary<string, HashSet<string>>> privatesByProgram = [];
@@ -133,50 +134,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                                         && (set.Contains("module") || set.Contains("public") || set.Contains("internal") || set.Contains("private"));
 
         bool IsPublic(ShaderSyntaxToken keyword, ImmutableArray<ShaderSyntaxToken> modifiers)
-        {
-            if (modifiers.Any(t => t.Text == "public"))
-            {
-                return true;
-            }
-
-            // 構造体と列挙型の宣言は修飾子を持たないので、キーワードの前の語を、前の宣言の終わり (; { }) まで見る
-            // (属性 [ … ] と、修飾子の引数 ( … ) は越える。dyn・export などのほかの修飾子も越える)。
-            if (!index.TryGetValue(keyword, out int at))
-            {
-                return true;
-            }
-
-            int depth = 0;
-
-            for (int i = at - 1; i >= 0; i--)
-            {
-                ShaderSyntaxToken previous = tokens[i];
-
-                if (previous.Kind is ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.CloseParenToken)
-                {
-                    depth++;
-                }
-                else if (previous.Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.OpenParenToken)
-                {
-                    depth--;
-                }
-                else if (depth == 0)
-                {
-                    if (previous.Text == "public")
-                    {
-                        return true;
-                    }
-
-                    if (previous.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken
-                        || !string.Equals(previous.Source.FilePath, keyword.Source.FilePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return false;
-        }
+            => modifiers.Any(t => t.Text == "public") || VisibilityBefore(keyword, tokens, index) is null or "public";
 
         // 名前ごとの、使えない宣言と使える宣言。
         HashSet<string> hidden = new(StringComparer.Ordinal);
@@ -292,6 +250,240 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// 解析するファイルの宣言に書いた可視性を検査する (SG0402)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    /// <item>関数の外の宣言の <c>private</c> (E30603。private は型のメンバーにだけ書ける)</item>
+    /// <item>public でない構造体の、public のメンバー (E30601。メンバーは親より見えるようにできない)</item>
+    /// <item>public の宣言 (関数・変数・typealias・public の構造体の public のメンバー) が、このファイルの public でない型を使うもの (E30604)。
+    /// public の構造体の public のフィールドなら、構造体の名前でも報告する (slangc と同じ。メソッドのときは報告しない)</item>
+    /// </list>
+    /// 可視性を何も書かないファイルは、どれも起こらない。
+    /// </remarks>
+    private static void AnalyzeDeclaredVisibility(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, AnalyzedProgram program)
+    {
+        string? root = compilation.Text.FilePath;
+        ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+
+        if (root is null || !tokens.Any(t => t.Text is "public" or "private" && string.Equals(t.Source.FilePath, root, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Dictionary<ShaderSyntaxToken, int> index = new(ReferenceEqualityComparer.Instance);
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            index[tokens[i]] = i;
+        }
+
+        bool InRoot(ShaderSyntaxToken token) => string.Equals(token.Source.FilePath, root, StringComparison.OrdinalIgnoreCase);
+
+        string Visibility(ShaderSyntaxToken keyword, ImmutableArray<ShaderSyntaxToken> modifiers)
+            => modifiers.FirstOrDefault(t => t.Text is "public" or "internal" or "private")?.Text ?? VisibilityBefore(keyword, tokens, index) ?? "public";
+
+        void Report(ShaderSyntaxToken? token, string message)
+        {
+            if (token is { IsMissing: false } && compilation.IsReportable(token) && token.GetLocation() is { } location)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InvalidVisibility, location, message));
+            }
+        }
+
+        // このファイルの、public でない型 (構造体・列挙型・インターフェイス・typealias)。同じ名前の public の宣言があれば外す。
+        HashSet<string> lessVisible = new(StringComparer.Ordinal);
+        HashSet<string> publicTypes = new(StringComparer.Ordinal);
+
+        foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
+        {
+            (ShaderSyntaxToken? keyword, string? name) = node switch
+            {
+                StructDeclarationSyntax { NameToken: { } structName } structure => (structure.Keyword, structName.Text),
+                EnumDeclarationSyntax { NameToken: { } enumName } enumeration => (enumeration.Keyword, enumName.Text),
+                IncompleteDeclarationSyntax { Tokens: [{ Text: "typealias" } alias, { Kind: ShaderSyntaxKind.IdentifierToken } aliasName, ..] } => (alias, aliasName.Text),
+                _ => (null, null),
+            };
+
+            if (keyword is null || name is null)
+            {
+                continue;
+            }
+
+            (InRoot(keyword) && Visibility(keyword, []) != "public" ? lessVisible : publicTypes).Add(name);
+        }
+
+        lessVisible.ExceptWith(publicTypes);
+
+        string? LessVisible(TypeSyntax? type)
+            => type is { QualifierTokens.IsEmpty: true, NameToken: { } name } && lessVisible.Contains(name.Text) ? name.Text : null;
+
+        void CheckSignature(FunctionDeclarationSyntax function)
+        {
+            if (LessVisible(function.ReturnType) is { } returned)
+            {
+                Report(function.ReturnType.NameToken, $"public の '{function.Name}' の戻り値の型 {returned} は public ではありません。");
+            }
+
+            foreach (ParameterSyntax parameter in function.ParameterList)
+            {
+                if (LessVisible(parameter.Type) is { } parameterType)
+                {
+                    Report(parameter.Type.NameToken, $"public の '{function.Name}' の仮引数の型 {parameterType} は public ではありません。");
+                }
+            }
+        }
+
+        foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
+        {
+            if (node is not DeclarationSyntax declaration || declaration.FirstToken is not { } first || !InRoot(first))
+            {
+                continue;
+            }
+
+            bool topLevel = declaration.Parent is CompilationUnitSyntax or Hlsl.Syntax.NamespaceDeclarationSyntax;
+
+            switch (declaration)
+            {
+                case FunctionDeclarationSyntax function when topLevel:
+                {
+                    string visibility = Visibility(function.NameToken, function.ModifierTokens);
+
+                    if (visibility == "private")
+                    {
+                        Report(function.ModifierTokens.First(t => t.Text == "private"), $"'{function.Name}' は型のメンバーではないので、private にできません。");
+                    }
+                    else if (visibility == "public")
+                    {
+                        CheckSignature(function);
+                    }
+
+                    break;
+                }
+
+                case VariableDeclarationSyntax variable when topLevel:
+                {
+                    if (variable.ModifierTokens.FirstOrDefault(t => t.Text == "private") is { } privateToken)
+                    {
+                        Report(privateToken, "関数の外の変数は型のメンバーではないので、private にできません。");
+                    }
+                    else if (variable.ModifierTokens.Any(t => t.Text == "public") && LessVisible(variable.Type) is { } variableType)
+                    {
+                        Report(variable.Type.NameToken, $"public の変数の型 {variableType} は public ではありません。");
+                    }
+
+                    break;
+                }
+
+                case IncompleteDeclarationSyntax { Tokens: [{ Text: "typealias" } alias, ..] incomplete } when topLevel && Visibility(alias, []) == "public":
+                    foreach (ShaderSyntaxToken target in incomplete.SkipWhile(t => t.Kind != ShaderSyntaxKind.EqualsToken).Where(t => lessVisible.Contains(t.Text)))
+                    {
+                        Report(target, $"public の typealias が指す型 {target.Text} は public ではありません。");
+                    }
+
+                    break;
+
+                case StructDeclarationSyntax { NameToken: { } structName, Keyword.Text: "struct" or "class" } structure:
+                {
+                    string visibility = Visibility(structure.Keyword, []);
+
+                    if (topLevel && visibility == "private")
+                    {
+                        Report(structure.Keyword, $"'{structName.Text}' は型のメンバーではないので、private にできません。");
+                        break;
+                    }
+
+                    bool exposesLessVisible = false;
+
+                    foreach (DeclarationSyntax member in structure.Members)
+                    {
+                        (ShaderSyntaxToken? memberName, ImmutableArray<ShaderSyntaxToken> modifiers) = member switch
+                        {
+                            VariableDeclarationSyntax field => (field.Variables.FirstOrDefault()?.NameToken, field.ModifierTokens),
+                            FunctionDeclarationSyntax method => (method.NameToken, method.ModifierTokens),
+                            _ => (null, []),
+                        };
+
+                        if (memberName is null || !modifiers.Any(t => t.Text == "public"))
+                        {
+                            continue;
+                        }
+
+                        if (visibility != "public")
+                        {
+                            Report(memberName, $"'{memberName.Text}' を public にしていますが、親の {structName.Text} が public ではありません。メンバーは親より見えるようにできません。");
+                            continue;
+                        }
+
+                        if (member is VariableDeclarationSyntax publicField && LessVisible(publicField.Type) is { } fieldType)
+                        {
+                            Report(publicField.Type.NameToken, $"public のフィールド '{memberName.Text}' の型 {fieldType} は public ではありません。");
+                            exposesLessVisible = true;
+                        }
+                        else if (member is FunctionDeclarationSyntax publicMethod)
+                        {
+                            CheckSignature(publicMethod);
+                        }
+                    }
+
+                    if (exposesLessVisible)
+                    {
+                        Report(structName, $"public の {structName.Text} の public のメンバーが、public でない型を使っています。");
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 宣言のキーワードの前に書いた可視性 (public・internal・private)。書いていなければ空文字列、前の語を引けなければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 構造体と列挙型の宣言は修飾子を持たないので、キーワードの前の語を、前の宣言の終わり (; { }) まで見る
+    /// (属性 [ … ] と、修飾子の引数 ( … ) は越える。dyn・export などのほかの修飾子も越える)。
+    /// </remarks>
+    private static string? VisibilityBefore(ShaderSyntaxToken keyword, ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<ShaderSyntaxToken, int> index)
+    {
+        if (!index.TryGetValue(keyword, out int at))
+        {
+            return null;
+        }
+
+        int depth = 0;
+
+        for (int i = at - 1; i >= 0; i--)
+        {
+            ShaderSyntaxToken previous = tokens[i];
+
+            if (previous.Kind is ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.CloseParenToken)
+            {
+                depth++;
+            }
+            else if (previous.Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.OpenParenToken)
+            {
+                depth--;
+            }
+            else if (depth == 0)
+            {
+                if (previous.Text is "public" or "internal" or "private")
+                {
+                    return previous.Text;
+                }
+
+                if (previous.Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken
+                    || !string.Equals(previous.Source.FilePath, keyword.Source.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Empty;
+                }
+            }
+        }
+
+        return string.Empty;
     }
 
     /// <summary>構造体ごとの private のメンバーの名前。同じ名前の public のメンバー (多重定義) があれば外す。</summary>

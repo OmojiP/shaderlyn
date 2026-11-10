@@ -727,6 +727,14 @@ public sealed class ExpressionTypeEvaluator
 
         if (Resolve(identifier) is { } resolved)
         {
+            // ConstantBuffer<float4x4> の値は、中の float4x4 として振る舞う (数の型のときだけ。構造体のメンバーは別の規則で引く)。
+            if (!resolved.IsArray
+                && resolved.TypeName is "ConstantBuffer" or "ParameterBlock" or "TextureBuffer"
+                && TypeSystem.TryDescribeNumeric(resolved.TemplateArgument, out _))
+            {
+                return resolved.TemplateArgument;
+            }
+
             return resolved.IsArray ? null : resolved.TypeName;
         }
 

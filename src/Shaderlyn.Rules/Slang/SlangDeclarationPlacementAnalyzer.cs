@@ -20,6 +20,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>構造体・extension の中の namespace・extension・interface・__constraint。インターフェイスの中の、それに加えて enum・struct・class</item>
 /// <item>ファイルの直下の __init と associatedtype</item>
 /// <item>関数の中の関数の定義 (<c>float g(int x) { … }</c>)</item>
+/// <item>extension とインターフェイスの中の、static でないフィールド (E31400)</item>
 /// </list>
 /// </remarks>
 internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
@@ -129,6 +130,33 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            // extension<T = int> Foo<T> と __func_extension<T : IFloat = float> … の既定値 (E20104)。extension のジェネリックの仮引数は、型から決まるので既定値を書けない。
+            if (token.Text is "extension" or "__func_extension" && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.LessThanToken)
+            {
+                int depth = 0;
+
+                for (int j = i + 1; j < tokens.Length; j++)
+                {
+                    depth += tokens[j].Kind switch
+                    {
+                        ShaderSyntaxKind.LessThanToken => 1,
+                        ShaderSyntaxKind.GreaterThanToken => -1,
+                        ShaderSyntaxKind.GreaterThanGreaterThanToken => -2,
+                        _ => 0,
+                    };
+
+                    if (depth <= 0 || tokens[j].Kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken)
+                    {
+                        break;
+                    }
+
+                    if (depth == 1 && tokens[j].Kind == ShaderSyntaxKind.EqualsToken && tokens[j - 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                    {
+                        report(tokens[j], $"{token.Text} のジェネリックの仮引数には既定値を書けません (仮引数は、拡張する型から決まります)。");
+                    }
+                }
+            }
+
             if (!atStatementStart)
             {
                 continue;
@@ -147,6 +175,20 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
             if (what is not null)
             {
                 report(token, $"{Describe(container)}の中に {what} は書けません。");
+                continue;
+            }
+
+            // extension とインターフェイスの中の、static でないフィールド (int x; / let x = 0;。E31400)。メソッド (名前の後ろが「(」) と、型引数のある型のフィールドは見ない。
+            if (container is Container.Extension or Container.Interface
+                && i + 2 < tokens.Length
+                && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                && (tokens[i + 2].Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.OpenBracketToken
+                    || (token.Text is "let" or "var" && tokens[i + 2].Kind == ShaderSyntaxKind.ColonToken))
+                && (token.Text is "let" or "var" || !Shaderlyn.Slang.Parsing.SlangKeywords.DeclarationKeywords.Contains(token.Text))
+                && token.Text is not ("return" or "typedef" or "using" or "static" or "const")
+                && !tokens[statementStart..i].Any(t => t.Text is "static" or "typedef"))
+            {
+                report(tokens[i + 1], $"{Describe(container)}の中に、static でないフィールド '{tokens[i + 1].Text}' は書けません。{(container == Container.Interface ? "値の要件は static const で書いてください。" : "extension で足せるのは、メソッド・static のメンバー・型だけです。")}");
                 continue;
             }
 
@@ -306,8 +348,8 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
     {
         Container.Struct => "構造体",
         Container.Interface => "インターフェイス",
-        Container.Extension => "extension",
-        Container.Namespace => "namespace",
+        Container.Extension => "extension ",
+        Container.Namespace => "namespace ",
         _ => "ファイルの直下",
     };
 }

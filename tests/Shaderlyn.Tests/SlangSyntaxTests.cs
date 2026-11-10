@@ -53,6 +53,7 @@ public sealed class SlangSyntaxTests
     [InlineData("void f()\n{\n    float a = (1.0 + 2.0;\n}\n", 3)]
     [InlineData("struct S\n{\n    float a\n}\n", 4)]
     [InlineData("func f(a : int) -> int\n{\n    return a +;\n}\n", 3)]
+    [InlineData("struct S { int a; }\ntypedef int;\n", 2)]
     public void 構文の誤りを報告する(string code, int line)
     {
         ShaderSyntaxTree tree = Parse(code);

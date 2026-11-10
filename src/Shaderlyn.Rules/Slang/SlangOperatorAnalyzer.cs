@@ -9,7 +9,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules.Slang;
 
 /// <summary>
-/// Slang の、形の合わない値どうしの組み込みの演算子を検査する (SG0301)。
+/// Slang の、形の合わない値どうしの組み込みの演算子、浮動小数のビット演算・シフト、構造体の値への組み込みの演算子を検査する (SG0301)。条件の値 (SG0311) も見る。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -58,6 +58,30 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                 .Where(s => s.Keyword.Text is "struct" or "class" && s.NameToken is not null)
                 .Select(s => s.NameToken!.Text)];
 
+            // 演算子を持たないと言える構造体 (基底を書かないもの)。IArithmetic・IComparable などに適合すると、標準ライブラリの演算子 (T operator+<T : IArithmetic>) が働く。
+            HashSet<string> plainStructs = [.. program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                .Where(s => s.Keyword.Text is "struct" or "class" && s.NameToken is not null && s.ColonToken is null)
+                .Select(s => s.NameToken!.Text)];
+            plainStructs.ExceptWith(program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                .Where(s => s.ColonToken is not null && s.NameToken is not null)
+                .Select(s => s.NameToken!.Text));
+
+            SlangOpenTypes open = SlangOpenTypes.Of(compilation);
+
+            // 列挙型と、その基になる型 (書かなければ int)。同じ名前が 2 つあれば決められないので外す。
+            Dictionary<string, string?> enums = new(StringComparer.Ordinal);
+
+            foreach (EnumDeclarationSyntax enumeration in program.Tree.Root.DescendantNodesAndSelf().OfType<EnumDeclarationSyntax>())
+            {
+                if (enumeration.NameToken is { } enumName)
+                {
+                    string baseType = enumeration.BaseTypeTokens.FirstOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text ?? "int";
+                    enums[enumName.Text] = enums.ContainsKey(enumName.Text) ? null : baseType;
+                }
+            }
+            bool extendsOperators = program.Tree.Root.DescendantNodesAndSelf().OfType<IncompleteDeclarationSyntax>()
+                .Any(d => d.Tokens.Any(t => t.Text == "operator" || t.Text.StartsWith("operator", StringComparison.Ordinal)));
+
             foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
             {
                 // 条件 (if・while・for・do の条件) は、スカラーでなければならない (E30019)。?: の条件と ! の値は、ベクトルと行列なら成分ごとに働くが、構造体と資源の型は誤り (E39999)。
@@ -91,6 +115,62 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     _ => null,
                 };
 
+                // ?: の 2 つの枝の型が合わない (E39999・E30019)。
+                if (node is ConditionalExpressionSyntax branches
+                    && DescribeBranchMismatch(binder, types, plainStructs, open, enums, branches) is { } mismatch
+                    && compilation.IsReportable(branches.QuestionToken)
+                    && branches.QuestionToken.GetLocation() is { } branchLocation)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, branchLocation,
+                        $"?: の 2 つの枝の型 ({mismatch}) が合いません。片方をもう片方の型へ変換してください。"));
+                }
+
+                // 構造体の値への組み込みの演算子 (int += S、S * 2、S == S、-S)。利用者が演算子を定義していなければ誤り (E39999・E30019)。
+                // extension の本体は読んでいないので、そこで演算子を定義しうるファイル (operator を含む extension) と、メンバーを決められない型は見ない。
+                ShaderSyntaxToken? structOperator = operation is var (structToken, _, _) ? structToken
+                    : node is PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.TildeToken } unary ? unary.OperatorToken
+                    : null;
+
+                if (structOperator is not null
+                    && !extendsOperators
+                    && !userOperators.Contains(structOperator.Text.TrimEnd('='))
+                    && !userOperators.Contains(structOperator.Text)
+                    && (operation is var (_, structLeft, structRight)
+                        ? StructOperand(binder, plainStructs, open, structLeft) ?? StructOperand(binder, plainStructs, open, structRight)
+                        : StructOperand(binder, plainStructs, open, ((PrefixUnaryExpressionSyntax)node).Operand)) is { } structName
+                    && compilation.IsReportable(structOperator)
+                    && structOperator.GetLocation() is { } structLocation)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, structLocation,
+                        $"演算子 '{structOperator.Text}' は構造体 {structName} の値に使えません。使うなら、operator{structOperator.Text.TrimEnd('=')} を定義してください。"));
+                    continue;
+                }
+
+                // ビット演算とシフトは整数 (と bool) に限る。二項の演算はどちらかが浮動小数なら、複合代入は左が浮動小数なら誤り (右は左の型へ変換される)。
+                if (operation is var (bitToken, bitLeft, bitRight)
+                    && IsBitwise(bitToken.Kind)
+                    && !userOperators.Contains(bitToken.Text.TrimEnd('='))
+                    && (FloatingOperand(binder, types, bitLeft)
+                        ?? (node is BinaryExpressionSyntax ? FloatingOperand(binder, types, bitRight) : null)) is { } floating
+                    && compilation.IsReportable(bitToken)
+                    && bitToken.GetLocation() is { } bitLocation)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, bitLocation,
+                        $"演算子 '{bitToken.Text}' (ビット演算とシフト) には整数の値が要りますが、{floating} の値を使っています。"));
+                    continue;
+                }
+
+                if (node is PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.TildeToken } complement
+                    && !userOperators.Contains("~")
+                    && FloatingOperand(binder, types, complement.Operand) is { } complemented
+                    && compilation.IsReportable(complement.OperatorToken)
+                    && complement.OperatorToken.GetLocation() is { } complementLocation)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, complementLocation,
+                        $"演算子 '~' には整数の値が要りますが、{complemented} の値を使っています。"));
+                    continue;
+                }
+
                 if (operation is not var (token, leftExpression, rightExpression)
                     || userOperators.Contains(token.Text)
                     || userOperators.Contains(token.Text.TrimEnd('='))
@@ -114,6 +194,91 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>?: の 2 つの枝の型が合わなければ、その 2 つの型。合うか分からなければ <see langword="null"/>。</summary>
+    /// <remarks>
+    /// slangc 2026.19 で確かめた: 形の違うベクトル・行列 (float3 と float4)、違う構造体どうし、構造体と数、
+    /// 列挙型と、その基になる型でも int でもない値 (int の列挙型なら uint・float、別の列挙型) は合わない (int は基になる型へ変換される)。
+    /// </remarks>
+    private static string? DescribeBranchMismatch(
+        ExpressionTypeBinder binder,
+        ShaderTypeSystem types,
+        HashSet<string> plainStructs,
+        SlangOpenTypes open,
+        Dictionary<string, string?> enums,
+        ConditionalExpressionSyntax conditional)
+    {
+        if (binder.GetTypesByConfiguration(conditional.WhenTrue) is not [{ Type: { } whenTrue }]
+            || binder.GetTypesByConfiguration(conditional.WhenFalse) is not [{ Type: { } whenFalse }]
+            || whenTrue == whenFalse
+            || IsArrayValue(binder, conditional.WhenTrue)
+            || IsArrayValue(binder, conditional.WhenFalse))
+        {
+            return null;
+        }
+
+        bool trueNumeric = types.TryDescribeNumeric(whenTrue, out ShaderNumericShape trueShape);
+        bool falseNumeric = types.TryDescribeNumeric(whenFalse, out ShaderNumericShape falseShape);
+
+        if (trueNumeric && falseNumeric)
+        {
+            return !IsScalarLike(trueShape) && !IsScalarLike(falseShape)
+                   && (trueShape.Kind != falseShape.Kind || trueShape.Rows != falseShape.Rows || trueShape.Columns != falseShape.Columns)
+                ? $"{whenTrue} と {whenFalse}"
+                : null;
+        }
+
+        bool IsPlainStruct(string name) => plainStructs.Contains(name) && !open.Contains(name);
+
+        // 構造体どうし (違う名前)、構造体と数・列挙型。
+        if (IsPlainStruct(whenTrue) || IsPlainStruct(whenFalse))
+        {
+            return (IsPlainStruct(whenTrue) || trueNumeric || enums.ContainsKey(whenTrue))
+                   && (IsPlainStruct(whenFalse) || falseNumeric || enums.ContainsKey(whenFalse))
+                ? $"{whenTrue} と {whenFalse}"
+                : null;
+        }
+
+        // 列挙型と、基になる型でない値。
+        bool Mismatch(string enumName, string other, bool otherNumeric, ShaderNumericShape otherShape)
+            => enums.TryGetValue(enumName, out string? baseType) && baseType is not null
+               && ((otherNumeric && (otherShape.Kind != ShaderNumericKind.Scalar || (otherShape.BaseName != baseType && otherShape.BaseName != "int")))
+                   || (enums.ContainsKey(other) && other != enumName));
+
+        return Mismatch(whenTrue, whenFalse, falseNumeric, falseShape) || Mismatch(whenFalse, whenTrue, trueNumeric, trueShape)
+            ? $"{whenTrue} と {whenFalse}"
+            : null;
+    }
+
+    private static bool IsArrayValue(ExpressionTypeBinder binder, ExpressionSyntax expression)
+        => expression is IdentifierExpressionSyntax identifier
+           && binder.ResolveName(identifier).Candidates is { IsEmpty: false } candidates
+           && candidates.Any(c => c.Type.IsArray);
+
+    /// <summary>このファイルの構造体の値なら、その型の名前。</summary>
+    private static string? StructOperand(ExpressionTypeBinder binder, HashSet<string> structs, SlangOpenTypes open, ExpressionSyntax expression)
+    {
+        if (expression is IdentifierExpressionSyntax identifier
+            && binder.ResolveName(identifier).Candidates is { IsEmpty: false } candidates
+            && candidates.Any(c => c.Type.IsArray))
+        {
+            return null;
+        }
+
+        return binder.GetTypesByConfiguration(expression) is [{ Type: { } name }] && structs.Contains(name) && !open.Contains(name) ? name : null;
+    }
+
+    private static bool IsBitwise(ShaderSyntaxKind kind) => kind is ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
+        or ShaderSyntaxKind.LessThanLessThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken
+        or ShaderSyntaxKind.AmpersandEqualsToken or ShaderSyntaxKind.BarEqualsToken or ShaderSyntaxKind.CaretEqualsToken
+        or ShaderSyntaxKind.LessThanLessThanEqualsToken or ShaderSyntaxKind.GreaterThanGreaterThanEqualsToken;
+
+    /// <summary>浮動小数の値なら、その型の名前。そうでないか分からなければ <see langword="null"/>。</summary>
+    private static string? FloatingOperand(ExpressionTypeBinder binder, ShaderTypeSystem types, ExpressionSyntax expression)
+        => ShapeOf(binder, types, expression) is { } shape
+           && shape.BaseName is "float" or "half" or "double" or "min16float" or "min10float" or "float16_t" or "float32_t" or "float64_t"
+            ? Describe(shape)
+            : null;
 
     private static bool IsChecked(ShaderSyntaxKind kind) => kind is ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.AsteriskToken
         or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken or ShaderSyntaxKind.AmpersandToken or ShaderSyntaxKind.BarToken or ShaderSyntaxKind.CaretToken
@@ -177,6 +342,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
 
     private static string Describe(ShaderNumericShape shape) => shape.Kind switch
     {
+        ShaderNumericKind.Scalar => shape.BaseName,
         ShaderNumericKind.Matrix => $"{shape.BaseName}{shape.Rows}x{shape.Columns}",
         _ => $"{shape.BaseName}{shape.Columns}",
     };

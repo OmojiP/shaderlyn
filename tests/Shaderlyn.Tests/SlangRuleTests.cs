@@ -46,6 +46,27 @@ public sealed class SlangRuleTests : IDisposable
     // 形の違う値どうしの演算子
     [InlineData("SG0301", "float3 f(float3 a, float4 b)\n{\n    return a + b;\n}\n")]
     [InlineData("SG0301", "float2 f(float2 v, float2x2 m)\n{\n    return v * m;\n}\n")]
+    // extension とインターフェイスの中のフィールド、extension の既定値、参照の型のフィールド
+    [InlineData("SG0101", "struct T { int a; }\nextension T\n{\n    int b;\n}\n")]
+    [InlineData("SG0101", "interface I\n{\n    int v;\n}\n")]
+    [InlineData("SG0101", "struct Foo<T> { T v; }\nextension<T = int> Foo<T>\n{\n    T get() { return v; }\n}\n")]
+    [InlineData("SG0406", "struct A { Ref<float> f; }\n")]
+    // 可視性の書き方
+    [InlineData("SG0402", "private struct Hidden { }\n")]
+    [InlineData("SG0402", "struct Inner { public int x; }\n")]
+    [InlineData("SG0402", "struct IS { int a; }\npublic IS make() { return {}; }\n")]
+    [InlineData("SG0402", "struct IS { int a; }\npublic struct P { public IS s; }\n")]
+    // 構造体の値への組み込みの演算子、ConstantBuffer の値の縮める変換
+    [InlineData("SG0301", "struct S { int a; }\nbool f(S s)\n{\n    return s == s;\n}\n")]
+    [InlineData("SG0301", "struct S { int a; }\nvoid f(S s)\n{\n    let t = s * 2;\n}\n")]
+    [InlineData("CF0410", "ConstantBuffer<float4x4> m;\nfloat4 f()\n{\n    float4 v = m;\n    return v;\n}\n")]
+    // ?: の枝の型が合わない
+    [InlineData("SG0301", "enum E { A, B }\nuint f(bool c, uint u)\n{\n    return c ? u : E.B;\n}\n")]
+    [InlineData("SG0301", "float4 f(bool c)\n{\n    return c ? float3(1) : float4(1);\n}\n")]
+    // ビット演算とシフトの浮動小数
+    [InlineData("SG0301", "float f(float a, float b)\n{\n    return a | b;\n}\n")]
+    [InlineData("SG0301", "int f(int i, float a)\n{\n    return i << a;\n}\n")]
+    [InlineData("SG0301", "float f(float a)\n{\n    return ~a;\n}\n")]
     // [mutating] でないメソッドの中の、フィールドへの書き込み
     [InlineData("SG0309", "struct S\n{\n    float r;\n    void set(float x) { r = x; }\n}\n")]
     [InlineData("SG0309", "struct S\n{\n    float3 c;\n    void grow() { this.c.x += 1; }\n}\n")]
@@ -136,7 +157,17 @@ public sealed class SlangRuleTests : IDisposable
     // 形のそろった演算子: スカラーと 1 成分の値はどの形とも組める、import glsl の行列とベクトルの積
     [InlineData("float3 f(float3 a, float4 b, float1 one, float2x2 m)\n{\n    float3 c = a + b.xyz + one + 2.0;\n    c *= 0.5;\n    float2x2 n = m * m + 1.0;\n    return c + n[0].x;\n}\n")]
     [InlineData("import glsl;\nfloat2 f(float2 v, float2x2 m)\n{\n    return m * v;\n}\n")]
-    // 書き換えてよいもの: [mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
+    // extension とインターフェイスに書けるもの: static のメンバー・typedef・メソッド。局所変数は参照にできる
+    [InlineData("struct T { int a; }\nextension T\n{\n    static int counter;\n    typedef float Real;\n    int get() { return a; }\n}\ninterface I\n{\n    static const int N;\n    float get();\n}\nvoid g(float x)\n{\n    Ref<float> r = x;\n}\n")]
+    // 正しい可視性:public の型を使う public の宣言、internal のフィールド、public の構造体の private のメンバー
+    [InlineData("struct IS { int a; }\npublic struct PS { public int b; }\npublic struct Q { IS s; private int c; public PS p; }\npublic PS make() { return {}; }\ninternal IS hidden() { return {}; }\n")]
+    // 構造体の演算子: 利用者が定義したもの、IArithmetic などに適合する型 (標準ライブラリの演算子)
+    [InlineData("struct T { int v; }\nT operator+(T a, T b) { return a; }\nstruct N : IComparable\n{\n    int v;\n    bool equals(N o) { return v == o.v; }\n    bool lessThan(N o) { return v < o.v; }\n    bool lessThanOrEquals(N o) { return v <= o.v; }\n}\nbool f(T t, N n)\n{\n    let u = t + t;\n    return n == n;\n}\n")]
+    // ?: の枝: 列挙型と基になる型・int、同じ型、スカラーとベクトル
+    [InlineData("enum E { A, B }\nenum F : uint { X }\nuint f(bool c, int i, uint u)\n{\n    let a = c ? E::A : i;\n    let b = c ? F::X : u;\n    let d = c ? F::X : 0;\n    let e = c ? E::A : E::B;\n    let g = c ? float3(1) : 2.0;\n    return b;\n}\n")]
+    // ビット演算とシフト: 整数と bool は使える。複合代入の右は左の型へ変換される
+    [InlineData("int f(bool a, bool b, int i, uint u, float x)\n{\n    bool r1 = a | b;\n    bool r2 = ~a;\n    int r3 = i | u;\n    uint r4 = u;\n    r4 |= x;\n    return r3 << 2;\n}\n")]
+    // 書き換えてよいもの:[mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
     [InlineData("struct S\n{\n    float r;\n    static int n;\n    RWStructuredBuffer<float> buf;\n    float* p;\n    [mutating] void a(float x) { r = x; }\n    [[mutating]] void b(float x) { r = x; }\n    __init() { r = 0; }\n    void c(float r) { r = 1; }\n    void d(float x) { buf[0] = x; *p = x; n = 1; }\n    static void e(S s) { s.r = 1; }\n}\n")]
     // 条件にできる値:スカラー (int を含む)。?: と ! のベクトルは成分ごと。列挙子は基になる型へ変換できる
     [InlineData("enum Color { Red, Green }\nfloat4 f(int i, bool4 mask)\n{\n    int c = Color.Green;\n    if (i) { }\n    bool4 n = !mask;\n    return n ? float4(1.0) : float4(0.0);\n}\n")]

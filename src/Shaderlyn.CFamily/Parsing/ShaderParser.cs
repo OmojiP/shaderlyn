@@ -1387,6 +1387,9 @@ internal abstract class ShaderParser
         return members.ToImmutable();
     }
 
+    /// <summary>typedef に別名の名前が要るか (名前の無い typedef int; を構文の誤りにするか)。既定は <see langword="false"/> (C と同じく読み流す)。</summary>
+    protected virtual bool RequiresTypedefName => false;
+
     /// <summary><c>typedef</c> を解析する。</summary>
     /// <returns>解析した宣言。</returns>
     /// <remarks>
@@ -1405,6 +1408,12 @@ internal abstract class ShaderParser
         ImmutableArray<ShaderSyntaxToken>.Builder tokens = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
 
         TypeSyntax? target = Current.Kind == ShaderSyntaxKind.IdentifierToken ? ParseType() : null;
+
+        // 別名の名前の無い typedef (typedef int;)。
+        if (RequiresTypedefName && target is not null && Current.Kind == ShaderSyntaxKind.SemicolonToken)
+        {
+            ReportError("typedef には、型の後ろに別名の名前が要ります。");
+        }
 
         if (target is not null
             && Current.Kind == ShaderSyntaxKind.IdentifierToken

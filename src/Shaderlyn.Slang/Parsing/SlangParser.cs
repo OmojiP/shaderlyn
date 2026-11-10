@@ -77,6 +77,10 @@ internal sealed class SlangParser : ShaderParser
     protected override bool AcceptsArrayTypes => true;
 
     /// <inheritdoc/>
+    /// <remarks>slangc は typedef int; の ; を「unexpected token」(E20001) にする。</remarks>
+    protected override bool RequiresTypedefName => true;
+
+    /// <inheritdoc/>
     /// <remarks>Slang は z (大きさの整数) と d (double) も読む。</remarks>
     protected override bool IsNumericSuffixAccepted(string suffix, bool floating)
         => suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L' or 'z' or 'Z' or 'd' or 'D');

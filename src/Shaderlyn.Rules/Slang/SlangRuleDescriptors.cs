@@ -22,7 +22,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "型を書く位置 (仮引数・戻り値・型引数・typealias・as / is など) に構造体を定義しているか、"
             + "その入れ物の中に書けない宣言 (構造体の中の namespace・extension・interface、インターフェイスの中の enum・struct、"
-            + "ファイルの直下の __init・associatedtype、関数の中の関数の定義など) を書いています。slangc はコンパイルの誤りにします。",
+            + "ファイルの直下の __init・associatedtype、関数の中の関数の定義、extension とインターフェイスの中の static でないフィールドなど) を書いているか、"
+            + "extension のジェネリックの仮引数に既定値を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
     /// <summary>修飾子をその宣言に書けない。</summary>
@@ -56,7 +57,8 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
-            + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。",
+            + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないものも報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -112,6 +114,17 @@ internal static class SlangRuleDescriptors
             + "それをメンバーに持つ構造体を書いています。slangc はコンパイルの誤り (E38204・E30902) にします。",
         helpLinkUri: DocumentationLinks.For("SG0404"));
 
+    /// <summary>フィールドにできない型。</summary>
+    public static DiagnosticDescriptor ReferenceField { get; } = new(
+        id: "SG0406",
+        title: "この型はフィールドにできません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "構造体のフィールドの型に、参照の型 (Ref<T>・RefParam<T>・BorrowInParam<T>・OutParam<T>・BorrowInOutParam<T>) を書いています。"
+            + "参照は値を持たないので、slangc はコンパイルの誤り (E30030) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0406"));
+
     /// <summary>テクスチャの要素にできない型。</summary>
     public static DiagnosticDescriptor InvalidTexelType { get; } = new(
         id: "SG0405",
@@ -164,6 +177,17 @@ internal static class SlangRuleDescriptors
         description: "構造体の private のメンバー (フィールド・メソッド) をその構造体の外から使っているか、import した別のモジュールの public でない宣言 (書かなければ internal) を使っています。"
             + "private のメンバーはその構造体 (と中の構造体) の中で、internal の宣言はそのモジュールの中でだけ使えます。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0401"));
+
+    /// <summary>可視性の書き方が正しくない。</summary>
+    public static DiagnosticDescriptor InvalidVisibility { get; } = new(
+        id: "SG0402",
+        title: "可視性の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の外の宣言を private にしているか (private は型のメンバーにだけ書けます)、public でない構造体のメンバーを public にしているか、"
+            + "public の宣言 (関数・変数・typealias・public の構造体の public のメンバー) が public でない型を使っています。slangc はコンパイルの誤り (E30603・E30601・E30604) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0402"));
 
     /// <summary>定数の初期値が、自分自身に依っている。</summary>
     public static DiagnosticDescriptor CyclicConstant { get; } = new(

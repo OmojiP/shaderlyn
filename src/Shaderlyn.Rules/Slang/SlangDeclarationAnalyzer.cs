@@ -19,6 +19,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>SG0316: static const の初期値の、uniform・定数バッファーのメンバー・関数の外の変数・利用者の関数とメソッドの呼び出し (E31226)</item>
 /// <item>SG0403: ParameterBlock・大きさを決めない配列・それを含む構造体の配列 (E30028)</item>
 /// <item>SG0405: テクスチャと型付きバッファーの要素の、行列・構造体・bool・資源の型 (E38029)</item>
+/// <item>SG0406: 構造体のフィールドの、参照の型 (Ref&lt;T&gt; など。E30030)</item>
 /// </list>
 /// GLSL の書き方のファイル (#version のあるもの) は、GLSL の決まりで読むので見ない。
 /// </remarks>
@@ -55,6 +56,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.ArrayOfNonAddressable,
         SlangRuleDescriptors.ResourceInContainer,
         SlangRuleDescriptors.InvalidTexelType,
+        SlangRuleDescriptors.ReferenceField,
     ];
 
     /// <inheritdoc/>
@@ -164,6 +166,15 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (local && !isStatic && modifiers.FirstOrDefault(t => t.Text == "groupshared") is { } groupshared)
                 {
                     Report(SlangRuleDescriptors.ModifierNotAllowed, groupshared, "局所変数に groupshared は書けません。関数の外に宣言してください。");
+                }
+
+                // 参照の型 (Ref<T>・RefParam<T>・BorrowInParam<T>・OutParam<T>・BorrowInOutParam<T>) は、構造体のフィールドにできない (E30030)。
+                if (field && !isStatic && declaration.Type.NameToken.Text is "Ref" or "RefParam" or "BorrowInParam" or "OutParam" or "BorrowInOutParam"
+                    && !declaration.Type.TemplateArguments.IsDefaultOrEmpty
+                    && !structs.ContainsKey(declaration.Type.NameToken.Text))
+                {
+                    Report(SlangRuleDescriptors.ReferenceField, declaration.Type.NameToken,
+                        $"参照の型 {declaration.Type.NameToken.Text}<…> は、構造体のフィールドにできません。値を持たせるなら、型引数の型をそのまま書いてください。");
                 }
 
                 if (field && modifiers.FirstOrDefault(t => t.Text is "__ref" or "__constref") is { } reference)
