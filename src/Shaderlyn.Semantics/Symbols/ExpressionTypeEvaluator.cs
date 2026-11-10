@@ -795,6 +795,18 @@ public sealed class ExpressionTypeEvaluator
         {
             switch (TypeSystem.Classify(resolved.TypeName))
             {
+                // ConstantBuffer<T> / ParameterBlock<T> / TextureBuffer<T> は、それ自体が T の値として振る舞う。添字は T の添字である
+                // (ConstantBuffer<float4x4> m の m[3] は float4)。
+                case ShaderTypeClass.Buffer when resolved.TypeName is "ConstantBuffer" or "ParameterBlock" or "TextureBuffer":
+                    return TypeSystem.TryDescribeNumeric(resolved.TemplateArgument, out ShaderNumericShape wrapped)
+                        ? wrapped.Kind switch
+                        {
+                            ShaderNumericKind.Matrix => TypeSystem.ComposeNumeric(wrapped.BaseName, wrapped.Columns),
+                            ShaderNumericKind.Vector => wrapped.BaseName,
+                            _ => null,
+                        }
+                        : null;
+
                 case ShaderTypeClass.Buffer:
                     return resolved.TemplateArgument;
 
@@ -867,8 +879,12 @@ public sealed class ExpressionTypeEvaluator
     /// </remarks>
     private string? EvaluateSwizzle(MemberAccessExpressionSyntax member)
     {
-        // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。
-        if (member.DotToken.Kind == ShaderSyntaxKind.ColonColonToken)
+        // enum の列挙子 (Mode::A) は、その enum の型である (HLSL 2021)。Slang は Mode.A とも書ける (Mode が変数の名前でなければ)。
+        if (member.DotToken.Kind == ShaderSyntaxKind.ColonColonToken
+            || (TypeSystem is SlangTypeSystem
+                && member.Target is IdentifierExpressionSyntax enumTarget
+                && Enums.ContainsKey(enumTarget.Name)
+                && _resolve(enumTarget) is null))
         {
             return member.Target is IdentifierExpressionSyntax { Name: var enumName }
                    && Enums.TryGetValue(enumName, out EnumInfo? enumeration)
@@ -1098,7 +1114,9 @@ public sealed class ExpressionTypeEvaluator
         ShaderSyntaxKind.AsteriskToken => EvaluateMultiplication(binary),
 
         ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken
-            or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
+            => TypeSystem.EqualityComparesWholeValues ? "bool" : ToBool(Combine(binary.Left, binary.Right)),
+
+        ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken
             or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanEqualsToken
             or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken or ShaderSyntaxKind.CaretCaretToken
             => TypeSystem.ComparesWholeValues ? "bool" : ToBool(Combine(binary.Left, binary.Right)),

@@ -94,6 +94,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         Dictionary<(string File, int Start), (Location Location, string Name, string Where)> undeclaredTypes = [];
         Dictionary<AnalyzedProgram, HashSet<string>> typeNames = [];
         Dictionary<AnalyzedProgram, Glsl.GlslExtensionTimeline> timelines = [];
+        HashSet<string>? slangTypeNames = null;
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
@@ -135,6 +136,19 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
                 && wgslType.NameToken.GetLocation() is { } wgslLocation)
             {
                 undeclaredTypes.TryAdd((wgslLocation.FilePath, wgslLocation.Span.Start), (wgslLocation, wgslType.NameToken.Text, "どこにも"));
+                continue;
+            }
+
+            // Slang の型の名前 (NotAType x;、struct S : INotExist)。組み込みの型でも、どこかで宣言した型 (取り込んだモジュールを含む) でも、
+            // 読み飛ばした宣言の名前 (ジェネリックの仮引数・typealias・associatedtype) でもないものは、slangc が「undefined identifier」(E30015) にする。
+            if (compilation.IsSlang
+                && node is TypeSyntax { Parent: VariableDeclarationSyntax or ParameterSyntax or FunctionDeclarationSyntax or StructDeclarationSyntax, NameToken.IsMissing: false, QualifierTokens.IsEmpty: true, NestedTypeTokens.IsEmpty: true } slangType
+                && compilation.IsReportable(slangType.NameToken)
+                && compilation.HasCompleteDependenciesAt(slangType)
+                && IsUndeclaredSlangType(compilation, program, slangType.NameToken.Text, ref slangTypeNames)
+                && slangType.NameToken.GetLocation() is { } slangLocation)
+            {
+                undeclaredTypes.TryAdd((slangLocation.FilePath, slangLocation.Span.Start), (slangLocation, slangType.NameToken.Text, "どこにも"));
                 continue;
             }
 
@@ -196,6 +210,84 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             version, language.Profile == Shaderlyn.Glsl.GlslProfile.Es, language.Stage, language.Vulkan, extension => timeline.IsOn(extension, token)).Classify(token.Text);
 
         return word.Kind == Shaderlyn.Glsl.Parsing.GlslWordKind.Keyword || word.IsReservedError;
+    }
+
+    /// <summary>Slang の型の名前が、どこにも宣言されていないか。</summary>
+    /// <param name="compilation">対象のモデル。</param>
+    /// <param name="program">型を使う木。</param>
+    /// <param name="name">型の名前。</param>
+    /// <param name="cache">モデルの中で宣言した名前 (初めて使うときに集める)。</param>
+    /// <returns>宣言されていなければ <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 名前は範囲を見ずに、モデルのどの木 (構成の木と、取り込んだモジュール) のどこかで宣言されていればよいとする。
+    /// 名前空間の中の型、構造体の中の型、ジェネリックの仮引数も、名前が同じならどこからでも見えるとみなす (見落としの側に倒す)。
+    /// </para>
+    /// <para>
+    /// 構文木に残らない宣言 (ジェネリックの仮引数・typealias・associatedtype・extension・GLSL の書き方のブロック) の名前は、
+    /// 読み飛ばした宣言の名前 (<see cref="ShaderCompilation.UnanalyzedIdentifiers"/>) から足す。マクロの名前も足す。
+    /// </para>
+    /// </remarks>
+    private static bool IsUndeclaredSlangType(ShaderCompilation compilation, AnalyzedProgram program, string name, ref HashSet<string>? cache)
+    {
+        // 型を書かない let / var と functype は、キーワードを型の名前にしている (SlangParser)。This は型の中の自分の型。
+        if (name is "let" or "var" or "functype" or "void" or "This"
+            || compilation.TypeSystem.ForTree(program.Tree).IsBuiltInTypeName(name)
+            || program.Tree.Root.TypeAliases.ContainsKey(name)
+            || compilation.UnanalyzedIdentifiers.Contains(name)
+            || compilation.Environment.IsDefinedByEngine(name))
+        {
+            return false;
+        }
+
+        if (cache is null)
+        {
+            cache = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (AnalyzedProgram tree in compilation.Programs.Concat(compilation.SymbolVariants))
+            {
+                cache.UnionWith(tree.Tree.PreprocessResult.Macros.Keys);
+
+                foreach (ShaderSyntaxNode node in tree.Tree.Root.DescendantNodesAndSelf())
+                {
+                    switch (node)
+                    {
+                        case StructDeclarationSyntax { NameToken: { } structName }:
+                            cache.Add(structName.Text);
+                            break;
+
+                        case EnumDeclarationSyntax enumeration:
+                            cache.UnionWith(ShaderCompilation.DeclaredNamesOf(enumeration));
+                            break;
+
+                        case TypedefDeclarationSyntax typedef:
+                            cache.UnionWith(typedef.Tokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                            break;
+
+                        case TemplateDeclarationSyntax template:
+                            cache.UnionWith(template.ParameterNames);
+                            break;
+
+                        case NamespaceDeclarationSyntax { NameToken: { } namespaceName }:
+                            cache.Add(namespaceName.Text);
+                            break;
+
+                        case ConstantBufferDeclarationSyntax { NameToken: { } bufferName }:
+                            cache.Add(bufferName.Text);
+                            break;
+
+                        case IncompleteDeclarationSyntax incomplete:
+                            cache.UnionWith(incomplete.Tokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
+
+        return !cache.Contains(name);
     }
 
     /// <summary>GLSL の木で宣言した型の名前 (構造体、ブロック、buffer_reference の前方宣言の名前)。取り込んだヘッダも含む。</summary>

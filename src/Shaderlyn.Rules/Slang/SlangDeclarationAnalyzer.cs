@@ -18,6 +18,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>SG0103: register(…) の種類 (t・u・s・b) が資源の型と合わない (E31222)</item>
 /// <item>SG0316: static const の初期値の、uniform・定数バッファーのメンバー・関数の外の変数・利用者の関数とメソッドの呼び出し (E31226)</item>
 /// <item>SG0403: ParameterBlock・大きさを決めない配列・それを含む構造体の配列 (E30028)</item>
+/// <item>SG0405: テクスチャと型付きバッファーの要素の、行列・構造体・bool・資源の型 (E38029)</item>
 /// </list>
 /// GLSL の書き方のファイル (#version のあるもの) は、GLSL の決まりで読むので見ない。
 /// </remarks>
@@ -53,6 +54,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.StaticConstNotConstant,
         SlangRuleDescriptors.ArrayOfNonAddressable,
         SlangRuleDescriptors.ResourceInContainer,
+        SlangRuleDescriptors.InvalidTexelType,
     ];
 
     /// <inheritdoc/>
@@ -109,6 +111,15 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                             $"{type.NameToken.Text} に資源の型 ({element.Text}{(IsResource(element.Text) ? "" : " が資源を含む")}) は包めません。");
                         break;
 
+                    // Texture2D<float4x4>・RWBuffer<Sampler1D>・Texture2D<S> (E38029)。テクスチャと型付きバッファーの要素は ITexelElement (bool でないスカラーとベクトル) に限る。
+                    case TypeSyntax type when IsTexelContainer(type.NameToken.Text)
+                                              && type.TemplateArguments is [{ Kind: ShaderSyntaxKind.IdentifierToken } texel, ..] arguments
+                                              && (arguments.Length == 1 || arguments[1].Kind == ShaderSyntaxKind.CommaToken)
+                                              && DescribeNonTexel(compilation, program, structs, texel.Text) is { } what:
+                        Report(SlangRuleDescriptors.InvalidTexelType, texel,
+                            $"{type.NameToken.Text} の要素にできるのは、bool でないスカラーとベクトルだけです ({texel.Text} は{what})。");
+                        break;
+
                     // 同じ属性を 2 度 ([numthreads] など)。
                     case FunctionDeclarationSyntax function:
                         CheckAttributesAndVisibility(function.Attributes, function.ModifierTokens, Report);
@@ -161,6 +172,36 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>要素の型を ITexelElement に限る型 (テクスチャ・組み合わせたサンプラー・型付きバッファー)。Feedback のテクスチャは要素の型の代わりに種類を書くので除く。</summary>
+    private static bool IsTexelContainer(string name)
+        => !name.StartsWith("Feedback", StringComparison.Ordinal)
+           && (name is "Buffer" or "RWBuffer" or "RasterizerOrderedBuffer"
+               || (name.Contains("Texture", StringComparison.Ordinal) && name != "TextureBuffer" && (ShaderResources.Contains(name) || UnorderedResources.Contains(name)))
+               || (name.StartsWith("Sampler", StringComparison.Ordinal) && name.Length > 7 && char.IsDigit(name[7]) && !name.EndsWith("Shadow", StringComparison.Ordinal)));
+
+    /// <summary>テクスチャの要素にできない型なら、その説明 (行列・構造体など)。できるか分からなければ <see langword="null"/>。</summary>
+    private static string? DescribeNonTexel(ShaderCompilation compilation, AnalyzedProgram program, Dictionary<string, StructDeclarationSyntax> structs, string name)
+    {
+        if (program.Tree.Root.TypeAliases.ContainsKey(name))
+        {
+            return null;
+        }
+
+        if (compilation.TypeSystem.TryDescribeNumeric(name, out Semantics.Symbols.ShaderNumericShape shape))
+        {
+            return shape.Kind == Semantics.Symbols.ShaderNumericKind.Matrix ? "行列"
+                : shape.BaseName == "bool" ? "真偽値"
+                : null;
+        }
+
+        if (IsResource(name))
+        {
+            return "資源の型";
+        }
+
+        return structs.TryGetValue(name, out StructDeclarationSyntax? structure) && structure.Keyword.Text is "struct" or "class" ? "構造体" : null;
     }
 
     /// <summary>資源の型 (テクスチャ・サンプラー・バッファー・ParameterBlock・ConstantBuffer)。</summary>

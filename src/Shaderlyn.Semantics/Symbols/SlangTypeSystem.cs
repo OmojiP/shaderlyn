@@ -151,6 +151,14 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
         return [.. imports];
     }
 
+    /// <inheritdoc/>
+    /// <remarks><c>import glsl;</c> を書くと、ベクトルどうしの <c>==</c> と <c>!=</c> は GLSL と同じく 1 つの <c>bool</c> になる (glsl モジュールの演算子)。</remarks>
+    internal override bool EqualityComparesWholeValues => Imports.Contains("glsl");
+
+    /// <inheritdoc/>
+    /// <remarks><c>import glsl;</c> を書くと、行列どうしの <c>*</c> は GLSL と同じく行列の積になる。</remarks>
+    internal override bool MultipliesMatricesAlgebraically => Imports.Contains("glsl");
+
     /// <summary>slangc に入っている標準のモジュールか (<c>import slang.neural;</c> の <c>slang/neural</c>)。</summary>
     /// <param name="name">モジュールの名前 (区切りは <c>/</c>)。</param>
     /// <returns>標準のモジュールなら <see langword="true"/>。</returns>
@@ -202,13 +210,27 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     internal override string? GetLiteralTypeName(ShaderSyntaxToken token) => _hlsl.GetLiteralTypeName(token);
 
     /// <inheritdoc/>
-    public override bool IsConvertible(string? valueType, string? targetType, bool exact = false) => _hlsl.IsConvertible(valueType, targetType, exact);
+    public override bool IsConvertible(string? valueType, string? targetType, bool exact = false)
+        => valueType != "void"
+           && (!HlslTypeClassifier.TryDescribeNumeric(valueType, out ShaderNumericShape value)
+               || !HlslTypeClassifier.TryDescribeNumeric(targetType, out ShaderNumericShape target)
+               || IsConvertible(value, target, exact));
 
     /// <inheritdoc/>
-    public override bool IsConvertible(ShaderNumericShape value, ShaderNumericShape target, bool exact) => _hlsl.IsConvertible(value, target, exact);
+    /// <remarks>
+    /// Slang は成分を減らす暗黙の変換を誤り (E30019) にする (slangc 2026.19 で確かめた。float4 から float3・float4 から float・float4x4 から float3x3・行列からベクトル)。
+    /// 通すのは、形が同じもの、スカラーからの複製、1 成分の値 (float1 から float) である。
+    /// </remarks>
+    public override bool IsConvertible(ShaderNumericShape value, ShaderNumericShape target, bool exact)
+        => exact
+            ? _hlsl.IsConvertible(value, target, exact)
+            : value.Kind == ShaderNumericKind.Scalar
+              || value.Rows * value.Columns == 1
+              || (value.Kind == target.Kind && value.Rows == target.Rows && value.Columns == target.Columns);
 
     /// <inheritdoc/>
-    public override bool IsTruncating(string? valueType, string? targetType) => _hlsl.IsTruncating(valueType, targetType);
+    /// <remarks>Slang は成分を減らす変換を誤りにする (<see cref="IsConvertible(ShaderNumericShape, ShaderNumericShape, bool)"/> が通さない)。</remarks>
+    public override bool IsTruncating(string? valueType, string? targetType) => false;
 
     /// <inheritdoc/>
     /// <remarks>型の名前も値の位置に書ける (sizeof(T)・alignof(void)・countof(T))。</remarks>

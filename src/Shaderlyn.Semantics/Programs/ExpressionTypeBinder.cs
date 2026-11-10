@@ -1196,8 +1196,10 @@ public sealed class ExpressionTypeBinder
             scopes = _scopes[function] = new LocalScopes(
                 function,
                 _compilation.GetConditionMap(),
-                loopVariablesLeak: Program.Tree.Language is not (Glsl.GlslLanguageOptions or Wgsl.WgslLanguageOptions) && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
-                ownNameInInitializer: Program.Tree.Language is not Glsl.GlslLanguageOptions,
+                // Slang の for の変数は、DXC の HLSL 2021 と同じく for 文の中に閉じる (slangc は外の使用を E30015 にする)。
+                loopVariablesLeak: Program.Tree.Language is not (Glsl.GlslLanguageOptions or Wgsl.WgslLanguageOptions or Slang.SlangLanguageOptions) && Program.Tree.Hlsl().Features.LoopVariableOutsideLoop,
+                // Slang も GLSL と同じく、初期値の中では宣言している名前がまだ見えない (int e = e; の右の e は外側の e。無ければ slangc の E30015)。
+                ownNameInInitializer: Program.Tree.Language is not (Glsl.GlslLanguageOptions or Slang.SlangLanguageOptions),
                 unbracedBodyIsScope: Program.Tree.Language is Glsl.GlslLanguageOptions);
         }
 

@@ -56,7 +56,7 @@ internal static class SlangKeywords
     /// <summary>Slang に固有の宣言を始めるキーワード。</summary>
     public static FrozenSet<string> DeclarationKeywords { get; } = new[]
     {
-        "func", "let", "var", "typealias", "associatedtype", "extension", "property", "__init", "__subscript",
+        "func", "let", "var", "typealias", "associatedtype", "extension", "__extension", "property", "__init", "__subscript",
         "import", "__import", "module", "implementing", "__include", "__generic",
     }.ToFrozenSet(StringComparer.Ordinal);
 

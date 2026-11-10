@@ -262,14 +262,15 @@ internal sealed class SlangParser : ShaderParser
             case "__init":
                 return ParseInitializerFunction(attributes, modifiers);
 
-            case "typealias" or "associatedtype" or "__constraint" or "precision":
+            // type_param T : IBase; (古い書き方の、ファイル全体のジェネリックの仮引数)
+            case "typealias" or "associatedtype" or "__constraint" or "precision" or "type_param":
                 return SkipToSemicolon(markNames: true);
 
             // __func_extension fwd_diff(f)(…) -> T { … }
             case "__func_extension":
                 return SkipTypeLikeDeclaration();
 
-            case "extension":
+            case "extension" or "__extension":
                 return SkipTypeLikeDeclaration();
 
             case "property" or "__subscript":
@@ -462,6 +463,13 @@ internal sealed class SlangParser : ShaderParser
             case "try" when Peek(1).Kind == ShaderSyntaxKind.OpenBraceToken:
                 Advance();
                 return ParseBlock();
+
+            // try f(); (戻り値を使わない、投げる関数の呼び出し)。宣言 (型 try の変数) ではなく、式の文として読む。
+            case "try" when Peek(1).Kind == ShaderSyntaxKind.IdentifierToken:
+            {
+                ExpressionSyntax expression = ParseExpression();
+                return new ExpressionStatementSyntax(expression, Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
+            }
 
             case "catch":
             {

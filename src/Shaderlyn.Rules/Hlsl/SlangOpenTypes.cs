@@ -57,7 +57,7 @@ internal sealed class SlangOpenTypes : IReadOnlySet<string>
             {
                 switch (node)
                 {
-                    case IncompleteDeclarationSyntax { Tokens: [{ Text: "extension" }, ..] } extension:
+                    case IncompleteDeclarationSyntax { Tokens: [{ Text: "extension" or "__extension" }, ..] } extension:
                         if (ExtendedType(extension) is { } target)
                         {
                             extended.Add(target);

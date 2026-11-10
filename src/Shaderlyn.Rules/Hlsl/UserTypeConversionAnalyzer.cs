@@ -249,7 +249,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                          && (s.Keyword.Text == "interface"
                              || s.Members.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == "__init")))
            || binder.Program.Tree.Root.Declarations.OfType<IncompleteDeclarationSyntax>()
-               .Any(d => d.Tokens is [{ Text: "extension" }, ..] && d.Tokens.Any(t => t.Text == name));
+               .Any(d => d.Tokens is [{ Text: "extension" or "__extension" }, ..] && d.Tokens.Any(t => t.Text == name));
 
     /// <summary>関数の実引数を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>

@@ -40,6 +40,30 @@ public sealed class SlangRuleTests : IDisposable
     [Theory]
     [InlineData("CF0310", "float f()\n{\n    return nope;\n}\n")]
     [InlineData("CF0402", "float g(float x) { return x; }\nfloat f()\n{\n    return g(1.0, 2.0);\n}\n")]
+    // 初期値の中では宣言している名前がまだ見えず、for の変数はループの外で見えない
+    [InlineData("CF0310", "void f()\n{\n    int e = e;\n}\n")]
+    [InlineData("CF0310", "int f()\n{\n    for (int i = 0; i < 2; i++) { }\n    return i;\n}\n")]
+    // 形の違う値どうしの演算子
+    [InlineData("SG0301", "float3 f(float3 a, float4 b)\n{\n    return a + b;\n}\n")]
+    [InlineData("SG0301", "float2 f(float2 v, float2x2 m)\n{\n    return v * m;\n}\n")]
+    // [mutating] でないメソッドの中の、フィールドへの書き込み
+    [InlineData("SG0309", "struct S\n{\n    float r;\n    void set(float x) { r = x; }\n}\n")]
+    [InlineData("SG0309", "struct S\n{\n    float3 c;\n    void grow() { this.c.x += 1; }\n}\n")]
+    // スカラーでない条件、点で書いた列挙子の変換
+    [InlineData("SG0311", "struct S { int a; }\nvoid f(S s)\n{\n    if (s) { }\n}\n")]
+    [InlineData("SG0311", "void f(float3 v)\n{\n    while (v) { break; }\n}\n")]
+    [InlineData("HL0347", "enum Color { Red, Green }\nfloat f()\n{\n    float x = Color.Green;\n    return x;\n}\n")]
+    // テクスチャの要素にできない型
+    [InlineData("SG0405", "Texture2D<float4x4> t;\n")]
+    [InlineData("SG0405", "struct S { float a; }\nRWBuffer<S> b;\n")]
+    // 成分を減らす暗黙の変換は誤り (HLSL と違い、警告で通さない)
+    [InlineData("CF0410", "float f(float4 v)\n{\n    float3 t = v;\n    return t.x;\n}\n")]
+    [InlineData("CF0401", "float g(float x) { return x; }\nfloat f(float4 v)\n{\n    return g(v);\n}\n")]
+    [InlineData("CF0411", "float3x3 f(float4x4 m)\n{\n    return m;\n}\n")]
+    // 宣言されていない型の名前 (変数・仮引数・戻り値・フィールドの型、構造体の基底)
+    [InlineData("CF0310", "NotAType f(float x)\n{\n    return x;\n}\n")]
+    [InlineData("CF0310", "struct S : INotExist { }\n")]
+    [InlineData("CF0310", "struct S { Missing m; }\n")]
     [InlineData("CF0021", "import missing.module;\nfloat f() { return 1.0; }\n")]
     // 型を書かない let / var は、初期値の式の型になる
     [InlineData("CF0410", "void f()\n{\n    let a = float3(1, 2, 3);\n    var b = a.xy;\n    float4 c = b;\n}\n")]
@@ -109,6 +133,22 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
     // 循環しない適合: ポインターのフィールド、ほかのインターフェイスだけを持つ構造体
     [InlineData("interface INode { float get(); }\ninterface ILeaf { float v(); }\nstruct Node : INode { INode* next; ILeaf leaf; float get() { return 0; } }\nstruct Leaf : ILeaf { float x; float v() { return x; } }\n")]
+    // 形のそろった演算子: スカラーと 1 成分の値はどの形とも組める、import glsl の行列とベクトルの積
+    [InlineData("float3 f(float3 a, float4 b, float1 one, float2x2 m)\n{\n    float3 c = a + b.xyz + one + 2.0;\n    c *= 0.5;\n    float2x2 n = m * m + 1.0;\n    return c + n[0].x;\n}\n")]
+    [InlineData("import glsl;\nfloat2 f(float2 v, float2x2 m)\n{\n    return m * v;\n}\n")]
+    // 書き換えてよいもの: [mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
+    [InlineData("struct S\n{\n    float r;\n    static int n;\n    RWStructuredBuffer<float> buf;\n    float* p;\n    [mutating] void a(float x) { r = x; }\n    [[mutating]] void b(float x) { r = x; }\n    __init() { r = 0; }\n    void c(float r) { r = 1; }\n    void d(float x) { buf[0] = x; *p = x; n = 1; }\n    static void e(S s) { s.r = 1; }\n}\n")]
+    // 条件にできる値:スカラー (int を含む)。?: と ! のベクトルは成分ごと。列挙子は基になる型へ変換できる
+    [InlineData("enum Color { Red, Green }\nfloat4 f(int i, bool4 mask)\n{\n    int c = Color.Green;\n    if (i) { }\n    bool4 n = !mask;\n    return n ? float4(1.0) : float4(0.0);\n}\n")]
+    // テクスチャの要素にできる型: bool でないスカラーとベクトル。StructuredBuffer は構造体と行列を入れられる
+    [InlineData("struct S { float a; }\nTexture2D<half2> t1;\nRWTexture2D<uint4> t2;\nBuffer<int> t3;\nTexture3D<vector<float, 4>> t4;\nStructuredBuffer<S> s1;\nStructuredBuffer<float4x4> s2;\n")]
+    // 通る変換: スカラーからの複製、1 成分の値、ConstantBuffer の行列の行、import glsl の == (1 つの bool)
+    [InlineData("ConstantBuffer<float4x4> m;\nfloat4 f(float1 a, float b)\n{\n    float c = a;\n    float4 v = b;\n    float4 row = m[3];\n    return v + row + c;\n}\n")]
+    [InlineData("import glsl;\nbool f(float4 a, float4 b)\n{\n    bool same = a == b;\n    return same;\n}\n")]
+    // 型の名前: ジェネリックの仮引数、組み立てる標準の型、associatedtype、typealias、type_param、文の頭の try
+    [InlineData("type_param TParam : IDifferentiable;\nRWTexture1D<uint> t1;\nDepthTexture2D depth;\nRasterizerOrderedByteAddressBuffer rov;\ntypealias Real = float;\nT pick<T>(T a, Real b) { return a; }\nstruct P : IDifferentiable { float x; Differential get() { Differential d = {0.0}; return d; } }\nint thrower() throws int { return 1; }\nint caller() throws int\n{\n    try thrower();\n    return 0;\n}\n")]
+    // 初期値の中の同じ名前は外側の宣言、波括弧の無い if の宣言は後ろでも見える
+    [InlineData("static int e = 1;\nint f(int p)\n{\n    int e = e;\n    int q = p, r = q;\n    if (p > 0) int j = 1;\n    return e + r + j;\n}\n")]
     // 書けるもの: static const、特殊化定数、static groupshared、合うレジスタ、型の static のメソッド、特殊化定数から求める static const
     [InlineData("static const float k = 1.0;\n[vk::constant_id(0)]\nconst int N = 4;\n[[SpecializationConstant]] const float NEAR = 0.1;\nstatic const int M = N * 2;\nstatic const float pi = float.getPi();\nTexture2D tex : register(t0);\nRWStructuredBuffer<float> buf : register(u0);\nSamplerState samp : register(s0);\nstruct P { float x; }\nP items[4];\nvoid f()\n{\n    static groupshared int shared[4];\n}\n")]
     // まだ取り除かれていない版、一部の多重定義だけが取り除かれた関数
@@ -143,6 +183,27 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 別のモジュールのpublicでない宣言の使用を報告する()
+    {
+        // module の宣言のあるモジュール: 書かなければ internal。2025 の言語では public の構造体のメンバーも internal が既定。
+        File.WriteAllText(Path.Combine(_workDirectory, "lib.slang"), "module lib;\npublic struct P { int x; public int y; }\nstruct Q { int z; }\nint helper() { return 1; }\npublic int pub() { return 2; }\n");
+
+        // module の宣言も可視性も無いファイルは、古い書き方のモジュールとして、すべてが public。
+        File.WriteAllText(Path.Combine(_workDirectory, "legacy.slang"), "struct L { int w; }\nint old() { return 3; }\n");
+
+        // 2026 の言語のモジュールは、public の構造体のメンバーが public が既定。
+        File.WriteAllText(Path.Combine(_workDirectory, "modern.slang"), "#language slang 2026\nmodule modern;\npublic struct M { int v; }\n");
+
+        string output = await AnalyzeAsync(
+            "import lib;\nimport legacy;\nimport modern;\nint test(P p, L l, M m)\n{\n    Q q;\n    return p.x + p.y + helper() + pub() + l.w + old() + m.v;\n}\n", "main.slang");
+
+        Assert.Contains("main.slang(6:5): error SG0401: 'Q'", output, StringComparison.Ordinal);
+        Assert.Contains("main.slang(7:14): error SG0401: 'x'", output, StringComparison.Ordinal);
+        Assert.Contains("main.slang(7:24): error SG0401: 'helper'", output, StringComparison.Ordinal);
+        Assert.Equal(3, output.Split("SG0401").Length - 1);
     }
 
     [Theory]

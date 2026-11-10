@@ -100,6 +100,10 @@ public abstract class ShaderTypeSystem
     /// <remarks>GLSL の <c>==</c> はベクトルどうしでも <c>bool</c> を返す。成分ごとの比較は <c>equal</c> などの組み込み関数で書く。</remarks>
     internal virtual bool ComparesWholeValues => false;
 
+    /// <summary><c>==</c> と <c>!=</c> の結果が、いつも 1 つの <c>bool</c> か。既定は <see cref="ComparesWholeValues"/> と同じ。</summary>
+    /// <remarks>Slang で <c>import glsl;</c> を書くと、<c>==</c> と <c>!=</c> だけが GLSL の決まりになる (ベクトルどうしでも <c>bool</c>)。</remarks>
+    internal virtual bool EqualityComparesWholeValues => ComparesWholeValues;
+
     /// <summary>組み込み変数 (GLSL の <c>gl_FragCoord</c> など) の型を引く。</summary>
     /// <param name="name">名前。</param>
     /// <returns>型。組み込み変数でなければ <see langword="null"/> (既定)。</returns>

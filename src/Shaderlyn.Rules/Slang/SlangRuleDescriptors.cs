@@ -48,6 +48,39 @@ internal static class SlangRuleDescriptors
             + "s はサンプラー、b は定数バッファーです。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0103"));
 
+    /// <summary>形の合わない値どうしの演算子。</summary>
+    public static DiagnosticDescriptor WrongOperandTypes { get; } = new(
+        id: "SG0301",
+        title: "この型には演算子を使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
+            + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0301"));
+
+    /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
+    public static DiagnosticDescriptor NotWritable { get; } = new(
+        id: "SG0309",
+        title: "書き込めない値です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "[mutating] を付けていない構造体 (かクラス) のメソッドの中で、自分のフィールドに代入しているか、++ / -- か複合代入で書き換えています。"
+            + "Slang のメソッドは既定で自分を書き換えられないので、slangc はコンパイルの誤り (E30011・E30047) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0309"));
+
+    /// <summary>条件がスカラーでない。</summary>
+    public static DiagnosticDescriptor ScalarConditionExpected { get; } = new(
+        id: "SG0311",
+        title: "条件にはスカラーの値が要ります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "if・while・for・do の条件にベクトル・行列・構造体・資源の型の値を書いているか、?: の条件か ! の値に構造体・資源の型の値を書いています。"
+            + "条件にできるのはスカラー (bool・int など) だけなので、slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0311"));
+
     /// <summary>static const の初期値が定数式でない。</summary>
     public static DiagnosticDescriptor StaticConstNotConstant { get; } = new(
         id: "SG0316",
@@ -78,6 +111,17 @@ internal static class SlangRuleDescriptors
         description: "StructuredBuffer (RW・Append・Consume を含む) か Optional の型引数に、資源の型 (テクスチャ・サンプラー・バッファー・ParameterBlock・ConstantBuffer) か、"
             + "それをメンバーに持つ構造体を書いています。slangc はコンパイルの誤り (E38204・E30902) にします。",
         helpLinkUri: DocumentationLinks.For("SG0404"));
+
+    /// <summary>テクスチャの要素にできない型。</summary>
+    public static DiagnosticDescriptor InvalidTexelType { get; } = new(
+        id: "SG0405",
+        title: "テクスチャの要素にできない型です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "テクスチャ (Texture2D・RWTexture2D・Sampler2D など) か型付きバッファー (Buffer・RWBuffer) の要素の型に、行列・構造体・bool・資源の型を書いています。"
+            + "要素にできるのは bool でないスカラーとベクトル (ITexelElement) だけなので、slangc はコンパイルの誤り (E38029) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0405"));
 
     /// <summary>[NoDiscard] の関数の戻り値を捨てた。</summary>
     public static DiagnosticDescriptor DiscardedResult { get; } = new(
@@ -117,7 +161,8 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "構造体の private のメンバー (フィールド・メソッド) を、その構造体の外から使っています。private のメンバーは、その構造体 (と中の構造体) の中でだけ使えます。slangc はコンパイルの誤りにします。",
+        description: "構造体の private のメンバー (フィールド・メソッド) をその構造体の外から使っているか、import した別のモジュールの public でない宣言 (書かなければ internal) を使っています。"
+            + "private のメンバーはその構造体 (と中の構造体) の中で、internal の宣言はそのモジュールの中でだけ使えます。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0401"));
 
     /// <summary>定数の初期値が、自分自身に依っている。</summary>

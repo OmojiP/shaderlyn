@@ -16,8 +16,11 @@ T	BindlessAddress	slang/neural
 T	BindlessDescriptorOptions
 T	BorrowInOutParam
 T	BorrowInParam
+T	Buffer
 T	BufferPointer
+T	BufferType	slang/neural
 T	BuiltInTriangleIntersectionAttributes
+T	BwdCallable
 T	BwdCallableFuncType
 T	BwdDiffFuncType
 T	ByteAddressBuffer
@@ -41,19 +44,69 @@ T	CoopVecMatrixLayout
 T	DefaultDataLayout
 T	DefaultPushConstantDataLayout
 T	DefaultVkBindlessBindings
+T	DepthTexture1D
+T	DepthTexture1DArray
+T	DepthTexture1DMS
+T	DepthTexture1DMSArray
+T	DepthTexture2D
+T	DepthTexture2DArray
+T	DepthTexture2DMS
+T	DepthTexture2DMSArray
+T	DepthTexture3D
+T	DepthTexture3DArray
+T	DepthTexture3DMS
+T	DepthTexture3DMSArray
+T	DepthTextureCube
+T	DepthTextureCubeArray
+T	DepthTextureCubeMS
+T	DepthTextureCubeMSArray
 T	DescriptorAccess
 T	DescriptorHandle
 T	DescriptorKind
 T	DiffTensorView
+T	Differential
 T	DifferentialPair
 T	DifferentialPtrPair
 T	DispatchNodeInputRecord	experimental/workgraph
+T	Element
 T	EmptyNodeInput	experimental/workgraph
 T	EmptyNodeOutput	experimental/workgraph
 T	EmptyNodeOutputArray	experimental/workgraph
 T	ExecutionMode	slang/neural
 T	ExpActivation	slang/neural
 T	FFLayer	slang/neural
+T	FeedbackSampler1D
+T	FeedbackSampler1DArray
+T	FeedbackSampler1DMS
+T	FeedbackSampler1DMSArray
+T	FeedbackSampler2D
+T	FeedbackSampler2DArray
+T	FeedbackSampler2DMS
+T	FeedbackSampler2DMSArray
+T	FeedbackSampler3D
+T	FeedbackSampler3DArray
+T	FeedbackSampler3DMS
+T	FeedbackSampler3DMSArray
+T	FeedbackSamplerCube
+T	FeedbackSamplerCubeArray
+T	FeedbackSamplerCubeMS
+T	FeedbackSamplerCubeMSArray
+T	FeedbackTexture1D
+T	FeedbackTexture1DArray
+T	FeedbackTexture1DMS
+T	FeedbackTexture1DMSArray
+T	FeedbackTexture2D
+T	FeedbackTexture2DArray
+T	FeedbackTexture2DMS
+T	FeedbackTexture2DMSArray
+T	FeedbackTexture3D
+T	FeedbackTexture3DArray
+T	FeedbackTexture3DMS
+T	FeedbackTexture3DMSArray
+T	FeedbackTextureCube
+T	FeedbackTextureCubeArray
+T	FeedbackTextureCubeMS
+T	FeedbackTextureCubeMSArray
 T	FloatE4M3
 T	FloatE5M2
 T	FwdDiffFuncType
@@ -62,6 +115,7 @@ T	GroupNodeInputRecords	experimental/workgraph
 T	GroupNodeOutputRecords	experimental/workgraph
 T	HashType	slang/neural
 T	HitObject
+T	HyperParameters	slang/neural
 T	IActivation	slang/neural
 T	IAdditive	slang/numerics
 T	IArithmetic
@@ -180,6 +234,7 @@ T	LeakyReLU	slang/neural
 T	LineStream
 T	LinearLayout	slang/neural
 T	MMAHelper	slang/neural
+T	Mask	slang/numerics
 T	MatrixA	slang/neural
 T	MatrixB	slang/neural
 T	MatrixC	slang/neural
@@ -189,6 +244,7 @@ T	MemoryScope
 T	MetalMatrixA	slang/neural
 T	MetalMatrixB	slang/neural
 T	MetalMatrixC	slang/neural
+T	MinimalContext
 T	NativeRef
 T	NativeString
 T	NetworkParameterLayoutConverter	slang/neural
@@ -212,6 +268,76 @@ T	Ptr
 T	QuickGELU	slang/neural
 T	RAYQUERY_FLAG
 T	RAY_FLAG
+T	RWBuffer
+T	RWByteAddressBuffer
+T	RWSampler1D
+T	RWSampler1DArray
+T	RWSampler1DMS
+T	RWSampler1DMSArray
+T	RWSampler2D
+T	RWSampler2DArray
+T	RWSampler2DMS
+T	RWSampler2DMSArray
+T	RWSampler3D
+T	RWSampler3DArray
+T	RWSampler3DMS
+T	RWSampler3DMSArray
+T	RWSamplerCube
+T	RWSamplerCubeArray
+T	RWSamplerCubeMS
+T	RWSamplerCubeMSArray
+T	RWStructuredBuffer
+T	RWTexture1D
+T	RWTexture1DArray
+T	RWTexture1DMS
+T	RWTexture1DMSArray
+T	RWTexture2D
+T	RWTexture2DArray
+T	RWTexture2DMS
+T	RWTexture2DMSArray
+T	RWTexture3D
+T	RWTexture3DArray
+T	RWTexture3DMS
+T	RWTexture3DMSArray
+T	RWTextureCube
+T	RWTextureCubeArray
+T	RWTextureCubeMS
+T	RWTextureCubeMSArray
+T	RasterizerOrderedBuffer
+T	RasterizerOrderedByteAddressBuffer
+T	RasterizerOrderedSampler1D
+T	RasterizerOrderedSampler1DArray
+T	RasterizerOrderedSampler1DMS
+T	RasterizerOrderedSampler1DMSArray
+T	RasterizerOrderedSampler2D
+T	RasterizerOrderedSampler2DArray
+T	RasterizerOrderedSampler2DMS
+T	RasterizerOrderedSampler2DMSArray
+T	RasterizerOrderedSampler3D
+T	RasterizerOrderedSampler3DArray
+T	RasterizerOrderedSampler3DMS
+T	RasterizerOrderedSampler3DMSArray
+T	RasterizerOrderedSamplerCube
+T	RasterizerOrderedSamplerCubeArray
+T	RasterizerOrderedSamplerCubeMS
+T	RasterizerOrderedSamplerCubeMSArray
+T	RasterizerOrderedStructuredBuffer
+T	RasterizerOrderedTexture1D
+T	RasterizerOrderedTexture1DArray
+T	RasterizerOrderedTexture1DMS
+T	RasterizerOrderedTexture1DMSArray
+T	RasterizerOrderedTexture2D
+T	RasterizerOrderedTexture2DArray
+T	RasterizerOrderedTexture2DMS
+T	RasterizerOrderedTexture2DMSArray
+T	RasterizerOrderedTexture3D
+T	RasterizerOrderedTexture3DArray
+T	RasterizerOrderedTexture3DMS
+T	RasterizerOrderedTexture3DMSArray
+T	RasterizerOrderedTextureCube
+T	RasterizerOrderedTextureCubeArray
+T	RasterizerOrderedTextureCubeMS
+T	RasterizerOrderedTextureCubeMSArray
 T	RayDesc
 T	RayQuery
 T	RaytracingAccelerationStructure
@@ -221,10 +347,43 @@ T	RefParam
 T	RematFuncType
 T	SAMPLER_FEEDBACK_MIN_MIP
 T	SAMPLER_FEEDBACK_MIP_REGION_USED
+T	Sampler1D
+T	Sampler1DArray
+T	Sampler1DArrayShadow
+T	Sampler1DMS
+T	Sampler1DMSArray
+T	Sampler1DMSArrayShadow
+T	Sampler1DMSShadow
+T	Sampler1DShadow
+T	Sampler2D
+T	Sampler2DArray
+T	Sampler2DArrayShadow
+T	Sampler2DMS
+T	Sampler2DMSArray
+T	Sampler2DMSArrayShadow
+T	Sampler2DMSShadow
 T	Sampler2DRect
+T	Sampler2DShadow
+T	Sampler3D
+T	Sampler3DArray
+T	Sampler3DArrayShadow
+T	Sampler3DMS
+T	Sampler3DMSArray
+T	Sampler3DMSArrayShadow
+T	Sampler3DMSShadow
+T	Sampler3DShadow
 T	SamplerBuffer
 T	SamplerComparisonState
+T	SamplerCube
+T	SamplerCubeArray
+T	SamplerCubeArrayShadow
+T	SamplerCubeMS
+T	SamplerCubeMSArray
+T	SamplerCubeMSArrayShadow
+T	SamplerCubeMSShadow
+T	SamplerCubeShadow
 T	SamplerState
+T	Scalar	slang/numerics
 T	ScalarDataLayout
 T	SharedMemoryPool	slang/neural
 T	SharedMemorySize	slang/neural
@@ -232,6 +391,7 @@ T	SharedMemorySizeForLayer	slang/neural
 T	SharedMemorySizePackEnd	slang/neural
 T	SharedMemorySizePackNode	slang/neural
 T	SharedMemoryUsage	slang/neural
+T	ShiftAmount	slang/numerics
 T	ShmemAddressMode	slang/neural
 T	SiLU	slang/neural
 T	SideEffectBehavior
@@ -239,6 +399,7 @@ T	Sigmoid	slang/neural
 T	SineActivation	slang/neural
 T	Std140DataLayout
 T	Std430DataLayout
+T	StorageBuffer
 T	String
 T	StructuredBuffer
 T	SubpassInput
@@ -248,7 +409,23 @@ T	TanhActivation	slang/neural
 T	TargetEnum	slang/neural
 T	TensorLayout
 T	TensorView
+T	Texture1D
+T	Texture1DArray
+T	Texture1DMS
+T	Texture1DMSArray
+T	Texture2D
+T	Texture2DArray
+T	Texture2DMS
+T	Texture2DMSArray
+T	Texture3D
+T	Texture3DArray
+T	Texture3DMS
+T	Texture3DMSArray
 T	TextureBuffer
+T	TextureCube
+T	TextureCubeArray
+T	TextureCubeMS
+T	TextureCubeMSArray
 T	TextureFootprint
 T	TextureFootprint2D
 T	TextureFootprint3D
@@ -265,9 +442,42 @@ T	TorchTensorViewAddress	slang/neural
 T	TriangleStream
 T	Tuple
 T	UINT
+T	UniformTexelBuffer
 T	UntypedResourceHandle
 T	UntypedSamplerHandle
 T	VkMutableBindlessBindings
+T	WSampler1D
+T	WSampler1DArray
+T	WSampler1DMS
+T	WSampler1DMSArray
+T	WSampler2D
+T	WSampler2DArray
+T	WSampler2DMS
+T	WSampler2DMSArray
+T	WSampler3D
+T	WSampler3DArray
+T	WSampler3DMS
+T	WSampler3DMSArray
+T	WSamplerCube
+T	WSamplerCubeArray
+T	WSamplerCubeMS
+T	WSamplerCubeMSArray
+T	WTexture1D
+T	WTexture1DArray
+T	WTexture1DMS
+T	WTexture1DMSArray
+T	WTexture2D
+T	WTexture2DArray
+T	WTexture2DMS
+T	WTexture2DMSArray
+T	WTexture3D
+T	WTexture3DArray
+T	WTexture3DMS
+T	WTexture3DMSArray
+T	WTextureCube
+T	WTextureCubeArray
+T	WTextureCubeMS
+T	WTextureCubeMSArray
 T	WaveMask
 T	WaveMatrix	slang/neural
 T	WaveTangledVector	slang/neural
@@ -304,6 +514,7 @@ T	__Shape3D
 T	__ShapeBuffer
 T	__ShapeCube
 T	__SubpassImpl
+T	__Tag
 T	__TextureFootprintData
 T	__TextureMip
 T	__TextureMips
@@ -354,12 +565,45 @@ T	hitObjectNV
 T	i16vec2
 T	i16vec3
 T	i16vec4
+T	i64image1D
+T	i64image1DArray
+T	i64image2D
+T	i64image2DArray
+T	i64image2DMS
+T	i64image2DMSArray
+T	i64image2DRect
+T	i64image3D
+T	i64imageBuffer
+T	i64imageCube
+T	i64imageCubeArray
 T	i64vec2
 T	i64vec3
 T	i64vec4
 T	i8vec2
 T	i8vec3
 T	i8vec4
+T	iimage1D
+T	iimage1DArray
+T	iimage2D
+T	iimage2DArray
+T	iimage2DMS
+T	iimage2DMSArray
+T	iimage2DRect
+T	iimage3D
+T	iimageBuffer
+T	iimageCube
+T	iimageCubeArray
+T	image1D
+T	image1DArray
+T	image2D
+T	image2DArray
+T	image2DMS
+T	image2DMSArray
+T	image2DRect
+T	image3D
+T	imageBuffer
+T	imageCube
+T	imageCubeArray
 T	int32_t
 T	int8_t4_packed
 T	isampler1D
@@ -373,6 +617,8 @@ T	isampler3D
 T	isamplerBuffer
 T	isamplerCube
 T	isamplerCubeArray
+T	isubpassInput
+T	isubpassInputMS
 T	ivec2
 T	ivec3
 T	ivec4
@@ -411,16 +657,40 @@ T	samplerCubeShadow
 T	size_t
 T	ssize_t
 T	string
+T	subpassInput
+T	subpassInputMS
 T	texture2D
 T	u16vec2
 T	u16vec3
 T	u16vec4
+T	u64image1D
+T	u64image1DArray
+T	u64image2D
+T	u64image2DArray
+T	u64image2DMS
+T	u64image2DMSArray
+T	u64image2DRect
+T	u64image3D
+T	u64imageBuffer
+T	u64imageCube
+T	u64imageCubeArray
 T	u64vec2
 T	u64vec3
 T	u64vec4
 T	u8vec2
 T	u8vec3
 T	u8vec4
+T	uimage1D
+T	uimage1DArray
+T	uimage2D
+T	uimage2DArray
+T	uimage2DMS
+T	uimage2DMSArray
+T	uimage2DRect
+T	uimage3D
+T	uimageBuffer
+T	uimageCube
+T	uimageCubeArray
 T	uint32_t
 T	uint8_t4_packed
 T	usampler1D
@@ -435,6 +705,8 @@ T	usamplerBuffer
 T	usamplerCube
 T	usamplerCubeArray
 T	usize_t
+T	usubpassInput
+T	usubpassInputMS
 T	uvec	slang/neural
 T	uvec2
 T	uvec3

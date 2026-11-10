@@ -91,6 +91,11 @@ for (const file of files) {
     prefixes.add(m[1]);
   }
 
+  // C++ の部分の表に、文字列で書いた資源の型の名前 ({ kIROp_HLSLRWByteAddressBufferType, "RWByteAddressBuffer" }、"RasterizerOrderedStructuredBuffer<T, L>")。
+  for (const m of text.matchAll(/"([A-Z][A-Za-z0-9]*(?:Buffer|State))(?:<[^"]*>)?"/g)) {
+    add(types, m[1]);
+  }
+
   // C++ の部分 (${{{{ … }}}})、$(…) の差し込み、コメントを除く。
   text = text.replace(/\$\{\{\{\{[\s\S]*?\}\}\}\}/g, " ").replace(/\$\([^)]*\)/g, " ").replace(/\$\w+/g, " ");
   text = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
@@ -105,6 +110,11 @@ for (const file of files) {
     add(types, m[1]);
   }
   for (const m of text.matchAll(/\btypedef\s+[^;{}]*?\b([A-Za-z_]\w*)\s*;/g)) {
+    add(types, m[1]);
+  }
+
+  // インターフェイスの associatedtype (IDifferentiable の Differential)。適合する型の中では、修飾せずに型として書ける。
+  for (const m of full.matchAll(/\bassociatedtype\s+([A-Za-z_]\w*)/g)) {
     add(types, m[1]);
   }
 
@@ -131,6 +141,43 @@ for (const file of files) {
   // 関数の外の値: static const T NAME = / let NAME = / T NAME; (行頭の宣言)
   for (const m of text.matchAll(/^\s*(?:(?:public|static|const|let|var|__glsl_extension\([^)]*\)|layout\([^)]*\)|in|out|uniform)\s+)+(?:[A-Za-z_][\w<>,\s]*?\s+)?([A-Za-z_]\w*)\s*(?:\[[^\]]*\])?\s*(?:=|;|:)/gm)) {
     add(values, m[1]);
+  }
+}
+
+// C++ のコードで名前を組み立てる型 (hlsl.meta.slang と glsl.meta.slang の繰り返し)。組み合わせを多めに作る
+// (作らない組み合わせ、たとえば RWTextureCube を足しても、宣言されていない型を見落とすだけで、誤報告にはならない)。
+origin = "core";
+{
+  const shapes = ["1D", "2D", "3D", "Cube"];
+  for (const shape of shapes) {
+    for (const ms of ["", "MS"]) {
+      for (const array of ["", "Array"]) {
+        // typealias $(accessPrefix[access])$(textureTypeName)$(shapeTypeNames[shape])$(msPostFix[isMS])$(arrayPostFix[isArray])
+        for (const access of ["", "RW", "W", "RasterizerOrdered", "Feedback"]) {
+          for (const kind of ["Texture", "Sampler"]) {
+            add(types, `${access}${kind}${shape}${ms}${array}`);
+          }
+        }
+        // typealias DepthTexture… と Sampler…Shadow
+        add(types, `DepthTexture${shape}${ms}${array}`);
+        add(types, `Sampler${shape}${ms}${array}Shadow`);
+      }
+    }
+  }
+  // kBaseBufferAccessLevels[aa].name << "Buffer"
+  for (const access of ["", "RW", "RasterizerOrdered"]) {
+    add(types, `${access}Buffer`);
+  }
+  // GLSL の gimageDim (targetType.prefix << "image" << targetShape.suffix)
+  for (const prefix of ["", "u", "i", "u64", "i64"]) {
+    for (const suffix of ["1D", "2D", "3D", "Cube", "2DRect", "1DArray", "2DArray", "CubeArray", "Buffer", "2DMS", "2DMSArray"]) {
+      add(types, `${prefix}image${suffix}`);
+    }
+  }
+  // GLSL の subpassInput (kSubpassLoadEntries の prefix)
+  for (const prefix of ["", "u", "i"]) {
+    add(types, `${prefix}subpassInput`);
+    add(types, `${prefix}subpassInputMS`);
   }
 }
 
