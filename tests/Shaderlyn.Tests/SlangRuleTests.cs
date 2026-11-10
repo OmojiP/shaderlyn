@@ -49,6 +49,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0312", "struct S { float a; float get() { return a; } }\nfloat f(S s) { return s.put(); }\n")]
     // 構造体の { } の要素が多すぎる (足りないのは既定の値で埋める)
     [InlineData("CF0412", "struct S { float a; float b; }\nvoid f()\n{\n    S s = { 1.0, 2.0, 3.0 };\n}\n")]
+    // 宣言の置き場所
+    [InlineData("SG0101", "void f(struct { int a; } x) { }\n")]
+    [InlineData("SG0101", "typealias A = struct S { };\n")]
+    [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
+    [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
+    [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -65,6 +71,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // 書ける置き場所: 修飾子と __generic の後ろの構造体、関数の中の局所の構造体のメソッド、インターフェイスの中の __constraint
+    [InlineData("__generic<T>\nstruct Box { T v; }\n__target_intrinsic(cpp, \"Foo\")\nstruct Foo { int a; }\npublic struct Pub { int b; }\ninterface IFoo { }\ninterface IReq { __constraint int : IFoo; }\nint f()\n{\n    struct Op { int g(int v) { return v; } };\n    Op o;\n    return o.g(1);\n}\n")]
     // ポインター
     [InlineData("void f(float3x4* p)\n{\n    float3x4 m = p[0];\n    float4* q = (float4*)p;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
