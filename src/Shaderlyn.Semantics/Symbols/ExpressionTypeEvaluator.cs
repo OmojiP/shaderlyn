@@ -136,7 +136,7 @@ public sealed class ExpressionTypeEvaluator
     /// <summary>スコープの無い enum の列挙子の名前から、enum の名前への対応。2 つの enum にある名前は載せない。</summary>
     private FrozenDictionary<string, string> UnscopedEnumerators
         => _unscopedEnumerators ??= Enums.Values
-            .Where(e => !e.IsScoped)
+            .Where(e => !e.MembersNeedQualification)
             .SelectMany(e => e.Members.Select(m => (Member: m, Enum: e.Name)))
             .GroupBy(p => p.Member, StringComparer.Ordinal)
             .Where(g => g.Count() == 1)

@@ -13,6 +13,17 @@ internal static class SlangRuleDescriptors
 {
     private const string CorrectnessCategory = "Correctness";
 
+    /// <summary>リテラルの書き方が正しくない。</summary>
+    public static DiagnosticDescriptor InvalidLiteral { get; } = new(
+        id: "SG0004",
+        title: "リテラルの書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "文字や文字列のリテラルに使えないエスケープ (\\q、桁の足りない \\u など) を書いているか、文字のリテラルの中身がちょうど 1 文字でないか、"
+            + "64 ビットの整数に収まらない整数のリテラルを書いています。slangc は字句の誤り (E10001・E10007・E10008・E10009・E10012・E10013) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0004"));
+
     /// <summary>その場所に書けない宣言。</summary>
     public static DiagnosticDescriptor DeclarationNotAllowed { get; } = new(
         id: "SG0101",

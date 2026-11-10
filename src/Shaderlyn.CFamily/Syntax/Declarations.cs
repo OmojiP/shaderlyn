@@ -976,6 +976,15 @@ public sealed class EnumDeclarationSyntax(
     /// <summary>列挙子が型の名前で修飾しないと見えない (<c>enum class</c>) か。</summary>
     public bool IsScoped => ScopeKeyword is not null;
 
+    /// <summary>
+    /// 列挙子を型の名前で修飾しないと書けないか。<c>enum class</c> のほか、Slang の <c>[UnscopedEnum]</c> の無い <c>enum</c> もそうである
+    /// (名前の見え方だけ。値の変換の決まりは <see cref="IsScoped"/> で決める)。
+    /// </summary>
+    public bool MembersNeedQualification => IsScoped || QualifiedByDefault;
+
+    /// <summary><c>enum class</c> と書かなくても、列挙子に修飾が要るか (Slang の既定)。</summary>
+    public bool QualifiedByDefault { get; init; }
+
     /// <summary>型の名前のトークン。無名の場合は <see langword="null"/>。</summary>
     public ShaderSyntaxToken? NameToken { get; } = nameToken;
 

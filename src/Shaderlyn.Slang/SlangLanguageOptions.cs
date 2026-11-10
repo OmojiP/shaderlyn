@@ -13,6 +13,12 @@ internal sealed record SlangLanguageOptions : ShaderLanguageOptions
     /// <summary>既定の設定。</summary>
     public static SlangLanguageOptions Default { get; } = new();
 
+    /// <summary>
+    /// どの列挙型の列挙子も、型の名前で修飾せずに書けるか (slangc の <c>-unscoped-enum</c>、設定ファイルの <c>slang: unscoped-enums</c>)。
+    /// 既定は <see langword="false"/> (<c>[UnscopedEnum]</c> を付けた列挙型だけ)。
+    /// </summary>
+    public bool UnscopedEnums { get; init; }
+
     /// <inheritdoc/>
     public override string DescribeUnavailable() => "Slang";
 

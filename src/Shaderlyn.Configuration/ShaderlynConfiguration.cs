@@ -170,6 +170,12 @@ internal sealed record ShaderlynConfiguration
     /// </summary>
     public string? SlangTarget { get; init; }
 
+    /// <summary>
+    /// Slang の列挙子を、どの列挙型でも型の名前で修飾せずに書けるか (<c>slang: unscoped-enums</c>。slangc の <c>-unscoped-enum</c>)。
+    /// 既定は <see langword="false"/> (<c>[UnscopedEnum]</c> を付けた列挙型だけ)。
+    /// </summary>
+    public bool SlangUnscopedEnums { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

@@ -134,6 +134,7 @@ public static class BuiltInAnalyzers
         new Rules.Wgsl.WgslLayoutAnalyzer(),
         new Rules.Wgsl.WgslAttributeAnalyzer(),
         new Rules.Wgsl.WgslCallAnalyzer(),
+        new Rules.Slang.SlangLiteralAnalyzer(),
         new Rules.Slang.SlangDeclarationPlacementAnalyzer(),
         new Rules.Slang.SlangStatementAnalyzer(),
         new Rules.Slang.SlangVisibilityAnalyzer(),

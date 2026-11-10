@@ -101,6 +101,13 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0312", "struct S { float a; float get() { return a; } }\nfloat f(S s) { return s.put(); }\n")]
     // 構造体の { } の要素が多すぎる (足りないのは既定の値で埋める)
     [InlineData("CF0412", "struct S { float a; float b; }\nvoid f()\n{\n    S s = { 1.0, 2.0, 3.0 };\n}\n")]
+    // 構造体のフィールドと仮引数の重複
+    [InlineData("CF0314", "struct S\n{\n    int f;\n    float f;\n}\n")]
+    [InlineData("CF0314", "int g(int size, float size)\n{\n    return 0;\n}\n")]
+    // リテラルの書き方
+    [InlineData("SG0004", "uint f()\n{\n    return '\\q';\n}\n")]
+    [InlineData("SG0004", "uint f()\n{\n    return 'ab';\n}\n")]
+    [InlineData("SG0004", "uint64_t f()\n{\n    return 18446744073709551616;\n}\n")]
     // 宣言の置き場所
     [InlineData("SG0101", "void f(struct { int a; } x) { }\n")]
     [InlineData("SG0101", "typealias A = struct S { };\n")]
@@ -178,6 +185,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int f(bool a, bool b, int i, uint u, float x)\n{\n    bool r1 = a | b;\n    bool r2 = ~a;\n    int r3 = i | u;\n    uint r4 = u;\n    r4 |= x;\n    return r3 << 2;\n}\n")]
     // 書き換えてよいもの:[mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
     [InlineData("struct S\n{\n    float r;\n    static int n;\n    RWStructuredBuffer<float> buf;\n    float* p;\n    [mutating] void a(float x) { r = x; }\n    [[mutating]] void b(float x) { r = x; }\n    __init() { r = 0; }\n    void c(float r) { r = 1; }\n    void d(float x) { buf[0] = x; *p = x; n = 1; }\n    static void e(S s) { s.r = 1; }\n}\n")]
+    // 正しいリテラル: エスケープ、16 進の浮動小数、64 ビットに収まる整数、import のパスの \
+    [InlineData("uint f()\n{\n    uint a = '\\n' + '\\0' + '\\101' + '\\x41' + '\\x{41}' + '\\u0041' + '\\u{41}' + '\\U00000041' + '\\'';\n    double d = 0x1.8p3;\n    uint64_t u = 18446744073709551615;\n    return a;\n}\n")]
     // 修飾した名前の extension (extension Container.Nested) が足すメンバー
     [InlineData("struct Container\n{\n    struct Nested { int v; }\n}\nextension Container.Nested\n{\n    int twice() { return v * 2; }\n}\nint f(Container.Nested n)\n{\n    return n.twice();\n}\n")]
     // 書ける資源と、読むだけの資源から読むこと
@@ -285,6 +294,26 @@ public sealed class SlangRuleTests : IDisposable
 
         Assert.True(error.ToString().Length == 0, error.ToString());
         Assert.Equal(reported, output.ToString().Contains("error SG0404", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task 修飾しない列挙子は設定でだけ書ける(bool unscoped, bool reported)
+    {
+        if (unscoped)
+        {
+            File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "slang:\n  unscoped-enums: true\n");
+        }
+
+        // [UnscopedEnum] の列挙型と、名前の無い列挙型と、列挙型の中の前の列挙子は、いつでも修飾せずに書ける。
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"),
+            "enum Fruit { Orange, Apple }\n[UnscopedEnum]\nenum Color { Red, Green = Red }\nenum { Loose }\nint f()\n{\n    return (int)Apple + (int)Red + Loose + (int)Fruit.Orange;\n}\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Equal(reported, output.ToString().Contains("CF0310: 'Apple'", StringComparison.Ordinal));
+        Assert.Equal(reported ? 1 : 0, output.ToString().Split("CF0310").Length - 1);
     }
 
     [Fact]

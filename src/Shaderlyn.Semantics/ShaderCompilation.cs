@@ -1467,7 +1467,7 @@ public sealed partial class ShaderCompilation
             yield return enumeration.Name;
         }
 
-        if (!enumeration.IsScoped)
+        if (!enumeration.MembersNeedQualification)
         {
             foreach (EnumMemberSyntax member in enumeration.Members)
             {

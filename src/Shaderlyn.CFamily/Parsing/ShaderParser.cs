@@ -508,7 +508,7 @@ internal abstract class ShaderParser
         if (CurrentTextIs("enum"))
         {
             return AcceptsEnums
-                ? ParseEnum()
+                ? ParseEnum(attributes)
                 : ParseUnsupportedTypeDeclaration(endsWithSemicolon: true, report: true);
         }
 
@@ -560,7 +560,7 @@ internal abstract class ShaderParser
         // 修飾子の後ろの enum (Slang の public enum Mode { … })。
         if (!modifiers.IsEmpty && AcceptsEnums && CurrentTextIs("enum"))
         {
-            return ParseEnum();
+            return ParseEnum(attributes);
         }
 
         // 前方宣言 (struct Light; / class ObjModelLoader;)。名前を知らせるだけで中身は無い。
@@ -1205,13 +1205,17 @@ internal abstract class ShaderParser
     /// </remarks>
     private readonly HashSet<string> _templateNames = new(StringComparer.Ordinal);
 
+    /// <summary>列挙子を、<c>enum class</c> と書かなくても型の名前で修飾しないと書けないか (Slang は <c>[UnscopedEnum]</c> を付けなければそう)。</summary>
+    protected virtual bool EnumMembersNeedQualificationByDefault => false;
+
     /// <summary><c>enum</c> の宣言を読む (HLSL 2021)。</summary>
+    /// <param name="attributes">宣言の前の属性。</param>
     /// <returns>読んだ宣言。</returns>
     /// <remarks>
     /// 文法: <c>enum [class|struct] Name [: Type] { A [= 式], ... } ;</c>。
     /// 列挙子の値の式は定数の式で、カンマで区切るので代入の式 (カンマ演算子を含まない) として読む。
     /// </remarks>
-    private EnumDeclarationSyntax ParseEnum()
+    private EnumDeclarationSyntax ParseEnum(ImmutableArray<AttributeSyntax> attributes)
     {
         ShaderSyntaxToken keyword = Advance();
         ShaderSyntaxToken? scope = CurrentTextIs("class") || CurrentTextIs("struct") ? Advance() : null;
@@ -1254,7 +1258,11 @@ internal abstract class ShaderParser
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
         ShaderSyntaxToken semicolon = ExpectTypeSemicolon();
 
-        return new EnumDeclarationSyntax(keyword, scope, name, baseType.ToImmutable(), openBrace, members.ToImmutable(), closeBrace, semicolon);
+        return new EnumDeclarationSyntax(keyword, scope, name, baseType.ToImmutable(), openBrace, members.ToImmutable(), closeBrace, semicolon)
+        {
+            // 名前の無い enum の列挙子は、修飾する名前が無いので、そのまま書ける。
+            QualifiedByDefault = EnumMembersNeedQualificationByDefault && name is not null && !attributes.Any(a => a.Name == "UnscopedEnum"),
+        };
     }
 
     /// <summary>構造体宣言を解析する。</summary>

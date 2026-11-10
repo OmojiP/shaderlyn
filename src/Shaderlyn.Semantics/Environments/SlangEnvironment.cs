@@ -25,8 +25,11 @@ namespace Shaderlyn.Semantics.Environments;
 /// </remarks>
 /// <param name="variants">構成の軸。</param>
 /// <param name="target">コンパイル先 (設定ファイルの <c>slang: target</c>)。指定が無ければ <see langword="null"/> (GPU のコンパイル先とみなす)。</param>
-internal sealed class SlangEnvironment(VariantSpace? variants = null, string? target = null) : IShaderEnvironment
+/// <param name="unscopedEnums">どの列挙型の列挙子も修飾せずに書けるか (設定ファイルの <c>slang: unscoped-enums</c>)。</param>
+internal sealed class SlangEnvironment(VariantSpace? variants = null, string? target = null, bool unscopedEnums = false) : IShaderEnvironment
 {
+    private readonly SlangLanguageOptions _language = unscopedEnums ? new SlangLanguageOptions { UnscopedEnums = true } : SlangLanguageOptions.Default;
+
     /// <summary>コンパイル先 (<c>spirv</c>・<c>cpp</c> など)。指定が無ければ <see langword="null"/>。</summary>
     public string? Target { get; } = target;
 
@@ -46,7 +49,7 @@ internal sealed class SlangEnvironment(VariantSpace? variants = null, string? ta
 
     /// <inheritdoc/>
     public ShaderSyntaxTree Parse(SourceText text, PreprocessorOptions options, ISyntaxTimingRecorder? timings)
-        => SlangSyntaxTree.Parse(text, options, Symbols.SlangTypeSystem.Instance.IsStandardModule);
+        => SlangSyntaxTree.Parse(text, options.Language is SlangLanguageOptions ? options : options with { Language = _language }, Symbols.SlangTypeSystem.Instance.IsStandardModule);
 
     /// <inheritdoc/>
     public PreprocessorOptions ConfigurePreprocessor(PreprocessorOptions options, SemanticsOptions semantics)
@@ -56,7 +59,7 @@ internal sealed class SlangEnvironment(VariantSpace? variants = null, string? ta
 
         return options with
         {
-            Language = SlangLanguageOptions.Default,
+            Language = _language,
 
             // 解決できない取り込みは、その行で伝える (GLSL と同じ)。
             ReportUnresolvedIncludes = true,

@@ -458,6 +458,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
+            // 列挙型の中では、その列挙子を修飾せずに書ける (Slang の enum E { A, B = A })。
+            || identifier.Ancestors().OfType<EnumDeclarationSyntax>().Any(e => e.Members.Any(m => m.Name == identifier.Name))
             || !compilation.IsReportable(identifier)
             || !compilation.HasCompleteDependenciesAt(identifier)
             || identifier.GetLocation() is not { } location

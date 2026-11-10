@@ -81,6 +81,13 @@ internal sealed class SlangParser : ShaderParser
     protected override bool RequiresTypedefName => true;
 
     /// <inheritdoc/>
+    /// <remarks>Slang の列挙子は、[UnscopedEnum] を付けなければ型の名前で修飾して書く (enum Fruit { Apple } の Apple は Fruit.Apple)。</remarks>
+    protected override bool EnumMembersNeedQualificationByDefault => !UnscopedEnums;
+
+    /// <summary>どの列挙型の列挙子も修飾せずに書けるか (<see cref="SlangLanguageOptions.UnscopedEnums"/>)。</summary>
+    public bool UnscopedEnums { get; init; }
+
+    /// <inheritdoc/>
     /// <remarks>Slang は z (大きさの整数) と d (double) も読む。</remarks>
     protected override bool IsNumericSuffixAccepted(string suffix, bool floating)
         => suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L' or 'z' or 'Z' or 'd' or 'D');

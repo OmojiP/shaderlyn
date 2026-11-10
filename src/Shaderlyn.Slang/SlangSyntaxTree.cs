@@ -39,7 +39,10 @@ internal static class SlangSyntaxTree
             ? path => !modules.Contains(SafeFullPath(path)) && user(path)
             : options?.IsUserInclude;
 
-        SlangParser parser = new(preprocessed.Tokens, text, isUserInclude);
+        SlangParser parser = new(preprocessed.Tokens, text, isUserInclude)
+        {
+            UnscopedEnums = effective.Language is SlangLanguageOptions { UnscopedEnums: true },
+        };
         CompilationUnitSyntax root = parser.ParseCompilationUnit(out ImmutableArray<Diagnostic> parseDiagnostics);
         SyntaxNode.WireParents(root);
 

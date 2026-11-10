@@ -57,7 +57,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
 
     /// <summary><c>slang:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownSlangKeys = ["target"];
+    private static readonly string[] KnownSlangKeys = ["target", "unscoped-enums"];
 
     /// <summary><c>slang: target</c> に書ける値 (slangc の <c>-target</c> の名前)。</summary>
     private static readonly string[] KnownSlangTargets = ["spirv", "glsl", "hlsl", "dxil", "metal", "wgsl", "cuda", "ptx", "cpp"];
@@ -251,7 +251,7 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(slang, KnownSlangKeys, "slang:");
             }
 
-            ReportNonScalars(slang, "slang: の ", "target");
+            ReportNonScalars(slang, "slang: の ", "target", "unscoped-enums");
 
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
@@ -282,6 +282,7 @@ internal static class ConfigurationLoader
                 GodotProjectPath = ResolvePath(ReadOptionalScalar(godot, "project")),
                 GodotRenderer = ReadGodotRenderer(godot),
                 SlangTarget = ReadSlangTarget(slang),
+                SlangUnscopedEnums = ReadOptionalBoolean(slang, "unscoped-enums", "slang:") ?? false,
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),

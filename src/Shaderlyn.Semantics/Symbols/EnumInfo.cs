@@ -12,4 +12,8 @@ namespace Shaderlyn.Semantics.Symbols;
 /// <c>enum class</c> の値は数へ暗黙に変換されず、<c>==</c> / <c>!=</c> (同じ enum どうし) と代入のほかに演算子を使えない。
 /// ふつうの enum の値は数へ変換される。<c>++</c> / <c>--</c> は使えない。
 /// </remarks>
-internal sealed record EnumInfo(string Name, bool IsScoped, FrozenSet<string> Members, string? BaseType = null);
+internal sealed record EnumInfo(string Name, bool IsScoped, FrozenSet<string> Members, string? BaseType = null)
+{
+    /// <summary>列挙子に型の名前の修飾が要るか (<c>enum class</c> のほか、Slang の [UnscopedEnum] の無い enum)。名前の見え方だけに使う。</summary>
+    public bool MembersNeedQualification { get; init; } = IsScoped;
+}

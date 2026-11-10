@@ -27,7 +27,8 @@ internal sealed class SlangAnalysisEnvironment(ShaderlynConfiguration configurat
 
     private readonly SlangEnvironment _environment = new(
         HlslAnalysisEnvironment.BuildVariants(configuration ?? throw new ArgumentNullException(nameof(configuration)), null),
-        configuration.SlangTarget);
+        configuration.SlangTarget,
+        configuration.SlangUnscopedEnums);
 
     /// <inheritdoc/>
     public string Name => SlangEnvironment.EnvironmentName;

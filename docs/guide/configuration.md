@@ -181,13 +181,15 @@ Slang のファイル (`.slang`) で使う設定です。
 | キー | 内容 |
 | ---- | ---- |
 | `target` | コンパイル先。`spirv` / `glsl` / `hlsl` / `dxil` / `metal` / `wgsl` / `cuda` / `ptx` / `cpp` を指定します (slangc の `-target`) |
+| `unscoped-enums` | `true` なら、どの列挙型の列挙子も型の名前で修飾せずに書けるものとします (slangc の `-unscoped-enum`)。既定は `false` で、`[UnscopedEnum]` を付けた列挙型だけです |
 
 `target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
 `cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を入れるなど。[SG0404](../rules/SG0404.md)) を報告しません。
 
 ```yaml
 slang:
-  target: cuda   # slangc -target cuda でコンパイルする
+  target: cuda          # slangc -target cuda でコンパイルする
+  unscoped-enums: true  # slangc -unscoped-enum でコンパイルする
 ```
 
 ## unreal

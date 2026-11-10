@@ -354,7 +354,10 @@ public sealed class ExpressionTypeBinder
                             enumeration.Name,
                             enumeration.IsScoped,
                             enumeration.Members.Select(m => m.Name).ToFrozenSet(StringComparer.Ordinal),
-                            enumeration.BaseTypeTokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text);
+                            enumeration.BaseTypeTokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text)
+                        {
+                            MembersNeedQualification = enumeration.MembersNeedQualification,
+                        };
 
                         // 同じ名前の enum が 2 つあれば (名前空間が違うなど)、どちらか決められない。
                         enums[enumeration.Name] = enums.TryGetValue(enumeration.Name, out EnumInfo? seen)

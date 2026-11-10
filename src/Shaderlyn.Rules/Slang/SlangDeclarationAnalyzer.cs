@@ -129,6 +129,48 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // 構造体のフィールドの重複と、仮引数の重複 (E30200・「ambiguous reference」)。HLSL の決まりの CF0314 は、どちらも見ていない。
+            // 条件付きの宣言 (#if の分岐) は、別の構成のものでありうるので、どの構成にもある宣言だけを比べる。
+            Semantics.Conditional.ConditionMap conditions = compilation.GetConditionMap();
+
+            void ReportDuplicates(IEnumerable<ShaderSyntaxToken> names)
+            {
+                Dictionary<string, ShaderSyntaxToken> first = new(StringComparer.Ordinal);
+
+                foreach (ShaderSyntaxToken name in names)
+                {
+                    if (name.IsMissing || name.Text.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (first.TryGetValue(name.Text, out ShaderSyntaxToken? earlier))
+                    {
+                        if (compilation.IsReportable(name) && name.GetLocation() is { } location && earlier.GetLocation() is { } earlierLocation)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, location, name.Text,
+                                (earlierLocation.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                        }
+                    }
+                    else
+                    {
+                        first[name.Text] = name;
+                    }
+                }
+            }
+
+            foreach (StructDeclarationSyntax structure in structs.Values)
+            {
+                ReportDuplicates(structure.Members.OfType<VariableDeclarationSyntax>()
+                    .Where(conditions.IsAlwaysPresent)
+                    .SelectMany(field => field.Variables.Select(v => v.NameToken)));
+            }
+
+            foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+            {
+                ReportDuplicates(function.ParameterList.Where(conditions.IsAlwaysPresent).Select(p => p.NameToken));
+            }
+
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
                 bool global = declaration.Parent is CompilationUnitSyntax or NamespaceDeclarationSyntax;
