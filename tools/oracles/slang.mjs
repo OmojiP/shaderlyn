@@ -19,6 +19,9 @@ import { cpus } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 /** slangc の引数を書く指示。 */
+/** 正解に入れない slangc の誤り (コードの誤りでないもの)。 */
+const IgnoredCodes = new Set(["E57004", "E50100"]);
+
 const SlangcKinds = new Set(["SIMPLE", "SIMPLE_EX", "SIMPLE_LINE", "COMPILE", "CROSS_COMPILE", "REFLECTION", "CPU_REFLECTION"]);
 
 /** 描画のテストの道具の引数から、slangc のコンパイル先を決める。 */
@@ -108,7 +111,12 @@ function run(slangc, path, args) {
   const cwd = workingDirectory(path);
   const input = relative(cwd, path).split(sep).join("/");
   return new Promise(done => {
-    const child = spawn(slangc, [input, ...args, "-enable-machine-readable-diagnostics", "-diagnostic-color", "never"], { cwd });
+    // -lang (-source-language) は、後ろに書いたファイルにだけ効く。指定があれば、ファイルをその後ろに置く。
+    const lang = args.findIndex(a => a === "-lang" || a === "-source-language");
+    const ordered = lang >= 0 && lang + 1 < args.length
+      ? [...args.slice(0, lang + 2), input, ...args.slice(lang + 2)]
+      : [input, ...args];
+    const child = spawn(slangc, [...ordered, "-enable-machine-readable-diagnostics", "-diagnostic-color", "never"], { cwd });
     let stderr = "";
     child.stdout.resume();
     child.stderr.on("data", chunk => { stderr += chunk; });
@@ -131,7 +139,8 @@ function parse(stderr, cwd, path) {
   for (const line of stderr.split(/\r?\n/)) {
     const fields = line.split("\t");
     // E57004 (SPIR-V にエントリポイントが 1 つも無い) は、エントリポイントの無いモジュールを掛けたときに出る。コードの誤りではないので除く。
-    if (fields.length < 8 || !/^(error|fatal)$/.test(fields[1]) || fields[0] === "E57004") {
+    // E50100 (型の適合が見つからない) は、試験の道具が TEST_INPUT: type_conformance で与える適合を渡していないときに出る。これもコードの誤りではない。
+    if (fields.length < 8 || !/^(error|fatal)$/.test(fields[1]) || IgnoredCodes.has(fields[0])) {
       continue;
     }
 
@@ -203,7 +212,7 @@ export async function recordSlang(paths) {
 
       const errors = parse(stderr, cwd, item.path);
       // 誤りの行が無いのに失敗したもの (後段のコンパイラの失敗など) は、行 0 の誤りとして残す。
-      if (errors.length === 0 && code !== 0 && !/^E57004	/m.test(stderr)) {
+      if (errors.length === 0 && code !== 0 && ![...IgnoredCodes].some(c => new RegExp(`^${c}	`, "m").test(stderr))) {
         errors.push({ line: 0, message: `slangc が失敗しました (終了コード ${code}): ${stderr.trim().split(/\r?\n/)[0] ?? ""}` });
       }
       files[item.path] = { errors, args: args.join(" "), directive: item.directive };

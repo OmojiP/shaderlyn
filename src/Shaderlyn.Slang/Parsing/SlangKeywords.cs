@@ -36,6 +36,11 @@ internal static class SlangKeywords
         // ポインターと記憶域 (__ref は仮引数の修飾子)
         "__ref", "__constref", "constref", "__ptr",
 
+        // GLSL の光線追跡 (GL_EXT_ray_tracing / GL_NV_ray_tracing)、ヒットオブジェクト、メッシュシェーダーの記憶域の修飾子 (-lang glsl で読む書き方)
+        "rayPayloadEXT", "rayPayloadInEXT", "hitAttributeEXT", "callableDataEXT", "callableDataInEXT", "shaderRecordEXT",
+        "rayPayloadNV", "rayPayloadInNV", "hitAttributeNV", "callableDataNV", "callableDataInNV", "shaderRecordNV",
+        "hitObjectAttributeEXT", "hitObjectAttributeNV", "taskPayloadSharedEXT", "perprimitiveEXT", "perprimitiveNV",
+
         // GLSL と同じ書き方の修飾子
         "highp", "mediump", "lowp", "flat", "smooth", "buffer", "readonly", "writeonly", "coherent", "restrict",
     }.ToFrozenSet(StringComparer.Ordinal);

@@ -44,8 +44,8 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
         // C++ のコードで名前を組み立てる関数の、名前の前半 (WaveMulti$(opName) の WaveMulti)。
         List<string> prefixes = [];
 
-        // 言語の値 (none は空の Optional、This は自分の型) と、GLSL の組み込みの変数 (Slang は GLSL の組み込みも読む)。
-        HashSet<string> values = new(GlslBuiltins.Instance.Variables.Keys, StringComparer.Ordinal) { "none", "nullptr", "This" };
+        // 言語の値 (none は空の Optional、This は自分の型) と、GLSL の組み込みの変数 (Slang は GLSL の組み込みも読む)。GLSL の文として書く ignoreIntersectionEXT と terminateRayEXT も値の名前として読む。
+        HashSet<string> values = new(GlslBuiltins.Instance.Variables.Keys, StringComparer.Ordinal) { "none", "nullptr", "This", "ignoreIntersectionEXT", "terminateRayEXT" };
 
         // 言語に組み込みのモジュール。
         HashSet<string> modules = new(StringComparer.Ordinal) { "glsl", "hlsl", "core", "diff", "gfx", "slang" };
