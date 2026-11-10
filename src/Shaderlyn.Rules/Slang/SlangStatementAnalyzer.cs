@@ -67,9 +67,25 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
     private static void CheckDiscardedResults(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root)
     {
         FunctionDeclarationSyntax[] functions = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()];
+
+        // void を返す関数の [NoDiscard] は、宣言の誤り (捨てる戻り値が無い)。その呼び出しは捨てたことにしない。
+        foreach (FunctionDeclarationSyntax function in functions)
+        {
+            if (function.Name != "__init"
+                && function.ReturnType.Name == "void"
+                && !function.ReturnType.IsPointer
+                && function.Attributes.FirstOrDefault(a => a.NameToken.Text == "NoDiscard") is { } attribute
+                && compilation.IsReportable(function.NameToken)
+                && function.NameToken.GetLocation() is { } declared)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.DiscardedResult, declared,
+                    $"'{function.Name}' は void を返すので、[NoDiscard] は書けません (捨てる戻り値がありません)。"));
+            }
+        }
+
         HashSet<string> marked = [.. functions
             .GroupBy(f => f.Name, StringComparer.Ordinal)
-            .Where(g => g.Key != "__init" && g.All(f => f.Attributes.Any(a => a.NameToken.Text == "NoDiscard")))
+            .Where(g => g.Key != "__init" && g.All(f => f.Attributes.Any(a => a.NameToken.Text == "NoDiscard") && f.ReturnType.Name != "void"))
             .Select(g => g.Key)];
 
         if (marked.Count == 0)

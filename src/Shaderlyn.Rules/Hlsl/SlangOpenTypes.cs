@@ -143,11 +143,55 @@ internal sealed class SlangOpenTypes : IReadOnlySet<string>
             }
         }
 
-        return i < extension.Tokens.Length
-               && extension.Tokens[i].Kind == ShaderSyntaxKind.IdentifierToken
-               && !parameters.Contains(extension.Tokens[i].Text)
-            ? extension.Tokens[i].Text
-            : null;
+        if (i >= extension.Tokens.Length
+            || extension.Tokens[i].Kind != ShaderSyntaxKind.IdentifierToken
+            || parameters.Contains(extension.Tokens[i].Text))
+        {
+            return null;
+        }
+
+        // 修飾した名前 (extension Container.Nested、extension GenericType<float>.InnerType) は、最後の名前の型を拡張する。
+        string name = extension.Tokens[i].Text;
+
+        for (int j = i + 1; j < extension.Tokens.Length; j++)
+        {
+            ShaderSyntaxToken token = extension.Tokens[j];
+
+            if (token.Kind == ShaderSyntaxKind.LessThanToken)
+            {
+                int depth = 0;
+
+                for (; j < extension.Tokens.Length; j++)
+                {
+                    depth += extension.Tokens[j].Kind switch
+                    {
+                        ShaderSyntaxKind.LessThanToken => 1,
+                        ShaderSyntaxKind.GreaterThanToken => -1,
+                        ShaderSyntaxKind.GreaterThanGreaterThanToken => -2,
+                        _ => 0,
+                    };
+
+                    if (depth <= 0)
+                    {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
+            if (token.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken
+                && j + 1 < extension.Tokens.Length
+                && extension.Tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                name = extension.Tokens[++j].Text;
+                continue;
+            }
+
+            break;
+        }
+
+        return name;
     }
 
     /// <inheritdoc/>

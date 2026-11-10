@@ -70,6 +70,10 @@ public sealed class SlangRuleTests : IDisposable
     // [mutating] でないメソッドの中の、フィールドへの書き込み
     [InlineData("SG0309", "struct S\n{\n    float r;\n    void set(float x) { r = x; }\n}\n")]
     [InlineData("SG0309", "struct S\n{\n    float3 c;\n    void grow() { this.c.x += 1; }\n}\n")]
+    // 読むだけの資源の要素への書き込み
+    [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    sb[0] = 1;\n}\n")]
+    [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    InterlockedAdd(sb[0], 1);\n}\n")]
+    [InlineData("SG0309", "Texture2D<float4> tex;\nvoid f()\n{\n    tex[uint2(0, 0)] = float4(0);\n}\n")]
     // スカラーでない条件、点で書いた列挙子の変換
     [InlineData("SG0311", "struct S { int a; }\nvoid f(S s)\n{\n    if (s) { }\n}\n")]
     [InlineData("SG0311", "void f(float3 v)\n{\n    while (v) { break; }\n}\n")]
@@ -81,6 +85,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0410", "float f(float4 v)\n{\n    float3 t = v;\n    return t.x;\n}\n")]
     [InlineData("CF0401", "float g(float x) { return x; }\nfloat f(float4 v)\n{\n    return g(v);\n}\n")]
     [InlineData("CF0411", "float3x3 f(float4x4 m)\n{\n    return m;\n}\n")]
+    // out / inout に暗黙の変換の要る値を渡す (int と uint の組だけは通る)
+    [InlineData("CF0401", "void a(out float x) { x = 0; }\nvoid b(double y)\n{\n    a(y);\n}\n")]
+    [InlineData("CF0401", "void a(inout half x) { }\nvoid b(float y)\n{\n    a(y);\n}\n")]
     // 宣言されていない型の名前 (変数・仮引数・戻り値・フィールドの型、構造体の基底)
     [InlineData("CF0310", "NotAType f(float x)\n{\n    return x;\n}\n")]
     [InlineData("CF0310", "struct S : INotExist { }\n")]
@@ -124,6 +131,8 @@ public sealed class SlangRuleTests : IDisposable
     // [NoDiscard] の戻り値を捨てる
     [InlineData("SG0338", "struct T\n{\n    [NoDiscard]\n    float load() { return 1.0; }\n}\nvoid f(T t)\n{\n    t.load();\n}\n")]
     [InlineData("SG0338", "[NoDiscard]\nint g() { return 1; }\nvoid f(bool c)\n{\n    c && g() > 0;\n    for (int i = 0; i < 1; g()) { }\n}\n")]
+    // void を返す関数の [NoDiscard] (宣言の誤り)
+    [InlineData("SG0338", "[NoDiscard]\nvoid touch() { }\n")]
     // 構造体の外からの private のメンバー
     [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nvoid f()\n{\n    T t;\n    t.member = 2;\n}\n")]
     [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nint f()\n{\n    T t;\n    return t.func();\n}\n")]
@@ -169,10 +178,16 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int f(bool a, bool b, int i, uint u, float x)\n{\n    bool r1 = a | b;\n    bool r2 = ~a;\n    int r3 = i | u;\n    uint r4 = u;\n    r4 |= x;\n    return r3 << 2;\n}\n")]
     // 書き換えてよいもの:[mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
     [InlineData("struct S\n{\n    float r;\n    static int n;\n    RWStructuredBuffer<float> buf;\n    float* p;\n    [mutating] void a(float x) { r = x; }\n    [[mutating]] void b(float x) { r = x; }\n    __init() { r = 0; }\n    void c(float r) { r = 1; }\n    void d(float x) { buf[0] = x; *p = x; n = 1; }\n    static void e(S s) { s.r = 1; }\n}\n")]
+    // 修飾した名前の extension (extension Container.Nested) が足すメンバー
+    [InlineData("struct Container\n{\n    struct Nested { int v; }\n}\nextension Container.Nested\n{\n    int twice() { return v * 2; }\n}\nint f(Container.Nested n)\n{\n    return n.twice();\n}\n")]
+    // 書ける資源と、読むだけの資源から読むこと
+    [InlineData("StructuredBuffer<uint> sb;\nRWStructuredBuffer<uint> rw;\nRWTexture2D<float4> img;\nvoid g(inout uint x) { x += 1; }\nvoid f(uint i)\n{\n    rw[i] = sb[i];\n    InterlockedAdd(rw[0], 1);\n    g(rw[1]);\n    img[uint2(0, 0)] = float4(0);\n    uint v = sb[0];\n    g(v);\n}\n")]
     // 条件にできる値:スカラー (int を含む)。?: と ! のベクトルは成分ごと。列挙子は基になる型へ変換できる
     [InlineData("enum Color { Red, Green }\nfloat4 f(int i, bool4 mask)\n{\n    int c = Color.Green;\n    if (i) { }\n    bool4 n = !mask;\n    return n ? float4(1.0) : float4(0.0);\n}\n")]
     // テクスチャの要素にできる型: bool でないスカラーとベクトル。StructuredBuffer は構造体と行列を入れられる
     [InlineData("struct S { float a; }\nTexture2D<half2> t1;\nRWTexture2D<uint4> t2;\nBuffer<int> t3;\nTexture3D<vector<float, 4>> t4;\nStructuredBuffer<S> s1;\nStructuredBuffer<float4x4> s2;\n")]
+    // out に渡せる値: 同じ型、同じ大きさの int と uint
+    [InlineData("void oi(out int x) { x = 0; }\nvoid ou(out uint x) { x = 0; }\nvoid of(out float x) { x = 0; }\nvoid g(int i, uint u, float f)\n{\n    oi(u);\n    ou(i);\n    of(f);\n}\n")]
     // 通る変換: スカラーからの複製、1 成分の値、ConstantBuffer の行列の行、import glsl の == (1 つの bool)
     [InlineData("ConstantBuffer<float4x4> m;\nfloat4 f(float1 a, float b)\n{\n    float c = a;\n    float4 v = b;\n    float4 row = m[3];\n    return v + row + c;\n}\n")]
     [InlineData("import glsl;\nbool f(float4 a, float4 b)\n{\n    bool same = a == b;\n    return same;\n}\n")]

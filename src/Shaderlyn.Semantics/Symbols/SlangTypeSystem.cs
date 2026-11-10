@@ -223,10 +223,35 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     /// </remarks>
     public override bool IsConvertible(ShaderNumericShape value, ShaderNumericShape target, bool exact)
         => exact
-            ? _hlsl.IsConvertible(value, target, exact)
+            ? _hlsl.IsConvertible(value, target, exact) && IsWritableBase(value.BaseName, target.BaseName)
             : value.Kind == ShaderNumericKind.Scalar
               || value.Rows * value.Columns == 1
               || (value.Kind == target.Kind && value.Rows == target.Rows && value.Columns == target.Columns);
+
+    /// <summary>
+    /// out / inout の実引数として、要素の型が書き戻せるか。
+    /// </summary>
+    /// <remarks>
+    /// Slang は、暗黙の変換の要る値を out / inout に渡すことを「argument must be l-value」(E30047) にする
+    /// (slangc 2026.19 で確かめた。double・half・int を out float に渡すもの、float を inout half に渡すもの)。
+    /// 同じ大きさの符号付きと符号無しの整数 (int と uint) は通る。知らない型 (bool・min16float など) は通す。
+    /// </remarks>
+    private static bool IsWritableBase(string value, string target)
+    {
+        static (string Family, int Bits)? Describe(string name) => name switch
+        {
+            "half" or "float16_t" => ("float", 16),
+            "float" or "float32_t" => ("float", 32),
+            "double" or "float64_t" => ("float", 64),
+            "int8_t" or "uint8_t" => ("int", 8),
+            "int16_t" or "uint16_t" => ("int", 16),
+            "int" or "uint" or "int32_t" or "uint32_t" => ("int", 32),
+            "int64_t" or "uint64_t" => ("int", 64),
+            _ => null,
+        };
+
+        return Describe(value) is not { } from || Describe(target) is not { } to || from == to;
+    }
 
     /// <inheritdoc/>
     /// <remarks>Slang は成分を減らす変換を誤りにする (<see cref="IsConvertible(ShaderNumericShape, ShaderNumericShape, bool)"/> が通さない)。</remarks>

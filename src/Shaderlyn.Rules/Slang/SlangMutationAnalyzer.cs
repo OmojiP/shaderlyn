@@ -9,7 +9,7 @@ using Shaderlyn.Semantics.Symbols;
 namespace Shaderlyn.Rules.Slang;
 
 /// <summary>
-/// Slang の、書き換えられないメソッドの中でのフィールドへの書き込みを検査する (SG0309)。
+/// Slang の、書き換えられないメソッドの中でのフィールドへの書き込みと、読むだけの資源の要素への書き込みを検査する (SG0309)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,6 +47,7 @@ internal sealed class SlangMutationAnalyzer : SemanticRuleAnalyzer
             }
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+            AnalyzeReadOnlyResources(context, compilation, program, binder);
             ShaderTypeSystem types = binder.TypeSystem;
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
             Dictionary<ShaderSyntaxToken, int> index = new(ReferenceEqualityComparer.Instance);
@@ -146,6 +147,96 @@ internal sealed class SlangMutationAnalyzer : SemanticRuleAnalyzer
                             $"メソッド '{method.Name}' は [mutating] でないので、フィールド '{name}' を書き換えられません。書き換えるなら、メソッドに [mutating] を付けてください。"));
                     }
                 }
+            }
+        }
+    }
+
+    /// <summary>読むだけの資源 (t のレジスタの資源)。</summary>
+    private static readonly HashSet<string> ReadOnlyResources = new(StringComparer.Ordinal)
+    {
+        "StructuredBuffer", "Buffer", "ByteAddressBuffer",
+        "Texture1D", "Texture1DArray", "Texture2D", "Texture2DArray", "Texture2DMS", "Texture2DMSArray", "Texture3D", "TextureCube", "TextureCubeArray",
+    };
+
+    /// <summary>
+    /// 読むだけの資源の要素への書き込みを検査する (E30011・E30047・E30079)。
+    /// </summary>
+    /// <remarks>
+    /// 代入・複合代入・<c>++</c> / <c>--</c> の先、Interlocked の関数の 1 つ目の実引数、利用者の関数の out / inout の実引数、アドレスを取る <c>&amp;</c> の値が、
+    /// 読むだけの資源の変数 (<c>StructuredBuffer</c>・<c>Buffer</c>・<c>Texture2D</c> など) の添字 (<c>sb[i]</c>・<c>sb[i].field</c>) なら報告する。
+    /// </remarks>
+    private static void AnalyzeReadOnlyResources(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, AnalyzedProgram program, ExpressionTypeBinder binder)
+    {
+        // 利用者の関数の、仮引数ごとの out / inout (同じ名前の関数がどれもそうなら)。
+        Dictionary<(string Name, int Count), bool[]> writes = [];
+
+        foreach (FunctionDeclarationSyntax function in program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            ParameterSyntax[] parameters = [.. function.ParameterList];
+            bool[] flags = [.. parameters.Select(p => p.ModifierTokens.Any(t => t.Text is "out" or "inout"))];
+            (string, int) key = (function.Name, parameters.Length);
+            writes[key] = writes.TryGetValue(key, out bool[]? existing) ? [.. existing.Zip(flags, (a, b) => a && b)] : flags;
+        }
+
+        foreach (ShaderSyntaxNode node in program.Tree.Root.DescendantNodesAndSelf())
+        {
+            IEnumerable<(ShaderSyntaxToken At, ExpressionSyntax Target, string How)> targets = node switch
+            {
+                AssignmentExpressionSyntax assignment => [(assignment.OperatorToken, assignment.Left, "書き込めません")],
+                PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken } prefix => [(prefix.OperatorToken, prefix.Operand, "書き込めません")],
+                PostfixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken } postfix => [(postfix.OperatorToken, postfix.Operand, "書き込めません")],
+                PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.AmpersandToken } address => [(address.OperatorToken, address.Operand, "アドレスを取れません")],
+                InvocationExpressionSyntax { TargetName: { } name } call when name.StartsWith("Interlocked", StringComparison.Ordinal) && call.ArgumentExpressions.FirstOrDefault() is { } destination
+                    => [(destination.FirstToken!, destination, "Interlocked の関数で書き込めません")],
+                InvocationExpressionSyntax { TargetName: { } name } call
+                    when writes.TryGetValue((name, call.ArgumentExpressions.Count()), out bool[]? flags)
+                    => call.ArgumentExpressions.Select((argument, i) => (argument, i)).Where(a => flags[a.i]).Select(a => (a.argument.FirstToken!, a.argument, $"'{name}' の out / inout の実引数に渡せません")),
+                _ => [],
+            };
+
+            foreach ((ShaderSyntaxToken at, ExpressionSyntax target, string how) in targets)
+            {
+                if (at is null || ReadOnlyRoot(binder, target) is not { } resource || !compilation.IsReportable(at) || at.GetLocation() is not { } location)
+                {
+                    continue;
+                }
+
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotWritable, location,
+                    $"'{resource.Name}' は読むだけの資源 ({resource.Type}) なので、その要素には{how}。書き込むなら RW{resource.Type} にしてください。"));
+            }
+        }
+    }
+
+    /// <summary>書き込む先が読むだけの資源の変数の添字なら、その変数。</summary>
+    private static (string Name, string Type)? ReadOnlyRoot(ExpressionTypeBinder binder, ExpressionSyntax target)
+    {
+        ExpressionSyntax current = target;
+        bool indexed = false;
+
+        while (true)
+        {
+            switch (current)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    current = parenthesized.Expression;
+                    continue;
+
+                case MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } member:
+                    current = member.Target;
+                    continue;
+
+                case ElementAccessExpressionSyntax element:
+                    indexed = true;
+                    current = element.Target;
+                    continue;
+
+                case IdentifierExpressionSyntax identifier when indexed:
+                    return binder.ResolveName(identifier).Candidates is [{ Type: { IsArray: false, TypeName: { } type } }] && ReadOnlyResources.Contains(type)
+                        ? (identifier.Name, type)
+                        : null;
+
+                default:
+                    return null;
             }
         }
     }

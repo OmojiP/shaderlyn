@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <remarks>
 /// <para>
 /// インターフェイス I に適合する構造体のフィールド (配列・<c>Optional&lt;J&gt;</c>・入れ子の構造体のフィールドを含む) に、インターフェイス型 J の値があれば、I から J へ辺を引く。
-/// 辺をたどって自分に戻るインターフェイスは「interface has cyclic dependency on itself」(E41002)、
+/// 辺をたどって自分に戻り、適合する型がどれも輪に入るインターフェイスは「interface has cyclic dependency on itself」(E41002)、
 /// その輪の中のインターフェイスに適合し、フィールドが輪の中のインターフェイスへ戻る構造体は「type contains circular reference through conforming interface」(E41003) である。
 /// どちらも、そのインターフェイスの値の大きさが決まらないため (動的なディスパッチ)。
 /// </para>
@@ -79,16 +79,26 @@ internal sealed class SlangConformanceCycleAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            foreach (string name in cyclic)
-            {
-                Report(interfaces[name].NameToken!, $"インターフェイス '{name}' に適合する型のフィールドをたどると、'{name}' に戻ります。値の大きさが決まりません。");
-            }
+            // 輪に入る構造体: 適合するインターフェイスへ、フィールドから戻るもの。
+            HashSet<string> cyclicStructs = new(StringComparer.Ordinal);
 
             foreach ((string name, string[] bases) in conforms)
             {
                 if (bases.Any(cyclic.Contains) && reached[name].Any(i => cyclic.Contains(i) && bases.Any(b => b == i || Reaches(edges, i, b))))
                 {
+                    cyclicStructs.Add(name);
                     Report(structs[name].NameToken!, $"構造体 '{name}' のフィールドが、適合するインターフェイス ({string.Join("・", bases.Where(cyclic.Contains))}) へ循環して戻ります。");
+                }
+            }
+
+            // インターフェイスそのものは、適合する型がどれも輪に入るときだけ報告する (循環しない実装が 1 つでもあれば、値の大きさは決まりうる。slangc と同じ)。
+            foreach (string name in cyclic)
+            {
+                string[] implementations = [.. conforms.Where(c => c.Value.Contains(name)).Select(c => c.Key)];
+
+                if (implementations.Length > 0 && implementations.All(cyclicStructs.Contains))
+                {
+                    Report(interfaces[name].NameToken!, $"インターフェイス '{name}' に適合する型のフィールドをたどると、どれも '{name}' に戻ります。値の大きさが決まりません。");
                 }
             }
         }
