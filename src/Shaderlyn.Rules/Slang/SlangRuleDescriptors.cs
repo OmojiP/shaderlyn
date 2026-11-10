@@ -24,4 +24,24 @@ internal static class SlangRuleDescriptors
             + "その入れ物の中に書けない宣言 (構造体の中の namespace・extension・interface、インターフェイスの中の enum・struct、"
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義など) を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
+
+    /// <summary>定数の初期値が、自分自身に依っている。</summary>
+    public static DiagnosticDescriptor CyclicConstant { get; } = new(
+        id: "SG0317",
+        title: "定数の初期値が自分自身に依っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "static const の初期値が、直接か、ほかの static const を通して自分自身の値を使っています。値が決まらないので、slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0317"));
+
+    /// <summary>switch の外の case / default。</summary>
+    public static DiagnosticDescriptor SwitchLabelOutsideSwitch { get; } = new(
+        id: "SG0321",
+        title: "case と default は switch の本体にだけ書けます",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "case か default を、switch の本体の直下でない場所 (switch の外、case の中の { } の中) に書いています。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0321"));
 }

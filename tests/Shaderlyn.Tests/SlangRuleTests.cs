@@ -55,6 +55,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // switch の外の case と、自分自身に依る static const
+    [InlineData("SG0321", "void f()\n{\n    case 0:\n    return;\n}\n")]
+    [InlineData("SG0321", "void f(uint i)\n{\n    switch (i)\n    {\n    case 0:\n        {\n        case 1:\n            break;\n        }\n    }\n}\n")]
+    [InlineData("SG0317", "struct S\n{\n    static const int kA = kB;\n    static const int kB = kA;\n}\n")]
+    [InlineData("SG0317", "static const int kVal = kVal + 1;\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
