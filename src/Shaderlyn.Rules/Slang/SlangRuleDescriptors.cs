@@ -35,6 +35,16 @@ internal static class SlangRuleDescriptors
         description: "[NoDiscard] を書いた関数・メソッドの戻り値を捨てています (文として呼ぶ、for の更新の式、括弧・?: の枝・&& と || の右に書いて捨てる)。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0338"));
 
+    /// <summary>取り除かれた宣言を使った。</summary>
+    public static DiagnosticDescriptor RemovedDeclaration { get; } = new(
+        id: "SG0341",
+        title: "取り除かれた宣言を使っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "[RemovedSince(版, \"説明\")] を書いた宣言を使っています。その版の言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0341"));
+
     /// <summary>アクセスできない宣言を使った。</summary>
     public static DiagnosticDescriptor NotAccessible { get; } = new(
         id: "SG0401",

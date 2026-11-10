@@ -55,6 +55,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // 取り除かれた宣言
+    [InlineData("SG0341", "[RemovedSince(-1, \"This struct is removed\")]\nstruct RemovedStruct { int x; }\nvoid f()\n{\n    RemovedStruct s;\n}\n")]
+    [InlineData("SG0341", "[RemovedSince(2025, \"gone\")]\nint old() { return 1; }\nint f() { return old(); }\n")]
     // [NoDiscard] の戻り値を捨てる
     [InlineData("SG0338", "struct T\n{\n    [NoDiscard]\n    float load() { return 1.0; }\n}\nvoid f(T t)\n{\n    t.load();\n}\n")]
     [InlineData("SG0338", "[NoDiscard]\nint g() { return 1; }\nvoid f(bool c)\n{\n    c && g() > 0;\n    for (int i = 0; i < 1; g()) { }\n}\n")]
@@ -86,6 +89,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // まだ取り除かれていない版、一部の多重定義だけが取り除かれた関数
+    [InlineData("[RemovedSince(2030, \"later\")]\nstruct Later { int x; }\n[RemovedSince(-1, \"one overload\")]\nint g(float x) { return 0; }\nint g(int x) { return 1; }\nint f() { Later l; return g(1); }\n")]
     // [NoDiscard] の戻り値を使う
     [InlineData("[NoDiscard]\nint g() { return 1; }\nvoid consume(int x) { }\nvoid f()\n{\n    let a = g();\n    consume(g());\n    g() + a;\n    if (g() > 0) { }\n}\n")]
     // private のメンバーは、構造体と中の構造体の中から使える

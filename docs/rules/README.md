@@ -282,6 +282,7 @@ Slang にしか無いものです。slangc 2026.19 がエラーにする箇所�
 | [SG0317](SG0317.md) | static const の初期値が、直接かほかの static const を通して自分自身に依っている | エラー |
 | [SG0321](SG0321.md) | case と default を switch の本体の直下でない場所 (switch の外、case の中の { } の中) に書いた | エラー |
 | [SG0338](SG0338.md) | [NoDiscard] の関数の戻り値を捨てた | エラー |
+| [SG0341](SG0341.md) | [RemovedSince] で取り除かれた宣言を使った | エラー |
 | [SG0401](SG0401.md) | 構造体の private のメンバーを、その構造体の外から使った | エラー |
 
 ## WGSL
