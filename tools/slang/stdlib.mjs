@@ -9,6 +9,7 @@
 //   V  値 (関数の外の static const・let・変数、enum の値)
 //   M  標準のモジュールの名前 (import slang.neural; の slang/neural)。slangc に入っているので、ファイルを探さない
 //   P  名前の前半。C++ のコードで名前を組み立てる関数 (WaveMulti$(opName) の WaveMulti)。この前半で始まる名前を関数として見せる
+// 標準のモジュールにだけある名前は、3 つ目の列にそのモジュール (slang/neural など。, で区切る) を書く。import したときだけ見える。
 //
 // 標準ライブラリは Slang で書かれていて、C++ のコードで形を作る部分 (${{{{ … }}}} と $(…)) を含む。その部分は読まない。
 // 名前は多めに集める (宣言として読めない形も、名前として拾う)。名前が無いことを根拠にする検査を誤らせないためである。
@@ -61,14 +62,29 @@ const keywords = new Set([
   "inout", "let", "var", "func", "struct", "class", "interface", "enum", "typedef", "typealias", "extension", "property", "get", "set",
   "this", "This", "true", "false", "sizeof", "alignof", "public", "internal", "private", "__init", "__subscript", "__generic", "where",
 ]);
+// 名前ごとの、それを宣言した標準のモジュール。標準ライブラリ (*.meta.slang) にもある名前は、いつも見える (core)。
+const origins = new Map();
+let origin = "core";
 const add = (set, name) => {
   if (name && /^[A-Za-z_]\w*$/.test(name) && !keywords.has(name)) {
     set.add(name);
+    const key = `${set === types ? "T" : set === functions ? "F" : "V"}\t${name}`;
+    if (!origins.has(key)) {
+      origins.set(key, new Set());
+    }
+    origins.get(key).add(origin);
   }
+};
+
+/** 標準のモジュールのファイルの、モジュールの名前 (slang/neural、experimental/x)。 */
+const moduleOf = path => {
+  const parts = relative(modulesRoot, path).split(sep);
+  return parts[0] === "experimental" ? `experimental/${parts.at(-1).replace(/\.slang$/, "")}` : `slang/${parts[0]}`;
 };
 
 for (const file of files) {
   let text = readFileSync(file, "utf8");
+  origin = file.startsWith(modulesRoot) ? moduleOf(file) : "core";
 
   // C++ のコードで名前を組み立てる関数 (WaveMulti$(opName)) は、名前の前半 (5 文字以上) を前方一致として覚える。
   for (const m of text.matchAll(/\b([A-Za-z_]\w{4,})\$\(/g)) {
@@ -136,12 +152,18 @@ function globalText(text) {
   return out.join("");
 }
 
+/** 標準のモジュールにだけある名前には、モジュールの列を足す。 */
+function withOrigin(line) {
+  const from = origins.get(line);
+  return !from || from.has("core") ? line : `${line}\t${[...from].sort().join(",")}`;
+}
+
 const lines = [
   "# 元のデータ: slang 2026.19 の source/slang/*.meta.slang と source/standard-modules (https://github.com/shader-slang/slang)。ライセンスは THIRD-PARTY-NOTICES.txt にある。",
   "# tools/slang/stdlib.mjs が作る。手で書き換えない。",
-  ...[...types].sort().map(n => `T\t${n}`),
-  ...[...functions].sort().map(n => `F\t${n}`),
-  ...[...values].sort().map(n => `V\t${n}`),
+  ...[...types].sort().map(n => withOrigin(`T\t${n}`)),
+  ...[...functions].sort().map(n => withOrigin(`F\t${n}`)),
+  ...[...values].sort().map(n => withOrigin(`V\t${n}`)),
   ...[...modules].sort().map(n => `M\t${n}`),
   ...[...prefixes].sort().map(n => `P	${n}`),
 ];

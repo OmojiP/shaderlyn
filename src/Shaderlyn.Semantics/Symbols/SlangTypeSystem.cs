@@ -21,7 +21,10 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
 {
     private const string ResourceName = "Shaderlyn.Semantics.SlangStdlib.txt";
 
-    private static readonly Lazy<SlangTypeSystem> Shared = new(() => new SlangTypeSystem());
+    private static readonly Lazy<SlangTypeSystem> Shared = new(() => new SlangTypeSystem([]));
+
+    /// <summary>import した標準のモジュールの組ごとの型システム。</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SlangTypeSystem> ByImports = new(StringComparer.Ordinal);
 
     private readonly HlslTypeSystem _hlsl = HlslTypeSystem.Instance;
     private readonly FrozenSet<string> _types;
@@ -30,8 +33,12 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     private readonly FrozenSet<string> _modules;
     private readonly ImmutableArray<string> _functionPrefixes;
 
-    private SlangTypeSystem()
+    /// <summary>型システムを作る。</summary>
+    /// <param name="imports">import した標準のモジュール (slang/neural など)。そのモジュールにだけある名前を見せる。</param>
+    private SlangTypeSystem(ImmutableArray<string> imports)
     {
+        Imports = imports;
+
         // 構文解析が型として読む名前 (uint8_t・Ptr など) も型にする。
         HashSet<string> types = new(Slang.Parsing.SlangKeywords.ExtraTypes, StringComparer.Ordinal);
 
@@ -56,7 +63,13 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
 
         while (reader.ReadLine() is { } line)
         {
-            if (line.Length == 0 || line[0] == '#' || line.Split('\t') is not [var kind, var name])
+            if (line.Length == 0 || line[0] == '#' || line.Split('\t') is not [var kind, var name, .. var rest])
+            {
+                continue;
+            }
+
+            // 標準のモジュールにだけある名前 (3 つ目の列がモジュール) は、そのモジュールを import したときだけ見せる。
+            if (rest is [var from] && !from.Split(',').Any(IsImported))
             {
                 continue;
             }
@@ -84,8 +97,59 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
         FunctionNames = [.. _hlsl.FunctionNames.Concat(_functions).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
     }
 
-    /// <summary>型システム。</summary>
+    /// <summary>型システム (標準のモジュールを import していないファイルのもの)。</summary>
     public static SlangTypeSystem Instance => Shared.Value;
+
+    /// <summary>import した標準のモジュール。</summary>
+    internal ImmutableArray<string> Imports { get; }
+
+    /// <summary>そのモジュール (slang/neural など) を import したか。モジュールの中のファイル (slang/neural/x) を import しても、そのモジュールの名前を見せる。</summary>
+    private bool IsImported(string module)
+        => Imports.Any(i => i == module || i.StartsWith(module + "/", StringComparison.Ordinal) || module.StartsWith(i + "/", StringComparison.Ordinal));
+
+    /// <inheritdoc/>
+    /// <remarks>ファイルが import した標準のモジュール (import slang.neural;) の名前を見せる型システムを返す。</remarks>
+    internal override ShaderTypeSystem ForTree(ShaderSyntaxTree tree)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+        ImmutableArray<string> imports = StandardImports(tree.PreprocessResult.Tokens);
+        return imports.IsEmpty ? Instance : ByImports.GetOrAdd(string.Join(";", imports), _ => new SlangTypeSystem(imports));
+    }
+
+    /// <summary>import した標準のモジュールの名前 (区切りは /)。</summary>
+    private static ImmutableArray<string> StandardImports(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        SortedSet<string> imports = new(StringComparer.Ordinal);
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i] is not { Kind: ShaderSyntaxKind.IdentifierToken, Text: "import" or "__import" })
+            {
+                continue;
+            }
+
+            List<string> parts = [];
+
+            for (int j = i + 1; j < tokens.Length && tokens[j].Kind == ShaderSyntaxKind.IdentifierToken; j += 2)
+            {
+                parts.Add(tokens[j].Text);
+
+                if (j + 1 >= tokens.Length || tokens[j + 1].Kind != ShaderSyntaxKind.DotToken)
+                {
+                    break;
+                }
+            }
+
+            string name = string.Join("/", parts);
+
+            if (parts.Count > 0 && Instance._modules.Contains(name))
+            {
+                imports.Add(name);
+            }
+        }
+
+        return [.. imports];
+    }
 
     /// <summary>slangc に入っている標準のモジュールか (<c>import slang.neural;</c> の <c>slang/neural</c>)。</summary>
     /// <param name="name">モジュールの名前 (区切りは <c>/</c>)。</param>
@@ -153,7 +217,9 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
 
     /// <inheritdoc/>
     public override bool IsKnownFunction(string? name, ShaderSyntaxTree tree)
-        => _hlsl.IsKnownFunction(name, tree)
+        => ForTree(tree) is SlangTypeSystem imported && !ReferenceEquals(imported, this)
+            ? imported.IsKnownFunction(name, tree)
+            : _hlsl.IsKnownFunction(name, tree)
            || (name is not null && (_functions.Contains(name) || _functionPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal))))
            || IsStandardLibraryType(name)
            || IsCompilerIntrinsic(name);

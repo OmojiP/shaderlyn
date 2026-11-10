@@ -1,18 +1,18 @@
 # 元のデータ: slang 2026.19 の source/slang/*.meta.slang と source/standard-modules (https://github.com/shader-slang/slang)。ライセンスは THIRD-PARTY-NOTICES.txt にある。
 # tools/slang/stdlib.mjs が作る。手で書き換えない。
 T	Access
-T	AccessOp
+T	AccessOp	slang/neural
 T	AddressSpace
-T	AlignedSize
+T	AlignedSize	slang/neural
 T	AppendStructuredBuffer
 T	ApplyForBwdFuncType
 T	Array
 T	Atomic
 T	AtomicAdd
 T	BFloat16
-T	BarrierMemoryTypeFlags
-T	BarrierSemanticFlags
-T	BindlessAddress
+T	BarrierMemoryTypeFlags	experimental/workgraph
+T	BarrierSemanticFlags	experimental/workgraph
+T	BindlessAddress	slang/neural
 T	BindlessDescriptorOptions
 T	BorrowInOutParam
 T	BorrowInParam
@@ -28,13 +28,13 @@ T	Conditional
 T	ConstBufferPointer
 T	ConstantBuffer
 T	ConsumeStructuredBuffer
-T	ConverterEnd
-T	ConverterNode
+T	ConverterEnd	slang/neural
+T	ConverterNode	slang/neural
 T	CoopMat
 T	CoopMatClampMode
 T	CoopMatMatrixLayout
 T	CoopMatMatrixUse
-T	CoopMatShape
+T	CoopMatShape	slang/neural
 T	CoopVec
 T	CoopVecComponentType
 T	CoopVecMatrixLayout
@@ -47,156 +47,156 @@ T	DescriptorKind
 T	DiffTensorView
 T	DifferentialPair
 T	DifferentialPtrPair
-T	DispatchNodeInputRecord
-T	EmptyNodeInput
-T	EmptyNodeOutput
-T	EmptyNodeOutputArray
-T	ExecutionMode
-T	ExpActivation
-T	FFLayer
+T	DispatchNodeInputRecord	experimental/workgraph
+T	EmptyNodeInput	experimental/workgraph
+T	EmptyNodeOutput	experimental/workgraph
+T	EmptyNodeOutputArray	experimental/workgraph
+T	ExecutionMode	slang/neural
+T	ExpActivation	slang/neural
+T	FFLayer	slang/neural
 T	FloatE4M3
 T	FloatE5M2
 T	FwdDiffFuncType
 T	GLSLShaderStorageBuffer
-T	GroupNodeInputRecords
-T	GroupNodeOutputRecords
-T	HashType
+T	GroupNodeInputRecords	experimental/workgraph
+T	GroupNodeOutputRecords	experimental/workgraph
+T	HashType	slang/neural
 T	HitObject
-T	IActivation
-T	IAdditive
+T	IActivation	slang/neural
+T	IAdditive	slang/numerics
 T	IArithmetic
 T	IArithmeticAtomicable
 T	IArray
-T	IArrayAccessor
+T	IArrayAccessor	slang/neural
 T	IAtomicable
 T	IBackwardDifferentiable
 T	IBitAtomicable
-T	IBitShiftOperations
-T	IBooleanMask
+T	IBitShiftOperations	slang/numerics
+T	IBooleanMask	slang/numerics
 T	IBufferDataLayout
-T	IBuiltinScalarAdditive
-T	IBuiltinScalarElementaryFunctions
-T	IBuiltinScalarFloatingPointType
-T	IBuiltinScalarFractional
-T	IBuiltinScalarIntegerType
-T	IBuiltinScalarNumeric
-T	IBuiltinScalarReal
-T	IBuiltinScalarShapedType
-T	IBuiltinScalarSignedIntegerType
-T	IBuiltinScalarSignedNumeric
-T	IBuiltinScalarTypeDispatchMarker
-T	IBuiltinScalarUnsignedIntegerType
+T	IBuiltinScalarAdditive	slang/numerics
+T	IBuiltinScalarElementaryFunctions	slang/numerics
+T	IBuiltinScalarFloatingPointType	slang/numerics
+T	IBuiltinScalarFractional	slang/numerics
+T	IBuiltinScalarIntegerType	slang/numerics
+T	IBuiltinScalarNumeric	slang/numerics
+T	IBuiltinScalarReal	slang/numerics
+T	IBuiltinScalarShapedType	slang/numerics
+T	IBuiltinScalarSignedIntegerType	slang/numerics
+T	IBuiltinScalarSignedNumeric	slang/numerics
+T	IBuiltinScalarTypeDispatchMarker	slang/numerics
+T	IBuiltinScalarUnsignedIntegerType	slang/numerics
 T	IBwdCallable
 T	IComparable
-T	IComponentwiseEquatable
-T	IComponentwiseOrdered
-T	IConstructibleFromBuiltinFloatingPoint
-T	IConstructibleFromBuiltinInteger
+T	IComponentwiseEquatable	slang/numerics
+T	IComponentwiseOrdered	slang/numerics
+T	IConstructibleFromBuiltinFloatingPoint	slang/numerics
+T	IConstructibleFromBuiltinInteger	slang/numerics
 T	ICoopElement
 T	IDefaultInitializable
 T	IDiffTensorWrapper
 T	IDifferentiable
 T	IDifferentiableArithmetic
-T	IDifferentiableDotProduct
-T	IDifferentiableElementaryFunctions
-T	IDifferentiableExponentialFunctions
-T	IDifferentiableFloatingPoint
-T	IDifferentiableFractional
+T	IDifferentiableDotProduct	slang/numerics
+T	IDifferentiableElementaryFunctions	slang/numerics
+T	IDifferentiableExponentialFunctions	slang/numerics
+T	IDifferentiableFloatingPoint	slang/numerics
+T	IDifferentiableFractional	slang/numerics
 T	IDifferentiableFunc
-T	IDifferentiableHyperbolicFunctions
-T	IDifferentiableInverseTrigonometricFunctions
+T	IDifferentiableHyperbolicFunctions	slang/numerics
+T	IDifferentiableInverseTrigonometricFunctions	slang/numerics
 T	IDifferentiableMutatingFunc
-T	IDifferentiableNumericShapedType
+T	IDifferentiableNumericShapedType	slang/numerics
 T	IDifferentiablePtrType
-T	IDifferentiableReal
-T	IDifferentiableRealOrderingFunctions
-T	IDifferentiableRootFunctions
-T	IDifferentiableTrigonometricFunctions
-T	IDotProduct
-T	IElementaryFunctions
-T	IEquatable
-T	IExponentialFunctions
+T	IDifferentiableReal	slang/numerics
+T	IDifferentiableRealOrderingFunctions	slang/numerics
+T	IDifferentiableRootFunctions	slang/numerics
+T	IDifferentiableTrigonometricFunctions	slang/numerics
+T	IDotProduct	slang/numerics
+T	IElementaryFunctions	slang/numerics
+T	IEquatable	slang/numerics
+T	IExponentialFunctions	slang/numerics
 T	IFloat
-T	IFloatingPoint
+T	IFloatingPoint	slang/numerics
 T	IFloatingPointCoopElement
 T	IForwardDifferentiable
-T	IFractional
+T	IFractional	slang/numerics
 T	IFunc
-T	IHyperbolicFunctions
+T	IHyperbolicFunctions	slang/numerics
 T	IInteger
-T	IIntegerType
-T	IInverseTrigonometricFunctions
-T	ILayer
-T	ILayoutSize
+T	IIntegerType	slang/numerics
+T	IInverseTrigonometricFunctions	slang/numerics
+T	ILayer	slang/neural
+T	ILayoutSize	slang/neural
 T	ILogical
 T	IMutatingFunc
-T	INumeric
-T	INumericShapedType
+T	INumeric	slang/numerics
+T	INumericShapedType	slang/numerics
 T	IOpaqueDescriptor
-T	IPartiallyOrdered
+T	IPartiallyOrdered	slang/numerics
 T	IPhysicalBuffer
-T	IPointerLikeAddress
+T	IPointerLikeAddress	slang/neural
 T	IRWArray
 T	IRWPhysicalBuffer
 T	IRangedValue
-T	IReal
-T	IRealOrderingFunctions
-T	IRootFunctions
-T	IScalarAdditive
-T	IScalarDifferentiableElementaryFunctions
-T	IScalarDifferentiableFloatingPoint
-T	IScalarDifferentiableFractional
-T	IScalarDifferentiableReal
-T	IScalarElementaryFunctions
-T	IScalarFloatingPoint
-T	IScalarFractional
-T	IScalarIntegerType
-T	IScalarNumeric
-T	IScalarReal
-T	IScalarShapedType
-T	IScalarSignedIntegerType
-T	IScalarSignedNumeric
-T	IScalarUnsignedIntegerType
-T	ISharedMemorySize
-T	ISharedMemorySizePackNode
-T	ISignedIntegerType
-T	ISignedNumeric
-T	IStaticEncoder
-T	IStorageLayout
+T	IReal	slang/numerics
+T	IRealOrderingFunctions	slang/numerics
+T	IRootFunctions	slang/numerics
+T	IScalarAdditive	slang/numerics
+T	IScalarDifferentiableElementaryFunctions	slang/numerics
+T	IScalarDifferentiableFloatingPoint	slang/numerics
+T	IScalarDifferentiableFractional	slang/numerics
+T	IScalarDifferentiableReal	slang/numerics
+T	IScalarElementaryFunctions	slang/numerics
+T	IScalarFloatingPoint	slang/numerics
+T	IScalarFractional	slang/numerics
+T	IScalarIntegerType	slang/numerics
+T	IScalarNumeric	slang/numerics
+T	IScalarReal	slang/numerics
+T	IScalarShapedType	slang/numerics
+T	IScalarSignedIntegerType	slang/numerics
+T	IScalarSignedNumeric	slang/numerics
+T	IScalarUnsignedIntegerType	slang/numerics
+T	ISharedMemorySize	slang/neural
+T	ISharedMemorySizePackNode	slang/neural
+T	ISignedIntegerType	slang/numerics
+T	ISignedNumeric	slang/numerics
+T	IStaticEncoder	slang/neural
+T	IStorageLayout	slang/neural
 T	ITexelElement
-T	ITotallyOrdered
-T	ITrainableEncoder
-T	ITrigonometricFunctions
-T	IUnsignedIntegerType
-T	IVector
-T	IdentityActivation
+T	ITotallyOrdered	slang/numerics
+T	ITrainableEncoder	slang/neural
+T	ITrigonometricFunctions	slang/numerics
+T	IUnsignedIntegerType	slang/numerics
+T	IVector	slang/neural
+T	IdentityActivation	slang/neural
 T	ImmutablePtr
-T	InlineVector
+T	InlineVector	slang/neural
 T	InputPatch
-T	LayerConverter
+T	LayerConverter	slang/neural
 T	LayoutPtr
-T	LayoutType
-T	LeakyReLU
+T	LayoutType	slang/neural
+T	LeakyReLU	slang/neural
 T	LineStream
-T	LinearLayout
-T	MMAHelper
-T	MatrixA
-T	MatrixB
-T	MatrixC
+T	LinearLayout	slang/neural
+T	MMAHelper	slang/neural
+T	MatrixA	slang/neural
+T	MatrixB	slang/neural
+T	MatrixC	slang/neural
 T	MatrixLayoutMode
 T	MemoryOrder
 T	MemoryScope
-T	MetalMatrixA
-T	MetalMatrixB
-T	MetalMatrixC
+T	MetalMatrixA	slang/neural
+T	MetalMatrixB	slang/neural
+T	MetalMatrixC	slang/neural
 T	NativeRef
 T	NativeString
-T	NetworkParameterLayoutConverter
-T	NodeOutput
-T	NodeOutputArray
+T	NetworkParameterLayoutConverter	slang/neural
+T	NodeOutput	experimental/workgraph
+T	NodeOutputArray	experimental/workgraph
 T	NullDifferential
 T	NullPtr
-T	OptimalLayout
+T	OptimalLayout	slang/neural
 T	Optional
 T	OutParam
 T	OutputIndices
@@ -204,18 +204,18 @@ T	OutputPatch
 T	OutputPrimitives
 T	OutputVertices
 T	ParameterBlock
-T	Pcg32
-T	PermutoEncoder
+T	Pcg32	slang/neural
+T	PermutoEncoder	slang/neural
 T	PointStream
-T	PointerAddress
+T	PointerAddress	slang/neural
 T	Ptr
-T	QuickGELU
+T	QuickGELU	slang/neural
 T	RAYQUERY_FLAG
 T	RAY_FLAG
 T	RayDesc
 T	RayQuery
 T	RaytracingAccelerationStructure
-T	ReLU
+T	ReLU	slang/neural
 T	Ref
 T	RefParam
 T	RematFuncType
@@ -226,17 +226,17 @@ T	SamplerBuffer
 T	SamplerComparisonState
 T	SamplerState
 T	ScalarDataLayout
-T	SharedMemoryPool
-T	SharedMemorySize
-T	SharedMemorySizeForLayer
-T	SharedMemorySizePackEnd
-T	SharedMemorySizePackNode
-T	SharedMemoryUsage
-T	ShmemAddressMode
-T	SiLU
+T	SharedMemoryPool	slang/neural
+T	SharedMemorySize	slang/neural
+T	SharedMemorySizeForLayer	slang/neural
+T	SharedMemorySizePackEnd	slang/neural
+T	SharedMemorySizePackNode	slang/neural
+T	SharedMemoryUsage	slang/neural
+T	ShmemAddressMode	slang/neural
+T	SiLU	slang/neural
 T	SideEffectBehavior
-T	Sigmoid
-T	SineActivation
+T	Sigmoid	slang/neural
+T	SineActivation	slang/neural
 T	Std140DataLayout
 T	Std430DataLayout
 T	String
@@ -244,24 +244,24 @@ T	StructuredBuffer
 T	SubpassInput
 T	SubpassInputMS
 T	TRAVERSABLE_TRANSFORM_TYPE
-T	TanhActivation
-T	TargetEnum
+T	TanhActivation	slang/neural
+T	TargetEnum	slang/neural
 T	TensorLayout
 T	TensorView
 T	TextureBuffer
 T	TextureFootprint
 T	TextureFootprint2D
 T	TextureFootprint3D
-T	ThreadNodeInputRecord
-T	ThreadNodeOutputRecords
-T	TileAlignedSize
-T	TileInfo
-T	TiledMMACuda
-T	TiledMMAHelper
-T	TiledMMAMetal
-T	TiledMMAVulkan
+T	ThreadNodeInputRecord	experimental/workgraph
+T	ThreadNodeOutputRecords	experimental/workgraph
+T	TileAlignedSize	slang/neural
+T	TileInfo	slang/neural
+T	TiledMMACuda	slang/neural
+T	TiledMMAHelper	slang/neural
+T	TiledMMAMetal	slang/neural
+T	TiledMMAVulkan	slang/neural
 T	TorchTensor
-T	TorchTensorViewAddress
+T	TorchTensorViewAddress	slang/neural
 T	TriangleStream
 T	Tuple
 T	UINT
@@ -269,8 +269,8 @@ T	UntypedResourceHandle
 T	UntypedSamplerHandle
 T	VkMutableBindlessBindings
 T	WaveMask
-T	WaveMatrix
-T	WaveTangledVector
+T	WaveMatrix	slang/neural
+T	WaveTangledVector	slang/neural
 T	_AttributeTargets
 T	_Texture
 T	__Addr
@@ -289,10 +289,10 @@ T	__Dynamic
 T	__DynamicResource
 T	__DynamicResourceKind
 T	__EnumType
-T	__IDifferentiableFloatingPointVectorDotProduct
+T	__IDifferentiableFloatingPointVectorDotProduct	slang/numerics
 T	__IDynamicResourceCastable
-T	__IScalarDifferentiableFloatingPointDotProduct
-T	__IScalarNumericDotProduct
+T	__IScalarDifferentiableFloatingPointDotProduct	slang/numerics
+T	__IScalarNumericDotProduct	slang/numerics
 T	__ITextureShape
 T	__ITextureShape1D2D3D
 T	__ImagePtr
@@ -435,7 +435,7 @@ T	usamplerBuffer
 T	usamplerCube
 T	usamplerCubeArray
 T	usize_t
-T	uvec
+T	uvec	slang/neural
 T	uvec2
 T	uvec3
 T	uvec4
@@ -450,7 +450,7 @@ F	AllMemoryBarrierWithGroupSync
 F	AllMemoryBarrierWithWaveMaskSync
 F	AllMemoryBarrierWithWaveSync
 F	Append
-F	Barrier
+F	Barrier	experimental/workgraph
 F	BiasNVAPI
 F	BlockSize
 F	COOPVEC_BINARY_DIFF_IMPL
@@ -505,7 +505,7 @@ F	CommittedRayWorldToObject
 F	CommittedSphereObjectPositionAndRadiusNV
 F	CommittedStatus
 F	Consume
-F	Count
+F	Count	experimental/workgraph
 F	D3DCOLORtoUBYTE4
 F	DecrementCounter
 F	DeviceMemoryBarrier
@@ -528,10 +528,10 @@ F	GetClusterID
 F	GetColumnCount
 F	GetCurrentTime
 F	GetDimensions
-F	GetEnumBarrierMemoryTypeFlags
-F	GetEnumBarrierSemanticFlags
+F	GetEnumBarrierMemoryTypeFlags	experimental/workgraph
+F	GetEnumBarrierSemanticFlags	experimental/workgraph
 F	GetGeometryIndex
-F	GetGroupNodeOutputRecords
+F	GetGroupNodeOutputRecords	experimental/workgraph
 F	GetHitKind
 F	GetInstanceID
 F	GetInstanceIndex
@@ -555,7 +555,7 @@ F	GetSamplePosition
 F	GetShaderRecordBufferHandle
 F	GetShaderTableIndex
 F	GetSpherePositionAndRadius
-F	GetThreadNodeOutputRecords
+F	GetThreadNodeOutputRecords	experimental/workgraph
 F	GetTransformListHandle
 F	GetTransformListSize
 F	GetTraversableChild
@@ -569,7 +569,7 @@ F	GetWorldToObject
 F	GetWorldToObject3x4
 F	GetWorldToObject4x3
 F	GradNVAPI
-F	GroupIncrementOutputCount
+F	GroupIncrementOutputCount	experimental/workgraph
 F	GroupMemoryBarrier
 F	GroupMemoryBarrierWithGroupSync
 F	GroupMemoryBarrierWithWaveMaskSync
@@ -610,7 +610,7 @@ F	IsLssHit
 F	IsMiss
 F	IsNop
 F	IsSphereHit
-F	IsValid
+F	IsValid	experimental/workgraph
 F	LevelNVAPI
 F	Load
 F	Load2
@@ -625,16 +625,16 @@ F	LoadLocalRootTableConstant
 F	MATRIX_MAP_BINARY
 F	MATRIX_MAP_TRINARY
 F	MATRIX_MAP_UNARY
-F	METHOD
+F	METHOD	slang/numerics
 F	MakeHit
 F	MakeMiss
 F	MakeMotionHit
 F	MakeMotionMiss
 F	MakeNop
 F	MapElement
-F	Max
+F	Max	slang/neural
 F	MaybeReorderThread
-F	NAME
+F	NAME	slang/numerics
 F	NVAPI
 F	NonUniformResourceIndex
 F	ObjectRayDirection
@@ -642,7 +642,7 @@ F	ObjectRayOrigin
 F	ObjectToWorld
 F	ObjectToWorld3x4
 F	ObjectToWorld4x3
-F	OutputComplete
+F	OutputComplete	experimental/workgraph
 F	PrimitiveIndex
 F	Proceed
 F	Process2DQuadTessFactorsAvg
@@ -671,35 +671,35 @@ F	ReportHit
 F	ReportHitOptix
 F	RestartStrip
 F	SIMPLE_UNARY_DERIVATIVE_IMPL
-F	SLANG_NUMERICS_BINARY_ADAPTER
-F	SLANG_NUMERICS_CLASSIFICATION_ADAPTER
-F	SLANG_NUMERICS_COOPVEC_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_COOPVEC_UNARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_BINARY_ADAPTER
-F	SLANG_NUMERICS_DIFFERENTIABLE_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_CORE_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_UNARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_CORE_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_CORE_UNARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_FLOATING_EXTREMUM
-F	SLANG_NUMERICS_DIFFERENTIABLE_MATRIX_BINARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_MATRIX_UNARY_REQUIREMENT
-F	SLANG_NUMERICS_DIFFERENTIABLE_SCALAR_CONFORMANCES
-F	SLANG_NUMERICS_DIFFERENTIABLE_THREE_WAY_EXTREMUM
-F	SLANG_NUMERICS_DIFFERENTIABLE_UNARY_ADAPTER
-F	SLANG_NUMERICS_DIFFERENTIABLE_UNARY_REQUIREMENT
-F	SLANG_NUMERICS_FRACTIONAL_SCALAR_CONFORMANCE
-F	SLANG_NUMERICS_INTEGER_CONFORMANCE
-F	SLANG_NUMERICS_INTEGER_SCALAR_BINARY_ADAPTER
-F	SLANG_NUMERICS_INTEGER_VECTOR_BINARY_ADAPTER
-F	SLANG_NUMERICS_SCALAR_COMPARISON_ADAPTER
-F	SLANG_NUMERICS_SCALAR_CONFORMANCE
-F	SLANG_NUMERICS_SIGNED_INTEGER_CONFORMANCE
-F	SLANG_NUMERICS_SIGNED_INTEGER_REFINEMENT
-F	SLANG_NUMERICS_UNARY_ADAPTER
-F	SLANG_NUMERICS_UNSIGNED_INTEGER_REFINEMENT
-F	SLANG_NUMERICS_VECTOR_COMPARISON_ADAPTER
+F	SLANG_NUMERICS_BINARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_CLASSIFICATION_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_COOPVEC_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_COOPVEC_UNARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_BINARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_CORE_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_COOPVEC_UNARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_CORE_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_CORE_UNARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_FLOATING_EXTREMUM	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_MATRIX_BINARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_MATRIX_UNARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_SCALAR_CONFORMANCES	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_THREE_WAY_EXTREMUM	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_UNARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_DIFFERENTIABLE_UNARY_REQUIREMENT	slang/numerics
+F	SLANG_NUMERICS_FRACTIONAL_SCALAR_CONFORMANCE	slang/numerics
+F	SLANG_NUMERICS_INTEGER_CONFORMANCE	slang/numerics
+F	SLANG_NUMERICS_INTEGER_SCALAR_BINARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_INTEGER_VECTOR_BINARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_SCALAR_COMPARISON_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_SCALAR_CONFORMANCE	slang/numerics
+F	SLANG_NUMERICS_SIGNED_INTEGER_CONFORMANCE	slang/numerics
+F	SLANG_NUMERICS_SIGNED_INTEGER_REFINEMENT	slang/numerics
+F	SLANG_NUMERICS_UNARY_ADAPTER	slang/numerics
+F	SLANG_NUMERICS_UNSIGNED_INTEGER_REFINEMENT	slang/numerics
+F	SLANG_NUMERICS_VECTOR_COMPARISON_ADAPTER	slang/numerics
 F	SLANG_SIGN
 F	SLANG_SQR
 F	Sample
@@ -727,7 +727,7 @@ F	StoreByteOffset
 F	Stride
 F	SubpassLoad
 F	T
-F	ThreadIncrementOutputCount
+F	ThreadIncrementOutputCount	experimental/workgraph
 F	TraceMotionRay
 F	TraceRay
 F	TraceRayInline
@@ -817,7 +817,7 @@ F	WriteSamplerFeedbackLevel
 F	_NvInterlockedAddFp16x2
 F	_WaveCountBits
 F	__
-F	__Barrier_hlsl
+F	__Barrier_hlsl	experimental/workgraph
 F	__ChangeMajor
 F	__EvaluateAttributeAtCentroid
 F	__EvaluateAttributeAtSample
@@ -907,11 +907,11 @@ F	__d_transpose
 F	__declVal
 F	__default
 F	__determinant_impl
-F	__differentiableNumericsConstructFromFloatingPoint
-F	__differentiableNumericsConstructMatrixFromFloatingPoint
-F	__differentiableNumericsConstructVectorFromFloatingPoint
-F	__differentiableNumericsDot
-F	__differentiableNumericsSinCos
+F	__differentiableNumericsConstructFromFloatingPoint	slang/numerics
+F	__differentiableNumericsConstructMatrixFromFloatingPoint	slang/numerics
+F	__differentiableNumericsConstructVectorFromFloatingPoint	slang/numerics
+F	__differentiableNumericsDot	slang/numerics
+F	__differentiableNumericsSinCos	slang/numerics
 F	__distance_impl
 F	__dst_impl
 F	__elemToByteOffset
@@ -1084,22 +1084,22 @@ F	__naturalAlignmentOf_impl
 F	__naturalStrideOf
 F	__naturalStrideOf_impl
 F	__normalize_impl
-F	__numericInterfaceBuiltinAbs
-F	__numericInterfaceBuiltinSinCos
-F	__numericInterfaceBuiltinSplitFraction
-F	__numericsBackwardDifferentiateDot
-F	__numericsBuiltinAll
-F	__numericsBuiltinAny
-F	__numericsBuiltinBitNot
-F	__numericsBuiltinConstructFromFloatingPoint
-F	__numericsBuiltinConstructFromInteger
-F	__numericsBuiltinConvertMatrix
-F	__numericsBuiltinConvertScalar
-F	__numericsBuiltinConvertVector
-F	__numericsBuiltinDot
-F	__numericsBuiltinShiftLeft
-F	__numericsBuiltinShiftRight
-F	__numericsForwardDifferentiateDot
+F	__numericInterfaceBuiltinAbs	slang/numerics
+F	__numericInterfaceBuiltinSinCos	slang/numerics
+F	__numericInterfaceBuiltinSplitFraction	slang/numerics
+F	__numericsBackwardDifferentiateDot	slang/numerics
+F	__numericsBuiltinAll	slang/numerics
+F	__numericsBuiltinAny	slang/numerics
+F	__numericsBuiltinBitNot	slang/numerics
+F	__numericsBuiltinConstructFromFloatingPoint	slang/numerics
+F	__numericsBuiltinConstructFromInteger	slang/numerics
+F	__numericsBuiltinConvertMatrix	slang/numerics
+F	__numericsBuiltinConvertScalar	slang/numerics
+F	__numericsBuiltinConvertVector	slang/numerics
+F	__numericsBuiltinDot	slang/numerics
+F	__numericsBuiltinShiftLeft	slang/numerics
+F	__numericsBuiltinShiftRight	slang/numerics
+F	__numericsForwardDifferentiateDot	slang/numerics
 F	__offsetOf
 F	__packInt2x16
 F	__packUint2x16
@@ -1207,14 +1207,14 @@ F	_slang_rayQueryGetCommittedLssPositionsAndRadii
 F	_slang_ray_flags_to_intersection_params
 F	abort
 F	abs
-F	absoluteValue
-F	accessUint4
-F	accessUint4Aligned
+F	absoluteValue	slang/numerics
+F	accessUint4	slang/neural
+F	accessUint4Aligned	slang/neural
 F	acos
 F	acosh
 F	add
-F	advance
-F	align16
+F	advance	slang/neural
+F	align16	slang/neural
 F	all
 F	allInvocations
 F	allInvocationsEqual
@@ -1238,8 +1238,8 @@ F	atan
 F	atan2
 F	atanh
 F	atomicAdd
-F	atomicAddForHLSL
-F	atomicAddPacked
+F	atomicAddForHLSL	slang/neural
+F	atomicAddPacked	slang/neural
 F	atomicAnd
 F	atomicCompSwap
 F	atomicCounter
@@ -1260,12 +1260,12 @@ F	atomicMax
 F	atomicMin
 F	atomicOr
 F	atomicXor
-F	backward
-F	backwardDifferentiateDotProduct
+F	backward	slang/neural
+F	backwardDifferentiateDotProduct	slang/numerics
 F	barrier
-F	baseConvertHash
+F	baseConvertHash	slang/neural
 F	beginInvocationInterlock
-F	biasReduce
+F	biasReduce	slang/neural
 F	bitAnd
 F	bitCount
 F	bitNot
@@ -1275,30 +1275,30 @@ F	bit_cast
 F	bitfieldExtract
 F	bitfieldInsert
 F	bitfieldReverse
-F	bitwiseAnd
-F	bitwiseNot
-F	bitwiseOr
-F	bitwiseXor
+F	bitwiseAnd	slang/numerics
+F	bitwiseNot	slang/numerics
+F	bitwiseOr	slang/numerics
+F	bitwiseXor	slang/numerics
 F	bwd_diff
 F	ceil
-F	ceiling
-F	changeMajor
+F	ceiling	slang/numerics
+F	changeMajor	slang/neural
 F	clamp
-F	cleanPaddingData
+F	cleanPaddingData	slang/neural
 F	clear
 F	clip
 F	clock2x32ARB
 F	clockARB
-F	coherentPrimeHash
+F	coherentPrimeHash	slang/neural
 F	compareExchange
 F	concat
-F	convertBuiltinMatrix
-F	convertBuiltinScalar
-F	convertBuiltinVector
-F	convertNetworkToOptimalLayout
-F	convertNetworkToPortableLayout
-F	convertOneLayerToOptimalLayout
-F	convertOneLayerToPortableLayout
+F	convertBuiltinMatrix	slang/numerics
+F	convertBuiltinScalar	slang/numerics
+F	convertBuiltinVector	slang/numerics
+F	convertNetworkToOptimalLayout	slang/neural
+F	convertNetworkToPortableLayout	slang/neural
+F	convertOneLayerToOptimalLayout	slang/neural
+F	convertOneLayerToPortableLayout	slang/neural
 F	coopMatLoad
 F	coopMatLoadCoherent
 F	coopMatMulAdd
@@ -1312,7 +1312,7 @@ F	coopVecMatMulPacked
 F	coopVecOuterProductAccumulate
 F	coopVecReduceSumAccumulate
 F	copyFrom
-F	copyingSignFrom
+F	copyingSignFrom	slang/numerics
 F	copysign
 F	copysign_double
 F	copysign_float
@@ -1323,10 +1323,10 @@ F	cospi
 F	countbits
 F	createDynamicObject
 F	cross
-F	crossWarpReduceAndAtomicWrite
+F	crossWarpReduceAndAtomicWrite	slang/neural
 F	cudaBlockDim
 F	cudaBlockIdx
-F	cudaNativeLayoutToRowMajor
+F	cudaNativeLayoutToRowMajor	slang/neural
 F	cudaThreadIdx
 F	dFdx
 F	dFdxCoarse
@@ -1350,30 +1350,30 @@ F	dims
 F	distance
 F	div
 F	divide
-F	dividedBy
+F	dividedBy	slang/numerics
 F	dot
 F	dot2add
 F	dot4add_i8packed
 F	dot4add_u8packed
-F	dotProductWith
+F	dotProductWith	slang/numerics
 F	dst
 F	dzero
 F	emptyLike
 F	enableVMMDeviceScopeCapabilityIfNeeded
-F	encode
-F	encodePerLevel
+F	encode	slang/neural
+F	encodePerLevel	slang/neural
 F	endInvocationInterlock
 F	equal
 F	equals
-F	eval
+F	eval	slang/neural
 F	exchange
 F	executeCallableEXT
 F	exp
 F	exp10
 F	exp2
-F	exponential
-F	exponentialWithBase10
-F	exponentialWithBase2
+F	exponential	slang/numerics
+F	exponentialWithBase10	slang/numerics
+F	exponentialWithBase2	slang/numerics
 F	f16tof32
 F	f32tof16
 F	f32tof16_
@@ -1387,7 +1387,7 @@ F	findLSB
 F	findMSB
 F	firstbithigh
 F	firstbitlow
-F	flattenedIndex
+F	flattenedIndex	slang/neural
 F	floatBitsToInt
 F	floatBitsToUint
 F	floatCast
@@ -1399,28 +1399,28 @@ F	fmedian3
 F	fmin
 F	fmin3
 F	fmod
-F	forward
-F	forwardDifferentiateDotProduct
+F	forward	slang/neural
+F	forwardDifferentiateDotProduct	slang/numerics
 F	frac
 F	fract
-F	fractionalPart
-F	fragmentReadAsUint
-F	fragmentWriteFromUint
+F	fractionalPart	slang/numerics
+F	fragmentReadAsUint	slang/neural
+F	fragmentWriteFromUint	slang/neural
 F	frexp
-F	fromArrayPacked
-F	fromArrayPackedInput
-F	fromScalar
+F	fromArrayPacked	slang/neural
+F	fromArrayPackedInput	slang/neural
+F	fromScalar	slang/numerics
 F	fromUInt
-F	fromVectorViaShMem
+F	fromVectorViaShMem	slang/neural
 F	fwd_diff
-F	fwd_getOffset
+F	fwd_getOffset	slang/neural
 F	fwidth
 F	fwidthCoarse
 F	fwidthFine
 F	fwidth_coarse
 F	fwidth_fine
-F	generate
-F	getBaseIndex
+F	generate	slang/functional
+F	getBaseIndex	slang/neural
 F	getBuffer
 F	getCount
 F	getDescriptorFromDescriptorHeapEXT
@@ -1429,20 +1429,20 @@ F	getDescriptorFromExplicitHeapIndex
 F	getDescriptorFromHandle
 F	getDifferential
 F	getLength
-F	getOffset
+F	getOffset	slang/neural
 F	getPi
 F	getPrimal
 F	getPtr
 F	getRealtimeClock
 F	getRealtimeClockLow
-F	getSharedBaseAddr
+F	getSharedBaseAddr	slang/neural
 F	getStringHash
 F	getView
-F	getWaveCount
-F	getWaveId
+F	getWaveCount	slang/neural
+F	getWaveId	slang/neural
 F	greaterThan
 F	greaterThanEqual
-F	gridHash
+F	gridHash	slang/neural
 F	groupMemoryBarrier
 F	half2float
 F	hitObjectExecuteShaderEXT
@@ -1528,61 +1528,61 @@ F	interpolateAtOffset
 F	interpolateAtSample
 F	inverse
 F	inversesqrt
-F	isEqualTo
-F	isFinite
-F	isInfinite
-F	isLessThan
-F	isLessThanOrEqualTo
-F	isNaN
+F	isEqualTo	slang/numerics
+F	isFinite	slang/numerics
+F	isInfinite	slang/numerics
+F	isLessThan	slang/numerics
+F	isLessThanOrEqualTo	slang/numerics
+F	isNaN	slang/numerics
 F	isValid
 F	isfinite
 F	isinf
 F	isnan
-F	lcgHash
+F	lcgHash	slang/neural
 F	ldexp
 F	length
 F	lerp
 F	lessThan
 F	lessThanEqual
 F	lessThanOrEquals
-F	linearTransform
-F	linearTransformBwd
+F	linearTransform	slang/neural
+F	linearTransformBwd	slang/neural
 F	lit
 F	load
 F	loadAligned
-F	loadAllVectorsForOuterProduct
+F	loadAllVectorsForOuterProduct	slang/neural
 F	loadAny
 F	loadCoherent
-F	loadCoopMat
+F	loadCoopMat	slang/neural
 F	loadOnce
 F	loadOnce_backward
 F	loadOnce_forward
-F	loadRaw
-F	loadShA
-F	loadTileFromShmem
-F	loadTileRawFromPointer
-F	loadVectorForOuterProduct
-F	loadVectorToShB
-F	loadWeightRaw
-F	loadWeightTiled
+F	loadRaw	slang/neural
+F	loadShA	slang/neural
+F	loadTileFromShmem	slang/neural
+F	loadTileRawFromPointer	slang/neural
+F	loadVectorForOuterProduct	slang/neural
+F	loadVectorToShB	slang/neural
+F	loadWeightRaw	slang/neural
+F	loadWeightTiled	slang/neural
 F	load_backward
 F	load_forward
 F	log
 F	log10
 F	log2
-F	logarithm
-F	logarithmWithBase10
-F	logarithmWithBase2
-F	logicalAnd
-F	logicalNot
-F	logicalOr
+F	logarithm	slang/numerics
+F	logarithmWithBase10	slang/numerics
+F	logarithmWithBase2	slang/numerics
+F	logicalAnd	slang/numerics
+F	logicalNot	slang/numerics
+F	logicalOr	slang/numerics
 F	mad
 F	makeArrayFromElement
 F	makeTuple
-F	map
-F	matALoadStore
-F	matMad
-F	matMul
+F	map	slang/functional
+F	matALoadStore	slang/neural
+F	matMad	slang/neural
+F	matMul	slang/neural
 F	matMulAccum
 F	matMulAccumPacked
 F	matMulAddAccum
@@ -1591,7 +1591,7 @@ F	matrix
 F	matrixCompMult
 F	max
 F	max3
-F	maximum
+F	maximum	slang/numerics
 F	median3
 F	memoryBarrier
 F	memoryBarrierAtomicCounter
@@ -1600,21 +1600,21 @@ F	memoryBarrierImage
 F	memoryBarrierShared
 F	min
 F	min3
-F	minimum
-F	minus
+F	minimum	slang/numerics
+F	minus	slang/numerics
 F	mix
-F	mma
-F	mmaAccumulateMgGroup
-F	mmaTranspose
+F	mma	slang/neural
+F	mmaAccumulateMgGroup	slang/neural
+F	mmaTranspose	slang/neural
 F	mod
 F	modf
 F	msad4
 F	mul
-F	multipliedBy
+F	multipliedBy	slang/numerics
 F	neg
-F	negated
-F	nextOffset
-F	nextUint
+F	negated	slang/numerics
+F	nextOffset	slang/neural
+F	nextUint	slang/neural
 F	nextafter
 F	noise1
 F	noise2
@@ -1625,15 +1625,15 @@ F	nonuniformEXT
 F	normalize
 F	not
 F	notEqual
-F	one
+F	one	slang/numerics
 F	operator
 F	or
 F	outerProduct
-F	outerProductAccumulate
+F	outerProductAccumulate	slang/neural
 F	pack32
 F	packDouble2x32
 F	packHalf2x16
-F	packInputTileToShmem
+F	packInputTileToShmem	slang/neural
 F	packInt4x8
 F	packInt4x8Clamp
 F	packSnorm2x16
@@ -1646,24 +1646,24 @@ F	pack_clamp_s8
 F	pack_clamp_u8
 F	pack_s8
 F	pack_u8
-F	permutoBarycentric
-F	permutoElevate
-F	permutoFindRem0
-F	permutoIndex
-F	physicalWeightIndexToLogicalCoord
-F	physicalWeightIndexToLogicalCoordForTarget
-F	physicalWeightOffset
-F	physicalWeightOffsetForTarget
-F	plus
+F	permutoBarycentric	slang/neural
+F	permutoElevate	slang/neural
+F	permutoFindRem0	slang/neural
+F	permutoIndex	slang/neural
+F	physicalWeightIndexToLogicalCoord	slang/neural
+F	physicalWeightIndexToLogicalCoordForTarget	slang/neural
+F	physicalWeightOffset	slang/neural
+F	physicalWeightOffsetForTarget	slang/neural
+F	plus	slang/numerics
 F	pow
 F	powr
-F	prepareLevelInfo
-F	primeHash
+F	prepareLevelInfo	slang/neural
+F	primeHash	slang/neural
 F	printf
 F	queryFootprint
-F	quotientWhenDividedBy
+F	quotientWhenDividedBy	slang/numerics
 F	radians
-F	raisedToThePowerOf
+F	raisedToThePowerOf	slang/numerics
 F	rayQueryConfirmIntersectionEXT
 F	rayQueryGenerateIntersectionEXT
 F	rayQueryGetIntersectionBarycentricsEXT
@@ -1688,12 +1688,12 @@ F	rayQueryInitializeEXT
 F	rayQueryProceedEXT
 F	rayQueryTerminateEXT
 F	rcp
-F	readFeatureValue
-F	readFeatureValueBwd
-F	readOneElement
-F	readUint4
-F	reciprocal
-F	reciprocalSquareRoot
+F	readFeatureValue	slang/neural
+F	readFeatureValueBwd	slang/neural
+F	readOneElement	slang/neural
+F	readUint4	slang/neural
+F	reciprocal	slang/numerics
+F	reciprocalSquareRoot	slang/numerics
 F	reduceAdd
 F	reduceAnd
 F	reduceDec
@@ -1707,7 +1707,7 @@ F	reflect
 F	refract
 F	reinterpret
 F	reinterpret_pointer_cast
-F	remainderWhenDividedBy
+F	remainderWhenDividedBy	slang/numerics
 F	reorderThreadEXT
 F	reorderThreadNV
 F	replicate
@@ -1716,14 +1716,14 @@ F	requireGLSLExtForRayTracingBuiltin
 F	requireGLSLExtForSubgroupBallotBuiltin
 F	requireGLSLExtForSubgroupBasicBuiltin
 F	reversebits
-F	reversedPrimeHash
+F	reversedPrimeHash	slang/neural
 F	rint
-F	rngHash
+F	rngHash	slang/neural
 F	round
 F	roundEven
-F	rounded
-F	roundedToNearestEven
-F	rowMajorToCudaNativeLayout
+F	rounded	slang/numerics
+F	roundedToNearestEven	slang/numerics
+F	rowMajorToCudaNativeLayout	slang/neural
 F	rsqrt
 F	saturate
 F	saturated_cooperation
@@ -1742,8 +1742,8 @@ F	shadow2D
 F	shadow2DLod
 F	shadow2DProj
 F	shadow2DProjLod
-F	shiftedLeftBy
-F	shiftedRightBy
+F	shiftedLeftBy	slang/numerics
+F	shiftedRightBy	slang/numerics
 F	shl
 F	shr
 F	sign
@@ -1752,17 +1752,17 @@ F	sincos
 F	sinh
 F	sinpi
 F	size
-F	smemLoad
-F	smemLoadGeneric
-F	smemLoadShared32
-F	smemLoadViaGenericPtr
-F	smemStore
-F	smemStoreGeneric
-F	smemStoreShared32
-F	smemStoreViaGenericPtr
+F	smemLoad	slang/neural
+F	smemLoadGeneric	slang/neural
+F	smemLoadShared32	slang/neural
+F	smemLoadViaGenericPtr	slang/neural
+F	smemStore	slang/neural
+F	smemStoreGeneric	slang/neural
+F	smemStoreShared32	slang/neural
+F	smemStoreViaGenericPtr	slang/neural
 F	smoothstep
 F	sqrt
-F	squareRoot
+F	squareRoot	slang/numerics
 F	static_assert
 F	static_pointer_cast
 F	step
@@ -1770,15 +1770,15 @@ F	store
 F	storeAligned
 F	storeAny
 F	storeCoherent
-F	storeCoopMat
+F	storeCoopMat	slang/neural
 F	storeOnce
 F	storeOnce_backward
 F	storeOnce_forward
-F	storeRaw
-F	storeShA
-F	storeTileRowToGlobal
-F	storeTileToShmem
-F	storeVectorFromShB
+F	storeRaw	slang/neural
+F	storeShA	slang/neural
+F	storeTileRowToGlobal	slang/neural
+F	storeTileToShmem	slang/neural
+F	storeVectorFromShB	slang/neural
 F	store_backward
 F	store_forward
 F	stride
@@ -1863,8 +1863,8 @@ F	subgroupShuffleUp
 F	subgroupShuffleXor
 F	subgroupXor
 F	subpassLoad
-F	sumReduceRows
-F	sumReduceTilesAllAtOnce
+F	sumReduceRows	slang/neural
+F	sumReduceTilesAllAtOnce	slang/neural
 F	syncTorchCudaStream
 F	tan
 F	tanh
@@ -1905,24 +1905,24 @@ F	textureQueryLod
 F	textureSamples
 F	textureSize
 F	textureTypeInfo
-F	tileElementOffset
-F	tileIdx
-F	toArrayPacked
+F	tileElementOffset	slang/neural
+F	tileIdx	slang/neural
+F	toArrayPacked	slang/neural
 F	toFloat
 F	toInt
 F	toInt64
-F	toMatrixB
-F	toOptimalLayout
-F	toPortableLayout
+F	toMatrixB	slang/neural
+F	toOptimalLayout	slang/neural
+F	toPortableLayout	slang/neural
 F	toUInt
 F	toUInt64
-F	toVectorViaShMem
+F	toVectorViaShMem	slang/neural
 F	traceRayEXT
 F	traceRayMotionNV
 F	transpose
-F	transposeSubMatrix
+F	transposeSubMatrix	slang/neural
 F	trunc
-F	truncated
+F	truncated	slang/numerics
 F	typeRequireChecks_atomic_using_Logical_CAS
 F	typeRequireChecks_atomic_using_MinMax
 F	typeRequireChecks_atomic_using_add
@@ -1969,47 +1969,47 @@ F	updatePrimal
 F	usesNativeSpirvDescriptorHandle
 F	usubBorrow
 F	vector
-F	vectorLoadStore
-F	vectorizedTileCoordToWeightCoord
-F	vectorizedTileIndexTo2DCoord
+F	vectorLoadStore	slang/neural
+F	vectorizedTileCoordToWeightCoord	slang/neural
+F	vectorizedTileIndexTo2DCoord	slang/neural
 F	workgroupUniformLoad
-F	writeOneElement
-F	writeUint4Atomic
-F	writebackMgGroup
+F	writeOneElement	slang/neural
+F	writeUint4Atomic	slang/neural
+F	writebackMgGroup	slang/neural
 F	xor
-F	zero
+F	zero	slang/numerics
 F	zerosLike
-V	ACCUMULATE
-V	ALL_MEMORY
-V	ATOMIC_ADD
+V	ACCUMULATE	slang/neural
+V	ALL_MEMORY	experimental/workgraph
+V	ATOMIC_ADD	slang/neural
 V	AccelerationStructure
 V	Acquire
 V	AcquireRelease
 V	Allow
-V	BarrierMemoryTypeFlags
-V	BarrierSemanticFlags
-V	BaseConvert
+V	BarrierMemoryTypeFlags	experimental/workgraph
+V	BarrierSemanticFlags	experimental/workgraph
+V	BaseConvert	slang/neural
 V	Buffer
-V	C
+V	C	slang/numerics
 V	CANDIDATE_NON_OPAQUE_TRIANGLE
 V	CANDIDATE_PROCEDURAL_PRIMITIVE
 V	COMMITTED_NOTHING
 V	COMMITTED_PROCEDURAL_PRIMITIVE_HIT
 V	COMMITTED_TRIANGLE_HIT
-V	CUDA
+V	CUDA	slang/neural
 V	ClampMode
 V	ClampToEdge
-V	CoherentPrime
+V	CoherentPrime	slang/neural
 V	ColumnMajor
 V	CombinedTextureSampler
 V	Constant
 V	ConstantBuffer
 V	ConstantBuffer_Read
 V	CrossDevice
-V	DEVICE_SCOPE
+V	DEVICE_SCOPE	experimental/workgraph
 V	Device
 V	Dim
-V	ExecutionMode
+V	ExecutionMode	slang/neural
 V	Feedback
 V	Float16
 V	Float32
@@ -2023,94 +2023,94 @@ V	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
 V	GL_TEXTURE_CUBE_MAP_POSITIVE_X
 V	GL_TEXTURE_CUBE_MAP_POSITIVE_Y
 V	GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-V	GROUP_SCOPE
-V	GROUP_SHARED_MEMORY
-V	GROUP_SYNC
+V	GROUP_SCOPE	experimental/workgraph
+V	GROUP_SHARED_MEMORY	experimental/workgraph
+V	GROUP_SYNC	experimental/workgraph
 V	General
-V	Generic
+V	Generic	slang/neural
 V	GroupShared
 V	HIT_KIND_TRIANGLE_BACK_FACE
 V	HIT_KIND_TRIANGLE_FRONT_FACE
-V	HasBias
+V	HasBias	slang/neural
 V	HasDimensions
-V	IAdditive
-V	IBuiltinScalarAdditive
-V	IBuiltinScalarElementaryFunctions
-V	IBuiltinScalarFloatingPointType
-V	IBuiltinScalarFractional
-V	IBuiltinScalarIntegerType
-V	IBuiltinScalarNumeric
-V	IBuiltinScalarReal
-V	IBuiltinScalarShapedType
-V	IBuiltinScalarSignedIntegerType
-V	IBuiltinScalarSignedNumeric
-V	IBuiltinScalarTypeDispatchMarker
-V	IBuiltinScalarUnsignedIntegerType
-V	IComponentwiseEquatable
-V	IComponentwiseOrdered
-V	IDifferentiableDotProduct
-V	IDifferentiableElementaryFunctions
-V	IDifferentiableExponentialFunctions
-V	IDifferentiableFloatingPoint
-V	IDifferentiableFractional
-V	IDifferentiableHyperbolicFunctions
-V	IDifferentiableInverseTrigonometricFunctions
-V	IDifferentiableNumericShapedType
-V	IDifferentiableReal
-V	IDifferentiableRealOrderingFunctions
-V	IDifferentiableRootFunctions
-V	IDifferentiableTrigonometricFunctions
-V	IDotProduct
-V	IElementaryFunctions
-V	IFloatingPoint
-V	IFractional
-V	IIntegerType
-V	INumeric
-V	IPartiallyOrdered
-V	IReal
-V	IScalarAdditive
-V	IScalarDifferentiableElementaryFunctions
-V	IScalarDifferentiableFloatingPoint
-V	IScalarDifferentiableFractional
-V	IScalarDifferentiableReal
-V	IScalarElementaryFunctions
-V	IScalarFloatingPoint
-V	IScalarFractional
-V	IScalarIntegerType
-V	IScalarNumeric
-V	IScalarReal
-V	IScalarShapedType
-V	IScalarSignedIntegerType
-V	IScalarSignedNumeric
-V	IScalarUnsignedIntegerType
-V	ISignedIntegerType
-V	ISignedNumeric
-V	ITotallyOrdered
-V	IUnsignedIntegerType
+V	IAdditive	slang/numerics
+V	IBuiltinScalarAdditive	slang/numerics
+V	IBuiltinScalarElementaryFunctions	slang/numerics
+V	IBuiltinScalarFloatingPointType	slang/numerics
+V	IBuiltinScalarFractional	slang/numerics
+V	IBuiltinScalarIntegerType	slang/numerics
+V	IBuiltinScalarNumeric	slang/numerics
+V	IBuiltinScalarReal	slang/numerics
+V	IBuiltinScalarShapedType	slang/numerics
+V	IBuiltinScalarSignedIntegerType	slang/numerics
+V	IBuiltinScalarSignedNumeric	slang/numerics
+V	IBuiltinScalarTypeDispatchMarker	slang/numerics
+V	IBuiltinScalarUnsignedIntegerType	slang/numerics
+V	IComponentwiseEquatable	slang/numerics
+V	IComponentwiseOrdered	slang/numerics
+V	IDifferentiableDotProduct	slang/numerics
+V	IDifferentiableElementaryFunctions	slang/numerics
+V	IDifferentiableExponentialFunctions	slang/numerics
+V	IDifferentiableFloatingPoint	slang/numerics
+V	IDifferentiableFractional	slang/numerics
+V	IDifferentiableHyperbolicFunctions	slang/numerics
+V	IDifferentiableInverseTrigonometricFunctions	slang/numerics
+V	IDifferentiableNumericShapedType	slang/numerics
+V	IDifferentiableReal	slang/numerics
+V	IDifferentiableRealOrderingFunctions	slang/numerics
+V	IDifferentiableRootFunctions	slang/numerics
+V	IDifferentiableTrigonometricFunctions	slang/numerics
+V	IDotProduct	slang/numerics
+V	IElementaryFunctions	slang/numerics
+V	IFloatingPoint	slang/numerics
+V	IFractional	slang/numerics
+V	IIntegerType	slang/numerics
+V	INumeric	slang/numerics
+V	IPartiallyOrdered	slang/numerics
+V	IReal	slang/numerics
+V	IScalarAdditive	slang/numerics
+V	IScalarDifferentiableElementaryFunctions	slang/numerics
+V	IScalarDifferentiableFloatingPoint	slang/numerics
+V	IScalarDifferentiableFractional	slang/numerics
+V	IScalarDifferentiableReal	slang/numerics
+V	IScalarElementaryFunctions	slang/numerics
+V	IScalarFloatingPoint	slang/numerics
+V	IScalarFractional	slang/numerics
+V	IScalarIntegerType	slang/numerics
+V	IScalarNumeric	slang/numerics
+V	IScalarReal	slang/numerics
+V	IScalarShapedType	slang/numerics
+V	IScalarSignedIntegerType	slang/numerics
+V	IScalarSignedNumeric	slang/numerics
+V	IScalarUnsignedIntegerType	slang/numerics
+V	ISignedIntegerType	slang/numerics
+V	ISignedNumeric	slang/numerics
+V	ITotallyOrdered	slang/numerics
+V	IUnsignedIntegerType	slang/numerics
 V	Immutable
-V	Inference
+V	Inference	slang/neural
 V	InferencingOptimal
 V	Invocation
 V	K
-V	L
-V	LayoutType
-V	Linear
-V	LinearLayout
+V	L	slang/numerics
+V	LayoutType	slang/neural
+V	Linear	slang/neural
+V	LinearLayout	slang/neural
 V	M
 V	MatrixA
 V	MatrixAccumulator
 V	MatrixB
-V	Metal
-V	MetalTile
+V	Metal	slang/neural
+V	MetalTile	slang/neural
 V	N
-V	NODE_INPUT_MEMORY
-V	NODE_OUTPUT_MEMORY
+V	NODE_INPUT_MEMORY	experimental/workgraph
+V	NODE_OUTPUT_MEMORY	experimental/workgraph
 V	None
-V	Optimal
-V	OptimalLayout
-V	OutDim
+V	Optimal	slang/neural
+V	OptimalLayout	slang/neural
+V	OutDim	slang/neural
 V	Param
-V	Prime
+V	Prime	slang/neural
 V	QueueFamily
 V	R
 V	R1
@@ -2128,8 +2128,8 @@ V	RAY_FLAG_NONE
 V	RAY_FLAG_SKIP_CLOSEST_HIT_SHADER
 V	RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES
 V	RAY_FLAG_SKIP_TRIANGLES
-V	READ
-V	REORDER
+V	READ	slang/neural
+V	REORDER	experimental/workgraph
 V	RasterizerOrdered
 V	Read
 V	ReadWrite
@@ -2138,21 +2138,21 @@ V	Release
 V	Repeat
 V	RepeatMirrored
 V	ResourceDescriptorHeap
-V	RestDim
-V	RestLayerSize
-V	ReversedPrime
-V	Rng
+V	RestDim	slang/neural
+V	RestLayerSize	slang/neural
+V	ReversedPrime	slang/neural
+V	Rng	slang/neural
 V	RowMajor
 V	S
-V	SPIR_V
+V	SPIR_V	slang/neural
 V	SampledImage
 V	Sampler
 V	Sampler2DRect
 V	SamplerBuffer
 V	SamplerDescriptorHeap
 V	SeqCst
-V	ShMemSize
-V	Shared
+V	ShMemSize	slang/neural
+V	Shared	slang/neural
 V	SignedInt16
 V	SignedInt32
 V	SignedInt64
@@ -2165,20 +2165,20 @@ V	StorageImage
 V	StorageTexelBuffer
 V	Struct
 V	Subgroup
-V	T
-V	TDestination
+V	T	slang/neural,slang/numerics
+V	TDestination	slang/numerics
 V	TRAVERSABLE_TRANSFORM_TYPE_INSTANCE
 V	TRAVERSABLE_TRANSFORM_TYPE_MATRIX_MOTION
 V	TRAVERSABLE_TRANSFORM_TYPE_NONE
 V	TRAVERSABLE_TRANSFORM_TYPE_SRT_MOTION
 V	TRAVERSABLE_TRANSFORM_TYPE_STATIC
-V	TYPE
-V	TargetEnum
+V	TYPE	slang/numerics
+V	TargetEnum	slang/neural
 V	Texture
-V	Training
+V	Training	slang/neural
 V	TrainingOptimal
 V	U
-V	UAV_MEMORY
+V	UAV_MEMORY	experimental/workgraph
 V	Undefined
 V	UniformTexelBuffer
 V	Unknown
@@ -2190,7 +2190,7 @@ V	UnsignedInt8Packed
 V	Var
 V	VaryingInput
 V	VkMutable
-V	WRITE
+V	WRITE	slang/neural
 V	Warn
 V	Workgroup
 V	Write
@@ -2201,7 +2201,7 @@ V	__builtinWaveLaneCount
 V	__builtinWaveLaneIndex
 V	accelerationStructureEXT
 V	accelerationStructureNV
-V	bool
+V	bool	slang/numerics
 V	bvec2
 V	bvec3
 V	bvec4
@@ -2218,7 +2218,7 @@ V	dmat4
 V	dmat4x2
 V	dmat4x3
 V	dmat4x4
-V	double
+V	double	slang/numerics
 V	dvec2
 V	dvec3
 V	dvec4
@@ -2237,7 +2237,7 @@ V	f16mat4x4
 V	f16vec2
 V	f16vec3
 V	f16vec4
-V	float
+V	float	slang/numerics
 V	gl_BaseInstance
 V	gl_BaseVertex
 V	gl_ClusterIDNoneNV
@@ -2277,7 +2277,7 @@ V	gl_SamplePosition
 V	gl_ViewIndex
 V	gl_ViewportIndex
 V	gl_WorkGroupID
-V	half
+V	half	slang/numerics
 V	hitObjectEXT
 V	hitObjectNV
 V	i16vec2
