@@ -52,6 +52,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.RegisterMismatch,
         SlangRuleDescriptors.StaticConstNotConstant,
         SlangRuleDescriptors.ArrayOfNonAddressable,
+        SlangRuleDescriptors.ResourceInContainer,
     ];
 
     /// <inheritdoc/>
@@ -89,8 +90,31 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            bool host = compilation.Environment is Semantics.Environments.SlangEnvironment { TargetsHost: true };
             HashSet<string> userFunctions = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>().Select(f => f.Name)];
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+
+            foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
+            {
+                switch (node)
+                {
+                    // StructuredBuffer<Texture2D>・Optional<SamplerState> (E38204・E30902)。CPU と CUDA のコンパイル先 (slang: target) は、資源をバッファーに入れられる。
+                    case TypeSyntax type when (type.NameToken.Text is "Optional"
+                                               || (!host && type.NameToken.Text is "StructuredBuffer" or "RWStructuredBuffer" or "AppendStructuredBuffer"
+                                                   or "ConsumeStructuredBuffer" or "RasterizerOrderedStructuredBuffer"))
+                                              && type.TemplateArguments.FirstOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken) is { } element
+                                              && !IsHandle(type.TemplateArguments)
+                                              && ContainsResource(structs, element.Text, 0):
+                        Report(SlangRuleDescriptors.ResourceInContainer, type.NameToken,
+                            $"{type.NameToken.Text} に資源の型 ({element.Text}{(IsResource(element.Text) ? "" : " が資源を含む")}) は包めません。");
+                        break;
+
+                    // 同じ属性を 2 度 ([numthreads] など)。
+                    case FunctionDeclarationSyntax function:
+                        CheckAttributesAndVisibility(function.Attributes, function.ModifierTokens, Report);
+                        break;
+                }
+            }
 
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
@@ -138,6 +162,55 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>資源の型 (テクスチャ・サンプラー・バッファー・ParameterBlock・ConstantBuffer)。</summary>
+    private static bool IsResource(string name)
+        => ShaderResources.Contains(name) || UnorderedResources.Contains(name) || Samplers.Contains(name)
+           || name is "ParameterBlock" or "ConstantBuffer" or "TextureBuffer" || name.StartsWith("Sampler", StringComparison.Ordinal) && name.Length > 7 && char.IsDigit(name[7]);
+
+    /// <summary>資源の型か、資源をメンバーに持つ構造体か。</summary>
+    private static bool ContainsResource(Dictionary<string, StructDeclarationSyntax> structs, string name, int depth)
+        => IsResource(name)
+           || (depth < 16 && structs.TryGetValue(name, out StructDeclarationSyntax? structure)
+               && structure.Members.OfType<VariableDeclarationSyntax>()
+                   .Where(m => !m.ModifierTokens.Any(t => t.Text == "static"))
+                   .Any(m => m.Type.NestedTypeTokens.IsDefaultOrEmpty && ContainsResource(structs, m.Type.NameToken.Text, depth + 1)));
+
+    /// <summary>資源への参照 (Texture2D.Handle・DescriptorHandle&lt;T&gt;) か。資源そのものではないので包める。</summary>
+    private static bool IsHandle(ImmutableArray<ShaderSyntaxToken> arguments)
+        => arguments.Any(t => t.Text is "Handle" or "DescriptorHandle");
+
+    /// <summary>1 つしか書けない属性の繰り返しと、可視性の重ね書き (E31202)。</summary>
+    private static void CheckAttributesAndVisibility(
+        ImmutableArray<AttributeSyntax> attributes,
+        ImmutableArray<ShaderSyntaxToken> modifiers,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+    {
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (AttributeSyntax attribute in attributes)
+        {
+            if (SingletonAttributes.Contains(attribute.NameToken.Text) && !seen.Add(attribute.NameToken.Text))
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, attribute.NameToken, $"[{attribute.NameToken.Text}] は 1 つしか書けません。");
+            }
+        }
+
+        ShaderSyntaxToken[] visibility = [.. modifiers.Where(t => t.Text is "public" or "internal" or "private")];
+
+        if (visibility.Length > 1)
+        {
+            report(SlangRuleDescriptors.ModifierNotAllowed, visibility[1], $"可視性は 1 つしか書けません ({string.Join("・", visibility.Select(v => v.Text))})。");
+        }
+    }
+
+    /// <summary>1 つしか書けない属性。</summary>
+    private static readonly string[] SingletonAttributes =
+    [
+        "numthreads", "shader", "NodeLaunch", "NodeMaxDispatchGrid", "NodeDispatchGrid", "NodeIsProgramEntry", "NodeID", "NodeShareInputOf",
+        "NodeMaxRecursionDepth", "NodeLocalRootArgumentsTableIndex", "WaveSize", "outputtopology", "domain", "partitioning", "maxvertexcount",
+        "instance", "outputcontrolpoints", "patchconstantfunc",
+    ];
 
     /// <summary>関数の外の const / constexpr / uniform の決まり (E31224)。</summary>
     private static void CheckGlobalModifiers(

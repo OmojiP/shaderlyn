@@ -24,8 +24,15 @@ namespace Shaderlyn.Semantics.Environments;
 /// </para>
 /// </remarks>
 /// <param name="variants">構成の軸。</param>
-internal sealed class SlangEnvironment(VariantSpace? variants = null) : IShaderEnvironment
+/// <param name="target">コンパイル先 (設定ファイルの <c>slang: target</c>)。指定が無ければ <see langword="null"/> (GPU のコンパイル先とみなす)。</param>
+internal sealed class SlangEnvironment(VariantSpace? variants = null, string? target = null) : IShaderEnvironment
 {
+    /// <summary>コンパイル先 (<c>spirv</c>・<c>cpp</c> など)。指定が無ければ <see langword="null"/>。</summary>
+    public string? Target { get; } = target;
+
+    /// <summary>CPU か CUDA のコンパイル先か。資源をバッファーに入れられるなど、GPU のコンパイル先と決まりが違う。</summary>
+    public bool TargetsHost => Target is "cpp" or "cuda" or "ptx";
+
     /// <summary>環境の名前。</summary>
     public const string EnvironmentName = "slang";
 

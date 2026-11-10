@@ -279,7 +279,7 @@ Slang にしか無いものです。slangc 2026.19 がエラーにする箇所�
 | ID                  | 内容                                                       | 既定   |
 | ------------------- | ---------------------------------------------------------- | ------ |
 | [SG0101](SG0101.md) | 宣言をその場所に書けない (型を書く位置の構造体の定義、構造体の中の namespace・extension、インターフェイスの中の enum・struct、関数の中の関数など) | エラー |
-| [SG0102](SG0102.md) | 修飾子をそこに書けない (関数の外の static の無い const・constexpr、初期値つきの uniform、局所変数の groupshared、フィールドの __ref) | エラー |
+| [SG0102](SG0102.md) | 修飾子をそこに書けない (関数の外の static の無い const・constexpr、初期値つきの uniform、局所変数の groupshared、フィールドの __ref、属性と可視性の繰り返し) | エラー |
 | [SG0103](SG0103.md) | register(…) の種類 (t・u・s・b) が資源の型と合わない | エラー |
 | [SG0316](SG0316.md) | static const の初期値に、uniform・定数バッファーのメンバー・関数の呼び出しを使った | エラー |
 | [SG0317](SG0317.md) | static const の初期値が、直接かほかの static const を通して自分自身に依っている | エラー |
@@ -288,6 +288,7 @@ Slang にしか無いものです。slangc 2026.19 がエラーにする箇所�
 | [SG0341](SG0341.md) | [RemovedSince] で取り除かれた宣言を使った | エラー |
 | [SG0401](SG0401.md) | 構造体の private のメンバーを、その構造体の外から使った | エラー |
 | [SG0403](SG0403.md) | ParameterBlock・大きさを決めない配列・それを含む構造体の配列を宣言した | エラー |
+| [SG0404](SG0404.md) | StructuredBuffer・Optional に資源の型か資源を含む構造体を包んだ | エラー |
 
 ## WGSL
 

@@ -29,5 +29,6 @@ symbols:
   - name: USE_FOG     # #ifdef USE_FOG の両方の分岐を読む
 ```
 
+コンパイル先は [`slang: target`](../configuration.md#slang) に書きます (CPU と CUDA では、資源をバッファーに入れられるなど、決まりが違います)。
 構成の軸は GLSL と同じく `symbols:` に書きます。エントリポイントはコンパイルのときに選ぶので、`units:` は読みません。
 テンプレートとサンプルは [samples/environments/slang](../../../samples/environments/slang/) にあります。

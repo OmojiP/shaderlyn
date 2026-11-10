@@ -29,7 +29,7 @@ internal static class ConfigurationLoader
     /// </remarks>
     private static readonly string[] KnownRootKeys =
     [
-        "version", "environment", "unity", "unreal", "hlsl", "glsl", "godot", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
+        "version", "environment", "unity", "unreal", "hlsl", "glsl", "godot", "slang", "profile", "include-paths", "defines", "symbols", "units", "rules", "report",
     ];
 
     /// <summary><c>report:</c> の節で認識するキー。</summary>
@@ -55,6 +55,12 @@ internal static class ConfigurationLoader
 
     /// <summary><c>glsl: target</c> に書ける値 (glslang の <c>--target-env</c> と同じ名前)。</summary>
     private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
+
+    /// <summary><c>slang:</c> の節で認識するキー。</summary>
+    private static readonly string[] KnownSlangKeys = ["target"];
+
+    /// <summary><c>slang: target</c> に書ける値 (slangc の <c>-target</c> の名前)。</summary>
+    private static readonly string[] KnownSlangTargets = ["spirv", "glsl", "hlsl", "dxil", "metal", "wgsl", "cuda", "ptx", "cpp"];
 
     /// <summary><c>godot:</c> の節で認識するキー。</summary>
     private static readonly string[] KnownGodotKeys = ["project", "renderer"];
@@ -238,6 +244,15 @@ internal static class ConfigurationLoader
 
             ReportNonScalars(godot, "godot: の ", "project", "renderer");
 
+            YamlMapping? slang = ReadSection("slang");
+
+            if (slang is not null)
+            {
+                ReportUnknownKeys(slang, KnownSlangKeys, "slang:");
+            }
+
+            ReportNonScalars(slang, "slang: の ", "target");
+
             (ImmutableArray<ConfiguredSymbol> symbols, ImmutableArray<ConfiguredSymbolGroup> groups) = ReadSymbols();
 
             return new ShaderlynConfiguration
@@ -266,6 +281,7 @@ internal static class ConfigurationLoader
                 GlslAutoMapBindings = ReadOptionalBoolean(glsl, "auto-map-bindings", "glsl:") ?? false,
                 GodotProjectPath = ResolvePath(ReadOptionalScalar(godot, "project")),
                 GodotRenderer = ReadGodotRenderer(godot),
+                SlangTarget = ReadSlangTarget(slang),
                 Symbols = symbols,
                 SymbolGroups = groups,
                 Units = CheckSixteenBitTargets(ReadUnits(symbols, groups), ReadHlslEnable16BitTypesQuietly(hlsl)),
@@ -588,6 +604,28 @@ internal static class ConfigurationLoader
 
             problems.Add(new ConfigurationProblem(
                 target.Line, $"glsl: の target には {string.Join(" / ", KnownGlslTargets)} のどれかを指定してください ('{target.Value}')。"));
+            return null;
+        }
+
+        /// <summary>Slang のコンパイル先 (<c>slang: target</c>) を読む。</summary>
+        /// <param name="slang"><c>slang:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns>コンパイル先の名前。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadSlangTarget(YamlMapping? slang)
+        {
+            if (slang is null || !slang.TryGetScalar("target", out YamlScalar? target) || target.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = target.Value.Trim().ToLowerInvariant();
+
+            if (KnownSlangTargets.Contains(value))
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                target.Line, $"slang: の target には {string.Join(" / ", KnownSlangTargets)} のどれかを指定してください ('{target.Value}')。"));
             return null;
         }
 

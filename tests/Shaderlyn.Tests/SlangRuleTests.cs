@@ -55,6 +55,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // 資源を包めない型、属性と可視性の繰り返し
+    [InlineData("SG0404", "StructuredBuffer<Texture2D> textures;\n")]
+    [InlineData("SG0404", "float f(Optional<SamplerState> s) { return 0; }\n")]
+    [InlineData("SG0102", "[numthreads(1, 1, 1)]\n[numthreads(2, 1, 1)]\nvoid main() { }\n")]
+    [InlineData("SG0102", "public internal int v() { return 0; }\n")]
     // 修飾子、レジスタ、static const の初期値、配列にできない型
     [InlineData("SG0102", "const float k = 1.0;\n")]
     [InlineData("SG0102", "uniform float u = 2.0;\n")]
@@ -147,4 +152,38 @@ public sealed class SlangRuleTests : IDisposable
     [Fact]
     public async Task 値を返さない経路は警告にする()
         => Assert.Contains("warning CF0501", await AnalyzeAsync("int f(int a)\n{\n    if (a > 0)\n    {\n        return 1;\n    }\n}\n"), StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("spirv", true)]
+    [InlineData("cuda", false)]
+    [InlineData("cpp", false)]
+    public async Task 資源を含む構造体のStructuredBufferはGPUのコンパイル先でだけ報告する(string? target, bool reported)
+    {
+        if (target is not null)
+        {
+            File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $"slang:\n  target: {target}\n");
+        }
+
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "struct WithTexture { Texture2D t; }\nStructuredBuffer<WithTexture> items;\n");
+        StringWriter output = new();
+        StringWriter error = new();
+
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(reported, output.ToString().Contains("error SG0404", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 知らないコンパイル先を設定の誤りにする()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "slang:\n  target: vulkan\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "void f() { }\n");
+        StringWriter output = new();
+
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Contains("slang: の target には", output.ToString(), StringComparison.Ordinal);
+    }
 }

@@ -164,6 +164,12 @@ internal sealed record ShaderlynConfiguration
     /// </summary>
     public string? GodotRenderer { get; init; }
 
+    /// <summary>
+    /// Slang のコンパイル先 (<c>slang: target</c>。<c>spirv</c> / <c>glsl</c> / <c>hlsl</c> / <c>dxil</c> / <c>metal</c> / <c>wgsl</c> / <c>cuda</c> / <c>ptx</c> / <c>cpp</c>。slangc の <c>-target</c>)。
+    /// 指定が無ければ、GPU のコンパイル先 (SPIR-V や HLSL) とみなす。
+    /// </summary>
+    public string? SlangTarget { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

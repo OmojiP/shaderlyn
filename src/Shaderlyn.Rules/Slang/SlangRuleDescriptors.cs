@@ -33,7 +33,8 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "関数の外の static の無い const か constexpr の変数、初期値を書いた uniform の変数、局所変数の groupshared、"
-            + "構造体のフィールドの __ref / __constref を書いています。slangc はコンパイルの誤りにします。",
+            + "構造体のフィールドの __ref / __constref を書いているか、同じ修飾子・1 つしか書けない属性 ([numthreads] など) を 2 度書いているか、"
+            + "可視性 (public・internal・private) を 2 つ書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0102"));
 
     /// <summary>レジスタの種類が資源の型と合わない。</summary>
@@ -66,6 +67,17 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "ParameterBlock・大きさを決めない配列 (x[])・それを含む構造体の配列を宣言しています。それらはアドレスを持たない型なので、配列にできません。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0403"));
+
+    /// <summary>資源を包めない型に資源を入れた。</summary>
+    public static DiagnosticDescriptor ResourceInContainer { get; } = new(
+        id: "SG0404",
+        title: "この型は資源を包めません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "StructuredBuffer (RW・Append・Consume を含む) か Optional の型引数に、資源の型 (テクスチャ・サンプラー・バッファー・ParameterBlock・ConstantBuffer) か、"
+            + "それをメンバーに持つ構造体を書いています。slangc はコンパイルの誤り (E38204・E30902) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0404"));
 
     /// <summary>[NoDiscard] の関数の戻り値を捨てた。</summary>
     public static DiagnosticDescriptor DiscardedResult { get; } = new(

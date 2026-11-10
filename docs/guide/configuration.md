@@ -48,6 +48,7 @@ rules:
 | `hlsl`          | 汎用の HLSL 環境の設定 ([下記](#hlsl))                          |
 | `glsl`          | GLSL の設定 ([下記](#glsl))                                     |
 | `godot`         | Godot の設定 ([下記](#godot))                                   |
+| `slang`         | Slang の設定 ([下記](#slang))                                   |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
@@ -171,6 +172,22 @@ Godot のシェーダー (`.gdshader` / `.gdshaderinc`) で使う設定です。
 ```yaml
 godot:
   renderer: gl_compatibility   # Web 向けに Compatibility で検査する
+```
+
+## slang
+
+Slang のファイル (`.slang`) で使う設定です。
+
+| キー | 内容 |
+| ---- | ---- |
+| `target` | コンパイル先。`spirv` / `glsl` / `hlsl` / `dxil` / `metal` / `wgsl` / `cuda` / `ptx` / `cpp` を指定します (slangc の `-target`) |
+
+`target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
+`cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を入れるなど。[SG0404](../rules/SG0404.md)) を報告しません。
+
+```yaml
+slang:
+  target: cuda   # slangc -target cuda でコンパイルする
 ```
 
 ## unreal
