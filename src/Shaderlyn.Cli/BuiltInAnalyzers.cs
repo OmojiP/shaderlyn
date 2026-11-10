@@ -138,6 +138,7 @@ public static class BuiltInAnalyzers
         new Rules.Slang.SlangStatementAnalyzer(),
         new Rules.Slang.SlangVisibilityAnalyzer(),
         new Rules.Slang.SlangRemovedDeclarationAnalyzer(),
+        new Rules.Slang.SlangDeclarationAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),

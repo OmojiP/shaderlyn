@@ -25,6 +25,48 @@ internal static class SlangRuleDescriptors
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義など) を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
+    /// <summary>修飾子をその宣言に書けない。</summary>
+    public static DiagnosticDescriptor ModifierNotAllowed { get; } = new(
+        id: "SG0102",
+        title: "この修飾子はここに書けません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の外の static の無い const か constexpr の変数、初期値を書いた uniform の変数、局所変数の groupshared、"
+            + "構造体のフィールドの __ref / __constref を書いています。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0102"));
+
+    /// <summary>レジスタの種類が資源の型と合わない。</summary>
+    public static DiagnosticDescriptor RegisterMismatch { get; } = new(
+        id: "SG0103",
+        title: "レジスタの種類が資源の型と合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "register(…) の種類 (t・u・s・b) が、資源の型と合いません。t は読むだけの資源 (Texture2D・StructuredBuffer など)、u は書ける資源 (RW…)、"
+            + "s はサンプラー、b は定数バッファーです。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0103"));
+
+    /// <summary>static const の初期値が定数式でない。</summary>
+    public static DiagnosticDescriptor StaticConstNotConstant { get; } = new(
+        id: "SG0316",
+        title: "static const の初期値には定数式が要ります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の外の static const の初期値に、uniform・定数バッファーのメンバー・関数の外の変数の値か、利用者の関数やメソッドの呼び出しを使っています。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0316"));
+
+    /// <summary>配列にできない型の配列。</summary>
+    public static DiagnosticDescriptor ArrayOfNonAddressable { get; } = new(
+        id: "SG0403",
+        title: "この型の配列は作れません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "ParameterBlock・大きさを決めない配列 (x[])・それを含む構造体の配列を宣言しています。それらはアドレスを持たない型なので、配列にできません。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0403"));
+
     /// <summary>[NoDiscard] の関数の戻り値を捨てた。</summary>
     public static DiagnosticDescriptor DiscardedResult { get; } = new(
         id: "SG0338",

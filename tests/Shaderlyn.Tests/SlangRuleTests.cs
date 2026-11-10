@@ -55,6 +55,16 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // 修飾子、レジスタ、static const の初期値、配列にできない型
+    [InlineData("SG0102", "const float k = 1.0;\n")]
+    [InlineData("SG0102", "uniform float u = 2.0;\n")]
+    [InlineData("SG0102", "void f()\n{\n    groupshared int a;\n}\n")]
+    [InlineData("SG0103", "Texture2D tex : register(u5);\n")]
+    [InlineData("SG0103", "RWStructuredBuffer<float> buf : register(t0);\n")]
+    [InlineData("SG0316", "uniform float foo;\nstatic const float a = foo * 2.0;\n")]
+    [InlineData("SG0316", "int getX() { return 1; }\nstatic const int c = getX();\n")]
+    [InlineData("SG0403", "struct P { float x; }\nuniform ParameterBlock<P> qs[2];\n")]
+    [InlineData("SG0403", "struct WithUnbounded { int data[]; }\nWithUnbounded many[3];\n")]
     // 取り除かれた宣言
     [InlineData("SG0341", "[RemovedSince(-1, \"This struct is removed\")]\nstruct RemovedStruct { int x; }\nvoid f()\n{\n    RemovedStruct s;\n}\n")]
     [InlineData("SG0341", "[RemovedSince(2025, \"gone\")]\nint old() { return 1; }\nint f() { return old(); }\n")]
@@ -89,6 +99,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // 書けるもの: static const、特殊化定数、static groupshared、合うレジスタ、型の static のメソッド、特殊化定数から求める static const
+    [InlineData("static const float k = 1.0;\n[vk::constant_id(0)]\nconst int N = 4;\n[[SpecializationConstant]] const float NEAR = 0.1;\nstatic const int M = N * 2;\nstatic const float pi = float.getPi();\nTexture2D tex : register(t0);\nRWStructuredBuffer<float> buf : register(u0);\nSamplerState samp : register(s0);\nstruct P { float x; }\nP items[4];\nvoid f()\n{\n    static groupshared int shared[4];\n}\n")]
     // まだ取り除かれていない版、一部の多重定義だけが取り除かれた関数
     [InlineData("[RemovedSince(2030, \"later\")]\nstruct Later { int x; }\n[RemovedSince(-1, \"one overload\")]\nint g(float x) { return 0; }\nint g(int x) { return 1; }\nint f() { Later l; return g(1); }\n")]
     // [NoDiscard] の戻り値を使う
