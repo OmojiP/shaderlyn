@@ -99,6 +99,17 @@ internal static class SlangRuleDescriptors
         description: "[RemovedSince(版, \"説明\")] を書いた宣言を使っています。その版の言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0341"));
 
+    /// <summary>インターフェイスの適合が循環している。</summary>
+    public static DiagnosticDescriptor CyclicConformance { get; } = new(
+        id: "SG0342",
+        title: "インターフェイスの適合が循環しています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "インターフェイスに適合する構造体のフィールドに、たどると同じインターフェイスへ戻るインターフェイス型の値があります。"
+            + "動的なディスパッチでは値の大きさが決まらないので、slangc はコンパイルの誤り (E41002・E41003) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0342"));
+
     /// <summary>アクセスできない宣言を使った。</summary>
     public static DiagnosticDescriptor NotAccessible { get; } = new(
         id: "SG0401",

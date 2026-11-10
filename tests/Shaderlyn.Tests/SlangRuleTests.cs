@@ -55,6 +55,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // インターフェイスの適合の循環
+    [InlineData("SG0342", "interface IValue { float get(); }\nstruct BadImpl : IValue\n{\n    IValue child;\n    float get() { return 0; }\n}\n")]
+    [InlineData("SG0342", "interface IFoo { float a(); }\ninterface IBar { float b(); }\nstruct BarImpl : IBar { IFoo foo; float b() { return 0; } }\nstruct FooImpl : IFoo { IBar bar; float a() { return 0; } }\n")]
     // 資源を包めない型、属性と可視性の繰り返し
     [InlineData("SG0404", "StructuredBuffer<Texture2D> textures;\n")]
     [InlineData("SG0404", "float f(Optional<SamplerState> s) { return 0; }\n")]
@@ -104,6 +107,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // 循環しない適合: ポインターのフィールド、ほかのインターフェイスだけを持つ構造体
+    [InlineData("interface INode { float get(); }\ninterface ILeaf { float v(); }\nstruct Node : INode { INode* next; ILeaf leaf; float get() { return 0; } }\nstruct Leaf : ILeaf { float x; float v() { return x; } }\n")]
     // 書けるもの: static const、特殊化定数、static groupshared、合うレジスタ、型の static のメソッド、特殊化定数から求める static const
     [InlineData("static const float k = 1.0;\n[vk::constant_id(0)]\nconst int N = 4;\n[[SpecializationConstant]] const float NEAR = 0.1;\nstatic const int M = N * 2;\nstatic const float pi = float.getPi();\nTexture2D tex : register(t0);\nRWStructuredBuffer<float> buf : register(u0);\nSamplerState samp : register(s0);\nstruct P { float x; }\nP items[4];\nvoid f()\n{\n    static groupshared int shared[4];\n}\n")]
     // まだ取り除かれていない版、一部の多重定義だけが取り除かれた関数
