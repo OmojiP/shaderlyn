@@ -55,6 +55,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // 構造体の外からの private のメンバー
+    [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nvoid f()\n{\n    T t;\n    t.member = 2;\n}\n")]
+    [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nint f()\n{\n    T t;\n    return t.func();\n}\n")]
     // enum と整数の間、数と構造体の間は暗黙に変換しない
     [InlineData("HL0347", "enum Color { Red, Green }\nvoid f(int val)\n{\n    Color c = val;\n}\n")]
     [InlineData("HL0347", "enum Color { Red, Green }\nvoid f(Color c)\n{\n    uint y = c;\n}\n")]
@@ -80,6 +83,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // private のメンバーは、構造体と中の構造体の中から使える
+    [InlineData("struct T\n{\n    private int member;\n    int get(T other) { return other.member + member; }\n    struct Inner { int read(T t) { return t.member; } }\n    int pub;\n}\nint f(T t) { return t.pub + t.get(t); }\n")]
     // 変換できるもの: enum から基になる型、インターフェイスへの値、__init を持つ構造体、組み込み関数と同じ名前の関数
     [InlineData("enum Mode : uint { A, B }\nenum Color { Red }\ninterface IFoo { int get(); }\nstruct B : IFoo { int get() { return 1; } IFoo self() { return this; } }\nstruct Converted { float3 v; __init(float3 x) { v = x; } }\nvoid take(Converted c) { }\nstruct M { float2x2 m; }\nfloat2 mul(M a, float2 v) { return mul(a.m, v); }\nvoid f(Mode m, Color c)\n{\n    uint u = m;\n    int i = c;\n    take(float3(0.0));\n}\n")]
     // 書ける置き場所: 修飾子と __generic の後ろの構造体、関数の中の局所の構造体のメソッド、インターフェイスの中の __constraint

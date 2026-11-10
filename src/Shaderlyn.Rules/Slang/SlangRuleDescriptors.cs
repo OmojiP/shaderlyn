@@ -25,6 +25,16 @@ internal static class SlangRuleDescriptors
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義など) を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
+    /// <summary>アクセスできない宣言を使った。</summary>
+    public static DiagnosticDescriptor NotAccessible { get; } = new(
+        id: "SG0401",
+        title: "その宣言にはアクセスできません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "構造体の private のメンバー (フィールド・メソッド) を、その構造体の外から使っています。private のメンバーは、その構造体 (と中の構造体) の中でだけ使えます。slangc はコンパイルの誤りにします。",
+        helpLinkUri: DocumentationLinks.For("SG0401"));
+
     /// <summary>定数の初期値が、自分自身に依っている。</summary>
     public static DiagnosticDescriptor CyclicConstant { get; } = new(
         id: "SG0317",

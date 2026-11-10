@@ -136,6 +136,7 @@ public static class BuiltInAnalyzers
         new Rules.Wgsl.WgslCallAnalyzer(),
         new Rules.Slang.SlangDeclarationPlacementAnalyzer(),
         new Rules.Slang.SlangStatementAnalyzer(),
+        new Rules.Slang.SlangVisibilityAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
         new LoopVariableScopeAnalyzer(),
