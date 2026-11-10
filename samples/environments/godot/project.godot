@@ -1,0 +1,6 @@
+; Godot のプロジェクトの設定 (サンプル)。Shaderlyn は rendering_method だけを読む。
+config_version=5
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

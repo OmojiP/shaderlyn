@@ -1,0 +1,8 @@
+# Godot の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments/godot.md と docs/guide/configuration.md にある。
+version: 1
+environment: godot        # .gdshader は、設定ファイルが無くても Godot のシェーダーとして解析する
+
+# godot:
+#   project: .            # project.godot のあるフォルダー。省略すると、ファイルから上へ辿って探す
+#   renderer: forward_plus   # forward_plus / mobile / gl_compatibility。省略すると project.godot から読む

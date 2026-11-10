@@ -76,7 +76,22 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   宣言・型・呼び出しを検査する (CF0310・CF0402・CF0410 など、C 系の共通のルール)。型を書かない数は抽象的な数として扱い、具体的な型への変換だけを暗黙に行う
   (`i32` と `f32` の間は変換しない)。型を書かない `let` / `var` / `override` は初期値の型を具体的にしたもの、`const` は初期値の型として検査する。
   関数の外の名前は、宣言より前でも使える。組み込み関数の名前は naga 30 のものを知っている
+- WGSL にしか無いルール (WG) を足した。naga 30 (wgpu の WGSL のコンパイラ) がエラーにする箇所を、naga と同じ行で報告する
+  - WG0001: enable していない拡張の機能 (f16・binding_array・光線の照会・メッシュシェーダー・@blend_src・@builtin(clip_distances) など)。WG0003: 無い拡張の名前
+  - WG0002: ステージで使えない操作 (頂点・計算シェーダーの discard と微分、頂点・フラグメントシェーダーの workgroupBarrier など。呼ぶ関数の中も)
+  - WG0101: 属性の置き場所 (@must_use、同じ属性の繰り返し、構造体のメンバーに書けない属性)。WG0338: @must_use の関数の戻り値を使わない呼び出し
+  - WG0103: メモリの配置 (@align・@size、var<uniform> の配列の要素の間隔)。WG0339: 2147483647 バイトを超える型
+  - WG0301: bool のスカラーでない値の && と ||。WG0302: 組み込み関数と値の作成の実引数の型 (cross の vec4、vec2f(u32)、select の型の違いなど)
+  - WG0303: 定数式でない subgroupBroadcast の番号。WG0317: const の初期値と const_assert の実行時の値
+  - WG0307: 範囲の外・負・整数でない添字。WG0308: 0 以下か整数でない配列の大きさ。WG0315: 型に収まらない数。WG0336: シフトの量と const の初期値のあふれ
+  - WG0309: 書き込めない値への書き込み (let・仮引数・var<uniform>・読み取りだけの var<storage>・スウィズル)。WG0330: ベクトルの成分のアドレス
+  - WG0311: bool でない条件。WG0337: 成り立たない const_assert。WG0332: 再帰の呼び出し
+  - WG0322: エントリポイントの入出力 (@location / @builtin、頂点の @builtin(position)、@blend_src、clip_distances)
+  - WG0324: 型の引数 (vec2<vec2f>、mat3x3<i32>、texture_2d<bool>、無い形式・アドレス空間・アクセス)。WG0403: その場所では使えない型
+- WGSL: キーワード・予約語・__ で始まる語の名前、文として書けない式、continuing の外の break if、型も初期値も無い var、
+  初期値の無い let / const、128 段以上の入れ子を構文の誤りとして報告する (CF0001)。構造体のメンバーの名前の重複を報告する (CF0314)
 - VS Code 拡張: WGSL (`.wgsl`) を解析する。説明・定義へ移動・補完は WGSL の型と組み込み関数で答える
+- 環境ごとの説明のページ (Godot・Slang・WGSL) と、設定ファイルのテンプレート (samples/environments/godot・slang・wgsl) を足した
 - `PreprocessorOptions.NestedBlockComments` / `ShaderLexer.NestedBlockComments`: 複数行コメントを入れ子にできるか (WGSL。既定はできない)
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、

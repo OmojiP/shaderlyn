@@ -13,6 +13,9 @@
 | [hlsl](hlsl/) | `hlsl` (DXC で直接コンパイルする HLSL) | 頂点・ピクセルの 2 つの単位を持つ `.hlsl`、取り込まれる `.hlsli`、シェーダーモデル 6 の書き方を使う `.hlsl`、HLSL 2021 の構文 (`enum class`・ビットフィールド・演算子の多重定義・`template` と明示的な特殊化・`class` と継承) を使う `.hlsl`、DXR のライブラリ (`lib_6_6`) の単位 |
 | [unreal](unreal/) | `unreal` | `.usf` と、エンジンの代わりの小さなフォルダー (`Engine/`)、プラグインの仮想パス |
 | [glsl](glsl/) | `glsl` (Vulkan 1.3 向けの GLSL) | 頂点・フラグメント・計算のシェーダーと、`include-paths` から取り込む `.glsl` |
+| [godot](godot/) | `godot` (Godot 4、Compatibility のレンダラー) | `project.godot` と `.gdshader` 1 つ |
+| [slang](slang/) | `slang` | `import` するモジュールと、それを使うフラグメントシェーダー |
+| [wgsl](wgsl/) | `wgsl` (WebGPU) | 計算・頂点・フラグメントのエントリポイントを並べた `.wgsl` 1 つ |
 
 独自エンジンの環境は設定ファイルだけでは選べません (自前の CLI に環境を足す)。
 [ルールの実例集「独自エンジンの環境」](../../docs/custom-rules/cookbook.md#独自エンジンの環境) を見てください。
@@ -26,6 +29,9 @@ shaderlyn samples/environments/unity
 shaderlyn samples/environments/hlsl
 shaderlyn samples/environments/unreal
 shaderlyn samples/environments/glsl
+shaderlyn samples/environments/godot
+shaderlyn samples/environments/slang
+shaderlyn samples/environments/wgsl
 
 # 解析はせずに、環境と設定 (構成の軸・コンパイル単位・仮想パス) を表示する
 shaderlyn samples/environments/hlsl --env
@@ -39,6 +45,9 @@ shaderlyn samples/environments/hlsl --env
 | hlsl | `Lit.hlsl`: `CF0301` (entry の `MainPS` が無い。関数は `MainPs`)、`CF0312` (`QUALITY == 2 のとき` float3 に `.a` は無い)。<br>`Hlsl2021.hlsl`: `HL0345` (`MaxOf(1.0, adapt.Scale())` の接尾辞の無い `1.0` と `float` で型引数 `T` が決まらない)、`CF0312` (演算子 `*` の結果の `Rgb` に `.alpha` は無い)。<br>`Blur.hlsl` と `Library/Raytracing.hlsl` には何も出ない (`Raytracing.hlsl` の宣言だけの関数 `SkyColor` は、ライブラリなので誤りにしない) |
 | unreal | `UE0001` (情報。エンジンが生成するファイル `/Engine/Generated/GeneratedUniformBuffers.ush` が無い。`--unreal-generate` で作れる)、`CF0312` (`PERMUTATION_HIGH_QUALITY == 1 のとき`)。`View.PreExposure` は報告されない |
 | glsl | `lit.vert`: `GL0104` (Vulkan 向けでは出力の `vNormal` に `layout(location = …)` が要る)。<br>`lit.frag`: `CF0312` (`USE_FOG` を定義したときの分岐で、vec3 に `.w` は無い)。<br>`average.comp`: `GL0001` (`subgroupAdd` には `GL_KHR_shader_subgroup_arithmetic` が要る)。<br>`include/lighting.glsl`: `CF0101` (情報。取り込まれる断片なので、単体では宣言が無いことを根拠にする検査をしない) |
+| godot | `GD0001` (`project.godot` のレンダラーが Compatibility なので、`textureGather` は使えない)、`CF0410` (`ROUGHNESS = 1;` の int を float に入れられない) |
+| slang | `lit.slang`: `CF0310` (`USE_FOG` を定義したときの分岐で、`fogColor` が宣言されていない)。import する `modules/lighting.slang` には何も出ない |
+| wgsl | `WG0309` (`read_write` でない `var<storage>` の粒子に書き込んでいる)、`CF0410` (`u32` を `f32` の変数に入れている。WGSL は暗黙に変換しない) |
 
 ## VS Code 拡張で確かめる
 

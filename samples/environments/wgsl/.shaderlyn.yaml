@@ -1,0 +1,8 @@
+# WGSL の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments/wgsl.md と docs/guide/configuration.md にある。
+version: 1
+environment: wgsl         # .wgsl は、設定ファイルが無くても WGSL として解析する
+
+rules:
+  CF0501: error           # 例: ルールの重要度を変える
+  # WG0003: none          # naga より新しい WebGPU の実装の拡張を使うなら

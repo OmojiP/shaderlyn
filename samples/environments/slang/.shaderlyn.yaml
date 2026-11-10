@@ -1,0 +1,10 @@
+# Slang の設定ファイルのテンプレート。
+# 詳しくは docs/guide/environments/slang.md と docs/guide/configuration.md にある。
+version: 1
+environment: slang        # .slang は、設定ファイルが無くても Slang として解析する
+
+include-paths:            # import するモジュールを探すフォルダー (設定ファイルからの相対)
+  - shaders/modules
+
+symbols:                  # 構成の軸。#ifdef USE_FOG の両方の分岐を読む
+  - name: USE_FOG

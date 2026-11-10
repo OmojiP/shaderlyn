@@ -1,6 +1,6 @@
 # 環境ごとの使い方
 
-Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、GLSL、独自エンジンのシェーダーを解析します。
+Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、GLSL、Godot、Slang、WGSL、独自エンジンのシェーダーを解析します。
 どのエンジンと言語のシェーダーとして解析するかを「環境」と呼び、設定ファイルの `environment` で選びます。このページは、環境ごとの設定と違いをまとめたものです。解析ルールと出力方法 (CLI・VS Code 拡張・GitHub Actions) は、どの環境でも共通です。
 
 環境別の設定ファイルのテンプレートと、試すためのサンプルシェーダーが [samples/environments](../../samples/environments/) にあります。
@@ -24,9 +24,9 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 | `hlsl` | DXC で直接コンパイルする HLSL ([汎用の HLSL](environments/hlsl.md)) | `.hlsl` |
 | `unreal` | Unreal Engine のシェーダー ([Unreal Engine](environments/unreal.md)) | `.usf` |
 | `glsl` | GLSL (OpenGL・Vulkan・GLSL ES。[GLSL](environments/glsl.md)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
-| `godot` | Godot シェーダー言語 (Godot 4) | `.gdshader` / `.gdshaderinc` |
-| `slang` | Slang (開発中。構文の誤りと、宣言・呼び出しの一部を指摘します。`import` するモジュールは、ファイルのフォルダーと `include-paths` から探します) | `.slang` |
-| `wgsl` | WGSL (開発中。現在は何も指摘しません) | `.wgsl` |
+| `godot` | Godot シェーダー言語 (Godot 4。[Godot](environments/godot.md)) | `.gdshader` / `.gdshaderinc` |
+| `slang` | Slang (開発中。[Slang](environments/slang.md)) | `.slang` |
+| `wgsl` | WGSL (WebGPU。[WGSL](environments/wgsl.md)) | `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、明示的に指定した場合に限り解析します。
@@ -46,6 +46,9 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 | [汎用の HLSL (DXC)](environments/hlsl.md) | コンパイル単位 (`units:`) と構成の軸 (`symbols:`)、コンパイラと言語のバージョンで使える構文 |
 | [Unreal Engine](environments/unreal.md) | エンジンとプロジェクトの仮想パス、C++ から生成されるファイル (`--unreal-generate`)、解析の前提 |
 | [GLSL](environments/glsl.md) | glslang と同じ検査、`glsl: target` (Vulkan / OpenGL)、ステージと `#version` の決め方 |
+| [Godot](environments/godot.md) | Godot 4.7.2 と同じ検査、`project.godot` と `res://`、レンダラーの決め方 |
+| [Slang](environments/slang.md) | 開発中の検査の範囲、`import` するモジュールの探し方 |
+| [WGSL](environments/wgsl.md) | naga 30 と同じ検査、`enable` の要る機能、naga と違う所 |
 
 ## 環境によって変わること
 
