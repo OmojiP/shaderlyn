@@ -353,7 +353,8 @@ public sealed class ExpressionTypeBinder
                         EnumInfo info = new(
                             enumeration.Name,
                             enumeration.IsScoped,
-                            enumeration.Members.Select(m => m.Name).ToFrozenSet(StringComparer.Ordinal));
+                            enumeration.Members.Select(m => m.Name).ToFrozenSet(StringComparer.Ordinal),
+                            enumeration.BaseTypeTokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)?.Text);
 
                         // 同じ名前の enum が 2 つあれば (名前空間が違うなど)、どちらか決められない。
                         enums[enumeration.Name] = enums.TryGetValue(enumeration.Name, out EnumInfo? seen)

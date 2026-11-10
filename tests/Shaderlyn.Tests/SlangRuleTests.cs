@@ -55,6 +55,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // enum と整数の間、数と構造体の間は暗黙に変換しない
+    [InlineData("HL0347", "enum Color { Red, Green }\nvoid f(int val)\n{\n    Color c = val;\n}\n")]
+    [InlineData("HL0347", "enum Color { Red, Green }\nvoid f(Color c)\n{\n    uint y = c;\n}\n")]
+    [InlineData("CF0410", "struct S { int a; }\nvoid f()\n{\n    S s;\n    s = 0;\n}\n")]
     // switch の外の case と、自分自身に依る static const
     [InlineData("SG0321", "void f()\n{\n    case 0:\n    return;\n}\n")]
     [InlineData("SG0321", "void f(uint i)\n{\n    switch (i)\n    {\n    case 0:\n        {\n        case 1:\n            break;\n        }\n    }\n}\n")]
@@ -76,6 +80,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // 変換できるもの: enum から基になる型、インターフェイスへの値、__init を持つ構造体、組み込み関数と同じ名前の関数
+    [InlineData("enum Mode : uint { A, B }\nenum Color { Red }\ninterface IFoo { int get(); }\nstruct B : IFoo { int get() { return 1; } IFoo self() { return this; } }\nstruct Converted { float3 v; __init(float3 x) { v = x; } }\nvoid take(Converted c) { }\nstruct M { float2x2 m; }\nfloat2 mul(M a, float2 v) { return mul(a.m, v); }\nvoid f(Mode m, Color c)\n{\n    uint u = m;\n    int i = c;\n    take(float3(0.0));\n}\n")]
     // 書ける置き場所: 修飾子と __generic の後ろの構造体、関数の中の局所の構造体のメソッド、インターフェイスの中の __constraint
     [InlineData("__generic<T>\nstruct Box { T v; }\n__target_intrinsic(cpp, \"Foo\")\nstruct Foo { int a; }\npublic struct Pub { int b; }\ninterface IFoo { }\ninterface IReq { __constraint int : IFoo; }\nint f()\n{\n    struct Op { int g(int v) { return v; } };\n    Op o;\n    return o.g(1);\n}\n")]
     // ポインター

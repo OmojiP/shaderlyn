@@ -33,6 +33,10 @@ namespace Shaderlyn.Rules;
 internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 {
     /// <inheritdoc/>
+    /// <remarks>Slang も構造体と数の間を暗黙に変換しない。enum の値は基になる型にだけ変換する (slangc 2026.19)。</remarks>
+    protected override bool AnalyzesSlang => true;
+
+    /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         HlslRuleDescriptors.EnumValueMismatch,
@@ -170,14 +174,22 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // Slang の enum の値は、基になる型 (書かなければ int) にだけ暗黙に変換される (slangc 2026.19 の E30019)。
+        if (valueEnum is not null && targetIsNumeric && binder.TypeSystem is SlangTypeSystem && target != (valueEnum.BaseType ?? "int"))
+        {
+            ReportEnum(context, value, $"{DescribeReceiver(receiver, target)} に {DescribeEnum(valueEnum)} の値は{DescribeVerb(receiver)}。Slang の enum の値は、基になる型 ({valueEnum.BaseType ?? "int"}) にだけ暗黙に変換されます。型変換 ({target}(x)) を書いてください。", reported);
+            return;
+        }
+
         // enum class の値は、数へ暗黙に変換されない。
-        if (valueEnum is { IsScoped: true } && targetIsNumeric)
+        if (valueEnum is { IsScoped: true } && targetIsNumeric && binder.TypeSystem is not SlangTypeSystem)
         {
             ReportEnum(context, value, $"{DescribeReceiver(receiver, target)} に {DescribeEnum(valueEnum)} の値は{DescribeVerb(receiver)}。enum class の値は数へ暗黙に変換されません。型変換 (({target}) x) を書いてください。", reported);
             return;
         }
 
-        if (!binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion
+        // Slang は HLSL 2021 と同じく、構造体と数の間を暗黙に変換しない (木の HLSL のバージョンに依らない)。
+        if ((binder.TypeSystem is SlangTypeSystem || !binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion)
             && DescribeStructMismatch(binder, target, targetIsNumeric, valueType, valueIsNumeric) is { } reason)
         {
             ReportStruct(context, receiver, value, valueType, reason, reported);
@@ -206,6 +218,12 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             return null;
         }
 
+        // Slang のインターフェイス (適合する型の値が入る。extension で数も適合させられる) と、__init を持つ構造体 (__init で変換できる) は見ない。
+        if (binder.TypeSystem is SlangTypeSystem && (IsSlangConvertible(binder, target) || IsSlangConvertible(binder, value)))
+        {
+            return null;
+        }
+
         if (targetIsStruct && valueIsStruct)
         {
             // 派生した構造体の値は、基底の構造体へ入る (基底の部分だけが残る)。
@@ -223,6 +241,15 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             ? "構造体は数へ暗黙に変換されません。メンバーを取り出してください。"
             : null;
     }
+
+    /// <summary>Slang で、暗黙の変換を宣言から決められない型か (インターフェイス、__init を持つ構造体、extension で足される型)。</summary>
+    private static bool IsSlangConvertible(ExpressionTypeBinder binder, string name)
+        => binder.Program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+               .Any(s => s.NameToken?.Text == name
+                         && (s.Keyword.Text == "interface"
+                             || s.Members.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == "__init")))
+           || binder.Program.Tree.Root.Declarations.OfType<IncompleteDeclarationSyntax>()
+               .Any(d => d.Tokens is [{ Text: "extension" }, ..] && d.Tokens.Any(t => t.Text == name));
 
     /// <summary>関数の実引数を検査する。</summary>
     /// <param name="context">解析コンテキスト。</param>
@@ -245,7 +272,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     {
         // 大域の関数の呼び出しでなければ見ない。取り込みを解決できていなければ、見えていない多重定義があるかもしれない
         // (CallSignatureAnalyzer と同じ)。
-        if (compilation.MayLackOverloadsOf(name, invocation) || binder.CallsNonGlobalFunction(invocation, name))
+        // Slang で組み込み関数と同じ名前の関数 (mul など) は、合わない実引数なら組み込み関数が選ばれる。
+        if (compilation.MayLackOverloadsOf(name, invocation) || binder.CallsNonGlobalFunction(invocation, name)
+            || (binder.TypeSystem is SlangTypeSystem && compilation.TypeSystem.IsKnownFunction(name, binder.Program.Tree)))
         {
             return;
         }
