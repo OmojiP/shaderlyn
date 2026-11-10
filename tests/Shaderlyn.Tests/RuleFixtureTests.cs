@@ -141,6 +141,7 @@ public sealed class RuleFixtureTests
         ["WG0330"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",
         ["SG0101"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0401"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
+        ["SG0338"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0321"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0317"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["WG0003"] = "WGSL だけの規則なので、Unity の .shader では起こせない。WgslRuleTests で確かめている",

@@ -26,7 +26,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.SwitchLabelOutsideSwitch, SlangRuleDescriptors.CyclicConstant];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.SwitchLabelOutsideSwitch, SlangRuleDescriptors.CyclicConstant, SlangRuleDescriptors.DiscardedResult];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -48,11 +48,91 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
+            CheckDiscardedResults(context, compilation, program.Tree.Root);
+
             CheckConstants(context, compilation, program.Tree.Root.Declarations);
 
             foreach (StructDeclarationSyntax structure in program.Tree.Root.Declarations.OfType<StructDeclarationSyntax>())
             {
                 CheckConstants(context, compilation, structure.Members);
+            }
+        }
+    }
+
+    /// <summary>
+    /// [NoDiscard] の関数の戻り値を捨てる式を報告する (SG0338)。文として書いた呼び出し、for の更新の式と、
+    /// それが括弧・?: の枝・&amp;&amp; と || の右にあるものを、捨てたものとする。
+    /// </summary>
+    /// <remarks>同じ名前の宣言 (多重定義) がどれも [NoDiscard] の関数だけを見る。__init は見ない (slangc も見ない)。</remarks>
+    private static void CheckDiscardedResults(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root)
+    {
+        FunctionDeclarationSyntax[] functions = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()];
+        HashSet<string> marked = [.. functions
+            .GroupBy(f => f.Name, StringComparer.Ordinal)
+            .Where(g => g.Key != "__init" && g.All(f => f.Attributes.Any(a => a.NameToken.Text == "NoDiscard")))
+            .Select(g => g.Key)];
+
+        if (marked.Count == 0)
+        {
+            return;
+        }
+
+        void Check(ExpressionSyntax expression)
+        {
+            switch (expression)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    Check(parenthesized.Expression);
+                    break;
+
+                case ConditionalExpressionSyntax conditional:
+                    Check(conditional.WhenTrue);
+                    Check(conditional.WhenFalse);
+                    break;
+
+                case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken } logical:
+                    Check(logical.Right);
+                    break;
+
+                // a, b は、両方の値を捨てる。
+                case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.CommaToken } comma:
+                    Check(comma.Left);
+                    Check(comma.Right);
+                    break;
+
+                case InvocationExpressionSyntax call:
+                    ShaderSyntaxToken? name = call.Target switch
+                    {
+                        IdentifierExpressionSyntax identifier => identifier.Identifier,
+                        MemberAccessExpressionSyntax member => member.NameToken,
+                        _ => null,
+                    };
+
+                    if (name is not null && marked.Contains(name.Text) && compilation.IsReportable(name) && name.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.DiscardedResult, location,
+                            $"'{name.Text}' は [NoDiscard] の関数なので、戻り値を使ってください (使わないなら、その旨が分かるように変数に受けてください)。"));
+                    }
+
+                    break;
+            }
+        }
+
+        foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
+        {
+            switch (node)
+            {
+                case ExpressionStatementSyntax statement:
+                    Check(statement.Expression);
+                    break;
+
+                case ForStatementSyntax loop:
+                    foreach (ExpressionSyntax incrementor in loop.Incrementors.Select(i => i.Node).OfType<ExpressionSyntax>())
+                    {
+                        Check(incrementor);
+                    }
+
+                    break;
             }
         }
     }

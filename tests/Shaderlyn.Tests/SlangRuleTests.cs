@@ -55,6 +55,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct Container\n{\n    namespace ns { }\n}\n")]
     [InlineData("SG0101", "interface IFoo\n{\n    enum E { A, B }\n}\n")]
     [InlineData("SG0101", "float4 main() : SV_Target\n{\n    float helper(int x) { return x; }\n    return 0;\n}\n")]
+    // [NoDiscard] の戻り値を捨てる
+    [InlineData("SG0338", "struct T\n{\n    [NoDiscard]\n    float load() { return 1.0; }\n}\nvoid f(T t)\n{\n    t.load();\n}\n")]
+    [InlineData("SG0338", "[NoDiscard]\nint g() { return 1; }\nvoid f(bool c)\n{\n    c && g() > 0;\n    for (int i = 0; i < 1; g()) { }\n}\n")]
     // 構造体の外からの private のメンバー
     [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nvoid f()\n{\n    T t;\n    t.member = 2;\n}\n")]
     [InlineData("SG0401", "struct T\n{\n    private int member;\n    private int func() { return member; }\n}\nint f()\n{\n    T t;\n    return t.func();\n}\n")]
@@ -83,6 +86,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // [NoDiscard] の戻り値を使う
+    [InlineData("[NoDiscard]\nint g() { return 1; }\nvoid consume(int x) { }\nvoid f()\n{\n    let a = g();\n    consume(g());\n    g() + a;\n    if (g() > 0) { }\n}\n")]
     // private のメンバーは、構造体と中の構造体の中から使える
     [InlineData("struct T\n{\n    private int member;\n    int get(T other) { return other.member + member; }\n    struct Inner { int read(T t) { return t.member; } }\n    int pub;\n}\nint f(T t) { return t.pub + t.get(t); }\n")]
     // 変換できるもの: enum から基になる型、インターフェイスへの値、__init を持つ構造体、組み込み関数と同じ名前の関数
