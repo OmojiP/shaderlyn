@@ -315,6 +315,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0357", "void f()\n{\n    int a[1 / 0];\n}\n")]
     [InlineData("SG0357", "func bar() -> int[-1];\n")]
     [InlineData("SG0004", "void f()\n{\n    uint64_t x = 18446744073709551616Z;\n}\n")]
+    // [mutating] のメソッドの、書き換えられない自分・定数バッファーのメンバー・ParameterBlock の値への呼び出し
+    [InlineData("SG0309", "struct Counter\n{\n    int count;\n    [mutating] void increment() { count++; }\n    void bad() { increment(); }\n}\n")]
+    [InlineData("SG0309", "struct Counter { int count; [mutating] void increment() { count++; } }\ncbuffer C\n{\n    Counter gCounter;\n}\nvoid main()\n{\n    gCounter.increment();\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -427,6 +430,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct G\n{\n    float[4] data;\n    __init(float[4] d) { data = d; }\n}\npublic struct P\n{\n    public int a;\n    public int b;\n}\nvoid f(float x)\n{\n    G g = G({x, x, x, x});\n    P p = {1, 2};\n}\n")]
     // 組み込みの演算子の結果は捨ててよい
     [InlineData("[NoDiscard]\nint compute() { return 1; }\nstruct W { int v; }\n[NoDiscard]\nW operator+(W a, W b) { return a; }\nvoid f(int c)\n{\n    compute() + c;\n}\n")]
+    // 局所変数と [mutating] のメソッドの中からの呼び出し
+    [InlineData("struct Counter\n{\n    int count;\n    [mutating] void increment() { count++; }\n    [mutating] void twice() { increment(); increment(); }\n}\nvoid main()\n{\n    Counter c;\n    c.increment();\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
