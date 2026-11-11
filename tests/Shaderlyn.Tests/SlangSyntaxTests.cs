@@ -20,6 +20,10 @@ public sealed class SlangSyntaxTests
         => string.Join("\n", tree.Diagnostics.Select(d => $"{d.Location.LineSpan.Start} {d.Id}: {d.GetMessage()}"));
 
     [Theory]
+    // 行番号の無い #line、__has_feature、型の位置の組み込み、functype の仮引数、引数の無い添字、$for
+    [InlineData("#if __has_feature(hlsl_vk_buffer_pointer)\nint known() { return 1; }\n#endif\n#line\nint f() { return 0; }\n")]
+    [InlineData("interface IHasElement { associatedtype Element; }\nstruct Holder<each T> where nonempty(T) where expand each T : IHasElement\n{\n    __first(T).Element value;\n}\nint applyIt(functype(int) -> int fn, int x) { return fn(x); }\n")]
+    [InlineData("struct A { __subscript() -> int { get { return 1; } } }\nint g(A a)\n{\n    int r = 0;\n    $for(i in Range(0, 5))\n    {\n        r += a[];\n    }\n    return r;\n}\n")]
     // モジュール
     [InlineData("module adam;\nimport common;\n__exported import Utils.Math.MathHelpers;\nimplementing adam;\n__include \"a.slang\";\n")]
     // ; を省いた構造体と列挙型、可視性

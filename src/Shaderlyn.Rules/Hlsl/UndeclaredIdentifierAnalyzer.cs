@@ -231,7 +231,9 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     private static bool IsUndeclaredSlangType(ShaderCompilation compilation, AnalyzedProgram program, string name, ref HashSet<string>? cache)
     {
         // 型を書かない let / var と functype は、キーワードを型の名前にしている (SlangParser)。This は型の中の自分の型。
+        // __ で始まる名前は、コンパイラの組み込み (__first(T) など)。
         if (name is "let" or "var" or "functype" or "void" or "This"
+            || name.StartsWith("__", StringComparison.Ordinal)
             || compilation.TypeSystem.ForTree(program.Tree).IsBuiltInTypeName(name)
             || program.Tree.Root.TypeAliases.ContainsKey(name)
             || compilation.UnanalyzedIdentifiers.Contains(name)
@@ -458,6 +460,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || program.Tree.Root.TypeAliases.ContainsKey(identifier.Name)
             || compilation.Environment.IsDefinedByEngine(identifier.Name)
             || (identifier.Name == "this" && IsInsideMethod(identifier))
+            // Slang の __requireCapability(shadermemorycontrol) の実引数は能力の名前で、宣言ではない。
+            || (compilation.IsSlang && identifier.Parent is InvocationExpressionSyntax { TargetName: "__requireCapability" } requires && !ReferenceEquals(requires.Target, identifier))
             // 列挙型の中では、その列挙子を修飾せずに書ける (Slang の enum E { A, B = A })。
             || identifier.Ancestors().OfType<EnumDeclarationSyntax>().Any(e => e.Members.Any(m => m.Name == identifier.Name))
             || !compilation.IsReportable(identifier)

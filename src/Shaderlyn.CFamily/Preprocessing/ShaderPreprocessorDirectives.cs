@@ -1988,6 +1988,12 @@ internal sealed partial class ShaderPreprocessor
     {
         if (line.IsEmpty)
         {
+            // Slang は行番号を書かない #line を許す (付け替えを元に戻す)。
+            if (_options.Language?.AllowsBareLineDirective == true)
+            {
+                return;
+            }
+
             Report(ShaderDescriptors.PreprocessorError, directiveToken.GetLocation(), "#line の後には行番号が必要です。");
             return;
         }

@@ -77,6 +77,13 @@ internal sealed class SlangParser : ShaderParser
     protected override bool AcceptsArrayTypes => true;
 
     /// <inheritdoc/>
+    /// <remarks>型の並びを扱う組み込み (__first(T)・__last(T)・__trimFirst(T)・__trimLast(T)・__packBranch(…)) は、型の位置に書ける (__first(T).Element value;)。</remarks>
+    protected override bool TakesParenthesizedTypeArguments(string name) => name is "__first" or "__last" or "__trimFirst" or "__trimLast" or "__packBranch" or "functype";
+
+    /// <inheritdoc/>
+    protected override bool TypeArgumentsTakeReturnType(string name) => name == "functype";
+
+    /// <inheritdoc/>
     /// <remarks>slangc は typedef int; の ; を「unexpected token」(E20001) にする。</remarks>
     protected override bool RequiresTypedefName => true;
 
@@ -397,6 +404,17 @@ internal sealed class SlangParser : ShaderParser
     /// <inheritdoc/>
     protected override StatementSyntax? TryParseLanguageStatement()
     {
+        // $for(i in Range(0, 5)) { … } (コンパイル時に展開する繰り返し)。( ) の中は読み飛ばし、本体は文として読む。
+        if (Current.Kind == ShaderSyntaxKind.BadToken && Current.Text == "$"
+            && Peek(1) is { Kind: ShaderSyntaxKind.IdentifierToken, Text: "for" }
+            && Peek(2).Kind == ShaderSyntaxKind.OpenParenToken)
+        {
+            List<ShaderSyntaxToken> header = [Advance(), Advance()];
+            header.AddRange(SkipBalanced(ShaderSyntaxKind.OpenParenToken, ShaderSyntaxKind.CloseParenToken));
+            MarkUnanalyzed(header);
+            return ParseStatement();
+        }
+
         if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
         {
             return null;
@@ -536,6 +554,12 @@ internal sealed class SlangParser : ShaderParser
     /// <inheritdoc/>
     protected override ExpressionSyntax? TryParseLanguagePostfix(ExpressionSyntax expression)
     {
+        // 引数の無い添字 (x[]。__subscript() -> T を呼ぶ)。何を返すかは決めないので、読み飛ばした式にする。
+        if (Current.Kind == ShaderSyntaxKind.OpenBracketToken && Peek(1).Kind == ShaderSyntaxKind.CloseBracketToken)
+        {
+            return new IncompleteExpressionSyntax([.. expression.DescendantTokens(), Advance(), Advance()]);
+        }
+
         // x is T / x as T
         if (Current.Kind == ShaderSyntaxKind.IdentifierToken
             && Current.Text is "is" or "as"
@@ -615,8 +639,18 @@ internal sealed class SlangParser : ShaderParser
             return new CastExpressionSyntax(openParen, type, closeParen, ParseUnary());
         }
 
-        // expand f(each xs) / each xs / new T(…)
-        if (Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text is "expand" or "each" or "new"
+        // expand f(each xs) / each xs は、値の並び (型の並び) を広げる式。型も個数も決められないので、語を残して読み飛ばした式にする
+        // (呼び出しの実引数の数と型を数えないため)。
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text is "expand" or "each"
+            && Peek(1).Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.OpenParenToken)
+        {
+            ShaderSyntaxToken pack = Advance();
+            ExpressionSyntax operand = ParseUnary();
+            return new IncompleteExpressionSyntax([pack, .. operand.DescendantTokens()]);
+        }
+
+        // new T(…)
+        if (Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text is "new"
             && Peek(1).Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.OpenParenToken)
         {
             Advance();

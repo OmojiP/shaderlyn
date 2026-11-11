@@ -28,4 +28,11 @@ internal sealed record SlangLanguageOptions : ShaderLanguageOptions
     /// <inheritdoc/>
     /// <remarks>Slang の <c>#language slang 2026</c> は、言語のバージョンを選ぶ。</remarks>
     public override bool IsLanguageDirective(string name) => name is "language" or "lang";
+
+    /// <inheritdoc/>
+    /// <remarks>slangc 2026.19 で確かめた: hlsl_vk_buffer_pointer は 1、知らない名前は 0。</remarks>
+    public override bool? HasFeature(string feature) => feature is "hlsl_vk_buffer_pointer";
+
+    /// <inheritdoc/>
+    public override bool AllowsBareLineDirective => true;
 }

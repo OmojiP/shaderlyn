@@ -10,6 +10,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4.7.2・slangc 2026.19・naga 30 がエラーにする箇所を、それぞれのコンパイラと同じ行で報告する
+(Godot シェーダー言語の GD、Slang の SG、WGSL の WG のルールを足した)。どの言語も、コンパイラが通すファイルではエラーを出さない。
+
 ### 追加
 
 - Godot: `.gdshader` / `.gdshaderinc` を Godot シェーダー言語として読み、構文の誤りを報告する (CF0001)。
@@ -59,29 +62,39 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Slang: `.slang` を Slang として読み、構文の誤りを報告する (CF0001 / CF0002)。HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、
   ジェネリック (`<T : IFoo>`、`where`、`f<float>(x)`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
   `;` を省いた構造体と列挙型、ポインター (`T*`・`*p`・`p->x`)、`Type<T>.Member` の型、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、
-  `[vk::binding(0)]` と `,` で並べた属性、GLSL の書き方 (`layout(…)`・`precision`)、`#language` を足した。
-  宣言・型・呼び出しを検査する (CF0310・CF0402・CF0410・CF0412 など、C 系の共通のルール)。`import` するモジュール (`import a.b;` は `a/b.slang`) を、
-  ファイルのフォルダーと `include-paths` から探し、その宣言を使う。slangc に入っている標準のモジュール (`slang.neural` など) と、
-  標準ライブラリの名前 (slang 2026.19 のソースから作った表) を知っている。見つからないモジュールは CF0021 で報告する。
-  Slang に合わせて、構造体の空の `{ }` と足りない `{ }`、64 ビットに広がる整数のリテラル、void の関数から void の式を返すこと、
-  局所変数で仮引数を隠すことを報告しない。値を返さない経路 (CF0501) と、ベクトルを含んで成分の足りない値の作成 (CF0404 の `float4(v.xy, 1)`) は
-  警告にする (slangc と同じく誤りにしない)。
-  型を書かない `let` / `var` の変数は、初期値の式の型として検査する。
-  構造体のメンバーとメソッド (CF0312) は、`extension` (`extension Container.Nested` のような修飾した名前を含む) や `property` でメンバーが足されうる型 (インターフェイスの `extension` があれば、基底を持つ構造体) を除いて検査する。
-  関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
-- Slang: slangc が誤りにする Slang だけの決まりを報告する (SG で始まるルール)。リテラルの書き方の誤り (SG0004)、extension とインターフェイスの中のフィールドと extension のジェネリックの仮引数の既定値も SG0101 で報告する。形の違う値どうしの演算子・浮動小数のビット演算・構造体の値への組み込みの演算子・型の合わない ?: の枝 (SG0301)、[mutating] でないメソッドの中のフィールドと、読むだけの資源の要素への書き込み (SG0309)、スカラーでない条件 (SG0311)、その場所に書けない宣言 (SG0101)、書けない修飾子と属性の繰り返し (SG0102)、
-  資源の型と合わないレジスタ (SG0103)、定数式でない static const の初期値 (SG0316)、自分自身に依る定数 (SG0317)、switch の外の case / default (SG0321)、
-  [NoDiscard] の関数の戻り値を捨てる式と、void を返す関数の [NoDiscard] (SG0338)、[RemovedSince] で取り除かれた宣言の使用 (SG0341)、インターフェイスの適合の循環 (SG0342。インターフェイスの側は、適合する型がどれも輪に入るときだけ)、
-  private のメンバーの外からの使用と、別のモジュールの public でない宣言の使用 (SG0401。public の構造体のメンバーの既定は、モジュールの言語のバージョンで決める)、可視性の書き方の誤り (SG0402)、配列にできない型の配列 (SG0403)、資源を包めない型 (SG0404)、テクスチャの要素にできない型 (SG0405)、フィールドにできない参照の型 (SG0406)
-- Slang: 成分を減らす暗黙の変換 (`float3 t = float4(…)`・行列からベクトル) を CF0410・CF0401・CF0411 で報告する (HLSL と違い、slangc は誤りにする)。
-  `out` / `inout` の仮引数に要素の型の違う値 (double を out float に) を渡すものも CF0401 で報告する (同じ大きさの int と uint は通す)。
-  `ConstantBuffer<float4x4>` の値を float4x4、添字を行のベクトルとし、`import glsl;` を書いたファイルではベクトルどうしの `==` / `!=` を 1 つの bool、行列どうしの `*` を行列の積とする。列挙子を点で書いた形 (`Color.Green`) も列挙型の値として変換を検査する (HL0347)
-- Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU と CUDA では、資源をバッファーに入れることを報告しない
-- Slang: 構造体のフィールドの重複と、仮引数の重複を CF0314 で報告する
-- Slang: 列挙子は `[UnscopedEnum]` を付けた列挙型のものだけを修飾せずに書けるものとし、ほかは CF0310 で報告する。slangc の `-unscoped-enum` に当たる `slang: unscoped-enums` を足した
-- Slang: 宣言されていない型の名前 (変数・仮引数・戻り値・フィールドの型と、構造体の基底) を CF0310 で報告する。
-  slangc に合わせて、変数の初期値の中では宣言しているその変数をまだ見えないものとし (`int e = e;`)、`for` の初期化の変数をループの外で見えないものとした。
-  文の頭の `try f();`、古い書き方の `type_param` と `__extension` を読む。別名の名前の無い `typedef int;` を構文の誤り (CF0001) にする
+  `[vk::binding(0)]` と `,` で並べた属性、GLSL の書き方 (`layout(…)`・`precision`)、`#language`、`#if __has_feature(…)`、型の位置の `__first(T)` と `functype(int) -> int`、
+  `$for`、引数の無い添字 (`x[]`)、`type_param` と `__extension` を読む
+- Slang: 宣言・型・呼び出しを C 系の共通のルールで検査する (CF0310・CF0312・CF0314・CF0401・CF0402・CF0410・CF0411・CF0412 など)。
+  `import` するモジュール (`import a.b;` は `a/b.slang`) を、ファイルのフォルダーと `include-paths` から探し、その宣言を使う。
+  slangc に入っている標準のモジュール (`slang.neural` など) と、標準ライブラリの名前 (slang 2026.19 のソースから作った表) を知っている。
+  見つからないモジュールは CF0021 で報告する (Markdown に書いたモジュール `a.slang.md` は、見つかったものとして宣言を読まない)。
+  slangc と違う所は、slangc に合わせた。
+  - 報告しない: 構造体の空の `{ }` と足りない `{ }`、64 ビットに広がる整数のリテラル、void の関数から void の式を返すこと、局所変数で仮引数を隠すこと
+  - 警告にする: 値を返さない経路 (CF0501)、ベクトルを含んで成分の足りない値の作成 (CF0404 の `float4(v.xy, 1)`)
+  - 誤りにする: 成分を減らす暗黙の変換 (`float3 t = float4(…)`・行列からベクトル。CF0410・CF0401・CF0411)、`out` / `inout` の仮引数に要素の型の違う値を渡すこと
+    (double を out float に。同じ大きさの int と uint は通す。CF0401)、宣言されていない型の名前 (CF0310)、
+    修飾せずに書いた列挙子 (`[UnscopedEnum]` の無い列挙型の `Apple`。CF0310)、構造体のフィールドと仮引数の重複 (CF0314)、別名の名前の無い `typedef int;` (CF0001)
+  - 名前の範囲: 変数の初期値の中では、宣言しているその変数はまだ見えない (`int e = e;`)。`for` の初期化の変数は、ループの外で見えない
+  - 型を書かない `let` / `var` は初期値の型、`ConstantBuffer<float4x4>` の値は float4x4 として検査する。`import glsl;` を書いたファイルでは、
+    ベクトルどうしの `==` / `!=` を 1 つの bool、行列どうしの `*` を行列の積とする。列挙子を点で書いた形 (`Color.Green`) も列挙型の値として検査する (HL0347)
+  - 構造体のメンバー (CF0312) は、`extension` (修飾した名前の `extension Container.Nested` を含む) や `property` でメンバーが足されうる型を除いて検査する。
+    関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
+- Slang にしか無いルール (SG) を足した。slangc 2026.19 がエラーにする箇所を、slangc と同じ行で報告する
+  - SG0004: リテラルの書き方 (使えないエスケープ、桁の足りない `\u` / `\U`、1 文字でない文字のリテラル、文字列の `\x` の範囲、64 ビットに収まらない整数)
+  - SG0101: その場所に書けない宣言 (型を書く位置の構造体の定義、構造体とインターフェイスの中の namespace など、関数の中の関数、extension とインターフェイスの中の static でないフィールド、
+    extension のジェネリックの仮引数の既定値)
+  - SG0102: 書けない修飾子と、1 つしか書けない属性の繰り返し。SG0103: 資源の型と合わないレジスタ
+  - SG0301: 形の違う値どうしの組み込みの演算子 (`float3 + float4`)、浮動小数のビット演算とシフト、演算子を定義していない構造体の値への演算子、型の合わない `?:` の枝
+  - SG0309: `[mutating]` でないメソッドの中のフィールドへの書き込みと、読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み
+  - SG0311: スカラーでない条件 (if・while などのベクトル・構造体。`?:` と `!` の構造体)
+  - SG0316: 定数式でない static const の初期値。SG0317: 自分自身に依る定数。SG0321: switch の本体の外の case / default
+  - SG0338: `[NoDiscard]` の関数の戻り値を捨てる式と、void を返す関数の `[NoDiscard]`。SG0341: `[RemovedSince]` で取り除かれた宣言の使用
+  - SG0342: インターフェイスの適合の循環 (インターフェイスの側は、適合する型がどれも輪に入るときだけ)
+  - SG0401: private のメンバーの外からの使用と、別のモジュールの public でない宣言の使用 (public の構造体のメンバーの既定は、宣言したモジュールの言語のバージョンで決める)
+  - SG0402: 可視性の書き方 (関数の外の private、public でない構造体の public のメンバー、public の宣言が public でない型を使うもの)
+  - SG0403: 配列にできない型の配列。SG0404: 資源を包めない型 (StructuredBuffer・Optional の資源)。SG0405: テクスチャの要素にできない型。SG0406: フィールドにできない参照の型
+- Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU と CUDA では、資源をバッファーに入れることを報告しない。
+  `slang: unscoped-enums` (slangc の `-unscoped-enum`) で、どの列挙型の列挙子も修飾せずに書けるものとする
 - VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
 - WGSL: `.wgsl` を WGSL として読み、構文の誤りを報告する (CF0001)。属性 (`@group(0)`・`@vertex`)、`fn` と `->`、`var<storage, read_write>`・`let`・`const`・`override`、
   構造体、`alias`、型引数を書いた型 (`vec3<f32>`・`array<f32, 4>`・`ptr<function, f32>`) と短い名前 (`vec3f`)、`enable`・`requires`・`diagnostic`、`const_assert`、
@@ -109,8 +122,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
   `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の
-  `GenericParameterTokens` / `GenericPackNames` (Slang のジェネリックの仮引数)、`CallCompatibility.IsVariadic` (可変長の仮引数) を足した
-- 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
+  `GenericParameterTokens` / `GenericPackNames` (Slang のジェネリックの仮引数)、`CallCompatibility.IsVariadic` (可変長の仮引数)、
+  `EnumDeclarationSyntax.MembersNeedQualification` / `QualifiedByDefault` (列挙子に型の名前の修飾が要るか)、
+  `ShaderLanguageOptions.HasFeature` (`#if __has_feature(…)`) / `AllowsBareLineDirective` (行番号の無い `#line`) を足した
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
 - Godot: 構文の誤りを Godot と同じ行で報告する。閉じていない `[` と `(` は `;` や波括弧の行で、`shader_type` の `;` 抜けは名前の行で、ファイルの終わりで閉じていないものはファイルの終わりの行で報告する。`do { } (true);` の `while` 抜けを報告する (CF0001)
@@ -119,6 +133,15 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   関数の外では定数 (`PI` など) だけが使える。後ろで定義した関数の呼び出しも報告する (Godot には前方宣言が無い)。
   ステージ関数の中でだけ使える組み込み関数 (`canvas_item` の `texture_sdf`、`particles` の `emit_subparticle` など) を読む
 - `PreprocessorOptions.ReportsUnterminatedComment` / `ShaderLexer.ReportsUnterminatedComment`: 閉じていない複数行コメントを誤りとして報告するか (既定は報告する)
+
+### 変更
+
+- 環境を決めずに (設定ファイルの `environment` も `--environment` も無しに) 直接指定した `.gdshader`・`.vert` などを、Unity の `.shader` ではなく拡張子の言語で読む
+
+### 修正
+
+- 関数の中に定義した構造体のメソッドの `return` を、外の関数の戻り値の型と比べていた (CF0411。HLSL 2021 の局所の構造体も)
+- `ConstantBuffer<float4x4>` の値と添字 (`m[3]`) の型を、行列と行のベクトルとして読む (今までは `ConstantBuffer` の型のまま、または行列のままで、変換の検査に使えなかった)
 
 ## [0.3.3] - 2026-11-05
 

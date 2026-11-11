@@ -312,10 +312,12 @@ Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: protected virtual Syste
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: protected virtual System.Type EqualityContract { get; }
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: static System.Boolean op_Equality(Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions, Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions)
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: static System.Boolean op_Inequality(Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions, Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions)
+Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Boolean AllowsBareLineDirective { get; }
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Boolean Equals(Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions)
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Boolean IsLanguageDirective(System.String)
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Int32 GetHashCode()
+Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.Nullable`1[System.Boolean] HasFeature(System.String)
 Shaderlyn.CFamily.Preprocessing.ShaderLanguageOptions :: virtual System.String ToString()
 Shaderlyn.CFamily.Preprocessing.SymbolCombination : struct (System.IEquatable`1[Shaderlyn.CFamily.Preprocessing.SymbolCombination])
 Shaderlyn.CFamily.Preprocessing.SymbolCombination :: .ctor(System.Collections.Immutable.ImmutableArray`1[System.String], Shaderlyn.Core.Diagnostics.Location)
@@ -433,6 +435,8 @@ Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.Shade
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken ScopeKeyword { get; }
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: Shaderlyn.CFamily.Syntax.ShaderSyntaxToken SemicolonToken { get; }
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Boolean IsScoped { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Boolean MembersNeedQualification { get; }
+Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Boolean QualifiedByDefault { get; set; }
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.EnumMemberSyntax] Members { get; }
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] BaseTypeTokens { get; }
 Shaderlyn.CFamily.Syntax.EnumDeclarationSyntax :: System.String Name { get; }

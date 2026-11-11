@@ -8,7 +8,7 @@ Unity の ShaderLab と HLSL（`.shader`、`.compute`）を、条件付きコン
 
 DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[環境ごとの使い方](docs/guide/environments.md)）。
 GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments/glsl.md)）。
-Godot のシェーダー（`.gdshader`）は Godot 4 と、WGSL（`.wgsl`）は naga（wgpu）と同じ誤りを報告します（[Godot](docs/guide/environments/godot.md)・[WGSL](docs/guide/environments/wgsl.md)）。Slang（`.slang`）は開発中です（[Slang](docs/guide/environments/slang.md)）。
+Godot のシェーダー（`.gdshader`）は Godot 4 と、Slang（`.slang`）は slangc と、WGSL（`.wgsl`）は naga（wgpu）と同じ誤りを報告します（[Godot](docs/guide/environments/godot.md)・[Slang](docs/guide/environments/slang.md)・[WGSL](docs/guide/environments/wgsl.md)）。
 
 CLI、VS Code 拡張、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
 

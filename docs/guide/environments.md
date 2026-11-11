@@ -25,7 +25,7 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 | `unreal` | Unreal Engine のシェーダー ([Unreal Engine](environments/unreal.md)) | `.usf` |
 | `glsl` | GLSL (OpenGL・Vulkan・GLSL ES。[GLSL](environments/glsl.md)) | `.vert` / `.frag` / `.comp` など (ステージの拡張子) と `.glsl` |
 | `godot` | Godot シェーダー言語 (Godot 4。[Godot](environments/godot.md)) | `.gdshader` / `.gdshaderinc` |
-| `slang` | Slang (開発中。[Slang](environments/slang.md)) | `.slang` |
+| `slang` | Slang (slangc 2026。[Slang](environments/slang.md)) | `.slang` |
 | `wgsl` | WGSL (WebGPU。[WGSL](environments/wgsl.md)) | `.wgsl` |
 | (自前のホストが足した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
 
@@ -47,7 +47,7 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 | [Unreal Engine](environments/unreal.md) | エンジンとプロジェクトの仮想パス、C++ から生成されるファイル (`--unreal-generate`)、解析の前提 |
 | [GLSL](environments/glsl.md) | glslang と同じ検査、`glsl: target` (Vulkan / OpenGL)、ステージと `#version` の決め方 |
 | [Godot](environments/godot.md) | Godot 4.7.2 と同じ検査、`project.godot` と `res://`、レンダラーの決め方 |
-| [Slang](environments/slang.md) | 開発中の検査の範囲、`import` するモジュールの探し方 |
+| [Slang](environments/slang.md) | slangc 2026.19 と同じ検査、`import` するモジュールの探し方、`slang: target` / `unscoped-enums`、まだ見つけられないもの |
 | [WGSL](environments/wgsl.md) | naga 30 と同じ検査、`enable` の要る機能、naga と違う所 |
 
 ## 環境によって変わること

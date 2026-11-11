@@ -114,6 +114,14 @@ internal static class SlangModules
 
             if (TryResolve(name, isString, filePath, options.IncludeResolver!, out SourceText? module) is not { } modulePath)
             {
+                // Markdown の中にコードを書いたモジュール (a.slang.md) は、見つかるが宣言を読まない。
+                // 見つからないとは伝えず、宣言が無いことを根拠にする検査だけを止める (解決できない取り込みとして数える)。
+                if (IsLiterateModule(name, isString, filePath, options.IncludeResolver!))
+                {
+                    unresolved.Add(name);
+                    continue;
+                }
+
                 // 根のファイルの取り込みだけを伝える。モジュールの中の見つからない取り込みは、そのモジュールを解析するときに伝える。
                 if (isRoot)
                 {
@@ -195,6 +203,16 @@ internal static class SlangModules
                 yield return (string.Join("/", parts), tokens[i], false);
             }
         }
+    }
+
+    /// <summary>Markdown の中にコードを書いたモジュール (<c>a.slang.md</c>、名前の _ を - にしたものも) があるか。</summary>
+    private static bool IsLiterateModule(string name, bool isString, string includingFilePath, IIncludeResolver resolver)
+    {
+        IEnumerable<string> candidates = isString
+            ? [name + ".md", name + ".slang.md"]
+            : [name + ".slang.md", name.Replace('_', '-') + ".slang.md"];
+
+        return candidates.Distinct(StringComparer.Ordinal).Any(candidate => resolver.TryResolve(candidate, includingFilePath, out _));
     }
 
     /// <summary>モジュールの名前からファイルを探す。</summary>

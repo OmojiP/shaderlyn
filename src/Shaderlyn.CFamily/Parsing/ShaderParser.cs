@@ -165,6 +165,11 @@ internal abstract class ShaderParser
     /// <returns>取るなら <see langword="true"/>。</returns>
     protected virtual bool TakesParenthesizedTypeArguments(string name) => false;
 
+    /// <summary>括弧の型引数の後ろに、<c>-&gt;</c> と戻り値の型が続く型か (Slang の <c>functype(int) -&gt; int</c>)。</summary>
+    /// <param name="name">型の名前。</param>
+    /// <returns>続くなら <see langword="true"/>。既定は <see langword="false"/>。</returns>
+    protected virtual bool TypeArgumentsTakeReturnType(string name) => false;
+
     /// <summary>
     /// セマンティクスの後ろのカンマに続く語を、同じ並びの続きとして読むか (Godot の <c>uniform vec4 c : source_color, filter_linear;</c>)。既定は読まない。
     /// </summary>
@@ -1538,6 +1543,17 @@ internal abstract class ShaderParser
             }
 
             closeAngle = Expect(ShaderSyntaxKind.CloseParenToken, "')'");
+
+            // 関数の型の戻り値 (Slang の functype(int) -> int)。型引数の続きとして読む。
+            if (TypeArgumentsTakeReturnType(name.Text)
+                && Current.Kind == ShaderSyntaxKind.MinusToken
+                && Peek(1).Kind == ShaderSyntaxKind.GreaterThanToken)
+            {
+                templateArguments.Add(Advance());
+                templateArguments.Add(Advance());
+                TypeSyntax returned = ParseType();
+                templateArguments.AddRange(returned.DescendantTokens());
+            }
         }
         else if (Current.Kind == ShaderSyntaxKind.LessThanToken)
         {

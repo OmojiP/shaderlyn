@@ -185,6 +185,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int f(bool a, bool b, int i, uint u, float x)\n{\n    bool r1 = a | b;\n    bool r2 = ~a;\n    int r3 = i | u;\n    uint r4 = u;\n    r4 |= x;\n    return r3 << 2;\n}\n")]
     // 書き換えてよいもの:[mutating] と [[mutating]]、__init、static、仮引数、資源の要素、ポインターの先
     [InlineData("struct S\n{\n    float r;\n    static int n;\n    RWStructuredBuffer<float> buf;\n    float* p;\n    [mutating] void a(float x) { r = x; }\n    [[mutating]] void b(float x) { r = x; }\n    __init() { r = 0; }\n    void c(float r) { r = 1; }\n    void d(float x) { buf[0] = x; *p = x; n = 1; }\n    static void e(S s) { s.r = 1; }\n}\n")]
+    // __return_val に書き込んで返す関数、expand の実引数、関数の中の構造体のメソッドの return、__requireCapability の能力の名前
+    [InlineData("#lang 2026\n[__NonCopyableType]\nstruct M { float x; __init() { x = 1.0; } }\nM make(float y)\n{\n    __return_val = M();\n    __return_val.x += y;\n}\nint f(int a, float b) { return a; }\nint g()\n{\n    Tuple<expand each Tuple<int, float>> x = (2, 3.0f);\n    return f(expand each x);\n}\nvoid h()\n{\n    __requireCapability(shadermemorycontrol);\n    struct R\n    {\n        int tag() { return 7; }\n    };\n}\n")]
     // 正しいリテラル: エスケープ、16 進の浮動小数、64 ビットに収まる整数、import のパスの \
     [InlineData("uint f()\n{\n    uint a = '\\n' + '\\0' + '\\101' + '\\x41' + '\\x{41}' + '\\u0041' + '\\u{41}' + '\\U00000041' + '\\'';\n    double d = 0x1.8p3;\n    uint64_t u = 18446744073709551615;\n    return a;\n}\n")]
     // 修飾した名前の extension (extension Container.Nested) が足すメンバー

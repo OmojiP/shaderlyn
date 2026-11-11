@@ -30,4 +30,12 @@ public abstract record ShaderLanguageOptions
     /// <param name="name">指令の名前 (<c>#</c> を除く)。</param>
     /// <returns>固有の指令なら <see langword="true"/>。既定は <see langword="false"/>。</returns>
     public virtual bool IsLanguageDirective(string name) => false;
+
+    /// <summary>条件式の <c>__has_feature(名前)</c> の値 (Slang)。その言語に無い書き方なら <see langword="null"/>。</summary>
+    /// <param name="feature">機能の名前。</param>
+    /// <returns>機能があれば <see langword="true"/>、無ければ <see langword="false"/>。既定は <see langword="null"/> (読まない)。</returns>
+    public virtual bool? HasFeature(string feature) => null;
+
+    /// <summary>行番号を書かない <c>#line</c> を許すか (Slang。行番号の付け替えを元に戻す)。既定は <see langword="false"/>。</summary>
+    public virtual bool AllowsBareLineDirective => false;
 }

@@ -585,6 +585,20 @@ internal sealed partial class ShaderPreprocessor
                 continue;
             }
 
+            // Slang の #if __has_feature(hlsl_vk_buffer_pointer)。機能があれば 1、無ければ 0。
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken
+                && token.TextIs("__has_feature")
+                && i + 3 < tokens.Length
+                && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken
+                && tokens[i + 3].Kind == ShaderSyntaxKind.CloseParenToken
+                && _options.Language?.HasFeature(tokens[i + 2].Text) is bool present)
+            {
+                result.Add(CreateNumericToken(token, present ? 1 : 0));
+                i += 3;
+                continue;
+            }
+
             // #if __LINE__ のように、条件式にもコンパイラが定義するマクロを書ける。
             if (token.Kind == ShaderSyntaxKind.IdentifierToken
                 && !_macros.ContainsKey(token.Text)

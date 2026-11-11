@@ -153,7 +153,8 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
                     AnalyzeAssignment(context, conditions, binder, assignment, reported);
                     break;
 
-                case ReturnStatementSyntax statement:
+                // 関数の中の構造体のメソッドの return は、そのメソッドのもの (外の関数の戻り値とは比べない)。
+                case ReturnStatementSyntax statement when ReferenceEquals(statement.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault(), function):
                     AnalyzeReturn(context, conditions, binder, function, statement, reported);
                     break;
 
@@ -195,7 +196,9 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         if (string.Equals(returnType, VoidTypeName, StringComparison.Ordinal)
             || function.Body is not { } body
             || function.NameToken.GetLocation() is not { } location
-            || ReachesErrorInside(program, body))
+            || ReachesErrorInside(program, body)
+            // Slang の __return_val は戻り値そのもので、書き込めば return を書かなくてよい ([__NonCopyableType] の型を返す関数)。
+            || (compilation.IsSlang && body.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>().Any(i => i.Name == "__return_val")))
         {
             return;
         }

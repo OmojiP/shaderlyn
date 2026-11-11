@@ -73,7 +73,8 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
-            if (node is InvocationExpressionSyntax invocation)
+            // Slang の、値の並びを広げる実引数 (f(expand each x)) と、読み飛ばしたラムダ式は、引数の数と型を決められない。
+            if (node is InvocationExpressionSyntax invocation && !invocation.ArgumentExpressions.Any(IsUncountedArgument))
             {
                 AnalyzeCall(
                     context,
@@ -266,6 +267,13 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
 
         AddMismatch(reported, binder.Program, arguments[rejected.Mismatch.Index], typeMissing, location, name, rejected.Declaration, rejected.Mismatch);
     }
+
+    /// <summary>数えられない実引数 (Slang の expand / each を含む式と、読み飛ばしたラムダ式など)。</summary>
+    /// <param name="argument">実引数。</param>
+    /// <returns>数えられなければ <see langword="true"/>。</returns>
+    private static bool IsUncountedArgument(ExpressionSyntax argument)
+        => argument is IncompleteExpressionSyntax
+           || argument.DescendantTokens().Any(t => t.Kind == ShaderSyntaxKind.IdentifierToken && t.Text is "expand" or "each");
 
     /// <summary>宣言が、その数の実引数を受け付けるか。</summary>
     /// <param name="binder">式の型を引く仕組み。言語を見る。</param>
