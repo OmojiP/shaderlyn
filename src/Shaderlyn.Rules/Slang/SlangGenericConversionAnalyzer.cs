@@ -58,10 +58,55 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                 _ => [],
             }).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text)];
 
+            Dictionary<string, StructDeclarationSyntax?> structsByName = new(StringComparer.Ordinal);
+
+            foreach (StructDeclarationSyntax s in root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>())
+            {
+                if (s.NameToken is { } n)
+                {
+                    structsByName[n.Text] = structsByName.ContainsKey(n.Text) ? null : s;
+                }
+            }
+
             ResolvedTypeName? TypeOf(ExpressionSyntax expression)
-                => expression is IdentifierExpressionSyntax identifier && binder.ResolveName(identifier).Candidates is [var candidate] && !candidate.Type.IsArray
-                    ? candidate.Type
-                    : null;
+            {
+                if (expression is IdentifierExpressionSyntax identifier)
+                {
+                    return binder.ResolveName(identifier).Candidates is [var candidate] && !candidate.Type.IsArray ? candidate.Type : null;
+                }
+
+                // s.field (型引数を書いた型のフィールド)。s の型がジェネリックなら、フィールドの型の中の仮引数を s の型引数に置き換える (GenericOuter<int> の GenericInner<T> g は GenericInner<int>)。
+                if (expression is not MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken, Target: IdentifierExpressionSyntax owner } access
+                    || binder.ResolveName(owner).Candidates is not [{ Type: { IsArray: false } ownerType }]
+                    || !structsByName.TryGetValue(ownerType.TypeName, out StructDeclarationSyntax? structure) || structure is null
+                    || structure.Members.OfType<VariableDeclarationSyntax>().Where(f => f.Variables.Any(v => v.Name == access.Name)).ToArray() is not [{ Type: { OpenAngle: not null } fieldType } field]
+                    || field.Variables.First(v => v.Name == access.Name).IsArray
+                    || TemplateText(fieldType) is not { } fieldArguments)
+                {
+                    return null;
+                }
+
+                List<string> typeParameters = [];
+                ImmutableArray<ShaderSyntaxToken> generic = structure.GenericParameterTokens;
+
+                for (int i = 1; i < generic.Length; i++)
+                {
+                    if (generic[i].Kind == ShaderSyntaxKind.IdentifierToken && generic[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken)
+                    {
+                        typeParameters.Add(generic[i].Text);
+                    }
+                }
+
+                string[] ownerArguments = ownerType.TemplateArgument is { } a ? Normalize(a) : [];
+
+                if (typeParameters.Count != ownerArguments.Length)
+                {
+                    return null;
+                }
+
+                string substituted = string.Join(", ", Normalize(fieldArguments).Select(p => typeParameters.IndexOf(p) is var k and >= 0 ? ownerArguments[k] : p));
+                return new ResolvedTypeName(fieldType.Name, false, substituted);
+            }
 
             HashSet<string> structs = [.. root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>().Where(s => s.NameToken is not null).Select(s => s.NameToken!.Text)];
             structs.ExceptWith(root.TypeAliases.Keys);

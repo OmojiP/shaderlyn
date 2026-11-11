@@ -2814,9 +2814,9 @@ internal abstract class ShaderParser
                 case ShaderSyntaxKind.ColonColonToken:
                 {
                     ShaderSyntaxToken separator = Advance();
-                    ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken
-                        ? Advance()
-                        : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
+
+                    // x.; (名前の無いメンバー) は構文の誤り。構文木には名前の欠けたメンバーアクセスを残す (補完が x の型を引く)。
+                    ShaderSyntaxToken name = Expect(ShaderSyntaxKind.IdentifierToken, "メンバーの名前");
                     expression = new MemberAccessExpressionSyntax(expression, separator, name);
                     break;
                 }

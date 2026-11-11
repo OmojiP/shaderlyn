@@ -18,7 +18,7 @@ namespace Shaderlyn.Slang;
 /// <para>
 /// 読むもの: <c>import a.b;</c> と <c>__exported import a.b;</c> (<c>a/b.slang</c>。名前の <c>_</c> を <c>-</c> にしたファイルも探す)、
 /// <c>import "path.slang";</c>、<c>__include a;</c> と <c>implementing a;</c> (同じモジュールのほかの部分)。
-/// 取り込んだモジュールの取り込みも、たどって読む (Slang はそれを公開しないこともあるが、名前が見えないことを根拠にする検査を誤らせないため、多めに見せる)。
+/// 取り込んだモジュールの取り込みも、たどって読む (Slang はそれを公開しないこともあるが、名前が見えないことを根拠にする検査を誤らせないため、多めに見せる。見えない名前の使用は、SlangImportScopeAnalyzer が報告する)。
 /// </para>
 /// <para>
 /// 見つからないモジュールは、解決できない取り込みとして伝える (<see cref="PreprocessResult.UnresolvedIncludes"/>)。

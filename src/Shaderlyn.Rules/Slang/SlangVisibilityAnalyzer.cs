@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
+using Shaderlyn.Hlsl.Syntax;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
 
@@ -176,6 +177,40 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                 _ => ([], null, []),
             };
 
+            // 別のモジュールの public の名前空間の、public でないメンバー (Namespace.internalVar)。
+            if (declaration is NamespaceDeclarationSyntax { NameToken: { } namespaceName } space && IsForeign(namespaceName.Source.FilePath)
+                && VisibilityBefore(space.Keyword, tokens, index) == "public")
+            {
+                HashSet<string> hiddenMembers = new(StringComparer.Ordinal);
+                HashSet<string> visibleMembers = new(StringComparer.Ordinal);
+
+                foreach (DeclarationSyntax member in space.Members)
+                {
+                    (IEnumerable<string> memberNames, bool? memberPublic) = member switch
+                    {
+                        VariableDeclarationSyntax field => (field.Variables.Select(v => v.Name), (bool?)field.ModifierTokens.Any(t => t.Text == "public")),
+                        FunctionDeclarationSyntax method => ([method.Name], method.ModifierTokens.Any(t => t.Text == "public")),
+                        StructDeclarationSyntax { NameToken: { } n } nested => ([n.Text], VisibilityBefore(nested.Keyword, tokens, index) is { } v ? v == "public" : null),
+                        EnumDeclarationSyntax { NameToken: { } n } nested => ([n.Text], VisibilityBefore(nested.Keyword, tokens, index) is { } v ? v == "public" : null),
+                        _ => ([], null),
+                    };
+
+                    if (memberPublic is { } known)
+                    {
+                        (known ? visibleMembers : hiddenMembers).UnionWith(memberNames);
+                    }
+                }
+
+                hiddenMembers.ExceptWith(visibleMembers);
+
+                if (hiddenMembers.Count > 0 && !foreignStructs.TryAdd(namespaceName.Text, (Path.GetFileName(namespaceName.Source.FilePath!), false, hiddenMembers)))
+                {
+                    foreignStructs[namespaceName.Text] = (string.Empty, false, []);
+                }
+
+                continue;
+            }
+
             if (keyword is null)
             {
                 continue;
@@ -218,6 +253,20 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                     bool memberHidden = memberModifiers.Any(t => t.Text is "internal" or "private")
                                         || (!since2026 && !memberModifiers.Any(t => t.Text == "public"));
                     (memberHidden ? hiddenMembers : visibleMembers).UnionWith(memberNames);
+
+                    // 中の構造体と列挙型 (PublicOuter.Hidden)。修飾子は構文木に残らないので、キーワードの前の語を見る。
+                    (string? nestedName, ShaderSyntaxToken? nestedKeyword) = member switch
+                    {
+                        StructDeclarationSyntax { NameToken: { } n } nested => (n.Text, nested.Keyword),
+                        EnumDeclarationSyntax { NameToken: { } n } nested => (n.Text, nested.Keyword),
+                        _ => (null, null),
+                    };
+
+                    if (nestedName is not null && VisibilityBefore(nestedKeyword!, tokens, index) is { } nestedVisibility)
+                    {
+                        bool nestedHidden = nestedVisibility is "internal" or "private" || (nestedVisibility.Length == 0 && !since2026);
+                        (nestedHidden ? hiddenMembers : visibleMembers).Add(nestedName);
+                    }
                 }
 
                 hiddenMembers.ExceptWith(visibleMembers);
@@ -269,6 +318,24 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                          && constructedInfo.Hidden.Contains("__init")
                          && construction.Target.FirstToken is { } constructedToken:
                     Report(constructedToken, $"{constructed} の __init は別のモジュール ({constructedInfo.File}) の public でない宣言なので、このモジュールからは呼べません。");
+                    break;
+
+                // PublicOuter.Hidden.A・Namespace.internalVar (型と名前空間の名前からの、public でないメンバー)。
+                case MemberAccessExpressionSyntax { Target: IdentifierExpressionSyntax owner } ownerAccess
+                    when foreignStructs.TryGetValue(owner.Name, out (string File, bool Since2026, HashSet<string> Hidden) ownerInfo)
+                         && binder.ResolveName(owner).Kind == DeclaredNameKind.NotFound:
+                    if (ownerInfo.Hidden.Contains(ownerAccess.Name))
+                    {
+                        Report(ownerAccess.NameToken, $"'{ownerAccess.Name}' は別のモジュール ({ownerInfo.File}) の {owner.Name} の public でないメンバーなので、このモジュールからは使えません。");
+                    }
+
+                    break;
+
+                // PublicOuter.InternalInner x (型の名前で修飾した、public でない中の型)。
+                case TypeSyntax { QualifierTokens: [.., { Kind: ShaderSyntaxKind.IdentifierToken } qualifier, _], NameToken: { } nestedType }
+                    when foreignStructs.TryGetValue(qualifier.Text, out (string File, bool Since2026, HashSet<string> Hidden) qualifierInfo)
+                         && qualifierInfo.Hidden.Contains(nestedType.Text):
+                    Report(nestedType, $"'{nestedType.Text}' は別のモジュール ({qualifierInfo.File}) の {qualifier.Text} の public でない宣言なので、このモジュールからは使えません。");
                     break;
 
                 case MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access

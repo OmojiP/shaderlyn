@@ -367,9 +367,36 @@ internal sealed class SlangParser : ShaderParser
         List<ShaderSyntaxToken> skipped = [];
         int depth = 0;
 
+        // 仮引数の名前の位置に名前でないもの (<1>) と、制約の位置の struct などのキーワード (<T : struct>) の位置と、何が要るか。
+        (int Position, string Expected)? problem = null;
+        bool expectsName = false;
+
         do
         {
+            if (problem is null && depth == 1)
+            {
+                if (expectsName && Current.Kind != ShaderSyntaxKind.GreaterThanToken)
+                {
+                    // キーワードの名前 (<struct>) は、slangc が警告だけにするので通す。
+                    if (Current.Kind == ShaderSyntaxKind.IdentifierToken)
+                    {
+                        expectsName = Current.Text is "let" or "each" or "typename";
+                    }
+                    else
+                    {
+                        problem = (Position, "ジェネリックの仮引数の名前");
+                    }
+                }
+                else if (Peek(-1).Kind == ShaderSyntaxKind.ColonToken && Current.Text is "struct" or "class" or "enum")
+                {
+                    problem = (Position, "制約のインターフェイス");
+                }
+            }
+
             ShaderSyntaxToken token = Advance();
+            expectsName = depth == 0 && token.Kind == ShaderSyntaxKind.LessThanToken
+                          || depth == 1 && token.Kind == ShaderSyntaxKind.CommaToken
+                          || (expectsName && token.Text is "let" or "each" or "typename");
             skipped.Add(token);
             depth += token.Kind switch
             {
@@ -385,6 +412,14 @@ internal sealed class SlangParser : ShaderParser
         {
             Position = start;
             return false;
+        }
+
+        if (problem is { } found)
+        {
+            int end = Position;
+            Position = found.Position;
+            ReportError(DescribeExpected(found.Expected));
+            Position = end;
         }
 
         MarkUnanalyzed(skipped);
@@ -570,8 +605,12 @@ internal sealed class SlangParser : ShaderParser
             // throw E.Fail;
             case "throw":
             {
-                IncompleteDeclarationSyntax skipped = SkipToSemicolon(markNames: true);
-                return new IncompleteStatementSyntax(skipped.Tokens);
+                // throw の後ろは 1 つの式と ;。; が無ければ (throw E.Fail の次の行の return) 構文の誤りにする。
+                ShaderSyntaxToken keyword = Advance();
+                ExpressionSyntax thrown = ParseExpression();
+                List<ShaderSyntaxToken> skipped = [keyword, .. thrown.DescendantTokens(), Expect(ShaderSyntaxKind.SemicolonToken, "';'")];
+                MarkUnanalyzed(skipped);
+                return new IncompleteStatementSyntax([.. skipped]);
             }
 
             // defer <文>
@@ -1126,7 +1165,7 @@ internal sealed class SlangParser : ShaderParser
 
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
-            skipped.AddRange(SkipBalanced(ShaderSyntaxKind.OpenBraceToken, ShaderSyntaxKind.CloseBraceToken));
+            ReadAccessors(skipped);
         }
         else if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
@@ -1135,6 +1174,72 @@ internal sealed class SlangParser : ShaderParser
 
         MarkUnanalyzed(skipped);
         return new IncompleteDeclarationSyntax([.. skipped]);
+    }
+
+    /// <summary>
+    /// property と __subscript の <c>{ get { … } set; }</c> を読む。accessor の本体は文として読み (構文の誤りを報告する)、木には残さない。
+    /// </summary>
+    /// <remarks>accessor の前には、属性 (<c>[mutating]</c>) と修飾子 (<c>constexpr</c>) を書ける。</remarks>
+    private void ReadAccessors(List<ShaderSyntaxToken> skipped)
+    {
+        skipped.Add(Advance());
+
+        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
+        {
+            if (Current.Kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                skipped.AddRange(SkipBalanced(ShaderSyntaxKind.OpenBracketToken, ShaderSyntaxKind.CloseBracketToken));
+                continue;
+            }
+
+            if (Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text is "get" or "set" or "ref" or "modify")
+            {
+                skipped.Add(Advance());
+
+                if (Current.Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    skipped.AddRange(SkipBalanced(ShaderSyntaxKind.OpenParenToken, ShaderSyntaxKind.CloseParenToken));
+                }
+
+                if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    skipped.AddRange(ParseBlock().DescendantTokens());
+                }
+                else
+                {
+                    skipped.Add(Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
+                }
+
+                continue;
+            }
+
+            // constexpr get の修飾子
+            if (Current.Kind == ShaderSyntaxKind.IdentifierToken && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                skipped.Add(Advance());
+                continue;
+            }
+
+            // accessor でないもの (書きかけの se など)。報告して、閉じ括弧まで読み飛ばす。
+            ReportError(DescribeExpected("accessor (get・set・ref・modify)"));
+            int depth = 1;
+
+            while (!AtEnd)
+            {
+                if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    depth++;
+                }
+                else if (Current.Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+                {
+                    break;
+                }
+
+                skipped.Add(Advance());
+            }
+        }
+
+        skipped.Add(Expect(ShaderSyntaxKind.CloseBraceToken, "'}'"));
     }
 
     /// <summary><c>;</c> まで読み飛ばす。</summary>

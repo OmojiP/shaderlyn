@@ -364,6 +364,15 @@ public sealed class SlangRuleTests : IDisposable
     // as の右のインターフェイスと、制約の無いジェネリックの型の is
     [InlineData("SG0301", "interface I { int g(); }\nstruct C : I { int g() { return 1; } }\nI k(C c) { return c as I; }\n")]
     [InlineData("SG0301", "interface I { int g(); }\nbool f<T>(T t) { return t is I; }\n")]
+    // 構文の誤り: ; の無い throw、名前の無いメンバー、accessor でない語、名前でないジェネリックの仮引数、制約の struct
+    [InlineData("CF0001", "enum E { Fail }\nuint f(int n) throws E\n{\n    if (n < 0)\n        throw E.Fail\n    return (uint)n;\n}\n")]
+    [InlineData("CF0001", "void main()\n{\n    float3 arr[3];\n    arr.;\n}\n")]
+    [InlineData("CF0001", "struct MyType\n{\n    __subscript(int index) -> int\n    {\n        get { return index; }\n        se\n    }\n}\n")]
+    [InlineData("CF0001", "int doThing<1>() { return 2; }\n")]
+    [InlineData("CF0001", "__generic<T : struct> extension T\n{\n}\n")]
+    // 名前空間に無いメンバー、型引数の違うジェネリックの型のフィールドどうしの代入
+    [InlineData("CF0310", "namespace ns { int fb() { return 1; } }\nint f() { return ns.fa(); }\n")]
+    [InlineData("CF0410", "struct G<T> { T v; }\nstruct Outer<T> { G<T> g; }\nstruct H { G<int> i; G<float> f; }\nvoid f(Outer<int> a, Outer<float> b, H c)\n{\n    a.g = b.g;\n    c.i = c.f;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -489,6 +498,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface I { int g(); }\nstruct C : I { int g() { return 1; } }\nbool f<T : I>(T t) { return t is I; }\nbool g<T>(T t) where optional T : I { return T is I; }\nbool h(C c) { return c is I; }\n")]
     [InlineData("interface I\n{\n    int load(int i);\n    __subscript(int i) -> int { get { return load(i); } set { } }\n}\n")]
     [InlineData("[COM(\"00000000-0000-0000-0000-000000000001\")]\ninterface ICOMService { float query(); }\nclass Impl : ICOMService { float query() { return 1; } }\n")]
+    // accessor の属性と修飾子、キーワードの名前のジェネリックの仮引数 (slangc は警告だけにする)
+    [InlineData("struct S\n{\n    int v;\n    property int value\n    {\n        [mutating] set { v = newValue; }\n        get { return v; }\n    }\n}\nint useGenericTypeParam<struct>() { return 0; }\n")]
+    // 名前空間のメンバーと、型引数の同じジェネリックの型のフィールドどうしの代入
+    [InlineData("namespace ns { int fb() { return 1; } }\nstruct G<T> { T v; }\nstruct Outer<T> { G<T> g; }\nvoid f(Outer<int> a, Outer<int> b)\n{\n    a.g = b.g;\n    int x = ns.fb();\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -569,6 +582,40 @@ public sealed class SlangRuleTests : IDisposable
         Assert.Contains("user.slang(7:5): error SG0401: 'InternalStruct'", output, StringComparison.Ordinal);
         Assert.Contains("user.slang(8:5): error SG0401: 'internalMethod'", output, StringComparison.Ordinal);
         Assert.Equal(3, output.Split("SG0401").Length - 1);
+    }
+
+    [Fact]
+    public async Task 取り込んだモジュールの取り込みと名前空間の宣言は見えない()
+    {
+        // import はたどらない (__exported import はたどる)。取り込んだモジュールの using namespace は効かない。名前空間の中の using は、その名前空間を using すれば効く。
+        File.WriteAllText(Path.Combine(_workDirectory, "leaf.slang"), "module leaf;\npublic int leafHelper(int x) { return x; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "shared.slang"), "module shared;\npublic int sharedHelper(int x) { return x; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "mid.slang"),
+            "module mid;\nimport leaf;\n__exported import shared;\nnamespace Foo { public int fooHelper(int x) { return x; } }\nnamespace Bar { public int barHelper(int x) { return x; } }\nnamespace Outer { using Bar; }\nusing namespace Foo;\n");
+
+        string output = await AnalyzeAsync(
+            "module user;\nimport mid;\nusing Outer;\nint test()\n{\n    return leafHelper(1) + sharedHelper(2) + fooHelper(3) + Foo.fooHelper(4) + barHelper(5);\n}\n", "user.slang");
+
+        Assert.Contains("user.slang(6:12): error CF0310: 'leafHelper'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(6:46): error CF0310: 'fooHelper'", output, StringComparison.Ordinal);
+        Assert.Equal(2, output.Split("CF0310").Length - 1);
+    }
+
+    [Fact]
+    public async Task 別のモジュールのpublicでない中の型と名前空間のメンバーの使用を報告する()
+    {
+        // 2026 の言語の public の構造体の中の型は、書かなければ public。internal と private を書いたものは使えない。public の名前空間のメンバーは、書かなければ internal。
+        File.WriteAllText(Path.Combine(_workDirectory, "outer.slang"),
+            "#language slang 2026\nmodule outer;\npublic struct PublicOuter\n{\n    struct Inner { int a; }\n    internal struct InternalInner { int b; }\n    internal enum Hidden { A, B }\n}\npublic namespace Space\n{\n    static int internalVar;\n    public static int publicVar;\n}\n");
+
+        string output = await AnalyzeAsync(
+            "import outer;\nvoid test(PublicOuter.Inner inner)\n{\n    PublicOuter.InternalInner ii;\n    PublicOuter.Hidden h = PublicOuter.Hidden.A;\n    Space.internalVar = 1;\n    Space.publicVar = 2;\n}\n", "user.slang");
+
+        Assert.Contains("user.slang(4:17): error SG0401: 'InternalInner'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(5:17): error SG0401: 'Hidden'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(5:40): error SG0401: 'Hidden'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(6:11): error SG0401: 'internalVar'", output, StringComparison.Ordinal);
+        Assert.Equal(4, output.Split("SG0401").Length - 1);
     }
 
     [Fact]
