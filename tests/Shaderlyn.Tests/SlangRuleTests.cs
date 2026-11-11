@@ -261,6 +261,23 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0102", "[MaybeDifferentiable]\nfloat bar(float x) { return x * x; }\n")]
     [InlineData("SG0102", "interface IFoo\n{\n    [TreatAsDifferentiable]\n    float compute(float x);\n}\n")]
     [InlineData("SG0304", "[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(3, 1, 1)]\nvoid main() { }\n")]
+    // 初期化子の並び: __init の仮引数の数、__init を持つ構造体を継承した構造体、資源の型のフィールドと変数
+    [InlineData("SG0351", "struct One\n{\n    int x;\n    __init(int v) { x = v; }\n}\nvoid f()\n{\n    One o = {};\n}\n")]
+    [InlineData("SG0351", "struct BaseCtor { int a; __init() { a = 2; } }\nstruct DerCtor : BaseCtor { int b = 1; }\nvoid f()\n{\n    DerCtor c = {};\n}\n")]
+    [InlineData("SG0351", "struct WithTex { int v; Texture1D<float> t; }\nvoid f()\n{\n    WithTex w = {1};\n}\n")]
+    [InlineData("SG0351", "void f()\n{\n    Texture2D<float4> t = {};\n}\n")]
+    // テクスチャの offset の実引数 (定数バッファーのメンバー、代入し直す変数、ループの変数)
+    [InlineData("SG0352", "Texture2D t;\nSamplerState s;\ncbuffer U\n{\n    float2 uv;\n    int2 offset;\n};\nfloat4 f()\n{\n    return t.Sample(s, uv, offset);\n}\n")]
+    [InlineData("SG0352", "Texture2D t;\nSamplerState s;\nfloat4 f(float2 uv)\n{\n    int ii = 0;\n    if (uv.x > 0.0f) { ii = 1; }\n    return t.Sample(s, uv, int2(ii, ii));\n}\n")]
+    [InlineData("SG0352", "Texture2D t;\nSamplerState s;\nfloat4 f(float2 uv)\n{\n    float4 r = 0;\n    for (int j = 0; j < 4; j++) { r += t.Sample(s, uv, int2(j, 0)); }\n    return r;\n}\n")]
+    // 関わりの無い具体的な型どうしの is / as
+    [InlineData("SG0301", "struct Dog { int bark; }\nstruct Cat { float meow; }\nvoid f()\n{\n    Dog d;\n    bool b = d is Cat;\n}\n")]
+    // __floatAsInt の実引数 (浮動小数でない値と、定数でない値)
+    [InlineData("SG0352", "void f()\n{\n    int a = __floatAsInt(42);\n}\n")]
+    [InlineData("SG0352", "void f(float p)\n{\n    int a = __floatAsInt(p);\n}\n")]
+    // 2026 の言語の、ベクトルを含んで成分の足りない作成と並び
+    [InlineData("SG0341", "#language slang 2026\nvoid f()\n{\n    float2 v = float2(1, 2);\n    float4 c = float4(v, 1);\n}\n")]
+    [InlineData("SG0341", "#language slang 2026\nvoid f()\n{\n    int4 v = { int2(1, 2), 3 };\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -349,6 +366,14 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface IFoo { int get(); }\ninterface IBar : IFoo { }\nstruct ViaBar : IBar { int get() { return 2; } }\nstruct Ext { }\nextension Ext : IFoo { int get() { return 3; } }\nextension float : IFoo { int get() { return 4; } }\ninterface IBase {}\nextension<T : IBase> T : IFoo { int get() { return 5; } }\nstruct B : IBase {}\nint f<T : IFoo>(T x) { return x.get(); }\nstruct G<T : IFoo> { T v; }\nvoid main(ViaBar v, Ext e, B b)\n{\n    f(v);\n    f(e);\n    f(b);\n    f(1.0);\n    G<Ext> ge;\n}\n")]
     // 定数の回数のループ、[MaxIters]、break で抜けるループ、同じ型のメソッドの微分の関数、インターフェイスの [MaybeDifferentiable]、no_diff の呼び出しの文
     [InlineData("static const int N = 4;\nvoid trace() { }\n[Differentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < N; i++) { s += x; }\n    for (int j = 5; j > 0; j -= 1) { s += x; }\n    [MaxIters(8)]\n    for (int k = 0; k < (int)x; k++) { s += x; }\n    for (;;) { if (x > 0) break; }\n    no_diff trace();\n    return s;\n}\nstruct S\n{\n    [BackwardDerivative(eval_bwd)]\n    float eval(float x) { return x; }\n    void eval_bwd(inout DifferentialPair<float> x, float d) { }\n}\ninterface IFoo\n{\n    [MaybeDifferentiable]\n    float compute(float x);\n}\n[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(4, 1, 1)]\nvoid main() { }\n")]
+    // 並びの数を受け取る __init、__init の無い基底の継承、資源の型のフィールドを埋めた並び
+    [InlineData("struct Two { int x; __init() { x = 0; } __init(int a, int b) { x = a + b; } }\nstruct BaseNo { int a; }\nstruct DerNo : BaseNo { int b; }\nTexture1D<float> tex;\nstruct WithTex { int v; Texture1D<float> t; }\nvoid f()\n{\n    Two t0 = {};\n    Two t2 = {1, 2};\n    DerNo d = {1, 2};\n    WithTex w = {1, tex};\n}\n")]
+    // 定数の offset、代入し直さない変数、static const、Gather の定数でない offset
+    [InlineData("Texture2D t;\nSamplerState s;\nstatic const int2 kOff = int2(1, 0);\nuniform int2 rtOffset;\nfloat4 f(float2 uv)\n{\n    int ii = 1;\n    return t.Sample(s, uv, int2(0, 0)) + t.Sample(s, uv, kOff) + t.Sample(s, uv, int2(ii, ii)) + t.Gather(s, uv, rtOffset);\n}\n")]
+    // 基底の構造体への as、インターフェイスへの is、ジェネリックの値の as
+    [InlineData("interface IFoo { int get(); }\nstruct A { int x; }\nstruct B : A { int y; }\nstruct Impl : IFoo { int get() { return 1; } }\nbool f<T>(B b, IFoo i, T v)\n{\n    Optional<A> o = b as A;\n    let d = v as Impl;\n    return i is Impl;\n}\n")]
+    // 浮動小数のリテラルの __floatAsInt、2025 の言語のベクトルを含む並び、成分のそろった並び
+    [InlineData("static const int k = __floatAsInt(float(1));\nvoid f()\n{\n    int a = __floatAsInt(1.5) + __floatAsInt(-2.0);\n    int4 v = { int2(1, 2), 3 };\n    int4 w = { 1, 2, 3 };\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

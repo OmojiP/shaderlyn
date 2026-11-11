@@ -69,6 +69,14 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
         HlslRuleDescriptors.ConditionalTruncation,
     ];
 
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CompilationUnitSyntax, HashSet<string>> ConstructedTypes = [];
+
+    /// <summary>Slang の、__init を書いた構造体の名前 (ファイルごとに 1 度だけ集める)。</summary>
+    private static HashSet<string> SlangConstructedTypes(CompilationUnitSyntax root)
+        => ConstructedTypes.GetValue(root, r => [.. r.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+            .Where(s => s.NameToken is not null && s.Members.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == "__init"))
+            .Select(s => s.NameToken!.Text)]);
+
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
     {
@@ -369,6 +377,12 @@ internal sealed class ValueConversionAnalyzer : SemanticRuleAnalyzer
             {
                 // Slang の空の波括弧 (S s = {};) も、既定の値で作る。
                 if (list.Elements.IsEmpty && (program.Tree.Language is Shaderlyn.Glsl.GlslLanguageOptions || compilation.IsSlang))
+                {
+                    continue;
+                }
+
+                // Slang の __init を書いた構造体の波括弧は、__init の呼び出しになる。要素の数はフィールドでなく __init の仮引数と比べる (SG0351)。
+                if (compilation.IsSlang && SlangConstructedTypes(program.Tree.Root).Contains(declaration.Type.Name))
                 {
                     continue;
                 }

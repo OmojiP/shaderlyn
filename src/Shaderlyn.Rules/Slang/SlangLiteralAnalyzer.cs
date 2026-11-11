@@ -52,7 +52,7 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
 
             foreach (ShaderSyntaxToken token in program.Tree.Root.DescendantTokens())
             {
-                // import "a.slang" のパスは、エスケープを読まない。
+                // import "a\b.slang" のパスは、エスケープを読まない。
                 bool path = previous is { Kind: ShaderSyntaxKind.IdentifierToken, Text: "import" or "__import" or "__include" or "implementing" or "module" };
                 previous = token;
 

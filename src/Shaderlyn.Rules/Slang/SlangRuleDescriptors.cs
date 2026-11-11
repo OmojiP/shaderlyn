@@ -81,7 +81,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof も報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -177,7 +177,8 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "[RemovedSince(版, \"説明\")] を書いた宣言を使っています。その版の言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。",
+        description: "[RemovedSince(版, \"説明\")] を書いた宣言を使っています。その版の言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。"
+            + "言語のバージョン 2026 で取り除かれた書き方 (ベクトルを含んで成分の足りない値の作成と並び。float4(v.xy, 1)) も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0341"));
 
     /// <summary>インターフェイスの適合が循環している。</summary>
@@ -358,6 +359,29 @@ internal static class SlangRuleDescriptors
         description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比べて定数ずつ増減する形でない for、"
             + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が要るので、slangc はコンパイルの誤り (E30510) にします。",
         helpLinkUri: DocumentationLinks.For("SG0350"));
+
+    /// <summary>初期化子の並びが型に合わない。</summary>
+    public static DiagnosticDescriptor InitializerListMismatch { get; } = new(
+        id: "SG0351",
+        title: "初期化子の並びがこの型に合いません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "初期化子の並び ({ … }) が、その型に合いません。__init を書いた構造体では並びが __init の呼び出しになるので、要素の数を受け取る __init が要ります。"
+            + "__init を持つ構造体を継承した構造体と、資源の型の変数には並びを使えません。資源の型のフィールドは、並びで埋めなければなりません。"
+            + "slangc はコンパイルの誤り (E30513・E39999) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0351"));
+
+    /// <summary>コンパイル時の定数でなければならない実引数。</summary>
+    public static DiagnosticDescriptor ArgumentMustBeConstant { get; } = new(
+        id: "SG0352",
+        title: "この実引数はコンパイル時の定数でなければなりません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "テクスチャの Sample・SampleLevel・SampleGrad などの offset の実引数に、定数でない値 (定数バッファーのメンバー、uniform、ループの変数、代入し直す局所変数) を使っています。"
+            + "offset は命令に埋め込むので、slangc はコンパイルの誤り (E40012) にします。__floatAsInt の実引数も、浮動小数のリテラルでなければなりません (E30084・E30085)。",
+        helpLinkUri: DocumentationLinks.For("SG0352"));
 
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(

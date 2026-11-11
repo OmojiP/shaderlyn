@@ -27,7 +27,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm];
+        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -60,12 +60,66 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 kinds[type.NameToken!.Text] = kinds.TryGetValue(type.NameToken.Text, out int known) && known != kind ? -1 : kind;
             }
 
-            CheckTokens(tokens, kinds, Report);
+            // 関数ごとの、変数の名前から宣言した型の名前 (その関数の中で 1 度だけ宣言した名前)。is / as の左の値の型を引く。
+            List<(FunctionDeclarationSyntax Function, Dictionary<string, string?> Names)> scopes = [];
+
+            foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+            {
+                Dictionary<string, string?> variables = new(StringComparer.Ordinal);
+                scopes.Add((function, variables));
+
+                foreach (ShaderSyntaxNode node in function.DescendantNodesAndSelf())
+                {
+                    (string? name, TypeSyntax? type) = node switch
+                    {
+                        VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } variable => (variable.IsArray ? null : variable.Name, declaration.Type),
+                        ParameterSyntax parameter => (parameter.IsArray ? null : parameter.Name, parameter.Type),
+                        _ => (null, null),
+                    };
+
+                    if (name is not null && type is not null)
+                    {
+                        variables[name] = variables.ContainsKey(name) || type.OpenAngle is not null || !type.NestedTypeTokens.IsDefaultOrEmpty ? null : type.NameToken.Text;
+                    }
+                }
+            }
+
+            Dictionary<string, string?>? VariablesAt(ShaderSyntaxToken token)
+                => scopes.FirstOrDefault(s => s.Function.Body is { } body && ReferenceEquals(body.OpenBrace.Source, token.Source)
+                                              && body.OpenBrace.Span.Start < token.Span.Start && token.Span.Start < body.CloseBrace.Span.Start).Names;
+
+            // 構造体の継承の関係 (基底への as は通る)。
+            Dictionary<string, string> bases = new(StringComparer.Ordinal);
+
+            foreach (StructDeclarationSyntax type in types)
+            {
+                if (type.BaseTypeName is { } baseName)
+                {
+                    bases.TryAdd(type.NameToken!.Text, baseName);
+                }
+            }
+
+            bool Derives(string derived, string ancestor)
+            {
+                for (int depth = 0; depth < 16 && bases.TryGetValue(derived, out string? next); depth++)
+                {
+                    if (next == ancestor)
+                    {
+                        return true;
+                    }
+
+                    derived = next;
+                }
+
+                return false;
+            }
+
+            CheckTokens(tokens, kinds, VariablesAt, (a, b) => Derives(a, b) || Derives(b, a), Report);
             CheckOverrides(types, kinds, Report);
         }
     }
 
-    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<string, string, bool> related, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -115,6 +169,21 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             if (token.Text == "property")
             {
                 CheckProperty(tokens, i, report);
+            }
+
+            // d is Cat・d as Cat (d が別の具体的な構造体の値)。左が型の名前 (AnotherType is ConcreteImpl) も同じ。
+            if (token.Text is "is" or "as" && previous is { Kind: ShaderSyntaxKind.IdentifierToken } left
+                && next is { Kind: ShaderSyntaxKind.IdentifierToken } right
+                && !(i + 2 < tokens.Length && tokens[i + 2].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                && !(i > 1 && tokens[i - 2].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken or ShaderSyntaxKind.GreaterThanToken)
+                && kinds.TryGetValue(right.Text, out int rightKind) && rightKind is 1 or 2
+                && (kinds.TryGetValue(left.Text, out int leftKind) && leftKind is 1 or 2 ? left.Text
+                    : variablesAt(token) is { } variables && variables.TryGetValue(left.Text, out string? declared) ? declared : null) is { } leftType
+                && kinds.TryGetValue(leftType, out int declaredKind) && declaredKind is 1 or 2
+                && leftType != right.Text
+                && !related(leftType, right.Text))
+            {
+                report(SlangRuleDescriptors.WrongOperandTypes, token, $"{token.Text} は、関わりの無い具体的な型どうし ({leftType} と {right.Text}) には使えません (どちらかがインターフェイスの型でなければなりません)。");
             }
         }
     }

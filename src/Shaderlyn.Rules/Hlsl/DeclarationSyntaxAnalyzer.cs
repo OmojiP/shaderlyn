@@ -50,6 +50,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         HlslRuleDescriptors.DuplicateRegister,
         HlslRuleDescriptors.ArrayIndexOutOfBounds,
         HlslRuleDescriptors.LiteralTruncated,
+        Slang.SlangRuleDescriptors.RemovedDeclaration,
     ];
 
     /// <inheritdoc/>
@@ -181,6 +182,14 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // 言語のバージョンが 2026 (#language slang 2026) なら、この形は取り除かれている (slangc 2026.19 の E31207)。
+        if (deprecated && IsSlang2026(invocation))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(Slang.SlangRuleDescriptors.RemovedDeclaration, location,
+                $"{name} の作成で、ベクトルを含んで成分の足りない形 (成分は {written} 個で、{required} 個が要ります) は、言語のバージョン 2026 で取り除かれています。足りない成分を書いてください。"));
+            return;
+        }
+
         Diagnostic diagnostic = Diagnostic.Create(
             HlslRuleDescriptors.ConstructorArgumentMismatch,
             location,
@@ -189,6 +198,11 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
             written);
         context.ReportDiagnostic(deprecated ? diagnostic.WithSeverity(DiagnosticSeverity.Warning) : diagnostic);
     }
+
+    /// <summary>ノードのあるファイルの言語のバージョンが Slang の 2026 以降 (#language slang 2026 か latest) か。</summary>
+    internal static bool IsSlang2026(ShaderSyntaxNode node)
+        => node.FirstToken?.Source is { } source
+           && System.Text.RegularExpressions.Regex.IsMatch(source.ToString(), @"^\s*#\s*lang(uage)?\s+(slang\s+)?(2026|latest)\b", System.Text.RegularExpressions.RegexOptions.Multiline);
 
     /// <summary>行列を、行列 1 つから作っているか (GLSL)。</summary>
     /// <param name="binder">式の型を引く仕組み。</param>
