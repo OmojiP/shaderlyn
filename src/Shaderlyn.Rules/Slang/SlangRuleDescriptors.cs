@@ -474,6 +474,18 @@ internal static class SlangRuleDescriptors
             + "no_diff を関数の呼び出しでないものか、微分しない関数の中で使っています。slangc はコンパイルの誤り (E31149・E31150・E31156・E38031・E38033) にします。",
         helpLinkUri: DocumentationLinks.For("SG0360"));
 
+    /// <summary>微分の型と [DerivativeMember] の書き方の誤り。</summary>
+    public static DiagnosticDescriptor DifferentialType { get; } = new(
+        id: "SG0361",
+        title: "微分の型の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "IDifferentiable の型の微分の型 (typealias Differential) が自分でないのに、微分するフィールドに [DerivativeMember] も no_diff も書いていないか、"
+            + "[DerivativeMember] に微分の型のフィールドでないものを書いているか、微分しない型のフィールドか関数の外の変数に [DerivativeMember] を書いています。"
+            + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0361"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
