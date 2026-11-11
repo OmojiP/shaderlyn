@@ -61,15 +61,15 @@ internal static class SlangRuleDescriptors
             + "static の特殊化定数、push constant でもある特殊化定数、標準のモジュールにだけ書ける修飾子 (__magic_type など)、インターフェイスの要件でない関数の [MaybeDifferentiable]、インターフェイスの要件の [TreatAsDifferentiable] を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0102"));
 
-    /// <summary>レジスタの種類が資源の型と合わない。</summary>
+    /// <summary>レジスタの書き方が正しくないか、種類が資源の型と合わない。</summary>
     public static DiagnosticDescriptor RegisterMismatch { get; } = new(
         id: "SG0103",
-        title: "レジスタの種類が資源の型と合いません",
+        title: "レジスタの書き方か種類が正しくありません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "register(…) の種類 (t・u・s・b) が、資源の型と合いません。t は読むだけの資源 (Texture2D・StructuredBuffer など)、u は書ける資源 (RW…)、"
-            + "s はサンプラー、b は定数バッファーです。slangc はコンパイルの誤りにします。",
+            + "s はサンプラー、b は定数バッファーです。番号の無い register(t)、2 つ目が space でない register(s0, s1)、番号の無い space も報告します。slangc はコンパイルの誤り (E31222・E39008・E39009・E39010) にします。",
         helpLinkUri: DocumentationLinks.For("SG0103"));
 
     /// <summary>形の合わない値どうしの演算子。</summary>
@@ -81,7 +81,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) と算術の演算子も報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) と算術の演算子、並べ方の型でない sizeof の 2 つ目、大きさの違う型どうしの bit_cast も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -233,7 +233,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "case か default を switch の本体の直下でない場所 (switch の外、case の中の { } の中) に書いているか、"
             + "break をループと switch の外に、continue をループの外に書いているか、1 つの switch に default を 2 つ、同じ値の case を 2 つ書いているか、"
-            + "switch の値が整数でも列挙型でもありません。slangc はコンパイルの誤り (E30003・E30004・E30602・E30605・E30607) にします。",
+            + "switch の値が整数でも列挙型でもないか、case の値が定数でない変数です。slangc はコンパイルの誤り (E30003・E30004・E30602・E30605・E30607・E39999) にします。",
         helpLinkUri: DocumentationLinks.For("SG0321"));
 
     /// <summary>属性の値が正しくない。</summary>
@@ -267,7 +267,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "変数の型に void を、ビットフィールドに整数でない型か型の幅を超える幅を、列挙型の基の型に整数でない型を、"
-            + "特殊化定数にスカラーでも列挙型でもない型を使っているか、構造体がフィールドを通して自分を値として含んでいます。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218・E41001) にします。",
+            + "特殊化定数にスカラーでも列挙型でもない型を使っているか、構造体がフィールドを通して自分を値として含んでいるか、スレッドの番号 (SV_DispatchThreadID など) の仮引数の型が整数の 1 から 3 個の成分でありません。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218・E41001・E38024) にします。",
         helpLinkUri: DocumentationLinks.For("SG0407"));
 
     /// <summary>大きさの決まらない型の使い方の誤り。</summary>

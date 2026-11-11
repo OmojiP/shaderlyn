@@ -282,7 +282,7 @@ Slang にしか無いものです。slangc 2026.19 がエラーにする箇所�
 | [SG0005](SG0005.md) | ファイルに UTF-8 として読めないバイトがある | エラー |
 | [SG0101](SG0101.md) | 宣言をその場所に書けない (型を書く位置の構造体の定義、構造体の中の namespace・extension、インターフェイスの中の enum・struct、関数の中の関数、名前の無い enum class、extension の中の仮引数の無い __init、型の中の演算子、インターフェイスの要件の初期値など) | エラー |
 | [SG0102](SG0102.md) | 修飾子をそこに書けない (関数の外の static の無い const・constexpr、初期値つきの uniform、局所変数の groupshared、フィールドの __ref、属性と可視性の繰り返し、初期値の groupshared、ポインターの coherent、typedef の volatile、static の特殊化定数、[UnscopedEnum] の enum class、[[vk::offset]] と dyn の置き場所など) | エラー |
-| [SG0103](SG0103.md) | register(…) の種類 (t・u・s・b) が資源の型と合わない | エラー |
+| [SG0103](SG0103.md) | register(…) の書き方か、種類 (t・u・s・b) が資源の型と合わない | エラー |
 | [SG0301](SG0301.md) | 形 (ベクトルの長さ、行列の行と列) の違う値どうしか構造体の値に組み込みの演算子を使ったか、浮動小数にビット演算を使ったか、ポインターでない値に -> を、スカラーに添字を、関わりの無い具体的な型どうしに is / as を使った | エラー |
 | [SG0304](SG0304.md) | [numthreads]・[WaveSize]・[COM]・[RemovedSince] の値が正しくない | エラー |
 | [SG0308](SG0308.md) | 大きさの決まらない型 (大きさを書かない配列と、それを含む構造体) を、使えない場所に使った | エラー |

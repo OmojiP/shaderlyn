@@ -397,6 +397,16 @@ public sealed class SlangRuleTests : IDisposable
     // ByteAddressBuffer の揃えと Load の offset の、エントリポイントの仮引数から作った値
     [InlineData("SG0352", "RWByteAddressBuffer buf;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    uint a = tid.x;\n    float v = buf.LoadAligned<float>(0, a);\n}\n")]
     [InlineData("SG0352", "Texture2D<float4> t;\nRWStructuredBuffer<float4> o;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    o[0] = t.Load(int3(0, 0, 0), int2(tid.xy));\n}\n")]
+    // register の書き方、sizeof の並べ方の型、bit_cast の大きさ、スレッドの番号の型、ステージの名前、エントリポイントの throws
+    [InlineData("SG0103", "TextureCube b : register(t);\n")]
+    [InlineData("SG0103", "SamplerState c : register(s0, s1);\n")]
+    [InlineData("SG0103", "SamplerState d : register(s2, space);\n")]
+    [InlineData("SG0301", "int f<L>()\n{\n    return sizeof(float3, L) + sizeof(float3, 14);\n}\n")]
+    [InlineData("SG0301", "StructuredBuffer<uint64_t> i;\nRWStructuredBuffer<uint32_t> o;\n[shader(\"compute\")]\n[numthreads(4, 1, 1)]\nvoid computeMain() { o[0] = bit_cast<uint32_t, uint64_t>(i[0]); }\n")]
+    [InlineData("SG0407", "[numthreads(4, 1, 1)]\nvoid computeMain(float3 tid : SV_DispatchThreadID) { }\n")]
+    [InlineData("SG0304", "[shader(\"invalid\")]\nvoid main() { }\n")]
+    [InlineData("SG0345", "uint g(uint n) throws uint\n{\n    if (n < 1)\n        throw 0x1U;\n    return n;\n}\nRWStructuredBuffer<uint> o;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid : SV_DispatchThreadID) throws uint\n{\n    o[tid.x] = try g(tid.x);\n}\n")]
+    [InlineData("SG0321", "uniform uint U;\nint f(uint x)\n{\n    switch (x)\n    {\n    case U: return 0;\n    }\n    return 1;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -536,6 +546,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct Node { Node* next; int y; }\nT add<T : IArithmetic>(T a, T b) { return a + b; }\nstruct MyType\n{\n    float3 v;\n    property float3 prop { get { return v; } set { v = newValue; } }\n}\nvoid test()\n{\n    MyType t;\n    t.prop = float3(1, 2, 3);\n}\n")]
     // 定数の揃え、extension で足した多重定義のメソッドの呼び出し
     [InlineData("RWByteAddressBuffer buf;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    float v = buf.LoadAligned<float>(0, 16);\n    buf.Store<float>(16, v, 16);\n}\nstruct Test { void m<int u>(float2 x) {} }\nextension Test { void m<int u>() {} }\nvoid f() { Test t; t.m<3>(); }\n")]
+    // 正しい register と space、並べ方の型の sizeof、大きさの同じ bit_cast、uint2 のスレッドの番号、能力の名前のステージ
+    [InlineData("Texture2D t : register(t0, space1);\nSamplerState s : register(s0);\nint f() { return sizeof(float3, DefaultDataLayout); }\nfloat g(uint x) { return bit_cast<float, uint>(x); }\n[shader(\"compute\")]\n[numthreads(4, 1, 1)]\nvoid computeMain(uint2 tid : SV_DispatchThreadID, uint gi : SV_GroupID) { }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

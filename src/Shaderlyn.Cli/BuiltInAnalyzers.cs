@@ -140,6 +140,7 @@ public static class BuiltInAnalyzers
         new Rules.Slang.SlangImportScopeAnalyzer(),
         new Rules.Slang.SlangCustomDerivativeAnalyzer(),
         new Rules.Slang.SlangDifferentialTypeAnalyzer(),
+        new Rules.Slang.SlangBuiltinFormAnalyzer(),
         new Rules.Slang.SlangControlFlowAnalyzer(),
         new Rules.Slang.SlangUnsizedTypeAnalyzer(),
         new Rules.Slang.SlangDeclarationFormAnalyzer(),

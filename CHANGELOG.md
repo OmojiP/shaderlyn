@@ -86,20 +86,21 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - SG0101: その場所に書けない宣言 (型を書く位置の構造体の定義、構造体とインターフェイスの中の namespace など、関数の中の関数、extension とインターフェイスの中の static でないフィールド、
     extension のジェネリックの仮引数の既定値、名前の無い enum class、ファイルの直下と extension の中の仮引数の無い `__init`、型と extension の中の演算子、
     インターフェイスの `__init` と property の要件の本体、`[COM]` のインターフェイスの associatedtype)
+  - SG0103 (タイトルを「レジスタの書き方か種類が正しくありません」にした): 番号の無い `register(t)`、2 つ目が space でない `register(s0, s1)`、番号の無い `space`
   - SG0102: 書けない修飾子と、1 つしか書けない属性の繰り返し (初期値の groupshared、ポインターの coherent、typedef の volatile、特殊化定数の static、
     `[UnscopedEnum]` の enum class、`[[vk::offset]]` と `dyn` の置き場所、標準のモジュールにだけ書ける修飾子、`[MaybeDifferentiable]` / `[TreatAsDifferentiable]` の置き場所など)。
     SG0103: 資源の型と合わないレジスタ
   - SG0301: 形の違う値どうしの組み込みの演算子 (`float3 + float4`)、浮動小数のビット演算とシフト、演算子を定義していない構造体の値への演算子、型の合わない `?:` の枝、
-    ポインターでない値の `->`、スカラーの添字、関数の名前の `sizeof`、関わりの無い具体的な型どうしの `is` / `as`、`as` の右のインターフェイス、制約の無いジェネリックの型の値の `is` と算術の演算子
-  - SG0304: 属性の値 (`[numthreads]`・`[WaveSize]`・`[COM]`・`[RemovedSince]`、微分のグループのスレッドの数)。SG0308: 大きさの決まらない型 (最後でないフィールド、局所変数、StructuredBuffer の要素など)
+    ポインターでない値の `->`、スカラーの添字、関数の名前の `sizeof`、関わりの無い具体的な型どうしの `is` / `as`、`as` の右のインターフェイス、制約の無いジェネリックの型の値の `is` と算術の演算子、`sizeof(T, L)` の並べ方の型、大きさの違う型どうしの `bit_cast`
+  - SG0304: 属性の値 (`[numthreads]`・`[WaveSize]`・`[COM]`・`[RemovedSince]`、微分のグループのスレッドの数、`[shader("…")]` のステージの名前)。SG0308: 大きさの決まらない型 (最後でないフィールド、局所変数、StructuredBuffer の要素など)
   - SG0309: `[mutating]` でないメソッドの中のフィールドへの書き込み、読むだけの資源の要素への書き込み、`Access::Read` のポインターの指す先と、get だけの property への書き込み
   - SG0311: スカラーでない条件 (if・while などのベクトル・構造体。`?:` と `!` の構造体)
   - SG0316: 定数式でない static const の初期値。SG0317: 自分自身に依る定数。SG0318: 初期値の無い static const
-  - SG0321: switch と break / continue の書き方 (switch の本体の外の case / default、ループの外の break / continue、2 つ目の default、値の重なる case、整数でない switch の値)
+  - SG0321: switch と break / continue の書き方 (switch の本体の外の case / default、ループの外の break / continue、2 つ目の default、値の重なる case、整数でない switch の値、定数でない変数の case の値)
   - SG0338: `[NoDiscard]` の関数の戻り値を捨てる式と、void を返す関数の `[NoDiscard]`
   - SG0341: `[RemovedSince]` で取り除かれた宣言の使用と、2026 の言語で取り除かれた書き方 (ベクトルを含んで成分の足りない値の作成と並び)
   - SG0342: インターフェイスの適合の循環 (インターフェイスの側は、適合する型がどれも輪に入るときだけ)。SG0343: 条件の中の括弧で包まない代入
-  - SG0344: static のメソッドの中の this と static でないメンバー、型の名前からの static でないフィールド。SG0345: throw と try の受け先 (throws の無い関数、defer の中、throws と違う型)
+  - SG0344: static のメソッドの中の this と static でないメンバー、型の名前からの static でないフィールド。SG0345: throw と try の受け先 (throws の無い関数、defer の中、throws と違う型、throws を書いたエントリポイント)
   - SG0346: new を書かない class の作成。SG0347: 構造体の多重継承と override の書き忘れ・当たるメソッドの無い override・構造体と class の間の継承・
     `#lang 2026` の構造体の継承・インターフェイスの要件の override・`[COM]` のインターフェイスの継承。
     SG0348: property と `__subscript` の書き方 (インターフェイスの accessor の片方だけの既定の実装を含む)
@@ -116,7 +117,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
     (`__include` と `implementing` で分けて書いたモジュールを含む。public の構造体のメンバーと中の型の既定は、宣言したモジュールの言語のバージョンで決める。public の名前空間の public でないメンバーも見る)
   - SG0402: 可視性の書き方 (関数の外の private、public でない構造体の public のメンバー、public の宣言が public でない型を使うもの)
   - SG0403: 配列にできない型の配列。SG0404: 資源を包めない型 (StructuredBuffer・Optional の資源)。SG0405: テクスチャの要素にできない型。SG0406: フィールドにできない参照の型
-  - SG0407: 宣言に使えない型 (void の変数、ビットフィールドの型と幅、整数でない列挙型の基の型、スカラーでない特殊化定数、自分を値として含む構造体)
+  - SG0407: 宣言に使えない型 (void の変数、ビットフィールドの型と幅、整数でない列挙型の基の型、スカラーでない特殊化定数、自分を値として含む構造体、整数の 1 から 3 個の成分でないスレッドの番号の仮引数)
 - Slang: C 系の共通のルールを広げた。同じ形の関数の 2 つ目の本体・列挙子の重複・重複した仮引数と列挙子の使用 (CF0314)、throws の型とジェネリックの制約の型の名前・
   微分の属性の関数の名前・then の側にだけ見える `if (let a = x)` の a (CF0310)、多重定義のどれも受け取らない構造体の実引数 (CF0401)、
   型引数の違うジェネリックの型どうし (構造体のフィールドを含む)・次元の違うテクスチャ・入れ子の型への数・ポインターの型とアクセスとアドレス空間・ジェネリックの型の値から具体的な型への変換・

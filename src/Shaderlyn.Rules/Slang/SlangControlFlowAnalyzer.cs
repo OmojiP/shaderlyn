@@ -114,8 +114,27 @@ internal sealed class SlangControlFlowAnalyzer : SemanticRuleAnalyzer
             {
                 report(SlangRuleDescriptors.SwitchStatement, label.Keyword, $"case の値 {value} が、同じ switch の前の case と重なっています。");
             }
+            else if (label.Value is IdentifierExpressionSyntax name && NonConstantVariable(binder, name) is { } what)
+            {
+                // case x: の x が定数でない変数 (uniform・仮引数・const でない局所変数。E39999)
+                report(SlangRuleDescriptors.SwitchStatement, name.Identifier, $"case の値は、コンパイル時の定数でなければなりません ({what} '{name.Name}' は定数ではありません)。");
+            }
         }
     }
+
+    /// <summary>定数でない変数の説明 (uniform・仮引数・局所変数)。定数か、決められなければ <see langword="null"/>。</summary>
+    private static string? NonConstantVariable(ExpressionTypeBinder binder, IdentifierExpressionSyntax name)
+        => binder.ResolveName(name).Candidates is [{ Declarator: var declarator }]
+            ? declarator switch
+            {
+                ParameterSyntax parameter when !parameter.ModifierTokens.Any(t => t.Text is "constexpr" or "const") => "仮引数",
+                VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } global }
+                    when !global.ModifierTokens.Any(t => t.Text is "const" or "static" or "constexpr") => "uniform の変数",
+                VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: LocalDeclarationStatementSyntax } local }
+                    when !local.ModifierTokens.Any(t => t.Text is "const" or "static" or "constexpr" or "let") => "局所変数",
+                _ => null,
+            }
+            : null;
 
     /// <summary>関数の中で、ループ (と、<paramref name="loopOrSwitch"/> なら switch) の中にあるか。分からない書き方の中にあれば、中にあるものとする。</summary>
     private static bool Inside(ShaderSyntaxNode node, bool loopOrSwitch)
