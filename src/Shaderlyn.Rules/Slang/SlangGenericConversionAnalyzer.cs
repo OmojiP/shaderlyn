@@ -117,6 +117,74 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                     "数は構造体へ暗黙に変換されません。"));
             }
 
+            // 関数のジェネリックの型の仮引数の名前 (<T : IArithmetic> の T)。関数の名前と ( の間のトークンから読む。
+            Dictionary<ShaderSyntaxToken, int> index = new(ReferenceEqualityComparer.Instance);
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                index[all[i]] = i;
+            }
+
+            HashSet<string> TypeParameters(FunctionDeclarationSyntax function)
+            {
+                HashSet<string> names = new(StringComparer.Ordinal);
+
+                if (!index.TryGetValue(function.NameToken, out int start) || !index.TryGetValue(function.OpenParen, out int open))
+                {
+                    return names;
+                }
+
+                for (int i = start + 1; i < open; i++)
+                {
+                    if (all[i].Kind == ShaderSyntaxKind.IdentifierToken && all[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken
+                        && all[i].Text is not ("let" or "each"))
+                    {
+                        names.Add(all[i].Text);
+                    }
+                }
+
+                // 組み込みの型の制約 (<T : __EnumType>・__BuiltinArithmeticType) と、型の等しさの制約 (where T == int) のある仮引数は、変換できることがあるので除く。
+                int end = open;
+
+                if (index.TryGetValue(function.CloseParen, out int close))
+                {
+                    for (end = close; end < all.Length && all[end].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); end++)
+                    {
+                    }
+                }
+
+                for (int i = start + 1; i + 2 < end; i++)
+                {
+                    if (all[i].Kind == ShaderSyntaxKind.IdentifierToken && names.Contains(all[i].Text)
+                        && ((all[i + 1].Kind == ShaderSyntaxKind.ColonToken && all[i + 2].Text.StartsWith("__", StringComparison.Ordinal))
+                            || all[i + 1].Kind == ShaderSyntaxKind.EqualsEqualsToken))
+                    {
+                        names.Remove(all[i].Text);
+                    }
+                }
+
+                return names;
+            }
+
+            // ジェネリックの型 T の値から、具体的な数の型への初期化 (int x = t;)。T が IArithmetic などでも、暗黙には変換されない (E30019)。
+            void CheckGenericValue(TypeSyntax target, ExpressionSyntax value)
+            {
+                if (value is not IdentifierExpressionSyntax identifier
+                    || target.IsPointer || target.OpenAngle is not null
+                    || !binder.TypeSystem.TryDescribeNumeric(target.Name, out _)
+                    || binder.ResolveName(identifier).Candidates is not [{ Declarator: var declarator, Type.IsArray: false }]
+                    || (declarator switch { ParameterSyntax parameter => parameter.Type, VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax d } => d.Type, _ => null }) is not { IsPointer: false, OpenAngle: null } source
+                    || value.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is not { } function
+                    || !TypeParameters(function).Contains(source.NameToken.Text)
+                    || !compilation.IsReportable(value) || value.GetLocation() is not { } location)
+                {
+                    return;
+                }
+
+                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, location, target.Name, source.NameToken.Text,
+                    $"ジェネリックの型 {source.NameToken.Text} の値は、具体的な型へ暗黙に変換されません ({target.Name}(x) と書いても、{source.NameToken.Text} の制約に変換の要件が要ります)。"));
+            }
+
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
@@ -141,6 +209,11 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                                     heap.Name == "SamplerDescriptorHeap" ? "SamplerDescriptorHeap からはサンプラーだけを作れます。資源は ResourceDescriptorHeap から作ってください。"
                                         : "ResourceDescriptorHeap からは資源だけを作れます。サンプラーは SamplerDescriptorHeap から作ってください。"));
                                 continue;
+                            }
+
+                            if (variable.Initializer is { } generic && !variable.IsArray)
+                            {
+                                CheckGenericValue(declaration.Type, generic);
                             }
 
                             if (variable.Initializer is { } initializer && !variable.IsArray && declaration.Type.OpenAngle is not null)

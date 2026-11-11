@@ -299,6 +299,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0410", "interface IFoo { int get(); }\nvoid f(IFoo local)\n{\n    IFoo* p = &local;\n}\n")]
     // SamplerDescriptorHeap と ResourceDescriptorHeap の取り違え
     [InlineData("CF0410", "void f(uint i)\n{\n    Texture2D.Handle bad1 = SamplerDescriptorHeap[i];\n    SamplerState bad4 = ResourceDescriptorHeap[i];\n}\n")]
+    // ジェネリックの型の値から具体的な数の型への初期化
+    [InlineData("CF0410", "int implicitPlain<T : IArithmetic>(T t)\n{\n    int x = t;\n    return x;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -403,6 +405,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("void load<let N : int, each TIndex>(TIndex indices) where countof(TIndex) == N { }\nvoid f()\n{\n    load<3>(1, 2, 3);\n}\n")]
     // 同じ型のポインターとアドレス
     [InlineData("struct Foo { int val; }\nint f()\n{\n    Foo x;\n    Foo* pf = &x;\n    Foo* copy = pf;\n    return copy->val;\n}\n")]
+    // 型の等しさの制約と、組み込みの型の制約のある型の仮引数
+    [InlineData("int eq<T>(T t) where T == int\n{\n    int x = t;\n    return x;\n}\nint en<T : __BuiltinArithmeticType>(T t)\n{\n    T y = t;\n    return 0;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
