@@ -393,6 +393,17 @@ internal static class SlangRuleDescriptors
         description: "import したモジュール (それがたどって取り込んだモジュールを含む) に構文の誤りがあります。slangc はそのモジュールを読めないので、import の行もコンパイルの誤り (E39999) にします。",
         helpLinkUri: DocumentationLinks.For("SG0353"));
 
+    /// <summary>空でありうる値の並びの使い方。</summary>
+    public static DiagnosticDescriptor PackMayBeEmpty { get; } = new(
+        id: "SG0354",
+        title: "空でありうる並びには使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "where nonempty(T) の無い可変長の型の仮引数 (each T) に __first・__last を使っているか、where nonempty(…) を求める関数へ空でありうる並びか空の型引数を渡しているか、"
+            + "nonempty の制約を optional にしています。slangc はコンパイルの誤り (E30411・E30412・E30415・E30440) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0354"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",

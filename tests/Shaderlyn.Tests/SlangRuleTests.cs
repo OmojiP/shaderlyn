@@ -281,6 +281,10 @@ public sealed class SlangRuleTests : IDisposable
     // 重複した仮引数と列挙子の使用 (どちらを指すか決まらない)
     [InlineData("CF0314", "int f(int size, float size)\n{\n    return size;\n}\n")]
     [InlineData("CF0314", "enum E { A, A }\nE g() { return E::A; }\n")]
+    // 空でありうる並び: nonempty の無い __first、nonempty を求める関数へ渡す並び、空のタプル
+    [InlineData("SG0354", "int badValueUse<let each D : int>()\n{\n    return __first(D);\n}\n")]
+    [InlineData("SG0354", "void consumeNonEmpty<let each D : int>() where nonempty(D) {}\nvoid badForward<let each D : int>()\n{\n    consumeNonEmpty<D>();\n}\n")]
+    [InlineData("SG0354", "int f()\n{\n    return __first(makeTuple());\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -377,6 +381,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface IFoo { int get(); }\nstruct A { int x; }\nstruct B : A { int y; }\nstruct Impl : IFoo { int get() { return 1; } }\nbool f<T>(B b, IFoo i, T v)\n{\n    Optional<A> o = b as A;\n    let d = v as Impl;\n    return i is Impl;\n}\n")]
     // 浮動小数のリテラルの __floatAsInt、2025 の言語のベクトルを含む並び、成分のそろった並び
     [InlineData("static const int k = __floatAsInt(float(1));\nvoid f()\n{\n    int a = __floatAsInt(1.5) + __floatAsInt(-2.0);\n    int4 v = { int2(1, 2), 3 };\n    int4 w = { 1, 2, 3 };\n}\n")]
+    // nonempty の並びの __first と、nonempty の並びを渡す呼び出し
+    [InlineData("int goodValueUse<let each D : int>() where nonempty(D)\n{\n    return __first(D);\n}\nvoid consumeNonEmpty<let each D : int>() where nonempty(D) {}\nvoid goodForward<let each D : int>() where nonempty(D)\n{\n    consumeNonEmpty<D>();\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
