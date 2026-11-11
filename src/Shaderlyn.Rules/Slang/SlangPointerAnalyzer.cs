@@ -46,7 +46,7 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
         {
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
 
-            if (!tokens.Any(t => t.Text == "Ptr"))
+            if (!tokens.Any(t => t.Text is "Ptr" or "*" or "&"))
             {
                 continue;
             }
@@ -117,8 +117,24 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
                 InvocationExpressionSyntax { TargetName: "Ptr", HasTypeArguments: true } call => Parse(call.TypeArgumentTokens),
                 InvocationExpressionSyntax { TargetName: { } aliasName, HasTypeArguments: false } aliasCall when aliases.TryGetValue(aliasName, out PointerType? alias) => alias,
                 BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken } offset => OfValue(offset.Left),
+                PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.AmpersandToken, Operand: IdentifierExpressionSyntax addressed }
+                    when DeclaredType(addressed) is { IsPointer: false, OpenAngle: null } pointee && pointee.NestedTypeTokens.IsDefaultOrEmpty
+                    => new PointerType(pointee.NameToken.Text, "ReadWrite", "Device"),
                 _ => null,
             };
+
+            TypeSyntax? DeclaredType(IdentifierExpressionSyntax identifier)
+                => binder.ResolveName(identifier).Candidates is [var candidate] && !candidate.Type.IsArray
+                    ? candidate.Declarator switch
+                    {
+                        VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } => declaration.Type,
+                        ParameterSyntax parameter => parameter.Type,
+                        _ => null,
+                    }
+                    : null;
+
+            HashSet<string> interfaceNames = [.. root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                .Where(t => t.Keyword.Text == "interface" && t.NameToken is not null).Select(t => t.NameToken!.Text)];
 
             // 読むだけのポインターの指す先 (p[i]・*p・*(p + 1))。
             bool ReadOnlyTarget(ExpressionSyntax expression) => expression switch
@@ -143,6 +159,15 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
                     case VariableDeclarationSyntax declaration when OfType(declaration.Type) is { } target:
                         foreach (VariableDeclaratorSyntax variable in declaration.Variables)
                         {
+                            // インターフェイスの型の値のアドレス (&ib の ib が IBase) は、ポインターにできない (存在型の値には決まった置き場所が無い)。
+                            if (variable.Initializer is PrefixUnaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.AmpersandToken, Operand: IdentifierExpressionSyntax existential }
+                                && DeclaredType(existential) is { IsPointer: false } existentialType && interfaceNames.Contains(existentialType.NameToken.Text))
+                            {
+                                Report(HlslRuleDescriptors.ValueNotConvertible, variable.Initializer, target.ToString(), $"&{existential.Name}",
+                                    $"インターフェイスの型 {existentialType.NameToken.Text} の値のアドレスは、ポインターにできません。");
+                                continue;
+                            }
+
                             if (variable.Initializer is { } initializer && !variable.IsArray && OfValue(initializer) is { } source && source != target)
                             {
                                 Report(HlslRuleDescriptors.ValueNotConvertible, initializer, target.ToString(), source.ToString(),

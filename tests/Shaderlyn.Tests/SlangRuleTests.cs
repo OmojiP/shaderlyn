@@ -294,6 +294,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0354", "void badNotEqual<let N : int, each T>() where countof(T) != N { }\n")]
     [InlineData("SG0354", "void badRight<let N : int, each T>() where N == countof(T) { }\n")]
     [InlineData("SG0354", "void load<let N : int, each TIndex>(TIndex indices) where countof(TIndex) == N { }\nvoid f()\n{\n    load<2>(1, 2, 3);\n}\n")]
+    // 要素の型の違う T* どうしと、インターフェイスの型の値のアドレス
+    [InlineData("CF0410", "interface IBase { int getVal(); }\nstruct Foo : IBase { int val; int getVal() { return val; } }\nvoid f()\n{\n    Foo x;\n    Foo* pf = &x;\n    IBase* ip = pf;\n}\n")]
+    [InlineData("CF0410", "interface IFoo { int get(); }\nvoid f(IFoo local)\n{\n    IFoo* p = &local;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -396,6 +399,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int* processMemory;\nint f(int id)\n{\n    Ptr<int, Access::ReadWrite, AddressSpace::Device> a = processMemory;\n    Ptr<int, Access::Read> r = Ptr<int, Access::Read>(processMemory + id);\n    Ptr<float> b = Ptr<float>(r);\n    return r[0] + *r;\n}\n")]
     // countof(…) の制約と、数の合う呼び出し
     [InlineData("void load<let N : int, each TIndex>(TIndex indices) where countof(TIndex) == N { }\nvoid f()\n{\n    load<3>(1, 2, 3);\n}\n")]
+    // 同じ型のポインターとアドレス
+    [InlineData("struct Foo { int val; }\nint f()\n{\n    Foo x;\n    Foo* pf = &x;\n    Foo* copy = pf;\n    return copy->val;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
