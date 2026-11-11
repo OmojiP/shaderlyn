@@ -332,6 +332,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0358", "Buffer b0;\n")]
     // インターフェイスの要件の初期値
     [InlineData("SG0101", "interface Bug\n{\n    static const int badVar = 0;\n}\n")]
+    // インターフェイスの要件の書き忘れ、[mutating] と static の食い違い
+    [InlineData("SG0359", "interface IFoo\n{\n    void bar();\n}\nstruct T : IFoo\n{\n}\n")]
+    [InlineData("SG0359", "interface IThing { int processValue(int inValue); }\nstruct Counter : IThing\n{\n    int state;\n    [mutating] int processValue(int inValue) { state += inValue; return state; }\n}\n")]
+    [InlineData("SG0359", "interface Base { static int getValue(); }\nstruct Impl : Base\n{\n    int getValue() { return 5; }\n}\n")]
+    // 言語のバージョンを書いたファイルの、存在型での特殊化
+    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float calc(float x); }\nfloat genericFunc<T : IFoo>(T obj, float x) { return obj.calc(x); }\nfloat f(IFoo obj)\n{\n    return genericFunc(obj, 3.0);\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -450,6 +456,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int arr[4];\nstatic const int k = 2;\nint count<each T>(expand each T values) { return countof(T); }\nint f()\n{\n    return countof(arr) + k;\n}\n")]
     // 値の仮引数、インターフェイスの制約、前の仮引数を指す制約、制約を通して決まる extension の型の仮引数、既定の型引数
     [InlineData("interface IFloat {}\ninterface IBuf<T> {}\ninterface IFoo<T : IFloat> {}\nvoid test3<T : IFloat, Foo : IFoo<T>>() { }\nvoid sized<let N : int, let B : bool>() { }\nextension<T, U : IBuf<T>> U\n{\n    void bar() { }\n}\nstruct D<T = float> { T v; }\nvoid f(D d, Buffer<float4> b) { }\n")]
+    // 要件を満たす型、extension で満たす型、言語のバージョンを書かないファイルの動的なディスパッチ
+    [InlineData("interface IFoo { void bar(); static int count(); }\nstruct A : IFoo { void bar() { } static int count() { return 1; } }\nstruct B : IFoo { }\nextension B { void bar() { } static int count() { return 2; } }\nfloat g<T : IFoo>(T obj) { return 0; }\nfloat f(IFoo obj)\n{\n    return g(obj);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

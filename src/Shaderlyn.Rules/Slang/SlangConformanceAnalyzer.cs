@@ -66,6 +66,7 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             }
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+            bool versioned = System.Text.RegularExpressions.Regex.IsMatch(program.Tree.Text.ToString(), @"^\s*#\s*lang(uage)?\s+(slang\s+)?(20\d\d|latest)\b", System.Text.RegularExpressions.RegexOptions.Multiline);
 
             // 型が、インターフェイスに適合しないと言えるか。
             bool Violates(string type, string requirement)
@@ -132,6 +133,18 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                     if (arguments[i] is not { } argument)
                     {
                         continue;
+                    }
+
+                    // インターフェイスの型 (存在型) では特殊化できない (E33180)。言語のバージョンを書いたファイル (#lang slang 2025 以降) だけ。書かなければ古い書き方として、動的なディスパッチで通る。
+                    if (versioned && interfaces.TryGetValue(argument, out HashSet<string>? existential) && existential is not null)
+                    {
+                        if (!at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } existentialLocation)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, existentialLocation,
+                                $"インターフェイスの型 {argument} では、{generic.Name} の型の仮引数 {generic.Parameters[i]} を特殊化できません。具体的な型の値を渡してください。"));
+                        }
+
+                        return;
                     }
 
                     foreach (string requirement in generic.Constraints[i])

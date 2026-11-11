@@ -27,7 +27,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes];
+        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes, SlangRuleDescriptors.InterfaceRequirement];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -115,7 +115,19 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             CheckTokens(tokens, kinds, VariablesAt, (a, b) => Derives(a, b) || Derives(b, a), Report);
-            CheckOverrides(types, kinds, Report);
+            // extension で足されうる型と、既定の実装を足されうるインターフェイスの名前 (extension NAME)。
+            HashSet<string> extended = new(StringComparer.Ordinal);
+
+            for (int i = 0; i + 1 < tokens.Length; i++)
+            {
+                if (tokens[i].Text is "extension" or "__extension")
+                {
+                    // extension<T> T : IFoo のような、どの型にも当たる extension があれば、要件の検査をしない。
+                    extended.Add(tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken ? tokens[i + 1].Text : "*");
+                }
+            }
+
+            CheckOverrides(types, kinds, extended, Report);
         }
     }
 
@@ -334,7 +346,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>インターフェイスの既定の実装と override の対応。</summary>
-    private static void CheckOverrides(StructDeclarationSyntax[] types, Dictionary<string, int> kinds, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckOverrides(StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && kinds[t.NameToken!.Text] == 3)
             .GroupBy(t => t.NameToken!.Text, StringComparer.Ordinal)
@@ -377,6 +389,43 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             FunctionDeclarationSyntax[] required = [.. bases.SelectMany(b => b.Members.OfType<FunctionDeclarationSyntax>())];
+
+            // インターフェイスの要件 (本体の無いメソッド) を、型が持っているか (E38100)。持っていれば、[mutating] と static が合うか (E38105)。
+            // extension で足されうる型とインターフェイス、ジェネリックのインターフェイスは見ない。
+            if (!extended.Contains("*") && !extended.Contains(type.NameToken!.Text) && type.Keyword.Text is "struct" or "class"
+                && bases.All(b => !extended.Contains(b.NameToken!.Text) && b.GenericParameterTokens.IsDefaultOrEmpty))
+            {
+                FunctionDeclarationSyntax[] own = [.. type.Members.OfType<FunctionDeclarationSyntax>()];
+
+                foreach (FunctionDeclarationSyntax requirement in required.Where(r => r.Body is null && r.Name != "__init"))
+                {
+                    FunctionDeclarationSyntax[] candidates = [.. own.Where(m => m.Name == requirement.Name)];
+
+                    if (candidates.Length == 0)
+                    {
+                        report(SlangRuleDescriptors.InterfaceRequirement, type.NameToken, $"{type.Name} に、インターフェイスの要件 '{requirement.Name}' がありません。");
+                        continue;
+                    }
+
+                    if (candidates.FirstOrDefault(c => c.ParameterList.Count() == requirement.ParameterList.Count()) is not { } implementation || candidates.Length > 1)
+                    {
+                        continue;
+                    }
+
+                    bool Mutating(FunctionDeclarationSyntax f) => f.Attributes.Any(a => a.Name == "mutating") || f.ModifierTokens.Any(t => t.Text == "mutating");
+                    bool Static(FunctionDeclarationSyntax f) => f.ModifierTokens.Any(t => t.Text == "static");
+
+                    if (Mutating(implementation) && !Mutating(requirement))
+                    {
+                        report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken, $"インターフェイスの要件 '{requirement.Name}' は [mutating] でないので、[mutating] のメソッドで満たせません。");
+                    }
+                    else if (Static(implementation) != Static(requirement))
+                    {
+                        report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
+                            Static(requirement) ? $"インターフェイスの要件 '{requirement.Name}' は static なので、static でないメソッドで満たせません。" : $"インターフェイスの要件 '{requirement.Name}' は static でないので、static のメソッドで満たせません。");
+                    }
+                }
+            }
 
             foreach (FunctionDeclarationSyntax method in type.Members.OfType<FunctionDeclarationSyntax>())
             {

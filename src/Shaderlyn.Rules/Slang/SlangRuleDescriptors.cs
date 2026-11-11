@@ -449,6 +449,17 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408) にします。",
         helpLinkUri: DocumentationLinks.For("SG0358"));
 
+    /// <summary>インターフェイスの要件を満たしていない。</summary>
+    public static DiagnosticDescriptor InterfaceRequirement { get; } = new(
+        id: "SG0359",
+        title: "インターフェイスの要件を満たしていません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "インターフェイスに適合する型に、インターフェイスの要件 (本体の無いメソッド) が無いか、要件と [mutating]・static が合わないメソッドで満たしています。"
+            + "slangc はコンパイルの誤り (E38100・E38105) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0359"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
