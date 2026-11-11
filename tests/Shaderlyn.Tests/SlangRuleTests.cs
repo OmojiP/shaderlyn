@@ -229,6 +229,14 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "struct P { int v; }\nextension P\n{\n    P operator-(P o) { return o; }\n}\n")]
     [InlineData("SG0101", "struct Q\n{\n    int v;\n    [mutating]\n    __postfix Q operator++() { v += 1; return this; }\n}\n")]
     [InlineData("SG0102", "__magic_type(FloatType)\nstruct MyFloat\n{\n}\n")]
+    // vector<T, N> を TN として見る (形の違う値どうしの演算子)
+    [InlineData("SG0301", "void f()\n{\n    vector<int, 4> c;\n    vector<float, 3> d;\n    d = c + d;\n}\n")]
+    // 多重定義のどれも構造体の値を受け取らない呼び出し (構造体の作成 Test() も構造体の値)
+    [InlineData("CF0401", "struct Test {}\nfloat overloaded(float2 x, float y) { return 0; }\nfloat overloaded(float3 x, float y) { return 0; }\nfloat test()\n{\n    return overloaded(Test(), 0);\n}\n")]
+    // 型引数の違うジェネリックの型どうしと、次元の違うテクスチャどうし
+    [InlineData("CF0410", "struct G<T> { T v; }\nvoid f(G<int> gi, G<float> gf)\n{\n    gi = gf;\n}\n")]
+    [InlineData("CF0410", "Texture1D<float> tex;\nvoid f()\n{\n    Texture2D<float> t2 = tex;\n}\n")]
+    [InlineData("CF0410", "Texture1D<float> tex;\nvoid f()\n{\n    Texture1D<int> t1 = tex;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -309,6 +317,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("enum MyError { Fail }\nint g() throws MyError { throw MyError.Fail; }\nvoid f()\n{\n    do\n    {\n        let n = try g();\n    }\n    catch (e : MyError)\n    {\n    }\n}\nstruct S { int x; }\nextension S { __init(int v) { x = v; } }\ndyn interface IBar { int b(); }\nint callBar(dyn IBar x) { return x.b(); }\nstruct Ty<T> { static groupshared T y[2]; }\nclass Counter { int v; __init(int s) { v = s; } }\nvoid h(Counter one)\n{\n    Counter c = new Counter(1);\n    Counter d = (Counter)one;\n}\nstruct P { int _v; property v : int { get { return _v; } set(newValue) { _v = newValue; } } }\ninterface IFoo { int getVal() { return 0; } }\nstruct Impl : IFoo { override int getVal() { return 1; } }\n")]
     // 呼び出しの operator() は型の中に書ける。演算子は関数の外に書く
     [InlineData("struct S\n{\n    int x;\n    int operator()(int a) { return a + x; }\n}\nS operator-(S a, S b) { return a; }\nM operator?:(bool c, M a, M b) { return c ? a : b; }\nstruct M { int v; }\n")]
+    // 同じ型引数のジェネリックの型、受け取れる多重定義のある構造体の値
+    [InlineData("struct G<T> { T v; }\nstruct Test {}\nfloat pick(float x) { return x; }\nfloat pick(Test t) { return 0; }\nTexture1D<float> tex;\nvoid f(G<int> gi)\n{\n    G<int> g2 = gi;\n    Texture1D<float> t3 = tex;\n    float r = pick(Test()) + pick(1.0);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

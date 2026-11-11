@@ -290,6 +290,12 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
         if (declarations.Any(d => !d.ParameterList.Select(p => p.Type.Name).SequenceEqual(shape)))
         {
+            // Slang の多重定義: 実引数の数と仮引数の数が同じ宣言のどれもが、同じ位置の構造体の値を受け取れなければ、合う多重定義が無い (E39999)。
+            if (binder.TypeSystem is SlangTypeSystem)
+            {
+                CheckOverloadedArguments(context, binder, invocation, name, declarations, reported);
+            }
+
             return;
         }
 
@@ -307,6 +313,64 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
             Receiver receiver = new(ReceiverKind.Argument, parameter.Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
             CheckConversion(context, binder, receiver, arguments[i], reported);
+        }
+    }
+
+    /// <summary>
+    /// 多重定義した関数の呼び出しで、構造体の値の実引数を受け取れる宣言が無いものを報告する (Slang)。
+    /// </summary>
+    /// <remarks>
+    /// 実引数の数と仮引数の数がちょうど同じ宣言だけを候補にする (既定値と可変長の仮引数のある宣言、ジェネリックの宣言があれば見ない)。
+    /// 型の分かる構造体の値の実引数について、どの候補の同じ位置の仮引数も、それを受け取れない (数の型か別の構造体) ときに報告する。
+    /// </remarks>
+    private static void CheckOverloadedArguments(
+        SyntaxTreeAnalysisContext context,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        string name,
+        ImmutableArray<FunctionDeclarationSyntax> declarations,
+        ReportedLocations reported)
+    {
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+
+        if (declarations.Any(d => !d.GenericParameterTokens.IsDefaultOrEmpty || d.ParameterList.Any(p => p.DefaultValue is not null || p.ModifierTokens.Any(m => m.Text is "expand" or "each"))))
+        {
+            return;
+        }
+
+        FunctionDeclarationSyntax[] candidates = [.. declarations.Where(d => d.ParameterList.Count() == arguments.Length)];
+
+        if (candidates.Length == 0)
+        {
+            return;
+        }
+
+        ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
+
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            if (evaluator.Evaluate(arguments[i]) is not { } valueType || binder.TypeSystem.TryDescribeNumeric(valueType, out _))
+            {
+                continue;
+            }
+
+            ParameterSyntax[] parameters = [.. candidates.Select(c => c.ParameterList.ElementAt(i))];
+
+            if (parameters.Any(p => p.IsArray || p.ModifierTokens.Any(m => m.Text is "out" or "inout")))
+            {
+                continue;
+            }
+
+            string?[] reasons = [.. parameters.Select(p => p.Type.Name == valueType ? null
+                : DescribeStructMismatch(binder, p.Type.Name, binder.TypeSystem.TryDescribeNumeric(p.Type.Name, out _), valueType, valueIsNumeric: false))];
+
+            if (reasons.All(r => r is not null))
+            {
+                string accepted = string.Join(" / ", parameters.Select(p => p.Type.Name).Distinct(StringComparer.Ordinal));
+                Receiver receiver = new(ReceiverKind.Argument, accepted, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
+                ReportStruct(context, receiver, arguments[i], valueType, $"どの多重定義もこの位置で {valueType} を受け取りません ({reasons[0]})", reported);
+                return;
+            }
         }
     }
 

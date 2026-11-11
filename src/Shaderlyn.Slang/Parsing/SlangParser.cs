@@ -122,6 +122,40 @@ internal sealed class SlangParser : ShaderParser
     protected override bool IsBuiltInTypeName(string name) => SlangKeywords.IsKnownTypeName(name);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <c>vector&lt;int, 4&gt;</c> を <c>int4</c>、<c>matrix&lt;float, 2, 3&gt;</c> を <c>float2x3</c> にする (HLSL と同じ)。
+    /// 大きさを数で書いたものだけ。型引数を書かない <c>vector</c> は Slang には無いので、そろえない。
+    /// </remarks>
+    protected override string? GetCanonicalTypeName(ShaderSyntaxToken name, ShaderSyntaxToken? openAngle, ImmutableArray<ShaderSyntaxToken> templateArguments)
+    {
+        bool isVector = name.Text == "vector";
+
+        if ((!isVector && name.Text != "matrix") || openAngle is null)
+        {
+            return null;
+        }
+
+        int expected = isVector ? 3 : 5;
+
+        if (templateArguments.Length != expected || !SlangKeywords.IsKnownTypeName(templateArguments[0].Text + "4"))
+        {
+            return null;
+        }
+
+        for (int i = 1; i < expected; i += 2)
+        {
+            if (templateArguments[i].Kind != ShaderSyntaxKind.CommaToken || templateArguments[i + 1].Text is not { Length: 1 } digit || digit[0] is < '1' or > '4')
+            {
+                return null;
+            }
+        }
+
+        return isVector
+            ? templateArguments[0].Text + templateArguments[2].Text
+            : templateArguments[0].Text + templateArguments[2].Text + "x" + templateArguments[4].Text;
+    }
+
+    /// <inheritdoc/>
     protected override bool IsDeclarationModifier(string text) => SlangKeywords.IsDeclarationModifier(text);
 
     /// <inheritdoc/>

@@ -265,8 +265,8 @@ public sealed class ExpressionTypeEvaluator
             return name;
         }
 
-        // WGSL の構造体の値の作成 (S(1, 2)) は、その構造体の値になる。
-        if (TypeSystem is WgslTypeSystem && _structFields.ContainsKey(name))
+        // WGSL と Slang の構造体の値の作成 (S(1, 2)・S()) は、その構造体の値になる。Slang の型と関数は同じ名前を持てない。
+        if (TypeSystem is WgslTypeSystem or SlangTypeSystem && _structFields.ContainsKey(name))
         {
             return name;
         }
