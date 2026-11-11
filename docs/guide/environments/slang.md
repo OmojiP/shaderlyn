@@ -8,10 +8,10 @@ SG のルールは、slangc 2026.19 がエラーにするものを、slangc と�
 - 構文は HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、ジェネリック (`<T : IFoo>`、`where`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
   ポインター (`T*`)、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、GLSL の書き方 (`layout(…)`) を足したものとして読みます
 - 型は HLSL 2021 の型の決まりに、Slang の標準ライブラリの名前 (slang 2026.19 のソースから作った表) を足したもので判断します。型を書かない `let` / `var` は、初期値の型として検査します
-- 変数・仮引数・戻り値・フィールドの型と構造体の基底に書いた、どこにも宣言されていない型の名前を [CF0310](../../rules/CF0310.md) にします。
-  名前空間などで修飾した名前 (`ns::T`・`T.Differential`)、ジェネリックの制約 (`<T : IFoo>`)、`throws` の型はまだ見ません
+- 変数・仮引数・戻り値・フィールドの型、構造体の基底、ジェネリックの制約 (`<T : IFoo>`・`where T : IFoo`)、`throws` の型に書いた、どこにも宣言されていない型の名前を [CF0310](../../rules/CF0310.md) にします。
+  名前空間などで修飾した名前 (`ns::T`・`T.Differential`) はまだ見ません
 - 列挙子は、`[UnscopedEnum]` を付けた列挙型のものだけを修飾せずに書けるものとします (`Fruit.Apple`)。slangc に `-unscoped-enum` を渡すなら、[`slang: unscoped-enums`](../configuration.md#slang) を `true` にしてください
-- slangc に合わせて、変数の初期値の中では、宣言しているその変数はまだ見えません (`int e = e;` の右の `e` は外側の `e`)。`for` の初期化の変数は、ループの外では見えません
+- slangc に合わせて、変数の初期値の中では、宣言しているその変数はまだ見えません (`int e = e;` の右の `e` は外側の `e`)。`for` の初期化の変数は、ループの外では見えません。`if (let a = x)` の `a` は、then の側でだけ見えます
 - `import a.b;` のモジュール (`a/b.slang`) を、ファイルのフォルダーと [`include-paths`](../configuration.md) から探し、その宣言を使います。
   見つからないモジュールは [CF0021](../../rules/CF0021.md) になります。slangc に入っている標準のモジュール (`slang.neural` など) は探しません
 - slangc に合わせて、構造体の空の `{ }`、64 ビットに広がる整数のリテラル、局所変数で仮引数を隠すことは報告しません。

@@ -237,6 +237,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0410", "struct G<T> { T v; }\nvoid f(G<int> gi, G<float> gf)\n{\n    gi = gf;\n}\n")]
     [InlineData("CF0410", "Texture1D<float> tex;\nvoid f()\n{\n    Texture2D<float> t2 = tex;\n}\n")]
     [InlineData("CF0410", "Texture1D<float> tex;\nvoid f()\n{\n    Texture1D<int> t1 = tex;\n}\n")]
+    // if (let a = x) の a は then の側でだけ見える
+    [InlineData("CF0310", "interface IFoo { int foo(); }\nstruct MyImpl : IFoo { int foo() { return 1; } }\nint test(IFoo foo)\n{\n    if (let a = foo as MyImpl)\n    {\n        return a.foo();\n    }\n    else if (a == none)\n    {\n        return -1;\n    }\n    return 0;\n}\n")]
+    // throws の型とジェネリックの制約の型
+    [InlineData("CF0310", "void computeMain() throws NotAType\n{\n}\n")]
+    [InlineData("CF0310", "T addValues<T : IAdditive>(T left, T right) { return left; }\n")]
+    [InlineData("CF0310", "T h<T>(T x) where T : IMissing { return x; }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -319,6 +325,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct S\n{\n    int x;\n    int operator()(int a) { return a + x; }\n}\nS operator-(S a, S b) { return a; }\nM operator?:(bool c, M a, M b) { return c ? a : b; }\nstruct M { int v; }\n")]
     // 同じ型引数のジェネリックの型、受け取れる多重定義のある構造体の値
     [InlineData("struct G<T> { T v; }\nstruct Test {}\nfloat pick(float x) { return x; }\nfloat pick(Test t) { return 0; }\nTexture1D<float> tex;\nvoid f(G<int> gi)\n{\n    G<int> g2 = gi;\n    Texture1D<float> t3 = tex;\n    float r = pick(Test()) + pick(1.0);\n}\n")]
+    // 宣言した型と標準の型の制約、ジェネリックの仮引数の throws、then の側の if-let の変数
+    [InlineData("interface IShape { float area(); }\nenum MyError { Fail }\nT pick<T : IShape>(T a) { return a; }\nT twice<T : IArithmetic, let N : int>(T x) where T : IComparable { return x; }\nint g() throws MyError { return 1; }\nfloat use(IShape s)\n{\n    if (let c = s as IShape) { return c.area(); }\n    return 0;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

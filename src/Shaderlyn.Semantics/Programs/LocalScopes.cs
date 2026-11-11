@@ -126,12 +126,16 @@ internal sealed class LocalScopes
     /// <param name="unbracedBodyIsScope">
     /// 波括弧を書かない制御文の本体が、それだけで範囲になるか。GLSL はなる (<c>if (c) int j = 1;</c> の <c>j</c> は後ろで見えない)。
     /// </param>
+    /// <param name="conditionDeclarationsInThenOnly">
+    /// <c>if</c> の条件に書いた宣言 (Slang の <c>if (let a = x)</c>) を、then の側だけに載せるか。載せなければ、範囲の規則に載らない宣言として扱う。
+    /// </param>
     public LocalScopes(
         FunctionDeclarationSyntax function,
         ConditionMap conditions,
         bool loopVariablesLeak = true,
         bool ownNameInInitializer = true,
-        bool unbracedBodyIsScope = false)
+        bool unbracedBodyIsScope = false,
+        bool conditionDeclarationsInThenOnly = false)
     {
         ArgumentNullException.ThrowIfNull(function);
         ArgumentNullException.ThrowIfNull(conditions);
@@ -190,6 +194,10 @@ internal sealed class LocalScopes
 
                 case WhileStatementSyntax { Condition: ConditionDeclarationExpressionSyntax condition } loop:
                     AddDeclaration(loop, -1, condition.Declaration, tracked);
+                    break;
+
+                case IfStatementSyntax { Condition: ConditionDeclarationExpressionSyntax condition } branch when conditionDeclarationsInThenOnly:
+                    AddDeclaration(branch.ThenStatement, -1, condition.Declaration, tracked);
                     break;
 
                 default:

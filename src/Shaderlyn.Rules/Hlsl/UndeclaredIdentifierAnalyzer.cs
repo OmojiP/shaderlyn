@@ -95,6 +95,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         Dictionary<AnalyzedProgram, HashSet<string>> typeNames = [];
         Dictionary<AnalyzedProgram, Glsl.GlslExtensionTimeline> timelines = [];
         HashSet<string>? slangTypeNames = null;
+        Dictionary<AnalyzedProgram, Dictionary<ShaderSyntaxToken, int>>? slangPositions = null;
 
         // 報告できるのは利用者が書いたコードだけである。
         // 展開後の木の大半はヘッダで、そこを歩いても 1 件も見つからない。
@@ -150,6 +151,22 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             {
                 undeclaredTypes.TryAdd((slangLocation.FilePath, slangLocation.Span.Start), (slangLocation, slangType.NameToken.Text, "どこにも"));
                 continue;
+            }
+
+            // Slang の関数の throws の型と、ジェネリックの制約 (<T : IFoo>・where T : IFoo) の型。構文木に残らないので、トークンの並びから読む。
+            if (compilation.IsSlang
+                && node is FunctionDeclarationSyntax slangFunction
+                && compilation.HasCompleteDependenciesAt(slangFunction))
+            {
+                foreach (ShaderSyntaxToken constraint in SlangSignatureTypes(program, slangFunction, ref slangPositions))
+                {
+                    if (compilation.IsReportable(constraint)
+                        && IsUndeclaredSlangType(compilation, program, constraint.Text, ref slangTypeNames, ignoreUnanalyzed: true)
+                        && constraint.GetLocation() is { } constraintLocation)
+                    {
+                        undeclaredTypes.TryAdd((constraintLocation.FilePath, constraintLocation.Span.Start), (constraintLocation, constraint.Text, "どこにも"));
+                    }
+                }
             }
 
             if (node is IdentifierExpressionSyntax identifier)
@@ -212,11 +229,94 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
         return word.Kind == Shaderlyn.Glsl.Parsing.GlslWordKind.Keyword || word.IsReservedError;
     }
 
+    /// <summary>
+    /// Slang の関数の、throws の型と、ジェネリックの制約の型の名前のトークン (<c>throws E</c> の E、<c>&lt;T : IFoo&gt;</c> と <c>where T : IFoo</c> の IFoo)。
+    /// </summary>
+    /// <remarks>
+    /// 構文解析はこれらを読み飛ばした宣言の名前に入れる (<see cref="ShaderCompilation.UnanalyzedIdentifiers"/>) ので、宣言されているかは読み飛ばした名前を除いて確かめる。
+    /// 関数と、囲む型のジェネリックの仮引数の名前は除く。<c>where</c> の型の側 (T) は見ず、<c>:</c> の後ろだけを見る。
+    /// </remarks>
+    private static IEnumerable<ShaderSyntaxToken> SlangSignatureTypes(AnalyzedProgram program, FunctionDeclarationSyntax function, ref Dictionary<AnalyzedProgram, Dictionary<ShaderSyntaxToken, int>>? positions)
+    {
+        positions ??= [];
+
+        if (!positions.TryGetValue(program, out Dictionary<ShaderSyntaxToken, int>? index))
+        {
+            index = positions[program] = new Dictionary<ShaderSyntaxToken, int>(ReferenceEqualityComparer.Instance);
+            ImmutableArray<ShaderSyntaxToken> all = program.Tree.PreprocessResult.Tokens;
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                index[all[i]] = i;
+            }
+        }
+
+        ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+        HashSet<string> generic = [.. ParameterNames(function.GenericParameterTokens)];
+
+        foreach (StructDeclarationSyntax owner in function.Ancestors().OfType<StructDeclarationSyntax>())
+        {
+            generic.UnionWith(ParameterNames(owner.GenericParameterTokens));
+        }
+
+        List<ShaderSyntaxToken> found = [];
+
+        // <T : IFoo, let N : int> の : の後ろ (入れ子の < > の中は見ない)。関数の名前と ( の間のトークンを読む (__generic<…> は仮引数のトークンに残る)。
+        ImmutableArray<ShaderSyntaxToken> parameters = function.GenericParameterTokens;
+
+        if (parameters.IsDefaultOrEmpty && index.TryGetValue(function.NameToken, out int named) && index.TryGetValue(function.OpenParen, out int open) && named < open)
+        {
+            parameters = [.. parameters, .. tokens.Skip(named + 1).Take(open - named - 1)];
+            generic.UnionWith(ParameterNames(parameters));
+        }
+        int depth = 0;
+
+        for (int i = 0; i + 1 < parameters.Length; i++)
+        {
+            depth += parameters[i].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+            if (depth <= 1 && parameters[i].Kind == ShaderSyntaxKind.ColonToken && parameters[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                && !(i + 2 < parameters.Length && parameters[i + 2].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
+            {
+                found.Add(parameters[i + 1]);
+            }
+        }
+
+        // 仮引数の ) から本体の { (か ;) までの throws と where。
+        if (index.TryGetValue(function.CloseParen, out int start))
+        {
+            bool constraint = false;
+
+            for (int i = start + 1; i + 1 < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+            {
+                bool next = tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                            && !(i + 2 < tokens.Length && tokens[i + 2].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken);
+
+                if (tokens[i].Text == "where")
+                {
+                    constraint = true;
+                }
+                else if (next && (tokens[i].Text == "throws" || (constraint && tokens[i].Kind == ShaderSyntaxKind.ColonToken)))
+                {
+                    found.Add(tokens[i + 1]);
+                }
+            }
+        }
+
+        return found.Where(t => !generic.Contains(t.Text));
+    }
+
+    /// <summary>ジェネリックの仮引数の並び (<c>&lt;T : IFoo, let N : int&gt;</c>) の、仮引数の名前 (T・N)。: の後ろの型の名前は含まない。</summary>
+    private static IEnumerable<string> ParameterNames(ImmutableArray<ShaderSyntaxToken> parameters)
+        => parameters.IsDefaultOrEmpty ? [] : parameters.Where((t, i) => t.Kind == ShaderSyntaxKind.IdentifierToken && t.Text is not ("let" or "each")
+                                                && (i == 0 || parameters[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken || parameters[i - 1].Text is "let" or "each")).Select(t => t.Text);
+
     /// <summary>Slang の型の名前が、どこにも宣言されていないか。</summary>
     /// <param name="compilation">対象のモデル。</param>
     /// <param name="program">型を使う木。</param>
     /// <param name="name">型の名前。</param>
     /// <param name="cache">モデルの中で宣言した名前 (初めて使うときに集める)。</param>
+    /// <param name="ignoreUnanalyzed">読み飛ばした宣言の名前を、宣言として数えないか (読み飛ばした位置そのものの型を確かめるとき)。</param>
     /// <returns>宣言されていなければ <see langword="true"/>。</returns>
     /// <remarks>
     /// <para>
@@ -228,7 +328,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     /// 読み飛ばした宣言の名前 (<see cref="ShaderCompilation.UnanalyzedIdentifiers"/>) から足す。マクロの名前も足す。
     /// </para>
     /// </remarks>
-    private static bool IsUndeclaredSlangType(ShaderCompilation compilation, AnalyzedProgram program, string name, ref HashSet<string>? cache)
+    private static bool IsUndeclaredSlangType(ShaderCompilation compilation, AnalyzedProgram program, string name, ref HashSet<string>? cache, bool ignoreUnanalyzed = false)
     {
         // 型を書かない let / var と functype は、キーワードを型の名前にしている (SlangParser)。This は型の中の自分の型。
         // __ で始まる名前は、コンパイラの組み込み (__first(T) など)。
@@ -236,7 +336,7 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
             || name.StartsWith("__", StringComparison.Ordinal)
             || compilation.TypeSystem.ForTree(program.Tree).IsBuiltInTypeName(name)
             || program.Tree.Root.TypeAliases.ContainsKey(name)
-            || compilation.UnanalyzedIdentifiers.Contains(name)
+            || (!ignoreUnanalyzed && compilation.UnanalyzedIdentifiers.Contains(name))
             || compilation.Environment.IsDefinedByEngine(name))
         {
             return false;
