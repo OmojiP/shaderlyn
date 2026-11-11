@@ -323,6 +323,15 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0102", "RWStructuredBuffer<uint> inputBuffer;\nstatic RWStructuredBuffer<uint> gBuffer = inputBuffer;\n")]
     [InlineData("SG0354", "void useEach<T>(expand each T values) { }\n")]
     [InlineData("SG0354", "int f()\n{\n    int x = 0;\n    expand (x + 1);\n    return x;\n}\n")]
+    // ジェネリックの仮引数の書き方 (値の仮引数の型、制約に書けない型、前を指す制約、extension の型の仮引数、型引数の無いジェネリックの型)
+    [InlineData("SG0358", "void useValue<let N>(int x) { }\n")]
+    [InlineData("SG0358", "void withFloat<let F : float>(int x) { }\n")]
+    [InlineData("SG0358", "struct Foo1<D : int> { }\n")]
+    [InlineData("SG0358", "interface IFloat {}\ninterface IFoo<T : IFloat> {}\nvoid test1<Foo : IFoo<T>, T : IFloat>() { }\n")]
+    [InlineData("SG0358", "extension<T> int\n{\n    void foo() { }\n}\n")]
+    [InlineData("SG0358", "Buffer b0;\n")]
+    // インターフェイスの要件の初期値
+    [InlineData("SG0101", "interface Bug\n{\n    static const int badVar = 0;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -439,6 +448,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct Counter\n{\n    int count;\n    [mutating] void increment() { count++; }\n    [mutating] void twice() { increment(); increment(); }\n}\nvoid main()\n{\n    Counter c;\n    c.increment();\n}\n")]
     // 大きさを書いた配列の countof、static const の値、each の型の仮引数
     [InlineData("int arr[4];\nstatic const int k = 2;\nint count<each T>(expand each T values) { return countof(T); }\nint f()\n{\n    return countof(arr) + k;\n}\n")]
+    // 値の仮引数、インターフェイスの制約、前の仮引数を指す制約、制約を通して決まる extension の型の仮引数、既定の型引数
+    [InlineData("interface IFloat {}\ninterface IBuf<T> {}\ninterface IFoo<T : IFloat> {}\nvoid test3<T : IFloat, Foo : IFoo<T>>() { }\nvoid sized<let N : int, let B : bool>() { }\nextension<T, U : IBuf<T>> U\n{\n    void bar() { }\n}\nstruct D<T = float> { T v; }\nvoid f(D d, Buffer<float4> b) { }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

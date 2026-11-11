@@ -437,6 +437,18 @@ internal static class SlangRuleDescriptors
         description: "配列の大きさの式が 0 で割っているか、配列の大きさを負の数にしています。slangc はコンパイルの誤り (E30002・E30025) にします。",
         helpLinkUri: DocumentationLinks.For("SG0357"));
 
+    /// <summary>ジェネリックの仮引数の書き方の誤り。</summary>
+    public static DiagnosticDescriptor GenericParameterForm { get; } = new(
+        id: "SG0358",
+        title: "ジェネリックの仮引数の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "値の仮引数 (let N) に型を書いていないか整数・列挙型・bool でない型を書いているか、制約にインターフェイスでない型 (int・構造体) を書いているか、"
+            + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていません。"
+            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0358"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
