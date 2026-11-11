@@ -129,6 +129,20 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                     case VariableDeclarationSyntax declaration:
                         foreach (VariableDeclaratorSyntax variable in declaration.Variables)
                         {
+                            // SamplerDescriptorHeap[i] はサンプラーに、ResourceDescriptorHeap[i] は資源にだけなる (E30019)。.Handle の型も同じ。
+                            if (variable.Initializer is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "SamplerDescriptorHeap" or "ResourceDescriptorHeap" } heap }
+                                && (declaration.Type.NameToken.Text == "Handle" && !declaration.Type.QualifierTokens.IsDefaultOrEmpty ? declaration.Type.QualifierTokens[0].Text
+                                    : declaration.Type.QualifierTokens.IsDefaultOrEmpty ? declaration.Type.NameToken.Text : string.Empty) is { Length: > 0 } heapTarget
+                                && (heapTarget.StartsWith("Sampler", StringComparison.Ordinal) ? heap.Name == "ResourceDescriptorHeap"
+                                    : heapTarget.Contains("Texture", StringComparison.Ordinal) || heapTarget.EndsWith("Buffer", StringComparison.Ordinal) ? heap.Name == "SamplerDescriptorHeap" : false)
+                                && compilation.IsReportable(variable.Initializer) && variable.Initializer.GetLocation() is { } heapLocation)
+                            {
+                                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, heapLocation, heapTarget, $"{heap.Name} の要素",
+                                    heap.Name == "SamplerDescriptorHeap" ? "SamplerDescriptorHeap からはサンプラーだけを作れます。資源は ResourceDescriptorHeap から作ってください。"
+                                        : "ResourceDescriptorHeap からは資源だけを作れます。サンプラーは SamplerDescriptorHeap から作ってください。"));
+                                continue;
+                            }
+
                             if (variable.Initializer is { } initializer && !variable.IsArray && declaration.Type.OpenAngle is not null)
                             {
                                 Check(new ResolvedTypeName(declaration.Type.Name, false, TemplateText(declaration.Type)), initializer);

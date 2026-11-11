@@ -297,6 +297,8 @@ public sealed class SlangRuleTests : IDisposable
     // 要素の型の違う T* どうしと、インターフェイスの型の値のアドレス
     [InlineData("CF0410", "interface IBase { int getVal(); }\nstruct Foo : IBase { int val; int getVal() { return val; } }\nvoid f()\n{\n    Foo x;\n    Foo* pf = &x;\n    IBase* ip = pf;\n}\n")]
     [InlineData("CF0410", "interface IFoo { int get(); }\nvoid f(IFoo local)\n{\n    IFoo* p = &local;\n}\n")]
+    // SamplerDescriptorHeap と ResourceDescriptorHeap の取り違え
+    [InlineData("CF0410", "void f(uint i)\n{\n    Texture2D.Handle bad1 = SamplerDescriptorHeap[i];\n    SamplerState bad4 = ResourceDescriptorHeap[i];\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
