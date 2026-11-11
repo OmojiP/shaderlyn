@@ -82,12 +82,48 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, location, Show(target), Show(source), reason));
             }
 
+            // 構造体の名前 (extension の中の入れ子の型も、トークンの並びから集める) と、別名にした名前。
+            ImmutableArray<ShaderSyntaxToken> all = program.Tree.PreprocessResult.Tokens;
+            HashSet<string> structNames = new(StringComparer.Ordinal);
+            HashSet<string> aliasNames = [.. root.TypeAliases.Keys];
+
+            for (int i = 0; i + 2 < all.Length; i++)
+            {
+                if (all[i].Text is "struct" or "class" && all[i + 1].Kind == ShaderSyntaxKind.IdentifierToken && all[i + 2].Kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.ColonToken)
+                {
+                    structNames.Add(all[i + 1].Text);
+                }
+                else if (all[i].Text is "typealias" or "typedef" or "associatedtype" && all[i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    aliasNames.Add(all[i + 1].Text);
+                }
+            }
+
+            // 入れ子の型 (A<T>.B・A.B.C) の変数への、数のリテラルの代入。最後の名前が構造体なら、数から暗黙に変換できない (E30019)。
+            void CheckNested(AssignmentExpressionSyntax assignment)
+            {
+                if (assignment.Right is not LiteralExpressionSyntax { Token.Kind: ShaderSyntaxKind.NumericLiteralToken } literal
+                    || assignment.Left is not IdentifierExpressionSyntax target
+                    || binder.ResolveName(target).Candidates is not [{ Declarator: VariableDeclaratorSyntax { IsArray: false, Parent: VariableDeclarationSyntax { Type: var type } } }]
+                    || (type.NestedTypeTokens.IsDefaultOrEmpty ? (type.QualifierTokens.IsDefaultOrEmpty ? null : type.NameToken) : type.NestedTypeTokens.LastOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken)) is not { } last
+                    || !structNames.Contains(last.Text) || aliasNames.Contains(last.Text)
+                    || !compilation.IsReportable(literal) || literal.GetLocation() is not { } location)
+                {
+                    return;
+                }
+
+                string shown = string.Concat(type.QualifierTokens.IsDefaultOrEmpty ? [] : type.QualifierTokens.Select(t => t.Text)) + type.NameToken.Text + string.Concat(type.TemplateArguments.IsDefaultOrEmpty ? [] : type.TemplateArguments.Select(t => t.Text).Prepend("<").Append(">")) + string.Concat(type.NestedTypeTokens.Select(t => t.Text));
+                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, location, shown, ShaderLiteral.GetKind(literal.Token) == ShaderLiteralKind.Floating ? "float" : "int",
+                    "数は構造体へ暗黙に変換されません。"));
+            }
+
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
                 {
                     case AssignmentExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsToken } assignment when TypeOf(assignment.Left) is { } left:
                         Check(left, assignment.Right);
+                        CheckNested(assignment);
                         break;
 
                     case VariableDeclarationSyntax declaration:

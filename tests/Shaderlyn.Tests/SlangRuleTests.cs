@@ -285,6 +285,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0354", "int badValueUse<let each D : int>()\n{\n    return __first(D);\n}\n")]
     [InlineData("SG0354", "void consumeNonEmpty<let each D : int>() where nonempty(D) {}\nvoid badForward<let each D : int>()\n{\n    consumeNonEmpty<D>();\n}\n")]
     [InlineData("SG0354", "int f()\n{\n    return __first(makeTuple());\n}\n")]
+    // extension で宣言した入れ子の型と、修飾した入れ子の型への数の代入
+    [InlineData("CF0410", "struct N { float value; }\nextension N\n{\n    struct Config { float threshold; }\n}\nvoid f()\n{\n    N.Config c;\n    c = 0;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
