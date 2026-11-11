@@ -416,6 +416,17 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E30111・E30112) にします。",
         helpLinkUri: DocumentationLinks.For("SG0355"));
 
+    /// <summary>アドレスを取れない値。</summary>
+    public static DiagnosticDescriptor AddressNotTakable { get; } = new(
+        id: "SG0356",
+        title: "この値のアドレスは取れません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "読むだけの資源 (StructuredBuffer・Texture など) の要素のアドレスを &x か __getAddress(x) で取っているか、GPU のコンパイル先で局所変数か仮引数のアドレスを __getAddress で取っています。"
+            + "slangc はコンパイルの誤り (E30079・E31160) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0356"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",

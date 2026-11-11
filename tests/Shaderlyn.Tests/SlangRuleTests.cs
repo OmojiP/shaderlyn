@@ -307,6 +307,8 @@ public sealed class SlangRuleTests : IDisposable
     // public の構造体の public でないフィールドは、作られる __init の仮引数にならない
     [InlineData("SG0351", "public struct HasPrivateMember\n{\n    private int data;\n}\nvoid f()\n{\n    HasPrivateMember a = HasPrivateMember({ 1 });\n}\n")]
     [InlineData("SG0351", "public struct Visibility\n{\n    internal int x;\n    public int y = 0;\n}\nvoid f()\n{\n    Visibility t1 = {1, 2};\n}\n")]
+    // 読むだけの資源の要素のアドレス
+    [InlineData("SG0356", "StructuredBuffer<float> constants;\nvoid f()\n{\n    float* p = __getAddress(constants[0]);\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -437,6 +439,38 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("spirv", true)]
+    [InlineData("cpp", false)]
+    public async Task 局所変数のgetAddressは設定ファイルでGPUのコンパイル先にしたときだけ報告する(string? target, bool reported)
+    {
+        if (target is not null)
+        {
+            File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $"slang:\n  target: {target}\n");
+        }
+
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "void sink(int* p) { }\nvoid f(int param)\n{\n    int* a = __getAddress(param);\n    sink(a);\n}\n");
+        StringWriter output = new();
+        StringWriter error = new();
+
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(reported, output.ToString().Contains("error SG0356", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 別のモジュールのpublicでない__initの呼び出しを報告する()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "helper.slang"), "module helper;\npublic struct B { __init(float b) {} }\npublic struct D { public __init(float d) {} }\n");
+
+        string output = await AnalyzeAsync("import helper;\nvoid f()\n{\n    B bar = B(0.0);\n    D ok = D(1.0);\n}\n", "user.slang");
+
+        Assert.Contains("user.slang(4:13): error SG0401", output, StringComparison.Ordinal);
+        Assert.Equal(1, output.Split("SG0401").Length - 1);
     }
 
     [Fact]

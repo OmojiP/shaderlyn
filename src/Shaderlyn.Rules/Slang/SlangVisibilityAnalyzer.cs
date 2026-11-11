@@ -263,6 +263,14 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                     Report(typeName, $"'{typeName.Text}' は別のモジュール ({hiddenFile[typeName.Text]}) の public でない宣言なので、このモジュールからは使えません。");
                     break;
 
+                // B(0.0) (別のモジュールの構造体の、public でない __init の呼び出し)。
+                case InvocationExpressionSyntax { TargetName: { } constructed } construction
+                    when foreignStructs.TryGetValue(constructed, out (string File, bool Since2026, HashSet<string> Hidden) constructedInfo)
+                         && constructedInfo.Hidden.Contains("__init")
+                         && construction.Target.FirstToken is { } constructedToken:
+                    Report(constructedToken, $"{constructed} の __init は別のモジュール ({constructedInfo.File}) の public でない宣言なので、このモジュールからは呼べません。");
+                    break;
+
                 case MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access
                     when foreignStructs.Count > 0
                          && binder.GetEvaluatorFor(access.Target).Evaluate(access.Target) is { } type

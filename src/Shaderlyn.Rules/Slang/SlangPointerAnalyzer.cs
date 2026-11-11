@@ -32,7 +32,7 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [HlslRuleDescriptors.ValueNotConvertible, SlangRuleDescriptors.NotWritable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [HlslRuleDescriptors.ValueNotConvertible, SlangRuleDescriptors.NotWritable, SlangRuleDescriptors.AddressNotTakable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -144,6 +144,14 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
                 _ => false,
             };
 
+            // 読むだけの資源の要素 (StructuredBuffer の s[i] など)。
+            bool ReadOnlyElement(ExpressionSyntax expression)
+                => expression is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax buffer }
+                   && DeclaredType(buffer)?.NameToken.Text is "StructuredBuffer" or "Buffer" or "ByteAddressBuffer" or "ConstantBuffer" || expression is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax texture } && DeclaredType(texture)?.NameToken.Text is { } textureType && textureType.StartsWith("Texture", StringComparison.Ordinal);
+
+            // 局所変数と仮引数のアドレスは、CPU と CUDA のコンパイル先では取れる。コンパイル先を設定ファイル (slang: target) に書いて GPU のものと決まるときだけ見る。
+            bool gpu = compilation.Environment is Semantics.Environments.SlangEnvironment { Target: { } configured, TargetsHost: false } && configured.Length > 0;
+
             void Report(DiagnosticDescriptor descriptor, ExpressionSyntax at, params object?[] arguments)
             {
                 if (compilation.IsReportable(at) && at.GetLocation() is { } location)
@@ -173,6 +181,23 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
                                 Report(HlslRuleDescriptors.ValueNotConvertible, initializer, target.ToString(), source.ToString(),
                                     "要素の型・アクセス・アドレス空間の違うポインターは、暗黙に変換されません。Ptr<…>(p) と書いて変換してください。");
                             }
+                        }
+
+                        break;
+
+                    // __getAddress(x)。GPU のコンパイル先 (設定ファイルに書いたもの) では、局所変数と仮引数のアドレスは取れない (E31160)。読むだけの資源の要素のアドレスも取れない (&s[i] と InterlockedAdd は SG0309 が見る)。
+                    case InvocationExpressionSyntax { TargetName: "__getAddress" } address when address.ArgumentExpressions.ToArray() is [var addressed]:
+                        if (ReadOnlyElement(addressed))
+                        {
+                            Report(SlangRuleDescriptors.AddressNotTakable, addressed, "読むだけの資源の要素のアドレスは取れません。");
+                        }
+                        else if (gpu && addressed is IdentifierExpressionSyntax local
+                                 && binder.ResolveName(local).Kind == DeclaredNameKind.Local
+                                 && DeclaredType(local) is { } localType
+                                 && localType.NameToken.Text is not ("ConstantBuffer" or "ParameterBlock")
+                                 && !(binder.ResolveName(local).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax shared } }] && shared.ModifierTokens.Any(t => t.Text == "groupshared")))
+                        {
+                            Report(SlangRuleDescriptors.AddressNotTakable, addressed, $"GPU のコンパイル先では、局所変数と仮引数 ('{local.Name}') のアドレスは取れません。");
                         }
 
                         break;
