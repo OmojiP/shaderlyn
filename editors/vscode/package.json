@@ -1,8 +1,8 @@
 {
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
-  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL・Godot のシェーダー (.gdshader)・Slang・WGSL は宣言・型・呼び出しを検査する",
-  "version": "0.3.3",
+  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL・Godot のシェーダー (.gdshader)・Slang・WGSL は、それぞれのコンパイラ (glslang・Godot 4・slangc・naga) と同じ誤りを報告する",
+  "version": "0.3.4",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",

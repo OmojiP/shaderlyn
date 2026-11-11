@@ -10,6 +10,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.4] - 2026-11-11
+
 Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4.7.2・slangc 2026.19・naga 30 がエラーにする箇所を、それぞれのコンパイラと同じ行で報告する
 (Godot シェーダー言語の GD、Slang の SG、WGSL の WG のルールを足した)。どの言語も、コンパイラが通すファイルではエラーを出さない。
 
@@ -1024,7 +1026,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/OmojiP/shaderlyn/compare/v0.3.0...v0.3.1
