@@ -95,9 +95,28 @@ internal sealed class SlangParser : ShaderParser
     public bool UnscopedEnums { get; init; }
 
     /// <inheritdoc/>
-    /// <remarks>Slang は z (大きさの整数) と d (double) も読む。</remarks>
+    /// <remarks>
+    /// slangc 2026.19 に読ませて確かめた形。浮動小数は f・h・l をそれぞれ 1 つまで (h と l は組めない)、大文字と小文字をそろえる (1.0hf・1.0LF・1.0fl)。
+    /// 整数は u を 1 つまでと、l・ll・z のどれか 1 つ (ll は大文字と小文字をそろえる。1ull・1zu・1Lu)。d (1.0d) は誤り。
+    /// </remarks>
     protected override bool IsNumericSuffixAccepted(string suffix, bool floating)
-        => suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L' or 'z' or 'Z' or 'd' or 'D');
+    {
+        if (floating)
+        {
+            return suffix.Length <= 2
+                   && suffix.Count(c => c is 'f' or 'F') <= 1
+                   && suffix.Count(c => c is 'h' or 'H' or 'l' or 'L') <= 1
+                   && suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'l' or 'L')
+                   && (suffix.All(char.IsLower) || suffix.All(char.IsUpper));
+        }
+
+        if (suffix.All(c => c is 'u' or 'U' or 'l' or 'L' or 'z' or 'Z'))
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(suffix, "^(?:[uU]?(?:l|L|ll|LL|z|Z)?|(?:l|L|ll|LL|z|Z)[uU])$");
+        }
+
+        return suffix.All(c => c is 'f' or 'F' or 'h' or 'H' or 'u' or 'U' or 'l' or 'L');
+    }
 
     /// <inheritdoc/>
     protected override bool IsBuiltInTypeName(string name) => SlangKeywords.IsKnownTypeName(name);
@@ -611,6 +630,67 @@ internal sealed class SlangParser : ShaderParser
     /// <inheritdoc/>
     protected override ExpressionSyntax? TryParseLanguagePrimary()
     {
+        // 1.0d・0ZZ・0x1p0g (数のすぐ後ろに続けた名前)。字句解析は数と名前に分けるが、slangc は数の接尾辞として読み、使えない接尾辞の誤りにする。
+        // 0.xx (数のスウィズル) は、数が . で終わるので除く。
+        if (Current.Kind == ShaderSyntaxKind.NumericLiteralToken
+            && !Current.Text.EndsWith('.')
+            && Peek(1) is { Kind: ShaderSyntaxKind.IdentifierToken } glued
+            && ReferenceEquals(glued.Source, Current.Source)
+            && glued.Span.Start == Current.Span.End)
+        {
+            ShaderSyntaxToken literal = Current;
+            string combined = ShaderLiteral.GetSuffix(literal) + glued.Text;
+
+            // 1zU (z の後ろの u を字句解析が名前として分けたもの) は、続けて 1 つの正しい接尾辞になる。
+            if (!(combined.All(c => c is 'u' or 'U' or 'l' or 'L' or 'z' or 'Z') && ShaderLiteral.GetKind(literal) != ShaderLiteralKind.Floating
+                  && IsNumericSuffixAccepted(combined, floating: false)))
+            {
+                ReportError($"数値リテラルの接尾辞 '{combined}' は Slang では使えません。");
+            }
+
+            Advance();
+            Advance();
+            return new LiteralExpressionSyntax(literal);
+        }
+
+        // 2.4#INFf (無限大のリテラル)。#INF の F は接尾辞ではないので、その後ろだけを見る。
+        if (Current.Kind == ShaderSyntaxKind.NumericLiteralToken && Current.Text.IndexOf('#', StringComparison.Ordinal) is var hash and >= 0)
+        {
+            string rest = Current.Text[(hash + 1)..];
+            string word = new([.. rest.TakeWhile(char.IsAsciiLetterUpper)]);
+            string infinitySuffix = rest[word.Length..];
+
+            if (infinitySuffix.Length > 0 && !IsNumericSuffixAccepted(infinitySuffix, floating: true))
+            {
+                ReportError($"数値リテラルの接尾辞 '{infinitySuffix}' は Slang では使えません。");
+            }
+
+            return new LiteralExpressionSyntax(Advance());
+        }
+
+        // 0LZ・1.0z (z で終わる接尾辞)。共通の接尾辞の読み方 (ShaderLiteral) は z を数えないので、ここで見る。
+        if (Current.Kind == ShaderSyntaxKind.NumericLiteralToken && Current.Text.Length > 0 && Current.Text[^1] is 'z' or 'Z')
+        {
+            string text = Current.Text;
+            bool hex = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+            bool floating = text.Contains('.', StringComparison.Ordinal)
+                            || (hex ? text.IndexOfAny(['p', 'P']) >= 0 : text.IndexOfAny(['e', 'E']) >= 0);
+            int start = text.Length;
+
+            while (start > 0 && text[start - 1] is 'u' or 'U' or 'l' or 'L' or 'z' or 'Z' || (start > 0 && !hex && text[start - 1] is 'f' or 'F' or 'h' or 'H'))
+            {
+                start--;
+            }
+
+            string suffix = text[start..];
+
+            if (!IsNumericSuffixAccepted(suffix, floating))
+            {
+                ReportError($"数値リテラルの接尾辞 '{suffix}' は Slang では使えません。");
+                return new LiteralExpressionSyntax(Advance());
+            }
+        }
+
         // ポインターの参照 (*p) とアドレス (&x)。
         if (Current.Kind is ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.AmpersandToken)
         {

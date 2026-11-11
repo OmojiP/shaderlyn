@@ -57,6 +57,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.ResourceInContainer,
         SlangRuleDescriptors.InvalidTexelType,
         SlangRuleDescriptors.ReferenceField,
+        SlangRuleDescriptors.DeclarationNotAllowed,
         HlslRuleDescriptors.Redeclaration,
     ];
 
@@ -126,6 +127,16 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     // 同じ属性を 2 度 ([numthreads] など)。
                     case FunctionDeclarationSyntax function:
                         CheckAttributesAndVisibility(function.Attributes, function.ModifierTokens, Report);
+
+                        // 型の中の演算子 (E30073)。演算子は関数の外に書く。呼び出しの operator() だけは型の中に書ける。
+                        if (!function.OperatorTokens.IsDefaultOrEmpty
+                            && function.Parent is StructDeclarationSyntax owner
+                            && function.OperatorTokens is not [{ Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.CloseParenToken }])
+                        {
+                            Report(SlangRuleDescriptors.DeclarationNotAllowed, function.NameToken,
+                                $"演算子 operator{string.Concat(function.OperatorTokens.Select(t => t.Text))} は、型 ({owner.Name}) の中に書けません。関数の外に、仮引数を 2 つ (単項なら 1 つ) にして書いてください。");
+                        }
+
                         break;
                 }
             }

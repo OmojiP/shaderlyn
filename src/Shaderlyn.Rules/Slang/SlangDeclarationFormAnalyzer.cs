@@ -372,6 +372,11 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
             {
                 report(SlangRuleDescriptors.ModifierNotAllowed, token, "[[vk::offset]] は、構造体のフィールドにだけ書けます。");
             }
+            else if (token.Text is "__magic_type" or "__magic_enum" or "__builtin_type" or "__builtin_requirement"
+                     && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken)
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, token, $"{token.Text} は、slangc の標準のモジュールの中でだけ書けます。");
+            }
             else if (token.Text == "dyn" && i + 1 < tokens.Length
                      && (tokens[i + 1].Text is "struct" or "enum" or "class"
                          || (i + 3 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken

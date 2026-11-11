@@ -46,6 +46,8 @@ public sealed class SlangSyntaxTests
     [InlineData("#version 460\nlayout(std430, binding = 0) buffer testBuffer\n{\n    uint data;\n}\nlayout(local_size_x = 1) in;\nprecision highp float;\n")]
     // #language と typedef の ; の省略
     [InlineData("#language slang 2026\ntypedef uint Type\nstruct S { Type t; }\n")]
+    // 数の接尾辞 (slangc が通すもの)、無限大のリテラル、数のスウィズル
+    [InlineData("void f()\n{\n    var a = 1.0hf + 1.0LF + 1.0fl + 1.0h;\n    var b = 1zU + 1uLL + 1Lu + 1llu;\n    float c = 2.4#INFf;\n    float2 d = 0.xx;\n}\n")]
     public void slangcが通す書き方を構文エラーにしない(string code)
     {
         ShaderSyntaxTree tree = Parse(code);
@@ -58,6 +60,12 @@ public sealed class SlangSyntaxTests
     [InlineData("struct S\n{\n    float a\n}\n", 4)]
     [InlineData("func f(a : int) -> int\n{\n    return a +;\n}\n", 3)]
     [InlineData("struct S { int a; }\ntypedef int;\n", 2)]
+    // 使えない数の接尾辞 (数のすぐ後ろに続けた名前も)
+    [InlineData("void f()\n{\n    float x = 1.0ff;\n}\n", 3)]
+    [InlineData("void f()\n{\n    float x = 1.0d;\n}\n", 3)]
+    [InlineData("void f()\n{\n    int x = 0LUL;\n}\n", 3)]
+    [InlineData("void f()\n{\n    int x = 0ZZ;\n}\n", 3)]
+    [InlineData("void f()\n{\n    float x = 1.0z;\n}\n", 3)]
     public void 構文の誤りを報告する(string code, int line)
     {
         ShaderSyntaxTree tree = Parse(code);

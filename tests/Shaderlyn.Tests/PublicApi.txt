@@ -1154,6 +1154,7 @@ Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.LinePositionSpan GetLinePo
 Shaderlyn.Core.Text.SourceText :: Shaderlyn.Core.Text.TextSpan GetLineSpan(System.Int32)
 Shaderlyn.Core.Text.SourceText :: System.Boolean IsUtf16 { get; }
 Shaderlyn.Core.Text.SourceText :: System.Char Item[System.Int32] { get; }
+Shaderlyn.Core.Text.SourceText :: System.Collections.Immutable.ImmutableArray`1[System.Int32] InvalidUtf8Offsets { get; }
 Shaderlyn.Core.Text.SourceText :: System.Int32 GetOffset(Shaderlyn.Core.Text.LinePosition)
 Shaderlyn.Core.Text.SourceText :: System.Int32 Length { get; }
 Shaderlyn.Core.Text.SourceText :: System.Int32 LineCount { get; }

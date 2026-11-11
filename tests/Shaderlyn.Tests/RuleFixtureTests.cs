@@ -143,6 +143,7 @@ public sealed class RuleFixtureTests
         ["SG0401"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0342"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0343"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
+        ["SG0005"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0348"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0347"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",
         ["SG0346"] = "Slang だけの規則なので、Unity の .shader では起こせない。SlangRuleTests で確かめている",

@@ -224,6 +224,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0348", "struct M\n{\n    int val[4];\n    __subscript(int x)\n    {\n        get { return val[x]; }\n    }\n}\n")]
     [InlineData("SG0348", "struct T\n{\n    property p : int\n    {\n        get(a) { return 0; }\n    }\n}\n")]
     [InlineData("SG0348", "struct T\n{\n    property q : float\n    {\n        set(c : int) { }\n    }\n}\n")]
+    // 型の中と extension の中の演算子、標準のモジュールにだけ書ける修飾子
+    [InlineData("SG0101", "struct S\n{\n    int x;\n    S operator+(S o) { return o; }\n}\n")]
+    [InlineData("SG0101", "struct P { int v; }\nextension P\n{\n    P operator-(P o) { return o; }\n}\n")]
+    [InlineData("SG0101", "struct Q\n{\n    int v;\n    [mutating]\n    __postfix Q operator++() { v += 1; return this; }\n}\n")]
+    [InlineData("SG0102", "__magic_type(FloatType)\nstruct MyFloat\n{\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -302,6 +307,8 @@ public sealed class SlangRuleTests : IDisposable
     // catch で受ける throw と try、throws の関数の throw、仮引数のある extension の __init、dyn のインターフェイスと仮引数、static groupshared のフィールド、
     // new で作る class と同じ class の値の型変換、set(v)、override の付いたメソッド
     [InlineData("enum MyError { Fail }\nint g() throws MyError { throw MyError.Fail; }\nvoid f()\n{\n    do\n    {\n        let n = try g();\n    }\n    catch (e : MyError)\n    {\n    }\n}\nstruct S { int x; }\nextension S { __init(int v) { x = v; } }\ndyn interface IBar { int b(); }\nint callBar(dyn IBar x) { return x.b(); }\nstruct Ty<T> { static groupshared T y[2]; }\nclass Counter { int v; __init(int s) { v = s; } }\nvoid h(Counter one)\n{\n    Counter c = new Counter(1);\n    Counter d = (Counter)one;\n}\nstruct P { int _v; property v : int { get { return _v; } set(newValue) { _v = newValue; } } }\ninterface IFoo { int getVal() { return 0; } }\nstruct Impl : IFoo { override int getVal() { return 1; } }\n")]
+    // 呼び出しの operator() は型の中に書ける。演算子は関数の外に書く
+    [InlineData("struct S\n{\n    int x;\n    int operator()(int a) { return a + x; }\n}\nS operator-(S a, S b) { return a; }\nM operator?:(bool c, M a, M b) { return c ? a : b; }\nstruct M { int v; }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -353,6 +360,23 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("float4(v, 1, 2, 3)", "error CF0404")]
     public async Task 成分の足りない値の作成はslangcに合わせて警告か誤りにする(string construction, string expected)
         => Assert.Contains(expected, await AnalyzeAsync($"void f()\n{{\n    float2 v = float2(1, 2);\n    float4 c = {construction};\n}}\n"), StringComparison.Ordinal);
+
+    [Fact]
+    public async Task UTF8として読めないバイトを行ごとに報告し本物のU_FFFDは報告しない()
+    {
+        string path = Path.Combine(_workDirectory, "bytes.slang");
+
+        // 1 行目は Latin-1 の Ö (0xD6)、2 行目は本物の U+FFFD (EF BF BD)。
+        File.WriteAllBytes(path, [.. "int a = 1; // "u8, 0xD6, 0x0A, .. "int b = 2; // "u8, 0xEF, 0xBF, 0xBD, 0x0A]);
+        StringWriter output = new();
+        StringWriter error = new();
+
+        await Program.RunAsync([path, "--no-config"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Contains("bytes.slang(1:15): error SG0005", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("bytes.slang(2:", output.ToString(), StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task 値を返さない経路は警告にする()

@@ -31,7 +31,7 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.InvalidLiteral];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.InvalidLiteral, SlangRuleDescriptors.InvalidUtf8];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -46,6 +46,9 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             ShaderSyntaxToken? previous = null;
+
+            CheckEncoding(context, program.Tree.Text);
+
 
             foreach (ShaderSyntaxToken token in program.Tree.Root.DescendantTokens())
             {
@@ -71,6 +74,26 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InvalidLiteral, location, problem));
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// UTF-8 として読めないバイト (E10006) を、行ごとに 1 つ報告する。コメントの中も見る。
+    /// </summary>
+    /// <remarks>位置は、ファイルを読んだときに SourceText が覚える (本物の U+FFFD は含まない)。</remarks>
+    private static void CheckEncoding(SyntaxTreeAnalysisContext context, Core.Text.SourceText text)
+    {
+        int lastLine = -1;
+
+        foreach (int i in text.InvalidUtf8Offsets)
+        {
+            Location location = Location.Create(text, new Core.Text.TextSpan(i, 1));
+
+            if (location.LineSpan.Start.Line != lastLine)
+            {
+                lastLine = location.LineSpan.Start.Line;
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InvalidUtf8, location, "UTF-8 として読めないバイトがあります。ファイルを UTF-8 で保存し直してください。"));
             }
         }
     }

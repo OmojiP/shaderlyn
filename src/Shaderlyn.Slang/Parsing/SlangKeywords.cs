@@ -25,7 +25,7 @@ internal static class SlangKeywords
 
         // メンバーと関数
         "override", "mutating", "nonmutating", "__unsafeForceInlineEarly", "__forceinline", "dynamic_uniform", "open", "required",
-        "__builtin", "__generic_value_param",
+        "__builtin", "__generic_value_param", "__prefix", "__postfix",
 
         // 動的な型
         "dyn", "some",
@@ -50,7 +50,7 @@ internal static class SlangKeywords
     {
         "__target_intrinsic", "__implicit_conversion", "__specialized_for_target", "__intrinsic_op", "__glsl_extension", "__glsl_version",
         "__spirv_version", "__cuda_sm_version", "__requiresNVAPI", "__readNone", "require", "__attributeTarget", "__exported",
-        "__intrinsic_type", "__magic_type",
+        "__intrinsic_type", "__magic_type", "__magic_enum", "__builtin_type", "__builtin_requirement",
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>Slang に固有の宣言を始めるキーワード。</summary>

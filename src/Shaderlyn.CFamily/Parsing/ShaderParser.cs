@@ -936,7 +936,7 @@ internal abstract class ShaderParser
     /// <param name="returnType">戻り値の型。</param>
     /// <returns>解析した宣言。</returns>
     /// <remarks>
-    /// 記号は 1 トークンが基本で、<c>operator[]</c> と <c>operator()</c> だけが 2 トークンになる。
+    /// 記号は 1 トークンが基本で、<c>operator[]</c> と <c>operator()</c> と Slang の <c>operator?:</c> だけが 2 トークンになる。
     /// <c>operator()</c> の後ろにはもう 1 組の括弧 (仮引数) が続く。
     /// </remarks>
     private DeclarationSyntax ParseOperatorFunction(
@@ -949,7 +949,8 @@ internal abstract class ShaderParser
 
         if ((Current.Kind == ShaderSyntaxKind.OpenBracketToken && Peek(1).Kind == ShaderSyntaxKind.CloseBracketToken)
             || (Current.Kind == ShaderSyntaxKind.OpenParenToken && Peek(1).Kind == ShaderSyntaxKind.CloseParenToken
-                && Peek(2).Kind == ShaderSyntaxKind.OpenParenToken))
+                && Peek(2).Kind == ShaderSyntaxKind.OpenParenToken)
+            || (Current.Kind == ShaderSyntaxKind.QuestionToken && Peek(1).Kind == ShaderSyntaxKind.ColonToken))
         {
             symbols.Add(Advance());
             symbols.Add(Advance());

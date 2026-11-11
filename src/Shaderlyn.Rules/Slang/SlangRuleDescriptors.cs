@@ -24,6 +24,17 @@ internal static class SlangRuleDescriptors
             + "64 ビットの整数に収まらない整数のリテラルを書いています。slangc は字句の誤り (E10001・E10007・E10008・E10009・E10012・E10013) にします。",
         helpLinkUri: DocumentationLinks.For("SG0004"));
 
+    /// <summary>UTF-8 として読めないバイト。</summary>
+    public static DiagnosticDescriptor InvalidUtf8 { get; } = new(
+        id: "SG0005",
+        title: "UTF-8 として読めないバイトがあります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "ファイルに、UTF-8 として読めないバイトの並びがあります (Shift_JIS や Latin-1 で保存したファイルなど)。コメントの中も含みます。"
+            + "slangc はソースを UTF-8 として読むので、字句の誤り (E10006) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0005"));
+
     /// <summary>その場所に書けない宣言。</summary>
     public static DiagnosticDescriptor DeclarationNotAllowed { get; } = new(
         id: "SG0101",
@@ -34,7 +45,7 @@ internal static class SlangRuleDescriptors
         description: "型を書く位置 (仮引数・戻り値・型引数・typealias・as / is など) に構造体を定義しているか、"
             + "その入れ物の中に書けない宣言 (構造体の中の namespace・extension・interface、インターフェイスの中の enum・struct、"
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義、extension とインターフェイスの中の static でないフィールドなど) を書いているか、"
-            + "extension のジェネリックの仮引数に既定値を書いているか、名前の無い enum class を書いています。slangc はコンパイルの誤りにします。",
+            + "extension のジェネリックの仮引数に既定値を書いているか、名前の無い enum class か、型と extension の中の演算子 (operator() を除く) を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
     /// <summary>修飾子をその宣言に書けない。</summary>
@@ -47,7 +58,7 @@ internal static class SlangRuleDescriptors
         description: "関数の外の static の無い const か constexpr の変数、初期値を書いた uniform の変数、局所変数の groupshared、"
             + "構造体のフィールドの __ref / __constref を書いているか、同じ修飾子・1 つしか書けない属性 ([numthreads] など) を 2 度書いているか、"
             + "可視性 (public・internal・private) を 2 つ書いているか、初期値を書いた groupshared、ポインターの coherent / globallycoherent / constexpr、typedef の volatile、"
-            + "static の特殊化定数、push constant でもある特殊化定数を書いています。slangc はコンパイルの誤りにします。",
+            + "static の特殊化定数、push constant でもある特殊化定数、標準のモジュールにだけ書ける修飾子 (__magic_type など) を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0102"));
 
     /// <summary>レジスタの種類が資源の型と合わない。</summary>

@@ -34,6 +34,12 @@ public sealed class SourceText
     public string Content { get; }
 
     /// <summary>
+    /// UTF-8 として読めなかったバイトの並びを置き換えた文字 (U+FFFD) の位置。ファイルから読んだ UTF-8 のテキストだけが持つ。
+    /// </summary>
+    /// <remarks>ファイルに書いた本物の U+FFFD (EF BF BD) は含まない。</remarks>
+    public System.Collections.Immutable.ImmutableArray<int> InvalidUtf8Offsets { get; private init; } = [];
+
+    /// <summary>
     /// このテキストの出所を示すパス。
     /// </summary>
     /// <remarks>
@@ -146,7 +152,28 @@ public sealed class SourceText
 
         Encoding encoding = DetectEncoding(bytes, out int preamble);
         string content = encoding.GetString(bytes, preamble, bytes.Length - preamble);
-        return new SourceText(content, filePath, encoding);
+        System.Collections.Immutable.ImmutableArray<int> invalid = [];
+
+        // 読めないバイトは U+FFFD に置き換わる。本物の U+FFFD と見分けるため、置き換えの文字を U+FFFF (文字でない符号位置) にして読み直し、位置を比べる。
+        // どちらも 1 つの並びを 1 文字に置き換えるので、位置はそろう。
+        if (encoding is UTF8Encoding && content.Contains('\uFFFD', StringComparison.Ordinal))
+        {
+            Encoding marking = Encoding.GetEncoding("utf-8", EncoderFallback.ReplacementFallback, new DecoderReplacementFallback("\uFFFF"));
+            string marked = marking.GetString(bytes, preamble, bytes.Length - preamble);
+            System.Collections.Immutable.ImmutableArray<int>.Builder offsets = System.Collections.Immutable.ImmutableArray.CreateBuilder<int>();
+
+            for (int i = 0; i < marked.Length && i < content.Length; i++)
+            {
+                if (marked[i] == '\uFFFF' && content[i] == '\uFFFD')
+                {
+                    offsets.Add(i);
+                }
+            }
+
+            invalid = offsets.ToImmutable();
+        }
+
+        return new SourceText(content, filePath, encoding) { InvalidUtf8Offsets = invalid };
     }
 
     /// <summary>BOM の無い UTF-16 と見なすのに要る、見るバイト数の上限。</summary>

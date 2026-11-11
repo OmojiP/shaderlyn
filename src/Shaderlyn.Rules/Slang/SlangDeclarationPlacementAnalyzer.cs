@@ -158,6 +158,15 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // extension の中の演算子 (E30073)。型の中の演算子は、構文木を読む SlangDeclarationAnalyzer が見る。呼び出しの operator() は書ける。
+            if (Current() == Container.Extension
+                && token.Text == "operator"
+                && i + 2 < tokens.Length
+                && !(tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Kind == ShaderSyntaxKind.CloseParenToken))
+            {
+                report(token, $"演算子 operator{tokens[i + 1].Text} は、extension の中に書けません。関数の外に書いてください。");
+            }
+
             if (!atStatementStart)
             {
                 continue;
