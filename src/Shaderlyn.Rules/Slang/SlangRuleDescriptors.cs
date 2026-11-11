@@ -380,7 +380,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "テクスチャの Sample・SampleLevel・SampleGrad などの offset の実引数に、定数でない値 (定数バッファーのメンバー、uniform、ループの変数、代入し直す局所変数) を使っています。"
+        description: "テクスチャの Sample・SampleLevel・SampleGrad・Load などの offset の実引数か、ByteAddressBuffer の LoadAligned・Store の揃えの実引数に、定数でない値 (定数バッファーのメンバー、uniform、ループの変数、代入し直す局所変数、エントリポイントの仮引数) を使っています。"
             + "offset は命令に埋め込むので、slangc はコンパイルの誤り (E40012) にします。__floatAsInt の実引数も、浮動小数のリテラルでなければなりません (E30084・E30085)。",
         helpLinkUri: DocumentationLinks.For("SG0352"));
 

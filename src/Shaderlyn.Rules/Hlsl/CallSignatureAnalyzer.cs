@@ -655,7 +655,28 @@ internal sealed class CallSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // Slang の extension (extension Test { … }・extension<T> T) は、型のメソッドの多重定義を足しうる。
+        if (compilation.IsSlang && MayBeExtended(binder.Program.Tree.PreprocessResult.Tokens, receiver))
+        {
+            return;
+        }
+
         ReportArity(context, invocation, $"{receiver}.{access.Name}", [.. overloads], actual, SymbolCondition.Always, reported);
+    }
+
+    /// <summary>Slang の extension で、型にメソッドを足しうるか (その型の extension か、ジェネリックの extension がある)。</summary>
+    private static bool MayBeExtended(ImmutableArray<ShaderSyntaxToken> tokens, string receiver)
+    {
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text is "extension" or "__extension"
+                && (tokens[i + 1].Kind == ShaderSyntaxKind.LessThanToken || tokens[i + 1].Text == receiver))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>推論に使った実引数の型を、画面に出す形にする。</summary>

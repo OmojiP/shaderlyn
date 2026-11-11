@@ -19,8 +19,9 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>定数バッファーのメンバーと、関数の外の static const でない変数 (uniform)</item>
 /// <item>ループの中で増減する変数 (<c>[ForceUnroll]</c> の無いループの for の変数)</item>
 /// <item>宣言の後に、if などの中で代入し直す局所変数</item>
+/// <item>エントリポイントの仮引数と、それらの名前を使う初期値の局所変数 (初期値の位置で伝える)</item>
 /// </list>
-/// 仮引数は、関数を展開すれば定数になりうるので見ない。
+/// ほかの関数の仮引数は、関数を展開すれば定数になりうるので見ない。ByteAddressBuffer の LoadAligned・Store・StoreAligned の揃えも同じに見る。
 /// </remarks>
 internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
 {
@@ -33,6 +34,15 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
         ["SampleCmp"] = new() { [4] = 3, [5] = 3 },
         ["SampleCmpLevelZero"] = new() { [4] = 3, [5] = 3 },
         ["SampleGrad"] = new() { [5] = 4, [6] = 4 },
+        ["Load"] = new() { [2] = 1 },
+    };
+
+    /// <summary>ByteAddressBuffer のメソッドの名前と、実引数の数ごとの、揃え (alignment) の位置 (0 から)。</summary>
+    private static readonly Dictionary<string, Dictionary<int, int>> Alignments = new(StringComparer.Ordinal)
+    {
+        ["LoadAligned"] = new() { [2] = 1 },
+        ["Store"] = new() { [3] = 2 },
+        ["StoreAligned"] = new() { [3] = 2 },
     };
 
     /// <inheritdoc/>
@@ -81,40 +91,66 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
-                if (call.Target is not MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access
-                    || !Offsets.TryGetValue(access.Name, out Dictionary<int, int>? positions))
+                // t.Sample(s, uv, offset) の offset と、buf.LoadAligned<T>(offset, alignment) の alignment。
+                if (call.Target is not MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access)
                 {
                     continue;
                 }
 
                 ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+                string? receiver = binder.GetEvaluatorFor(access.Target).Evaluate(access.Target);
+                (int Position, string Role)? slot = receiver switch
+                {
+                    not null when receiver.StartsWith("Texture", StringComparison.Ordinal) && !receiver.Contains("MS", StringComparison.Ordinal)
+                                  && Offsets.TryGetValue(access.Name, out Dictionary<int, int>? offsets) && offsets.TryGetValue(arguments.Length, out int o) => (o, "offset"),
+                    not null when receiver.EndsWith("ByteAddressBuffer", StringComparison.Ordinal)
+                                  && Alignments.TryGetValue(access.Name, out Dictionary<int, int>? alignments) && alignments.TryGetValue(arguments.Length, out int a) => (a, "揃え (alignment)"),
+                    _ => null,
+                };
 
-                if (!positions.TryGetValue(arguments.Length, out int position)
-                    || binder.GetEvaluatorFor(access.Target).Evaluate(access.Target) is not { } receiver
-                    || !receiver.StartsWith("Texture", StringComparison.Ordinal)
+                if (slot is not { } found
                     || call.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is not { } function
-                    || FindNonConstant(binder, function, arguments[position]) is not { } what
-                    || !compilation.IsReportable(arguments[position])
-                    || arguments[position].GetLocation() is not { } location)
+                    || FindNonConstant(binder, function, arguments[found.Position], 0) is not { } nonConstant
+                    || !compilation.IsReportable(nonConstant.At)
+                    || nonConstant.At.GetLocation() is not { } location)
                 {
                     continue;
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ArgumentMustBeConstant, location,
-                    $"{access.Name} の offset の実引数は、コンパイル時の定数でなければなりません ({what}を使っています)。"));
+                    $"{access.Name} の {found.Role} の実引数は、コンパイル時の定数でなければなりません ({nonConstant.What}を使っています)。"));
             }
         }
     }
 
-    /// <summary>式の中の、定数でないと言える名前の説明。無ければ <see langword="null"/>。</summary>
-    private static string? FindNonConstant(ExpressionTypeBinder binder, FunctionDeclarationSyntax function, ExpressionSyntax expression)
+    /// <summary>
+    /// 式の中の、定数でないと言える名前の説明と、報告する位置。無ければ <see langword="null"/>。
+    /// 局所変数の初期値が定数でなければ、その初期値の位置で伝える (slangc と同じ)。
+    /// </summary>
+    private static (string What, ShaderSyntaxNode At)? FindNonConstant(ExpressionTypeBinder binder, FunctionDeclarationSyntax function, ExpressionSyntax expression, int depth)
     {
+        if (depth > 8)
+        {
+            return null;
+        }
+
         foreach (IdentifierExpressionSyntax identifier in expression.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>())
         {
             if (identifier.Parent is MemberAccessExpressionSyntax access && !ReferenceEquals(access.Target, identifier)
                 || identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier)
-                || binder.ResolveName(identifier).Candidates is not [var candidate]
-                || candidate.Declarator is not VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } variable)
+                || binder.ResolveName(identifier).Candidates is not [var candidate])
+            {
+                continue;
+            }
+
+            // エントリポイントの仮引数 (SV_DispatchThreadID など)。ほかの関数の仮引数は、展開すれば定数になりうるので見ない。
+            if (candidate.Declarator is ParameterSyntax parameter && function.ParameterList.Contains(parameter)
+                && function.Attributes.Any(a => a.Name is "shader" or "numthreads"))
+            {
+                return ($"エントリポイントの仮引数 '{parameter.Name}' ", expression);
+            }
+
+            if (candidate.Declarator is not VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } variable)
             {
                 continue;
             }
@@ -124,16 +160,21 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
             switch (declaration.Parent)
             {
                 case ConstantBufferDeclarationSyntax:
-                    return $"定数バッファーのメンバー '{variable.Name}' ";
+                    return ($"定数バッファーのメンバー '{variable.Name}' ", expression);
 
                 case CompilationUnitSyntax or NamespaceDeclarationSyntax when !(isConst && declaration.ModifierTokens.Any(t => t.Text == "static")):
-                    return $"uniform の '{variable.Name}' ";
+                    return ($"uniform の '{variable.Name}' ", expression);
 
-                case ForStatementSyntax loop when loop.Attributes.IsDefaultOrEmpty:
-                    return $"ループの変数 '{variable.Name}' ";
+                case ForStatementSyntax loop when loop.Attributes.IsDefaultOrEmpty || !loop.Attributes.Any(a => a.Name is "unroll" or "ForceUnroll"):
+                    return ($"ループの変数 '{variable.Name}' ", expression);
 
                 case LocalDeclarationStatementSyntax when !isConst && IsReassigned(function, variable):
-                    return $"代入し直す変数 '{variable.Name}' ";
+                    return ($"代入し直す変数 '{variable.Name}' ", expression);
+
+                // uint a = tid.x; (定数でない初期値の局所変数)。初期値の位置で伝える。
+                case LocalDeclarationStatementSyntax when variable.Initializer is { } initializer
+                                                          && FindNonConstant(binder, function, initializer, depth + 1) is { } inner:
+                    return (inner.What, initializer);
             }
         }
 

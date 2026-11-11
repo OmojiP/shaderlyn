@@ -394,6 +394,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0407", "struct Outer\n{\n    Outer next;\n    int y;\n}\n")]
     [InlineData("SG0301", "T add<T>(T a, T b) { return a + b; }\n")]
     [InlineData("SG0309", "struct MyType\n{\n    property float3 prop { get { return float3(1, 2, 3); } }\n}\nvoid test()\n{\n    MyType t;\n    t.prop.x += 1.0;\n}\n")]
+    // ByteAddressBuffer の揃えと Load の offset の、エントリポイントの仮引数から作った値
+    [InlineData("SG0352", "RWByteAddressBuffer buf;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    uint a = tid.x;\n    float v = buf.LoadAligned<float>(0, a);\n}\n")]
+    [InlineData("SG0352", "Texture2D<float4> t;\nRWStructuredBuffer<float4> o;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    o[0] = t.Load(int3(0, 0, 0), int2(tid.xy));\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -531,6 +534,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("[Differentiable]\nfloat square(float x) { return x * x; }\nfloat h(float v)\n{\n    var x = diffPair(v, 1.0);\n    bwd_diff(square)(x, 1.0);\n    return x.d;\n}\n[Differentiable]\nfloat g(float x, __constref no_diff float y) { return x + y; }\n")]
     // ポインターで自分を指す構造体、制約のあるジェネリックの型の演算子、set のある property への書き込み
     [InlineData("struct Node { Node* next; int y; }\nT add<T : IArithmetic>(T a, T b) { return a + b; }\nstruct MyType\n{\n    float3 v;\n    property float3 prop { get { return v; } set { v = newValue; } }\n}\nvoid test()\n{\n    MyType t;\n    t.prop = float3(1, 2, 3);\n}\n")]
+    // 定数の揃え、extension で足した多重定義のメソッドの呼び出し
+    [InlineData("RWByteAddressBuffer buf;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    float v = buf.LoadAligned<float>(0, 16);\n    buf.Store<float>(16, v, 16);\n}\nstruct Test { void m<int u>(float2 x) {} }\nextension Test { void m<int u>() {} }\nvoid f() { Test t; t.m<3>(); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

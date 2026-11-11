@@ -674,7 +674,8 @@ internal sealed class SlangParser : ShaderParser
             && expression is IdentifierExpressionSyntax or MemberAccessExpressionSyntax
             && ScanTypeArgumentsEnd(0) is int close
             && Peek(close + 1).Kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CommaToken
-                or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.ColonColonToken)
+                or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.ColonColonToken
+            && !IsSimpleMethodTypeArguments(expression, close))
         {
             ShaderSyntaxToken openAngle = Advance();
             ImmutableArray<ShaderSyntaxToken>.Builder arguments = ImmutableArray.CreateBuilder<ShaderSyntaxToken>();
@@ -1328,6 +1329,16 @@ internal sealed class SlangParser : ShaderParser
 
         return skipped;
     }
+
+    /// <summary>
+    /// 型引数を書いたメソッドの呼び出し (<c>buf.LoadAligned&lt;float&gt;(0, 16)</c>) で、型引数が名前と数だけか。
+    /// そうなら、共通の構文解析に呼び出しとして読ませる (実引数を検査できるようにする)。
+    /// </summary>
+    private bool IsSimpleMethodTypeArguments(ExpressionSyntax expression, int close)
+        => expression is MemberAccessExpressionSyntax
+           && Peek(close + 1).Kind == ShaderSyntaxKind.OpenParenToken
+           && Peek(close).Kind == ShaderSyntaxKind.GreaterThanToken
+           && Enumerable.Range(1, close - 1).All(i => Peek(i).Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.NumericLiteralToken or ShaderSyntaxKind.CommaToken);
 
     /// <summary>
     /// 今の位置から <paramref name="offset"/> 先の <c>&lt;</c> から、型引数の並びの閉じ (<c>&gt;</c> か <c>&gt;&gt;</c>) までを調べる。
