@@ -30,7 +30,7 @@ internal sealed class SlangUnsizedTypeAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.UnsizedType];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.UnsizedType, SlangRuleDescriptors.InvalidArraySize];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -44,11 +44,13 @@ internal sealed class SlangUnsizedTypeAnalyzer : SemanticRuleAnalyzer
         {
             CompilationUnitSyntax root = program.Tree.Root;
 
-            void Report(ShaderSyntaxToken? at, string message)
+            void Report(ShaderSyntaxToken? at, string message) => ReportWith(SlangRuleDescriptors.UnsizedType, at, message);
+
+            void ReportWith(DiagnosticDescriptor descriptor, ShaderSyntaxToken? at, string message)
             {
                 if (at is { IsMissing: false } && compilation.IsReportable(at) && at.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.UnsizedType, location, message));
+                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
                 }
             }
 
@@ -119,6 +121,27 @@ internal sealed class SlangUnsizedTypeAnalyzer : SemanticRuleAnalyzer
 
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
+                // 配列の大きさの、0 での割り算と負の数 (int a[1 / 0]・-> int[-1])。
+                ImmutableArray<ShaderSyntaxToken> ranks = node switch
+                {
+                    VariableDeclaratorSyntax declarator => declarator.ArrayRankTokens,
+                    TypeSyntax type => type.ArrayRanks,
+                    _ => [],
+                };
+
+                for (int i = 1; !ranks.IsDefaultOrEmpty && i + 1 < ranks.Length; i++)
+                {
+                    if (ranks[i].Kind is ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken && ranks[i + 1] is { Kind: ShaderSyntaxKind.NumericLiteralToken, Text: "0" })
+                    {
+                        ReportWith(SlangRuleDescriptors.InvalidArraySize, ranks[i], "配列の大きさの式が 0 で割っています。");
+                    }
+                    else if (ranks[i].Kind == ShaderSyntaxKind.MinusToken && ranks[i - 1].Kind == ShaderSyntaxKind.OpenBracketToken
+                             && ranks[i + 1].Kind == ShaderSyntaxKind.NumericLiteralToken && i + 2 < ranks.Length && ranks[i + 2].Kind == ShaderSyntaxKind.CloseBracketToken)
+                    {
+                        ReportWith(SlangRuleDescriptors.InvalidArraySize, ranks[i], "配列の大きさは負の数にできません。");
+                    }
+                }
+
                 switch (node)
                 {
                     case LocalDeclarationStatementSyntax { Declaration: VariableDeclarationSyntax declaration }:

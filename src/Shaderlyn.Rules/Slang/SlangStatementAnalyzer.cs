@@ -48,7 +48,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            CheckDiscardedResults(context, compilation, program.Tree.Root);
+            CheckDiscardedResults(context, compilation, program.Tree.Root, compilation.GetExpressionTypeBinder(program));
 
             CheckConstants(context, compilation, program.Tree.Root.Declarations);
 
@@ -64,7 +64,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
     /// それが括弧・?: の枝・&amp;&amp; と || の右にあるものを、捨てたものとする。
     /// </summary>
     /// <remarks>同じ名前の宣言 (多重定義) がどれも [NoDiscard] の関数だけを見る。__init は見ない (slangc も見ない)。</remarks>
-    private static void CheckDiscardedResults(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root)
+    private static void CheckDiscardedResults(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root, ExpressionTypeBinder binder)
     {
         FunctionDeclarationSyntax[] functions = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()];
 
@@ -93,6 +93,10 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
+        // [NoDiscard] の演算子の、最初の仮引数の型。組み込みの演算子 (int + int) と見分ける。
+        HashSet<string> OperatorTypes(string name)
+            => [.. functions.Where(f => f.Name == name).Select(f => f.ParameterList.FirstOrDefault()?.Type.Name).OfType<string>()];
+
         void Check(ExpressionSyntax expression)
         {
             switch (expression)
@@ -116,10 +120,19 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
                     Check(comma.Right);
                     break;
 
+                // w1 + w2; ([NoDiscard] を付けた演算子)
+                case BinaryExpressionSyntax binary when marked.Contains("operator" + binary.OperatorToken.Text)
+                                                        && OperatorTypes("operator" + binary.OperatorToken.Text).Contains(binder.GetEvaluatorFor(binary.Left).Evaluate(binary.Left) ?? string.Empty)
+                                                        && compilation.IsReportable(binary.OperatorToken) && binary.OperatorToken.GetLocation() is { } operatorLocation:
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.DiscardedResult, operatorLocation,
+                        $"演算子 '{binary.OperatorToken.Text}' は [NoDiscard] なので、結果を使ってください。"));
+                    break;
+
                 case InvocationExpressionSyntax call:
                     ShaderSyntaxToken? name = call.Target switch
                     {
                         IdentifierExpressionSyntax identifier => identifier.Identifier,
+                        GenericNameExpressionSyntax generic => generic.Identifier,
                         MemberAccessExpressionSyntax member => member.NameToken,
                         _ => null,
                     };

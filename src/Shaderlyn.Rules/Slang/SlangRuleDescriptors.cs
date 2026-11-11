@@ -427,6 +427,16 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E30079・E31160) にします。",
         helpLinkUri: DocumentationLinks.For("SG0356"));
 
+    /// <summary>配列の大きさの式の誤り。</summary>
+    public static DiagnosticDescriptor InvalidArraySize { get; } = new(
+        id: "SG0357",
+        title: "配列の大きさが正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "配列の大きさの式が 0 で割っているか、配列の大きさを負の数にしています。slangc はコンパイルの誤り (E30002・E30025) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0357"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",

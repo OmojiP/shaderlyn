@@ -309,6 +309,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0351", "public struct Visibility\n{\n    internal int x;\n    public int y = 0;\n}\nvoid f()\n{\n    Visibility t1 = {1, 2};\n}\n")]
     // 読むだけの資源の要素のアドレス
     [InlineData("SG0356", "StructuredBuffer<float> constants;\nvoid f()\n{\n    float* p = __getAddress(constants[0]);\n}\n")]
+    // [NoDiscard] の演算子と型引数つきの関数、配列の大きさの 0 での割り算と負の数、大きすぎる Z の整数
+    [InlineData("SG0338", "struct W { int v; }\n[NoDiscard]\nW operator+(W a, W b) { return a; }\nvoid f(W w1, W w2)\n{\n    w1 + w2;\n}\n")]
+    [InlineData("SG0338", "[NoDiscard]\nT identity<T>(T x) { return x; }\nvoid f()\n{\n    identity<int>(3);\n}\n")]
+    [InlineData("SG0357", "void f()\n{\n    int a[1 / 0];\n}\n")]
+    [InlineData("SG0357", "func bar() -> int[-1];\n")]
+    [InlineData("SG0004", "void f()\n{\n    uint64_t x = 18446744073709551616Z;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -419,6 +425,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("void test()\n{\n    int c = 0;\n    let lam = (int a) => {\n        int d = a + c;\n        d = d + 1;\n        a = d;\n        return d;\n    };\n}\n")]
     // 配列を受け取る __init への並び、public のフィールドの並び
     [InlineData("struct G\n{\n    float[4] data;\n    __init(float[4] d) { data = d; }\n}\npublic struct P\n{\n    public int a;\n    public int b;\n}\nvoid f(float x)\n{\n    G g = G({x, x, x, x});\n    P p = {1, 2};\n}\n")]
+    // 組み込みの演算子の結果は捨ててよい
+    [InlineData("[NoDiscard]\nint compute() { return 1; }\nstruct W { int v; }\n[NoDiscard]\nW operator+(W a, W b) { return a; }\nvoid f(int c)\n{\n    compute() + c;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

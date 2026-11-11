@@ -101,7 +101,8 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
     /// <summary>64 ビットの符号無しの整数に収まらない整数のリテラル。</summary>
     private static string? CheckInteger(ShaderSyntaxToken token)
     {
-        string digits = ShaderLiteral.GetDigits(token);
+        // 大きさの整数の接尾辞 (Z・UZ・ZU) は、共通の接尾辞の読み方 (ShaderLiteral) が数えないので除く。
+        string digits = ShaderLiteral.GetDigits(token).TrimEnd('z', 'Z', 'u', 'U');
 
         // 16 進の浮動小数のリテラル (0x1.8p3、0xffp0LF) は整数ではない。
         if (token.Text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
@@ -109,7 +110,17 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
         {
             return null;
         }
-        (int radix, string body) = ShaderLiteral.GetKind(token) switch
+        ShaderLiteralKind kind = ShaderLiteral.GetKind(token);
+
+        // 0x8000000000000000Z のように z で終わるものは、共通の読み方が数と見ないので、桁だけで決める。
+        if (kind == ShaderLiteralKind.None && digits.Length > 0)
+        {
+            kind = digits.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? ShaderLiteralKind.Hexadecimal
+                : digits.All(char.IsAsciiDigit) ? (digits.Length > 1 && digits[0] == '0' ? ShaderLiteralKind.Octal : ShaderLiteralKind.Decimal)
+                : ShaderLiteralKind.None;
+        }
+
+        (int radix, string body) = kind switch
         {
             ShaderLiteralKind.Decimal => (10, digits),
             ShaderLiteralKind.Hexadecimal => (16, digits[2..]),
