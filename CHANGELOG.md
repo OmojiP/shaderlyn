@@ -82,19 +82,36 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - 構造体のメンバー (CF0312) は、`extension` (修飾した名前の `extension Container.Nested` を含む) や `property` でメンバーが足されうる型を除いて検査する。
     関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
 - Slang にしか無いルール (SG) を足した。slangc 2026.19 がエラーにする箇所を、slangc と同じ行で報告する
-  - SG0004: リテラルの書き方 (使えないエスケープ、桁の足りない `\u` / `\U`、1 文字でない文字のリテラル、文字列の `\x` の範囲、64 ビットに収まらない整数)
+  - SG0004: リテラルの書き方 (使えないエスケープ、桁の足りない `\u` / `\U`、1 文字でない文字のリテラル、文字列の `\x` の範囲、64 ビットに収まらない整数)。SG0005: UTF-8 として読めないバイト
   - SG0101: その場所に書けない宣言 (型を書く位置の構造体の定義、構造体とインターフェイスの中の namespace など、関数の中の関数、extension とインターフェイスの中の static でないフィールド、
-    extension のジェネリックの仮引数の既定値)
-  - SG0102: 書けない修飾子と、1 つしか書けない属性の繰り返し。SG0103: 資源の型と合わないレジスタ
-  - SG0301: 形の違う値どうしの組み込みの演算子 (`float3 + float4`)、浮動小数のビット演算とシフト、演算子を定義していない構造体の値への演算子、型の合わない `?:` の枝
-  - SG0309: `[mutating]` でないメソッドの中のフィールドへの書き込みと、読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み
+    extension のジェネリックの仮引数の既定値、名前の無い enum class、ファイルの直下と extension の中の仮引数の無い `__init`、型と extension の中の演算子)
+  - SG0102: 書けない修飾子と、1 つしか書けない属性の繰り返し (初期値の groupshared、ポインターの coherent、typedef の volatile、特殊化定数の static、
+    `[UnscopedEnum]` の enum class、`[[vk::offset]]` と `dyn` の置き場所、標準のモジュールにだけ書ける修飾子、`[MaybeDifferentiable]` / `[TreatAsDifferentiable]` の置き場所など)。
+    SG0103: 資源の型と合わないレジスタ
+  - SG0301: 形の違う値どうしの組み込みの演算子 (`float3 + float4`)、浮動小数のビット演算とシフト、演算子を定義していない構造体の値への演算子、型の合わない `?:` の枝、
+    ポインターでない値の `->`、スカラーの添字、関数の名前の `sizeof`、関わりの無い具体的な型どうしの `is` / `as`
+  - SG0304: 属性の値 (`[numthreads]`・`[WaveSize]`・`[COM]`・`[RemovedSince]`、微分のグループのスレッドの数)。SG0308: 大きさの決まらない型 (最後でないフィールド、局所変数、StructuredBuffer の要素など)
+  - SG0309: `[mutating]` でないメソッドの中のフィールドへの書き込み、読むだけの資源の要素への書き込み、`Access::Read` のポインターの指す先への書き込み
   - SG0311: スカラーでない条件 (if・while などのベクトル・構造体。`?:` と `!` の構造体)
-  - SG0316: 定数式でない static const の初期値。SG0317: 自分自身に依る定数。SG0321: switch の本体の外の case / default
-  - SG0338: `[NoDiscard]` の関数の戻り値を捨てる式と、void を返す関数の `[NoDiscard]`。SG0341: `[RemovedSince]` で取り除かれた宣言の使用
-  - SG0342: インターフェイスの適合の循環 (インターフェイスの側は、適合する型がどれも輪に入るときだけ)
-  - SG0401: private のメンバーの外からの使用と、別のモジュールの public でない宣言の使用 (public の構造体のメンバーの既定は、宣言したモジュールの言語のバージョンで決める)
+  - SG0316: 定数式でない static const の初期値。SG0317: 自分自身に依る定数。SG0318: 初期値の無い static const
+  - SG0321: switch と break / continue の書き方 (switch の本体の外の case / default、ループの外の break / continue、2 つ目の default、値の重なる case、整数でない switch の値)
+  - SG0338: `[NoDiscard]` の関数の戻り値を捨てる式と、void を返す関数の `[NoDiscard]`
+  - SG0341: `[RemovedSince]` で取り除かれた宣言の使用と、2026 の言語で取り除かれた書き方 (ベクトルを含んで成分の足りない値の作成と並び)
+  - SG0342: インターフェイスの適合の循環 (インターフェイスの側は、適合する型がどれも輪に入るときだけ)。SG0343: 条件の中の括弧で包まない代入
+  - SG0344: static のメソッドの中の this と static でないメンバー、型の名前からの static でないフィールド。SG0345: throw と try の受け先 (throws の無い関数、defer の中、throws と違う型)
+  - SG0346: new を書かない class の作成。SG0347: 構造体の多重継承と override の書き忘れ・当たるメソッドの無い override。SG0348: property と `__subscript` の書き方
+  - SG0349: ジェネリックの制約を満たさない型引数 (基底の構造体の適合は受け継がない)。SG0350: 微分する関数の、繰り返しの回数を決められないループ
+  - SG0351: 型に合わない初期化子の並び (`__init` の仮引数の数、`__init` を持つ構造体を継承した構造体、資源の型)。SG0352: 定数でなければならない実引数 (テクスチャの offset、`__floatAsInt`)
+  - SG0353: 構文の誤りのあるモジュールの import。SG0354: 空でありうる可変長の並び (`__first`・`where nonempty`) と `countof(…)` の制約の書き方
+  - SG0401: private のメンバー (extension の private のメソッドと private の `__subscript` を含む) の外からの使用と、別のモジュールの public でない宣言の使用
+    (`__include` と `implementing` で分けて書いたモジュールを含む。public の構造体のメンバーの既定は、宣言したモジュールの言語のバージョンで決める)
   - SG0402: 可視性の書き方 (関数の外の private、public でない構造体の public のメンバー、public の宣言が public でない型を使うもの)
   - SG0403: 配列にできない型の配列。SG0404: 資源を包めない型 (StructuredBuffer・Optional の資源)。SG0405: テクスチャの要素にできない型。SG0406: フィールドにできない参照の型
+  - SG0407: 宣言に使えない型 (void の変数、ビットフィールドの型と幅、整数でない列挙型の基の型、スカラーでない特殊化定数)
+- Slang: C 系の共通のルールを広げた。同じ形の関数の 2 つ目の本体・列挙子の重複・重複した仮引数と列挙子の使用 (CF0314)、throws の型とジェネリックの制約の型の名前・
+  微分の属性の関数の名前・then の側にだけ見える `if (let a = x)` の a (CF0310)、多重定義のどれも受け取らない構造体の実引数 (CF0401)、
+  型引数の違うジェネリックの型どうし・次元の違うテクスチャ・入れ子の型への数・ポインターの型とアクセスとアドレス空間・ジェネリックの型の値から具体的な型への変換・
+  SamplerDescriptorHeap と ResourceDescriptorHeap の取り違え (CF0410)、負の数と定数の式の添字 (CF0510)。数の接尾辞は slangc と同じ形だけを通す (CF0001)
 - Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU と CUDA では、資源をバッファーに入れることを報告しない。
   `slang: unscoped-enums` (slangc の `-unscoped-enum`) で、どの列挙型の列挙子も修飾せずに書けるものとする
 - VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
@@ -126,7 +143,8 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の
   `GenericParameterTokens` / `GenericPackNames` (Slang のジェネリックの仮引数)、`CallCompatibility.IsVariadic` (可変長の仮引数)、
   `EnumDeclarationSyntax.MembersNeedQualification` / `QualifiedByDefault` (列挙子に型の名前の修飾が要るか)、
-  `ShaderLanguageOptions.HasFeature` (`#if __has_feature(…)`) / `AllowsBareLineDirective` (行番号の無い `#line`) を足した
+  `ShaderLanguageOptions.HasFeature` (`#if __has_feature(…)`) / `AllowsBareLineDirective` (行番号の無い `#line`)、
+  `SourceText.InvalidUtf8Offsets` (UTF-8 として読めなかったバイトの位置) を足した
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
 - Godot: 構文の誤りを Godot と同じ行で報告する。閉じていない `[` と `(` は `;` や波括弧の行で、`shader_type` の `;` 抜けは名前の行で、ファイルの終わりで閉じていないものはファイルの終わりの行で報告する。`do { } (true);` の `while` 抜けを報告する (CF0001)
@@ -144,6 +162,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
 
 - 関数の中に定義した構造体のメソッドの `return` を、外の関数の戻り値の型と比べていた (CF0411。HLSL 2021 の局所の構造体も)
 - `ConstantBuffer<float4x4>` の値と添字 (`m[3]`) の型を、行列と行のベクトルとして読む (今までは `ConstantBuffer` の型のまま、または行列のままで、変換の検査に使えなかった)
+- Slang: `operator?:` と `__prefix` / `__postfix` を付けた演算子の宣言、`no_diff f(x);` の文を読む (今までは構文の誤りにしていた)
 
 ## [0.3.3] - 2026-11-05
 
