@@ -405,6 +405,17 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E30411・E30412・E30415・E30440・E30430～E30437) にします。",
         helpLinkUri: DocumentationLinks.For("SG0354"));
 
+    /// <summary>ラムダ式の書き方の誤り。</summary>
+    public static DiagnosticDescriptor LambdaForm { get; } = new(
+        id: "SG0355",
+        title: "ラムダ式の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "戻り値の型を書かないラムダ式が、型の違う値 (整数と浮動小数) を返しているか、コピーできない型 (RayQuery・HitObject) の変数を取り込んでいます。"
+            + "slangc はコンパイルの誤り (E30111・E30112) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0355"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
