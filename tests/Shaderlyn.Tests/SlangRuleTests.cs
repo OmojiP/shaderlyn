@@ -389,6 +389,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0360", "[Differentiable]\nfloat square(float x) { return x * x; }\nvoid main()\n{\n    let x = diffPair(3.0, 1.0);\n    bwd_diff(square)(x, 1.0);\n}\n")]
     [InlineData("SG0360", "[Differentiable]\nfloat f(__constref float3 val) { return val.x; }\n")]
     [InlineData("SG0360", "interface IBar\n{\n    [Differentiable]\n    float original(float x);\n    [ForwardDerivativeOf(original)]\n    DifferentialPair<float> fwd_original(DifferentialPair<float> x);\n}\n")]
+    // 自分を含む構造体、制約の無いジェネリックの型の値の演算子、get だけの property への書き込み
+    [InlineData("SG0407", "struct TA { TB tb; }\nstruct TB { TA ta[2]; }\n")]
+    [InlineData("SG0407", "struct Outer\n{\n    Outer next;\n    int y;\n}\n")]
+    [InlineData("SG0301", "T add<T>(T a, T b) { return a + b; }\n")]
+    [InlineData("SG0309", "struct MyType\n{\n    property float3 prop { get { return float3(1, 2, 3); } }\n}\nvoid test()\n{\n    MyType t;\n    t.prop.x += 1.0;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -524,6 +529,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct MyDiff : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float x;\n    float dy;\n}\nstruct MyType : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    [DerivativeMember(MyDiff.x)]\n    float x;\n    [DerivativeMember(MyDiff.dy)]\n    float y;\n    no_diff float z;\n    int count;\n}\n")]
     // 微分しない関数の中の後ろ向きの微分と var の DifferentialPair、no_diff の __constref
     [InlineData("[Differentiable]\nfloat square(float x) { return x * x; }\nfloat h(float v)\n{\n    var x = diffPair(v, 1.0);\n    bwd_diff(square)(x, 1.0);\n    return x.d;\n}\n[Differentiable]\nfloat g(float x, __constref no_diff float y) { return x + y; }\n")]
+    // ポインターで自分を指す構造体、制約のあるジェネリックの型の演算子、set のある property への書き込み
+    [InlineData("struct Node { Node* next; int y; }\nT add<T : IArithmetic>(T a, T b) { return a + b; }\nstruct MyType\n{\n    float3 v;\n    property float3 prop { get { return v; } set { v = newValue; } }\n}\nvoid test()\n{\n    MyType t;\n    t.prop = float3(1, 2, 3);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

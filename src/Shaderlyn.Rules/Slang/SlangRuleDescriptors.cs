@@ -81,7 +81,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) も報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) と算術の演算子も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -93,7 +93,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[mutating] を付けていない構造体 (かクラス) のメソッドの中で、自分のフィールドに代入しているか、++ / -- か複合代入で書き換えています。"
             + "Slang のメソッドは既定で自分を書き換えられないので、slangc はコンパイルの誤り (E30011・E30047) にします。"
-            + "読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。Access::Read のポインターの指す先への書き込みも報告します。",
+            + "読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。Access::Read のポインターの指す先と、get だけの property への書き込みも報告します。",
         helpLinkUri: DocumentationLinks.For("SG0309"));
 
     /// <summary>条件がスカラーでない。</summary>
@@ -267,7 +267,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "変数の型に void を、ビットフィールドに整数でない型か型の幅を超える幅を、列挙型の基の型に整数でない型を、"
-            + "特殊化定数にスカラーでも列挙型でもない型を使っています。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218) にします。",
+            + "特殊化定数にスカラーでも列挙型でもない型を使っているか、構造体がフィールドを通して自分を値として含んでいます。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218・E41001) にします。",
         helpLinkUri: DocumentationLinks.For("SG0407"));
 
     /// <summary>大きさの決まらない型の使い方の誤り。</summary>

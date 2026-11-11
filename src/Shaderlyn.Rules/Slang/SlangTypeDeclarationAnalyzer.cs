@@ -30,7 +30,8 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes, SlangRuleDescriptors.InterfaceRequirement, SlangRuleDescriptors.DeclarationNotAllowed];
+        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes, SlangRuleDescriptors.InterfaceRequirement, SlangRuleDescriptors.DeclarationNotAllowed,
+         SlangRuleDescriptors.InvalidDeclarationType, SlangRuleDescriptors.NotWritable];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -178,6 +179,172 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             CheckOverrides(types, kinds, extended, Report);
             CheckCom(tokens, Report);
             CheckInterfaceMembers(tokens, Report);
+            CheckCycles(types, Report);
+            CheckReadOnlyProperties(tokens, types, Report);
+
+            // a + b (制約の無いジェネリックの型の値どうしの組み込みの演算子。E39999)
+            for (int i = 1; i + 2 < tokens.Length; i++)
+            {
+                if (tokens[i].Kind is not (ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.AsteriskToken or ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken)
+                    || tokens[i - 1].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
+                    || (i > 1 && tokens[i - 2].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                    || tokens[i + 2].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.ColonColonToken
+                    || UnconstrainedAt(tokens[i]) is not { Count: > 0 } unconstrained || VariablesAt(tokens[i]) is not { } variables)
+                {
+                    continue;
+                }
+
+                string? left = variables.GetValueOrDefault(tokens[i - 1].Text);
+                string? right = variables.GetValueOrDefault(tokens[i + 1].Text);
+
+                if (left is not null && right is not null && unconstrained.Contains(left) && left == right)
+                {
+                    Report(SlangRuleDescriptors.WrongOperandTypes, tokens[i],
+                        $"制約の無いジェネリックの型 {left} の値に、{tokens[i].Text} は使えません。{left} に IArithmetic などの制約を付けてください。");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 自分を (フィールドを通して) 含む構造体 (E41001)。ポインターと、資源などの型引数の中のものは含まない。
+    /// </summary>
+    private static void CheckCycles(StructDeclarationSyntax[] types, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        Dictionary<string, StructDeclarationSyntax?> byName = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax type in types.Where(t => t.Keyword.Text is "struct" or "class"))
+        {
+            byName[type.Name] = byName.ContainsKey(type.Name) ? null : type;
+        }
+
+        // 構造体から、値として持つフィールドの構造体へ。class は参照なので見ない。
+        Dictionary<string, HashSet<string>> edges = new(StringComparer.Ordinal);
+
+        foreach ((string name, StructDeclarationSyntax? type) in byName)
+        {
+            if (type is null || type.Keyword.Text != "struct")
+            {
+                continue;
+            }
+
+            edges[name] = [.. type.Fields
+                .Where(f => !f.ModifierTokens.Any(t => t.Text is "static" or "const") && !f.Type.IsPointer && f.Type.QualifierTokens.IsDefaultOrEmpty && f.Type.NestedTypeTokens.IsDefaultOrEmpty)
+                .Select(f => f.Type.NameToken.Text)
+                .Where(n => byName.TryGetValue(n, out StructDeclarationSyntax? target) && target is { Keyword.Text: "struct" })];
+        }
+
+        foreach ((string start, StructDeclarationSyntax? type) in byName)
+        {
+            if (type is null || !edges.ContainsKey(start))
+            {
+                continue;
+            }
+
+            // start から start へ戻る道があるか。
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            Stack<string> pending = new(edges[start]);
+            bool cyclic = false;
+
+            while (!cyclic && pending.TryPop(out string? next))
+            {
+                cyclic = next == start;
+
+                if (!cyclic && seen.Add(next) && edges.TryGetValue(next, out HashSet<string>? more))
+                {
+                    foreach (string m in more)
+                    {
+                        pending.Push(m);
+                    }
+                }
+            }
+
+            if (cyclic && type.NameToken is { } at)
+            {
+                report(SlangRuleDescriptors.InvalidDeclarationType, at, $"構造体 {start} は、フィールドを通して自分を値として含みます。どこかをポインターにするか、フィールドを外してください。");
+            }
+        }
+    }
+
+    /// <summary>get だけの property への書き込み (t.prop.x += 1。E30047)。</summary>
+    private static void CheckReadOnlyProperties(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        // property NAME … { get … } (set・ref・modify の無いもの) の名前。同じ名前のフィールドと、書ける property があれば外す。
+        HashSet<string> readOnly = new(StringComparer.Ordinal);
+        HashSet<string> writable = new(StringComparer.Ordinal);
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text != "property")
+            {
+                continue;
+            }
+
+            int open = i + 1;
+
+            while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+            {
+                open++;
+            }
+
+            // 名前は { か : の前の最後の名前 (property int p { … }・property p : int { … })。
+            int nameAt = open - 1;
+
+            for (int k = i + 1; k < open; k++)
+            {
+                if (tokens[k].Kind == ShaderSyntaxKind.ColonToken)
+                {
+                    nameAt = k - 1;
+                    break;
+                }
+            }
+
+            if (open >= tokens.Length || tokens[open].Kind != ShaderSyntaxKind.OpenBraceToken || nameAt <= i || tokens[nameAt].Kind != ShaderSyntaxKind.IdentifierToken
+                || MatchingBrace(tokens, open) is not { } close)
+            {
+                continue;
+            }
+
+            bool settable = false;
+            int depth = 0;
+
+            for (int k = open; k <= close; k++)
+            {
+                depth += tokens[k].Kind switch { ShaderSyntaxKind.OpenBraceToken => 1, ShaderSyntaxKind.CloseBraceToken => -1, _ => 0 };
+                settable |= depth == 1 && tokens[k].Text is "set" or "ref" or "modify";
+            }
+
+            (settable ? writable : readOnly).Add(tokens[nameAt].Text);
+        }
+
+        readOnly.ExceptWith(writable);
+        readOnly.ExceptWith(types.SelectMany(t => t.Fields).SelectMany(f => f.Variables).Select(v => v.Name));
+
+        if (readOnly.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i - 1].Kind != ShaderSyntaxKind.DotToken || tokens[i].Kind != ShaderSyntaxKind.IdentifierToken || !readOnly.Contains(tokens[i].Text))
+            {
+                continue;
+            }
+
+            // .prop と、続く .x のような成分。
+            int j = i + 1;
+
+            while (j + 1 < tokens.Length && tokens[j].Kind == ShaderSyntaxKind.DotToken && tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                j += 2;
+            }
+
+            if (j < tokens.Length && tokens[j].Kind is ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.PlusEqualsToken or ShaderSyntaxKind.MinusEqualsToken
+                    or ShaderSyntaxKind.AsteriskEqualsToken or ShaderSyntaxKind.SlashEqualsToken or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken)
+            {
+                report(SlangRuleDescriptors.NotWritable, tokens[i], $"property '{tokens[i].Text}' には get しか無いので、書き込めません。set を書いてください。");
+            }
         }
     }
 
