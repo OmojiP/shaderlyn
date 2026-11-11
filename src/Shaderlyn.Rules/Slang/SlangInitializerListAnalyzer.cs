@@ -61,6 +61,32 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+            Dictionary<ShaderSyntaxToken, int> index = new(ReferenceEqualityComparer.Instance);
+
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                index[tokens[i]] = i;
+            }
+
+            // 構造体の可視性 (struct の前の public / internal。書かなければ internal)。
+            string VisibilityOf(StructDeclarationSyntax structure)
+                => index.TryGetValue(structure.Keyword, out int at) && at > 0 && tokens[at - 1].Text is "public" or "internal" or "private" ? tokens[at - 1].Text : "internal";
+
+            // S({ … }) (並びを渡す作成)。
+            foreach (InvocationExpressionSyntax call in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+            {
+                if (call.TargetName is { } constructed
+                    && call.ArgumentExpressions.ToArray() is [InitializerListExpressionSyntax argument]
+                    && structs.TryGetValue(constructed, out StructDeclarationSyntax? target) && target is not null
+                    && target.GenericParameterTokens.IsDefaultOrEmpty
+                    && !open.Contains(constructed)
+                    && DescribeCall(structs, target, argument.Elements.Select(e => e.Node).OfType<ExpressionSyntax>().Count(), VisibilityOf, since2026, binder) is { } callProblem)
+                {
+                    Report(argument.OpenBrace, callProblem);
+                }
+            }
+
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
                 TypeSyntax type = declaration.Type;
@@ -102,7 +128,7 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
                         || !structs.TryGetValue(type.Name, out StructDeclarationSyntax? structure) || structure is null
                         || !structure.GenericParameterTokens.IsDefaultOrEmpty
                         || open.Contains(type.Name)
-                        || Describe(structs, structure, count) is not { } problem)
+                        || Describe(structs, structure, count, VisibilityOf, since2026) is not { } problem)
                     {
                         continue;
                     }
@@ -114,7 +140,7 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>並びが合わない理由。合うか、決められなければ <see langword="null"/>。</summary>
-    private static string? Describe(Dictionary<string, StructDeclarationSyntax?> structs, StructDeclarationSyntax structure, int count)
+    private static string? Describe(Dictionary<string, StructDeclarationSyntax?> structs, StructDeclarationSyntax structure, int count, Func<StructDeclarationSyntax, string> visibilityOf, bool since2026)
     {
         string name = structure.Name;
         FunctionDeclarationSyntax[] initializers = [.. structure.Members.OfType<FunctionDeclarationSyntax>().Where(f => f.Name == "__init")];
@@ -144,6 +170,13 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
             return $"{name} の初期化子の並びは __init の呼び出しになりますが、要素の数 ({count}) を受け取る __init がありません (仮引数の数は {accepted})。";
         }
 
+        // __init の無い構造体: slangc が作る __init は、構造体と同じかそれより広い可視性のフィールドだけを仮引数にする。
+        // 並びの要素がその数を超えれば、合う __init が無い (E30513・E39999)。基底の構造体のフィールドも先に数える。
+        if (count > 0 && VisibleFields(structs, structure, visibilityOf, since2026, 0) is { } visible && count > visible.Total && visible.Hidden > 0)
+        {
+            return $"{name} の初期化子の並びで書けるのは、{name} と同じかそれより広い可視性のフィールドの {visible.Total} 個だけです (private / internal のフィールドは、作られる __init の仮引数になりません)。";
+        }
+
         // __init の無い構造体: 資源の型のフィールドは、並びで埋めなければならない (既定の値が無い)。
         if (structure.BaseTypeName is not null)
         {
@@ -171,6 +204,82 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// S({ … }) の並びが合わない理由。__init を書いた構造体では、並びは 1 つの実引数になる。1 つの仮引数の __init が配列などを受け取るなら合いうるので見ず、
+    /// どれもスカラーを受け取るなら、要素が 2 つ以上の並びは多すぎる (E30523)。__init の無い構造体は、変数の並びと同じに見る。
+    /// </summary>
+    private static string? DescribeCall(Dictionary<string, StructDeclarationSyntax?> structs, StructDeclarationSyntax structure, int count, Func<StructDeclarationSyntax, string> visibilityOf, bool since2026, ExpressionTypeBinder binder)
+    {
+        FunctionDeclarationSyntax[] initializers = [.. structure.Members.OfType<FunctionDeclarationSyntax>().Where(f => f.Name == "__init")];
+
+        if (initializers.Length == 0)
+        {
+            return Describe(structs, structure, count, visibilityOf, since2026);
+        }
+
+        ParameterSyntax[] single = [.. initializers.Where(i => i.ParameterList.Count() == 1).Select(i => i.ParameterList.First())];
+
+        if (single.Length == 0
+            || single.Any(p => p.IsArray || !binder.TypeSystem.TryDescribeNumeric(p.Type.Name, out Semantics.Symbols.ShaderNumericShape shape) || shape.Kind != Semantics.Symbols.ShaderNumericKind.Scalar)
+            || count <= 1)
+        {
+            return null;
+        }
+
+        return $"{structure.Name} の __init はスカラーを 1 つ受け取るので、要素が {count} 個の並びは渡せません。";
+    }
+
+    /// <summary>作られる __init の仮引数になるフィールドの数と、ならないフィールドの数。決められなければ <see langword="null"/>。</summary>
+    private static (int Total, int Hidden)? VisibleFields(Dictionary<string, StructDeclarationSyntax?> structs, StructDeclarationSyntax structure, Func<StructDeclarationSyntax, string> visibilityOf, bool since2026, int depth)
+    {
+        if (depth > 8 || structure.Members.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == "__init"))
+        {
+            return null;
+        }
+
+        int total = 0;
+        int hidden = 0;
+
+        if (structure.BaseTypeName is { } baseName)
+        {
+            if (!structs.TryGetValue(baseName, out StructDeclarationSyntax? baseStructure) || baseStructure is null
+                || VisibleFields(structs, baseStructure, visibilityOf, since2026, depth + 1) is not { } inherited)
+            {
+                return null;
+            }
+
+            total += inherited.Total;
+            hidden += inherited.Hidden;
+        }
+
+        string own = visibilityOf(structure);
+        int Rank(string visibility) => visibility switch { "public" => 2, "internal" => 1, _ => 0 };
+
+        foreach (VariableDeclarationSyntax field in structure.Members.OfType<VariableDeclarationSyntax>())
+        {
+            if (field.ModifierTokens.Any(t => t.Text is "static" or "const"))
+            {
+                continue;
+            }
+
+            // フィールドの可視性の既定は internal。2026 の言語では、public の構造体のフィールドは public。
+            string visibility = field.ModifierTokens.FirstOrDefault(t => t.Text is "public" or "internal" or "private")?.Text
+                                ?? (since2026 && own == "public" ? "public" : "internal");
+            int count = field.Variables.Count();
+
+            if (Rank(visibility) >= Rank(own))
+            {
+                total += count;
+            }
+            else
+            {
+                hidden += count;
+            }
+        }
+
+        return (total, hidden);
     }
 
     /// <summary>並びの要素の成分の数の合計。分からない要素があれば <see langword="null"/>。</summary>

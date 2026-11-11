@@ -304,6 +304,9 @@ public sealed class SlangRuleTests : IDisposable
     // ラムダ式: 取り込んだ値への書き込み、戻り値の型の食い違い、コピーできない型の取り込み
     [InlineData("SG0309", "void test()\n{\n    int c = 0;\n    let lam = (int a) => {\n        c = a + 1;\n    };\n}\n")]
     [InlineData("SG0355", "void test()\n{\n    let lam = (int a) => {\n        if (a > 0)\n            return 1;\n        else\n            return 3.0;\n    };\n}\n")]
+    // public の構造体の public でないフィールドは、作られる __init の仮引数にならない
+    [InlineData("SG0351", "public struct HasPrivateMember\n{\n    private int data;\n}\nvoid f()\n{\n    HasPrivateMember a = HasPrivateMember({ 1 });\n}\n")]
+    [InlineData("SG0351", "public struct Visibility\n{\n    internal int x;\n    public int y = 0;\n}\nvoid f()\n{\n    Visibility t1 = {1, 2};\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -412,6 +415,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("int eq<T>(T t) where T == int\n{\n    int x = t;\n    return x;\n}\nint en<T : __BuiltinArithmeticType>(T t)\n{\n    T y = t;\n    return 0;\n}\n")]
     // ラムダ式の中の局所変数と仮引数への書き込み、取り込んだ値の読み出し
     [InlineData("void test()\n{\n    int c = 0;\n    let lam = (int a) => {\n        int d = a + c;\n        d = d + 1;\n        a = d;\n        return d;\n    };\n}\n")]
+    // 配列を受け取る __init への並び、public のフィールドの並び
+    [InlineData("struct G\n{\n    float[4] data;\n    __init(float[4] d) { data = d; }\n}\npublic struct P\n{\n    public int a;\n    public int b;\n}\nvoid f(float x)\n{\n    G g = G({x, x, x, x});\n    P p = {1, 2};\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
