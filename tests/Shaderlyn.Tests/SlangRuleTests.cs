@@ -373,6 +373,13 @@ public sealed class SlangRuleTests : IDisposable
     // 名前空間に無いメンバー、型引数の違うジェネリックの型のフィールドどうしの代入
     [InlineData("CF0310", "namespace ns { int fb() { return 1; } }\nint f() { return ns.fa(); }\n")]
     [InlineData("CF0410", "struct G<T> { T v; }\nstruct Outer<T> { G<T> g; }\nstruct H { G<int> i; G<float> f; }\nvoid f(Outer<int> a, Outer<float> b, H c)\n{\n    a.g = b.g;\n    c.i = c.f;\n}\n")]
+    // 微分の関数の仮引数の型と数、static のメソッドの微分、no_diff の書き方
+    [InlineData("SG0360", "[ForwardDerivative(fwd_f)]\nfloat f(float x) { return x * x; }\nDifferentialPair<float> fwd_f(int x) { return diffPair(0.0, 0.0); }\n")]
+    [InlineData("SG0360", "[BackwardDerivative(bwd_g)]\nfloat g(float x, float y) { return x + y; }\nvoid bwd_g(float dout) { }\n")]
+    [InlineData("SG0360", "[BackwardDerivative(d_f)]\nfloat f(float x) { return x * x; }\nvoid d_f(float x, float.Differential dout) { }\n")]
+    [InlineData("SG0360", "struct S\n{\n    [ForwardDerivative(fwd_m)]\n    static float m(float x) { return x * x; }\n    DifferentialPair<float> fwd_m(DifferentialPair<float> x) { return diffPair(0.0, 0.0); }\n}\n")]
+    [InlineData("SG0360", "[ForwardDifferentiable]\nfloat m(float x)\n{\n    float y = no_diff x;\n    return y;\n}\n")]
+    [InlineData("SG0360", "float nonDiff(float x) { return x; }\nfloat n(float x) { return no_diff nonDiff(x); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -502,6 +509,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct S\n{\n    int v;\n    property int value\n    {\n        [mutating] set { v = newValue; }\n        get { return v; }\n    }\n}\nint useGenericTypeParam<struct>() { return 0; }\n")]
     // 名前空間のメンバーと、型引数の同じジェネリックの型のフィールドどうしの代入
     [InlineData("namespace ns { int fb() { return 1; } }\nstruct G<T> { T v; }\nstruct Outer<T> { G<T> g; }\nvoid f(Outer<int> a, Outer<int> b)\n{\n    a.g = b.g;\n    int x = ns.fb();\n}\n")]
+    // 形の合う微分の関数、型のメソッドの微分 (自分の DifferentialPair を受け取る)、微分の関数の中の no_diff と no_diff の局所変数
+    [InlineData("[ForwardDerivative(fwd_f)]\n[BackwardDerivative(bwd_f)]\nfloat f(float x, int n) { return x * n; }\nDifferentialPair<float> fwd_f(DifferentialPair<float> x, int n) { return diffPair(x.p * n, x.d * n); }\nvoid bwd_f(inout DifferentialPair<float> x, int n, float dOut) { x = diffPair(x.p, dOut * n); }\nstruct A : IDifferentiable\n{\n    float v;\n    [ForwardDerivative(diff_m)]\n    float m(float w) { return w; }\n    static DifferentialPair<float> diff_m(DifferentialPair<A> a, DifferentialPair<float> w) { return w; }\n}\nfloat g(float x) { return x; }\n[ForwardDerivativeOf(g)]\nDifferentialPair<float> fwd_g(DifferentialPair<float> x) { float s = no_diff g(x.p); return diffPair(s, x.d); }\nvoid k() { no_diff float2 pos = float2(1, 2); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

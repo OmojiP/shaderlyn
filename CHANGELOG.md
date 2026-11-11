@@ -109,6 +109,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - SG0355: ラムダ式の書き方 (型の違う値を返す、コピーできない値の取り込み)。SG0356: アドレスを取れない値 (読むだけの資源の要素、GPU の局所変数) の `&` と `__getAddress`。SG0357: 配列の大きさ (0 で割る式・負の数)
   - SG0358: ジェネリックの仮引数の書き方 (値の仮引数の型、制約に書けない型、後ろの仮引数を指す制約と既定の値、可変長の並びの後ろの仮引数、型引数の数、
     where の左の型と == の右の型、nonempty(…) の対象、インターフェイスの extension)。SG0359: インターフェイスの要件の書き忘れと、`[mutating]`・static の食い違い
+  - SG0360: 微分の関数の書き方 (`[ForwardDerivative]`・`[BackwardDerivative]` で指した関数の仮引数の数と型、static のメソッドの微分の static、呼び出しでない値と微分しない関数の中の `no_diff`)
   - SG0401: private のメンバー (extension の private のメソッドと private の `__subscript` を含む) の外からの使用と、別のモジュールの public でない宣言の使用
     (`__include` と `implementing` で分けて書いたモジュールを含む。public の構造体のメンバーと中の型の既定は、宣言したモジュールの言語のバージョンで決める。public の名前空間の public でないメンバーも見る)
   - SG0402: 可視性の書き方 (関数の外の private、public でない構造体の public のメンバー、public の宣言が public でない型を使うもの)

@@ -463,6 +463,17 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E38100・E38105) にします。",
         helpLinkUri: DocumentationLinks.For("SG0359"));
 
+    /// <summary>自分で書いた微分の関数と no_diff の書き方の誤り。</summary>
+    public static DiagnosticDescriptor CustomDerivative { get; } = new(
+        id: "SG0360",
+        title: "微分の関数の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "[ForwardDerivative] / [BackwardDerivative] などで指した微分の関数の仮引数の数か型が、元の関数から決まる形と合わないか、static の関数の微分に static でないメソッドを指しているか、"
+            + "no_diff を関数の呼び出しでないものか、微分しない関数の中で使っています。slangc はコンパイルの誤り (E31149・E31150・E31156・E38031・E38033) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0360"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
