@@ -38,7 +38,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
         {
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
 
-            if (!tokens.Any(t => t.Text is "each" or "makeTuple" or "countof"))
+            if (!tokens.Any(t => t.Text is "each" or "makeTuple" or "countof" or "expand"))
             {
                 continue;
             }
@@ -64,6 +64,19 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 }
 
                 (List<string> parameters, List<string> packs, int close) = ReadParameters(tokens, i + 1);
+
+                // 仮引数の並びの each T の T が、each で宣言した型の仮引数でない (E30103)。
+                if (parameters.Count > 0 && close < tokens.Length && tokens[close].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, close) is { } parameterEnd)
+                {
+                    for (int j = close + 1; j + 1 < parameterEnd; j++)
+                    {
+                        if (tokens[j].Text == "each" && tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                            && parameters.Contains(tokens[j + 1].Text) && !packs.Contains(tokens[j + 1].Text))
+                        {
+                            Report(tokens[j], $"型の仮引数 {tokens[j + 1].Text} は可変長の並び (each {tokens[j + 1].Text}) ではないので、each を付けられません。");
+                        }
+                    }
+                }
 
                 if (packs.Count == 0 || close >= tokens.Length || tokens[close].Kind != ShaderSyntaxKind.OpenParenToken || Matching(tokens, close) is not { } end)
                 {
@@ -127,6 +140,16 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
             }
 
             CheckCountConstraints(tokens, Report);
+
+            // expand (x + 1) (each の無い expand。E30105) と、each の無い型の仮引数の each T (E30103)。
+            for (int i = 0; i + 1 < tokens.Length; i++)
+            {
+                if (tokens[i].Text == "expand" && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, i + 1) is { } close
+                    && !tokens.Skip(i + 2).Take(close - i - 2).Any(t => t.Text == "each"))
+                {
+                    Report(tokens[i], "expand の式に each が無いので、何を広げるか決まりません。");
+                }
+            }
 
             // __first(makeTuple()) (空のタプル)。どの関数の中でも同じ。
             for (int i = 0; i + 4 < tokens.Length; i++)

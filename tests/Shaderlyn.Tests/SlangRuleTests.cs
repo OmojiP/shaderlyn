@@ -318,6 +318,11 @@ public sealed class SlangRuleTests : IDisposable
     // [mutating] のメソッドの、書き換えられない自分・定数バッファーのメンバー・ParameterBlock の値への呼び出し
     [InlineData("SG0309", "struct Counter\n{\n    int count;\n    [mutating] void increment() { count++; }\n    void bad() { increment(); }\n}\n")]
     [InlineData("SG0309", "struct Counter { int count; [mutating] void increment() { count++; } }\ncbuffer C\n{\n    Counter gCounter;\n}\nvoid main()\n{\n    gCounter.increment();\n}\n")]
+    // 大きさを決めない配列の countof、関数の外の static の資源の初期値、each の無い型の仮引数の each、each の無い expand
+    [InlineData("SG0308", "int gArr[];\nint f()\n{\n    return countof(gArr);\n}\n")]
+    [InlineData("SG0102", "RWStructuredBuffer<uint> inputBuffer;\nstatic RWStructuredBuffer<uint> gBuffer = inputBuffer;\n")]
+    [InlineData("SG0354", "void useEach<T>(expand each T values) { }\n")]
+    [InlineData("SG0354", "int f()\n{\n    int x = 0;\n    expand (x + 1);\n    return x;\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -432,6 +437,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("[NoDiscard]\nint compute() { return 1; }\nstruct W { int v; }\n[NoDiscard]\nW operator+(W a, W b) { return a; }\nvoid f(int c)\n{\n    compute() + c;\n}\n")]
     // 局所変数と [mutating] のメソッドの中からの呼び出し
     [InlineData("struct Counter\n{\n    int count;\n    [mutating] void increment() { count++; }\n    [mutating] void twice() { increment(); increment(); }\n}\nvoid main()\n{\n    Counter c;\n    c.increment();\n}\n")]
+    // 大きさを書いた配列の countof、static const の値、each の型の仮引数
+    [InlineData("int arr[4];\nstatic const int k = 2;\nint count<each T>(expand each T values) { return countof(T); }\nint f()\n{\n    return countof(arr) + k;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

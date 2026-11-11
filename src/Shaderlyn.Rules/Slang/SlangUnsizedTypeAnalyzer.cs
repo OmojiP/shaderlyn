@@ -167,6 +167,13 @@ internal sealed class SlangUnsizedTypeAnalyzer : SemanticRuleAnalyzer
                         Report(type.NameToken, $"{type.NameToken.Text} の要素に、大きさの決まらない構造体 {element.Text} は使えません。");
                         break;
 
+                    // countof(gArr) の gArr が大きさを決めない配列 (E30083)。
+                    case InvocationExpressionSyntax { TargetName: "countof" } count when count.ArgumentExpressions.ToArray() is [IdentifierExpressionSyntax counted]
+                        && compilation.GetExpressionTypeBinder(program).ResolveName(counted).Candidates is [{ Declarator: VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax countedDeclaration } countedVariable }]
+                        && OutermostRankIsEmpty(countedVariable, countedDeclaration.Type):
+                        Report(counted.Identifier, $"大きさを決めない配列 '{counted.Name}' の要素の数は、countof で求められません。");
+                        break;
+
                     case ConstantBufferDeclarationSyntax buffer:
                         foreach (VariableDeclarationSyntax member in buffer.Members.OfType<VariableDeclarationSyntax>())
                         {

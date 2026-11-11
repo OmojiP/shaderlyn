@@ -77,6 +77,11 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // 資源の型のフィールドを持つ構造体の名前。
+            HashSet<string> resourceStructs = [.. root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                .Where(t => t.NameToken is not null && t.Members.OfType<VariableDeclarationSyntax>().Any(f => IsResourceName(f.Type.NameToken.Text)))
+                .Select(t => t.NameToken!.Text)];
+
             CheckAttributes(tokens, Report);
 
             // 関数の本体の範囲 (トークンの位置)。局所の宣言の属性を見分ける。
@@ -113,7 +118,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                         break;
 
                     case VariableDeclarationSyntax declaration:
-                        CheckVariable(declaration, tokens, positions, types, enums, structs, Report);
+                        CheckVariable(declaration, tokens, positions, types, enums, structs, resourceStructs, Report);
                         break;
                 }
             }
@@ -127,6 +132,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         ShaderTypeSystem types,
         HashSet<string> enums,
         HashSet<string> structs,
+        HashSet<string> resourceStructs,
         Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
     {
         TypeSyntax type = declaration.Type;
@@ -158,6 +164,14 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         if (field && !isStatic && modifiers.FirstOrDefault(t => t.Text == "groupshared") is { } sharedField)
         {
             report(SlangRuleDescriptors.ModifierNotAllowed, sharedField, "構造体のフィールドに groupshared は書けません。関数の外の変数にしてください。");
+        }
+
+        // 関数の外の static の資源 (と資源を持つ構造体) の初期値 (E30076)。資源は定数のように作れない。
+        if (global && isStatic && !isConst && declaration.Variables.Any(v => v.Initializer is not null)
+            && (IsResourceName(type.NameToken.Text) || resourceStructs.Contains(type.NameToken.Text)))
+        {
+            report(SlangRuleDescriptors.ModifierNotAllowed, declaration.Variables.First(v => v.Initializer is not null).NameToken,
+                $"関数の外の static の変数 ({type.NameToken.Text}) に、資源を含む初期値は書けません。資源は関数の中で使うか、static でない変数にしてください。");
         }
 
         if (modifiers.Any(t => t.Text == "groupshared"))
@@ -207,6 +221,12 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
             }
         }
     }
+
+    /// <summary>資源の型の名前 (テクスチャ・バッファー・サンプラー)。</summary>
+    private static bool IsResourceName(string name)
+        => name.StartsWith("Texture", StringComparison.Ordinal) || name.StartsWith("RWTexture", StringComparison.Ordinal)
+           || name.EndsWith("StructuredBuffer", StringComparison.Ordinal) || name.EndsWith("ByteAddressBuffer", StringComparison.Ordinal)
+           || name is "Buffer" or "RWBuffer" or "SamplerState" or "SamplerComparisonState" or "RaytracingAccelerationStructure";
 
     /// <summary>ビットフィールド (<c>int a : 8;</c>) の型と幅。幅のトークンは構文木に残らないので、名前の後ろのトークンを読む。</summary>
     private static void CheckBitField(
