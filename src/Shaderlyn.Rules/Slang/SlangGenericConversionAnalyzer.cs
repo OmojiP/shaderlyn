@@ -133,7 +133,7 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                             if (variable.Initializer is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax { Name: "SamplerDescriptorHeap" or "ResourceDescriptorHeap" } heap }
                                 && (declaration.Type.NameToken.Text == "Handle" && !declaration.Type.QualifierTokens.IsDefaultOrEmpty ? declaration.Type.QualifierTokens[0].Text
                                     : declaration.Type.QualifierTokens.IsDefaultOrEmpty ? declaration.Type.NameToken.Text : string.Empty) is { Length: > 0 } heapTarget
-                                && (heapTarget.StartsWith("Sampler", StringComparison.Ordinal) ? heap.Name == "ResourceDescriptorHeap"
+                                && (heapTarget is "SamplerState" or "SamplerComparisonState" ? heap.Name == "ResourceDescriptorHeap"
                                     : heapTarget.Contains("Texture", StringComparison.Ordinal) || heapTarget.EndsWith("Buffer", StringComparison.Ordinal) ? heap.Name == "SamplerDescriptorHeap" : false)
                                 && compilation.IsReportable(variable.Initializer) && variable.Initializer.GetLocation() is { } heapLocation)
                             {
