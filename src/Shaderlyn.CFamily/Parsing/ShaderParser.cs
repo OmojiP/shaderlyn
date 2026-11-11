@@ -133,6 +133,10 @@ internal abstract class ShaderParser
     /// </summary>
     protected virtual bool AcceptsArrayTypes => false;
 
+    /// <summary>ファイルの終わりで足りないもの (; や }) を、ファイルの本当の終わりで伝えるか。偽なら、最後のトークンの直後で伝える。</summary>
+    /// <remarks>slangc は、ファイルの終わりの位置 (最後の改行の後ろ) で伝える。</remarks>
+    protected virtual bool ReportsEndOfFileAtTextEnd => false;
+
     /// <summary>名前の無い宣言 (GLSL の <c>uniform atomic_uint;</c>) を、型の無い宣言と同じく読むか。</summary>
     protected virtual bool AcceptsDeclarationWithoutName => false;
 
@@ -3299,10 +3303,10 @@ internal abstract class ShaderParser
     /// <summary>終端トークンを合成する。</summary>
     /// <param name="last">直前のトークン。位置の基準に使う。</param>
     /// <returns>合成したトークン。</returns>
-    private static ShaderSyntaxToken CreateEndOfFileToken(ShaderSyntaxToken? last)
+    private ShaderSyntaxToken CreateEndOfFileToken(ShaderSyntaxToken? last)
         => last is not null
             ? new ShaderSyntaxToken(ShaderSyntaxKind.EndOfFileToken, last.Source,
-                new TextSpan(last.Span.End, 0), string.Empty)
+                new TextSpan(ReportsEndOfFileAtTextEnd && last.Source.Length >= last.Span.End ? last.Source.Length : last.Span.End, 0), string.Empty)
             : new ShaderSyntaxToken(ShaderSyntaxKind.EndOfFileToken,
                 SourceText.From(string.Empty, "<空>"), new TextSpan(0, 0), string.Empty);
 

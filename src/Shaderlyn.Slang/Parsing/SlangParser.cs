@@ -53,6 +53,9 @@ internal sealed class SlangParser : ShaderParser
     protected override bool AcceptsEnums => true;
 
     /// <inheritdoc/>
+    protected override bool ReportsEndOfFileAtTextEnd => true;
+
+    /// <inheritdoc/>
     protected override bool AcceptsTemplates => true;
 
     /// <inheritdoc/>

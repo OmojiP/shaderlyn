@@ -607,6 +607,15 @@ public sealed class SlangRuleTests : IDisposable
     }
 
     [Fact]
+    public async Task ファイルの終わりで足りないものはファイルの終わりの位置で伝える()
+    {
+        // slangc と同じく、最後の改行の後ろ (4 行目) で伝える。
+        string output = await AnalyzeAsync("int foo()\n{\n    int a = 33\n", "eof.slang");
+
+        Assert.Contains("eof.slang(4:1): error CF0001", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task 取り込んだモジュールの取り込みと名前空間の宣言は見えない()
     {
         // import はたどらない (__exported import はたどる)。取り込んだモジュールの using namespace は効かない。名前空間の中の using は、その名前空間を using すれば効く。
