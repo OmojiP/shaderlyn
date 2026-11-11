@@ -148,6 +148,7 @@ public static class BuiltInAnalyzers
         new Rules.Slang.SlangDerivativeAnalyzer(),
         new Rules.Slang.SlangInitializerListAnalyzer(),
         new Rules.Slang.SlangConstantArgumentAnalyzer(),
+        new Rules.Slang.SlangModuleErrorAnalyzer(),
         new Rules.Slang.SlangVisibilityAnalyzer(),
         new Rules.Slang.SlangRemovedDeclarationAnalyzer(),
         new Rules.Slang.SlangDeclarationAnalyzer(),

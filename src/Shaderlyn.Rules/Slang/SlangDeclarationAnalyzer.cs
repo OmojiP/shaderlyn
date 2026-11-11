@@ -181,12 +181,51 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
             foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
             {
                 ReportDuplicates(function.ParameterList.Where(conditions.IsAlwaysPresent).Select(p => p.NameToken));
+
+                // 重複した仮引数の名前の使用は、どちらを指すか決まらない (E39999「ambiguous reference」)。局所変数で隠したものは見ない。
+                ParameterSyntax[] parameters = [.. function.ParameterList.Where(conditions.IsAlwaysPresent)];
+                string[] doubled = [.. parameters.GroupBy(p => p.Name, StringComparer.Ordinal).Where(g => g.Key.Length > 0 && g.Count() > 1).Select(g => g.Key)];
+
+                if (doubled.Length > 0 && function.Body is { } body)
+                {
+                    HashSet<string> locals = [.. body.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>().Select(v => v.Name)];
+
+                    foreach (IdentifierExpressionSyntax use in body.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>())
+                    {
+                        if (doubled.Contains(use.Name) && !locals.Contains(use.Name)
+                            && !(use.Parent is MemberAccessExpressionSyntax access && !ReferenceEquals(access.Target, use))
+                            && compilation.IsReportable(use.Identifier) && use.Identifier.GetLocation() is { } useLocation
+                            && parameters.Last(p => p.Name == use.Name).NameToken.GetLocation() is { } declared)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, useLocation, use.Name,
+                                (declared.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                        }
+                    }
+                }
             }
 
             // 列挙子の重複 (E30200)。
             foreach (EnumDeclarationSyntax enumeration in root.DescendantNodesAndSelf().OfType<EnumDeclarationSyntax>())
             {
                 ReportDuplicates(enumeration.Members.Where(conditions.IsAlwaysPresent).Select(m => m.NameToken));
+
+                // 重複した列挙子の使用 (E::A。E39999「ambiguous reference」)。
+                EnumMemberSyntax[] members = [.. enumeration.Members.Where(conditions.IsAlwaysPresent)];
+                HashSet<string> doubledMembers = [.. members.GroupBy(m => m.Name, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key)];
+
+                if (doubledMembers.Count > 0 && enumeration.Name.Length > 0)
+                {
+                    foreach (MemberAccessExpressionSyntax use in root.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>())
+                    {
+                        if (use.Target is IdentifierExpressionSyntax { Name: var owner } && owner == enumeration.Name && doubledMembers.Contains(use.NameToken.Text)
+                            && compilation.IsReportable(use.NameToken) && use.NameToken.GetLocation() is { } memberLocation
+                            && members.Last(m => m.Name == use.NameToken.Text).NameToken.GetLocation() is { } memberDeclared)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, memberLocation, use.NameToken.Text,
+                                (memberDeclared.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                        }
+                    }
+                }
             }
 
             // 同じ形の関数の本体の 2 つ目 (E30201「function already has a body」)。ジェネリック・where・コンパイル先の指定のある関数は、制約と先で別のものになりうるので見ない。

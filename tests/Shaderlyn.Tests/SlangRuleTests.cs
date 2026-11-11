@@ -278,6 +278,9 @@ public sealed class SlangRuleTests : IDisposable
     // 2026 の言語の、ベクトルを含んで成分の足りない作成と並び
     [InlineData("SG0341", "#language slang 2026\nvoid f()\n{\n    float2 v = float2(1, 2);\n    float4 c = float4(v, 1);\n}\n")]
     [InlineData("SG0341", "#language slang 2026\nvoid f()\n{\n    int4 v = { int2(1, 2), 3 };\n}\n")]
+    // 重複した仮引数と列挙子の使用 (どちらを指すか決まらない)
+    [InlineData("CF0314", "int f(int size, float size)\n{\n    return size;\n}\n")]
+    [InlineData("CF0314", "enum E { A, A }\nE g() { return E::A; }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -394,6 +397,18 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 構文の誤りのあるモジュールのimportを報告する()
+    {
+        // たどって取り込んだモジュール (c) の誤りも、解析するファイルの import の行に伝える。
+        File.WriteAllText(Path.Combine(_workDirectory, "b.slang"), "import c;\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "c.slang"), "int a(;\n");
+
+        string output = await AnalyzeAsync("import b;\nint main() { return 0; }\n", "user.slang");
+
+        Assert.Contains("user.slang(1:1): error SG0353", output, StringComparison.Ordinal);
     }
 
     [Fact]

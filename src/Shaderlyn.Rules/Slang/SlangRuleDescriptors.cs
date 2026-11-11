@@ -383,6 +383,16 @@ internal static class SlangRuleDescriptors
             + "offset は命令に埋め込むので、slangc はコンパイルの誤り (E40012) にします。__floatAsInt の実引数も、浮動小数のリテラルでなければなりません (E30084・E30085)。",
         helpLinkUri: DocumentationLinks.For("SG0352"));
 
+    /// <summary>構文の誤りのあるモジュールの import。</summary>
+    public static DiagnosticDescriptor ModuleHasErrors { get; } = new(
+        id: "SG0353",
+        title: "取り込んだモジュールに誤りがあります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "import したモジュール (それがたどって取り込んだモジュールを含む) に構文の誤りがあります。slangc はそのモジュールを読めないので、import の行もコンパイルの誤り (E39999) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0353"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
