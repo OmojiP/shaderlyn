@@ -252,6 +252,15 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0349", "interface IFoo { }\nstruct G<T : IFoo> { T v; }\nstruct None { }\nvoid f()\n{\n    G<None> g;\n}\n")]
     [InlineData("SG0349", "interface IFoo { }\nT g<T>(T x) where T : IFoo { return x; }\nvoid f()\n{\n    g<int>(1);\n}\n")]
     [InlineData("SG0349", "interface IFoo {}\nstruct Parent : IFoo {}\nstruct Child : Parent {}\nT getObject<T>() where T : IFoo { return T(); }\nvoid main()\n{\n    getObject<Child>();\n}\n")]
+    // 微分する関数の、繰り返しの回数を決められないループ
+    [InlineData("SG0350", "[Differentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < (int)x; i++) { s += x; }\n    return s;\n}\n")]
+    [InlineData("SG0350", "[Differentiable]\nfloat f(float x)\n{\n    float s = 0;\n    int i = 0;\n    while (i < 5) { s += x; i++; }\n    return s;\n}\n")]
+    [InlineData("SG0350", "[ForwardDifferentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < 5; i++) { i = (int)x; }\n    return s;\n}\n")]
+    // 微分の属性の関数の名前、属性の置き場所、微分のグループのスレッドの数
+    [InlineData("CF0310", "[BackwardDerivative(nonexistent_bwd)]\nfloat f(float x) { return x * x; }\n")]
+    [InlineData("SG0102", "[MaybeDifferentiable]\nfloat bar(float x) { return x * x; }\n")]
+    [InlineData("SG0102", "interface IFoo\n{\n    [TreatAsDifferentiable]\n    float compute(float x);\n}\n")]
+    [InlineData("SG0304", "[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(3, 1, 1)]\nvoid main() { }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -338,6 +347,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface IShape { float area(); }\nenum MyError { Fail }\nT pick<T : IShape>(T a) { return a; }\nT twice<T : IArithmetic, let N : int>(T x) where T : IComparable { return x; }\nint g() throws MyError { return 1; }\nfloat use(IShape s)\n{\n    if (let c = s as IShape) { return c.area(); }\n    return 0;\n}\n")]
     // インターフェイスの継承、extension での適合、ジェネリックの extension
     [InlineData("interface IFoo { int get(); }\ninterface IBar : IFoo { }\nstruct ViaBar : IBar { int get() { return 2; } }\nstruct Ext { }\nextension Ext : IFoo { int get() { return 3; } }\nextension float : IFoo { int get() { return 4; } }\ninterface IBase {}\nextension<T : IBase> T : IFoo { int get() { return 5; } }\nstruct B : IBase {}\nint f<T : IFoo>(T x) { return x.get(); }\nstruct G<T : IFoo> { T v; }\nvoid main(ViaBar v, Ext e, B b)\n{\n    f(v);\n    f(e);\n    f(b);\n    f(1.0);\n    G<Ext> ge;\n}\n")]
+    // 定数の回数のループ、[MaxIters]、break で抜けるループ、同じ型のメソッドの微分の関数、インターフェイスの [MaybeDifferentiable]、no_diff の呼び出しの文
+    [InlineData("static const int N = 4;\nvoid trace() { }\n[Differentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < N; i++) { s += x; }\n    for (int j = 5; j > 0; j -= 1) { s += x; }\n    [MaxIters(8)]\n    for (int k = 0; k < (int)x; k++) { s += x; }\n    for (;;) { if (x > 0) break; }\n    no_diff trace();\n    return s;\n}\nstruct S\n{\n    [BackwardDerivative(eval_bwd)]\n    float eval(float x) { return x; }\n    void eval_bwd(inout DifferentialPair<float> x, float d) { }\n}\ninterface IFoo\n{\n    [MaybeDifferentiable]\n    float compute(float x);\n}\n[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(4, 1, 1)]\nvoid main() { }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

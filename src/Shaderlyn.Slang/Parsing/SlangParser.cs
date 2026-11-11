@@ -534,8 +534,9 @@ internal sealed class SlangParser : ShaderParser
                 return new JumpStatementSyntax(keyword, Advance());
             }
 
-            // expand f(each xs); (可変長の値の並びの、要素ごとの式)
+            // expand f(each xs); (可変長の値の並びの、要素ごとの式)。no_diff f(x); (微分しない呼び出しの式。no_diff float x; は宣言)
             case "expand" or "each":
+            case "no_diff" when Peek(1).Kind == ShaderSyntaxKind.IdentifierToken && Peek(2).Kind == ShaderSyntaxKind.OpenParenToken:
             {
                 ExpressionSyntax expression = ParseExpression();
                 return new ExpressionStatementSyntax(expression, Expect(ShaderSyntaxKind.SemicolonToken, "';'"));

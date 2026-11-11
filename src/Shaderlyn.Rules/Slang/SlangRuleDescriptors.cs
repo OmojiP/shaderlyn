@@ -58,7 +58,7 @@ internal static class SlangRuleDescriptors
         description: "関数の外の static の無い const か constexpr の変数、初期値を書いた uniform の変数、局所変数の groupshared、"
             + "構造体のフィールドの __ref / __constref を書いているか、同じ修飾子・1 つしか書けない属性 ([numthreads] など) を 2 度書いているか、"
             + "可視性 (public・internal・private) を 2 つ書いているか、初期値を書いた groupshared、ポインターの coherent / globallycoherent / constexpr、typedef の volatile、"
-            + "static の特殊化定数、push constant でもある特殊化定数、標準のモジュールにだけ書ける修飾子 (__magic_type など) を書いています。slangc はコンパイルの誤りにします。",
+            + "static の特殊化定数、push constant でもある特殊化定数、標準のモジュールにだけ書ける修飾子 (__magic_type など)、インターフェイスの要件でない関数の [MaybeDifferentiable]、インターフェイスの要件の [TreatAsDifferentiable] を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0102"));
 
     /// <summary>レジスタの種類が資源の型と合わない。</summary>
@@ -243,7 +243,8 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[numthreads] に 1 より小さい値を、[WaveSize] に 4 から 128 までの 2 の累乗でない値を、[COM] に GUID でない文字列を、"
-            + "[RemovedSince] に -1 から 9999 の外の版を書いています。slangc はコンパイルの誤り (E31102・E31103・E31123・E31209) にします。",
+            + "[RemovedSince] に -1 から 9999 の外の版を書いているか、[DerivativeGroupLinear] / [DerivativeGroupQuad] の [numthreads] のスレッドの数が合いません。"
+            + "slangc はコンパイルの誤り (E31102・E31103・E31123・E31209・E31211・E31210) にします。",
         helpLinkUri: DocumentationLinks.For("SG0304"));
 
     /// <summary>初期値の無い static const。</summary>
@@ -346,6 +347,17 @@ internal static class SlangRuleDescriptors
             + "型が適合するのは、継承の並びか extension にそのインターフェイス (かそれを継承したインターフェイス) を書いたときだけです (基底の構造体の適合は受け継ぎません)。"
             + "slangc はコンパイルの誤り (E38029) にします。",
         helpLinkUri: DocumentationLinks.For("SG0349"));
+
+    /// <summary>微分する関数の、繰り返しの回数を決められないループ。</summary>
+    public static DiagnosticDescriptor LoopNeedsIterationCount { get; } = new(
+        id: "SG0350",
+        title: "微分する関数のループには、繰り返しの回数が要ります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比べて定数ずつ増減する形でない for、"
+            + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が要るので、slangc はコンパイルの誤り (E30510) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0350"));
 
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
