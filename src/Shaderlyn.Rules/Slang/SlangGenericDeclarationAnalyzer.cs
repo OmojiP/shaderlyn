@@ -18,13 +18,17 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>extension の型の仮引数のうち、拡張する型に出てこないもの (<c>extension&lt;T&gt; int</c>。E30855)</item>
 /// <item>インターフェイスの static const の要件の初期値 (E30623。SG0101)</item>
 /// <item>型引数を書かない Buffer・Tuple と、既定の型引数の無い利用者のジェネリックの型 (E30408)</item>
+/// <item>利用者のジェネリックの型の型引数の数 (E30441・E39999) と、空の <c>Buffer&lt;&gt;</c> (E30441)</item>
+/// <item>可変長の並びの後ろの仮引数 (<c>&lt;each T, U&gt;</c>。E30522) と、後ろの仮引数を指す既定の値 (<c>&lt;A = B, B = int&gt;</c>。E30122)</item>
+/// <item>where の左の組み込みの型 (<c>where int : IInteger</c>。E30402)、== の右のインターフェイス (E30404)、nonempty(…) の対象 (E30413・E30416)</item>
+/// <item>インターフェイスの extension (<c>extension IFoo</c>。E30852)</item>
 /// </list>
 /// 構文解析はジェネリックの仮引数と where を構文木に残さないので、トークンの並びを読む。
 /// </remarks>
 internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
 {
     /// <summary>ジェネリックの仮引数 1 つ。</summary>
-    private sealed record Parameter(ShaderSyntaxToken Name, bool Value, bool Pack, List<ShaderSyntaxToken> Constraint, bool HasDefault);
+    private sealed record Parameter(ShaderSyntaxToken Name, bool Value, bool Pack, List<ShaderSyntaxToken> Constraint, bool HasDefault, List<ShaderSyntaxToken> Default);
 
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
@@ -67,6 +71,30 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             // 既定の型引数の無いジェネリックの型 (利用者が宣言したもの)。
             Dictionary<string, bool> requiresArguments = new(StringComparer.Ordinal);
 
+            // 利用者のジェネリックの型の、型引数の数 (要る数・書ける数。可変長の並びがあれば上限なし)。同じ名前が 2 つあれば null。
+            Dictionary<string, (int Required, int Total)?> arities = new(StringComparer.Ordinal);
+
+            // each で宣言した仮引数の名前 (ファイルのどこかのもの)。
+            HashSet<string> packNames = new(StringComparer.Ordinal);
+
+            for (int i = 1; i + 1 < tokens.Length; i++)
+            {
+                if (tokens[i].Text == "each" && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                    && (tokens[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken || tokens[i - 1].Text == "let"))
+                {
+                    packNames.Add(tokens[i + 1].Text);
+                }
+
+                // extension IFoo (インターフェイスの extension。E30852)
+                if (tokens[i].Text is "extension" && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                    && kinds.TryGetValue(tokens[i + 1].Text, out string? extendedKind) && extendedKind == "interface"
+                    && i + 2 < tokens.Length && tokens[i + 2].Kind is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
+                {
+                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[i + 1],
+                        $"インターフェイス {tokens[i + 1].Text} は extension で広げられません。適合する型すべてに足すなら extension<T : {tokens[i + 1].Text}> T と書いてください。");
+                }
+            }
+
             for (int i = 0; i + 2 < tokens.Length; i++)
             {
                 ShaderSyntaxToken token = tokens[i];
@@ -104,6 +132,9 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (typeDeclaration)
                 {
                     requiresArguments[tokens[i + 1].Text] = !requiresArguments.ContainsKey(tokens[i + 1].Text) && parameters.Any(p => !p.HasDefault && !p.Pack);
+                    arities[tokens[i + 1].Text] = arities.ContainsKey(tokens[i + 1].Text) || kinds.GetValueOrDefault(tokens[i + 1].Text) == "?"
+                        ? null
+                        : (parameters.Count(p => !p.HasDefault && !p.Pack), parameters.Any(p => p.Pack) ? int.MaxValue : parameters.Count);
                 }
 
                 CheckParameters(parameters, kinds, binder, Report);
@@ -118,6 +149,11 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 for (int j = end; j + 3 < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); j++)
                 {
+                    if (tokens[j].Text == "where")
+                    {
+                        CheckWhere(tokens, j, parameters, kinds, packNames, binder, Report);
+                    }
+
                     if (tokens[j].Text == "where" && tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[j + 2].Kind == ShaderSyntaxKind.ColonToken
                         && parameters.FirstOrDefault(p => p.Name.Text == tokens[j + 1].Text && !p.Value) is { } constrained
                         && tokens[j + 3].Kind == ShaderSyntaxKind.IdentifierToken
@@ -162,6 +198,8 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            CheckArity(tokens, arities, Report);
+
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
@@ -189,11 +227,211 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// ジェネリックの型の型引数の数 (<c>Foo&lt;int&gt;</c> の Foo が 2 つの仮引数を持つ。E30441・E39999) と、空の <c>Buffer&lt;&gt;</c> (E30441) を見る。
+    /// </summary>
+    private static void CheckArity(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, (int Required, int Total)?> arities, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            ShaderSyntaxToken name = tokens[i];
+
+            if (name.Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 1].Kind != ShaderSyntaxKind.LessThanToken
+                || tokens[i - 1].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken
+                || tokens[i - 1].Text is "struct" or "class" or "interface")
+            {
+                continue;
+            }
+
+            (int Required, int Total)? arity = null;
+            bool builtin = name.Text is "Buffer" or "RWBuffer" && !arities.ContainsKey(name.Text);
+
+            if (!builtin && !(arities.TryGetValue(name.Text, out arity) && arity is not null))
+            {
+                continue;
+            }
+
+            // <…> の中の、深さ 0 の , で分けた型引数の数。
+            int depth = 0;
+            int paren = 0;
+            int count = 0;
+            bool any = false;
+            bool closed = false;
+
+            for (int j = i + 1; j < tokens.Length; j++)
+            {
+                ShaderSyntaxKind kind = tokens[j].Kind;
+
+                if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken
+                    or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken || (kind == ShaderSyntaxKind.CloseParenToken && paren == 0))
+                {
+                    break;
+                }
+
+                if (kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    paren++;
+                }
+                else if (kind == ShaderSyntaxKind.CloseParenToken)
+                {
+                    paren--;
+                }
+                else if (kind == ShaderSyntaxKind.LessThanToken)
+                {
+                    depth++;
+
+                    if (depth == 1)
+                    {
+                        continue;
+                    }
+                }
+                else if (kind is ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken)
+                {
+                    depth -= kind == ShaderSyntaxKind.GreaterThanToken ? 1 : 2;
+
+                    if (depth <= 0)
+                    {
+                        // Foo<Bar<int>> の >> は、外の閉じも兼ねる。
+                        closed = depth == 0 || (depth == -1 && kind == ShaderSyntaxKind.GreaterThanGreaterThanToken && any);
+                        break;
+                    }
+                }
+                else if (kind == ShaderSyntaxKind.CommaToken && depth == 1 && paren == 0)
+                {
+                    count++;
+                    continue;
+                }
+
+                any = true;
+            }
+
+            if (!closed)
+            {
+                continue;
+            }
+
+            int arguments = any ? count + 1 : 0;
+
+            if (builtin)
+            {
+                if (arguments == 0)
+                {
+                    report(SlangRuleDescriptors.GenericParameterForm, name, $"{name.Text}<> には、要素の型を書いてください ({name.Text}<float>)。");
+                }
+
+                continue;
+            }
+
+            (int required, int total) = arity!.Value;
+
+            if (arguments < required || arguments > total)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, name,
+                    $"ジェネリックの型 {name.Text} の型引数は {(required == total ? $"{required} 個" : total == int.MaxValue ? $"{required} 個以上" : $"{required} 個から {total} 個")}ですが、{arguments} 個書いています。");
+            }
+        }
+    }
+
+    /// <summary>where の後ろの、制約の左の型 (E30402)・== の右の型 (E30404)・nonempty の対象 (E30413・E30416) を見る。</summary>
+    private static void CheckWhere(ImmutableArray<ShaderSyntaxToken> tokens, int where, List<Parameter> parameters, Dictionary<string, string> kinds, HashSet<string> packNames,
+        ExpressionTypeBinder binder, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        int i = where + 1;
+
+        // where nonempty(X)
+        if (i + 3 < tokens.Length && tokens[i].Text == "nonempty" && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken
+            && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 3].Kind == ShaderSyntaxKind.CloseParenToken)
+        {
+            ShaderSyntaxToken target = tokens[i + 2];
+
+            if (parameters.Any(p => p.Pack && p.Name.Text == target.Text))
+            {
+                return;
+            }
+
+            if (parameters.Any(p => p.Name.Text == target.Text) || DescribeNonInterface(target.Text, kinds, binder) is not null)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, target, $"nonempty(…) には、可変長の並びの仮引数 (each で宣言したもの) を書いてください ({target.Text} はそうではありません)。");
+            }
+            else if (packNames.Contains(target.Text))
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, target, $"nonempty(…) には、この宣言の可変長の並びの仮引数を書いてください ({target.Text} は外の宣言の仮引数です)。");
+            }
+
+            return;
+        }
+
+        // where int : IInteger (左が仮引数でない組み込みの型)
+        if (i + 1 < tokens.Length && tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 1].Kind == ShaderSyntaxKind.ColonToken
+            && !parameters.Any(p => p.Name.Text == tokens[i].Text) && binder.TypeSystem.TryDescribeNumeric(tokens[i].Text, out _))
+        {
+            report(SlangRuleDescriptors.GenericParameterForm, tokens[i], $"where の制約の左には、ジェネリックの型の仮引数を書いてください ({tokens[i].Text} は組み込みの型です)。");
+            return;
+        }
+
+        // where T == IAlpha & IBeta・where T == IFoo (== の右がインターフェイス)
+        int equals = i;
+
+        while (equals < tokens.Length && tokens[equals].Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.DotToken)
+        {
+            equals++;
+        }
+
+        if (equals == i || equals + 1 >= tokens.Length || tokens[equals].Kind != ShaderSyntaxKind.EqualsEqualsToken)
+        {
+            return;
+        }
+
+        int angle = 0;
+        List<ShaderSyntaxToken> right = [];
+
+        for (int j = equals + 1; j < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken) && tokens[j].Text != "where"; j++)
+        {
+            angle += tokens[j].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, ShaderSyntaxKind.GreaterThanGreaterThanToken => -2, _ => 0 };
+
+            if (angle == 0 && tokens[j].Kind == ShaderSyntaxKind.CommaToken)
+            {
+                break;
+            }
+
+            right.Add(tokens[j]);
+        }
+
+        if (right.Count == 0)
+        {
+            return;
+        }
+
+        bool conjunction = right.Any(t => t.Kind == ShaderSyntaxKind.AmpersandToken);
+        bool isInterface = right[0].Kind == ShaderSyntaxKind.IdentifierToken && kinds.TryGetValue(right[0].Text, out string? kind) && kind == "interface"
+                           && (right.Count == 1 || right[1].Kind == ShaderSyntaxKind.LessThanToken);
+
+        if (conjunction || isInterface)
+        {
+            report(SlangRuleDescriptors.GenericParameterForm, right[0],
+                $"== の制約の右に、{(conjunction ? "インターフェイスを & でつないだ型" : $"インターフェイス {right[0].Text}")} は書けません。具体的な型を書くか、: の制約にしてください。");
+        }
+    }
+
     private static void CheckParameters(List<Parameter> parameters, Dictionary<string, string> kinds, ExpressionTypeBinder binder, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         for (int i = 0; i < parameters.Count; i++)
         {
             Parameter parameter = parameters[i];
+
+            // <each T, U> (可変長の並びの後ろの仮引数。E30522)
+            if (!parameter.Pack && parameters.Take(i).FirstOrDefault(p => p.Pack) is { } pack)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, parameter.Name, $"可変長の並びの仮引数 {pack.Name.Text} の後ろに、仮引数 {parameter.Name.Text} は書けません。可変長の並びは最後に書いてください。");
+            }
+
+            // <A = B, B = int> (後ろの仮引数を指す既定の値。E30122)
+            HashSet<string> following = [.. parameters.Skip(i + 1).Select(p => p.Name.Text)];
+
+            if (parameter.Default.FirstOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken && following.Contains(t.Text)) is { } forwardDefault)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, forwardDefault, $"既定の値の中の {forwardDefault.Text} は、後ろで宣言する仮引数です。{forwardDefault.Text} を {parameter.Name.Text} より前に書いてください。");
+            }
 
             if (parameter.Value)
             {
@@ -309,9 +547,17 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 return null;
             }
 
-            ShaderSyntaxToken name = part[k++];
             List<ShaderSyntaxToken> constraint = [];
-            bool hasDefault = false;
+
+            // int N (型を前に書く値の仮引数)
+            if (k + 1 < part.Count && part[k + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                value = true;
+                constraint.Add(part[k++]);
+            }
+
+            ShaderSyntaxToken name = part[k++];
+            List<ShaderSyntaxToken> initial = [];
 
             if (k < part.Count && part[k].Kind == ShaderSyntaxKind.ColonToken)
             {
@@ -323,14 +569,14 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (k < part.Count && part[k].Kind == ShaderSyntaxKind.EqualsToken)
             {
-                hasDefault = true;
+                initial.AddRange(part.Skip(k + 1));
             }
             else if (k < part.Count)
             {
                 return null;
             }
 
-            parameters.Add(new Parameter(name, value, pack, constraint, hasDefault));
+            parameters.Add(new Parameter(name, value, pack, constraint, k < part.Count, initial));
         }
 
         return parameters.Count == 0 ? null : (parameters, i + 1);

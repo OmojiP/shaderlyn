@@ -338,6 +338,32 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0359", "interface Base { static int getValue(); }\nstruct Impl : Base\n{\n    int getValue() { return 5; }\n}\n")]
     // 言語のバージョンを書いたファイルの、存在型での特殊化
     [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float calc(float x); }\nfloat genericFunc<T : IFoo>(T obj, float x) { return obj.calc(x); }\nfloat f(IFoo obj)\n{\n    return genericFunc(obj, 3.0);\n}\n")]
+    // 継承の誤り (class の継承・構造体の継承・#lang 2026 の構造体の継承)、インターフェイスの extension
+    [InlineData("SG0347", "class C { int x; }\nstruct S : C { int y; }\n")]
+    [InlineData("SG0347", "struct C { int x; }\nclass D : C { int y; }\n")]
+    [InlineData("SG0347", "#lang 2026\nstruct B { int x; }\nstruct D : B { int y; }\n")]
+    [InlineData("SG0358", "interface IFoo { int f(); }\nextension IFoo { int g() { return f(); } }\n")]
+    // ジェネリックの仮引数の並び (可変長の並びの後ろ・後ろを指す既定の値)、型引数の数、where の形
+    [InlineData("SG0358", "struct Bad1<each T, U> {}\n")]
+    [InlineData("SG0358", "void badDefaultOrder<int A = B, int B = 10>() {}\n")]
+    [InlineData("SG0358", "struct Foo<T, U> { T t; }\nvoid f() { Foo<int> b; }\n")]
+    [InlineData("SG0358", "struct Foo<T, U = int> { T t; }\nvoid f() { Foo<int, float, int> b; }\n")]
+    [InlineData("SG0358", "void f() { Buffer<> b; }\n")]
+    [InlineData("SG0358", "interface IFoo {}\nint f<T>() where float : IFoo { return 0; }\n")]
+    [InlineData("SG0358", "interface IAlpha {}\ninterface IBeta {}\nint f<T>() where T == IAlpha & IBeta { return 0; }\n")]
+    [InlineData("SG0358", "struct BadConstraint<each T> where nonempty(int) {}\n")]
+    [InlineData("SG0358", "struct Outer<let each D : int>\n{\n    struct Inner<let each E : int> where nonempty(D) {}\n}\n")]
+    // インターフェイスの中の書き方 (__init と property の本体・override・片方だけの accessor の既定の実装)、[COM] のインターフェイス
+    [InlineData("SG0101", "interface IBase\n{\n    __init() {}\n}\n")]
+    [InlineData("SG0101", "interface I\n{\n    property int value { get { return 1; } }\n}\n")]
+    [InlineData("SG0347", "interface IBase { int f(); }\ninterface IDerived : IBase\n{\n    override int f() {}\n}\n")]
+    [InlineData("SG0348", "interface I\n{\n    property int value { get; set { } }\n}\n")]
+    [InlineData("SG0101", "[COM(\"00000000-0000-0000-0000-000000000001\")]\ninterface ICOMWithAssocType\n{\n    associatedtype Element;\n}\n")]
+    [InlineData("SG0347", "[COM(\"00000000-0000-0000-0000-000000000001\")]\ninterface ICOMBase { float getValue(); }\ninterface INonCOM : ICOMBase { float compute(); }\n")]
+    [InlineData("SG0347", "[COM(\"00000000-0000-0000-0000-000000000001\")]\ninterface ICOMService { float query(); }\nstruct BadImpl : ICOMService { float v; float query() { return v; } }\n")]
+    // as の右のインターフェイスと、制約の無いジェネリックの型の is
+    [InlineData("SG0301", "interface I { int g(); }\nstruct C : I { int g() { return 1; } }\nI k(C c) { return c as I; }\n")]
+    [InlineData("SG0301", "interface I { int g(); }\nbool f<T>(T t) { return t is I; }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -350,7 +376,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("float f(float v)\n{\n    float v = 2.0;\n    return v;\n}\n__generic<T : __BuiltinFloatingPointType>\nbool h() { return true; }\n__generic<T : __BuiltinIntegerType>\nbool h() { return false; }\nint count<each T>(T values) { return 0; }\nvoid k() { int n = count(1, 2, 3) + count(); }\n")]
     // extension で足したメソッド、インターフェイスの extension で足して基底から来るメソッド、property
     [InlineData("struct V { float x; }\nextension V { float twice() { return x * 2; } }\nfloat f(V v) { return v.twice(); }\n")]
-    [InlineData("interface ICounter { int add(int x); }\nextension ICounter { int increment() { return add(1); } }\nstruct C : ICounter { int s; int add(int x) { return s + x; } }\nint f(C c) { return c.increment(); }\n")]
+    [InlineData("interface ICounter { int add(int x); }\nextension<T : ICounter> T { int increment() { return add(1); } }\nstruct C : ICounter { int s; int add(int x) { return s + x; } }\nint f(C c) { return c.increment(); }\n")]
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
@@ -421,7 +447,7 @@ public sealed class SlangRuleTests : IDisposable
     // 同じ型引数のジェネリックの型、受け取れる多重定義のある構造体の値
     [InlineData("struct G<T> { T v; }\nstruct Test {}\nfloat pick(float x) { return x; }\nfloat pick(Test t) { return 0; }\nTexture1D<float> tex;\nvoid f(G<int> gi)\n{\n    G<int> g2 = gi;\n    Texture1D<float> t3 = tex;\n    float r = pick(Test()) + pick(1.0);\n}\n")]
     // 宣言した型と標準の型の制約、ジェネリックの仮引数の throws、then の側の if-let の変数
-    [InlineData("interface IShape { float area(); }\nenum MyError { Fail }\nT pick<T : IShape>(T a) { return a; }\nT twice<T : IArithmetic, let N : int>(T x) where T : IComparable { return x; }\nint g() throws MyError { return 1; }\nfloat use(IShape s)\n{\n    if (let c = s as IShape) { return c.area(); }\n    return 0;\n}\n")]
+    [InlineData("interface IShape { float area(); }\nenum MyError { Fail }\nstruct Circle : IShape { float r; float area() { return r; } }\nT pick<T : IShape>(T a) { return a; }\nT twice<T : IArithmetic, let N : int>(T x) where T : IComparable { return x; }\nint g() throws MyError { return 1; }\nfloat use(IShape s)\n{\n    if (let c = s as Circle) { return c.area(); }\n    return 0;\n}\n")]
     // インターフェイスの継承、extension での適合、ジェネリックの extension
     [InlineData("interface IFoo { int get(); }\ninterface IBar : IFoo { }\nstruct ViaBar : IBar { int get() { return 2; } }\nstruct Ext { }\nextension Ext : IFoo { int get() { return 3; } }\nextension float : IFoo { int get() { return 4; } }\ninterface IBase {}\nextension<T : IBase> T : IFoo { int get() { return 5; } }\nstruct B : IBase {}\nint f<T : IFoo>(T x) { return x.get(); }\nstruct G<T : IFoo> { T v; }\nvoid main(ViaBar v, Ext e, B b)\n{\n    f(v);\n    f(e);\n    f(b);\n    f(1.0);\n    G<Ext> ge;\n}\n")]
     // 定数の回数のループ、[MaxIters]、break で抜けるループ、同じ型のメソッドの微分の関数、インターフェイスの [MaybeDifferentiable]、no_diff の呼び出しの文
@@ -458,6 +484,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface IFloat {}\ninterface IBuf<T> {}\ninterface IFoo<T : IFloat> {}\nvoid test3<T : IFloat, Foo : IFoo<T>>() { }\nvoid sized<let N : int, let B : bool>() { }\nextension<T, U : IBuf<T>> U\n{\n    void bar() { }\n}\nstruct D<T = float> { T v; }\nvoid f(D d, Buffer<float4> b) { }\n")]
     // 要件を満たす型、extension で満たす型、言語のバージョンを書かないファイルの動的なディスパッチ
     [InlineData("interface IFoo { void bar(); static int count(); }\nstruct A : IFoo { void bar() { } static int count() { return 1; } }\nstruct B : IFoo { }\nextension B { void bar() { } static int count() { return 2; } }\nfloat g<T : IFoo>(T obj) { return 0; }\nfloat f(IFoo obj)\n{\n    return g(obj);\n}\n")]
+    // 型引数の既定の値と可変長の並び、制約のある is、__subscript の accessor の既定の実装、[COM] を付けた class
+    [InlineData("struct Foo<T, U = int> { T t; }\nstruct Bar<each T> { int x; }\nvoid f() { Foo<int> a; Foo<int, float> b; Bar<> c; Bar<int, float> d; }\n")]
+    [InlineData("interface I { int g(); }\nstruct C : I { int g() { return 1; } }\nbool f<T : I>(T t) { return t is I; }\nbool g<T>(T t) where optional T : I { return T is I; }\nbool h(C c) { return c is I; }\n")]
+    [InlineData("interface I\n{\n    int load(int i);\n    __subscript(int i) -> int { get { return load(i); } set { } }\n}\n")]
+    [InlineData("[COM(\"00000000-0000-0000-0000-000000000001\")]\ninterface ICOMService { float query(); }\nclass Impl : ICOMService { float query() { return 1; } }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

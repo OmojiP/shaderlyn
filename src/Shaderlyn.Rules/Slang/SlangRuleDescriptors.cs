@@ -45,7 +45,7 @@ internal static class SlangRuleDescriptors
         description: "型を書く位置 (仮引数・戻り値・型引数・typealias・as / is など) に構造体を定義しているか、"
             + "その入れ物の中に書けない宣言 (構造体の中の namespace・extension・interface、インターフェイスの中の enum・struct、"
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義、extension とインターフェイスの中の static でないフィールドなど) を書いているか、"
-            + "extension のジェネリックの仮引数に既定値を書いているか、名前の無い enum class か、型と extension の中の演算子 (operator() を除く) を書いています。slangc はコンパイルの誤りにします。",
+            + "extension のジェネリックの仮引数に既定値を書いているか、名前の無い enum class か、型と extension の中の演算子 (operator() を除く) か、インターフェイスの __init と property の要件の本体か、[COM] のインターフェイスの associatedtype を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
     /// <summary>修飾子をその宣言に書けない。</summary>
@@ -81,7 +81,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as も報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -322,8 +322,9 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "構造体が 2 つ以上の構造体を継承しているか、基底の構造体を継承の並びの最初に書いていないか、"
-            + "インターフェイスの既定の実装を置き換えるメソッドに override を書いていないか、基底に当たるメソッドの無いメソッドに override を書いています。"
-            + "slangc はコンパイルの誤り (E30820・E30853・E30854) にします。",
+            + "インターフェイスの既定の実装を置き換えるメソッドに override を書いていないか、基底に当たるメソッドの無いメソッドに override を書いているか、構造体が class を、class が構造体を、#lang 2026 の構造体が構造体を継承しているか、"
+            + "インターフェイスの要件に override を書いているか、[COM] のインターフェイスを構造体や [COM] でないインターフェイスが継承しています。"
+            + "slangc はコンパイルの誤り (E30820・E30853・E30854・E30811・E30814・E30312・E31124・E31126) にします。",
         helpLinkUri: DocumentationLinks.For("SG0347"));
 
     /// <summary>property と __subscript の書き方の誤り。</summary>
@@ -334,7 +335,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "__subscript に -> で戻り値の型を書いていないか、property の get に仮引数を、set に 2 つ以上の仮引数か property と違う型の仮引数を、"
-            + "accessor に型の無い仮引数を書いています。slangc はコンパイルの誤り (E30901・E31112・E31108・E31109・E30621) にします。",
+            + "accessor に型の無い仮引数を書いているか、インターフェイスの property や __subscript の accessor の片方だけに既定の実装を書いています。slangc はコンパイルの誤り (E30901・E31112・E31108・E31109・E30621・E30318) にします。",
         helpLinkUri: DocumentationLinks.For("SG0348"));
 
     /// <summary>ジェネリックの制約を満たさない型引数。</summary>
@@ -445,8 +446,10 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "値の仮引数 (let N) に型を書いていないか整数・列挙型・bool でない型を書いているか、制約にインターフェイスでない型 (int・構造体) を書いているか、"
-            + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていません。"
-            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408) にします。",
+            + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていないか、型引数の数が合わないか、"
+            + "可変長の並びの後ろに仮引数を書いているか、既定の値が後ろの仮引数を指しているか、where の左が仮引数でないか、== の右がインターフェイスか、"
+            + "nonempty(…) にこの宣言の可変長の並びでないものを書いているか、インターフェイスを extension で広げています。"
+            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408・E30441・E30522・E30122・E30402・E30404・E30413・E30416・E30852) にします。",
         helpLinkUri: DocumentationLinks.For("SG0358"));
 
     /// <summary>インターフェイスの要件を満たしていない。</summary>

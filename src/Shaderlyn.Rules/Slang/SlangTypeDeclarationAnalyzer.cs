@@ -14,9 +14,12 @@ namespace Shaderlyn.Rules.Slang;
 /// <list type="bullet">
 /// <item>SG0346: <c>new</c> を書かない class の作成 (<c>MyClass()</c>・<c>(MyClass)4</c>。E30066)</item>
 /// <item>SG0347: 2 つ以上の構造体からの継承と、最初でない構造体の基底 (E30820)。インターフェイスの既定の実装と同じ名前のメソッドの <c>override</c> の書き忘れ (E30853) と、
-/// 基底に同じ名前と仮引数の数のメソッドが無い <c>override</c> (E30854)</item>
+/// 基底に同じ名前と仮引数の数のメソッドが無い <c>override</c> (E30854)。構造体と class の間の継承と <c>#lang 2026</c> の構造体の継承 (E30811・E30814)、
+/// インターフェイスの要件の <c>override</c> (E30312)、<c>[COM]</c> のインターフェイスの継承 (E31124・E31126)</item>
+/// <item>SG0101: インターフェイスの <c>__init</c> と property の要件の本体 (E30317)、<c>[COM]</c> のインターフェイスの associatedtype (E31122)</item>
+/// <item>SG0301: <c>as</c> の右のインターフェイス (E30302) と、制約の無いジェネリックの型の値の <c>is</c> (E30301)</item>
 /// <item>SG0348: <c>-&gt;</c> で戻り値の型を書かない <c>__subscript</c> (E30901)。property の <c>get</c> などの仮引数 (E31112)、<c>set</c> の 2 つ以上の仮引数 (E31108)、
-/// 型を書かない仮引数 (E30621)、property の型と違う <c>set</c> の仮引数の型 (E31109)</item>
+/// 型を書かない仮引数 (E30621)、property の型と違う <c>set</c> の仮引数の型 (E31109)、インターフェイスの accessor の片方だけの既定の実装 (E30318)</item>
 /// </list>
 /// 構文解析は <c>new</c>・<c>property</c>・<c>__subscript</c> を構文木に残さないので、トークンの並びを読む。
 /// </remarks>
@@ -27,7 +30,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes, SlangRuleDescriptors.InterfaceRequirement];
+        [SlangRuleDescriptors.ClassWithoutNew, SlangRuleDescriptors.InheritanceAndOverride, SlangRuleDescriptors.AccessorForm, SlangRuleDescriptors.WrongOperandTypes, SlangRuleDescriptors.InterfaceRequirement, SlangRuleDescriptors.DeclarationNotAllowed];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -85,8 +88,53 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             Dictionary<string, string?>? VariablesAt(ShaderSyntaxToken token)
+                => FunctionAt(token).Names;
+
+            (FunctionDeclarationSyntax Function, Dictionary<string, string?> Names) FunctionAt(ShaderSyntaxToken token)
                 => scopes.FirstOrDefault(s => s.Function.Body is { } body && ReferenceEquals(body.OpenBrace.Source, token.Source)
-                                              && body.OpenBrace.Span.Start < token.Span.Start && token.Span.Start < body.CloseBrace.Span.Start).Names;
+                                              && body.OpenBrace.Span.Start < token.Span.Start && token.Span.Start < body.CloseBrace.Span.Start);
+
+            // 関数の、制約の無いジェネリックの型の仮引数 (<T> の T。where で制約を足したものは除く)。
+            HashSet<string> UnconstrainedAt(ShaderSyntaxToken token)
+            {
+                HashSet<string> names = new(StringComparer.Ordinal);
+
+                if (FunctionAt(token).Function is not { GenericParameterTokens: { Length: > 2 } generic } function)
+                {
+                    return names;
+                }
+
+                List<ShaderSyntaxToken> part = [];
+
+                foreach (ShaderSyntaxToken t in generic.Skip(1))
+                {
+                    if (t.Kind is ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.GreaterThanToken)
+                    {
+                        if (part is [{ Kind: ShaderSyntaxKind.IdentifierToken } only])
+                        {
+                            names.Add(only.Text);
+                        }
+
+                        part.Clear();
+                        continue;
+                    }
+
+                    part.Add(t);
+                }
+
+                // ) と { の間の where T : I の T
+                int close = tokens.IndexOf(function.CloseParen);
+
+                for (int k = close + 1; close >= 0 && k + 1 < tokens.Length && tokens[k].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); k++)
+                {
+                    if (tokens[k].Text == "where")
+                    {
+                        names.Remove(tokens[k + 1].Text == "optional" && k + 2 < tokens.Length ? tokens[k + 2].Text : tokens[k + 1].Text);
+                    }
+                }
+
+                return names;
+            }
 
             // 構造体の継承の関係 (基底への as は通る)。
             Dictionary<string, string> bases = new(StringComparer.Ordinal);
@@ -114,7 +162,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 return false;
             }
 
-            CheckTokens(tokens, kinds, VariablesAt, (a, b) => Derives(a, b) || Derives(b, a), Report);
+            CheckTokens(tokens, kinds, VariablesAt, UnconstrainedAt, (a, b) => Derives(a, b) || Derives(b, a), DeclarationSyntaxAnalyzer.IsSlang2026(root), Report);
             // extension で足されうる型と、既定の実装を足されうるインターフェイスの名前 (extension NAME)。
             HashSet<string> extended = new(StringComparer.Ordinal);
 
@@ -128,10 +176,12 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             CheckOverrides(types, kinds, extended, Report);
+            CheckCom(tokens, Report);
+            CheckInterfaceMembers(tokens, Report);
         }
     }
 
-    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<string, string, bool> related, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<ShaderSyntaxToken, HashSet<string>> unconstrainedAt, Func<string, string, bool> related, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -167,7 +217,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             // struct Derived : Base1, Base2 (2 つの構造体の基底と、最初でない構造体の基底)。
             if (token.Text is "struct" or "class" && next?.Kind == ShaderSyntaxKind.IdentifierToken)
             {
-                CheckBases(tokens, i, kinds, report);
+                CheckBases(tokens, i, kinds, since2026, report);
             }
 
             // __subscript(int x) { … } (-> で戻り値の型を書いていない)。
@@ -181,6 +231,24 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             if (token.Text == "property")
             {
                 CheckProperty(tokens, i, report);
+            }
+
+            // x as IFoo (as の右のインターフェイス。E30302) と、制約の無いジェネリックの型の T is IFoo・t is IFoo (E30301)。
+            if (token.Text is "is" or "as" && previous is { Kind: ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.CloseParenToken } before
+                && next is { Kind: ShaderSyntaxKind.IdentifierToken } target
+                && !(i + 2 < tokens.Length && tokens[i + 2].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                && kinds.TryGetValue(target.Text, out int targetKind) && targetKind == 3)
+            {
+                if (token.Text == "as")
+                {
+                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"as の右に、インターフェイス ({target.Text}) は書けません。値をインターフェイスの型の変数に入れてください。");
+                }
+                else if (before.Kind == ShaderSyntaxKind.IdentifierToken && !(i > 1 && tokens[i - 2].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                         && unconstrainedAt(token) is { Count: > 0 } unconstrained
+                         && (unconstrained.Contains(before.Text) || (variablesAt(token) is { } known && known.TryGetValue(before.Text, out string? declaredType) && declaredType is not null && unconstrained.Contains(declaredType))))
+                {
+                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"制約の無いジェネリックの型の値に、is でインターフェイス ({target.Text}) を調べられません。");
+                }
             }
 
             // d is Cat・d as Cat (d が別の具体的な構造体の値)。左が型の名前 (AnotherType is ConcreteImpl) も同じ。
@@ -200,7 +268,221 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    private static void CheckBases(ImmutableArray<ShaderSyntaxToken> tokens, int keyword, Dictionary<string, int> kinds, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    /// <summary>
+    /// [COM] のインターフェイスの使い方を見る。associatedtype の要件 (E31122)、[COM] でないインターフェイスの継承 (E31126)、構造体の適合 (E31124)。
+    /// </summary>
+    private static void CheckCom(ImmutableArray<ShaderSyntaxToken> tokens, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        HashSet<string> com = new(StringComparer.Ordinal);
+        List<(int Open, int Close)> bodies = [];
+
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text != "COM" || tokens[i - 1].Kind != ShaderSyntaxKind.OpenBracketToken)
+            {
+                continue;
+            }
+
+            // [COM("…")] の後ろの、次の interface NAME。
+            for (int j = i + 1; j + 1 < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); j++)
+            {
+                if (tokens[j].Text == "interface" && tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    com.Add(tokens[j + 1].Text);
+                    int open = j + 2;
+
+                    while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+                    {
+                        open++;
+                    }
+
+                    if (open < tokens.Length && tokens[open].Kind == ShaderSyntaxKind.OpenBraceToken && MatchingBrace(tokens, open) is { } close)
+                    {
+                        bodies.Add((open, close));
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        if (com.Count == 0)
+        {
+            return;
+        }
+
+        foreach ((int open, int close) in bodies)
+        {
+            for (int j = open + 1; j < close; j++)
+            {
+                if (tokens[j].Text == "associatedtype")
+                {
+                    report(SlangRuleDescriptors.DeclarationNotAllowed, tokens[j], "[COM] のインターフェイスに、associatedtype の要件は書けません。");
+                }
+            }
+        }
+
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Text is not ("struct" or "interface") || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 2].Kind != ShaderSyntaxKind.ColonToken
+                || (tokens[i].Text == "interface" && com.Contains(tokens[i + 1].Text)))
+            {
+                continue;
+            }
+
+            for (int j = i + 3; j < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.LessThanToken) && tokens[j].Text != "where"; j++)
+            {
+                if (tokens[j].Kind == ShaderSyntaxKind.IdentifierToken && com.Contains(tokens[j].Text))
+                {
+                    report(SlangRuleDescriptors.InheritanceAndOverride, tokens[j], tokens[i].Text == "struct"
+                        ? $"構造体は、[COM] のインターフェイス {tokens[j].Text} に適合できません。class にしてください。"
+                        : $"[COM] のインターフェイス {tokens[j].Text} を継承するインターフェイス {tokens[i + 1].Text} にも、[COM] を付けてください。");
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// インターフェイスの中の書き方を見る。本体のある __init と、すべてに本体のある property の accessor (E30317。__subscript は通る)、override (E30312)、property と __subscript の get・set の片方だけの既定の実装 (E30318)。
+    /// </summary>
+    private static void CheckInterfaceMembers(ImmutableArray<ShaderSyntaxToken> tokens, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Text != "interface" || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            int open = i + 2;
+
+            while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+            {
+                open++;
+            }
+
+            if (open >= tokens.Length || tokens[open].Kind != ShaderSyntaxKind.OpenBraceToken || MatchingBrace(tokens, open) is not { } close)
+            {
+                continue;
+            }
+
+            // インターフェイスの直下 (深さ 1) のトークンだけを見る。
+            int depth = 0;
+
+            for (int j = open; j < close; j++)
+            {
+                ShaderSyntaxToken token = tokens[j];
+
+                if (token.Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (token.Kind == ShaderSyntaxKind.CloseBraceToken)
+                {
+                    depth--;
+                    continue;
+                }
+
+                if (depth != 1)
+                {
+                    continue;
+                }
+
+                if (token.Text == "override" && tokens[j - 1].Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBracketToken)
+                {
+                    report(SlangRuleDescriptors.InheritanceAndOverride, token, "インターフェイスの要件に override は書けません。");
+                }
+
+                if (token.Text == "__init" && tokens[j + 1].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, j + 1) is { } parenClose
+                    && parenClose + 1 < close && tokens[parenClose + 1].Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    report(SlangRuleDescriptors.DeclarationNotAllowed, token, "インターフェイスの __init の要件に、本体は書けません。");
+                }
+
+                // property … { get; set { } } と __subscript(…) -> T { get { … } set; }
+                if (token.Text is "property" or "__subscript")
+                {
+                    int body = j + 1;
+
+                    while (body < close && tokens[body].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+                    {
+                        body++;
+                    }
+
+                    if (body >= close || tokens[body].Kind != ShaderSyntaxKind.OpenBraceToken || MatchingBrace(tokens, body) is not { } bodyClose)
+                    {
+                        continue;
+                    }
+
+                    List<(ShaderSyntaxToken Accessor, bool HasBody)> accessors = [];
+
+                    for (int k = body + 1; k + 1 < bodyClose; k++)
+                    {
+                        if (tokens[k].Text is "get" or "set" or "ref" && tokens[k - 1].Kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.CloseBracketToken)
+                        {
+                            int after = k + 1;
+
+                            // set(v) の仮引数を飛ばす。
+                            if (tokens[after].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, after) is { } p)
+                            {
+                                after = p + 1;
+                            }
+
+                            if (after < bodyClose && tokens[after].Kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken)
+                            {
+                                accessors.Add((tokens[k], tokens[after].Kind == ShaderSyntaxKind.OpenBraceToken));
+
+                                if (tokens[after].Kind == ShaderSyntaxKind.OpenBraceToken && MatchingBrace(tokens, after) is { } skip)
+                                {
+                                    k = skip;
+                                }
+                            }
+                        }
+                    }
+
+                    if (accessors.Any(a => a.HasBody) && accessors.FirstOrDefault(a => !a.HasBody) is { Accessor: { } missing })
+                    {
+                        report(SlangRuleDescriptors.AccessorForm, accessors.First(a => a.HasBody).Accessor,
+                            $"インターフェイスの {token.Text} の accessor に既定の実装を書くなら、すべての accessor に書いてください ({missing.Text} に本体がありません)。");
+                    }
+                    else if (token.Text == "property" && accessors.Count > 0 && accessors.All(a => a.HasBody))
+                    {
+                        foreach ((ShaderSyntaxToken accessor, bool _) in accessors)
+                        {
+                            report(SlangRuleDescriptors.DeclarationNotAllowed, accessor, $"インターフェイスの {token.Text} の要件 ({accessor.Text}) に、本体は書けません。");
+                        }
+                    }
+
+                    j = bodyClose;
+                }
+            }
+        }
+    }
+
+    /// <summary>{ に対応する } の位置。</summary>
+    private static int? MatchingBrace(ImmutableArray<ShaderSyntaxToken> tokens, int open)
+    {
+        int depth = 0;
+
+        for (int i = open; i < tokens.Length; i++)
+        {
+            if (tokens[i].Kind == ShaderSyntaxKind.OpenBraceToken)
+            {
+                depth++;
+            }
+            else if (tokens[i].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+            {
+                return i;
+            }
+        }
+
+        return null;
+    }
+
+    private static void CheckBases(ImmutableArray<ShaderSyntaxToken> tokens, int keyword, Dictionary<string, int> kinds, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         int i = keyword + 2;
 
@@ -258,6 +540,20 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             }
 
             structs++;
+
+            // struct S : C (class の継承)・class D : S (構造体の継承)・#lang 2026 の struct D : B (E30811・E30814)。
+            bool isClass = tokens[keyword].Text == "class";
+
+            if (kind == 1 && !isClass || kind == 2 && (isClass || since2026))
+            {
+                report(SlangRuleDescriptors.InheritanceAndOverride, bases[b],
+                    isClass
+                        ? $"class が継承できるのは class かインターフェイスです ({bases[b].Text} は構造体です)。"
+                        : kind == 1
+                            ? $"構造体は class ({bases[b].Text}) を継承できません。"
+                            : $"#lang 2026 の構造体は、インターフェイスでない型 ({bases[b].Text}) を継承できません。");
+                return;
+            }
 
             if (structs > 1 || b > 0)
             {
