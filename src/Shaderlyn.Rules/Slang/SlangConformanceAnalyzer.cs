@@ -59,8 +59,8 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
             Collect(tokens, interfaces, types, functions, structs, extended, blanket);
 
-            // ジェネリックのインターフェイス (interface IFoo<T>) は、型引数で要件が変わるので見ない。
-            if (interfaces.Count == 0)
+            // ジェネリックの関数も型も無ければ、見る使い方が無い。
+            if (functions.Count == 0 && structs.Count == 0)
             {
                 continue;
             }
@@ -70,6 +70,17 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             // 型が、インターフェイスに適合しないと言えるか。
             bool Violates(string type, string requirement)
             {
+                // 標準ライブラリのインターフェイス (IBuiltinScalar など)。void と、継承の並びも extension も無い利用者の構造体は、どれにも適合しない。
+                // 組み込みの型がどれに適合するかは表に無いので見ない。
+                if (!interfaces.ContainsKey(requirement)
+                    && binder.TypeSystem.IsBuiltInTypeName(requirement)
+                    && requirement.Length > 1 && requirement[0] == 'I' && char.IsAsciiLetterUpper(requirement[1])
+                    && !blanket.Contains(requirement))
+                {
+                    return type == "void"
+                           || (types.TryGetValue(type, out HashSet<string>? own) && own is { Count: 0 } && !extended.Contains(type) && blanket.Count == 0);
+                }
+
                 if (!interfaces.TryGetValue(requirement, out HashSet<string>? _) || interfaces[requirement] is null
                     || interfaces.Keys.Any(i => blanket.Contains(i) && Derives(interfaces, i, requirement, 0)))
                 {
