@@ -401,7 +401,8 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "where nonempty(T) の無い可変長の型の仮引数 (each T) に __first・__last を使っているか、where nonempty(…) を求める関数へ空でありうる並びか空の型引数を渡しているか、"
-            + "nonempty の制約を optional にしています。slangc はコンパイルの誤り (E30411・E30412・E30415・E30440) にします。",
+            + "nonempty の制約を optional にしているか、countof(…) の制約の書き方 (== と左の countof(…)・この宣言の並び・定数の右辺) が正しくないか、型引数の数と並びの数が合いません。"
+            + "slangc はコンパイルの誤り (E30411・E30412・E30415・E30440・E30430～E30437) にします。",
         helpLinkUri: DocumentationLinks.For("SG0354"));
 
     /// <summary>条件の中の代入。</summary>

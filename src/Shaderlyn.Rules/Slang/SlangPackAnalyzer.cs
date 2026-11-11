@@ -38,7 +38,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
         {
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
 
-            if (!tokens.Any(t => t.Text is "each" or "makeTuple"))
+            if (!tokens.Any(t => t.Text is "each" or "makeTuple" or "countof"))
             {
                 continue;
             }
@@ -126,6 +126,8 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            CheckCountConstraints(tokens, Report);
+
             // __first(makeTuple()) (空のタプル)。どの関数の中でも同じ。
             for (int i = 0; i + 4 < tokens.Length; i++)
             {
@@ -148,6 +150,188 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// <c>where countof(T) == N</c> の書き方 (E30430・E30431・E30432・E30434・E30436・E30437) と、型引数を書いた呼び出しの並びの数 (E30433)。
+    /// </summary>
+    private static void CheckCountConstraints(ImmutableArray<ShaderSyntaxToken> tokens, Action<ShaderSyntaxToken, string> report)
+    {
+        // 関数の名前から、値の仮引数 N の位置と、仮引数の並び (実引数を受け取る位置) の位置。
+        Dictionary<string, (int Count, int Pack)?> counted = new(StringComparer.Ordinal);
+
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 1].Kind != ShaderSyntaxKind.LessThanToken
+                || tokens[i - 1].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i - 1].Text is "return" or "new")
+            {
+                continue;
+            }
+
+            (List<string> parameters, List<string> packs, int close) = ReadParameters(tokens, i + 1);
+
+            if (parameters.Count == 0 || close >= tokens.Length)
+            {
+                continue;
+            }
+
+            int end = close;
+            List<ShaderSyntaxToken> functionParameters = [];
+
+            if (tokens[close].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, close) is { } closeParen)
+            {
+                functionParameters = [.. tokens.Skip(close + 1).Take(closeParen - close - 1)];
+                end = closeParen + 1;
+            }
+
+            // where の節を 1 つずつ読む (次の where か、本体の { か ; まで)。
+            for (int j = end; j < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); j++)
+            {
+                if (tokens[j].Text != "where")
+                {
+                    continue;
+                }
+
+                List<ShaderSyntaxToken> clause = [];
+
+                for (int k = j + 1; k < tokens.Length && tokens[k].Text != "where" && tokens[k].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); k++)
+                {
+                    clause.Add(tokens[k]);
+                }
+
+                if (!clause.Where((t, index) => t.Text == "countof" && index + 1 < clause.Count && clause[index + 1].Kind == ShaderSyntaxKind.OpenParenToken).Any())
+                {
+                    continue;
+                }
+
+                if (clause is [{ Text: "optional" } optional, { Text: "countof" }, ..])
+                {
+                    report(optional, "countof(…) の制約は optional にできません。");
+                    continue;
+                }
+
+                if (clause is not [{ Text: "countof" } first, { Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.IdentifierToken } target, { Kind: ShaderSyntaxKind.CloseParenToken }, var op, .. var rest])
+                {
+                    report(clause.First(t => t.Text == "countof" && clause.IndexOf(t) + 1 < clause.Count && clause[clause.IndexOf(t) + 1].Kind == ShaderSyntaxKind.OpenParenToken), "countof(…) の制約は、countof(…) を左に書いてください (where countof(T) == N)。");
+                    continue;
+                }
+
+                if (op.Kind != ShaderSyntaxKind.EqualsEqualsToken)
+                {
+                    report(first, $"countof(…) の制約には == を使ってください ('{op.Text}' は使えません)。");
+                    continue;
+                }
+
+                if (!packs.Contains(target.Text))
+                {
+                    report(first, $"countof(…) の制約の {target.Text} は、この宣言の可変長の仮引数でなければなりません。");
+                    continue;
+                }
+
+                if (rest is [{ Kind: ShaderSyntaxKind.IdentifierToken } callee, { Kind: ShaderSyntaxKind.OpenParenToken }, ..] && callee.Text != "countof")
+                {
+                    report(first, $"countof(…) の制約の右には、コンパイル時の整数の定数か値の仮引数を書いてください ('{callee.Text}(…)' は使えません)。");
+                    continue;
+                }
+
+                // countof(P) == N (N が値の仮引数、P が関数の最後の仮引数の並び)。型引数を書いた呼び出しで数を比べる。
+                if (rest is [{ Kind: ShaderSyntaxKind.IdentifierToken } count] && parameters.IndexOf(count.Text) is var countIndex and >= 0
+                    && Split(functionParameters) is { Count: > 0 } split
+                    && split.FindIndex(p => p.Count == 2 && p[0].Text == target.Text) is var packIndex and >= 0
+                    && packIndex == split.Count - 1)
+                {
+                    string name = tokens[i].Text;
+                    counted[name] = counted.ContainsKey(name) ? null : (countIndex, packIndex);
+                }
+            }
+        }
+
+        // 同じ名前の宣言 (多重定義) の数。1 つだけのものの呼び出しを見る。
+        Dictionary<string, int> declarations = new(StringComparer.Ordinal);
+
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i - 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i - 1].Text != "return"
+                && tokens[i + 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenParenToken)
+            {
+                declarations[tokens[i].Text] = declarations.GetValueOrDefault(tokens[i].Text) + 1;
+            }
+        }
+
+        // load<2>(1, 2, 3)
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 1].Kind != ShaderSyntaxKind.LessThanToken
+                || !counted.TryGetValue(tokens[i].Text, out var rule) || rule is not { } found
+                || declarations.GetValueOrDefault(tokens[i].Text) != 1
+                || (tokens[i - 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i - 1].Text != "return"))
+            {
+                continue;
+            }
+
+            int depth = 0;
+            int close = i + 1;
+
+            for (; close < tokens.Length; close++)
+            {
+                depth += tokens[close].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+                if (depth == 0)
+                {
+                    break;
+                }
+            }
+
+            List<List<ShaderSyntaxToken>> typeArguments = Split([.. tokens.Skip(i + 2).Take(close - i - 2)]);
+
+            if (close + 1 >= tokens.Length || tokens[close + 1].Kind != ShaderSyntaxKind.OpenParenToken || Matching(tokens, close + 1) is not { } end
+                || found.Count >= typeArguments.Count || typeArguments[found.Count] is not [{ Kind: ShaderSyntaxKind.NumericLiteralToken } literal]
+                || !ShaderLiteral.TryGetInt64(literal, out long expected))
+            {
+                continue;
+            }
+
+            int written = Split([.. tokens.Skip(close + 2).Take(end - close - 2)]).Count - found.Pack;
+
+            if (written >= 0 && written != expected)
+            {
+                report(tokens[i], $"'{tokens[i].Text}' の並びの数 ({written}) が、countof(…) の制約の数 ({expected}) と合いません。");
+            }
+        }
+    }
+
+    /// <summary>トークンを、深さ 0 の , で分ける。空なら 0 個。</summary>
+    private static List<List<ShaderSyntaxToken>> Split(IReadOnlyList<ShaderSyntaxToken> tokens)
+    {
+        List<List<ShaderSyntaxToken>> parts = [];
+        List<ShaderSyntaxToken> current = [];
+        int depth = 0;
+
+        foreach (ShaderSyntaxToken token in tokens)
+        {
+            depth += token.Kind switch
+            {
+                ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken => 1,
+                ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken => -1,
+                _ => 0,
+            };
+
+            if (token.Kind == ShaderSyntaxKind.CommaToken && depth == 0)
+            {
+                parts.Add(current);
+                current = [];
+                continue;
+            }
+
+            current.Add(token);
+        }
+
+        if (current.Count > 0 || parts.Count > 0)
+        {
+            parts.Add(current);
+        }
+
+        return parts;
     }
 
     /// <summary>nonempty を求める関数へ渡す型引数を見る。</summary>
