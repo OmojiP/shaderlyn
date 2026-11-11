@@ -246,6 +246,12 @@ public sealed class SlangRuleTests : IDisposable
     // extension の private のメソッドと、private の __subscript の外からの使用
     [InlineData("SG0401", "struct S { int v; }\nextension S\n{\n    private int extensionPrivate() { return 2; }\n}\nvoid test(S s)\n{\n    s.extensionPrivate();\n}\n")]
     [InlineData("SG0401", "struct T\n{\n    int member;\n    private __subscript(int i) -> int\n    {\n        get { return member; }\n    }\n}\nint test(T t)\n{\n    return t[0];\n}\n")]
+    // ジェネリックの制約を満たさない型引数 (書いた型引数、推論した型引数、型の型引数、組み込みの型、基底の構造体の適合は受け継がない)
+    [InlineData("SG0349", "interface IFoo { int get(); }\nstruct Bar {}\nvoid f<T : IFoo>(T x) {}\nvoid main()\n{\n    Bar b;\n    f(b);\n}\n")]
+    [InlineData("SG0349", "interface IT { float t(float x); }\nstruct PlainData { float value; }\nfloat apply<T : IT>(T obj, float x) { return obj.t(x); }\nfloat test(PlainData p)\n{\n    return apply<PlainData>(p, 1.0);\n}\n")]
+    [InlineData("SG0349", "interface IFoo { }\nstruct G<T : IFoo> { T v; }\nstruct None { }\nvoid f()\n{\n    G<None> g;\n}\n")]
+    [InlineData("SG0349", "interface IFoo { }\nT g<T>(T x) where T : IFoo { return x; }\nvoid f()\n{\n    g<int>(1);\n}\n")]
+    [InlineData("SG0349", "interface IFoo {}\nstruct Parent : IFoo {}\nstruct Child : Parent {}\nT getObject<T>() where T : IFoo { return T(); }\nvoid main()\n{\n    getObject<Child>();\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -330,6 +336,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct G<T> { T v; }\nstruct Test {}\nfloat pick(float x) { return x; }\nfloat pick(Test t) { return 0; }\nTexture1D<float> tex;\nvoid f(G<int> gi)\n{\n    G<int> g2 = gi;\n    Texture1D<float> t3 = tex;\n    float r = pick(Test()) + pick(1.0);\n}\n")]
     // 宣言した型と標準の型の制約、ジェネリックの仮引数の throws、then の側の if-let の変数
     [InlineData("interface IShape { float area(); }\nenum MyError { Fail }\nT pick<T : IShape>(T a) { return a; }\nT twice<T : IArithmetic, let N : int>(T x) where T : IComparable { return x; }\nint g() throws MyError { return 1; }\nfloat use(IShape s)\n{\n    if (let c = s as IShape) { return c.area(); }\n    return 0;\n}\n")]
+    // インターフェイスの継承、extension での適合、ジェネリックの extension
+    [InlineData("interface IFoo { int get(); }\ninterface IBar : IFoo { }\nstruct ViaBar : IBar { int get() { return 2; } }\nstruct Ext { }\nextension Ext : IFoo { int get() { return 3; } }\nextension float : IFoo { int get() { return 4; } }\ninterface IBase {}\nextension<T : IBase> T : IFoo { int get() { return 5; } }\nstruct B : IBase {}\nint f<T : IFoo>(T x) { return x.get(); }\nstruct G<T : IFoo> { T v; }\nvoid main(ViaBar v, Ext e, B b)\n{\n    f(v);\n    f(e);\n    f(b);\n    f(1.0);\n    G<Ext> ge;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

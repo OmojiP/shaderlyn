@@ -335,6 +335,18 @@ internal static class SlangRuleDescriptors
             + "accessor に型の無い仮引数を書いています。slangc はコンパイルの誤り (E30901・E31112・E31108・E31109・E30621) にします。",
         helpLinkUri: DocumentationLinks.For("SG0348"));
 
+    /// <summary>ジェネリックの制約を満たさない型引数。</summary>
+    public static DiagnosticDescriptor ConstraintNotSatisfied { get; } = new(
+        id: "SG0349",
+        title: "型引数がジェネリックの制約を満たしません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "ジェネリックの関数か型の型の仮引数に、制約 (<T : IFoo>・where T : IFoo) のインターフェイスに適合しない型を渡しています。"
+            + "型が適合するのは、継承の並びか extension にそのインターフェイス (かそれを継承したインターフェイス) を書いたときだけです (基底の構造体の適合は受け継ぎません)。"
+            + "slangc はコンパイルの誤り (E38029) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0349"));
+
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
         id: "SG0343",
