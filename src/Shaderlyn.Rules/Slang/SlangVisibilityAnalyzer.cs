@@ -45,6 +45,29 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
         foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.EnumerateRuleNodes())
         {
+            // private の __subscript の添字 (t[0])。
+            if (node is ElementAccessExpressionSyntax element)
+            {
+                if (!privatesByProgram.TryGetValue(program, out Dictionary<string, HashSet<string>>? subscriptPrivates))
+                {
+                    subscriptPrivates = privatesByProgram[program] = CollectPrivates(program.Tree.Root, program.Tree.PreprocessResult.Tokens);
+                }
+
+                if (subscriptPrivates.Count > 0
+                    && compilation.GetExpressionTypeBinder(program).GetEvaluatorFor(element.Target).Evaluate(element.Target) is { } indexedType
+                    && subscriptPrivates.TryGetValue(indexedType, out HashSet<string>? indexedMembers)
+                    && indexedMembers.Contains("__subscript")
+                    && !element.Ancestors().OfType<StructDeclarationSyntax>().Any(s => s.NameToken?.Text == indexedType)
+                    && compilation.IsReportable(element.OpenBracket)
+                    && element.OpenBracket.GetLocation() is { } subscriptLocation)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotAccessible, subscriptLocation,
+                        $"{indexedType} の __subscript は private なので、{indexedType} の外からは添字を使えません。"));
+                }
+
+                continue;
+            }
+
             if (node is not MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access)
             {
                 continue;
@@ -52,7 +75,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
             if (!privatesByProgram.TryGetValue(program, out Dictionary<string, HashSet<string>>? privates))
             {
-                privates = privatesByProgram[program] = CollectPrivates(program.Tree.Root);
+                privates = privatesByProgram[program] = CollectPrivates(program.Tree.Root, program.Tree.PreprocessResult.Tokens);
             }
 
             if (privates.Count == 0
@@ -81,7 +104,8 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
     /// <c>module</c> の宣言も可視性の修飾子も無いファイルは、古い書き方のモジュールとして、すべてを public とみなす (slangc 2026.19 で確かめた)。
     /// </para>
     /// <para>
-    /// 見るのは、解析するファイル (<c>implementing</c> と <c>__include</c> の無いもの) が使う、取り込んだモジュールのファイル (これらも <c>implementing</c> と <c>__include</c> の無いもの) の宣言だけである。
+    /// 見るのは、解析するファイル (<c>implementing</c> と <c>__include</c> の無いもの) が使う、取り込んだモジュールのファイルの宣言である。
+    /// 取り込んだモジュールを <c>__include</c> と <c>implementing</c> で分けて書いていれば、その各部分のファイルの宣言も見る。
     /// 同じ名前の宣言がほかで public か、解析するファイルにあれば見ない。
     /// </para>
     /// </remarks>
@@ -126,12 +150,11 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        // 別のモジュールで、可視性を読めるファイル (古い書き方でなく、分けて書いていないもの)。
+        // 別のモジュールで、可視性を読めるファイル (古い書き方でないもの)。__include と implementing で分けて書いたモジュールの各部分も含む。
         bool IsForeign(string? path) => path is not null
                                         && !string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
                                         && words.TryGetValue(path, out HashSet<string>? set)
-                                        && !IsSplit(path)
-                                        && (set.Contains("module") || set.Contains("public") || set.Contains("internal") || set.Contains("private"));
+                                        && (set.Contains("module") || set.Contains("implementing") || set.Contains("public") || set.Contains("internal") || set.Contains("private"));
 
         bool IsPublic(ShaderSyntaxToken keyword, ImmutableArray<ShaderSyntaxToken> modifiers)
             => modifiers.Any(t => t.Text == "public") || VisibilityBefore(keyword, tokens, index) is null or "public";
@@ -486,10 +509,51 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
         return string.Empty;
     }
 
-    /// <summary>構造体ごとの private のメンバーの名前。同じ名前の public のメンバー (多重定義) があれば外す。</summary>
-    private static Dictionary<string, HashSet<string>> CollectPrivates(CompilationUnitSyntax root)
+    /// <summary>
+    /// 型の extension (読み飛ばした宣言) の中の、private のメソッドの名前 (<c>extension S { private int f() { … } }</c> の f)。
+    /// </summary>
+    private static IEnumerable<string> ExtensionPrivates(CompilationUnitSyntax root, string type)
+    {
+        foreach (IncompleteDeclarationSyntax extension in root.DescendantNodesAndSelf().OfType<IncompleteDeclarationSyntax>())
+        {
+            ImmutableArray<ShaderSyntaxToken> tokens = extension.Tokens;
+
+            if (tokens is not [{ Text: "extension" }, { Kind: ShaderSyntaxKind.IdentifierToken } extended, ..] || extended.Text != type)
+            {
+                continue;
+            }
+
+            int depth = 0;
+
+            for (int i = 0; i + 3 < tokens.Length; i++)
+            {
+                depth += tokens[i].Kind switch { ShaderSyntaxKind.OpenBraceToken => 1, ShaderSyntaxKind.CloseBraceToken => -1, _ => 0 };
+
+                if (depth == 1 && tokens[i].Text == "private" && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                    && tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 3].Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    yield return tokens[i + 2].Text;
+                }
+            }
+        }
+    }
+
+    /// <summary>構造体ごとの private のメンバーの名前。同じ名前の public のメンバー (多重定義) があれば外す。extension の private のメソッドと、private の __subscript も含む。</summary>
+    private static Dictionary<string, HashSet<string>> CollectPrivates(CompilationUnitSyntax root, ImmutableArray<ShaderSyntaxToken> preprocessed)
     {
         Dictionary<string, HashSet<string>> privates = new(StringComparer.Ordinal);
+        Dictionary<ShaderSyntaxToken, ShaderSyntaxToken> previousTokens = new(ReferenceEqualityComparer.Instance);
+        ShaderSyntaxToken? last = null;
+
+        foreach (ShaderSyntaxToken token in preprocessed)
+        {
+            if (last is not null)
+            {
+                previousTokens[token] = last;
+            }
+
+            last = token;
+        }
 
         foreach (StructDeclarationSyntax structure in root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>())
         {
@@ -511,9 +575,18 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                 };
 
                 (modifiers.Any(t => t.Text == "private") ? hidden : visible).UnionWith(names);
+
+                // 読み飛ばした __subscript (private __subscript(int i) -> int { … })。添字の使用を見る。
+                // 修飾子は構文木に残らないので、宣言の前のトークンを見る。
+                if (member is IncompleteDeclarationSyntax { Tokens: [{ Text: "__subscript" } subscript, ..] }
+                    && previousTokens.TryGetValue(subscript, out ShaderSyntaxToken? before) && before.Text == "private")
+                {
+                    hidden.Add("__subscript");
+                }
             }
 
             hidden.ExceptWith(visible);
+            hidden.UnionWith(ExtensionPrivates(root, name.Text));
 
             if (hidden.Count > 0)
             {

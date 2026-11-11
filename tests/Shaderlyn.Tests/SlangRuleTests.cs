@@ -243,6 +243,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0310", "void computeMain() throws NotAType\n{\n}\n")]
     [InlineData("CF0310", "T addValues<T : IAdditive>(T left, T right) { return left; }\n")]
     [InlineData("CF0310", "T h<T>(T x) where T : IMissing { return x; }\n")]
+    // extension の private のメソッドと、private の __subscript の外からの使用
+    [InlineData("SG0401", "struct S { int v; }\nextension S\n{\n    private int extensionPrivate() { return 2; }\n}\nvoid test(S s)\n{\n    s.extensionPrivate();\n}\n")]
+    [InlineData("SG0401", "struct T\n{\n    int member;\n    private __subscript(int i) -> int\n    {\n        get { return member; }\n    }\n}\nint test(T t)\n{\n    return t[0];\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -347,6 +350,22 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 分けて書いたモジュールのpublicでない宣言の使用を報告する()
+    {
+        // module の宣言のファイルと、__include で足した implementing のファイル。どちらの宣言もそのモジュールのものである。
+        File.WriteAllText(Path.Combine(_workDirectory, "that.slang"), "module that;\n__include \"that-impl\";\nvoid internalMethod();\npublic void publicMethod();\nstruct InternalStruct { int x; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "that-impl.slang"), "implementing that;\npublic struct PublicStruct { int x; public int y; }\n");
+
+        string output = await AnalyzeAsync(
+            "import that;\nvoid test()\n{\n    PublicStruct s;\n    s.x = 1;\n    s.y = 2;\n    InternalStruct t;\n    internalMethod();\n    publicMethod();\n}\n", "user.slang");
+
+        Assert.Contains("user.slang(5:7): error SG0401: 'x'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(7:5): error SG0401: 'InternalStruct'", output, StringComparison.Ordinal);
+        Assert.Contains("user.slang(8:5): error SG0401: 'internalMethod'", output, StringComparison.Ordinal);
+        Assert.Equal(3, output.Split("SG0401").Length - 1);
     }
 
     [Fact]
