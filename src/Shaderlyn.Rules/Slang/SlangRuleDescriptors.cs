@@ -471,7 +471,8 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[ForwardDerivative] / [BackwardDerivative] などで指した微分の関数の仮引数の数か型が、元の関数から決まる形と合わないか、static の関数の微分に static でないメソッドを指しているか、"
-            + "no_diff を関数の呼び出しでないものか、微分しない関数の中で使っています。slangc はコンパイルの誤り (E31149・E31150・E31156・E38031・E38033) にします。",
+            + "no_diff を関数の呼び出しでないものか、微分しない関数の中で使っているか、微分する関数の中で後ろ向きの微分を呼んでいるか、let の DifferentialPair を後ろ向きの微分に渡しているか、"
+            + "微分する仮引数に __constref を書いているか、インターフェイスの要件と微分の関数を当てています。slangc はコンパイルの誤り (E31149・E31150・E31156・E38031・E38033・E38037・E30047・E38034・E38036・E31152・E31153) にします。",
         helpLinkUri: DocumentationLinks.For("SG0360"));
 
     /// <summary>微分の型と [DerivativeMember] の書き方の誤り。</summary>

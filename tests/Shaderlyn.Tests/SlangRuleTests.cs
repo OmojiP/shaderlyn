@@ -384,6 +384,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0361", "struct MyDiff : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float dy;\n}\nstruct MyType : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float x;\n}\n")]
     [InlineData("SG0361", "struct Bar : IDifferentiable\n{\n    typealias Differential = Bar;\n    float y;\n}\nstruct Foo : IDifferentiable\n{\n    typealias Differential = Bar;\n    [DerivativeMember(Differential.nonexistent)]\n    float x;\n}\n")]
     [InlineData("SG0361", "struct D : IDifferentiable\n{\n    typealias Differential = D;\n    float y;\n}\n[DerivativeMember(D.y)]\nfloat globalVar;\n")]
+    // 微分する関数の中の後ろ向きの微分、let の DifferentialPair、__constref と [constref]、インターフェイスの要件と微分の属性
+    [InlineData("SG0360", "[Differentiable]\nfloat fff(float x, float y) { return x + y; }\n[Differentiable]\nfloat ggg(float x, float y)\n{\n    var xp = diffPair(x, 1.0);\n    var yp = diffPair(y, 1.0);\n    bwd_diff(fff)(xp, yp, 1.0);\n    return fff(x, y) + xp.d;\n}\nfloat h(float x)\n{\n    var p = diffPair(x, 1.0);\n    var q = diffPair(x, 1.0);\n    bwd_diff(ggg)(p, q, 1.0);\n    return p.d;\n}\n")]
+    [InlineData("SG0360", "[Differentiable]\nfloat square(float x) { return x * x; }\nvoid main()\n{\n    let x = diffPair(3.0, 1.0);\n    bwd_diff(square)(x, 1.0);\n}\n")]
+    [InlineData("SG0360", "[Differentiable]\nfloat f(__constref float3 val) { return val.x; }\n")]
+    [InlineData("SG0360", "interface IBar\n{\n    [Differentiable]\n    float original(float x);\n    [ForwardDerivativeOf(original)]\n    DifferentialPair<float> fwd_original(DifferentialPair<float> x);\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -517,6 +522,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("[ForwardDerivative(fwd_f)]\n[BackwardDerivative(bwd_f)]\nfloat f(float x, int n) { return x * n; }\nDifferentialPair<float> fwd_f(DifferentialPair<float> x, int n) { return diffPair(x.p * n, x.d * n); }\nvoid bwd_f(inout DifferentialPair<float> x, int n, float dOut) { x = diffPair(x.p, dOut * n); }\nstruct A : IDifferentiable\n{\n    float v;\n    [ForwardDerivative(diff_m)]\n    float m(float w) { return w; }\n    static DifferentialPair<float> diff_m(DifferentialPair<A> a, DifferentialPair<float> w) { return w; }\n}\nfloat g(float x) { return x; }\n[ForwardDerivativeOf(g)]\nDifferentialPair<float> fwd_g(DifferentialPair<float> x) { float s = no_diff g(x.p); return diffPair(s, x.d); }\nvoid k() { no_diff float2 pos = float2(1, 2); }\n")]
     // [DerivativeMember] で当てたフィールド、no_diff のフィールドと微分しない型のフィールド
     [InlineData("struct MyDiff : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float x;\n    float dy;\n}\nstruct MyType : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    [DerivativeMember(MyDiff.x)]\n    float x;\n    [DerivativeMember(MyDiff.dy)]\n    float y;\n    no_diff float z;\n    int count;\n}\n")]
+    // 微分しない関数の中の後ろ向きの微分と var の DifferentialPair、no_diff の __constref
+    [InlineData("[Differentiable]\nfloat square(float x) { return x * x; }\nfloat h(float v)\n{\n    var x = diffPair(v, 1.0);\n    bwd_diff(square)(x, 1.0);\n    return x.d;\n}\n[Differentiable]\nfloat g(float x, __constref no_diff float y) { return x + y; }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
