@@ -26,7 +26,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.SwitchLabelOutsideSwitch, SlangRuleDescriptors.CyclicConstant, SlangRuleDescriptors.DiscardedResult];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.SwitchStatement, SlangRuleDescriptors.CyclicConstant, SlangRuleDescriptors.DiscardedResult];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -41,7 +41,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
             if (node is SwitchLabelStatementSyntax label && label.Parent is not SwitchStatementSyntax
                 && compilation.IsReportable(label.Keyword) && label.Keyword.GetLocation() is { } location)
             {
-                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.SwitchLabelOutsideSwitch, location,
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.SwitchStatement, location,
                     $"{label.Keyword.Text} は switch の本体の直下にだけ書けます。"));
             }
         }

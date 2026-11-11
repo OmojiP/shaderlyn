@@ -57,6 +57,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.ResourceInContainer,
         SlangRuleDescriptors.InvalidTexelType,
         SlangRuleDescriptors.ReferenceField,
+        HlslRuleDescriptors.Redeclaration,
     ];
 
     /// <inheritdoc/>
@@ -171,6 +172,15 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 ReportDuplicates(function.ParameterList.Where(conditions.IsAlwaysPresent).Select(p => p.NameToken));
             }
 
+            // 列挙子の重複 (E30200)。
+            foreach (EnumDeclarationSyntax enumeration in root.DescendantNodesAndSelf().OfType<EnumDeclarationSyntax>())
+            {
+                ReportDuplicates(enumeration.Members.Where(conditions.IsAlwaysPresent).Select(m => m.NameToken));
+            }
+
+            // 同じ形の関数の本体の 2 つ目 (E30201「function already has a body」)。ジェネリック・where・コンパイル先の指定のある関数は、制約と先で別のものになりうるので見ない。
+            ReportRedefinitions(context, compilation, root, conditions);
+
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
                 bool global = declaration.Parent is CompilationUnitSyntax or NamespaceDeclarationSyntax;
@@ -225,6 +235,65 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>同じ入れ物 (ファイル・名前空間・構造体) の、名前と仮引数の型が同じ関数の 2 つ目の本体を報告する。</summary>
+    private static void ReportRedefinitions(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root, Semantics.Conditional.ConditionMap conditions)
+    {
+        Dictionary<(object Container, string Key), FunctionDeclarationSyntax> first = [];
+
+        foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            if (function.Body is null
+                || function.Parent is not (CompilationUnitSyntax or NamespaceDeclarationSyntax or StructDeclarationSyntax) || function.Parent is null
+                || !function.GenericParameterTokens.IsDefaultOrEmpty
+                || !function.SpecializationTokens.IsDefaultOrEmpty
+                || function.Attributes.Any(a => a.Name is "require" or "__target_intrinsic" or "TargetIntrinsic" or "__specialized_for_target" or "SpecializedForTarget")
+                || function.ModifierTokens.Any(t => t.Text is "__target_intrinsic" or "extern" or "export" or "__specialized_for_target")
+                || HasWhereClause(function)
+                || !conditions.IsAlwaysPresent(function))
+            {
+                continue;
+            }
+
+            string key = function.Name + "(" + string.Join(",", function.ParameterList.Select(p =>
+                string.Join(" ", p.ModifierTokens.Select(t => t.Text).Where(t => t is "in" or "out" or "inout" or "ref" or "constref"))
+                + " " + p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)) + string.Concat(p.Type.NestedTypeTokens.Select(t => t.Text))
+                + new string('[', p.ArrayDimensions))) + ")";
+
+            if (!first.TryAdd((function.Parent, key), function)
+                && compilation.IsReportable(function.NameToken)
+                && function.NameToken.GetLocation() is { } location
+                && first[(function.Parent, key)].NameToken.GetLocation() is { } earlier)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, location, function.Name,
+                    (earlier.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+        }
+    }
+
+    /// <summary>仮引数の閉じ括弧と本体の間に where の制約があるか。</summary>
+    private static bool HasWhereClause(FunctionDeclarationSyntax function)
+    {
+        bool after = false;
+
+        foreach (ShaderSyntaxToken token in function.DescendantTokens())
+        {
+            if (ReferenceEquals(token, function.CloseParen))
+            {
+                after = true;
+            }
+            else if (function.Body is not null && ReferenceEquals(token, function.Body.OpenBrace))
+            {
+                return false;
+            }
+            else if (after && token.Text == "where")
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>要素の型を ITexelElement に限る型 (テクスチャ・組み合わせたサンプラー・型付きバッファー)。Feedback のテクスチャは要素の型の代わりに種類を書くので除く。</summary>
@@ -315,7 +384,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
     {
         ImmutableArray<ShaderSyntaxToken> modifiers = declaration.ModifierTokens;
 
-        if (!isStatic && modifiers.FirstOrDefault(t => t.Text == "constexpr") is { } constexpr)
+        if (!isStatic && !declaration.Type.IsPointer && modifiers.FirstOrDefault(t => t.Text == "constexpr") is { } constexpr)
         {
             report(SlangRuleDescriptors.ModifierNotAllowed, constexpr, $"関数の外の constexpr の '{declarator.Name}' には static が要ります (static constexpr と書きます)。");
         }

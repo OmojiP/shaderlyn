@@ -18,7 +18,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>型を書く位置の構造体の定義 (<c>void f(struct {} a)</c>、<c>-&gt; struct S {}</c>、<c>typealias A = struct S {}</c>、<c>x as struct S {}</c> など)。
 /// 文の頭 (<c>;</c> <c>{</c> <c>}</c> <c>]</c> と修飾子の後ろ) に書いた構造体だけが宣言である。<c>struct S {} f()</c> (戻り値の型の構造体) も誤り</item>
 /// <item>構造体・extension の中の namespace・extension・interface・__constraint。インターフェイスの中の、それに加えて enum・struct・class</item>
-/// <item>ファイルの直下の __init と associatedtype</item>
+/// <item>ファイルの直下の __init と associatedtype。extension の中の仮引数の無い __init (E30851)</item>
 /// <item>関数の中の関数の定義 (<c>float g(int x) { … }</c>)</item>
 /// <item>extension とインターフェイスの中の、static でないフィールド (E31400)</item>
 /// </list>
@@ -38,7 +38,7 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
 
     /// <summary>構造体の宣言の前に書ける語。</summary>
     private static readonly string[] Modifiers =
-        ["public", "private", "internal", "export", "static", "extern", "typedef", "const", "uniform", "groupshared", "__exported", "inline", "partial"];
+        ["public", "private", "internal", "export", "static", "extern", "typedef", "const", "uniform", "groupshared", "__exported", "inline", "partial", "dyn"];
 
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
@@ -58,7 +58,8 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
-            ShaderSyntaxToken[] tokens = [.. program.Tree.Root.DescendantTokens().Where(t => !t.IsMissing)];
+            // 構文解析が合成したトークン (__init の前の void など。幅が 0) は、書いたものではないので除く。
+            ShaderSyntaxToken[] tokens = [.. program.Tree.Root.DescendantTokens().Where(t => !t.IsMissing && t.Span.Length > 0)];
 
             void Report(ShaderSyntaxToken token, string message)
             {
@@ -169,6 +170,8 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
                 (Container.Struct or Container.Extension, "__constraint") => token.Text,
                 (Container.Interface, "enum" or "struct" or "class") => token.Text,
                 (Container.Global or Container.Namespace, "__init" or "associatedtype") => token.Text,
+                // extension の中の仮引数の無い __init (既定の初期化と重なる。E30851)。仮引数のある __init は書ける。
+                (Container.Extension, "__init") when i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Kind == ShaderSyntaxKind.CloseParenToken => "仮引数の無い __init",
                 _ => null,
             };
 

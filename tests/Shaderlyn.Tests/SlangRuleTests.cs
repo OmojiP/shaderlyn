@@ -152,6 +152,78 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0321", "void f(uint i)\n{\n    switch (i)\n    {\n    case 0:\n        {\n        case 1:\n            break;\n        }\n    }\n}\n")]
     [InlineData("SG0317", "struct S\n{\n    static const int kA = kB;\n    static const int kB = kA;\n}\n")]
     [InlineData("SG0317", "static const int kVal = kVal + 1;\n")]
+    // ループの外の break と continue、2 つ目の default、値の重なる case (列挙子は値で比べる)、整数でない switch の値
+    [InlineData("SG0321", "void f() { break; }\n")]
+    [InlineData("SG0321", "void f() { if (true) { continue; } }\n")]
+    [InlineData("SG0321", "void f(int a)\n{\n    switch (a) { default: break; default: break; }\n}\n")]
+    [InlineData("SG0321", "enum F { X = 1, Y = 1 }\nvoid f(int a)\n{\n    switch (a) { case F.X: break; case F.Y: break; }\n}\n")]
+    [InlineData("SG0321", "void f(float v)\n{\n    switch (v) { case 1: break; }\n}\n")]
+    // 括弧で包まない条件の代入
+    [InlineData("SG0343", "void f(int a)\n{\n    if (a = 0) { }\n}\n")]
+    [InlineData("SG0343", "void f(int a)\n{\n    do { } while (a = 3);\n}\n")]
+    // 大きさの決まらない型: 最後でないフィールド、それをフィールドに持つ構造体、局所変数、StructuredBuffer の要素、定数バッファーのメンバー
+    [InlineData("SG0308", "struct V\n{\n    int c[];\n    int a;\n}\n")]
+    [InlineData("SG0308", "struct V { int n; int a[]; }\nstruct Q { int id; V v; }\n")]
+    [InlineData("SG0308", "struct V { int n; int a[]; }\nvoid f()\n{\n    V v;\n}\n")]
+    [InlineData("SG0308", "void f()\n{\n    float a[];\n}\n")]
+    [InlineData("SG0308", "struct V { int n; int a[]; }\nStructuredBuffer<V> items;\n")]
+    [InlineData("SG0308", "cbuffer ubo\n{\n    float4 data[];\n}\n")]
+    // 宣言に使えない型: void の変数、ビットフィールド、列挙型の基の型、特殊化定数
+    [InlineData("SG0407", "void f()\n{\n    void a;\n}\n")]
+    [InlineData("SG0407", "struct S\n{\n    int foo : 33;\n}\n")]
+    [InlineData("SG0407", "struct S\n{\n    float foo : 10;\n}\n")]
+    [InlineData("SG0407", "enum Bad : float { A, B }\n")]
+    [InlineData("SG0407", "[vk::constant_id(1)]\nconst int2 v;\n")]
+    // 属性の値
+    [InlineData("SG0304", "[numthreads(0, 1, 1)]\nvoid main() { }\n")]
+    [InlineData("SG0304", "[numthreads(1, 1, 1)]\n[WaveSize(5)]\nvoid main() { }\n")]
+    [InlineData("SG0304", "[COM(\"0000000-0000-0000-0000-000000000001\")]\ninterface IA { void f(); }\n")]
+    [InlineData("SG0304", "[RemovedSince(10000, \"x\")]\nvoid old() { }\n")]
+    // 初期値の無い static const
+    [InlineData("SG0318", "static const int globalVar;\n")]
+    // 修飾子: 初期値の groupshared、ポインターの coherent、typedef の volatile、static の特殊化定数
+    [InlineData("SG0102", "groupshared uint shared = 1;\n")]
+    [InlineData("SG0102", "globallycoherent int* p;\n")]
+    [InlineData("SG0102", "typedef volatile float VolatileFloat;\n")]
+    [InlineData("SG0102", "[vk::constant_id(1)]\nstatic const int x = 2;\n")]
+    // 名前の無い enum class
+    [InlineData("SG0101", "enum class { A, B }\n")]
+    // 同じ形の関数の 2 つ目の本体と、列挙子の重複
+    [InlineData("CF0314", "int foo() { return 1; }\nint foo() { return 2; }\n")]
+    [InlineData("CF0314", "enum E { A, A }\n")]
+    // throw と try: throws の無い関数、defer の中、throws と違う列挙型
+    [InlineData("SG0345", "enum MyError { Fail }\nint g() throws MyError { return 1; }\nvoid f()\n{\n    let n = try g();\n}\n")]
+    [InlineData("SG0345", "enum MyError { Fail }\nvoid f()\n{\n    throw MyError.Fail;\n}\n")]
+    [InlineData("SG0345", "enum MyError { Fail }\nvoid f() throws MyError\n{\n    defer {\n        throw MyError.Fail;\n    }\n}\n")]
+    [InlineData("SG0345", "enum E1 { Fail }\nenum E2 { Fail }\nint g() throws E1\n{\n    throw E2.Fail;\n}\n")]
+    // static のメソッドの this と static でないメンバー、型の名前からの static でないフィールド
+    [InlineData("SG0344", "struct Foo\n{\n    int a;\n    static int func() { return this.a; }\n}\n")]
+    [InlineData("SG0344", "struct Test\n{\n    void instanceMethod() { }\n    static void staticMethod() { instanceMethod(); }\n}\n")]
+    [InlineData("SG0344", "struct Color { int Red; }\nvoid test()\n{\n    int x = Color.Red;\n}\n")]
+    // ポインターでない値の ->、スカラーの添字、関数の sizeof
+    [InlineData("SG0301", "struct T { int member; }\nvoid f()\n{\n    T val;\n    val->member = 2;\n}\n")]
+    [InlineData("SG0301", "int foo()\n{\n    int x;\n    return x[0];\n}\n")]
+    [InlineData("SG0301", "int func()\n{\n    return sizeof(func);\n}\n")]
+    // 負の数の添字
+    [InlineData("CF0510", "int f()\n{\n    int a[3];\n    return a[-1];\n}\n")]
+    // ファイルの直下の __init と、extension の中の仮引数の無い __init
+    [InlineData("SG0101", "__init() {}\n")]
+    [InlineData("SG0101", "struct S { int x; }\nextension S\n{\n    __init() { x = 0; }\n}\n")]
+    // [UnscopedEnum] と enum class、[[vk::offset]] の置き場所、dyn の置き場所、構造体のフィールドの groupshared
+    [InlineData("SG0102", "[UnscopedEnum]\nenum class E { V }\n")]
+    [InlineData("SG0102", "[[vk::offset(16)]] struct S1 { float a; }\n")]
+    [InlineData("SG0102", "dyn struct Bad { int x; }\n")]
+    [InlineData("SG0102", "struct P { groupshared int x; }\n")]
+    // new を書かない class の作成
+    [InlineData("SG0346", "class MyClass\n{\n    int x;\n    __init() { x = 0; }\n}\nvoid test()\n{\n    MyClass obj = MyClass();\n}\n")]
+    // 2 つの構造体の継承、override の書き忘れと当たるメソッドの無い override
+    [InlineData("SG0347", "struct Base1 { int x; }\nstruct Base2 { int y; }\nstruct Derived : Base1, Base2 { int z; }\n")]
+    [InlineData("SG0347", "interface IFoo { int getVal() { return 0; } }\nstruct Impl : IFoo { int getVal() { return 1; } }\n")]
+    [InlineData("SG0347", "interface IFoo { int getVal() { return 0; } }\nstruct Impl : IFoo { override int getVal(int x) { return x; } }\n")]
+    // 戻り値の型の無い __subscript、property の accessor の仮引数
+    [InlineData("SG0348", "struct M\n{\n    int val[4];\n    __subscript(int x)\n    {\n        get { return val[x]; }\n    }\n}\n")]
+    [InlineData("SG0348", "struct T\n{\n    property p : int\n    {\n        get(a) { return 0; }\n    }\n}\n")]
+    [InlineData("SG0348", "struct T\n{\n    property q : float\n    {\n        set(c : int) { }\n    }\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -220,6 +292,16 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("__generic<T>\nstruct Box { T v; }\n__target_intrinsic(cpp, \"Foo\")\nstruct Foo { int a; }\npublic struct Pub { int b; }\ninterface IFoo { }\ninterface IReq { __constraint int : IFoo; }\nint f()\n{\n    struct Op { int g(int v) { return v; } };\n    Op o;\n    return o.g(1);\n}\n")]
     // ポインター
     [InlineData("void f(float3x4* p)\n{\n    float3x4 m = p[0];\n    float4* q = (float4*)p;\n}\n")]
+    // 括弧で包んだ条件の代入、?: の条件の代入、ループの中の switch の break と continue、値の違う case
+    [InlineData("enum class E { A, B }\nvoid f(int a, E e)\n{\n    if ((a = 0)) { }\n    bool c = (a = 2) ? true : false;\n    for (int i = 0; i < 2; i++)\n    {\n        switch (e) { case E.A: break; case E::B: continue; default: break; }\n    }\n}\n")]
+    // 最後のフィールドの大きさを決めない配列、関数の外の大きさを決めない配列、初期値のある局所の配列、bool の列挙型、uint8_t のビットフィールド、
+    // 多重定義、ジェネリックの制約だけが違う関数、extern の static const、インターフェイスの static const
+    [InlineData("struct V { int n; int a[]; }\nTexture2D textures[];\nenum Flag : bool { No, Yes }\nstruct B { uint8_t a : 4; uint8_t b : 4; }\nint bar(int x) { return 1; }\nfloat bar(float x) { return 1; }\ninterface IA { static const int N; }\ninterface IB { int b(); }\nint g<T>(T x) where T : IA { return 1; }\nint g<T>(T x) where T : IB { return 2; }\nextern static const int count;\nvoid f()\n{\n    int a[] = { 1, 2 };\n}\n")]
+    // 4 から 128 までの 2 の累乗の WaveSize、- で区切らない GUID
+    [InlineData("[numthreads(64, 1, 1)]\n[WaveSize(32)]\nvoid main() { }\n[COM(\"00000000000000000000000000000001\")]\ninterface IC { void f(); }\n")]
+    // catch で受ける throw と try、throws の関数の throw、仮引数のある extension の __init、dyn のインターフェイスと仮引数、static groupshared のフィールド、
+    // new で作る class と同じ class の値の型変換、set(v)、override の付いたメソッド
+    [InlineData("enum MyError { Fail }\nint g() throws MyError { throw MyError.Fail; }\nvoid f()\n{\n    do\n    {\n        let n = try g();\n    }\n    catch (e : MyError)\n    {\n    }\n}\nstruct S { int x; }\nextension S { __init(int v) { x = v; } }\ndyn interface IBar { int b(); }\nint callBar(dyn IBar x) { return x.b(); }\nstruct Ty<T> { static groupshared T y[2]; }\nclass Counter { int v; __init(int s) { v = s; } }\nvoid h(Counter one)\n{\n    Counter c = new Counter(1);\n    Counter d = (Counter)one;\n}\nstruct P { int _v; property v : int { get { return _v; } set(newValue) { _v = newValue; } } }\ninterface IFoo { int getVal() { return 0; } }\nstruct Impl : IFoo { override int getVal() { return 1; } }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

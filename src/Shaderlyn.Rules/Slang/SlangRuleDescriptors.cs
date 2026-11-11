@@ -34,7 +34,7 @@ internal static class SlangRuleDescriptors
         description: "型を書く位置 (仮引数・戻り値・型引数・typealias・as / is など) に構造体を定義しているか、"
             + "その入れ物の中に書けない宣言 (構造体の中の namespace・extension・interface、インターフェイスの中の enum・struct、"
             + "ファイルの直下の __init・associatedtype、関数の中の関数の定義、extension とインターフェイスの中の static でないフィールドなど) を書いているか、"
-            + "extension のジェネリックの仮引数に既定値を書いています。slangc はコンパイルの誤りにします。",
+            + "extension のジェネリックの仮引数に既定値を書いているか、名前の無い enum class を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0101"));
 
     /// <summary>修飾子をその宣言に書けない。</summary>
@@ -46,7 +46,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "関数の外の static の無い const か constexpr の変数、初期値を書いた uniform の変数、局所変数の groupshared、"
             + "構造体のフィールドの __ref / __constref を書いているか、同じ修飾子・1 つしか書けない属性 ([numthreads] など) を 2 度書いているか、"
-            + "可視性 (public・internal・private) を 2 つ書いています。slangc はコンパイルの誤りにします。",
+            + "可視性 (public・internal・private) を 2 つ書いているか、初期値を書いた groupshared、ポインターの coherent / globallycoherent / constexpr、typedef の volatile、"
+            + "static の特殊化定数、push constant でもある特殊化定数を書いています。slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0102"));
 
     /// <summary>レジスタの種類が資源の型と合わない。</summary>
@@ -69,7 +70,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないものも報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -211,13 +212,126 @@ internal static class SlangRuleDescriptors
         description: "static const の初期値が、直接か、ほかの static const を通して自分自身の値を使っています。値が決まらないので、slangc はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("SG0317"));
 
-    /// <summary>switch の外の case / default。</summary>
-    public static DiagnosticDescriptor SwitchLabelOutsideSwitch { get; } = new(
+    /// <summary>switch と break / continue の書き方の誤り。</summary>
+    public static DiagnosticDescriptor SwitchStatement { get; } = new(
         id: "SG0321",
-        title: "case と default は switch の本体にだけ書けます",
+        title: "switch と break / continue の書き方が正しくありません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "case か default を、switch の本体の直下でない場所 (switch の外、case の中の { } の中) に書いています。slangc はコンパイルの誤りにします。",
+        description: "case か default を switch の本体の直下でない場所 (switch の外、case の中の { } の中) に書いているか、"
+            + "break をループと switch の外に、continue をループの外に書いているか、1 つの switch に default を 2 つ、同じ値の case を 2 つ書いているか、"
+            + "switch の値が整数でも列挙型でもありません。slangc はコンパイルの誤り (E30003・E30004・E30602・E30605・E30607) にします。",
         helpLinkUri: DocumentationLinks.For("SG0321"));
+
+    /// <summary>属性の値が正しくない。</summary>
+    public static DiagnosticDescriptor InvalidAttributeValue { get; } = new(
+        id: "SG0304",
+        title: "属性の値が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "[numthreads] に 1 より小さい値を、[WaveSize] に 4 から 128 までの 2 の累乗でない値を、[COM] に GUID でない文字列を、"
+            + "[RemovedSince] に -1 から 9999 の外の版を書いています。slangc はコンパイルの誤り (E31102・E31103・E31123・E31209) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0304"));
+
+    /// <summary>初期値の無い static const。</summary>
+    public static DiagnosticDescriptor StaticConstWithoutInitializer { get; } = new(
+        id: "SG0318",
+        title: "static const には初期値が要ります",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の外か構造体の static const の変数に、初期値を書いていません。slangc はコンパイルの誤り (E31225) にします。"
+            + "インターフェイスの要件 (static const int N;) と extern の変数は除きます。",
+        helpLinkUri: DocumentationLinks.For("SG0318"));
+
+    /// <summary>その宣言に使えない型。</summary>
+    public static DiagnosticDescriptor InvalidDeclarationType { get; } = new(
+        id: "SG0407",
+        title: "この宣言には使えない型です",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "変数の型に void を、ビットフィールドに整数でない型か型の幅を超える幅を、列挙型の基の型に整数でない型を、"
+            + "特殊化定数にスカラーでも列挙型でもない型を使っています。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0407"));
+
+    /// <summary>大きさの決まらない型の使い方の誤り。</summary>
+    public static DiagnosticDescriptor UnsizedType { get; } = new(
+        id: "SG0308",
+        title: "大きさの決まらない型はここに使えません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "大きさを書かない配列 (int a[]) か、それを最後のフィールドに持つ構造体を、使えない場所に使っています。"
+            + "構造体の最後でないフィールド、ほかの構造体のフィールド、局所変数 (初期値の無いもの)、StructuredBuffer の要素、定数バッファーのメンバーには使えません。"
+            + "slangc はコンパイルの誤り (E30070・E30071・E30072・E30031・E31215) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0308"));
+
+    /// <summary>static の関数から、static でないメンバーを使っている。</summary>
+    public static DiagnosticDescriptor NonStaticMemberFromStatic { get; } = new(
+        id: "SG0344",
+        title: "static でないメンバーは値から使ってください",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "static のメソッドの中で this か、修飾しない static でないメソッドやフィールドを使っているか、型の名前から static でないフィールドを使っています (Color.Red の Color が構造体)。"
+            + "static のメソッドと型には、そのメンバーを持つ値がありません。slangc はコンパイルの誤り (E30100・E30120) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0344"));
+
+    /// <summary>throw と try の書き方の誤り。</summary>
+    public static DiagnosticDescriptor ErrorHandling { get; } = new(
+        id: "SG0345",
+        title: "throw と try の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "throws を書いていない関数に、catch で受けない throw か try を書いているか、defer の中に catch で受けない throw か try を書いているか、"
+            + "関数の throws の列挙型と違う列挙型の値を throw しています。slangc はコンパイルの誤り (E30093・E30113・E30114・E30115・E30116) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0345"));
+
+    /// <summary>new を書かない class の作成。</summary>
+    public static DiagnosticDescriptor ClassWithoutNew { get; } = new(
+        id: "SG0346",
+        title: "class の値は new で作ってください",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "class の値を、new を書かずに作っています (MyClass()・(MyClass)4)。class は参照の型なので、slangc は new で作るものとしてコンパイルの誤り (E30066) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0346"));
+
+    /// <summary>継承と override の書き方の誤り。</summary>
+    public static DiagnosticDescriptor InheritanceAndOverride { get; } = new(
+        id: "SG0347",
+        title: "継承と override の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "構造体が 2 つ以上の構造体を継承しているか、基底の構造体を継承の並びの最初に書いていないか、"
+            + "インターフェイスの既定の実装を置き換えるメソッドに override を書いていないか、基底に当たるメソッドの無いメソッドに override を書いています。"
+            + "slangc はコンパイルの誤り (E30820・E30853・E30854) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0347"));
+
+    /// <summary>property と __subscript の書き方の誤り。</summary>
+    public static DiagnosticDescriptor AccessorForm { get; } = new(
+        id: "SG0348",
+        title: "property と __subscript の書き方が正しくありません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "__subscript に -> で戻り値の型を書いていないか、property の get に仮引数を、set に 2 つ以上の仮引数か property と違う型の仮引数を、"
+            + "accessor に型の無い仮引数を書いています。slangc はコンパイルの誤り (E30901・E31112・E31108・E31109・E30621) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0348"));
+
+    /// <summary>条件の中の代入。</summary>
+    public static DiagnosticDescriptor AssignmentInCondition { get; } = new(
+        id: "SG0343",
+        title: "条件に代入は書けません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "if・while・for・do の条件に、括弧で包まない代入 (if (a = 0)) を書いています。'==' の書き間違いを防ぐため、slangc はコンパイルの誤り (E30057) にします。"
+            + "代入した値を条件に使うなら、括弧で包んでください (if ((a = 0)))。",
+        helpLinkUri: DocumentationLinks.For("SG0343"));
 }
