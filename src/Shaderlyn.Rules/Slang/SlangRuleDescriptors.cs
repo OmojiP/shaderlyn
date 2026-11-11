@@ -93,7 +93,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[mutating] を付けていない構造体 (かクラス) のメソッドの中で、自分のフィールドに代入しているか、++ / -- か複合代入で書き換えています。"
             + "Slang のメソッドは既定で自分を書き換えられないので、slangc はコンパイルの誤り (E30011・E30047) にします。"
-            + "読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。",
+            + "読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。Access::Read のポインターの指す先への書き込みも報告します。",
         helpLinkUri: DocumentationLinks.For("SG0309"));
 
     /// <summary>条件がスカラーでない。</summary>

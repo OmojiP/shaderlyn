@@ -287,6 +287,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0354", "int f()\n{\n    return __first(makeTuple());\n}\n")]
     // extension で宣言した入れ子の型と、修飾した入れ子の型への数の代入
     [InlineData("CF0410", "struct N { float value; }\nextension N\n{\n    struct Config { float threshold; }\n}\nvoid f()\n{\n    N.Config c;\n    c = 0;\n}\n")]
+    // 読むだけのポインターへの書き込みと、型・アクセス・アドレス空間の違うポインターの暗黙の変換
+    [InlineData("SG0309", "typealias ReadPtr = Ptr<int, Access::Read, AddressSpace::Device>;\nvoid f(ReadPtr ptr)\n{\n    ptr[0] = 1;\n}\n")]
+    [InlineData("CF0410", "int* processMemory;\nvoid f()\n{\n    Ptr<int, Access::ReadWrite> p6 = Ptr<int, Access::Read>(processMemory);\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -385,6 +388,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("static const int k = __floatAsInt(float(1));\nvoid f()\n{\n    int a = __floatAsInt(1.5) + __floatAsInt(-2.0);\n    int4 v = { int2(1, 2), 3 };\n    int4 w = { 1, 2, 3 };\n}\n")]
     // nonempty の並びの __first と、nonempty の並びを渡す呼び出し
     [InlineData("int goodValueUse<let each D : int>() where nonempty(D)\n{\n    return __first(D);\n}\nvoid consumeNonEmpty<let each D : int>() where nonempty(D) {}\nvoid goodForward<let each D : int>() where nonempty(D)\n{\n    consumeNonEmpty<D>();\n}\n")]
+    // T* から同じ Ptr への代入、Ptr<…>(p) の変換、読むだけのポインターからの読み出し
+    [InlineData("int* processMemory;\nint f(int id)\n{\n    Ptr<int, Access::ReadWrite, AddressSpace::Device> a = processMemory;\n    Ptr<int, Access::Read> r = Ptr<int, Access::Read>(processMemory + id);\n    Ptr<float> b = Ptr<float>(r);\n    return r[0] + *r;\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
