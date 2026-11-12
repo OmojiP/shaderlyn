@@ -8,7 +8,7 @@ using Shaderlyn.Semantics.Programs;
 namespace Shaderlyn.Rules.Slang;
 
 /// <summary>
-/// Slang の、構文の誤りのあるモジュールの <c>import</c> を検査する (SG0353)。
+/// Slang の、構文の誤りのあるモジュールの <c>import</c> (SG0353) と、実験中のモジュールの <c>import</c> (SG0362) を検査する。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,7 +26,54 @@ internal sealed class SlangModuleErrorAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ModuleHasErrors];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ModuleHasErrors, SlangRuleDescriptors.ExperimentalModule];
+
+    /// <summary>実験中のモジュールか (slang.neural・slang.numerics とその中のモジュール・slang.functional・experimental.…)。</summary>
+    private static bool IsExperimentalModule(string name)
+        => name is "slang.neural" or "slang.numerics" or "slang.functional"
+           || name.StartsWith("slang.neural.", StringComparison.Ordinal) || name.StartsWith("slang.numerics.", StringComparison.Ordinal)
+           || name.StartsWith("slang.functional.", StringComparison.Ordinal) || name.StartsWith("experimental.", StringComparison.Ordinal);
+
+    /// <summary>import slang.neural; (slang: experimental-features が無いときの、実験中のモジュールの import。E00104)。</summary>
+    private static void CheckExperimentalImports(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, AnalyzedProgram program)
+    {
+        if (compilation.Environment is Semantics.Environments.SlangEnvironment { ExperimentalFeatures: true } || compilation.Text.FilePath is not { } root)
+        {
+            return;
+        }
+
+        ImmutableArray<CFamily.Syntax.ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text is not ("import" or "__import") || tokens[i].Kind != CFamily.Syntax.ShaderSyntaxKind.IdentifierToken
+                || tokens[i].Source.FilePath is not { } path || !string.Equals(Path.GetFullPath(path), Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase)
+                || (i > 0 && tokens[i - 1].Kind is not (CFamily.Syntax.ShaderSyntaxKind.SemicolonToken or CFamily.Syntax.ShaderSyntaxKind.CloseBraceToken) && tokens[i - 1].Text is not ("__exported" or "export")))
+            {
+                continue;
+            }
+
+            List<string> parts = [];
+
+            for (int j = i + 1; j < tokens.Length && tokens[j].Kind == CFamily.Syntax.ShaderSyntaxKind.IdentifierToken; j += 2)
+            {
+                parts.Add(tokens[j].Text);
+
+                if (j + 1 >= tokens.Length || tokens[j + 1].Kind != CFamily.Syntax.ShaderSyntaxKind.DotToken)
+                {
+                    break;
+                }
+            }
+
+            string name = string.Join('.', parts);
+
+            if (IsExperimentalModule(name) && compilation.IsReportable(tokens[i + 1]) && tokens[i + 1].GetLocation() is { } location)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ExperimentalModule, location,
+                    $"{name} は実験中のモジュールです。slangc に -experimental-feature を渡すなら、設定ファイルの slang: experimental-features を true にしてください。"));
+            }
+        }
+    }
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -40,6 +87,8 @@ internal sealed class SlangModuleErrorAnalyzer : SemanticRuleAnalyzer
 
         foreach (AnalyzedProgram program in compilation.Programs)
         {
+            CheckExperimentalImports(context, compilation, program);
+
             // 構文の誤りのあるファイル。
             HashSet<string> broken = new(StringComparer.OrdinalIgnoreCase);
 

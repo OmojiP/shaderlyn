@@ -176,6 +176,18 @@ internal sealed record ShaderlynConfiguration
     /// </summary>
     public bool SlangUnscopedEnums { get; init; }
 
+    /// <summary>
+    /// Slang の実験中のモジュール (<c>slang.neural</c>・<c>slang.numerics</c>・<c>slang.functional</c>・<c>experimental.workgraph</c>) を import できるか
+    /// (<c>slang: experimental-features</c>。slangc の <c>-experimental-feature</c>)。既定は <see langword="false"/>。
+    /// </summary>
+    public bool SlangExperimentalFeatures { get; init; }
+
+    /// <summary>
+    /// Slang のジェネリックのエントリポイント (<c>void main&lt;T&gt;(…)</c>) を、API で特殊化するものとして通すか (<c>slang: generic-entry-points</c>)。
+    /// 既定は <see langword="false"/> (slangc のコマンドラインと同じく、特殊化しないエントリポイントを誤りにする)。
+    /// </summary>
+    public bool SlangGenericEntryPoints { get; init; }
+
     /// <summary>構成の軸になるシンボル (<c>symbols:</c> の <c>name</c>)。</summary>
     /// <remarks>Unity の環境では使わない (Unity は <c>#pragma multi_compile</c> から読む)。</remarks>
     public ImmutableArray<ConfiguredSymbol> Symbols { get; init; } = [];

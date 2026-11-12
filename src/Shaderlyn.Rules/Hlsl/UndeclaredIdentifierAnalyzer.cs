@@ -70,7 +70,8 @@ internal sealed class UndeclaredIdentifierAnalyzer : SemanticRuleAnalyzer
     {
         // 取り込めなかったヘッダがあるなら、宣言を把握できていない。
         // GLSL の構文の誤りより前の位置は、そこまでの宣言で判断できる (ShaderCompilation.FirstBreakOffset)。
-        if (!compilation.HasCompleteDependencies && compilation.FirstBreakOffset is null)
+        // Slang の、構文の誤りを含む関数の外も同じ (ShaderCompilation.BrokenFunctionSpans)。
+        if (!compilation.HasCompleteDependencies && !compilation.HasAnalyzableRegions)
         {
             return;
         }

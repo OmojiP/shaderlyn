@@ -139,6 +139,16 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 CheckParameters(parameters, kinds, binder, Report);
 
+                // [shader]・[numthreads] のジェネリックの関数 (特殊化しないエントリポイント。E38014)。API か -specialize で特殊化するなら slang: generic-entry-points。
+                // CPU と CUDA のコンパイル先では、[numthreads] だけの関数はエントリポイントにならない。
+                if (function && compilation.Environment is not Semantics.Environments.SlangEnvironment { GenericEntryPoints: true }
+                    && EntryPointAttributeBefore(tokens, i) is { } entry
+                    && (entry == "shader" || compilation.Environment is not Semantics.Environments.SlangEnvironment { TargetsHost: true }))
+                {
+                    Report(SlangRuleDescriptors.GenericParameterForm, token,
+                        $"エントリポイント '{token.Text}' のジェネリックの仮引数が決まりません。slangc の -specialize か API (specialize) で型引数を決めるなら、設定ファイルの slang: generic-entry-points を true にしてください。");
+                }
+
                 // where D : int (宣言の後ろの where)
                 int end = close;
 
@@ -580,6 +590,30 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
         }
 
         return parameters.Count == 0 ? null : (parameters, i + 1);
+    }
+
+    /// <summary>
+    /// 関数の名前 (index) の前の宣言の中の、エントリポイントの属性 ("shader" か "numthreads"。両方あれば "shader")。無ければ <see langword="null"/>。
+    /// 前の宣言の終わり (; { }) まで見る。
+    /// </summary>
+    private static string? EntryPointAttributeBefore(ImmutableArray<ShaderSyntaxToken> tokens, int index)
+    {
+        string? found = null;
+
+        for (int i = index - 1; i > 0; i--)
+        {
+            if (tokens[i].Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken)
+            {
+                break;
+            }
+
+            if (tokens[i].Text is "shader" or "numthreads" && tokens[i - 1].Kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                found = found == "shader" ? found : tokens[i].Text;
+            }
+        }
+
+        return found;
     }
 
     private static int? Matching(ImmutableArray<ShaderSyntaxToken> tokens, int open)

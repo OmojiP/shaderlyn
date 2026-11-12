@@ -96,6 +96,12 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
 
             foreach (Import import in FindImports(fileTokens))
             {
+                // 同じ名前のファイルが 2 つ以上読まれていて、どれを取り込んだか決められなければ、見え方を決めない (探索パスの順を知らない)。
+                if (IsAmbiguous(import, file, files.Keys))
+                {
+                    return null;
+                }
+
                 if (Resolve(import, file, files.Keys) is { } target)
                 {
                     list.Add((target, import));
@@ -451,6 +457,21 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>取り込みの名前に当たる、読んだファイル。無いか決められなければ <see langword="null"/>。</summary>
+    /// <summary>取り込みの名前に当たる読んだファイルが、近くに無く、探索パスで 2 つ以上あるか。</summary>
+    private static bool IsAmbiguous(Import import, string from, IEnumerable<string> loaded)
+    {
+        string relative = import.IsString ? import.Name : import.Name + ".slang";
+        string[] names = import.IsString ? [relative] : [relative, relative.Replace('_', '-')];
+        string directory = Path.GetDirectoryName(from) ?? string.Empty;
+
+        if (names.Any(n => loaded.Contains(Path.GetFullPath(Path.Combine(directory, n)), StringComparer.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return loaded.Count(f => names.Any(n => f.Replace('\\', '/').EndsWith("/" + n.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))) > 1;
+    }
+
     private static string? Resolve(Import import, string from, IEnumerable<string> loaded)
     {
         string relative = import.IsString ? import.Name : import.Name + ".slang";

@@ -318,7 +318,7 @@ public sealed class LanguageEnvironmentTests : IDisposable
     public async Task Slangのファイルをimportとジェネリックを読んで解析する()
     {
         File.WriteAllText(Path.Combine(_workDirectory, "utils.slang"), "module utils;\npublic interface IFoo { float get(); }\n");
-        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "import utils;\n[shader(\"compute\")] void main<T : IFoo>() {}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "import utils;\nfloat use<T : IFoo>(T v) { return v.get(); }\n[shader(\"compute\")] [numthreads(1, 1, 1)] void main() {}\n");
 
         (ExitCode exit, string output) = await RunAsync("--environment", "slang");
 

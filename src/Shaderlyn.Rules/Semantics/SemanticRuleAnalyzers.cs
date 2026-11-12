@@ -136,6 +136,8 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeSkipped(ShaderCompilation compilation)
         => compilation.Source.Root is not null ? "プロパティと uniform の対応検査"
+            : compilation.BrokenFunctionSpans is not null
+                ? "構文の誤りから、その誤りを含む関数の終わりまでの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
             : compilation.FirstBreakOffset is not null
               && compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } first
                 ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
@@ -190,8 +192,8 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         // 検査を止めるのはエラーだけである (ShaderCompilation.BreaksAnalysis)。警告を原因として示さない。
         if (compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } reported)
         {
-            // GLSL は、最初の誤りより前の位置を検査している (ShaderCompilation.FirstBreakOffset)。
-            return compilation.FirstBreakOffset is not null
+            // GLSL は、最初の誤りより前の位置を検査している (ShaderCompilation.FirstBreakOffset)。Slang は、誤りを含む関数の外を検査している (BrokenFunctionSpans)。
+            return compilation.FirstBreakOffset is not null || compilation.BrokenFunctionSpans is not null
                 ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Id} を直すと、ファイル全体が検査されるようになります。"
                 : $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
                   + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";

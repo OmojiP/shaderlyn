@@ -448,8 +448,8 @@ internal static class SlangRuleDescriptors
         description: "値の仮引数 (let N) に型を書いていないか整数・列挙型・bool でない型を書いているか、制約にインターフェイスでない型 (int・構造体) を書いているか、"
             + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていないか、型引数の数が合わないか、"
             + "可変長の並びの後ろに仮引数を書いているか、既定の値が後ろの仮引数を指しているか、where の左が仮引数でないか、== の右がインターフェイスか、"
-            + "nonempty(…) にこの宣言の可変長の並びでないものを書いているか、インターフェイスを extension で広げています。"
-            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408・E30441・E30522・E30122・E30402・E30404・E30413・E30416・E30852) にします。",
+            + "nonempty(…) にこの宣言の可変長の並びでないものを書いているか、インターフェイスを extension で広げているか、エントリポイントにジェネリックの仮引数を書いています (slang: generic-entry-points で通す)。"
+            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408・E30441・E30522・E30122・E30402・E30404・E30413・E30416・E30852・E38014) にします。",
         helpLinkUri: DocumentationLinks.For("SG0358"));
 
     /// <summary>インターフェイスの要件を満たしていない。</summary>
@@ -486,6 +486,17 @@ internal static class SlangRuleDescriptors
             + "[DerivativeMember] に微分の型のフィールドでないものを書いているか、微分しない型のフィールドか関数の外の変数に [DerivativeMember] を書いています。"
             + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132) にします。",
         helpLinkUri: DocumentationLinks.For("SG0361"));
+
+    /// <summary>実験中のモジュールの import。</summary>
+    public static DiagnosticDescriptor ExperimentalModule { get; } = new(
+        id: "SG0362",
+        title: "実験中のモジュールを import するには、実験中の機能を有効にしてください",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "実験中のモジュール (slang.neural・slang.numerics・slang.functional・experimental.workgraph など) を import しています。"
+            + "slangc は -experimental-feature を渡さなければ読みません (E00104)。-experimental-feature でコンパイルするなら、設定ファイルの slang: experimental-features を true にしてください。",
+        helpLinkUri: DocumentationLinks.For("SG0362"));
 
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(

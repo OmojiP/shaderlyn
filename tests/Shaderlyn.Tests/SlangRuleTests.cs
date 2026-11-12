@@ -631,6 +631,26 @@ public sealed class SlangRuleTests : IDisposable
     }
 
     [Fact]
+    public async Task 構文の誤りを含む関数の外では宣言の検査を続ける()
+    {
+        // f の構文の誤りは f の中だけ。g の宣言されていない名前は報告し、h が後ろの k を使うのは通す。
+        string output = await AnalyzeAsync(
+            "float f(float x)\n{\n    return x +\n}\n\nfloat g(float y)\n{\n    return undefinedName * y;\n}\n\nfloat h(float z)\n{\n    return g(z) + k(z);\n}\n\nfloat k(float w) { return w; }\n", "broken.slang");
+
+        Assert.Contains("broken.slang(4:1): error CF0001", output, StringComparison.Ordinal);
+        Assert.Contains("broken.slang(8:12): error CF0310: 'undefinedName'", output, StringComparison.Ordinal);
+        Assert.Equal(1, output.Split("error CF0310").Length - 1);
+    }
+
+    [Theory]
+    // } が足りずに後ろの関数を本体に飲み込んだもの、関数の外の構文の誤り、誤りを含む文の中 (vArray[i] var c = 3; を宣言と読み違える)
+    [InlineData("float f(float x)\n{\n    return x + 1;\n\nfloat g(float y)\n{\n    return undefinedName * y;\n}\n")]
+    [InlineData("struct S { int a }\nfloat g(float y) { return undefinedName * y; }\n")]
+    [InlineData("void m()\n{\n    float3 vArray[3];\n    let i = 1;\n    vArray[i]\n    var c = 3;\n}\n")]
+    public async Task 構文の誤りで宣言が読めていない所では宣言の検査をしない(string code)
+        => Assert.DoesNotContain("error CF0310", await AnalyzeAsync(code, "broken.slang"), StringComparison.Ordinal);
+
+    [Fact]
     public async Task ファイルの終わりで足りないものはファイルの終わりの位置で伝える()
     {
         // slangc と同じく、最後の改行の後ろ (4 行目) で伝える。
@@ -764,6 +784,42 @@ public sealed class SlangRuleTests : IDisposable
 
         Assert.Equal(reported, output.ToString().Contains("CF0310: 'Apple'", StringComparison.Ordinal));
         Assert.Equal(reported ? 1 : 0, output.ToString().Split("CF0310").Length - 1);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task 実験中のモジュールのimportは設定でだけ通る(bool experimental, bool reported)
+    {
+        if (experimental)
+        {
+            File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "slang:\n  experimental-features: true\n");
+        }
+
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "import slang.numerics;\nvoid f() { }\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Equal(reported, output.ToString().Contains("a.slang(1:8): error SG0362", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task ジェネリックのエントリポイントは設定でだけ通る(bool allowed, bool reported)
+    {
+        if (allowed)
+        {
+            File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "slang:\n  generic-entry-points: true\n");
+        }
+
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"),
+            "RWStructuredBuffer<float> o;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main<T : IFloat>(uint3 id : SV_DispatchThreadID) { o[0] = 1.0; }\nT twice<T : IFloat>(T x) { return x + x; }\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Equal(reported, output.ToString().Contains("a.slang(4:6): error SG0358", StringComparison.Ordinal));
+        Assert.Equal(reported ? 1 : 0, output.ToString().Split("SG0358").Length - 1);
     }
 
     [Fact]

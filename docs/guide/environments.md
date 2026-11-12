@@ -47,7 +47,7 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 | [Unreal Engine](environments/unreal.md) | エンジンとプロジェクトの仮想パス、C++ から生成されるファイル (`--unreal-generate`)、解析の前提 |
 | [GLSL](environments/glsl.md) | glslang と同じ検査、`glsl: target` (Vulkan / OpenGL)、ステージと `#version` の決め方 |
 | [Godot](environments/godot.md) | Godot 4.7.2 と同じ検査、`project.godot` と `res://`、レンダラーの決め方 |
-| [Slang](environments/slang.md) | slangc 2026.19 と同じ検査、`import` するモジュールの探し方、`slang: target` / `unscoped-enums`、まだ見つけられないもの |
+| [Slang](environments/slang.md) | slangc 2026.19 と同じ検査、`import` するモジュールの探し方、`slang: target` / `unscoped-enums` / `experimental-features` / `generic-entry-points`、まだ見つけられないもの |
 | [WGSL](environments/wgsl.md) | naga 30 と同じ検査、`enable` の要る機能、naga と違う所 |
 
 ## 環境によって変わること

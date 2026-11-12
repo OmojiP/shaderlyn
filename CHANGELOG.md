@@ -109,9 +109,10 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - SG0353: 構文の誤りのあるモジュールの import。SG0354: 空でありうる可変長の並び (`__first`・`where nonempty`) と `countof(…)` の制約の書き方
   - SG0355: ラムダ式の書き方 (型の違う値を返す、コピーできない値の取り込み)。SG0356: アドレスを取れない値 (読むだけの資源の要素、GPU の局所変数) の `&` と `__getAddress`。SG0357: 配列の大きさ (0 で割る式・負の数)
   - SG0358: ジェネリックの仮引数の書き方 (値の仮引数の型、制約に書けない型、後ろの仮引数を指す制約と既定の値、可変長の並びの後ろの仮引数、型引数の数、
-    where の左の型と == の右の型、nonempty(…) の対象、インターフェイスの extension)。SG0359: インターフェイスの要件の書き忘れと、`[mutating]`・static の食い違い
+    where の左の型と == の右の型、nonempty(…) の対象、インターフェイスの extension、ジェネリックのエントリポイント)。SG0359: インターフェイスの要件の書き忘れと、`[mutating]`・static の食い違い
   - SG0360: 微分の関数の書き方 (`[ForwardDerivative]`・`[BackwardDerivative]` で指した関数の仮引数の数と型、static のメソッドの微分の static、呼び出しでない値と微分しない関数の中の `no_diff`、
     微分する関数の中の後ろ向きの微分、let の DifferentialPair を渡す後ろ向きの微分、微分する仮引数の `__constref`、インターフェイスの要件と微分の関数)
+  - SG0362: 実験中のモジュール (`slang.neural`・`slang.numerics`・`slang.functional`・`experimental.workgraph`) の import (`slang: experimental-features` で通す)
   - SG0361: 微分の型の書き方 (自分でない微分の型の、`[DerivativeMember]` も `no_diff` も無い微分するフィールド、微分の型に無いフィールドと微分しない型と関数の外の変数の `[DerivativeMember]`)
   - SG0401: private のメンバー (extension の private のメソッドと private の `__subscript` を含む) の外からの使用と、別のモジュールの public でない宣言の使用
     (`__include` と `implementing` で分けて書いたモジュールを含む。public の構造体のメンバーと中の型の既定は、宣言したモジュールの言語のバージョンで決める。public の名前空間の public でないメンバーも見る)
@@ -123,7 +124,8 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   型引数の違うジェネリックの型どうし (構造体のフィールドを含む)・次元の違うテクスチャ・入れ子の型への数・ポインターの型とアクセスとアドレス空間・ジェネリックの型の値から具体的な型への変換・
   SamplerDescriptorHeap と ResourceDescriptorHeap の取り違え (CF0410)、負の数と定数の式の添字 (CF0510)。数の接尾辞は slangc と同じ形だけを通す (CF0001)
 - Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU と CUDA では、資源をバッファーに入れることを報告しない。
-  `slang: unscoped-enums` (slangc の `-unscoped-enum`) で、どの列挙型の列挙子も修飾せずに書けるものとする
+  `slang: unscoped-enums` (slangc の `-unscoped-enum`) で、どの列挙型の列挙子も修飾せずに書けるものとする。
+  `slang: experimental-features` (slangc の `-experimental-feature`) で実験中のモジュールを import できるものとし、`slang: generic-entry-points` でジェネリックのエントリポイントを API で特殊化するものとして通す
 - VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
 - WGSL: `.wgsl` を WGSL として読み、構文の誤りを報告する (CF0001)。属性 (`@group(0)`・`@vertex`)、`fn` と `->`、`var<storage, read_write>`・`let`・`const`・`override`、
   構造体、`alias`、型引数を書いた型 (`vec3<f32>`・`array<f32, 4>`・`ptr<function, f32>`) と短い名前 (`vec3f`)、`enable`・`requires`・`diagnostic`、`const_assert`、
@@ -176,6 +178,8 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
 - Slang: 取り込んだモジュールが (`__exported` でなく) 取り込んだモジュールの宣言と、using していない名前空間の中の宣言を修飾せずに使うもの、名前空間に無いメンバー (`ns.f()`) を、宣言されていない名前 (CF0310) にする (今までは、どちらも見えるものとしていた)
 - Slang: ファイルの終わりで足りないもの (`;`・`}`) を、slangc と同じくファイルの終わりの位置 (最後の改行の後ろ) で伝える (今までは最後のトークンの直後だった)
 - Slang: 型引数を書いたメソッドの呼び出し (`buf.LoadAligned<float>(0, 16)`) を、型引数が名前と数だけなら呼び出しとして読む (今までは読み飛ばしていて、実引数を検査しなかった)。extension で多重定義を足しうる型のメソッドの引数の数は見ない (CF0402)
+- Slang: 構文の誤りが関数の本体の中だけにあるファイルでも、ほかの関数と、同じ関数の構文の誤りより前の文で、宣言が無いことを根拠にする検査 (CF0310 など) を続ける (今まではファイル全体で止めていた)
+- 式の要る位置の `}` と `;` (`return x + }`) を読み進めずに構文の誤りにする (今までは `}` を読み飛ばし、後ろの宣言を関数の本体に飲み込んでいた)
 - `x.;` (`.` の後ろにメンバーの名前が無い式) を構文の誤り (CF0001) にする (今までは何も報告しなかった。HLSL・GLSL も同じ)
 - Slang: `;` の無い `throw`、property と `__subscript` の accessor の本体の中の構文の誤りと accessor でない語、ジェネリックの仮引数の位置の名前でないもの (`<1>`) と、制約の位置の `struct` を構文の誤り (CF0001) にする
 

@@ -26,8 +26,17 @@ namespace Shaderlyn.Semantics.Environments;
 /// <param name="variants">構成の軸。</param>
 /// <param name="target">コンパイル先 (設定ファイルの <c>slang: target</c>)。指定が無ければ <see langword="null"/> (GPU のコンパイル先とみなす)。</param>
 /// <param name="unscopedEnums">どの列挙型の列挙子も修飾せずに書けるか (設定ファイルの <c>slang: unscoped-enums</c>)。</param>
-internal sealed class SlangEnvironment(VariantSpace? variants = null, string? target = null, bool unscopedEnums = false) : IShaderEnvironment
+/// <param name="experimentalFeatures">実験中のモジュールを import できるか (設定ファイルの <c>slang: experimental-features</c>)。</param>
+/// <param name="genericEntryPoints">ジェネリックのエントリポイントを API で特殊化するものとして通すか (設定ファイルの <c>slang: generic-entry-points</c>)。</param>
+internal sealed class SlangEnvironment(VariantSpace? variants = null, string? target = null, bool unscopedEnums = false, bool experimentalFeatures = false, bool genericEntryPoints = false)
+    : IShaderEnvironment
 {
+    /// <summary>実験中のモジュール (slang.neural など) を import できるか (slangc の <c>-experimental-feature</c>)。</summary>
+    public bool ExperimentalFeatures { get; } = experimentalFeatures;
+
+    /// <summary>ジェネリックのエントリポイントを、API (<c>specialize</c>) で特殊化するものとして通すか。</summary>
+    public bool GenericEntryPoints { get; } = genericEntryPoints;
+
     private readonly SlangLanguageOptions _language = unscopedEnums ? new SlangLanguageOptions { UnscopedEnums = true } : SlangLanguageOptions.Default;
 
     /// <summary>コンパイル先 (<c>spirv</c>・<c>cpp</c> など)。指定が無ければ <see langword="null"/>。</summary>

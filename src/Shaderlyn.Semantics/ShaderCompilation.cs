@@ -578,10 +578,144 @@ public sealed partial class ShaderCompilation
     /// <returns>そうなら <see langword="true"/>。</returns>
     /// <remarks>マクロを展開してできたトークンは、展開した位置の範囲を持つ。展開した位置で比べる。</remarks>
     internal bool IsBeforeFirstBreak(ShaderSyntaxNode node)
-        => FirstBreakOffset is { } end
+        => (FirstBreakOffset is { } end
+            && node.FirstToken is { } first
+            && ReferenceEquals(first.Source, Text)
+            && node.Span.End <= end)
+           || IsOutsideBrokenFunctions(node);
+
+    /// <summary>
+    /// 解析を止める誤りがあっても、宣言が無いことを根拠にできる位置があるか (GLSL の <see cref="FirstBreakOffset"/> か、Slang の <see cref="BrokenFunctionSpans"/>)。
+    /// </summary>
+    internal bool HasAnalyzableRegions => FirstBreakOffset is not null || BrokenFunctionSpans is not null;
+
+    /// <summary>
+    /// Slang で、解析を止める誤りがどれも、解析しているファイルの関数の本体の中にあるときの、誤りから関数の終わりまでの範囲。それ以外は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Slang では、関数の外の名前を宣言より前でも使える (GLSL のように位置で区切れない)。そのかわり、関数の本体の中の構文の誤りは、
+    /// その本体の外の宣言 (関数・型・変数) を壊さない。本体の { と } が対応していれば、ほかの宣言はすべて読めている。
+    /// そこで、誤りを含む関数の外では、宣言が無いことを根拠にする検査を続ける。関数の中も、局所変数は使う位置より前に宣言するので、最初の誤りより前は続ける。
+    /// 見ないのは、最初の誤りを含む文 (本体の直下の文) の始まりから、その関数の終わりまでである。誤りを含む文は、誤りより前のトークンも読み違えていることがある。
+    /// </para>
+    /// <para>
+    /// 誤りが関数の外にある (宣言そのものが壊れている) か、本体の { と } が対応しない (後ろの宣言を本体に飲み込んでいる) か、
+    /// 取り込んだファイルに誤りがあるか、解決できない取り込みがあれば、区切らない。
+    /// </para>
+    /// </remarks>
+    internal ImmutableArray<TextSpan>? BrokenFunctionSpans
+    {
+        get
+        {
+            if (!_brokenFunctionSpansKnown)
+            {
+                _brokenFunctionSpans = FindBrokenFunctionSpans();
+                _brokenFunctionSpansKnown = true;
+            }
+
+            return _brokenFunctionSpans;
+        }
+    }
+
+    private ImmutableArray<TextSpan>? _brokenFunctionSpans;
+
+    private bool _brokenFunctionSpansKnown;
+
+    /// <summary><see cref="BrokenFunctionSpans"/> を求める。</summary>
+    private ImmutableArray<TextSpan>? FindBrokenFunctionSpans()
+    {
+        if (!IsSlang || IsIncludedFragment || !UnresolvedIncludes.IsEmpty)
+        {
+            return null;
+        }
+
+        List<Diagnostic> breaks = [.. Programs.SelectMany(p => p.Diagnostics).Where(BreaksAnalysis)];
+
+        if (breaks.Count == 0 || breaks.Any(d => !string.Equals(d.Location.FilePath, Text.FilePath, StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        // 関数ごとの、最初の誤りの位置。
+        Dictionary<FunctionDeclarationSyntax, int> firstErrors = new(ReferenceEqualityComparer.Instance);
+
+        // 構成 (プログラム) ごとに木が違うので、どの構成の木でも、誤りが対応の取れた関数の本体の中にあることを確かめる。
+        foreach (AnalyzedProgram program in Programs)
+        {
+            ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+            FunctionDeclarationSyntax[] functions = [.. program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
+                .Where(f => f.Body is { } body && ReferenceEquals(body.OpenBrace.Source, Text) && !body.CloseBrace.IsMissing)];
+
+            foreach (Diagnostic diagnostic in program.Diagnostics.Where(BreaksAnalysis))
+            {
+                int offset = diagnostic.Location.Span.Start;
+
+                // 誤りを含む、いちばん内側の関数の本体。
+                FunctionDeclarationSyntax? owner = functions
+                    .Where(f => f.Body!.OpenBrace.Span.Start < offset && offset < f.Body.CloseBrace.Span.End)
+                    .OrderBy(f => f.Body!.CloseBrace.Span.End - f.Body.OpenBrace.Span.Start)
+                    .FirstOrDefault();
+
+                if (owner is null || !BracesMatch(tokens, owner.Body!))
+                {
+                    return null;
+                }
+
+                // 誤りを含む文は、誤りより前のトークンも読み違えている (vArray[i] var c = 3; を宣言と読むなど)。本体の直下の、誤りを含む文の始まりから見ない。
+                int start = owner.Body!.Statements.FirstOrDefault(s => s.Span.Start <= offset && offset <= s.Span.End) is { } statement
+                    ? Math.Min(statement.Span.Start, offset)
+                    : offset;
+                firstErrors[owner] = Math.Min(firstErrors.GetValueOrDefault(owner, int.MaxValue), start);
+            }
+        }
+
+        // 関数の中の局所変数は、使う位置より前に宣言する。最初の誤りより前の位置は、そこまでの宣言で判断できる。誤りから関数の終わりまでを見ない。
+        return [.. firstErrors.Select(p => TextSpan.FromBounds(p.Value, p.Key.Body!.CloseBrace.Span.End)).Distinct()];
+    }
+
+    /// <summary>本体の { に、トークンの並びの上で対応する } が、構文木の本体の } か (後ろの宣言を本体に飲み込んでいないか)。</summary>
+    private bool BracesMatch(ImmutableArray<ShaderSyntaxToken> tokens, BlockStatementSyntax body)
+    {
+        int depth = 0;
+        bool started = false;
+
+        foreach (ShaderSyntaxToken token in tokens)
+        {
+            if (!ReferenceEquals(token.Source, Text))
+            {
+                continue;
+            }
+
+            if (!started)
+            {
+                started = ReferenceEquals(token, body.OpenBrace);
+
+                if (!started)
+                {
+                    continue;
+                }
+            }
+
+            if (token.Kind == ShaderSyntaxKind.OpenBraceToken)
+            {
+                depth++;
+            }
+            else if (token.Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+            {
+                return ReferenceEquals(token, body.CloseBrace);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Slang で、誤りを含む関数 (<see cref="BrokenFunctionSpans"/>) の外にある、解析しているファイルの位置か。</summary>
+    private bool IsOutsideBrokenFunctions(ShaderSyntaxNode node)
+        => BrokenFunctionSpans is { } spans
            && node.FirstToken is { } first
            && ReferenceEquals(first.Source, Text)
-           && node.Span.End <= end;
+           && !spans.Any(s => s.Start < node.Span.End && node.Span.Start < s.End);
 
     /// <summary>
     /// 名前から uniform を引く。

@@ -11,6 +11,8 @@ SG のルールは、slangc 2026.19 がエラーにするものを、slangc と�
 - 変数・仮引数・戻り値・フィールドの型、構造体の基底、ジェネリックの制約 (`<T : IFoo>`・`where T : IFoo`)、`throws` の型に書いた、どこにも宣言されていない型の名前を [CF0310](../../rules/CF0310.md) にします。
   名前空間などで修飾した名前 (`ns::T`・`T.Differential`) はまだ見ません
 - 列挙子は、`[UnscopedEnum]` を付けた列挙型のものだけを修飾せずに書けるものとします (`Fruit.Apple`)。slangc に `-unscoped-enum` を渡すなら、[`slang: unscoped-enums`](../configuration.md#slang) を `true` にしてください
+- 実験中のモジュール (`slang.neural` など) の import は、slangc の既定と同じく誤り ([SG0362](../../rules/SG0362.md)) にします。slangc に `-experimental-feature` を渡すなら、[`slang: experimental-features`](../configuration.md#slang) を `true` にしてください
+- ジェネリックのエントリポイントは、型引数を決めない slangc と同じく誤り ([SG0358](../../rules/SG0358.md)) にします。slangc の `-specialize` か `-entry main<Foo>`、Slang の API (`specialize`) で型引数を決めるなら、[`slang: generic-entry-points`](../configuration.md#slang) を `true` にしてください
 - slangc に合わせて、変数の初期値の中では、宣言しているその変数はまだ見えません (`int e = e;` の右の `e` は外側の `e`)。`for` の初期化の変数は、ループの外では見えません。`if (let a = x)` の `a` は、then の側でだけ見えます
 - `import a.b;` のモジュール (`a/b.slang`) を、ファイルのフォルダーと [`include-paths`](../configuration.md) から探し、その宣言を使います。
   見つからないモジュールは [CF0021](../../rules/CF0021.md) になります。slangc に入っている標準のモジュール (`slang.neural` など) は探しません
@@ -32,10 +34,10 @@ slangc の誤りのうち、次のものはまだ報告しません。
 - コンパイルのときに選ぶエントリポイント・ステージ・能力 (capability) に依る誤りと、動的なディスパッチ (`-conformance`) に依る誤り
 - コード生成と最適化の段の誤り (コンパイル先が扱えない命令、ループの展開など)
 - 解析するファイル自身を `implementing` / `__include` で分けたモジュールの可視性 (取り込んだモジュールを分けて書いたものは見ます)
-- 構文の誤りの後ろの誤り (最初の構文の誤りで解析を止めます)
+- 構文の誤りを含む文から、その関数の終わりまでの誤り (ほかの関数は検査します。構文の誤りが関数の外にあるときは、宣言が無いことを根拠にする検査を止めます。[CF0101](../../rules/CF0101.md))
 - そのほかの個別の意味の検査 (多重定義の選び方、型の食い違いの一部など)
 
-slang の誤りの試験 (slangc が誤りにする 965 ファイル、2,011 行) のうち、今は 1,124 行を slangc と同じ行で報告します。
+slang の誤りの試験 (slangc が誤りにする 965 ファイル、2,011 行) のうち、今は 1,127 行を slangc と同じ行で報告します。
 
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) も使います。
 

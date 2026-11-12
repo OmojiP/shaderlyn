@@ -81,6 +81,13 @@ SHADERLYN_GODOT=<Godot の場所> node tools/oracles/record.mjs godot .work/v0.3
 `compare.mjs` は、コンパイラが誤りにしないファイルに出たエラーと警告を「誤報告」、コンパイラの誤りの行に Shaderlyn のエラーが無いものを「見落とし」、
 コンパイラの最初の誤りより前の行に出たエラーを「先走り」(誤報告の疑い) として数えます。
 
+`--use-args` を付けると、正解に記録したコンパイラの引数のうち設定ファイルに当たるもの (Slang の `-target`・`-experimental-feature`・`-specialize` と `-entry f<T>`・`-unscoped-enum`・`-D`) を、
+ファイルごとの一時の設定ファイルにして Shaderlyn に渡します。コマンドラインの指定に依る誤りを、同じ指定で比べられます。付けなければ、どのファイルも `--no-config` で解析します。
+
+```sh
+node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
+```
+
 > 手元の .NET SDK が 10.0.401 のままだと、Native AOT の脆弱性の勧告 (NU1903) で Release のビルドが止まります。
 > SDK を 10.0.403 以降に上げるか、`dotnet build src/Shaderlyn.Cli.App -c Release -p:PublishAot=false` でビルドしてください。
 

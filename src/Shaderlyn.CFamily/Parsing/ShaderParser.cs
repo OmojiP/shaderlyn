@@ -3069,6 +3069,12 @@ internal abstract class ShaderParser
             case ShaderSyntaxKind.OpenBraceToken:
                 return ParseInitializerList();
 
+            // 式の無い } と ; (return x + }) は読み進めない。} はブロックを、; は文を閉じる (読み進めると、後ろの宣言を本体に飲み込む)。
+            // ブロックと関数の外の繰り返しは、進まなければ 1 トークン読み飛ばすので、止まらない。
+            case ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.SemicolonToken:
+                ReportError(DescribeExpected("式"));
+                return new IncompleteExpressionSyntax([CreateMissingToken(ShaderSyntaxKind.IdentifierToken)]);
+
             default:
                 ReportError(DescribeExpected("式"));
                 return new IncompleteExpressionSyntax([AdvanceIfPossible()]);

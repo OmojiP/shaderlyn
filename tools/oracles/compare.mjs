@@ -1,9 +1,13 @@
 // record.mjs が記録した正解 (コンパイラの誤りの行) と、Shaderlyn の指摘を行ごとに比べる。言語に依らない (GLSL は compare-glsl.mjs)。
 //
 // 使い方 (リポジトリのルートで):
-//   node tools/oracles/compare.mjs <正解の JSON>... [--details] [--json=<パス>]
+//   node tools/oracles/compare.mjs <正解の JSON>... [--details] [--json=<パス>] [--use-args]
 //
 //   node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
+//
+// --use-args: 正解に記録したコンパイラの引数 (Slang の試験の -target・-experimental-feature・-specialize と -entry f<T>・-unscoped-enum・-D) を、
+//   ファイルごとの一時の設定ファイル (slang: target / experimental-features / generic-entry-points / unscoped-enums と defines) にして Shaderlyn に渡す。
+//   設定に当たる項目の無い引数 (-entry・-stage・-capability など) は渡さない。付けなければ、どのファイルも --no-config で解析する。
 //
 // Shaderlyn の CLI の場所は環境変数 SHADERLYN_CLI で渡す (無ければ src/Shaderlyn.Cli.App の Release のビルドの出力)。
 //
@@ -16,12 +20,16 @@
 // 終了コードは、食い違いが無ければ 0、あれば 1、使い方の誤りは 2。
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const args = process.argv.slice(2);
 const details = args.includes("--details");
 const jsonOut = args.find(a => a.startsWith("--json="))?.slice("--json=".length);
+const useArgs = args.includes("--use-args");
+const configDirectory = useArgs ? mkdtempSync(join(tmpdir(), "shaderlyn-oracle-")) : null;
+const configs = new Map();
 const oracles = args.filter(a => !a.startsWith("--"));
 
 if (oracles.length === 0) {
@@ -44,7 +52,7 @@ let anyDifference = false;
 for (const oraclePath of oracles) {
   const oracle = JSON.parse(readFileSync(oraclePath, "utf8"));
   const paths = Object.keys(oracle.files);
-  const ours = analyze(paths, oracle.language);
+  const ours = analyze(paths, oracle.language, path => configFor(oracle.language, oracle.files[path].args));
 
   let falsePositives = 0;
   let misses = 0;
@@ -93,14 +101,19 @@ if (jsonOut) {
   writeFileSync(jsonOut, JSON.stringify(rows, null, 1));
 }
 
+if (configDirectory) {
+  rmSync(configDirectory, { recursive: true, force: true });
+}
+
 process.exit(anyDifference ? 1 : 0);
 
 /** Shaderlyn に掛け、指摘に「どのファイルを解析したときのものか」を付けて返す。 */
-function analyze(paths, language) {
+function analyze(paths, language, configOf) {
   const results = [];
   for (const path of paths) {
     // 取り込んだファイルの指摘も、解析したファイルごとに分けたいので、1 ファイルずつ渡す。
-    const run = spawnSync(cli, ["--no-config", "--environment", language, "--format", "json", "--include-trace", "none", path],
+    const config = configOf(path);
+    const run = spawnSync(cli, [...(config ? ["--config", config] : ["--no-config"]), "--environment", language, "--format", "json", "--include-trace", "none", path],
       { encoding: "utf8", maxBuffer: 1 << 30 });
     if (!run.stdout) {
       throw new Error(`Shaderlyn が結果を返しませんでした (${path})。\n${run.stderr}`);
@@ -110,6 +123,58 @@ function analyze(paths, language) {
     }
   }
   return results;
+}
+
+/**
+ * 記録したコンパイラの引数に当たる設定ファイルのパス。--use-args が無いか、設定に当たる引数が無ければ null (--no-config で解析する)。
+ * 同じ内容の設定ファイルは 1 つだけ作る。
+ */
+function configFor(language, commandLine) {
+  if (!useArgs || language !== "slang" || !commandLine) {
+    return null;
+  }
+
+  const words = commandLine.split(/\s+/).filter(w => w.length > 0);
+  const slang = [];
+  const defines = [];
+  const targets = ["spirv", "glsl", "hlsl", "dxil", "metal", "wgsl", "cuda", "ptx", "cpp"];
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (word === "-target" && targets.includes(words[i + 1])) {
+      slang.push(`  target: ${words[++i]}`);
+    } else if (word === "-experimental-feature") {
+      slang.push("  experimental-features: true");
+    } else if (word === "-specialize" || (word === "-entry" && words[i + 1]?.includes("<"))) {
+      // -specialize と -entry fragMain<Red> は、エントリポイントの型引数を決める。
+      slang.push("  generic-entry-points: true");
+    } else if (word === "-unscoped-enum") {
+      slang.push("  unscoped-enums: true");
+    } else if (word === "-D" && words[i + 1]) {
+      defines.push(words[++i]);
+    } else if (word.startsWith("-D") && word.length > 2) {
+      defines.push(word.slice(2));
+    }
+  }
+
+  if (slang.length === 0 && defines.length === 0) {
+    return null;
+  }
+
+  // 同じ項目を 2 度書かない (-target を 2 つ書いた試験は、最初のものを使う)。
+  const unique = slang.filter((line, index) => slang.findIndex(other => other.split(":")[0] === line.split(":")[0]) === index);
+  const text = [
+    ...(unique.length > 0 ? ["slang:", ...unique] : []),
+    ...(defines.length > 0 ? ["defines:", ...defines.map(d => `  - "${d.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`)] : []),
+  ].join("\n") + "\n";
+
+  if (!configs.has(text)) {
+    const file = join(configDirectory, `${configs.size}.shaderlyn.yaml`);
+    writeFileSync(file, text);
+    configs.set(text, file);
+  }
+
+  return configs.get(text);
 }
 
 /**
