@@ -176,7 +176,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckOverrides(types, kinds, extended, Report);
+            CheckOverrides(types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report);
             CheckCom(tokens, Report);
             CheckInterfaceMembers(tokens, Report);
             CheckCycles(types, Report);
@@ -629,6 +629,52 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>インターフェイスと、その継承したインターフェイスのすべて。利用者の (1 度だけ宣言した) インターフェイスでないものを継承していれば <see langword="null"/>。</summary>
+    private static List<StructDeclarationSyntax>? Ancestors(List<StructDeclarationSyntax> bases, Dictionary<string, StructDeclarationSyntax> interfaces)
+    {
+        List<StructDeclarationSyntax> all = [];
+        Stack<StructDeclarationSyntax> pending = new(bases);
+
+        while (pending.TryPop(out StructDeclarationSyntax? next))
+        {
+            if (all.Contains(next))
+            {
+                continue;
+            }
+
+            all.Add(next);
+
+            if (next.ColonToken is null)
+            {
+                continue;
+            }
+
+            int angle = 0;
+
+            foreach (ShaderSyntaxToken token in next.DescendantTokens().SkipWhile(t => t.Kind != ShaderSyntaxKind.ColonToken).Skip(1).TakeWhile(t => t.Kind != ShaderSyntaxKind.OpenBraceToken))
+            {
+                angle += token.Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+                if (token.Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken || token.Text == "where")
+                {
+                    return null;
+                }
+
+                if (angle == 0 && token.Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    if (!interfaces.TryGetValue(token.Text, out StructDeclarationSyntax? inherited))
+                    {
+                        return null;
+                    }
+
+                    pending.Push(inherited);
+                }
+            }
+        }
+
+        return all;
+    }
+
     /// <summary>{ に対応する } の位置。</summary>
     private static int? MatchingBrace(ImmutableArray<ShaderSyntaxToken> tokens, int open)
     {
@@ -809,7 +855,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>インターフェイスの既定の実装と override の対応。</summary>
-    private static void CheckOverrides(StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckOverrides(StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && kinds[t.NameToken!.Text] == 3)
             .GroupBy(t => t.NameToken!.Text, StringComparer.Ordinal)
@@ -845,17 +891,23 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            // インターフェイスがさらにインターフェイスを継承していれば、その要件は決めない。
-            if (bases.Any(b => b.ColonToken is not null))
+            // インターフェイスが継承したインターフェイスの要件も足す。継承の並びに利用者のインターフェイス (1 度だけ宣言したもの) でないものがあれば、要件は決めない。
+            if (Ancestors(bases, interfaces) is not { } all)
             {
                 continue;
             }
 
-            FunctionDeclarationSyntax[] required = [.. bases.SelectMany(b => b.Members.OfType<FunctionDeclarationSyntax>())];
+            FunctionDeclarationSyntax[] required = [.. all.SelectMany(b => b.Members.OfType<FunctionDeclarationSyntax>())];
+
+            // 継承の並びのどこかで本体を書いた (既定の実装のある) 要件は、満たしている。
+            HashSet<string> implemented = [.. required.Where(r => r.Body is not null).Select(r => r.Name)];
+            required = [.. required.Where(r => r.Body is not null || !implemented.Contains(r.Name))];
+            bases = all;
 
             // インターフェイスの要件 (本体の無いメソッド) を、型が持っているか (E38100)。持っていれば、[mutating] と static が合うか (E38105)。
             // extension で足されうる型とインターフェイス、ジェネリックのインターフェイスは見ない。
-            if (!extended.Contains("*") && !extended.Contains(type.NameToken!.Text) && type.Keyword.Text is "struct" or "class"
+            // どの型にも当たる extension (extension<T : IBar> T { … }) は、その制約に適合しうる型にだけ足しうる。
+            if (!(extended.Contains("*") && model.MethodExtensionsMayApply(type.NameToken!.Text)) && !extended.Contains(type.NameToken!.Text) && type.Keyword.Text is "struct" or "class"
                 && bases.All(b => !extended.Contains(b.NameToken!.Text) && b.GenericParameterTokens.IsDefaultOrEmpty))
             {
                 FunctionDeclarationSyntax[] own = [.. type.Members.OfType<FunctionDeclarationSyntax>()];

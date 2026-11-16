@@ -83,6 +83,25 @@ public sealed class LanguageServerSlangTests : IDisposable
     }
 
     [Fact]
+    public async Task 書きかけの関数を保存してもほかの関数の宣言の検査を続ける()
+    {
+        // ある関数の本体が書きかけ (return a +) のまま保存しても、ほかの関数の宣言されていない名前は指摘し続ける。
+        // 編集のたびの解析は構文だけなので、保存したときの解析で確かめる。
+        const string text = "float g(float y)\n{\n    return nope * y;\n}\n";
+        await using LanguageServerHarness harness = await OpenAsync(text: text);
+        Assert.Contains((await harness.ReceiveDiagnosticsAsync()).EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0310");
+
+        await harness.ChangeAsync("float f(float a)\n{\n    return a +\n}\n\n" + text);
+        await harness.SaveAsync();
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsForAsync(harness.Uri, d => d.EnumerateArray().Any(x => x.GetProperty("code").GetString() == "CF0310"));
+
+        Assert.Contains(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0001");
+        Assert.Contains(diagnostics.EnumerateArray(), d => d.GetProperty("code").GetString() == "CF0310"
+                                                           && d.GetProperty("range").GetProperty("start").GetProperty("line").GetInt32() == 7);
+    }
+
+
+    [Fact]
     public async Task letの型とモジュールの関数を説明する()
     {
         await using LanguageServerHarness harness = await OpenAsync();

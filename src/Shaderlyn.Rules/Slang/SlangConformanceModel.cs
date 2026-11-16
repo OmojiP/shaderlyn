@@ -79,6 +79,13 @@ internal sealed partial class SlangConformanceModel
         return set.Contains(requirement) || _undecidedEverything;
     }
 
+    /// <summary>
+    /// どの型にも当たる extension (<c>extension&lt;T : IBar&gt; T { … }</c>) が、型 <paramref name="type"/> にメソッドを足しうるか。
+    /// 制約に適合するか、適合するか決められなければ足しうる。制約の無いもの (書けない) と、制約に適合しないと言えるものは足さない。
+    /// </summary>
+    public bool MethodExtensionsMayApply(string type)
+        => _undecidedEverything || _undecided.Contains(type) || _blankets.Any(b => b.Constraints.Length > 0 && b.Constraints.All(c => Conforms(type, c) != false));
+
     /// <summary>型が適合するインターフェイスの全部と、それで全部と言えるか。</summary>
     private (HashSet<string> Set, bool Complete) ConformanceOf(string type, int depth)
     {

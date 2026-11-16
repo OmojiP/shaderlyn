@@ -288,12 +288,19 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
         string[] shape = [.. declarations[0].ParameterList.Select(p => p.Type.Name)];
 
+        // Slang のジェネリックの多重定義 (T h<T : IA>(T x) と T h<T : IB>(T x)) は、仮引数の型の名前が同じでも別の宣言である。
+        if (binder.TypeSystem is SlangTypeSystem && declarations.Length > 1 && declarations.Any(d => !d.GenericParameterTokens.IsDefaultOrEmpty))
+        {
+            CheckOverloadedArguments(context, compilation, binder, invocation, name, declarations, reported);
+            return;
+        }
+
         if (declarations.Any(d => !d.ParameterList.Select(p => p.Type.Name).SequenceEqual(shape)))
         {
             // Slang の多重定義: 実引数の数と仮引数の数が同じ宣言のどれもが、同じ位置の構造体の値を受け取れなければ、合う多重定義が無い (E39999)。
             if (binder.TypeSystem is SlangTypeSystem)
             {
-                CheckOverloadedArguments(context, binder, invocation, name, declarations, reported);
+                CheckOverloadedArguments(context, compilation, binder, invocation, name, declarations, reported);
             }
 
             return;
@@ -325,6 +332,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static void CheckOverloadedArguments(
         SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
         ExpressionTypeBinder binder,
         InvocationExpressionSyntax invocation,
         string name,
@@ -333,8 +341,15 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
     {
         ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
 
-        if (declarations.Any(d => !d.GenericParameterTokens.IsDefaultOrEmpty || d.ParameterList.Any(p => p.DefaultValue is not null || p.ModifierTokens.Any(m => m.Text is "expand" or "each"))))
+        if (declarations.Any(d => d.ParameterList.Any(p => p.DefaultValue is not null || p.ModifierTokens.Any(m => m.Text is "expand" or "each"))))
         {
+            return;
+        }
+
+        // ジェネリックの宣言のある多重定義は、候補ごとに、型の仮引数を実引数から決めて制約を確かめる。
+        if (declarations.Any(d => !d.GenericParameterTokens.IsDefaultOrEmpty))
+        {
+            CheckGenericOverloads(context, compilation, binder, invocation, name, declarations, reported);
             return;
         }
 
@@ -372,6 +387,183 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// ジェネリックの宣言のある多重定義の呼び出しで、どの候補も実引数を受け取れないものを報告する (Slang の E39999)。
+    /// </summary>
+    /// <remarks>
+    /// 候補ごとに、実引数の数、型の仮引数でない仮引数の型 (数の型と構造体の取り違え、別の構造体)、型の仮引数に当たる型の食い違い (片方が構造体)、
+    /// 型の仮引数の制約 (<c>&lt;T : IFoo&gt;</c>・<c>where T : IFoo</c>・<c>where T == int</c>) を見る。決められないことが 1 つでもある候補は、受け取るものとする。
+    /// </remarks>
+    private static void CheckGenericOverloads(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ExpressionTypeBinder binder,
+        InvocationExpressionSyntax invocation,
+        string name,
+        ImmutableArray<FunctionDeclarationSyntax> declarations,
+        ReportedLocations reported)
+    {
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+        ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
+        string?[] argumentTypes = [.. arguments.Select(a => evaluator.Evaluate(a))];
+        ImmutableArray<ShaderSyntaxToken> tokens = binder.Program.Tree.PreprocessResult.Tokens;
+        StructDeclarationSyntax[] declared = [.. binder.Program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+            .Where(t => t.Keyword.Text is "struct" or "class" && t.NameToken is not null)];
+        HashSet<string> structs = [.. declared.Select(t => t.Name)];
+        Dictionary<string, string?> bases = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax t in declared)
+        {
+            bases[t.Name] = bases.ContainsKey(t.Name) ? "?" : t.BaseTypeName;
+        }
+
+        // 構造体 derived が、構造体 ancestor を継承しているか (決められなければ true)。
+        bool MayDerive(string derived, string ancestor)
+        {
+            for (int depth = 0; depth < 16 && bases.TryGetValue(derived, out string? next) && next is not null; depth++)
+            {
+                if (next == ancestor || next == "?")
+                {
+                    return true;
+                }
+
+                derived = next;
+            }
+
+            return false;
+        }
+        Slang.SlangConformanceModel model = Slang.SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(binder.Program.Tree));
+
+        bool IsStruct(string type) => structs.Contains(type);
+        bool IsNumeric(string type) => binder.TypeSystem.TryDescribeNumeric(type, out _);
+
+        // 候補が実引数を受け取れないと言えるか。
+        bool Rejects(FunctionDeclarationSyntax candidate)
+        {
+            ParameterSyntax[] parameters = [.. candidate.ParameterList];
+
+            if (parameters.Length != arguments.Length)
+            {
+                return true;
+            }
+
+            (List<string> names, Dictionary<string, List<string>> constraints, Dictionary<string, string> equalities) = ReadGeneric(candidate, tokens);
+            Dictionary<string, string> inferred = new(StringComparer.Ordinal);
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                ParameterSyntax parameter = parameters[i];
+
+                if (argumentTypes[i] is not { } argument || parameter.IsArray || parameter.ModifierTokens.Any(m => m.Text is "out" or "inout")
+                    || parameter.Type.OpenAngle is not null || !parameter.Type.NestedTypeTokens.IsDefaultOrEmpty)
+                {
+                    continue;
+                }
+
+                string type = parameter.Type.Name;
+
+                if (names.Contains(type))
+                {
+                    if (inferred.TryGetValue(type, out string? earlier) && earlier != argument && (IsStruct(earlier) || IsStruct(argument)))
+                    {
+                        return true;
+                    }
+
+                    inferred.TryAdd(type, argument);
+                    continue;
+                }
+
+                if (type == argument)
+                {
+                    continue;
+                }
+
+                // 数の型と構造体の取り違えと、別の構造体どうし (実引数が仮引数の構造体を継承していれば受け取りうる)。
+                if ((IsStruct(argument) && IsNumeric(type)) || (IsNumeric(argument) && IsStruct(type))
+                    || (IsStruct(argument) && IsStruct(type) && !MayDerive(argument, type)))
+                {
+                    return true;
+                }
+            }
+
+            foreach ((string parameter, string argument) in inferred)
+            {
+                if (equalities.TryGetValue(parameter, out string? required) && required != argument && (IsStruct(argument) || IsStruct(required) || (IsNumeric(argument) && IsNumeric(required))))
+                {
+                    return true;
+                }
+
+                if (constraints.TryGetValue(parameter, out List<string>? list) && list.Any(c => model.Conforms(argument, c) == false))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!declarations.All(Rejects) || Array.FindIndex(argumentTypes, t => t is not null && IsStruct(t)) is not (>= 0 and var position))
+        {
+            return;
+        }
+
+        string accepted = string.Join(" / ", declarations.Where(d => d.ParameterList.Count() == arguments.Length).Select(d => d.ParameterList.ElementAt(position).Type.Name).Distinct(StringComparer.Ordinal));
+        Receiver receiver = new(ReceiverKind.Argument, accepted.Length > 0 ? accepted : "?", $"関数 '{name}' の第 {position + 1} 引数", name, position + 1);
+        ReportStruct(context, receiver, arguments[position], argumentTypes[position]!,
+            "どの多重定義も、この呼び出しの実引数を受け取りません (ジェネリックの多重定義は、型の仮引数の制約を満たしません)", reported);
+    }
+
+    /// <summary>関数のジェネリックの仮引数の名前と、制約 (<c>: I</c>・<c>where T : I</c>) と、等しさの制約 (<c>where T == int</c>)。</summary>
+    private static (List<string> Names, Dictionary<string, List<string>> Constraints, Dictionary<string, string> Equalities) ReadGeneric(FunctionDeclarationSyntax function, ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        List<string> names = [];
+        Dictionary<string, List<string>> constraints = new(StringComparer.Ordinal);
+        Dictionary<string, string> equalities = new(StringComparer.Ordinal);
+        ImmutableArray<ShaderSyntaxToken> generic = function.GenericParameterTokens;
+
+        for (int i = 1; i < generic.Length; i++)
+        {
+            if (generic[i].Kind == ShaderSyntaxKind.IdentifierToken && generic[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken
+                && generic[i].Text is not ("let" or "each"))
+            {
+                names.Add(generic[i].Text);
+
+                if (i + 2 < generic.Length && generic[i + 1].Kind == ShaderSyntaxKind.ColonToken && generic[i + 2].Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    constraints[generic[i].Text] = [generic[i + 2].Text];
+                }
+            }
+        }
+
+        // ) と { の間の where
+        int close = tokens.IndexOf(function.CloseParen);
+
+        for (int i = close + 1; close >= 0 && i + 3 < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+        {
+            if (tokens[i].Text != "where" || !names.Contains(tokens[i + 1].Text) || tokens[i + 3].Kind != ShaderSyntaxKind.IdentifierToken
+                || (i + 4 < tokens.Length && tokens[i + 4].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken))
+            {
+                continue;
+            }
+
+            if (tokens[i + 2].Kind == ShaderSyntaxKind.ColonToken)
+            {
+                if (!constraints.TryGetValue(tokens[i + 1].Text, out List<string>? list))
+                {
+                    constraints[tokens[i + 1].Text] = list = [];
+                }
+
+                list.Add(tokens[i + 3].Text);
+            }
+            else if (tokens[i + 2].Kind == ShaderSyntaxKind.EqualsEqualsToken)
+            {
+                equalities[tokens[i + 1].Text] = tokens[i + 3].Text;
+            }
+        }
+
+        return (names, constraints, equalities);
     }
 
     /// <summary>演算子の被演算子に enum の値があれば、その演算子が使えるかを検査する。</summary>

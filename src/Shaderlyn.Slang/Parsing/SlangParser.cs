@@ -159,10 +159,11 @@ internal sealed class SlangParser : ShaderParser
     }
 
     /// <inheritdoc/>
-    protected override bool IsDeclarationModifier(string text) => SlangKeywords.IsDeclarationModifier(text);
+    /// <remarks>Slang の <c>unsigned</c> と <c>signed</c> は修飾子でなく、ふつうの名前である (<c>unsigned int x;</c> は slangc 2026.19 の誤り。<c>struct unsigned {}</c> も書ける)。</remarks>
+    protected override bool IsDeclarationModifier(string text) => text is not ("unsigned" or "signed") && SlangKeywords.IsDeclarationModifier(text);
 
     /// <inheritdoc/>
-    protected override bool IsTypePrefixModifier(string text) => HlslKeywords.TypePrefixModifiers.Contains(text);
+    protected override bool IsTypePrefixModifier(string text) => text is not ("unsigned" or "signed") && HlslKeywords.TypePrefixModifiers.Contains(text);
 
     /// <inheritdoc/>
     protected override bool IsParameterModifier(string text) => HlslKeywords.MeshParameterModifiers.Contains(text);

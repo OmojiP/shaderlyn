@@ -420,6 +420,15 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0363", "T pick<T>() { T v; return v; }\nvoid main() { pick(); }\n")]
     [InlineData("SG0363", "void h<let N : int>(int x) { }\nvoid main() { h(3); }\n")]
     [InlineData("SG0358", "interface IMy { }\nextension<T> T : IMy { }\n")]
+    // Slang の unsigned と signed はふつうの名前 (修飾子でない)
+    [InlineData("CF0001", "void f()\n{\n    unsigned int x = 1;\n}\n")]
+    // 継承したインターフェイスの要件、制約の合わない型への extension のメソッド、型の仮引数に当たる型の食い違い、ジェネリックの多重定義のどれにも合わない呼び出し
+    [InlineData("SG0359", "interface IA { int a(); }\ninterface IB : IA { int b(); }\nstruct S : IB { int b() { return 1; } }\n")]
+    [InlineData("SG0359", "interface IA { int a(); }\ninterface IM { }\nextension<T : IM> T { int a() { return 0; } }\nstruct S : IA { int v; }\n")]
+    [InlineData("SG0363", "struct A { int v; }\nstruct B { int v; }\nvoid foo<T>(T a, T b) { }\nvoid m(A a, B b) { foo(a, b); }\n")]
+    [InlineData("SG0363", "void bar<let N : int>(int a[N], int b[N]) { }\nvoid m() { int x[3]; int y[4]; bar(x, y); }\n")]
+    [InlineData("CF0401", "interface IA {}\ninterface IB {}\nstruct W { int v; }\nT h<T : IA>(T x) { return x; }\nT h<T : IB>(T x) { return x; }\nvoid useit(W w) { h(w); }\n")]
+    [InlineData("CF0401", "struct A { int v; }\nstruct B { int v; }\nstruct C { int v; }\nT pick<T>(T l, T r) where T == int { return l; }\nA pick(A l, A r) { return l; }\nB pick(B l, B r) { return l; }\nvoid useit(C c) { pick(c, c); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -567,6 +576,11 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("enum class Hints : uint { a = 1, b = 2 }\nbool is_set<T : __EnumType>(T value, T flag) { return true; }\nbool use(Hints h) { return is_set(h, Hints.b); }\n")]
     // 既定の値か実引数から決まる型の仮引数、配列の大きさから決まる値の仮引数、型を前に書いた値の仮引数
     [InlineData("T pick<T = float>() { T v; return v; }\nvoid sum<let N : int>(int a[N]) { }\nvoid process<int N>(float v[N]) { }\nvoid main() { float x = pick(); int a[3]; sum(a); float b[2]; process(b); }\n")]
+    // Slang の unsigned と signed はふつうの名前で、型の名前にできる
+    [InlineData("struct unsigned {}\nstruct signed {}\nunsigned int;\nsigned value;\n")]
+    // 継承したインターフェイスの既定の実装、制約に合う型への extension のメソッド、組み込みの数の型どうしの型の仮引数、制約に合うジェネリックの多重定義
+    [InlineData("interface IA { int a() { return 0; } }\ninterface IB : IA { int b(); }\nstruct S : IB { int b() { return 1; } }\ninterface IC { int c(); }\ninterface IM { }\nextension<T : IM> T { int c() { return 0; } }\nstruct U : IC, IM { int v; }\n")]
+    [InlineData("void foo<T>(T a, T b) { }\nstruct A { int v; }\nstruct B : A { int w; }\nT h<T : IFloat>(T x) { return x; }\nint h(int a, int b) { return a; }\nvoid m(int i, float f, A a) { foo(i, f); h(1.0f); h(1, 2); foo(a, a); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

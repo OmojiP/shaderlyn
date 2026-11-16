@@ -5,8 +5,9 @@
 //
 //   node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
 //
-// --use-args: 正解に記録したコンパイラの引数 (Slang の試験の -target・-experimental-feature・-specialize と -entry f<T>・-unscoped-enum・-D) を、
-//   ファイルごとの一時の設定ファイル (slang: target / experimental-features / generic-entry-points / unscoped-enums と defines) にして Shaderlyn に渡す。
+// --use-args: 正解に記録したコンパイラの引数 (Slang の試験の -target・-experimental-feature・-specialize と -entry f<T>・-unscoped-enum・-D・-I) を、
+//   ファイルごとの一時の設定ファイル (slang: target / experimental-features / generic-entry-points / unscoped-enums と defines・include-paths) にして Shaderlyn に渡す。
+//   -I のパスは、試験を動かすフォルダー (ファイルの上のフォルダーのどれか) からの相対として探す。
 //   設定に当たる項目の無い引数 (-entry・-stage・-capability など) は渡さない。付けなければ、どのファイルも --no-config で解析する。
 //
 // Shaderlyn の CLI の場所は環境変数 SHADERLYN_CLI で渡す (無ければ src/Shaderlyn.Cli.App の Release のビルドの出力)。
@@ -52,7 +53,7 @@ let anyDifference = false;
 for (const oraclePath of oracles) {
   const oracle = JSON.parse(readFileSync(oraclePath, "utf8"));
   const paths = Object.keys(oracle.files);
-  const ours = analyze(paths, oracle.language, path => configFor(oracle.language, oracle.files[path].args));
+  const ours = analyze(paths, oracle.language, path => configFor(oracle.language, oracle.files[path].args, path));
 
   let falsePositives = 0;
   let misses = 0;
@@ -129,7 +130,7 @@ function analyze(paths, language, configOf) {
  * 記録したコンパイラの引数に当たる設定ファイルのパス。--use-args が無いか、設定に当たる引数が無ければ null (--no-config で解析する)。
  * 同じ内容の設定ファイルは 1 つだけ作る。
  */
-function configFor(language, commandLine) {
+function configFor(language, commandLine, path) {
   if (!useArgs || language !== "slang" || !commandLine) {
     return null;
   }
@@ -137,6 +138,7 @@ function configFor(language, commandLine) {
   const words = commandLine.split(/\s+/).filter(w => w.length > 0);
   const slang = [];
   const defines = [];
+  const includes = [];
   const targets = ["spirv", "glsl", "hlsl", "dxil", "metal", "wgsl", "cuda", "ptx", "cpp"];
 
   for (let i = 0; i < words.length; i++) {
@@ -154,10 +156,20 @@ function configFor(language, commandLine) {
       defines.push(words[++i]);
     } else if (word.startsWith("-D") && word.length > 2) {
       defines.push(word.slice(2));
+    } else if ((word === "-I" && words[i + 1]) || (word.startsWith("-I") && word.length > 2)) {
+      // 試験の実行は、リポジトリの根 (tests の親) から相対で書く。ファイルの上のフォルダーから、そのパスがあるところを探す。
+      const relativePath = word === "-I" ? words[++i] : word.slice(2);
+      for (let dir = dirname(resolve(path)); ; dir = dirname(dir)) {
+        if (existsSync(join(dir, relativePath))) {
+          includes.push(resolve(dir, relativePath).replaceAll("\\", "/"));
+          break;
+        }
+        if (dirname(dir) === dir) break;
+      }
     }
   }
 
-  if (slang.length === 0 && defines.length === 0) {
+  if (slang.length === 0 && defines.length === 0 && includes.length === 0) {
     return null;
   }
 
@@ -165,6 +177,7 @@ function configFor(language, commandLine) {
   const unique = slang.filter((line, index) => slang.findIndex(other => other.split(":")[0] === line.split(":")[0]) === index);
   const text = [
     ...(unique.length > 0 ? ["slang:", ...unique] : []),
+    ...(includes.length > 0 ? ["include-paths:", ...includes.map(d => `  - "${d}"`)] : []),
     ...(defines.length > 0 ? ["defines:", ...defines.map(d => `  - "${d.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`)] : []),
   ].join("\n") + "\n";
 

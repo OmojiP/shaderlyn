@@ -167,6 +167,75 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             }
 
             // f() (実引数から決まらず、既定の値も無い型の仮引数のある呼び出し。E30439)
+            // foo(a, b) の T に、違う型 (片方が構造体) が当たる (E30442)。bar(x, y) の N に、違う大きさの配列が当たる。組み込みの数の型どうしは、変換して合わせるので見ない。
+            void CheckConflicts(Generic generic, InvocationExpressionSyntax call)
+            {
+                if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target
+                    || compilation.GetFunctionDeclarations(generic.Name, program) is not [var declaration])
+                {
+                    return;
+                }
+
+                ParameterSyntax[] parameters = [.. declaration.ParameterList];
+                ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                if (parameters.Length != arguments.Length)
+                {
+                    return;
+                }
+
+                ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(call);
+                Dictionary<int, string> seen = [];
+
+                bool IsStruct(string name) => types.TryGetValue(name, out HashSet<string>? b) && b is not null && !interfaces.ContainsKey(name);
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    ParameterSyntax parameter = parameters[i];
+                    string? found = null;
+                    int index;
+
+                    if (parameter.IsArray)
+                    {
+                        // int a[N] の N (値の仮引数) と、実引数の配列の大きさ。
+                        index = parameter.ArrayRankTokens is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.IdentifierToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }]
+                            ? generic.Parameters.IndexOf(size.Text)
+                            : -1;
+
+                        if (index >= 0 && arguments[i] is IdentifierExpressionSyntax array
+                            && binder.ResolveName(array).Candidates is [{ Declarator: VariableDeclaratorSyntax { ArrayRankTokens: [_, { Kind: ShaderSyntaxKind.NumericLiteralToken } length, _] } }])
+                        {
+                            found = length.Text;
+                        }
+                    }
+                    else
+                    {
+                        index = parameter.Type.OpenAngle is null && parameter.Type.NestedTypeTokens.IsDefaultOrEmpty ? generic.Parameters.IndexOf(parameter.Type.NameToken.Text) : -1;
+
+                        if (index >= 0)
+                        {
+                            found = evaluator.Evaluate(arguments[i]);
+                        }
+                    }
+
+                    if (index < 0 || found is null)
+                    {
+                        continue;
+                    }
+
+                    if (seen.TryGetValue(index, out string? earlier) && earlier != found
+                        && (parameter.IsArray || IsStruct(earlier) || IsStruct(found))
+                        && compilation.IsReportable(target.Identifier) && target.Identifier.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.GenericArgumentNotInferred, location,
+                            $"{generic.Name} の仮引数 {generic.Parameters[index]} に、違う{(parameter.IsArray ? "大きさ" : "型")} ({earlier} と {found}) が当たるので、決まりません。"));
+                        return;
+                    }
+
+                    seen.TryAdd(index, found);
+                }
+            }
+
             void CheckNotInferred(Generic generic, InvocationExpressionSyntax call)
             {
                 if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target || generic.Mentioned.Length != generic.Parameters.Length)
@@ -202,6 +271,7 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                         }
 
                         CheckNotInferred(generic, call);
+                        CheckConflicts(generic, call);
 
                         break;
 
