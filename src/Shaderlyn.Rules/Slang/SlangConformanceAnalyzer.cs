@@ -28,13 +28,20 @@ namespace Shaderlyn.Rules.Slang;
 internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 {
     /// <summary>ジェネリックの宣言の仮引数と、その制約 (利用者のインターフェイスの名前)。</summary>
-    private sealed record Generic(string Name, ImmutableArray<string> Parameters, ImmutableArray<ImmutableArray<string>> Constraints);
+    private sealed record Generic(string Name, ImmutableArray<string> Parameters, ImmutableArray<ImmutableArray<string>> Constraints)
+    {
+        /// <summary>仮引数ごとの既定の型引数 (名前 1 つのもの)。無ければ <see langword="null"/>。</summary>
+        public ImmutableArray<ShaderSyntaxToken?> Defaults { get; init; } = [];
+
+        /// <summary>仮引数ごとの、関数の仮引数の並び (型と配列の大きさ) に出てくるか。関数でなければ空。</summary>
+        public ImmutableArray<bool> Mentioned { get; init; } = [];
+    }
 
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ConstraintNotSatisfied];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ConstraintNotSatisfied, SlangRuleDescriptors.GenericArgumentNotInferred];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -68,52 +75,31 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
             bool versioned = System.Text.RegularExpressions.Regex.IsMatch(program.Tree.Text.ToString(), @"^\s*#\s*lang(uage)?\s+(slang\s+)?(20\d\d|latest)\b", System.Text.RegularExpressions.RegexOptions.Multiline);
 
+            // 型の適合の表 (利用者の宣言と標準ライブラリ)。どの型にも当たる extension (extension<T : IBar> T : IFoo) も、制約を確かめて足す。
+            SlangConformanceModel model = SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree));
+
             // 型が、インターフェイスに適合しないと言えるか。
             bool Violates(string type, string requirement)
             {
-                // 標準ライブラリのインターフェイス (IBuiltinScalar など)。void と、継承の並びも extension も無い利用者の構造体は、どれにも適合しない。
-                // 組み込みの型がどれに適合するかは表に無いので見ない。
-                if (!interfaces.ContainsKey(requirement)
-                    && binder.TypeSystem.IsBuiltInTypeName(requirement)
-                    && requirement.Length > 1 && requirement[0] == 'I' && char.IsAsciiLetterUpper(requirement[1])
-                    && !blanket.Contains(requirement))
-                {
-                    return type == "void"
-                           || (types.TryGetValue(type, out HashSet<string>? own) && own is { Count: 0 } && !extended.Contains(type) && blanket.Count == 0);
-                }
-
-                if (!interfaces.TryGetValue(requirement, out HashSet<string>? _) || interfaces[requirement] is null
-                    || interfaces.Keys.Any(i => blanket.Contains(i) && Derives(interfaces, i, requirement, 0)))
-                {
-                    return false;
-                }
-
                 bool builtin = binder.TypeSystem.TryDescribeNumeric(type, out _) || type is "bool" or "void";
 
+                // インターフェイスの型 (存在型。別に見る)・型の別名・読み飛ばした宣言の型は決めない。
                 if (interfaces.ContainsKey(type) || root.TypeAliases.ContainsKey(type) || (!builtin && compilation.UnanalyzedIdentifiers.Contains(type) && !types.ContainsKey(type)))
                 {
                     return false;
                 }
 
-                HashSet<string>? bases;
+                // 要件が、1 度だけ宣言した利用者のインターフェイスか、標準ライブラリのインターフェイスでなければ (関連型の制約など) 決めない。
+                bool userRequirement = interfaces.TryGetValue(requirement, out HashSet<string>? declared) && declared is not null;
+                bool standardRequirement = !interfaces.ContainsKey(requirement) && binder.TypeSystem.IsBuiltInTypeName(requirement)
+                                           && requirement.Length > 1 && requirement[0] is 'I' or '_';
 
-                if (types.TryGetValue(type, out bases))
-                {
-                    if (bases is null)
-                    {
-                        return false;
-                    }
-                }
-                else if (builtin)
-                {
-                    bases = [];
-                }
-                else
+                if (!userRequirement && !standardRequirement)
                 {
                     return false;
                 }
 
-                return !bases.Any(b => Derives(interfaces, b, requirement, 0));
+                return model.Conforms(type, requirement) == false;
             }
 
             void Report(ShaderSyntaxToken at, string type, string requirement, string parameter, string generic)
@@ -126,12 +112,34 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            void CheckArguments(Generic generic, IReadOnlyList<string?> arguments, ShaderSyntaxToken at)
+            void CheckArguments(Generic generic, IReadOnlyList<string?> arguments, ShaderSyntaxToken at, ShaderSyntaxNode site)
             {
+                // 呼び出しを書いた関数の、型の仮引数と制約 (where optional は数えない)。
+                Generic? enclosing = site.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } outer
+                                     && functions.TryGetValue(outer.Name, out Generic? found) ? found : null;
+
                 for (int i = 0; i < generic.Parameters.Length && i < arguments.Count; i++)
                 {
                     if (arguments[i] is not { } argument)
                     {
+                        continue;
+                    }
+
+                    // 外の関数の型の仮引数 T。T の制約から届くインターフェイスにだけ適合する。
+                    if (enclosing is not null && enclosing.Parameters.IndexOf(argument) is var outerIndex and >= 0)
+                    {
+                        foreach (string requirement in generic.Constraints[i])
+                        {
+                            if ((interfaces.TryGetValue(requirement, out HashSet<string>? known) && known is not null) && !model.ConformsThrough(enclosing.Constraints[outerIndex], requirement)
+                                && !at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } location)
+                            {
+                                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location,
+                                    $"型の仮引数 {argument} の制約から、インターフェイス {requirement} に届かないので、{generic.Name} の型の仮引数 {generic.Parameters[i]} にできません。"
+                                    + $"where {argument} : {requirement} を書いてください (where optional では足りません)。"));
+                                return;
+                            }
+                        }
+
                         continue;
                     }
 
@@ -158,6 +166,26 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // f() (実引数から決まらず、既定の値も無い型の仮引数のある呼び出し。E30439)
+            void CheckNotInferred(Generic generic, InvocationExpressionSyntax call)
+            {
+                if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target || generic.Mentioned.Length != generic.Parameters.Length)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < generic.Parameters.Length; i++)
+                {
+                    if (!generic.Mentioned[i] && (i >= generic.Defaults.Length || generic.Defaults[i] is null)
+                        && compilation.IsReportable(target.Identifier) && target.Identifier.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.GenericArgumentNotInferred, location,
+                            $"{generic.Name} の型の仮引数 {generic.Parameters[i]} は、実引数から決まりません。{generic.Name}<…>(…) と型引数を書いてください。"));
+                        return;
+                    }
+                }
+            }
+
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
@@ -166,29 +194,59 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                         when functions.TryGetValue(name, out Generic? generic) && generic is not null:
                         if (call.HasTypeArguments)
                         {
-                            CheckArguments(generic, SimpleArguments(call.TypeArgumentTokens), call.Target.FirstToken ?? call.OpenParen);
+                            CheckArguments(generic, SimpleArguments(call.TypeArgumentTokens), call.Target.FirstToken ?? call.OpenParen, call);
                         }
                         else if (Inferred(compilation, program, binder, call, generic, literals: !types.Keys.Any(t => binder.TypeSystem.TryDescribeNumeric(t, out _))) is { } inferred)
                         {
-                            CheckArguments(generic, inferred, call.Target.FirstToken ?? call.OpenParen);
+                            CheckArguments(generic, WithDefaults(generic, inferred), call.Target.FirstToken ?? call.OpenParen, call);
                         }
+
+                        CheckNotInferred(generic, call);
 
                         break;
 
                     // f<X>(…) (構文解析が型引数つきの名前の式にしたもの)
                     case InvocationExpressionSyntax { Target: GenericNameExpressionSyntax named } genericCall
                         when functions.TryGetValue(named.Name, out Generic? explicitGeneric) && explicitGeneric is not null:
-                        CheckArguments(explicitGeneric, SimpleArguments(named.TypeArguments), named.Identifier);
+                        CheckArguments(explicitGeneric, SimpleArguments(named.TypeArguments), named.Identifier, genericCall);
                         break;
 
                     case TypeSyntax type when type.OpenAngle is not null
                                               && structs.TryGetValue(type.NameToken.Text, out Generic? generic) && generic is not null
                                               && !type.TemplateArguments.IsDefaultOrEmpty:
-                        CheckArguments(generic, SimpleArguments(type.TemplateArguments), type.NameToken);
+                        CheckArguments(generic, SimpleArguments(type.TemplateArguments), type.NameToken, type);
+                        break;
+
+                    // GenStruct gs (型引数を書かない、既定の型引数を使う型)。既定の型引数が制約に合わなければ、既定の値の位置で伝える。
+                    case TypeSyntax { OpenAngle: null } bare when structs.TryGetValue(bare.NameToken.Text, out Generic? defaulted) && defaulted is not null
+                                                                  && defaulted.Defaults.Length == defaulted.Parameters.Length && defaulted.Defaults.All(d => d is not null):
+                        for (int d = 0; d < defaulted.Parameters.Length; d++)
+                        {
+                            ShaderSyntaxToken defaultToken = defaulted.Defaults[d]!;
+
+                            if (defaulted.Constraints[d].FirstOrDefault(r => Violates(defaultToken.Text, r)) is { } broken)
+                            {
+                                Report(defaultToken, defaultToken.Text, broken, defaulted.Parameters[d], defaulted.Name);
+                            }
+                        }
+
                         break;
                 }
             }
         }
+    }
+
+    /// <summary>推論できなかった仮引数に、既定の型引数を当てる。</summary>
+    private static List<string?> WithDefaults(Generic generic, List<string?> inferred)
+    {
+        List<string?> result = [.. inferred];
+
+        for (int i = 0; i < result.Count && i < generic.Defaults.Length; i++)
+        {
+            result[i] ??= generic.Defaults[i]?.Text;
+        }
+
+        return result;
     }
 
     /// <summary>インターフェイス <paramref name="name"/> が、<paramref name="requirement"/> そのものか、それを継承したものか。</summary>
@@ -314,7 +372,16 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             {
                 string name = tokens[i + 1].Text;
                 int j = i + 2;
-                (List<string> parameters, List<List<string>> constraints, j) = ReadGenericParameters(tokens, j);
+                List<ShaderSyntaxToken?> typeDefaults = [];
+                (List<string> parameters, List<List<string>> constraints, j) = ReadGenericParameters(tokens, j, typeDefaults);
+
+                // __generic<T : I = D> struct S (仮引数を型の名前の前に書いたもの)
+                if (parameters.Count == 0 && token.Text is "struct" or "class" && i > 1 && tokens[i - 1].Kind == ShaderSyntaxKind.GreaterThanToken
+                    && GenericBefore(tokens, i - 1) is { } genericOpen)
+                {
+                    (parameters, constraints, _) = ReadGenericParameters(tokens, genericOpen, typeDefaults);
+                }
+
                 bool generic = parameters.Count > 0;
                 HashSet<string>? bases = new(StringComparer.Ordinal);
 
@@ -389,10 +456,25 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
                         if (generic && token.Text is "struct" or "class")
                         {
-                            structs[name] = structs.ContainsKey(name) ? null : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]);
+                            structs[name] = structs.ContainsKey(name) ? null : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]) { Defaults = [.. typeDefaults] };
                         }
 
                         break;
+                }
+
+                continue;
+            }
+
+            // typealias W<T : I> = Wrapper<T>; (型引数の制約のある別名)
+            if (token.Text == "typealias" && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken && i + 2 < tokens.Length && tokens[i + 2].Kind == ShaderSyntaxKind.LessThanToken)
+            {
+                List<ShaderSyntaxToken?> aliasDefaults = [];
+                (List<string> aliasParameters, List<List<string>> aliasConstraints, int _) = ReadGenericParameters(tokens, i + 2, aliasDefaults);
+
+                if (aliasParameters.Count > 0)
+                {
+                    string alias = tokens[i + 1].Text;
+                    structs[alias] = structs.ContainsKey(alias) ? null : new Generic(alias, [.. aliasParameters], [.. aliasConstraints.Select(c => c.ToImmutableArray())]) { Defaults = [.. aliasDefaults] };
                 }
 
                 continue;
@@ -404,7 +486,8 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 && tokens[i - 1].Text is not ("return" or "case" or "else" or "throw" or "new" or "in" or "out" or "inout" or "typealias" or "typedef")
                 && token.Text is not ("struct" or "class" or "interface" or "extension"))
             {
-                (List<string> parameters, List<List<string>> constraints, int close) = ReadGenericParameters(tokens, i + 1);
+                List<ShaderSyntaxToken?> functionDefaults = [];
+                (List<string> parameters, List<List<string>> constraints, int close) = ReadGenericParameters(tokens, i + 1, functionDefaults);
 
                 if (parameters.Count == 0 || close >= tokens.Length || tokens[close].Kind != ShaderSyntaxKind.OpenParenToken)
                 {
@@ -419,18 +502,52 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
 
                 ReadWhere(tokens, end + 1, parameters, constraints);
-                Add(functions, token.Text, parameters, constraints);
+
+                // 仮引数の並び (型と配列の大きさ) に出てくる型の仮引数は、実引数から決まりうる。
+                HashSet<string> mentioned = [.. tokens.Skip(close + 1).Take(end - close - 1).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text)];
+                functions[token.Text] = functions.ContainsKey(token.Text)
+                    ? null
+                    : new Generic(token.Text, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())])
+                    {
+                        Defaults = [.. functionDefaults],
+                        Mentioned = [.. parameters.Select(mentioned.Contains)],
+                    };
             }
         }
     }
 
-    private static void Add(Dictionary<string, Generic?> functions, string name, List<string> parameters, List<List<string>> constraints)
-        => functions[name] = functions.ContainsKey(name) ? null : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]);
+    /// <summary>位置 <paramref name="close"/> の &gt; に対応する、前の __generic&lt; の &lt; の位置。無ければ <see langword="null"/>。</summary>
+    private static int? GenericBefore(ImmutableArray<ShaderSyntaxToken> tokens, int close)
+    {
+        int depth = 0;
+
+        for (int i = close; i > 0; i--)
+        {
+            if (tokens[i].Kind == ShaderSyntaxKind.GreaterThanToken)
+            {
+                depth++;
+            }
+            else if (tokens[i].Kind == ShaderSyntaxKind.LessThanToken && --depth == 0)
+            {
+                return tokens[i - 1].Text == "__generic" ? i : null;
+            }
+            else if (tokens[i].Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// <c>&lt;T : I, let N : int, U&gt;</c> を読む。型の仮引数の名前と、それぞれの制約 (名前だけのもの)。<c>let</c> の仮引数は値なので、制約を持たない名前として数える。
     /// </summary>
     private static (List<string> Parameters, List<List<string>> Constraints, int Next) ReadGenericParameters(ImmutableArray<ShaderSyntaxToken> tokens, int start)
+        => ReadGenericParameters(tokens, start, []);
+
+    /// <summary><c>&lt;T : I = D&gt;</c> を読む。<paramref name="defaults"/> に、仮引数ごとの既定の型引数 (名前 1 つのもの) を足す。</summary>
+    private static (List<string> Parameters, List<List<string>> Constraints, int Next) ReadGenericParameters(ImmutableArray<ShaderSyntaxToken> tokens, int start, List<ShaderSyntaxToken?> defaults)
     {
         List<string> parameters = [];
         List<List<string>> constraints = [];
@@ -486,9 +603,25 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
+                // <int N> (型を前に書く値の仮引数)。名前は後ろの語。
+                if (i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    value = true;
+                    continue;
+                }
+
                 parameters.Add(token.Text);
                 constraints.Add([]);
+                defaults.Add(null);
                 expectName = false;
+                continue;
+            }
+
+            // = Default (名前 1 つで、続きが , か > のもの)
+            if (token.Kind == ShaderSyntaxKind.EqualsToken && defaults.Count > 0 && i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                && tokens[i + 2].Kind is ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.GreaterThanToken)
+            {
+                defaults[^1] = tokens[i + 1];
                 continue;
             }
 

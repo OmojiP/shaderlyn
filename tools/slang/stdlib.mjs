@@ -217,3 +217,89 @@ const lines = [
 const out = join("src", "Shaderlyn.Semantics", "Symbols", "SlangStdlib.g.txt");
 writeFileSync(out, lines.join("\n") + "\n");
 console.log(`${out}: 型 ${types.size}、関数 ${functions.size}、値 ${values.size}、モジュール ${modules.size}`);
+
+// ---- 型の適合の表 (SlangConformance.g.txt) ----
+// 1 行に 1 つ。
+// 列の数は種類ごとに決まっていて、無い値は空にする。最後の列は、標準のモジュールにだけあるもののモジュール (標準ライブラリなら空)。
+//   I  インターフェイス<TAB>継承したインターフェイス (, で区切る)<TAB>モジュール
+//   C  型<TAB>インターフェイス<TAB>条件<TAB>モジュール  型がインターフェイスに適合する。条件は、型の最初の型引数が適合しなければならないインターフェイス (無ければ空)
+//                                         (__generic<T:__BuiltinFloatingPointType, let N : int> extension vector<T,N> : IFloat なら、vector と IFloat と __BuiltinFloatingPointType)
+//   X  制約<TAB>インターフェイス<TAB>モジュール  制約に適合する型は、どれもインターフェイスに適合する (extension<T : 制約> T : インターフェイス)
+// 組み込みの数の型の、__Builtin… の継承の並びは、標準ライブラリの C++ の部分 (core.meta.slang の kBaseTypes の繰り返しの switch) が作るので、ここに書き写す。
+const conformance = new Set();
+// C の行は条件の列を必ず持つ (無ければ空)。どの行も、最後にモジュールの列を持つ (標準ライブラリなら空)。
+const addConformance = line => {
+  const padded = line.startsWith("C\t") && line.split("\t").length === 3 ? `${line}\t` : line;
+  conformance.add(`${padded}\t${origin === "core" ? "" : origin}`);
+};
+const splitTopLevel = list => {
+  const parts = [];
+  let depth = 0;
+  let current = "";
+  for (const c of list) {
+    if (c === "<") depth++;
+    if (c === ">") depth--;
+    if (c === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += c;
+    }
+  }
+  parts.push(current);
+  return parts.map(p => p.trim().replace(/<.*$/s, "").trim()).filter(p => /^[A-Za-z_]\w*$/.test(p));
+};
+// 型の仮引数の並び (T:I, let N : int) から、型の仮引数の名前と制約 (名前 1 つだけのもの)。
+const readGeneric = list => (list ?? "").split(",").map(p => p.trim()).filter(p => p && !p.startsWith("let ")).map(p => {
+  const [name, constraint] = p.split(":").map(s => s?.trim());
+  return { name, constraint: constraint && /^[A-Za-z_]\w*$/.test(constraint) ? constraint : null };
+});
+
+for (const file of files) {
+  let text = readFileSync(file, "utf8");
+  origin = file.startsWith(modulesRoot) ? moduleOf(file) : "core";
+  text = text.replace(/\$\{\{\{\{[\s\S]*?\}\}\}\}/g, " ").replace(/\$\{[\s\S]*?\$\}/g, " ").replace(/\$\([^)]*\)/g, " ").replace(/\$\w+/g, " ");
+  text = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+
+  for (const m of text.matchAll(/\binterface\s+([A-Za-z_]\w*)\s*(?:<[^>{]*>)?\s*(?::\s*([^{;]+))?\{/g)) {
+    const bases = m[2] ? splitTopLevel(m[2]) : [];
+    if (bases.length > 0) addConformance(`I\t${m[1]}\t${bases.join(",")}`);
+  }
+  for (const m of text.matchAll(/\b(?:struct|class)\s+([A-Za-z_]\w*)\s*(?:<[^>{]*>)?\s*:\s*([^{;]+)\{/g)) {
+    for (const base of splitTopLevel(m[2])) addConformance(`C\t${m[1]}\t${base}`);
+  }
+  for (const m of text.matchAll(/(?:__generic\s*<([^>]*)>\s*)?\bextension\s*(?:<([^>]*)>)?\s*([A-Za-z_]\w*)\s*(?:<[^>{]*>)?\s*:\s*([^{;]+)\{/g)) {
+    const parameters = readGeneric(m[2] ?? m[1]);
+    const target = parameters.find(p => p.name === m[3]);
+    for (const iface of splitTopLevel(m[4])) {
+      if (target) {
+        if (target.constraint) addConformance(`X\t${target.constraint}\t${iface}`);
+      } else {
+        const condition = parameters[0]?.constraint;
+        addConformance(condition ? `C\t${m[3]}\t${iface}\t${condition}` : `C\t${m[3]}\t${iface}`);
+      }
+    }
+  }
+}
+
+origin = "core";
+{
+  const floating = ["half", "float", "double"];
+  const signed = ["int8_t", "int16_t", "int", "int64_t", "intptr_t"];
+  const unsigned = ["uint8_t", "uint16_t", "uint", "uint64_t", "uintptr_t"];
+  for (const t of [...floating, ...signed, ...unsigned, "bool", "void"]) addConformance(`C\t${t}\t__BuiltinType`);
+  for (const t of floating) for (const i of ["__BuiltinFloatingPointType", "__BuiltinRealType", "__BuiltinSignedArithmeticType", "__BuiltinArithmeticType"]) addConformance(`C\t${t}\t${i}`);
+  for (const t of signed) addConformance(`C\t${t}\t__BuiltinSignedArithmeticType`);
+  for (const t of [...signed, ...unsigned]) for (const i of ["__BuiltinArithmeticType", "__BuiltinIntegerType", "__BuiltinLogicalType"]) addConformance(`C\t${t}\t${i}`);
+  for (const t of ["int", "uint"]) addConformance(`C\t${t}\t__BuiltinInt32Type`);
+  for (const t of ["int64_t", "uint64_t"]) addConformance(`C\t${t}\t__BuiltinInt64Type`);
+  addConformance("C\tbool\t__BuiltinLogicalType");
+}
+
+const conformanceOut = join("src", "Shaderlyn.Semantics", "Symbols", "SlangConformance.g.txt");
+writeFileSync(conformanceOut, [
+  "# 元のデータ: slang 2026.19 の source/slang/*.meta.slang と source/standard-modules (https://github.com/shader-slang/slang)。ライセンスは THIRD-PARTY-NOTICES.txt にある。",
+  "# tools/slang/stdlib.mjs が作る。手で書き換えない。",
+  ...[...conformance].sort(),
+].join("\n") + "\n");
+console.log(`${conformanceOut}: ${conformance.size} 行`);

@@ -424,7 +424,8 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            bool exported = i > 0 && tokens[i - 1].Text is "__exported" or "export";
+            // export import は書けない (E31201。SlangModuleErrorAnalyzer が SG0102 にする)。取り込みをたどらせるのは __exported だけである。
+            bool exported = i > 0 && tokens[i - 1].Text == "__exported";
 
             if (i > 0 && !exported && tokens[i - 1].Kind is not (ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken))
             {

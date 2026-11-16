@@ -96,7 +96,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            bool host = compilation.Environment is Semantics.Environments.SlangEnvironment { TargetsHost: true };
+            bool host = compilation.Environment is Semantics.Environments.SlangEnvironment { AllowsResourcesInBuffers: true };
             HashSet<string> userFunctions = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>().Select(f => f.Name)];
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 

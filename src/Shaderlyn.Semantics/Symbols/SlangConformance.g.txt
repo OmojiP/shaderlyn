@@ -1,0 +1,317 @@
+# 元のデータ: slang 2026.19 の source/slang/*.meta.slang と source/standard-modules (https://github.com/shader-slang/slang)。ライセンスは THIRD-PARTY-NOTICES.txt にある。
+# tools/slang/stdlib.mjs が作る。手で書き換えない。
+C	Array	IArrayAccessor		slang/neural
+C	Array	IDifferentiable	IDifferentiable	
+C	Array	IDifferentiablePtrType	IDifferentiablePtrType	
+C	Array	IRWArray		
+C	AtomicAdd	IDiffTensorWrapper		
+C	BFloat16	IFloatingPointCoopElement		
+C	BindlessAddress	IPointerLikeAddress		slang/neural
+C	ByteAddressBuffer	IPhysicalBuffer		
+C	CDataLayout	IBufferDataLayout		
+C	ConverterEnd	ILayoutSize		slang/neural
+C	ConverterNode	ILayoutSize		slang/neural
+C	CoopMat	IArithmetic		
+C	CoopMat	IArray		
+C	CoopVec	IArithmetic		
+C	CoopVec	IArray		
+C	CoopVec	IComponentwiseOrdered		slang/numerics
+C	CoopVec	IDifferentiable	__BuiltinFloatingPointType	
+C	CoopVec	IDifferentiableArithmetic	__BuiltinFloatingPointType	
+C	CoopVec	IDifferentiableExponentialFunctions		slang/numerics
+C	CoopVec	IDifferentiableFractional		slang/numerics
+C	CoopVec	IDifferentiableHyperbolicFunctions		slang/numerics
+C	CoopVec	IDifferentiableInverseTrigonometricFunctions		slang/numerics
+C	CoopVec	IDifferentiableNumericShapedType		slang/numerics
+C	CoopVec	IDifferentiableRealOrderingFunctions		slang/numerics
+C	CoopVec	IDifferentiableRootFunctions		slang/numerics
+C	CoopVec	IDifferentiableTrigonometricFunctions		slang/numerics
+C	CoopVec	IExponentialFunctions		slang/numerics
+C	CoopVec	IFractional		slang/numerics
+C	CoopVec	IHyperbolicFunctions		slang/numerics
+C	CoopVec	IIntegerType		slang/numerics
+C	CoopVec	IInverseTrigonometricFunctions		slang/numerics
+C	CoopVec	IRealOrderingFunctions		slang/numerics
+C	CoopVec	IRootFunctions		slang/numerics
+C	CoopVec	ISignedIntegerType		slang/numerics
+C	CoopVec	ITrigonometricFunctions		slang/numerics
+C	CoopVec	IUnsignedIntegerType		slang/numerics
+C	DefaultDataLayout	IBufferDataLayout		
+C	DefaultPushConstantDataLayout	IBufferDataLayout		
+C	DescriptorHandle	IComparable		
+C	DifferentialPair	IDifferentiable		
+C	DifferentialPtrPair	IDifferentiablePtrType		
+C	ExpActivation	IActivation		slang/neural
+C	FFLayer	ILayer		slang/neural
+C	FloatE4M3	IFloatingPointCoopElement		
+C	FloatE5M2	IFloatingPointCoopElement		
+C	IdentityActivation	IActivation		slang/neural
+C	InlineVector	IVector		slang/neural
+C	LayerConverter	ILayoutSize		slang/neural
+C	LeakyReLU	IActivation		slang/neural
+C	LinearLayout	IStorageLayout		slang/neural
+C	NullDifferential	IDifferentiable		
+C	OptimalLayout	IStorageLayout		slang/neural
+C	Optional	IDefaultInitializable		
+C	Optional	IDifferentiable	IDifferentiable	
+C	Optional	IDifferentiablePtrType	IDifferentiablePtrType	
+C	PermutoEncoder	IDifferentiable		slang/neural
+C	PermutoEncoder	ITrainableEncoder		slang/neural
+C	PointerAddress	IPointerLikeAddress		slang/neural
+C	Ptr	IArrayAccessor		slang/neural
+C	Ptr	IPointerLikeAddress		slang/neural
+C	QuickGELU	IActivation		slang/neural
+C	RWByteAddressBuffer	IPhysicalBuffer		
+C	RWByteAddressBuffer	IRWPhysicalBuffer		
+C	RWStructuredBuffer	IRWArray		
+C	RasterizerOrderedStructuredBuffer	IRWArray		
+C	ReLU	IActivation		slang/neural
+C	SAMPLER_FEEDBACK_MIN_MIP	ITexelElement		
+C	SAMPLER_FEEDBACK_MIN_MIP	__BuiltinSamplerFeedbackType		
+C	SAMPLER_FEEDBACK_MIP_REGION_USED	ITexelElement		
+C	SAMPLER_FEEDBACK_MIP_REGION_USED	__BuiltinSamplerFeedbackType		
+C	ScalarDataLayout	IBufferDataLayout		
+C	SharedMemorySizePackEnd	ISharedMemorySizePackNode		slang/neural
+C	SiLU	IActivation		slang/neural
+C	Sigmoid	IActivation		slang/neural
+C	SineActivation	IActivation		slang/neural
+C	Std140DataLayout	IBufferDataLayout		
+C	Std430DataLayout	IBufferDataLayout		
+C	StructuredBuffer	IArray		
+C	TanhActivation	IActivation		slang/neural
+C	TextureFootprint	__TextureFootprintData		
+C	TorchTensorViewAddress	IPointerLikeAddress		slang/neural
+C	Tuple	IComparable	IComparable	
+C	Tuple	IDifferentiable	IDifferentiable	
+C	WaveTangledVector	IVector		slang/neural
+C	_Texture	__IDynamicResourceCastable	ITexelElement	
+C	__Shape1D	__ITextureShape1D2D3D		
+C	__Shape2D	__ITextureShape1D2D3D		
+C	__Shape3D	__ITextureShape1D2D3D		
+C	__ShapeBuffer	__ITextureShape		
+C	__ShapeCube	__ITextureShape		
+C	__SubpassImpl	__IDynamicResourceCastable		
+C	bool	IBooleanMask		slang/numerics
+C	bool	IRangedValue		
+C	bool	__BuiltinLogicalType		
+C	bool	__BuiltinType		
+C	double	IArithmeticAtomicable		
+C	double	IExponentialFunctions		slang/numerics
+C	double	IHyperbolicFunctions		slang/numerics
+C	double	IInverseTrigonometricFunctions		slang/numerics
+C	double	IRangedValue		
+C	double	IRealOrderingFunctions		slang/numerics
+C	double	IRootFunctions		slang/numerics
+C	double	IScalarFloatingPoint		slang/numerics
+C	double	ITexelElement		
+C	double	ITrigonometricFunctions		slang/numerics
+C	double	__BuiltinArithmeticType		
+C	double	__BuiltinFloatingPointType		
+C	double	__BuiltinRealType		
+C	double	__BuiltinSignedArithmeticType		
+C	double	__BuiltinType		
+C	double2	ITexelElement		
+C	float	IArithmeticAtomicable		
+C	float	IExponentialFunctions		slang/numerics
+C	float	IHyperbolicFunctions		slang/numerics
+C	float	IInverseTrigonometricFunctions		slang/numerics
+C	float	IRangedValue		
+C	float	IRealOrderingFunctions		slang/numerics
+C	float	IRootFunctions		slang/numerics
+C	float	IScalarFloatingPoint		slang/numerics
+C	float	ITrigonometricFunctions		slang/numerics
+C	float	__BuiltinArithmeticType		
+C	float	__BuiltinFloatingPointType		
+C	float	__BuiltinRealType		
+C	float	__BuiltinSignedArithmeticType		
+C	float	__BuiltinType		
+C	half	IArithmeticAtomicable		
+C	half	IExponentialFunctions		slang/numerics
+C	half	IHyperbolicFunctions		slang/numerics
+C	half	IInverseTrigonometricFunctions		slang/numerics
+C	half	IRangedValue		
+C	half	IRealOrderingFunctions		slang/numerics
+C	half	IRootFunctions		slang/numerics
+C	half	IScalarFloatingPoint		slang/numerics
+C	half	ITrigonometricFunctions		slang/numerics
+C	half	__BuiltinArithmeticType		
+C	half	__BuiltinFloatingPointType		
+C	half	__BuiltinRealType		
+C	half	__BuiltinSignedArithmeticType		
+C	half	__BuiltinType		
+C	int	IBitAtomicable		
+C	int	IRangedValue		
+C	int	__BuiltinArithmeticType		
+C	int	__BuiltinInt32Type		
+C	int	__BuiltinIntegerType		
+C	int	__BuiltinLogicalType		
+C	int	__BuiltinSignedArithmeticType		
+C	int	__BuiltinType		
+C	int16_t	IRangedValue		
+C	int16_t	__BuiltinArithmeticType		
+C	int16_t	__BuiltinIntegerType		
+C	int16_t	__BuiltinLogicalType		
+C	int16_t	__BuiltinSignedArithmeticType		
+C	int16_t	__BuiltinType		
+C	int64_t	IBitAtomicable		
+C	int64_t	IRangedValue		
+C	int64_t	ITexelElement		
+C	int64_t	__BuiltinArithmeticType		
+C	int64_t	__BuiltinInt64Type		
+C	int64_t	__BuiltinIntegerType		
+C	int64_t	__BuiltinLogicalType		
+C	int64_t	__BuiltinSignedArithmeticType		
+C	int64_t	__BuiltinType		
+C	int8_t	IRangedValue		
+C	int8_t	__BuiltinArithmeticType		
+C	int8_t	__BuiltinIntegerType		
+C	int8_t	__BuiltinLogicalType		
+C	int8_t	__BuiltinSignedArithmeticType		
+C	int8_t	__BuiltinType		
+C	intptr_t	IRangedValue		
+C	intptr_t	__BuiltinArithmeticType		
+C	intptr_t	__BuiltinIntegerType		
+C	intptr_t	__BuiltinLogicalType		
+C	intptr_t	__BuiltinSignedArithmeticType		
+C	intptr_t	__BuiltinType		
+C	matrix	IBooleanMask		slang/numerics
+C	matrix	IComponentwiseOrdered		slang/numerics
+C	matrix	IDifferentiable	IDifferentiable	
+C	matrix	IDifferentiableExponentialFunctions		slang/numerics
+C	matrix	IDifferentiableFloatingPoint		slang/numerics
+C	matrix	IDifferentiableHyperbolicFunctions		slang/numerics
+C	matrix	IDifferentiableInverseTrigonometricFunctions		slang/numerics
+C	matrix	IDifferentiableRealOrderingFunctions		slang/numerics
+C	matrix	IDifferentiableRootFunctions		slang/numerics
+C	matrix	IDifferentiableTrigonometricFunctions		slang/numerics
+C	matrix	IExponentialFunctions		slang/numerics
+C	matrix	IFloat	__BuiltinFloatingPointType	
+C	matrix	IFloatingPoint		slang/numerics
+C	matrix	IFractional		slang/numerics
+C	matrix	IHyperbolicFunctions		slang/numerics
+C	matrix	IInverseTrigonometricFunctions		slang/numerics
+C	matrix	IRWArray		
+C	matrix	IRealOrderingFunctions		slang/numerics
+C	matrix	IRootFunctions		slang/numerics
+C	matrix	ITrigonometricFunctions		slang/numerics
+C	uint	IBitAtomicable		
+C	uint	IRangedValue		
+C	uint	__BuiltinArithmeticType		
+C	uint	__BuiltinInt32Type		
+C	uint	__BuiltinIntegerType		
+C	uint	__BuiltinLogicalType		
+C	uint	__BuiltinType		
+C	uint16_t	IRangedValue		
+C	uint16_t	__BuiltinArithmeticType		
+C	uint16_t	__BuiltinIntegerType		
+C	uint16_t	__BuiltinLogicalType		
+C	uint16_t	__BuiltinType		
+C	uint64_t	IBitAtomicable		
+C	uint64_t	IRangedValue		
+C	uint64_t	ITexelElement		
+C	uint64_t	__BuiltinArithmeticType		
+C	uint64_t	__BuiltinInt64Type		
+C	uint64_t	__BuiltinIntegerType		
+C	uint64_t	__BuiltinLogicalType		
+C	uint64_t	__BuiltinType		
+C	uint8_t	IRangedValue		
+C	uint8_t	__BuiltinArithmeticType		
+C	uint8_t	__BuiltinIntegerType		
+C	uint8_t	__BuiltinLogicalType		
+C	uint8_t	__BuiltinType		
+C	uintptr_t	IRangedValue		
+C	uintptr_t	__BuiltinArithmeticType		
+C	uintptr_t	__BuiltinIntegerType		
+C	uintptr_t	__BuiltinLogicalType		
+C	uintptr_t	__BuiltinType		
+C	vector	IBooleanMask		slang/numerics
+C	vector	IComponentwiseOrdered		slang/numerics
+C	vector	IDifferentiable	IDifferentiable	
+C	vector	IDifferentiableExponentialFunctions		slang/numerics
+C	vector	IDifferentiableHyperbolicFunctions		slang/numerics
+C	vector	IDifferentiableInverseTrigonometricFunctions		slang/numerics
+C	vector	IDifferentiableRealOrderingFunctions		slang/numerics
+C	vector	IDifferentiableRootFunctions		slang/numerics
+C	vector	IDifferentiableTrigonometricFunctions		slang/numerics
+C	vector	IDotProduct		slang/numerics
+C	vector	IExponentialFunctions		slang/numerics
+C	vector	IFloat	__BuiltinFloatingPointType	
+C	vector	IFloatingPoint		slang/numerics
+C	vector	IFractional		slang/numerics
+C	vector	IHyperbolicFunctions		slang/numerics
+C	vector	IInteger	__BuiltinIntegerType	
+C	vector	IIntegerType		slang/numerics
+C	vector	IInverseTrigonometricFunctions		slang/numerics
+C	vector	IRWArray		
+C	vector	IRealOrderingFunctions		slang/numerics
+C	vector	IRootFunctions		slang/numerics
+C	vector	ISignedIntegerType		slang/numerics
+C	vector	ITexelElement		
+C	vector	ITrigonometricFunctions		slang/numerics
+C	vector	IUnsignedIntegerType		slang/numerics
+C	vector	__IDifferentiableFloatingPointVectorDotProduct		slang/numerics
+C	void	__BuiltinType		
+I	IAdditive	INumericShapedType	slang/numerics
+I	IArithmetic	IComparable	
+I	IArithmeticAtomicable	IAtomicable,IArithmetic	
+I	IBitAtomicable	IArithmeticAtomicable,IInteger	
+I	IComponentwiseEquatable	INumericShapedType	slang/numerics
+I	IComponentwiseOrdered	IComponentwiseEquatable	slang/numerics
+I	IDifferentiableArithmetic	IArithmetic,IDifferentiable	
+I	IDifferentiableDotProduct	IDotProduct,IDifferentiableNumericShapedType	slang/numerics
+I	IDifferentiableExponentialFunctions	IExponentialFunctions,IDifferentiable	slang/numerics
+I	IDifferentiableFloatingPoint	IFloatingPoint,IDifferentiableFractional	slang/numerics
+I	IDifferentiableFractional	IFractional,IDifferentiableNumericShapedType	slang/numerics
+I	IDifferentiableFunc	IFunc,IDifferentiableMutatingFunc	
+I	IDifferentiableHyperbolicFunctions	IHyperbolicFunctions,IDifferentiable	slang/numerics
+I	IDifferentiableInverseTrigonometricFunctions	IInverseTrigonometricFunctions,IDifferentiable	slang/numerics
+I	IDifferentiableMutatingFunc	IMutatingFunc	
+I	IDifferentiableNumericShapedType	INumericShapedType,IDifferentiable	slang/numerics
+I	IDifferentiableRealOrderingFunctions	IRealOrderingFunctions,IDifferentiable	slang/numerics
+I	IDifferentiableRootFunctions	IRootFunctions,IDifferentiable	slang/numerics
+I	IDifferentiableTrigonometricFunctions	ITrigonometricFunctions,IDifferentiable	slang/numerics
+I	IDotProduct	INumericShapedType	slang/numerics
+I	IFloat	IArithmetic,IDifferentiable	
+I	IFloatingPoint	IFractional	slang/numerics
+I	IFloatingPointCoopElement	ICoopElement	
+I	IFractional	ISignedNumeric,IConstructibleFromBuiltinFloatingPoint	slang/numerics
+I	IFunc	IMutatingFunc	
+I	IInteger	IArithmetic,ILogical	
+I	IIntegerType	INumeric,IComponentwiseOrdered,IBitShiftOperations	slang/numerics
+I	ILogical	IComparable	
+I	INumeric	IAdditive,IConstructibleFromBuiltinInteger	slang/numerics
+I	IPartiallyOrdered	IEquatable	slang/numerics
+I	IRWArray	IArray	
+I	IRWPhysicalBuffer	IPhysicalBuffer	
+I	IScalarAdditive	IAdditive,IScalarShapedType	slang/numerics
+I	IScalarDifferentiableFloatingPoint	IDifferentiableFloatingPoint,IScalarFloatingPoint,IScalarDifferentiableFractional	slang/numerics
+I	IScalarDifferentiableFractional	IDifferentiableFractional,IScalarFractional	slang/numerics
+I	IScalarFloatingPoint	IFloatingPoint,IScalarFractional	slang/numerics
+I	IScalarFractional	IFractional,IScalarSignedNumeric	slang/numerics
+I	IScalarIntegerType	IIntegerType,IScalarNumeric,ITotallyOrdered	slang/numerics
+I	IScalarNumeric	INumeric,IScalarAdditive	slang/numerics
+I	IScalarShapedType	INumericShapedType	slang/numerics
+I	IScalarSignedIntegerType	ISignedIntegerType,IScalarIntegerType,IScalarSignedNumeric	slang/numerics
+I	IScalarSignedNumeric	ISignedNumeric,IScalarNumeric	slang/numerics
+I	IScalarUnsignedIntegerType	IUnsignedIntegerType,IScalarIntegerType	slang/numerics
+I	ISignedIntegerType	IIntegerType,ISignedNumeric	slang/numerics
+I	ISignedNumeric	INumeric	slang/numerics
+I	ITotallyOrdered	IPartiallyOrdered	slang/numerics
+I	IUnsignedIntegerType	IIntegerType	slang/numerics
+I	IVector	IDifferentiable,IArrayAccessor	slang/neural
+I	__BuiltinArithmeticType	__BuiltinScalarType,IArithmetic,ICoopElement	
+I	__BuiltinFloatingPointType	__BuiltinRealType,IFloat,IFloatingPointCoopElement	
+I	__BuiltinInt32Type	__BuiltinIntegerType	
+I	__BuiltinInt64Type	__BuiltinIntegerType	
+I	__BuiltinIntegerType	__BuiltinArithmeticType,IInteger	
+I	__BuiltinLogicalType	__BuiltinScalarType,ILogical	
+I	__BuiltinRealType	__BuiltinSignedArithmeticType	
+I	__BuiltinScalarType	__BuiltinType	
+I	__BuiltinSignedArithmeticType	__BuiltinArithmeticType	
+I	__EnumType	ILogical	
+I	__IDifferentiableFloatingPointVectorDotProduct	IDifferentiableDotProduct,IDifferentiableFloatingPoint	slang/numerics
+I	__IDynamicResourceCastable	IOpaqueDescriptor	
+I	__IScalarDifferentiableFloatingPointDotProduct	IDifferentiableDotProduct,IScalarDifferentiableFloatingPoint	slang/numerics
+I	__IScalarNumericDotProduct	IDotProduct,IScalarNumeric	slang/numerics
+I	__ITextureShape1D2D3D	__ITextureShape	
+X	__BuiltinArithmeticType	ITexelElement	

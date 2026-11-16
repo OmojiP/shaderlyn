@@ -407,6 +407,19 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0304", "[shader(\"invalid\")]\nvoid main() { }\n")]
     [InlineData("SG0345", "uint g(uint n) throws uint\n{\n    if (n < 1)\n        throw 0x1U;\n    return n;\n}\nRWStructuredBuffer<uint> o;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid : SV_DispatchThreadID) throws uint\n{\n    o[tid.x] = try g(tid.x);\n}\n")]
     [InlineData("SG0321", "uniform uint U;\nint f(uint x)\n{\n    switch (x)\n    {\n    case U: return 0;\n    }\n    return 1;\n}\n")]
+    // 型の適合の表: 標準ライブラリのインターフェイスと組み込みの型、どの型にも当たる extension、外の関数の型の仮引数、既定の型引数、型引数を書いた別名
+    [InlineData("SG0349", "void f<T : IFloat>(T x) { }\nvoid g(int v) { f<int>(v); }\n")]
+    [InlineData("SG0349", "void f<T : IFloat>(T x) { }\nvoid g(int3 v) { f<int3>(v); }\n")]
+    [InlineData("SG0349", "void f<T : IRangedValue>(T x) { }\nvoid g(float3 v) { f<float3>(v); }\n")]
+    [InlineData("SG0349", "interface IBar { }\ninterface IFoo { }\nextension<T : IBar> T : IFoo { }\nvoid f<T : IFoo>(T x) { }\nstruct D { int v; }\nvoid g(D d) { f(d); }\n")]
+    [InlineData("SG0349", "interface IThing { void thing(); }\nvoid g<T>(T t) where T : IThing { }\nvoid f<T>(T t) where optional T : IThing\n{\n    g<T>(t);\n}\n")]
+    [InlineData("SG0349", "interface ITest { int doThing(int x); }\nstruct Impl2 { int v; }\n__generic<T : ITest = Impl2>\nstruct GenStruct { T obj; }\nint test(GenStruct gs) { return 0; }\n")]
+    [InlineData("SG0349", "interface IFoo { }\nstruct NotIFoo { }\nvoid invalidDefault<T : IFoo = NotIFoo>() { }\nvoid other() { invalidDefault(); }\n")]
+    [InlineData("SG0349", "interface IValueProvider { int getValue(); }\nstruct Wrapper<T : IValueProvider> { T provider; }\ntypealias WrappedProvider<T : IValueProvider> = Wrapper<T>;\nstruct NotAProvider { int data; }\nvoid test() { WrappedProvider<NotAProvider> w; }\n")]
+    // 実引数から決まらない型の仮引数と値の仮引数、制約の無い型の仮引数の extension
+    [InlineData("SG0363", "T pick<T>() { T v; return v; }\nvoid main() { pick(); }\n")]
+    [InlineData("SG0363", "void h<let N : int>(int x) { }\nvoid main() { h(3); }\n")]
+    [InlineData("SG0358", "interface IMy { }\nextension<T> T : IMy { }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -548,6 +561,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("RWByteAddressBuffer buf;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid computeMain(uint3 tid: SV_DispatchThreadID)\n{\n    float v = buf.LoadAligned<float>(0, 16);\n    buf.Store<float>(16, v, 16);\n}\nstruct Test { void m<int u>(float2 x) {} }\nextension Test { void m<int u>() {} }\nvoid f() { Test t; t.m<3>(); }\n")]
     // 正しい register と space、並べ方の型の sizeof、大きさの同じ bit_cast、uint2 のスレッドの番号、能力の名前のステージ
     [InlineData("Texture2D t : register(t0, space1);\nSamplerState s : register(s0);\nint f() { return sizeof(float3, DefaultDataLayout); }\nfloat g(uint x) { return bit_cast<float, uint>(x); }\n[shader(\"compute\")]\n[numthreads(4, 1, 1)]\nvoid computeMain(uint2 tid : SV_DispatchThreadID, uint gi : SV_GroupID) { }\n")]
+    // 標準ライブラリの適合 (float3 と IFloat、uint と IInteger、float4x4 と IFloat)、どの型にも当たる extension をたどる適合、列挙型と __EnumType
+    [InlineData("void f<T : IFloat>(T x) { }\nvoid i<T : IInteger>(T x) { }\nvoid g(float3 a, uint b, float4x4 c) { f<float3>(a); i<uint>(b); f<float4x4>(c); }\n")]
+    [InlineData("interface IA { }\ninterface IB { }\ninterface IC { }\nextension<T : IA> T : IB { }\nextension<T : IB> T : IC { }\nextension<T : IFloat> T : IA { }\nvoid f<T : IC>(T x) { }\nstruct S : IA { int v; }\nvoid g(S s) { f(s); f(1.0f); }\n")]
+    [InlineData("enum class Hints : uint { a = 1, b = 2 }\nbool is_set<T : __EnumType>(T value, T flag) { return true; }\nbool use(Hints h) { return is_set(h, Hints.b); }\n")]
+    // 既定の値か実引数から決まる型の仮引数、配列の大きさから決まる値の仮引数、型を前に書いた値の仮引数
+    [InlineData("T pick<T = float>() { T v; return v; }\nvoid sum<let N : int>(int a[N]) { }\nvoid process<int N>(float v[N]) { }\nvoid main() { float x = pick(); int a[3]; sum(a); float b[2]; process(b); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -628,6 +647,66 @@ public sealed class SlangRuleTests : IDisposable
         Assert.Contains("user.slang(7:5): error SG0401: 'InternalStruct'", output, StringComparison.Ordinal);
         Assert.Contains("user.slang(8:5): error SG0401: 'internalMethod'", output, StringComparison.Ordinal);
         Assert.Equal(3, output.Split("SG0401").Length - 1);
+    }
+
+    [Fact]
+    public async Task importにexportは書けない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "leaf.slang"), "module leaf;\npublic int leafHelper(int x) { return x; }\n");
+
+        string output = await AnalyzeAsync("module user;\nexport import leaf;\n", "user.slang");
+
+        Assert.Contains("user.slang(2:1): error SG0102", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 利用者のexperimentalのフォルダーのモジュールは実験中のモジュールにしない()
+    {
+        Directory.CreateDirectory(Path.Combine(_workDirectory, "experimental"));
+        File.WriteAllText(Path.Combine(_workDirectory, "experimental", "tools.slang"), "module tools;\npublic int helper(int x) { return x; }\n");
+
+        string output = await AnalyzeAsync("import experimental.tools;\nint f() { return helper(1); }\n", "user.slang");
+
+        Assert.DoesNotContain("SG0362", output, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("metal", false)]
+    [InlineData("cpp", false)]
+    [InlineData("spirv", true)]
+    public async Task 資源を含む構造体のStructuredBufferはMetalとCPUで通る(string target, bool reported)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $"slang:\n  target: {target}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "struct M { Texture2D t; float v; }\nStructuredBuffer<M> b;\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Equal(reported, output.ToString().Contains("error SG0404", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("cuda", false)]
+    [InlineData("cpp", true)]
+    public async Task numthreadsだけのジェネリックの関数はCUDAでだけエントリポイントにならない(string target, bool reported)
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $"slang:\n  target: {target}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "interface IM { float f(); }\n[numthreads(1, 1, 1)]\nvoid computeMain<M : IM>(uint3 id : SV_DispatchThreadID) { }\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Equal(reported, output.ToString().Contains("error SG0358", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 値を書かないdefineは空のマクロにする()
+    {
+        // slangc の -DFOO と同じく空のマクロ。#if FOO == 1 は前処理の式の誤り (HLSL の 1 ではない)。
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), "defines:\n  - FOO\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.slang"), "#if FOO == 1\nint isOne;\n#endif\n");
+        StringWriter output = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.slang")], BuiltInAnalyzers.All, output, new StringWriter());
+
+        Assert.Contains("error CF0002", output.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

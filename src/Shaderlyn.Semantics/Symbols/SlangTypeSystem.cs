@@ -104,7 +104,7 @@ internal sealed class SlangTypeSystem : ShaderTypeSystem
     internal ImmutableArray<string> Imports { get; }
 
     /// <summary>そのモジュール (slang/neural など) を import したか。モジュールの中のファイル (slang/neural/x) を import しても、そのモジュールの名前を見せる。</summary>
-    private bool IsImported(string module)
+    internal bool IsImported(string module)
         => Imports.Any(i => i == module || i.StartsWith(module + "/", StringComparison.Ordinal) || module.StartsWith(i + "/", StringComparison.Ordinal));
 
     /// <inheritdoc/>

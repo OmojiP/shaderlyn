@@ -42,8 +42,13 @@ internal sealed class SlangEnvironment(VariantSpace? variants = null, string? ta
     /// <summary>コンパイル先 (<c>spirv</c>・<c>cpp</c> など)。指定が無ければ <see langword="null"/>。</summary>
     public string? Target { get; } = target;
 
-    /// <summary>CPU か CUDA のコンパイル先か。資源をバッファーに入れられるなど、GPU のコンパイル先と決まりが違う。</summary>
+    /// <summary>CPU か CUDA のコンパイル先か。局所変数のアドレスを取れるなど、GPU のコンパイル先と決まりが違う。</summary>
     public bool TargetsHost => Target is "cpp" or "cuda" or "ptx";
+
+    /// <summary>
+    /// 資源を StructuredBuffer の要素に入れられるコンパイル先か (CPU・CUDA と Metal。SPIR-V・HLSL・GLSL・WGSL は E38204 にする。2026-11-14 に slangc 2026.19 で確かめた)。
+    /// </summary>
+    public bool AllowsResourcesInBuffers => TargetsHost || Target == "metal";
 
     /// <summary>環境の名前。</summary>
     public const string EnvironmentName = "slang";

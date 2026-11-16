@@ -585,16 +585,16 @@ public sealed partial class ShaderCompilation
            || IsOutsideBrokenFunctions(node);
 
     /// <summary>
-    /// 解析を止める誤りがあっても、宣言が無いことを根拠にできる位置があるか (GLSL の <see cref="FirstBreakOffset"/> か、Slang の <see cref="BrokenFunctionSpans"/>)。
+    /// 解析を止める誤りがあっても、宣言が無いことを根拠にできる位置があるか (GLSL の <see cref="FirstBreakOffset"/> か、HLSL と Slang の <see cref="BrokenFunctionSpans"/>)。
     /// </summary>
     internal bool HasAnalyzableRegions => FirstBreakOffset is not null || BrokenFunctionSpans is not null;
 
     /// <summary>
-    /// Slang で、解析を止める誤りがどれも、解析しているファイルの関数の本体の中にあるときの、誤りから関数の終わりまでの範囲。それ以外は <see langword="null"/>。
+    /// HLSL と Slang で、解析を止める誤りがどれも、解析しているファイルの関数の本体の中にあるときの、誤りから関数の終わりまでの範囲。それ以外は <see langword="null"/>。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Slang では、関数の外の名前を宣言より前でも使える (GLSL のように位置で区切れない)。そのかわり、関数の本体の中の構文の誤りは、
+    /// Slang では関数の外の名前を宣言より前でも使え、HLSL では取り込んだヘッダとマクロが宣言を作るので、GLSL のように位置で区切れない。そのかわり、関数の本体の中の構文の誤りは、
     /// その本体の外の宣言 (関数・型・変数) を壊さない。本体の { と } が対応していれば、ほかの宣言はすべて読めている。
     /// そこで、誤りを含む関数の外では、宣言が無いことを根拠にする検査を続ける。関数の中も、局所変数は使う位置より前に宣言するので、最初の誤りより前は続ける。
     /// 見ないのは、最初の誤りを含む文 (本体の直下の文) の始まりから、その関数の終わりまでである。誤りを含む文は、誤りより前のトークンも読み違えていることがある。
@@ -625,7 +625,8 @@ public sealed partial class ShaderCompilation
     /// <summary><see cref="BrokenFunctionSpans"/> を求める。</summary>
     private ImmutableArray<TextSpan>? FindBrokenFunctionSpans()
     {
-        if (!IsSlang || IsIncludedFragment || !UnresolvedIncludes.IsEmpty)
+        // GLSL は位置で区切る (FirstBreakOffset)。Godot と WGSL は構文木の作りが違うので見ない。
+        if (IsGlsl || IsGodot || IsWgsl || IsIncludedFragment || !UnresolvedIncludes.IsEmpty)
         {
             return null;
         }
@@ -645,7 +646,7 @@ public sealed partial class ShaderCompilation
         {
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
             FunctionDeclarationSyntax[] functions = [.. program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
-                .Where(f => f.Body is { } body && ReferenceEquals(body.OpenBrace.Source, Text) && !body.CloseBrace.IsMissing)];
+                .Where(f => f.Body is { } body && IsAnalyzedText(body.OpenBrace.Source) && !body.CloseBrace.IsMissing)];
 
             foreach (Diagnostic diagnostic in program.Diagnostics.Where(BreaksAnalysis))
             {
@@ -682,7 +683,7 @@ public sealed partial class ShaderCompilation
 
         foreach (ShaderSyntaxToken token in tokens)
         {
-            if (!ReferenceEquals(token.Source, Text))
+            if (!IsAnalyzedText(token.Source))
             {
                 continue;
             }
@@ -710,11 +711,19 @@ public sealed partial class ShaderCompilation
         return false;
     }
 
-    /// <summary>Slang で、誤りを含む関数 (<see cref="BrokenFunctionSpans"/>) の外にある、解析しているファイルの位置か。</summary>
+    /// <summary>
+    /// 解析しているファイルのテキストか。Unity はコードブロックの外を空白にした同じ長さのテキスト (ProgramBlockExtractor) を読むので、
+    /// 同じ物かではなく、同じファイルで同じ長さかで比べる (文字の位置は同じ)。
+    /// </summary>
+    private bool IsAnalyzedText(SourceText source)
+        => ReferenceEquals(source, Text)
+           || (source.Length == Text.Length && string.Equals(source.FilePath, Text.FilePath, StringComparison.Ordinal));
+
+    /// <summary>誤りを含む関数 (<see cref="BrokenFunctionSpans"/>) の外にある、解析しているファイルの位置か。</summary>
     private bool IsOutsideBrokenFunctions(ShaderSyntaxNode node)
         => BrokenFunctionSpans is { } spans
            && node.FirstToken is { } first
-           && ReferenceEquals(first.Source, Text)
+           && IsAnalyzedText(first.Source)
            && !spans.Any(s => s.Start < node.Span.End && node.Span.Start < s.End);
 
     /// <summary>

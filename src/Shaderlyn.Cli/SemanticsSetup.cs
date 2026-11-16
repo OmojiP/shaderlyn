@@ -571,7 +571,9 @@ internal static class SemanticsSetup
     /// <param name="defines"><c>NAME</c> または <c>NAME=VALUE</c> 形式の指定。</param>
     /// <returns>定義済みマクロの表。</returns>
     /// <remarks>
-    /// 値を省略した場合は <c>1</c> とみなす。C コンパイラの <c>-D</c> と同じ規則である。
+    /// 値を省略した場合は、HLSL (Unity・Unreal を含む) では <c>1</c> とみなす。DXC・FXC の <c>-D</c> と同じ規則である。
+    /// GLSL と Slang では空とみなす。glslang と slangc の <c>-D</c> は、値を書かなければ空のマクロにする (2026-11-14 に確かめた。
+    /// <c>-DFOO</c> の <c>#if FOO == 1</c> は、どちらも前処理の式の誤りになる)。
     /// 汎用の HLSL 環境の、DXC が定義するマクロは環境が足す。
     /// </remarks>
     public static ImmutableDictionary<string, string> BuildPredefinedMacros(string environment, ImmutableArray<string> defines)
@@ -579,20 +581,28 @@ internal static class SemanticsSetup
             environment == UnityAnalysisEnvironment.EnvironmentName
                 ? UnityOptions.DefaultPredefinedMacros
                 : ImmutableDictionary<string, string>.Empty,
-            defines);
+            defines,
+            DefaultDefineValue(environment));
+
+    /// <summary>値を書かない <c>NAME</c> の値。GLSL と Slang は空、ほかは <c>1</c>。</summary>
+    /// <param name="environment">環境の名前。</param>
+    /// <returns>マクロの値。</returns>
+    public static string DefaultDefineValue(string environment)
+        => environment is Semantics.Environments.GlslEnvironment.EnvironmentName or Semantics.Environments.SlangEnvironment.EnvironmentName ? string.Empty : "1";
 
     /// <summary><c>NAME</c> / <c>NAME=VALUE</c> の指定をマクロの表へ重ねる。</summary>
     /// <param name="macros">元の表。</param>
     /// <param name="defines">指定。</param>
+    /// <param name="defaultValue">値を書かない <c>NAME</c> の値 (<see cref="DefaultDefineValue"/>)。</param>
     /// <returns>重ねた表。</returns>
-    public static ImmutableDictionary<string, string> ApplyDefines(ImmutableDictionary<string, string> macros, ImmutableArray<string> defines)
+    public static ImmutableDictionary<string, string> ApplyDefines(ImmutableDictionary<string, string> macros, ImmutableArray<string> defines, string defaultValue = "1")
     {
         foreach (string define in defines)
         {
             int separator = define.IndexOf('=', StringComparison.Ordinal);
 
             (string name, string value) = separator < 0
-                ? (define, "1")
+                ? (define, defaultValue)
                 : (define[..separator], define[(separator + 1)..]);
 
             if (name.Length > 0)

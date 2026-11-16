@@ -26,9 +26,10 @@
     <EmbeddedResource Include="Symbols\GodotBuiltins.g.txt" LogicalName="Shaderlyn.Semantics.GodotBuiltins.txt" />
   </ItemGroup>
 
-  <!-- Slang の標準ライブラリの名前の表。tools/slang/stdlib.mjs が slang のソースの *.meta.slang から作る -->
+  <!-- Slang の標準ライブラリの名前の表と、型の適合の表。tools/slang/stdlib.mjs が slang のソースの *.meta.slang から作る -->
   <ItemGroup>
     <EmbeddedResource Include="Symbols\SlangStdlib.g.txt" LogicalName="Shaderlyn.Semantics.SlangStdlib.txt" />
+    <EmbeddedResource Include="Symbols\SlangConformance.g.txt" LogicalName="Shaderlyn.Semantics.SlangConformance.txt" />
   </ItemGroup>
 
   <ItemGroup>

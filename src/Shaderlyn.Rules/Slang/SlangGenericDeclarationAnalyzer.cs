@@ -140,10 +140,10 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 CheckParameters(parameters, kinds, binder, Report);
 
                 // [shader]・[numthreads] のジェネリックの関数 (特殊化しないエントリポイント。E38014)。API か -specialize で特殊化するなら slang: generic-entry-points。
-                // CPU と CUDA のコンパイル先では、[numthreads] だけの関数はエントリポイントにならない。
+                // CUDA のコンパイル先 (cuda・ptx) では、[numthreads] だけの関数はエントリポイントにならない (cpp ではなる。slangc 2026.19 で確かめた)。
                 if (function && compilation.Environment is not Semantics.Environments.SlangEnvironment { GenericEntryPoints: true }
                     && EntryPointAttributeBefore(tokens, i) is { } entry
-                    && (entry == "shader" || compilation.Environment is not Semantics.Environments.SlangEnvironment { TargetsHost: true }))
+                    && (entry == "shader" || compilation.Environment is not Semantics.Environments.SlangEnvironment { Target: "cuda" or "ptx" }))
                 {
                     Report(SlangRuleDescriptors.GenericParameterForm, token,
                         $"エントリポイント '{token.Text}' のジェネリックの仮引数が決まりません。slangc の -specialize か API (specialize) で型引数を決めるなら、設定ファイルの slang: generic-entry-points を true にしてください。");
@@ -171,6 +171,14 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     {
                         Report(SlangRuleDescriptors.GenericParameterForm, tokens[j + 3], $"{tokens[j + 3].Text} は{what}なので、制約に書けません。{(what == "組み込みの型" ? $"値の仮引数なら let {constrained.Name.Text} : {tokens[j + 3].Text} と書いてください。" : "インターフェイスを書いてください。")}");
                     }
+                }
+
+                // extension<T> T (制約の無い型の仮引数そのものの extension。E30850)
+                if (extension && close < tokens.Length && parameters.FirstOrDefault(p => p.Name.Text == tokens[close].Text && !p.Value && !p.Pack) is { Constraint.Count: 0 } bare
+                    && (close + 1 >= tokens.Length || tokens[close + 1].Kind != ShaderSyntaxKind.DotToken)
+                    && !HasWhereFor(tokens, close, bare.Name.Text))
+                {
+                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[close], $"制約の無い型の仮引数 {bare.Name.Text} は、extension で広げられません。extension<{bare.Name.Text} : IFoo> {bare.Name.Text} のように制約を書いてください。");
                 }
 
                 // extension<T> int (拡張する型に出てこない型の仮引数)
@@ -614,6 +622,20 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
         }
 
         return found;
+    }
+
+    /// <summary>位置 <paramref name="start"/> から { か ; までに、where NAME : の制約があるか。</summary>
+    private static bool HasWhereFor(ImmutableArray<ShaderSyntaxToken> tokens, int start, string name)
+    {
+        for (int i = start; i + 2 < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+        {
+            if (tokens[i].Text == "where" && tokens[i + 1].Text == name)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int? Matching(ImmutableArray<ShaderSyntaxToken> tokens, int open)

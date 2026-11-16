@@ -26,7 +26,7 @@ internal sealed class SlangModuleErrorAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ModuleHasErrors, SlangRuleDescriptors.ExperimentalModule];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ModuleHasErrors, SlangRuleDescriptors.ExperimentalModule, SlangRuleDescriptors.ModifierNotAllowed];
 
     /// <summary>実験中のモジュールか (slang.neural・slang.numerics とその中のモジュール・slang.functional・experimental.…)。</summary>
     private static bool IsExperimentalModule(string name)
@@ -67,7 +67,14 @@ internal sealed class SlangModuleErrorAnalyzer : SemanticRuleAnalyzer
 
             string name = string.Join('.', parts);
 
-            if (IsExperimentalModule(name) && compilation.IsReportable(tokens[i + 1]) && tokens[i + 1].GetLocation() is { } location)
+            // export import a; (import には export を書けない。取り込みをたどらせるなら __exported import。E31201)
+            if (i > 0 && tokens[i - 1].Text == "export" && compilation.IsReportable(tokens[i - 1]) && tokens[i - 1].GetLocation() is { } exportLocation)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ModifierNotAllowed, exportLocation,
+                    "import には export を書けません。取り込んだモジュールの宣言を見せるなら __exported import と書いてください。"));
+            }
+
+            if (IsExperimentalModule(name) && Semantics.Symbols.SlangTypeSystem.Instance.IsStandardModule(name.Replace('.', '/')) && compilation.IsReportable(tokens[i + 1]) && tokens[i + 1].GetLocation() is { } location)
             {
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ExperimentalModule, location,
                     $"{name} は実験中のモジュールです。slangc に -experimental-feature を渡すなら、設定ファイルの slang: experimental-features を true にしてください。"));

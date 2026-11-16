@@ -193,10 +193,12 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         if (compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } reported)
         {
             // GLSL は、最初の誤りより前の位置を検査している (ShaderCompilation.FirstBreakOffset)。Slang は、誤りを含む関数の外を検査している (BrokenFunctionSpans)。
-            return compilation.FirstBreakOffset is not null || compilation.BrokenFunctionSpans is not null
+            return compilation.FirstBreakOffset is not null
                 ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Id} を直すと、ファイル全体が検査されるようになります。"
-                : $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
-                  + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
+                : compilation.BrokenFunctionSpans is not null
+                    ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Location.LineSpan.Start} の {reported.Id} を直すと、ファイル全体が検査されるようになります。"
+                    : $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
+                      + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
         }
 
         // include 先のヘッダの中の問題は、それ自体は報告していない。

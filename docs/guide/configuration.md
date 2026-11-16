@@ -52,7 +52,7 @@ rules:
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
 | `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
-| `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`                      |
+| `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`。値を書かない `NAME` は、HLSL では `1`、GLSL と Slang では空のマクロです (DXC・glslang・slangc の `-D` と同じ) |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
 | `report`        | 出力する指摘の重要度。出力形式ごとに変更できます ([下記](#report)) |
 
@@ -186,7 +186,7 @@ Slang のファイル (`.slang`) で使う設定です。
 | `generic-entry-points` | `true` なら、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
 
 `target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
-`cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を入れるなど。[SG0404](../rules/SG0404.md)) を報告しません。
+`cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を入れるなど。[SG0404](../rules/SG0404.md)) を報告しません。`metal` も、`StructuredBuffer` に資源を含む構造体を入れることを報告しません (slangc と同じ)。
 
 ```yaml
 slang:
