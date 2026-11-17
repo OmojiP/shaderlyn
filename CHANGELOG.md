@@ -13,7 +13,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 ## [0.3.4] - 2026-11-11
 
 Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4.7.2・slangc 2026.19・naga 30 がエラーにする箇所を、それぞれのコンパイラと同じ行で報告する
-(Godot シェーダー言語の GD、Slang の SG、WGSL の WG のルールを足した)。どの言語も、コンパイラが通すファイルではエラーを出さない。
+(Godot シェーダー言語の GD、Slang の SG、WGSL の WG のルールを追加した)。どの言語も、コンパイラが通すファイルではエラーを報告しない。
 
 ### 追加
 
@@ -25,10 +25,10 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   プリプロセッサは Godot の規則で、マクロの定義し直しと `#ifdef A B` を誤りにし、`#define F(a b)`、マクロの本体の先頭と末尾の `##`、条件の無い `#if`、
   Godot が知らない `#pragma`、到達する `#error` を報告する (CF0002)
 - Godot: 宣言・型・呼び出しを検査する (CF0310 / CF0312 / CF0314 / CF0401 / CF0402 / CF0410 など、GLSL と同じ C 系の共通のルール)。
-  組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表から引く。
+  組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表を参照する。
   Godot は暗黙の変換をしない (`float a = 1;` は誤り) が、関数の呼び出しの実引数に書いた整数のリテラル (`f(0)`、`vec2(1, 2)`) は仮引数の型へ変換して渡す。Godot と同じに扱う。
-  32 ビットに収まらない整数のリテラルは、Godot が何も言わないので報告しない (CF0511)
-- Godot シェーダー言語にしか無いルール (GD) を足した。Godot 4.7.2 がエラーにする箇所を同じ行で報告する
+  32 ビットに収まらない整数のリテラルは、Godot が報告しないため報告しない (CF0511)
+- Godot シェーダー言語にしか無いルール (GD) を追加した。Godot 4.7.2 がエラーにする箇所を同じ行で報告する
   - GD0301: 演算子を使えない型の組に使った (`float + int`、`-mat4`、ベクトルの `<` など。Godot の `_validate_operator` と同じ型の組)
   - GD0302: 組み込み関数と値の作成に、実引数の型に合う形が無い (`sin(vec2, float)`、`vec2(int, float)`)。組み込み関数の表は Godot のソースから作る
   - GD0311: `if`・`while`・`do`・`for`・`?:` の条件が bool でない
@@ -55,7 +55,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - GD0001: そのレンダラーでは使えない (Compatibility の `textureGather`・`dFdxFine` など high-end の組み込み関数、Mobile と Compatibility の `hint_normal_roughness_texture`)
   - GD0104: varying が多すぎる (行列は列の数、配列は要素の数で数え、組み込みの varying と合わせて 32 まで。Forward+ と Mobile では `spatial` が 15、`canvas_item` が 9 を先に使う)
 - Godot: レンダラーを設定ファイルの `godot: renderer` (`forward_plus` / `mobile` / `gl_compatibility`) か、`project.godot` の `rendering/renderer/rendering_method` から決める。
-  プリプロセッサの `CURRENT_RENDERER` と `RENDERER_FORWARD_PLUS` / `RENDERER_MOBILE` / `RENDERER_COMPATIBILITY` を定義する (今までは定義しておらず、`#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` が常に真になっていた)
+  プリプロセッサの `CURRENT_RENDERER` と `RENDERER_FORWARD_PLUS` / `RENDERER_MOBILE` / `RENDERER_COMPATIBILITY` を定義する (これまでは定義しておらず、`#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` が常に真になっていた)
 - Godot: `#include "res://..."` を、`project.godot` のあるフォルダー (設定ファイルの `godot: project` でも決められる) から解決する。プロジェクトの中なら、`../` で上がる相対パスも読む
 - VS Code 拡張: Godot のシェーダー (`.gdshader` / `.gdshaderinc`) を解析する。説明 (ホバー表示)・定義への移動・補完・引数の案内は、Godot の型と組み込み関数、
   カーソルのあるステージ関数で使える組み込みの変数 (`ALBEDO`・`TIME` など) で答える。uniform の説明にはヒントを添える。
@@ -79,9 +79,9 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - 名前の範囲: 変数の初期値の中では、宣言しているその変数はまだ見えない (`int e = e;`)。`for` の初期化の変数は、ループの外で見えない
   - 型を書かない `let` / `var` は初期値の型、`ConstantBuffer<float4x4>` の値は float4x4 として検査する。`import glsl;` を書いたファイルでは、
     ベクトルどうしの `==` / `!=` を 1 つの bool、行列どうしの `*` を行列の積とする。列挙子を点で書いた形 (`Color.Green`) も列挙型の値として検査する (HL0347)
-  - 構造体のメンバー (CF0312) は、`extension` (修飾した名前の `extension Container.Nested` を含む) や `property` でメンバーが足されうる型を除いて検査する。
+  - 構造体のメンバー (CF0312) は、`extension` (修飾した名前の `extension Container.Nested` を含む) や `property` でメンバーが追加されうる型を除いて検査する。
     関数の重複 (CF0314) は、ジェネリックの制約とコンパイル先を読むまで検査しない
-- Slang にしか無いルール (SG) を足した。slangc 2026.19 がエラーにする箇所を、slangc と同じ行で報告する
+- Slang にしか無いルール (SG) を追加した。slangc 2026.19 がエラーにする箇所を、slangc と同じ行で報告する
   - SG0004: リテラルの書き方 (使えないエスケープ、桁の足りない `\u` / `\U`、1 文字でない文字のリテラル、文字列の `\x` の範囲、64 ビットに収まらない整数)。SG0005: UTF-8 として読めないバイト
   - SG0101: その場所に書けない宣言 (型を書く位置の構造体の定義、構造体とインターフェイスの中の namespace など、関数の中の関数、extension とインターフェイスの中の static でないフィールド、
     extension のジェネリックの仮引数の既定値、名前の無い enum class、ファイルの直下と extension の中の仮引数の無い `__init`、型と extension の中の演算子、
@@ -100,7 +100,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   - SG0338: `[NoDiscard]` の関数の戻り値を捨てる式と、void を返す関数の `[NoDiscard]`
   - SG0341: `[RemovedSince]` で取り除かれた宣言の使用と、2026 の言語で取り除かれた書き方 (ベクトルを含んで成分の足りない値の作成と並び)
   - SG0342: インターフェイスの適合の循環 (インターフェイスの側は、適合する型がどれも輪に入るときだけ)。SG0343: 条件の中の括弧で包まない代入
-  - SG0344: static のメソッドの中の this と static でないメンバー、型の名前からの static でないフィールド。SG0345: throw と try の受け先 (throws の無い関数、defer の中、throws と違う型、throws を書いたエントリポイント)
+  - SG0344: static のメソッドの中の this と static でないメンバー、型の名前からの static でないフィールド。SG0345: throw と try の使用条件 (throws の無い関数、defer の中、throws と違う型、throws を書いたエントリポイント)
   - SG0346: new を書かない class の作成。SG0347: 構造体の多重継承と override の書き忘れ・当たるメソッドの無い override・構造体と class の間の継承・
     `#lang 2026` の構造体の継承・インターフェイスの要件の override・`[COM]` のインターフェイスの継承。
     SG0348: property と `__subscript` の書き方 (インターフェイスの accessor の片方だけの既定の実装を含む)
@@ -127,7 +127,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   微分の属性の関数の名前・then の側にだけ見える `if (let a = x)` の a (CF0310)、多重定義のどれも受け取らない構造体の実引数 (CF0401。ジェネリックの多重定義とメソッドは型の仮引数の制約まで見る。インターフェイスの型の out・inout の仮引数への具体的な型の値も)、
   型引数の違うジェネリックの型どうし (構造体のフィールドを含む)・次元の違うテクスチャ・入れ子の型への数・ポインターの型とアクセスとアドレス空間・ジェネリックの型の値から具体的な型への変換・
   SamplerDescriptorHeap と ResourceDescriptorHeap の取り違え (CF0410)、負の数と定数の式の添字 (CF0510)。数の接尾辞は slangc と同じ形だけを通す (CF0001)
-- Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU・CUDA と Metal では、資源をバッファーに入れることを報告しない。
+- Slang: 設定ファイルの `slang: target` でコンパイル先 (`spirv`・`cpp` など) を書けるようにした。CPU・CUDA と Metal では、資源をバッファーに格納することを報告しない。
   `slang: unscoped-enums` (slangc の `-unscoped-enum`) で、どの列挙型の列挙子も修飾せずに書けるものとする。
   `slang: experimental-features` (slangc の `-experimental-feature`) で実験中のモジュールを import できるものとし、`slang: generic-entry-points` でジェネリックのエントリポイントを API で特殊化するものとして通す
 - VS Code 拡張: Slang (`.slang`) を解析する。説明・定義へ移動・補完は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) を使う
@@ -137,7 +137,7 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
   宣言・型・呼び出しを検査する (CF0310・CF0402・CF0410 など、C 系の共通のルール)。型を書かない数は抽象的な数として扱い、具体的な型への変換だけを暗黙に行う
   (`i32` と `f32` の間は変換しない)。型を書かない `let` / `var` / `override` は初期値の型を具体的にしたもの、`const` は初期値の型として検査する。
   関数の外の名前は、宣言より前でも使える。組み込み関数の名前は naga 30 のものを知っている
-- WGSL にしか無いルール (WG) を足した。naga 30 (wgpu の WGSL のコンパイラ) がエラーにする箇所を、naga と同じ行で報告する
+- WGSL にしか無いルール (WG) を追加した。naga 30 (wgpu の WGSL のコンパイラ) がエラーにする箇所を、naga と同じ行で報告する
   - WG0001: enable していない拡張の機能 (f16・binding_array・光線の照会・メッシュシェーダー・@blend_src・@builtin(clip_distances) など)。WG0003: 無い拡張の名前
   - WG0002: ステージで使えない操作 (頂点・計算シェーダーの discard と微分、頂点・フラグメントシェーダーの workgroupBarrier など。呼ぶ関数の中も)
   - WG0101: 属性の置き場所 (@must_use、同じ属性の繰り返し、構造体のメンバーに書けない属性)。WG0338: @must_use の関数の戻り値を使わない呼び出し
@@ -152,15 +152,15 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
 - WGSL: キーワード・予約語・__ で始まる語の名前、文として書けない式、continuing の外の break if、型も初期値も無い var、
   初期値の無い let / const、128 段以上の入れ子を構文の誤りとして報告する (CF0001)。構造体のメンバーの名前の重複を報告する (CF0314)
 - VS Code 拡張: WGSL (`.wgsl`) を解析する。説明・定義へ移動・補完は WGSL の型と組み込み関数で答える
-- 環境ごとの説明のページ (Godot・Slang・WGSL) と、設定ファイルのテンプレート (samples/environments/godot・slang・wgsl) を足した
+- 環境ごとの説明のページ (Godot・Slang・WGSL) と、設定ファイルのテンプレート (samples/environments/godot・slang・wgsl) を追加した
 - `PreprocessorOptions.NestedBlockComments` / `ShaderLexer.NestedBlockComments`: 複数行コメントを入れ子にできるか (WGSL。既定はできない)
 - 16 進数の浮動小数のリテラル (`0x1p-24`)、整数のスウィズル (`0.xx`)、`1#INF`、生の文字列 (`R"(…)"`) を字句として読む
 - `TypeSyntax.PointerTokens` / `IsPointer` (ポインターの `*`)、`TypeSyntax.NestedTypeTokens` (`Type<T>.Member` の `.Member`)、
   `ShaderLanguageOptions.IsLanguageDirective` (言語に固有のプリプロセッサの指令)、`FunctionDeclarationSyntax` / `StructDeclarationSyntax` の
   `GenericParameterTokens` / `GenericPackNames` (Slang のジェネリックの仮引数)、`CallCompatibility.IsVariadic` (可変長の仮引数)、
-  `EnumDeclarationSyntax.MembersNeedQualification` / `QualifiedByDefault` (列挙子に型の名前の修飾が要るか)、
+  `EnumDeclarationSyntax.MembersNeedQualification` / `QualifiedByDefault` (列挙子に型の名前の修飾が必要か)、
   `ShaderLanguageOptions.HasFeature` (`#if __has_feature(…)`) / `AllowsBareLineDirective` (行番号の無い `#line`)、
-  `SourceText.InvalidUtf8Offsets` (UTF-8 として読めなかったバイトの位置) を足した
+  `SourceText.InvalidUtf8Offsets` (UTF-8 として読めなかったバイトの位置) を追加した
 - Godot: メンバーの無い構造体と、`for` の最初の変数の宣言でない式を報告する (CF0001)
 - Godot: 関数の外の `const`・uniform・`varying` と同じ名前の局所変数と、構造体のメンバーの名前の重複を報告する (CF0314。Godot は名前の隠しを許さない)
 - Godot: 構文の誤りを Godot と同じ行で報告する。閉じていない `[` と `(` は `;` や波括弧の行で、`shader_type` の `;` 抜けは名前の行で、ファイルの終わりで閉じていないものはファイルの終わりの行で報告する。`do { } (true);` の `while` 抜けを報告する (CF0001)
@@ -177,36 +177,36 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
 ### 修正
 
 - 関数の中に定義した構造体のメソッドの `return` を、外の関数の戻り値の型と比べていた (CF0411。HLSL 2021 の局所の構造体も)
-- `ConstantBuffer<float4x4>` の値と添字 (`m[3]`) の型を、行列と行のベクトルとして読む (今までは `ConstantBuffer` の型のまま、または行列のままで、変換の検査に使えなかった)
-- Slang: `operator?:` と `__prefix` / `__postfix` を付けた演算子の宣言、`no_diff f(x);` の文を読む (今までは構文の誤りにしていた)
-- Slang: 取り込んだモジュールが (`__exported` でなく) 取り込んだモジュールの宣言と、using していない名前空間の中の宣言を修飾せずに使うもの、名前空間に無いメンバー (`ns.f()`) を、宣言されていない名前 (CF0310) にする (今までは、どちらも見えるものとしていた)
-- Slang: ファイルの終わりで足りないもの (`;`・`}`) を、slangc と同じくファイルの終わりの位置 (最後の改行の後ろ) で伝える (今までは最後のトークンの直後だった)
-- Slang: 型引数を書いたメソッドの呼び出し (`buf.LoadAligned<float>(0, 16)`) を、型引数が名前と数だけなら呼び出しとして読む (今までは読み飛ばしていて、実引数を検査しなかった)。extension で多重定義を足しうる型のメソッドの引数の数は見ない (CF0402)
-- HLSL (Unity・汎用の HLSL) と Slang: 構文の誤りが関数の本体の中だけにあるファイルでも、ほかの関数と、同じ関数の構文の誤りより前の文で、宣言が無いことを根拠にする検査 (CF0310 など) を続ける (今まではファイル全体で止めていた)
-- GLSL と Slang: 設定ファイルの `defines` と `--define` の値を書かない `NAME` を、glslang・slangc と同じく空のマクロにする (今までは HLSL と同じく 1 にしていた)
-- 式の要る位置の `}` と `;` (`return x + }`) を読み進めずに構文の誤りにする (今までは `}` を読み飛ばし、後ろの宣言を関数の本体に飲み込んでいた)
-- `x.;` (`.` の後ろにメンバーの名前が無い式) を構文の誤り (CF0001) にする (今までは何も報告しなかった。HLSL・GLSL も同じ)
+- `ConstantBuffer<float4x4>` の値と添字 (`m[3]`) の型を、行列と行のベクトルとして読む (これまでは `ConstantBuffer` の型のまま、または行列のままで、変換の検査に使えなかった)
+- Slang: `operator?:` と `__prefix` / `__postfix` を付けた演算子の宣言、`no_diff f(x);` の文を読む (これまでは構文の誤りにしていた)
+- Slang: 取り込んだモジュールが (`__exported` でなく) 取り込んだモジュールの宣言と、using していない名前空間の中の宣言を修飾せずに使うもの、名前空間に無いメンバー (`ns.f()`) を、宣言されていない名前 (CF0310) にする (これまでは、どちらも参照できるものとしていた)
+- Slang: ファイルの終わりで足りないもの (`;`・`}`) を、slangc と同じくファイルの終わりの位置 (最後の改行の後ろ) で伝える (これまでは最後のトークンの直後だった)
+- Slang: 型引数を書いたメソッドの呼び出し (`buf.LoadAligned<float>(0, 16)`) を、型引数が名前と数だけなら呼び出しとして読む (これまでは読み飛ばしており、実引数を検査しなかった)。extension で多重定義を追加しうる型のメソッドの引数の数は見ない (CF0402)
+- HLSL (Unity・汎用の HLSL) と Slang: 構文の誤りが関数の本体の中だけにあるファイルでも、ほかの関数と、同じ関数の構文の誤りより前の文で、宣言が無いことを根拠にする検査 (CF0310 など) を続ける (これまではファイル全体で止めていた)
+- GLSL と Slang: 設定ファイルの `defines` と `--define` の値を書かない `NAME` を、glslang・slangc と同じく空のマクロにする (これまでは HLSL と同じく 1 にしていた)
+- 式が必要な位置の `}` と `;` (`return x + }`) を読み進めずに構文の誤りにする (これまでは `}` を読み飛ばし、後ろの宣言を関数の本体に飲み込んでいた)
+- `x.;` (`.` の後ろにメンバーの名前が無い式) を構文の誤り (CF0001) にする (これまでは何も報告しなかった。HLSL・GLSL も同じ)
 - Slang: `;` の無い `throw`、property と `__subscript` の accessor の本体の中の構文の誤りと accessor でない語、ジェネリックの仮引数の位置の名前でないもの (`<1>`) と、制約の位置の `struct` を構文の誤り (CF0001) にする
-- Slang: `unsigned int x;` を構文の誤り (CF0001) にする (slangc と同じく `unsigned`・`signed` は修飾子でなく名前として読む。今までは読み飛ばしていた)
+- Slang: `unsigned int x;` を構文の誤り (CF0001) にする (slangc と同じく `unsigned`・`signed` は修飾子でなく名前として読む。これまでは読み飛ばしていた)
 
 ## [0.3.3] - 2026-11-05
 
 GLSL の検査結果を glslang 16.6.0 に合わせた。GLSL 固有のルール (GL0001 など) を追加し、glslang がエラーにする箇所を同じ行で報告する。
-glslang のテスト用シェーダーのうち、glslang がエラーにしないファイルでは、Shaderlyn もエラーを出さない。
+glslang のテスト用シェーダーのうち、glslang がエラーにしないファイルでは、Shaderlyn もエラーを報告しない。
 
 ### 追加
 
 - GLSL 固有のルール (GL) を追加した。glslang 16.6.0 がエラーにする箇所を検査し、同じ行で報告する
-  - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない (配列の大きさに書いた組み込みの定数、uniform のブロックの `std430` を含む)。今は、拡張で足される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
-    その拡張を有効にせずに使ったものと、サブグループの関数に要る拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
-    実引数の型で要る拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize`、`textureGather` など)、`textureSamples` に要るバージョン、
+  - GL0001: その `#version`・拡張・SPIR-V のバージョンでは使えない (配列の大きさに書いた組み込みの定数、uniform のブロックの `std430` を含む)。今は、拡張によって追加される組み込みの関数と変数 (`subgroupAdd`、`gl_SubgroupSize` など) を、
+    その拡張を有効にせずに使ったものと、サブグループの関数に必要な拡張と SPIR-V のバージョン。`#extension` は書いた位置より後ろにだけ効く (glslang と同じ)。
+    実引数の型で必要な拡張が変わる組み込み関数 (float の `atomicAdd`、サンプラーを伴わない `textureSize`、`textureGather` など)、`textureSamples` に必要なバージョン、
     保存用の拡張だけで 16 ビット・8 ビットの型を uniform と buffer の外で使うこと、
     ステージの入力と出力の変数の宣言 (`in` / `out`、整数の入出力、頂点シェーダーの入力の配列、ES の構造体の入出力など)、
-    定数でない添字で引くサンプラー・ブロック・フラグメントシェーダーの出力の配列、
-    ES のジオメトリとテッセレーションのシェーダーの `gl_PointSize`、`samplerExternalOES` に要る拡張、
+    定数でない添字で参照するサンプラー・ブロック・フラグメントシェーダーの出力の配列、
+    ES のジオメトリとテッセレーションのシェーダーの `gl_PointSize`、`samplerExternalOES` に必要な拡張、
     組み込みの関数と変数を、それが無い版とプロファイルで使うこと (1.20 の `trunc`、ES の `gl_ClipDistance`、ES の 3.00 以降の OpenGL 向けの `texture2D(…)` など)、
     組み込みのブロックのメンバーを、それが無い版とプロファイルで使うこと (ES の `gl_in[i].gl_ClipDistance` など)、
-    大きさの決まっていないサンプラーとブロックの配列を定数でない添字で引くこと (`GL_EXT_nonuniform_qualifier`)、
+    大きさの決まっていないサンプラーとブロックの配列を定数でない添字で参照すること (`GL_EXT_nonuniform_qualifier`)、
     配列を作る式 (`float[3](…)`)・初期値のある配列の変数・配列を返す関数・配列の `.length()` (デスクトップの 1.20・ES の 3.00 から。配列を含む構造体と、関数の中で宣言した構造体も見る)、
     配列の配列を返す関数、ES のブロックのインスタンスの配列の配列、ES の関数の中の関数の宣言、
     マクロの本体のトークンの連結 (`##`) と文字列化 (`#`) (デスクトップの 1.30 から。ES では書けない)、浮動小数点数の接尾辞 `f` (デスクトップの 1.20・ES の 3.00 から)、
@@ -215,7 +215,7 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
     uniform のブロック (デスクトップの 1.40・ES の 3.00 から)、波括弧の初期化子 (デスクトップの 4.20 から。ES では書けない)、空の `{}` (`GL_EXT_null_initializer`)、
     関数の外の余分な `;` (デスクトップの 4.60 から。ES では書けない)、
     関数の中の `const` の変数を定数でない式で初期化すること (デスクトップの 4.20 から)、ES で関数の外の変数を定数でない式で初期化すること (`GL_EXT_shader_non_constant_global_initializers`)、
-    型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に要るバージョンと拡張も検査する
+    型 (`double`、`int16_t`、`coopmat` など)・修飾子 (`flat`、`precise` など)・整数の演算子・接尾辞の付いたリテラル・`layout(…)` の名前に必要なバージョンと拡張も検査する
   - GL0002: そのステージでは使えない (フラグメントシェーダーでない `discard`・`terminateInvocation`・`demote`、頂点シェーダーの `shared`、テッセレーションの評価シェーダーの `barrier()`、フラグメントシェーダーの `gl_VertexIndex`、頂点シェーダーの入力のブロック、計算シェーダーの関数の外の `in` / `out` の変数など)
   - GL0003: プリプロセッサの指令の誤り。ES で、`#if` / `#elif` の式に定義されていないマクロを書いた (短絡で評価しない側は除く。glslang と同じ)。
     `#extension` の形の誤り (`:` や振る舞いが無い、`require` / `enable` / `warn` / `disable` でない振る舞い、後ろの余分な記述、`all` の `require` / `enable`)。
@@ -236,15 +236,15 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
     テッセレーションの制御シェーダーの `patch in` と評価シェーダーの `patch out`、`bool` を含む構造体の入力と出力、
     ブロックと違う記憶域のメンバー (`uniform U { in float a; }`)、uniform と buffer のブロックのメンバーの補助・補間の修飾子、2 つの記憶域の修飾子 (`in uniform`)、
     gl_FragCoord でない変数の `origin_upper_left` と gl_FragDepth でない変数の `depth_less` など、構造体の定義の型の無い宣言にだけ書ける layout、
-    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、構造体の定義の layout (型の無い宣言にだけ書けるもの、記憶域の無い変数の `location`、変数の `component`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`、ブロックの数の型のメンバーの `binding`、使った後の入力と出力に足す `invariant`、宣言の無い名前に足す `invariant`。
+    Vulkan 向けの、ブロックの外の数の型の uniform の変数 (`uniform vec4 v;`)、構造体の定義の layout (型の無い宣言にだけ書けるもの、記憶域の無い変数の `location`、変数の `component`)、ブロックと構造体のメンバーの `nonuniformEXT`、ブロックの行列と構造体のメンバーの `component`、ブロックの数の型のメンバーの `binding`、使った後の入力と出力に追加する `invariant`、宣言の無い名前に追加する `invariant`。
     修飾子の組み合わせと順 (補助・補間の修飾子の重複、`patch` と補間の修飾子、4.20・ES の 3.10 より前の順、頂点シェーダーの入力の `flat` など)。
     フラグメントシェーダーの出力の修飾子と型 (`flat out`、`out mat2x3` など)、`flat` の無い整数の入力、
     構造体のメンバーの layout などの修飾子、ブロックの補間の修飾子、イメージでない変数のメモリの修飾子、出力でない変数の `invariant`、関数の戻り値の `const` などの記憶域の修飾子。
-    仮引数でない変数の `in` 以外の記憶域の `nonuniformEXT`、既にある名前に `invariant` と `precise` 以外の修飾子を足す宣言 (`centroid gl_Position;`、`layout(std140) inst;`)
+    仮引数でない変数の `in` 以外の記憶域の `nonuniformEXT`、既にある名前に `invariant` と `precise` 以外の修飾子を追加する宣言 (`centroid gl_Position;`、`layout(std140) inst;`)
   - GL0102: layout に無い名前を書いた (そのステージに無い名前を含む)
   - GL0103: layout の値が正しくない (負の数 (`4294967295` のように int で負になる数も)、上限を越える数、2 のべき乗でない `align`、リテラルでない値、前の宣言と違うプリミティブ、`location` の重なり、変換フィードバックの `xfb_offset` の重なりと揃え (最初の成分の大きさ、double を含めば 8 の倍数) と `xfb_stride` の食い違い、ブロックと違うメンバーの `xfb_buffer` と `stream`、
     std140 / std430 のブロックのメンバーの揃わない `offset` と前のメンバーに重なる `offset`、同じ binding で重なる `atomic_uint` の `offset` など)
-  - GL0104: layout に要る指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
+  - GL0104: layout に必要な指定が無い (SPIR-V を作るときの入力と出力の `location`、ブロックの `binding`、`atomic_uint` の `binding` など)
   - GL0201: ES で、精度を決めていない型 (フラグメントシェーダーの `float` など) を宣言している
   - GL0301: 演算子を使えない型の組に使った (`vec3 + vec4`、`float + bool`、`mat4 * vec3`、ベクトルの `<` など)。暗黙の変換は glslang と同じに扱う。配列そのもの・サンプラー・イメージ・`atomic_uint`・`void` の値への演算子と、`?:` の 2 つの枝の型が合わないものも報告する。サンプラーとイメージ (とそれを含む構造体) への代入と、それを含む構造体の `==` / `!=`、文字列への演算子 (`"o" + "k"`) も報告する
   - GL0302: 組み込み関数に、実引数の型に合う形が無い (`sampler2D` の `texture` に `vec3` を渡すなど)。そのバージョンにだけ無い引数の数 (ES の 3.00 の `textureSize(s)`) も報告する。添字を付けない配列を、配列を取らない組み込み関数に渡したもの (`sin(a)`、`interpolateAtCentroid(inArray)`) と、文字列のリテラルを渡したもの (`length("abc")`) も報告する
@@ -252,7 +252,7 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
   - GL0305: テッセレーションの制御シェーダーの `barrier()` と `beginInvocationInterlockARB()` / `endInvocationInterlockARB()` を、main の外・流れを分ける文の中・return の後で呼んだ。interlock の関数を 2 回以上呼んだ。サンプラーの値の作成 (`sampler2D(t, s)`) を、利用者の関数の実引数・`?:` の枝・カンマの演算子の項に書いた
   - GL0306: `interpolateAt*` の第 1 引数に入力の変数でない値を、アトミックの関数と協調行列の読み書きの関数に buffer のブロックでも shared の変数でもない値を渡した。イメージのアトミックの関数に、形式が r32i / r32ui (ES の浮動小数点数は r32f) でないイメージを渡した
   - GL0307: 定数の添字が負の数か、配列の大きさ・ベクトルの成分の数・行列の列の数以上。組み込みの配列 (`gl_FragData`、`gl_BoundingBox`、`gl_SampleMask`、テッセレーションの制御シェーダーの `gl_out`) と、外側の大きさを省いて初期化した配列も見る
-  - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で引いた・`length()` を使った。
+  - GL0308: 大きさの決まっていない配列 (buffer のブロックの最後のメンバーを除く) を、定数でない添字で参照した・`length()` を使った。
     ジオメトリシェーダーの `gl_in` などとテッセレーションの制御シェーダーの `gl_out` などを、`layout(triangles) in;` / `layout(vertices = N) out;` で大きさが決まる前に使ったものも報告する
   - GL0309: 書き込めない値 (`const`、uniform、ステージの入力、`readonly` の buffer、変数でない値、入力と定数の組み込みの変数、`early_fragment_tests` を宣言した後の `gl_FragDepth`、`gl_FragColor` と一緒に使う `gl_FragData` など) に、代入・`++` / `--`・out の実引数で書き込んだ
   - GL0310: `writeonly` の buffer のブロックの値を読んだ
@@ -276,9 +276,9 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
   - GL0406: 組み込みの変数とブロックの宣言し直しが正しくない。型・記憶域・修飾子の変更、使った後の宣言し直し、`gl_FragCoord` の layout と `gl_FragDepth` の depth の食い違い、
     配列の大きさの変更、`gl_PerVertex` の 2 度目の宣言し直し・余分なメンバー・メンバーの型と配列かどうかの変更・含めなかったメンバーの使用など (glslang と同じ)
 - GL のルールは、上に加えて次のものも報告する
-  - GL0104 (layout に要る指定が無い) は、OpenGL 向けの SPIR-V を作るときの location の無いブロックの外の uniform、テッセレーションの制御シェーダーの `layout(vertices = …) out;`、評価シェーダーの入力のプリミティブ、
+  - GL0104 (layout に必要な指定が無い) は、OpenGL 向けの SPIR-V を作るときの location の無いブロックの外の uniform、テッセレーションの制御シェーダーの `layout(vertices = …) out;`、評価シェーダーの入力のプリミティブ、
     ジオメトリシェーダーの入力と出力のプリミティブと `max_vertices` が無いもの (glslang のリンクの誤り。`main` の位置で報告する) と、計算シェーダーでワークグループの大きさ (`layout(local_size_x = …) in;`) を宣言する前の `gl_WorkGroupSize` も報告する
-  - GL0001 は、文の属性 (`[[unroll]]` など。`GL_EXT_control_flow_attributes` が要る) も検査する。GL0304 は、正の数でない `[[dependency_length(…)]]` も報告する
+  - GL0001 は、文の属性 (`[[unroll]]` など。`GL_EXT_control_flow_attributes` が必要) も検査する。GL0304 は、正の数でない `[[dependency_length(…)]]` も報告する
   - GL0302 (組み込み関数に合う形が無い) は、長いベクトル (`GL_EXT_long_vector` の `vector<T, N>`) を渡す呼び出しも見る。長いベクトルは暗黙に変換しないので、
     要素の型と要素の数が違う長いベクトルどうし、要素と違う型の変数 (`max(vector<uint, 5>, int)`)、その型の多重定義の無い関数 (`sin(vector<double, 5>)`) を報告する。
     GL0307 (添字が範囲の外) は、長いベクトルの定数の添字も見る
@@ -286,9 +286,9 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
     GL0302 は、`bool` と `bfloat16_t`・8 ビットの浮動小数の型の間の値の作成も報告する
   - テンソル (`GL_ARM_tensors`) の組み込み関数: `tensorSizeARM` の定数でない・階数以上の次元 (GL0303 / GL0304)、
     `tensorReadARM` / `tensorWriteARM` の階数と違う数の座標、要素と違う型のデータ、範囲の外の値の誤り (GL0306 / GL0303) を報告する。
-    仮引数の型の引数の無いテンソル (GL0324) と、拡張の要る要素の型 (`bfloat16_t` など。GL0001) も報告する
-  - バッファの参照 (`layout(buffer_reference)` の型): `==` / `!=`、参照どうしの `+` と `+=` / `-=`、整数から参照を引くもの、
-    大きさの決まっていない配列を含むブロックの参照の足し引きと `[ ]`、別の参照の型への代入 (GL0301)、参照の `[ ]` に要る拡張 (GL0001)、`const` の参照の変数 (GL0101) を報告する
+    仮引数の型の引数の無いテンソル (GL0324) と、拡張の必要な要素の型 (`bfloat16_t` など。GL0001) も報告する
+  - バッファの参照 (`layout(buffer_reference)` の型): `==` / `!=`、参照どうしの `+` と `+=` / `-=`、参照を整数から減算するもの、
+    大きさの決まっていない配列を含むブロックの参照の加減算と `[ ]`、別の参照の型への代入 (GL0301)、参照の `[ ]` に必要な拡張 (GL0001)、`const` の参照の変数 (GL0101) を報告する
   - GL0001 は、保存用の拡張 (`GL_EXT_shader_16bit_storage` など) だけで、16 ビット・8 ビットの型の配列の値の作成、それを含む構造体の値の作成、
     ブロックのメンバーの配列の代入をしたものも報告する
   - レイトレーシング: 任意ヒットでないシェーダーの `terminateRayEXT` / `ignoreIntersectionEXT` (GL0002)、ペイロードと呼び出しのデータの location の重なり (GL0103)、
@@ -306,11 +306,11 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
   - アトミックの関数の 1 つ目の実引数への書き込み (メッシュシェーダーの `taskPayloadSharedEXT` など。GL0309)、バッファの参照の型の入力と出力 (GL0101)、
     定数の名前 (特殊化の定数は既定の値) で大きさを書いた配列の範囲の外の定数の添字 (GL0307) を報告する
   - バッファの参照の先のブロックの大きさを書かない配列の `length()` (GL0308)、別の参照の型の値での初期化と構造体への型の変換 `(S) x` (GL0301)、
-    `uvec2` から参照の型への変換に要る `GL_EXT_buffer_reference_uvec2` (GL0001) を報告する
+    `uvec2` から参照の型への変換に必要 `GL_EXT_buffer_reference_uvec2` (GL0001) を報告する
   - `tileImageEXT` の変数と出力の location の重なりと、location を分け合う型の違い (GL0103)、`traceRayMotionNV` のペイロードの location (GL0306) を報告する
   - 大きさを書かない `atomic_uint` の配列 (GL0402)、初期値を書いた `rayQueryEXT` の変数 (GL0403)、関数の属性 `[[inline]]` と `[[noinline]]` の食い違い (GL0323)、
     ES と 4.20 以前の `textureOffset` の `sampler2DArrayShadow` (GL0001)、`descriptor_heap` の組み合わせたサンプラーと配列でない変数 (GL0101) を報告する
-  - 変換フィードバックの `xfb_offset` を書いた大きさを書かない配列 (GL0103) と、要素ごとに location が要る配列のブロックのメンバーの `location` (GL0101) を報告する
+  - 変換フィードバックの `xfb_offset` を書いた大きさを書かない配列 (GL0103) と、要素ごとに location が必要な配列のブロックのメンバーの `location` (GL0101) を報告する
   - 特殊化の定数で大きさを決めた配列の初期値・代入・比較 (GL0403 / GL0301)、大きさを書かない配列の、大きさの決まっていない配列と空の初期化子での初期化 (GL0403) を報告する
   - `gl_TexCoord`・`gl_ClipDistance`・`gl_CullDistance` の宣言し直しの大きさの上限と、`gl_Color` などの配列への宣言し直しを報告する (GL0406)
   - 加速構造 (`accelerationStructureEXT`) とテンソル (`tensorARM`) の、uniform でない変数を報告する (GL0403)
@@ -332,11 +332,11 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
   - `debugPrintfEXT` と `abortEXT` の 1 つ目の実引数が文字列のリテラルでないもの、`abortEXT` の不透明な型・大きさの決まっていない配列・bool を含む集まり・文字列の実引数 (GL0306)、
     文字列のリテラルの誤ったエスケープ (`\x` の後に桁が無い、`\8` など。GL0315)、数の型の値の作成の文字列 (GL0302) を報告する
   - GL0306 (実引数に渡せない値) は、サンプラーの作成 (`sampler2D(t, s)`) の実引数も見る。1 つ目は次元と値の型が合う配列でないテクスチャ、2 つ目は `sampler` か `samplerShadow`。
-    実引数が 1 つの書き方は `GL_ARB_bindless_texture` が要る (GL0001)
+    実引数が 1 つの書き方は `GL_ARB_bindless_texture` が必要 (GL0001)
 - 設定ファイルの `glsl: auto-map-locations` / `glsl: auto-map-bindings`。`location` と `binding` をコンパイラに決めさせているなら (glslang の `--auto-map-locations` / `--auto-map-bindings`)、
   `true` にすると GL0104 を報告しない
 - 設定ファイルの `glsl:` の節。`target` に GLSL をどこ向けにコンパイルするか (glslang の `--target-env`。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl`)、
-  `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものから引く
+  `spirv` に作る SPIR-V のバージョン (`1.0` ～ `1.6`) を書く。Vulkan 向けなら glslang の `-V` と同じく `VULKAN` を 100 に定義し、組み込みの関数と変数を Vulkan のものを参照する
 - GLSL: glslang 16.6.0 が読む書き方を、拡張のものも含めてすべて読む。次の書き方を構文の誤り (CF0001) にしていた
   - `^^`、16 ビットの整数の接尾辞 `s` / `us` (0.3.1 の既知の問題)、8 ビットの浮動小数点数の接尾辞 (`1.0fe2m1` など)
   - 型の引数を取る型 (`coopmat<…>`、`vector<float, 5>`、`coopvecNV<…>`、テンソル)、`GL_EXT_spirv_intrinsics` (`spirv_instruction(…)`、`spirv_type(…)` など)、
@@ -356,17 +356,17 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
 
 - HL0210 (セマンティクスの重複) は、DXC でコンパイルするエントリポイントの入出力に届く構造体 (メンバーの構造体を含む) ではエラーにする。DXC はコンパイルを止める (FXC は警告で通す)。設定ファイルの `rules:` に HL0210 の重要度を書けば、それに従う
 - SL1030 (プロパティの名前が `_` で始まらない) の既定の重要度を、警告から情報にした。命名の慣習で、Unity の動きは変わらないため
-- UN0301 (シェーダーステージの指定が無い) の既定の重要度を、警告からエラーにした。Unity は警告を出してその Pass をコンパイルから外し、SubShader ごと使えなくなるため。
+- UN0301 (シェーダーステージの指定が無い) の既定の重要度を、警告からエラーにした。Unity は警告を報告してその Pass をコンパイルから外し、SubShader ごと使えなくなるため。
   `#pragma vertex` と `#pragma fragment` の片方だけのもの (サーフェスシェーダーとレイトレーシングを除く) も報告する
 - GLSL の暗黙の変換を glslang と同じにした。有効にした拡張 (`GL_ARB_gpu_shader5`、`GL_NV_gpu_shader5` など) で増える変換を通す。
-  明示的な幅の算術型 (`int16_t` など) の変換は、今までは同じ型でなくても通していたが、glslang と同じく拡張が要るものは誤り (CF0410) にする
+  明示的な幅の算術型 (`int16_t` など) の変換は、これまでは同じ型でなくても通していたが、glslang と同じく拡張が必要なものは誤り (CF0410) にする
 - ES で、`#extension GL_EXT_shader_implicit_conversions : disable` の後ろの暗黙の変換を報告する (CF0410。拡張を有効にしているかを位置ごとに見る)
 - CF0004 (マクロを中身を変えて定義し直す) は、GLSL のファイルではエラーにする。glslang はコンパイルの誤りにするため。
   GLSL では、トークンの間の空白の有無の違い (`#define m (a)` と `#define m ( a)`) も中身の違いとする (glslang と同じ)
   設定ファイルの `rules:` に CF0004 の重要度を書けば、それに従う
 - CF0501 (値を返さない経路がある) は、GLSL のファイルでは警告にする。glslang はコンパイルを通すため (返る値は決まらない)。
   設定ファイルの `rules:` に CF0501 の重要度を書けば、それに従う
-- CF0406 (構造体に使えない演算子) は、GLSL では GLSL の規則で判断する。`==` / `!=` / `?:` は使え、`layout(buffer_reference)` の型はアドレスの足し引きができる
+- CF0406 (構造体に使えない演算子) は、GLSL では GLSL の規則で判断する。`==` / `!=` / `?:` は使え、`layout(buffer_reference)` の型はアドレスの加減算ができる
 - CF0314 (宣言の重複) は、GLSL では関数の外の変数と同じ名前の関数 (宣言だけのものを含む) も報告する。glslang と同じく、GLSL の 1.10 では報告しない
 - CF0314 (宣言の重複) は、GLSL ではブロックの名前も見る。記憶域が同じブロックの名前どうし、ブロックの名前と変数、ブロックのインスタンスの名前、名前の無いブロックのメンバーと関数の外の変数を報告する
 - CF0410 (値を代入先の型へ変換できない) は、GLSL では配列の大きさの違う代入と初期化 (`float a5[5] = a4;`、`int b[3] = int[](3, 2);`、要素の数の違う波括弧の初期化子) と、大きさを書かない配列への代入も報告する。関数の外の変数の初期値 (`int a = true;` など) も検査する
@@ -403,7 +403,7 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
   GLSL では使う位置より前に宣言しなければならないため。CF0101 の文は「… より後ろの位置で、宣言が無いことを根拠にする検査 … を行っていません」になる
 - GLSL: 語が拡張でキーワードか予約語になるかを、`#extension` を書いた位置より後ろでだけ有効として決める (glslang と同じ。`#extension` より前の `sample` は ES の 3.10 では予約語)
 - GLSL: そのバージョンで使えない予約語 (CF0001) があっても、宣言が無いことを根拠にする検査 (CF0310 など) を止めない。glslang は予約語を報告した後も読み進める
-- GLSL: 構造体の宣言の前の修飾子 (`const struct S { … } s = …;` の `const`) を構文木に残す。今までは読み捨てていた
+- GLSL: 構造体の宣言の前の修飾子 (`const struct S { … } s = …;` の `const`) を構文木に残す。これまでは読み捨てていた
 - CF0002 (プリプロセッサの指令の誤り) は、`#line` の形も検査する。行番号の後ろには、ファイル名の文字列か、GLSL の文字列の番号の式を 1 つだけ書ける。
   式はマクロを展開してから読む (`#line L1 + L2`)。後ろに余分な記述があるもの (`#line 10 5 extra`) と、式を評価できないもの (0 による除算など) を報告する。行番号は今までどおり付け替えない
 - GLSL: 名前の無い宣言 (`layout(binding = 0, offset = 4) uniform atomic_uint;`、`flat out int;`) を構文エラー (CF0001) にしていた。glslang と同じく型の無い宣言として読む。
@@ -411,20 +411,20 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
 - GLSL: `__FILE__` を、ファイル名の文字列でなく文字列の番号の 0 に展開する (glslang と同じ)
 - GLSL: `#if` / `#elif` の式を glslang と同じく `int` (32 ビット) で計算する (`-2147483648 / -1` は 0)。評価できない式 (閉じていない括弧など) は、誤りを伝えたうえで通る分岐とする。
   行の頭の `##` を、指令の誤り (CF0002) とする (glslang と同じ。C では `##` の演算子)
-- `#if` で、マクロの展開から出た `defined` を演算子として読む (`#define DEF defined` と `#if DEF MAC`)。clang と glslang と同じ。今までは後ろのマクロを展開して偽にしていた
-- GLSL: 設定ファイルの `glsl: target` が `opengl` で `spirv` を書いたとき (glslang の `-G`)、組み込みの関数と変数を OpenGL 向けの SPIR-V のものから引く (`gl_DepthRange` が無いなど)
+- `#if` で、マクロの展開から出た `defined` を演算子として読む (`#define DEF defined` と `#if DEF MAC`)。clang と glslang と同じ。これまでは後ろのマクロを展開して偽にしていた
+- GLSL: 設定ファイルの `glsl: target` が `opengl` で `spirv` を書いたとき (glslang の `-G`)、組み込みの関数と変数を OpenGL 向けの SPIR-V の一覧から取得する (`gl_DepthRange` が無いなど)
 
 ### 修正
 
 - Unity: `unity: generated` を指定し、プロジェクト (`--unity-project` / `unity: project`) を指定しないと、書き出したパッケージ (`Packages/com.unity.render-pipelines.universal/...` など) を読まず、
   取り込みの誤り (CF0021) と CF0101 になっていた。Editor のヘッダは読めていた
-- GLSL: glslang がエラーにしない書き方を誤りにしていた。glslang の Test (glslang がエラーにしない 755 ファイル) で、誤りを出したファイルが 148 から 0 になった
+- GLSL: glslang がエラーにしない書き方を誤りにしていた。glslang の Test (glslang がエラーにしない 755 ファイル) で、誤りを報告したファイルが 148 から 0 になった
   - `for` の初期化の変数がループの外へ漏れるとしていた。GLSL では漏れない
   - 宣言の初期値の中で、宣言している名前が見えるとしていた (`vec4 p = vec4(p, 1.0);` の右の `p` は外側の `p`)
   - 関数の中で構造体の宣言と同時に宣言した変数 (`struct S { … } s;`) を、宣言されていない名前 (CF0310) にしていた
   - 組み込みの宣言し直し (`layout(origin_upper_left) in vec4 gl_FragCoord;`) と、大きさを書かない配列の宣言し直しを、宣言の重複 (CF0314) にしていた
   - ジオメトリシェーダーの入力と出力の同じ名前のブロック (`in block { … } In[]; out block { … } Out;`) を、宣言の重複 (CF0314) と存在しないメンバー (CF0312) にしていた
-  - 実引数の数が決まらない組み込み (`abortEXT`、`coopMatPerElementNV` など) に、引数の数の誤り (CF0402) を出していた
+  - 実引数の数が決まらない組み込み (`abortEXT`、`coopMatPerElementNV` など) に、引数の数の誤り (CF0402) を報告していた
   - `spirv_instruction` を付けた関数の宣言に、定義が無い (CF0311) と言っていた
   - 64 ビットの整数のリテラル (`1ul`) に、32 ビットに収まらない (CF0511) と言っていた
 - CF0101 の文が、GLSL のファイルでも「HLSL を解析できませんでした」と言っていた
@@ -472,7 +472,7 @@ Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報�
 ### 追加
 
 - GLSL のファイルの宣言・型・呼び出しを、C 系の言語に共通のルール (CF) で検査する (宣言されていない名前、型の変換、引数の数、コンストラクタ、存在しないメンバー、値を返さない経路など)。
-  HLSL にしか無いルール (HL) は出さない
+  HLSL 固有のルール (HL) は適用しない
   - 型は GLSL の決まりで判断する。暗黙の変換は `#version` で変わり (ES と 1.10 には無い)、成分の数の違う値は変換しない。行列を含む `*` は行列の積
   - 組み込み関数と変数は、glslang 16.6.0 を元に作った一覧を参照し、ファイルのステージと `#version` で使えるものとして判定する (頂点シェーダーの `gl_FragCoord` は宣言されていない名前になる)
   - インターフェースブロック (`uniform UBO { … } ubo;` と、インスタンスの名前の無いもの)、`layout(buffer_reference)` のブロック、型の側に書いた配列 (`float[3] a`) を読む
@@ -537,7 +537,7 @@ Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報�
 
 エンジンとプロジェクトの C++ から読み取ったシェーダー登録、パーミュテーション、プロジェクト設定を使って、Unreal Engine のシェーダーを検査できるようにした。
 `--unreal-generate` がマテリアルの `Material.ush` / `VertexFactory.ush` の代わりも作るので、マテリアルのシェーダーも宣言を検査する。
-`#error` に到達する構成を伝える HL0009 / UN0103 と、自作ルール向けに構成を扱う API を足した。
+`#error` に到達する構成を伝える HL0009 / UN0103 と、自作ルール向けに構成を扱う API を追加した。
 GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 0.3.1 で対応する)。
 
 **破壊的変更を含む** (下の「変更」)。自作ルールや独自環境を使う場合は、構文木や環境の型名と名前空間を書き換える。
@@ -548,22 +548,22 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - `#error` に到達する構成を伝える HL0009 (情報) と、Unity のキーワードの構成で `#error` に到達することを伝える UN0103 (エラー) を追加した。
   Unity は宣言したキーワードの構成をすべてコンパイルするため、`#error` に到達する構成があるとシェーダーを使えない (Unity 6.6 では、`multi_compile` の場合にシェーダー全体がピンクになった)。
   公開 API に `ShaderCompilation.ErrorConfigurations` / `GetErrorConfigurationCondition`、`ErrorConfiguration`、
-  `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を足した
+  `PreprocessResult.ConditionalErrorDirectives`、`IShaderEnvironment.PrepareVariant` を追加した
 - 設定ファイルの `rules:` で、キーを `/` で囲むとルール ID の正規表現として重要度を指定できる (`/SL.*/: error`)。
   ID の全体と一致したものだけに効き、ID をそのまま書いた設定が優先する。公開 API に `RuleSeverityPattern` と
-  `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を足した
+  `AnalyzerOptions` の引数 `severityPatterns`、`ShaderlynConfiguration.RuleSeverityPatterns` を追加した
 - CLI も、解析するファイルごとに一番近い設定ファイルを使う (VS Code 拡張と同じ)。フォルダーごとに置いた設定ファイルは、その配下のファイルにだけ適用される。
   HLSL 以外の言語のファイルは、`environment` に関わらず拡張子の環境で解析する (Unity のプロジェクトにある `.wgsl` は WGSL として読む)。
   `--config` を指定すれば、今までどおりすべてのファイルにその設定ファイルを使う
-- GLSL の環境 `glsl` を足した。`.vert` / `.frag` / `.comp` などと `.glsl` を、設定ファイルが無くても GLSL として解析し、
+- GLSL の環境 `glsl` を追加した。`.vert` / `.frag` / `.comp` などと `.glsl` を、設定ファイルが無くても GLSL として解析し、
   構文の誤り (HL0001)・プリプロセッサ指令の誤り・解決できない `#include` (HL0321) を指摘する。VS Code 拡張でも同じく指摘する。
   宣言・型・呼び出しの検査と、VS Code 拡張の説明・定義へ移動・補完は 0.3.1 で対応する予定
   ([GLSL](docs/guide/environments/glsl.md))
 - 環境 `godot` / `slang` / `wgsl` を追加した (開発中)。拡張子でファイルを集めるが、まだ何も指摘しない
-- 自作ルール向けに、構成を扱う API を足した ([API リファレンス](docs/custom-rules/api-reference.md))
+- 自作ルール向けに、構成を扱う API を追加した ([API リファレンス](docs/custom-rules/api-reference.md))
   - `ShaderNodeAnalysisContext.ReportWhen`: 構成の条件が付く報告。ノードの条件と木の構成を掛け、ありえない構成と `#error` に到達する構成を除き、
     同じ位置の報告は Pass と構成をまたいで条件の和をとって 1 件にする。メッセージの `{0}` に「構成：○○ のとき、」が入る。
-    `ShaderRuleAnalyzer` を使わないアナライザ向けに、同じことをする `ConditionalReports` も足した
+    `ShaderRuleAnalyzer` を使わないアナライザ向けに、同じことをする `ConditionalReports` も追加した
   - `RegisterNodeAction` の `NodeActionOptions`: エントリポイントから届く関数の中だけ (`ReachableFromEntryPoints`)、
     ある構成で存在しうるノードだけ (`When`。`SymbolCondition` か `"defined(_A) && QUALITY >= 2"` のような `#if` の書き方の文字列) で呼ぶ
   - `ShaderCompilation.EnumerateCallees`: 呼ばれる関数を、深さとそこへ至る構成を付けてたどる
@@ -605,14 +605,14 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
     評価できないメンバーの呼び出し (関数の中の static な変数の `CVar.Get(…)` など) は、その部分だけを値の分からないものにして式の残りを読む
   - 公開 API に `UnrealShaderClass` の `Varying` / `Exclusions` / `NeverCompiled`、`UnrealConsoleVariables`、`UnrealShaderClasses.ReadGlobalDefines`、
     `UnrealMaterialGenerator`、`UnrealVertexFactories`、`ShaderCompilationUnit.Enable16BitTypes`、`ShaderCompilation.IsPossibleIn`、
-    `ShaderlynConfiguration.UnrealPermutations`、`HlslEnvironmentOptions.SelectUnitPrelude` を足した
+    `ShaderlynConfiguration.UnrealPermutations`、`HlslEnvironmentOptions.SelectUnitPrelude` を追加した
 - Unreal Engine: 登録したクラスがどれも、どのパーミュテーションでも PC の Direct3D 12 (SM6) ではコンパイルされないファイル
   (モバイルだけ、コンソールだけのシェーダー) は解析せず、そのことを UE0003 で伝える。パーミュテーションを軸にしない設定でも働く。
-  公開 API に `ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を足した
+  公開 API に `ShaderCompilationUnit.NotCompiledReason`、`ShaderCompilation.NotCompiledUnits` を追加した
 - Unreal Engine: `--unreal-generate` が、読んだ ini の中身のハッシュと C++ のファイルの一覧・更新日時・大きさを記録する
   (`ShaderlynGenerationStamp.tsv`)。解析を始めるときに比べ、生成した後に ini や C++ が変わっていたら、作り直すよう伝える
   (CLI は標準エラー、VS Code 拡張は通知)。UE 5.5 のエンジンで、確かめるのに約 2 秒かかる。
-  公開 API に `UnrealGenerationStamp` と `UnrealGenerationStaleness` を足した
+  公開 API に `UnrealGenerationStamp` と `UnrealGenerationStaleness` を追加した
 
 ### 変更
 
@@ -623,7 +623,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   解析済みのコードは `ShaderSyntaxTree` になり、`HlslSyntaxTree` に残る HLSL の解析メソッドは `HlslSyntaxTree.Parse` のみになった。
   木の HLSL に固有の値 (`CompileTargets` など) は `tree.Hlsl()` から読む。
   `PreprocessorOptions` の HLSL のコンパイラとバージョンの設定 (`Dialects`・`LanguageVersion` など) は `HlslLanguageOptions` へ移し、
-  `PreprocessorOptions.Language` に入れて渡す。
+  `PreprocessorOptions.Language` に指定して渡す。
   書き換えの手順は [0.2.1 から 0.3.0 へ移行する](docs/guide/migration-0.3.0.md) にある
 - **破壊的変更:** 自作ルールの基底クラスの名前から `Hlsl` を外した。`HlslRuleAnalyzer` → `ShaderRuleAnalyzer`、
   `InitializeHlsl` → `InitializeShader`、`HlslAnalysisContext` → `ShaderAnalysisContext`、
@@ -632,7 +632,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   `HlslCompilationUnit` → `ShaderCompilationUnit`、`HlslEntryPoint` → `ShaderEntryPoint`。
   `compilation.Environment` と `HostEnvironment` は `IShaderEnvironment` を受け取る。`IHlslEnvironment` の実装は、型の名前の書き換えだけで動く
 - **破壊的変更:** 型の分類と形の名前から `Hlsl` を外した (`HlslTypeClass` → `ShaderTypeClass`、`HlslNumericShape` → `ShaderNumericShape`、
-  `HlslNumericKind` → `ShaderNumericKind`)。言語の型システム (型と組み込み関数) を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を足した。
+  `HlslNumericKind` → `ShaderNumericKind`)。言語の型システム (型と組み込み関数) を尋ねる `compilation.TypeSystem` (`ShaderTypeSystem`) を追加した。
   HLSL の表 (`HlslTypeClassifier` など) はそのまま使える
 - **破壊的変更:** マクロを中身を変えて定義し直していることを、HL0002 (プリプロセッサ指令の誤り、エラー) から
   新しい HL0008 (警告) に分けた。DXC も FXC も警告にするだけで、後の定義を使ってコンパイルを続けるため。
@@ -647,7 +647,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   参照する名前の宣言やマクロが違う宣言は、それぞれで検査する。指摘は変わらない。
   UE 5.5 のエンジン (526 ファイル) では、登録単位の解析時間が 386 秒から 266 秒に、パーミュテーションを有効にした場合は 553 秒から 334 秒に短縮された
 - URP0002 (定数バッファの中のテクスチャとサンプラ) の既定の重要度を、警告から情報に下げた。
-  コンパイラが定数バッファの外へ出すので、動作も SRP Batcher との互換も変わらない (Unity 2022.3〜6.6 の URP で、各 API について確かめた)。
+  コンパイラが定数バッファの外へ出力するため、動作も SRP Batcher との互換も変わらない (Unity 2022.3〜6.6 の URP で、各 API について確かめた)。
   Unity 2022.3 の DXC で Metal 向けにコンパイルするときだけはエラーになるので、そのコンパイル先があればエラーとして報告する
 - DXC の HLSL 2021 で `select` / `and` / `or` を呼んだとき、呼び出しの解決 (`ResolveCall`) が、宣言されていない関数ではなく組み込み関数として扱う。
   使えるかどうかをコンパイラと HLSL のバージョンで判定するようになった (`IsKnownFunction` に木を渡す)。HLSL 2021 より前と FXC では、今までどおり宣言されていない関数である
@@ -707,7 +707,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
   Unity は `#include_with_pragmas` の連なりで取り込んだファイルの `#pragma` だけを使う
   (`#include` の先の `#pragma` は「unknown pragma ignored」になる。2022.3 / 2023.2〜6.6 で確かめた)。
   Unity 2022.3 では、どのファイルから取り込んだ `#pragma` も使う。Unity のバージョンが不明な場合も、従来どおり同じ扱いにする。
-  プリプロセッサの設定 `PragmaIncludeDirectives` を足し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に入れる
+  プリプロセッサの設定 `PragmaIncludeDirectives` を追加し、使わない `#pragma` は `PreprocessResult.IgnoredPragmas` に格納する
 - Unity: キーワードを付けた `#pragma target 4.5 DOTS_INSTANCING_ON` を、そのキーワードの構成の `SHADER_TARGET` に使う。
   URP の DOTS_INSTANCING_ON の構成を `SHADER_TARGET` 3.5 で読み、`UnityInstancing.hlsl` の `#error` に到達していた
 - Unreal Engine: すべての uniform buffer を取り込んでいたので、シェーダーが自分で宣言した同じ名前 (uniform buffer のリソースを平らにした名前) と重なり、
@@ -777,7 +777,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
   - どの環境でも報告する解析状況の通知: SL0002 / SL0003 / SL0004 → HL0005 / HL0006 / HL0007
   - Unity に固有の振る舞い (接頭辞 UN、上 2 桁で分類): ファイルの読み込み UN00xx (SL1056 → UN0001)、
     プリプロセッサと取り込み UN01xx (SL1055 → UN0101)、コンパイラの選び方 UN02xx (SL1050 → UN0201、SL1051 → UN0202、
-    SL1053 → UN0203、SL1054 → UN0204、SL1052 → UN0205)、ステージ UN03xx (HL0302 → UN0301)。0.2.1 で足した UN0002 / UN0102 も同じ分類に置く
+    SL1053 → UN0203、SL1054 → UN0204、SL1052 → UN0205)、ステージ UN03xx (HL0302 → UN0301)。0.2.1 で追加した UN0002 / UN0102 も同じ分類に置く
   - 前の ID は使えない。抑制コメント・設定ファイルの `rules:`・ベースライン (`--write-baseline` で作り直せる)、
     ID で絞り込んでいる CI の設定やスクリプトは、今の ID に書き換える
 - Unreal Engine: 言語のバージョンを、エンジンの設定 (`DataDrivenPlatformInfo.ini` の `EnablesHLSL2021ByDefault`) に合わせてシェーダーごとに決める。
@@ -793,7 +793,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
 - Unity: 共通コード片 (`HLSLINCLUDE` / `CGINCLUDE`) の扱いを Unity 6.6 に合わせる。Unity はファイルの中の同じ種類の共通コード片をすべて
   ファイルの順につなぎ、どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader や Pass の中のものも)。
   以前は、囲むブロックのものだけを書いた位置のまま並べていた。Pass より後の共通コード片のマクロが効かず「宣言されていない」(HL0310) と誤って報告し、
-  別の SubShader の共通コード片の関数も見なかった。逆に `CGINCLUDE` を `HLSLPROGRAM` に入れていた (Unity は入れない) ので、その誤りを見逃していた
+  別の SubShader の共通コード片の関数も見なかった。逆に `CGINCLUDE` を `HLSLPROGRAM` に含めていた (Unity では含めない) ので、その誤りを見逃していた
 - Unity: ほかのヘッダを引けていて、Unity 同梱のヘッダ (`UnityCG.cginc` など) だけを引けないとき、HL0321 に直し方が無かった。
   Editor が見つからなければ `--unity-editor` の指定を案内する
 - Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) の Editor は、同梱のヘッダ (`UnityCG.cginc` など) を `Data/Resources/CGIncludes` に置いている。
@@ -806,9 +806,9 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
 - 同じヘッダを複数の Pass が取り込み、キーワードを宣言する Pass と宣言しない Pass が混ざっていると、
   宣言しない Pass でも、ヘッダの `#if` の分岐にそのキーワードの条件を付けていた。
   「構成：A のとき 'a' は宣言されていません」(HL0310) や「値を返さない経路が存在します」(HL0360) を誤って報告していた
-- Unity: ヘッダの中の `#include "..."` を、そのヘッダから引けなければ、解析しているシェーダーからの相対で引き直す (Unity 6.6 と同じ)。
+- Unity: ヘッダの中の `#include "..."` を、そのヘッダから引けなければ、解析しているシェーダーからの相対で再検索する (Unity 6.6 と同じ)。
   シェーダーからの相対で書いた取り込みを、解決できない (HL0321) と誤って報告していた。
-  引き直して見つけたときは、解析は続けたうえで、別のフォルダーのシェーダーからは見つからなくなることを [UN0102](docs/rules/UN0102.md) (警告) で伝える。
+  再検索して見つけたときは、解析は続けたうえで、別のフォルダーのシェーダーからは見つからなくなることを [UN0102](docs/rules/UN0102.md) (警告) で伝える。
   直し方 (ヘッダからの相対パス) を添え、VS Code ではそのまま置き換えられる
 - 取り込みの展開結果を使い回すとき、入れ子で使い回した取り込みの「解決できなかった取り込み」などが、外側の取り込みの記録から抜けていた。
   ファイルを並べて解析すると、解決できない取り込みが消えて宣言が揃っていると判断し、宣言の検査を誤って行うことがあった。
@@ -840,7 +840,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - シェーダーモデル 6.1〜6.9 の組み込み関数 (メッシュシェーダー、`WaveMatch` / `WaveMultiPrefix*`、`QuadAny` / `QuadAll`、`Barrier` など)、
   ディスクリプタヒープ (`ResourceDescriptorHeap` / `SamplerDescriptorHeap`)、`RayQuery` / `FeedbackTexture2D` / `RasterizerOrdered*` の型、
   メッシュシェーダーの引数の修飾子 (`vertices` / `indices` / `primitives` / `payload`)。`select` / `and` / `or` は HLSL 2021 のときだけ組み込み関数とする
-- 独自エンジンの環境を書いて足す口 (`IHlslEnvironment`、`HostEnvironment`、`Program.RunAsync` と `ShaderLanguageServer` の多重定義)。
+- 独自エンジンの環境を書いて追加する口 (`IHlslEnvironment`、`HostEnvironment`、`Program.RunAsync` と `ShaderLanguageServer` の多重定義)。
   実例集に例がある ([独自エンジンの環境](docs/custom-rules/cookbook.md#独自エンジンの環境))
 - VS Code 拡張: 呼び出しの案内 (引数の形) に HLSL 2021 の template 関数も含める (`template<T, U> T Mix(T a, U b, float t)`)
 - VS Code 拡張: `.hlsli` / `.usf` / `.ush` も開く。構成の選択で、値を持つシンボルは `QUALITY = 2` のように値を選ぶ
@@ -882,7 +882,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - HLSL 2021 の演算子の多重定義 (`Complex operator+(Complex other)`、`operator[]`、`operator()`) を関数として読み、本体も検査する。
   `(a + b).re` のように演算の結果を使う式は、演算子の戻り値の型として読む。構文木は `FunctionDeclarationSyntax` (`IsOperator` / `OperatorTokens`)
 - HLSL 2021 の構造体のメソッドの呼び出し (`s.Get()`) を検査する。無いメソッドを HL0312、引数の個数の違いを HL0341 で報告し、
-  戻り値の型を読む (`s.Get().q`)。`operator[]` (`s[0]`) と `operator()` (`s(0.5)`) の戻り値の型も読む。継承した基底のメソッドも引く
+  戻り値の型を読む (`s.Get().q`)。`operator[]` (`s[0]`) と `operator()` (`s(0.5)`) の戻り値の型も読む。基底から継承したメソッドも検索する
 - HLSL 2021 の `template` の関数と構造体を読み、本体も検査する。型引数 (`T`) を含む型は分からない型として扱い、それを根拠に指摘しない。
   型引数を書いた呼び出し (`Twice<float4>(x)`、`buffer.Load<float4>(i)`) を読む。型引数を書かない呼び出しは、DXC と同じ規則で実引数から型引数を推論する。
   戻り値が型引数そのものなら、書いた型か推論した型に置き換える (`Twice(p).q` を HL0312)
@@ -892,11 +892,11 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - 新しいルール HL0346 (構造体に使えない演算子)。演算子を定義していない構造体への演算 (`a + b`、`-a`、`a == b`)、
   右辺だけが構造体の演算 (`2 * a`)、条件演算子で構造体を選ぶ式 (`k > 0 ? a : b`)、複合代入と増減 (`a += b`、`a++`)、
   多重定義できない演算子の定義 (`operator++`、`operator+=`、`operator<<`)、構造体の外の演算子の定義 (DXC 1.8 はエラー) を報告する
-- 新しいルール HL0347 (enum の値の型が合わない)。数や別の enum の値を enum へ入れる式 (`Mode m = 1`)、
+- 新しいルール HL0347 (enum の値の型が合わない)。数や別の enum の値を enum へ代入する式 (`Mode m = 1`)、
   enum class の値を数として使う式 (`int x = Mode::A`)、enum class への演算子 (`Mode::A + 1`、`m == 1`)、enum の増減を報告する。
   無い列挙子 (`Mode::C`) は HL0312 で報告する
 - HLSL 2021 で、構造体が関わる暗黙の変換を検査する。別の構造体の値 (`P p = q`)、数と構造体の間 (`P p = 0`、`float f = p`) を、
-  初期化・代入は HL0350、実引数は HL0340、return は HL0351 で報告する。派生した構造体を基底へ入れるのは正しい
+  初期化・代入は HL0350、実引数は HL0340、return は HL0351 で報告する。派生した構造体を基底型へ変換するのは正しい
 - HLSL 2021 の `class` / `interface` を構造体と同じに読み、メンバー・メソッド・継承を検査する。
   `template` の明示的な特殊化 (`template<> float Twice<float>(float x)`、`template<> struct Box<float>`) も読み、本体を検査する
 - HLSL 2021 の構造体のメソッドの中の `this` を読む (`this.x`)
@@ -906,7 +906,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   構文木は `TemplateDeclarationSyntax`、`InvocationExpressionSyntax.TypeArgumentTokens`
 - 汎用の HLSL 環境で、ライブラリ (`lib_6_x`) とターゲットの分からない単位では、宣言だけの関数 (HL0311) を報告しない。
   定義はリンクするほかのライブラリにありうる (`HlslCompilationUnit.AllowsExternalDefinitions`)
-- GitHub Action に入力 `environment` を足した
+- GitHub Action に入力 `environment` を追加した
 - 環境ごとの設定ファイルのテンプレートと、試すためのシェーダー ([samples/environments](samples/environments/))。
   汎用の HLSL には HLSL 2021 の構文を使うシェーダーと、DXR のライブラリ (`lib_6_6`) の単位がある
 
@@ -930,20 +930,20 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   `SemanticsOptions.PredefinedMacros` は `null` で「環境の既定」を表す
 - **破壊的変更:** 構文木を読む方言を `PreprocessorOptions.Dialects` (`HlslDialect` の並び) で持つ。既定は FXC (以前の既定は HLSL 2018)。
   `LanguageVersion` は DXC 1 つの略記として残した。`HlslIntrinsics.IsKnownFunction` は言語のバージョンの代わりに `HlslLanguageFeatures` を受け取る。
-  `HlslLanguageVersion` の値はバージョンの数そのもの (`Hlsl2018 = 2018`) になり、`Hlsl2016` / `Hlsl2017` を足した
+  `HlslLanguageVersion` の値はバージョンの数そのもの (`Hlsl2018 = 2018`) になり、`Hlsl2016` / `Hlsl2017` を追加した
 - **破壊的変更:** 設定ファイルの `profile` は `unity:` の節に書く。節の外の `profile` も読むが、TOOL0003 で移すよう伝える。
   既定の `--error-on warning` ではこの警告で終了コードが 1 になるので、上げる前に移すこと
 - **破壊的変更:** `--profile` / `--unity-project` / `--unity-editor` を Unity 以外の環境で指定するとエラーにする
 - 言語サーバー: 設定ファイルを、開いたファイルから上へたどって探す (CLI と同じ)。これまではワークスペースのルートにしか設定ファイルを置けなかった。
   設定ファイルを書き換えると、次の解析から反映される (ウィンドウの再読み込みは不要)
 - Unity の環境でも `.hlsli` / `.usf` / `.ush` を HLSL として読む。これまでは、ファイル名を指定して解析すると ShaderLab として読み、SL0001 を報告していた
-- 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに `declared` と、値を持つシンボルの `variable` / `value` を足した。
+- 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに `declared` と、値を持つシンボルの `variable` / `value` を追加した。
   `declaredByPragma` は同じ値で残してある
 - HL0301 の文の `#pragma {0}` を `{0}` にした。Unity では従来と同じ文になり、汎用の HLSL 環境では `設定ファイルの entry が指定する…` と表示する
 - HL0003 の題を「この環境では使えない構文です」にした。文は Unity では今までどおり「… は Unity のシェーダーでは使えません」、
   汎用の HLSL・Unreal の HLSL 2018 では「… は HLSL 2018 では使えません」になる
 - SL0002 の文の主語を環境で変える。ファイル全体の木を持たない環境では「宣言が無いことを根拠にする検査」と言う
-- 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに、属するすべての組の番号 `groups` を、結果に組ごとの `requiresOne` を足した
+- 言語サーバー: `shaderlyn/conditionSymbols` の各シンボルに、属するすべての組の番号 `groups` を、結果に組ごとの `requiresOne` を追加した
 
 ### 修正
 
@@ -974,7 +974,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   ほかの多重定義を呼ぶ正しい呼び出しを HL0340 と報告していた。
 - マクロを変えて同じヘッダを何度も取り込み、同じ位置から別の名前の関数を作ると (Unreal Engine の DoubleFloat.ush)、2 つ目からの名前を HL0310 と報告していた。
 - `_Static_assert(式, "文")` / `static_assert(...)`、2 進数のリテラル (`0b1010`)、大域の名前 (`::Func(...)`)、型引数を書いた型の静的メンバー
-  (`TVec<float, 2>::Const(1.0)`) を構文エラー (HL0001) にしていた。どれも DXC が受け付ける (`GenericNameExpressionSyntax` を足した)。
+  (`TVec<float, 2>::Const(1.0)`) を構文エラー (HL0001) にしていた。どれも DXC が受け付ける (`GenericNameExpressionSyntax` を追加した)。
 - 左辺の型が分からない式と構造体の演算を、HL0346 と報告していた (左辺の構造体の演算子が使われるかもしれない)。
 - 1 つの文で条件によって中身が変わるマクロを 2 つ以上使うと、1 つだけを複製し、もう一方は構成ごとに展開していた。
   名前と数値のように同じ位置が別の種類の式になると SL0004 になっていた。定義の組み合わせ (8 通りまで) ごとに複製する。
@@ -997,7 +997,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` などコンパイラを切り替えるキーワードを、条件に書いていないというだけで HL0331 と報告していた。
 - `--unity-project` を付けずに解析すると、`../Lib/Lib.hlsl`・`Assets/...`・`Packages/...` の `#include` を、理由を言わずに HL0321 と報告していた。
   Unity プロジェクトとして解析するなら --unity-project を指定するよう、見つけたプロジェクトを添えて伝える (プロジェクトは推定しない)。範囲の外のファイルは、そのことを伝える。
-  設定ファイルを置いたフォルダーは読んでよい範囲に入れた。
+  設定ファイルを置いたフォルダーは読み取り可能な範囲に含めた。
 - 解析対象をフォルダーを付けずに渡すと (`shaderlyn Main.shader`)、同じフォルダーのヘッダも引けなかった。
 - 読んでよい範囲の外にあるファイルを、ただ「解決できない」と報告していた。範囲の外なので読まないことと直し方を HL0321 の文に添える。
 - SL1050 が、利用者のヘッダに書いた `#pragma use_dxc` をコードブロックに書いたものとして扱っていた。
@@ -1041,7 +1041,7 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確か
   条件の付いた要素やメンバーが片側にしか無い初期化も報告し、食い違う構成をメッセージに添える
 - VS Code 拡張: 補完の候補を、カーソルの位置で書けるものに絞る。
   `#` の後ろでは指令の名前、`#pragma` の後ろでは pragma の名前、`#if` / `#ifdef` ではシンボルとマクロを出し、
-  コメント・文字列の中と ShaderLab の部分では HLSL の候補を出さない
+  コメント・文字列の中と ShaderLab の部分では HLSL の候補を出力しない
 
 ### 修正
 

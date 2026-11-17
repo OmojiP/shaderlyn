@@ -1,7 +1,7 @@
 # 環境ごとの設定ファイルのテンプレート
 
 `.shaderlyn.yaml` を環境ごとに書いた例と、動作を確かめるためのシェーダーです。
-シェーダーには意図的に誤りを入れてあり、下の表の指摘が出れば正しく動いています。
+シェーダーには意図的な誤りを含んでおり、下の表の指摘が報告されれば正しく動いています。
 どれも Unity や Unreal Engine、glslang が無くても解析できます。
 
 自分のプロジェクトで使うときは、フォルダーの `.shaderlyn.yaml` を写し、パスと構成の軸を書き換えてください。
@@ -17,7 +17,7 @@
 | [slang](slang/) | `slang` | `import` するモジュールと、それを使うフラグメントシェーダー |
 | [wgsl](wgsl/) | `wgsl` (WebGPU) | 計算・頂点・フラグメントのエントリポイントを並べた `.wgsl` 1 つ |
 
-独自エンジンの環境は設定ファイルだけでは選べません (自前の CLI に環境を足す)。
+独自エンジンの環境は設定ファイルだけでは選べません (自前の CLI に環境を追加する)。
 [ルールの実例集「独自エンジンの環境」](../../docs/custom-rules/cookbook.md#独自エンジンの環境) を見てください。
 
 ## CLI で確かめる
@@ -44,17 +44,17 @@ shaderlyn samples/environments/hlsl --env
 | unity | `SL1003` (Color のプロパティを float で受けている)、`CF0201` (`_SHADOWS_SOFTT` の綴り)、`CF0312` (`_SHADOWS_SOFT` のとき float3 に `.w` は無い) |
 | hlsl | `Lit.hlsl`: `CF0301` (entry の `MainPS` が無い。関数は `MainPs`)、`CF0312` (`QUALITY == 2 のとき` float3 に `.a` は無い)。<br>`Hlsl2021.hlsl`: `HL0345` (`MaxOf(1.0, adapt.Scale())` の接尾辞の無い `1.0` と `float` で型引数 `T` が決まらない)、`CF0312` (演算子 `*` の結果の `Rgb` に `.alpha` は無い)。<br>`Blur.hlsl` と `Library/Raytracing.hlsl` には何も出ない (`Raytracing.hlsl` の宣言だけの関数 `SkyColor` は、ライブラリなので誤りにしない) |
 | unreal | `UE0001` (情報。エンジンが生成するファイル `/Engine/Generated/GeneratedUniformBuffers.ush` が無い。`--unreal-generate` で作れる)、`CF0312` (`PERMUTATION_HIGH_QUALITY == 1 のとき`)。`View.PreExposure` は報告されない |
-| glsl | `lit.vert`: `GL0104` (Vulkan 向けでは出力の `vNormal` に `layout(location = …)` が要る)。<br>`lit.frag`: `CF0312` (`USE_FOG` を定義したときの分岐で、vec3 に `.w` は無い)。<br>`average.comp`: `GL0001` (`subgroupAdd` には `GL_KHR_shader_subgroup_arithmetic` が要る)。<br>`include/lighting.glsl`: `CF0101` (情報。取り込まれる断片なので、単体では宣言が無いことを根拠にする検査をしない) |
+| glsl | `lit.vert`: `GL0104` (Vulkan 向けでは出力の `vNormal` に `layout(location = …)` が必要)。<br>`lit.frag`: `CF0312` (`USE_FOG` を定義したときの分岐で、vec3 に `.w` は無い)。<br>`average.comp`: `GL0001` (`subgroupAdd` には `GL_KHR_shader_subgroup_arithmetic` が必要)。<br>`include/lighting.glsl`: `CF0101` (情報。取り込まれる断片なので、単体では宣言が無いことを根拠にする検査をしない) |
 | godot | `GD0001` (`project.godot` のレンダラーが Compatibility なので、`textureGather` は使えない)、`CF0410` (`ROUGHNESS = 1;` の int を float に入れられない) |
 | slang | `lit.slang`: `CF0310` (`USE_FOG` を定義したときの分岐で、`fogColor` が宣言されていない)。import する `modules/lighting.slang` には何も出ない |
-| wgsl | `WG0309` (`read_write` でない `var<storage>` の粒子に書き込んでいる)、`CF0410` (`u32` を `f32` の変数に入れている。WGSL は暗黙に変換しない) |
+| wgsl | `WG0309` (`read_write` でない `var<storage>` の粒子に書き込んでいる)、`CF0410` (`u32` を `f32` の変数に代入している。WGSL は暗黙に変換しない) |
 
 ## VS Code 拡張で確かめる
 
 各フォルダーをワークスペースとして開くか、リポジトリのルートを開いて各フォルダーのファイルを開きます。
 設定ファイルは、開いたファイルから上へ辿って一番近いものが使われます。
 
-- シェーダーを開いて保存すると、上の表の指摘が出る
+- シェーダーを開いて保存すると、上の表の指摘が報告される
 - エディタの右上の「条件のシンボルを選ぶ」で構成を選ぶと、効いていない `#if` の範囲が薄くなる。
   hlsl では `QUALITY = 0 / 1 / 2` のように値を選ぶ。unreal では `PERMUTATION_SAMPLES = 2` を選ぶと `#if PERMUTATION_SAMPLES > 1` の中が濃くなる
 - hlsl の `Hlsl2021.hlsl` で `MaxOf(1.0, adapt.Scale())` を `MaxOf(1.0f, adapt.Scale())` か `MaxOf<float>(1.0, adapt.Scale())` に直すと、HL0345 が消える

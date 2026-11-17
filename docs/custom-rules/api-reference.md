@@ -16,7 +16,7 @@
 - [構文木](#構文木)
   - [ShaderLab のノード型](#shaderlab-のノード型)
   - [HLSL のノード型](#hlsl-のノード型)
-  - [構文の上の事実を引く](#構文の上の事実を引く)
+  - [構文に関する情報を取得する](#構文に関する情報を取得する)
 - [セマンティックモデル](#セマンティックモデル)
 - [環境](#環境)
 - [テスト](#テスト)
@@ -202,12 +202,12 @@ c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function
 5. 読める形に短くします (`Simplify`)
 
 `ReportDiagnostic` で木ごとに報告すると、同じ位置の報告は最初の木のものだけが残り、ほかの木の構成の分が条件から落ちます。
-条件をメッセージに出すなら `ReportWhen` を使ってください。
+条件をメッセージに表示する場合は `ReportWhen` を使ってください。
 
 `ShaderRuleAnalyzer` を使わないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
 `Add(program, node, when, descriptor, location, args...)` で集め、`Build()` で診断にします。
 メッセージの引数を条件から作るなら `Add(program, node, when, descriptor, location, key, condition => [...])` を使います (`key` は条件以外の引数で、同じ鍵の報告をまとめます)。
-両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は、`withTreeConfiguration: false` で木の構成を掛けずに足します。
+両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は、`withTreeConfiguration: false` で木の構成を掛けずに追加します。
 
 ---
 
@@ -412,7 +412,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `EmptyStatementSyntax`            | `;` だけの文                       |
 | `IncompleteStatementSyntax`       | 文として解析しきれなかったトークン |
 
-### 構文の上の事実を引く
+### 構文に関する情報を取得する
 
 #### `ShaderLiteral` — リテラルの値と型
 
@@ -523,7 +523,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | ---------------------------------- | ------------------------------------------- |
 | `Programs`                         | コードブロックごとの解析結果                |
 | `SymbolVariants`                  | シンボルを 1 つ有効にした構成での解析結果 |
-| `TryGetUniform(name, out _)`       | uniform を引く                              |
+| `TryGetUniform(name, out _)`       | uniform を取得する                              |
 | `HasCompleteDependencies`          | `#include` をすべて解決できたか             |
 | `MayLackOverloadsOf(name)`         | その名前の関数の多重定義が見えていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
 | `AppearsOutsideAnalyzedCode(name)` | 名前が、どの構成でも解析されなかった領域かマクロ定義の本体に現れるか (シェーダー全体) |
@@ -555,7 +555,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
 
 Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
-`compilation.GetUnity()` (`UnityShaderModel`) から引きます。Unity 以外の環境で作ったモデルでは `null` です。
+`compilation.GetUnity()` (`UnityShaderModel`) から取得します。Unity 以外の環境で作ったモデルでは `null` です。
 
 | `UnityShaderModel` のメンバー      |                                             |
 | ---------------------------------- | ------------------------------------------- |
@@ -567,7 +567,7 @@ Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプライ�
 
 #### 報告してよいノードか
 
-**指摘を出す前に `IsReportable(node)` を確かめてください。** Unity や外部パッケージのヘッダのコードや、
+**指摘を報告する前に `IsReportable(node)` を確かめてください。** Unity や外部パッケージのヘッダのコードや、
 それらのマクロが作ったコードを指摘しても、利用者には直しようがありません。
 
 ```csharp
@@ -678,7 +678,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 実在しない組み合わせ（同じ `#pragma` 行のシンボルを同時に有効にするなど）は含まれません。
 クックブックの `SampleBudgetAnalyzer`・`FunctionLengthLimitAnalyzer`・`ConstantBufferSizeLimitAnalyzer` がこの形です。
 
-#### 構成ごとの結論を出すときの注意
+#### 構成ごとの結論を導くときの注意
 
 「ある構成で宣言が無い」「ある構成で return しない」のように、**構成を名指しして報告するルール**は次の 2 点に気を付けてください。
 
@@ -703,13 +703,13 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 | `CountComponents(expression)`     | 式の数値の成分の個数 (`float3` なら 3)。型が分からなければ `null` |
 | `ResolveName(identifier)`         | 識別子がその位置で指す宣言 (下の「`ResolveName`」)                 |
 
-名前は、使っている位置から波括弧ごとに外側へたどって引きます。
+名前は、使用位置から外側の波括弧へ順にたどって検索します。
 同じ関数の中でも、内側の波括弧で宣言し直した名前はその中と外で別の変数として扱われます。
-関数の外では uniform を引き、無ければ `static` / `groupshared` の変数を引きます。
+関数の外では uniform を取得し、無ければ `static` / `groupshared` の変数を取得します。
 
 ### `ResolveName`
 
-識別子がその位置で指す変数の宣言を引きます。型を求める仕組みと同じ解決です。
+識別子がその位置で指す変数の宣言を特定します。型を求める仕組みと同じ解決です。
 名前だけで宣言を探すと、別の関数の同じ名前の局所変数と取り違えます。
 
 ```csharp
@@ -743,7 +743,7 @@ if (c.Node is IdentifierExpressionSyntax identifier)
 
 ### `ResolveCall`
 
-その呼び出しでどの関数が呼ばれるかを引きます。
+その呼び出しでどの関数が呼ばれるかを特定します。
 多重定義された関数では、名前だけでは呼ばれる宣言が決まりません。
 `ResolveCall` は出現条件で候補を絞り、実引数の型で 1 つを選びます。
 
@@ -904,7 +904,7 @@ if (conditions.IsPossible(missing))
 
 **`Unknown` を見たら報告しないでください。**
 条件を追えなかったものを「常に」や「決して」と取り違えると、
-成り立たない構成についての指摘を出すことになります。
+成り立たない構成についての指摘を報告することになります。
 実例は [実例集の「コンパイル条件分岐に応じた関数制限」](cookbook.md#5-コンパイル条件分岐シンボルに応じた関数制限) にあります。
 
 ### `AnalyzedProgram`
@@ -921,7 +921,7 @@ if (conditions.IsPossible(missing))
 | `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
 | `Unit`                                                          | 解析したコンパイル単位 (`ShaderCompilationUnit`) |
 
-囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から引きます。
+囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から取得します。
 
 ### `ConditionalTokenRange` (`Shaderlyn.CFamily.Preprocessing`)
 
@@ -960,8 +960,8 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | ------------------------------------------- | ------------------------------------ |
 | `GetEffectiveSeverity(descriptor)`          | 設定を適用した実効重要度             |
 | `IsEnabled(descriptor)`                     | 有効かどうか                         |
-| `TryGetOption(ruleId, name, out value)`     | 設定ファイルのルールごとの設定を引く |
-| `GetIntOption(ruleId, name, defaultValue)`  | 同上。数値として引く                 |
+| `TryGetOption(ruleId, name, out value)`     | 設定ファイルからルールごとの設定を取得する |
+| `GetIntOption(ruleId, name, defaultValue)`  | 同上。数値として取得する                 |
 | `WithExtension<T>(x)` / `GetExtension<T>()` | 型をキーにした任意の設定の受け渡し   |
 
 重要度の上書きはドライバが一律に適用します。ルール側で設定を読む必要はありません。
@@ -976,7 +976,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ### `IHlslEnvironment` / `IShaderEnvironment` (`Shaderlyn.Semantics.Environments`)
 
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
-言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを足したもの) を実装します。
+言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを追加したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
 セマンティックモデルを作った環境は `compilation.Environment` で引けます。
 
@@ -1003,7 +1003,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 
 ### `HostEnvironment` (`Shaderlyn.Cli`)
 
-自前の CLI (`Program.RunAsync`) と言語サーバー (`ShaderLanguageServer`) に環境を足します。
+自前の CLI (`Program.RunAsync`) と言語サーバー (`ShaderLanguageServer`) に環境を追加します。
 名前・表示名・フォルダーを指定したときに探す拡張子・環境を作る関数を持ちます。
 
 ## テスト

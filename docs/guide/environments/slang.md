@@ -6,8 +6,8 @@ Slang のファイル (`.slang`) は、設定ファイルが無くても、ほ�
 SG のルールは、slangc 2026.19 がエラーにするものを、slangc と同じ行で報告します。
 
 - 構文は HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、ジェネリック (`<T : IFoo>`、`where`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
-  ポインター (`T*`)、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、GLSL の書き方 (`layout(…)`) を足したものとして読みます
-- 型は HLSL 2021 の型の決まりに、Slang の標準ライブラリの名前 (slang 2026.19 のソースから作った表) を足したもので判断します。型を書かない `let` / `var` は、初期値の型として検査します
+  ポインター (`T*`)、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、GLSL の書き方 (`layout(…)`) を追加したものとして読みます
+- 型は HLSL 2021 の型の決まりに、Slang の標準ライブラリの名前 (slang 2026.19 のソースから作った表) を追加したもので判断します。型を書かない `let` / `var` は、初期値の型として検査します
 - 変数・仮引数・戻り値・フィールドの型、構造体の基底、ジェネリックの制約 (`<T : IFoo>`・`where T : IFoo`)、`throws` の型に書いた、どこにも宣言されていない型の名前を [CF0310](../../rules/CF0310.md) にします。
   名前空間などで修飾した名前 (`ns::T`・`T.Differential`) はまだ見ません
 - 列挙子は、`[UnscopedEnum]` を付けた列挙型のものだけを修飾せずに書けるものとします (`Fruit.Apple`)。slangc に `-unscoped-enum` を渡すなら、[`slang: unscoped-enums`](../configuration.md#slang) を `true` にしてください
@@ -23,7 +23,7 @@ SG のルールは、slangc 2026.19 がエラーにするものを、slangc と�
 - 関数の重複 ([CF0314](../../rules/CF0314.md)) と本体の無い関数 ([CF0311](../../rules/CF0311.md)) は、ジェネリックの制約とリンクの指定を読むまで検査しません
 
 slang の試験 (`tests/` の slangc が誤りにするものと通すもの)・slang の例・SaschaWillems の Vulkan の例・Falcor の Slang で、slangc と同じ誤りを同じ行で報告し、
-slangc が通すファイルに誤りを出さないことを確かめています。
+slangc が通すファイルに誤りを報告しないことを確かめています。
 
 ### まだ見つけられないもの
 

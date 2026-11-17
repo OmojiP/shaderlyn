@@ -8,13 +8,13 @@ GD のルールは、Godot 4.7.2 のシェーダーのコンパイラがエラ�
 - `shader_type` / `render_mode` / `stencil_mode` / `group_uniforms`、uniform のヒント (`: source_color, hint_range(0.0, 1.0)`)、`instance uniform` / `global uniform`、
   `varying` と補間・精度の修飾子を読みます。Godot の文法で書けない形 (関数の外の `const` でない変数、配列の配列など) は構文の誤り ([CF0001](../../rules/CF0001.md)) になります
 - 型は Godot の決まりで判断します。暗黙の変換は無い (`float a = 1;` は誤り) ので、Godot と同じく、関数の呼び出しの実引数に書いた整数のリテラル (`f(0)`、`vec2(1, 2)`) だけを仮引数の型へ変換します
-- 組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) と組み込み関数は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表から引きます。
+- 組み込みの変数と定数 (`ALBEDO`、`TIME`、`PI` など) と組み込み関数は、シェーダーの種類 (`shader_type`) ごとに Godot 4.7.2 の表を参照します。
   ステージ関数 (`vertex` / `fragment` / `light` など) の中ではその関数のものが、利用者の関数の中ではどの関数でも使えるもの (`TIME` など) と定数が、関数の外では定数だけが使えます
 - 演算子と組み込み関数の型の組、ステージで使えない組み込み (vertex の中の `dFdx` など)、varying の書き込み、サンプラーの仮引数などを検査します
 - プリプロセッサは Godot の規則で読みます (マクロの定義し直しは誤り、`#include` は `res://` と相対パス)
 
 Godot のエンジンの誤りの例 (Godot のソースの誤りごとに作った 514 のファイル)、godot-demo-projects・godot-shaders のシェーダーで、
-Godot と同じ誤りを同じ行で報告し、Godot が通すファイルに誤りと警告を出さないことを確かめています。
+Godot と同じ誤りを同じ行で報告し、Godot が通すファイルに誤りと警告を報告しないことを確かめています。
 
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内も、Godot の型と組み込みで答えます。`render_mode` のモードと uniform のヒントも補完します。
 

@@ -297,11 +297,11 @@ Assets/Shaders/Lib/Inner.hlsl(1:36): error CF0310: 'undefinedTint' はどこに�
 | --- | --- |
 | `first`（既定） | 最初の 1 本と、ほかの本数 |
 | `all` | すべての経路 |
-| `none` | 出さない |
+| `none` | 表示しない |
 
 - 名前のない Pass は `HLSLPROGRAM (18 行目)`、コンピュートシェーダーは `カーネル CSMain` のように表示します
 - `json` は `includedFrom` に、`sarif` は `relatedLocations` に、`none` でなければすべての経路を書きます。
-  `github` (注釈) は位置を 1 つしか持てないので、本文に足します
+  `github` (注釈) は位置を 1 つしか持てないので、本文に追加します
 - VS Code (言語サーバー) では、指摘の「関連する場所」として、取り込んだシェーダーの `#include` の行へ飛べます
 - 設定ファイルの [`report: include-trace`](configuration.md#report) にも書けます。コマンドラインの指定が優先します
 
@@ -552,7 +552,7 @@ shaderlyn <パス...> [オプション]
 | `--unity-project <パス>`          | Unity プロジェクトのルート。パッケージのヘッダの解決に使います（[Unity](environments/unity.md#プロジェクトを指定する)） |
 | `--unity-editor <パス>`           | Unity Editor のデータフォルダー。省略時は自動で推定（[Unity](environments/unity.md#unity-editor-の場所)） |
 | `--profile <名前>`                | レンダーパイプライン: `urp`（既定）/ `brp` / `hdrp`（[Unity](environments/unity.md#レンダーパイプライン)） |
-| `--unity-generate <フォルダー>`   | 解析はせずに、Library と Unity Editor から解析に必要なヘッダとライセンスの表示をこのフォルダーに書き出す。`unity: generated` に指定すると解析に使用する（[Unity](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)） |
+| `--unity-generate <フォルダー>`   | 解析はせずに、Library と Unity Editor から解析に必要なヘッダとライセンスの表示をこのフォルダーに出力する。`unity: generated` に指定すると解析に使用する（[Unity](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)） |
 | `--yes`                           | `--unity-generate` の確認を表示せずに「はい」と答える。CI など入力を受け付けられない環境で使う |
 
 `--unity-project` / `--unity-editor` / `--profile` は、ほかの環境で指定するとエラーになります。

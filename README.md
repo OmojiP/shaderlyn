@@ -142,7 +142,7 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 ### 4. VS Code 拡張で使う
 
 解析結果を VS Code 拡張の指摘として表示します。
-自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を出すこともできます。
+自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を報告することもできます。
 
 VS Code 拡張の言語サーバー利用 : [editors/vscode/README.md](editors/vscode/README.md)
 

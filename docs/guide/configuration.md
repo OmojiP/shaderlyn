@@ -139,7 +139,7 @@ GLSL のファイルで使う設定です。
 | `auto-map-locations` | `--auto-map-locations` | `-fauto-map-locations` |
 | `auto-map-bindings` | `--auto-map-bindings` | `-fauto-bind-uniforms` |
 
-`target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから引きます。
+`target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから取得します。
 `opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。
 `target: vulkan` だけではバージョンが分からないので、SPIR-V のバージョンで決まる検査をしません。
 
@@ -186,7 +186,7 @@ Slang のファイル (`.slang`) で使う設定です。
 | `generic-entry-points` | `true` なら、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
 
 `target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
-`cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を入れるなど。[SG0404](../rules/SG0404.md)) を報告しません。`metal` も、`StructuredBuffer` に資源を含む構造体を入れることを報告しません (slangc と同じ)。
+`cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を格納するなど。[SG0404](../rules/SG0404.md)) を報告しません。`metal` も、`StructuredBuffer` に資源を含む構造体を格納することを報告しません (slangc と同じ)。
 
 ```yaml
 slang:

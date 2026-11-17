@@ -106,7 +106,7 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor LayoutRequired { get; } = new(
         id: "GL0104",
-        title: "layout に要る指定がありません",
+        title: "layout に必要な指定がありません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,

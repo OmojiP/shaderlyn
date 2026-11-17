@@ -27,7 +27,7 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 | `godot` | Godot シェーダー言語 (Godot 4。[Godot](environments/godot.md)) | `.gdshader` / `.gdshaderinc` |
 | `slang` | Slang (slangc 2026。[Slang](environments/slang.md)) | `.slang` |
 | `wgsl` | WGSL (WebGPU。[WGSL](environments/wgsl.md)) | `.wgsl` |
-| (自前のホストが足した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
+| (自前のホストが追加した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
 
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、明示的に指定した場合に限り解析します。
 
@@ -48,7 +48,7 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 | [GLSL](environments/glsl.md) | glslang と同じ検査、`glsl: target` (Vulkan / OpenGL)、ステージと `#version` の決め方 |
 | [Godot](environments/godot.md) | Godot 4.7.2 と同じ検査、`project.godot` と `res://`、レンダラーの決め方 |
 | [Slang](environments/slang.md) | slangc 2026.19 と同じ検査、`import` するモジュールの探し方、`slang: target` / `unscoped-enums` / `experimental-features` / `generic-entry-points`、まだ見つけられないもの |
-| [WGSL](environments/wgsl.md) | naga 30 と同じ検査、`enable` の要る機能、naga と違う所 |
+| [WGSL](environments/wgsl.md) | naga 30 と同じ検査、`enable` の必要な機能、naga と違う所 |
 
 ## 環境によって変わること
 

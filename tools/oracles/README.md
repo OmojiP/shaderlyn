@@ -46,8 +46,8 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/
 SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/LearnOpenGL/src --stage-map=vs:vert,fs:frag,gs:geom
 ```
 
-- **誤報告:** glslang がコンパイルを通すファイルに、Shaderlyn がエラーを出すこと
-- **見落とし:** glslang がエラーを出した行に、Shaderlyn のエラーがないこと。行番号のないエラーは、Shaderlyn がそのファイルにエラーを1つ以上出していれば一致とします
+- **誤報告:** glslang がコンパイルを通すファイルに、Shaderlyn がエラーを報告すること
+- **見落とし:** glslang がエラーを報告した行に、Shaderlyn のエラーがないこと。行番号のないエラーは、Shaderlyn がそのファイルにエラーを1つ以上報告していれば一致とします
 
 `--details` を指定すると、食い違いを1件ずつ表示します。`--json=<パス>` を指定すると、ファイルごとの結果を JSON で出力します。
 glslang の Test のうち、単一ファイルのコンパイル結果ではないもの (`-E` の出力、複数ファイルをつないだ結果、HLSL として読ませた結果) は比較しません。
@@ -66,7 +66,7 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
 | --- | --- |
 | `godot` | Godot をヘッドレスで起動し、シェーダーのコードを `Shader` に渡して、コンパイラの誤り (`SHADER ERROR`) を集めます。Godot は最初の誤りで止まるので、誤りはファイルごとに 1 つです。元のプロジェクトは開かず、`project.godot` の下のシェーダーと取り込まれる断片だけを作業用のプロジェクトに写して読みます (`res://` の取り込みはそのまま解決できます) |
 
-Godot には誤りの試験の集まりが無いので、誤りを出す所ごとに最小の例を作って使います (`godot-errors/make.mjs`)。
+Godot には誤りの試験の集まりが無いので、誤りを報告する所ごとに最小の例を作って使います (`godot-errors/make.mjs`)。
 
 ```sh
 node tools/oracles/godot-errors/make.mjs
@@ -109,5 +109,5 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
 | 言語 | コーパス | 通った | 通らない | 通らない理由 |
 | --- | --- | --- | --- | --- |
 | GLSL | SaschaWillems/Vulkan、Vulkan-Samples | 523 | 0 | — (取り込まれる側の `.glsl` 6 件は検査しない) |
-| Slang | SaschaWillems/Vulkan、slang の examples | 216 | 8 | 取り込みの場所 (`-I`) が要る、ホストが特殊化の引数や型の適合を与える前提 |
+| Slang | SaschaWillems/Vulkan、slang の examples | 216 | 8 | 取り込みの場所 (`-I`) が必要、ホストが特殊化の引数や型の適合を与える前提 |
 | WGSL | webgpu-samples、wgpu の examples | 115 | 6 | サンプルが TypeScript で共通のコードを連結してから渡している、まだ naga に無い拡張 (`buffer_view`) |

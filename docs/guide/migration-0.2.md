@@ -8,7 +8,7 @@
 
 ## 目次
 
-- [書き換えが要るか](#書き換えが要るか)
+- [書き換えが必要か](#書き換えが必要か)
 - [新しく出る指摘](#新しく出る指摘)
 - [指摘の文](#指摘の文)
 - [設定ファイル](#設定ファイル)
@@ -18,7 +18,7 @@
 - [自前の CLI と言語サーバー](#自前の-cli-と言語サーバー)
 - [Unity 以外の環境を使い始める](#unity-以外の環境を使い始める)
 
-## 書き換えが要るか
+## 書き換えが必要か
 
 **0.1.1 で出ていた指摘は、ID と位置がそのままです。** ベースラインもそのまま使えます (照合は指摘の出ている行の内容で行い、文は使いません)。
 **文はほとんどの規則で見直しました** ([下記](#指摘の文))。出力の `message` を文字列で照合しているなら、書き換えが要ります。
@@ -29,9 +29,9 @@ Unity 同梱のシェーダーでは、指摘の ID と位置は 0.1.1 と同じ
 
 | 使い方 | 書き換え |
 | --- | --- |
-| CLI・GitHub Action・VS Code 拡張で使っている | 設定ファイルに `profile` を書いていれば、`unity:` の節の下へ移す ([下記](#設定ファイル))。ほかは要らない |
-| 自作ルールを書いている | Unity の情報 (`Properties`・`Pass`・ShaderLab の木・プロファイル) を見ているなら、引き方を変える ([下記](#自作ルール)) |
-| 自作ルール入りの CLI・言語サーバーを作っている | 要らない。`Program.RunAsync` と `ShaderLanguageServer` の呼び方は 0.1 のまま使える |
+| CLI・GitHub Action・VS Code 拡張で使っている | 設定ファイルに `profile` を書いていれば、`unity:` の節の下へ移す ([下記](#設定ファイル))。ほかは不要 |
+| 自作ルールを書いている | Unity の情報 (`Properties`・`Pass`・ShaderLab の木・プロファイル) を見ているなら、取得方法を変更する ([下記](#自作ルール)) |
+| 自作ルール入りの CLI・言語サーバーを作っている | 不要。`Program.RunAsync` と `ShaderLanguageServer` の呼び方は 0.1 のまま使える |
 
 ## 新しく出る指摘
 
@@ -43,8 +43,8 @@ Unity の環境で、0.2 から出るようになった指摘です。どれも 
 | [HL0346](../rules/CF0406.md) | DXC に届く構造体の `++` / `--` |
 | [HL0348](../rules/HL0348.md) | FXC だけに届く構造体の `++` / `--` (エラーにならず何もしない) |
 | [UN0201](../rules/UN0201.md) | `#pragma use_dxc` / `require` が無視される (`use_dxc d3d12` など) |
-| [UN0203](../rules/UN0203.md) | DX11 で使えなくなるコンパイラの指定 (キーワードの条件の無い、DXC が要る `require` など) |
-| [UN0204](../rules/UN0204.md) | Unity のバージョンでコンパイラが変わる指定 (`never_use_dxc` と DXC が要る `require`) |
+| [UN0203](../rules/UN0203.md) | DX11 で使えなくなるコンパイラの指定 (キーワードの条件の無い、DXC が必要 `require` など) |
+| [UN0204](../rules/UN0204.md) | Unity のバージョンでコンパイラが変わる指定 (`never_use_dxc` と DXC が必要 `require`) |
 | [UN0202](../rules/UN0202.md) | コンパイラの指定についての注意 (Unity のバージョンが分かるときだけ) |
 | [UN0205](../rules/UN0205.md) | 16 ビットの型を有効にしたパスの定数バッファの `half` |
 | [UN0101](../rules/UN0101.md) | `#pragma once` (Unity では効かず、2 度取り込むと再定義のエラーになる) |
@@ -56,7 +56,7 @@ Unity の環境で、0.2 から出るようになった指摘です。どれも 
 数が変わる指摘: 構文エラー (HL0001) は同じ位置に 1 件だけ出します。0.1 では立て直しのたびに同じ位置へ何件も出ることがありました。
 定義されていない関数形式のマクロ (`DECLARE_TEX(_Main);`) は、そのことを伝える 1 件になります。
 
-**対象の API は、既定で DX11 と DX12 です。** DX12 だけのプロジェクトで DX11 についての指摘が出るなら、
+**対象の API は、既定で DX11 と DX12 です。** DX12 だけのプロジェクトで DX11 についての指摘が報告されるなら、
 `--unity-project` でプロジェクトを渡すか (`ProjectSettings.asset` の Windows の API を読みます)、設定ファイルに書いてください。
 
 ```yaml
@@ -100,11 +100,11 @@ unity:
 > 節の外の `profile` も読みますが、移すよう伝える警告 (`TOOL0003`) が出ます。
 > 既定の `--error-on warning` では、この警告でも終了コードが `1` になります。上げる前に移してください。
 
-`--unity-project` と `--unity-editor` に当たる設定も、`unity:` の節の `project` / `editor` に書けます (0.2 で足したもの。移す必要はありません)。
+`--unity-project` と `--unity-editor` に当たる設定も、`unity:` の節の `project` / `editor` に書けます (0.2 で追加したもの。移す必要はありません)。
 
 ## CLI と CI
 
-- 出力する指摘を重要度で絞る `--min-severity` と、設定ファイルの [`report: min-severity`](configuration.md#report) を足しました。
+- 出力する指摘を重要度で絞る `--min-severity` と、設定ファイルの [`report: min-severity`](configuration.md#report) を追加しました。
   絞っても終了コードは変わりません (出力しなかった指摘も含めて `--error-on` で決めます)
 - オプションはそのまま使えます。`--profile` / `--unity-project` / `--unity-editor` は Unity の環境だけのものになりましたが、Unity の環境 (既定) では今までどおりです
 - `--cache` のキャッシュは、ツールが変わったことを見て自動で作り直されます。消す必要はありません
@@ -116,20 +116,20 @@ unity:
 自作の言語サーバーを `shaderlyn.serverPath` で使っているなら、言語サーバーも 0.2 で作り直してください。
 
 拡張とサーバーの版がずれても、Unity のシェーダーでは今までどおり動きます。
-0.1 の拡張と 0.2 のサーバーの組では、Unity 以外の環境のために足したもの (`.usf` / `.ush` / `.hlsli` を開くこと、
+0.1 の拡張と 0.2 のサーバーの組では、Unity 以外の環境のために追加したもの (`.usf` / `.ush` / `.hlsli` を開くこと、
 値を持つシンボルを `QUALITY = 2` と表示すること) が働きません。
 
 ## 自作ルール
 
 Unity 固有の部分を `Shaderlyn.Unity` パッケージへ分けました。
-**Unity の情報を見るルールは、`Shaderlyn.Unity` パッケージを参照に足してください。** (`Shaderlyn.Cli` を参照しているプロジェクトには、もう入っています。)
+**Unity の情報を見るルールは、`Shaderlyn.Unity` パッケージを参照に追加してください。** (`Shaderlyn.Cli` を参照しているプロジェクトには、もう入っています。)
 
 ```xml
 <PackageReference Include="Shaderlyn.Semantics" Version="0.2.0" />
 <PackageReference Include="Shaderlyn.Unity" Version="0.2.0" />
 ```
 
-### 引き方の対応
+### 参照方法の対応
 
 | 0.1 | 0.2 |
 | --- | --- |
@@ -204,7 +204,7 @@ Unity 以外の環境でルールを確かめるときは、`ShaderCompilation.C
 ## 自前の CLI と言語サーバー
 
 `Program.RunAsync(args, analyzers, output, error)` と `new ShaderLanguageServer(connection, analyzers)` は 0.1 のまま使えます。
-独自エンジンの環境を足すための多重定義が増えました
+独自エンジンの環境を追加するための多重定義が増えました
 ([ルールの実例集「独自エンジンの環境」](../custom-rules/cookbook.md#独自エンジンの環境))。
 
 ## Unity 以外の環境を使い始める

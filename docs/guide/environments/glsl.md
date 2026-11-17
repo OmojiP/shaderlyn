@@ -18,7 +18,7 @@ GL のルールは、glslang 16.6.0 がエラーにするもの (その `#versio
   ([CF0101](../../rules/CF0101.md) で伝えます)。取り込む側のステージのファイルを解析すれば、断片の中も検査します。
   ステージの拡張子でないファイルはすべて断片として読むので、単体のシェーダーを `.glsl` で置いているなら、`shadow.vert.glsl` のようにステージの拡張子を付けると検査されます
 
-GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Samples、GLSL ES の ARM OpenGL ES SDK、約 790 ファイル) で、誤りと警告を出さないことを確かめています。
+GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Samples、GLSL ES の ARM OpenGL ES SDK、約 790 ファイル) で、誤りと警告を報告しないことを確かめています。
 
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内も、GLSL の型と組み込みで答えます (組み込み関数の説明と引数の案内には、glslang の表の多重定義を並べます)。
 

@@ -37,7 +37,7 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 
 shaderlyn 自体のコードを直す人向けです。
 
-1. [貢献の手引き](../CONTRIBUTING.md) — ビルド、テスト、ルールを足すときに揃えるもの
+1. [貢献の手引き](../CONTRIBUTING.md) — ビルド、テスト、ルールを追加するときに揃えるもの
 2. [解析の流れ](internals/architecture.md) — CLI と言語サーバーが診断を返すまでの処理
 3. [設計判断](internals/design-decisions.md) — なぜそう作ったか、採らなかった案
 
