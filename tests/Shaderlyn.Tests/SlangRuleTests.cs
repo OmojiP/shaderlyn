@@ -455,6 +455,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0401", "interface IThing { void g(); }\nstruct T1 : IThing { void g() {} }\nvoid f(inout IThing x) { x.g(); }\nvoid m() { T1 c; f(c); }\n")]
     [InlineData("CF0401", "interface IScalar {}\ninterface IShaped {}\nstruct Shape<T> { T value; }\nextension<T : IScalar> Shape<T> : IShaped {}\nT choose<T : IShaped>(T l, T r) { return l; }\nint choose(int l, int r) { return l; }\nShape<T> g<T>(Shape<T> l, Shape<T> r) { return choose(l, r); }\n")]
     [InlineData("CF0401", "interface IBase<T>\n{\n    void doThing<U : IBase<T>>(U u);\n}\ninterface IDerived : IBase<int>, IBase<float> {}\nstruct W {}\nvoid call<D : IDerived>(D d) { d.doThing(W()); }\n")]
+    [InlineData("SG0349", "T readAt<T, A : IArray<T>>(A values, int i) { return values[i]; }\nRWBuffer<float> values;\nfloat test() { return readAt<float, RWBuffer<float>>(values, 0); }\n")]
+    [InlineData("SG0349", "struct U { uint x; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ParameterBlock<U>> input, uniform RWStructuredBuffer<uint> output) {}\n")]
+    [InlineData("SG0349", "void g<T : IComparable>() {}\nvoid test() { g<Optional<int>>(); }\n")]
+    [InlineData("SG0349", "interface IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<ByteAddressBuffer>(); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -617,6 +621,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("interface IThing { void g(); }\nstruct T1 : IThing { void g() {} }\nvoid byValue(IThing x) { x.g(); }\nvoid generic<T : IThing>(inout T x) { x.g(); }\nvoid m() { T1 c; byValue(c); generic(c); }\ninterface IScalar {}\ninterface IShaped {}\nstruct Shape<T> { T value; }\nextension<T : IScalar> Shape<T> : IShaped {}\nT choose<T : IShaped>(T l, T r) { return l; }\nint choose(int l, int r) { return l; }\nShape<T> g<T : IScalar>(Shape<T> l, Shape<T> r) { return choose(l, r); }\n")]
     // #lang slang 2025 のインターフェイスの型の仮引数は、ジェネリックと同じ (どの型か決まらない値ではない)
     [InlineData("#lang slang 2025\ninterface IFoo { float calc(float x); }\nfloat genericFunc<T : IFoo>(T obj, float x) { return obj.calc(x); }\nfloat f(IFoo obj)\n{\n    return genericFunc(obj, 3.0);\n}\n")]
+    // 適合を全部表に書いた標準ライブラリの型 (Buffer・StructuredBuffer・Tuple)、標準ライブラリのジェネリックの型の制約に合う型引数、利用者の extension で広げた標準ライブラリの型
+    [InlineData("T readAt<T, A : IArray<T>>(A values, int i) { return values[i]; }\nBuffer<float> b;\nStructuredBuffer<float> s;\nfloat test() { return readAt<float, Buffer<float>>(b, 0) + readAt<float, StructuredBuffer<float>>(s, 0); }\nvoid g<T : IComparable>() {}\nvoid use() { g<Tuple<int, int>>(); g<DescriptorHandle<SamplerState>>(); }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ConstantBuffer<int>> c, uniform DescriptorHandle<SamplerState> ss) {}\n")]
+    [InlineData("interface IMine {}\nextension<T : ITexelElement> RWBuffer<T> : IMine {}\nextension<T> ParameterBlock<T> : IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<RWBuffer<float>>(); g<ParameterBlock<int>>(); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

@@ -347,7 +347,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "ジェネリックの関数か型の型の仮引数に、制約 (<T : IFoo>・where T : IFoo) のインターフェイスに適合しない型を渡しています。"
             + "型が適合するのは、継承の並びか extension にそのインターフェイス (かそれを継承したインターフェイス) を書いたときだけです (基底の構造体の適合は受け継ぎません)。"
-            + "where T == int・where int(T)・関連型の制約 (where T.Element : I)・__constraint A == This を満たさない型と、どの型か決まらないインターフェイスの型の値による特殊化も報告します。"
+            + "where T == int・where int(T)・関連型の制約 (where T.Element : I)・__constraint A == This を満たさない型と、どの型か決まらないインターフェイスの型の値による特殊化、"
+            + "標準ライブラリのジェネリックの型の制約 (DescriptorHandle<T : IOpaqueDescriptor>) に合わない型引数も報告します。"
             + "slangc はコンパイルの誤り (E38029・E30440・E33180) にします。",
         helpLinkUri: DocumentationLinks.For("SG0349"));
 

@@ -26,6 +26,9 @@ internal sealed class SlangStandardConformance
         Dictionary<string, List<Row>> types = new(StringComparer.Ordinal);
         Dictionary<string, List<(ImmutableArray<string> Bases, string Module)>> interfaces = new(StringComparer.Ordinal);
         List<(string Constraint, string Interface, string Module)> blankets = [];
+        Dictionary<string, string> closed = new(StringComparer.Ordinal);
+        HashSet<string> synthesized = new(StringComparer.Ordinal);
+        Dictionary<string, List<(int Index, string Parameter, string Constraint, string Module)>> generics = new(StringComparer.Ordinal);
 
         using Stream stream = typeof(SlangStandardConformance).Assembly.GetManifestResourceStream(ResourceName)
                               ?? throw new InvalidOperationException($"埋め込みのリソース {ResourceName} がありません。");
@@ -61,12 +64,32 @@ internal sealed class SlangStandardConformance
                 case ["X", var constraint, var iface, var module]:
                     blankets.Add((constraint, iface, module));
                     break;
+
+                case ["K", var type, var module]:
+                    closed[type] = module;
+                    break;
+
+                case ["U", var iface, _]:
+                    synthesized.Add(iface);
+                    break;
+
+                case ["G", var type, var index, var parameter, var constraint, var module]:
+                    if (!generics.TryGetValue(type, out var constraints))
+                    {
+                        generics[type] = constraints = [];
+                    }
+
+                    constraints.Add((int.Parse(index, System.Globalization.CultureInfo.InvariantCulture), parameter, constraint, module));
+                    break;
             }
         }
 
         Types = types.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
         Interfaces = interfaces.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
         Blankets = [.. blankets];
+        Closed = closed.ToFrozenDictionary(StringComparer.Ordinal);
+        Synthesized = synthesized.ToFrozenSet(StringComparer.Ordinal);
+        Generics = generics.ToFrozenDictionary(p => p.Key, p => p.Value.ToImmutableArray(), StringComparer.Ordinal);
     }
 
     /// <summary>表 (1 つだけ)。</summary>
@@ -80,6 +103,18 @@ internal sealed class SlangStandardConformance
 
     /// <summary>制約に適合する型はどれもインターフェイスに適合する、という extension (<c>extension&lt;T : 制約&gt; T : インターフェイス</c>)。</summary>
     public ImmutableArray<(string Constraint, string Interface, string Module)> Blankets { get; }
+
+    /// <summary>
+    /// 適合を全部 <see cref="Types"/> に書いた型と、そのモジュール (標準ライブラリなら空)。
+    /// 表の行 (条件を問わない)・インターフェイスの継承・<see cref="Blankets"/> で届かないインターフェイスには、適合しない (<see cref="Synthesized"/> を除く)。
+    /// </summary>
+    public FrozenDictionary<string, string> Closed { get; }
+
+    /// <summary>コンパイラが自分で適合を足すインターフェイス (<c>IDifferentiable</c>・<c>IDefaultInitializable</c> など)。表に無くても、適合しないとは言えない。</summary>
+    public FrozenSet<string> Synthesized { get; }
+
+    /// <summary>ジェネリックの型の、型の仮引数 (位置) の制約 (<c>struct DescriptorHandle&lt;T : IOpaqueDescriptor&gt;</c> なら 0・T・IOpaqueDescriptor)。</summary>
+    public FrozenDictionary<string, ImmutableArray<(int Index, string Parameter, string Constraint, string Module)>> Generics { get; }
 
     /// <summary>型の適合 1 つ。</summary>
     /// <param name="Interface">適合するインターフェイス。</param>

@@ -71,7 +71,57 @@ internal sealed partial class SlangConformanceModel
     public bool? Conforms(string type, string requirement)
     {
         (HashSet<string> set, bool complete) = ConformanceOf(type, 0);
-        return set.Contains(requirement) ? true : complete && !_undecidedEverything ? false : null;
+        return set.Contains(requirement) ? true : (complete || ClosedStandardLacks(type, requirement)) && !_undecidedEverything ? false : null;
+    }
+
+    /// <summary>
+    /// 標準ライブラリのジェネリックの型 <paramref name="type"/> の、型の仮引数 (位置) の制約。利用者が同じ名前の型を宣言していれば無い。
+    /// コンパイラが自分で適合を足すインターフェイス (IDifferentiable など) の制約は除く。
+    /// </summary>
+    public IEnumerable<(int Index, string Parameter, string Constraint)> StandardConstraints(string type)
+    {
+        SlangStandardConformance table = SlangStandardConformance.Instance;
+
+        if (_types.ContainsKey(type) || _undecided.Contains(type) || !table.Generics.TryGetValue(type, out var rows))
+        {
+            yield break;
+        }
+
+        foreach ((int index, string parameter, string constraint, string module) in rows)
+        {
+            if (_isImported(module) && !table.Synthesized.Contains(constraint))
+            {
+                yield return (index, parameter, constraint);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 適合を全部表に書いた標準ライブラリの型 (<c>RWBuffer</c>・<c>ParameterBlock</c> など) が、インターフェイスに適合しないと言えるか。
+    /// 要素の型の条件を問わずに表の行を全部数えても届かず、利用者のコードが extension で広げておらず、コンパイラが自分で足すインターフェイスでないときに言える。
+    /// </summary>
+    private bool ClosedStandardLacks(string type, string requirement)
+    {
+        SlangStandardConformance table = SlangStandardConformance.Instance;
+
+        if (_types.ContainsKey(type) || _undecided.Contains(type) || _unrepresentable.Contains(type) || _conditional.ContainsKey(type)
+            || !table.Closed.TryGetValue(type, out string? module) || !_isImported(module) || table.Synthesized.Contains(requirement))
+        {
+            return false;
+        }
+
+        HashSet<string> possible = new(StringComparer.Ordinal);
+
+        foreach (SlangStandardConformance.Row row in table.Types.GetValueOrDefault(type, []))
+        {
+            if (_isImported(row.Module))
+            {
+                possible.Add(row.Interface);
+            }
+        }
+
+        Close(possible);
+        return !possible.Contains(requirement);
     }
 
     /// <summary>

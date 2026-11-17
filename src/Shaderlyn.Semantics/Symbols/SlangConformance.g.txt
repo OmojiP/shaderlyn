@@ -1,5 +1,6 @@
 # 元のデータ: slang 2026.19 の source/slang/*.meta.slang と source/standard-modules (https://github.com/shader-slang/slang)。ライセンスは THIRD-PARTY-NOTICES.txt にある。
 # tools/slang/stdlib.mjs が作る。手で書き換えない。
+C	AppendStructuredBuffer	__IDynamicResourceCastable		
 C	Array	IArrayAccessor		slang/neural
 C	Array	IDifferentiable	IDifferentiable	
 C	Array	IDifferentiablePtrType	IDifferentiablePtrType	
@@ -7,8 +8,13 @@ C	Array	IRWArray
 C	AtomicAdd	IDiffTensorWrapper		
 C	BFloat16	IFloatingPointCoopElement		
 C	BindlessAddress	IPointerLikeAddress		slang/neural
+C	Buffer	IArray		
+C	Buffer	__IDynamicResourceCastable	ITexelElement	
 C	ByteAddressBuffer	IPhysicalBuffer		
+C	ByteAddressBuffer	__IDynamicResourceCastable		
 C	CDataLayout	IBufferDataLayout		
+C	ConstantBuffer	__IDynamicResourceCastable		
+C	ConsumeStructuredBuffer	__IDynamicResourceCastable		
 C	ConverterEnd	ILayoutSize		slang/neural
 C	ConverterNode	ILayoutSize		slang/neural
 C	CoopMat	IArithmetic		
@@ -61,15 +67,24 @@ C	PointerAddress	IPointerLikeAddress		slang/neural
 C	Ptr	IArrayAccessor		slang/neural
 C	Ptr	IPointerLikeAddress		slang/neural
 C	QuickGELU	IActivation		slang/neural
+C	RWBuffer	__IDynamicResourceCastable	ITexelElement	
 C	RWByteAddressBuffer	IPhysicalBuffer		
 C	RWByteAddressBuffer	IRWPhysicalBuffer		
+C	RWByteAddressBuffer	__IDynamicResourceCastable		
 C	RWStructuredBuffer	IRWArray		
+C	RWStructuredBuffer	__IDynamicResourceCastable		
+C	RasterizerOrderedBuffer	__IDynamicResourceCastable	ITexelElement	
+C	RasterizerOrderedByteAddressBuffer	__IDynamicResourceCastable		
 C	RasterizerOrderedStructuredBuffer	IRWArray		
+C	RasterizerOrderedStructuredBuffer	__IDynamicResourceCastable		
+C	RaytracingAccelerationStructure	__IDynamicResourceCastable		
 C	ReLU	IActivation		slang/neural
 C	SAMPLER_FEEDBACK_MIN_MIP	ITexelElement		
 C	SAMPLER_FEEDBACK_MIN_MIP	__BuiltinSamplerFeedbackType		
 C	SAMPLER_FEEDBACK_MIP_REGION_USED	ITexelElement		
 C	SAMPLER_FEEDBACK_MIP_REGION_USED	__BuiltinSamplerFeedbackType		
+C	SamplerComparisonState	__IDynamicResourceCastable		
+C	SamplerState	__IDynamicResourceCastable		
 C	ScalarDataLayout	IBufferDataLayout		
 C	SharedMemorySizePackEnd	ISharedMemorySizePackNode		slang/neural
 C	SiLU	IActivation		slang/neural
@@ -78,7 +93,9 @@ C	SineActivation	IActivation		slang/neural
 C	Std140DataLayout	IBufferDataLayout		
 C	Std430DataLayout	IBufferDataLayout		
 C	StructuredBuffer	IArray		
+C	StructuredBuffer	__IDynamicResourceCastable		
 C	TanhActivation	IActivation		slang/neural
+C	TextureBuffer	__IDynamicResourceCastable		
 C	TextureFootprint	__TextureFootprintData		
 C	TorchTensorViewAddress	IPointerLikeAddress		slang/neural
 C	Tuple	IComparable	IComparable	
@@ -251,6 +268,32 @@ C	vector	ITrigonometricFunctions		slang/numerics
 C	vector	IUnsignedIntegerType		slang/numerics
 C	vector	__IDifferentiableFloatingPointVectorDotProduct		slang/numerics
 C	void	__BuiltinType		
+G	AppendStructuredBuffer	1	L	IBufferDataLayout	
+G	Atomic	0	T	IAtomicable	
+G	ConstantBuffer	1	L	IBufferDataLayout	
+G	ConsumeStructuredBuffer	1	L	IBufferDataLayout	
+G	CoopMat	0	T	ICoopElement	
+G	CoopVec	0	T	__BuiltinArithmeticType	
+G	DescriptorHandle	0	T	IOpaqueDescriptor	
+G	DiffTensorView	0	T	__BuiltinFloatingPointType	
+G	DiffTensorView	1	A	IDiffTensorWrapper	
+G	DifferentialPair	0	T	IDifferentiable	
+G	DifferentialPtrPair	0	T	IDifferentiablePtrType	
+G	GLSLShaderStorageBuffer	1	L	IBufferDataLayout	
+G	Ptr	3	L	IBufferDataLayout	
+G	SharedMemoryPool	0	ShMemSize	ISharedMemorySize	slang/neural
+G	StructuredBuffer	1	L	IBufferDataLayout	
+G	WaveTangledVector	1	ShMemSize	ISharedMemorySize	slang/neural
+G	_Texture	0	T	ITexelElement	
+G	_Texture	1	Shape	__ITextureShape	
+G	__TextureMip	0	T	ITexelElement	
+G	__TextureMip	1	Shape	__ITextureShape	
+G	__TextureMips	0	T	ITexelElement	
+G	__TextureMips	1	Shape	__ITextureShape	
+G	__TextureSample	0	T	ITexelElement	
+G	__TextureSample	1	Shape	__ITextureShape	
+G	__TextureSampleMS	0	T	ITexelElement	
+G	__TextureSampleMS	1	Shape	__ITextureShape	
 I	IAdditive	INumericShapedType	slang/numerics
 I	IArithmetic	IComparable	
 I	IArithmeticAtomicable	IAtomicable,IArithmetic	
@@ -314,4 +357,152 @@ I	__IDynamicResourceCastable	IOpaqueDescriptor
 I	__IScalarDifferentiableFloatingPointDotProduct	IDifferentiableDotProduct,IScalarDifferentiableFloatingPoint	slang/numerics
 I	__IScalarNumericDotProduct	IDotProduct,IScalarNumeric	slang/numerics
 I	__ITextureShape1D2D3D	__ITextureShape	
+K	AlignedSize	slang/neural
+K	AppendStructuredBuffer	
+K	ApplyForBwdFuncType	
+K	Array	
+K	Atomic	
+K	AtomicAdd	
+K	BFloat16	
+K	BindlessAddress	slang/neural
+K	BorrowInOutParam	
+K	BorrowInParam	
+K	Buffer	
+K	BufferPointer	
+K	BuiltInTriangleIntersectionAttributes	
+K	BwdCallableFuncType	
+K	BwdDiffFuncType	
+K	ByteAddressBuffer	
+K	CDataLayout	
+K	Conditional	
+K	ConstBufferPointer	
+K	ConstantBuffer	
+K	ConsumeStructuredBuffer	
+K	ConverterEnd	slang/neural
+K	ConverterNode	slang/neural
+K	CoopMat	
+K	CoopMatShape	slang/neural
+K	CoopVec	
+K	DefaultDataLayout	
+K	DefaultPushConstantDataLayout	
+K	DescriptorHandle	
+K	DiffTensorView	
+K	DifferentialPair	
+K	DifferentialPtrPair	
+K	DispatchNodeInputRecord	experimental/workgraph
+K	EmptyNodeInput	experimental/workgraph
+K	EmptyNodeOutput	experimental/workgraph
+K	EmptyNodeOutputArray	experimental/workgraph
+K	ExpActivation	slang/neural
+K	FFLayer	slang/neural
+K	FloatE4M3	
+K	FloatE5M2	
+K	FwdDiffFuncType	
+K	GLSLShaderStorageBuffer	
+K	GroupNodeInputRecords	experimental/workgraph
+K	GroupNodeOutputRecords	experimental/workgraph
+K	HitObject	
+K	HyperParameters	slang/neural
+K	IdentityActivation	slang/neural
+K	InlineVector	slang/neural
+K	InputPatch	
+K	LayerConverter	slang/neural
+K	LeakyReLU	slang/neural
+K	LineStream	
+K	LinearLayout	slang/neural
+K	MMAHelper	slang/neural
+K	NativeRef	
+K	NativeString	
+K	NetworkParameterLayoutConverter	slang/neural
+K	NodeOutput	experimental/workgraph
+K	NodeOutputArray	experimental/workgraph
+K	NullDifferential	
+K	NullPtr	
+K	OptimalLayout	slang/neural
+K	Optional	
+K	OutParam	
+K	OutputIndices	
+K	OutputPatch	
+K	OutputPrimitives	
+K	OutputVertices	
+K	ParameterBlock	
+K	Params	slang/neural
+K	Pcg32	slang/neural
+K	PerLevelInfo	slang/neural
+K	PermutoEncoder	slang/neural
+K	PointStream	
+K	PointerAddress	slang/neural
+K	Ptr	
+K	QuickGELU	slang/neural
+K	RWBuffer	
+K	RasterizerOrderedBuffer	
+K	RayDesc	
+K	RayQuery	
+K	RaytracingAccelerationStructure	
+K	ReLU	slang/neural
+K	Ref	
+K	RefParam	
+K	RematFuncType	
+K	SAMPLER_FEEDBACK_MIN_MIP	
+K	SAMPLER_FEEDBACK_MIP_REGION_USED	
+K	SamplerComparisonState	
+K	SamplerState	
+K	ScalarDataLayout	
+K	SharedMemoryPool	slang/neural
+K	SharedMemorySize	slang/neural
+K	SharedMemorySizeForLayer	slang/neural
+K	SharedMemorySizePackEnd	slang/neural
+K	SharedMemorySizePackNode	slang/neural
+K	SharedMemoryUsage	slang/neural
+K	SiLU	slang/neural
+K	Sigmoid	slang/neural
+K	SineActivation	slang/neural
+K	Std140DataLayout	
+K	Std430DataLayout	
+K	String	
+K	StructuredBuffer	
+K	TanhActivation	slang/neural
+K	TextureBuffer	
+K	TextureFootprint	
+K	ThreadNodeInputRecord	experimental/workgraph
+K	ThreadNodeOutputRecords	experimental/workgraph
+K	TileAlignedSize	slang/neural
+K	TiledMMACuda	slang/neural
+K	TiledMMAHelper	slang/neural
+K	TiledMMAMetal	slang/neural
+K	TiledMMAVulkan	slang/neural
+K	TorchTensor	
+K	TorchTensorViewAddress	slang/neural
+K	TriangleStream	
+K	Tuple	
+K	UntypedResourceHandle	
+K	UntypedSamplerHandle	
+K	WaveMatrix	slang/neural
+K	WaveTangledVector	slang/neural
+K	__Dynamic	
+K	__DynamicResource	
+K	__ResourceDescriptorHeapType	
+K	__SamplerDescriptorHeapType	
+K	__Shape1D	
+K	__Shape2D	
+K	__Shape3D	
+K	__ShapeBuffer	
+K	__ShapeCube	
+K	__SubpassImpl	
+K	__TextureFootprintData	
+K	__TextureMip	
+K	__TextureMips	
+K	__TextureSample	
+K	__TextureSampleMS	
+K	__none_t	
+K	atomic_uint	
+K	matrix	
+U	IBackwardDifferentiable	
+U	IBufferDataLayout	
+U	IBwdCallable	
+U	IDefaultInitializable	
+U	IDifferentiable	
+U	IDifferentiablePtrType	
+U	IForwardDifferentiable	
+U	__EnumType	
 X	__BuiltinArithmeticType	ITexelElement	

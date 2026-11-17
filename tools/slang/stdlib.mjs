@@ -225,6 +225,10 @@ console.log(`${out}: 型 ${types.size}、関数 ${functions.size}、値 ${values
 //   C  型<TAB>インターフェイス<TAB>条件<TAB>モジュール  型がインターフェイスに適合する。条件は、型の最初の型引数が適合しなければならないインターフェイス (無ければ空)
 //                                         (__generic<T:__BuiltinFloatingPointType, let N : int> extension vector<T,N> : IFloat なら、vector と IFloat と __BuiltinFloatingPointType)
 //   X  制約<TAB>インターフェイス<TAB>モジュール  制約に適合する型は、どれもインターフェイスに適合する (extension<T : 制約> T : インターフェイス)
+//   K  型<TAB>モジュール  適合を全部 C の行に書いた型 (struct・class で宣言し、C++ の部分で形を作る extension の対象でないものと、Buffer・RWBuffer・RasterizerOrderedBuffer)。
+//                         C の行 (条件を問わない) とインターフェイスの継承・X の行で届かないインターフェイスには、適合しない
+//   G  型<TAB>位置<TAB>型の仮引数<TAB>制約<TAB>モジュール  ジェネリックの型の、型の仮引数の制約 (struct DescriptorHandle<T:IOpaqueDescriptor> なら DescriptorHandle 0 T IOpaqueDescriptor)
+//   U  インターフェイス<TAB>モジュール  コンパイラが自分で適合を足すインターフェイス (__magic_type・KnownBuiltin)。K の型でも、適合しないとは言えない
 // 組み込みの数の型の、__Builtin… の継承の並びは、標準ライブラリの C++ の部分 (core.meta.slang の kBaseTypes の繰り返しの switch) が作るので、ここに書き写す。
 const conformance = new Set();
 // C の行は条件の列を必ず持つ (無ければ空)。どの行も、最後にモジュールの列を持つ (標準ライブラリなら空)。
@@ -255,11 +259,65 @@ const readGeneric = list => (list ?? "").split(",").map(p => p.trim()).filter(p 
   return { name, constraint: constraint && /^[A-Za-z_]\w*$/.test(constraint) ? constraint : null };
 });
 
+// 全部の適合を表に書いた型 (K) と、コンパイラが自分で適合を足すインターフェイス (U) を決めるための名前。
+const plainTypes = new Map();      // struct・class で宣言した型 → モジュール
+const aliasNames = new Set();      // typealias・typedef の名前 (別名は元の型の適合を持つので、閉じた型にしない)
+const templatedTargets = new Set(); // C++ の部分で形を作る extension の対象 (_Texture など)
+const magicInterfaces = new Map(); // __magic_type・KnownBuiltin のインターフェイス → モジュール
+const bufferAliases = [];          // Buffer・RWBuffer など (_Texture の別名)
+const generics = new Set();        // G の行 (標準ライブラリのジェネリックの型の、型の仮引数の制約)
+let bufferReadOnlyArray = false;   // 読むだけの Buffer が IArray に適合する ($(isReadOnly?": IArray<T>":""))
+
 for (const file of files) {
   let text = readFileSync(file, "utf8");
   origin = file.startsWith(modulesRoot) ? moduleOf(file) : "core";
+  const raw = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+
+  // C++ の部分が作る適合。読めない形の適合があれば止める (表が黙って欠けないように)。
+  for (const m of raw.matchAll(/\bextension\s*(?:<[^>{]*>)?\s*([^{;]*?)\s*\{/g)) {
+    const header = m[1];
+    if (!header.includes("$")) continue;
+    const target = header.match(/^([A-Za-z_]\w*)/)?.[1];
+    if (target) templatedTargets.add(target);
+    if (header.includes(`$(isReadOnly?": IArray<T>":"")`) && target === "_Texture") {
+      bufferReadOnlyArray = true;
+      continue;
+    }
+    if (header.startsWith("$(typeName)")) continue; // kDynamicResourceCastableTypes (下で読む)
+    // 対象の名前を C++ の部分で作るものは、どの型に当たるか分からない。_Texture の適合は Buffer の別名に写すので、読めない形があっては困る。
+    if (/^\$/.test(header) || (target === "_Texture" && /:\s*[A-Za-z_$]/.test(header.replace(/\bwhere\b[^]*$/, "").replace(/^[^<]*<[^]*>/, "")))) {
+      throw new Error(`C++ の部分で形を作る extension の適合を読めません: ${file}: extension ${header}`);
+    }
+  }
+  for (const m of raw.matchAll(/kDynamicResourceCastableTypes\[\]\s*=\s*\{([\s\S]*?)\};/g)) {
+    for (const e of m[1].matchAll(/\{\s*"([A-Za-z_]\w*)(?:<[^"]*>)?"/g)) {
+      addConformance(`C\t${e[1]}\t__IDynamicResourceCastable`);
+    }
+  }
+  for (const m of raw.matchAll(/kBaseBufferAccessLevels\[\]\s*=\s*\{([\s\S]*?)\};/g)) {
+    for (const e of m[1].matchAll(/\{\s*"([A-Za-z]*)"/g)) bufferAliases.push(`${e[1]}Buffer`);
+  }
+  for (const m of raw.matchAll(/((?:\s*(?:__magic_type\([^)]*\)|\[[^\]]*\]))*)\s*\binterface\s+([A-Za-z_]\w*)/g)) {
+    if (/__magic_type|KnownBuiltin/.test(m[1])) magicInterfaces.set(m[2], origin);
+  }
+
   text = text.replace(/\$\{\{\{\{[\s\S]*?\}\}\}\}/g, " ").replace(/\$\{[\s\S]*?\$\}/g, " ").replace(/\$\([^)]*\)/g, " ").replace(/\$\w+/g, " ");
   text = text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+  for (const m of text.matchAll(/\b(?:struct|class)\s+([A-Za-z_]\w*)\s*[<:{]/g)) {
+    if (!plainTypes.has(m[1])) plainTypes.set(m[1], origin);
+  }
+  // ジェネリックの型の、型の仮引数の制約 (struct DescriptorHandle<T:IOpaqueDescriptor>・__generic<T, L : IBufferDataLayout> struct StructuredBuffer)。
+  for (const m of text.matchAll(/(?:__generic\s*<([^>{;]*(?:<[^>{;]*>[^>{;]*)*)>\s*(?:(?:__\w+\([^)]*\)|\[[^\]]*\])\s*)*)?\b(?:struct|class)\s+([A-Za-z_]\w*)\s*(?:<([^>{;]*(?:<[^>{;]*>[^>{;]*)*)>)?\s*[:{]/g)) {
+    const list = m[3] ?? m[1];
+    if (!list || (m[1] && m[3])) continue;
+    const parts = list.split(/,(?![^<]*>)/).map(p => p.trim());
+    if (parts.some(p => /^each\b|\beach\s/.test(p))) continue;
+    parts.forEach((p, index) => {
+      const c = p.match(/^(?:let\s+)?([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*)\s*(?:=.*)?$/);
+      if (c && !p.startsWith("let ")) generics.add(`G\t${m[2]}\t${index}\t${c[1]}\t${c[2]}\t${origin === "core" ? "" : origin}`);
+    });
+  }
+  for (const m of text.matchAll(/\btypealias\s+([A-Za-z_]\w*)|\btypedef\s+[^;{}]*?\b([A-Za-z_]\w*)\s*;/g)) aliasNames.add(m[1] ?? m[2]);
 
   for (const m of text.matchAll(/\binterface\s+([A-Za-z_]\w*)\s*(?:<[^>{]*>)?\s*(?::\s*([^{;]+))?\{/g)) {
     const bases = m[2] ? splitTopLevel(m[2]) : [];
@@ -281,6 +339,23 @@ for (const file of files) {
     }
   }
 }
+
+// Buffer・RWBuffer・RasterizerOrderedBuffer は _Texture の別名 (C++ の部分が typealias を作る)。_Texture の適合を写し、読むだけの Buffer に IArray を足す。
+// _Texture の extension の適合は、上で読めることを確かめたもの (読むだけの Buffer の IArray) だけなので、この 3 つは全部の適合を書いた型にできる。
+origin = "core";
+if (bufferAliases.length === 0 || !bufferReadOnlyArray) throw new Error("Buffer の型の作り方 (kBaseBufferAccessLevels・isReadOnly の IArray) を読めません");
+for (const line of [...conformance].filter(l => l.startsWith("C\t_Texture\t"))) {
+  const [, , iface, condition] = line.split("\t");
+  for (const alias of bufferAliases) addConformance(`C\t${alias}\t${iface}\t${condition}`);
+}
+addConformance(`C\t${bufferAliases[0]}\tIArray`);
+const closedTypes = new Map(bufferAliases.map(a => [a, "core"]));
+for (const [name, module] of plainTypes) {
+  if (!templatedTargets.has(name) && !aliasNames.has(name)) closedTypes.set(name, module);
+}
+for (const [name, module] of closedTypes) conformance.add(`K\t${name}\t${module === "core" ? "" : module}`);
+for (const [name, module] of magicInterfaces) conformance.add(`U\t${name}\t${module === "core" ? "" : module}`);
+for (const line of generics) conformance.add(line);
 
 origin = "core";
 {

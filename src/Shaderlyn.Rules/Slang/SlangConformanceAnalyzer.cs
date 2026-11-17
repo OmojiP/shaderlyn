@@ -93,7 +93,9 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             // 型が、インターフェイスに適合しないと言えるか。
             bool Violates(string type, string requirement)
             {
+                // 適合を全部表に書いた標準ライブラリの型 (RWBuffer など) も、組み込みの数の型と同じく、宣言を読み飛ばした型ではない。
                 bool builtin = binder.TypeSystem.TryDescribeNumeric(type, out _) || type is "bool" or "void";
+                builtin |= SlangStandardConformance.Instance.Closed.ContainsKey(type);
 
                 // インターフェイスの型 (存在型。別に見る)・型の別名・読み飛ばした宣言の型は決めない。
                 if (interfaces.ContainsKey(type) || root.TypeAliases.ContainsKey(type) || (!builtin && compilation.UnanalyzedIdentifiers.Contains(type) && !types.ContainsKey(type)))
@@ -803,8 +805,8 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 .Select(x => x.t.Text)];
             Dictionary<string, List<(List<string> TypeParameters, List<string?> ParameterTypes, List<List<string>> Constraints)>> shapes = CollectGenericShapes(tokens);
 
-            // ジェネリックの関数も型も、どの型にも当たる extension のメソッドも、Load の呼び出しも無ければ、見る使い方が無い。
-            if (functions.Count == 0 && structs.Count == 0 && blanketMethods.Count == 0 && !tokens.Any(t => t.Text == "Load"))
+            // ジェネリックの関数も型も、どの型にも当たる extension のメソッドも、Load の呼び出しも、標準ライブラリの制約のあるジェネリックの型も無ければ、見る使い方が無い。
+            if (functions.Count == 0 && structs.Count == 0 && blanketMethods.Count == 0 && !tokens.Any(t => t.Text == "Load" || SlangStandardConformance.Instance.Generics.ContainsKey(t.Text)))
             {
                 continue;
             }
@@ -1082,6 +1084,22 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                                               && !type.TemplateArguments.IsDefaultOrEmpty:
                         CheckArguments(generic, SimpleArguments(type.TemplateArguments), type.NameToken, type);
                         CheckAssociated(generic, SimpleArguments(type.TemplateArguments), type.NameToken);
+                        break;
+
+                    // DescriptorHandle<ParameterBlock<U>> (標準ライブラリのジェネリックの型の、型の仮引数の制約)
+                    case TypeSyntax type when type.OpenAngle is not null && !type.TemplateArguments.IsDefaultOrEmpty
+                                              && !structs.ContainsKey(type.NameToken.Text) && !interfaces.ContainsKey(type.NameToken.Text):
+                        List<string?> standardArguments = SimpleArguments(type.TemplateArguments);
+
+                        foreach ((int index, string standardParameter, string constraint) in model.StandardConstraints(type.NameToken.Text))
+                        {
+                            if (index < standardArguments.Count && standardArguments[index] is { } standardArgument && Violates(standardArgument, constraint))
+                            {
+                                Report(type.NameToken, standardArgument, constraint, standardParameter, type.NameToken.Text);
+                                break;
+                            }
+                        }
+
                         break;
 
                     // GenStruct gs (型引数を書かない、既定の型引数を使う型)。既定の型引数が制約に合わなければ、既定の値の位置で伝える。
@@ -1493,9 +1511,13 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             {
                 depth--;
             }
+            else if (token.Kind == ShaderSyntaxKind.GreaterThanGreaterThanToken)
+            {
+                depth -= 2;
+            }
             else if (token.Kind == ShaderSyntaxKind.CommaToken && depth == 0)
             {
-                arguments.Add(current is [{ Kind: ShaderSyntaxKind.IdentifierToken } single] ? single.Text : null);
+                arguments.Add(Name(current));
                 current.Clear();
                 continue;
             }
@@ -1503,8 +1525,18 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             current.Add(token);
         }
 
-        arguments.Add(current is [{ Kind: ShaderSyntaxKind.IdentifierToken } last] ? last.Text : null);
+        arguments.Add(Name(current));
         return arguments;
+
+        // 名前 1 つ (S) か、適合を全部表に書いた標準ライブラリの型に型引数を書いたもの (RWBuffer<float>。適合は型引数に依らずに決まる分だけ見る)。
+        static string? Name(List<ShaderSyntaxToken> type) => type switch
+        {
+            [{ Kind: ShaderSyntaxKind.IdentifierToken } single] => single.Text,
+            // 呼び出しの型引数の最後の > は、>> で閉じると並びに入らない (f<Box<T>>(x))。
+            [{ Kind: ShaderSyntaxKind.IdentifierToken } head, { Kind: ShaderSyntaxKind.LessThanToken }, ..]
+                when SlangStandardConformance.Instance.Closed.ContainsKey(head.Text) => head.Text,
+            _ => null,
+        };
     }
 
     /// <summary>仮引数の型が型の仮引数そのもの (<c>T x</c>) の位置の実引数の型から、型引数を求める。求まらない位置は <see langword="null"/>。</summary>
@@ -1891,7 +1923,8 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             }
 
             if (!value && token.Kind == ShaderSyntaxKind.ColonToken && i + 1 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken
-                && !(i + 2 < tokens.Length && tokens[i + 2].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                // ジェネリックのインターフェイス (IArray<T>) は名前だけを覚える。型引数に依らずに適合しないと言える型だけを報告する (利用者のジェネリックのインターフェイスは決めない)。
+                && !(i + 2 < tokens.Length && tokens[i + 2].Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
                 && constraints.Count > 0)
             {
                 constraints[^1].Add(tokens[i + 1].Text);
