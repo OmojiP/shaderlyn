@@ -335,6 +335,118 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // foo(() => Array<int, 2>()) と foo(functor) の foo が f: functype()->vector<float, N> (関数の型の戻り値の vector の大きさ N を、
+            // 数でも数のベクトルでもない戻り値の型 (Array・構造体) からは決められない。E30439)。N がほかの仮引数の型に出てくれば、そちらから決まるので見ない。
+            void CheckFunctionTypeInference(Generic generic, InvocationExpressionSyntax call)
+            {
+                if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target
+                    || compilation.GetFunctionDeclarations(generic.Name, program) is not [var declaration])
+                {
+                    return;
+                }
+
+                ParameterSyntax[] parameters = [.. declaration.ParameterList];
+                ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                if (parameters.Length != arguments.Length)
+                {
+                    return;
+                }
+
+                // 仮引数の書いたとおりのトークン (構文木は functype の型引数と戻り値の型を持たないので、トークンの並びから読む)。
+                List<string> Written(ParameterSyntax parameter)
+                {
+                    List<string> texts = [];
+
+                    if (parameter.FirstToken is not { } first || tokens.IndexOf(first) is var at && at < 0)
+                    {
+                        return texts;
+                    }
+
+                    for (int depth = 0; at < tokens.Length; at++)
+                    {
+                        ShaderSyntaxKind kind = tokens[at].Kind;
+
+                        if (depth == 0 && kind is ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken)
+                        {
+                            break;
+                        }
+
+                        // -> の > は山括弧の閉じでない。
+                        bool arrow = kind == ShaderSyntaxKind.GreaterThanToken && tokens[at - 1].Kind == ShaderSyntaxKind.MinusToken;
+
+                        depth += kind switch
+                        {
+                            ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.LessThanToken => 1,
+                            ShaderSyntaxKind.GreaterThanToken when arrow => 0,
+                            ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.GreaterThanToken => -1,
+                            ShaderSyntaxKind.GreaterThanGreaterThanToken => -2,
+                            _ => 0,
+                        };
+                        texts.Add(tokens[at].Text);
+                    }
+
+                    return texts;
+                }
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    string written = string.Concat(Written(parameters[i]));
+                    System.Text.RegularExpressions.Match shape = System.Text.RegularExpressions.Regex.Match(written, @"functype\(.*\)->vector<[^<>]+,([A-Za-z_]\w*)>");
+
+                    if (!shape.Success || shape.Groups[1].Value is not { } size || !generic.Parameters.Contains(size)
+                        || parameters.Where((_, k) => k != i).Any(other => Written(other).Contains(size)))
+                    {
+                        continue;
+                    }
+
+                    if (FunctionResultHead(arguments[i]) is { } head && compilation.IsReportable(target.Identifier) && target.Identifier.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.GenericArgumentNotInferred, location,
+                            $"{generic.Name} の型の仮引数 {size} は、実引数から決まりません (実引数の関数の戻り値の型 {head} は、vector<…, {size}> になりません)。{generic.Name}<…>(…) と型引数を書くか、vector を返す関数を渡してください。"));
+                        return;
+                    }
+                }
+            }
+
+            // ラムダ式 (() => Array<int, 2>()) か IFunc<R> に適合する構造体の値の、戻り値の型の名前。数でも数のベクトルでもないと言える型 (Array・利用者の構造体) だけ。
+            string? FunctionResultHead(ExpressionSyntax argument)
+            {
+                string? head = null;
+
+                if (argument is IncompleteExpressionSyntax lambda)
+                {
+                    ShaderSyntaxToken[] written = [.. lambda.DescendantTokens()];
+                    int arrow = Array.FindIndex(written, t => t.Kind == ShaderSyntaxKind.EqualsToken);
+
+                    if (arrow > 0 && arrow + 3 < written.Length && written[0].Kind == ShaderSyntaxKind.OpenParenToken && written[arrow + 1].Kind == ShaderSyntaxKind.GreaterThanToken
+                        && written[arrow + 2].Kind == ShaderSyntaxKind.IdentifierToken && written[arrow + 3].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenParenToken)
+                    {
+                        head = written[arrow + 2].Text;
+                    }
+                }
+                else if (binder.GetEvaluatorFor(argument).Evaluate(argument) is { } type && IsStruct(type))
+                {
+                    // struct Functor : IFunc<Array<int, 2>> の IFunc の最初の型引数
+                    for (int k = 0; k + 4 < tokens.Length && head is null; k++)
+                    {
+                        if (tokens[k].Text is "struct" or "class" && tokens[k + 1].Text == type)
+                        {
+                            for (int m = k + 2; m + 2 < tokens.Length && tokens[m].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); m++)
+                            {
+                                if (tokens[m].Text == "IFunc" && tokens[m + 1].Kind == ShaderSyntaxKind.LessThanToken && tokens[m + 2].Kind == ShaderSyntaxKind.IdentifierToken)
+                                {
+                                    head = tokens[m + 2].Text;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return head is not null && (head == "Array" || (IsStruct(head) && !root.TypeAliases.ContainsKey(head))) ? head : null;
+            }
+
             void CheckNotInferred(Generic generic, InvocationExpressionSyntax call)
             {
                 if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target || generic.Mentioned.Length != generic.Parameters.Length)
@@ -1066,6 +1178,7 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                         }
 
                         CheckNotInferred(generic, call);
+                        CheckFunctionTypeInference(generic, call);
                         CheckConflicts(generic, call);
                         CheckExistentialFunctionCall(generic, call);
 
@@ -1781,7 +1894,12 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
                 for (int k = end + 1; k < tokens.Length && tokens[k].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); k++)
                 {
-                    if (tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k - 1].Text != "where")
+                    // where countof(TIndex) == N の N は、並びの数から決まらない (slangc は特殊化できない。E39999)。
+                    bool countedValue = tokens[k - 1].Kind == ShaderSyntaxKind.EqualsEqualsToken && tokens[k - 2].Kind == ShaderSyntaxKind.CloseParenToken
+                                        && Enumerable.Range(1, Math.Min(k - 2, 8)).Select(back => tokens[k - 2 - back]).TakeWhile(t => t.Kind != ShaderSyntaxKind.EqualsEqualsToken)
+                                            .Any(t => t.Text == "countof");
+
+                    if (tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k - 1].Text != "where" && !countedValue)
                     {
                         mentioned.Add(tokens[k].Text);
                     }

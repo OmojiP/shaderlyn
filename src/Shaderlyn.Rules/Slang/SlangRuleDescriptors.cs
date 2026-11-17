@@ -510,8 +510,9 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "型引数を書かずにジェネリックの関数を呼んでいて、型の仮引数 (か値の仮引数) が仮引数の並びに出てこず既定の値も無いか、違う型 (片方が構造体) か違う大きさの配列が当たるので、決まりません。"
-            + "slangc はコンパイルの誤り (E30439・E30442) にします。f<int>() のように型引数を書いてください。",
+        description: "型引数を書かずにジェネリックの関数を呼んでいて、型の仮引数 (か値の仮引数) が仮引数の並びに出てこず既定の値も無いか、違う型 (片方が構造体) か違う大きさの配列が当たるか、"
+            + "where countof(T) == N の N のように並びの数からしか決まらないか、関数の型の戻り値の vector<…, N> に数のベクトルでない型を返す関数を渡しているので、決まりません。"
+            + "slangc はコンパイルの誤り (E30439・E30442・E39999) にします。f<int>() のように型引数を書いてください。",
         helpLinkUri: DocumentationLinks.For("SG0363"));
 
     /// <summary>条件の中の代入。</summary>

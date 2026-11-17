@@ -847,7 +847,14 @@ internal sealed class SlangParser : ShaderParser
                 }
                 else
                 {
-                    tokens.AddRange(SkipExpressionTokens());
+                    // 本体の式は、式として読む (型引数の , を含む Array<int, 2>() を、実引数の区切りと取り違えない)。
+                    int bodyStart = Position;
+                    _ = ParseExpression();
+
+                    for (int k = bodyStart; k < Position; k++)
+                    {
+                        tokens.Add(Peek(k - Position));
+                    }
                 }
 
                 MarkUnanalyzed(tokens);
@@ -1301,31 +1308,6 @@ internal sealed class SlangParser : ShaderParser
         for (int i = start; i < Position; i++)
         {
             skipped.Add(Peek(i - Position));
-        }
-
-        return skipped;
-    }
-
-    /// <summary>式を読み飛ばす (括弧の外の <c>,</c> <c>)</c> <c>;</c> <c>}</c> まで)。</summary>
-    private List<ShaderSyntaxToken> SkipExpressionTokens()
-    {
-        List<ShaderSyntaxToken> skipped = [];
-        int depth = 0;
-
-        while (!AtEnd)
-        {
-            if (depth == 0 && Current.Kind is ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.CloseBracketToken)
-            {
-                break;
-            }
-
-            depth += Current.Kind switch
-            {
-                ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.OpenBraceToken => 1,
-                ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.CloseBraceToken => -1,
-                _ => 0,
-            };
-            skipped.Add(Advance());
         }
 
         return skipped;

@@ -462,6 +462,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0358", "interface IFoo { int get(); }\ntype_param T : IFoo;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    T t;\n    output[0] = t.get();\n}\n")]
     [InlineData("SG0358", "__generic_value_param N : int;\nRWStructuredBuffer<int> output;\nint read() { return N; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = read(); }\n")]
     [InlineData("SG0349", "[anyValueSize(8)]\ninterface IFoo { float getValue(); }\nstruct ImplA : IFoo { float v; float getValue() { return v; } }\nRWByteAddressBuffer buffer;\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid computeMain()\n{\n    IFoo loaded = buffer.Load<IFoo>(0);\n    output[0] = loaded.getValue();\n}\n")]
+    [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = foo(() => Array<int, 2>()).x; }\n")]
+    [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nstruct Functor : IFunc<Array<int, 2>> { Array<int, 2> operator()() { return Array<int, 2>(); } }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { Functor f; output[0] = foo(f).x; }\n")]
+    [InlineData("SG0363", "void load<let N : int, each TIndex>(expand each TIndex indices) where countof(TIndex) == N {}\nvoid m() { load(1, 2, 3); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -630,6 +633,8 @@ public sealed class SlangRuleTests : IDisposable
     // エントリポイントから届かないファイル全体のジェネリックの仮引数と、同じ名前の型の仮引数を持つ関数
     [InlineData("interface IBase {}\ntype_param TParam : IBase;\nParameterBlock<TParam> arg;\n__generic_value_param kOffset : uint = 0;\nTexture2D t;\nSamplerState s;\nfloat4 main(float2 uv) : SV_Target { return t.Sample(s, uv); }\nT pick<T>(T v) { return v; }\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid entry() { output[0] = pick<int>(1); }\n")]
     [InlineData("interface IFoo { int get(); }\ntype_param T : IFoo;\nint use<T : IFoo>(T x) { return x.get(); }\nstruct A : IFoo { int get() { return 1; } }\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { A a; output[0] = use(a); }\n")]
+    // 数か数のベクトルを返す関数から決まる vector の大きさ、型引数を書いた countof の制約、型引数の , を含むラムダ式の本体
+    [InlineData("func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nstruct F3 : IFunc<float3> { float3 operator()() { return float3(1); } }\nRWStructuredBuffer<float> output;\nvoid load<let N : int, each TIndex>(expand each TIndex indices) where countof(TIndex) == N {}\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    F3 f;\n    output[0] = foo(() => float2(1, 2)).x + foo(() => int2(1, 2)).x + foo(() => 1.0f).x + foo(f).x;\n    let g = () => Array<int, 2>();\n    load<3>(1, 2, 3);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
