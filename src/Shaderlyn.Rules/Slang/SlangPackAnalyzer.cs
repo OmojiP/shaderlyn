@@ -54,6 +54,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
             // 関数ごとの、並びの仮引数と、空でないと決めた並び。名前ごとに、nonempty を求める仮引数の位置。
             List<(int Start, int End, List<string> Packs, HashSet<string> NonEmpty)> functions = [];
             Dictionary<string, (List<string> Parameters, HashSet<int> Required)?> requiring = new(StringComparer.Ordinal);
+            Dictionary<string, int?> emptyAt = new(StringComparer.Ordinal);
 
             for (int i = 1; i + 1 < tokens.Length; i++)
             {
@@ -106,6 +107,19 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 HashSet<int> required = [.. parameters.Select((p, index) => (p, index)).Where(x => nonEmpty.Contains(x.p)).Select(x => x.index)];
                 requiring[name] = requiring.ContainsKey(name) ? null : (parameters, required);
 
+                // nonempty を求める並びが、仮引数の expand each T からしか決まらないなら、その外の仮引数の数だけの実引数の呼び出しでは空になる。
+                if (nonEmpty.Count > 0)
+                {
+                    List<List<ShaderSyntaxToken>> declared = Split([.. tokens.Skip(close + 1).Take(end - close - 1)]);
+                    int packed = declared.Count(d => d.Zip(d.Skip(1)).Any(x => x.First.Text == "each" && nonEmpty.Contains(x.Second.Text)));
+                    bool onlyThere = declared.All(d => !d.Any(t => nonEmpty.Contains(t.Text)) || d.Any(t => t.Text == "expand"));
+
+                    if (packed > 0 && onlyThere && declared.All(d => !d.Any(t => t.Kind == ShaderSyntaxKind.EqualsToken)))
+                    {
+                        emptyAt[name] = emptyAt.ContainsKey(name) ? null : declared.Count - packed;
+                    }
+                }
+
                 if (body < tokens.Length && tokens[body].Kind == ShaderSyntaxKind.OpenBraceToken && MatchingBrace(tokens, body) is { } bodyEnd)
                 {
                     functions.Add((body, bodyEnd, packs, nonEmpty));
@@ -140,6 +154,20 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
             }
 
             CheckCountConstraints(tokens, Report);
+
+            // foo() (nonempty を求める並びが実引数から空に決まる呼び出し。E30440)
+            for (int i = 1; i + 1 < tokens.Length; i++)
+            {
+                if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                    && emptyAt.TryGetValue(tokens[i].Text, out int? fixedCount) && fixedCount is { } count
+                    && (tokens[i - 1].Kind is not (ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.GreaterThanToken) || tokens[i - 1].Text is "return" or "else")
+                    && Matching(tokens, i + 1) is { } callEnd
+                    && !tokens.Skip(i + 2).Take(callEnd - i - 2).Any(t => t.Text is "expand" or "each")
+                    && Split([.. tokens.Skip(i + 2).Take(callEnd - i - 2)]).Count == count)
+                {
+                    Report(tokens[i], $"'{tokens[i].Text}' は where nonempty(…) を求めるので、並びが空になる実引数では呼べません。");
+                }
+            }
 
             // expand (x + 1) (each の無い expand。E30105) と、each の無い型の仮引数の each T (E30103)。
             for (int i = 0; i + 1 < tokens.Length; i++)

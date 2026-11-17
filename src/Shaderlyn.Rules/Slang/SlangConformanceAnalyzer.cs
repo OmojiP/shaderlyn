@@ -35,13 +35,21 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
         /// <summary>仮引数ごとの、関数の仮引数の並び (型と配列の大きさ) に出てくるか。関数でなければ空。</summary>
         public ImmutableArray<bool> Mentioned { get; init; } = [];
+
+        /// <summary>インターフェイスでない制約 (<c>where T == int</c>・<c>where int(T)</c>・<c>where __hasDiffTypeInfo(T)</c>)。仮引数の位置と、種類 (==・()・diff) と、右の型。</summary>
+        public ImmutableArray<(int Index, string Kind, string Target)> Special { get; init; } = [];
+
+        /// <summary>関連型の制約 (<c>where T.Element : IMarker</c>・<c>where T.Element == int</c>)。仮引数の位置と、関連型の名前と、種類 (: か ==) と、右の型。</summary>
+        public ImmutableArray<(int Index, string Member, string Kind, string Target)> Associated { get; init; } = [];
     }
 
     /// <inheritdoc/>
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ConstraintNotSatisfied, SlangRuleDescriptors.GenericArgumentNotInferred];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [SlangRuleDescriptors.ConstraintNotSatisfied, SlangRuleDescriptors.GenericArgumentNotInferred, HlslRuleDescriptors.ArgumentNotConvertible,
+         SlangRuleDescriptors.InterfaceRequirement, SlangRuleDescriptors.CyclicConstant];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -56,6 +64,12 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
             CompilationUnitSyntax root = program.Tree.Root;
 
+            // 見えないモジュール (取り込んだモジュールが __exported でなく取り込んだもの) の extension は、このファイルの型の適合に足さない。
+            if (compilation.Text.FilePath is { } rootPath && SlangImportScopeAnalyzer.HiddenFiles(rootPath, program) is { Count: > 0 } hidden)
+            {
+                tokens = WithoutExtensions(tokens, hidden);
+            }
+
             // インターフェイスと型の継承の並び。extension の並びも型に足す。
             Dictionary<string, HashSet<string>?> interfaces = new(StringComparer.Ordinal);
             Dictionary<string, HashSet<string>?> types = new(StringComparer.Ordinal);
@@ -64,13 +78,11 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             HashSet<string> extended = new(StringComparer.Ordinal);
             HashSet<string> blanket = new(StringComparer.Ordinal);
 
-            Collect(tokens, interfaces, types, functions, structs, extended, blanket);
+            Dictionary<string, Generic?> genericInterfaces = new(StringComparer.Ordinal);
+            Collect(tokens, interfaces, types, functions, structs, extended, blanket, genericInterfaces);
 
-            // ジェネリックの関数も型も無ければ、見る使い方が無い。
-            if (functions.Count == 0 && structs.Count == 0)
-            {
-                continue;
-            }
+            // 構造体の中の関連型 (typealias Element = X;) と、本体の無い extern の構造体。
+            (Dictionary<(string, string), string> aliases, HashSet<string> externs) = CollectMembers(tokens);
 
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
             bool versioned = System.Text.RegularExpressions.Regex.IsMatch(program.Tree.Text.ToString(), @"^\s*#\s*lang(uage)?\s+(slang\s+)?(20\d\d|latest)\b", System.Text.RegularExpressions.RegexOptions.Multiline);
@@ -143,10 +155,13 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                         continue;
                     }
 
-                    // インターフェイスの型 (存在型) では特殊化できない (E33180)。言語のバージョンを書いたファイル (#lang slang 2025 以降) だけ。書かなければ古い書き方として、動的なディスパッチで通る。
-                    if (versioned && interfaces.TryGetValue(argument, out HashSet<string>? existential) && existential is not null)
+                    // インターフェイスの型を型引数に書いた呼び出し (f<IFoo>(…)) は特殊化できない (E33180)。言語のバージョンを書いたファイル (#lang slang 2025 以降) の、
+                    // エントリポイントから届く関数の中だけ (特殊化は、コードを作るときに起きる)。書かなければ古い書き方として、動的なディスパッチで通る。
+                    // 実引数から決めたインターフェイスの型は、値の出どころで見る (CheckExistentialFunctionCall)。
+                    if (interfaces.TryGetValue(argument, out HashSet<string>? existential) && existential is not null)
                     {
-                        if (!at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } existentialLocation)
+                        if (versioned && site is InvocationExpressionSyntax { HasTypeArguments: true } or InvocationExpressionSyntax { Target: GenericNameExpressionSyntax } && Reachable(site)
+                            && !at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } existentialLocation)
                         {
                             context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, existentialLocation,
                                 $"インターフェイスの型 {argument} では、{generic.Name} の型の仮引数 {generic.Parameters[i]} を特殊化できません。具体的な型の値を渡してください。"));
@@ -186,8 +201,6 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
                 ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(call);
                 Dictionary<int, string> seen = [];
-
-                bool IsStruct(string name) => types.TryGetValue(name, out HashSet<string>? b) && b is not null && !interfaces.ContainsKey(name);
 
                 for (int i = 0; i < parameters.Length; i++)
                 {
@@ -236,6 +249,90 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            bool IsStruct(string name) => types.TryGetValue(name, out HashSet<string>? b) && b is not null && !interfaces.ContainsKey(name);
+            bool IsNumber(string name) => binder.TypeSystem.TryDescribeNumeric(name, out _) || name == "bool";
+
+            // where T == int・where int(T)・where __hasDiffTypeInfo(T) を満たさない型引数 (E30440)。
+            void CheckSpecial(Generic generic, IReadOnlyList<string?> arguments, ShaderSyntaxToken at)
+            {
+                foreach ((int index, string kind, string target) in generic.Special)
+                {
+                    // where Box<X> == Box<X>.Nested<X> (違う構造体どうしの等しさ。型引数によらず満たさない)
+                    if (kind == "types" && target.Split('|') is [var leftName, var rightName, var leftText, var rightText])
+                    {
+                        if (leftName != rightName && IsStruct(leftName) && IsStruct(rightName) && !extended.Contains(leftName) && !extended.Contains(rightName)
+                            && !root.TypeAliases.ContainsKey(leftName) && !root.TypeAliases.ContainsKey(rightName)
+                            && !at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } typesLocation)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, typesLocation,
+                                $"{leftText} と {rightText} は違う型なので、{generic.Name} の制約 where {leftText} == {rightText} を満たしません。"));
+                            return;
+                        }
+
+                        continue;
+                    }
+
+                    if (index >= arguments.Count || arguments[index] is not { } argument || generic.Parameters.Contains(argument))
+                    {
+                        continue;
+                    }
+
+                    string parameter = generic.Parameters[index];
+                    string? message = kind switch
+                    {
+                        "==" when argument != target && ((IsStruct(argument) && (IsStruct(target) || IsNumber(target))) || (IsNumber(argument) && (IsNumber(target) || IsStruct(target))))
+                            => $"{argument} は {target} ではないので、{generic.Name} の制約 where {parameter} == {target} を満たしません。",
+                        "()" when IsStruct(argument) && IsNumber(target) && !extended.Contains(target) && blanket.Count == 0
+                            => $"構造体 {argument} は {target} に変換できないので、{generic.Name} の制約 where {target}({parameter}) を満たしません。",
+                        "diff" when IsStruct(argument) && model.Conforms(argument, "IDifferentiable") == false
+                            => $"構造体 {argument} は IDifferentiable に適合しないので、{generic.Name} の制約 where __hasDiffTypeInfo({parameter}) を満たしません。",
+                        _ => null,
+                    };
+
+                    if (message is not null && !at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location, message));
+                        return;
+                    }
+                }
+            }
+
+            // RequiresIntElement<FloatContainer> (where T.Element == int の T に、Element が float の型を渡す)
+            void CheckAssociated(Generic generic, IReadOnlyList<string?> arguments, ShaderSyntaxToken at)
+            {
+                foreach ((int index, string member, string kind, string target) in generic.Associated)
+                {
+                    if (index >= arguments.Count || arguments[index] is not { } argument || !IsStruct(argument) || extended.Contains(argument) || blanket.Count > 0)
+                    {
+                        continue;
+                    }
+
+                    string? message = null;
+
+                    if (aliases.TryGetValue((argument, member), out string? actual))
+                    {
+                        if (kind == ":" && Violates(actual, target))
+                        {
+                            message = $"{argument}.{member} ({actual}) はインターフェイス {target} に適合しないので、{generic.Name} の制約 where {generic.Parameters[index]}.{member} : {target} を満たしません。";
+                        }
+                        else if (kind == "==" && actual != target && (IsStruct(actual) || IsNumber(actual)) && (IsStruct(target) || IsNumber(target)))
+                        {
+                            message = $"{argument}.{member} は {actual} なので、{generic.Name} の制約 where {generic.Parameters[index]}.{member} == {target} を満たしません。";
+                        }
+                    }
+                    else if (kind == "==" && externs.Contains(argument) && (IsStruct(target) || IsNumber(target)))
+                    {
+                        message = $"extern の構造体 {argument} の {member} は決まっていないので、{generic.Name} の制約 where {generic.Parameters[index]}.{member} == {target} を満たしません。";
+                    }
+
+                    if (message is not null && !at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location, message));
+                        return;
+                    }
+                }
+            }
+
             void CheckNotInferred(Generic generic, InvocationExpressionSyntax call)
             {
                 if (call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target || generic.Mentioned.Length != generic.Parameters.Length)
@@ -255,23 +352,721 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            CheckInterfaceConstraints();
+            CheckOutputInterfaceArguments();
+            CheckAnyValueSizes();
+            CheckRecursiveGenericConstants();
+
+            // f(concrete) の f が inout IThing x (インターフェイスの型の out・inout の仮引数に、具体的な型の値を渡す。E30077)。
+            void CheckOutputInterfaceArguments()
+            {
+                foreach (InvocationExpressionSyntax call in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+                {
+                    if (call.HasTypeArguments || call.TargetName is not { } name || compilation.GetFunctionDeclarations(name, program) is not [var declaration]
+                        || !declaration.GenericParameterTokens.IsDefaultOrEmpty)
+                    {
+                        continue;
+                    }
+
+                    ParameterSyntax[] parameters = [.. declaration.ParameterList];
+                    ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                    if (parameters.Length != arguments.Length)
+                    {
+                        continue;
+                    }
+
+                    ExpressionTypeEvaluator? evaluator = null;
+
+                    for (int i = 0; i < parameters.Length; i++)
+                    {
+                        ParameterSyntax parameter = parameters[i];
+
+                        if (!parameter.ModifierTokens.Any(m => m.Text is "out" or "inout") || parameter.IsArray || parameter.Type.OpenAngle is not null
+                            || !interfaces.TryGetValue(parameter.Type.Name, out HashSet<string>? known) || known is null)
+                        {
+                            continue;
+                        }
+
+                        evaluator ??= binder.GetEvaluatorFor(call);
+
+                        if (evaluator.Evaluate(arguments[i]) is { } argument && IsStruct(argument) && arguments[i].FirstToken is { } at
+                            && compilation.IsReportable(at) && at.GetLocation() is { } location)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ArgumentNotConvertible, location, name, i + 1, argument, parameter.Type.Name,
+                                $"インターフェイスの型の {string.Join(" ", parameter.ModifierTokens.Select(m => m.Text))} の仮引数には、具体的な型の値を渡せません。"
+                                + $"インターフェイスの型の値を渡すか、仮引数を T {parameter.Name} と where T : {parameter.Type.Name} のジェネリックにしてください。"));
+                        }
+                    }
+                }
+            }
+
+            // [anyValueSize(8)] interface I に適合する構造体の大きさ (E41019)。フィールドが 4 バイトのスカラー・ベクトルとその配列だけの構造体を見る。
+            void CheckAnyValueSizes()
+            {
+                Dictionary<string, int> limits = new(StringComparer.Ordinal);
+
+                // [anyValueSize(8)] interface I (属性の ] のすぐ後ろの interface)
+                for (int i = 0; i + 6 < tokens.Length; i++)
+                {
+                    if (tokens[i].Text == "anyValueSize" && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Kind == ShaderSyntaxKind.NumericLiteralToken
+                        && tokens[i + 3].Kind == ShaderSyntaxKind.CloseParenToken && tokens[i + 4].Kind == ShaderSyntaxKind.CloseBracketToken
+                        && tokens[i + 5].Text == "interface" && tokens[i + 6].Kind == ShaderSyntaxKind.IdentifierToken && int.TryParse(tokens[i + 2].Text, out int limit))
+                    {
+                        limits[tokens[i + 6].Text] = limits.ContainsKey(tokens[i + 6].Text) ? -1 : limit;
+                    }
+                }
+
+                if (limits.Count == 0)
+                {
+                    return;
+                }
+
+                // 大きさは、インターフェイスの型の値を作るコード (エントリポイントから届く関数か、グローバルの宣言) があるときに見る。
+                FunctionDeclarationSyntax[] entries = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
+                    .Where(f => f.Body is not null && f.Attributes.Any(a => a.Name is "shader" or "numthreads"))];
+                HashSet<FunctionDeclarationSyntax> reachable = [.. entries];
+
+                foreach (FunctionDeclarationSyntax entry in entries)
+                {
+                    reachable.UnionWith(compilation.EnumerateCallees(entry, program, int.MaxValue).Select(c => c.Function));
+                }
+
+                HashSet<string> used = new(StringComparer.Ordinal);
+
+                foreach (FunctionDeclarationSyntax function in reachable)
+                {
+                    used.UnionWith(function.DescendantTokens().Where(t => limits.ContainsKey(t.Text)).Select(t => t.Text));
+                }
+
+                foreach (VariableDeclarationSyntax global in root.Declarations.OfType<VariableDeclarationSyntax>())
+                {
+                    used.UnionWith(global.DescendantTokens().Where(t => limits.ContainsKey(t.Text)).Select(t => t.Text));
+                }
+
+                foreach (string unused in limits.Keys.Where(k => !used.Contains(k)).ToList())
+                {
+                    limits.Remove(unused);
+                }
+
+                foreach (StructDeclarationSyntax declared in root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>())
+                {
+                    if (declared.Keyword.Text is not ("struct" or "class") || declared.NameToken is not { } structName || extended.Contains(structName.Text)
+                        || !types.TryGetValue(structName.Text, out HashSet<string>? bases) || bases is null
+                        || bases.Where(limits.ContainsKey).Select(b => limits[b]).DefaultIfEmpty(-1).Min() is not (>= 0 and var limit))
+                    {
+                        continue;
+                    }
+
+                    int size = 0;
+                    bool known = true;
+
+                    foreach (VariableDeclarationSyntax field in declared.Members.OfType<VariableDeclarationSyntax>())
+                    {
+                        if (field.ModifierTokens.Any(m => m.Text is "static" or "const"))
+                        {
+                            continue;
+                        }
+
+                        int components = binder.TypeSystem.TryDescribeNumeric(field.Type.Name, out ShaderNumericShape shape) && shape.Rows == 1
+                                         && field.Type.Name.TrimEnd('1', '2', '3', '4') is "int" or "uint" or "float" or "dword"
+                            ? shape.Columns
+                            : 0;
+
+                        foreach (VariableDeclaratorSyntax variable in field.Variables)
+                        {
+                            int count = 1;
+
+                            if (variable.IsArray && !(variable.ArrayDimensions == 1 && variable.TryGetArrayLength(out count)))
+                            {
+                                known = false;
+                            }
+
+                            size += 4 * components * count;
+                        }
+
+                        known &= components > 0;
+                    }
+
+                    if (known && size > limit && compilation.IsReportable(structName) && structName.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InterfaceRequirement, location,
+                            $"{structName.Text} の大きさ ({size} バイト) が、インターフェイスの [anyValueSize({limit})] を超えています。"));
+                    }
+                }
+            }
+
+            // struct Loop<let x : int> { static const int value = Loop<x + 1>::value; } を、Loop<0>::value で使う (E39998。値を求めるのが終わらない)。
+            void CheckRecursiveGenericConstants()
+            {
+                foreach ((string name, Generic? generic) in structs)
+                {
+                    if (generic is null)
+                    {
+                        continue;
+                    }
+
+                    for (int i = 0; i + 4 < tokens.Length; i++)
+                    {
+                        // static const int value = …; の初期値の中の name<…>::member (同じ構造体の中)
+                        if (tokens[i].Text != "static" || tokens[i + 1].Text != "const")
+                        {
+                            continue;
+                        }
+
+                        int equals = i + 2;
+
+                        while (equals < tokens.Length && tokens[equals].Kind is not (ShaderSyntaxKind.EqualsToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken))
+                        {
+                            equals++;
+                        }
+
+                        if (equals + 1 >= tokens.Length || tokens[equals].Kind != ShaderSyntaxKind.EqualsToken || Owner(i) != name)
+                        {
+                            continue;
+                        }
+
+                        int end = equals + 1;
+
+                        while (end < tokens.Length && tokens[end].Kind != ShaderSyntaxKind.SemicolonToken)
+                        {
+                            end++;
+                        }
+
+                        // 条件で止めるもの (? :) は見ない。
+                        if (tokens.Skip(equals + 1).Take(end - equals - 1).Any(t => t.Kind == ShaderSyntaxKind.QuestionToken))
+                        {
+                            continue;
+                        }
+
+                        // name<…>::constant (定義している定数そのものを、同じ構造体の別の特殊化から読む)
+                        string constant = tokens[equals - 1].Text;
+                        ShaderSyntaxToken? self = null;
+
+                        for (int k = equals + 1; k + 1 < end && self is null; k++)
+                        {
+                            if (tokens[k].Text != name || tokens[k + 1].Kind != ShaderSyntaxKind.LessThanToken)
+                            {
+                                continue;
+                            }
+
+                            int depth = 0;
+                            int m = k + 1;
+
+                            for (; m < end; m++)
+                            {
+                                depth += tokens[m].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+                                if (depth == 0)
+                                {
+                                    break;
+                                }
+                            }
+
+                            if (m + 2 < end + 1 && tokens[m + 1].Kind is ShaderSyntaxKind.ColonColonToken or ShaderSyntaxKind.DotToken && tokens[m + 2].Text == constant)
+                            {
+                                self = tokens[k];
+                            }
+                        }
+
+                        if (self is null)
+                        {
+                            continue;
+                        }
+
+                        // 構造体の外での name<…>:: の使用があるときだけ (使わなければ値を求めない)。
+                        bool used = false;
+
+                        for (int k = 0; k + 1 < tokens.Length && !used; k++)
+                        {
+                            used = tokens[k].Text == name && tokens[k + 1].Kind == ShaderSyntaxKind.LessThanToken && Owner(k) != name
+                                   && tokens[k - 1 < 0 ? 0 : k - 1].Text is not ("struct" or "class")
+                                   && tokens.Skip(k + 1).TakeWhile(t => t.Kind is not (ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken)).Any(t => t.Kind == ShaderSyntaxKind.ColonColonToken);
+                        }
+
+                        if (used && compilation.IsReportable(self) && self.GetLocation() is { } location)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.CyclicConstant, location,
+                                $"static const の初期値が、同じ構造体 {name} の別の型引数の値をたどり続けるので、値が決まりません (終わりの条件が書けません)。"));
+                        }
+                    }
+                }
+            }
+
+            // 位置 index の、すぐ外の struct の名前。
+            string? Owner(int index)
+            {
+                int depth = 0;
+
+                for (int k = index; k > 0; k--)
+                {
+                    if (tokens[k].Kind == ShaderSyntaxKind.CloseBraceToken)
+                    {
+                        depth++;
+                    }
+                    else if (tokens[k].Kind == ShaderSyntaxKind.OpenBraceToken && --depth < 0)
+                    {
+                        for (int j = k - 1; j > 0 && tokens[j].Kind is not (ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken or ShaderSyntaxKind.OpenBraceToken); j--)
+                        {
+                            if (tokens[j - 1].Text is "struct" or "class")
+                            {
+                                return tokens[j].Text;
+                            }
+                        }
+
+                        return null;
+                    }
+                }
+
+                return null;
+            }
+
+            // インターフェイスの __constraint A == This と、関連型を型引数にしたジェネリックのインターフェイス (associatedtype First : IConsumer<Context>)。
+            void CheckInterfaceConstraints()
+            {
+                Dictionary<string, List<string>> thisConstraints = new(StringComparer.Ordinal);
+
+                for (int i = 0; i + 2 < tokens.Length; i++)
+                {
+                    if (tokens[i].Text != "interface" || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken || !interfaces.ContainsKey(tokens[i + 1].Text))
+                    {
+                        continue;
+                    }
+
+                    int open = i + 2;
+
+                    while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+                    {
+                        open++;
+                    }
+
+                    if (open >= tokens.Length || tokens[open].Kind != ShaderSyntaxKind.OpenBraceToken)
+                    {
+                        continue;
+                    }
+
+                    // 本体の深さ 1 の associatedtype と、その制約。読めない制約のあるものは null。
+                    Dictionary<string, List<string>?> associated = new(StringComparer.Ordinal);
+                    List<(ShaderSyntaxToken Generic, string Argument)> uses = [];
+                    int depth = 0;
+
+                    for (int k = open; k < tokens.Length; k++)
+                    {
+                        if (tokens[k].Kind == ShaderSyntaxKind.OpenBraceToken)
+                        {
+                            depth++;
+                        }
+                        else if (tokens[k].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+                        {
+                            break;
+                        }
+
+                        if (depth != 1)
+                        {
+                            continue;
+                        }
+
+                        // __constraint DataType == This;
+                        if (tokens[k].Text == "__constraint" && k + 4 < tokens.Length && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                            && tokens[k + 2].Kind == ShaderSyntaxKind.EqualsEqualsToken && tokens[k + 3].Text == "This" && tokens[k + 4].Kind == ShaderSyntaxKind.SemicolonToken)
+                        {
+                            if (!thisConstraints.TryGetValue(tokens[i + 1].Text, out List<string>? list))
+                            {
+                                thisConstraints[tokens[i + 1].Text] = list = [];
+                            }
+
+                            list.Add(tokens[k + 1].Text);
+                        }
+
+                        if (tokens[k].Text != "associatedtype" || k + 1 >= tokens.Length || tokens[k + 1].Kind != ShaderSyntaxKind.IdentifierToken)
+                        {
+                            continue;
+                        }
+
+                        string name = tokens[k + 1].Text;
+                        List<string>? bounds = [];
+                        int m = k + 2;
+
+                        if (m < tokens.Length && tokens[m].Kind == ShaderSyntaxKind.ColonToken)
+                        {
+                            for (m++; m < tokens.Length && tokens[m].Kind is not ShaderSyntaxKind.SemicolonToken && tokens[m].Text != "where"; m++)
+                            {
+                                if (tokens[m].Kind != ShaderSyntaxKind.IdentifierToken || tokens[m - 1].Kind is not (ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.AmpersandToken))
+                                {
+                                    continue;
+                                }
+
+                                // IConsumer<Context> (ジェネリックのインターフェイスに、関連型 1 つを渡すもの)
+                                if (m + 3 < tokens.Length && tokens[m + 1].Kind == ShaderSyntaxKind.LessThanToken
+                                    && tokens[m + 2].Kind == ShaderSyntaxKind.IdentifierToken && tokens[m + 3].Kind == ShaderSyntaxKind.GreaterThanToken)
+                                {
+                                    uses.Add((tokens[m], tokens[m + 2].Text));
+                                    bounds = null;
+                                }
+                                else if (bounds is not null && !(m + 1 < tokens.Length && tokens[m + 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
+                                {
+                                    bounds.Add(tokens[m].Text);
+                                }
+                                else
+                                {
+                                    bounds = null;
+                                }
+                            }
+                        }
+
+                        // where の制約は読まない (決めない)。
+                        if (m < tokens.Length && tokens[m].Text == "where")
+                        {
+                            bounds = null;
+                        }
+
+                        associated[name] = associated.ContainsKey(name) ? null : bounds;
+                    }
+
+                    foreach ((ShaderSyntaxToken genericToken, string argument) in uses)
+                    {
+                        if (!genericInterfaces.TryGetValue(genericToken.Text, out Generic? target) || target is not { Parameters.Length: 1 }
+                            || !associated.TryGetValue(argument, out List<string>? bounds) || bounds is null)
+                        {
+                            continue;
+                        }
+
+                        foreach (string requirement in target.Constraints[0])
+                        {
+                            if (interfaces.TryGetValue(requirement, out HashSet<string>? known) && known is not null && !model.ConformsThrough(bounds, requirement)
+                                && compilation.IsReportable(genericToken) && genericToken.GetLocation() is { } location)
+                            {
+                                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location,
+                                    $"関連型 {argument} の制約から、インターフェイス {requirement} に届かないので、{target.Name} の型の仮引数 {target.Parameters[0]} にできません。"
+                                    + $"associatedtype {argument} : {requirement} と書いてください。"));
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (thisConstraints.Count == 0)
+                {
+                    return;
+                }
+
+                // struct Bad : IDerived (IDerived の __constraint DataType == This に、typealias DataType = int で合わない)
+                for (int i = 0; i + 2 < tokens.Length; i++)
+                {
+                    if (tokens[i].Text is not ("struct" or "class") || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 2].Kind != ShaderSyntaxKind.ColonToken)
+                    {
+                        continue;
+                    }
+
+                    string type = tokens[i + 1].Text;
+
+                    if (extended.Contains(type) || !IsStruct(type))
+                    {
+                        continue;
+                    }
+
+                    for (int k = i + 3; k < tokens.Length && tokens[k].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken) && tokens[k].Text != "where"; k++)
+                    {
+                        if (tokens[k].Kind != ShaderSyntaxKind.IdentifierToken || tokens[k - 1].Kind is not (ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.CommaToken))
+                        {
+                            continue;
+                        }
+
+                        foreach ((string owner, List<string> members) in thisConstraints)
+                        {
+                            if (!Derives(interfaces, tokens[k].Text, owner, 0))
+                            {
+                                continue;
+                            }
+
+                            foreach (string member in members)
+                            {
+                                if (aliases.TryGetValue((type, member), out string? actual) && actual != type && actual != "This" && (IsStruct(actual) || IsNumber(actual))
+                                    && compilation.IsReportable(tokens[k]) && tokens[k].GetLocation() is { } location)
+                                {
+                                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location,
+                                        $"{type}.{member} は {actual} なので、インターフェイス {owner} の制約 __constraint {member} == This を満たしません ({member} は {type} にしてください)。"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // インターフェイスの本体のメソッドの戻り値の型と関連型、どの型にも当たる extension のメソッド、ジェネリックのメソッドの形。
+            (Dictionary<string, Dictionary<string, string?>> returns, Dictionary<string, Dictionary<string, string?>> associatedTypes) = CollectInterfaceMembers(tokens, interfaces);
+            (HashSet<string> blanketMethods, HashSet<string> declaredMethods) = CollectExtensionMethods(tokens);
+
+            // ジェネリックでないメソッドと関数の名前 (R name( の形の宣言)。
+            HashSet<string> nonGenericMethods = [.. tokens.Select((t, k) => (t, k))
+                .Where(x => x.k > 0 && x.k + 1 < tokens.Length && x.t.Kind == ShaderSyntaxKind.IdentifierToken && tokens[x.k + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                            && tokens[x.k - 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[x.k - 1].Text is not ("return" or "else" or "case" or "new" or "throw" or "in" or "out" or "inout"))
+                .Select(x => x.t.Text)];
+            Dictionary<string, List<(List<string> TypeParameters, List<string?> ParameterTypes, List<List<string>> Constraints)>> shapes = CollectGenericShapes(tokens);
+
+            // ジェネリックの関数も型も、どの型にも当たる extension のメソッドも、Load の呼び出しも無ければ、見る使い方が無い。
+            if (functions.Count == 0 && structs.Count == 0 && blanketMethods.Count == 0 && !tokens.Any(t => t.Text == "Load"))
+            {
+                continue;
+            }
+
+            bool IsUserInterface(string? name) => name is not null && interfaces.TryGetValue(name, out HashSet<string>? b) && b is not null;
+
+            // 値の型が存在型 (インターフェイスの型) か。インターフェイスそのものなら (I, false)、インターフェイスの関連型なら (関連型の最初の制約か空, true)。
+            (string Interface, bool Associated)? Existential(ExpressionSyntax expression, ExpressionTypeEvaluator evaluator, int depth)
+            {
+                if (depth > 8)
+                {
+                    return null;
+                }
+
+                switch (expression)
+                {
+                    case ParenthesizedExpressionSyntax parenthesized:
+                        return Existential(parenthesized.Expression, evaluator, depth + 1);
+
+                    // let x = …・IFoo x = … (右辺の値の出どころ)。インターフェイスの型の仮引数は、#lang slang 2025 ではジェネリック (some IFoo) と同じなので、存在型でない。
+                    case IdentifierExpressionSyntax identifier
+                        when binder.ResolveName(identifier).Candidates is [{ Declarator: VariableDeclaratorSyntax { Initializer: { } initializer } declarator }]
+                             && declarator.Ancestors().OfType<VariableDeclarationSyntax>().FirstOrDefault() is { } declaration
+                             && (declaration.Type.Name is "let" or "var" || IsUserInterface(declaration.Type.Name)):
+                        return Existential(initializer, evaluator, depth + 1);
+
+                    // IFoo obj (インターフェイスの型の仮引数)。呼び出しのどれかが、どの型か決まらない値を渡すとき。
+                    case IdentifierExpressionSyntax parameterUse
+                        when binder.ResolveName(parameterUse).Candidates is [{ Declarator: ParameterSyntax parameter }] && IsUserInterface(parameter.Type.Name) && parameter.Type.OpenAngle is null
+                             && parameter.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } owner
+                             && compilation.GetFunctionDeclarations(owner.Name, program) is [_]
+                             && owner.ParameterList.ToList().IndexOf(parameter) is var position and >= 0:
+                        foreach (InvocationExpressionSyntax caller in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Where(c => c.TargetName == owner.Name && !c.HasTypeArguments))
+                        {
+                            if (caller.ArgumentExpressions.ElementAtOrDefault(position) is { } passed && Existential(passed, binder.GetEvaluatorFor(caller), depth + 1) is ({ } passedType, false))
+                            {
+                                return (passedType, false);
+                            }
+                        }
+
+                        return null;
+
+                    // createDynamicObject<IFoo>(id, data)
+                    case InvocationExpressionSyntax { Target: GenericNameExpressionSyntax { Name: "createDynamicObject" } created } when SimpleArguments(created.TypeArguments) is [{ } dynamicType] && IsUserInterface(dynamicType):
+                        return (dynamicType, false);
+
+                    case InvocationExpressionSyntax { TargetName: "createDynamicObject", HasTypeArguments: true } createdCall when SimpleArguments(createdCall.TypeArgumentTokens) is [{ } createdType] && IsUserInterface(createdType):
+                        return (createdType, false);
+
+                    // factory(id) (インターフェイスの型を返す関数で、2 つ以上の違う型の値を返すもの。1 つだけなら、slangc はその型に決める)
+                    case InvocationExpressionSyntax { TargetName: { } factoryName, HasTypeArguments: false } factory
+                        when compilation.GetFunctionDeclarations(factoryName, program) is [{ Body: { } factoryBody } factoryDeclaration]
+                             && IsUserInterface(factoryDeclaration.ReturnType.Name) && factoryDeclaration.ReturnType.OpenAngle is null:
+                        HashSet<string> returned = new(StringComparer.Ordinal);
+                        ExpressionTypeEvaluator inner = binder.GetEvaluatorFor(factoryBody);
+
+                        foreach (ReturnStatementSyntax statement in factoryBody.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>())
+                        {
+                            if (statement.Expression is not { } value || inner.Evaluate(value) is not { } valueType || !IsStruct(valueType))
+                            {
+                                return null;
+                            }
+
+                            returned.Add(valueType);
+                        }
+
+                        return returned.Count >= 2 ? (factoryDeclaration.ReturnType.Name, false) : null;
+
+                    // obj.method(…) と obj.Config() (存在型のメソッドの戻り値の関連型と、関連型の値の作成)
+                    case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax member, HasTypeArguments: false }
+                        when Existential(member.Target, evaluator, depth + 1) is ({ Length: > 0 } owner, false):
+                        if (associatedTypes.TryGetValue(owner, out Dictionary<string, string?>? owned))
+                        {
+                            if (owned.TryGetValue(member.Name, out string? constructed))
+                            {
+                                return (constructed ?? string.Empty, true);
+                            }
+
+                            if (returns.TryGetValue(owner, out Dictionary<string, string?>? methods) && methods.TryGetValue(member.Name, out string? result) && result is not null)
+                            {
+                                if (owned.TryGetValue(result, out string? bound))
+                                {
+                                    return (bound ?? string.Empty, true);
+                                }
+
+                                return IsUserInterface(result) ? (result, false) : null;
+                            }
+                        }
+
+                        return null;
+
+                    // 関連型の値 (inner.make() の inner が、制約 IInner の関連型)
+                    case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax member, HasTypeArguments: false }
+                        when Existential(member.Target, evaluator, depth + 1) is ({ Length: > 0 } bound, true) && IsUserInterface(bound):
+                        if (returns.TryGetValue(bound, out Dictionary<string, string?>? boundMethods) && boundMethods.TryGetValue(member.Name, out string? boundResult) && boundResult is not null
+                            && associatedTypes.TryGetValue(bound, out Dictionary<string, string?>? boundOwned) && boundOwned.TryGetValue(boundResult, out string? nested))
+                        {
+                            return (nested ?? string.Empty, true);
+                        }
+
+                        return null;
+                }
+
+                return null;
+            }
+
+            // エントリポイント ([shader]・[numthreads] の関数) から届く関数の中か。
+            HashSet<FunctionDeclarationSyntax>? reachableFunctions = null;
+
+            bool Reachable(ShaderSyntaxNode site)
+            {
+                if (reachableFunctions is null)
+                {
+                    FunctionDeclarationSyntax[] entries = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
+                        .Where(f => f.Body is not null && f.Attributes.Any(a => a.Name is "shader" or "numthreads"))];
+                    reachableFunctions = [.. entries];
+
+                    foreach (FunctionDeclarationSyntax entry in entries)
+                    {
+                        reachableFunctions.UnionWith(compilation.EnumerateCallees(entry, program, int.MaxValue).Select(c => c.Function));
+                    }
+                }
+
+                return site.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function && reachableFunctions.Contains(function);
+            }
+
+            // 存在型の値で特殊化するメソッドの呼び出し (E33180)。
+            void CheckExistentialMethodCall(InvocationExpressionSyntax call, MemberAccessExpressionSyntax member)
+            {
+                ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(call);
+                string? message = null;
+
+                // d.doThing(W()) (どのジェネリックのメソッドの宣言も、型の仮引数の制約に W が適合しない。E39999)。
+                // W は、適合するものの決まった利用者の構造体だけ。同じ名前のジェネリックでないメソッドがあれば見ない。
+                if (message is null && !call.HasTypeArguments && shapes.TryGetValue(member.Name, out var generics) && !nonGenericMethods.Contains(member.Name)
+                    && blanket.Count == 0)
+                {
+                    ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                    for (int i = 0; i < arguments.Length; i++)
+                    {
+                        if (evaluator.Evaluate(arguments[i]) is not { } argument || !IsStruct(argument) || extended.Contains(argument)
+                            || !generics.All(g => g.ParameterTypes.Count == arguments.Length && g.ParameterTypes[i] is { } p && g.TypeParameters.IndexOf(p) is var at and >= 0
+                                                  && g.Constraints[at].Count > 0 && g.Constraints[at].Any(c => model.Conforms(argument, c) == false)))
+                        {
+                            continue;
+                        }
+
+                        if (arguments[i].FirstToken is { } first && compilation.IsReportable(first) && first.GetLocation() is { } argumentLocation)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ArgumentNotConvertible, argumentLocation, member.Name, i + 1, argument,
+                                string.Join(" / ", generics.Select(g => g.ParameterTypes[i]).Distinct()),
+                                $"どの宣言の型の仮引数の制約 ({string.Join("・", generics.SelectMany(g => g.Constraints[g.TypeParameters.IndexOf(g.ParameterTypes[i]!)]).Distinct())}) にも、{argument} は適合しません。"));
+                        }
+
+                        return;
+                    }
+                }
+
+
+                // buffer.Load<IFoo>(0) (ByteAddressBuffer から存在型は読めない。言語のバージョンによらない)。
+                // 特殊化はエントリポイントから届く関数を作るときに起きるので、届く関数の中だけを見る。
+                if (call.HasTypeArguments && member.Name == "Load" && SimpleArguments(call.TypeArgumentTokens) is [{ } loaded] && IsUserInterface(loaded)
+                    && evaluator.Evaluate(member.Target) is "ByteAddressBuffer" or "RWByteAddressBuffer"
+                    && compilation.GetReachableFunctions(program) is { } reachable
+                    && call.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosingFunction && reachable.Contains(enclosingFunction))
+                {
+                    message = $"インターフェイスの型 {loaded} では、Load を特殊化できません。具体的な型を読んでください。";
+                }
+                else if (!versioned || !Reachable(call))
+                {
+                    return;
+                }
+
+                // b.eval<IFoo>(df) (ジェネリックのメソッドに、インターフェイスの型を型引数に書く)
+                else if (call.HasTypeArguments && shapes.ContainsKey(member.Name) && SimpleArguments(call.TypeArgumentTokens).FirstOrDefault(IsUserInterface) is { } written)
+                {
+                    message = $"インターフェイスの型 {written} では、{member.Name} の型の仮引数を特殊化できません。具体的な型を渡してください。";
+                }
+
+                // b.eval(df) (ジェネリックのメソッドの型の仮引数に、存在型の値が当たる)
+                else if (!call.HasTypeArguments && shapes.TryGetValue(member.Name, out var candidates))
+                {
+                    ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                    for (int i = 0; i < arguments.Length && message is null; i++)
+                    {
+                        if (candidates.All(c => c.ParameterTypes.Count == arguments.Length && c.ParameterTypes[i] is { } p && c.TypeParameters.Contains(p))
+                            && Existential(arguments[i], evaluator, 0) is ({ } kind, false))
+                        {
+                            message = $"インターフェイスの型 {kind} の値では、{member.Name} の型の仮引数を特殊化できません。具体的な型の値を渡してください。";
+                        }
+                    }
+                }
+
+                // obj.calcTwice(y) (どの型にも当たる extension のメソッドを、存在型の値で呼ぶ)
+                if (message is null && blanketMethods.Contains(member.Name) && !declaredMethods.Contains(member.Name)
+                    && Existential(member.Target, evaluator, 0) is ({ } receiver, false))
+                {
+                    message = $"extension のメソッド {member.Name} は、インターフェイスの型 {receiver} の値では呼べません (型を特殊化できません)。具体的な型の値で呼んでください。";
+                }
+
+                if (message is not null && compilation.IsReportable(member.NameToken) && member.NameToken.GetLocation() is { } location)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location, message));
+                }
+            }
+
+            // genericFunc(obj, 3.0) と process(result) の obj・result が、存在型の値か存在型の関連型の値 (E33180)。
+            void CheckExistentialFunctionCall(Generic generic, InvocationExpressionSyntax call)
+            {
+                if (!versioned || call.HasTypeArguments || call.Target is not IdentifierExpressionSyntax target
+                    || !shapes.TryGetValue(generic.Name, out var candidates) || candidates is not [var shape] || !Reachable(call))
+                {
+                    return;
+                }
+
+                ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(call);
+                ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+
+                for (int i = 0; i < arguments.Length && i < shape.ParameterTypes.Count; i++)
+                {
+                    if (shape.ParameterTypes[i] is { } type && shape.TypeParameters.Contains(type)
+                        && Existential(arguments[i], evaluator, 0) is ({ } kind, bool associated)
+                        && compilation.IsReportable(target.Identifier) && target.Identifier.GetLocation() is { } location)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location, associated
+                            ? $"実引数の値の型は存在型の関連型 (インターフェイスの型の値のメソッドが返す関連型) なので、{generic.Name} の型の仮引数 {type} を特殊化できません。"
+                            : $"実引数は、どの型か決まらないインターフェイスの型 {kind} の値なので、{generic.Name} の型の仮引数 {type} を特殊化できません。具体的な型の値を渡してください。"));
+                        return;
+                    }
+                }
+            }
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
                 {
+                    case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax member } methodCall:
+                        CheckExistentialMethodCall(methodCall, member);
+                        break;
+
                     case InvocationExpressionSyntax { TargetName: { } name } call
                         when functions.TryGetValue(name, out Generic? generic) && generic is not null:
                         if (call.HasTypeArguments)
                         {
                             CheckArguments(generic, SimpleArguments(call.TypeArgumentTokens), call.Target.FirstToken ?? call.OpenParen, call);
+                            CheckSpecial(generic, SimpleArguments(call.TypeArgumentTokens), call.Target.FirstToken ?? call.OpenParen);
                         }
                         else if (Inferred(compilation, program, binder, call, generic, literals: !types.Keys.Any(t => binder.TypeSystem.TryDescribeNumeric(t, out _))) is { } inferred)
                         {
                             CheckArguments(generic, WithDefaults(generic, inferred), call.Target.FirstToken ?? call.OpenParen, call);
                         }
 
+                        // リテラルは制約に合わせて型が変わりうるので、リテラルでない実引数から決めた型だけを見る。
+                        if (!call.HasTypeArguments && !generic.Special.IsDefaultOrEmpty && Inferred(compilation, program, binder, call, generic, literals: false) is { } strict)
+                        {
+                            CheckSpecial(generic, strict, call.Target.FirstToken ?? call.OpenParen);
+                        }
+
                         CheckNotInferred(generic, call);
                         CheckConflicts(generic, call);
+                        CheckExistentialFunctionCall(generic, call);
 
                         break;
 
@@ -279,12 +1074,14 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                     case InvocationExpressionSyntax { Target: GenericNameExpressionSyntax named } genericCall
                         when functions.TryGetValue(named.Name, out Generic? explicitGeneric) && explicitGeneric is not null:
                         CheckArguments(explicitGeneric, SimpleArguments(named.TypeArguments), named.Identifier, genericCall);
+                        CheckSpecial(explicitGeneric, SimpleArguments(named.TypeArguments), named.Identifier);
                         break;
 
                     case TypeSyntax type when type.OpenAngle is not null
                                               && structs.TryGetValue(type.NameToken.Text, out Generic? generic) && generic is not null
                                               && !type.TemplateArguments.IsDefaultOrEmpty:
                         CheckArguments(generic, SimpleArguments(type.TemplateArguments), type.NameToken, type);
+                        CheckAssociated(generic, SimpleArguments(type.TemplateArguments), type.NameToken);
                         break;
 
                     // GenStruct gs (型引数を書かない、既定の型引数を使う型)。既定の型引数が制約に合わなければ、既定の値の位置で伝える。
@@ -304,6 +1101,361 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 構造体の本体の深さ 1 の関連型 (<c>typealias Element = X;</c>・<c>typedef X Element;</c>) と、本体の無い extern の構造体 (<c>extern struct S : I;</c>)。
+    /// 2 度宣言した型の関連型は読まない。
+    /// </summary>
+    private static (Dictionary<(string, string), string> Aliases, HashSet<string> Externs) CollectMembers(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        Dictionary<(string, string), string> aliases = [];
+        HashSet<string> externs = new(StringComparer.Ordinal);
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        HashSet<string> twice = new(StringComparer.Ordinal);
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text is not ("struct" or "class") || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            string type = tokens[i + 1].Text;
+
+            if (!seen.Add(type))
+            {
+                twice.Add(type);
+            }
+
+            int open = i + 2;
+
+            while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+            {
+                open++;
+            }
+
+            if (open >= tokens.Length)
+            {
+                continue;
+            }
+
+            if (tokens[open].Kind == ShaderSyntaxKind.SemicolonToken)
+            {
+                if (i > 0 && tokens[i - 1].Text == "extern")
+                {
+                    externs.Add(type);
+                }
+
+                continue;
+            }
+
+            int depth = 0;
+
+            for (int k = open; k + 3 < tokens.Length; k++)
+            {
+                if (tokens[k].Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    depth++;
+                }
+                else if (tokens[k].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+                {
+                    break;
+                }
+
+                if (depth != 1)
+                {
+                    continue;
+                }
+
+                if (tokens[k].Text == "typealias" && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k + 2].Kind == ShaderSyntaxKind.EqualsToken
+                    && tokens[k + 3].Kind == ShaderSyntaxKind.IdentifierToken && k + 4 < tokens.Length && tokens[k + 4].Kind == ShaderSyntaxKind.SemicolonToken)
+                {
+                    aliases[(type, tokens[k + 1].Text)] = tokens[k + 3].Text;
+                }
+                else if (tokens[k].Text == "typedef" && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k + 2].Kind == ShaderSyntaxKind.IdentifierToken
+                         && tokens[k + 3].Kind == ShaderSyntaxKind.SemicolonToken)
+                {
+                    aliases[(type, tokens[k + 2].Text)] = tokens[k + 1].Text;
+                }
+            }
+        }
+
+        foreach ((string type, string member) in aliases.Keys.Where(k => twice.Contains(k.Item1)).ToList())
+        {
+            aliases.Remove((type, member));
+        }
+
+        externs.ExceptWith(twice);
+        return (aliases, externs);
+    }
+
+    /// <summary>型の宣言の <c>where T.Element : I</c>・<c>where T.Element == X</c> を読む。</summary>
+    private static ImmutableArray<(int Index, string Member, string Kind, string Target)> ReadAssociated(ImmutableArray<ShaderSyntaxToken> tokens, int start, List<string> parameters)
+    {
+        ImmutableArray<(int, string, string, string)>.Builder associated = ImmutableArray.CreateBuilder<(int, string, string, string)>();
+
+        for (int i = start; i + 5 < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+        {
+            if (tokens[i].Text == "where" && parameters.IndexOf(tokens[i + 1].Text) is var index and >= 0 && tokens[i + 2].Kind == ShaderSyntaxKind.DotToken
+                && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 4].Kind is ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.EqualsEqualsToken
+                && tokens[i + 5].Kind == ShaderSyntaxKind.IdentifierToken
+                && !(i + 6 < tokens.Length && tokens[i + 6].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
+            {
+                associated.Add((index, tokens[i + 3].Text, tokens[i + 4].Kind == ShaderSyntaxKind.ColonToken ? ":" : "==", tokens[i + 5].Text));
+            }
+        }
+
+        return associated.ToImmutable();
+    }
+    /// <summary>
+    /// 利用者のインターフェイスの本体の深さ 1 の、メソッドの名前と戻り値の型 (名前 1 つのもの) と、関連型の名前と最初の制約。2 度出てくる名前は null。
+    /// </summary>
+    private static (Dictionary<string, Dictionary<string, string?>> Returns, Dictionary<string, Dictionary<string, string?>> Associated) CollectInterfaceMembers(
+        ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, HashSet<string>?> interfaces)
+    {
+        Dictionary<string, Dictionary<string, string?>> returns = new(StringComparer.Ordinal);
+        Dictionary<string, Dictionary<string, string?>> associated = new(StringComparer.Ordinal);
+
+        for (int i = 0; i + 2 < tokens.Length; i++)
+        {
+            if (tokens[i].Text != "interface" || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken
+                || !interfaces.TryGetValue(tokens[i + 1].Text, out HashSet<string>? bases) || bases is null)
+            {
+                continue;
+            }
+
+            int open = i + 2;
+
+            while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+            {
+                open++;
+            }
+
+            if (open >= tokens.Length || tokens[open].Kind != ShaderSyntaxKind.OpenBraceToken)
+            {
+                continue;
+            }
+
+            Dictionary<string, string?> methods = new(StringComparer.Ordinal);
+            Dictionary<string, string?> types = new(StringComparer.Ordinal);
+            returns[tokens[i + 1].Text] = methods;
+            associated[tokens[i + 1].Text] = types;
+            int depth = 0;
+
+            for (int k = open; k + 2 < tokens.Length; k++)
+            {
+                if (tokens[k].Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    depth++;
+                }
+                else if (tokens[k].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+                {
+                    break;
+                }
+
+                if (depth != 1)
+                {
+                    continue;
+                }
+
+                if (tokens[k].Text == "associatedtype" && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    string? bound = tokens[k + 2].Kind == ShaderSyntaxKind.ColonToken && k + 3 < tokens.Length && tokens[k + 3].Kind == ShaderSyntaxKind.IdentifierToken
+                                    && !(k + 4 < tokens.Length && tokens[k + 4].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                        ? tokens[k + 3].Text
+                        : null;
+                    types[tokens[k + 1].Text] = types.ContainsKey(tokens[k + 1].Text) ? null : bound;
+                    continue;
+                }
+
+                // R name( / R name<…>( (前が { ; ] } の、名前 2 つで始まる宣言)
+                if (tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                    && tokens[k + 2].Kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.LessThanToken
+                    && tokens[k - 1].Kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBracketToken or ShaderSyntaxKind.CloseBraceToken)
+                {
+                    string name = tokens[k + 1].Text;
+                    methods[name] = methods.ContainsKey(name) ? null : tokens[k].Text;
+                }
+            }
+        }
+
+        return (returns, associated);
+    }
+
+    /// <summary>
+    /// どの型にも当たる extension (<c>extension&lt;T : I&gt; T { … }</c>) の本体のメソッドの名前と、それ以外の型・インターフェイス・extension の本体のメソッドの名前。
+    /// </summary>
+    private static (HashSet<string> Blanket, HashSet<string> Declared) CollectExtensionMethods(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        HashSet<string> blanket = new(StringComparer.Ordinal);
+        HashSet<string> declared = new(StringComparer.Ordinal);
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Text is not ("struct" or "class" or "interface" or "extension" or "__extension"))
+            {
+                continue;
+            }
+
+            // extension<T : I> T { (どの型にも当たる extension)
+            bool everyType = false;
+            int open = i + 1;
+
+            if (tokens[i].Text is "extension" or "__extension" && tokens[i + 1].Kind == ShaderSyntaxKind.LessThanToken)
+            {
+                (List<string> parameters, _, int next) = ReadGenericParameters(tokens, i + 1);
+                everyType = next < tokens.Length && parameters.Contains(tokens[next].Text);
+                open = next;
+            }
+
+            while (open < tokens.Length && tokens[open].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
+            {
+                open++;
+            }
+
+            if (open >= tokens.Length || tokens[open].Kind != ShaderSyntaxKind.OpenBraceToken)
+            {
+                continue;
+            }
+
+            int depth = 0;
+
+            for (int k = open; k + 2 < tokens.Length; k++)
+            {
+                if (tokens[k].Kind == ShaderSyntaxKind.OpenBraceToken)
+                {
+                    depth++;
+                }
+                else if (tokens[k].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0)
+                {
+                    break;
+                }
+
+                if (depth == 1 && tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                    && tokens[k + 2].Kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.LessThanToken)
+                {
+                    (everyType ? blanket : declared).Add(tokens[k + 1].Text);
+                }
+            }
+        }
+
+        return (blanket, declared);
+    }
+
+    /// <summary>ジェネリックの関数とメソッドの、型の仮引数と、仮引数の型 (名前 1 つのもの。ほかは null) と、型の仮引数ごとの制約の有無。名前ごとの全部の宣言。</summary>
+    private static Dictionary<string, List<(List<string> TypeParameters, List<string?> ParameterTypes, List<List<string>> Constraints)>> CollectGenericShapes(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        Dictionary<string, List<(List<string>, List<string?>, List<List<string>>)>> shapes = new(StringComparer.Ordinal);
+
+        for (int i = 1; i + 1 < tokens.Length; i++)
+        {
+            if (tokens[i].Kind != ShaderSyntaxKind.IdentifierToken || tokens[i + 1].Kind != ShaderSyntaxKind.LessThanToken
+                || tokens[i - 1].Kind != ShaderSyntaxKind.IdentifierToken
+                || tokens[i - 1].Text is "return" or "case" or "else" or "throw" or "new" or "in" or "out" or "inout" or "typealias" or "typedef" or "struct" or "class" or "interface" or "extension"
+                || tokens[i].Text is "struct" or "class" or "interface" or "extension")
+            {
+                continue;
+            }
+
+            (List<string> parameters, List<List<string>> constraints, int close) = ReadGenericParameters(tokens, i + 1);
+
+            if (parameters.Count == 0 || close >= tokens.Length || tokens[close].Kind != ShaderSyntaxKind.OpenParenToken || Matching(tokens, close) is not (>= 0 and var end))
+            {
+                continue;
+            }
+
+            ReadWhere(tokens, end + 1, parameters, constraints);
+
+            // 型引数のある制約 (U : IBase<T>) も、インターフェイスの名前として足す。
+            for (int k = i + 2, index = -1, angle = 1; k < close && angle > 0; k++)
+            {
+                angle += tokens[k].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, ShaderSyntaxKind.GreaterThanGreaterThanToken => -2, _ => 0 };
+
+                if (angle == 1 && tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && parameters.IndexOf(tokens[k].Text) is var found and >= 0
+                    && tokens[k - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.IdentifierToken)
+                {
+                    index = found;
+                }
+                else if (angle == 1 && index >= 0 && tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k - 1].Kind is ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.AmpersandToken
+                         && !constraints[index].Contains(tokens[k].Text))
+                {
+                    constraints[index].Add(tokens[k].Text);
+                }
+            }
+
+            List<string?> types = [];
+            List<ShaderSyntaxToken> current = [];
+            int depth = 0;
+
+            for (int k = close + 1; k <= end; k++)
+            {
+                ShaderSyntaxKind kind = tokens[k].Kind;
+
+                if ((kind == ShaderSyntaxKind.CommaToken && depth == 0) || k == end)
+                {
+                    if (current.Count > 0)
+                    {
+                        // 名前 2 つ (修飾子の後ろの型と仮引数の名前) だけのもの。
+                        ShaderSyntaxToken[] names = [.. current.Where(t => t.Text is not ("in" or "out" or "inout" or "const" or "no_diff"))];
+                        types.Add(names is [{ Kind: ShaderSyntaxKind.IdentifierToken } type, { Kind: ShaderSyntaxKind.IdentifierToken }] ? type.Text : null);
+                    }
+
+                    current.Clear();
+                    continue;
+                }
+
+                depth += kind switch
+                {
+                    ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken => 1,
+                    ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.CloseParenToken or ShaderSyntaxKind.CloseBracketToken => -1,
+                    _ => 0,
+                };
+                current.Add(tokens[k]);
+            }
+
+            if (!shapes.TryGetValue(tokens[i].Text, out var list))
+            {
+                shapes[tokens[i].Text] = list = [];
+            }
+
+            list.Add((parameters, types, constraints));
+        }
+
+        return shapes;
+    }
+
+    /// <summary>ファイル <paramref name="files"/> の extension の宣言を除いたトークン。</summary>
+    private static ImmutableArray<ShaderSyntaxToken> WithoutExtensions(ImmutableArray<ShaderSyntaxToken> tokens, HashSet<string> files)
+    {
+        ImmutableArray<ShaderSyntaxToken>.Builder kept = ImmutableArray.CreateBuilder<ShaderSyntaxToken>(tokens.Length);
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            if (tokens[i] is { Kind: ShaderSyntaxKind.IdentifierToken, Text: "extension" or "__extension" } && tokens[i].Source.FilePath is { } path
+                && files.Contains(Path.GetFullPath(path)))
+            {
+                int depth = 0;
+
+                for (; i < tokens.Length; i++)
+                {
+                    if (tokens[i].Kind == ShaderSyntaxKind.OpenBraceToken)
+                    {
+                        depth++;
+                    }
+                    else if ((tokens[i].Kind == ShaderSyntaxKind.CloseBraceToken && --depth == 0) || (depth == 0 && tokens[i].Kind == ShaderSyntaxKind.SemicolonToken))
+                    {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
+            kept.Add(tokens[i]);
+        }
+
+        return kept.ToImmutable();
     }
 
     /// <summary>推論できなかった仮引数に、既定の型引数を当てる。</summary>
@@ -410,7 +1562,8 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
         Dictionary<string, Generic?> functions,
         Dictionary<string, Generic?> structs,
         HashSet<string> extended,
-        HashSet<string> blanket)
+        HashSet<string> blanket,
+        Dictionary<string, Generic?> genericInterfaces)
     {
         HashSet<string> declaredTwice = new(StringComparer.Ordinal);
 
@@ -485,6 +1638,12 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 {
                     case "interface":
                         interfaces[name] = interfaces.ContainsKey(name) || generic ? null : bases;
+
+                        if (generic)
+                        {
+                            genericInterfaces[name] = genericInterfaces.ContainsKey(name) ? null : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]);
+                        }
+
                         break;
 
                     case "extension" or "__extension":
@@ -526,7 +1685,9 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
                         if (generic && token.Text is "struct" or "class")
                         {
-                            structs[name] = structs.ContainsKey(name) ? null : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]) { Defaults = [.. typeDefaults] };
+                            structs[name] = structs.ContainsKey(name)
+                                ? null
+                                : new Generic(name, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())]) { Defaults = [.. typeDefaults], Associated = ReadAssociated(tokens, j, parameters) };
                         }
 
                         break;
@@ -575,12 +1736,32 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
                 // 仮引数の並び (型と配列の大きさ) に出てくる型の仮引数は、実引数から決まりうる。
                 HashSet<string> mentioned = [.. tokens.Skip(close + 1).Take(end - close - 1).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text)];
+
+                // ほかの型の仮引数の制約の型引数 (TArray : IArray<T> の T) と where の制約に出てくる仮引数も、その型の仮引数から決まりうる。
+                for (int k = i + 1, angle = 0; k < close; k++)
+                {
+                    angle += tokens[k].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, ShaderSyntaxKind.GreaterThanGreaterThanToken => -2, _ => 0 };
+
+                    if (angle >= 2 && tokens[k].Kind == ShaderSyntaxKind.IdentifierToken)
+                    {
+                        mentioned.Add(tokens[k].Text);
+                    }
+                }
+
+                for (int k = end + 1; k < tokens.Length && tokens[k].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); k++)
+                {
+                    if (tokens[k].Kind == ShaderSyntaxKind.IdentifierToken && tokens[k - 1].Text != "where")
+                    {
+                        mentioned.Add(tokens[k].Text);
+                    }
+                }
                 functions[token.Text] = functions.ContainsKey(token.Text)
                     ? null
                     : new Generic(token.Text, [.. parameters], [.. constraints.Select(c => c.ToImmutableArray())])
                     {
                         Defaults = [.. functionDefaults],
                         Mentioned = [.. parameters.Select(mentioned.Contains)],
+                        Special = ReadSpecial(tokens, end + 1, parameters),
                     };
             }
         }
@@ -646,6 +1827,20 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
             {
                 i++;
                 break;
+            }
+
+            // <U : IBase<T>> の >> (2 つの > が 1 つのトークンになったもの)
+            if (token.Kind == ShaderSyntaxKind.GreaterThanGreaterThanToken)
+            {
+                depth -= 2;
+
+                if (depth <= 0)
+                {
+                    i++;
+                    break;
+                }
+
+                continue;
             }
 
             if (depth != 1)
@@ -719,6 +1914,107 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                 constraints[index].Add(tokens[i + 3].Text);
             }
         }
+    }
+
+    /// <summary><c>where T == X</c>・<c>where X(T)</c>・<c>where __hasDiffTypeInfo(T)</c> を読む。</summary>
+    private static ImmutableArray<(int Index, string Kind, string Target)> ReadSpecial(ImmutableArray<ShaderSyntaxToken> tokens, int start, List<string> parameters)
+    {
+        ImmutableArray<(int, string, string)>.Builder special = ImmutableArray.CreateBuilder<(int, string, string)>();
+
+        for (int i = start; i + 4 < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+        {
+            if (tokens[i].Text != "where" || tokens[i + 1].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            // where Box<X> == Box<X>.Nested<X> (両辺が名前 1 つでない型)。両辺の最後の名前を覚える。
+            if (TypesEquality(tokens, i + 1) is { } equality)
+            {
+                special.Add((-1, "types", equality));
+                continue;
+            }
+
+            // where T == int (右が名前 1 つのもの)
+            if (tokens[i + 2].Kind == ShaderSyntaxKind.EqualsEqualsToken && parameters.IndexOf(tokens[i + 1].Text) is var left and >= 0
+                && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken
+                && tokens[i + 4].Kind is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
+            {
+                special.Add((left, "==", tokens[i + 3].Text));
+            }
+
+            // where int(T)・where __hasDiffTypeInfo(T)
+            else if (tokens[i + 2].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken
+                     && tokens[i + 4].Kind == ShaderSyntaxKind.CloseParenToken && parameters.IndexOf(tokens[i + 3].Text) is var inner and >= 0
+                     && tokens[i + 1].Text != "nonempty")
+            {
+                special.Add((inner, tokens[i + 1].Text == "__hasDiffTypeInfo" ? "diff" : "()", tokens[i + 1].Text));
+            }
+        }
+
+        return special.ToImmutable();
+    }
+
+    /// <summary><c>Box&lt;X&gt; == Box&lt;X&gt;.Nested&lt;X&gt;</c> の、両辺の最後の名前と両辺の文字列 (| で区切る)。どちらかの辺が名前 1 つなら <see langword="null"/>。</summary>
+    private static string? TypesEquality(ImmutableArray<ShaderSyntaxToken> tokens, int start)
+    {
+        int depth = 0;
+        int equals = -1;
+        int end = start;
+
+        for (; end < tokens.Length; end++)
+        {
+            ShaderSyntaxKind kind = tokens[end].Kind;
+            depth += kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+            if (depth == 0 && (kind is ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CommaToken || tokens[end].Text == "where"))
+            {
+                break;
+            }
+
+            if (depth == 0 && kind == ShaderSyntaxKind.EqualsEqualsToken)
+            {
+                equals = end;
+            }
+            else if (kind is not (ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.CommaToken))
+            {
+                return null;
+            }
+        }
+
+        if (equals < 0)
+        {
+            return null;
+        }
+
+        static string? Last(IEnumerable<ShaderSyntaxToken> side)
+        {
+            int angle = 0;
+            string? last = null;
+
+            foreach (ShaderSyntaxToken token in side)
+            {
+                angle += token.Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, _ => 0 };
+
+                if (angle == 0 && token.Kind == ShaderSyntaxKind.IdentifierToken)
+                {
+                    last = token.Text;
+                }
+            }
+
+            return last;
+        }
+
+        ShaderSyntaxToken[] left = [.. tokens.Skip(start).Take(equals - start)];
+        ShaderSyntaxToken[] right = [.. tokens.Skip(equals + 1).Take(end - equals - 1)];
+
+        // 両辺とも型引数か . のある型だけを見る (where T == int は別に読む)。
+        if (left.Length < 2 || right.Length < 2 || Last(left) is not { } leftName || Last(right) is not { } rightName)
+        {
+            return null;
+        }
+
+        return $"{leftName}|{rightName}|{string.Concat(left.Select(t => t.Text))}|{string.Concat(right.Select(t => t.Text))}";
     }
 
     private static int Matching(ImmutableArray<ShaderSyntaxToken> tokens, int open)

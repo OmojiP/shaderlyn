@@ -81,7 +81,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの演算子 (算術・比較・ビット・シフト・&& / ||) か複合代入を、形 (ベクトルの長さ、行列の行と列) の違う値どうしに使っています。"
             + "HLSL は短い方に切り詰めますが、Slang は組み込みの演算子が見つからないので、slangc はコンパイルの誤りにします。"
-            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) と算術の演算子、並べ方の型でない sizeof の 2 つ目、大きさの違う型どうしの bit_cast も報告します。",
+            + "ビット演算とシフト (& | ^ ~ << >>) を浮動小数の値に使っているものと、演算子を定義していない構造体の値に組み込みの演算子を使っているもの、?: の 2 つの枝の型が合わないもの、ポインターでない構造体の値への ->、スカラーの値への添字、関数の名前の sizeof、関わりの無い具体的な型どうしの is / as、as の右のインターフェイス、制約の無いジェネリックの型の値の is (右がインターフェイス) と算術の演算子、並べ方の型でない sizeof の 2 つ目、大きさの違う型どうしの bit_cast とインターフェイスの型への bit_cast も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0301"));
 
     /// <summary>書き換えられないメソッドの中で、フィールドに書き込んだ。</summary>
@@ -221,7 +221,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "static const の初期値が、直接か、ほかの static const を通して自分自身の値を使っています。値が決まらないので、slangc はコンパイルの誤りにします。",
+        description: "static const の初期値が、直接か、ほかの static const を通して自分自身の値を使っているか、ジェネリックの型の別の特殊化の同じ定数をたどり続けます (Loop<x + 1>::value)。値が決まらないので、slangc はコンパイルの誤り (E39998 など) にします。",
         helpLinkUri: DocumentationLinks.For("SG0317"));
 
     /// <summary>switch と break / continue の書き方の誤り。</summary>
@@ -347,7 +347,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "ジェネリックの関数か型の型の仮引数に、制約 (<T : IFoo>・where T : IFoo) のインターフェイスに適合しない型を渡しています。"
             + "型が適合するのは、継承の並びか extension にそのインターフェイス (かそれを継承したインターフェイス) を書いたときだけです (基底の構造体の適合は受け継ぎません)。"
-            + "slangc はコンパイルの誤り (E38029) にします。",
+            + "where T == int・where int(T)・関連型の制約 (where T.Element : I)・__constraint A == This を満たさない型と、どの型か決まらないインターフェイスの型の値による特殊化も報告します。"
+            + "slangc はコンパイルの誤り (E38029・E30440・E33180) にします。",
         helpLinkUri: DocumentationLinks.For("SG0349"));
 
     /// <summary>微分する関数の、繰り返しの回数を決められないループ。</summary>
@@ -403,6 +404,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "where nonempty(T) の無い可変長の型の仮引数 (each T) に __first・__last を使っているか、where nonempty(…) を求める関数へ空でありうる並びか空の型引数を渡しているか、"
             + "nonempty の制約を optional にしているか、countof(…) の制約の書き方 (== と左の countof(…)・この宣言の並び・定数の右辺) が正しくないか、型引数の数と並びの数が合いません。"
+            + "nonempty を求める並びが空になる実引数の呼び出しも報告します。"
             + "slangc はコンパイルの誤り (E30411・E30412・E30415・E30440・E30430～E30437) にします。",
         helpLinkUri: DocumentationLinks.For("SG0354"));
 
@@ -449,7 +451,8 @@ internal static class SlangRuleDescriptors
             + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていないか、型引数の数が合わないか、"
             + "可変長の並びの後ろに仮引数を書いているか、既定の値が後ろの仮引数を指しているか、where の左が仮引数でないか、== の右がインターフェイスか、"
             + "nonempty(…) にこの宣言の可変長の並びでないものを書いているか、インターフェイスか制約の無い型の仮引数を extension で広げているか、エントリポイントにジェネリックの仮引数を書いています (slang: generic-entry-points で通す)。"
-            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408・E30441・E30522・E30122・E30402・E30404・E30413・E30416・E30852・E30850・E38014) にします。",
+            + "ジェネリックでない関数への型引数、where の左の __trimFirst(…)、並びに分けられない数の型引数、決まらない既定の値を使う型引数も報告します。"
+            + "slangc はコンパイルの誤り (E30624・E30625・E30401・E30117・E30855・E30408・E30441・E30522・E30122・E30402・E30404・E30413・E30416・E30852・E30850・E38014・E39999・E30075) にします。",
         helpLinkUri: DocumentationLinks.For("SG0358"));
 
     /// <summary>インターフェイスの要件を満たしていない。</summary>
@@ -459,8 +462,9 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "インターフェイスに適合する型に、インターフェイスの要件 (本体の無いメソッド) が無いか、要件と [mutating]・static が合わないメソッドで満たしています。"
-            + "slangc はコンパイルの誤り (E38100・E38105) にします。",
+        description: "インターフェイスに適合する型に、インターフェイスの要件 (本体の無いメソッド) が無いか、要件と [mutating]・static・throws・nonempty の制約が合わないか要件より強い制約のメソッドで満たしているか、"
+            + "[anyValueSize(N)] を超える大きさの型か、[require(…)] で許されない機能を使うメソッドで適合しています。"
+            + "slangc はコンパイルの誤り (E38100・E38105・E41019・E36110) にします。",
         helpLinkUri: DocumentationLinks.For("SG0359"));
 
     /// <summary>自分で書いた微分の関数と no_diff の書き方の誤り。</summary>

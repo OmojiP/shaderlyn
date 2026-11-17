@@ -408,6 +408,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
         ExpressionTypeEvaluator evaluator = binder.GetEvaluatorFor(invocation);
         string?[] argumentTypes = [.. arguments.Select(a => evaluator.Evaluate(a))];
+
+        // 実引数の変数の型の型引数 (Shape<T> left の T)。ジェネリックの型の、型引数で決まる適合を確かめるのに使う。
+        string?[] elements = [.. arguments.Select(a => a is IdentifierExpressionSyntax identifier && binder.ResolveName(identifier).Candidates is [{ Type.TemplateArgument: { } element }] ? element : null)];
         ImmutableArray<ShaderSyntaxToken> tokens = binder.Program.Tree.PreprocessResult.Tokens;
         StructDeclarationSyntax[] declared = [.. binder.Program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
             .Where(t => t.Keyword.Text is "struct" or "class" && t.NameToken is not null)];
@@ -437,6 +440,15 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
         Slang.SlangConformanceModel model = Slang.SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(binder.Program.Tree));
 
         bool IsStruct(string type) => structs.Contains(type);
+
+        // 呼び出しを書いた関数の型の仮引数と、その制約 (Shape<T> の T が外の関数の型の仮引数なら、その制約から届くインターフェイスにだけ適合する)。
+        (List<string> Names, Dictionary<string, List<string>> Constraints, Dictionary<string, string> Equalities)? enclosing =
+            invocation.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } outer ? ReadGeneric(outer, tokens) : null;
+
+        bool? ElementConforms(string element, string requirement)
+            => enclosing is { } e && e.Names.Contains(element)
+                ? model.ConformsThrough(e.Constraints.GetValueOrDefault(element) ?? [], requirement)
+                : model.Conforms(element, requirement);
         bool IsNumeric(string type) => binder.TypeSystem.TryDescribeNumeric(type, out _);
 
         // 候補が実引数を受け取れないと言えるか。
@@ -451,6 +463,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
 
             (List<string> names, Dictionary<string, List<string>> constraints, Dictionary<string, string> equalities) = ReadGeneric(candidate, tokens);
             Dictionary<string, string> inferred = new(StringComparer.Ordinal);
+            Dictionary<string, int> inferredAt = new(StringComparer.Ordinal);
 
             for (int i = 0; i < parameters.Length; i++)
             {
@@ -472,6 +485,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     }
 
                     inferred.TryAdd(type, argument);
+                    inferredAt.TryAdd(type, i);
                     continue;
                 }
 
@@ -495,7 +509,9 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     return true;
                 }
 
-                if (constraints.TryGetValue(parameter, out List<string>? list) && list.Any(c => model.Conforms(argument, c) == false))
+                if (constraints.TryGetValue(parameter, out List<string>? list)
+                    && list.Any(c => model.Conforms(argument, c) == false
+                                     || (inferredAt.TryGetValue(parameter, out int at) && elements[at] is { } element && model.ConformsInstance(argument, [i => ElementConforms(element, i)], c) == false)))
                 {
                     return true;
                 }

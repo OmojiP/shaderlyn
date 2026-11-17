@@ -337,7 +337,6 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0359", "interface IThing { int processValue(int inValue); }\nstruct Counter : IThing\n{\n    int state;\n    [mutating] int processValue(int inValue) { state += inValue; return state; }\n}\n")]
     [InlineData("SG0359", "interface Base { static int getValue(); }\nstruct Impl : Base\n{\n    int getValue() { return 5; }\n}\n")]
     // 言語のバージョンを書いたファイルの、存在型での特殊化
-    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float calc(float x); }\nfloat genericFunc<T : IFoo>(T obj, float x) { return obj.calc(x); }\nfloat f(IFoo obj)\n{\n    return genericFunc(obj, 3.0);\n}\n")]
     // 継承の誤り (class の継承・構造体の継承・#lang 2026 の構造体の継承)、インターフェイスの extension
     [InlineData("SG0347", "class C { int x; }\nstruct S : C { int y; }\n")]
     [InlineData("SG0347", "struct C { int x; }\nclass D : C { int y; }\n")]
@@ -429,6 +428,33 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0363", "void bar<let N : int>(int a[N], int b[N]) { }\nvoid m() { int x[3]; int y[4]; bar(x, y); }\n")]
     [InlineData("CF0401", "interface IA {}\ninterface IB {}\nstruct W { int v; }\nT h<T : IA>(T x) { return x; }\nT h<T : IB>(T x) { return x; }\nvoid useit(W w) { h(w); }\n")]
     [InlineData("CF0401", "struct A { int v; }\nstruct B { int v; }\nstruct C { int v; }\nT pick<T>(T l, T r) where T == int { return l; }\nA pick(A l, A r) { return l; }\nB pick(B l, B r) { return l; }\nvoid useit(C c) { pick(c, c); }\n")]
+    // インターフェイスでない制約・関連型の制約・__constraint・存在型での特殊化・要件との食い違い・anyValueSize・bit_cast・型引数の書き方・終わらない定数・out のインターフェイス
+    [InlineData("SG0349", "void h<T>(T x) where T == int {}\nvoid m() { float f = 1.0; h(f); }\n")]
+    [InlineData("SG0349", "struct S { int v; }\nint convert<T>(T x) where int(T) { return 0; }\nvoid m() { S s; convert(s); }\n")]
+    [InlineData("SG0354", "void foo<each T>(expand each T args) where nonempty(T) {}\nvoid m() { foo(); }\n")]
+    [InlineData("SG0349", "interface IHas { associatedtype Element; }\nstruct R<T : IHas> where T.Element == int {}\nstruct F : IHas { typealias Element = float; }\nR<F> value;\n")]
+    [InlineData("SG0349", "interface IMarker {}\ninterface IHas { associatedtype Element; }\nstruct R<T : IHas> where T.Element : IMarker {}\nstruct U {}\nstruct C : IHas { typealias Element = U; }\nR<C> value;\n")]
+    [InlineData("SG0349", "interface IBase\n{\n    associatedtype D;\n    D get();\n}\ninterface IDer : IBase\n{\n    __constraint D == This;\n}\nstruct Bad : IDer\n{\n    typealias D = int;\n    int get() { return 0; }\n}\n")]
+    [InlineData("SG0349", "interface IContext {}\ninterface IConsumer<T> where T : IContext {}\ninterface IL\n{\n    associatedtype Context;\n    associatedtype First : IConsumer<Context>;\n}\n")]
+    [InlineData("SG0349", "struct Box<T>\n{\n    struct Nested<U> {}\n}\nvoid f<X>() where Box<X> == Box<X>.Nested<X> {}\nvoid m() { f<int>(); }\n")]
+    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float get(); }\nstruct A : IFoo { float get() { return 1; } }\nstruct B : IFoo { float get() { return 2; } }\nIFoo make(uint id)\n{\n    if (id == 0)\n        return A();\n    return B();\n}\nstruct Bar { int eval<T : IFoo>(T t) { return 0; } }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uint3 id : SV_DispatchThreadID)\n{\n    IFoo obj = make(id.x);\n    Bar b;\n    output[0] = b.eval(obj);\n}\n")]
+    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float get(); }\nstruct A : IFoo { float get() { return 1; } }\nstruct B : IFoo { float get() { return 2; } }\nIFoo make(uint id)\n{\n    if (id == 0)\n        return A();\n    return B();\n}\nstruct Bar { int eval<T : IFoo>(T t) { return 0; } }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uint3 id : SV_DispatchThreadID)\n{\n    IFoo obj = make(id.x);\n    Bar b;\n    output[0] = b.eval<IFoo>(obj);\n}\n")]
+    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float get(); }\nstruct A : IFoo { float get() { return 1; } }\nstruct B : IFoo { float get() { return 2; } }\nIFoo make(uint id)\n{\n    if (id == 0)\n        return A();\n    return B();\n}\nextension<T : IFoo> T { float twice() { return this.get() * 2; } }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uint3 id : SV_DispatchThreadID)\n{\n    IFoo obj = make(id.x);\n    output[0] = obj.twice();\n}\n")]
+    [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float get(); }\nstruct A : IFoo { float get() { return 1; } }\nstruct B : IFoo { float get() { return 2; } }\nIFoo make(uint id)\n{\n    if (id == 0)\n        return A();\n    return B();\n}\nT process<T>(T v) { return v; }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uint3 id : SV_DispatchThreadID)\n{\n    IFoo obj = make(id.x);\n    output[0] = process(obj).get();\n}\n")]
+    [InlineData("SG0359", "enum E { Fail = 1 };\ninterface IFoo { int f(); }\nstruct S : IFoo\n{\n    int f() throws E { return 1; }\n}\n")]
+    [InlineData("SG0359", "interface IReq { void use<each T>(); }\nstruct S : IReq\n{\n    void use<each T>() where nonempty(T) {}\n}\n")]
+    [InlineData("SG0359", "interface IA {}\ninterface IB {}\ninterface IReq { void f<T : IA>(); }\nstruct S : IReq\n{\n    void f<T : IA & IB>() {}\n}\n")]
+    [InlineData("SG0359", "module test;\n[require(spvRayQueryKHR)]\ninterface IFoo { void m(); }\n[require(spvGroupNonUniformArithmetic)]\nvoid arith() {}\nstruct S : IFoo\n{\n    void m() { arith(); }\n}\n")]
+    [InlineData("SG0359", "[anyValueSize(8)]\ninterface IFoo { int get(); }\nstruct Big : IFoo { uint a; uint b; uint c; int get() { return 0; } }\nRWStructuredBuffer<IFoo> data;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = data[0].get(); }\n")]
+    [InlineData("SG0301", "[anyValueSize(16)]\ninterface IFoo { float eval(); }\nstruct Raw { uint d[4]; }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    Raw r;\n    IFoo f = bit_cast<IFoo>(r);\n    output[0] = f.eval();\n}\n")]
+    [InlineData("SG0358", "int plain() { return 1; }\nstruct G {}\nint m() { return plain<G>(); }\n")]
+    [InlineData("SG0358", "interface IM {}\nstruct Bad<each T> where expand each __trimFirst(T) : IM {}\n")]
+    [InlineData("SG0358", "struct Two<let each A : int, let each B : int> {}\nTwo<1, 2, 3> bad;\n")]
+    [InlineData("SG0358", "struct Foo<T, let N : int = T.missing> { T value; }\nvoid m() { Foo<int> b; }\n")]
+    [InlineData("SG0317", "struct Loop<let x : int>\n{\n    static const int value = Loop<x + 1>::value;\n}\nint use = Loop<0>::value;\n")]
+    [InlineData("CF0401", "interface IThing { void g(); }\nstruct T1 : IThing { void g() {} }\nvoid f(inout IThing x) { x.g(); }\nvoid m() { T1 c; f(c); }\n")]
+    [InlineData("CF0401", "interface IScalar {}\ninterface IShaped {}\nstruct Shape<T> { T value; }\nextension<T : IScalar> Shape<T> : IShaped {}\nT choose<T : IShaped>(T l, T r) { return l; }\nint choose(int l, int r) { return l; }\nShape<T> g<T>(Shape<T> l, Shape<T> r) { return choose(l, r); }\n")]
+    [InlineData("CF0401", "interface IBase<T>\n{\n    void doThing<U : IBase<T>>(U u);\n}\ninterface IDerived : IBase<int>, IBase<float> {}\nstruct W {}\nvoid call<D : IDerived>(D d) { d.doThing(W()); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -581,6 +607,16 @@ public sealed class SlangRuleTests : IDisposable
     // 継承したインターフェイスの既定の実装、制約に合う型への extension のメソッド、組み込みの数の型どうしの型の仮引数、制約に合うジェネリックの多重定義
     [InlineData("interface IA { int a() { return 0; } }\ninterface IB : IA { int b(); }\nstruct S : IB { int b() { return 1; } }\ninterface IC { int c(); }\ninterface IM { }\nextension<T : IM> T { int c() { return 0; } }\nstruct U : IC, IM { int v; }\n")]
     [InlineData("void foo<T>(T a, T b) { }\nstruct A { int v; }\nstruct B : A { int w; }\nT h<T : IFloat>(T x) { return x; }\nint h(int a, int b) { return a; }\nvoid m(int i, float f, A a) { foo(i, f); h(1.0f); h(1, 2); foo(a, a); }\n")]
+    // インターフェイスでない制約・関連型の制約・__constraint・存在型・要件との食い違い・anyValueSize・型引数の書き方の、slangc が通す書き方
+    [InlineData("void h<T>(T x) where T == int {}\nint convert<T>(T x) where int(T) { return 0; }\nvoid foo<each T>(expand each T args) where nonempty(T) {}\nvoid m() { int i = 1; float f = 2; h(i); convert(f); foo(1); }\n")]
+    [InlineData("interface IMarker {}\ninterface IHas { associatedtype Element; }\nstruct R<T : IHas> where T.Element : IMarker {}\nstruct RI<T : IHas> where T.Element == int {}\nstruct M : IMarker {}\nstruct G : IHas { typealias Element = M; }\nstruct I : IHas { typealias Element = int; }\nR<G> a;\nRI<I> b;\n")]
+    [InlineData("interface IBase\n{\n    associatedtype D;\n    D get();\n}\ninterface IDer : IBase\n{\n    __constraint D == This;\n}\nstruct Fine : IDer\n{\n    typealias D = Fine;\n    Fine get() { return this; }\n}\ninterface IContext {}\ninterface IConsumer<T> where T : IContext {}\ninterface IL\n{\n    associatedtype Context : IContext;\n    associatedtype First : IConsumer<Context>;\n}\n")]
+    [InlineData("#lang slang 2025\ninterface IFoo { float get(); }\nstruct Foo : IFoo { float v; float get() { return v; } }\ninterface IBar { int eval<T : IFoo>(T t); }\nstruct B : IBar { int eval<T : IFoo>(T t) { return 0; } }\nextension<T : IFoo> T { float twice() { return this.get() * 2; } }\nT process<T>(T v) { return v; }\nfloat m(B b, Foo f) { let p = process(f.get()); return b.eval(f) + b.eval<Foo>(f) + f.twice() + p; }\n")]
+    [InlineData("interface IA {}\ninterface IB {}\ninterface IReq\n{\n    void f<T : IA & IB>();\n    void g<T>() where T : IA;\n}\nstruct S : IReq\n{\n    void f<U : IA>() {}\n    void g<T : IA>() {}\n}\n")]
+    [InlineData("[anyValueSize(8)]\ninterface IFoo { int get(); }\nstruct Fits : IFoo { int a; int b; int get() { return a; } }\nstruct Unused : IFoo { uint a; uint b; uint c; int get() { return 0; } }\nint plain() { return 1; }\nstruct Two<let each A : int, let each B : int> {}\nTwo<1, 2, 3, 4> ok;\nstruct Loop<let x : int>\n{\n    static const int a = x * 2;\n    static const int b = Loop<x>::a + 1;\n}\nint use = Loop<3>::b + plain();\n")]
+    [InlineData("interface IThing { void g(); }\nstruct T1 : IThing { void g() {} }\nvoid byValue(IThing x) { x.g(); }\nvoid generic<T : IThing>(inout T x) { x.g(); }\nvoid m() { T1 c; byValue(c); generic(c); }\ninterface IScalar {}\ninterface IShaped {}\nstruct Shape<T> { T value; }\nextension<T : IScalar> Shape<T> : IShaped {}\nT choose<T : IShaped>(T l, T r) { return l; }\nint choose(int l, int r) { return l; }\nShape<T> g<T : IScalar>(Shape<T> l, Shape<T> r) { return choose(l, r); }\n")]
+    // #lang slang 2025 のインターフェイスの型の仮引数は、ジェネリックと同じ (どの型か決まらない値ではない)
+    [InlineData("#lang slang 2025\ninterface IFoo { float calc(float x); }\nfloat genericFunc<T : IFoo>(T obj, float x) { return obj.calc(x); }\nfloat f(IFoo obj)\n{\n    return genericFunc(obj, 3.0);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

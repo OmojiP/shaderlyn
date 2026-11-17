@@ -176,8 +176,9 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckOverrides(types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report);
+            CheckOverrides(tokens, types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report);
             CheckCom(tokens, Report);
+            CheckCapabilities(tokens, types, root, Report);
             CheckInterfaceMembers(tokens, Report);
             CheckCycles(types, Report);
             CheckReadOnlyProperties(tokens, types, Report);
@@ -629,6 +630,199 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// [require(…)] を書いたインターフェイス (かその要件) を満たすメソッドが、呼んでいる関数の [require(…)] で、許されない機能を使うもの (E36110)。
+    /// 機能の間の含み合いは決めないので、どの機能も SPIR-V の拡張 (spv で始まる名前) のときだけを見る。
+    /// </summary>
+    private static void CheckCapabilities(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, CompilationUnitSyntax root, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        if (!tokens.Any(t => t.Text == "require"))
+        {
+            return;
+        }
+
+        // slangc が機能を確かめるのは、module の宣言のあるファイルか、エントリポイント ([shader]・[numthreads]) のあるファイルだけ (slangc 2026.19 で確かめた)。
+        bool module = tokens.Select((t, i) => (t, i)).Any(x => x.t.Text == "module" && x.i + 2 < tokens.Length && tokens[x.i + 1].Kind == ShaderSyntaxKind.IdentifierToken
+                                                                && tokens[x.i + 2].Kind == ShaderSyntaxKind.SemicolonToken);
+
+        if (!module && !root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>().Any(f => f.Body is not null && f.Attributes.Any(a => a.Name is "shader" or "numthreads")))
+        {
+            return;
+        }
+
+        static List<string> Atoms(IEnumerable<AttributeSyntax> attributes)
+            => [.. attributes.Where(a => a.Name == "require").SelectMany(a => a.DescendantTokens().Where(t => !ReferenceEquals(t, a.NameToken))).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text)];
+
+        // [require(…)] interface I の機能 (interface の前の属性)
+        List<string> InterfaceAtoms(StructDeclarationSyntax type)
+        {
+            List<string> atoms = [];
+            int at = tokens.IndexOf(type.Keyword);
+
+            while (at > 0 && tokens[at - 1].Kind == ShaderSyntaxKind.CloseBracketToken)
+            {
+                int open = at - 1;
+
+                while (open > 0 && tokens[open].Kind != ShaderSyntaxKind.OpenBracketToken)
+                {
+                    open--;
+                }
+
+                if (tokens[open + 1].Text == "require")
+                {
+                    atoms.AddRange(tokens.Skip(open + 2).Take(at - open - 3).Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text));
+                }
+
+                at = open;
+            }
+
+            return atoms;
+        }
+
+        // 関数ごとの [require(…)] (2 度宣言した名前は null)
+        Dictionary<string, List<string>?> functions = new(StringComparer.Ordinal);
+
+        foreach (FunctionDeclarationSyntax function in root.Declarations.OfType<FunctionDeclarationSyntax>())
+        {
+            functions[function.Name] = functions.ContainsKey(function.Name) ? null : Atoms(function.Attributes);
+        }
+
+        Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && t.GenericParameterTokens.IsDefaultOrEmpty)
+            .GroupBy(t => t.Name, StringComparer.Ordinal).Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax type in types.Where(t => t.Keyword.Text is "struct" or "class" && t.ColonToken is not null))
+        {
+            StructDeclarationSyntax[] bases = [.. type.DescendantTokens().TakeWhile(t => t.Kind != ShaderSyntaxKind.OpenBraceToken).SkipWhile(t => t.Kind != ShaderSyntaxKind.ColonToken)
+                .Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken && interfaces.ContainsKey(t.Text)).Select(t => interfaces[t.Text]).Distinct()];
+
+            foreach (FunctionDeclarationSyntax implementation in type.Members.OfType<FunctionDeclarationSyntax>().Where(m => m.Body is not null))
+            {
+                // 要件 (同じ名前の、本体の無いメソッド) が 1 つだけのもの。
+                (StructDeclarationSyntax Owner, FunctionDeclarationSyntax Requirement)[] requirements = [.. bases.SelectMany(b => b.Members.OfType<FunctionDeclarationSyntax>()
+                    .Where(r => r.Name == implementation.Name && r.Body is null).Select(r => (b, r)))];
+
+                if (requirements is not [var (owner, requirement)])
+                {
+                    continue;
+                }
+
+                HashSet<string> allowed = [.. InterfaceAtoms(owner), .. Atoms(requirement.Attributes)];
+
+                if (allowed.Count == 0)
+                {
+                    continue;
+                }
+
+                List<string> used = [.. Atoms(implementation.Attributes)];
+                ShaderSyntaxToken[] body = [.. implementation.Body!.DescendantTokens()];
+
+                for (int i = 0; i + 1 < body.Length; i++)
+                {
+                    if (body[i].Kind == ShaderSyntaxKind.IdentifierToken && body[i + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                        && (i == 0 || body[i - 1].Kind != ShaderSyntaxKind.DotToken))
+                    {
+                        if (!functions.TryGetValue(body[i].Text, out List<string>? called))
+                        {
+                            continue;
+                        }
+
+                        if (called is null)
+                        {
+                            used = [];
+                            break;
+                        }
+
+                        used.AddRange(called);
+                    }
+                }
+
+                if (allowed.Concat(used).All(a => a.StartsWith("spv", StringComparison.Ordinal)) && used.FirstOrDefault(a => !allowed.Contains(a)) is { } extra)
+                {
+                    report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
+                        $"'{implementation.Name}' は、インターフェイスの要件で許されない機能 {extra} を使っています ({string.Join("・", allowed)} だけを使えます)。");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// メソッドの、throws の有無と、where nonempty(…) の数と、型の仮引数ごとの制約 (<c>&lt;T : IA &amp; IB&gt;</c> と <c>where T : IA</c>)。
+    /// 読めない書き方 (型引数のある制約・where の別の書き方) があれば <see langword="null"/>。
+    /// </summary>
+    private static (bool Throws, int NonEmpty, List<List<string>> Constraints)? Signature(ImmutableArray<ShaderSyntaxToken> tokens, FunctionDeclarationSyntax function)
+    {
+        List<string> names = [];
+        List<List<string>> constraints = [];
+        ImmutableArray<ShaderSyntaxToken> generic = function.GenericParameterTokens;
+
+        for (int i = 1; i < generic.Length; i++)
+        {
+            ShaderSyntaxToken token = generic[i];
+
+            if (token.Kind == ShaderSyntaxKind.IdentifierToken && generic[i - 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.CommaToken)
+            {
+                if (token.Text is "let")
+                {
+                    return null;
+                }
+
+                ShaderSyntaxToken name = token.Text == "each" && i + 1 < generic.Length ? generic[++i] : token;
+                names.Add(name.Text);
+                constraints.Add([]);
+            }
+            else if (token.Kind == ShaderSyntaxKind.IdentifierToken && generic[i - 1].Kind is ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.AmpersandToken && constraints.Count > 0)
+            {
+                if (i + 1 < generic.Length && generic[i + 1].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken)
+                {
+                    return null;
+                }
+
+                constraints[^1].Add(token.Text);
+            }
+            else if (token.Kind == ShaderSyntaxKind.EqualsToken)
+            {
+                return null;
+            }
+        }
+
+        int close = tokens.IndexOf(function.CloseParen);
+
+        if (close < 0)
+        {
+            return null;
+        }
+
+        bool throws = false;
+        int nonEmpty = 0;
+
+        for (int i = close + 1; i < tokens.Length && tokens[i].Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken); i++)
+        {
+            if (tokens[i].Text == "throws")
+            {
+                throws = true;
+            }
+            else if (tokens[i].Text == "where")
+            {
+                if (i + 4 < tokens.Length && tokens[i + 1].Text == "nonempty" && tokens[i + 2].Kind == ShaderSyntaxKind.OpenParenToken)
+                {
+                    nonEmpty++;
+                }
+                else if (i + 3 < tokens.Length && names.IndexOf(tokens[i + 1].Text) is var index and >= 0 && tokens[i + 2].Kind == ShaderSyntaxKind.ColonToken
+                         && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken
+                         && !(i + 4 < tokens.Length && tokens[i + 4].Kind is ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken or ShaderSyntaxKind.AmpersandToken))
+                {
+                    constraints[index].Add(tokens[i + 3].Text);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+
+        return (throws, nonEmpty, constraints);
+    }
+
     /// <summary>インターフェイスと、その継承したインターフェイスのすべて。利用者の (1 度だけ宣言した) インターフェイスでないものを継承していれば <see langword="null"/>。</summary>
     private static List<StructDeclarationSyntax>? Ancestors(List<StructDeclarationSyntax> bases, Dictionary<string, StructDeclarationSyntax> interfaces)
     {
@@ -855,7 +1049,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>インターフェイスの既定の実装と override の対応。</summary>
-    private static void CheckOverrides(StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckOverrides(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && kinds[t.NameToken!.Text] == 3)
             .GroupBy(t => t.NameToken!.Text, StringComparer.Ordinal)
@@ -902,7 +1096,28 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             // 継承の並びのどこかで本体を書いた (既定の実装のある) 要件は、満たしている。
             HashSet<string> implemented = [.. required.Where(r => r.Body is not null).Select(r => r.Name)];
             required = [.. required.Where(r => r.Body is not null || !implemented.Contains(r.Name))];
+            List<StructDeclarationSyntax> direct = bases;
             bases = all;
+
+            // 継承したインターフェイスの要件が無いときは、slangc と同じく、そのインターフェイスを継承の並びに書いた位置で伝える。
+            ShaderSyntaxToken MissingAt(FunctionDeclarationSyntax requirement)
+            {
+                if (requirement.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault() is not { NameToken: { } ownerName } owner || direct.Contains(owner))
+                {
+                    return type.NameToken!;
+                }
+
+                foreach (StructDeclarationSyntax inheritor in all)
+                {
+                    if (inheritor.DescendantTokens().TakeWhile(t => t.Kind != ShaderSyntaxKind.OpenBraceToken).SkipWhile(t => t.Kind != ShaderSyntaxKind.ColonToken)
+                        .FirstOrDefault(t => t.Text == ownerName.Text) is { } written)
+                    {
+                        return written;
+                    }
+                }
+
+                return type.NameToken!;
+            }
 
             // インターフェイスの要件 (本体の無いメソッド) を、型が持っているか (E38100)。持っていれば、[mutating] と static が合うか (E38105)。
             // extension で足されうる型とインターフェイス、ジェネリックのインターフェイスは見ない。
@@ -918,7 +1133,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
                     if (candidates.Length == 0)
                     {
-                        report(SlangRuleDescriptors.InterfaceRequirement, type.NameToken, $"{type.Name} に、インターフェイスの要件 '{requirement.Name}' がありません。");
+                        report(SlangRuleDescriptors.InterfaceRequirement, MissingAt(requirement), $"{type.Name} に、インターフェイスの要件 '{requirement.Name}' がありません。");
                         continue;
                     }
 
@@ -938,6 +1153,25 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                     {
                         report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
                             Static(requirement) ? $"インターフェイスの要件 '{requirement.Name}' は static なので、static でないメソッドで満たせません。" : $"インターフェイスの要件 '{requirement.Name}' は static でないので、static のメソッドで満たせません。");
+                    }
+                    else if (Signature(tokens, implementation) is { } actual && Signature(tokens, requirement) is { } expected)
+                    {
+                        // throws を書いた実装は、throws の無い要件を満たせない。nonempty の制約は合わせる。型の仮引数の制約は、要件より強くできない。
+                        if (actual.Throws && !expected.Throws)
+                        {
+                            report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken, $"インターフェイスの要件 '{requirement.Name}' は throws でないので、throws のメソッドで満たせません。");
+                        }
+                        else if (actual.NonEmpty != expected.NonEmpty)
+                        {
+                            report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
+                                $"インターフェイスの要件 '{requirement.Name}' と、where nonempty(…) の制約が合いません。要件と同じ制約を書いてください。");
+                        }
+                        else if (actual.Constraints.Count == expected.Constraints.Count
+                                 && actual.Constraints.Select((c, i) => c.FirstOrDefault(x => !model.ConformsThrough(expected.Constraints[i], x))).FirstOrDefault(x => x is not null) is { } stronger)
+                        {
+                            report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
+                                $"インターフェイスの要件 '{requirement.Name}' に無い制約 ({stronger}) を、型の仮引数に書いています。要件より強い制約では満たせません。");
+                        }
                     }
                 }
             }

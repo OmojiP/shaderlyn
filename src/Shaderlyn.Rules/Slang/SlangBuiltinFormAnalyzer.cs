@@ -62,10 +62,51 @@ internal sealed partial class SlangBuiltinFormAnalyzer : SemanticRuleAnalyzer
             }
 
             CheckTokens(tokens, program.Tree.Root, Report);
+            CheckExistentialBitCast(compilation, program, Report);
 
             foreach (FunctionDeclarationSyntax function in program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
             {
                 CheckEntryPoint(function, tokens, Report);
+            }
+        }
+    }
+
+    /// <summary>
+    /// エントリポイント ([shader]・[numthreads] の関数) から届く関数の中の、インターフェイスの型への <c>bit_cast&lt;IFoo&gt;(x)</c> (E41204。コードを作るときに見る)。
+    /// </summary>
+    private static void CheckExistentialBitCast(ShaderCompilation compilation, AnalyzedProgram program, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        CompilationUnitSyntax root = program.Tree.Root;
+        HashSet<string> interfaces = [.. root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+            .Where(t => t.Keyword.Text == "interface" && t.NameToken is not null && t.GenericParameterTokens.IsDefaultOrEmpty)
+            .GroupBy(t => t.Name, StringComparer.Ordinal).Where(g => g.Count() == 1).Select(g => g.Key)];
+
+        if (interfaces.Count == 0)
+        {
+            return;
+        }
+
+        FunctionDeclarationSyntax[] entries = [.. root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
+            .Where(f => f.Body is not null && f.Attributes.Any(a => a.Name is "shader" or "numthreads"))];
+        HashSet<FunctionDeclarationSyntax> reachable = [.. entries];
+
+        foreach (FunctionDeclarationSyntax entry in entries)
+        {
+            reachable.UnionWith(compilation.EnumerateCallees(entry, program, int.MaxValue).Select(c => c.Function));
+        }
+
+        foreach (FunctionDeclarationSyntax function in reachable)
+        {
+            ShaderSyntaxToken[] body = [.. function.Body?.DescendantTokens() ?? []];
+
+            for (int i = 0; i + 3 < body.Length; i++)
+            {
+                if (body[i].Text == "bit_cast" && body[i + 1].Kind == ShaderSyntaxKind.LessThanToken && body[i + 2].Kind == ShaderSyntaxKind.IdentifierToken
+                    && body[i + 3].Kind == ShaderSyntaxKind.GreaterThanToken && interfaces.Contains(body[i + 2].Text))
+                {
+                    report(SlangRuleDescriptors.WrongOperandTypes, body[i],
+                        $"bit_cast では、インターフェイスの型 {body[i + 2].Text} (具体的な型の決まらない型) の値を作れません。具体的な型にしてください。");
+                }
             }
         }
     }

@@ -85,6 +85,45 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// 根のファイル <paramref name="rootPath"/> のモジュールから見えないファイル (取り込んだモジュールが __exported でなく取り込んだモジュール)。
+    /// 見え方を決められなければ (見つからない取り込み・同じ名前のファイル) 空。
+    /// </summary>
+    internal static HashSet<string> HiddenFiles(string rootPath, AnalyzedProgram program)
+    {
+        HashSet<string> hidden = new(StringComparer.OrdinalIgnoreCase);
+
+        if (!program.Tree.PreprocessResult.UnresolvedIncludes.IsEmpty)
+        {
+            return hidden;
+        }
+
+        string root = Path.GetFullPath(rootPath);
+        Dictionary<string, List<ShaderSyntaxToken>> files = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.Tokens)
+        {
+            if (token.Source.FilePath is { } path)
+            {
+                string full = Path.GetFullPath(path);
+
+                if (!files.TryGetValue(full, out List<ShaderSyntaxToken>? list))
+                {
+                    files[full] = list = [];
+                }
+
+                list.Add(token);
+            }
+        }
+
+        if (files.Count > 1 && files.ContainsKey(root) && Visible(root, files) is { } visible)
+        {
+            hidden.UnionWith(files.Keys.Where(f => !visible.Files.Contains(f)));
+        }
+
+        return hidden;
+    }
+
     /// <summary>根のファイルのモジュールから見えるファイルと、根のファイルのモジュールのファイル。</summary>
     private static (HashSet<string> Files, HashSet<string> RootModule)? Visible(string root, Dictionary<string, List<ShaderSyntaxToken>> files)
     {

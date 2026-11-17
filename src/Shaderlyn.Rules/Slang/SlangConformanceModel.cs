@@ -34,6 +34,12 @@ internal sealed partial class SlangConformanceModel
     private readonly HashSet<string> _undecided = new(StringComparer.Ordinal);
     private readonly List<(ImmutableArray<string> Constraints, ImmutableArray<string> Interfaces)> _blankets = [];
     private readonly Func<string, bool> _isImported;
+
+    /// <summary>型引数で決まる適合 (extension&lt;T : IScalar&gt; Shape&lt;T&gt; : IShaped)。型ごとの、型の仮引数ごとの制約と、足すインターフェイス。</summary>
+    private readonly Dictionary<string, List<(List<List<string>> Constraints, HashSet<string> Interfaces)>> _conditional = new(StringComparer.Ordinal);
+
+    /// <summary>型引数で決まる適合を、上の形で読めなかった型。</summary>
+    private readonly HashSet<string> _unrepresentable = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (HashSet<string> Set, bool Complete)> _cache = new(StringComparer.Ordinal);
 
     private SlangConformanceModel(Func<string, bool> isImported) => _isImported = isImported;
@@ -85,6 +91,54 @@ internal sealed partial class SlangConformanceModel
     /// </summary>
     public bool MethodExtensionsMayApply(string type)
         => _undecidedEverything || _undecided.Contains(type) || _blankets.Any(b => b.Constraints.Length > 0 && b.Constraints.All(c => Conforms(type, c) != false));
+
+    /// <summary>
+    /// 利用者のジェネリックの型 <paramref name="type"/> に型引数を当てた型 (Shape&lt;T&gt;) が、インターフェイスに適合するか。決められなければ <see langword="null"/>。
+    /// 型引数で決まる適合 (extension&lt;T : IScalar&gt; Shape&lt;T&gt; : IShaped) は、型引数ごとの適合 (<paramref name="argumentConforms"/>) で確かめる。
+    /// </summary>
+    public bool? ConformsInstance(string type, IReadOnlyList<Func<string, bool?>> argumentConforms, string requirement)
+    {
+        if (_undecidedEverything || _unrepresentable.Contains(type) || !_types.TryGetValue(type, out HashSet<string>? own) || own is null
+            || _blankets.Any(b => Closed(b.Interfaces).Contains(requirement)))
+        {
+            return null;
+        }
+
+        if (Closed(own).Contains(requirement))
+        {
+            return true;
+        }
+
+        bool undecided = false;
+
+        foreach ((List<List<string>> constraints, HashSet<string> interfaces) in _conditional.GetValueOrDefault(type) ?? [])
+        {
+            if (!Closed(interfaces).Contains(requirement) || constraints.Count != argumentConforms.Count)
+            {
+                undecided |= constraints.Count != argumentConforms.Count;
+                continue;
+            }
+
+            bool?[] results = [.. constraints.SelectMany((list, index) => list.Select(c => argumentConforms[index](c)))];
+
+            if (results.All(r => r == true))
+            {
+                return true;
+            }
+
+            undecided |= !results.Contains(false);
+        }
+
+        return undecided ? null : false;
+    }
+
+    /// <summary>インターフェイスの並びを、継承で閉じたもの。</summary>
+    private HashSet<string> Closed(IEnumerable<string> interfaces)
+    {
+        HashSet<string> set = new(interfaces, StringComparer.Ordinal);
+        Close(set);
+        return set;
+    }
 
     /// <summary>型が適合するインターフェイスの全部と、それで全部と言えるか。</summary>
     private (HashSet<string> Set, bool Complete) ConformanceOf(string type, int depth)
@@ -297,6 +351,7 @@ internal sealed partial class SlangConformanceModel
             string name = tokens[j].Text;
             j++;
             bool genericTarget = j < tokens.Length && tokens[j].Kind == ShaderSyntaxKind.LessThanToken;
+            int targetArguments = j;
 
             // 型の仮引数 (struct Box<T : I>) と、型引数を書いた extension の対象 (extension Box<T>) を飛ばす。
             if (genericTarget)
@@ -387,6 +442,38 @@ internal sealed partial class SlangConformanceModel
             if (genericTarget || parameters.Count > 0)
             {
                 _undecided.Add(name);
+
+                // 対象の型引数が、extension の型の仮引数をその順に並べたものだけ (Shape<T>・Pair<A, B>) なら、条件として覚える。
+                List<string> written = [];
+
+                for (int k = targetArguments + 1; genericTarget && k < tokens.Length && tokens[k].Kind != ShaderSyntaxKind.GreaterThanToken; k++)
+                {
+                    if (tokens[k].Kind == ShaderSyntaxKind.IdentifierToken)
+                    {
+                        written.Add(tokens[k].Text);
+                    }
+                    else if (tokens[k].Kind != ShaderSyntaxKind.CommaToken)
+                    {
+                        written.Clear();
+                        written.Add("\u0001");
+                        break;
+                    }
+                }
+
+                if (bases is not null && genericTarget && written.SequenceEqual(parameters.Select(q => q.Name)) && (j >= tokens.Length || tokens[j].Text != "where"))
+                {
+                    if (!_conditional.TryGetValue(name, out var list))
+                    {
+                        _conditional[name] = list = [];
+                    }
+
+                    list.Add(([.. parameters.Select(q => q.Constraints)], bases));
+                }
+                else
+                {
+                    _unrepresentable.Add(name);
+                }
+
                 continue;
             }
 

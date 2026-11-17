@@ -74,6 +74,12 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             // 利用者のジェネリックの型の、型引数の数 (要る数・書ける数。可変長の並びがあれば上限なし)。同じ名前が 2 つあれば null。
             Dictionary<string, (int Required, int Total)?> arities = new(StringComparer.Ordinal);
 
+            // 仮引数がどれも並びの型 (TwoPacks<let each A : int, let each B : int>) の、並びの数。型引数は並びの数で割り切れなければならない。
+            Dictionary<string, int> packGroups = new(StringComparer.Ordinal);
+
+            // 既定の値が、制約の無い型の仮引数のメンバー (= T.member) の仮引数の位置と、既定の値。
+            Dictionary<string, (int Index, string Text)> brokenDefaults = new(StringComparer.Ordinal);
+
             // each で宣言した仮引数の名前 (ファイルのどこかのもの)。
             HashSet<string> packNames = new(StringComparer.Ordinal);
 
@@ -135,6 +141,22 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     arities[tokens[i + 1].Text] = arities.ContainsKey(tokens[i + 1].Text) || kinds.GetValueOrDefault(tokens[i + 1].Text) == "?"
                         ? null
                         : (parameters.Count(p => !p.HasDefault && !p.Pack), parameters.Any(p => p.Pack) ? int.MaxValue : parameters.Count);
+
+                    if (parameters.Count >= 2 && parameters.All(p => p.Pack))
+                    {
+                        packGroups[tokens[i + 1].Text] = parameters.Count;
+                    }
+
+                    for (int d = 0; d < parameters.Count; d++)
+                    {
+                        if (parameters[d].Default is [{ Kind: ShaderSyntaxKind.IdentifierToken } owner, { Kind: ShaderSyntaxKind.DotToken }, { Kind: ShaderSyntaxKind.IdentifierToken } member]
+                            && parameters.FirstOrDefault(q => q.Name.Text == owner.Text) is { Value: false, Pack: false, Constraint.Count: 0 }
+                            && !HasWhereFor(tokens, close, owner.Text))
+                        {
+                            brokenDefaults[tokens[i + 1].Text] = (d, $"{owner.Text}.{member.Text}");
+                            break;
+                        }
+                    }
                 }
 
                 CheckParameters(parameters, kinds, binder, Report);
@@ -216,12 +238,38 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckArity(tokens, arities, Report);
+            CheckArity(tokens, arities, packGroups, brokenDefaults, Report);
+
+            // nonGeneric<G>() (ジェネリックでない利用者の関数に型引数を書く。E39999)。同じ名前のジェネリックの宣言・型・標準ライブラリの関数があれば見ない。
+            void CheckNotGeneric(ShaderSyntaxToken name)
+            {
+                if (arities.ContainsKey(name.Text) || kinds.ContainsKey(name.Text) || root.TypeAliases.ContainsKey(name.Text)
+                    || compilation.TypeSystem.FunctionNames.Contains(name.Text) || compilation.TypeSystem.IsBuiltInTypeName(name.Text)
+                    || compilation.UnanalyzedIdentifiers.Contains(name.Text)
+                    || compilation.GetFunctionDeclarations(name.Text, program) is not { IsEmpty: false } declarations
+                    || declarations.Any(d => !d.GenericParameterTokens.IsDefaultOrEmpty)
+                    || tokens.Any(t => t.Text == name.Text && t.Kind == ShaderSyntaxKind.IdentifierToken && !ReferenceEquals(t, name)
+                                       && tokens.IndexOf(t) is var at and > 0 && at + 1 < tokens.Length && tokens[at + 1].Kind == ShaderSyntaxKind.LessThanToken
+                                       && tokens[at - 1].Kind == ShaderSyntaxKind.IdentifierToken && tokens[at - 1].Text is not ("return" or "else" or "case")))
+                {
+                    return;
+                }
+
+                Report(SlangRuleDescriptors.GenericParameterForm, name, $"'{name.Text}' はジェネリックの関数ではないので、型引数 (<…>) を書けません。");
+            }
 
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())
             {
                 switch (node)
                 {
+                    case InvocationExpressionSyntax { HasTypeArguments: true, Target: IdentifierExpressionSyntax typedTarget }:
+                        CheckNotGeneric(typedTarget.Identifier);
+                        break;
+
+                    case InvocationExpressionSyntax { Target: GenericNameExpressionSyntax typedName }:
+                        CheckNotGeneric(typedName.Identifier);
+                        break;
+
                     // interface I { static const int x = 0; }
                     case VariableDeclarationSyntax { Parent: StructDeclarationSyntax { Keyword.Text: "interface" } } requirement:
                         foreach (VariableDeclaratorSyntax variable in requirement.Variables.Where(v => v.Initializer is not null))
@@ -248,7 +296,8 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// ジェネリックの型の型引数の数 (<c>Foo&lt;int&gt;</c> の Foo が 2 つの仮引数を持つ。E30441・E39999) と、空の <c>Buffer&lt;&gt;</c> (E30441) を見る。
     /// </summary>
-    private static void CheckArity(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, (int Required, int Total)?> arities, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckArity(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, (int Required, int Total)?> arities, Dictionary<string, int> packGroups,
+        Dictionary<string, (int Index, string Text)> brokenDefaults, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         for (int i = 1; i + 1 < tokens.Length; i++)
         {
@@ -347,6 +396,16 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 report(SlangRuleDescriptors.GenericParameterForm, name,
                     $"ジェネリックの型 {name.Text} の型引数は {(required == total ? $"{required} 個" : total == int.MaxValue ? $"{required} 個以上" : $"{required} 個から {total} 個")}ですが、{arguments} 個書いています。");
             }
+            else if (packGroups.TryGetValue(name.Text, out int groups) && arguments % groups != 0)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, name,
+                    $"ジェネリックの型 {name.Text} の {groups} つの並びに、型引数 {arguments} 個を同じ数ずつ分けられません。");
+            }
+            else if (brokenDefaults.TryGetValue(name.Text, out (int Index, string Text) broken) && arguments <= broken.Index)
+            {
+                report(SlangRuleDescriptors.GenericParameterForm, name,
+                    $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約の無い型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
+            }
         }
     }
 
@@ -376,6 +435,21 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 report(SlangRuleDescriptors.GenericParameterForm, target, $"nonempty(…) には、この宣言の可変長の並びの仮引数を書いてください ({target.Text} は外の宣言の仮引数です)。");
             }
 
+            return;
+        }
+
+        // where expand each __trimFirst(T) : IM (並びを削った結果は、制約の左に書けない)
+        int left = i;
+
+        while (left < tokens.Length && tokens[left].Text is "expand" or "each")
+        {
+            left++;
+        }
+
+        if (left + 1 < tokens.Length && tokens[left].Text is "__trimFirst" or "__trimLast" && tokens[left + 1].Kind == ShaderSyntaxKind.OpenParenToken
+            && Matching(tokens, left + 1) is { } trimClose && trimClose + 1 < tokens.Length && tokens[trimClose + 1].Kind == ShaderSyntaxKind.ColonToken)
+        {
+            report(SlangRuleDescriptors.GenericParameterForm, tokens[left], $"{tokens[left].Text}(…) の結果は、where の制約の左に書けません。ジェネリックの型の仮引数を書いてください。");
             return;
         }
 
