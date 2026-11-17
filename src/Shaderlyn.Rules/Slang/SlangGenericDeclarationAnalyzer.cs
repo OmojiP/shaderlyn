@@ -290,6 +290,63 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                         break;
                 }
             }
+
+            // type_param T : IFoo; と __generic_value_param N : int; (ファイル全体のジェネリックの仮引数) を、エントリポイントから届く関数で使うもの (E38207)。
+            // 型引数は API か -specialize で決めるもので、決めなければ型が決まらない。決めるなら slang: generic-entry-points。
+            if (compilation.Environment is not Semantics.Environments.SlangEnvironment { GenericEntryPoints: true })
+            {
+                CheckGlobalGenericParameters(compilation, program, tokens, Report);
+            }
+        }
+    }
+
+    /// <summary>
+    /// ファイル全体のジェネリックの仮引数 (<c>type_param T</c>・<c>__generic_value_param N</c>) を、エントリポイント ([shader]・[numthreads] の関数) から届く関数で使うものを、宣言の位置で報告する (E38207)。
+    /// 型の仮引数に同じ名前を書いた関数 (<c>void f&lt;T&gt;()</c>) の中は見ない。
+    /// </summary>
+    private static void CheckGlobalGenericParameters(ShaderCompilation compilation, AnalyzedProgram program, ImmutableArray<ShaderSyntaxToken> tokens,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    {
+        Dictionary<string, ShaderSyntaxToken> declared = new(StringComparer.Ordinal);
+        int depth = 0;
+
+        for (int i = 0; i + 1 < tokens.Length; i++)
+        {
+            depth += tokens[i].Kind switch { ShaderSyntaxKind.OpenBraceToken => 1, ShaderSyntaxKind.CloseBraceToken => -1, _ => 0 };
+
+            if (depth == 0 && tokens[i].Text is "type_param" or "__generic_value_param" && tokens[i + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+            {
+                declared.TryAdd(tokens[i + 1].Text, tokens[i + 1]);
+            }
+        }
+
+        if (declared.Count == 0)
+        {
+            return;
+        }
+
+        FunctionDeclarationSyntax[] entries = [.. program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>()
+            .Where(f => f.Body is not null && f.Attributes.Any(a => a.Name is "shader" or "numthreads"))];
+        HashSet<FunctionDeclarationSyntax> reachable = [.. entries];
+
+        foreach (FunctionDeclarationSyntax entry in entries)
+        {
+            reachable.UnionWith(compilation.EnumerateCallees(entry, program, int.MaxValue).Select(c => c.Function));
+        }
+
+        HashSet<string> used = new(StringComparer.Ordinal);
+
+        foreach (FunctionDeclarationSyntax function in reachable)
+        {
+            HashSet<string> own = [.. function.GenericParameterTokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken).Select(t => t.Text)];
+            used.UnionWith(function.DescendantTokens().Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken && declared.ContainsKey(t.Text) && !own.Contains(t.Text)).Select(t => t.Text));
+        }
+
+        foreach ((string name, ShaderSyntaxToken at) in declared.Where(p => used.Contains(p.Key)))
+        {
+            report(SlangRuleDescriptors.GenericParameterForm, at,
+                $"ファイル全体のジェネリックの仮引数 '{name}' を、エントリポイントから届くコードで使っています。型引数が決まらないので、slangc はコンパイルの誤り (E38207) にします。"
+                + "slangc の -specialize か API で型引数を決めるなら、設定ファイルの slang: generic-entry-points を true にしてください。");
         }
     }
 

@@ -25,7 +25,7 @@ internal static class SlangKeywords
 
         // メンバーと関数
         "override", "mutating", "nonmutating", "__unsafeForceInlineEarly", "__forceinline", "dynamic_uniform", "open", "required",
-        "__builtin", "__generic_value_param", "__prefix", "__postfix",
+        "__builtin", "__prefix", "__postfix",
 
         // 動的な型
         "dyn", "some",

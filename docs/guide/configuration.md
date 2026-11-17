@@ -183,7 +183,7 @@ Slang のファイル (`.slang`) で使う設定です。
 | `target` | コンパイル先。`spirv` / `glsl` / `hlsl` / `dxil` / `metal` / `wgsl` / `cuda` / `ptx` / `cpp` を指定します (slangc の `-target`) |
 | `unscoped-enums` | `true` なら、どの列挙型の列挙子も型の名前で修飾せずに書けるものとします (slangc の `-unscoped-enum`)。既定は `false` で、`[UnscopedEnum]` を付けた列挙型だけです |
 | `experimental-features` | `true` なら、実験中のモジュール (`slang.neural`・`slang.numerics`・`slang.functional`・`experimental.workgraph`) を import できるものとします (slangc の `-experimental-feature`)。既定は `false` で、その import を [SG0362](../rules/SG0362.md) にします |
-| `generic-entry-points` | `true` なら、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
+| `generic-entry-points` | `true` なら、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。ファイル全体のジェネリックの仮引数 (`type_param`) の型引数も、同じく決めるものとします。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
 
 `target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
 `cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を格納するなど。[SG0404](../rules/SG0404.md)) を報告しません。`metal` も、`StructuredBuffer` に資源を含む構造体を格納することを報告しません (slangc と同じ)。

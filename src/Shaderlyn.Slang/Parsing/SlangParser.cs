@@ -337,8 +337,8 @@ internal sealed class SlangParser : ShaderParser
             case "__init":
                 return ParseInitializerFunction(attributes, modifiers);
 
-            // type_param T : IBase; (古い書き方の、ファイル全体のジェネリックの仮引数)
-            case "typealias" or "associatedtype" or "__constraint" or "precision" or "type_param":
+            // type_param T : IBase; と __generic_value_param N : int; (古い書き方の、ファイル全体のジェネリックの仮引数)
+            case "typealias" or "associatedtype" or "__constraint" or "precision" or "type_param" or "__generic_value_param":
                 return SkipToSemicolon(markNames: true);
 
             // __func_extension fwd_diff(f)(…) -> T { … }

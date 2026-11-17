@@ -459,6 +459,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0349", "struct U { uint x; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ParameterBlock<U>> input, uniform RWStructuredBuffer<uint> output) {}\n")]
     [InlineData("SG0349", "void g<T : IComparable>() {}\nvoid test() { g<Optional<int>>(); }\n")]
     [InlineData("SG0349", "interface IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<ByteAddressBuffer>(); }\n")]
+    [InlineData("SG0358", "interface IFoo { int get(); }\ntype_param T : IFoo;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    T t;\n    output[0] = t.get();\n}\n")]
+    [InlineData("SG0358", "__generic_value_param N : int;\nRWStructuredBuffer<int> output;\nint read() { return N; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = read(); }\n")]
+    [InlineData("SG0349", "[anyValueSize(8)]\ninterface IFoo { float getValue(); }\nstruct ImplA : IFoo { float v; float getValue() { return v; } }\nRWByteAddressBuffer buffer;\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid computeMain()\n{\n    IFoo loaded = buffer.Load<IFoo>(0);\n    output[0] = loaded.getValue();\n}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -624,6 +627,9 @@ public sealed class SlangRuleTests : IDisposable
     // 適合を全部表に書いた標準ライブラリの型 (Buffer・StructuredBuffer・Tuple)、標準ライブラリのジェネリックの型の制約に合う型引数、利用者の extension で広げた標準ライブラリの型
     [InlineData("T readAt<T, A : IArray<T>>(A values, int i) { return values[i]; }\nBuffer<float> b;\nStructuredBuffer<float> s;\nfloat test() { return readAt<float, Buffer<float>>(b, 0) + readAt<float, StructuredBuffer<float>>(s, 0); }\nvoid g<T : IComparable>() {}\nvoid use() { g<Tuple<int, int>>(); g<DescriptorHandle<SamplerState>>(); }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ConstantBuffer<int>> c, uniform DescriptorHandle<SamplerState> ss) {}\n")]
     [InlineData("interface IMine {}\nextension<T : ITexelElement> RWBuffer<T> : IMine {}\nextension<T> ParameterBlock<T> : IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<RWBuffer<float>>(); g<ParameterBlock<int>>(); }\n")]
+    // エントリポイントから届かないファイル全体のジェネリックの仮引数と、同じ名前の型の仮引数を持つ関数
+    [InlineData("interface IBase {}\ntype_param TParam : IBase;\nParameterBlock<TParam> arg;\n__generic_value_param kOffset : uint = 0;\nTexture2D t;\nSamplerState s;\nfloat4 main(float2 uv) : SV_Target { return t.Sample(s, uv); }\nT pick<T>(T v) { return v; }\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid entry() { output[0] = pick<int>(1); }\n")]
+    [InlineData("interface IFoo { int get(); }\ntype_param T : IFoo;\nint use<T : IFoo>(T x) { return x.get(); }\nstruct A : IFoo { int get() { return 1; } }\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { A a; output[0] = use(a); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

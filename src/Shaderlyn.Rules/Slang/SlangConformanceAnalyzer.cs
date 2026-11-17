@@ -968,11 +968,10 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
 
 
                 // buffer.Load<IFoo>(0) (ByteAddressBuffer から存在型は読めない。言語のバージョンによらない)。
-                // 特殊化はエントリポイントから届く関数を作るときに起きるので、届く関数の中だけを見る。
+                // 特殊化はエントリポイント ([shader]・[numthreads] の関数) から届く関数を作るときに起きるので、届く関数の中だけを見る。
                 if (call.HasTypeArguments && member.Name == "Load" && SimpleArguments(call.TypeArgumentTokens) is [{ } loaded] && IsUserInterface(loaded)
                     && evaluator.Evaluate(member.Target) is "ByteAddressBuffer" or "RWByteAddressBuffer"
-                    && compilation.GetReachableFunctions(program) is { } reachable
-                    && call.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } enclosingFunction && reachable.Contains(enclosingFunction))
+                    && Reachable(call))
                 {
                     message = $"インターフェイスの型 {loaded} では、Load を特殊化できません。具体的な型を読んでください。";
                 }
