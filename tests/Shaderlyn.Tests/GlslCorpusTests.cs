@@ -49,7 +49,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     [Fact]
     public void GLSLのコーパスに構文エラーが無い()
     {
-        string? root = Environment.GetEnvironmentVariable(CorpusVariable);
+        string? root = TestPaths.FromEnvironment(CorpusVariable);
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
@@ -141,7 +141,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     [InlineData("opengl-es-sdk-for-android")]
     public async Task GLSLのコーパスに誤検出が無い(string corpus)
     {
-        string? root = Environment.GetEnvironmentVariable(CorpusVariable);
+        string? root = TestPaths.FromEnvironment(CorpusVariable);
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(Path.Combine(root, corpus)))
         {
@@ -174,7 +174,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
     [Fact]
     public void GodotとSlangを近い言語として読んだときの構文エラーを数える()
     {
-        string? root = Environment.GetEnvironmentVariable(CorpusVariable);
+        string? root = TestPaths.FromEnvironment(CorpusVariable);
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {

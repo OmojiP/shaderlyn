@@ -36,7 +36,7 @@ public sealed class UnityProbeCorpusTests(ITestOutputHelper output)
     [Fact]
     public void Unityで実測したコンパイラと判定が一致する()
     {
-        string? root = Environment.GetEnvironmentVariable(ProbeVariable);
+        string? root = TestPaths.FromEnvironment(ProbeVariable);
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {

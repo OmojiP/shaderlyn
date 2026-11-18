@@ -44,7 +44,7 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
     [Fact]
     public void 解析の結果が記録と一致する()
     {
-        string? snapshotPath = Environment.GetEnvironmentVariable(SnapshotVariable);
+        string? snapshotPath = TestPaths.FromEnvironment(SnapshotVariable);
 
         if (string.IsNullOrWhiteSpace(snapshotPath))
         {

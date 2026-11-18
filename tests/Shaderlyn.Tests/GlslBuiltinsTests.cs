@@ -145,7 +145,7 @@ public sealed class GlslBuiltinsTests(ITestOutputHelper output)
     [Fact]
     public void 表を作り直しても変わらない()
     {
-        string? glslang = Environment.GetEnvironmentVariable("SHADERLYN_GLSLANG");
+        string? glslang = TestPaths.FromEnvironment("SHADERLYN_GLSLANG");
 
         if (string.IsNullOrWhiteSpace(glslang) || !File.Exists(glslang))
         {
@@ -185,7 +185,7 @@ public sealed class GlslBuiltinsTests(ITestOutputHelper output)
     [Fact]
     public void コーパスの関数の呼び出しがすべて解決する()
     {
-        string? root = Environment.GetEnvironmentVariable("SHADERLYN_GLSL_CORPUS");
+        string? root = TestPaths.FromEnvironment("SHADERLYN_GLSL_CORPUS");
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {

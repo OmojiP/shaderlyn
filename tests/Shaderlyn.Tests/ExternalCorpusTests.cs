@@ -37,12 +37,18 @@ public sealed class ExternalCorpusTests(ITestOutputHelper output)
     /// </summary>
     private static readonly HashSet<string> SetupDiagnostics = new(StringComparer.Ordinal) { "CF0021", "TOOL0004" };
 
+    /// <summary>
+    /// HLSL のシェーダーとしてコンパイルが通るファイルを集めたコーパス (<c>tools/corpus/fetch.mjs</c> の言語が hlsl のもの)。
+    /// ほかの言語のコーパスの <c>*.hlsl</c> は、コンパイラの試験の期待する出力 (glslang の <c>Test/baseResults</c>、slang の <c>*.slang.hlsl</c>) で、HLSL のシェーダーではない。
+    /// </summary>
+    private static readonly string[] HlslCorpora = ["DirectX-Graphics-Samples"];
+
     private readonly ITestOutputHelper _output = output;
 
     [Fact]
     public async Task 外部のコーパスに誤検出が無い()
     {
-        string? root = Environment.GetEnvironmentVariable(CorpusVariable);
+        string? root = TestPaths.FromEnvironment(CorpusVariable);
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
@@ -52,7 +58,7 @@ public sealed class ExternalCorpusTests(ITestOutputHelper output)
 
         List<string> unexpected = [];
 
-        foreach (string corpus in Directory.EnumerateDirectories(root).Order(StringComparer.Ordinal))
+        foreach (string corpus in HlslCorpora.Select(name => Path.Combine(root, name)).Where(Directory.Exists))
         {
             unexpected.AddRange(await AnalyzeCorpusAsync(Path.GetFullPath(root), Path.GetFullPath(corpus)));
         }

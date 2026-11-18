@@ -104,7 +104,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
     /// </remarks>
     internal static string? FindUnityEditorData()
     {
-        if (Environment.GetEnvironmentVariable("SHADERLYN_UNITY_EDITOR") is { Length: > 0 } explicitData)
+        if (TestPaths.FromEnvironment("SHADERLYN_UNITY_EDITOR") is { } explicitData)
         {
             return Directory.Exists(Cli.UnityInstallation.GetCgIncludesDirectory(explicitData)) ? explicitData : null;
         }
