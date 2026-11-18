@@ -443,6 +443,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0349", "#lang slang 2025\ninterface IFoo { float get(); }\nstruct A : IFoo { float get() { return 1; } }\nstruct B : IFoo { float get() { return 2; } }\nIFoo make(uint id)\n{\n    if (id == 0)\n        return A();\n    return B();\n}\nT process<T>(T v) { return v; }\nRWStructuredBuffer<float> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uint3 id : SV_DispatchThreadID)\n{\n    IFoo obj = make(id.x);\n    output[0] = process(obj).get();\n}\n")]
     [InlineData("SG0359", "enum E { Fail = 1 };\ninterface IFoo { int f(); }\nstruct S : IFoo\n{\n    int f() throws E { return 1; }\n}\n")]
     [InlineData("SG0359", "interface IReq { void use<each T>(); }\nstruct S : IReq\n{\n    void use<each T>() where nonempty(T) {}\n}\n")]
+    [InlineData("SG0359", "interface IReq { void f<each T, each U>(expand each T v, expand each U u) where nonempty(T); }\nstruct S : IReq\n{\n    void f<each T, each U>(expand each T v, expand each U u) where nonempty(U) {}\n}\n")]
     [InlineData("SG0359", "interface IA {}\ninterface IB {}\ninterface IReq { void f<T : IA>(); }\nstruct S : IReq\n{\n    void f<T : IA & IB>() {}\n}\n")]
     [InlineData("SG0359", "module test;\n[require(spvRayQueryKHR)]\ninterface IFoo { void m(); }\n[require(spvGroupNonUniformArithmetic)]\nvoid arith() {}\nstruct S : IFoo\n{\n    void m() { arith(); }\n}\n")]
     [InlineData("SG0359", "[anyValueSize(8)]\ninterface IFoo { int get(); }\nstruct Big : IFoo { uint a; uint b; uint c; int get() { return 0; } }\nRWStructuredBuffer<IFoo> data;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = data[0].get(); }\n")]
@@ -637,6 +638,15 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nstruct F3 : IFunc<float3> { float3 operator()() { return float3(1); } }\nRWStructuredBuffer<float> output;\nvoid load<let N : int, each TIndex>(expand each TIndex indices) where countof(TIndex) == N {}\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    F3 f;\n    output[0] = foo(() => float2(1, 2)).x + foo(() => int2(1, 2)).x + foo(() => 1.0f).x + foo(f).x;\n    let g = () => Array<int, 2>();\n    load<3>(1, 2, 3);\n}\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
+
+    [Fact]
+    public async Task 要件と同じnonemptyの制約を書いた実装は報告しない()
+    {
+        // slangc 2026.19 は要件に where nonempty(…) があると、同じ制約を書いた実装も E38105 にする。
+        // 通る試験が無く slangc の不具合と見て、要件と食い違うときだけ報告する。仮引数の名前は違ってよい。
+        string code = "interface IReq { void f<each T, each U>(expand each T v, expand each U u) where nonempty(T); }\nstruct S : IReq\n{\n    void f<each A, each B>(expand each A v, expand each B u) where nonempty(A) {}\n}\n";
+        Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task importしたモジュールの宣言を使え_モジュールには指摘を出さない()

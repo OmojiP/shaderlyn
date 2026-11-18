@@ -746,7 +746,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
-    /// メソッドの、throws の有無と、where nonempty(…) の数と、型の仮引数ごとの制約 (<c>&lt;T : IA &amp; IB&gt;</c> と <c>where T : IA</c>)。
+    /// メソッドの、throws の有無と、where nonempty(…) を付けた型の仮引数の位置 (ビットの並び) と、型の仮引数ごとの制約 (<c>&lt;T : IA &amp; IB&gt;</c> と <c>where T : IA</c>)。
     /// 読めない書き方 (型引数のある制約・where の別の書き方) があれば <see langword="null"/>。
     /// </summary>
     private static (bool Throws, int NonEmpty, List<List<string>> Constraints)? Signature(ImmutableArray<ShaderSyntaxToken> tokens, FunctionDeclarationSyntax function)
@@ -805,7 +805,13 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (i + 4 < tokens.Length && tokens[i + 1].Text == "nonempty" && tokens[i + 2].Kind == ShaderSyntaxKind.OpenParenToken)
                 {
-                    nonEmpty++;
+                    // 要件と実装で仮引数の名前は違ってよいので、何番目の仮引数かで比べる。
+                    if (names.IndexOf(tokens[i + 3].Text) is not (>= 0 and < 31 and var target) || tokens[i + 4].Kind != ShaderSyntaxKind.CloseParenToken)
+                    {
+                        return null;
+                    }
+
+                    nonEmpty |= 1 << target;
                 }
                 else if (i + 3 < tokens.Length && names.IndexOf(tokens[i + 1].Text) is var index and >= 0 && tokens[i + 2].Kind == ShaderSyntaxKind.ColonToken
                          && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken
