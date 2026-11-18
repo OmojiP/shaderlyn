@@ -305,6 +305,10 @@ internal abstract class ShaderParser
     /// <returns>宣言なら <see langword="true"/>。</returns>
     protected virtual bool LooksLikeLanguageDeclaration() => false;
 
+    /// <summary>文の先頭が、型の名前で始まっても、言語に固有の形の式か (Slang の <c>Texture2D(h).GetDimensions(…);</c>)。</summary>
+    /// <returns>式なら <see langword="true"/>。</returns>
+    protected virtual bool LooksLikeLanguageExpression() => false;
+
     /// <summary>
     /// 式の後ろに続く、言語に固有のもの (Slang の <c>x is T</c>、<c>x as T</c>、<c>p-&gt;x</c>) を読む。
     /// </summary>
@@ -471,8 +475,15 @@ internal abstract class ShaderParser
         ImmutableArray<DeclarationSyntax>.Builder declarations =
             ImmutableArray.CreateBuilder<DeclarationSyntax>();
 
+        int transparent = 0;
+
         while (!AtEnd)
         {
+            if (TryParseTransparentBrace(declarations, ref transparent))
+            {
+                continue;
+            }
+
             int positionBefore = _index;
             declarations.Add(ParseDeclaration());
 
@@ -1334,20 +1345,7 @@ internal abstract class ShaderParser
         SkipDeclarationSuffix();
 
         ShaderSyntaxToken openBrace = Expect(ShaderSyntaxKind.OpenBraceToken, "'{'");
-        ImmutableArray<DeclarationSyntax>.Builder members =
-            ImmutableArray.CreateBuilder<DeclarationSyntax>();
-
-        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
-        {
-            int positionBefore = _index;
-            members.Add(ParseDeclaration());
-
-            if (_index == positionBefore)
-            {
-                members.Add(new IncompleteDeclarationSyntax([Advance()]));
-            }
-        }
-
+        ImmutableArray<DeclarationSyntax> members = ParseMemberDeclarations();
         ShaderSyntaxToken closeBrace = Expect(ShaderSyntaxKind.CloseBraceToken, "'}'");
 
         ImmutableArray<ShaderNodeOrTokenEntry>.Builder declarators =
@@ -1373,7 +1371,7 @@ internal abstract class ShaderParser
             : ExpectTypeSemicolon();
 
         return new StructDeclarationSyntax(
-            keyword, name, openBrace, members.ToImmutable(), closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
+            keyword, name, openBrace, members, closeBrace, declarators.ToImmutable(), semicolon, colon, baseType,
             specialization.ToImmutable())
         {
             Modifiers = modifiers,
@@ -1391,8 +1389,15 @@ internal abstract class ShaderParser
         ImmutableArray<DeclarationSyntax>.Builder members =
             ImmutableArray.CreateBuilder<DeclarationSyntax>();
 
-        while (!AtEnd && Current.Kind != ShaderSyntaxKind.CloseBraceToken)
+        int transparent = 0;
+
+        while (!AtEnd && (Current.Kind != ShaderSyntaxKind.CloseBraceToken || transparent > 0))
         {
+            if (TryParseTransparentBrace(members, ref transparent))
+            {
+                continue;
+            }
+
             int positionBefore = _index;
             members.Add(ParseDeclaration());
 
@@ -1403,6 +1408,38 @@ internal abstract class ShaderParser
         }
 
         return members.ToImmutable();
+    }
+
+    /// <summary>
+    /// 今の位置が、中の宣言を外側の宣言として読むブロック (Slang の <c>__transparent_block { … }</c>) の始まりか。
+    /// </summary>
+    /// <returns>始まりなら <see langword="true"/>。そのとき、ブロックの名前と <c>{</c> の 2 つのトークンを読む。</returns>
+    protected virtual bool OpensTransparentBlock() => false;
+
+    /// <summary>
+    /// 中の宣言を外側の宣言として読むブロックの、始まり (名前と <c>{</c>) か終わり (<c>}</c>) を読む。
+    /// </summary>
+    /// <param name="into">読んだトークンを、宣言の形にせずに入れる先。</param>
+    /// <param name="open">開いているブロックの数。</param>
+    /// <returns>読んだなら <see langword="true"/>。</returns>
+    private bool TryParseTransparentBrace(ImmutableArray<DeclarationSyntax>.Builder into, ref int open)
+    {
+        if (open > 0 && Current.Kind == ShaderSyntaxKind.CloseBraceToken)
+        {
+            into.Add(new IncompleteDeclarationSyntax([Advance()]));
+            open--;
+            return true;
+        }
+
+        if (OpensTransparentBlock())
+        {
+            ShaderSyntaxToken keyword = Advance();
+            into.Add(new IncompleteDeclarationSyntax([keyword, Advance()]));
+            open++;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>typedef に別名の名前が要るか (名前の無い typedef int; を構文の誤りにするか)。既定は <see langword="false"/> (C と同じく読み流す)。</summary>
@@ -2132,7 +2169,7 @@ internal abstract class ShaderParser
     /// </remarks>
     private bool LooksLikeDeclaration()
     {
-        if (Current.Kind != ShaderSyntaxKind.IdentifierToken)
+        if (Current.Kind != ShaderSyntaxKind.IdentifierToken || LooksLikeLanguageExpression())
         {
             return false;
         }

@@ -48,6 +48,12 @@ public sealed class SlangSyntaxTests
     [InlineData("#language slang 2026\ntypedef uint Type\nstruct S { Type t; }\n")]
     // 数の接尾辞 (slangc が通すもの)、無限大のリテラル、数のスウィズル
     [InlineData("void f()\n{\n    var a = 1.0hf + 1.0LF + 1.0fl + 1.0h;\n    var b = 1zU + 1uLL + 1Lu + 1llu;\n    float c = 2.4#INFf;\n    float2 d = 0.xx;\n}\n")]
+    // 言語仕様の書き方: : の後ろの修飾子 (slangc 2026.19 は構文として読むが、意味の検査の中で止まる)、型の名前の作成の後ろのメンバーと添字、
+    // __ignored_block・__transparent_block・__file_decl、投げる演算子の try
+    [InlineData("func modify(x : in out int, y : inout float) { x++; }\n")]
+    [InlineData("void f(uint2 s)\n{\n    Texture2D(ResourceDescriptorHeap[s.x]).GetDimensions(0, w, h, n);\n    float4(1, 2, 3, 4)[0];\n}\n")]
+    [InlineData("__ignored_block\n{\n    arbitrary content, nested {} here.\n}\nstruct MyType\n{\n    __transparent_block\n    {\n        int myFunc() { return 0; }\n    }\n}\n__file_decl\n{\n    void f1() {}\n}\n")]
+    [InlineData("void f() throws E { try ++c; try c++; try --c; }\n")]
     public void slangcが通す書き方を構文エラーにしない(string code)
     {
         ShaderSyntaxTree tree = Parse(code);

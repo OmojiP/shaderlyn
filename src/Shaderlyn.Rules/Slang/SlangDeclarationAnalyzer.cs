@@ -306,8 +306,9 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            string key = function.Name + "(" + string.Join(",", function.ParameterList.Select(p =>
-                string.Join(" ", p.ModifierTokens.Select(t => t.Text).Where(t => t is "in" or "out" or "inout" or "ref" or "constref"))
+            // __prefix と __postfix の演算子 (operator++) は、仮引数が同じでも別のもの。x : in out int は inout と同じ。
+            string key = (function.ModifierTokens.Any(t => t.Text == "__postfix") ? "postfix " : "") + function.Name + "(" + string.Join(",", function.ParameterList.Select(p =>
+                string.Join(" ", p.ModifierTokens.Select(t => t.Text).Where(t => t is "in" or "out" or "inout" or "ref" or "constref")).Replace("in out", "inout", StringComparison.Ordinal)
                 + " " + p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)) + string.Concat(p.Type.NestedTypeTokens.Select(t => t.Text))
                 + new string('[', p.ArrayDimensions))) + ")";
 

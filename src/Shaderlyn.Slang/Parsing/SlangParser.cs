@@ -211,6 +211,48 @@ internal sealed class SlangParser : ShaderParser
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <c>__transparent_block { … }</c> (中の宣言は外側の型か名前空間のもの) と <c>__file_decl { … }</c> (中の宣言はファイルのもので、ブロックの外から見えない)。
+    /// <c>__file_decl</c> の中の宣言がほかのブロックから見えないことは見ない。
+    /// </remarks>
+    protected override bool OpensTransparentBlock()
+        => Current.Text is "__transparent_block" or "__file_decl" && Peek(1).Kind == ShaderSyntaxKind.OpenBraceToken;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 型の名前の作成の後ろにメンバーか添字が続く形 (<c>Texture2D(h).GetDimensions(…);</c>・<c>float4(v)[0] = 1;</c>) は式である。
+    /// 括弧で囲んだ宣言子 (<c>float4 (x);</c>) の後ろには、. も [ も来ない。
+    /// </remarks>
+    protected override bool LooksLikeLanguageExpression()
+    {
+        if (Peek(1).Kind != ShaderSyntaxKind.OpenParenToken)
+        {
+            return false;
+        }
+
+        int depth = 0;
+
+        for (int offset = 1; offset < 256; offset++)
+        {
+            ShaderSyntaxKind kind = Peek(offset).Kind;
+
+            if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.EndOfFileToken)
+            {
+                return false;
+            }
+
+            depth += kind switch { ShaderSyntaxKind.OpenParenToken => 1, ShaderSyntaxKind.CloseParenToken => -1, _ => 0 };
+
+            if (depth == 0)
+            {
+                return Peek(offset + 1).Kind is ShaderSyntaxKind.DotToken or ShaderSyntaxKind.OpenBracketToken;
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
     /// <remarks>GLSL の書き方の <c>layout(…)</c> を、括弧ごと修飾子として読む (Slang は GLSL の書き方も読む)。</remarks>
     protected override bool TryParseModifierGroup(ImmutableArray<ShaderSyntaxToken>.Builder modifiers)
     {
@@ -327,6 +369,10 @@ internal sealed class SlangParser : ShaderParser
 
             case "namespace":
                 return ParseNamespace();
+
+            // __ignored_block { … } (中は何を書いても読まない)
+            case "__ignored_block" when Peek(1).Kind == ShaderSyntaxKind.OpenBraceToken:
+                return new IncompleteDeclarationSyntax([Advance(), .. SkipBalanced(ShaderSyntaxKind.OpenBraceToken, ShaderSyntaxKind.CloseBraceToken)]);
 
             case "func":
                 return ParseFunc(attributes, modifiers);
@@ -587,7 +633,7 @@ internal sealed class SlangParser : ShaderParser
                 return ParseBlock();
 
             // try f(); (戻り値を使わない、投げる関数の呼び出し)。宣言 (型 try の変数) ではなく、式の文として読む。
-            case "try" when Peek(1).Kind == ShaderSyntaxKind.IdentifierToken:
+            case "try" when Peek(1).Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken:
             {
                 ExpressionSyntax expression = ParseExpression();
                 return new ExpressionStatementSyntax(expression, Expect(ShaderSyntaxKind.SemicolonToken, "';'"));
@@ -823,8 +869,8 @@ internal sealed class SlangParser : ShaderParser
             return ParseUnary();
         }
 
-        // try f(…)
-        if (CurrentTextIs("try") && Peek(1).Kind == ShaderSyntaxKind.IdentifierToken)
+        // try f(…)・try ++i・try i++ (投げる演算子)
+        if (CurrentTextIs("try") && Peek(1).Kind is ShaderSyntaxKind.IdentifierToken or ShaderSyntaxKind.PlusPlusToken or ShaderSyntaxKind.MinusMinusToken)
         {
             Advance();
             return ParseExpression();
@@ -998,7 +1044,15 @@ internal sealed class SlangParser : ShaderParser
     {
         ImmutableArray<ShaderSyntaxToken> modifiers = ParseModifiers();
         ShaderSyntaxToken name = Current.Kind == ShaderSyntaxKind.IdentifierToken ? Advance() : CreateMissingToken(ShaderSyntaxKind.IdentifierToken);
-        TypeSyntax type = Current.Kind == ShaderSyntaxKind.ColonToken && Advance() is not null
+        bool colon = Current.Kind == ShaderSyntaxKind.ColonToken && Advance() is not null;
+
+        // : の後ろにも修飾子を書ける (x : in out int・x : inout int)。
+        if (colon)
+        {
+            modifiers = [.. modifiers, .. ParseModifiers()];
+        }
+
+        TypeSyntax type = colon
             ? ParseTypeOrFunctionType()
             : MakeType(CreateMissingToken(ShaderSyntaxKind.IdentifierToken));
         ImmutableArray<ShaderSyntaxToken> ranks = ParseArrayRanks();

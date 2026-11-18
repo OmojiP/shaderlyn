@@ -190,6 +190,10 @@ Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4
 - Slang: `unsigned int x;` を構文の誤り (CF0001) にする (slangc と同じく `unsigned`・`signed` は修飾子でなく名前として読む。これまでは読み飛ばしていた)
 - Slang: ラムダ式の本体の式 (`() => Array<int, 2>()`) を式として読む (これまでは型引数の `,` で本体を切り、構文の誤り (CF0001) にしていた)
 - Slang: `__generic_value_param N : int;` (ファイル全体の値のジェネリックの仮引数) を宣言として読む (これまでは修飾子として読み、構文の誤り (CF0001) にしていた)
+- Slang: 言語仕様と利用者の手引きにある次の書き方を読む (これまでは構文の誤り (CF0001) にしていた)。
+  `func f(x : in out int)` (`:` の後ろの修飾子)、文の先頭の型の名前の作成に続くメンバーと添字 (`Texture2D(h).GetDimensions(…);`)、
+  `__ignored_block { … }`・`__transparent_block { … }`・`__file_decl { … }`、`try ++i;` (投げる演算子の `try`)
+- Slang: `__prefix` と `__postfix` の同じ演算子 (`operator++`) を、宣言の重複 (CF0314) にしない
 
 ## [0.3.3] - 2026-11-05
 
