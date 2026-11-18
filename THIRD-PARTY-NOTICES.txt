@@ -176,11 +176,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-Slang - standard library names
+Slang - standard library names and conformances
 ------------------------------------------------------------------------------
 
-The table of Slang standard library names used by Shaderlyn
-(src/Shaderlyn.Semantics/Symbols/SlangStdlib.g.txt) is generated from
+The tables of Slang standard library names and interface conformances used
+by Shaderlyn (src/Shaderlyn.Semantics/Symbols/SlangStdlib.g.txt and
+src/Shaderlyn.Semantics/Symbols/SlangConformance.g.txt) are generated from
 source/slang/*.meta.slang and source/standard-modules of Slang 2026.19
 (https://github.com/shader-slang/slang). The generator is
 tools/slang/stdlib.mjs.
