@@ -5,7 +5,7 @@
 
 > **AI のコーディングエージェントに書かせるとき**は、[skills/shaderlyn-custom-rule](../../skills/shaderlyn-custom-rule/SKILL.md) をプロジェクトの
 > `.claude/skills/shaderlyn-custom-rule/SKILL.md` に写してください (Claude Code の Skill の形式です。ほかのエージェントでも、指示として読ませれば使えます)。
-> 組み込みのルールで足りないかを先に確かめること、ソースを文字列で調べず構文木とセマンティックモデルで判定することを、エージェントに守らせます。
+> 組み込みのルールで足りないかを先に確認すること、ソースを文字列で調べず構文木とセマンティックモデルで判定することを、エージェントに守らせます。
 
 ## 目次
 
@@ -75,7 +75,7 @@ dotnet add MyShaderRules package Shaderlyn.Semantics
 | `Shaderlyn.LanguageServer` | 自作ルール入りの言語サーバーを作るとき ([5-1](#5-1-エディタでも働かせる)) |
 
 **パッケージのバージョンはすべて揃えてください。** Shaderlyn のパッケージは同じバージョンで一緒にリリースしており、
-バージョンの違うものを混ぜた組み合わせは確かめていません。
+バージョンの違うものを混ぜた組み合わせは確認していません。
 
 ---
 
@@ -154,7 +154,7 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 ```
 
-![解析の中身を表示して構文木や型判定の結果を確かめる様子](../../editors/vscode/images/inspect.gif)
+![解析の中身を表示して構文木や型判定の結果を確認する様子](../../editors/vscode/images/inspect.gif)
 
 ---
 
@@ -214,7 +214,7 @@ public sealed class NoHalfAnalyzerTests
 
 | `ShaderRuleVerifier`        | できること                                                                    |
 | --------------------------- | ----------------------------------------------------------------------------- |
-| `AddInclude(path, content)` | `#include` で引けるファイルをその場で与える。ディスクを読まない               |
+| `AddInclude(path, content)` | `#include` で取り込めるファイルをその場で与える。ディスクを読まない           |
 | `WithOptions(options)`      | 重要度の上書きなど、設定ファイル相当の設定を与える                            |
 | `WithPredefinedMacros(...)` | 解析開始時に定義済みとするマクロを与える                                      |
 | `Analyze(source, filePath)` | 解析して指摘を返す。`.compute` を渡せばコンピュートシェーダーとして解析される |
@@ -350,7 +350,7 @@ dotnet add MyShaderRules.Lsp reference MyShaderRules
 
 #### Program.cs を書く
 
-同梱サーバーの [Program.cs](../../src/Shaderlyn.LanguageServer.App/Program.cs) と同じものに、自分のルールを足します。
+同梱サーバーの [Program.cs](../../src/Shaderlyn.LanguageServer.App/Program.cs) と同じものに、自分のルールを追加します。
 
 ```csharp
 using System.Collections.Immutable;

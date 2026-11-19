@@ -82,8 +82,8 @@ Roslyn の `RegisterCompilationStartAction` / `RegisterSymbolStartAction` と同
 
 ## 3. セマンティックモデルを使う
 
-`Properties` と uniform の対応のような、層をまたぐ情報が要るときはセマンティックモデルを引きます。
-`ShaderRuleAnalyzer` を使っていれば `c.Compilation` から直接引けます。
+`Properties` と uniform の対応のような、層をまたぐ情報が必要な場合は、セマンティックモデルを参照します。
+`ShaderRuleAnalyzer` を使っていれば `c.Compilation` から直接取得できます。
 
 ```csharp
 context.RegisterSyntaxTreeAction(c =>
@@ -97,7 +97,7 @@ context.RegisterSyntaxTreeAction(c =>
 });
 ```
 
-| `ShaderCompilation`                                 | 引けるもの                                      |
+| `ShaderCompilation`                                 | 取得できるもの                                  |
 | --------------------------------------------------- | ------------------------------------------ |
 | `Programs`                                          | コードブロックごとの解析結果                             |
 | `TryGetUniform(name, out _)`                        | uniform の宣言                                |
@@ -108,7 +108,7 @@ context.RegisterSyntaxTreeAction(c =>
 | `TryEnumerateConfigurations(nodes, program, out _)` | 構成ごとに存在するノード。数えるルールはこれで数える                 |
 
 Unity の `Properties`・ShaderLab の木・`Pass` は、`Shaderlyn.Unity` パッケージの `compilation.GetUnity()` (`UnityShaderModel`) と
-`program.GetUnityBlock()` (`UnityProgramBlock`) から引きます。Unity 以外の環境で作ったモデルでは `null` なので、そのときは何もしないでください。
+`program.GetUnityBlock()` (`UnityProgramBlock`) から取得します。Unity 以外の環境で作ったモデルでは `null` なので、そのときは何もしないでください。
 
 ```csharp
 if (compilation.GetUnity() is not { } unity)
@@ -176,7 +176,7 @@ INI なら数行の自作パーサでも足ります。
 
 ### 閾値ひとつなら設定ファイルのオプションで足ります
 
-`.shaderlyn.yaml` の `rules:` に書いたオプションは、ルールから引けます。
+`.shaderlyn.yaml` の `rules:` に書いたオプションは、ルールから参照できます。
 一覧やテーブルは外部ファイルにしてください。
 
 ```yaml
@@ -198,7 +198,7 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 
 - `IsMissing` が真のトークンには報告しないでください。構文エラーとして既に報告済みであり、
   重ねて指摘すると出力が読めなくなります
-- 「無いこと」を根拠にする指摘は、知識が完全であることを確かめてから出してください。
+- 「無いこと」を根拠にする指摘は、知識が完全であることを確認してから出してください。
   `HasCompleteDependencies` が偽なら解析ができていません。
 - `GetModel<ShaderCompilation>()` が `null` を返したら報告しないでください。
 - 未知の命令名・タグ名・属性名を誤りにしないでください。Unity のバージョンで増えます

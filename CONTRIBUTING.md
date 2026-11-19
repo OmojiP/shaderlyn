@@ -11,7 +11,7 @@ Shaderlyn への不具合の報告・提案・プルリクエストを歓迎し�
 
 ## 開発を始める
 
-[.NET 10 SDK](https://dotnet.microsoft.com/download) が要ります。
+[.NET 10 SDK](https://dotnet.microsoft.com/download) が必要です。
 
 ```bash
 dotnet build
@@ -38,10 +38,10 @@ dotnet test
   # 表を作り直す
   GLSLANG=<glslang の実行ファイル> node tools/glsl/builtins.mjs
 
-  # 作り直しても表が変わらないことと、GLSL のコーパスの関数の呼び出しがすべて解決することを確かめる
+  # 作り直しても表が変わらないことと、GLSL のコーパスの関数の呼び出しがすべて解決することを確認する
   SHADERLYN_GLSLANG=<glslang の実行ファイル> SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslBuiltinsTests"
   ```
-- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確かめる
+- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確認する
 
   ```sh
   node tools/corpus/fetch.mjs --only=glsl
@@ -53,23 +53,23 @@ dotnet test
   # ふだんの確認 (20 秒ほど)
   dotnet test --filter "FullyQualifiedName!~CorpusTests&FullyQualifiedName!~AnalysisSnapshotTests"
 
-  # Unity 同梱のシェーダーで誤検出と例外を確かめる (10 分ほど)
+  # Unity 同梱のシェーダーで誤検出と例外を確認する (10 分ほど)
   dotnet test --filter "FullyQualifiedName~CorpusTests&FullyQualifiedName!~ExternalCorpusTests&FullyQualifiedName!~UnityProbeCorpusTests"
 
-  # 指摘の全件を記録と比べる (記録はリポジトリに入れない。違えば <パス>.received に今の結果を書き出す)
+  # 指摘の全件を記録と比較する (記録はリポジトリに入れない。違えば <パス>.received に今の結果を書き出す)
   SHADERLYN_SNAPSHOT=.work/snapshot/unity.txt dotnet test --filter "FullyQualifiedName~AnalysisSnapshotTests"
 
-  # Unity の実測 (ShaderProbePack のレポート) と、コンパイラの判定を比べる
+  # Unity の実測 (ShaderProbePack のレポート) と、コンパイラの判定を比較する
   SHADERLYN_UNITY_PROBE=<プローブのプロジェクトを置いたフォルダー> dotnet test --filter "FullyQualifiedName~UnityProbeCorpusTests"
   ```
 
-  記録と違ったときは、指摘の ID と位置が変わっていないこと (文だけの変更なら) を確かめてから、`.received` で記録を置き換えます
+  記録と違ったときは、指摘の ID と位置が変わっていないこと (文だけの変更なら) を確認してから、`.received` で記録を置き換えます
 
-## ルールを足す・直す
+## ルールを追加する・直す
 
-組み込みルールを足すときは、次がすべて揃うまでテストが落ちます。
+組み込みルールを追加するときは、次がすべて揃うまでテストが落ちます。
 
-| 必要なもの | 確かめているテスト |
+| 必要なもの | 確認しているテスト |
 | --- | --- |
 | `BuiltInAnalyzers.All` への登録 | `BuiltInAnalyzerRegistrationTests` |
 | ルールを踏むシェーダー `tests/Shaderlyn.Tests/fixtures/rules/<ID>.shader` | `RuleFixtureTests` |
@@ -82,7 +82,7 @@ dotnet test
 - **推測で規則を決めないでください。** 可能な限り、実際のコンパイラ（Unity）の結果と突き合わせてください
 - 利用者から見て挙動が変わる変更は、[CHANGELOG.md](CHANGELOG.md) の「未リリース」に書いてください
 - **新しい型やメンバーは、まず internal で書いてください。** `src/` のライブラリは NuGet で配っており、public にしたものは自作ルールの利用者との約束になります。
-  public にするのは、自作ルールを書くのに要るものだけです。公開 API は `tests/Shaderlyn.Tests/PublicApi.txt` に記録してあり、
+  public にするのは、自作ルールを書くのに必要なものだけです。公開 API は `tests/Shaderlyn.Tests/PublicApi.txt` に記録してあり、
   変わると `PublicApiTests` が落ちます。意図した変更なら、環境変数 `SHADERLYN_UPDATE_PUBLIC_API=1` を付けてそのテストを実行し、
   書き直された差分を PR に含めてください
 
@@ -90,13 +90,13 @@ dotnet test
 
 設計上の判断と採らなかった案は [docs/internals/design-decisions.md](docs/internals/design-decisions.md) にまとめています。
 条件付きコンパイル (シンボル) の扱いの実装仕様は [docs/guide/conditional-compilation.md の付録](docs/guide/conditional-compilation.md#付録-実装の詳細) にあります。
-既存の判断を覆す変更や、新しい仕組みを足す変更は、まず Issue で相談してください。
+既存の判断を覆す変更や、新しい仕組みを追加する変更は、まず Issue で相談してください。
 判断が決まったら、そのページを今の実装に合わせて直します。
 
 ## プルリクエスト
 
 - 1 つのプルリクエストでは 1 つのことを変えてください
-- `dotnet build` と `dotnet test` が手元で通ることを確かめてください
+- `dotnet build` と `dotnet test` が手元で通ることを確認してください
 - コードのコメント、ドキュメント、コミットメッセージは日本語で書いています。どちらの言語でも受け付けます
 
 ## リリースする (メンテナー向け)
@@ -114,16 +114,16 @@ dotnet test
 
 NuGet へは Trusted Publishing で公開します。API キーは保存しません。最初のリリースの前に次を用意してください。
 
-1. nuget.org で、ユーザー名のメニューの **Trusted Publishing** からポリシーを足す。
+1. nuget.org で、ユーザー名のメニューの **Trusted Publishing** からポリシーを追加する。
    Repository Owner は `OmojiP`、Repository は `shaderlyn`、Workflow File は `release.yml` (パスを付けない)、Environment は空にする。
    最初の公開でパッケージ ID が新しく作られるので、スコープで新しいパッケージの公開も許可する (対象は `Shaderlyn.*`)
 2. GitHub のリポジトリのシークレット `NUGET_USER` に、nuget.org のプロフィール名を登録する (メールアドレスではない)
 
 非公開のリポジトリで作ったポリシーは、7 日間だけの仮の状態で始まることがあります。その間に 1 度公開すると恒久的に有効になります。
 期限が切れたら nuget.org の画面から延ばせます。
-nuget.org に出したパッケージは消せない (一覧から隠せるだけ) ので、タグを打つ前に CI が通っていることを確かめてください。
+nuget.org に出したパッケージは消せない (一覧から隠せるだけ) ので、タグを打つ前に CI が通っていることを確認してください。
 
-VS Code Marketplace への公開には、リポジトリのシークレット `VSCE_PAT` が要ります。
+VS Code Marketplace への公開には、リポジトリのシークレット `VSCE_PAT` が必要です。
 Azure DevOps の Personal Access Token (Organization は All accessible organizations、Scopes は Marketplace の Manage) を登録してください。
 トークンには有効期限があるので、切れたら作り直して登録し直します。Marketplace に出したバージョンも上書きできません。
 

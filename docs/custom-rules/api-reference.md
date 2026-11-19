@@ -261,7 +261,7 @@ new DiagnosticDescriptor(
 ### `Location` と `TextSpan`
 
 `Location.Create(sourceText, span)` で作ります。
-`Location.LineSpan` で行と桁が引けます。
+`Location.LineSpan` で行と桁を取得できます。
 
 `TextSpan.Contains(position)` は終端位置を含まず、`TextSpan.IntersectsWith(position)` は含みます。
 エディタのカーソルのように、語の直後の位置も「語の上」と扱いたいときは `IntersectsWith` を使います。
@@ -450,7 +450,7 @@ if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 
 #### `ShaderTypeSystem` — 型システム
 
-名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型システム (型と組み込み関数) です。`compilation.TypeSystem` で引けます。
+名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型システム (型と組み込み関数) です。`compilation.TypeSystem` で取得できます。
 **言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として読めます。
 
 | メンバー                                                                   |                                                      |
@@ -978,7 +978,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
 言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを追加したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
-セマンティックモデルを作った環境は `compilation.Environment` で引けます。
+セマンティックモデルを作った環境は `compilation.Environment` で取得できます。
 
 | メンバー | 役目 |
 | --- | --- |
@@ -1013,7 +1013,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | メンバー                                   |                                                                |
 | ------------------------------------------ | -------------------------------------------------------------- |
 | `new ShaderRuleVerifier(params analyzers)` | 検査するアナライザ。渡したものだけが走る                       |
-| `AddInclude(path, content)`                | `#include` で引けるファイル。ディスクを読まない                |
+| `AddInclude(path, content)`                | `#include` で取り込めるファイル。ディスクを読まない            |
 | `WithOptions(options)`                     | 設定ファイル相当の設定                                         |
 | `WithPredefinedMacros(macros)`             | 定義済みマクロ                                                 |
 | `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体を切り替える |

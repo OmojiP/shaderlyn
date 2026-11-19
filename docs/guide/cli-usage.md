@@ -455,7 +455,7 @@ Shaderlyn {バージョン} の解析環境 (解析はしていません)
   Unity のバージョン: 6000.3.0f1 (Unity 2023.2〜6.3 の規則、Unity プロジェクト)
   グラフィックス API: dx12, dx11 (Unity プロジェクト)
   Shader Compiler Backend: FXC (既定)
-  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で
+  既定は FXC です。#pragma use_dxc、DXC が必要な #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で
   DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。
 
 ■ #include を探す順序

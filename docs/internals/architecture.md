@@ -124,7 +124,7 @@ Unity や外部パッケージのヘッダのコードは通しません。ヘ�
 2. **`AnalysisRunner.Analyze` まで進む:** 言語サーバーは `PublishAsync` → `AnalysisSession.Analyze` を経由します
 3. **構文解析を見る:** `ShaderLabParser` / `HlslParser` の `ParseCompilationUnit` で、エラーの報告と回復の仕方が分かります
 4. **ルールを見る:** `DiagnosticAnalyzer` の派生クラスの `Initialize` で、どのノードに登録しているかを見ます
-5. **実際の入力で確かめる:** CLI の `--inspect` で、構文木・トークン・式の型を 1 つの HTML で見られます（[CLI の使い方 8 章](../guide/cli-usage.md#8-解析の中身を見る)）
+5. **実際の入力で確認する:** CLI の `--inspect` で、構文木・トークン・式の型を 1 つの HTML で見られます（[CLI の使い方 8 章](../guide/cli-usage.md#8-解析の中身を見る)）
 
 ---
 

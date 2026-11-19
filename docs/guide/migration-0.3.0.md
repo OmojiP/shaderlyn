@@ -7,7 +7,7 @@
 
 - [0.2.1 から 0.3.0 へ移行する](#021-から-030-へ移行する)
   - [目次](#目次)
-  - [書き換えが要るか](#書き換えが要るか)
+  - [書き換えが必要か](#書き換えが必要か)
   - [書き換えの手順](#書き換えの手順)
     - [スクリプトでは置き換えないもの](#スクリプトでは置き換えないもの)
   - [ルールの基底クラス](#ルールの基底クラス)
@@ -18,12 +18,12 @@
   - [環境](#環境)
   - [型と組み込み関数](#型と組み込み関数)
 
-## 書き換えが要るか
+## 書き換えが必要か
 
-ツールとして使うだけ (CLI・VS Code 拡張・GitHub Action) なら、書き換えは要りません。
+ツールとして使うだけ (CLI・VS Code 拡張・GitHub Action) なら、書き換えは必要ありません。
 ルール ID・設定ファイル・CLI のオプション・出力の形は変わりません。
 
-自作ルール・自作の環境・自作の CLI を書いているなら、下の書き換えが要ります。
+自作ルール・自作の環境・自作の CLI を書いているなら、下の書き換えが必要です。
 構文木のノード (`InvocationExpressionSyntax` など) を使うルールは、`using` を書き換えることになります。
 
 ## 書き換えの手順
@@ -49,8 +49,8 @@
   同じ名前のプロパティが `HlslEnvironmentOptions` にもあり (こちらは変わらない)、名前だけでは見分けられません。
   [HLSL のコンパイラとバージョンの設定](#hlsl-のコンパイラとバージョンの設定) のとおりに書き換えてください
 - **`tree.Hlsl()` の `using`。** スクリプトは `program.Tree.CompileTargets` を `program.Tree.Hlsl().CompileTargets` に置き換えますが、
-  `Hlsl()` を使うには `using Shaderlyn.Hlsl.Parsing;` が要ります。「`Hlsl` の定義が含まれていません」のエラーが出たら足してください
-- **使わない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を足します。
+  `Hlsl()` を使うには `using Shaderlyn.Hlsl.Parsing;` が必要です。「`Hlsl` の定義が含まれていません」のエラーが出たら追加してください
+- **使わない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を追加します。
   cbuffer と namespace の節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) を使わないファイルでは、`Shaderlyn.Hlsl.Syntax` を消してかまいません
 
 ## ルールの基底クラス
@@ -84,7 +84,7 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 
 字句解析・プリプロセッサ・構文木の大部分 (式・文・関数・構造体・変数) は HLSL に限らない (GLSL などの C 系の言語に共通) ので、
 新しいパッケージ `Shaderlyn.CFamily` へ移しました。
-`Shaderlyn.Hlsl` が `Shaderlyn.CFamily` を参照しているので、パッケージの参照を足す必要はありません。
+`Shaderlyn.Hlsl` が `Shaderlyn.CFamily` を参照しているので、パッケージの参照を追加する必要はありません。
 
 ### 型の名前
 
@@ -164,8 +164,8 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 自作の環境 (独自エンジン) を書いている人向けです。ルールを書くだけなら関係ありません。
 
 環境のインターフェースを、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けました。
-`IHlslEnvironment` は `IShaderEnvironment` に「HLSL として読む」ことを足したもので、これまでどおり実装できます。
-メンバーは変わりません (足した `Parse` は `IHlslEnvironment` が実装しているので、書かなくてかまいません)。
+`IHlslEnvironment` は `IShaderEnvironment` に「HLSL として読む」ことを追加したもので、これまでどおり実装できます。
+メンバーは変わりません (追加した `Parse` は `IHlslEnvironment` が実装しているので、書かなくてかまいません)。
 
 名前の変わった型:
 
@@ -187,7 +187,7 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 ## 型と組み込み関数
 
 言語に依らない型の分類と形の名前から `Hlsl` を外しました (スクリプトで置き換わります)。
-分類の判定 (`IsNumeric`・`IsTexture`・`IsTextureOrSampler`) は `ShaderTypeClassExtensions` に移りました。`typeClass.IsTexture()` の形で呼んでいれば書き換えは要りません。
+分類の判定 (`IsNumeric`・`IsTexture`・`IsTextureOrSampler`) は `ShaderTypeClassExtensions` に移りました。`typeClass.IsTexture()` の形で呼んでいれば書き換えは必要ありません。
 
 | 0.2.1 | 0.3.0 |
 | --- | --- |
@@ -195,9 +195,9 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 | `HlslNumericShape` | `ShaderNumericShape` |
 | `HlslNumericKind` | `ShaderNumericKind` |
 
-型の名前・変換・組み込み関数を尋ねる先として、`compilation.TypeSystem` (`ShaderTypeSystem`) を足しました。
+型の名前・変換・組み込み関数を尋ねる先として、`compilation.TypeSystem` (`ShaderTypeSystem`) を追加しました。
 `HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` はこれまでどおり使えますが、HLSL の表そのものです。
-HLSL 以外の言語 (0.3.0 で足す GLSL など) でも働かせたいルールは、`compilation.TypeSystem` から尋ねてください。
+HLSL 以外の言語 (0.3.0 で追加する GLSL など) でも働かせたいルールは、`compilation.TypeSystem` から尋ねてください。
 
 ```csharp
 // 0.2.1

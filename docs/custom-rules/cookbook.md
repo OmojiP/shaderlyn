@@ -433,7 +433,7 @@ internal sealed class RequiredTagAnalyzer(string tag, params string[] allowedVal
 
 ## 独自エンジンの環境
 
-Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエンジンは、環境を自分で書いて足せます。
+Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエンジンは、環境を自分で書いて追加できます。
 字句解析・プリプロセッサ・型・ルールは組み込みのものがそのまま働きます。書くのは、エンジンの決まりを解析に教える部分だけです。
 
 * **実装参照先**: `samples/Shaderlyn.Cookbook/Environment/MyEngineEnvironment.cs`
@@ -568,7 +568,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 値を持つシンボル (`VariantSpace.ForValues`) は、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、
 指摘に `QUALITY == 2 のとき` を添えます。
 
-### 9. 自前の CLI と言語サーバーに環境を足す
+### 9. 自前の CLI と言語サーバーに環境を追加する
 
 環境は自作ルールと同じく、ホストを作るときに渡します (Native AOT ではプラグインを読み込めないため)。
 設定ファイルの `environment` (または `--environment`) にこの名前を書くと選ばれます。
