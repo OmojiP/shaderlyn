@@ -2,15 +2,11 @@
 src/**
 out/**/*.map
 tsconfig.json
+build.mjs
+
+# 依存は build.mjs が out/extension.js にまとめるので、node_modules は入れない。
+# まとめた依存のライセンスは out/THIRD-PARTY-NOTICES-npm.txt に入る。
 node_modules/**
-!node_modules/vscode-languageclient/**
-!node_modules/vscode-languageserver-protocol/**
-!node_modules/vscode-languageserver-types/**
-!node_modules/vscode-jsonrpc/**
-!node_modules/semver/**
-!node_modules/balanced-match/**
-!node_modules/minimatch/**
-!node_modules/brace-expansion/**
 
 # README の画像は Marketplace が GitHub から読むので、拡張には入れない。入れるとプラットフォームごとの vsix がそれぞれ数十 MB 増える。
 # アイコンは package.json が参照するので残す。

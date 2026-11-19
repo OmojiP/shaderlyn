@@ -10,6 +10,16 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+### 変更
+
+- VS Code 拡張: 依存のパッケージ (`vscode-languageclient` など) を 1 つの JavaScript にまとめて配布する。拡張に入るファイルが約 325 から約 10 になり、読み込みが速くなる。
+  まとめたパッケージのライセンスは、拡張の `out/THIRD-PARTY-NOTICES-npm.txt` に入れる
+
+### 修正
+
+- VS Code 拡張: 同梱の `brace-expansion` を 2.1.8 に更新した。2.1.4 には、細工したパターンで CPU を使い切らせる脆弱性
+  (GHSA-q2hr-2g5m-vwhr・GHSA-qhr7-859c-m2p7・GHSA-6j4f-fj2g-mc7p) があった。拡張がこのパッケージに渡すのは拡張自身が書いたパターンだけなので、影響は無いと考えられる
+
 ## [0.3.4] - 2026-11-19
 
 Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4.7.2・slangc 2026.19・naga 30 がエラーにする箇所を、それぞれのコンパイラと同じ行で報告する

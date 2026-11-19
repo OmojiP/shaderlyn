@@ -94,17 +94,17 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile",
-    "package": "npm run compile && npx --yes @vscode/vsce package"
-  },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "check": "tsc -p ./ --noEmit",
+    "compile": "npm run check && node build.mjs",
+    "watch": "node build.mjs --watch",
+    "vscode:prepublish": "npm run check && node build.mjs --production",
+    "package": "npx --yes @vscode/vsce package"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
-    "typescript": "^5.5.0"
+    "esbuild": "^0.28.2",
+    "typescript": "^5.5.0",
+    "vscode-languageclient": "^9.0.1"
   }
 }
