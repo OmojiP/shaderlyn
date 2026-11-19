@@ -251,7 +251,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                         && FindNonConstant(binder, userFunctions, program.Tree.PreprocessResult.Tokens, initializer) is { } what)
                     {
                         Report(SlangRuleDescriptors.StaticConstNotConstant, declarator.NameToken,
-                            $"static const の '{declarator.Name}' の初期値には定数式が要りますが、{what}を使っています。");
+                            $"static const の '{declarator.Name}' の初期値には定数式が必要ですが、{what}を使っています。");
                     }
 
                     if (global)
@@ -437,11 +437,11 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
 
         if (!isStatic && !declaration.Type.IsPointer && modifiers.FirstOrDefault(t => t.Text == "constexpr") is { } constexpr)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, constexpr, $"関数の外の constexpr の '{declarator.Name}' には static が要ります (static constexpr と書きます)。");
+            report(SlangRuleDescriptors.ModifierNotAllowed, constexpr, $"関数の外の constexpr の '{declarator.Name}' には static が必要です (static constexpr と書きます)。");
         }
         else if (!isStatic && declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "const") is { } constant)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が要ります (static const と書きます)。static の無い const は uniform になり、初期値を持てません。");
+            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が必要です (static const と書きます)。static の無い const は uniform になり、初期値を持てません。");
         }
         else if (declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "uniform") is { } uniform)
         {

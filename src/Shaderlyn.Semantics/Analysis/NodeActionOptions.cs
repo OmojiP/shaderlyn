@@ -310,7 +310,7 @@ public sealed class NodeCondition
         {
             if (!Accept(token))
             {
-                throw Error($"{_position + 1} 文字目に '{token}' が要ります");
+                throw Error($"{_position + 1} 文字目に '{token}' が必要です");
             }
         }
 

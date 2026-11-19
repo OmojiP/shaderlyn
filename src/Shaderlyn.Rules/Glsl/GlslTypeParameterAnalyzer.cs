@@ -94,7 +94,7 @@ internal sealed class GlslTypeParameterAnalyzer : SemanticRuleAnalyzer
                 }
 
                 string? parameterError = parameterType.OpenAngle is null
-                    ? "tensorARM には型の引数 (要素の型・階数) が要ります。"
+                    ? "tensorARM には型の引数 (要素の型・階数) が必要です。"
                     : parameterChecker is { } p ? DescribeError(parameterType, p.Constants) : null;
 
                 if (parameterChecker is { } pc && parameterError is not null)
@@ -173,7 +173,7 @@ internal sealed class GlslTypeParameterAnalyzer : SemanticRuleAnalyzer
             case "coopmat":
                 if (!hasArguments)
                 {
-                    return "coopmat には型の引数 (要素の型・スコープ・行の数・列の数・用途) が要ります。";
+                    return "coopmat には型の引数 (要素の型・スコープ・行の数・列の数・用途) が必要です。";
                 }
 
                 if (arguments.Count != 5)

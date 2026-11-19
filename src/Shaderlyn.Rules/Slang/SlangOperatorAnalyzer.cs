@@ -156,7 +156,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && bitToken.GetLocation() is { } bitLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, bitLocation,
-                        $"演算子 '{bitToken.Text}' (ビット演算とシフト) には整数の値が要りますが、{floating} の値を使っています。"));
+                        $"演算子 '{bitToken.Text}' (ビット演算とシフト) には整数の値が必要ですが、{floating} の値を使っています。"));
                     continue;
                 }
 
@@ -167,7 +167,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && complement.OperatorToken.GetLocation() is { } complementLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, complementLocation,
-                        $"演算子 '~' には整数の値が要りますが、{complemented} の値を使っています。"));
+                        $"演算子 '~' には整数の値が必要ですが、{complemented} の値を使っています。"));
                     continue;
                 }
 

@@ -110,7 +110,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "宣言に要る layout の指定 (SPIR-V を作るときのブロックの binding、入力と出力の location など) を書いていません。"
+        description: "宣言に必要な layout の指定 (SPIR-V を作るときのブロックの binding、入力と出力の location など) を書いていません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0104"));
 
@@ -326,7 +326,7 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ConstantExpressionRequired { get; } = new(
         id: "GL0317",
-        title: "定数の式が要ります",
+        title: "定数の式が必要です",
         messageFormat: "{0}は定数の式でなければなりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -339,7 +339,7 @@ internal static class GlslRuleDescriptors
     /// <remarks>glslang の <c>nonInitConstCheck</c> (「variables with qualifier 'const' must be initialized」) に当たる。文の <c>{0}</c> は変数の名前。</remarks>
     public static DiagnosticDescriptor ConstInitializerRequired { get; } = new(
         id: "GL0318",
-        title: "const の変数には初期値が要ります",
+        title: "const の変数には初期値が必要です",
         messageFormat: "const の変数 '{0}' に初期値がありません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -474,7 +474,7 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ArraySizeRequired { get; } = new(
         id: "GL0402",
-        title: "配列の大きさが要ります",
+        title: "配列の大きさが必要です",
         messageFormat: "{0}の配列には、大きさを書かなければなりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -543,7 +543,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "'{0}' の精度を決めていません。宣言に highp / mediump / lowp を付けるか、その前で precision mediump {0}; と既定の精度を決めてください。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "GLSL ES では、既定の精度の無い型 (フラグメントシェーダーの float、ほとんどのサンプラーとイメージ) の宣言に、精度の修飾子が要ります。"
+        description: "GLSL ES では、既定の精度の無い型 (フラグメントシェーダーの float、ほとんどのサンプラーとイメージ) の宣言に、精度の修飾子が必要です。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0201"));
 }

@@ -234,7 +234,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
                 if (varying.Stage != VaryingStage.Fragment && IntegerTypes.Contains(varying.Type) && !varying.IsFlat)
                 {
                     report(GodotRuleDescriptors.QualifierNotAllowed, varying.Declarator.NameToken,
-                        $"整数の varying '{varying.Declarator.Name}' には flat が要ります (fragment 関数で書き込むものを除く)。");
+                        $"整数の varying '{varying.Declarator.Name}' には flat が必要です (fragment 関数で書き込むものを除く)。");
                 }
             }
         }

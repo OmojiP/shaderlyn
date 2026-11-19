@@ -141,7 +141,7 @@ internal static class GodotRuleDescriptors
     /// <summary>定数の式が要る。</summary>
     public static DiagnosticDescriptor ConstantExpressionExpected { get; } = new(
         id: "GD0317",
-        title: "定数の式が要ります",
+        title: "定数の式が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,

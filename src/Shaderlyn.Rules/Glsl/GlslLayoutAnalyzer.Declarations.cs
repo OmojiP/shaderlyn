@@ -414,7 +414,7 @@ internal sealed partial class GlslLayoutAnalyzer
                     break;
 
                 default:
-                    Place("型の無い宣言には、記憶域の修飾子 uniform / buffer / in / out / shared のどれかが要ります。");
+                    Place("型の無い宣言には、記憶域の修飾子 uniform / buffer / in / out / shared のどれかが必要です。");
                     return;
             }
 
@@ -618,7 +618,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
             if (layout.Has("component") && !layout.HasLocation)
             {
-                Place("'component' を書くには 'location' も要ります。");
+                Place("'component' を書くには 'location' も必要です。");
             }
 
             if (layout.HasAnyLocation)
@@ -634,7 +634,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
                     if (!layout.HasLocation)
                     {
-                        Place("'index' を書くには 'location' も要ります。");
+                        Place("'index' を書くには 'location' も必要です。");
                     }
                 }
             }
@@ -727,12 +727,12 @@ internal sealed partial class GlslLayoutAnalyzer
 
             if (layout.Has("descriptor_stride") && !layout.Has("descriptor_heap"))
             {
-                Place("'descriptor_stride' を書くには 'descriptor_heap' も要ります。");
+                Place("'descriptor_stride' を書くには 'descriptor_heap' も必要です。");
             }
 
             if (layout.Get("heap_offset") is { } heapOffset && ValueOf(heapOffset) is not 0 && !layout.Has("descriptor_heap") && storage != Storage.Heap)
             {
-                Place("'heap_offset' を書くには 'descriptor_heap' も要ります。");
+                Place("'heap_offset' を書くには 'descriptor_heap' も必要です。");
             }
         }
 
@@ -1042,18 +1042,18 @@ internal sealed partial class GlslLayoutAnalyzer
             {
                 if (type.IsAtomic)
                 {
-                    Required("atomic_uint には layout(binding = …) が要ります。");
+                    Required("atomic_uint には layout(binding = …) が必要です。");
                 }
 
                 if (_r.SpirvVersion > 0 && uniformOrBuffer(storage) && !_r.IsOn("GL_EXT_descriptor_heap", at))
                 {
                     if (type.IsBlock && !layout.Has("push_constant") && !layout.IsShaderRecord && !layout.Has("input_attachment_index") && !layout.Has("buffer_reference"))
                     {
-                        Required("SPIR-V を作るとき、uniform と buffer のブロックには layout(binding = …) が要ります。");
+                        Required("SPIR-V を作るとき、uniform と buffer のブロックには layout(binding = …) が必要です。");
                     }
                     else if (_r.Vulkan == true && type.IsSampler && !type.IsAttachment)
                     {
-                        Required("Vulkan 向けでは、サンプラー・テクスチャ・イメージに layout(binding = …) が要ります。");
+                        Required("Vulkan 向けでは、サンプラー・テクスチャ・イメージに layout(binding = …) が必要です。");
                     }
                 }
             }
@@ -1097,7 +1097,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
                 if (!layout.Has("input_attachment_index") && (isArray || !_r.IsOn("GL_EXT_optional_input_attachment_index", at)))
                 {
-                    Required($"'{type.Name}' には layout(input_attachment_index = …) が要ります。");
+                    Required($"'{type.Name}' には layout(input_attachment_index = …) が必要です。");
                 }
             }
             else if (layout.Has("input_attachment_index"))
@@ -1122,14 +1122,14 @@ internal sealed partial class GlslLayoutAnalyzer
             if (_r.SpirvVersion > 0 && !_r.AutoMapLocations && !builtIn && !layout.HasLocation && storage is Storage.In or Storage.Out && !type.IsBlock
                 && !modifiers.Any(m => m.Text is "spirv_decorate" or "spirv_decorate_id" or "spirv_decorate_string"))
             {
-                Required("SPIR-V を作るとき、利用者の入力と出力には layout(location = …) が要ります。");
+                Required("SPIR-V を作るとき、利用者の入力と出力には layout(location = …) が必要です。");
             }
 
             // OpenGL 向けの SPIR-V では、ブロックの外の数の型の uniform にも location が要る (glslang の「non-opaque uniform variables need a layout(location=L)」)。
             if (_r.SpirvVersion > 0 && _r.Vulkan == false && !_r.AutoMapLocations && !builtIn && !layout.HasLocation && storage == Storage.Uniform
                 && !type.IsBlock && !type.IsOpaque && !type.IsUnknown)
             {
-                Required("OpenGL 向けの SPIR-V を作るとき、ブロックの外の uniform の変数には layout(location = …) が要ります。");
+                Required("OpenGL 向けの SPIR-V を作るとき、ブロックの外の uniform の変数には layout(location = …) が必要です。");
             }
 
             if (uniformOrBuffer(storage) && !type.IsBlock)
@@ -1210,7 +1210,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
                 if (_r.IsEs && format is not ("r32f" or "r32i" or "r32ui") && !modifiers.Any(m => m.Text is "readonly" or "writeonly"))
                 {
-                    Invalid(GlslRuleDescriptors.LayoutRequired, at, $"ES では、イメージの形式 '{format}' には readonly か writeonly が要ります。");
+                    Invalid(GlslRuleDescriptors.LayoutRequired, at, $"ES では、イメージの形式 '{format}' には readonly か writeonly が必要です。");
                 }
             }
             else if (type.IsImage && !modifiers.Any(m => m.Text == "writeonly") && !bindless)
@@ -1359,7 +1359,7 @@ internal sealed partial class GlslLayoutAnalyzer
                 && members.OfType<VariableDeclarationSyntax>().Any(m => new LayoutSet(m.ModifierTokens).HasLocation)
                 && instance.ArrayRankTokens.Count(t => t.Kind == ShaderSyntaxKind.OpenBracketToken) > (IsArrayedIo(storage, modifiers) ? 1 : 0))
             {
-                Invalid(GlslRuleDescriptors.QualifierNotAllowed, at, "配列のブロックの要素ごとに location が要るので、メンバーには location を書けません。ブロックに書いてください。");
+                Invalid(GlslRuleDescriptors.QualifierNotAllowed, at, "配列のブロックの要素ごとに location が必要なので、メンバーには location を書けません。ブロックに書いてください。");
             }
 
             if (storage is Storage.Uniform or Storage.Buffer)
@@ -1374,7 +1374,7 @@ internal sealed partial class GlslLayoutAnalyzer
                 && members.OfType<VariableDeclarationSyntax>().Any()
                 && !modifiers.Any(m => m.Text is "spirv_decorate" or "spirv_decorate_id" or "spirv_decorate_string"))
             {
-                Invalid(GlslRuleDescriptors.LayoutRequired, at, "SPIR-V を作るとき、利用者の入力と出力のブロックには layout(location = …) が要ります。");
+                Invalid(GlslRuleDescriptors.LayoutRequired, at, "SPIR-V を作るとき、利用者の入力と出力のブロックには layout(location = …) が必要です。");
             }
 
             if (storage is Storage.In or Storage.Out && containsBool)

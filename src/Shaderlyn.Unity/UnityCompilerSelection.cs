@@ -238,7 +238,7 @@ public static class UnityCompilerSelection
                 return [new HlslCompileTarget(platform, sixteenBit ? Dxc16Bit : Dxc)
                 {
                     IsUsable = false,
-                    Reason = $"#pragma require {required} は DXC が要るので DX11 では使えない",
+                    Reason = $"#pragma require {required} は DXC が必要なので DX11 では使えない",
                 }];
             }
 

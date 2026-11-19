@@ -114,7 +114,7 @@ internal static class GodotGrammar
                         break;
                     }
 
-                    report(token, kind == ShaderSyntaxKind.OpenBracketToken ? "']' が要ります。" : "')' が要ります。");
+                    report(token, kind == ShaderSyntaxKind.OpenBracketToken ? "']' が必要です。" : "')' が必要です。");
                     return;
             }
         }
@@ -140,11 +140,11 @@ internal static class GodotGrammar
                 // struct { float a; }; (名前の無い構造体)
                 // do { } (true); (do の後ろの while が無い)
                 case DoWhileStatementSyntax { WhileKeyword.IsMissing: true } loop:
-                    report(loop.OpenParen.IsMissing ? loop.DoKeyword : loop.OpenParen, "do の文の後ろには while が要ります。");
+                    report(loop.OpenParen.IsMissing ? loop.DoKeyword : loop.OpenParen, "do の文の後ろには while が必要です。");
                     break;
 
                 case StructDeclarationSyntax { NameToken: null } structure:
-                    report(structure.Keyword, "構造体には名前が要ります。");
+                    report(structure.Keyword, "構造体には名前が必要です。");
                     break;
 
                 // for (i = 0; …) (最初は変数の宣言でなければならない)
@@ -154,7 +154,7 @@ internal static class GodotGrammar
 
                 // struct S { }; (メンバーの無い構造体)
                 case StructDeclarationSyntax { Members.IsEmpty: true } structure:
-                    report(structure.CloseBrace, "構造体には 1 つ以上のメンバーが要ります。");
+                    report(structure.CloseBrace, "構造体には 1 つ以上のメンバーが必要です。");
                     break;
 
                 // switch の中の、最初の case / default より前の文。
@@ -173,14 +173,14 @@ internal static class GodotGrammar
 
                 // a. (メンバーの名前が無い)
                 case MemberAccessExpressionSyntax { NameToken.IsMissing: true } member:
-                    report(member.DotToken, "'.' の後ろにはメンバーの名前が要ります。");
+                    report(member.DotToken, "'.' の後ろにはメンバーの名前が必要です。");
                     break;
 
                 // vec2 + 1.0 (型の名前の後ろに ( が無い。float[3](…) の配列の値の作成は [ が続く)
                 case IdentifierExpressionSyntax identifier
                     when GodotKeywords.BuiltInTypes.Contains(identifier.Name)
                          && Next(identifier.Identifier) is not (ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.OpenBracketToken):
-                    report(identifier.Identifier, $"型の名前 '{identifier.Name}' の後ろには ( が要ります。");
+                    report(identifier.Identifier, $"型の名前 '{identifier.Name}' の後ろには ( が必要です。");
                     break;
             }
         }
@@ -217,14 +217,14 @@ internal static class GodotGrammar
                     // shader_type spatial void … (名前の後ろに ; が無い)
                     if (body.Length > 1)
                     {
-                        report(body[0], $"shader_type {body[0].Text} の後ろには ';' が要ります。");
+                        report(body[0], $"shader_type {body[0].Text} の後ろには ';' が必要です。");
                     }
 
                     shaderType = true;
                     break;
 
                 case "render_mode" or "stencil_mode" when body.IsEmpty || body[0].Kind != ShaderSyntaxKind.IdentifierToken:
-                    report(body.IsEmpty ? tokens[^1] : body[0], $"{tokens[0].Text} の後ろには、モードの名前が要ります。");
+                    report(body.IsEmpty ? tokens[^1] : body[0], $"{tokens[0].Text} の後ろには、モードの名前が必要です。");
                     break;
 
                 case "group_uniforms":
@@ -266,7 +266,7 @@ internal static class GodotGrammar
         {
             if (uniform < 0)
             {
-                report(scope, $"{scope.Text} の後ろには uniform が要ります。");
+                report(scope, $"{scope.Text} の後ろには uniform が必要です。");
             }
         }
 
@@ -297,7 +297,7 @@ internal static class GodotGrammar
 
             foreach (VariableDeclaratorSyntax variable in declaration.Variables.Where(v => v.EqualsToken is null))
             {
-                report(variable.NameToken, $"定数 '{variable.Name}' には初期値が要ります。");
+                report(variable.NameToken, $"定数 '{variable.Name}' には初期値が必要です。");
             }
         }
 
@@ -310,7 +310,7 @@ internal static class GodotGrammar
         // float f(float x); (Godot には関数の前方宣言が無い)
         if (function.Body is null)
         {
-            report(function.NameToken, $"関数 '{function.Name}' には本体 {{ … }} が要ります (Godot では前方宣言を書けません)。");
+            report(function.NameToken, $"関数 '{function.Name}' には本体 {{ … }} が必要です (Godot では前方宣言を書けません)。");
         }
 
         if (function.ModifierTokens.FirstOrDefault(m => m.Text == "const") is { } constToken)
@@ -343,7 +343,7 @@ internal static class GodotGrammar
             }
             else if (parameter.NameToken.IsMissing || parameter.NameToken.Kind != ShaderSyntaxKind.IdentifierToken)
             {
-                report(parameter.Type.NameToken, "仮引数には名前が要ります。");
+                report(parameter.Type.NameToken, "仮引数には名前が必要です。");
             }
         }
     }
@@ -372,7 +372,7 @@ internal static class GodotGrammar
 
         foreach (VariableDeclaratorSyntax variable in declaration.Variables.Where(v => v.EqualsToken is null && declaration.HasModifier("const")))
         {
-            report(variable.NameToken, $"定数 '{variable.Name}' には初期値が要ります。");
+            report(variable.NameToken, $"定数 '{variable.Name}' には初期値が必要です。");
         }
 
         foreach (VariableDeclaratorSyntax variable in declaration.Variables)
@@ -383,7 +383,7 @@ internal static class GodotGrammar
                 // float a[]; / float a[] = float[](…); (大きさを書かない配列は { … } でだけ初期化できる)
                 if (variable.Initializer is null)
                 {
-                    report(variable.NameToken, $"大きさを書かない配列 '{variable.Name}' には、初期値 {{ … }} が要ります。");
+                    report(variable.NameToken, $"大きさを書かない配列 '{variable.Name}' には、初期値 {{ … }} が必要です。");
                 }
                 else if (variable.Initializer is not InitializerListExpressionSyntax && variable.Initializer.FirstToken is { } first)
                 {
@@ -392,7 +392,7 @@ internal static class GodotGrammar
             }
             else if (variable.IsArray && variable.Initializer is LiteralExpressionSyntax literal)
             {
-                report(literal.Token, $"配列 '{variable.Name}' の初期化には {{ … }} か配列の値の作成が要ります。");
+                report(literal.Token, $"配列 '{variable.Name}' の初期化には {{ … }} か配列の値の作成が必要です。");
             }
         }
 

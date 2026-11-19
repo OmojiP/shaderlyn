@@ -65,7 +65,7 @@ internal sealed class GlslArrayConstructorAnalyzer : SemanticRuleAnalyzer
 
             if (count == 0)
             {
-                requirement.Report(GlslRuleDescriptors.ArrayConstructorArguments, constructor.CloseParen, "配列を作るには、実引数が 1 つ以上要ります。");
+                requirement.Report(GlslRuleDescriptors.ArrayConstructorArguments, constructor.CloseParen, "配列を作るには、実引数が 1 つ以上必要です。");
             }
             else if (arrayType.ArrayRanks is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } size, { Kind: ShaderSyntaxKind.CloseBracketToken }]
                      && int.TryParse(size.Text.TrimEnd('u', 'U'), NumberStyles.None, CultureInfo.InvariantCulture, out int length)
@@ -74,7 +74,7 @@ internal sealed class GlslArrayConstructorAnalyzer : SemanticRuleAnalyzer
                 requirement.Report(
                     GlslRuleDescriptors.ArrayConstructorArguments,
                     constructor.CloseParen,
-                    $"{arrayType.ElementType.Name}[{length}] を作るには、要素ごとに 1 つ、実引数が {length} 個要ります (今は {count} 個)。");
+                    $"{arrayType.ElementType.Name}[{length}] を作るには、要素ごとに 1 つ、実引数が {length} 個必要です (今は {count} 個)。");
             }
         }
     }

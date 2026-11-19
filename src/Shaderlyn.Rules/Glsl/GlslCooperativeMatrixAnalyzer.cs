@@ -271,7 +271,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
             // coopMatPerElement は仮引数の無い宣言なので、どの実引数でも呼び出せてしまう。
             if (name.StartsWith("coopMatPerElement", StringComparison.Ordinal) && arguments.Length < 3)
             {
-                Report("結果の協調行列、入力の協調行列、要素ごとの関数の 3 つの実引数が要ります。");
+                Report("結果の協調行列、入力の協調行列、要素ごとの関数の 3 つの実引数が必要です。");
                 return;
             }
 

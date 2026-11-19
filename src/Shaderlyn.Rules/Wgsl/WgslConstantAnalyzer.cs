@@ -110,7 +110,7 @@ internal sealed class WgslConstantAnalyzer : SemanticRuleAnalyzer
                         if (declarator.Initializer is { } initializer && constants.FindRuntimeName(initializer) is { } kind)
                         {
                             Report(WgslRuleDescriptors.ConstantExpressionRequired, initializer, null,
-                                $"const の '{declarator.Name}' の初期値には定数式が要りますが、{kind} の値を使っています。");
+                                $"const の '{declarator.Name}' の初期値には定数式が必要ですが、{kind} の値を使っています。");
                         }
                     }
 
@@ -215,7 +215,7 @@ internal sealed class WgslConstantAnalyzer : SemanticRuleAnalyzer
 
         if (runtime is not null)
         {
-            report(WgslRuleDescriptors.ConstantExpressionRequired, condition, null, $"const_assert の条件には定数式が要りますが、{runtime} の値を使っています。");
+            report(WgslRuleDescriptors.ConstantExpressionRequired, condition, null, $"const_assert の条件には定数式が必要ですが、{runtime} の値を使っています。");
             return;
         }
 

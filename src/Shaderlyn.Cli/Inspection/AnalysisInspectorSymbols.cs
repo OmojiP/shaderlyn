@@ -85,7 +85,7 @@ internal static partial class AnalysisInspector
             (string state, string label) = expanded.Length > 0
                 ? ("variant", "方法 B: 構成ごとに展開した")
                 : compilation.UnexploredSymbols.Contains(symbol)
-                    ? ("unexplored", "方法 B が要るが、上限で展開していない (CF0102)")
+                    ? ("unexplored", "方法 B が必要だが、上限で展開していない (CF0102)")
                     : (declined.Contains(symbol) || conflicts.Contains(symbol)) && defaults.Contains(symbol)
                         ? ("default", "既定の構成で有効。無効な側は同じ行の別のシンボルの構成で読む")
                         : declined.Contains(symbol) || conflicts.Contains(symbol)

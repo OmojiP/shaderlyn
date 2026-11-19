@@ -327,7 +327,7 @@ internal static partial class EnvironmentReport
             ? $"  Shader Compiler Backend: FXC ({compiler.DxcBackendSource})"
             : $"  Shader Compiler Backend: DXC ({string.Join(", ", compiler.DxcBackendApis.Select(UnityGraphicsApis.GetName))}、{compiler.DxcBackendSource})");
         Line(builder, compiler.DxcBackendApis.IsEmpty
-            ? "  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
+            ? "  既定は FXC です。#pragma use_dxc、DXC が必要な #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
             : "  Backend を DXC にした API は、#pragma never_use_dxc の無いパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
         Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。");
     }

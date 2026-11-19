@@ -99,7 +99,7 @@ internal static class SlangRuleDescriptors
     /// <summary>条件がスカラーでない。</summary>
     public static DiagnosticDescriptor ScalarConditionExpected { get; } = new(
         id: "SG0311",
-        title: "条件にはスカラーの値が要ります",
+        title: "条件にはスカラーの値が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -110,7 +110,7 @@ internal static class SlangRuleDescriptors
     /// <summary>static const の初期値が定数式でない。</summary>
     public static DiagnosticDescriptor StaticConstNotConstant { get; } = new(
         id: "SG0316",
-        title: "static const の初期値には定数式が要ります",
+        title: "static const の初期値には定数式が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -251,7 +251,7 @@ internal static class SlangRuleDescriptors
     /// <summary>初期値の無い static const。</summary>
     public static DiagnosticDescriptor StaticConstWithoutInitializer { get; } = new(
         id: "SG0318",
-        title: "static const には初期値が要ります",
+        title: "static const には初期値が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -355,12 +355,12 @@ internal static class SlangRuleDescriptors
     /// <summary>微分する関数の、繰り返しの回数を決められないループ。</summary>
     public static DiagnosticDescriptor LoopNeedsIterationCount { get; } = new(
         id: "SG0350",
-        title: "微分する関数のループには、繰り返しの回数が要ります",
+        title: "微分する関数のループには、繰り返しの回数が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比べて定数ずつ増減する形でない for、"
-            + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が要るので、slangc はコンパイルの誤り (E30510) にします。",
+            + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が必要なので、slangc はコンパイルの誤り (E30510) にします。",
         helpLinkUri: DocumentationLinks.For("SG0350"));
 
     /// <summary>初期化子の並びが型に合わない。</summary>
@@ -370,7 +370,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "初期化子の並び ({ … }) が、その型に合いません。__init を書いた構造体では並びが __init の呼び出しになるので、要素の数を受け取る __init が要ります。"
+        description: "初期化子の並び ({ … }) が、その型に合いません。__init を書いた構造体では並びが __init の呼び出しになるので、要素の数を受け取る __init が必要です。"
             + "__init を持つ構造体を継承した構造体と、資源の型の変数には並びを使えません。資源の型のフィールドは、並びで埋めなければなりません。"
             + "slangc はコンパイルの誤り (E30513・E39999) にします。",
         helpLinkUri: DocumentationLinks.For("SG0351"));
@@ -449,7 +449,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "値の仮引数 (let N) に型を書いていないか整数・列挙型・bool でない型を書いているか、制約にインターフェイスでない型 (int・構造体) を書いているか、"
-            + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数の要るジェネリックの型 (Buffer・Tuple など) に型引数を書いていないか、型引数の数が合わないか、"
+            + "制約の型引数が後ろの仮引数を指しているか、extension の型の仮引数が拡張する型に出てこないか、型引数が必要なジェネリックの型 (Buffer・Tuple など) に型引数を書いていないか、型引数の数が合わないか、"
             + "可変長の並びの後ろに仮引数を書いているか、既定の値が後ろの仮引数を指しているか、where の左が仮引数でないか、== の右がインターフェイスか、"
             + "nonempty(…) にこの宣言の可変長の並びでないものを書いているか、インターフェイスか制約の無い型の仮引数を extension で広げているか、エントリポイントにジェネリックの仮引数を書いているか、ファイル全体のジェネリックの仮引数 (type_param) をエントリポイントから届くコードで使っています (slang: generic-entry-points で通す)。"
             + "ジェネリックでない関数への型引数、where の左の __trimFirst(…)、並びに分けられない数の型引数、決まらない既定の値を使う型引数も報告します。"

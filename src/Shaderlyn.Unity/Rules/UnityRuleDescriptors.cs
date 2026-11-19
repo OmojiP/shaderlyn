@@ -113,7 +113,7 @@ internal static class UnityRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "DXC でコンパイルしたシェーダーは DX11 では使えません。"
-            + "キーワードの条件の無い、DXC が要る #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
+            + "キーワードの条件の無い、DXC が必要な #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
             + "DX11 でもパスを DXC でコンパイルさせます。対象の API に DX11 があるときだけ報告します。",
         helpLinkUri: DocumentationLinks.For("UN0203"));
 
@@ -125,7 +125,7 @@ internal static class UnityRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "#pragma never_use_dxc と、DXC が要る #pragma require を同じコードブロックに書くと、"
+        description: "#pragma never_use_dxc と、DXC が必要な #pragma require を同じコードブロックに書くと、"
             + "Unity 6.5 以前は never_use_dxc が勝って FXC、6.6 からは require が勝って DXC でコンパイルされます。",
         helpLinkUri: DocumentationLinks.For("UN0204"));
 

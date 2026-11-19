@@ -16,6 +16,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   まとめたパッケージのライセンスは、拡張の `out/THIRD-PARTY-NOTICES-npm.txt` に入れる
 - GitHub Action: SARIF のアップロードに `github/codeql-action/upload-sarif@v4` を使う (v3 は Node.js 20 で動き、GitHub が Node.js 20 のアクションを廃止するため)。
   セルフホストランナーは 2.327.1 以降が必要 ([CI に組み込む](docs/guide/ci-setup.md#3-2-マシンをランナーに登録する))
+- ルールの題名・指摘のメッセージ・ホバーの「…が要ります」「…が要る」を、「…が必要です」「…が必要」にそろえた。
+  題名が変わったルール: GD0317・GL0317・GL0318・GL0402・SG0311・SG0316・SG0318・SG0350・WG0317。
+  メッセージの文字列で指摘を照合している場合は、照合する文字列を直す必要がある
 
 ### 修正
 

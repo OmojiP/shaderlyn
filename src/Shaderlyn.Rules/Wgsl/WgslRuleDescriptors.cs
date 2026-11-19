@@ -185,7 +185,7 @@ internal static class WgslRuleDescriptors
     /// <summary>定数式が要るところに、実行時の値を書いた。</summary>
     public static DiagnosticDescriptor ConstantExpressionRequired { get; } = new(
         id: "WG0317",
-        title: "定数式が要ります",
+        title: "定数式が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,

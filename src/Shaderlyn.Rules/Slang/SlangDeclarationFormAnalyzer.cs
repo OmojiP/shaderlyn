@@ -186,7 +186,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         {
             foreach (VariableDeclaratorSyntax variable in declaration.Variables.Where(v => v.Initializer is null))
             {
-                report(SlangRuleDescriptors.StaticConstWithoutInitializer, variable.NameToken, $"static const の '{variable.Name}' には初期値が要ります。");
+                report(SlangRuleDescriptors.StaticConstWithoutInitializer, variable.NameToken, $"static const の '{variable.Name}' には初期値が必要です。");
             }
         }
 

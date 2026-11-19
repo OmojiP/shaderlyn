@@ -179,7 +179,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (i > 1)
                 {
-                    report(GodotRuleDescriptors.InvalidMode, token, $"{kind}の名前が要ります。");
+                    report(GodotRuleDescriptors.InvalidMode, token, $"{kind}の名前が必要です。");
                 }
 
                 return;
@@ -414,7 +414,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
                     if (hint != "source_color")
                     {
-                        return Error(at, "color_conversion_disabled の前には source_color が要ります。");
+                        return Error(at, "color_conversion_disabled の前には source_color が必要です。");
                     }
 
                     hint = null;

@@ -189,7 +189,7 @@ internal static partial class HoverBuilder
             .Select(f => $"{f.ReturnType} {name}({string.Join(", ", f.Parameters.Select((p, i) => f.WritesBack[i] ? $"out {p}" : p))})");
         string rest = overloads.Length > MaxListedOverloads ? $"\n\nほかに {overloads.Length - MaxListedOverloads} 個の形がある。" : string.Empty;
         string extensions = overloads.All(f => !f.Extensions.IsEmpty)
-            ? $"\n\n使うには拡張が要る ({string.Join(", ", overloads.SelectMany(f => f.Extensions).Distinct(StringComparer.Ordinal).Take(3))})。"
+            ? $"\n\n使うには拡張が必要 ({string.Join(", ", overloads.SelectMany(f => f.Extensions).Distinct(StringComparer.Ordinal).Take(3))})。"
             : string.Empty;
 
         return $"```hlsl\n{string.Join("\n", forms)}\n```\n\n組み込み関数{rest}{extensions}";
@@ -365,7 +365,7 @@ internal static partial class HoverBuilder
             && binder.ResolveName(identifier).Kind == DeclaredNameKind.NotFound
             && glsl.Builtins.GetVariable(identifier.Name) is { } builtin)
         {
-            body += $"\n\n組み込み変数 ({builtin.Storage}{(builtin.Extensions.IsEmpty ? string.Empty : $"、{string.Join(" か ", builtin.Extensions)} が要る")})";
+            body += $"\n\n組み込み変数 ({builtin.Storage}{(builtin.Extensions.IsEmpty ? string.Empty : $"、{string.Join(" か ", builtin.Extensions)} が必要")})";
         }
 
         // Godot の組み込みの変数と定数 (ALBEDO、TIME、PI)。どの関数で使えるかと、書き込めるかを添える。

@@ -1467,7 +1467,7 @@ internal abstract class ShaderParser
         // 別名の名前の無い typedef (typedef int;)。
         if (RequiresTypedefName && target is not null && Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
-            ReportError("typedef には、型の後ろに別名の名前が要ります。");
+            ReportError("typedef には、型の後ろに別名の名前が必要です。");
         }
 
         if (target is not null

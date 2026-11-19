@@ -210,7 +210,7 @@ internal sealed partial class GlslRequirements
             Report(
                 GlslRuleDescriptors.NotAvailable,
                 at,
-                $"{feature} は SPIR-V {DescribeSpirv(minimum)} 以降が要ります (今は {DescribeSpirv(current)})。設定ファイルの glsl: target か glsl: spirv で SPIR-V のバージョンを上げてください。");
+                $"{feature} は SPIR-V {DescribeSpirv(minimum)} 以降が必要です (今は {DescribeSpirv(current)})。設定ファイルの glsl: target か glsl: spirv で SPIR-V のバージョンを上げてください。");
         }
     }
 

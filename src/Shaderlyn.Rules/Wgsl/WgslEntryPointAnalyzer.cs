@@ -283,7 +283,7 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
         }
         else if (!(indices.Contains("0") && indices.Contains("1")))
         {
-            report(WgslRuleDescriptors.InvalidEntryPoint, at, "@blend_src を書いた構造体には、@blend_src(0) と @blend_src(1) の 2 つの出力が要ります。");
+            report(WgslRuleDescriptors.InvalidEntryPoint, at, "@blend_src を書いた構造体には、@blend_src(0) と @blend_src(1) の 2 つの出力が必要です。");
         }
         else if (sources[0].Member.Type.Name != sources[1].Member.Type.Name)
         {

@@ -114,7 +114,7 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
                         && !list.OpenBrace.IsMissing && compilation.IsReportable(list.OpenBrace) && list.OpenBrace.GetLocation() is { } removedLocation)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.RemovedDeclaration, removedLocation,
-                            $"{type.Name} の並びで、ベクトルを含んで成分の足りない形 (成分は {written} 個で、{shape.Columns} 個が要ります) は、言語のバージョン 2026 で取り除かれています。足りない成分を書いてください。"));
+                            $"{type.Name} の並びで、ベクトルを含んで成分の足りない形 (成分は {written} 個で、{shape.Columns} 個が必要です) は、言語のバージョン 2026 で取り除かれています。足りない成分を書いてください。"));
                         continue;
                     }
 

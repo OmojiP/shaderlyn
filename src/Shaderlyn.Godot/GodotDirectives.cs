@@ -105,7 +105,7 @@ internal static class GodotDirectives
                 // 名前が 2 つ続く (#define F(a b))。名前でも , でもないものは、共通のプリプロセッサが報告する。
                 if (rest[i].Kind == ShaderSyntaxKind.IdentifierToken && rest[i - 1].Kind == ShaderSyntaxKind.IdentifierToken)
                 {
-                    report(rest[i], "マクロの仮引数の間にはカンマが要ります。");
+                    report(rest[i], "マクロの仮引数の間にはカンマが必要です。");
                     return;
                 }
             }

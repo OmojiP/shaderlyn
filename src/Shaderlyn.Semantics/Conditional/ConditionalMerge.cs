@@ -182,7 +182,7 @@ internal static class ConditionalMerge
 
         if (enabledSymbols.IsDefaultOrEmpty)
         {
-            throw new ArgumentException("有効にしたシンボルが要ります。", nameof(enabledSymbols));
+            throw new ArgumentException("有効にしたシンボルが必要です。", nameof(enabledSymbols));
         }
 
         // 2 つ以上を同時に有効にした構成では、その論理積が条件になる。

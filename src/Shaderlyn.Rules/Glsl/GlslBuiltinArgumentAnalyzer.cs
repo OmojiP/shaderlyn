@@ -224,7 +224,7 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
 
             if ((storage != 0 && (semantics & MemoryOrder) == 0) || (storage2 != 0 && (semantics2 & MemoryOrder) == 0))
             {
-                problems.Add("記憶域のセマンティクスが 0 でないときは、セマンティクスに gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+                problems.Add("記憶域のセマンティクスが 0 でないときは、セマンティクスに gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが必要です");
             }
 
             if (storage != 0 && name == "controlBarrierArrive" && (semantics & ~MakeAvailable) != Release)
@@ -240,13 +240,13 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
             if (((semantics & MakeAvailable) != 0 && (semantics & (Release | AcquireRelease)) == 0)
                 || ((semantics2 & MakeAvailable) != 0 && (semantics2 & (Release | AcquireRelease)) == 0))
             {
-                problems.Add("gl_SemanticsMakeAvailable には gl_SemanticsRelease か gl_SemanticsAcquireRelease が要ります");
+                problems.Add("gl_SemanticsMakeAvailable には gl_SemanticsRelease か gl_SemanticsAcquireRelease が必要です");
             }
 
             if (((semantics & MakeVisible) != 0 && (semantics & (Acquire | AcquireRelease)) == 0)
                 || ((semantics2 & MakeVisible) != 0 && (semantics2 & (Acquire | AcquireRelease)) == 0))
             {
-                problems.Add("gl_SemanticsMakeVisible には gl_SemanticsAcquire か gl_SemanticsAcquireRelease が要ります");
+                problems.Add("gl_SemanticsMakeVisible には gl_SemanticsAcquire か gl_SemanticsAcquireRelease が必要です");
             }
 
             if (store && (semantics & Acquire) != 0)
@@ -266,7 +266,7 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
 
             if (name == "memoryBarrier" && (semantics & MemoryOrder) == 0)
             {
-                problems.Add("memoryBarrier のセマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+                problems.Add("memoryBarrier のセマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが必要です");
             }
 
             if (name is "memoryBarrier" or "controlBarrier" or "controlBarrierArrive" or "controlBarrierWait" && (semantics & Volatile) != 0)
