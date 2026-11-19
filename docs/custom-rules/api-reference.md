@@ -145,7 +145,7 @@ When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_
 
 - 文字列で書けるのは `defined(X)` / `defined X` / `X`、値を持つシンボルと整数の比較 (`==` `!=` `<` `<=` `>` `>=`)、`!` `&&` `||` と括弧です
 - 値を持つシンボル (`QUALITY`) は、その単位の値の一覧で読みます (`QUALITY >= 2` は `QUALITY == 2 || QUALITY == 3`)。`X` だけなら `X != 0` です
-- 書き方の誤りは、登録するときに `FormatException` になります。値を持たないシンボルを数と比べると、解析するときに `FormatException` になります (TOOL0001)
+- 書き方の誤りは、登録するときに `FormatException` になります。値を持たないシンボルを数と比較すると、解析するときに `FormatException` になります (TOOL0001)
 
 ### `AnalysisStartContext`
 
@@ -284,7 +284,7 @@ new DiagnosticDescriptor(
 HLSL のノードは加えて `Source` を持ち、そのノードがどのファイル由来かを返します。
 取り込んだヘッダのノードでは、そのヘッダのテキストになります。
 
-どの型のノードがどこに現れるかは、`--inspect` で構文木を見ると確かめられます。
+どの型のノードがどこに現れるかは、`--inspect` で構文木を見ると確認できます。
 
 ```bash
 shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
@@ -530,13 +530,13 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使う。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
 | `UnanalyzedIdentifiers`            | どの構成でも解析されなかった領域に現れた名前 |
 | `AllDeclaredNames`                 | すべての木 (取り込んだヘッダを含む) で宣言された変数・仮引数・関数・構造体・定数バッファの名前 |
-| `LocalOnlyDeclaredNames`           | そのうち、関数の中の変数と仮引数としてしか宣言されていない名前。位置によって見えたり見えなかったりするので、`ResolveName` で確かめる |
+| `LocalOnlyDeclaredNames`           | そのうち、関数の中の変数と仮引数としてしか宣言されていない名前。位置によって見えたり見えなかったりするので、`ResolveName` で確認する |
 | `HeaderDeclaredNames`              | そのうち、取り込んだヘッダの宣言に現れた名前。このファイルに書いた宣言は Pass ごとに違うので、`AnalyzedProgram.BlockKey` ごとに集めること |
 | `EnumerateRuleNodes()`             | **検査のために歩くノード（これを使う）。** 既定の構成と各バリアントの木にある、そのシェーダーが自分で書いたノードを、属する木とともに返す |
 | `EnumerateRuleDeclarations()`      | 同じく、トップレベルの宣言を属する木とともに返す |
 | `GetEffectiveCondition(node, program)` | そのノードが存在する条件。その木を解析した構成も掛け合わせる |
 | `TryEnumerateConfigurations(nodes, program, out configurations)` | ノードの条件に現れるシンボルの実在する組み合わせと、それぞれで存在するノード。**数えたり合計したりするルールはこれで構成ごとに数える**（[下の節](#数えるルールは構成ごとに数える)） |
-| `GetTreeConfiguration(program)` | その木が実際に表す構成のうち、木の中の出現条件では表されない部分。既定の木なら「バリアントになったシンボルはどれも無効」。**複数の木の結果を条件で突き合わせるルールは、ノードの出現条件にこれを掛ける。** 掛けないと、どの木も解析していない組み合わせについてまで結論を出す |
+| `GetTreeConfiguration(program)` | その木が実際に表す構成のうち、木の中の出現条件では表されない部分。既定の木なら「バリアントになったシンボルはどれも無効」。**複数の木の結果を条件で突き合わせるルールは、ノードの出現条件にこれを掛ける。** 掛けないと、どの木も解析していない組み合わせについてまで結論を導く |
 | `GetHeaderDeclaredNames(block)` | そのコードブロック (Pass・カーネル) が取り込んだヘッダの宣言に現れた名前。別の Pass が取り込んだヘッダの名前は含まない |
 | `EnumerateOwnNodes(program)`       | 1 本の木として見せるためのノード。バリアントにしか無いノードを既定の木の子として返す（検査には使わない） |
 | `IsReportable(node)`               | **そのノードを報告してよいか（これを使う）** |
@@ -567,7 +567,7 @@ Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプライ�
 
 #### 報告してよいノードか
 
-**指摘を報告する前に `IsReportable(node)` を確かめてください。** Unity や外部パッケージのヘッダのコードや、
+**指摘を報告する前に `IsReportable(node)` を確認してください。** Unity や外部パッケージのヘッダのコードや、
 それらのマクロが作ったコードを指摘しても、利用者には直しようがありません。
 
 ```csharp
@@ -595,7 +595,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 
 ヘッダのマクロの本体が作った部分は入りません。実引数を包んでいても同じです。
 `#define HEADER_ID(x) (x)` の括弧や、`UNITY_SETUP_INSTANCE_ID(v)` が作る `v.instanceID` の `.instanceID` がそうです。
-ノードの一部だけを報告するルールは、報告する部分 (メンバー名のトークンなど) についても `IsReportable(token)` を確かめてください。
+ノードの一部だけを報告するルールは、報告する部分 (メンバー名のトークンなど) についても `IsReportable(token)` を確認してください。
 
 **利用者のヘッダのコードは、取り込むシェーダーの文脈で渡ってきます。**
 `ShaderRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
@@ -661,7 +661,7 @@ foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.Enumera
 両方の分岐を並べた木には、同時には存在しないノードが並んでいます。
 `#ifdef _A` と `#else` にサンプリングを 1 回ずつ書けば木には 2 回ありますが、どの構成でも 1 回です。
 **ノードを数えたり合計したりするルール（回数・文の数・大きさの上限など）は、木のノードをそのまま数えないでください。**
-`TryEnumerateConfigurations` で構成ごとに存在するノードを絞り、その最大を上限と比べます。
+`TryEnumerateConfigurations` で構成ごとに存在するノードを絞り、その最大を上限と比較します。
 
 ```csharp
 List<StatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
@@ -703,7 +703,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 | `CountComponents(expression)`     | 式の数値の成分の個数 (`float3` なら 3)。型が分からなければ `null` |
 | `ResolveName(identifier)`         | 識別子がその位置で指す宣言 (下の「`ResolveName`」)                 |
 
-名前は、使用位置から外側の波括弧へ順にたどって検索します。
+識別子の位置から外側の波括弧を順にたどり、名前を検索します。
 同じ関数の中でも、内側の波括弧で宣言し直した名前はその中と外で別の変数として扱われます。
 関数の外では uniform を取得し、無ければ `static` / `groupshared` の変数を取得します。
 
@@ -814,7 +814,7 @@ if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out Sym
 ```
 
 - 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (CF0310 の範囲) は `false` です
-- 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比べ、ありえない構成と `#error` に到達する構成を除きます
+- 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比較し、ありえない構成と `#error` に到達する構成を除きます
 - 条件を追えなかったとき、どの構成でも解析しなかった領域に名前があるとき、依存関係が解決できていないときは `false` です
 
 ### `GetTypesByConfiguration`
@@ -833,7 +833,7 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 
 ### `CallCompatibility` (`Shaderlyn.Semantics.Programs`)
 
-呼び出しが宣言に合うかを、自分で 1 つずつ確かめるための判定です。
+呼び出しが宣言に合うかを、自分で 1 つずつ確認するための判定です。
 `ResolveCall` と組み込みルール (CF0401〜CF0403) も同じ判定を使っています。
 
 | メンバー                                   |                                                              |
@@ -949,7 +949,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 
 **巻き上げた範囲は、ソース上の位置で見分けられません。**
 複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に直すと `_A` の複製と `!_A` の複製が重なります。
-複製ごとにトークンは別のインスタンスなので、見分けるにはトークンそのもので比べてください。
+複製ごとにトークンは別のインスタンスなので、見分けるにはトークンそのもので比較してください。
 
 ノードがどの条件で存在するかを知りたいだけなら、この範囲を読まずに `ConditionMap.GetCondition(node)` を使ってください。
 巻き上げた範囲の条件も、そこに含まれています。
@@ -999,7 +999,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 
 構成の空間です。宣言 (`VariantDeclaration`) と、同時には有効にならない組 (`VariantGroup`) を持ちます。
 値を持つシンボルは `VariantSpace.ForValues("QUALITY", [0, 1, 2])` で作ります。
-値ごとの原子 (`QUALITY==2`) の「ちょうど 1 つ」の組になり、条件の表示は `QUALITY == 2` になります。
+値ごとの条件式 (`QUALITY == 2` など) のうち、ちょうど 1 つだけを有効にする組を作ります。条件は `QUALITY == 2` の形で表示します。
 
 ### `HostEnvironment` (`Shaderlyn.Cli`)
 

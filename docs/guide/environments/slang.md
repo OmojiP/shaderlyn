@@ -2,7 +2,7 @@
 
 Slang のファイル (`.slang`) は、設定ファイルが無くても、ほかの環境の設定ファイルの下にあっても、Slang として解析します。VS Code 拡張も同じです。
 
-**C 系の言語に共通のルール (`CF` で始まるもの) のうち Slang で確かめたものと、Slang にしか無いルール (`SG` で始まるもの。[一覧](../../rules/README.md#slang)) で検査します。**
+**C 系の言語に共通のルール (`CF` で始まるもの) のうち Slang で確認したものと、Slang にしか無いルール (`SG` で始まるもの。[一覧](../../rules/README.md#slang)) で検査します。**
 SG のルールは、slangc 2026.19 がエラーにするものを、slangc と同じ行で報告します。
 
 - 構文は HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、ジェネリック (`<T : IFoo>`、`where`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
@@ -23,7 +23,7 @@ SG のルールは、slangc 2026.19 がエラーにするものを、slangc と�
 - 関数の重複 ([CF0314](../../rules/CF0314.md)) と本体の無い関数 ([CF0311](../../rules/CF0311.md)) は、ジェネリックの制約とリンクの指定を読むまで検査しません
 
 slang の試験 (`tests/` の slangc が誤りにするものと通すもの)・slang の例・SaschaWillems の Vulkan の例・Falcor の Slang で、slangc と同じ誤りを同じ行で報告し、
-slangc が通すファイルに誤りを報告しないことを確かめています。
+slangc が通すファイルに誤りを報告しないことを確認しています。
 
 ### まだ見つけられないもの
 
@@ -37,7 +37,7 @@ slangc の誤りのうち、次のものはまだ報告しません。
 - 構文の誤りを含む文から、その関数の終わりまでの誤り (ほかの関数は検査します。構文の誤りが関数の外にあるときは、宣言が無いことを根拠にする検査を止めます。[CF0101](../../rules/CF0101.md))
 - そのほかの個別の意味の検査 (多重定義の選び方、型の食い違いの一部など)
 
-slang の誤りの試験 (slangc が誤りにする 965 ファイル、2,011 行) のうち、今は 1,194 行を slangc と同じ行で報告します (記録した slangc の引数を設定ファイルにして比べると 1,206 行。`tools/oracles/compare.mjs --use-args`)。
+slang の誤りの試験 (slangc が誤りにする 965 ファイル、2,011 行) のうち、今は 1,194 行を slangc と同じ行で報告します (記録した slangc の引数を設定ファイルにして比較すると 1,206 行。`tools/oracles/compare.mjs --use-args`)。
 
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内は、`import` したモジュールの関数と構造体、標準ライブラリの型 (`CoopVec` など) も使います。
 

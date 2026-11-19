@@ -198,7 +198,7 @@ HLSL のコードだけを見るルール (`HlslRuleAnalyzer` で式や宣言を
 ### テスト
 
 `ShaderRuleVerifier` (`Shaderlyn.Testing`) の使い方は変わりません。今までどおり Unity の環境で解析します。
-Unity 以外の環境でルールを確かめるときは、`ShaderCompilation.Create` に環境 (`HlslEnvironment` など) を渡してモデルを作り、
+Unity 以外の環境でルールを確認するときは、`ShaderCompilation.Create` に環境 (`HlslEnvironment` など) を渡してモデルを作り、
 `AnalyzerDriver` で動かします ([API リファレンス「環境」](../custom-rules/api-reference.md#環境))。
 
 ## 自前の CLI と言語サーバー

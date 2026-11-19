@@ -103,7 +103,7 @@ shaderlyn --unity-project . --unity-generate .shaderlyn/unity
     …
   Unity Editor のヘッダ (CGIncludes。C:\Program Files\Unity\Hub\Editor\6000.3.26f1\Editor\Data)
 合わせてファイル 475 個 (3.9 MB)。
-書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。
+書き出したファイルをリポジトリに含める場合は、各パッケージのライセンスを確認してください。公開リポジトリには含めないでください。
 書き出しますか? [y/n]
 ```
 
@@ -121,12 +121,12 @@ unity:
   generated: .shaderlyn/unity
 ```
 
-- `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor があれば、これまでどおりそちらを読みます。無いときに、書き出したものを読みます
+- `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が利用できる場合は、これまでどおりそれらを読み込みます。利用できない場合は、書き出したファイルを読み込みます
 - 生成したファイル (Unity のファイルの写し) については指摘を報告しません
 - どちらを参照しているかは `--env` の「Unity Editor」に表示されます
-- **Unity のバージョンかパッケージを上げたら、書き出し直してください。** 書き出した後に `ProjectVersion.txt`・`packages-lock.json`・`Library/PackageCache` のパッケージが変わると、
+- **Unity のバージョンまたはパッケージを更新した場合は、書き出し直してください。** 書き出した後に `ProjectVersion.txt`・`packages-lock.json`・`Library/PackageCache` のパッケージが変わると、
   解析を始めるときに標準エラーに伝えます (VS Code 拡張では通知)。解析は止めません。
-  この確かめには、比べる相手のプロジェクトの指定 (`--unity-project` か `unity: project`) が要ります。指定が無くても書き出したものは読みますが、合っているかは確かめません
+  この確認には、比較対象のプロジェクトの指定 (`--unity-project` か `unity: project`) が必要です。指定がなくても書き出したファイルは読み込みますが、プロジェクトとの一致は確認しません
   ```text
   --unity-generate で書き出したもの (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
   ```
@@ -134,7 +134,7 @@ unity:
 > **ライセンスについて:** 書き出したものは Unity のパッケージと Unity Editor のファイルの写しです。
 > Unity のパッケージの多くは Unity Companion License で、Unity のコンテンツを作るための利用に限って写しと配布を認め、写しにライセンスの表示を添えることを求めます
 > (`--unity-generate` は `LICENSE.md` などを一緒に写します)。Asset Store などから入れたパッケージは、それぞれのライセンスに従います。
-> 書き出したものは private リポジトリで保管し、各パッケージのライセンスを確かめてください。
+> 書き出したものは private リポジトリで保管し、各パッケージのライセンスを確認してください。
 
 ## `#include` の解決
 
@@ -147,7 +147,7 @@ unity:
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 ```
 
-Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確かめた)。Shaderlyn も Unity の環境では効かせず、書いてあれば [UN0101](../../rules/UN0101.md) で伝えます。
+Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確認した)。Shaderlyn も Unity の環境では効かせず、書いてあれば [UN0101](../../rules/UN0101.md) で伝えます。
 
 ## レンダーパイプライン
 
@@ -192,7 +192,7 @@ Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn の判
   ([設定](../configuration.md#unity))。読み込んだ内容は `--env` に表示されます
 - バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN0201 / UN0203 の一部と UN0202) は出しません
 - DXC でコンパイルされるパスは DX11 では使えません。使えない API でのエラーは利用者に見えないので、そこでは構文を報告しません
-- この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確かめています
+- この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確認しています
 
 ## Unity だけのルール
 

@@ -26,9 +26,9 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/check.mjs glsl .work/co
 | `wgsl` | naga | WGSL を検証します |
 | `godot` | Godot | 起動してバージョンを表示します。シェーダーの検査は `record.mjs` で行います (下記) |
 
-## GLSL を glslang と行ごとに比べる
+## GLSL を glslang と行ごとに比較する
 
-`compare-glsl.mjs` は GLSL シェーダーを glslang と Shaderlyn で検査し、指摘の行を比べます。
+`compare-glsl.mjs` は GLSL シェーダーを glslang と Shaderlyn で検査し、指摘の行を比較します。
 Shaderlyn の CLI は Release 構成でビルドして使います。
 
 ```sh
@@ -38,9 +38,9 @@ dotnet build src/Shaderlyn.Cli.App -c Release
 別の場所にある CLI を使う場合は、`SHADERLYN_CLI` にそのパスを指定します。
 
 ```sh
-# glslang の Test を、付いている正解 (baseResults) と比べる (glslang は動かさない)
+# glslang の Test を、付属の正解 (baseResults) と比較する (glslang は動かさない)
 node tools/oracles/compare-glsl.mjs .work/corpus/glslang/Test --baseline=.work/corpus/glslang/Test/baseResults --gtests=.work/corpus/glslang/gtests
-# glslang を動かして比べる (OpenGL の意味。Vulkan の意味なら --vulkan)
+# glslang を動かして比較する (OpenGL の意味。Vulkan の意味なら --vulkan)
 SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/ogl-samples/data
 # 拡張子がステージを表さないシェーダー集
 SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/corpus/LearnOpenGL/src --stage-map=vs:vert,fs:frag,gs:geom
@@ -52,9 +52,9 @@ SHADERLYN_GLSLANG=<glslang の場所> node tools/oracles/compare-glsl.mjs .work/
 `--details` を指定すると、食い違いを1件ずつ表示します。`--json=<パス>` を指定すると、ファイルごとの結果を JSON で出力します。
 glslang の Test のうち、単一ファイルのコンパイル結果ではないもの (`-E` の出力、複数ファイルをつないだ結果、HLSL として読ませた結果) は比較しません。
 
-## Godot・Slang・WGSL をコンパイラと行ごとに比べる
+## Godot・Slang・WGSL をコンパイラと行ごとに比較する
 
-`record.mjs` でコンパイラの誤りの行を JSON に記録し、`compare.mjs` で Shaderlyn の指摘と比べます。
+`record.mjs` でコンパイラの誤りの行を JSON に記録し、`compare.mjs` で Shaderlyn の指摘と比較します。
 記録した正解はコンパイラのバージョンに固定されるので、コンパイラを上げたら記録し直してください。
 
 ```sh
@@ -76,13 +76,13 @@ SHADERLYN_GODOT=<Godot の場所> node tools/oracles/record.mjs godot .work/v0.3
 この記録の仕方では、次のものはエディタと違う結果になります。
 
 - `shader_type` が無いか正しくないファイルは、誤りになりません (Godot がコンパイラに掛けないため)
-- プリプロセッサの誤りは、その文ではなく「`#` は知らない文字」という誤りになります (Godot がプリプロセッサの失敗を伝えず、元のコードのまま読み直すため)。行は指令の行なので、行ごとに比べることはできます
+- プリプロセッサの誤りは、その文ではなく「`#` は知らない文字」という誤りになります (Godot がプリプロセッサの失敗を伝えず、元のコードのまま読み直すため)。行は指令の行なので、行ごとに比較することはできます
 
 `compare.mjs` は、コンパイラが誤りにしないファイルに出たエラーと警告を「誤報告」、コンパイラの誤りの行に Shaderlyn のエラーが無いものを「見落とし」、
 コンパイラの最初の誤りより前の行に出たエラーを「先走り」(誤報告の疑い) として数えます。
 
 `--use-args` を付けると、正解に記録したコンパイラの引数のうち設定ファイルに当たるもの (Slang の `-target`・`-experimental-feature`・`-specialize` と `-entry f<T>`・`-unscoped-enum`・`-D`・`-I`) を、
-ファイルごとの一時の設定ファイルにして Shaderlyn に渡します。コマンドラインの指定に依る誤りを、同じ指定で比べられます。付けなければ、どのファイルも `--no-config` で解析します。
+ファイルごとの一時の設定ファイルにして Shaderlyn に渡します。コマンドラインの指定によって出る誤りも、同じ指定で比較できます。付けなければ、どのファイルも `--no-config` で解析します。
 
 ```sh
 node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
