@@ -4,12 +4,20 @@
 
 # Shaderlyn
 
-Unity の ShaderLab と HLSL（`.shader`、`.compute`）を、条件付きコンパイルも考慮して静的解析するツールです。解析ルールを追加する仕組みは Roslyn に似ています。
+複数のエンジンとシェーダー言語に対応した、シェーダーの静的解析ツールです。
+条件付きコンパイル（`#if` やキーワードの組み合わせ）も考慮して解析します。解析ルールを追加する仕組みは Roslyn に似ています。
 
-DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[環境ごとの使い方](docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments/glsl.md)）。
-Godot のシェーダー（`.gdshader`）は Godot 4 と、Slang（`.slang`）は slangc と、WGSL（`.wgsl`）は naga（wgpu）と同じ誤りを報告します（[Godot](docs/guide/environments/godot.md)・[Slang](docs/guide/environments/slang.md)・[WGSL](docs/guide/environments/wgsl.md)）。
+| 環境 | 対象 | 検査 |
+| --- | --- | --- |
+| [Unity](docs/guide/environments/unity.md) | ShaderLab と HLSL（`.shader`・`.compute`） | プロパティと HLSL の対応や、`multi_compile` などのキーワードの組み合わせも検査します |
+| [汎用の HLSL](docs/guide/environments/hlsl.md) | DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど、`.hlsl`） | 宣言・型・呼び出しを検査します |
+| [Unreal Engine](docs/guide/environments/unreal.md) | `.usf`・`.ush` | 仮想パス（`/Engine/...` など）を解決し、パーミュテーションを構成として扱います |
+| [GLSL](docs/guide/environments/glsl.md) | `.vert`・`.frag`・`.comp` など | glslang と同じ誤りを報告します |
+| [Godot](docs/guide/environments/godot.md) | `.gdshader`・`.gdshaderinc` | Godot 4 と同じ誤りを報告します |
+| [Slang](docs/guide/environments/slang.md) | `.slang` | slangc と同じ誤りを報告します |
+| [WGSL](docs/guide/environments/wgsl.md) | `.wgsl` | naga（wgpu）と同じ誤りを報告します |
 
+独自エンジンのシェーダーも、環境を自分で追加すると解析できます（[環境ごとの使い方](docs/guide/environments.md)）。
 CLI、VS Code 拡張、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能

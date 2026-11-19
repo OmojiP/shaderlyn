@@ -1,6 +1,6 @@
 # Shaderlyn
 
-Unity の ShaderLab / HLSL / コンピュートシェーダーを解析する [Shaderlyn](https://github.com/OmojiP/shaderlyn) の、自作ルール用ライブラリです。
+Unity・汎用の HLSL (DXC)・Unreal Engine・GLSL・Godot・Slang・WGSL のシェーダーを解析する [Shaderlyn](https://github.com/OmojiP/shaderlyn) の、自作ルール用ライブラリです。
 
 プロジェクト固有の規約を C# のルールとして書き、組み込みのルールと一緒に動く CLI や言語サーバーを作れます。
 解析ツールとして使うだけなら、このパッケージは必要ありません。[リリースページ](https://github.com/OmojiP/shaderlyn/releases) の実行ファイルを使ってください。
