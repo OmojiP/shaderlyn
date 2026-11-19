@@ -55,9 +55,9 @@ jobs:
             vscode-target: darwin-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -157,9 +157,9 @@ jobs:
           --output artifacts/lsp-${{ matrix.runtime }}
           -p:Version=${{ steps.version.outputs.number }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       # 配布物にはサーバーの実行ファイルだけを入れる。デバッグ情報は同梱しない。
       - name: 拡張を vsix にまとめる
@@ -195,7 +195,7 @@ jobs:
             --baseImagesUrl "${base}/raw/${{ steps.version.outputs.tag }}/editors/vscode" \
             --out "../../shaderlyn-vscode-${{ matrix.vscode-target }}.vsix"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: shaderlyn-${{ matrix.runtime }}
           path: |
@@ -224,9 +224,9 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -268,7 +268,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -284,9 +284,9 @@ jobs:
 
       # 拡張は OS と CPU の組ごとに別の vsix なので、作ったものをそのまま送る (--packagePath)。
       # Marketplace に出したバージョンは上書きできないので、全プラットフォームが組めたこのジョブで出す。
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: VS Code Marketplace に公開する
         shell: bash
@@ -298,7 +298,7 @@ jobs:
             --packagePath artifacts/shaderlyn-vscode-*.vsix \
             --pat "${VSCE_PAT}"
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
           generate_release_notes: true

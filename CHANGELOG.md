@@ -14,6 +14,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 - VS Code 拡張: 依存のパッケージ (`vscode-languageclient` など) を 1 つの JavaScript にまとめて配布する。拡張に入るファイルが約 325 から約 10 になり、読み込みが速くなる。
   まとめたパッケージのライセンスは、拡張の `out/THIRD-PARTY-NOTICES-npm.txt` に入れる
+- GitHub Action: SARIF のアップロードに `github/codeql-action/upload-sarif@v4` を使う (v3 は Node.js 20 で動き、GitHub が Node.js 20 のアクションを廃止するため)。
+  セルフホストランナーは 2.327.1 以降が必要 ([CI に組み込む](docs/guide/ci-setup.md#3-2-マシンをランナーに登録する))
 
 ### 修正
 

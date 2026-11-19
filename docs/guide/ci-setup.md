@@ -72,9 +72,9 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .shaderlyn-cache.json
           key: shaderlyn-${{ runner.os }}-${{ github.ref }}-${{ github.run_id }}
@@ -116,9 +116,9 @@ jobs:
       SHADERLYN_VERSION: v1.0.0-r1
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .shaderlyn-cache.json
           key: shaderlyn-${{ runner.os }}-${{ github.ref }}-${{ github.run_id }}
@@ -182,10 +182,10 @@ jobs:
 
     steps:
       # step1: ランナーにリポジトリソースを取得する
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # step2: ランナーで dotnet コマンドを使用できるようにする
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -207,7 +207,7 @@ jobs:
         run: Compress-Archive -Path artifacts/my-shaderlyn.exe -DestinationPath my-shaderlyn-win-x64.zip
 
       # step6: リリースを作り zip を添付する
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: my-shaderlyn-win-x64.zip
           # ファイルが見つからなければ失敗させる
@@ -250,6 +250,8 @@ Unity プロジェクトの `Library/PackageCache` をランナーのマシン�
 
    - `config.cmd` の途中で `run the runner as service?` と聞かれたら、`Y` と入力します。
 4. Runners の画面で **Idle** と表示されたら登録完了です。手動で起動する場合は `.\run.cmd` を実行します。
+
+このガイドのワークフローで使うアクション (`actions/checkout@v7` など) と、Shaderlyn の GitHub Action が使う `github/codeql-action/upload-sarif@v4` は Node.js 24 で動くため、ランナーのバージョンは 2.327.1 以降が必要です。ランナーは既定で自動的に更新されます。自動更新を止めている場合は、更新してください。
 
 ランナーの登録に失敗した場合は、`Settings → Actions → Runners` で該当するランナーの **Remove runner** を選びます。表示されたコマンドでランナーを削除してから、再度登録してください。
 
@@ -302,7 +304,7 @@ jobs:
 
     steps:
       # PR のコードを取得する
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ランナーの Library へのジャンクション (フォルダーのリンク) を作る。
       - name: Library をリンクする
