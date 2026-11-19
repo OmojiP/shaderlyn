@@ -74,13 +74,15 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start)> reported = [];
 
-        void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message)
+        void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message) => ReportFix(descriptor, token, message, null);
+
+        void ReportFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message, TokenFix? fix)
         {
             if (compilation.IsReportable(token)
                 && token.GetLocation() is { } location
                 && reported.Add((location.FilePath, location.Span.Start)))
             {
-                context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
+                context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message).WithFix(fix));
             }
         }
 
@@ -94,7 +96,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
             ImmutableArray<FunctionDeclarationSyntax> functions = [.. program.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>().Where(f => f.Body is not null)];
             CheckSignatures(functions, types, Report);
-            new Walker(program, compilation.GetExpressionTypeBinder(program), types, shaderType, Report).Run(functions);
+            new Walker(program, compilation.GetExpressionTypeBinder(program), types, shaderType, Report, ReportFix).Run(functions);
             CheckVaryingCount(program, shaderType, language.Renderer, Report);
         }
     }
@@ -181,6 +183,10 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
         public bool IsFlat { get; } = declaration.HasModifier("flat");
 
+        /// <summary>flat を書き足す位置 (varying のキーワード)。宣言子が 2 つ以上なら、ほかの変数も変わるので <see langword="null"/>。</summary>
+        public ShaderSyntaxToken? VaryingKeyword { get; } =
+            declaration.Variables.Count() == 1 ? declaration.ModifierTokens.FirstOrDefault(t => t.Text == "varying") : null;
+
         public VaryingStage Stage { get; set; }
     }
 
@@ -200,7 +206,8 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         GodotTypeSystem types,
         string shaderType,
-        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         private readonly bool _fragmentFunctions = FragmentFunctionShaderTypes.Contains(shaderType);
         private readonly bool _discard = DiscardShaderTypes.Contains(shaderType);
@@ -233,8 +240,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             {
                 if (varying.Stage != VaryingStage.Fragment && IntegerTypes.Contains(varying.Type) && !varying.IsFlat)
                 {
-                    report(GodotRuleDescriptors.QualifierNotAllowed, varying.Declarator.NameToken,
-                        $"整数の varying '{varying.Declarator.Name}' には flat が必要です (fragment 関数で書き込むものを除く)。");
+                    reportFix(GodotRuleDescriptors.QualifierNotAllowed, varying.Declarator.NameToken,
+                        $"整数の varying '{varying.Declarator.Name}' には flat が必要です (fragment 関数で書き込むものを除く)。",
+                        TokenFixes.InsertAfter(varying.VaryingKeyword, " flat", "flat を付ける"));
                 }
             }
         }

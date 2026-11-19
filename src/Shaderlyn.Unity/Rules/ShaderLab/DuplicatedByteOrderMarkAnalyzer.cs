@@ -37,8 +37,11 @@ internal sealed class DuplicatedByteOrderMarkAnalyzer : DiagnosticAnalyzer
 
         if (count > 0)
         {
-            // 取り除いた 1 つ目も数える。
-            context.ReportDiagnostic(ShaderLabRuleDescriptors.DuplicatedByteOrderMark, new TextSpan(0, count), count + 1);
+            // 取り除いた 1 つ目も数える。残っている分を消せば、BOM は 1 つになる (Unity が読める形)。
+            TextSpan span = new(0, count);
+            context.ReportDiagnostic(
+                Diagnostic.Create(ShaderLabRuleDescriptors.DuplicatedByteOrderMark, Location.Create(text, span), count + 1)
+                    .WithFix(DiagnosticFix.Replace("重なった BOM を消す", span, string.Empty)));
         }
     }
 }

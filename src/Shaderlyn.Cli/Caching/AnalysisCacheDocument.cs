@@ -92,6 +92,42 @@ internal sealed class CachedDiagnostic
     /// <summary>ヘッダの中の指摘を、解析したファイルから取り込んだ経路。無ければ <see langword="null"/>。</summary>
     [JsonPropertyName("routes")]
     public List<CachedRoute>? Routes { get; set; }
+
+    /// <summary>指摘の直し (<see cref="Core.Diagnostics.Diagnostic.Fixes"/>)。無ければ <see langword="null"/>。</summary>
+    [JsonPropertyName("fixes")]
+    public List<CachedFix>? Fixes { get; set; }
+}
+
+/// <summary>指摘の直し 1 つ (<see cref="Core.Diagnostics.DiagnosticFix"/>)。</summary>
+internal sealed class CachedFix
+{
+    /// <summary>操作の名前。</summary>
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>既定の候補として扱ってよいか。</summary>
+    [JsonPropertyName("preferred")]
+    public bool IsPreferred { get; set; }
+
+    /// <summary>置き換えの並び。</summary>
+    [JsonPropertyName("edits")]
+    public List<CachedEdit> Edits { get; set; } = [];
+}
+
+/// <summary>置き換え 1 つ (<see cref="Core.Diagnostics.TextReplacement"/>)。</summary>
+internal sealed class CachedEdit
+{
+    /// <summary>開始位置。</summary>
+    [JsonPropertyName("start")]
+    public int Start { get; set; }
+
+    /// <summary>長さ。</summary>
+    [JsonPropertyName("length")]
+    public int Length { get; set; }
+
+    /// <summary>置き換える文字列。</summary>
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
 }
 
 /// <summary>ヘッダを取り込んだ経路 1 本 (<see cref="Core.Diagnostics.IncludeRoute"/>)。</summary>

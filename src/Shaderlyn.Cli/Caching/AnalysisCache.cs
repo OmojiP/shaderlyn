@@ -621,6 +621,7 @@ internal sealed class AnalysisCache
     /// <param name="SuggestedReplacement">指摘箇所を置き換える文字列。</param>
     /// <param name="FilePath">指摘箇所がある取り込んだファイル。解析したファイル自身なら <see langword="null"/>。</param>
     /// <param name="Routes">ヘッダの中の指摘を取り込んだ経路。</param>
+    /// <param name="Fixes">指摘の直し。</param>
     private sealed record EntryDiagnostic(
         DiagnosticDescriptor Descriptor,
         int Start,
@@ -629,7 +630,8 @@ internal sealed class AnalysisCache
         bool IsSeverityExplicit,
         string? SuggestedReplacement,
         string? FilePath,
-        ImmutableArray<EntryRoute> Routes = default)
+        ImmutableArray<EntryRoute> Routes = default,
+        ImmutableArray<DiagnosticFix> Fixes = default)
     {
         /// <summary>診断から記録を作る。</summary>
         /// <param name="diagnostic">対象の診断。</param>
@@ -658,7 +660,8 @@ internal sealed class AnalysisCache
                     [.. route.Includes.Select(step => new EntryRouteStep(
                         string.Equals(step.FilePath, rootPath, StringComparison.Ordinal) ? null : step.FilePath,
                         step.Span.Start,
-                        step.Span.Length))]))]);
+                        step.Span.Length))]))],
+                diagnostic.Fixes);
         }
 
         /// <summary>キャッシュファイルの内容から記録を復元する。</summary>
@@ -703,7 +706,25 @@ internal sealed class AnalysisCache
                 diagnostic.IsSeverityExplicit,
                 diagnostic.SuggestedReplacement,
                 filePath,
-                RestoreRoutes(diagnostic.Routes, sources));
+                RestoreRoutes(diagnostic.Routes, sources),
+                RestoreFixes(diagnostic.Fixes));
+        }
+
+        /// <summary>記録した直しを復元する。位置が負のものがあれば、直しは捨てる (指摘は残す)。</summary>
+        private static ImmutableArray<DiagnosticFix> RestoreFixes(List<CachedFix>? fixes)
+        {
+            if (fixes is null || fixes.Any(f => f.Edits.Any(e => e.Start < 0 || e.Length < 0)))
+            {
+                return [];
+            }
+
+            return
+            [
+                .. fixes.Select(f => new DiagnosticFix(
+                    f.Title,
+                    [.. f.Edits.Select(e => new TextReplacement(new TextSpan(e.Start, e.Length), e.Text))],
+                    f.IsPreferred)),
+            ];
         }
 
         /// <summary>記録した経路を復元する。添字が範囲外なら経路は捨てる (指摘は残す)。</summary>
@@ -742,6 +763,14 @@ internal sealed class AnalysisCache
             if (SuggestedReplacement is { } replacement)
             {
                 diagnostic = diagnostic.WithSuggestedReplacement(replacement);
+            }
+
+            if (!Fixes.IsDefault)
+            {
+                foreach (DiagnosticFix fix in Fixes.Where(f => f.Replacements.All(r => r.Span.End <= text.Length)))
+                {
+                    diagnostic = diagnostic.WithFix(fix);
+                }
             }
 
             return Routes.IsDefaultOrEmpty ? diagnostic : diagnostic.WithIncludeRoutes(RestoreRoutes(text.FilePath, loadText));
@@ -809,6 +838,16 @@ internal sealed class AnalysisCache
                 IsSeverityExplicit = IsSeverityExplicit,
                 Message = Descriptor.MessageFormat,
                 SuggestedReplacement = SuggestedReplacement,
+                Fixes = Fixes.IsDefaultOrEmpty
+                    ? null
+                    : [
+                        .. Fixes.Select(f => new CachedFix
+                        {
+                            Title = f.Title,
+                            IsPreferred = f.IsPreferred,
+                            Edits = [.. f.Replacements.Select(r => new CachedEdit { Start = r.Span.Start, Length = r.Span.Length, Text = r.NewText })],
+                        }),
+                    ],
                 Routes = Routes.IsDefaultOrEmpty
                     ? null
                     : [

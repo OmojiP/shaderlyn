@@ -850,7 +850,7 @@ public sealed partial class ShaderLanguageServer
 
         HashSet<string> requested = ReadRequestedDiagnosticIds(message);
         List<CodeActionEdit> actions = [];
-        HashSet<CodeActionEdit> seen = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
 
         foreach (Diagnostic diagnostic in diagnostics)
         {
@@ -866,7 +866,7 @@ public sealed partial class ShaderLanguageServer
 
             foreach (CodeActionEdit action in CodeActionBuilder.Build(document.Text, diagnostic))
             {
-                if (seen.Add(action))
+                if (seen.Add(action.Key))
                 {
                     actions.Add(action);
                 }
@@ -966,13 +966,16 @@ public sealed partial class ShaderLanguageServer
         writer.WriteStartObject("changes");
         writer.WriteStartArray(uri);
 
-        writer.WriteStartObject();
-        writer.WriteStartObject("range");
-        WritePosition(writer, "start", text.GetLinePosition(action.Span.Start));
-        WritePosition(writer, "end", text.GetLinePosition(action.Span.End));
-        writer.WriteEndObject();
-        writer.WriteString("newText", action.NewText);
-        writer.WriteEndObject();
+        foreach (TextReplacement edit in action.Edits)
+        {
+            writer.WriteStartObject();
+            writer.WriteStartObject("range");
+            WritePosition(writer, "start", text.GetLinePosition(edit.Span.Start));
+            WritePosition(writer, "end", text.GetLinePosition(edit.Span.End));
+            writer.WriteEndObject();
+            writer.WriteString("newText", edit.NewText);
+            writer.WriteEndObject();
+        }
 
         writer.WriteEndArray();
         writer.WriteEndObject();

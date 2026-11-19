@@ -46,11 +46,13 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             CompilationUnitSyntax root = program.Tree.Root;
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
 
-            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message)
+            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message) => ReportFix(descriptor, at, message, null);
+
+            void ReportFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message, TokenFix? fix)
             {
                 if (!at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
+                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message).WithFix(fix));
                 }
             }
 
@@ -176,7 +178,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckOverrides(tokens, types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report);
+            CheckOverrides(tokens, types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report, ReportFix);
             CheckCom(tokens, Report);
             CheckCapabilities(tokens, types, root, Report);
             CheckInterfaceMembers(tokens, Report);
@@ -1055,7 +1057,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>インターフェイスの既定の実装と override の対応。</summary>
-    private static void CheckOverrides(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckOverrides(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report, Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && kinds[t.NameToken!.Text] == 3)
             .GroupBy(t => t.NameToken!.Text, StringComparer.Ordinal)
@@ -1193,7 +1195,10 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
                 else if (!marked && required.Any(r => r.Name == method.Name && r.Body is not null && r.ParameterList.Count() == count))
                 {
-                    report(SlangRuleDescriptors.InheritanceAndOverride, method.NameToken, $"'{method.Name}' はインターフェイスの既定の実装を置き換えるので、override を書いてください。");
+                    // 戻り値の型 (その修飾子を含む) の前に書く。関数の修飾子 (public など) の後ろになる。
+                    ShaderSyntaxToken returnType = method.ReturnType.ModifierTokens.FirstOrDefault() ?? method.ReturnType.NameToken;
+                    reportFix(SlangRuleDescriptors.InheritanceAndOverride, method.NameToken, $"'{method.Name}' はインターフェイスの既定の実装を置き換えるので、override を書いてください。",
+                        TokenFixes.InsertBefore(returnType, "override ", "override を付ける"));
                 }
             }
         }

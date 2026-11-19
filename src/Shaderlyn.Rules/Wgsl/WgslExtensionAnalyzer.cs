@@ -163,7 +163,12 @@ internal sealed class WgslExtensionAnalyzer : SemanticRuleAnalyzer
 
                 if (compilation.IsReportable(token) && token.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(WgslRuleDescriptors.ExtensionNotEnabled, location, token.Text, extension));
+                    // 指令は宣言より前ならどこに書いてもよい。最初の宣言 (ほかの指令を含む) の前に入れ、先頭のコメントは残す。
+                    ShaderSyntaxToken? first = root.Declarations.FirstOrDefault()?.DescendantTokens().FirstOrDefault();
+                    string newLine = token.Source.ToString().Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+
+                    context.ReportDiagnostic(Diagnostic.Create(WgslRuleDescriptors.ExtensionNotEnabled, location, token.Text, extension)
+                        .WithFix(TokenFixes.InsertBefore(first, $"enable {extension};{newLine}", $"'enable {extension};' を追加する")));
                 }
             }
         }

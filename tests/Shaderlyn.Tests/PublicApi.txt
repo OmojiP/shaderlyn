@@ -970,6 +970,7 @@ Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Threading.Cancellati
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.Diagnostic)
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
 Shaderlyn.Core.Diagnostics.Diagnostic : sealed class
+Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithFix(Shaderlyn.Core.Diagnostics.DiagnosticFix)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithIncludeRoutes(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute])
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithLocation(Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithSeverity(Shaderlyn.Core.Diagnostics.DiagnosticSeverity)
@@ -978,6 +979,7 @@ Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticDe
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity Severity { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Location Location { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Boolean IsSeverityExplicit { get; }
+Shaderlyn.Core.Diagnostics.Diagnostic :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.DiagnosticFix] Fixes { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute] IncludeRoutes { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Int32 MessageArgumentCount { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.String GetMessage()
@@ -1005,6 +1007,21 @@ Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: static System.Boolean op_Ineq
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.Int32 GetHashCode()
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.String ToString()
+Shaderlyn.Core.Diagnostics.DiagnosticFix : sealed class (System.IEquatable`1[Shaderlyn.Core.Diagnostics.DiagnosticFix])
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: .ctor(System.String, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement], System.Boolean)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: Shaderlyn.Core.Diagnostics.DiagnosticFix <Clone>$()
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Boolean Equals(Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Boolean IsPreferred { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement] Replacements { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.String Title { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Void Deconstruct(out System.String, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement], out System.Boolean)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static Shaderlyn.Core.Diagnostics.DiagnosticFix Insert(System.String, System.Int32, System.String, System.Boolean = True)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static Shaderlyn.Core.Diagnostics.DiagnosticFix Replace(System.String, Shaderlyn.Core.Text.TextSpan, System.String, System.Boolean = True)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static System.Boolean op_Equality(Shaderlyn.Core.Diagnostics.DiagnosticFix, Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static System.Boolean op_Inequality(Shaderlyn.Core.Diagnostics.DiagnosticFix, Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.String ToString()
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Error = 3
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Info = 1
@@ -1033,6 +1050,17 @@ Shaderlyn.Core.Diagnostics.Location :: System.String FilePath { get; }
 Shaderlyn.Core.Diagnostics.Location :: System.String GetLineText()
 Shaderlyn.Core.Diagnostics.Location :: static Shaderlyn.Core.Diagnostics.Location Create(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Diagnostics.Location :: virtual System.String ToString()
+Shaderlyn.Core.Diagnostics.TextReplacement : struct (System.IEquatable`1[Shaderlyn.Core.Diagnostics.TextReplacement])
+Shaderlyn.Core.Diagnostics.TextReplacement :: .ctor(Shaderlyn.Core.Text.TextSpan, System.String)
+Shaderlyn.Core.Diagnostics.TextReplacement :: Shaderlyn.Core.Text.TextSpan Span { get; set; }
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.Boolean Equals(Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.String NewText { get; set; }
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.Void Deconstruct(out Shaderlyn.Core.Text.TextSpan, out System.String)
+Shaderlyn.Core.Diagnostics.TextReplacement :: static System.Boolean op_Equality(Shaderlyn.Core.Diagnostics.TextReplacement, Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: static System.Boolean op_Inequality(Shaderlyn.Core.Diagnostics.TextReplacement, Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.String ToString()
 Shaderlyn.Core.Syntax.SymbolCondition : struct (System.IEquatable`1[Shaderlyn.Core.Syntax.SymbolCondition])
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition And(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition Assume(System.Func`2[System.String,System.Nullable`1[System.Boolean]])

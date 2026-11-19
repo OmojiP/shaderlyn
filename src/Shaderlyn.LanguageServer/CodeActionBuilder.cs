@@ -8,23 +8,25 @@ namespace Shaderlyn.LanguageServer;
 /// エディタが 1 回の操作で適用できる直し 1 つ分。
 /// </summary>
 /// <param name="Title">操作の名前。</param>
-/// <param name="Span">置き換える範囲。</param>
-/// <param name="NewText">置き換える文字列。</param>
+/// <param name="Edits">置き換えの並び。重ならない。</param>
 /// <param name="IsPreferred">既定の候補として扱ってよいか。</param>
-internal readonly record struct CodeActionEdit(string Title, TextSpan Span, string NewText, bool IsPreferred);
+internal readonly record struct CodeActionEdit(string Title, ImmutableArray<TextReplacement> Edits, bool IsPreferred)
+{
+    /// <summary>同じ直しを 1 つにまとめるための鍵。</summary>
+    public string Key => Title + "\n" + string.Join("\n", Edits.Select(e => $"{e.Span.Start}:{e.Span.Length}:{e.NewText}"));
+}
 
 /// <summary>
 /// 指摘に対して提示できる直しを組み立てる。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>直し方が一意に決まるものだけを提示する。</b>
-/// エディタの直しは 1 回の操作で適用され、多くの場合は中身を確かめられない。
-/// 「たぶんこうだろう」を提示すると、誤りが 1 打鍵で広がる。
+/// <b>直しはルールが決める (<see cref="Diagnostic.SuggestedReplacement"/> と <see cref="Diagnostic.Fixes"/>)。</b>
+/// ここでは並べるだけで、メッセージの文面から直し方を読み取らない。
 /// </para>
 /// <para>
 /// 抑制コメントはどの指摘にも提示する。
-/// 直せない事情があるときに、理由を書いて抑制する手段は常に要る。
+/// 直せない事情があるときに、理由を書いて抑制する手段は常に必要である。
 /// </para>
 /// </remarks>
 internal static class CodeActionBuilder
@@ -48,7 +50,15 @@ internal static class CodeActionBuilder
             string shown = replacement.StartsWith('"') ? replacement : $"'{replacement}'";
 
             actions.Add(new CodeActionEdit(
-                $"{shown} に直す", diagnostic.Location.Span, replacement, IsPreferred: true));
+                $"{shown} に直す", [new TextReplacement(diagnostic.Location.Span, replacement)], IsPreferred: true));
+        }
+
+        foreach (DiagnosticFix fix in diagnostic.Fixes)
+        {
+            if (fix.Replacements.All(r => r.Span.End <= text.Length))
+            {
+                actions.Add(new CodeActionEdit(fix.Title, fix.Replacements, fix.IsPreferred));
+            }
         }
 
         actions.Add(CreateSuppression(text, diagnostic));
@@ -83,6 +93,6 @@ internal static class CodeActionBuilder
         string comment = $"{indent}// shaderlyn-disable-next-line {diagnostic.Id}{Environment.NewLine}";
 
         return new CodeActionEdit(
-            $"この行で {diagnostic.Id} を抑制する", insertAt, comment, IsPreferred: false);
+            $"この行で {diagnostic.Id} を抑制する", [new TextReplacement(insertAt, comment)], IsPreferred: false);
     }
 }
