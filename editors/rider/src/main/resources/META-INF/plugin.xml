@@ -1,0 +1,16 @@
+<idea-plugin>
+  <id>dev.shaderlyn.rider</id>
+  <name>Shaderlyn</name>
+  <vendor url="https://github.com/OmojiP/shaderlyn">OmojiP</vendor>
+  <description><![CDATA[
+    Unity・Unreal Engine・Godot・Slang・WGSL などのシェーダーの誤りを、エディタで指摘します。
+    Rider 自身のシェーダーの支援 (補完・ホバーなど) はそのまま使い、Shaderlyn の指摘とコードアクションを加えます。
+  ]]></description>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.lsp</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <platform.lsp.integrationProvider implementation="dev.shaderlyn.rider.ShaderlynLspIntegrationProvider"/>
+  </extensions>
+</idea-plugin>

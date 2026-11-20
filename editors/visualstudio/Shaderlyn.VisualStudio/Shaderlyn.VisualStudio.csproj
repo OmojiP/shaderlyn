@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Visual Studio 拡張 (VisualStudio.Extensibility。Visual Studio の外のプロセスで動く)。
+
+    言語サーバー (shaderlyn-lsp.exe) を起こして、指摘とコードアクションを Visual Studio に出す。
+    言語サーバーは同梱する。ShaderlynServerDirectory に、publish した言語サーバーのフォルダーを渡す
+    (dotnet publish src/Shaderlyn.LanguageServer.App -r win-x64 の出力)。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
+    <RootNamespace>Shaderlyn.VisualStudio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">
+    <Content Include="$(ShaderlynServerDirectory)\shaderlyn-lsp.exe">
+      <Link>server\shaderlyn-lsp.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
+</Project>
