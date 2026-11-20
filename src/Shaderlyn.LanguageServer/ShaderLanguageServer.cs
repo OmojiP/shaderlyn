@@ -221,6 +221,7 @@ public sealed partial class ShaderLanguageServer
             case "initialize":
                 _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
+                _languageFeatures = ReadLanguageFeaturesOption(message);
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
 
@@ -1462,6 +1463,23 @@ public sealed partial class ShaderLanguageServer
            && options.TryGetProperty("inactiveRegions", out JsonElement requested)
            && requested.ValueKind == JsonValueKind.True;
 
+    /// <summary>ホバー・補完などの言語の機能を名乗るかどうか。</summary>
+    /// <remarks>
+    /// Rider のように、エディタ自身がシェーダーの言語の機能を持つ場合がある。
+    /// 同じ位置にホバーや補完が 2 つずつ出ないよう、そのエディタには指摘とコードアクションだけを名乗る。
+    /// </remarks>
+    private bool _languageFeatures = true;
+
+    /// <summary>言語の機能を名乗るかを、初期化の要求から読む。</summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <returns><c>languageFeatures</c> が <see langword="false"/> のときだけ <see langword="false"/>。指定が無ければ名乗る。</returns>
+    private static bool ReadLanguageFeaturesOption(JsonElement message)
+        => !(message.TryGetProperty("params", out JsonElement parameters)
+             && parameters.TryGetProperty("initializationOptions", out JsonElement options)
+             && options.ValueKind == JsonValueKind.Object
+             && options.TryGetProperty("languageFeatures", out JsonElement requested)
+             && requested.ValueKind == JsonValueKind.False);
+
     /// <summary>
     /// 処理が例外で終わったことを、エディタの出力へ記録する。
     /// </summary>
@@ -1551,8 +1569,13 @@ public sealed partial class ShaderLanguageServer
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
+    /// <para>
     /// スクリプトの同期は全文で受け取る。差分で受け取っても、
     /// 解析は毎回全文を見るため組み立て直す手間が増えるだけである。
+    /// </para>
+    /// <para>
+    /// 初期化の設定で <c>languageFeatures: false</c> を受け取ったら、指摘とコードアクションだけを名乗る (<see cref="_languageFeatures"/>)。
+    /// </para>
     /// </remarks>
     private async Task RespondInitializeAsync(JsonElement message, CancellationToken cancellationToken)
     {
@@ -1567,26 +1590,30 @@ public sealed partial class ShaderLanguageServer
 
             // 1 = Full。全文を毎回受け取る。
             writer.WriteNumber("textDocumentSync", 1);
-            writer.WriteBoolean("hoverProvider", true);
-            writer.WriteBoolean("definitionProvider", true);
-            writer.WriteBoolean("referencesProvider", true);
-            writer.WriteBoolean("renameProvider", true);
 
-            writer.WriteStartObject("completionProvider");
-            writer.WriteStartArray("triggerCharacters");
-            writer.WriteStringValue(".");
+            if (_languageFeatures)
+            {
+                writer.WriteBoolean("hoverProvider", true);
+                writer.WriteBoolean("definitionProvider", true);
+                writer.WriteBoolean("referencesProvider", true);
+                writer.WriteBoolean("renameProvider", true);
 
-            // # を打った時点で指令の名前を出す (CompletionPlaces)。
-            writer.WriteStringValue("#");
-            writer.WriteEndArray();
-            writer.WriteEndObject();
+                writer.WriteStartObject("completionProvider");
+                writer.WriteStartArray("triggerCharacters");
+                writer.WriteStringValue(".");
 
-            writer.WriteStartObject("signatureHelpProvider");
-            writer.WriteStartArray("triggerCharacters");
-            writer.WriteStringValue("(");
-            writer.WriteStringValue(",");
-            writer.WriteEndArray();
-            writer.WriteEndObject();
+                // # を打った時点で指令の名前を出す (CompletionPlaces)。
+                writer.WriteStringValue("#");
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+
+                writer.WriteStartObject("signatureHelpProvider");
+                writer.WriteStartArray("triggerCharacters");
+                writer.WriteStringValue("(");
+                writer.WriteStringValue(",");
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
 
             writer.WriteStartObject("codeActionProvider");
             writer.WriteStartArray("codeActionKinds");

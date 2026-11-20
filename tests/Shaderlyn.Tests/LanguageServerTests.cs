@@ -71,6 +71,42 @@ public sealed class LanguageServerTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 言語の機能を名乗らない設定では指摘とコードアクションだけを名乗る(bool languageFeatures)
+    {
+        await using LanguageServerHarness harness = new();
+
+        await harness.SendAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "initialize",
+            @params = new { capabilities = new { }, initializationOptions = new { languageFeatures } },
+        });
+        JsonDocument initialize = await harness.ReceiveAsync();
+        JsonElement capabilities = initialize.RootElement.GetProperty("result").GetProperty("capabilities");
+
+        string[] names = [.. capabilities.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)];
+        string[] diagnosticsOnly = ["codeActionProvider", "diagnosticProvider", "textDocumentSync"];
+
+        if (languageFeatures)
+        {
+            Assert.Superset(diagnosticsOnly.ToHashSet(), names.ToHashSet());
+            Assert.Contains("hoverProvider", names);
+        }
+        else
+        {
+            Assert.Equal(diagnosticsOnly, names);
+        }
+
+        // 名乗る機能を絞っても、指摘は同じように返す。
+        await harness.OpenAsync(BrokenShader);
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsAsync();
+        Assert.Equal("SL1021", diagnostics[0].GetProperty("code").GetString());
+    }
+
     [Fact]
     public async Task 編集のたびにShaderLab単体の指摘を返す()
     {
