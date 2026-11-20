@@ -161,7 +161,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  * 条件が外れて効いていない範囲を薄く表示する。
  *
  * `#ifdef` の中が効いているかどうかは、シンボルの定義を追わなければ分からない。
- * 効いていないコードを直しても何も変わらないので、見ただけで区別できるようにする。
+ * 効いていないコードを修正しても何も変わらないので、見ただけで区別できるようにする。
  */
 class InactiveRegionDecorator implements vscode.Disposable {
   /** URI ごとの、最後に受け取った範囲。エディタを開き直したときに付け直すために持つ。 */
@@ -432,7 +432,7 @@ function pickSymbols(
       const repaired = repairSelection(selection, previous, items, byName, requiresOne, allConfigurations);
 
       if (repaired !== undefined) {
-        // 直した結果もこの通知を呼ぶが、そのときは直すところが無く `undefined` が返る。
+        // 修正した結果もこの通知を呼ぶが、そのときは修正するところが無く `undefined` が返る。
         previous = new Set(repaired);
         quickPick.selectedItems = repaired;
         return;
@@ -456,9 +456,9 @@ function pickSymbols(
 }
 
 /**
- * 実在しない構成になっていれば、選択を直したものを返す。
+ * 実在しない構成になっていれば、選択を修正したものを返す。
  *
- * 直す必要が無ければ `undefined` を返す。
+ * 修正する必要が無ければ `undefined` を返す。
  *
  * - 同じ行で 2 つ以上選ばれたら、**今選んだもの**を残して他を外す
  * - どれか 1 つが必ず有効な行が空になったら、**直前に選ばれていたもの**へ戻す

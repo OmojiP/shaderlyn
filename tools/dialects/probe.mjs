@@ -5,7 +5,7 @@
 //   node tools/dialects/probe.mjs <fxc> <dxc>       # コンパイラを指定する
 //
 // 結果を表にして出し、Shaderlyn が持つ表 (src/Shaderlyn.Hlsl/Parsing/HlslDialect.cs の HlslLanguageFeatures.Of) と
-// 食い違えば終了コード 1 で終わる。下の expected はその表を写したもの。表を変えたら両方を直す。
+// 食い違えば終了コード 1 で終わる。下の expected はその表を写したもの。表を変えたら両方を更新する。
 //
 // コンパイラを入れ替えたとき (DXC の版を上げたときなど) に、表がまだ正しいかを確かめるために使う。
 // テストからは呼ばない (コンパイラがある環境は限られる)。

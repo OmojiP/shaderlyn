@@ -31,7 +31,7 @@ public sealed partial record DiagnosticDescriptor
     /// </param>
     /// <param name="category">分類 (例: <c>Correctness</c>、<c>Naming</c>、<c>Usage</c>)。</param>
     /// <param name="defaultSeverity">設定による上書きが無い場合の重要度。</param>
-    /// <param name="description">ルールの詳細説明。何が問題でどう直すかを書く。</param>
+    /// <param name="description">ルールの詳細説明。何が問題でどう修正するかを書く。</param>
     /// <param name="helpLinkUri">詳細ドキュメントへの URL。</param>
     /// <exception cref="ArgumentException">
     /// <paramref name="id"/> が規定の書式に合わない場合、

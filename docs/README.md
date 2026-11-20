@@ -30,12 +30,12 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 
 1. [自作ルールの作り方](custom-rules/tutorial.md) — プロジェクトの用意から、最初のルールを CLI とエディタで動かすまで
 2. [自作ルールの書き方の手引き](custom-rules/guide.md) — ShaderLab を見るルール、集計、セマンティックモデル、ルールを書くときの原則
-3. [ルールの実例集](custom-rules/cookbook.md) — そのまま使えるか、写して直せる例
+3. [ルールの実例集](custom-rules/cookbook.md) — そのまま使えるか、写して書き換えられる例
 4. [ルール API リファレンス](custom-rules/api-reference.md) — 型とメンバーの一覧
 
 ## 開発に参加する人
 
-shaderlyn 自体のコードを直す人向けです。
+shaderlyn 自体のコードを変更する人向けです。
 
 1. [貢献の手引き](../CONTRIBUTING.md) — ビルド、テスト、ルールを追加するときに揃えるもの
 2. [解析の流れ](internals/architecture.md) — CLI と言語サーバーが診断を返すまでの処理

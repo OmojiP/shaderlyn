@@ -182,14 +182,14 @@ internal static class UnityRuleDescriptors
         id: "UN0102",
         title: "取り込みをシェーダーからの相対で見つけています",
         messageFormat: "'{0}' はこのファイルからは見つからず、取り込んでいるシェーダーからの相対で見つけています。"
-            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に直してください。",
+            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に書き換えてください。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "ヘッダ (.hlsl など) の中の #include \"...\" が、そのヘッダからの相対では見つからず、"
             + "ヘッダを取り込んでいるシェーダー (.shader) からの相対で見つかりました。"
             + "Unity はヘッダから見つからないとシェーダーから探し直すので、このシェーダーではコンパイルできます。"
             + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
-            + "ヘッダからの相対パスに直してください。",
+            + "ヘッダからの相対パスに書き換えてください。",
         helpLinkUri: DocumentationLinks.For("UN0102"));
     /// <summary>キーワードの構成が <c>#error</c> に到達する。</summary>
     /// <remarks>

@@ -46,7 +46,7 @@ internal static class SemanticRuleDescriptors
             + "対応検査 (SL1001 / SL1002 / SL1004 / URP0001 / URP0002) は実行していません。"
             + "include を解決できていない場合は、Unity プロジェクトのパスを --unity-project で"
             + "指定すると解決できる場合があります。"
-            + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを直してください。",
+            + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを修正してください。",
         helpLinkUri: DocumentationLinks.For("CF0101"));
 
     /// <summary>シンボルの経路を調べきれていない。</summary>

@@ -229,6 +229,6 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 ## 関連
 
 - [自作ルールの作り方](tutorial.md) — プロジェクトの用意から、CLI とエディタで動かすまで
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
 - [ルール API リファレンス](api-reference.md) — 型とメンバーの一覧
 - [トラブルシューティング「自作ルール」](../guide/troubleshooting.md#自作ルール) — 指摘が出ない、TOOL0001 / 0005 / 0006 が出る

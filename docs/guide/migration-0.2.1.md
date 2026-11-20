@@ -85,7 +85,7 @@ shaderlyn Assets --unity-project . --write-baseline .shaderlyn-baseline.json
 
 ## 指摘が変わるところ
 
-Unity の振る舞いに合わせて直したので、0.2.0 と指摘が変わることがあります。
+Unity の振る舞いに合わせて修正したので、0.2.0 と指摘が変わることがあります。
 
 - **共通コード片 (`HLSLINCLUDE` / `CGINCLUDE`)**: ファイルの中の同じ種類のものをすべてファイルの順につなぎ、どのコードブロックの前にも置きます
   (Pass より後に書いたものも、別の SubShader のものも)。`CGINCLUDE` は `HLSLPROGRAM` に、`HLSLINCLUDE` は `CGPROGRAM` に入れません。

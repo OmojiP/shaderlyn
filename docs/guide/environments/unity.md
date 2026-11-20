@@ -28,7 +28,7 @@ shaderlyn Assets/Shaders --unity-project .
 `.hlsl` や `.cginc` は単体では成立しない断片であることがあるため、フォルダー指定では解析しません。
 それらのファイルは、取り込んでいるシェーダーの解析の中で、取り込む側の文脈で検査されます。指摘はヘッダの位置に報告されます。
 同じヘッダを取り込むシェーダーが複数あっても 1 件にまとまります。
-Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、直せないので報告しません。
+Unity と外部パッケージのヘッダ (`Library/PackageCache` と Unity Editor に同梱のもの) は、修正できないので報告しません。
 
 ### 解析対象は自分のシェーダーに絞る
 
@@ -161,7 +161,7 @@ Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確認し�
 | `brp` | 共通のルールだけ。BRP だけのルールは追加しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使えます) |
 | `hdrp` | 共通のルールと SRP Batcher の検査 (URP0001 / URP0002) だけ |
 
-どのプロファイルでも、誤検出の報告は直します。
+どのプロファイルでも、報告された誤検出は修正します。
 
 ```bash
 shaderlyn Assets --unity-project . --profile brp

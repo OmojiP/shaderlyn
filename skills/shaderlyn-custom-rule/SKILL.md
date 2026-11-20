@@ -57,7 +57,7 @@ Shaderlyn のルールは、構文木 (AST) とセマンティックモデルを
   https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/tutorial.md
 - 書くときの原則と、セマンティックモデルの使い方:
   https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/guide.md
-- 写して直せる実例 (禁止関数、禁止マクロ、構成ごとの制限、オーバーロード、ShaderLab のタグ):
+- 写して書き換えられる実例 (禁止関数、禁止マクロ、構成ごとの制限、オーバーロード、ShaderLab のタグ):
   https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/cookbook.md
 - 型とメンバーの一覧:
   https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/api-reference.md

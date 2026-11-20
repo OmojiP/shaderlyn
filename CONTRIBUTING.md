@@ -65,7 +65,7 @@ dotnet test
 
   記録と違ったときは、指摘の ID と位置が変わっていないこと (文だけの変更なら) を確認してから、`.received` で記録を置き換えます
 
-## ルールを追加する・直す
+## ルールを追加する・修正する
 
 組み込みルールを追加するときは、次がすべて揃うまでテストが落ちます。
 
@@ -91,7 +91,7 @@ dotnet test
 設計上の判断と採らなかった案は [docs/internals/design-decisions.md](docs/internals/design-decisions.md) にまとめています。
 条件付きコンパイル (シンボル) の扱いの実装仕様は [docs/guide/conditional-compilation.md の付録](docs/guide/conditional-compilation.md#付録-実装の詳細) にあります。
 既存の判断を覆す変更や、新しい仕組みを追加する変更は、まず Issue で相談してください。
-判断が決まったら、そのページを今の実装に合わせて直します。
+判断が決まったら、そのページを今の実装に合わせて更新します。
 
 ## プルリクエスト
 
@@ -109,7 +109,7 @@ dotnet test
 
 手順:
 
-1. [CHANGELOG.md](CHANGELOG.md) の「未リリース」を、出すバージョンと日付の見出しに直してコミットする
+1. [CHANGELOG.md](CHANGELOG.md) の「未リリース」を、出すバージョンと日付の見出しに変えてコミットする
 2. `git tag v0.1.0` のようにタグを打ち、`git push origin v0.1.0` で push する
 
 NuGet へは Trusted Publishing で公開します。API キーは保存しません。最初のリリースの前に次を用意してください。

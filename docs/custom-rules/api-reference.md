@@ -222,7 +222,7 @@ new DiagnosticDescriptor(
     messageFormat: "'{0}' は使えません。",
     category: "Usage",
     defaultSeverity: DiagnosticSeverity.Warning,
-    description: "なぜ駄目で、どう直すか。",
+    description: "なぜ駄目で、どう修正するか。",
     helpLinkUri: "https://example.com/MY0001");
 ```
 
@@ -588,7 +588,7 @@ Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプライ�
 #### 報告してよいノードか
 
 **指摘を報告する前に `IsReportable(node)` を確認してください。** Unity や外部パッケージのヘッダのコードや、
-それらのマクロが作ったコードを指摘しても、利用者には直しようがありません。
+それらのマクロが作ったコードを指摘しても、利用者には修正できません。
 
 ```csharp
 if (!context.Compilation.IsReportable(node))
@@ -879,7 +879,7 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 | `IsComplete`                   | 条件を追えなかった箇所が 1 つも無いか                                    |
 
 **構成によって起きる誤りは、起きる構成を添えて報告してください。** 組み込みルールはこの形で書いています。
-シンボルの構成はどれもいつか通るコードなので、1 つの構成でしか起きない誤りも直すべき誤りです。
+シンボルの構成はどれもいつか通るコードなので、1 つの構成でしか起きない誤りも修正すべき誤りです。
 黙っていると、そのシンボルを有効にしたときだけ現れる不具合になります。
 
 判定は条件の演算で書きます。たとえば「呼んでいる関数の定義が無い構成があるか」(CF0311) は、
@@ -968,7 +968,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ```
 
 **巻き上げた範囲は、ソース上の位置で見分けられません。**
-複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に直すと `_A` の複製と `!_A` の複製が重なります。
+複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に変換すると `_A` の複製と `!_A` の複製が重なります。
 複製ごとにトークンは別のインスタンスなので、見分けるにはトークンそのもので比較してください。
 
 ノードがどの条件で存在するかを知りたいだけなら、この範囲を読まずに `ConditionMap.GetCondition(node)` を使ってください。
@@ -1046,6 +1046,6 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ## 関連
 
 - [自作ルールの作り方](tutorial.md) — 手順と、書くときの原則
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
 - [条件付きコンパイルの扱い](../guide/conditional-compilation.md) — 出現条件がどう作られるか
 - [設定ファイル](../guide/configuration.md)

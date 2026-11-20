@@ -413,7 +413,7 @@ publish した実行ファイルを VS Code から使う手順は [VS Code 拡�
 
 ## 関連
 
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
 - [CI に組み込む](../guide/ci-setup.md) — 自作ルール入りのツールをリリースし、CI で使う方法
 - [ルール API リファレンス](api-reference.md) — 型とメンバーの一覧
 - [設計判断「配布と拡張」](../internals/design-decisions.md#配布と拡張) — なぜ C# で書き、DLL を動的に読み込まないか
