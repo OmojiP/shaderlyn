@@ -43,6 +43,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 修正
 
+- 言語サーバー: 応える処理のない `diagnosticProvider` (指摘を要求で返す機能) を名乗っていたのをやめた。
+  指摘は `textDocument/publishDiagnostics` の通知で送る。名乗っていると、要求で指摘を取りに来るエディタ (Visual Studio など) には `null` が返り、指摘が表示されなかった
+- 言語サーバー: 文書の同期 (`textDocumentSync`) を、数値ではなく開く・閉じる・保存の通知を明示した形で名乗る。
+  数値だけでは、Visual Studio がファイルを開いた・閉じたの通知を送らず、指摘が出なかった
 - VS Code 拡張: 同梱の `brace-expansion` を 2.1.8 に更新した。2.1.4 には、細工したパターンで CPU を使い切らせる脆弱性
   (GHSA-q2hr-2g5m-vwhr・GHSA-qhr7-859c-m2p7・GHSA-6j4f-fj2g-mc7p) があった。拡張がこのパッケージに渡すのは拡張自身が書いたパターンだけなので、影響は無いと考えられる
 

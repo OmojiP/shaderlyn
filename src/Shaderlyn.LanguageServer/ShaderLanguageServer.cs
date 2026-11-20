@@ -1588,8 +1588,15 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("result");
             writer.WriteStartObject("capabilities");
 
-            // 1 = Full。全文を毎回受け取る。
-            writer.WriteNumber("textDocumentSync", 1);
+            // 開く・閉じる・保存の通知を受け取り、変更は全文で受け取る (change: 1 = Full)。
+            // 数値だけ (textDocumentSync: 1) で名乗ると、Visual Studio は開く・閉じるの通知 (didOpen・didClose) を送らない。
+            writer.WriteStartObject("textDocumentSync");
+            writer.WriteBoolean("openClose", true);
+            writer.WriteNumber("change", 1);
+            writer.WriteStartObject("save");
+            writer.WriteBoolean("includeText", false);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
 
             if (_languageFeatures)
             {
@@ -1621,11 +1628,8 @@ public sealed partial class ShaderLanguageServer
             writer.WriteEndArray();
             writer.WriteEndObject();
 
-            writer.WriteStartObject("diagnosticProvider");
-            writer.WriteBoolean("interFileDependencies", false);
-            writer.WriteBoolean("workspaceDiagnostics", false);
-            writer.WriteEndObject();
-
+            // 指摘は textDocument/publishDiagnostics で送る。diagnosticProvider (要求で取りに来る方式) は名乗らない。
+            // 名乗ると、Visual Studio は要求だけで指摘を取りに来て、通知の指摘を表示しない。
             writer.WriteEndObject();
 
             writer.WriteStartObject("serverInfo");

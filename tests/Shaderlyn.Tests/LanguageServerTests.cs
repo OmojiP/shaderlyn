@@ -49,11 +49,13 @@ public sealed class LanguageServerTests
         await harness.SendAsync(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { capabilities = new { } } });
         JsonDocument initialize = await harness.ReceiveAsync();
 
-        // 全文で同期する (1 = Full) と申告する。差分で受け取っても解析は毎回全文を見る。
-        Assert.Equal(
-            1,
-            initialize.RootElement.GetProperty("result").GetProperty("capabilities")
-                .GetProperty("textDocumentSync").GetInt32());
+        // 全文で同期する (change: 1 = Full) と申告する。差分で受け取っても解析は毎回全文を見る。
+        // 開く・閉じる・保存の通知も明示する。数値だけで名乗ると、Visual Studio は開く・閉じるの通知を送らない。
+        JsonElement sync = initialize.RootElement.GetProperty("result").GetProperty("capabilities")
+            .GetProperty("textDocumentSync");
+        Assert.True(sync.GetProperty("openClose").GetBoolean());
+        Assert.Equal(1, sync.GetProperty("change").GetInt32());
+        Assert.False(sync.GetProperty("save").GetProperty("includeText").GetBoolean());
 
         await harness.OpenAsync(BrokenShader);
         JsonElement diagnostics = await harness.ReceiveDiagnosticsAsync();
@@ -89,7 +91,7 @@ public sealed class LanguageServerTests
         JsonElement capabilities = initialize.RootElement.GetProperty("result").GetProperty("capabilities");
 
         string[] names = [.. capabilities.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)];
-        string[] diagnosticsOnly = ["codeActionProvider", "diagnosticProvider", "textDocumentSync"];
+        string[] diagnosticsOnly = ["codeActionProvider", "textDocumentSync"];
 
         if (languageFeatures)
         {
@@ -100,6 +102,9 @@ public sealed class LanguageServerTests
         {
             Assert.Equal(diagnosticsOnly, names);
         }
+
+        // 指摘は通知で送る。要求で取りに来る方式を名乗ると、Visual Studio が通知の指摘を表示しない。
+        Assert.DoesNotContain("diagnosticProvider", names);
 
         // 名乗る機能を絞っても、指摘は同じように返す。
         await harness.OpenAsync(BrokenShader);
