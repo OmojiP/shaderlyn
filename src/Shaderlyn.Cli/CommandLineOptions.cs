@@ -28,6 +28,22 @@ internal enum OutputFormat
 }
 
 /// <summary>
+/// 修正の適用のしかた (<c>--fix</c> / <c>--fix-dry-run</c>)。
+/// </summary>
+[Flags]
+internal enum FixMode
+{
+    /// <summary>修正しない。既定値。</summary>
+    None = 0,
+
+    /// <summary>修正をファイルに書き込み、書き込んだ後のファイルを解析し直して報告する。</summary>
+    Write = 1,
+
+    /// <summary>書き込まずに、適用する修正の差分を表示する。</summary>
+    DryRun = 2,
+}
+
+/// <summary>
 /// コマンドライン引数の解析結果。
 /// </summary>
 /// <remarks>
@@ -306,6 +322,17 @@ internal sealed class CommandLineOptions
     /// <summary>使い方を表示するかどうか。</summary>
     public bool ShowHelp { get; private set; }
 
+    /// <summary>修正をファイルに書き込むか、差分を表示するか (<c>--fix</c> / <c>--fix-dry-run</c>)。</summary>
+    public FixMode Fix { get; private set; }
+
+    /// <summary>
+    /// 修正するルールの ID (<c>--fix-rule</c>)。空ならすべてのルール。
+    /// </summary>
+    /// <remarks>
+    /// 指定したルールは、既定の候補でない修正も、候補が 1 つだけなら適用する (<see cref="Fixing.FixPlan"/>)。
+    /// </remarks>
+    public ImmutableArray<string> FixRuleIds { get; private set; } = [];
+
     /// <summary>バージョンを表示するかどうか。</summary>
     public bool ShowVersion { get; private set; }
 
@@ -324,6 +351,8 @@ internal sealed class CommandLineOptions
             ["--timings"] = o => o.ReportTimings = true,
             ["--env"] = o => o.ShowEnvironment = true,
             ["--yes"] = o => o.AssumeYes = true,
+            ["--fix"] = o => o.Fix |= FixMode.Write,
+            ["--fix-dry-run"] = o => o.Fix |= FixMode.DryRun,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -357,6 +386,7 @@ internal sealed class CommandLineOptions
             ["--inspect"] = (o, v) => Set(() => o.InspectOutputPath = v),
             ["--unreal-generate"] = (o, v) => Set(() => o.UnrealGenerateOutputPath = v),
             ["--unity-generate"] = (o, v) => Set(() => o.UnityGenerateOutputPath = v),
+            ["--fix-rule"] = ReadFixRules,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -380,7 +410,7 @@ internal sealed class CommandLineOptions
 
         CommandLineOptions parsed = new() { ShowHelp = args.Length == 0 };
 
-        error = Read(parsed, args);
+        error = Read(parsed, args) ?? CheckFixOptions(parsed);
 
         if (error is null
             && parsed.InputPaths.IsEmpty
@@ -447,6 +477,54 @@ internal sealed class CommandLineOptions
     {
         assign();
         return null;
+    }
+
+    /// <summary><c>--fix-rule</c> の値を読む。カンマで区切って複数を書ける。</summary>
+    /// <param name="parsed">反映する先。</param>
+    /// <param name="value">指定された値。</param>
+    /// <returns>エラーメッセージ。受け取れた場合は <see langword="null"/>。</returns>
+    private static string? ReadFixRules(CommandLineOptions parsed, string value)
+    {
+        string[] ids = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (ids.Length == 0)
+        {
+            return "--fix-rule にはルール ID を指定してください (例: --fix-rule SG0102,GD0101)。";
+        }
+
+        parsed.FixRuleIds = parsed.FixRuleIds.AddRange(ids.Select(id => id.ToUpperInvariant()));
+        return null;
+    }
+
+    /// <summary>修正のオプションの組み合わせを確認する。</summary>
+    /// <param name="parsed">解析した指定。</param>
+    /// <returns>エラーメッセージ。問題が無ければ <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <b>ファイルを書き換える指定なので、ほかの動作と組み合わせたときの意味が決まらないものはエラーにする。</b>
+    /// 例えば <c>--write-baseline</c> と組み合わせると、修正の前と後のどちらの指摘を記録するのかが決まらない。
+    /// </remarks>
+    private static string? CheckFixOptions(CommandLineOptions parsed)
+    {
+        if (parsed.Fix == (FixMode.Write | FixMode.DryRun))
+        {
+            return "--fix と --fix-dry-run は同時に指定できません。";
+        }
+
+        if (parsed.Fix == FixMode.None)
+        {
+            return parsed.FixRuleIds.IsEmpty ? null : "--fix-rule は --fix か --fix-dry-run と一緒に指定してください。";
+        }
+
+        string option = parsed.Fix == FixMode.Write ? "--fix" : "--fix-dry-run";
+        string? conflicting =
+            parsed.WriteBaselinePath is not null ? "--write-baseline"
+            : parsed.InspectOutputPath is not null ? "--inspect"
+            : parsed.ShowEnvironment ? "--env"
+            : parsed.UnityGenerateOutputPath is not null ? "--unity-generate"
+            : parsed.UnrealGenerateOutputPath is not null ? "--unreal-generate"
+            : null;
+
+        return conflicting is null ? null : $"{option} は {conflicting} と同時に指定できません。";
     }
 
     /// <summary><c>--format</c> の値を読む。</summary>
@@ -582,6 +660,14 @@ internal sealed class CommandLineOptions
           --annotate             出力形式とは別に、ワークフローコマンドによる注釈も標準出力へ書きます。
                                  --format sarif --output <パス> --annotate とすることで、
                                  1 回の解析で SARIF の生成と PR への注釈を同時に行えます。
+          --fix                  既定の候補の修正をファイルに書き込み、書き込んだ後のファイルを解析し直して報告します。
+                                 修正するのは解析の対象のファイルだけで、取り込んだヘッダは書き換えません。
+                                 BOM・エンコーディング・改行の書き方は変えません。
+          --fix-dry-run          書き込まずに、--fix で適用する修正を unified diff で表示します。
+                                 適用する修正があれば終了コード 1 を返します。
+          --fix-rule <ID[,ID…]>  修正するルールを絞ります。複数回指定できます。
+                                 指定したルールは、既定の候補でない修正 (SL1003 の型の修正など) も、
+                                 候補が 1 つだけなら適用します。
           --timings              解析の内訳 (構文解析・展開・ルール) を標準エラーへ出します。
                                  どの処理に時間がかかっているかを測定するための機能です。
           --list-rules           実装されている全ルールを一覧表示します。

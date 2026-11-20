@@ -11,15 +11,15 @@ using Shaderlyn.Unity;
 namespace Shaderlyn.Tests;
 
 /// <summary>
-/// ルールが添える直し (<see cref="Core.Diagnostics.DiagnosticFix"/>) を、言語サーバーのコードアクションとして受け取り、当ててみる。
+/// ルールが添える修正 (<see cref="Core.Diagnostics.DiagnosticFix"/>) を、言語サーバーのコードアクションとして受け取り、当ててみる。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>当てた後の文と、当てた後にその指摘が消えることの両方を確かめる。</b>
-/// 文だけを比べると、直したつもりで別の誤りを作る直し (差し込む位置のずれなど) を見逃す。
+/// <b>当てた後の文と、当てた後にその指摘が消えることの両方を確認する。</b>
+/// 文だけを比べると、修正したつもりで別の誤りを作る修正 (差し込む位置のずれなど) を見逃す。
 /// </para>
 /// <para>
-/// 指摘が消えたかは CLI で解析し直して確かめる。言語サーバーは構文の結果と意味解析の結果を 2 回に分けて送るので、
+/// 指摘が消えたかは CLI で解析し直して確認する。言語サーバーは構文の結果と意味解析の結果を 2 回に分けて送るので、
 /// 「来ない」ことを通知で待つと、意味解析の前の通知を見て通ってしまう。
 /// </para>
 /// </remarks>
@@ -78,7 +78,7 @@ public sealed class CodeFixTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Fixes))]
-    public async Task 直しを当てると指摘が消える(string fileName, string ruleId, string title, string source, string expected, bool preferred)
+    public async Task 修正を当てると指摘が消える(string fileName, string ruleId, string title, string source, string expected, bool preferred)
     {
         string path = Path.Combine(_workDirectory, fileName);
         await using LanguageServerHarness harness = new(documentUri: LanguageServer.DocumentUri.FromFilePath(path));
@@ -101,15 +101,15 @@ public sealed class CodeFixTests : IDisposable
     }
 
     /// <summary>
-    /// 重なった BOM を消す直し (UN0002)。ファイルから読んだときのテキストで確かめる。
+    /// 重なった BOM を消す修正 (UN0002)。ファイルから読んだときのテキストで確認する。
     /// </summary>
     /// <remarks>
     /// <see cref="SourceText"/> は先頭の U+FEFF を 1 つ取り除くので、残っているのが重なった分である。
     /// 言語サーバーが受け取る文はエディタが BOM を外した後のものだが、そこからもう 1 つ取り除いてしまうため、
-    /// 言語サーバーでは UN0002 が出ない (別の不具合。この直しの試験はファイルの側で行う)。
+    /// 言語サーバーでは UN0002 が出ない (別の不具合。この修正の試験はファイルの側で行う)。
     /// </remarks>
     [Fact]
-    public void 重なったBOMを消す直しを添える()
+    public void 重なったBOMを消す修正を添える()
     {
         SourceText text = SourceText.From("﻿﻿﻿Shader \"A\" { SubShader { Pass { } } }\n", Path.Combine("Assets", "A.shader"));
         ShaderCompilation compilation = UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), new SemanticsOptions(), new UnityOptions());

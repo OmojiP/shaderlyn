@@ -254,21 +254,21 @@ new DiagnosticDescriptor(
 | `GetMessage()`                                | 引数を埋めた最終的なメッセージ                        |
 | `MessageArgumentCount`                        | 渡された引数の数                                      |
 | `WithSuggestedReplacement(text)`              | 置き換え候補を添える。エディタが 1 回の操作で適用する |
-| `WithFix(fix)` / `Fixes`                      | 直し (`DiagnosticFix`) を添える・読む。指摘の範囲の外も書き換えられる |
+| `WithFix(fix)` / `Fixes`                      | 修正 (`DiagnosticFix`) を添える・読む。指摘の範囲の外も書き換えられる |
 | `WithSeverity(...)` / `WithLocation(...)`     | 差し替えた複製を返す                                  |
 
 `Diagnostic.Create(descriptor, location, args...)` でも作れます。
 
 ### `DiagnosticFix` と `TextReplacement`
 
-指摘の直し 1 つです。エディタはコードアクション (クイックフィックス) として出します。
+指摘の修正 1 つです。エディタはコードアクション (クイックフィックス) として出します。
 
 | メンバー | |
 | --- | --- |
 | `Title` | 操作の名前 (「static を付ける」など)。エディタのメニューに出る |
 | `Replacements` | 置き換え (`TextReplacement(span, newText)`) の並び。位置は指摘と同じファイルの中。互いに重ならないこと |
-| `IsPreferred` | 既定の候補として扱ってよいか。直した後に指摘が消え、意味が書き手の意図から変わらないものだけを `true` にする |
-| `DiagnosticFix.Insert(title, position, text)` / `DiagnosticFix.Replace(title, span, text)` | 置き換え 1 つの直しを作る |
+| `IsPreferred` | 既定の候補として扱ってよいか。修正した後に指摘が消え、意味が書き手の意図から変わらないものだけを `true` にする |
+| `DiagnosticFix.Insert(title, position, text)` / `DiagnosticFix.Replace(title, span, text)` | 置き換え 1 つの修正を作る |
 
 ```csharp
 context.ReportDiagnostic(
@@ -276,7 +276,7 @@ context.ReportDiagnostic(
         .WithFix(DiagnosticFix.Insert("static を付ける", constToken.Span.Start, "static ")));
 ```
 
-マクロの展開から来たトークン (`IsFromMacroExpansion`) の位置は、マクロの使用箇所か定義を指します。そこを書き換えるとほかのコードが壊れるので、直しを添えないでください。
+マクロの展開から来たトークン (`IsFromMacroExpansion`) の位置は、マクロの使用箇所か定義を指します。そこを書き換えるとほかのコードが壊れるので、修正を添えないでください。
 
 ### `Location` と `TextSpan`
 

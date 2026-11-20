@@ -883,7 +883,7 @@ public sealed class LanguageServerTests
         JsonElement fix = actions[0];
 
         Assert.Contains("Opaque", fix.GetProperty("title").GetString()!, StringComparison.Ordinal);
-        Assert.True(fix.GetProperty("isPreferred").GetBoolean());
+        Assert.False(fix.GetProperty("isPreferred").GetBoolean());
 
         // 引用符を含む範囲を指しているので、引用符ごと置き換えられなければならない。
         JsonElement edit = fix.GetProperty("edit").GetProperty("changes")

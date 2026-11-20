@@ -99,18 +99,18 @@ internal sealed class PropertyUniformAnalyzer : SemanticRuleAnalyzer
         return true;
     }
 
-    /// <summary>uniform の型の成分の数を、プロパティの型に合わせる直しを作る。</summary>
+    /// <summary>uniform の型の成分の数を、プロパティの型に合わせる修正を作る。</summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="property">対象のプロパティ。</param>
     /// <param name="uniform">対応する uniform。</param>
-    /// <returns>作った直し。作れない場合は <see langword="null"/>。</returns>
+    /// <returns>作った修正。作れない場合は <see langword="null"/>。</returns>
     /// <remarks>
     /// <para>
     /// 成分の型 (float・half など) は変えず、成分の数だけを変える。Color と Vector は 4 成分、数のプロパティはスカラーにする。
-    /// テクスチャの種類の食い違いは、どの型にするか (Texture2D か Cg 記法の sampler2D か) が決まらないので直しを作らない。
+    /// テクスチャの種類の食い違いは、どの型にするか (Texture2D か Cg 記法の sampler2D か) が決まらないので修正を作らない。
     /// </para>
     /// <para>
-    /// <b>直す位置は、指摘と同じ .shader の中の、書き手が書いた型の名前だけにする。</b>
+    /// <b>書き換える位置は、指摘と同じ .shader の中の、書き手が書いた型の名前だけにする。</b>
     /// HLSL は .shader を写したテキストの上で解析していて、位置は元のファイルと同じである (<see cref="Diagnostic.WithLocation"/>)。
     /// ヘッダの中の宣言・マクロで書いた宣言・1 つの宣言に変数が 2 つ以上あるもの (型を変えるとほかの変数も変わる) は直さない。
     /// </para>

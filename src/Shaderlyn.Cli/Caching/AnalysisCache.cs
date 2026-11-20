@@ -21,7 +21,7 @@ namespace Shaderlyn.Cli.Caching;
 /// <para>
 /// <b>鍵に取り込むファイル一式を含めるのが要点である。</b>
 /// シェーダー自身が変わっていなくても、取り込んでいるヘッダが変われば結果は変わる。
-/// 取り込むファイル一式を見ないキャッシュは「ヘッダを直したのに指摘が消えない」あるいは
+/// 取り込むファイル一式を見ないキャッシュは「ヘッダを修正したのに指摘が消えない」あるいは
 /// 「ヘッダを壊したのに指摘が出ない」という、静的解析として最悪の壊れ方をする。
 /// </para>
 /// <para>
@@ -621,7 +621,7 @@ internal sealed class AnalysisCache
     /// <param name="SuggestedReplacement">指摘箇所を置き換える文字列。</param>
     /// <param name="FilePath">指摘箇所がある取り込んだファイル。解析したファイル自身なら <see langword="null"/>。</param>
     /// <param name="Routes">ヘッダの中の指摘を取り込んだ経路。</param>
-    /// <param name="Fixes">指摘の直し。</param>
+    /// <param name="Fixes">指摘の修正。</param>
     private sealed record EntryDiagnostic(
         DiagnosticDescriptor Descriptor,
         int Start,
@@ -710,7 +710,7 @@ internal sealed class AnalysisCache
                 RestoreFixes(diagnostic.Fixes));
         }
 
-        /// <summary>記録した直しを復元する。位置が負のものがあれば、直しは捨てる (指摘は残す)。</summary>
+        /// <summary>記録した修正を復元する。位置が負のものがあれば、修正は捨てる (指摘は残す)。</summary>
         private static ImmutableArray<DiagnosticFix> RestoreFixes(List<CachedFix>? fixes)
         {
             if (fixes is null || fixes.Any(f => f.Edits.Any(e => e.Start < 0 || e.Length < 0)))

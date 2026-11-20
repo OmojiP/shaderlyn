@@ -1,28 +1,29 @@
 using System.Collections.Immutable;
+using Shaderlyn.Cli.Fixing;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 
 namespace Shaderlyn.LanguageServer;
 
 /// <summary>
-/// エディタが 1 回の操作で適用できる直し 1 つ分。
+/// エディタが 1 回の操作で適用できる修正 1 つ分。
 /// </summary>
 /// <param name="Title">操作の名前。</param>
 /// <param name="Edits">置き換えの並び。重ならない。</param>
 /// <param name="IsPreferred">既定の候補として扱ってよいか。</param>
 internal readonly record struct CodeActionEdit(string Title, ImmutableArray<TextReplacement> Edits, bool IsPreferred)
 {
-    /// <summary>同じ直しを 1 つにまとめるための鍵。</summary>
+    /// <summary>同じ修正を 1 つにまとめるための鍵。</summary>
     public string Key => Title + "\n" + string.Join("\n", Edits.Select(e => $"{e.Span.Start}:{e.Span.Length}:{e.NewText}"));
 }
 
 /// <summary>
-/// 指摘に対して提示できる直しを組み立てる。
+/// 指摘に対して提示できる修正を組み立てる。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>直しはルールが決める (<see cref="Diagnostic.SuggestedReplacement"/> と <see cref="Diagnostic.Fixes"/>)。</b>
-/// ここでは並べるだけで、メッセージの文面から直し方を読み取らない。
+/// <b>修正はルールが決める (<see cref="Diagnostic.SuggestedReplacement"/> と <see cref="Diagnostic.Fixes"/>)。</b>
+/// ここでは並べるだけで、メッセージの文面から修正の方法を読み取らない。
 /// </para>
 /// <para>
 /// 抑制コメントはどの指摘にも提示する。
@@ -32,11 +33,11 @@ internal readonly record struct CodeActionEdit(string Title, ImmutableArray<Text
 internal static class CodeActionBuilder
 {
     /// <summary>
-    /// 指摘に対する直しを列挙する。
+    /// 指摘に対する修正を列挙する。
     /// </summary>
     /// <param name="text">対象のソーステキスト。</param>
     /// <param name="diagnostic">対象の指摘。</param>
-    /// <returns>提示する直し。</returns>
+    /// <returns>提示する修正。</returns>
     public static ImmutableArray<CodeActionEdit> Build(SourceText text, Diagnostic diagnostic)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -44,21 +45,10 @@ internal static class CodeActionBuilder
 
         ImmutableArray<CodeActionEdit>.Builder actions = ImmutableArray.CreateBuilder<CodeActionEdit>();
 
-        if (diagnostic.SuggestedReplacement is { } replacement)
+        // CLI の --fix と JSON・SARIF の出力と、同じ並びを使う。
+        foreach (DiagnosticFix fix in DiagnosticFixes.Collect(diagnostic, text.Length))
         {
-            // 置き換える文字列が既に引用符を持つ場合、さらに囲むと読みにくくなる。
-            string shown = replacement.StartsWith('"') ? replacement : $"'{replacement}'";
-
-            actions.Add(new CodeActionEdit(
-                $"{shown} に直す", [new TextReplacement(diagnostic.Location.Span, replacement)], IsPreferred: true));
-        }
-
-        foreach (DiagnosticFix fix in diagnostic.Fixes)
-        {
-            if (fix.Replacements.All(r => r.Span.End <= text.Length))
-            {
-                actions.Add(new CodeActionEdit(fix.Title, fix.Replacements, fix.IsPreferred));
-            }
+            actions.Add(new CodeActionEdit(fix.Title, fix.Replacements, fix.IsPreferred));
         }
 
         actions.Add(CreateSuppression(text, diagnostic));
@@ -66,11 +56,11 @@ internal static class CodeActionBuilder
     }
 
     /// <summary>
-    /// 抑制コメントを差し込む直しを作る。
+    /// 抑制コメントを差し込む修正を作る。
     /// </summary>
     /// <param name="text">対象のソーステキスト。</param>
     /// <param name="diagnostic">対象の指摘。</param>
-    /// <returns>作った直し。</returns>
+    /// <returns>作った修正。</returns>
     /// <remarks>
     /// <para>
     /// 指摘の行と同じ字下げでその上の行へ入れる。

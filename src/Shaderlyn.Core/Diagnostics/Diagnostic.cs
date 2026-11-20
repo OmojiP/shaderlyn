@@ -40,10 +40,10 @@ public sealed class Diagnostic
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>直し方が一意に決まる指摘だけが持つ。</b>
+    /// <b>修正の方法が一意に決まる指摘だけが持つ。</b>
     /// スペルミスのように「正しい綴りが分かっている」場合、
     /// その知識はルールの側にしかない。
-    /// メッセージの文面から読み取らせると、文面を変えるたびに直しが壊れる。
+    /// メッセージの文面から読み取らせると、文面を変えるたびに修正が壊れる。
     /// </para>
     /// <para>
     /// <see cref="Location"/> の範囲をこの文字列で置き換えれば直る、という約束である。
@@ -53,19 +53,19 @@ public sealed class Diagnostic
     public string? SuggestedReplacement { get; }
 
     /// <summary>
-    /// 指摘の直し。無ければ空。
+    /// 指摘の修正。無ければ空。
     /// </summary>
     /// <remarks>
     /// <see cref="SuggestedReplacement"/> と違い、指摘の範囲の外も書き換えられる (<see cref="DiagnosticFix"/>)。
-    /// エディタは <see cref="SuggestedReplacement"/> とこれの両方を直しとして出す。
+    /// エディタは <see cref="SuggestedReplacement"/> とこれの両方を修正として出す。
     /// </remarks>
     public ImmutableArray<DiagnosticFix> Fixes { get; }
 
     /// <summary>
-    /// 直しを 1 つ添えた複製を返す。
+    /// 修正を 1 つ添えた複製を返す。
     /// </summary>
-    /// <param name="fix">添える直し。置き換えの位置は、この指摘と同じファイルの中のものであること。</param>
-    /// <returns>直しを添えた診断。元の診断は変更しない。</returns>
+    /// <param name="fix">添える修正。置き換えの位置は、この指摘と同じファイルの中のものであること。</param>
+    /// <returns>修正を添えた診断。元の診断は変更しない。</returns>
     public Diagnostic WithFix(DiagnosticFix fix)
     {
         ArgumentNullException.ThrowIfNull(fix);
@@ -141,12 +141,12 @@ public sealed class Diagnostic
     }
 
     /// <summary>
-    /// 直し方を添えた複製を返す。
+    /// 修正の方法を添えた複製を返す。
     /// </summary>
     /// <param name="replacement">指摘箇所を置き換える文字列。</param>
-    /// <returns>直し方を添えた診断。元の診断は変更しない。</returns>
+    /// <returns>修正の方法を添えた診断。元の診断は変更しない。</returns>
     /// <remarks>
-    /// <b>直し方が一意に決まる場合にだけ添えること。</b>
+    /// <b>修正の方法が一意に決まる場合にだけ添えること。</b>
     /// 「たぶんこうだろう」を添えると、
     /// エディタがそれを 1 回の操作で適用できてしまい、誤りが広がる。
     /// </remarks>

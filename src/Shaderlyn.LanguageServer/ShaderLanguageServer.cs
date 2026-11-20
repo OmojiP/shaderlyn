@@ -73,11 +73,11 @@ public sealed partial class ShaderLanguageServer
     private readonly HashSet<string> _checkedGeneratedDirectories = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 直近に送った指摘。直しの提示に使う。
+    /// 直近に送った指摘。修正の提示に使う。
     /// </summary>
     /// <remarks>
-    /// 直しを求められたときに解析し直すと、
-    /// 画面に出ている指摘と食い違う直しを出しうる。送ったものをそのまま覚えておく。
+    /// 修正を求められたときに解析し直すと、
+    /// 画面に出ている指摘と食い違う修正を出しうる。送ったものをそのまま覚えておく。
     /// </remarks>
     private readonly Dictionary<string, ImmutableArray<Diagnostic>> _lastDiagnostics =
         new(StringComparer.Ordinal);
@@ -814,7 +814,7 @@ public sealed partial class ShaderLanguageServer
             environment);
 
     /// <summary>
-    /// 指摘に対する直しを返す。
+    /// 指摘に対する修正を返す。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
@@ -822,7 +822,7 @@ public sealed partial class ShaderLanguageServer
     /// <remarks>
     /// <para>
     /// エディタが要求に添えてくる指摘をそのまま使う。
-    /// こちらで解析し直すと、画面に出ている指摘と食い違う直しを出しうる。
+    /// こちらで解析し直すと、画面に出ている指摘と食い違う修正を出しうる。
     /// </para>
     /// <para>
     /// <b>要求された範囲に重なる指摘だけを見る。</b>
@@ -830,7 +830,7 @@ public sealed partial class ShaderLanguageServer
     /// 抑制コメントは ID だけが見出しに出るので、どれがどこの行のものか区別できない。
     /// </para>
     /// <para>
-    /// 同じ直しは 1 つにまとめる。
+    /// 同じ修正は 1 つにまとめる。
     /// 1 行に同じ ID の指摘が複数あると、抑制コメントの差し込みはすべて同じ編集になる。
     /// </para>
     /// </remarks>
@@ -917,7 +917,7 @@ public sealed partial class ShaderLanguageServer
     /// <remarks>
     /// 端どうしが接しているだけでも重なりとみなす。
     /// 要求はカーソル位置だけの幅 0 の範囲で来ることが多く、
-    /// 名前の直後にカーソルを置いた状態でも直しを出せないと使いにくい。
+    /// 名前の直後にカーソルを置いた状態でも修正を出せないと使いにくい。
     /// </remarks>
     private static bool Overlaps(LinePositionSpan diagnostic, LinePositionSpan requested) =>
         diagnostic.Start.CompareTo(requested.End) <= 0 && requested.Start.CompareTo(diagnostic.End) <= 0;
@@ -946,11 +946,11 @@ public sealed partial class ShaderLanguageServer
         return ids;
     }
 
-    /// <summary>直し 1 つを書き出す。</summary>
+    /// <summary>修正 1 つを書き出す。</summary>
     /// <param name="writer">書き出し先。</param>
     /// <param name="uri">対象のファイルの URI。</param>
     /// <param name="text">対象のソーステキスト。</param>
-    /// <param name="action">書き出す直し。</param>
+    /// <param name="action">書き出す修正。</param>
     private static void WriteCodeAction(
         Utf8JsonWriter writer,
         string uri,

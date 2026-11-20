@@ -93,12 +93,12 @@ internal sealed class CachedDiagnostic
     [JsonPropertyName("routes")]
     public List<CachedRoute>? Routes { get; set; }
 
-    /// <summary>指摘の直し (<see cref="Core.Diagnostics.Diagnostic.Fixes"/>)。無ければ <see langword="null"/>。</summary>
+    /// <summary>指摘の修正 (<see cref="Core.Diagnostics.Diagnostic.Fixes"/>)。無ければ <see langword="null"/>。</summary>
     [JsonPropertyName("fixes")]
     public List<CachedFix>? Fixes { get; set; }
 }
 
-/// <summary>指摘の直し 1 つ (<see cref="Core.Diagnostics.DiagnosticFix"/>)。</summary>
+/// <summary>指摘の修正 1 つ (<see cref="Core.Diagnostics.DiagnosticFix"/>)。</summary>
 internal sealed class CachedFix
 {
     /// <summary>操作の名前。</summary>
@@ -195,7 +195,7 @@ internal sealed class CachedFile
     /// </summary>
     /// <remarks>
     /// <b>これがキャッシュの要点である。</b>
-    /// ヘッダを 1 つ直したら、それを取り込むシェーダーはすべて解析し直さなければならない。
+    /// ヘッダを 1 つ修正したら、それを取り込むシェーダーはすべて解析し直さなければならない。
     /// 解決できなかったパスも記録する。あとからファイルが増えれば結果が変わるためである。
     /// </remarks>
     [JsonPropertyName("includes")]

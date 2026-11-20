@@ -205,8 +205,8 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 - `Cull [_Cull]` のようなプロパティ参照は検証しないでください。実際の値はマテリアル側で決まります
 - 波線はできるだけ狭くしてください。ノード全体ではなく問題のトークンだけを指してください
 - 検査を見送ったなら、そのことを報告する
-- `WithSuggestedReplacement` と、`IsPreferred` を `true` にした `WithFix` は、直し方が一意に決まるときだけ添えてください。
-  エディタが 1 回の操作で適用できてしまうので、推測で添えると誤りが広がります。候補から選んでもらう直しは `IsPreferred` を `false` にします
+- `WithSuggestedReplacement` と、`IsPreferred` を `true` にした `WithFix` は、修正の方法が一意に決まるときだけ添えてください。
+  エディタが 1 回の操作で適用できてしまうので、推測で添えると誤りが広がります。候補から選んでもらう修正は `IsPreferred` を `false` にします
 - `ResolveCall` の `Declaration` が `null` でも「呼ばれていない」とは限りません。
   `Ambiguous` と `Unknown` は「調べたが決められなかった」場合で、
   指摘の根拠にしてよいのは `Resolved` だけです
