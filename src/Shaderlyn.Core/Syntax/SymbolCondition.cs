@@ -130,6 +130,10 @@ public readonly struct SymbolCondition : IEquatable<SymbolCondition>
         if (other.IsAlways) { return this; }
         if (IsNever || other.IsNever) { return Never; }
 
+        // 同じ条件どうしの論理積は自分自身になる。展開すると項の組み合わせを作ってから正規化で吸収し直すことになり、
+        // 入れ子の #if で同じ条件を重ねるたびに確保していた。
+        if (Equals(other)) { return this; }
+
         List<ImmutableArray<SymbolTerm>> terms = [];
 
         foreach (ImmutableArray<SymbolTerm> left in _terms)
