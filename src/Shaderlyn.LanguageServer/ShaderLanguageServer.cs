@@ -222,6 +222,7 @@ public sealed partial class ShaderLanguageServer
                 _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 _languageFeatures = ReadLanguageFeaturesOption(message);
+                _hoverCodeBlocks = ReadHoverCodeBlocksOption(message);
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
 
@@ -483,7 +484,7 @@ public sealed partial class ShaderLanguageServer
 
             writer.WriteStartObject("contents");
             writer.WriteString("kind", "markdown");
-            writer.WriteString("value", result.Markdown);
+            writer.WriteString("value", _hoverCodeBlocks ? result.Markdown : HoverInlineCode.Convert(result.Markdown));
             writer.WriteEndObject();
 
             writer.WriteEndObject();
@@ -1478,6 +1479,23 @@ public sealed partial class ShaderLanguageServer
              && parameters.TryGetProperty("initializationOptions", out JsonElement options)
              && options.ValueKind == JsonValueKind.Object
              && options.TryGetProperty("languageFeatures", out JsonElement requested)
+             && requested.ValueKind == JsonValueKind.False);
+
+    /// <summary>ホバーのコードをコードブロックで書くかどうか。</summary>
+    /// <remarks>
+    /// Visual Studio はコードブロックに「コードのコピー」の見出しを付けて大きく表示する。
+    /// そのエディタには、コードブロックを行内のコードにして返す (<see cref="HoverInlineCode"/>)。
+    /// </remarks>
+    private bool _hoverCodeBlocks = true;
+
+    /// <summary>ホバーのコードをコードブロックで書くかを、初期化の要求から読む。</summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <returns><c>hoverCodeBlocks</c> が <see langword="false"/> のときだけ <see langword="false"/>。指定が無ければコードブロックで書く。</returns>
+    private static bool ReadHoverCodeBlocksOption(JsonElement message)
+        => !(message.TryGetProperty("params", out JsonElement parameters)
+             && parameters.TryGetProperty("initializationOptions", out JsonElement options)
+             && options.ValueKind == JsonValueKind.Object
+             && options.TryGetProperty("hoverCodeBlocks", out JsonElement requested)
              && requested.ValueKind == JsonValueKind.False);
 
     /// <summary>

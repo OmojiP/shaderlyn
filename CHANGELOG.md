@@ -23,6 +23,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - CLI: JSON と SARIF の出力に、指摘の修正を書き出す (JSON は `fixes`、SARIF は `result.fixes`)
 - 言語サーバー: 初期化の設定 (`initializationOptions`) に `languageFeatures: false` を渡すと、指摘とコードアクションだけを名乗る
   (ホバー・補完・定義へ移動・参照・名前の変更・シグネチャを名乗らない)。エディタ自身がシェーダーの補完などを持つ場合に、重ならないようにする
+- 言語サーバー: 初期化の設定に `hoverCodeBlocks: false` を渡すと、ホバーのコードをコードブロックでなく行内のコードで返す。
+  Visual Studio はコードブロックに「コードのコピー」の見出しを付け、1 行の宣言でも大きな枠で表示するため
 - 自作ルール向け: 指摘の範囲の外も書き換えられる修正 (`DiagnosticFix`・`TextReplacement`・`Diagnostic.WithFix`・`Diagnostic.Fixes`)。
   マクロの展開から来たトークンの位置には修正を添えない
 

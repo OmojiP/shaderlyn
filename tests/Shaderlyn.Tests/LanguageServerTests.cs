@@ -832,6 +832,32 @@ public sealed class LanguageServerTests
         Assert.Contains("float", markdown, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task コードブロックを使わない設定ではホバーのコードを行内のコードで返す(bool hoverCodeBlocks)
+    {
+        // Visual Studio はコードブロックに「コードのコピー」の見出しを付けて大きく表示する。
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeAsync(new { hoverCodeBlocks });
+        await harness.OpenAsync(TypedShader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        string markdown = await harness.HoverAsync(TypedShader, "frag");
+
+        if (hoverCodeBlocks)
+        {
+            Assert.StartsWith("```hlsl\nhalf4 frag(", markdown, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("```", markdown, StringComparison.Ordinal);
+            Assert.StartsWith("`half4 frag(", markdown, StringComparison.Ordinal);
+            Assert.Contains("\n\n関数", markdown, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task 答えるものが無くても応答は返す()
     {

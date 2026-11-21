@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.Extensibility.Editor;
 using Microsoft.VisualStudio.Extensibility.LanguageServer;
 using Microsoft.VisualStudio.RpcContracts.LanguageServerProvider;
 using Nerdbank.Streams;
+using Newtonsoft.Json.Linq;
 
 namespace Shaderlyn.VisualStudio;
 
@@ -36,6 +37,16 @@ internal sealed class ShaderlynLanguageServerProvider : LanguageServerProvider
         ],
         BaseDocumentType = LanguageServerBaseDocumentType,
     };
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShaderlynLanguageServerProvider"/> class.
+    /// </summary>
+    public ShaderlynLanguageServerProvider()
+    {
+        // ホバーのコードは行内のコードで受け取る。
+        // Visual Studio はコードブロックに「コードのコピー」の見出しを付け、1 行の宣言でも大きな枠で表示する。
+        LanguageServerOptions.InitializationOptions = new JObject { ["hoverCodeBlocks"] = false };
+    }
 
     /// <inheritdoc/>
     public override LanguageServerProviderConfiguration LanguageServerProviderConfiguration => new(
