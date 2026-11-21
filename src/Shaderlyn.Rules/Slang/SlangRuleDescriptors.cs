@@ -267,7 +267,9 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "変数の型に void を、ビットフィールドに整数でない型か型の幅を超える幅を、列挙型の基の型に整数でない型を、"
-            + "特殊化定数にスカラーでも列挙型でもない型を使用しているか、構造体がフィールドを通して自分を値として含んでいるか、スレッドの番号 (SV_DispatchThreadID など) の仮引数の型が整数の 1 から 3 個の成分でありません。slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218・E41001・E38024) にします。",
+            + "特殊化定数にスカラーでも列挙型でもない型を使用しているか、構造体がフィールドを通して自分を値として含んでいるか、スレッドの番号 (SV_DispatchThreadID など) の仮引数の型が整数の 1 から 3 個の成分でないか、"
+            + "エントリポイントの入力と出力に受け渡せない型 (Atomic・DifferentialPair、ほかのステージの OutputVertices やストリーム、5 以上の大きさの行列など) を使用しています。"
+            + "slangc はコンパイルの誤り (E30009・E31300・E31301・E32000・E31218・E41001・E38024・E38050) にします。",
         helpLinkUri: DocumentationLinks.For("SG0407"));
 
     /// <summary>大きさの決まらない型の使い方の誤り。</summary>

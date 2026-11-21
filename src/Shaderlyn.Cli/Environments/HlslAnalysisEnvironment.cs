@@ -140,7 +140,9 @@ internal sealed class HlslAnalysisEnvironment : IAnalysisEnvironment
             {
                 Name = matched.Length == 1 ? null : entriesAreUnique ? unit.Entry : $"{unit.Entry ?? "unit"}#{index + 1}",
                 ExtraMacros = unit.Defines.IsEmpty ? null : SemanticsSetup.ApplyDefines(ImmutableDictionary<string, string>.Empty, unit.Defines),
-                EntryPoints = unit.Entry is { } entry ? [new ShaderEntryPoint(entry, EntryOrigin)] : [],
+                EntryPoints = unit.Entry is { } entry
+                    ? [new ShaderEntryPoint(entry, EntryOrigin, Stage: HlslShaderTarget.TryParse(unit.Target, out HlslShaderTarget? stageTarget) && stageTarget.Value.Stage != HlslShaderStage.Library ? stageTarget.Value.Stage : null)]
+                    : [],
                 Target = HlslShaderTarget.TryParse(unit.Target, out HlslShaderTarget? target) ? target : null,
                 AllowsExternalDefinitions = target is null || target.Value.Stage == HlslShaderStage.Library,
                 Variants = unit.Symbols is { } symbols ? BuildVariants(_configuration, symbols) : null,

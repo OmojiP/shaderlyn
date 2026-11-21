@@ -1571,13 +1571,14 @@ Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Boolean
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.String ToString()
 Shaderlyn.Semantics.Environments.ShaderEntryPoint : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint])
-Shaderlyn.Semantics.Environments.ShaderEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null, System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage] = null)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Semantics.Environments.ShaderEntryPoint <Clone>$()
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Boolean Equals(Shaderlyn.Semantics.Environments.ShaderEntryPoint)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage] Stage { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Name { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Origin { get; set; }
-Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location, out System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage])
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: virtual System.Boolean Equals(System.Object)

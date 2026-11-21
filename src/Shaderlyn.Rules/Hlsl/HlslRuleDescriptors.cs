@@ -48,6 +48,38 @@ internal static class HlslRuleDescriptors
             + "このコンパイル単位はコンパイルできず、シェーダー全体が使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0301"));
 
+    /// <summary>システム値のセマンティクスを、そのステージの入力または出力に使用できない。</summary>
+    /// <remarks>
+    /// 使用できるかは、FXC・DXC・slangc に掛けて作った表 (<c>SystemValueSemantics.g.txt</c>) で決める。
+    /// 文の <c>{0}</c> は誤りの説明、<c>{1}</c> は誤りにするコンパイラ。
+    /// </remarks>
+    public static DiagnosticDescriptor SystemValueSemanticNotAllowed { get; } = new(
+        id: "CF0302",
+        title: "システム値のセマンティクスをそのステージで使用できません",
+        messageFormat: "{0} ({1} がエラーにします)",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "SV_ で始まるセマンティクス (システム値) は、使用できるステージと向き (入力か出力か) が決まっています。"
+            + "SV_Depth はピクセルシェーダーの出力、SV_VertexID は頂点シェーダーの入力、SV_DispatchThreadID はコンピュートシェーダーなどの入力にだけ使用できます。"
+            + "エントリポイントの仮引数・戻り値と、そこで受け渡す構造体のフィールドを検査します。",
+        helpLinkUri: DocumentationLinks.For("CF0302"));
+
+    /// <summary>メッシュシェーダーのエントリポイントに、必要な属性か出力が欠けている。</summary>
+    /// <remarks>
+    /// <c>[outputtopology]</c> が無いことと、<c>out vertices</c> などが大きさを書いた配列でないことは DXC 1.8 と slangc 2026.19 がエラーにする。
+    /// 頂点とインデックスの出力が無いことは slangc だけがエラーにする。文の <c>{0}</c> は誤りの説明、<c>{1}</c> は誤りにするコンパイラ。
+    /// </remarks>
+    public static DiagnosticDescriptor MeshShaderSignature { get; } = new(
+        id: "CF0303",
+        title: "メッシュシェーダーのエントリポイントに必要なものが欠けています",
+        messageFormat: "{0} ({1} がエラーにします)",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "メッシュシェーダーのエントリポイントには、[outputtopology(\"triangle\")] などの属性と、"
+            + "頂点の出力 (out vertices V verts[3] / OutputVertices<V, 3>) とインデックスの出力 (out indices uint3 tris[1] / OutputIndices<uint3, 1>) が必要です。"
+            + "out vertices などは、大きさを書いた配列にします。",
+        helpLinkUri: DocumentationLinks.For("CF0303"));
+
     /// <summary>cbuffer の中の関数をエントリポイントにしていて、FXC でコンパイルされる。</summary>
     /// <remarks>
     /// FXC は cbuffer の中の関数をエントリポイントにできる。DXC はできない (HL0304)。
@@ -114,6 +146,18 @@ internal static class HlslRuleDescriptors
             + "宣言を #ifdef の中に置き、使用する側をその条件の外に書いた場合に起きます。"
             + "その構成ではコンパイルに失敗し、シェーダーが使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0315"));
+
+    /// <summary>既定値のある仮引数の後ろに、既定値の無い仮引数がある。</summary>
+    /// <remarks>FXC (X3044)・DXC 1.8・slangc 2026.19 (E30704) がエラーにする。</remarks>
+    public static DiagnosticDescriptor MissingDefaultValue { get; } = new(
+        id: "CF0316",
+        title: "既定値のある仮引数の後ろに、既定値のない仮引数があります",
+        messageFormat: "仮引数 '{0}' に既定値がありません。前の仮引数 '{1}' に既定値があるので、後ろの仮引数にもすべて既定値が必要です。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の仮引数に既定値 (= 1.0 など) を書いた場合、その後ろの仮引数にもすべて既定値が必要です。"
+            + "呼び出しで省略できるのは後ろの実引数だけだからです。FXC・DXC・slangc はコンパイルエラーにします。",
+        helpLinkUri: DocumentationLinks.For("CF0316"));
 
     /// <summary>参照している構造体のメンバーが、その構成には存在しない。</summary>
     /// <remarks>
