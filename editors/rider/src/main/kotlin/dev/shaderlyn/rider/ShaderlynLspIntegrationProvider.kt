@@ -62,7 +62,19 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
         override val findReferencesCustomizer: LspFindReferencesCustomizer = LspFindReferencesDisabled
     }
 
+    /**
+     * 起動する言語サーバー。
+     *
+     * 環境変数 `SHADERLYN_SERVER_PATH` に実行ファイルを指定すると、同梱したものの代わりにそれを使う (開発中のサーバーを試すときなど)。
+     * 設定の画面には置かない。設定は .shaderlyn.yaml だけにする方針で、実行ファイルの場所はリポジトリのファイルに書かせない。
+     */
     private fun serverPath(): java.nio.file.Path {
+        System.getenv(SERVER_PATH_VARIABLE)?.takeIf { it.isNotBlank() }?.let { specified ->
+            val path = java.nio.file.Path.of(specified)
+            check(Files.isRegularFile(path)) { "$SERVER_PATH_VARIABLE に指定された言語サーバーが見つかりません: $path" }
+            return path
+        }
+
         val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))
             ?: error("プラグイン $PLUGIN_ID が見つかりません。")
         val executable = if (SystemInfo.isWindows) "shaderlyn-lsp.exe" else "shaderlyn-lsp"
@@ -73,3 +85,6 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
 }
 
 internal const val PLUGIN_ID = "dev.shaderlyn.rider"
+
+/** 同梱したものの代わりに使う言語サーバーを指定する環境変数。 */
+internal const val SERVER_PATH_VARIABLE = "SHADERLYN_SERVER_PATH"

@@ -7,16 +7,26 @@ namespace Shaderlyn.VisualStudio;
 /// 拡張機能に同梱した Shaderlyn のサーバー (server/shaderlyn-lsp.exe) を起動する。
 /// </summary>
 /// <remarks>
-/// 環境変数 <c>SHADERLYN_LSP_LOG</c> にフォルダーを指定すると、やり取りをそこへ書き出す (試作の確認用)。
+/// <para>
+/// 環境変数 <c>SHADERLYN_SERVER_PATH</c> に実行ファイルを指定すると、同梱したものの代わりにそれを起動する (開発中のサーバーを試すときなど)。
+/// 設定の画面には置かない。設定は .shaderlyn.yaml だけにする方針で、実行ファイルの場所はリポジトリのファイルに書かせない。
+/// </para>
+/// <para>
+/// 環境変数 <c>SHADERLYN_LSP_LOG</c> にフォルダーを指定すると、やり取りをそこへ書き出す (確認用)。
+/// </para>
 /// </remarks>
 internal static class ServerProcess
 {
+    /// <summary>同梱したものの代わりに使うサーバーを指定する環境変数。</summary>
+    private const string ServerPathVariable = "SHADERLYN_SERVER_PATH";
+
     /// <summary>サーバーを起動する。実行ファイルがないか起動できなければ <see langword="null"/>。</summary>
     /// <returns>起動したプロセス。</returns>
     public static Process? Start()
     {
-        string directory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        string server = Path.Combine(directory, "server", "shaderlyn-lsp.exe");
+        string server = Environment.GetEnvironmentVariable(ServerPathVariable) is { } specified && !string.IsNullOrWhiteSpace(specified)
+            ? specified
+            : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "server", "shaderlyn-lsp.exe");
 
         if (!File.Exists(server))
         {
