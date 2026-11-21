@@ -45,6 +45,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 修正
 
+- 言語サーバー: ホバーと補完の説明で、エディタが申告した形式 (`contentFormat`・`documentationFormat`) を見るようにした。
+  Markdown を申告しないエディタ (Visual Studio 2022 など) には、プレーンテキストで送る。これまでは常に Markdown で送り、`` ` `` や `**` がそのまま表示されていた
 - 言語サーバー: 応える処理のない `diagnosticProvider` (指摘を要求で返す機能) を名乗っていたのをやめた。
   指摘は `textDocument/publishDiagnostics` の通知で送る。名乗っていると、要求で指摘を取りに来るエディタ (Visual Studio など) には `null` が返り、指摘が表示されなかった
 - 言語サーバー: 文書の同期 (`textDocumentSync`) を、数値ではなく開く・閉じる・保存の通知を明示した形で名乗る。

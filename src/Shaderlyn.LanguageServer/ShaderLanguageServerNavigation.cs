@@ -63,8 +63,8 @@ public sealed partial class ShaderLanguageServer
                     if (item.Documentation is { } documentation)
                     {
                         writer.WriteStartObject("documentation");
-                        writer.WriteString("kind", "markdown");
-                        writer.WriteString("value", documentation);
+                        writer.WriteString("kind", _completionMarkdown ? "markdown" : "plaintext");
+                        writer.WriteString("value", _completionMarkdown ? documentation : MarkdownPlainText.Convert(documentation));
                         writer.WriteEndObject();
                     }
 

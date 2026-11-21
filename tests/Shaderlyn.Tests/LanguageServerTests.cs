@@ -859,6 +859,29 @@ public sealed class LanguageServerTests
     }
 
     [Fact]
+    public async Task Markdownを受け取れないエディタにはホバーをプレーンテキストで返す()
+    {
+        // Visual Studio 2022 はホバーの形式に plaintext だけを申告する。Markdown で送ると記号がそのまま表示される。
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeWithCapabilitiesAsync(new
+        {
+            textDocument = new { hover = new { contentFormat = new[] { "plaintext" } } },
+        });
+        await harness.OpenAsync(TypedShader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        // 10 行目 "            half4 frag(..." の frag の上。
+        using JsonDocument response = await harness.RequestHoverAsync(9, 19);
+        JsonElement contents = response.RootElement.GetProperty("result").GetProperty("contents");
+
+        Assert.Equal("plaintext", contents.GetProperty("kind").GetString());
+        string text = contents.GetProperty("value").GetString()!;
+        Assert.StartsWith("half4 frag(", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("`", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task 答えるものが無くても応答は返す()
     {
         // 要求に id がある以上、空でも返さなければエディタは待ち続ける。

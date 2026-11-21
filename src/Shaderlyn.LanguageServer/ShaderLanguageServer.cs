@@ -223,6 +223,8 @@ public sealed partial class ShaderLanguageServer
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 _languageFeatures = ReadLanguageFeaturesOption(message);
                 _hoverCodeBlocks = ReadHoverCodeBlocksOption(message);
+                _hoverMarkdown = AcceptsMarkdown(message, "hover", "contentFormat");
+                _completionMarkdown = AcceptsMarkdown(message, "completion", "completionItem", "documentationFormat");
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
 
@@ -483,8 +485,16 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("result");
 
             writer.WriteStartObject("contents");
-            writer.WriteString("kind", "markdown");
-            writer.WriteString("value", _hoverCodeBlocks ? result.Markdown : HoverInlineCode.Convert(result.Markdown));
+            if (_hoverMarkdown)
+            {
+                writer.WriteString("kind", "markdown");
+                writer.WriteString("value", _hoverCodeBlocks ? result.Markdown : HoverInlineCode.Convert(result.Markdown));
+            }
+            else
+            {
+                writer.WriteString("kind", "plaintext");
+                writer.WriteString("value", MarkdownPlainText.Convert(result.Markdown));
+            }
             writer.WriteEndObject();
 
             writer.WriteEndObject();
@@ -1497,6 +1507,43 @@ public sealed partial class ShaderLanguageServer
              && options.ValueKind == JsonValueKind.Object
              && options.TryGetProperty("hoverCodeBlocks", out JsonElement requested)
              && requested.ValueKind == JsonValueKind.False);
+
+    /// <summary>ホバーを Markdown で送るかどうか。</summary>
+    /// <remarks>Markdown を表示できないエディタ (Visual Studio 2022 など) には、プレーンテキストにして送る (<see cref="MarkdownPlainText"/>)。</remarks>
+    private bool _hoverMarkdown = true;
+
+    /// <summary>補完の説明を Markdown で送るかどうか。</summary>
+    private bool _completionMarkdown = true;
+
+    /// <summary>
+    /// エディタが Markdown を受け取れるかを、初期化の要求の textDocument の機能から読む。
+    /// </summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <param name="path">textDocument から形式の配列までのプロパティの名前。</param>
+    /// <returns>
+    /// 形式の配列に <c>markdown</c> があれば <see langword="true"/>。
+    /// 配列が無ければ、受け取れるものとして <see langword="true"/> (申告しないエディタの表示を変えない)。
+    /// </returns>
+    private static bool AcceptsMarkdown(JsonElement message, params string[] path)
+    {
+        if (!message.TryGetProperty("params", out JsonElement current)
+            || !current.TryGetProperty("capabilities", out current)
+            || !current.TryGetProperty("textDocument", out current))
+        {
+            return true;
+        }
+
+        foreach (string name in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(name, out current))
+            {
+                return true;
+            }
+        }
+
+        return current.ValueKind != JsonValueKind.Array
+               || current.EnumerateArray().Any(f => f.ValueKind == JsonValueKind.String && f.GetString() == "markdown");
+    }
 
     /// <summary>
     /// 処理が例外で終わったことを、エディタの出力へ記録する。
