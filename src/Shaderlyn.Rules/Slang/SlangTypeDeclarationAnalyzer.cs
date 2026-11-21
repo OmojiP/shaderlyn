@@ -165,7 +165,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 return false;
             }
 
-            CheckTokens(tokens, kinds, VariablesAt, UnconstrainedAt, (a, b) => Derives(a, b) || Derives(b, a), DeclarationSyntaxAnalyzer.IsSlang2026(root), Report);
+            CheckTokens(tokens, kinds, VariablesAt, UnconstrainedAt, (a, b) => Derives(a, b) || Derives(b, a), DeclarationSyntaxAnalyzer.IsSlang2026(root), Report, ReportFix);
             // extension で足されうる型と、既定の実装を足されうるインターフェイスの名前 (extension NAME)。
             HashSet<string> extended = new(StringComparer.Ordinal);
 
@@ -351,7 +351,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<ShaderSyntaxToken, HashSet<string>> unconstrainedAt, Func<string, string, bool> related, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<ShaderSyntaxToken, HashSet<string>> unconstrainedAt, Func<string, string, bool> related, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report, Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -380,7 +380,12 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 if (call || cast)
                 {
-                    report(SlangRuleDescriptors.ClassWithoutNew, token, $"class の {token.Text} の値は new で作ってください (new {token.Text}(…))。");
+                    // 呼び出しの形 (Counter(4)) は、前に new を付けるだけで直る。型変換の形 ((Counter)4) は書き換え方が 1 つに決まらないので、修正を添えない。
+                    reportFix(
+                        SlangRuleDescriptors.ClassWithoutNew,
+                        token,
+                        $"class の {token.Text} の値は new で作ってください (new {token.Text}(…))。",
+                        call ? TokenFixes.InsertBefore(token, "new ", "new を付ける") : null);
                 }
             }
 

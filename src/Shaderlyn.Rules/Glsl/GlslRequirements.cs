@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Shaderlyn.CFamily.Syntax;
 using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
@@ -182,7 +183,7 @@ internal sealed partial class GlslRequirements
         string message = extensions.Count == 1
             ? $"{feature} を使用するには、拡張 {extensions[0]} を有効にしてください (#extension {extensions[0]} : enable)。"
             : $"{feature} を使用するには、拡張 {string.Join("・", extensions)} のどれかを有効にしてください。";
-        Report(GlslRuleDescriptors.NotAvailable, at, message);
+        ReportWithFix(GlslRuleDescriptors.NotAvailable, at, extensions.Count == 1 ? EnableExtensionFix(at, extensions[0]) : null, message);
         return false;
     }
 
@@ -214,8 +215,53 @@ internal sealed partial class GlslRequirements
         }
     }
 
+    /// <summary>
+    /// 拡張を有効にする行 (<c>#extension X : enable</c>) を加える修正を作る。
+    /// </summary>
+    /// <param name="at">報告する位置のトークン。</param>
+    /// <param name="extension">有効にする拡張。</param>
+    /// <returns>修正。作れない場合は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 同じファイルの <c>#version</c> の行の次に加える。<c>#version</c> が無ければファイルの先頭に加える。
+    /// ファイルにその拡張の <c>#extension</c> がすでにある場合は作らない (後ろの行の <c>disable</c> などで打ち消され、指摘が消えないことがある)。
+    /// </remarks>
+    private static DiagnosticFix? EnableExtensionFix(ShaderSyntaxToken at, string extension)
+    {
+        if (!TokenFixes.CanEdit(at) || at.Source is not { } source)
+        {
+            return null;
+        }
+
+        string text = source.Content;
+
+        if (Regex.IsMatch(text, $@"^[ \t]*#[ \t]*extension[ \t]+{Regex.Escape(extension)}\b", RegexOptions.Multiline))
+        {
+            return null;
+        }
+
+        string newLine = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        string directive = $"#extension {extension} : enable";
+        Match version = Regex.Match(text, @"^[ \t]*#[ \t]*version\b[^\r\n]*(\r\n|\n)?", RegexOptions.Multiline);
+
+        (int position, string line) = !version.Success
+            ? (0, directive + newLine)
+            : version.Groups[1].Success
+                ? (version.Index + version.Length, directive + newLine)
+                : (version.Index + version.Length, newLine + directive);
+
+        return DiagnosticFix.Insert($"'{directive}' を追加する", position, line);
+    }
+
     /// <summary>報告する。同じ位置の同じ文は 1 度だけ。報告できない位置 (利用者のファイルでない) なら報告しない。</summary>
     public void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, params object?[] arguments)
+        => ReportWithFix(descriptor, at, null, arguments);
+
+    /// <summary>修正を添えて報告する。同じ位置の同じ文は 1 度だけ。</summary>
+    /// <param name="descriptor">ルール。</param>
+    /// <param name="at">位置のトークン。</param>
+    /// <param name="fix">修正。書き換える位置のファイルが報告の位置と違う場合は添えない。</param>
+    /// <param name="arguments">文の引数。</param>
+    private void ReportWithFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, DiagnosticFix? fix, params object?[] arguments)
     {
         if (!_compilation.IsReportable(at) || at.GetLocation() is not { } location)
         {
@@ -223,6 +269,11 @@ internal sealed partial class GlslRequirements
         }
 
         Diagnostic diagnostic = Diagnostic.Create(descriptor, location, arguments);
+
+        if (fix is not null && ReferenceEquals(at.Source, location.Source))
+        {
+            diagnostic = diagnostic.WithFix(fix);
+        }
 
         if (_reported.Add((location.FilePath, location.Span.Start, diagnostic.GetMessage())))
         {

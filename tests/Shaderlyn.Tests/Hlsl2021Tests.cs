@@ -187,6 +187,67 @@ public sealed class Hlsl2021Tests
         Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning && d.Id != "HL0349");
     }
 
+    /// <summary>
+    /// HL0349 の修正で、&amp;&amp; / || を and() / or() に、?: を select() に書き換え、書き換えた後は報告されないことを検証する。
+    /// 書き換えた後のコードは DXC 1.8 (-HV 2021) でコンパイルできた。
+    /// </summary>
+    [Fact]
+    public void ベクトルへの論理演算子と条件演算子を関数の呼び出しに書き換える()
+    {
+        const string code = """
+            float4 main(float3 a : A, float3 b : B, float1 c : C) : SV_Target
+            {
+                bool3 x = a && b;
+                bool3 y = a || (b > 1);
+                float3 z = a > 0 ? a : b;
+                bool1 w = c && c;
+                return float4(x.x + y.x + z.x + w.x, 0, 0, 1);
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = Analyze(code);
+        DiagnosticFix[] fixes = [.. diagnostics.Where(d => d.Id == "HL0349").Select(d => Assert.Single(d.Fixes))];
+
+        Assert.Equal(4, fixes.Length);
+        Assert.All(fixes, fix => Assert.True(fix.IsPreferred));
+
+        string fixedCode = code;
+
+        foreach (TextReplacement replacement in fixes.SelectMany(f => f.Replacements).OrderByDescending(r => r.Span.Start).ThenByDescending(r => r.Span.End))
+        {
+            fixedCode = fixedCode[..replacement.Span.Start] + replacement.NewText + fixedCode[replacement.Span.End..];
+        }
+
+        Assert.Equal(
+            """
+            float4 main(float3 a : A, float3 b : B, float1 c : C) : SV_Target
+            {
+                bool3 x = and(a, b);
+                bool3 y = or(a, (b > 1));
+                float3 z = select(a > 0, a, b);
+                bool1 w = and(c, c);
+                return float4(x.x + y.x + z.x + w.x, 0, 0, 1);
+            }
+            """,
+            fixedCode);
+        Assert.DoesNotContain(Analyze(fixedCode), d => d.Severity >= DiagnosticSeverity.Warning);
+    }
+
+    /// <summary>演算子の前後にコメントがある場合は、消してしまうので修正を添えない。</summary>
+    [Fact]
+    public void 演算子の前後にコメントがあれば書き換えの修正を添えない()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            float4 main(float3 a : A, float3 b : B) : SV_Target
+            {
+                bool3 x = a /* 左 */ && b;
+                return float4(x.x, 0, 0, 1);
+            }
+            """);
+
+        Assert.Empty(Assert.Single(diagnostics, d => d.Id == "HL0349").Fixes);
+    }
+
     /// <summary>FXC では for の変数をループの後でも使え、ベクトルへの論理演算子は成分ごとに計算することを検証する。</summary>
     [Fact]
     public void FXCではforの変数とベクトルへの論理演算子を報告しない()

@@ -57,6 +57,18 @@ public sealed class CodeFixTests : IDisposable
             true
         },
         {
+            "a.slang", "SG0346", "new を付ける",
+            "class Counter\n{\n    int v;\n    __init(int start) { v = start; }\n}\n\nvoid f()\n{\n    Counter a = Counter(4);\n}\n",
+            "class Counter\n{\n    int v;\n    __init(int start) { v = start; }\n}\n\nvoid f()\n{\n    Counter a = new Counter(4);\n}\n",
+            true
+        },
+        {
+            "a.comp", "GL0001", "'#extension GL_KHR_shader_subgroup_arithmetic : enable' を追加する",
+            "#version 450\nlayout(local_size_x = 64) in;\nlayout(binding = 0) buffer Data { float values[]; };\nvoid main()\n{\n    values[gl_LocalInvocationIndex] = subgroupAdd(values[gl_LocalInvocationIndex]);\n}\n",
+            "#version 450\n#extension GL_KHR_shader_subgroup_arithmetic : enable\nlayout(local_size_x = 64) in;\nlayout(binding = 0) buffer Data { float values[]; };\nvoid main()\n{\n    values[gl_LocalInvocationIndex] = subgroupAdd(values[gl_LocalInvocationIndex]);\n}\n",
+            true
+        },
+        {
             "a.gdshader", "GD0101", "flat を付ける",
             "shader_type spatial;\nvarying int v;\nvoid vertex() { v = 1; }\n",
             "shader_type spatial;\nvarying flat int v;\nvoid vertex() { v = 1; }\n",
