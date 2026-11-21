@@ -1,20 +1,52 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <!--
-    Visual Studio 拡張 (VisualStudio.Extensibility。Visual Studio の外のプロセスで動く)。
+    Visual Studio 拡張 (VSSDK の ILanguageClient。Visual Studio のプロセスの中で MEF で読み込まれる)。
 
-    言語サーバー (shaderlyn-lsp.exe) を起こして、指摘とコードアクションを Visual Studio に出す。
+    言語サーバー (shaderlyn-lsp.exe) を起こして、指摘・コードアクション・ホバーなどを Visual Studio に出す。
     言語サーバーは同梱する。ShaderlynServerDirectory に、publish した言語サーバーのフォルダーを渡す
     (dotnet publish src/Shaderlyn.LanguageServer.App -r win-x64 の出力)。
+
+    VisualStudio.Extensibility の LanguageServerProvider は使わない。
+    Visual Studio 2022 では、起動時にシェーダーのタブが復元されると、拡張機能のサービスが登録される前に
+    言語サーバーの提供元を取りに行って失敗し、そのセッションの間ホバーや指摘が出なくなることがある。
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0-windows8.0</TargetFramework>
+    <TargetFramework>net472</TargetFramework>
     <RootNamespace>Shaderlyn.VisualStudio</RootNamespace>
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <!--
+      Microsoft.VisualStudio.LanguageServer.Client 17.14.60 は、nuget.org に無いバージョンの依存
+      (Microsoft.VisualStudio.Telemetry 17.13.28 など) を指していて、少し新しいバージョンに解決される。
+      これらのアセンブリは Visual Studio のものが使われ、拡張には入れない。
+    -->
+    <NoWarn>$(NoWarn);NU1603</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" />
-    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" />
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.14.60" />
+    <PackageReference Include="Microsoft.VisualStudio.CoreUtility" Version="17.14.275" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest" SubType="Designer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 依存のパッケージから入る。Visual Studio が持っているものを使う。 -->
+    <SuppressFromVsix Include="System.Text.Encodings.Web.dll" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">
@@ -24,5 +56,10 @@
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
   </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- VSIX を作る処理。Microsoft.VSSDK.BuildTools が VSToolsPath を自分の tools フォルダーに向ける。SDK の処理より後に読み込む。 -->
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
 
 </Project>

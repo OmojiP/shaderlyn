@@ -96,10 +96,10 @@ internal static class ServerProcess
             return read;
         }
 
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            int read = await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            await _log.WriteAsync(buffer[..read], cancellationToken).ConfigureAwait(false);
+            int read = await inner.ReadAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+            await _log.WriteAsync(buffer, offset, read, cancellationToken).ConfigureAwait(false);
             await _log.FlushAsync(cancellationToken).ConfigureAwait(false);
             return read;
         }
@@ -111,10 +111,10 @@ internal static class ServerProcess
             _log.Flush();
         }
 
-        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            await inner.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-            await _log.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            await inner.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+            await _log.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
             await _log.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 

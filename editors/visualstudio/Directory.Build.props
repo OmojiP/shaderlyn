@@ -4,9 +4,10 @@
     Visual Studio 拡張のビルド設定。
 
     リポジトリの直下の Directory.Build.props (ライブラリ向け) は読み込まない。
-    拡張は Visual Studio が動かす .NET 8 の上で動き、Native AOT にもしないので、
+    拡張は Visual Studio のプロセスの中 (.NET Framework 4.7.2) で動き、Native AOT にもしないので、
     net10.0・IsAotCompatible・InvariantGlobalization を当てはめられない。
-    バージョンだけは CLI・VS Code 拡張と同じものにする (リリースでは -p:Version で渡す)。
+    バージョンだけは CLI・VS Code 拡張と同じものにする。
+    VSIX のバージョンは source.extension.vsixmanifest の Identity に書く (-p:Version では変わらない)。
   -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
