@@ -116,7 +116,7 @@ internal sealed class GlslBuiltinCallAnalyzer : SemanticRuleAnalyzer
             GlslRuleDescriptors.NotAvailable,
             callee.Identifier,
             name.StartsWith("texture", StringComparison.Ordinal) && GlslKeywords.IsBuiltInType(name)
-                ? $"組み込み関数 '{name}' は、この #version とプロファイルにはありません。texture などを使ってください。"
+                ? $"組み込み関数 '{name}' は、この #version とプロファイルにはありません。texture などを使用してください。"
                 : $"組み込み関数 '{name}' は、この #version とプロファイルにはありません。");
     }
 

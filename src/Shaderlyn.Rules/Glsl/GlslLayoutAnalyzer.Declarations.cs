@@ -384,12 +384,12 @@ internal sealed partial class GlslLayoutAnalyzer
 
             if (qualifiers.FirstOrDefault(t => NonDefaultQualifiers.Contains(t.Text)) is { } qualifier)
             {
-                Place($"型の無い宣言には、補助・メモリ・補間・精度の修飾子 ('{qualifier.Text}') を書けません。");
+                Place($"型が存在しない宣言には、補助・メモリ・補間・精度の修飾子 ('{qualifier.Text}') を書けません。");
             }
 
             if (layout.Has("offset") || layout.Has("align"))
             {
-                Place("型の無い宣言には、offset と align を書けません。ブロックかメンバーに書いてください。");
+                Place("型が存在しない宣言には、offset と align を書けません。ブロックかメンバーに書いてください。");
             }
 
             CheckQualifier(at, layout, storage);
@@ -414,23 +414,23 @@ internal sealed partial class GlslLayoutAnalyzer
                     break;
 
                 default:
-                    Place("型の無い宣言には、記憶域の修飾子 uniform / buffer / in / out / shared のどれかが必要です。");
+                    Place("型が存在しない宣言には、記憶域の修飾子 uniform / buffer / in / out / shared のどれかが必要です。");
                     return;
             }
 
             foreach ((string id, string message) in new[]
             {
-                ("binding", "'binding' は型の無い宣言に書けません。型か変数まで書いた宣言に書いてください。"),
-                ("location", "'location' は型の無い宣言に書けません。変数まで書いた宣言に書いてください。"),
-                ("component", "'component' は型の無い宣言に書けません。変数まで書いた宣言に書いてください。"),
-                ("index", "'index' は型の無い宣言に書けません。変数まで書いた宣言に書いてください。"),
-                ("xfb_offset", "'xfb_offset' は型の無い宣言に書けません。変数まで書いた宣言に書いてください。"),
-                ("push_constant", "'push_constant' は型の無い宣言に書けません。ブロックにだけ書けます。"),
-                ("buffer_reference", "'buffer_reference' は型の無い宣言に書けません。ブロックにだけ書けます。"),
-                ("buffer_type", "'buffer_type' は型の無い宣言に書けません。ブロックにだけ書けます。"),
-                ("constant_id", "'constant_id' は型の無い宣言に書けません。スカラーの const の変数にだけ書けます。"),
-                ("shaderrecordnv", "'shaderRecordNV' は型の無い宣言に書けません。ブロックにだけ書けます。"),
-                ("shaderrecordext", "'shaderRecordEXT' は型の無い宣言に書けません。ブロックにだけ書けます。"),
+                ("binding", "'binding' は型が存在しない宣言に書けません。型か変数まで書いた宣言に書いてください。"),
+                ("location", "'location' は型が存在しない宣言に書けません。変数まで書いた宣言に書いてください。"),
+                ("component", "'component' は型が存在しない宣言に書けません。変数まで書いた宣言に書いてください。"),
+                ("index", "'index' は型が存在しない宣言に書けません。変数まで書いた宣言に書いてください。"),
+                ("xfb_offset", "'xfb_offset' は型が存在しない宣言に書けません。変数まで書いた宣言に書いてください。"),
+                ("push_constant", "'push_constant' は型が存在しない宣言に書けません。ブロックにだけ書けます。"),
+                ("buffer_reference", "'buffer_reference' は型が存在しない宣言に書けません。ブロックにだけ書けます。"),
+                ("buffer_type", "'buffer_type' は型が存在しない宣言に書けません。ブロックにだけ書けます。"),
+                ("constant_id", "'constant_id' は型が存在しない宣言に書けません。スカラーの const の変数にだけ書けます。"),
+                ("shaderrecordnv", "'shaderRecordNV' は型が存在しない宣言に書けません。ブロックにだけ書けます。"),
+                ("shaderrecordext", "'shaderRecordEXT' は型が存在しない宣言に書けません。ブロックにだけ書けます。"),
             })
             {
                 if (layout.Has(id))
@@ -588,11 +588,11 @@ internal sealed partial class GlslLayoutAnalyzer
                 if (shaderLevel)
                 {
                     Invalid(GlslRuleDescriptors.QualifierNotAllowed, entry.Name,
-                        $"'{entry.Name.Text}' は、型の無い宣言 (layout({entry.Name.Text}{(entry.HasValue ? " = …" : string.Empty)}) in; など) にだけ書けます。");
+                        $"'{entry.Name.Text}' は、型が存在しない宣言 (layout({entry.Name.Text}{(entry.HasValue ? " = …" : string.Empty)}) in; など) にだけ書けます。");
                 }
                 else if (id == "primitive_culling")
                 {
-                    Invalid(GlslRuleDescriptors.QualifierNotAllowed, entry.Name, "'primitive_culling' は、型の無い宣言 (layout(primitive_culling);) にだけ書けます。");
+                    Invalid(GlslRuleDescriptors.QualifierNotAllowed, entry.Name, "'primitive_culling' は、型が存在しない宣言 (layout(primitive_culling);) にだけ書けます。");
                 }
             }
         }
@@ -1092,7 +1092,7 @@ internal sealed partial class GlslLayoutAnalyzer
             {
                 if (_r.IsOn("GL_EXT_shader_tile_image", at))
                 {
-                    Place($"'{type.Name}' は GL_EXT_shader_tile_image を有効にしていると使えません。");
+                    Place($"'{type.Name}' は GL_EXT_shader_tile_image を有効にしていると使用できません。");
                 }
 
                 if (!layout.Has("input_attachment_index") && (isArray || !_r.IsOn("GL_EXT_optional_input_attachment_index", at)))
@@ -1205,7 +1205,7 @@ internal sealed partial class GlslLayoutAnalyzer
 
                 if (mismatch is not null)
                 {
-                    Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"イメージの形式 '{format}' は{mismatch}に使えません。");
+                    Invalid(GlslRuleDescriptors.InvalidLayoutValue, at, $"イメージの形式 '{format}' は{mismatch}に使用できません。");
                 }
 
                 if (_r.IsEs && format is not ("r32f" or "r32i" or "r32ui") && !modifiers.Any(m => m.Text is "readonly" or "writeonly"))
@@ -1215,7 +1215,7 @@ internal sealed partial class GlslLayoutAnalyzer
             }
             else if (type.IsImage && !modifiers.Any(m => m.Text == "writeonly") && !bindless)
             {
-                const string feature = "writeonly でも形式 (layout(rgba8) など) の指定も無いイメージ";
+                const string feature = "writeonly でも形式 (layout(rgba8) など) の指定も存在しないイメージ";
                 _r.RequireProfile(at, GlslProfileMask.Core | GlslProfileMask.Compatibility, feature);
                 _r.ProfileRequires(at, GlslProfileMask.Core | GlslProfileMask.Compatibility, 0, ["GL_EXT_shader_image_load_formatted"], feature);
             }

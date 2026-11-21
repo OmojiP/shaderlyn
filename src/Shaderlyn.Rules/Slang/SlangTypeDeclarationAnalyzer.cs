@@ -203,7 +203,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (left is not null && right is not null && unconstrained.Contains(left) && left == right)
                 {
                     Report(SlangRuleDescriptors.WrongOperandTypes, tokens[i],
-                        $"制約の無いジェネリックの型 {left} の値に、{tokens[i].Text} は使えません。{left} に IArithmetic などの制約を付けてください。");
+                        $"制約が存在しないジェネリックの型 {left} の値に、{tokens[i].Text} は使用できません。{left} に IArithmetic などの制約を付けてください。");
                 }
             }
         }
@@ -417,7 +417,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                          && unconstrainedAt(token) is { Count: > 0 } unconstrained
                          && (unconstrained.Contains(before.Text) || (variablesAt(token) is { } known && known.TryGetValue(before.Text, out string? declaredType) && declaredType is not null && unconstrained.Contains(declaredType))))
                 {
-                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"制約の無いジェネリックの型の値に、is でインターフェイス ({target.Text}) を調べられません。");
+                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"制約が存在しないジェネリックの型の値に、is でインターフェイス ({target.Text}) を調べられません。");
                 }
             }
 
@@ -433,7 +433,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 && leftType != right.Text
                 && !related(leftType, right.Text))
             {
-                report(SlangRuleDescriptors.WrongOperandTypes, token, $"{token.Text} は、関わりの無い具体的な型どうし ({leftType} と {right.Text}) には使えません (どちらかがインターフェイスの型でなければなりません)。");
+                report(SlangRuleDescriptors.WrongOperandTypes, token, $"{token.Text} は、関わりがない具体的な型どうし ({leftType} と {right.Text}) には使用できません (どちらかがインターフェイスの型でなければなりません)。");
             }
         }
     }
@@ -741,7 +741,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (allowed.Concat(used).All(a => a.StartsWith("spv", StringComparison.Ordinal)) && used.FirstOrDefault(a => !allowed.Contains(a)) is { } extra)
                 {
                     report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
-                        $"'{implementation.Name}' は、インターフェイスの要件で許されない機能 {extra} を使っています ({string.Join("・", allowed)} だけを使えます)。");
+                        $"'{implementation.Name}' は、インターフェイスの要件で許されない機能 {extra} を使用しています ({string.Join("・", allowed)} だけを使用できます)。");
                 }
             }
         }

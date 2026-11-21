@@ -163,7 +163,7 @@ internal static partial class HoverBuilder
 
         string note = compilation.GetUnity()?.Profile.MaterialConstantBufferName is { } material
                       && string.Equals(buffer.Name, material, StringComparison.Ordinal)
-            ? $"\n\n{compilation.GetUnity()?.Profile.DisplayName} がマテリアルの値に使う定数バッファ。"
+            ? $"\n\n{compilation.GetUnity()?.Profile.DisplayName} がマテリアルの値に使用する定数バッファ。"
               + "ここに入っていない uniform があると SRP Batcher が無効になる。"
             : string.Empty;
 
@@ -189,7 +189,7 @@ internal static partial class HoverBuilder
             .Select(f => $"{f.ReturnType} {name}({string.Join(", ", f.Parameters.Select((p, i) => f.WritesBack[i] ? $"out {p}" : p))})");
         string rest = overloads.Length > MaxListedOverloads ? $"\n\nほかに {overloads.Length - MaxListedOverloads} 個の形がある。" : string.Empty;
         string extensions = overloads.All(f => !f.Extensions.IsEmpty)
-            ? $"\n\n使うには拡張が必要 ({string.Join(", ", overloads.SelectMany(f => f.Extensions).Distinct(StringComparer.Ordinal).Take(3))})。"
+            ? $"\n\n使用するには拡張が必要 ({string.Join(", ", overloads.SelectMany(f => f.Extensions).Distinct(StringComparer.Ordinal).Take(3))})。"
             : string.Empty;
 
         return $"```hlsl\n{string.Join("\n", forms)}\n```\n\n組み込み関数{rest}{extensions}";
@@ -215,7 +215,7 @@ internal static partial class HoverBuilder
         if (types.IsBuiltInTypeName(name))
         {
             HoverResult type = DescribeType(types, name, identifier.Span);
-            return type with { Markdown = type.Markdown + "\n\nこの位置ではコンストラクタとして使われている。" };
+            return type with { Markdown = type.Markdown + "\n\nこの位置ではコンストラクタとして使用されている。" };
         }
 
         // 実際の宣言が見つかるなら、そこから仮引数を取り出す。
@@ -376,9 +376,9 @@ internal static partial class HoverBuilder
         {
             string where = variable.Function switch
             {
-                "constants" => "どこでも使える",
-                "global" => "どの関数でも使える",
-                { } stage => $"{stage} 関数で使える",
+                "constants" => "どこでも使用できる",
+                "global" => "どの関数でも使用できる",
+                { } stage => $"{stage} 関数で使用できる",
             };
             body += $"\n\n{CompletionBuilder.DescribeGodotBuiltin(variable)} ({where})";
         }
@@ -413,10 +413,10 @@ internal static partial class HoverBuilder
         IEnumerable<string> forms = ordered.Take(MaxListedOverloads).Select(SignatureHelpBuilder.FormatGodotBuiltin);
         string rest = ordered.Length > MaxListedOverloads ? $"\n\nほかに {ordered.Length - MaxListedOverloads} 個の形がある。" : string.Empty;
         string highEnd = overloads.All(f => f.HighEnd)
-            ? "\n\nhigh-end の関数。Compatibility のレンダラーでは使えない (Forward+ と Mobile で使える)。"
+            ? "\n\nhigh-end の関数。Compatibility のレンダラーでは使用できない (Forward+ と Mobile で使用できる)。"
             : string.Empty;
         string[] stages = [.. GodotBuiltins.Instance.StageFunctions.Where(f => f.Function.Name == name).Select(f => f.StageFunction).Distinct(StringComparer.Ordinal)];
-        string stage = stages.Length > 0 ? $"\n\n{string.Join(" と ", stages)} 関数の中でだけ使える。" : string.Empty;
+        string stage = stages.Length > 0 ? $"\n\n{string.Join(" と ", stages)} 関数の中でだけ使用できる。" : string.Empty;
 
         return $"```hlsl\n{string.Join("\n", forms)}\n```\n\n組み込み関数{rest}{highEnd}{stage}";
     }

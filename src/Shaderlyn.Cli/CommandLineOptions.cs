@@ -461,7 +461,7 @@ internal sealed class CommandLineOptions
 
             if (arg.StartsWith('-'))
             {
-                return $"不明なオプション '{arg}' が指定されました。--help で使い方を確認してください。";
+                return $"不明なオプション '{arg}' が指定されました。--help で使用方法を確認してください。";
             }
 
             parsed.InputPaths = parsed.InputPaths.Add(arg);

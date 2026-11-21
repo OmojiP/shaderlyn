@@ -44,7 +44,7 @@ internal static class ShaderLabRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "同じ SubShader 内に同名の Pass があります。"
             + "Unity は Pass 名を大文字に正規化して扱うため、大文字小文字だけが異なる名前も重複とみなされます。"
-            + "UsePass で参照した場合にどちらが使われるかは保証されません。",
+            + "UsePass で参照した場合にどちらが使用されるかは保証されません。",
         helpLinkUri: DocumentationLinks.For("SL1041"));
 
     /// <summary>
@@ -66,7 +66,7 @@ internal static class ShaderLabRuleDescriptors
         description: "既知の値によく似た、しかし一致しない値がタグに指定されています。"
             + "Unity はタグ値のスペルミスをエラーにしないため、"
             + "「設定したつもりが反映されていない」という形でしか現れません。"
-            + "意図してその値を使っている場合、この指摘は無視して構いません。",
+            + "意図してその値を使用している場合、この指摘は無視して構いません。",
         helpLinkUri: DocumentationLinks.For("SL1012"));
 
     /// <summary>タグの値が不正。</summary>

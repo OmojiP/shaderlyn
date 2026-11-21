@@ -58,7 +58,7 @@ internal static class AnalysisEnvironments
             if (string.IsNullOrWhiteSpace(host.Name) || !names.Add(host.Name))
             {
                 throw new ArgumentException(
-                    $"環境の名前 '{host.Name}' は使えません。組み込みの環境 ({string.Join(", ", BuiltInNames)}) やほかの環境と重ならない名前にしてください。",
+                    $"環境の名前 '{host.Name}' は使用できません。組み込みの環境 ({string.Join(", ", BuiltInNames)}) やほかの環境と重ならない名前にしてください。",
                     nameof(hosts));
             }
         }

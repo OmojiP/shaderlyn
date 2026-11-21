@@ -154,7 +154,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
             if (KnownNonCoopType(value) is { } other)
             {
-                requirement.Report(HlslRuleDescriptors.ValueNotConvertible, at, target.ToString(), other, "協調行列でない値を、暗黙に協調行列へ変換できません。値の作成 (coopmat<…>(x)) を使ってください。");
+                requirement.Report(HlslRuleDescriptors.ValueNotConvertible, at, target.ToString(), other, "協調行列でない値を、暗黙に協調行列へ変換できません。値の作成 (coopmat<…>(x)) を使用してください。");
             }
         }
 
@@ -216,15 +216,15 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
             {
                 if (left != right)
                 {
-                    Report($"型の違う協調行列 ({left} と {right}) に演算子 '{text}' は使えません。");
+                    Report($"型の違う協調行列 ({left} と {right}) に演算子 '{text}' は使用できません。");
                 }
                 else if (text == "*" && left.Nv)
                 {
-                    Report("NV の協調行列どうしに演算子 '*' は使えません。");
+                    Report("NV の協調行列どうしに演算子 '*' は使用できません。");
                 }
                 else if (text is not ("+" or "-" or "*" or "/"))
                 {
-                    Report($"協調行列に演算子 '{text}' は使えません。");
+                    Report($"協調行列に演算子 '{text}' は使用できません。");
                 }
 
                 return;
@@ -240,7 +240,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
 
             if (text != "*")
             {
-                Report($"協調行列と協調行列でない値 ({other}) に演算子 '{text}' は使えません。");
+                Report($"協調行列と協調行列でない値 ({other}) に演算子 '{text}' は使用できません。");
             }
             else if (other != matrix.Element)
             {
@@ -255,7 +255,7 @@ internal sealed class GlslCooperativeMatrixAnalyzer : SemanticRuleAnalyzer
             => type.Element is "bfloat16_t" or "floate5m2_t" or "floate4m3_t";
 
         private void ReportLimited(ShaderSyntaxToken op, CoopType type)
-            => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, $"要素が {type.Element} の協調行列には、代入のほかの演算子 ('{op.Text}') を使えません。");
+            => requirement.Report(GlslRuleDescriptors.CooperativeMatrixUse, op, $"要素が {type.Element} の協調行列には、代入のほかの演算子 ('{op.Text}') を使用できません。");
 
         /// <summary>
         /// 協調行列の組み込み関数 (glslang の ParseHelper.cpp の coopMatTranspose・coopMatReduce・coopMatPerElement の検査)。

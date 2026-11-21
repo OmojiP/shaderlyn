@@ -378,7 +378,7 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("8", diagnostic.Location.Source.ToString(diagnostic.Location.Span));
         Assert.Contains("ビットフィールド", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("FXC では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("FXC では使用できません", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>

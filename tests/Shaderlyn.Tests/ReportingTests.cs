@@ -649,7 +649,7 @@ public sealed class ReportingTests : IDisposable
         const string marker = "const DATA = ";
         int start = html.IndexOf(marker, StringComparison.Ordinal);
 
-        Assert.True(start >= 0, "ビューアーの HTML に JSON の埋め込み先が無い");
+        Assert.True(start >= 0, "ビューアーの HTML に JSON の埋め込み先が存在しない");
 
         start += marker.Length;
         int end = html.AsSpan(start).IndexOfAny('\r', '\n');

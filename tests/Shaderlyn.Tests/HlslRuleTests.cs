@@ -256,7 +256,7 @@ public sealed class HlslRuleTests
 
         // Unity は警告を出して Pass を外し、SubShader ごと使えなくなる。
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("SubShader ごと使えなくなります", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("SubShader ごと使用できなくなります", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Theory]

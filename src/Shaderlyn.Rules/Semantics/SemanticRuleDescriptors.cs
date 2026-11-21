@@ -41,7 +41,7 @@ internal static class SemanticRuleDescriptors
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "include を解決できなかった、あるいは HLSL の解析に失敗したため、"
-            + "uniform の一覧が不完全です。この状態で「対応する宣言が無い」と報告すると、"
+            + "uniform の一覧が不完全です。この状態で「対応する宣言が存在しない」と報告すると、"
             + "正しく書かれたシェーダーを誤りとして指摘することになるため、"
             + "対応検査 (SL1001 / SL1002 / SL1004 / URP0001 / URP0002) は実行していません。"
             + "include を解決できていない場合は、Unity プロジェクトのパスを --unity-project で"
@@ -75,7 +75,7 @@ internal static class SemanticRuleDescriptors
             + "入れ子や論理積の条件でしか実行されない分岐は、シンボルの組を同時に有効にして展開します。"
             + "ただし展開の件数には上限があります (--max-symbol-variants)。"
             + "上限を超えた分の経路にあるコードは一度も解析していないため、"
-            + "そこにある構文エラーや、そこでしか使われていないプロパティは報告されません。"
+            + "そこにある構文エラーや、そこでしか使用されていないプロパティは報告されません。"
             + "上限を上げると調べられますが、解析時間はシンボルの数に比例して伸びます。",
         helpLinkUri: DocumentationLinks.For("CF0102"));
 

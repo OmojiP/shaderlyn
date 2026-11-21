@@ -68,7 +68,7 @@ public sealed partial class DocumentationLinkTests
 
                     if (!anchors.Contains(anchor))
                     {
-                        broken.Add(where + " (見出しが無い)");
+                        broken.Add(where + " (見出しが存在しない)");
                     }
                 }
             }

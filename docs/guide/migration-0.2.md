@@ -20,18 +20,18 @@
 
 ## 書き換えが必要か
 
-**0.1.1 で出ていた指摘は、ID と位置がそのままです。** ベースラインもそのまま使えます (照合は指摘の出ている行の内容で行い、文は使いません)。
-**文はほとんどの規則で見直しました** ([下記](#指摘の文))。出力の `message` を文字列で照合しているなら、書き換えが必要です。
+**0.1.1 で出ていた指摘は、ID と位置がそのままです。** ベースラインもそのまま使用できます (照合は指摘の出ている行の内容で行い、文は使用しません)。
+**文はほとんどの規則で見直しました** ([下記](#指摘の文))。出力の `message` を文字列で照合している場合は、書き換えが必要です。
 
 パスがどのコンパイラ (FXC / DXC) でコンパイルされるかを判定するようになったので、
 新しく出る指摘と、誤検出として出なくなる指摘があります ([下記](#新しく出る指摘))。
 Unity 同梱のシェーダーでは、指摘の ID と位置は 0.1.1 と同じです (529 件。文だけが変わりました)。
 
-| 使い方 | 書き換え |
+| 使用方法 | 書き換え |
 | --- | --- |
-| CLI・GitHub Action・VS Code 拡張で使っている | 設定ファイルに `profile` を書いていれば、`unity:` の節の下へ移す ([下記](#設定ファイル))。ほかは不要 |
-| 自作ルールを書いている | Unity の情報 (`Properties`・`Pass`・ShaderLab の木・プロファイル) を見ているなら、取得方法を変更する ([下記](#自作ルール)) |
-| 自作ルール入りの CLI・言語サーバーを作っている | 不要。`Program.RunAsync` と `ShaderLanguageServer` の呼び方は 0.1 のまま使える |
+| CLI・GitHub Action・VS Code 拡張で使用している | 設定ファイルに `profile` を書いていれば、`unity:` の節の下へ移す ([下記](#設定ファイル))。ほかは不要 |
+| 自作ルールを書いている | Unity の情報 (`Properties`・`Pass`・ShaderLab の木・プロファイル) を参照している場合は、取得方法を変更する ([下記](#自作ルール)) |
+| 自作ルール入りの CLI・言語サーバーを作っている | 不要。`Program.RunAsync` と `ShaderLanguageServer` の呼び方は 0.1 のまま使用できる |
 
 ## 新しく出る指摘
 
@@ -43,25 +43,25 @@ Unity の環境で、0.2 から出るようになった指摘です。どれも 
 | [HL0346](../rules/CF0406.md) | DXC に届く構造体の `++` / `--` |
 | [HL0348](../rules/HL0348.md) | FXC だけに届く構造体の `++` / `--` (エラーにならず何もしない) |
 | [UN0201](../rules/UN0201.md) | `#pragma use_dxc` / `require` が無視される (`use_dxc d3d12` など) |
-| [UN0203](../rules/UN0203.md) | DX11 で使えなくなるコンパイラの指定 (キーワードの条件の無い、DXC が必要 `require` など) |
+| [UN0203](../rules/UN0203.md) | DX11 で使用できなくなるコンパイラの指定 (キーワードの条件が存在しない、DXC が必要 `require` など) |
 | [UN0204](../rules/UN0204.md) | Unity のバージョンでコンパイラが変わる指定 (`never_use_dxc` と DXC が必要 `require`) |
 | [UN0202](../rules/UN0202.md) | コンパイラの指定についての注意 (Unity のバージョンが分かるときだけ) |
 | [UN0205](../rules/UN0205.md) | 16 ビットの型を有効にしたパスの定数バッファの `half` |
-| [UN0101](../rules/UN0101.md) | `#pragma once` (Unity では効かず、2 度取り込むと再定義のエラーになる) |
-| [UN0001](../rules/UN0001.md) | UTF-16 で保存したファイル (Unity は BOM があっても読めない) |
-| [HL0354](../rules/HL0354.md) | (情報) `for` の初期化で宣言した変数をループの外で使っている (HLSL 2021 へ移せない) |
+| [UN0101](../rules/UN0101.md) | `#pragma once` (Unity では無効で、2 度取り込むと再定義のエラーになる) |
+| [UN0001](../rules/UN0001.md) | UTF-16 で保存したファイル (Unity は BOM があっても読み込めない) |
+| [HL0354](../rules/HL0354.md) | (情報) `for` の初期化で宣言した変数をループの外で使用している (HLSL 2021 へ移せない) |
 
-出なくなる指摘 (0.1 の誤検出): `class` / `interface` の宣言 (どの方言でも使える)、`#pragma use_dxc` などで DXC になるパスの `enum`。
+出なくなる指摘 (0.1 の誤検出): `class` / `interface` の宣言 (どの方言でも使用できる)、`#pragma use_dxc` などで DXC になるパスの `enum`。
 
 数が変わる指摘: 構文エラー (HL0001) は同じ位置に 1 件だけ出します。0.1 では立て直しのたびに同じ位置へ何件も出ることがありました。
 定義されていない関数形式のマクロ (`DECLARE_TEX(_Main);`) は、そのことを伝える 1 件になります。
 
-**対象の API は、既定で DX11 と DX12 です。** DX12 だけのプロジェクトで DX11 についての指摘が報告されるなら、
+**対象の API は、既定で DX11 と DX12 です。** DX12 だけのプロジェクトで DX11 についての指摘が報告される場合は、
 `--unity-project` でプロジェクトを渡すか (`ProjectSettings.asset` の Windows の API を読みます)、設定ファイルに書いてください。
 
 ```yaml
 unity:
-  version: 6.3              # 無ければ ProjectSettings/ProjectVersion.txt から読む
+  version: 6.3              # 書かない場合は ProjectSettings/ProjectVersion.txt から読み取る
   graphics-apis: [dx12]
 ```
 
@@ -73,10 +73,10 @@ unity:
 - 文の終わりを「〜が存在しません」「〜が必要です」のように揃え、修正方法を短く具体的にしました
 - 例 (0.1.1 → 0.2)
   - HL0331: `シンボル '_EMISSION' は宣言されていますが、条件のどこにも現れません。` → `シンボル '_EMISSION' はプリプロセッサ条件で使用されていません。`
-  - HL0312: `float2 に 'z' はありません。使えるのは x, y までです。` → `float2 に成分 z は存在しません。使える成分は x, y です。`
+  - HL0312: `float2 に 'z' はありません。使用できるのは x, y までです。` → `float2 に成分 z は存在しません。使用できる成分は x, y です。`
   - HL0006: `… を有効にした構成は調べていません。このシンボルで分かれる分岐の中は読んでいません。` → `… を有効にした構成は未解析です。`
-  - HL0321 / TOOL0004: 取り込めなかった理由 (プロジェクトの指定が無い、読んでよい範囲の外など) と修正方法を添えます
-  - UN0201: 0.1 の UN0201 のうち、DX11 で使えなくなる指定は [UN0203](../rules/UN0203.md)、
+  - HL0321 / TOOL0004: 取り込めなかった理由 (プロジェクトの指定が存在しない、読み込んでよい範囲の外など) と修正方法を添えます
+  - UN0201: 0.1 の UN0201 のうち、DX11 で使用できなくなる指定は [UN0203](../rules/UN0203.md)、
     バージョンで結果が変わる組み合わせは [UN0204](../rules/UN0204.md) に分けました
 
 テキスト出力では、1 文を 1 行に分けて表示します。JSON / SARIF の `message` は 1 つの文字列のままです。
@@ -106,14 +106,14 @@ unity:
 
 - 出力する指摘を重要度で絞る `--min-severity` と、設定ファイルの [`report: min-severity`](configuration.md#report) を追加しました。
   絞っても終了コードは変わりません (出力しなかった指摘も含めて `--error-on` で決めます)
-- オプションはそのまま使えます。`--profile` / `--unity-project` / `--unity-editor` は Unity の環境だけのものになりましたが、Unity の環境 (既定) では今までどおりです
+- オプションはそのまま使用できます。`--profile` / `--unity-project` / `--unity-editor` は Unity の環境だけのものになりましたが、Unity の環境 (既定) では今までどおりです
 - `--cache` のキャッシュは、ツールが変わったことを見て自動で作り直されます。消す必要はありません
 - GitHub Action の入力もそのままです。Unity 以外の環境のための入力 `environment` が増えました
 
 ## VS Code 拡張
 
 拡張と言語サーバーは一緒に上がります (Marketplace の拡張に同梱)。
-自作の言語サーバーを `shaderlyn.serverPath` で使っているなら、言語サーバーも 0.2 で作り直してください。
+自作の言語サーバーを `shaderlyn.serverPath` で使用している場合は、言語サーバーも 0.2 で作り直してください。
 
 拡張とサーバーのバージョンがずれても、Unity のシェーダーでは今までどおり動きます。
 0.1 の拡張と 0.2 のサーバーの組では、Unity 以外の環境のために追加したもの (`.usf` / `.ush` / `.hlsli` を開くこと、
@@ -150,7 +150,7 @@ Unity 固有の部分を `Shaderlyn.Unity` パッケージへ分けました。
 | `PropertySymbol` / `ShaderPropertyKind` | `Shaderlyn.Semantics.Symbols` | `Shaderlyn.Unity` |
 | `IRenderPipelineProfile` | `Shaderlyn.Semantics.Profiles` | `Shaderlyn.Unity.Profiles` |
 | `ShaderSymbols` | `Shaderlyn.Hlsl.Preprocessing` | `Shaderlyn.Unity` |
-| `SymbolGroup` | `Shaderlyn.Hlsl.Preprocessing` | 無くなった。構成の空間 `program.Variants` (`VariantSpace` / `VariantGroup`、`Shaderlyn.Core.Syntax`) を使う |
+| `SymbolGroup` | `Shaderlyn.Hlsl.Preprocessing` | 無くなった。構成の空間 `program.Variants` (`VariantSpace` / `VariantGroup`、`Shaderlyn.Core.Syntax`) を使用する |
 
 ### 書き換えの例
 
@@ -190,24 +190,24 @@ ShaderCompilation compilation = ShaderCompilation.Create(text, tree, new Semanti
 ShaderCompilation compilation = UnityCompilation.Create(text, tree, new SemanticsOptions(), new UnityOptions { Profile = profile });
 ```
 
-**Unity の情報が無いときに何もしないようにしてください。** 0.2 では、同じルールが Unity 以外の環境でも動きます。
+**Unity の情報が存在しないときに何もしないようにしてください。** 0.2 では、同じルールが Unity 以外の環境でも動きます。
 `GetUnity()` / `GetUnityBlock()` が `null` のときに例外を投げると、その環境のファイルで解析が止まります。
 
 HLSL のコードだけを見るルール (`HlslRuleAnalyzer` で式や宣言を見るもの) は、書き換えなくても動きます。どの環境でも同じように働きます。
 
 ### テスト
 
-`ShaderRuleVerifier` (`Shaderlyn.Testing`) の使い方は変わりません。今までどおり Unity の環境で解析します。
+`ShaderRuleVerifier` (`Shaderlyn.Testing`) の使用方法は変わりません。今までどおり Unity の環境で解析します。
 Unity 以外の環境でルールを確認するときは、`ShaderCompilation.Create` に環境 (`HlslEnvironment` など) を渡してモデルを作り、
 `AnalyzerDriver` で動かします ([API リファレンス「環境」](../custom-rules/api-reference.md#環境))。
 
 ## 自前の CLI と言語サーバー
 
-`Program.RunAsync(args, analyzers, output, error)` と `new ShaderLanguageServer(connection, analyzers)` は 0.1 のまま使えます。
+`Program.RunAsync(args, analyzers, output, error)` と `new ShaderLanguageServer(connection, analyzers)` は 0.1 のまま使用できます。
 独自エンジンの環境を追加するための多重定義が増えました
 ([ルールの実例集「独自エンジンの環境」](../custom-rules/cookbook.md#独自エンジンの環境))。
 
 ## Unity 以外の環境を使い始める
 
-DXC で直接コンパイルする HLSL と Unreal Engine は、[環境ごとの使い方](environments.md) を見てください。
+DXC で直接コンパイルする HLSL と Unreal Engine は、[環境ごとの使用方法](environments.md) を見てください。
 環境ごとの設定ファイルのテンプレートが [samples/environments](../../samples/environments/) にあります。

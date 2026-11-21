@@ -125,7 +125,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
                                                         && OperatorTypes("operator" + binary.OperatorToken.Text).Contains(binder.GetEvaluatorFor(binary.Left).Evaluate(binary.Left) ?? string.Empty)
                                                         && compilation.IsReportable(binary.OperatorToken) && binary.OperatorToken.GetLocation() is { } operatorLocation:
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.DiscardedResult, operatorLocation,
-                        $"演算子 '{binary.OperatorToken.Text}' は [NoDiscard] なので、結果を使ってください。"));
+                        $"演算子 '{binary.OperatorToken.Text}' は [NoDiscard] なので、結果を使用してください。"));
                     break;
 
                 case InvocationExpressionSyntax call:
@@ -140,7 +140,7 @@ internal sealed class SlangStatementAnalyzer : SemanticRuleAnalyzer
                     if (name is not null && marked.Contains(name.Text) && compilation.IsReportable(name) && name.GetLocation() is { } location)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.DiscardedResult, location,
-                            $"'{name.Text}' は [NoDiscard] の関数なので、戻り値を使ってください (使わない場合は、その旨が明確になるように変数に受けてください)。"));
+                            $"'{name.Text}' は [NoDiscard] の関数なので、戻り値を使用してください (使用しない場合は、その旨が明確になるように変数に受けてください)。"));
                     }
 
                     break;

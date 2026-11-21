@@ -164,7 +164,7 @@ internal sealed class SlangUnsizedTypeAnalyzer : SemanticRuleAnalyzer
                                               && !type.TemplateArguments.IsDefault
                                               && type.TemplateArguments is [{ Kind: ShaderSyntaxKind.IdentifierToken } element]
                                               && IsUnsizedStruct(element.Text, 0):
-                        Report(type.NameToken, $"{type.NameToken.Text} の要素に、大きさの決まらない構造体 {element.Text} は使えません。");
+                        Report(type.NameToken, $"{type.NameToken.Text} の要素に、大きさの決まらない構造体 {element.Text} は使用できません。");
                         break;
 
                     // countof(gArr) の gArr が大きさを決めない配列 (E30083)。

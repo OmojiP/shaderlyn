@@ -1,10 +1,10 @@
 # ルールの実例集
 
-書きたいルールに近い例を探すためのページです。例はそのまま使うか、写して書き換えて使えます。
+書きたいルールに近い例を探すためのページです。例はそのまま使用するか、写して書き換えて使用できます。
 ルールの書き方の手順は [自作ルールの作り方](tutorial.md) にあります。
 
 * **実装参照先**: `samples/Shaderlyn.Cookbook/`（1 クラス 1 ファイルです。プロジェクトと名前空間はどちらも `Shaderlyn.Cookbook` です）。
-  公開 API だけで書いてあるので、`Shaderlyn.Semantics` パッケージを参照したプロジェクトにファイルをそのまま入れて使えます。
+  公開 API だけで書いてあるので、`Shaderlyn.Semantics` パッケージを参照したプロジェクトにファイルをそのまま入れて使用できます。
   診断の定義は `CookbookRules.cs` にまとめてあります
 * **テスト参照先**: `CookbookTests.cs`
 * **このページのコード**: 読みやすさのために `using` と診断の定義 (`Rule` など) を省いています。
@@ -48,8 +48,8 @@ return (int)await Program.RunAsync(args, analyzers, Console.Out, Console.Error);
 ### 設定ファイルの `options` から閾値を受け取る
 
 閾値のような数値は、コンストラクタの代わりに `.shaderlyn.yaml` から受け取れます。
-どのオプション名を読むかはルールごとに自分で決めます。読む側を書かないと、設定ファイルに書いても効きません
-（組み込みルールにはオプションを読むものがありません）。
+どのオプション名を読み取るかはルールごとに自分で決めます。読み取る処理を書かないと、設定ファイルに書いても反映されません
+（組み込みルールにはオプションを読み取るものがありません）。
 
 実装は `samples/Shaderlyn.Cookbook/Budget/ParameterCountLimitAnalyzer.cs` にあります。
 
@@ -62,7 +62,7 @@ public sealed class ParameterCountLimitAnalyzer(int defaultMaxParameters = 8) : 
     {
         context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
         {
-            // 設定が無い場合と、数値として読めない場合は既定値へ倒れる
+            // 設定が存在しない場合と、数値として解釈できない場合は既定値へ倒れる
             int maximum = c.Options.GetIntOption(
                 Rule.Id,
                 "maxParameters",
@@ -99,9 +99,9 @@ rules:
 ```
 
 - **値は文字列として渡されます。** 整数は `GetIntOption`、それ以外は `TryGetOption` で受け取って自分で解釈します
-- **読めない値は既定値へ倒します。** 書き間違いは設定の読み込み側が `TOOL0003` で報告します
+- **解釈できない値は既定値へ倒します。** 書き間違いは設定の読み込み側が `TOOL0003` で報告します
 - **向くのは閾値です。** 禁止する名前の一覧のように項目が増えるものは、コンストラクタで渡したほうが型のまま扱えます
-- **ルールの説明に、読むオプション名を書き残してください。** 利用者が設定ファイルに何を書けるかを知る手がかりがそこしかありません
+- **ルールの説明に、読み取るオプション名を書き残してください。** 利用者が設定ファイルに何を書けるかを知る手がかりがそこしかありません
 
 ---
 
@@ -117,12 +117,12 @@ Unity や外部パッケージのヘッダのコードを指摘しても、利�
 | --------------------- | ---------------------------------------------------------- | ------------------------------------------ |
 | `IsReportable(node)`  | 利用者のファイル (このファイルと、利用者が書いて取り込んだヘッダ) に書かれたコードと、それらのファイルが書いたマクロの本体から来たコード | そのコードの位置。マクロの本体から来たコードは本体の位置（`node.GetLocation()` が自動で指す） |
 | `IsWrittenHere(node)` | このファイルに直接書かれたコードだけ                                         | そのコードの位置                                   |
-組み込みルールは `IsReportable` を使っています。`IsWrittenHere` はエディタの操作のための判定で、
-共通のヘッダに書かれたコードを見落とします。同じマクロを何度使っても、報告は本体の 1 か所にまとまります。
+組み込みルールは `IsReportable` を使用しています。`IsWrittenHere` はエディタの操作のための判定で、
+共通のヘッダに書かれたコードを見落とします。同じマクロを何度使用しても、報告は本体の 1 か所にまとまります。
 
 ```hlsl
 #define HELPER_DECL half4 helper() { return undeclared; }
-                                  // ^^^^^^^^^^ IsReportable ならここに報告される
+                                  // ^^^^^^^^^^ IsReportable の場合はここに報告される
 HELPER_DECL
 ```
 
@@ -135,7 +135,7 @@ HELPER_DECL
 
 ### 1. 禁止マクロの検出
 
-マクロはプリプロセス時に展開され構文木（AST）に残らないため、展開前のトークン系列 `ShaderCompilation.CodeTokens` を参照します。
+マクロはプリプロセス時に展開され構文木（AST）に含まれないため、展開前のトークン系列 `ShaderCompilation.CodeTokens` を参照します。
 利用者が書いて取り込んだヘッダの分は `UserIncludeCodeTokens` にあります。こちらのトークンはヘッダを指すので、位置はトークンから作ります。
 
 ```csharp
@@ -245,7 +245,7 @@ internal sealed class TooManyBranchesAnalyzer(int maxElseCount) : ShaderRuleAnal
 「特定のシンボルが定義されている構成では、特定の関数呼び出しを禁じる」といった検査です。
 
 ```csharp
-// Rule の書式: "{0}関数 '{1}' は使えません。"  ({0} に「構成：○○ のとき、」が入る)
+// Rule の書式: "{0}関数 '{1}' は使用できません。"  ({0} に「構成：○○ のとき、」が入る)
 internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function) : ShaderRuleAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
@@ -266,7 +266,7 @@ internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function)
 ```
 
 ```text
-構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。
+構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使用できません。
 ```
 
 - `#ifdef _LOW_QUALITY` の外の呼び出しも、その構成で実行されるので報告します。`#ifndef _LOW_QUALITY` の中の呼び出しは受け取りません
@@ -455,8 +455,8 @@ Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエン
 | --- | --- |
 | `ConfigurePreprocessor` | どの単位にも共通する設定。言語のバージョン、エンジンのコンパイラが定義するマクロ |
 | `PrepareUnit` | 単位ごとの設定。ターゲットで決まるマクロ (`HlslShaderTarget.CreateDxcMacros`) |
-| `ReadDeclaredVariants` / `ReadVariants` | 構成の軸。展開の前 (字句解析しただけのトークン) と後 (取り込んだヘッダの指令も含む) の 2 回読む |
-| `ReadEntryPoints` | エントリポイント。この名前の関数が無ければ CF0301 |
+| `ReadDeclaredVariants` / `ReadVariants` | 構成の軸。展開の前 (字句解析しただけのトークン) と後 (取り込んだヘッダの指令も含む) の 2 回読み取る |
+| `ReadEntryPoints` | エントリポイント。この名前の関数が存在しなければ CF0301 |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (CF0201) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても CF0021 にしない |
 | `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを CF0401 / CF0402 で検査できる |
@@ -530,7 +530,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
             ShaderSyntaxToken name = arguments[0];
             List<int> values = [.. arguments.Skip(1).Select(v => int.TryParse(v.Text, out int n) ? n : -1).Where(n => n >= 0)];
 
-            // 宣言の位置を持たせると、使っていない宣言を CF0202 で報告できる。
+            // 宣言の位置を持たせると、使用していない宣言を CF0202 で報告できる。
             space = space.Union(values.Count >= 2
                 ? VariantSpace.ForValues(name.Text, values, name.GetLocation())
                 : new VariantSpace([new VariantDeclaration(name.Text, VariantSymbolKind.Compiled, name.GetLocation())], []));
@@ -539,7 +539,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
         return space;
     }
 
-    // 字句解析しただけのトークンから #pragma の行を読む。展開の前に構成の軸を知るために使う。
+    // 字句解析しただけのトークンから #pragma の行を読み取る。展開の前に構成の軸を知るために使用する。
     private static IEnumerable<PragmaDirective> ReadPragmas(ImmutableArray<ShaderSyntaxToken> tokens)
     {
         for (int i = 0; i + 2 < tokens.Length; i++)
@@ -587,13 +587,13 @@ environment: myengine
 言語サーバーは `new ShaderLanguageServer(connection, analyzers, [myEngine])` で作ります。
 
 * コンパイル単位は、汎用の HLSL 環境と同じく設定ファイルの `units:` から作ります。当てはまらないファイルは、ファイル全体を 1 つの単位にします
-* 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使うかどうかは環境が決めます
+* 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使用するかどうかは環境が決めます
   (上の例はソースの `#pragma` だけを読みます)
 * 名前は組み込みの環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`) と重ねられません
 
 ## そのほかの実装例
 
-このページに全文を載せていない例も、`samples/Shaderlyn.Cookbook/` に実装とテストがあります。上の 7 例と同じく、コンストラクタに値を渡すだけで使えます。
+このページに全文を載せていない例も、`samples/Shaderlyn.Cookbook/` に実装とテストがあります。上の 7 例と同じく、コンストラクタに値を渡すだけで使用できます。
 
 | クラス | 何を見るか |
 | --- | --- |
@@ -617,7 +617,7 @@ environment: myengine
 | `FunctionLengthLimitAnalyzer` | 関数の文の数 |
 | `LoopBoundAnalyzer` | ループの回数 |
 | `ConstantBufferSizeLimitAnalyzer` | 定数バッファの大きさ |
-| `ParameterCountLimitAnalyzer` | 関数の仮引数の数（上限は設定ファイルの `options` から読む） |
+| `ParameterCountLimitAnalyzer` | 関数の仮引数の数（上限は設定ファイルの `options` から読み取る） |
 
 ---
 

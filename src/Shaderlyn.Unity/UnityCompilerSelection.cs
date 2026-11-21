@@ -238,7 +238,7 @@ public static class UnityCompilerSelection
                 return [new HlslCompileTarget(platform, sixteenBit ? Dxc16Bit : Dxc)
                 {
                     IsUsable = false,
-                    Reason = $"#pragma require {required} は DXC が必要なので DX11 では使えない",
+                    Reason = $"#pragma require {required} は DXC が必要なので DX11 では使用できない",
                 }];
             }
 
@@ -252,7 +252,7 @@ public static class UnityCompilerSelection
                 return [new HlslCompileTarget(platform, Dxc)
                 {
                     IsUsable = false,
-                    Reason = "6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使えない",
+                    Reason = "6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使用できない",
                 }];
             }
 
@@ -267,7 +267,7 @@ public static class UnityCompilerSelection
                 {
                     WhenAnySymbol = [k.Keyword],
                     IsUsable = false,
-                    Reason = k.Reason is null ? "DX11 では有効にならないキーワード" : $"{k.Reason} は DX11 では使えない",
+                    Reason = k.Reason is null ? "DX11 では有効にならないキーワード" : $"{k.Reason} は DX11 では使用できない",
                 }),
             ];
         }

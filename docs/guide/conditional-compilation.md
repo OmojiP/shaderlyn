@@ -14,7 +14,7 @@
 - [分岐の解析方法](#分岐の解析方法)
 - [解析の流れ](#解析の流れ)
 - [1. 字句解析](#1-字句解析)
-- [2. シンボルの宣言を読む](#2-シンボルの宣言を読む)
+- [2. シンボルの宣言を解析する](#2-シンボルの宣言を解析する)
 - [3. プリプロセス](#3-プリプロセス)
 - [4. 構文解析](#4-構文解析)
 - [5. 構成ごとの展開（方法 B）](#5-構成ごとの展開方法-b)
@@ -31,7 +31,7 @@
 
 Unity はシェーダーキーワードの組み合わせごとにシェーダーをコンパイルします。
 ある組み合わせで無効な `#ifdef` の中身は、別の組み合わせでは有効になります。
-既定の 1 通りの構成だけを解析すると、それ以外の構成でしか通らないコードの誤りを見逃します。
+既定の 1 通りの構成だけを解析すると、それ以外の構成でしか有効にならないコードの誤りを見逃します。
 
 shaderlyn は、`#pragma` で宣言されたシンボルが見ている分岐を、**どちらの側も検査します**。
 
@@ -47,7 +47,7 @@ shaderlyn は、`#pragma` で宣言されたシンボルが見ている分岐を
 方法 B で作る構成を、このページではバリアントと呼びます。
 バリアントは 1 つ作るごとに解析の時間が伸び、上限（既定 8）に届くと残りは調べずに [CF0102](../rules/CF0102.md) になります。
 また、方法 B の領域どうしの組み合わせは、条件に書かれたものしか調べません（[5.4](#54-条件に書かれていない組み合わせ)）。
-どの領域にどちらの方法を使うかは、プリプロセス時に判定します。
+どの領域にどちらの方法を使用するかは、プリプロセス時に判定します。
 
 ## 解析の流れ
 
@@ -56,13 +56,13 @@ shaderlyn は、`#pragma` で宣言されたシンボルが見ている分岐を
 | 段階 | 入力 → 出力 | 条件の扱い |
 | --- | --- | --- |
 | [1. 字句解析](#1-字句解析) | テキスト → トークン列 | この段階では条件として扱わない |
-| [2. シンボルの宣言を読む](#2-シンボルの宣言を読む) | `#pragma` のトークン → シンボルと、その間の制約 | どの名前がシンボルかが決まる |
-| [3. プリプロセス](#3-プリプロセス) | トークン列 → 指令の無いトークン列と、条件の範囲の表 | 領域ごとに、両方の分岐を並べるか（方法 A）を決める。条件は範囲の表に残る |
+| [2. シンボルの宣言を解析する](#2-シンボルの宣言を解析する) | `#pragma` のトークン → シンボルと、その間の制約 | どの名前がシンボルかが決まる |
+| [3. プリプロセス](#3-プリプロセス) | トークン列 → 指令が存在しないトークン列と、条件の範囲の表 | 領域ごとに、両方の分岐を並べるか（方法 A）を決める。条件は範囲の表に残る |
 | [4. 構文解析](#4-構文解析) | トークン列 → 構文木 1 本 | パーサーは条件を扱わない |
 | [5. 構成ごとの展開](#5-構成ごとの展開方法-b) | 並べなかったシンボル → バリアントごとに 3〜4 をやり直す | どの構成を作るか、上限に届いたかを決める |
 | [6. 条件の索引](#6-条件の索引) | 範囲の表とバリアント → ノードごとの条件 | 範囲とノードを対応させる。バリアントと突き合わせる |
 | [7. 名前と型](#7-名前と型) | 木と条件 → 構成ごとの型 | 構成を仮定して型を決める |
-| [8. ルールとエディタ](#8-ルールとエディタ) | ここまでの結果 → 指摘、ホバー、`--inspect` | 条件を添えて報告する。条件が分からなければ報告しない |
+| [8. ルールとエディタ](#8-ルールとエディタ) | ここまでの結果 → 指摘、ホバー、`--inspect` | 条件を添えて報告する。条件が不明な場合は報告しない |
 
 取り込んだヘッダがシンボルを宣言していた場合は、そのシンボルを追加して 2〜3 をやり直します（[ヘッダに置いた `#pragma`](#ヘッダに置いた-pragma)）。
 
@@ -105,7 +105,7 @@ float Shade()
 
 `.shader` では、ShaderLab の部分を伏せたテキストからコードブロックを取り出してから分けます（[解析の流れ](../internals/architecture.md)）。
 
-## 2. シンボルの宣言を読む
+## 2. シンボルの宣言を解析する
 
 名前が `shader_feature` / `multi_compile` / `dynamic_branch` の**いずれかで始まる** `#pragma` を、シンボル（Unity の用語ではシェーダーキーワード）の宣言として読みます。
 `shader_feature_local`、`multi_compile_local_fragment`、`multi_compile_instancing` も含みます。
@@ -116,11 +116,11 @@ float Shade()
 ```
 
 - その行の識別子すべてをシンボルとして読みます。下線だけの名前（`_`、`__` …）は「シンボル無しの構成」を表すので除きます
-- 同じ行のシンボルは同時に有効になりません。`_` の無い `multi_compile` の行は、どれか 1 つが必ず有効です。この制約は、構成を作るとき（段階 5）とルールが条件を掛け合わせるとき（段階 8）に使います
-- `#pragma dynamic_branch` のシンボルは、`if (_A)` のように実行時の分岐で使います。条件で使っていなくても、コードに現れていれば「使われている」と見なします
+- 同じ行のシンボルは同時に有効になりません。`_` が存在しない `multi_compile` の行は、どれか 1 つが必ず有効です。この制約は、構成を作るとき（段階 5）とルールが条件を掛け合わせるとき（段階 8）に使用します
+- `#pragma dynamic_branch` のシンボルは、`if (_A)` のように実行時の分岐で使用します。条件で使用していなくても、コードに現れていれば「使用されている」と見なします
 
-宣言したシンボルをどこでも使っていなければ [CF0202](../rules/CF0202.md)、宣言していない名前を条件で見ていれば [CF0201](../rules/CF0201.md) が出ます。
-宣言していない名前の分岐は決して通らないので、構成は作りません。
+宣言したシンボルをどこでも使用していなければ [CF0202](../rules/CF0202.md)、宣言していない名前を条件で見ていれば [CF0201](../rules/CF0201.md) が出ます。
+宣言していない名前の分岐は決して有効にならないので、構成は作りません。
 
 ### ヘッダに置いた `#pragma`
 
@@ -144,15 +144,15 @@ float3 Shade(float3 n) { return n * 2; }
   `Shade` を呼ぶと [CF0311](../rules/CF0311.md)（`!_HEADER_QUALITY` のとき定義がありません）が出ます
 - 並べられない形は、構成として作り直します（方法 B）。
   ヘッダに書かれた `#if` も、**そのヘッダ自身が宣言したシンボル**については条件として読みます
-- `_` の無い `#pragma multi_compile MODE_A MODE_B` がヘッダにあれば、
+- `_` が存在しない `#pragma multi_compile MODE_A MODE_B` がヘッダにあれば、
   既定の構成でも `MODE_A` を定義します。拾わないと、どちらも無効という実在しない構成を解析することになります
 
 ## 3. プリプロセス
 
 `#include` を取り込み、マクロを展開し、`#if` を評価して、構文解析に渡すトークン列を作ります。
-既定の構成（宣言したシンボルが無効で、`_` の無い行は先頭が有効）で行います。
+既定の構成（宣言したシンボルが無効で、`_` が存在しない行は先頭が有効）で行います。
 取り込んだヘッダがシンボルを宣言していた場合（[ヘッダに置いた `#pragma`](#ヘッダに置いた-pragma)）と、
-並べた分岐で定義したマクロがコードで使われていた場合（[3.5](#35-include-の切り替え)）は、やり直します。
+並べた分岐で定義したマクロがコードで使用されていた場合（[3.5](#35-include-の切り替え)）は、やり直します。
 
 シンボルを見ている `#if` の領域ごとに、**両方の分岐をトークン列に並べられるか**を判断します。
 並べられれば方法 A、並べられなければ既定の構成の分岐だけを出力し、そのシンボルを方法 B の候補にします（段階 5）。
@@ -163,31 +163,31 @@ float3 Shade(float3 n) { return n * 2; }
 | --- | --- |
 | トークン列 | 指令を取り除き、並べた分岐は両方とも含めたもの |
 | 条件の範囲の表 | 「何番目から何番目のトークンは、どの条件のものか」。段階 6 でノードに対応させる |
-| マクロ表 | **既定の構成で最後に効いた定義だけ**。別の構成の定義は、条件付きで別に覚えている（3.3） |
+| マクロ表 | **既定の構成で最後に有効だった定義だけ**。別の構成の定義は、条件付きで別に覚えている（3.3） |
 
-### 3.1 条件式を読む
+### 3.1 条件式を解析する
 
-次の形の条件は、「どのシンボルが有効なときに通るか」として読みます。
+次の形の条件は、「どのシンボルが有効なときに有効になるか」として解析します。
 
 | 書き方 | 扱い |
 | --- | --- |
-| `#ifdef X` / `#ifndef X` | シンボルの条件として読む |
-| `#if defined(X)` / `#if defined X` | シンボルの条件として読む（括弧は省略可） |
-| `#if X` | X が宣言されたシンボルなら、シンボルの条件として読む |
-| `#if !X`、`#if A && B`、`#if A \|\| B`、`#if (A)` | シンボルの条件として読む |
-| `#if X == 1`、`#if X != 0`、`#if X > 0` | 値として解く。X が宣言されたシンボルなら、その構成を作って検査する（方法 B） |
+| `#ifdef X` / `#ifndef X` | シンボルの条件として解析する |
+| `#if defined(X)` / `#if defined X` | シンボルの条件として解析する（括弧は省略可） |
+| `#if X` | X が宣言されたシンボルの場合は、シンボルの条件として解析する |
+| `#if !X`、`#if A && B`、`#if A \|\| B`、`#if (A)` | シンボルの条件として解析する |
+| `#if X == 1`、`#if X != 0`、`#if X > 0` | 値として解く。X が宣言されたシンボルの場合は、その構成を作って検査する（方法 B） |
 | `#if X == 2`、`#if defined(_X) && defined(_Y)`（同じ行） | どの構成でも成り立たない。[CF0203](../rules/CF0203.md) を報告し、構成は作らない |
 | `#if SHADER_API_D3D11` | 宣言されたシンボルではないので、値として解く |
 
 `#ifdef _A`、`#if _A`、`#if defined(_A)` の 3 つは同じに扱います。Unity は有効なシンボルを値 1 のマクロとして定義するため、
-URP 自身も `#if _ALPHATEST_ON` の形を使っています。
+URP 自身も `#if _ALPHATEST_ON` の形を使用しています。
 
-**値として比較する書き方は、方法 A で並べられません。** `#if _A == 1` と `#if _A` は通る構成が同じですが、
+**値として比較する書き方は、方法 A で並べられません。** `#if _A == 1` と `#if _A` は有効になる構成が同じですが、
 前者はシンボルの条件として解析できないので、`_A` を有効にした構成を別に作ります。
 
 **どの構成でも成り立たない条件は [CF0203](../rules/CF0203.md)（情報）として報告します。**
 宣言されたシンボルと定数だけでできた条件について、シンボルの有効・無効の組をすべて試し、どれでも偽なら成り立たないと判断します。
-同じ `#pragma` 行のシンボルを両方求める組や、`_` の無い `multi_compile` の行をすべて否定する組は、実在しないので試しません。
+同じ `#pragma` 行のシンボルを両方求める組や、`_` が存在しない `multi_compile` の行をすべて否定する組は、実在しないので試しません。
 `SHADER_API_*` のような環境のマクロを含む条件は、別のプラットフォームで成り立つことがあるので判断しません。
 
 `SHADER_API_*` や `UNITY_VERSION` のような環境のマクロは、1 通りの値を仮に選んで解きます（`--define` で変えられます）。
@@ -219,16 +219,16 @@ URP 自身も `#if _ALPHATEST_ON` の形を使っています。
 並べるのは、各分岐で括弧（`{} () []`）が釣り合い、最後のトークンが `;` か `}` で終わる領域です（空の分岐も可）。
 こう決めている理由は [4. 構文解析](#4-構文解析) にあります。
 入れ子の `#if` は、外側も並べているときだけ並べます。
-同じ `#pragma` 行のシンボル（同時に有効にならないもの）のように、外側と合わせて決して通らない分岐は並べません。
+同じ `#pragma` 行のシンボル（同時に有効にならないもの）のように、外側と合わせて決して有効にならない分岐は並べません。
 
-`#define` を切り替えている領域は、そのマクロを**条件の中でしか使っていなければ**並べます。
-`#ifdef _A` の中で `#define USE_A 1` と書き、`#ifdef USE_A` でしか読まないなら、
-`USE_A` は「`_A` が有効な条件」として読めるので、並べても展開結果は変わりません。
+`#define` を切り替えている領域は、そのマクロを**条件の中でしか使用していなければ**並べます。
+`#ifdef _A` の中で `#define USE_A 1` と書き、`#ifdef USE_A` でしか参照しない場合は、
+`USE_A` は「`_A` が有効な条件」として解析できるので、並べても展開結果は変わりません。
 
 ### 3.3 条件で中身が変わるマクロ（条件の巻き上げ）
 
-マクロの中身を条件で切り替え、それをコードの中で使っている場合は、
-**そのマクロを使う文を、定義ごとに展開し直して並べます**。
+マクロの中身を条件で切り替え、それをコードの中で使用している場合は、
+**そのマクロを使用する文を、定義ごとに展開し直して並べます**。
 
 ```hlsl
 #ifdef _A
@@ -256,45 +256,45 @@ float4 color = Load(uv);   // !_A
 `#if … #elif … #else` で 3 通り以上に書き分けた形と、入れ子の `#if` で書き分けた形も複製します。
 `#elif` の分岐の定義には、それまでの分岐がすべて偽で、自分の条件が真という条件が付きます。
 入れ子の `#if` の定義には、外側と内側の条件を掛け合わせた条件が付きます。
-`#undef` してから定義し直す形も複製します。条件 C の下の `#undef` は、それまでの定義の条件を「元の条件かつ C でない」に縮めます
+`#undef` してから再定義する形も複製します。条件 C の下の `#undef` は、それまでの定義の条件を「元の条件かつ C でない」に縮めます
 （`#define BODY v = 3;` の後で `#ifdef _A` / `#undef BODY` / `#define BODY { v = 1; }` と書くと、前の定義は `!_A` のときのものになります）。
 利用者が書いて取り込んだヘッダ（共通の `.hlsl` など）の定義も、ヘッダで並べた分岐の条件付きで覚えて複製します。
 Unity や外部パッケージのヘッダの定義は複製しません。
 別々の `#ifdef` で同じ名前を定義する形（`#ifdef _A` で 1 つ、`#ifdef _B` でもう 1 つ）も複製します。
-どの定義も当てはまらない構成のために、定義が無い側も作ります（`#else` で全構成を覆っていれば作りません）。
-複製は、定義が無い側も含めて 4 通りまでです。
-1 つの文で条件によって中身が変わるマクロを 2 つ以上使っている場合は、定義の組み合わせごとに複製します
-（`VTYPE n = SCALE * v;` の `VTYPE` が `_NORMALMAP` で、`SCALE` が `_DETAIL` で変わるなら 4 通り）。
+どの定義も当てはまらない構成のために、定義が存在しない側も作ります（`#else` で全構成を覆っていれば作りません）。
+複製は、定義が存在しない側も含めて 4 通りまでです。
+1 つの文で条件によって中身が変わるマクロを 2 つ以上使用している場合は、定義の組み合わせごとに複製します
+（`VTYPE n = SCALE * v;` の `VTYPE` が `_NORMALMAP` で、`SCALE` が `_DETAIL` で変わる場合は 4 通り）。
 組み合わせの条件は各定義の条件の論理積で、宣言の制約で成り立たない組み合わせは作りません。
 マクロは 3 つまで、組み合わせは 8 通りまでです。
 
 定義を書き分けた分岐に `#define` 以外のコード（関数や変数の宣言）もある領域は、両方の分岐を並べたうえで、
-マクロを使う文を定義ごとに複製します。複製できない使い方（別のマクロの本体や並べた分岐の中での展開、複製を諦めた文）が見つかれば、
+マクロを使用する文を定義ごとに複製します。複製できない使用方法（別のマクロの本体や並べた分岐の中での展開、複製を諦めた文）が見つかれば、
 そのシンボルを並べずに展開し直します。
 定義が 1 つしか無いマクロ（`#ifdef _A` の中だけで定義する）は複製しません。
 
 **複製する範囲は構文解析が決めます。** 記号の数え方では、
 `#define BEGIN struct Foo {` のようにマクロが括弧を作る場合に切れ目を取り違えます。
-定義ごとに展開したものが文・宣言として読めなければ、次の切れ目で読み直します。
-どれも読めなければ複製せず、1 つの構成の値で展開します。
+定義ごとに展開したものが文・宣言として解析できなければ、次の切れ目で解析し直します。
+どれも解析できなければ複製せず、1 つの構成の値で展開します。
 マクロ自身が文を閉じる場合（`if (v > 0) BODY` の後ろに `#ifdef` や外側のブロックの `}` が続く）は、
 その手前も切れ目の候補にします。
 
-別のマクロの本体を通して使っている場合（`#define COLOR_TYPE CTYPE` を `COLOR_TYPE color = 1;` と使う）も、
-使う位置で、本体が参照している `CTYPE` の定義ごとに複製します。本体は 8 段までたどります。
+別のマクロの本体を通して使用している場合（`#define COLOR_TYPE CTYPE` を `COLOR_TYPE color = 1;` と使用する）も、
+使用する位置で、本体が参照している `CTYPE` の定義ごとに複製します。本体は 8 段までたどります。
 
 次の場合、マクロの複製では扱えず、そのシンボルは方法 B の対象になります。
 
 | コードの形 | 方法 B になる理由 |
 | --- | --- |
-| 定義を書き分けた分岐にコードもあり、さらに `#undef` か `#include` もある | 並べた分岐の `#undef` は後ろの分岐のマクロ表を変える。`#include` の中身は並べるかを決める時点では読んでいない |
+| 定義を書き分けた分岐にコードもあり、さらに `#undef` か `#include` もある | 並べた分岐の `#undef` は後ろの分岐のマクロ表を変える。`#include` の中身は並べるかを決める時点では解析していない |
 | 定義が 5 通り以上になる（どの定義も当てはまらない構成の分を含む） | 同じ文が何本も並ぶ |
-| `#elif` の条件をシンボルの条件として解析できない | その分岐の定義の条件が分からない |
-| マクロを使う文の中に `#if` がある | 複製すると指令を 2 度処理することになる |
-| 1 つの文で、条件によって中身が変わるマクロを 4 つ以上使う、または組み合わせが 9 通り以上になる | 同じ文が何本も並ぶ |
+| `#elif` の条件をシンボルの条件として解析できない | その分岐の定義の条件が不明 |
+| マクロを使用する文の中に `#if` がある | 複製すると指令を 2 度処理することになる |
+| 1 つの文で、条件によって中身が変わるマクロを 4 つ以上使用する、または組み合わせが 9 通り以上になる | 同じ文が何本も並ぶ |
 
 複製した文は同じ行に並びますが、どれがどの構成のものかは区別されています。
-エディタのホバーは構成ごとの型と展開結果を並べて示し（`CTYPE` の上なら「`_A` のとき `float3`」「`!_A` のとき `float4`」）、
+エディタのホバーは構成ごとの型と展開結果を並べて示し（`CTYPE` の上の場合は「`_A` のとき `float3`」「`!_A` のとき `float4`」）、
 `--inspect` の HLSL タブは複製のそれぞれに `#if _A` / `#if !_A` を付けます。
 
 ### 3.4 文の途中で分かれる `#if`（条件の巻き上げ）
@@ -321,9 +321,9 @@ float m = 2;   // !_A
 
 型名だけを分ける形（`#ifdef _A` / `float2` / `#else` / `float4` / `#endif` / `v = 0;`）や、
 初期化の要素を条件に応じて追加する形（`float4 c = { 1, 2, 3` / `#ifdef _A` / `, 4` / `#endif` / `};`）も同じです。
-後者は `_A` の無い構成で要素が 3 個しかないので、[CF0412](../rules/CF0412.md) が `!_A のとき` として報告します。
+後者は `_A` が存在しない構成で要素が 3 個しかないので、[CF0412](../rules/CF0412.md) が `!_A のとき` として報告します。
 `#elif` の分岐は、それまでの分岐の否定と自分の条件を掛け合わせた条件で複製します。
-`#else` が無ければ、どの分岐も通らない構成のために、分岐の中身を入れない文も作ります。
+`#else` が存在しなければ、どの分岐も有効にならない構成のために、分岐の中身を入れない文も作ります。
 
 この形はバリアントを作りません。別々の `#if` が同時に有効なときだけ起きる誤りも、
 型を求めるときに構成を仮定して調べます（[7. 名前と型](#7-名前と型)）。
@@ -334,17 +334,17 @@ float m = 2;   // !_A
 | --- | --- |
 | 複製する単位に `{ }` のブロックが入る（仮引数を条件に応じて追加する関数、戻り値の型だけを分ける関数、`if` の頭だけを分ける） | 関数や `if` の本体まで複製すると、どの構成にもあるコードまで条件付きになり、同じ誤りが構成ごとに報告される |
 | 分岐の中に、`#elif` / `#else` / `#endif` 以外の指令がある | 複製すると指令を何度も処理することになる |
-| 分岐が 5 つ以上になる（`#else` が無いときの、どの分岐も通らない分を含む） | 同じ文が何本も並ぶ |
-| 条件をシンボルの条件として解析できない、外側の `#if` を並べていない、分岐の中で構成によって定義が変わるマクロを使っている | 3.6 の表の同じ理由を参照 |
+| 分岐が 5 つ以上になる（`#else` が存在しないときの、どの分岐も有効にならない分を含む） | 同じ文が何本も並ぶ |
+| 条件をシンボルの条件として解析できない、外側の `#if` を並べていない、分岐の中で構成によって定義が変わるマクロを使用している | 3.6 の表の同じ理由を参照 |
 
-複製する文の中で、条件で中身が変わるマクロ（3.3）を使っていても、そのマクロは複製しません。
+複製する文の中で、条件で中身が変わるマクロ（3.3）を使用していても、そのマクロは複製しません。
 1 つの単位で複製するのは 1 回までなので、そのマクロのシンボルは方法 B になります。
 
 ### 3.5 `#include` の切り替え
 
 `#include` を切り替えている領域も、両方のヘッダをそれぞれの条件のもとで取り込んで並べます。
 
-ただし、ヘッダが定義したマクロをコードの中で使っていた場合は、その展開はどちらか 1 つの構成のものになります。
+ただし、ヘッダが定義したマクロをコードの中で使用していた場合は、その展開はどちらか 1 つの構成のものになります。
 その時点でそのシンボルを並べる対象から外し、ブロックをプリプロセスし直します（方法 B）。
 シェーダー内の `#ifdef` で定義したマクロは、3.3 の複製の対象になります。
 
@@ -378,7 +378,7 @@ VALUE_TYPE v = Shade();
 VALUE_TYPE v = Shade();
 ```
 
-取り込みとコードで使うマクロの定義が同じ分岐にあると、取り込みの切り替えとしては並べられず、方法 B になります。
+取り込みとコードで使用するマクロの定義が同じ分岐にあると、取り込みの切り替えとしては並べられず、方法 B になります。
 
 ### 3.6 並べられない領域
 
@@ -387,14 +387,14 @@ VALUE_TYPE v = Shade();
 | `--inspect` に表示される理由 | 該当するコードの形 |
 | --- | --- |
 | 分岐の中身が文・宣言の単位で閉じていない | 3.4 の複製で扱えない形（仮引数を条件に応じて追加する、戻り値の型だけを分ける、`if` の頭だけを分ける） |
-| 分岐の中で、コードで使うマクロを定義している | 3.3 の表に示した形 |
-| 分岐で取り込むファイルを切り替えている | 取り込みと、コードで使うマクロの定義を同じ分岐に書く |
-| `#endif` が無い | `#endif` の書き忘れ（[CF0002](../rules/CF0002.md) も出る） |
-| 分岐の中で、構成によって定義が変わるマクロを使っている | `#ifdef _B` の中で、`_A` で中身が変わるマクロを使う |
+| 分岐の中で、コードで使用するマクロを定義している | 3.3 の表に示した形 |
+| 分岐で取り込むファイルを切り替えている | 取り込みと、コードで使用するマクロの定義を同じ分岐に書く |
+| `#endif` が存在しない | `#endif` の書き忘れ（[CF0002](../rules/CF0002.md) も出る） |
+| 分岐の中で、構成によって定義が変わるマクロを使用している | `#ifdef _B` の中で、`_A` で中身が変わるマクロを使用する |
 | 条件式をシンボルの条件として解析できない | `#if _A == 1`、`#if defined(_A) + 1 > 1` |
 | 外側の `#if` を並べていない | 並べられない `#if` の中に `#if` を書く |
 | 並べなかった `#if` に続く `#elif` | 最初の分岐が並べられない `#if … #elif … #endif` |
-| 並べた分岐で定義したマクロを、コードで使っている | 取り込んだヘッダが定義したマクロをコードで使う（3.5） |
+| 並べた分岐で定義したマクロを、コードで使用している | 取り込んだヘッダが定義したマクロをコードで使用する（3.5） |
 
 次の例では、左と右で解析方法が異なります。左は方法 B、右は方法 A です。
 文の途中で分かれる形（`float m` / `#ifdef _A` / `= 1` / `#else` / `= 2` / `#endif` / `;`）は、3.4 の複製で方法 A になります。
@@ -409,7 +409,7 @@ float Helper(float a                      #ifdef _A
 ```
 
 ```hlsl
-// _B の中で、_A で変わる V を使う        // V の宣言が条件の外にある
+// _B の中で、_A で変わる V を使用する        // V の宣言が条件の外にある
 #ifdef _B                                 float v = V;
     return V;                             #ifdef _B
 #else                                         return v;
@@ -441,7 +441,7 @@ float Helper(float a                      #ifdef _A
 
 展開の対象になるのは、次をすべて満たすシンボルだけです。
 
-- `#pragma` で宣言されている（宣言が無い分岐は決して通らないので、[CF0201](../rules/CF0201.md) の担当）
+- `#pragma` で宣言されている（宣言が存在しない分岐は決して有効にならないので、[CF0201](../rules/CF0201.md) の担当）
 - 解析しているファイル自身の `#if` が見ている。
   ただし**取り込んだヘッダに書かれた `#if` も、条件によっては対象**です（5.2）
 - マクロ展開の結果として現れた名前ではない
@@ -452,12 +452,12 @@ float Helper(float a                      #ifdef _A
 | 構成 | 内容 | `--inspect` の表示 |
 | --- | --- | --- |
 | シンボル 1 つ | 候補のシンボルを 1 つだけ有効にしたもの | `_A` |
-| 同時に定義されていないと通らない組 | `#if defined(_A) && defined(_B)` の中や、`#ifdef _A` の中の `#ifdef _B` のように、1 つずつ有効にしただけでは通らない分岐のための組 | `_A+_B` |
-| まとめた構成 | 互いに関係しないシンボル（別の関数で分かれているなど）を 1 回の展開で同時に有効にしたもの。1 つずつ展開したときと結果が変わらないことを確認して使う | `{_A,_B}` |
+| 同時に定義されていないと有効にならない組 | `#if defined(_A) && defined(_B)` の中や、`#ifdef _A` の中の `#ifdef _B` のように、1 つずつ有効にしただけでは有効にならない分岐のための組 | `_A+_B` |
+| まとめた構成 | 互いに関係しないシンボル（別の関数で分かれているなど）を 1 回の展開で同時に有効にしたもの。1 つずつ展開したときと結果が変わらないことを確認して使用する | `{_A,_B}` |
 
 **すべての組み合わせは作りません。** 総当たりだと構成の数が 2ⁿ になります。
 **条件に書かれた組だけ**を作るので、増えるのは書いた数だけです。
-入れ子は、外側の条件と掛け合わせた組になります。外側の分岐を読み飛ばしていても、内側の条件は読みます。
+入れ子は、外側の条件と掛け合わせた組になります。外側の分岐の解析を省略していても、内側の条件は解析します。
 
 ```hlsl
 #pragma multi_compile _ _A
@@ -477,14 +477,14 @@ float F(float x)
 }
 ```
 
-`_A` だけ、`_B` だけの構成ではこの分岐を通らないため、論理積を 1 つの構成として作ります。
+`_A` だけ、`_B` だけの構成ではこの分岐が有効にならないため、論理積を 1 つの構成として作ります。
 `CF0310`（`'Missing' は _A && _B のとき宣言されていません`）が報告されます。
 
 組を作るのは、その中のシンボルがすべて宣言されている場合だけです。
-否定の項（`!_A`）は定義しないことで満たせるので、組には入れません。論理和（`||`）は、どれか 1 つの構成で足ります。
+否定の項（`!_A`）は定義しないことで満たせるので、組には入れません。論理和（`||`）は、どれか 1 つの構成で十分です。
 同じ `#pragma` 行に並べたシンボル（`#pragma multi_compile _ _X _Y` の `_X` と `_Y`）は同時に有効にならないので、その組は作りません。
 
-`_` の無い `#pragma multi_compile MODE_A MODE_B` はどちらかが必ず有効なので、既定の構成で先頭の `MODE_A` を定義して解析します。
+`_` が存在しない `#pragma multi_compile MODE_A MODE_B` はどちらかが必ず有効なので、既定の構成で先頭の `MODE_A` を定義して解析します。
 `#ifdef MODE_A ... #else` の `#else` は、`MODE_B` を有効にした構成で検査します。
 
 **取り込んだヘッダに書かれた条件**は、次のものだけを 1 つずつの構成にします。
@@ -505,13 +505,13 @@ URP のシェーダーは 40 を超えるシンボルを宣言し、その条件
 shaderlyn Assets/Shaders --unity-project . --max-symbol-variants 16
 ```
 
-- **上限が効くのは方法 B の対象だけです。** 方法 A で並べられたシンボルは、いくつあっても上限を消費しません
+- **上限が適用されるのは方法 B の対象だけです。** 方法 A で並べられたシンボルは、いくつあっても上限を消費しません
 - まとめた構成（`{_A,_B}`）は、まとめたシンボルの数にかかわらず 1 つ分です
 - 上限に達して展開しなかったシンボルと組は [CF0102](../rules/CF0102.md) として報告されます。「調べていない経路が残っている」という意味で、シェーダーの誤りではありません
 - `0` を指定すると方法 B を行いません。方法 A で扱えない `#ifdef` のシンボルはすべて `CF0102` になります。
-  バリアントにしか無い宣言は見えなくなるので、「宣言が見つからない」ことを根拠にするルールは、その名前については報告を見送ります
+  バリアントにしか存在しない宣言は参照できなくなるので、「宣言が見つからない」ことを根拠にするルールは、その名前については報告を見送ります
 - 解析時間は展開する構成の数に比例して伸びます
-- 上限の指定は解析キャッシュの鍵に含まれます。値を変えると、キャッシュは使われずに解析し直されます
+- 上限の指定は解析キャッシュの鍵に含まれます。値を変えると、キャッシュは使用されずに解析し直されます
 
 上限に達したときは、次の順に残します。落とすのは後ろからです。
 
@@ -520,12 +520,12 @@ shaderlyn Assets/Shaders --unity-project . --max-symbol-variants 16
 3. 条件に書かれた組（論理積・入れ子）
 4. 取り込んだヘッダに書かれた条件から作った構成
 
-まとめに入れないのは、`_` の無い行のシンボル、分岐の中でマクロを定義したり取り込みを切り替えたりするシンボル、
+まとめに入れないのは、`_` が存在しない行のシンボル、分岐の中でマクロを定義したり取り込みを切り替えたりするシンボル、
 同じ関数・構造体などの中で変わるシンボルどうし、条件の組に一緒に書かれたシンボルどうしです。
 
 落とした組は、組のまま `CF0102` として報告されます。
 
-`CF0102` が出た場合、`--inspect` の「シンボルの扱い」タブで、上限に達したシンボルとその条件を確認できます。上限の変更方法は[CLI の使い方](cli-usage.md#シンボルの展開数)を参照してください。方法 B になる条件は[解析方法が分かれる例](#解析方法が分かれる例)にまとめています。
+`CF0102` が出た場合、`--inspect` の「シンボルの扱い」タブで、上限に達したシンボルとその条件を確認できます。上限の変更方法は[CLI の使用方法](cli-usage.md#シンボルの展開数)を参照してください。方法 B になる条件は[解析方法が分かれる例](#解析方法が分かれる例)にまとめています。
 
 ### 5.4 条件に書かれていない組み合わせ
 
@@ -548,7 +548,7 @@ float4 Get(float x)
 float F(float x)
 {
 #ifdef _B
-    if (Get(x).z > 0)    // _A と _B が同時に有効なときだけ、float2 に z は無い
+    if (Get(x).z > 0)    // _A と _B が同時に有効なときだけ、float2 に z は存在しない
 #else
     if (x > 0)           // if の頭だけを分けているので方法 B (3.4)
 #endif
@@ -559,7 +559,7 @@ float F(float x)
 }
 ```
 
-`_A` だけの構成でも `_B` だけの構成でも誤りは無く、「`_A` かつ `_B`」はどの条件にも書かれていないため、この組は構成として作られません。
+`_A` だけの構成でも `_B` だけの構成でも誤りは存在せず、「`_A` かつ `_B`」はどの条件にも書かれていないため、この組は構成として作られません。
 **このことは報告されません。** `_A` も `_B` も展開しており、上限にも達していないためです。
 
 **方法 A で扱う領域どうしの組み合わせは調べます。** 型を求めるときに構成を仮定するためです（段階 7）。
@@ -570,7 +570,7 @@ float F(float x)
 
 ## 6. 条件の索引
 
-段階 3 の範囲の表と、段階 5 のバリアントを使って、木のノードごとに「どの条件のもとで存在するか」を求めます。
+段階 3 の範囲の表と、段階 5 のバリアントを使用して、木のノードごとに「どの条件のもとで存在するか」を求めます。
 ルールは [`GetConditionMap()`](../custom-rules/api-reference.md#conditionmap-shaderlynsemanticsconditional) で参照します。
 
 ### 6.1 範囲からノードへ
@@ -598,11 +598,11 @@ float F(float x)
     }
 ```
 
-そこで宣言された名前も、既定の構成から見えます。
+そこで宣言された名前も、既定の構成から参照できます。
 
 マクロの展開で生まれたコードも、**そのマクロをこのファイルが書いているなら**報告します。
 位置は呼び出し位置ではなく<b>本体</b>を指します。そこが修正する場所であり、
-同じマクロを何度使っても報告は 1 か所にまとまります。
+同じマクロを何度使用しても報告は 1 か所にまとまります。
 
 ```hlsl
 #ifdef _A
@@ -647,7 +647,7 @@ if (v > 0)
 出現条件を根拠にするルール（[CF0311](../rules/CF0311.md) / [CF0313](../rules/CF0313.md) /
 [CF0401](../rules/CF0401.md)）は、誤った指摘を避けるため、この箇所では何も報告しません。
 
-**同じ場所が別の形になるだけなら、報告しません。** 両方を「その構成でだけ立つもの」として残すためです。
+**同じ場所が別の形になるだけの場合は、報告しません。** 両方を「その構成でだけ立つもの」として残すためです。
 次の形は方法 B になりますが、`CF0103` にはならず、どちらの形も検査されます。
 
 ```hlsl
@@ -681,20 +681,20 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 
 ## 7. 名前と型
 
-名前の宣言が構成によって変わる場合は、構成を仮定して、その構成で見える宣言だけから型を決めます。
+名前の宣言が構成によって変わる場合は、構成を仮定して、その構成で参照できる宣言だけから型を決めます。
 仮定するのは、その式に関わる宣言の条件に出てくるシンボルの組み合わせです。
 
-[解析の流れ](#解析の流れ) の例では、`return d.x;` の `d` は `_A` を仮定すると `float3 d`、`!_A` を仮定すると `float4 d` だけが見えるので、
+[解析の流れ](#解析の流れ) の例では、`return d.x;` の `d` は `_A` を仮定すると `float3 d`、`!_A` を仮定すると `float4 d` だけを参照できるので、
 それぞれ `float3` と `float4` になります。`d.x` はどちらでも `float` です。
 
-方法 A で並べた領域どうしなら、別々の `#ifdef` の組み合わせもこの仮定で調べます（[5.4](#54-条件に書かれていない組み合わせ)）。
+方法 A で並べた領域どうしの場合は、別々の `#ifdef` の組み合わせもこの仮定で調べます（[5.4](#54-条件に書かれていない組み合わせ)）。
 
 ## 8. ルールとエディタ
 
 - **条件を添えて報告します。** 1 つの構成でしか起きない誤りも修正すべき誤りなので報告し、メッセージに構成を添えます（`'Helper' は _A のとき宣言されていません。`）
-- **条件が分からない箇所では報告しません。** `CF0103` の箇所がそれです
+- **条件が不明な箇所では報告しません。** `CF0103` の箇所がそれです
 - **エディタのホバー**は、構成によって変わる型や、マクロの展開結果を構成ごとに並べます。
-  `#define` の行の上では、その行の定義と、それが使われる条件を示します
+  `#define` の行の上では、その行の定義と、それが使用される条件を示します
 - **`--inspect`** は、解析の中身を 1 つの HTML に書き出します
 
 `--inspect` で条件付きコンパイルについて見られるものは次のとおりです。
@@ -713,15 +713,15 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 | --- | --- | --- | --- | --- |
 | 文・宣言の単位で閉じている | [3.2](#32-両方の分岐を並べる方法-a) | A | しない | する |
 | 複合条件（`&&` / `\|\|`）で閉じている | [3.2](#32-両方の分岐を並べる方法-a) | A | しない | する |
-| `#define` を切り替えている（条件でしか使わないマクロ） | [3.2](#32-両方の分岐を並べる方法-a) | A | しない | する |
-| `#define` を切り替えている（コードで使うマクロ。3.3 の形） | [3.3](#33-条件で中身が変わるマクロ条件の巻き上げ) | A | しない | する（利用者が書いたマクロなら中身も） |
-| `#include` を切り替えている（ヘッダのマクロをコードで使わない） | [3.5](#35-include-の切り替え) | A | しない | する |
-| 値として比較する（`#if _A == 1`） | [3.1](#31-条件式を読む) | B | する | する |
+| `#define` を切り替えている（条件でしか使用しないマクロ） | [3.2](#32-両方の分岐を並べる方法-a) | A | しない | する |
+| `#define` を切り替えている（コードで使用するマクロ。3.3 の形） | [3.3](#33-条件で中身が変わるマクロ条件の巻き上げ) | A | しない | する（利用者が書いたマクロなら中身も） |
+| `#include` を切り替えている（ヘッダのマクロをコードで使用しない） | [3.5](#35-include-の切り替え) | A | しない | する |
+| 値として比較する（`#if _A == 1`） | [3.1](#31-条件式を解析する) | B | する | する |
 | 文の途中・型名だけ・初期化の要素で分かれる | [3.4](#34-文の途中で分かれる-if条件の巻き上げ) | A | しない | する |
 | 仮引数・戻り値の型・`if` の頭だけで分かれる（関数や `if` の本体を含む） | [3.4](#34-文の途中で分かれる-if条件の巻き上げ) | B | する | する |
-| 条件で中身が変わるマクロを、3.3 で補えない形で使う | [3.3](#33-条件で中身が変わるマクロ条件の巻き上げ) | B | する | する |
-| ヘッダが定義したマクロをコードで使う | [3.5](#35-include-の切り替え) | B | する | する |
-| 構成で中身が変わるマクロを、別のシンボルの `#ifdef` の中で使う | [3.6](#36-並べられない領域) | B | する | する |
+| 条件で中身が変わるマクロを、3.3 で補えない形で使用する | [3.3](#33-条件で中身が変わるマクロ条件の巻き上げ) | B | する | する |
+| ヘッダが定義したマクロをコードで使用する | [3.5](#35-include-の切り替え) | B | する | する |
+| 構成で中身が変わるマクロを、別のシンボルの `#ifdef` の中で使用する | [3.6](#36-並べられない領域) | B | する | する |
 | 突き合わせに失敗した | [6.3](#63-突き合わせに失敗した場合cf0103) | B | する | 条件を根拠にするルールは報告しない（[CF0103](../rules/CF0103.md)） |
 | 上限に達した | [5.3](#53-上限と-cf0102) | — | — | 既定の構成にある分だけ（[CF0102](../rules/CF0102.md)） |
 
@@ -740,9 +740,9 @@ half4 frag() : SV_Target { half v = VALUE; return v; }
 | 5 | 3 | **`#if X == 2` のように 1 以外の値との比較を含む条件は成立しない。** Unity は有効なシンボルを 1 として定義するため、実機でも成立しない。宣言されたシンボルと定数だけでできた条件なら [CF0203](../rules/CF0203.md) として報告する。環境のマクロや別のマクロを含む条件は報告しない |
 | 6 | 5 | **`dynamic_branch` のシンボルは、条件で参照されなければバリアントを作らない。** 実行時分岐 (`if (_A)`) として書かれた場合、その両側は元から解析されている |
 | 7 | 5 | **上限に達したときに落ちるシンボルは名前順で決まる。** 重要度は見ない |
-| 8 | 8 | **`CF0102` は、同じシンボルを見ている条件のうち最初の 1 か所にしか出ない。** 2 つ目以降の `#ifdef` の中も読まれていないが、そこには指摘が出ない |
-| 9 | 5 | **`_` の無い `shader_feature` の行は、「どれも無い」構成もあるものとして扱う。** Unity 2019.4 の説明ではそうなっているが、Unity 6 の説明でははっきりしない。違っていれば、実在しない構成の中を検査して誤りを報告する |
-| 10 | 3 | **条件で中身が変わるマクロの複製には上限と例外がある。** 定義が 5 通り以上になる場合、1 つの文で 4 つ以上のマクロを使うか組み合わせが 9 通り以上になる場合、定義を書き分けた分岐にコードがあり `#undef` か `#include` もある場合は、そのシンボルは方法 B になる。Unity や外部パッケージのヘッダの定義も複製しない |
+| 8 | 8 | **`CF0102` は、同じシンボルを見ている条件のうち最初の 1 か所にしか出ない。** 2 つ目以降の `#ifdef` の中も解析されていないが、そこには指摘が出ない |
+| 9 | 5 | **`_` が存在しない `shader_feature` の行は、「どれも存在しない」構成もあるものとして扱う。** Unity 2019.4 の説明ではそうなっているが、Unity 6 の説明でははっきりしない。違っていれば、実在しない構成の中を検査して誤りを報告する |
+| 10 | 3 | **条件で中身が変わるマクロの複製には上限と例外がある。** 定義が 5 通り以上になる場合、1 つの文で 4 つ以上のマクロを使用するか組み合わせが 9 通り以上になる場合、定義を書き分けた分岐にコードがあり `#undef` か `#include` もある場合は、そのシンボルは方法 B になる。Unity や外部パッケージのヘッダの定義も複製しない |
 
 1 は報告もされない「調べていないのに報告しない」形で、「見送ったことは報告する」という原則から外れる唯一の項目です。
 
@@ -782,19 +782,19 @@ Unity の環境では [ShaderSymbols.cs](../../src/Shaderlyn.Unity/ShaderSymbols
 
 宣言を集める経路は 2 つあります。
 
-| 経路 | 入力 | 使う場面 | コード |
+| 経路 | 入力 | 使用する場面 | コード |
 | --- | --- | --- | --- |
 | `ReadVariants(unit, result)` | プリプロセス後の結果 (Unity は `PragmaDirective`) | CF0201 / CF0202、バリアントの候補選び | Unity は [ShaderSymbols.ReadVariantSpace](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 | `ReadDeclaredVariants(unit, tokens)` | 字句解析しただけのトークン列 | プリプロセスの**前**に「どれがシンボルか」を知る必要があるため | Unity は [ShaderSymbols.ReadVariantSpaceFromTokens](../../src/Shaderlyn.Unity/ShaderSymbols.cs) |
 
 Unity の `ReadDeclaredVariants` は **解析対象のファイル自身の `#pragma` しか見ません**。取り込んだヘッダの宣言は
-この時点では読めていません。
+この時点では解析できていません。
 そのため、1 度プリプロセスしたあとに `ReadVariants` で宣言を集め直し、ヘッダが宣言していた場合は
 その分も並べる対象と制約に加えて**プリプロセスし直します**
 （[ShaderCompilationBuilder.TryAddIncludedSymbols](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 プリプロセスし直すのは、追加したシンボルの `#ifdef` が実際にある場合だけです。
 
-「使われている」と見なす経路も 2 つです。
+「使用されている」と見なす経路も 2 つです。
 
 | 経路 | 内容 | コード |
 | --- | --- | --- |
@@ -815,9 +815,9 @@ Unity の `ReadDeclaredVariants` は **解析対象のファイル自身の `#pr
 | `#if defined(X)` / `#if defined X` | [ReadDefinedAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
 | `#if X`（宣言されたシンボルのときだけ） | [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
 | `!`、`&&`、`\|\|`、括弧 | [ReadOrExpression](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)、[ReadUnaryExpression](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) |
-| `#if X == 1` など値として解く形 | 上記が `null` を返す。X が宣言されたシンボルなら [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) が参照として記録する |
+| `#if X == 1` など値として解く形 | 上記が `null` を返す。X が宣言されたシンボルの場合は [ReadSymbolAtom](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) が参照として記録する |
 
-「宣言されたシンボル」の判定には `BothBranchSymbols`（次の節）を使います。変換できない形は
+「宣言されたシンボル」の判定には `BothBranchSymbols`（次の節）を使用します。変換できない形は
 [DeclineBothBranchSymbolsIn](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs) を通り、
 その構成での値を解いて片方の分岐だけを残します（理由は `UnreadableCondition`）。
 
@@ -835,7 +835,7 @@ Unity の `ReadDeclaredVariants` は **解析対象のファイル自身の `#pr
 並べる対象のシンボル（`BothBranchSymbols`）は、コードブロックごとに、そのブロックの `#pragma` から自動で拾います
 （[ShaderCompilation.Build](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)、[CollectBlockSymbols](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 CLI から対象を変える手段はありません（`--keep-both-branches` は廃止しました）。
-`SemanticsOptions.BothBranchSymbols` は残っており、次の 2 か所が使います。
+`SemanticsOptions.BothBranchSymbols` は残っており、次の 2 か所が使用します。
 
 | 利用箇所 | 用途 |
 | --- | --- |
@@ -851,21 +851,21 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 | --- | --- |
 | `Mergeable` | 各分岐で括弧（`{} () []`）が釣り合い、最後のトークンが `;` か `}`。空の分岐も可 |
 | `NotSelfContained` | 上を満たさない（文の途中、仮引数の並び、`,` で終わるなど）。複製する単位にブロックが入らなければ、分岐ごとに文を複製して並べる（次の節） |
-| `DefinesMacros` | 領域の中に `#define` / `#undef` がある。定義した名前が条件の中でしか使われていなければ並べる（[CanMerge](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)） |
+| `DefinesMacros` | 領域の中に `#define` / `#undef` がある。定義した名前が条件の中でしか使用されていなければ並べる（[CanMerge](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)） |
 | `SwitchesIncludes` | 領域の中に `#include` がある。領域の中の `#define` については `DefinesMacros` と同じ条件で並べる（`MergeSwitchedIncludes`）。領域の終わりは中身を調べずに求める（[FindRegionEnd](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)）。求めずに返していたときは、領域の後ろの `#define` まで中身として読み、並べられるものを並べていなかった |
-| `Unterminated` | `#endif` が無い |
+| `Unterminated` | `#endif` が存在しない |
 
 補足として、
 
 - 内側の `#if` は同じ規則で先に判定し、`Mergeable` でなければ外側もその理由で返す
-- 指令の行そのものは数えない（出力に残らないため）
+- 指令の行そのものは数えない（出力に含まれないため）
 - 入れ子は「**外側も並べているとき**」にだけ並べる（[ChooseKeptCondition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）
 - バリアントは、既定の構成が並べた領域だけを並べる（`PreprocessorOptions.MergeOnlyRegions`）。並べてよいかはマクロの状態にも依存するので、構成ごとに判断が変わると、既定の木との違いが「そのシンボルで変わる部分」だけではなくなる。領域は指令の（ファイル, 位置）で持ち、取り込んだヘッダの領域も含める。取り込みの記録にも残すので、使い回したヘッダの分も欠けない
-- バリアントは宣言したキーワード (`DeclaredSymbols`) を既定の構成と同じにして展開する。条件付きで覚えるマクロの条件 (`#if !defined(_B)` の中の `#define WNB`) はこれで書くので、空にするとバリアントだけが `#ifdef WNB` を並べず、関係の無いキーワードの否定が条件に付く (HDRP の Lit.shader の `WRITE_NORMAL_BUFFER`)
-- 並べなかった条件が、並べた分岐で定義したマクロを見ていたら、その分岐のシンボルは並べずに展開し直す (`NoteMergedMacroConditionUse`)。並べた `#define` はどの構成でも効くので、その場の定義の有無で分岐を選ぶと、定義の無い構成でも定義のある側を読む
+- バリアントは宣言したキーワード (`DeclaredSymbols`) を既定の構成と同じにして展開する。条件付きで覚えるマクロの条件 (`#if !defined(_B)` の中の `#define WNB`) はこれで書くので、空にするとバリアントだけが `#ifdef WNB` を並べず、関係がないキーワードの否定が条件に付く (HDRP の Lit.shader の `WRITE_NORMAL_BUFFER`)
+- 並べなかった条件が、並べた分岐で定義したマクロを参照していたら、その分岐のシンボルは並べずに展開し直す (`NoteMergedMacroConditionUse`)。並べた `#define` はどの構成でも有効なので、その場の定義の有無で分岐を選ぶと、定義が存在しない構成でも定義のある側を読む
 - 並べ直しで並べる対象から外したキーワードは、条件がヘッダにしかなくても構成の候補に含める。並べる対象でないキーワードの条件は、並べられなかったとも記録されない
 - 並べずに展開しているキーワードは、その構成では値が決まっている。条件付きで覚えたマクロの条件にそうしたキーワードが現れたら、その値で置き換えてから並べるかを決める（`SymbolCondition.Assume`）。置き換えずに並べると、そのキーワードのときだけの分岐の `#define` がこの構成に漏れる（HDRP の Lit.shader の `_HEIGHTMAP` → `_CONSERVATIVE_DEPTH_OFFSET` → `SV_POSITION_QUALIFIERS`）。条件の巻き上げも、その構成で通らない定義は複製しない
-- 並べた分岐で定義したマクロがコードとして展開されたら、そのシンボルを並べずにブロックを展開し直す（`PreprocessResult.MergedMacroConflicts`、[ParseWithoutMergedMacroConflicts](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。取り込んだヘッダが使っている場合も、取り込みの記録に残した名前から分かる
+- 並べた分岐で定義したマクロがコードとして展開されたら、そのシンボルを並べずにブロックを展開し直す（`PreprocessResult.MergedMacroConflicts`、[ParseWithoutMergedMacroConflicts](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。取り込んだヘッダが使用している場合も、取り込みの記録に残した名前から分かる
 
 並べられなかった領域に現れたシンボルは `DeclinedBothBranchSymbols` に記録され、方法 B の候補になります
 （[DeclineBothBranchSymbolsIn](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)、
@@ -876,16 +876,16 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 [ShaderPreprocessorHoisting.cs](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs) が行います。
 
-- 定義は、読み飛ばす分岐のものも条件付きで覚える（[RecordConditionalDefinition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。`#undef` は、読み飛ばす分岐のものも含めて、それまでの定義の条件を「元の条件 ∧ ¬（`#undef` の経路の条件）」に縮める（[ForgetConditionalDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。条件が分からないか「常に」なら記録を捨てる。縮めずに残すと、`#undef` してから定義し直した中身を「`#undef` せずに定義し直した」（CF0002）と誤って報告する
-- 利用者が書いたヘッダの定義は、並べた分岐の条件（`CurrentCondition`）付きで覚える。ヘッダの条件は解析しているファイルのシンボルを経路の条件として読まないので、経路の条件は使えない。読み飛ばした分岐の定義は覚えない。複製している最中の展開は、並べた分岐のマクロをコードで使ったこと（`MergedMacroConflicts`）に数えない（[NoteMergedMacroUse](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。利用者が書いたヘッダは取り込み結果を覚えも使い回しもしない（条件付きの定義が展開結果に入らないため、`IsUserHeaderInclude`）
-- 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義の無い分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）
+- 定義は、解析を省略する分岐のものも条件付きで覚える（[RecordConditionalDefinition](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。`#undef` は、解析を省略する分岐のものも含めて、それまでの定義の条件を「元の条件 ∧ ¬（`#undef` の経路の条件）」に縮める（[ForgetConditionalDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。条件が分からないか「常に」なら記録を捨てる。縮めずに残すと、`#undef` してから定義し直した中身を「`#undef` せずに定義し直した」（CF0002）と誤って報告する
+- 利用者が書いたヘッダの定義は、並べた分岐の条件（`CurrentCondition`）付きで覚える。ヘッダの条件は解析しているファイルのシンボルを経路の条件として扱わないので、経路の条件は使用できない。読み飛ばした分岐の定義は覚えない。複製している最中の展開は、並べた分岐のマクロをコードで使用したこと（`MergedMacroConflicts`）に数えない（[NoteMergedMacroUse](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。利用者が書いたヘッダは取り込み結果を覚えも使い回しもしない（条件付きの定義が展開結果に入らないため、`IsUserHeaderInclude`）
+- 複製するのは、条件付きの定義が 2 つ以上あり、中身が違い、条件が分かっていて、分岐の数（定義が存在しない分岐を含む）が 4 以下のマクロ（[GetHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）
 - 文に書かれた名前が、条件で中身が変わるマクロでなくても、その本体を 8 段までたどって条件で中身が変わるマクロをちょうど 1 つ参照していれば、そのマクロの定義ごとに複製する（[FindHoistableThroughMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。たどった結果はマクロの定義ごとに覚え、マクロ表か条件付きの定義が変わったら捨てる
 - 1 つの文に条件で中身の変わるマクロが 2 つ以上あれば、定義の組み合わせごとに複製する（[CombineWithOtherMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。マクロは 3 つまで、組み合わせは 8 通りまで。超えるときは、きっかけのマクロだけを複製する
-- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` が無ければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）。マクロを使う文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
+- 定義を書き分けた分岐にコードもある領域は、`#undef` / `#include` が存在しなければ並べる（[CanMergeWithHoisting](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）。マクロを使用する文は複製し、複製できない展開は `MergedMacroConflicts` で並べ直す
 - 並べた分岐を入れ子の `#if` が区切ったときは、分岐全体の範囲も分岐の条件付きで記録する（[CloseBranchRange](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDirectives.cs)）。条件の付く範囲は入れ子の前・中・後に分かれ、ノードに条件を付けるのは 1 つの範囲の内側にあるときだけなので、本体に `#if` を持つ関数には条件が付かなかった（「常に」になり、分岐ごとの同じ名前の関数を CF0314 と報告していた）
-- 文の切れ目の候補（[EnumerateUnitEnds](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）は、括弧の釣り合った `;` と `}` の後ろに加え、指令の手前と、外側のブロックを閉じる `}` の手前も含む。マクロ自身が文を閉じる形（`if (v > 0) BODY` の後ろに `#ifdef` が続く、`{ … BODY }`）では、展開前のトークンに `;` も `}` も無いためである
+- 文の切れ目の候補（[EnumerateUnitEnds](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）は、括弧の釣り合った `;` と `}` の後ろに加え、指令の手前と、外側のブロックを閉じる `}` の手前も含む。マクロ自身が文を閉じる形（`if (v > 0) BODY` の後ろに `#ifdef` が続く、`{ … BODY }`）では、展開前のトークンに `;` も `}` も存在しないためである
 - 複製は、どれも同じ位置から作られる。位置から条件を取得すると `_A` の複製と `!_A` の複製が重なり、両方「常に」になる。そのため複製ごとにトークンを別のインスタンスにし（`ShaderSyntaxToken.Duplicate`）、範囲に印を付ける（`ConditionalTokenRange.IsHoisted`）
-- `#define` しか無い領域（`#define` / `#undef` / `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。同じ領域の `#elif` のシンボル（`FollowsUnmergedBranch`）、`#if` の行で読み直して並べなかったシンボル、入れ子の `#if` のシンボル（`OuterNotMerged`、[FindEnclosingHoistableMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）も、同じく数え直しの対象にする。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
+- `#define` しか存在しない領域（`#define` / `#undef` / `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else` / `#endif` だけ、[FindHoistableDefinitions](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）を `RegionDefinesMacros` で並べなかった場合、そこで定義したマクロのコードでの展開がすべて巻き上げによるものなら、展開を終えた時点でそのシンボルを並べたものとして数え直す（[RestoreHoistedDeclines](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs)）。同じ領域の `#elif` のシンボル（`FollowsUnmergedBranch`）、`#if` の行で読み直して並べなかったシンボル、入れ子の `#if` のシンボル（`OuterNotMerged`、[FindEnclosingHoistableMacros](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)）も、同じく数え直しの対象にする。その領域で求めた同時に有効にする組も、数え直さなかったときだけ記録する。巻き上げ以外の展開は [NoteUnhoistedExpansion](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorHoisting.cs) が数える（複製を諦めた箇所、複製しなかった位置での別のマクロの本体やヘッダの中での展開、同じ文で別のマクロを複製している最中の展開）
 - 文の途中で分かれる `#if`（`NotSelfContained`）は、`#if` の手前の文の始まりから、`#endif` の後ろの文の切れ目までを、分岐ごとに複製する（[TryHoistRegion](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorRegionHoisting.cs)）。複製する単位に、初期化のもの（`=` `,` `{` の直後）でない `{` があれば複製しない。分岐の中に `#elif` / `#else` / `#endif` 以外の指令があるとき、`#elif` の条件を読めないとき、分岐が 5 つ以上になるときも複製しない。並べるかの判断（`FindDeclineReason`）と同じく、外側の並べていない条件と、構成によって定義が変わるマクロの呼び出しも見る
 - 文の切れ目の目印（`NoteUnitBoundary`）は、初期化の波括弧を切れ目にしない。切れ目にすると、波括弧の内側からしか複製できない
 - 領域の終わりは、中身を調べ終える前に戻る経路（`#else` / `#elif` で閉じていないと分かった場合、入れ子が並べられない場合、`#include`）でも求める（[ConditionalRegionScanner.Scan](../../src/Shaderlyn.CFamily/Preprocessing/ConditionalRegionScanner.cs)）。複製は領域の後ろから文の切れ目を探す
@@ -894,21 +894,21 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 #### 並べなかった理由の記録
 
 [BothBranchDecline](../../src/Shaderlyn.CFamily/Preprocessing/PreprocessorTypes.cs) に、シンボル・理由（`BothBranchDeclineReason`）・ファイル・指令の位置（`DirectiveSpan`）を残します（[AddDeclinedSymbol](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorDefines.cs)）。
-挙動には使わず、`--inspect` の「シンボルの扱い」タブと、Unity 同梱シェーダーでの計測（[UnityCorpusTests](../../tests/Shaderlyn.Tests/UnityCorpusTests.cs)）が読みます。
+挙動には使用せず、`--inspect` の「シンボルの扱い」タブと、Unity 同梱シェーダーでの計測（[UnityCorpusTests](../../tests/Shaderlyn.Tests/UnityCorpusTests.cs)）が読みます。
 
 | 理由 | `--inspect` の表示 |
 | --- | --- |
 | `RegionNotSelfContained` | 分岐の中身が文・宣言の単位で閉じていない |
-| `RegionDefinesMacros` | 分岐の中で、コードで使うマクロを定義している (定義ごとの複製で補えなかった) |
+| `RegionDefinesMacros` | 分岐の中で、コードで使用するマクロを定義している (定義ごとの複製で補えなかった) |
 | `RegionSwitchesIncludes` | 分岐で取り込むファイルを切り替えている |
-| `RegionUnterminated` | #endif が無い |
-| `CallsConfigurationDependentMacro` | 分岐の中で、構成によって定義が変わるマクロを使っている |
+| `RegionUnterminated` | #endif が存在しない |
+| `CallsConfigurationDependentMacro` | 分岐の中で、構成によって定義が変わるマクロを使用している |
 | `UnreadableCondition` | 条件式をシンボルの条件として解析できない (値として解いた) |
 | `OuterNotMerged` | 外側の #if を並べていない |
 | `FollowsUnmergedBranch` | 並べなかった #if に続く #elif |
 | `NotInFile` | 指令がマクロの展開から出てきた |
 | `OutsideDefaultMergedRegions` | 既定の構成が並べなかった領域 |
-| （`MacroConflictSymbols`） | 並べた分岐で定義したマクロを、コードで使っている (取り込むファイルの切り替えなど) |
+| （`MacroConflictSymbols`） | 並べた分岐で定義したマクロを、コードで使用している (取り込むファイルの切り替えなど) |
 
 表示の対応は [AnalysisInspectorSymbols.cs](../../src/Shaderlyn.Cli/Inspection/AnalysisInspectorSymbols.cs) にあります。
 
@@ -921,7 +921,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 | 環境 | `SHADER_API_*`、`UNITY_VERSION` など。1 通りだけを仮に選ぶ | Unity は [UnityOptions.DefaultPredefinedMacros](../../src/Shaderlyn.Unity/UnityOptions.cs)、ほかの環境は環境の `ConfigurePreprocessor`、`--define`（[ValueOptions](../../src/Shaderlyn.Cli/CommandLineOptions.cs)） |
 | カーネルのマクロ | `#pragma kernel KMain USE_X` がそのカーネルだけに与えるもの | [ProgramBlockExtractor](../../src/Shaderlyn.Unity/ProgramBlockExtractor.cs) の `ExtraMacros`、[WithExtraMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
 | シンボル | その構成で有効にするシェーダーキーワード | [ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs) |
-| 宣言から分かる制約 | 同じ行のシンボルは同時に有効にならない。`_` の無い `multi_compile` はどれか 1 つが必ず有効 | [SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs) |
+| 宣言から分かる制約 | 同じ行のシンボルは同時に有効にならない。`_` が存在しない `multi_compile` はどれか 1 つが必ず有効 | [SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs) |
 
 既定の構成もバリアントも、この 4 つを同じ順で重ねて作ります（`ConfigurationMacros`）。
 どれか 1 つでも別々に扱うと、片方の経路にだけ穴が空きます。実際、カーネルのマクロをバリアントに渡し忘れていた不具合がありました。
@@ -943,14 +943,14 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 - マクロ展開の結果として現れた名前ではない
 - **解析対象のファイル自身**に書かれた条件が参照している（取り込んだヘッダの条件は (c) で扱う）
 
-**(b) 同時に定義されていないと通らない組の構成**（[SelectVariantCombinations](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
+**(b) 同時に定義されていないと有効にならない組の構成**（[SelectVariantCombinations](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。
 
 - 組の元は、両方の分岐を並べなかった分岐ごとに、**外側の分岐の条件をすべて掛け合わせて**拾う（[RecordRequiredCombinations](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorConditionals.cs)、[EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolCondition.cs)）。外側を読み飛ばしていても、入れ子の条件は読む
-- 条件の中でシンボルとして読むのは、ブロックが宣言しているシンボルだけ（`PreprocessorOptions.DeclaredSymbols`）。並べる対象（`BothBranchSymbols`）とは別に渡すので、並べない設定で展開しても組は変わらない
-- 組の中のシンボルは**すべて宣言されている**必要がある。方法 A で並べたシンボルが混ざってもよい（並べた `#ifdef _A` の中の、並べなかった `#ifdef _B` は、`_A` の構成でも `_B` の構成でも通らない）。すべて並べたシンボルなら既定の構成の木に載っているので作らない
+- 条件の中でシンボルとして扱うのは、ブロックが宣言しているシンボルだけ（`PreprocessorOptions.DeclaredSymbols`）。並べる対象（`BothBranchSymbols`）とは別に渡すので、並べない設定で展開しても組は変わらない
+- 組の中のシンボルは**すべて宣言されている**必要がある。方法 A で並べたシンボルが混ざってもよい（並べた `#ifdef _A` の中の、並べなかった `#ifdef _B` は、`_A` の構成でも `_B` の構成でも有効にならない）。すべて並べたシンボルなら既定の構成の木に載っているので作らない
 - 同じ行どうしの組を作らないこと、方法 A で外側と合わせて成り立たない分岐を並べないことは、[SymbolConstraints](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)（`PreprocessorOptions.SymbolConstraints`）で判断する。ルールが条件を掛け合わせて「成り立つか」を見るときも `ConditionMap.IsPossible` を通す。全 Pass をまとめた索引では、どの Pass でも同じ行に並んでいる組だけを排他とする
-- 報告やホバーに示す条件は、制約から決まる部分を省いて短くする（`ConditionMap.Simplify` → [SymbolConstraints.Reduce](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。同時に有効にならないシンボルがあればその否定を省き、`_` の無い `multi_compile` の行で 1 つを除いて否定していれば残りの 1 つと書く。`multi_compile _A _B` / `multi_compile _C _D` のもとの `(_A && !_C && _D) || (!_B && !_C && _D)` は `_A && _D` になる
-- `_` の無い `multi_compile` の行は、既定の構成とどのバリアントも、その行のシンボルを 1 つも有効にしていなければ先頭を定義する（[ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。先頭だけを有効にした構成は既定の構成と同じなので作らない。先頭が無いことを求める分岐には、同じ行の別のシンボルを有効にした構成を作る（[SymbolConstraints.EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。`shader_feature` は対象にしない（[既知の限界](#既知の限界) 9、[ShaderSymbols.IsRequiredSet](../../src/Shaderlyn.Unity/ShaderSymbols.cs)）
+- 報告やホバーに示す条件は、制約から決まる部分を省いて短くする（`ConditionMap.Simplify` → [SymbolConstraints.Reduce](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。同時に有効にならないシンボルがあればその否定を省き、`_` が存在しない `multi_compile` の行で 1 つを除いて否定していれば残りの 1 つと書く。`multi_compile _A _B` / `multi_compile _C _D` のもとの `(_A && !_C && _D) || (!_B && !_C && _D)` は `_A && _D` になる
+- `_` が存在しない `multi_compile` の行は、既定の構成とどのバリアントも、その行のシンボルを 1 つも有効にしていなければ先頭を定義する（[ConfigurationMacros](../../src/Shaderlyn.Semantics/Programs/ShaderCompilationBuilder.cs)）。先頭だけを有効にした構成は既定の構成と同じなので作らない。先頭が存在しないことを求める分岐には、同じ行の別のシンボルを有効にした構成を作る（[SymbolConstraints.EnumerateRequiredCombinations](../../src/Shaderlyn.Core/Syntax/SymbolConstraints.cs)）。`shader_feature` は対象にしない（[既知の限界](#既知の限界) 9、[ShaderSymbols.IsRequiredSet](../../src/Shaderlyn.Unity/ShaderSymbols.cs)）
 
 **(c) ヘッダの条件の構成。** 取り込んだヘッダに書かれた条件は、次のものだけを 1 つずつの構成にします。
 
@@ -961,7 +961,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 **並び順は (a)、(b)、(c) の順にします。** 上限に達したときは後ろから落とします。
 (a) は名前順、(b) は中身を並べた文字列の順で、実行のたびに変わりません。
 
-互いに関係しないキーワードは 1 回の展開にまとめます（`PackIndependentSymbols`）。違いがどのキーワードのものかは、重なる `#if` の連なり (`KeywordRegions`) で決め、決められなければ 1 つずつ展開し直します。まとめた構成は上限を 1 つ分だけ使います。
+互いに関係しないキーワードは 1 回の展開にまとめます（`PackIndependentSymbols`）。違いがどのキーワードのものかは、重なる `#if` の連なり (`KeywordRegions`) で決め、決められなければ 1 つずつ展開し直します。まとめた構成は上限を 1 つ分だけ使用します。
 
 上限は [SemanticsOptions.DefaultMaxSymbolVariants](../../src/Shaderlyn.Semantics/SemanticsOptions.cs)（既定 8）と
 [CommandLineOptions.ReadMaxSymbolVariants](../../src/Shaderlyn.Cli/CommandLineOptions.cs) で決まり、キャッシュの鍵にも入ります（[AnalysisCacheKey.AppendOptions](../../src/Shaderlyn.Cli/Caching/AnalysisCacheKey.cs)）。
@@ -985,8 +985,8 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 巻き上げで複製した文については、
 
-- 範囲を位置に変換せず、トークンから条件を検索する。ノードの先頭と末尾のトークンが同じ複製のものなら、その複製の条件が付く（`ConditionMap.GetHoistedCondition`）
-- 突き合わせの結果は、一方の木では複製してあり、もう一方の木では同じ位置に複製していない文があるところでだけ使わない（[FindAmbiguousCopies](../../src/Shaderlyn.Semantics/Conditional/ConditionMapBuilder.cs)）。そこでは 1 つの文がどの複製と対応するかが位置から決まらず、取り違えると `multi_compile _A _B` で `float4 d` に `!_B` が付いていた。それ以外の位置では使う。捨てると、`#ifdef _B` の中で複製した文から `_B` の条件が消え、[CF0314](../rules/CF0314.md) を誤って報告していた
+- 範囲を位置に変換せず、トークンから条件を検索する。ノードの先頭と末尾のトークンが同じ複製のものの場合は、その複製の条件が付く（`ConditionMap.GetHoistedCondition`）
+- 突き合わせの結果は、一方の木では複製してあり、もう一方の木では同じ位置に複製していない文があるところでだけ使用しない（[FindAmbiguousCopies](../../src/Shaderlyn.Semantics/Conditional/ConditionMapBuilder.cs)）。そこでは 1 つの文がどの複製と対応するかが位置から決まらず、取り違えると `multi_compile _A _B` で `float4 d` に `!_B` が付いていた。それ以外の位置では使用する。捨てると、`#ifdef _B` の中で複製した文から `_B` の条件が消え、[CF0314](../rules/CF0314.md) を誤って報告していた
 
 #### 出現条件（`SymbolCondition`）
 
@@ -996,10 +996,10 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 [ConditionMap.GetCondition](../../src/Shaderlyn.Semantics/Conditional/ConditionMap.cs) は次の順で組み立てます。
 
-1. 突き合わせできなかった領域の中なら `Unknown` を返す（「分からない」を「常に」にしない）
+1. 突き合わせできなかった領域の中の場合は `Unknown` を返す（「不明」を「常に」にしない）
 2. バリアントとの突き合わせから出た条件を、**親を辿りながら**論理積で重ねる
 3. 方法 A で並べた領域の条件を論理積で重ねる
-4. 条件の巻き上げで複製した文の中なら、その複製の条件を論理積で重ねる
+4. 条件の巻き上げで複製した文の中の場合は、その複製の条件を論理積で重ねる
 
 `IsAlwaysPresent`（[IsAlwaysPresent](../../src/Shaderlyn.Semantics/Conditional/ConditionMap.cs)）は `GetCondition(node).IsAlways` です。
 
@@ -1007,11 +1007,11 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 
 構成を仮定するのは [ExpressionTypeBinder.EnumerateAssumptions](../../src/Shaderlyn.Semantics/Programs/ExpressionTypeBinder.cs) で、
 仮定ごとの型は [GetEvaluatorFor](../../src/Shaderlyn.Semantics/Programs/ExpressionTypeBinder.cs) が返す評価器で求めます。
-同じ名前の**関数**を条件ごとに違う型で返す場合も同じように扱います。引数の個数で絞っても型が割れる名前を先に集めておき（`VaryingFunctions`）、仮定ごとに見える宣言だけへ絞ります。
+同じ名前の**関数**を条件ごとに違う型で返す場合も同じように扱います。引数の個数で絞っても型が割れる名前を先に集めておき（`VaryingFunctions`）、仮定ごとに参照できる宣言だけへ絞ります。
 
 ### 付録 8: ルールとエディタ
 
-#### ルールから見えるもの
+#### ルールから参照できるもの
 
 ルールの書き方は [ルール API リファレンス](../custom-rules/api-reference.md) にあります。ここでは実装の場所だけを示します。
 
@@ -1020,7 +1020,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 | `Programs` | 既定の構成のコードブロックごとの解析結果 | [ShaderCompilation.cs](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
 | `SymbolVariants` | バリアントの解析結果（`EnabledSymbols` に有効にしたシンボル名。論理積の構成では 2 つ以上） | [SymbolVariants](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
 | `UnexploredSymbols` | 上限に達して、1 つだけ有効にする構成を作らなかったシンボル | [UnexploredSymbols](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
-| `UnexploredSymbolCombinations` | 上限に達して、同時に有効にする構成を作らなかった組と、その組でしか通らない分岐を始めた指令の位置 | [UnexploredSymbolCombinations](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
+| `UnexploredSymbolCombinations` | 上限に達して、同時に有効にする構成を作らなかった組と、その組でしか有効にならない分岐を始めた指令の位置 | [UnexploredSymbolCombinations](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
 | `GetConditionMap()` | 出現条件の索引 | [ConditionMap.cs](../../src/Shaderlyn.Semantics/Conditional/ConditionMap.cs) |
 | `GetInsertedChildren(node)` | そのノードの子として追加するノード | [GetInsertedChildren](../../src/Shaderlyn.Semantics/Conditional/ConditionMap.cs) |
 | `EnumerateOwnNodes(program)` | 走査用。宣言とその子孫に加え、**追加するノードとその子孫**も返す | [EnumerateOwnNodes](../../src/Shaderlyn.Semantics/ShaderCompilation.cs)、[EnumerateInserted](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) |
@@ -1030,7 +1030,7 @@ CLI から対象を変える手段はありません（`--keep-both-branches` �
 **それらのファイルが書いたマクロの本体から来たノード**です（`ShaderSyntaxToken.MacroDefinitionSpan` / `MacroDefinitionSource`）。
 Unity や外部パッケージのヘッダのノードと、それらのマクロが作ったノードは除きます。
 
-「無いこと」を根拠にするルールが使う、解析されなかった場所の名前は
+「無いこと」を根拠にするルールが使用する、解析されなかった場所の名前は
 [ShaderCompilation.UnanalyzedIdentifiers](../../src/Shaderlyn.Semantics/ShaderCompilation.cs) にあります
 （ファイル自身の分は `SkippedRootIdentifiers`、利用者が書いたヘッダの分は `SkippedUserHeaderIdentifiers`、どちらも位置で持ち、別の構成の木がその位置を解析していれば外す。Unity や外部パッケージのヘッダの分は名前だけの `SkippedIncludedIdentifiers`）。
 
@@ -1041,10 +1041,10 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 | [CF0201](../rules/CF0201.md) | `ConditionalIdentifiers` のうち、宣言に無く、下線+大文字の命名に合い、マクロでもなく、このファイルに書かれたもの。取り込まれる前提の断片 (`.hlsl` など) では報告しない | [ShaderSymbolAnalyzer.ReportUndeclared](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs)、[IsMaterialSymbol](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [CF0202](../rules/CF0202.md) | 宣言のうち、条件でも実行時の参照でも現れないもの。宣言がこのファイルにある場合だけ | [ReportUnused](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
 | [CF0203](../rules/CF0203.md) | `#if` / `#elif` の条件のうち、宣言されたシンボルと定数だけでできていて、宣言の制約で成り立つシンボルの組のどれでも偽になるもの。このファイルに書かれた条件だけ。判定はプリプロセッサが行い（[NoteIfNeverTrue](../../src/Shaderlyn.CFamily/Preprocessing/ShaderPreprocessorNeverTrue.cs)）、その分岐のためのバリアントは作らない | [ReportNeverTrue](../../src/Shaderlyn.Rules/Hlsl/ShaderSymbolAnalyzer.cs) |
-| [CF0102](../rules/CF0102.md) | `UnexploredSymbols` のシンボルごとに 1 件。位置はそのシンボルを参照する最初の条件（このファイルに書かれたもの）。見つからなければファイルの先頭。`UnexploredSymbolCombinations` の組ごとにも 1 件。位置はその組でしか通らない分岐を始めた指令 | [UnexploredSymbolAnalyzer.cs](../../src/Shaderlyn.Rules/Semantics/UnexploredSymbolAnalyzer.cs) |
+| [CF0102](../rules/CF0102.md) | `UnexploredSymbols` のシンボルごとに 1 件。位置はそのシンボルを参照する最初の条件（このファイルに書かれたもの）。見つからない場合はファイルの先頭。`UnexploredSymbolCombinations` の組ごとにも 1 件。位置はその組でしか通らない分岐を始めた指令 | [UnexploredSymbolAnalyzer.cs](../../src/Shaderlyn.Rules/Semantics/UnexploredSymbolAnalyzer.cs) |
 | [CF0314](../rules/CF0314.md) | 2 つの宣言の出現条件を掛け合わせて成り立つとき。ただし、その条件を満たすバリアントを展開していれば、その木に両方があるときだけ | [RedeclarationAnalyzer.Collides](../../src/Shaderlyn.Rules/Hlsl/RedeclarationAnalyzer.cs) |
 | [CF0103](../rules/CF0103.md) | `UnmergedLocations` の各位置 | [UnresolvedConditionAnalyzer.Analyze](../../src/Shaderlyn.Rules/Semantics/UnresolvedConditionAnalyzer.cs) |
-| [CF0412](../rules/CF0412.md) | 代入先のメンバーと書いた要素の出現条件に現れるシンボル（12 個まで）の組を仮定し、その構成にあるものだけを数えて比較する。宣言が無い構成と、その木が表さない構成（`GetTreeConfiguration`）は仮定しない | [ValueConversionAnalyzer.CheckInitializerList](../../src/Shaderlyn.Rules/Hlsl/ValueConversionAnalyzer.cs) |
+| [CF0412](../rules/CF0412.md) | 代入先のメンバーと書いた要素の出現条件に現れるシンボル（12 個まで）の組を仮定し、その構成にあるものだけを数えて比較する。宣言が存在しない構成と、その木が表さない構成（`GetTreeConfiguration`）は仮定しない | [ValueConversionAnalyzer.CheckInitializerList](../../src/Shaderlyn.Rules/Hlsl/ValueConversionAnalyzer.cs) |
 | CF0311 ほか | 条件が `Unknown` の箇所では報告しない | [CallSignatureAnalyzer.AnalyzeCall](../../src/Shaderlyn.Rules/Hlsl/CallSignatureAnalyzer.cs) |
 
 #### エディタ（VS Code 拡張）
@@ -1055,7 +1055,7 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 | --- | --- | --- |
 | `shaderlyn/conditionSymbols` | 切り替え候補になる名前の一覧を返す。`declared` はその名前が構成の軸として宣言されたシンボルか (Unity は `#pragma`、ほかの環境は設定ファイルの `symbols:`。v0.1 の `declaredByPragma` も同じ値で返す)。値を持つシンボルは値ごとの名前 (`QUALITY==2`) で並び、`variable` と `value` が付く。同時には有効にならない組は、各シンボルの `groups` (属するすべての組の番号) と、結果の `groups` (組ごとの `requiresOne`) で表す。`group` / `requiresOne` は最初の組だけを表す (古い拡張のため) | [OnConditionSymbolsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs)、[ConditionSymbol](../../src/Shaderlyn.LanguageServer/ConditionSymbols.cs) |
 | `shaderlyn/setDefinedSymbols` | 選んだ名前を定義済みとして解析し直す | [OnSetDefinedSymbolsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs) |
-| `shaderlyn/inactiveRegions` | 効いていない領域の通知 | [PublishInactiveRegionsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs) |
+| `shaderlyn/inactiveRegions` | 無効な領域の通知 | [PublishInactiveRegionsAsync](../../src/Shaderlyn.LanguageServer/ShaderLanguageServer.cs) |
 | ホバー | 同じ位置の複製を構成ごとに並べる（[HoverBuilder](../../src/Shaderlyn.LanguageServer/HoverBuilder.cs)）。マクロの上では呼び出し位置の展開結果を構成ごとに、`#define` の行ではその行の定義と条件を示す（[HoverMacros](../../src/Shaderlyn.LanguageServer/HoverMacros.cs)、`PreprocessResult.WrittenDefinitions`） | |
 
 #### `--inspect`
@@ -1069,21 +1069,21 @@ Unity や外部パッケージのヘッダのノードと、それらのマク�
 
 | テスト | 比較する対象 | コード |
 | --- | --- | --- |
-| 並べても並べなくても同じ | 方法 A を使う既定の解析と、方法 A を使わない解析。近似どうしの比較なので、両方に同じ穴があれば見つからない | [BothBranchConsistencyTests](../../tests/Shaderlyn.Tests/BothBranchConsistencyTests.cs) |
+| 並べても並べなくても同じ | 方法 A を使用する既定の解析と、方法 A を使用しない解析。近似どうしの比較なので、両方に同じ穴があれば見つからない | [BothBranchConsistencyTests](../../tests/Shaderlyn.Tests/BothBranchConsistencyTests.cs) |
 | すべての構成との突き合わせ | 既定の解析と、Unity が作る構成をすべて列挙して 1 つずつ解析した結果の和。後者が正解になる | [ConfigurationOracleTests](../../tests/Shaderlyn.Tests/ConfigurationOracleTests.cs) |
 | 書き方ごとの方法 | コードの形ごとに、方法 A で扱うか、どの構成を作るか | [VariantShapeTests](../../tests/Shaderlyn.Tests/VariantShapeTests.cs) |
 
 **すべての構成との突き合わせ**は次のように行います。
 
-- 構成は、実装（`ShaderSymbols`）を使わずにテストの側で列挙する。`_` の無い `multi_compile` はどれか 1 つ、それ以外は「無し」も含む。実装と同じ読み方をすると、読み方の誤りが両方に入って見えなくなる
-- 1 つの構成は、構成を固定した解析（`SemanticsOptions.FixedSymbolConfiguration`、方法 A も方法 B も使わない）で解析する。構成を固定すると、シンボルで外れた分岐の名前を「見えていないだけかもしれない」と扱わない
+- 構成は、実装（`ShaderSymbols`）を使用せずにテストの側で列挙する。`_` が存在しない `multi_compile` はどれか 1 つ、それ以外は「無し」も含む。実装と同じ解析をすると、解析の誤りが両方に入って見えなくなる
+- 1 つの構成は、構成を固定した解析（`SemanticsOptions.FixedSymbolConfiguration`、方法 A も方法 B も使用しない）で解析する。構成を固定すると、シンボルで外れた分岐の名前を「参照できないだけかもしれない」と扱わない
 - 比較対象はルールと位置に限り、メッセージは含めない。「どこまで調べたか」の報告（CF0101 / CF0102 / CF0103 / TOOL0004）と、構成をまたいで「どこにも無い」ことを判断するルール（SL1001 / SL1002 / SL1004 / CF0201 / CF0202）は対象外
 - 既定の解析が条件付きで報告する CF0311 / CF0313 / CF0315 は、構成を固定した解析の CF0310 / CF0312 と同じ種類の誤りとして比較する
 - 見逃すと分かっているシェーダーは、理由を添えて `KnownGaps` に登録する。直ったら外す（外し忘れるとテストが落ちる）
 
 ## 関連
 
-- [CLI の使い方](cli-usage.md#シンボルの展開数) — `--max-symbol-variants`
+- [CLI の使用方法](cli-usage.md#シンボルの展開数) — `--max-symbol-variants`
 - [CF0102](../rules/CF0102.md) — 調べていないシンボルの経路がある
 - [CF0103](../rules/CF0103.md) — 条件を追えなかった箇所がある
 - [ルール API リファレンス](../custom-rules/api-reference.md) — `GetConditionMap()` と `SymbolCondition`

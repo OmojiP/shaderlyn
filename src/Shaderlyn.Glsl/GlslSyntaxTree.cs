@@ -158,7 +158,7 @@ internal static class GlslSyntaxTree
                 && token.GetLocation() is { } location)
             {
                 diagnostics.Add(Diagnostic.Create(
-                    CFamily.ShaderDescriptors.ReservedWord, location, $"'{token.Text}' はこのバージョンの GLSL の予約語なので使えません。"));
+                    CFamily.ShaderDescriptors.ReservedWord, location, $"'{token.Text}' はこのバージョンの GLSL の予約語なので使用できません。"));
             }
         }
     }

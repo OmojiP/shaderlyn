@@ -17,7 +17,7 @@ public sealed class CustomRuleApiTests
     private static readonly DiagnosticDescriptor Rule = new(
         id: "TEST0100",
         title: "Banned を呼ばない",
-        messageFormat: "{0}関数 '{1}' は使えません。",
+        messageFormat: "{0}関数 '{1}' は使用できません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "検証用。");
@@ -79,7 +79,7 @@ public sealed class CustomRuleApiTests
         Assert.StartsWith("構成：", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_A", diagnostic.GetMessage(), StringComparison.Ordinal);
         Assert.Contains("_B", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.EndsWith("関数 'Banned' は使えません。", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.EndsWith("関数 'Banned' は使用できません。", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class CustomRuleApiTests
             half4 frag() : SV_Target { return Banned(); }
             """));
 
-        Assert.Equal("関数 'Banned' は使えません。", Assert.Single(diagnostics).GetMessage());
+        Assert.Equal("関数 'Banned' は使用できません。", Assert.Single(diagnostics).GetMessage());
     }
 
     [Theory]
@@ -118,7 +118,7 @@ public sealed class CustomRuleApiTests
             """));
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("構成：_A のとき、関数 'Banned' は使えません。", diagnostic.GetMessage());
+        Assert.Equal("構成：_A のとき、関数 'Banned' は使用できません。", diagnostic.GetMessage());
     }
 
     [Fact]

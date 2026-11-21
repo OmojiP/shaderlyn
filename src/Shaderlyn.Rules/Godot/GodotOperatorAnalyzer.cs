@@ -89,7 +89,7 @@ internal sealed class GodotOperatorAnalyzer : SemanticRuleAnalyzer
             case BinaryExpressionSyntax binary when TypeOf(binary.Left) is { } left && TypeOf(binary.Right) is { } right:
                 if (!IsValidBinary(binary.OperatorToken.Kind, left, right))
                 {
-                    report(GodotRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"演算子 '{binary.OperatorToken.Text}' は {left} と {right} の組に使えません。");
+                    report(GodotRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"演算子 '{binary.OperatorToken.Text}' は {left} と {right} の組に使用できません。");
                 }
 
                 break;
@@ -99,7 +99,7 @@ internal sealed class GodotOperatorAnalyzer : SemanticRuleAnalyzer
                      && TypeOf(assignment.Left) is { } target && TypeOf(assignment.Right) is { } value:
                 if (!IsValidCompoundAssignment(assignment.OperatorToken.Kind, target, value))
                 {
-                    report(GodotRuleDescriptors.WrongOperandTypes, assignment.OperatorToken, $"演算子 '{assignment.OperatorToken.Text}' は {target} と {value} の組に使えません。");
+                    report(GodotRuleDescriptors.WrongOperandTypes, assignment.OperatorToken, $"演算子 '{assignment.OperatorToken.Text}' は {target} と {value} の組に使用できません。");
                 }
 
                 break;
@@ -158,7 +158,7 @@ internal sealed class GodotOperatorAnalyzer : SemanticRuleAnalyzer
 
         if (!valid)
         {
-            report(GodotRuleDescriptors.WrongOperandTypes, op, $"演算子 '{op.Text}' は {operand} に使えません。");
+            report(GodotRuleDescriptors.WrongOperandTypes, op, $"演算子 '{op.Text}' は {operand} に使用できません。");
         }
     }
 

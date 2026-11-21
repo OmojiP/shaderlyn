@@ -13,16 +13,16 @@ internal static class CookbookRules
 {
     public static DiagnosticDescriptor BannedMacro { get; } = new(
         id: "COOK0001",
-        title: "使ってはいけないマクロ",
-        messageFormat: "マクロ '{0}' は使わないでください。",
+        title: "使用してはいけないマクロ",
+        messageFormat: "マクロ '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedFunction { get; } = new(
         id: "COOK0002",
-        title: "使ってはいけない関数",
-        messageFormat: "関数 '{0}' は使わないでください。",
+        title: "使用してはいけない関数",
+        messageFormat: "関数 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -30,7 +30,7 @@ internal static class CookbookRules
     public static DiagnosticDescriptor NoBranch { get; } = new(
         id: "COOK0003",
         title: "if を書かない",
-        messageFormat: "if は使わないでください。",
+        messageFormat: "if は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -45,8 +45,8 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedUnderSymbol { get; } = new(
         id: "COOK0005",
-        title: "この構成では使えない関数",
-        messageFormat: "{0}関数 '{1}' は使えません。",
+        title: "この構成では使用できない関数",
+        messageFormat: "{0}関数 '{1}' は使用できません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -77,7 +77,7 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor RequiredTag { get; } = new(
         id: "COOK0009",
-        title: "必須のタグが無い",
+        title: "必須のタグが存在しない",
         messageFormat: "SubShader に '{0}' タグがありません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -109,8 +109,8 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedOverload { get; } = new(
         id: "COOK0029",
-        title: "使ってはいけないオーバーロード",
-        messageFormat: "'{0}' を ({1}) の形で呼んでいます。この形は使わないでください。",
+        title: "使用してはいけないオーバーロード",
+        messageFormat: "'{0}' を ({1}) の形で呼んでいます。この形は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -133,31 +133,31 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedType { get; } = new(
         id: "COOK0016",
-        title: "使ってはいけない型",
-        messageFormat: "型 '{0}' は使わないでください。",
+        title: "使用してはいけない型",
+        messageFormat: "型 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedOperator { get; } = new(
         id: "COOK0017",
-        title: "使ってはいけない演算子",
-        messageFormat: "演算子 '{0}' は使わないでください。",
+        title: "使用してはいけない演算子",
+        messageFormat: "演算子 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedSemantic { get; } = new(
         id: "COOK0018",
-        title: "使ってはいけないセマンティクス",
-        messageFormat: "セマンティクス '{0}' は使わないでください。",
+        title: "使用してはいけないセマンティクス",
+        messageFormat: "セマンティクス '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor MissingPragma { get; } = new(
         id: "COOK0019",
-        title: "必須の #pragma が無い",
+        title: "必須の #pragma が存在しない",
         messageFormat: "このコードブロックに '#pragma {0}' がありません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -189,7 +189,7 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor MissingInclude { get; } = new(
         id: "COOK0023",
-        title: "必須のヘッダが無い",
+        title: "必須のヘッダが存在しない",
         messageFormat: "このコードブロックは '{0}' を取り込んでいません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,

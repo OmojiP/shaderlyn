@@ -278,7 +278,7 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
                 }
 
                 default:
-                    return $"エスケープ '\\{kind}' は使えません。";
+                    return $"エスケープ '\\{kind}' は使用できません。";
             }
         }
 

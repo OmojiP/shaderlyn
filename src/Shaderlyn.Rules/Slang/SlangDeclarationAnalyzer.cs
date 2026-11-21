@@ -253,7 +253,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                         && FindNonConstant(binder, userFunctions, program.Tree.PreprocessResult.Tokens, initializer) is { } what)
                     {
                         Report(SlangRuleDescriptors.StaticConstNotConstant, declarator.NameToken,
-                            $"static const の '{declarator.Name}' の初期値には定数式が必要ですが、{what}を使っています。");
+                            $"static const の '{declarator.Name}' の初期値には定数式が必要ですが、{what}を使用しています。");
                     }
 
                     if (global)
@@ -444,7 +444,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         }
         else if (!isStatic && declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "const") is { } constant)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が必要です (static const と書きます)。static の無い const は uniform になり、初期値を持てません。",
+            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が必要です (static const と書きます)。static が存在しない const は uniform になり、初期値を持てません。",
                 TokenFixes.InsertBefore(constant, "static ", "static を付ける"));
         }
         else if (declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "uniform") is { } uniform)

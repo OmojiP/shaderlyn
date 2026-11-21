@@ -291,7 +291,7 @@ internal sealed partial class SlangBuiltinFormAnalyzer : SemanticRuleAnalyzer
                 && (match.Groups["base"].Value is not ("int" or "uint" or "int32_t" or "uint32_t") || (match.Groups["count"].Success && match.Groups["count"].Value == "4")))
             {
                 report(SlangRuleDescriptors.InvalidDeclarationType, parameter.NameToken,
-                    $"{semantic.Name} の仮引数の型は、int か uint の 1 から 3 個の成分にしてください ({type} は使えません)。");
+                    $"{semantic.Name} の仮引数の型は、int か uint の 1 から 3 個の成分にしてください ({type} は使用できません)。");
             }
         }
     }

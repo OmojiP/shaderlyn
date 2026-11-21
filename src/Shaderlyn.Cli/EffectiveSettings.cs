@@ -136,8 +136,8 @@ internal sealed class EffectiveSettings
                     .. configuration.Problems,
                     new ConfigurationProblem(
                         0,
-                        "symbols: と units: は Unity の環境では使いません。Unity の構成の軸は #pragma multi_compile などから、"
-                        + "コンパイル単位は ShaderLab から読み取ります。ほかの環境で使う場合は environment を指定してください。"),
+                        "symbols: と units: は Unity の環境では使用しません。Unity の構成の軸は #pragma multi_compile などから、"
+                        + "コンパイル単位は ShaderLab から読み取ります。ほかの環境で使用する場合は environment を指定してください。"),
                 ],
             };
         }

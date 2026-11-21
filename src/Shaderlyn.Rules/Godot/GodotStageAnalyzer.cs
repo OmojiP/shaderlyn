@@ -119,7 +119,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
                 if (used > GodotRenderers.MaxVaryings)
                 {
-                    string builtin = baseIndex > 0 ? $"{renderer.DisplayName()} のレンダラーの {shaderType} のシェーダーでは組み込みの varying が {baseIndex} を使い、" : string.Empty;
+                    string builtin = baseIndex > 0 ? $"{renderer.DisplayName()} のレンダラーの {shaderType} のシェーダーでは組み込みの varying が {baseIndex} を使用し、" : string.Empty;
                     report(GodotRuleDescriptors.TooManyVaryings, declarator.NameToken,
                         $"varying が多すぎます。{builtin}'{declarator.Name}' までで {used} になり、上限の {GodotRenderers.MaxVaryings} を超えます。");
                     return;
@@ -254,13 +254,13 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
                 case JumpStatementSyntax { Keyword.Text: "discard" } jump:
                     if (!_discard)
                     {
-                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, $"discard は、{shaderType} のシェーダーでは使えません。");
+                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, $"discard は、{shaderType} のシェーダーでは使用できません。");
                         return;
                     }
 
                     if (_current.Name == "vertex" && types.IsStageFunction("vertex"))
                     {
-                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, "discard は vertex 関数の中では使えません。");
+                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, "discard は vertex 関数の中では使用できません。");
                     }
 
                     _current.Items.Add((jump.Keyword, "discard", null));
@@ -315,7 +315,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             else if (varying.Stage == VaryingStage.Unknown && BooleanTypes.Contains(varying.Type))
             {
                 report(GodotRuleDescriptors.NotAvailableInStage, identifier.Identifier, _current.Name == "vertex"
-                    ? $"{varying.Type} の varying '{identifier.Name}' は fragment 関数でだけ使えます。"
+                    ? $"{varying.Type} の varying '{identifier.Name}' は fragment 関数でだけ使用できます。"
                     : $"varying '{identifier.Name}' は、先に fragment 関数で書き込みます。");
             }
         }
@@ -385,7 +385,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             {
                 if (!_fragmentFunctions)
                 {
-                    report(GodotRuleDescriptors.NotAvailableInStage, callee.Identifier, $"組み込み関数 '{name}' は、{shaderType} のシェーダーでは使えません。");
+                    report(GodotRuleDescriptors.NotAvailableInStage, callee.Identifier, $"組み込み関数 '{name}' は、{shaderType} のシェーダーでは使用できません。");
                     return;
                 }
 
@@ -433,8 +433,8 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             }
 
             report(GodotRuleDescriptors.NotAvailableInStage, token, inVertex
-                ? $"'{item}' は vertex 関数の中では使えません。"
-                : $"'{item}' はここでは使えません。関数 '{info.Name}' は vertex 関数から呼ばれています。");
+                ? $"'{item}' は vertex 関数の中では使用できません。"
+                : $"'{item}' はここでは使用できません。関数 '{info.Name}' は vertex 関数から呼ばれています。");
             return false;
         }
 

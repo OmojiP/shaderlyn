@@ -48,7 +48,7 @@ public sealed class AnalysisSnapshotTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(snapshotPath))
         {
-            _output.WriteLine($"{SnapshotVariable} が無いため飛ばします。");
+            _output.WriteLine($"{SnapshotVariable} が存在しないため飛ばします。");
             return;
         }
 

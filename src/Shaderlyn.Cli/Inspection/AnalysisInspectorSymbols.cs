@@ -25,10 +25,10 @@ internal static partial class AnalysisInspector
     private static readonly Dictionary<BothBranchDeclineReason, string> DeclineReasonLabels = new()
     {
         [BothBranchDeclineReason.RegionNotSelfContained] = "分岐の中身が文・宣言の単位で閉じていない",
-        [BothBranchDeclineReason.RegionDefinesMacros] = "分岐の中で、コードで使うマクロを定義している (定義ごとの複製で補えなかった)",
+        [BothBranchDeclineReason.RegionDefinesMacros] = "分岐の中で、コードで使用するマクロを定義している (定義ごとの複製で補えなかった)",
         [BothBranchDeclineReason.RegionSwitchesIncludes] = "分岐で取り込むファイルを切り替えている",
-        [BothBranchDeclineReason.RegionUnterminated] = "#endif が無い",
-        [BothBranchDeclineReason.CallsConfigurationDependentMacro] = "分岐の中で、構成によって定義が変わるマクロを使っている",
+        [BothBranchDeclineReason.RegionUnterminated] = "#endif が存在しない",
+        [BothBranchDeclineReason.CallsConfigurationDependentMacro] = "分岐の中で、構成によって定義が変わるマクロを使用している",
         [BothBranchDeclineReason.UnreadableCondition] = "条件式をシンボルの条件として解析できない (値として解いた)",
         [BothBranchDeclineReason.OuterNotMerged] = "外側の #if を並べていない",
         [BothBranchDeclineReason.FollowsUnmergedBranch] = "並べなかった #if に続く #elif",
@@ -112,7 +112,7 @@ internal static partial class AnalysisInspector
 
             if (conflicts.Contains(symbol))
             {
-                WriteReason(writer, compilation, "並べた分岐で定義したマクロを、コードで使っている (取り込むファイルの切り替えなど)", null, null);
+                WriteReason(writer, compilation, "並べた分岐で定義したマクロを、コードで使用している (取り込むファイルの切り替えなど)", null, null);
             }
 
             writer.WriteEndArray();

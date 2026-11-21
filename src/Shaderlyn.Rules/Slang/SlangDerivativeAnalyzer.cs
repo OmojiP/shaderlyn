@@ -201,7 +201,7 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
     {
         if (loop.Initializer is not VariableDeclarationSyntax declaration || declaration.Variables.ToArray() is not [var variable] || variable.Initializer is not { } start || constants.Evaluate(start) is null)
         {
-            return "for の、初期化で定数を入れた変数の無いループ";
+            return "for の、初期化で定数を入れた変数が存在しないループ";
         }
 
         string name = variable.Name;

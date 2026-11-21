@@ -123,7 +123,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
         if (!declaration.Ancestors().Any(a => a is StructDeclarationSyntax))
         {
-            Report(context, declaration.NameToken, $"operator{symbol} は構造体の中でだけ定義できます。構造体の外の演算子は使えません。", reported);
+            Report(context, declaration.NameToken, $"operator{symbol} は構造体の中でだけ定義できます。構造体の外の演算子は使用できません。", reported);
         }
     }
 
@@ -155,7 +155,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 {
                     return HasOperator(binder, left, symbol, parameters: 1)
                         ? null
-                        : (binary.OperatorToken, $"構造体 '{left}' の値に演算子 '{symbol}' は使えません。{HintFor(left, symbol)}");
+                        : (binary.OperatorToken, $"構造体 '{left}' の値に演算子 '{symbol}' は使用できません。{HintFor(left, symbol)}");
                 }
 
                 // 左辺の型が分からなければ、左辺の構造体の演算子が使われるかもしれない。
@@ -166,7 +166,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 }
 
                 return StructOf(binary.Right) is { } right
-                    ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使えません。構造体の中で定義した演算子は、左辺が構造体のときだけ使われます ({right} を左に書いてください)。")
+                    ? (binary.OperatorToken, $"構造体 '{right}' の値に演算子 '{symbol}' は使用できません。構造体の中で定義した演算子は、左辺が構造体のときだけ使用されます ({right} を左に書いてください)。")
                     : null;
             }
 
@@ -176,7 +176,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
                 return StructOf(unary.Operand) is { } operand
                        && !HasOperator(binder, operand, symbol, parameters: 0)
-                    ? (unary.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使えません。{HintFor(operand, symbol)}")
+                    ? (unary.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使用できません。{HintFor(operand, symbol)}")
                     : null;
             }
 
@@ -185,7 +185,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 string symbol = postfix.OperatorToken.Text;
 
                 return StructOf(postfix.Operand) is { } operand
-                    ? (postfix.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使えません。{HintFor(operand, symbol)}")
+                    ? (postfix.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使用できません。{HintFor(operand, symbol)}")
                     : null;
             }
 
@@ -195,7 +195,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
                 string symbol = assignment.OperatorToken.Text;
 
                 return (StructOf(assignment.Left) ?? StructOf(assignment.Right)) is { } operand
-                    ? (assignment.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使えません。{HintFor(operand, symbol)}")
+                    ? (assignment.OperatorToken, $"構造体 '{operand}' の値に演算子 '{symbol}' は使用できません。{HintFor(operand, symbol)}")
                     : null;
             }
 
@@ -240,7 +240,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         bool IsReference(string structName)
             => program.Structs.Any(s => s.Name == structName && s.Modifiers.Any(m => m.Text == "buffer_reference"));
 
-        const string Allowed = "GLSL の構造体に使える演算子は =、==、!=、?: とメンバーの選択 (.) だけです。";
+        const string Allowed = "GLSL の構造体に使用できる演算子は =、==、!=、?: とメンバーの選択 (.) だけです。";
 
         (ExpressionSyntax[] Operands, ShaderSyntaxToken Token, bool AddressArithmetic)? use = expression switch
         {
@@ -262,7 +262,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         {
             if (StructOf(operand) is { } structName && !(found.AddressArithmetic && IsReference(structName)))
             {
-                return (found.Token, $"構造体 '{structName}' の値に演算子 '{found.Token.Text}' は使えません。{Allowed}");
+                return (found.Token, $"構造体 '{structName}' の値に演算子 '{found.Token.Text}' は使用できません。{Allowed}");
             }
         }
 
@@ -328,7 +328,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
         {
             return program.Tree.Hlsl().Features.StructIncrement
                 ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored)
-                : (token, $"構造体 '{type}' の値に演算子 '{symbol}' は使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
+                : (token, $"構造体 '{type}' の値に演算子 '{symbol}' は使用できません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
         }
 
         HlslCompileTarget[] reaching = [.. CompileTargets.Reaching(compilation, expression, program)];
@@ -336,7 +336,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
 
         if (rejecting.Length > 0)
         {
-            return (token, $"構造体 '{type}' の値に演算子 '{symbol}' は {string.Join("・", rejecting)} では使えません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
+            return (token, $"構造体 '{type}' の値に演算子 '{symbol}' は {string.Join("・", rejecting)} では使用できません。{HintFor(type, symbol)}", HlslRuleDescriptors.StructOperatorNotAvailable);
         }
 
         return reaching.Length > 0 ? (token, IgnoredMessage(type, symbol), HlslRuleDescriptors.StructIncrementIgnored) : null;

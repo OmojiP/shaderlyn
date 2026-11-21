@@ -328,8 +328,8 @@ internal static partial class EnvironmentReport
             : $"  Shader Compiler Backend: DXC ({string.Join(", ", compiler.DxcBackendApis.Select(UnityGraphicsApis.GetName))}、{compiler.DxcBackendSource})");
         Line(builder, compiler.DxcBackendApis.IsEmpty
             ? "  既定は FXC です。#pragma use_dxc、DXC が必要な #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
-            : "  Backend を DXC にした API は、#pragma never_use_dxc の無いパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
-        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。");
+            : "  Backend を DXC にした API は、#pragma never_use_dxc が存在しないパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
+        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使用できません。");
     }
 
     /// <summary>Unreal の仮想パスの割り当てと、生成される取り込みを書き出す。</summary>
@@ -464,7 +464,7 @@ internal static partial class EnvironmentReport
         if (generated)
         {
             Line(builder, $"  データフォルダー: {editorData}");
-            Line(builder, "  決め方: プロジェクトと同じバージョンの Editor が見つからないため、unity: generated の中の Editor のヘッダを使う");
+            Line(builder, "  決め方: プロジェクトと同じバージョンの Editor が見つからないため、unity: generated の中の Editor のヘッダを使用する");
             Line(builder, $"  探したインストール先: {(editor.HubRoots.IsEmpty ? "(なし)" : string.Join(", ", editor.HubRoots))}");
             Line(builder, $"  インストール済み: {(editor.InstalledVersions.IsEmpty ? "(なし)" : string.Join(", ", editor.InstalledVersions))}");
             return;
@@ -512,7 +512,7 @@ internal static partial class EnvironmentReport
 
         if (exists)
         {
-            Line(builder, "  プロジェクトの Library/PackageCache と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読みます。");
+            Line(builder, "  プロジェクトの Library/PackageCache と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読み込みます。");
         }
     }
 
@@ -649,7 +649,7 @@ internal static partial class EnvironmentReport
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
     private static void WriteMacros(StringBuilder builder, EffectiveSettings settings)
     {
-        Section(builder, "定義済みマクロ (展開に使う値)");
+        Section(builder, "定義済みマクロ (展開に使用する値)");
 
         ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Environment, settings.Defines);
 

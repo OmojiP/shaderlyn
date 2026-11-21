@@ -66,7 +66,7 @@ internal sealed class Native16BitConstantBufferAnalyzer : SemanticRuleAnalyzer
                 declaration.Type.NameToken.GetLocation(),
                 $"定数バッファ{(buffer.Name.Length > 0 ? $" '{buffer.Name}'" : string.Empty)} の {names} は {type} ですが、"
                 + $"{string.Join("・", subjects)} では 16 ビットの型になり、Unity が書き込んだ値を正しく読み取れません。"
-                + $"{ThirtyTwoBit(type)} で宣言し、使うところで変換してください。"));
+                + $"{ThirtyTwoBit(type)} で宣言し、使用するところで変換してください。"));
         }
     }
 

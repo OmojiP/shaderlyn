@@ -137,11 +137,11 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     private static string DescribeSkipped(ShaderCompilation compilation)
         => compilation.Source.Root is not null ? "プロパティと uniform の対応検査"
             : compilation.BrokenFunctionSpans is not null
-                ? "構文の誤りから、その誤りを含む関数の終わりまでの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
+                ? "構文の誤りから、その誤りを含む関数の終わりまでの位置で、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)"
             : compilation.FirstBreakOffset is not null
               && compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } first
-                ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
-                : "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)";
+                ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)"
+                : "宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)";
 
     /// <summary>
     /// 検査を行えなかった理由を短くまとめる。

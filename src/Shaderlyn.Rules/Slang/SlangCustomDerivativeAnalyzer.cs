@@ -412,7 +412,7 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
 
             if (!differentiable)
             {
-                report(tokens[i], $"微分しない関数 '{function.Name}' の中では、no_diff は使えません。");
+                report(tokens[i], $"微分しない関数 '{function.Name}' の中では、no_diff は使用できません。");
             }
         }
     }

@@ -84,7 +84,7 @@ internal static class GodotDirectives
                 break;
 
             case "pragma" when rest[0].Text != KnownPragma || rest.Length > 1:
-                Report(rest[0], $"Godot は #pragma {rest[0].Text} を知りません (使えるのは #pragma {KnownPragma} だけです)。");
+                Report(rest[0], $"Godot は #pragma {rest[0].Text} を知りません (使用できるのは #pragma {KnownPragma} だけです)。");
                 break;
         }
     }

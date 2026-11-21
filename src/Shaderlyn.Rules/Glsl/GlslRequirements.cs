@@ -151,8 +151,8 @@ internal sealed partial class GlslRequirements
             ways.Add($"拡張 {string.Join("・", extensions)} {(extensions.Count > 1 ? "のどれかを" : "を")}有効にする");
         }
 
-        string hint = ways.Count > 0 ? $"{string.Join("か、", ways)}と使えます。" : string.Empty;
-        Report(GlslRuleDescriptors.NotAvailable, at, $"{feature} は {DescribeVersion()} では使えません。{hint}");
+        string hint = ways.Count > 0 ? $"{string.Join("か、", ways)}と使用できます。" : string.Empty;
+        Report(GlslRuleDescriptors.NotAvailable, at, $"{feature} は {DescribeVersion()} では使用できません。{hint}");
     }
 
     /// <summary>そのプロファイルでなければならない (glslang の <c>requireProfile</c>)。</summary>
@@ -163,7 +163,7 @@ internal sealed partial class GlslRequirements
     {
         if ((Profile & profiles) == 0)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"{feature} は {DescribeProfile()} では使えません。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"{feature} は {DescribeProfile()} では使用できません。");
         }
     }
 
@@ -180,8 +180,8 @@ internal sealed partial class GlslRequirements
         }
 
         string message = extensions.Count == 1
-            ? $"{feature} を使うには、拡張 {extensions[0]} を有効にしてください (#extension {extensions[0]} : enable)。"
-            : $"{feature} を使うには、拡張 {string.Join("・", extensions)} のどれかを有効にしてください。";
+            ? $"{feature} を使用するには、拡張 {extensions[0]} を有効にしてください (#extension {extensions[0]} : enable)。"
+            : $"{feature} を使用するには、拡張 {string.Join("・", extensions)} のどれかを有効にしてください。";
         Report(GlslRuleDescriptors.NotAvailable, at, message);
         return false;
     }
@@ -246,7 +246,7 @@ internal sealed partial class GlslRequirements
         GlslProfileMask.Es => "ES",
         GlslProfileMask.Core => "コアプロファイル",
         GlslProfileMask.Compatibility => "互換プロファイル",
-        _ => $"プロファイルの無い #version {Version}",
+        _ => $"プロファイルが存在しない #version {Version}",
     };
 
     /// <summary>SPIR-V のバージョンを <c>1.3</c> の形にする。</summary>

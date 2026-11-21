@@ -133,7 +133,7 @@ public static class Program
         if (environment.Name != UnityAnalysisEnvironment.EnvironmentName && !settings.UnityOnlyCommandLineOptions.IsEmpty)
         {
             await errorOutput.WriteLineAsync(
-                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使えます (環境: {environment.Name})。")
+                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使用できます (環境: {environment.Name})。")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -613,7 +613,7 @@ public static class Program
         // 中身を見せる画面は HLSL のセマンティックモデルを描く。HLSL ではない言語の環境では、まだ描けない。
         if (prepared.Compilation is not { } compilation)
         {
-            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使えません。")
+            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使用できません。")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -733,7 +733,7 @@ public static class Program
 
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"ファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)}) を書き出しました: {fullOutput}");
-        report.AppendLine("解析に使うには、設定ファイルの unity: に次を書いてください (設定ファイルからの相対パスでも書けます):");
+        report.AppendLine("解析に使用するには、設定ファイルの unity: に次を書いてください (設定ファイルからの相対パスでも書けます):");
         report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
         report.AppendLine("Unity のバージョンかパッケージを変えたら、作り直してください。");
         await output.WriteAsync(report.ToString()).ConfigureAwait(false);
@@ -845,9 +845,9 @@ public static class Program
         }
 
         StringBuilder report = new();
-        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
-        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読みました。");
-        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読み取りました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読み取りました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読み取りました。");
 
         if (generation.MissingShaderClassCount > 0)
         {
@@ -887,7 +887,7 @@ public static class Program
 
         if (!string.Equals(configuration.UnrealGeneratedDirectory is { } configured ? Path.GetFullPath(configured) : null, fullOutput, StringComparison.OrdinalIgnoreCase))
         {
-            report.AppendLine("解析に使うには、設定ファイルの unreal: に次を書いてください:");
+            report.AppendLine("解析に使用するには、設定ファイルの unreal: に次を書いてください:");
             report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
         }
 

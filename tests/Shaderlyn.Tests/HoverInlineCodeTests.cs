@@ -34,7 +34,7 @@ public class HoverInlineCodeTests
     [Fact]
     public void コードブロックが無ければ元のまま返す()
     {
-        const string markdown = "宣言が見つからない。`x` は使われていない。";
+        const string markdown = "宣言が見つからない。`x` は使用されていない。";
 
         Assert.Same(markdown, HoverInlineCode.Convert(markdown));
     }

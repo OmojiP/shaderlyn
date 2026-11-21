@@ -186,7 +186,7 @@ internal sealed class GlslArraySizeAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        requirement.Report(GlslRuleDescriptors.ArraySizeRequired, at, "ES の、初期化子の無い変数とブロック");
+        requirement.Report(GlslRuleDescriptors.ArraySizeRequired, at, "ES の、初期化子が存在しない変数とブロック");
     }
 
     /// <summary>ES で大きさを省ける例外か。</summary>

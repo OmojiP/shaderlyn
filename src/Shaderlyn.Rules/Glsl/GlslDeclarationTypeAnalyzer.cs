@@ -76,7 +76,7 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
 
                 // void はほかの仮引数と並べられない (glslang の「cannot be an argument type except for '(void)'」)。
                 case ParameterSyntax { Type.Name: "void", Parent: FunctionDeclarationSyntax function } parameter when function.ParameterList.Count() > 1:
-                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, parameter.Type.NameToken, "void", "void は、仮引数の無いことを示す (void) の形でしか書けません。");
+                    requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, parameter.Type.NameToken, "void", "void は、仮引数が存在しないことを示す (void) の形でしか書けません。");
                     break;
 
                 // サンプラー・イメージ・atomic_uint は、out / inout の仮引数にできない (glslang の parameterTypeCheck)。
@@ -199,12 +199,12 @@ internal sealed partial class GlslDeclarationTypeAnalyzer : SemanticRuleAnalyzer
         // atomic_uint・加速構造・テンソルも uniform の変数と仮引数にしか使えない (glslang の atomicUintCheck、accStructCheck、samplerCheck)。
         if (IsOpaque(type) || type is "atomic_uint" or "accelerationStructureEXT" or "accelerationStructureNV" or "tensorARM")
         {
-            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"{type} は uniform の変数と仮引数にしか使えません。");
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"{type} は uniform の変数と仮引数にしか使用できません。");
         }
         else if (program.Structs.FirstOrDefault(s => s.Name == type && s.Keyword.Text == "struct") is { } structure
                  && structure.Fields.Any(f => IsOpaque(f.Type.Name)))
         {
-            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"サンプラーかイメージを含む構造体 {type} は uniform の変数にしか使えません。");
+            requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, variable.NameToken, variable.Name, $"サンプラーかイメージを含む構造体 {type} は uniform の変数にしか使用できません。");
         }
     }
 

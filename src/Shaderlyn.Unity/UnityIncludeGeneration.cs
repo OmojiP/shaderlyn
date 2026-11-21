@@ -289,7 +289,7 @@ internal static class UnityIncludeGeneration
         if (!lines.Contains($"version\t{FormatVersion}"))
         {
             return $"unity: generated のフォルダー ({generatedDirectory}) に、--unity-generate で書き出したファイルがありません。"
-                + "Library や Unity Editor の無いところで解析する場合は、--unity-generate で書き出してください。";
+                + "Library や Unity Editor が存在しないところで解析する場合は、--unity-generate で書き出してください。";
         }
 
         List<string> reasons = [];
@@ -437,7 +437,7 @@ internal static class UnityIncludeGeneration
             return (declared, null);
         }
 
-        return (null, licenseFile is null ? "LICENSE が無い" : "LICENSE を見分けられない");
+        return (null, licenseFile is null ? "LICENSE が存在しない" : "LICENSE を見分けられない");
 
         static string? Classify(string? text)
             => text is null ? null

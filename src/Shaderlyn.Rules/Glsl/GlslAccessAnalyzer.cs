@@ -154,7 +154,7 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
             if (uses.Any(u => u.Name == "gl_FragColor") && uses.Any(u => u.Name == "gl_FragData"))
             {
                 IdentifierExpressionSyntax second = uses.First(u => u.Name != uses[0].Name);
-                requirement.Report(GlslRuleDescriptors.NotWritable, second.Identifier, $"'{second.Name}'", "gl_FragColor と gl_FragData の両方は使えません");
+                requirement.Report(GlslRuleDescriptors.NotWritable, second.Identifier, $"'{second.Name}'", "gl_FragColor と gl_FragData の両方は使用できません");
             }
         }
     }

@@ -77,7 +77,7 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
                     CheckCall(requirement, compilation.GetExpressionTypeBinder(program), locations, callee, [.. call.ArgumentExpressions]);
                     break;
 
-                // gl_EnableOpacityMicromapEXT (GL_EXT_opacity_micromap_ray_query_mode) は、const bool の定数か、型と値を書かない特殊化の定数 (layout(constant_id = N) gl_EnableOpacityMicromapEXT;) にだけ宣言し直せる。
+                // gl_EnableOpacityMicromapEXT (GL_EXT_opacity_micromap_ray_query_mode) は、const bool の定数か、型と値を書かない特殊化の定数 (layout(constant_id = N) gl_EnableOpacityMicromapEXT;) にだけ再宣言できる。
                 case VariableDeclarationSyntax { Type.Name: not "gl_EnableOpacityMicromapEXT" } micromap
                     when micromap.Variables.FirstOrDefault(v => v.Name == "gl_EnableOpacityMicromapEXT") is { } redeclared:
                     if (GlslLayoutQualifier.Read(micromap.ModifierTokens).Any(e => e.Name.Text == "constant_id"))
@@ -88,7 +88,7 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
                     else if (!micromap.HasModifier("const") || micromap.Type.Name != "bool" || redeclared.Initializer is null)
                     {
                         requirement.Report(GlslRuleDescriptors.BuiltinVariableRedeclaration, redeclared.NameToken, redeclared.Name,
-                            "const bool gl_EnableOpacityMicromapEXT = true; (か false) か、layout(constant_id = N) gl_EnableOpacityMicromapEXT; にだけ宣言し直せます。");
+                            "const bool gl_EnableOpacityMicromapEXT = true; (か false) か、layout(constant_id = N) gl_EnableOpacityMicromapEXT; にだけ再宣言できます。");
                     }
 
                     break;
@@ -109,7 +109,7 @@ internal sealed class GlslRayTracingAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclarationSyntax declaration when declaration.Type.Name is "hitObjectNV" or "hitObjectEXT" && declaration.Variables.FirstOrDefault() is { } first:
                     if (declaration.ModifierTokens.Any(t => t.Text is "uniform" or "in" or "out" or "buffer" or "shared" or "inout"))
                     {
-                        requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, first.NameToken, first.Name, $"{declaration.Type.Name} は、記憶域の修飾子の無い変数にしかできません。");
+                        requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, first.NameToken, first.Name, $"{declaration.Type.Name} は、記憶域の修飾子が存在しない変数にしかできません。");
                     }
 
                     break;

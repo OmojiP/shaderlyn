@@ -770,7 +770,7 @@ internal sealed class SlangParser : ShaderParser
             if (!(combined.All(c => c is 'u' or 'U' or 'l' or 'L' or 'z' or 'Z') && ShaderLiteral.GetKind(literal) != ShaderLiteralKind.Floating
                   && IsNumericSuffixAccepted(combined, floating: false)))
             {
-                ReportError($"数値リテラルの接尾辞 '{combined}' は Slang では使えません。");
+                ReportError($"数値リテラルの接尾辞 '{combined}' は Slang では使用できません。");
             }
 
             Advance();
@@ -787,7 +787,7 @@ internal sealed class SlangParser : ShaderParser
 
             if (infinitySuffix.Length > 0 && !IsNumericSuffixAccepted(infinitySuffix, floating: true))
             {
-                ReportError($"数値リテラルの接尾辞 '{infinitySuffix}' は Slang では使えません。");
+                ReportError($"数値リテラルの接尾辞 '{infinitySuffix}' は Slang では使用できません。");
             }
 
             return new LiteralExpressionSyntax(Advance());
@@ -811,7 +811,7 @@ internal sealed class SlangParser : ShaderParser
 
             if (!IsNumericSuffixAccepted(suffix, floating))
             {
-                ReportError($"数値リテラルの接尾辞 '{suffix}' は Slang では使えません。");
+                ReportError($"数値リテラルの接尾辞 '{suffix}' は Slang では使用できません。");
                 return new LiteralExpressionSyntax(Advance());
             }
         }

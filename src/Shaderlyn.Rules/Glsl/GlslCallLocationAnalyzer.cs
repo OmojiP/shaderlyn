@@ -136,7 +136,7 @@ internal sealed class GlslCallLocationAnalyzer : SemanticRuleAnalyzer
                 GlslRuleDescriptors.CallNotAllowedHere,
                 callee.Identifier,
                 callee.Name,
-                $"使う場所 (組み込み関数の実引数など) に直接書かなければなりません。{place}には書けません");
+                $"使用する場所 (組み込み関数の実引数など) に直接書かなければなりません。{place}には書けません");
         }
     }
 

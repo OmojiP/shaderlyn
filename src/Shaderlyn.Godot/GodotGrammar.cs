@@ -339,7 +339,7 @@ internal static class GodotGrammar
 
             if (parameter.Type.Name == "void")
             {
-                report(parameter.Type.NameToken, "仮引数の型に void は使えません。");
+                report(parameter.Type.NameToken, "仮引数の型に void は使用できません。");
             }
             else if (parameter.NameToken.IsMissing || parameter.NameToken.Kind != ShaderSyntaxKind.IdentifierToken)
             {

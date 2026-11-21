@@ -536,7 +536,7 @@ internal sealed partial class ShaderPreprocessor
 
         if (left.Text is not ("=" or "!" or "-" or "~" or "+" or "*" or "/" or "%" or "<" or ">" or "|" or "^" or "&" or ">>" or "<<" or "&&" or "||" or "^^"))
         {
-            return $"'{left.Text}' には ## を使えません。名前か演算子の記号にだけ使えます。";
+            return $"'{left.Text}' には ## を使用できません。名前か演算子の記号にだけ使用できます。";
         }
 
         return fusedCount == 1 ? null : $"連結した '{fused}' は 1 つの演算子になりません。";
@@ -627,7 +627,7 @@ internal sealed partial class ShaderPreprocessor
                 // GLSL (glslang) は、マクロの展開で出てきた defined を条件式の誤りにする (値は求める)。
                 if (_options.GlslRules && _expandingCondition && result.Count > 0 && result[^1].Kind == ShaderSyntaxKind.IdentifierToken && result[^1].TextIs("defined"))
                 {
-                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"マクロ '{macro.Name}' の展開で出てきた defined は、条件式に使えません。");
+                    Report(ShaderDescriptors.PreprocessorError, token.GetLocation(), $"マクロ '{macro.Name}' の展開で出てきた defined は、条件式に使用できません。");
                 }
 
                 i = CopyOperandOfExpandedDefined(tokens, i, result);

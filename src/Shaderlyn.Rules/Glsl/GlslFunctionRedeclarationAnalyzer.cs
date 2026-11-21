@@ -61,7 +61,7 @@ internal sealed class GlslFunctionRedeclarationAnalyzer : SemanticRuleAnalyzer
                 if (control == (Inline | NoInline) && !function.Attributes.IsEmpty && compilation.IsReportable(function.NameToken))
                 {
                     requirement.Report(GlslRuleDescriptors.FunctionRedeclarationMismatch, function.NameToken,
-                        $"関数 '{function.Name}' の属性 inline と noinline は一緒に使えません (前の宣言の属性も合わせます)。");
+                        $"関数 '{function.Name}' の属性 inline と noinline は一緒に使用できません (前の宣言の属性も合わせます)。");
                 }
 
                 if (!first.TryGetValue(key, out FunctionDeclarationSyntax? previous))

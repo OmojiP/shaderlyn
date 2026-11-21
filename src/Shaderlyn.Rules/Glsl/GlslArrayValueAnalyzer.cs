@@ -89,7 +89,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                 case VariableDeclaratorSyntax { Initializer: { } initializer } declarator:
                     if (specs.Count > 0 && (IsSpecSized(declarator, specs) || IsSpecSizedValue(binder, initializer, specs)))
                     {
-                        requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, declarator.NameToken, declarator.Name, "特殊化の定数で大きさを決めた配列は、初期値に使えません。");
+                        requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, declarator.NameToken, declarator.Name, "特殊化の定数で大きさを決めた配列は、初期値に使用できません。");
                     }
                     else if (IsOuterUnsized(declarator) && initializer is InitializerListExpressionSyntax { Elements.IsEmpty: true })
                     {
@@ -129,7 +129,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
                 case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken } compared
                     when shapes.Of(compared.Left) is { Dimensions.Length: > 0 } left && shapes.Of(compared.Right) is { Dimensions.Length: > 0 } right
                          && (left.Element != right.Element || SameDimensions(left.Dimensions, right.Dimensions) == false):
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, compared.OperatorToken, $"演算子 '{compared.OperatorToken.Text}' は、形の違う配列 ({left} と {right}) に使えません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, compared.OperatorToken, $"演算子 '{compared.OperatorToken.Text}' は、形の違う配列 ({left} と {right}) に使用できません。");
                     break;
 
                 // 数の型の値の作成には、構造体を渡せない (glslang の「not enough data provided for construction」)。
@@ -163,7 +163,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
         ExpressionSyntax[] elements = [.. list.ChildNodes().OfType<ExpressionSyntax>()];
         int members = inline.Fields.Sum(f => f.Variables.Count());
-        string type = inline.NameToken is { IsMissing: false } name ? name.Text : "名前の無い構造体";
+        string type = inline.NameToken is { IsMissing: false } name ? name.Text : "名前が存在しない構造体";
 
         if (!variable.IsArray)
         {

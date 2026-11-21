@@ -431,7 +431,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
             location,
             typeName,
             "メソッド 'length()' ",
-            "length() は配列・ベクトル・行列にだけ使えます。"));
+            "length() は配列・ベクトル・行列にだけ使用できます。"));
     }
 
     /// <summary>
@@ -657,7 +657,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
     /// <param name="components">成分数。</param>
     /// <returns>画面に出す文字列。</returns>
     private static string DescribeComponents(string set, int components)
-        => $"使える成分は {string.Join(", ", set[..components].Select(c => c.ToString()))} です。";
+        => $"使用できる成分は {string.Join(", ", set[..components].Select(c => c.ToString()))} です。";
 
     /// <summary>構造体にあるメンバーを並べた文字列を返す。</summary>
     /// <param name="members">メンバーの名前。</param>

@@ -162,7 +162,7 @@ internal static partial class HoverBuilder
     {
         if (string.Equals(key, "RenderType", StringComparison.OrdinalIgnoreCase))
         {
-            return "\n\nよく使われる値: " + Join(ShaderLabKnownValues.RenderTypes)
+            return "\n\nよく使用される値: " + Join(ShaderLabKnownValues.RenderTypes)
                 + "\n\n置き換え用に独自の値を付けてもよい。";
         }
 

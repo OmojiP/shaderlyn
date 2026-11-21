@@ -200,7 +200,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     && (close + 1 >= tokens.Length || tokens[close + 1].Kind != ShaderSyntaxKind.DotToken)
                     && !HasWhereFor(tokens, close, bare.Name.Text))
                 {
-                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[close], $"制約の無い型の仮引数 {bare.Name.Text} は、extension で広げられません。extension<{bare.Name.Text} : IFoo> {bare.Name.Text} のように制約を書いてください。");
+                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[close], $"制約が存在しない型の仮引数 {bare.Name.Text} は、extension で広げられません。extension<{bare.Name.Text} : IFoo> {bare.Name.Text} のように制約を書いてください。");
                 }
 
                 // extension<T> int (拡張する型に出てこない型の仮引数)
@@ -345,7 +345,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
         foreach ((string name, ShaderSyntaxToken at) in declared.Where(p => used.Contains(p.Key)))
         {
             report(SlangRuleDescriptors.GenericParameterForm, at,
-                $"ファイル全体のジェネリックの仮引数 '{name}' を、エントリポイントから届くコードで使っています。型引数が決まらないので、slangc はコンパイルの誤り (E38207) にします。"
+                $"ファイル全体のジェネリックの仮引数 '{name}' を、エントリポイントから届くコードで使用しています。型引数が決まらないので、slangc はコンパイルの誤り (E38207) にします。"
                 + "slangc の -specialize か API で型引数を決める場合は、設定ファイルの slang: generic-entry-points を true にしてください。");
         }
     }
@@ -461,7 +461,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             else if (brokenDefaults.TryGetValue(name.Text, out (int Index, string Text) broken) && arguments <= broken.Index)
             {
                 report(SlangRuleDescriptors.GenericParameterForm, name,
-                    $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約の無い型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
+                    $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約が存在しない型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
             }
         }
     }
@@ -590,7 +590,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
                 else if (parameter.Constraint is [{ Text: "float" or "double" or "half" } floating])
                 {
-                    report(SlangRuleDescriptors.GenericParameterForm, floating, $"値の仮引数の型に {floating.Text} は使えません。整数か列挙型か bool にしてください。");
+                    report(SlangRuleDescriptors.GenericParameterForm, floating, $"値の仮引数の型に {floating.Text} は使用できません。整数か列挙型か bool にしてください。");
                 }
 
                 continue;

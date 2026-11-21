@@ -3067,7 +3067,7 @@ internal abstract class ShaderParser
                 if (suffix.Length > 0 && !IsNumericSuffixAccepted(suffix, ShaderLiteral.GetKind(literal) == ShaderLiteralKind.Floating))
                 {
                     _diagnostics.Add(Diagnostic.Create(
-                        ShaderDescriptors.SyntaxError, literal.GetLocation(), $"数値リテラルの接尾辞 '{suffix}' は {UnavailableSubject} では使えません。"));
+                        ShaderDescriptors.SyntaxError, literal.GetLocation(), $"数値リテラルの接尾辞 '{suffix}' は {UnavailableSubject} では使用できません。"));
                 }
 
                 return new LiteralExpressionSyntax(literal);

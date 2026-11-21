@@ -415,13 +415,13 @@ internal static class ConfigurationLoader
                 problems.Add(new ConfigurationProblem(
                     legacy.Line,
                     "profile は unity: の節の下に書いてください。Unity の環境だけの設定です。"
-                    + "節の外の profile も読みます。"));
+                    + "節の外の profile も読み込みます。"));
                 return legacy.Value;
             }
 
             problems.Add(new ConfigurationProblem(
                 legacy.Line,
-                $"profile が節の外と unity: の節の両方にあります。unity: の節の '{inSection}' を使います。"
+                $"profile が節の外と unity: の節の両方にあります。unity: の節の '{inSection}' を使用します。"
                 + "節の外の profile は消してください。"));
             return inSection;
         }
@@ -524,12 +524,12 @@ internal static class ConfigurationLoader
             if (enabled && ReadOptionalScalar(hlsl, "compiler")?.Trim().ToLowerInvariant() == "fxc")
             {
                 problems.Add(new ConfigurationProblem(
-                    value.Line, "hlsl: の enable-16bit-types は DXC の設定です。compiler が fxc では使えません (FXC に 16 ビットの型は存在しません)。"));
+                    value.Line, "hlsl: の enable-16bit-types は DXC の設定です。compiler が fxc では使用できません (FXC に 16 ビットの型は存在しません)。"));
             }
             else if (enabled && hlsl.TryGetScalar("version", out YamlScalar? version) && version.TryGetInt32(out int number) && number < 2018)
             {
                 problems.Add(new ConfigurationProblem(
-                    value.Line, $"hlsl: の enable-16bit-types は HLSL 2018 から使えます (version が {number})。"));
+                    value.Line, $"hlsl: の enable-16bit-types は HLSL 2018 から使用できます (version が {number})。"));
             }
 
             return enabled;
@@ -559,7 +559,7 @@ internal static class ConfigurationLoader
                     && (major * 10) + minor < 62)
                 {
                     problems.Add(new ConfigurationProblem(
-                        unit.Line, $"16 ビットの型 (hlsl: の enable-16bit-types) はシェーダーモデル 6.2 から使えます (target が {unit.Target})。"));
+                        unit.Line, $"16 ビットの型 (hlsl: の enable-16bit-types) はシェーダーモデル 6.2 から使用できます (target が {unit.Target})。"));
                 }
             }
 

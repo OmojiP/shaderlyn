@@ -6,7 +6,7 @@
 
 # 設定ファイル `.shaderlyn.yaml`
 
-解析するファイルごとに、そのファイルから上位のフォルダーをたどり、最も近い設定ファイルを使います (VS Code 拡張も同じです)。
+解析するファイルごとに、そのファイルから上位のフォルダーをたどり、最も近い設定ファイルを使用します (VS Code 拡張も同じです)。
 フォルダーごとに設定ファイルを置くと、そのフォルダー以下のファイルにのみ適用されます。
 
 `--config <パス>` で明示的に指定することも、`--no-config` で探索を止めることもできます。
@@ -30,11 +30,11 @@ defines:
   - SHADER_API_D3D11=1
 
 rules:
-  SL1001: error      # 対応する宣言が無いプロパティはエラー扱いにする
-  SL1004: none       # 未使用プロパティの指摘は使わない
+  SL1001: error      # 対応する宣言が存在しないプロパティはエラー扱いにする
+  SL1004: none       # 未使用プロパティの指摘は使用しない
   COOK0030:
     severity: warning
-    options: { maxParameters: 4 }   # options を読む自作ルールへの設定
+    options: { maxParameters: 4 }   # options を読み取る自作ルールへの設定
 ```
 
 ## キーの一覧
@@ -49,31 +49,31 @@ rules:
 | `glsl`          | GLSL の設定 ([下記](#glsl))                                     |
 | `godot`         | Godot の設定 ([下記](#godot))                                   |
 | `slang`         | Slang の設定 ([下記](#slang))                                   |
-| `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使う ([下記](#symbols)) |
-| `units`         | コンパイル単位。汎用の HLSL 環境で使う ([下記](#units))         |
-| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` が読んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-が読む範囲)) |
+| `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使用する ([下記](#symbols)) |
+| `units`         | コンパイル単位。汎用の HLSL 環境で使用する ([下記](#units))         |
+| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` で読み込んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-で読み込む範囲)) |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`。値を書かない `NAME` は、HLSL では `1`、GLSL と Slang では空のマクロです (DXC・glslang・slangc の `-D` と同じ) |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
 | `report`        | 出力する指摘の重要度。出力形式ごとに変更できます ([下記](#report)) |
 
 ## unity
 
-Unity の環境だけで使う設定です。
+Unity の環境だけで使用する設定です。
 
 | キー      | 内容                                                                                          |
 | --------- | --------------------------------------------------------------------------------------------- |
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が優先されます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が優先されます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が優先されます                            |
-| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使わずに解析する](environments/unity.md#library-と-unity-editor-の無いマシンで解析する)) |
+| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使用せずに解析する](environments/unity.md#library-と-unity-editor-が存在しないマシンで解析する)) |
 | `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
-| `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも無ければ `[dx11, dx12]` |
+| `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも存在しなければ `[dx11, dx12]` |
 | `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
 
 ### シェーダーのコンパイラ
 
-Unity は既定で FXC を使い、次の場合にパス (コンピュートシェーダーはカーネル) を DXC (HLSL 2018) でコンパイルします。
-Shaderlyn はパスごと・API ごとにどちらでコンパイルされるかを決め、使える構文をそれで判断します。
+Unity は既定で FXC を使用し、次の場合にパス (コンピュートシェーダーはカーネル) を DXC (HLSL 2018) でコンパイルします。
+Shaderlyn はパスごと・API ごとにどちらでコンパイルされるかを決め、使用できる構文をそれで判断します。
 
 - `#pragma use_dxc` (API を書けばその API だけ)
 - DXC が必要な `#pragma require` (`int64` / `native16bit` / ウェーブの命令など 12 個。`inlineraytracing` は 6.4 から)
@@ -82,32 +82,32 @@ Shaderlyn はパスごと・API ごとにどちらでコンパイルされるか
 - Unity 6.6 で Shader Compiler Backend を DXC にした API
 
 判定は Unity のバージョンで変わります (`use_dxc dx12` は 6.6 から適用される、6.5 以前の `use_dxc` は DX11 も DXC にするなど)。
-バージョンが分からないときは、どのバージョンの結果も並べます。
+バージョンが不明なときは、どのバージョンの結果も並べます。
 読み込んだ設定は `--env` の「シェーダーのコンパイラ」に表示されます。
 
 `#pragma` はコードブロックと `HLSLINCLUDE` に直接書いたものを読みます。
-include ファイル内の `use_dxc` / `require` は Unity 2022.3 だけで有効なため、2022.3 (またはバージョンが分からない場合) に限って読み込みます。
+include ファイル内の `use_dxc` / `require` は Unity 2022.3 だけで有効なため、2022.3 (またはバージョンが不明な場合) に限って読み込みます。
 その場合 `#if` は評価せず、書かれた `#include` をすべてたどります。
 
 ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと判定が一致することを確認しています。
 
 節の外に記述した `profile` (v0.1 の書き方) も読み込みますが、`unity:` の下へ移すよう警告 (`TOOL0003`) を表示します。
 既定の `--error-on warning` では、この警告でも終了コードが `1` になります（[0.1 から 0.2 へ移行する](migration-0.2.md#設定ファイル)）。
-両方に記述した場合は `unity:` の下の値を使います。
+両方に記述した場合は `unity:` の下の値を使用します。
 
 ほかの環境では `unity:` の節を読みません。`--profile` / `--unity-project` / `--unity-editor` をほかの環境で指定するとエラーになります。
 
 ## hlsl
 
-`environment: hlsl` で使う設定です。
+`environment: hlsl` で使用する設定です。
 
 | キー      | 内容                                                                 |
 | --------- | -------------------------------------------------------------------- |
-| `compiler` | コンパイラ: `dxc` (既定) / `fxc`。`fxc` のときは `version` を使わず、DXC のマクロも定義しません |
+| `compiler` | コンパイラ: `dxc` (既定) / `fxc`。`fxc` のときは `version` を使用せず、DXC のマクロも定義しません |
 | `version` | HLSL の言語のバージョン (DXC の `-HV`): `2016` / `2017` / `2018` / `2021` (既定)。DXC 1.8 は `2015` をコンパイルできないので受け付けません |
-| `enable-16bit-types` | 16 ビットの型を使う (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false`。`compiler: fxc`、`version` が `2018` より前、`units:` の `target` がシェーダーモデル 6.2 より前のときは使えず、`TOOL0003` を報告します (DXC が受け付けないため) |
+| `enable-16bit-types` | 16 ビットの型を使用する (DXC の `-enable-16bit-types`)。`true` で `__HLSL_ENABLE_16_BIT=1` を定義します。既定は `false`。`compiler: fxc`、`version` が `2018` より前、`units:` の `target` がシェーダーモデル 6.2 より前のときは使用できず、`TOOL0003` を報告します (DXC が受け付けないため) |
 
-使える構文はコンパイラと HLSL のバージョンで決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
+使用できる構文はコンパイラと HLSL のバージョンで決まります ([HL0003 の表](../rules/HL0003.md#環境による違い))。
 
 汎用の HLSL 環境は、DXC が定義するマクロ (`__HLSL_VERSION`、`__SHADER_TARGET_STAGE`、`__SHADER_TARGET_MAJOR`、
 `__SHADER_TARGET_MINOR`、`__SHADER_STAGE_PIXEL` などのステージの番号、`__hlsl_dx_compiler`) を定義します。
@@ -117,7 +117,7 @@ ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX1
 
 ## glsl
 
-GLSL のファイルで使う設定です。
+GLSL のファイルで使用する設定です。
 
 | キー | 内容 |
 | ---- | ---- |
@@ -126,7 +126,7 @@ GLSL のファイルで使う設定です。
 | `auto-map-locations` | コンパイラに入力・出力の `location` を割り当てさせるかどうか |
 | `auto-map-bindings` | コンパイラに uniform・buffer の `binding` を割り当てさせるかどうか |
 
-`target` を省略すると、コンパイル先は不明として扱います。そのため、Vulkan と OpenGL のどちらかでしか使えない書き方も誤りにしません。
+`target` を省略すると、コンパイル先は不明として扱います。そのため、Vulkan と OpenGL のどちらかでしか使用できない書き方も誤りにしません。
 
 `spirv` を省略すると、`target` に指定した Vulkan のバージョンから決めます。対応は `vulkan1.0` が `1.0`、`vulkan1.1` が `1.3`、`vulkan1.2` が `1.5`、`vulkan1.3` と `vulkan1.4` が `1.6` です (glslang と同じ)。`target: opengl` と `spirv` を併記すると、OpenGL 向けの SPIR-V を生成します (glslang の `-G`)。
 
@@ -139,9 +139,9 @@ GLSL のファイルで使う設定です。
 | `auto-map-locations` | `--auto-map-locations` | `-fauto-map-locations` |
 | `auto-map-bindings` | `--auto-map-bindings` | `-fauto-bind-uniforms` |
 
-`target` が Vulkan なら、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから取得します。
+`target` が Vulkan の場合は、glslang の `-V` と同じく `VULKAN` を `100` に定義し、組み込みの関数と変数を Vulkan のものから取得します。
 `opengl` に `spirv` を付けると `GL_SPIRV` を `100` に定義します。
-`target: vulkan` だけではバージョンが分からないので、SPIR-V のバージョンで決まる検査をしません。
+`target: vulkan` だけではバージョンを特定できないので、SPIR-V のバージョンで決まる検査をしません。
 
 ```yaml
 glsl:
@@ -150,21 +150,21 @@ glsl:
 
 ## godot
 
-Godot のシェーダー (`.gdshader` / `.gdshaderinc`) で使う設定です。
+Godot のシェーダー (`.gdshader` / `.gdshaderinc`) で使用する設定です。
 
 | キー | 内容 |
 | ---- | ---- |
 | `project` | Godot のプロジェクトのフォルダー (`project.godot` のあるフォルダー)。設定ファイルからの相対で解決されます |
 | `renderer` | レンダラー。`forward_plus` / `mobile` / `gl_compatibility` を指定します (Godot のプロジェクトの設定 `rendering/renderer/rendering_method` と同じ名前) |
 
-`project` を省略すると、解析するファイルから上へ辿って最初に見つけた `project.godot` のフォルダーを使います。
+`project` を省略すると、解析するファイルから上へ辿って最初に見つけた `project.godot` のフォルダーを使用します。
 このフォルダーが `res://` の根になり、`#include "res://shaders/common.gdshaderinc"` をここから探します。プロジェクトの中のファイルは、`../` で上がる相対パスでも取り込めます。
 
-`renderer` を省略すると、`project.godot` の `rendering/renderer/rendering_method` を使います。それも無ければ Godot の既定の Forward+ です。
+`renderer` を省略すると、`project.godot` の `rendering/renderer/rendering_method` を使用します。それも存在しなければ Godot の既定の Forward+ です。
 レンダラーは次のものを変えます。
 
 - プリプロセッサの `CURRENT_RENDERER` の値 (`RENDERER_FORWARD_PLUS` は 2、`RENDERER_MOBILE` は 1、`RENDERER_COMPATIBILITY` は 0)
-- Compatibility で使えない high-end の組み込み関数と、Forward+ でだけ使える `hint_normal_roughness_texture` ([GD0001](../rules/GD0001.md))
+- Compatibility で使用できない high-end の組み込み関数と、Forward+ でだけ使用できる `hint_normal_roughness_texture` ([GD0001](../rules/GD0001.md))
 - varying の数の上限 ([GD0104](../rules/GD0104.md))
 
 `project.godot` の `rendering_method.mobile` と `rendering_method.web` (書き出し先ごとの設定) は読みません。書き出し先のレンダラーで検査したいときは `renderer` を指定してください。
@@ -176,14 +176,14 @@ godot:
 
 ## slang
 
-Slang のファイル (`.slang`) で使う設定です。
+Slang のファイル (`.slang`) で使用する設定です。
 
 | キー | 内容 |
 | ---- | ---- |
 | `target` | コンパイル先。`spirv` / `glsl` / `hlsl` / `dxil` / `metal` / `wgsl` / `cuda` / `ptx` / `cpp` を指定します (slangc の `-target`) |
-| `unscoped-enums` | `true` なら、どの列挙型の列挙子も型の名前で修飾せずに書けるものとします (slangc の `-unscoped-enum`)。既定は `false` で、`[UnscopedEnum]` を付けた列挙型だけです |
-| `experimental-features` | `true` なら、実験中のモジュール (`slang.neural`・`slang.numerics`・`slang.functional`・`experimental.workgraph`) を import できるものとします (slangc の `-experimental-feature`)。既定は `false` で、その import を [SG0362](../rules/SG0362.md) にします |
-| `generic-entry-points` | `true` なら、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。ファイル全体のジェネリックの仮引数 (`type_param`) の型引数も、同じく決めるものとします。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
+| `unscoped-enums` | `true` の場合は、どの列挙型の列挙子も型の名前で修飾せずに書けるものとします (slangc の `-unscoped-enum`)。既定は `false` で、`[UnscopedEnum]` を付けた列挙型だけです |
+| `experimental-features` | `true` の場合は、実験中のモジュール (`slang.neural`・`slang.numerics`・`slang.functional`・`experimental.workgraph`) を import できるものとします (slangc の `-experimental-feature`)。既定は `false` で、その import を [SG0362](../rules/SG0362.md) にします |
+| `generic-entry-points` | `true` の場合は、ジェネリックのエントリポイント (`void main<T>(…)`) を、型引数を決めるもの (slangc の `-specialize` か `-entry main<Foo>`、Slang の API の `specialize`) として通します。ファイル全体のジェネリックの仮引数 (`type_param`) の型引数も、同じく決めるものとします。既定は `false` で、型引数を決めない slangc と同じく [SG0358](../rules/SG0358.md) にします |
 
 `target` を省略すると、GPU のコンパイル先 (SPIR-V や HLSL) とみなします。
 `cpp` / `cuda` / `ptx` を指定すると、GPU のコンパイル先でだけ誤りになる書き方 (`StructuredBuffer` に資源を含む構造体を格納するなど。[SG0404](../rules/SG0404.md)) を報告しません。`metal` も、`StructuredBuffer` に資源を含む構造体を格納することを報告しません (slangc と同じ)。
@@ -198,14 +198,14 @@ slang:
 
 ## unreal
 
-`environment: unreal` で使う設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
+`environment: unreal` で使用する設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
 コンパイラと言語のバージョンは `hlsl: compiler` / `hlsl: version` で変えられます (Unreal の既定は DXC の `2018`。Unreal Engine の実際のコンパイラは確認していません)。
 
 | キー            | 内容                                                                                   |
 | --------------- | -------------------------------------------------------------------------------------- |
 | `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
 | `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
-| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使い方](environments/unreal.md#c-から生成されるファイルを作る)) |
+| `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使用方法](environments/unreal.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 | `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |
 
@@ -226,22 +226,22 @@ units:
 ```
 
 - フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
-- ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が無ければ解決できません。その `#include` は誤りとして報告しませんが、
-  中身 (uniform buffer などの宣言) が分からないので、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけなら、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルがない場合」](environments/unreal.md#生成ファイルがない場合))
+- ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が存在しなければ解決できません。その `#include` は誤りとして報告しませんが、
+  中身 (uniform buffer などの宣言) が不明なため、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
+  欠けているのが uniform buffer の宣言だけの場合は、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルがない場合」](environments/unreal.md#生成ファイルがない場合))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
-- `permutations: true` にすると、`--unreal-generate` が C++ から読んだパーミュテーションを構成の軸にします。
+- `permutations: true` にすると、`--unreal-generate` が C++ から読み取ったパーミュテーションを構成の軸にします。
   生成のときは、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、
   コンパイルされない組を除きます。組で値の変わる定義 (`SetDefine`) とフラグ (`CFLAG_AllowRealTypes` など) は軸にして、同時には現れない値の組を記録します。
-  プラットフォームを問う関数は PC の Direct3D 12 (SM6) として答えます。読めなかった式があれば、その組は除きません。
+  プラットフォームを問う関数は PC の Direct3D 12 (SM6) として答えます。解析できなかった式があれば、その組は除きません。
   エントリポイントとステージが同じでも、定義するものが違うクラスは別のコンパイル単位にします
 
 ## symbols
 
 構成の軸になるシンボルを宣言します。Unity の `#pragma multi_compile` に当たるもので、宣言したシンボルの構成ごとにコードを解析します。
-Unity の環境では使いません (`#pragma` から読みます)。
+Unity の環境では使用しません (`#pragma` から読みます)。
 
 ```yaml
 symbols:
@@ -263,10 +263,10 @@ symbols:
 ```yaml
 units:
   - files: Shaders/**/*.hlsl   # 設定ファイルからの相対の glob
-    entry: MainPS              # この名前の関数が無ければ CF0301
+    entry: MainPS              # この名前の関数が存在しなければ CF0301
     target: ps_6_6             # DXC の -T と同じ書き方
     defines: [USE_FOO=1]       # この単位でだけ定義するマクロ
-    symbols: [QUALITY]         # この単位で使う構成の軸。省略するとすべて
+    symbols: [QUALITY]         # この単位で使用する構成の軸。省略するとすべて
 ```
 
 ## rules
@@ -288,7 +288,7 @@ ID の一覧は `shaderlyn --list-rules` で表示できます (自作のルー�
 
 ### 正規表現でまとめて指定する
 
-キーを `/` で囲むと、ルール ID の正規表現になります。接頭辞ごとにまとめて重要度を変えるときに使います。
+キーを `/` で囲むと、ルール ID の正規表現になります。接頭辞ごとにまとめて重要度を変えるときに使用します。
 
 ```yaml
 rules:
@@ -310,7 +310,7 @@ rules:
 
 > 現在、組み込みルールにはオプションを使用するものはありません。
 
-どのオプション名を読むかはルールの説明に書かれています。
+どのオプション名を読み取るかはルールの説明に書かれています。
 
 ## report
 
@@ -332,7 +332,7 @@ report:
   表示を絞ったことで CI の合否は変わりません
 - テキストの最後の行に、出力しなかった件数を「(重要度で絞り、ほかに 3 件を出力していません)」のように添えます
 - 設定ファイルの誤り (`TOOL0003` など) は絞りません
-- `--annotate` で出力する注釈には `github` の値を使います
+- `--annotate` で出力する注釈には `github` の値を使用します
 - ベースラインの出力 (`--write-baseline`) では、絞り込まずにすべての指摘を記録します
 - コマンドラインの `--min-severity` は、どの形式でもこの設定より優先します
 
@@ -356,15 +356,15 @@ report:
 
 次のものも報告されます。
 
-- 字下げにタブを使っている
+- 字下げにタブを使用している
 - 同じキーが 2 回書かれている
 - 閉じられていない括弧や引用符
 - 解釈できない重要度の綴り
 - このツールより新しい `version`
-- `symbols:` / `units:` の書き誤り (読めない `target`、宣言していないシンボルの名前など)
+- `symbols:` / `units:` の書き誤り (解析できない `target`、宣言していないシンボルの名前など)
 - Unity の環境で `symbols:` / `units:` を書いている
 
-問題があっても読み込みは失敗せず、読めた範囲は適用されます。
+問題があっても読み込みは失敗せず、読み込めた範囲は適用されます。
 
 ## コマンドラインとの優先順位
 
@@ -374,7 +374,7 @@ report:
 
 ## 抑制コメント
 
-設定ファイルではなくコードに書く抑制もあります。意図してそう書いている箇所だけを抑制するときに使います。
+設定ファイルではなくコードに書く抑制もあります。意図してそう書いている箇所だけを抑制するときに使用します。
 
 | 書き方                                                 | 効果                         |
 | ------------------------------------------------------ | ---------------------------- |
@@ -405,12 +405,12 @@ ID の後ろのコメントは解析されません。
 ## ベースライン
 
 既存プロジェクトへ導入するときに、今ある指摘を凍結して新しく混入したものだけを報告させる仕組みです。
-設定ファイルではなくコマンドラインで指定します。手順は [CLI の使い方 6. ベースライン](cli-usage.md#6-ベースライン) にあります。
+設定ファイルではなくコマンドラインで指定します。手順は [CLI の使用方法 6. ベースライン](cli-usage.md#6-ベースライン) にあります。
 
 ---
 
 ## 関連
 
-- [CLI の使い方](cli-usage.md) — コマンドラインでの指定
+- [CLI の使用方法](cli-usage.md) — コマンドラインでの指定
 - [ルール](../rules/README.md) — 重要度を変えるルールの ID
 - [トラブルシューティング「設定ファイル」](troubleshooting.md#設定ファイル)

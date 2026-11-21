@@ -142,7 +142,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && structOperator.GetLocation() is { } structLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, structLocation,
-                        $"演算子 '{structOperator.Text}' は構造体 {structName} の値に使えません。使う場合は、operator{structOperator.Text.TrimEnd('=')} を定義してください。"));
+                        $"演算子 '{structOperator.Text}' は構造体 {structName} の値に使用できません。使用する場合は、operator{structOperator.Text.TrimEnd('=')} を定義してください。"));
                     continue;
                 }
 
@@ -156,7 +156,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && bitToken.GetLocation() is { } bitLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, bitLocation,
-                        $"演算子 '{bitToken.Text}' (ビット演算とシフト) には整数の値が必要ですが、{floating} の値を使っています。"));
+                        $"演算子 '{bitToken.Text}' (ビット演算とシフト) には整数の値が必要ですが、{floating} の値を使用しています。"));
                     continue;
                 }
 
@@ -167,7 +167,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && complement.OperatorToken.GetLocation() is { } complementLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, complementLocation,
-                        $"演算子 '~' には整数の値が必要ですが、{complemented} の値を使っています。"));
+                        $"演算子 '~' には整数の値が必要ですが、{complemented} の値を使用しています。"));
                     continue;
                 }
 
@@ -190,7 +190,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(
                     SlangRuleDescriptors.WrongOperandTypes,
                     location,
-                    $"演算子 '{token.Text}' は {Describe(left)} と {Describe(right)} に使えません。形 (成分の数) をそろえてください{(left.Kind != right.Kind ? " (行列の積は mul で書きます)" : "")}。"));
+                    $"演算子 '{token.Text}' は {Describe(left)} と {Describe(right)} に使用できません。形 (成分の数) をそろえてください{(left.Kind != right.Kind ? " (行列の積は mul で書きます)" : "")}。"));
             }
         }
     }

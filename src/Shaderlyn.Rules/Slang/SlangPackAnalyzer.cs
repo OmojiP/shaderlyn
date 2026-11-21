@@ -138,7 +138,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                         if (tokens[i + 2].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 3].Kind == ShaderSyntaxKind.CloseParenToken
                             && packs.Contains(tokens[i + 2].Text) && !nonEmpty.Contains(tokens[i + 2].Text))
                         {
-                            Report(token, $"並び {tokens[i + 2].Text} は空でありうるので、{token.Text} を使えません。関数に where nonempty({tokens[i + 2].Text}) を書いてください。");
+                            Report(token, $"並び {tokens[i + 2].Text} は空でありうるので、{token.Text} を使用できません。関数に where nonempty({tokens[i + 2].Text}) を書いてください。");
                         }
 
                         continue;
@@ -175,7 +175,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 if (tokens[i].Text == "expand" && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && Matching(tokens, i + 1) is { } close
                     && !tokens.Skip(i + 2).Take(close - i - 2).Any(t => t.Text == "each"))
                 {
-                    Report(tokens[i], "expand の式に each が無いので、何を広げるか決まりません。");
+                    Report(tokens[i], "expand の式に each が存在しないので、何を広げるか決まりません。");
                 }
             }
 
@@ -185,7 +185,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
                 if (tokens[i].Text is "__first" or "__last" && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Text == "makeTuple"
                     && tokens[i + 3].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 4].Kind == ShaderSyntaxKind.CloseParenToken)
                 {
-                    Report(tokens[i], $"空のタプルに {tokens[i].Text} は使えません。");
+                    Report(tokens[i], $"空のタプルに {tokens[i].Text} は使用できません。");
                 }
             }
 
@@ -269,7 +269,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
 
                 if (op.Kind != ShaderSyntaxKind.EqualsEqualsToken)
                 {
-                    report(first, $"countof(…) の制約には == を使ってください ('{op.Text}' は使えません)。");
+                    report(first, $"countof(…) の制約には == を使用してください ('{op.Text}' は使用できません)。");
                     continue;
                 }
 
@@ -281,7 +281,7 @@ internal sealed class SlangPackAnalyzer : SemanticRuleAnalyzer
 
                 if (rest is [{ Kind: ShaderSyntaxKind.IdentifierToken } callee, { Kind: ShaderSyntaxKind.OpenParenToken }, ..] && callee.Text != "countof")
                 {
-                    report(first, $"countof(…) の制約の右には、コンパイル時の整数の定数か値の仮引数を書いてください ('{callee.Text}(…)' は使えません)。");
+                    report(first, $"countof(…) の制約の右には、コンパイル時の整数の定数か値の仮引数を書いてください ('{callee.Text}(…)' は使用できません)。");
                     continue;
                 }
 

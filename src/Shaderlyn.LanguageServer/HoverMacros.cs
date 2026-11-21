@@ -320,7 +320,7 @@ internal static partial class HoverBuilder
 
         string note = compilation.GetUnity()?.Profile.MaterialConstantBufferName is { } material
                       && string.Equals(buffer.Name, material, StringComparison.Ordinal)
-            ? $"\n\n{compilation.GetUnity()?.Profile.DisplayName} がマテリアルの値に使う定数バッファ。"
+            ? $"\n\n{compilation.GetUnity()?.Profile.DisplayName} がマテリアルの値に使用する定数バッファ。"
               + "ここに入っていない uniform があると SRP Batcher が無効になる。"
             : string.Empty;
 

@@ -667,7 +667,7 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
 
                     if (value is { } constantId && !_constantIds.Add(constantId))
                     {
-                        Value($"特殊化の定数の id {constantId.ToString(CultureInfo.InvariantCulture)} は、もう使われています。");
+                        Value($"特殊化の定数の id {constantId.ToString(CultureInfo.InvariantCulture)} は、もう使用されています。");
                     }
 
                     Literal();

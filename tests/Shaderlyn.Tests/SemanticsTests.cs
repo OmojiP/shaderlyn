@@ -763,7 +763,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     public void すべて展開できたときはCF0102を報告しない()
     {
         // 上限に達していないなら、調べ残しは無い。報告することも無い。
-        Assert.False(Has(Analyze(SymbolGuardedShader), "CF0102"), "調べ残しが無いのに報告している");
+        Assert.False(Has(Analyze(SymbolGuardedShader), "CF0102"), "調べ残しがないのに報告している");
     }
 
     [Fact]

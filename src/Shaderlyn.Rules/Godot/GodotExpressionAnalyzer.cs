@@ -77,14 +77,14 @@ internal sealed class GodotExpressionAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case IdentifierExpressionSyntax identifier when IsFunctionName(identifier, binder, root) && !IsCallTarget(identifier):
-                    Report(GodotRuleDescriptors.FunctionAsValue, identifier.Identifier, $"関数 '{identifier.Name}' は、呼び出しの外では使えません。");
+                    Report(GodotRuleDescriptors.FunctionAsValue, identifier.Identifier, $"関数 '{identifier.Name}' は、呼び出しの外では使用できません。");
                     break;
 
                 case InvocationExpressionSyntax { Target: IdentifierExpressionSyntax callee }
                     when callee.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is { } function
                          && function.Name == callee.Name
                          && binder.ResolveName(callee).Kind == DeclaredNameKind.NotFound:
-                    Report(GodotRuleDescriptors.Recursion, callee.Identifier, $"関数 '{callee.Name}' は自分自身を呼べません (再帰は使えません)。");
+                    Report(GodotRuleDescriptors.Recursion, callee.Identifier, $"関数 '{callee.Name}' は自分自身を呼べません (再帰は使用できません)。");
                     break;
 
                 case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.SlashToken or ShaderSyntaxKind.PercentToken } binary

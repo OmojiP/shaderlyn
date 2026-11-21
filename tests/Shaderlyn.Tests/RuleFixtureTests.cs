@@ -265,7 +265,7 @@ public sealed class RuleFixtureTests
 
         Assert.True(
             missing.Count == 0,
-            $"違反するシェーダーが無い規則: {string.Join(", ", missing)}。"
+            $"違反するシェーダーが存在しない規則: {string.Join(", ", missing)}。"
             + $"fixtures/rules/<ID>.shader を足すか、理由を添えて Exempt へ入れること");
     }
 

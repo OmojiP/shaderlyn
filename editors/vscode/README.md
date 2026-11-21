@@ -1,10 +1,10 @@
 # Shaderlyn for VS Code
 
 Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.compute`）のリアルタイム静的解析・コーディング支援を提供する VS Code 拡張機能です。
-DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使い方](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
+DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
 GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
 Godot のシェーダー（`.gdshader` / `.gdshaderinc`）も、設定なしで Godot 4 のコンパイラと同じ誤りを報告し、説明・定義へ移動・補完・引数の案内も Godot の型と組み込み（`ALBEDO`・`TIME` など）で答えます。`render_mode` のモードと uniform のヒントも補完します。レンダラー（Forward+ / Mobile / Compatibility）は `project.godot` から読みます。
-Slang（`.slang`）も、設定なしで slangc と同じ誤りを報告し、説明・定義へ移動・補完では `import` したモジュールと標準ライブラリ（`CoopVec` など）を使います。
+Slang（`.slang`）も、設定なしで slangc と同じ誤りを報告し、説明・定義へ移動・補完では `import` したモジュールと標準ライブラリ（`CoopVec` など）を使用します。
 WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し、説明・定義へ移動・補完も WGSL の型と組み込み関数で答えます。
 
 ## 主な機能
@@ -16,7 +16,7 @@ WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し
 * **入力のたび（即時）:** 構文エラー、タグ、Pass 名、レンダーステート、プロパティ名などを高速チェック
 * **ファイル保存時:** プロパティと HLSL の整合性（宣言漏れ・型不一致）、SRP Batcher 適合性など、`#include` の解決を要するチェック
 * **取り込んだヘッダの指摘:** `.shader` を開いたとき・保存したときに、取り込んでいる共通の `.hlsl` などの指摘も、そのヘッダのファイルに出ます。取り込む側の文脈 (先に宣言した名前やシンボルの構成) で検査した結果です。Unity や外部パッケージのヘッダ (`Library` の下と Unity Editor に同梱のもの) は報告しません
-* **有効になっている分岐の表示:** どの構成でも条件が外れる `#if` / `#ifdef` の中を薄く表示します。`multi_compile` などのシンボルのバリアントで通る分岐は薄くしません（シンボルを選んで、その構成で表示することもできます）。`SHADER_API_*` / `SHADER_STAGE_*` / `UNITY_VERSION` などプラットフォームやバージョンで決まる分岐、取り込むヘッダを解決できていない場合、展開の上限で調べきれなかったシンボルの分岐も、判断できないため薄くしません。開いたとき・保存したとき・シンボルを選んだときに更新されます（設定: `shaderlyn.inactiveRegions.enabled` / `.opacity`）
+* **有効になっている分岐の表示:** どの構成でも条件が外れる `#if` / `#ifdef` の中を薄く表示します。`multi_compile` などのシンボルのバリアントで有効になる分岐は薄くしません（シンボルを選んで、その構成で表示することもできます）。`SHADER_API_*` / `SHADER_STAGE_*` / `UNITY_VERSION` などプラットフォームやバージョンで決まる分岐、取り込むヘッダを解決できていない場合、展開の上限で調べきれなかったシンボルの分岐も、判断できないため薄くしません。開いたとき・保存したとき・シンボルを選んだときに更新されます（設定: `shaderlyn.inactiveRegions.enabled` / `.opacity`）
 
 ![CF0411 の指摘が波線と「問題」パネルに出て、条件が外れた #if の中が薄く表示されている画面](images/error_hide.png)
 
@@ -34,7 +34,7 @@ WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し
 
 ![変数 b のホバー。型と、「この構成でだけ存在します: #if !_A && _B」が出ている](images/condition.png)
 
-![タグ RenderType の値のホバー。よく使われる値の一覧が出ている](images/candidate.png)
+![タグ RenderType の値のホバー。よく使用される値の一覧が出ている](images/candidate.png)
 
 ### 3. 定義への移動（F12）& 参照・補完支援
 
@@ -73,15 +73,15 @@ WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し
 `.hlsl` / `.cginc` / `.hlslinc` のような include 前提のファイルでは、次の 2 つを報告しません。(`.shader` に書くことが多いため)
 `.compute` は 1 ファイルで完結するので報告します。
 
-* シェーダーステージの `#pragma` が無い（`UN0301`）
-* 宣言されていないシンボルを条件に使っている（`CF0201`）
+* シェーダーステージの `#pragma` が存在しない（`UN0301`）
+* 宣言されていないシンボルを条件に使用している（`CF0201`）
 
 **条件の中のコードを検査する:** 
 `#ifdef _FOO` の `_FOO` をファイルのどこでも定義していないと、その分岐の中は解析されません。
 エディタ右上のボタン（またはコマンドパレットの **「Shaderlyn: 条件のシンボルを選ぶ」**）で有効にするシンボルにチェックを付けると、`#define _FOO 1` と同じ状態で解析し直します。
 `#include` 前提で `#define` を内部で書いていない場合等に有効です。
 
-* 候補は、このファイルの `#if` / `#ifdef` が参照していて、`#define` にも取り込んだヘッダにも定義が無い名前です
+* 候補は、このファイルの `#if` / `#ifdef` が参照していて、`#define` にも取り込んだヘッダにも定義が存在しない名前です
 * 選んだシンボルはファイルごとにワークスペースへ保存され、ウィンドウを再読み込みしても残ります
 * チェックをすべて外して確定すると、定義を追加しない状態に戻ります
 
@@ -89,14 +89,14 @@ WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し
 
 ### 7. シンボルの構成を選んで表示する
 
-`.shader` でも HLSL のファイルでも使えます。
+`.shader` でも HLSL のファイルでも使用できます。
 
-`#pragma multi_compile` / `#pragma shader_feature` のシンボルで分かれる分岐は、どれかの構成で通るので、ふだんは薄くしません。同じボタン（**「Shaderlyn: 条件のシンボルを選ぶ」**）でシンボルにチェックを入れて確定すると、そのシンボルだけを有効にした構成で、効いていない分岐を薄く表示します。
+`#pragma multi_compile` / `#pragma shader_feature` のシンボルで分かれる分岐は、どれかの構成で有効になるので、ふだんは薄くしません。同じボタン（**「Shaderlyn: 条件のシンボルを選ぶ」**）でシンボルにチェックを入れて確定すると、そのシンボルだけを有効にした構成で、効いていない分岐を薄く表示します。
 
 * チェックしなかったシンボルは無効として扱います。`multi_compile _ _A _B` で `_A` を選ぶと、`#ifdef _B` の中と `#ifdef _A` の `#else` 側が薄くなります
 * 同じ `#pragma` の行に並べたシンボルは、同時には有効になりません。1 つにチェックを付けると、その行の他のチェックが外れます
 * `_` を書いていない行（`multi_compile _A _B`）は、どれか 1 つが必ず有効です。その行を空にはできず、最後の 1 つを外すと戻ります
-* シンボルを 1 つも有効にしない構成を見るには、**「すべての構成を合わせて表示」** のチェックを外して確定します。ただし `_` の無い行があると、その行には 1 つ入ります
+* シンボルを 1 つも有効にしない構成を見るには、**「すべての構成を合わせて表示」** のチェックを外して確定します。ただし `_` が存在しない行があると、その行には 1 つ入ります
 * 元の表示に戻すには、**「すべての構成を合わせて表示」** にチェックを入れ、シンボルのチェックをすべて外して確定します
 * 変わるのは薄く表示する範囲だけです。指摘はこれまでどおり、シンボルのバリアントをすべて検査した結果を出します
 * プラットフォームで決まる分岐（`SHADER_API_*` など）と、取り込むヘッダを解決できない構成は、構成を選んでも薄くしません
@@ -104,7 +104,7 @@ WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し
 汎用の HLSL・Unreal の環境では、設定ファイルの `symbols:` で宣言したシンボルが並びます。
 値を持つシンボル（`QUALITY: [0, 1, 2]` など）は `QUALITY = 0` / `QUALITY = 1` / `QUALITY = 2` のように並び、値を 1 つ選びます。
 
-![シンボルを選んで、その構成で効いていない分岐を薄く表示する様子](images/select-symbol.gif)
+![シンボルを選んで、その構成で無効な分岐を薄く表示する様子](images/select-symbol.gif)
 
 ---
 
@@ -118,7 +118,7 @@ VS Code の拡張機能ビューで **Shaderlyn** を検索してインストー
 
 #### vsix からインストールする
 
-Marketplace を使えない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使う環境の vsix を取得します。
+Marketplace を使用できない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使用する環境の vsix を取得します。
 
 | 環境                  | ファイル                                 |
 | --------------------- | ---------------------------------------- |
@@ -140,7 +140,7 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 ### 動作条件
 
 * Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
-* Unity 以外の環境（汎用の HLSL・Unreal など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使い方](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
+* Unity 以外の環境（汎用の HLSL・Unreal など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
 
 ### 設定項目 (`settings.json`)
 
@@ -148,16 +148,16 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 | --- | --- | --- |
 | `shaderlyn.serverPath` | 独自ビルドした言語サーバーの実行ファイルパス（空の場合は同梱バイナリを使用）。変更したらウィンドウの再読み込みが必要です | `""` |
 | `shaderlyn.trace.server` | VS Code と言語サーバー間の通信ログを出力パネルに記録する | `"off"` |
-| `shaderlyn.inactiveRegions.enabled` | 条件が外れて効いていない `#if` / `#ifdef` の中を薄く表示する | `true` |
-| `shaderlyn.inactiveRegions.opacity` | 効いていない範囲を表示するときの不透明度（0.1〜1） | `0.45` |
+| `shaderlyn.inactiveRegions.enabled` | 条件が外れて無効な `#if` / `#ifdef` の中を薄く表示する | `true` |
+| `shaderlyn.inactiveRegions.opacity` | 無効な範囲を表示するときの不透明度（0.1〜1） | `0.45` |
 
-*※ ルールの詳細設定や無効化は `.shaderlyn.yaml` に書きます。開いたファイルから上へ辿って一番近い `.shaderlyn.yaml` を使い、書き換えると次の解析から反映されます。*
+*※ ルールの詳細設定や無効化は `.shaderlyn.yaml` に書きます。開いたファイルから上へ辿って一番近い `.shaderlyn.yaml` を使用し、書き換えると次の解析から反映されます。*
 
-### 自作ルールを使う
+### 自作ルールを使用する
 
 同梱の言語サーバーが実行するのは組み込みルールだけです。自作ルールをエディタでも働かせる場合は、アナライザの一覧を渡すサーバーを自分でビルドし、`shaderlyn.serverPath` に指します。
 
-サーバーの作り方（プロジェクト・`Program.cs`・publish）は [自作ルールの作り方「エディタでも働かせる」](../../docs/custom-rules/tutorial.md#5-1-エディタでも働かせる) にあります。ここでは、ビルドしたサーバーを VS Code から使う手順を説明します。
+サーバーの作り方（プロジェクト・`Program.cs`・publish）は [自作ルールの作り方「エディタでも働かせる」](../../docs/custom-rules/tutorial.md#5-1-エディタでも働かせる) にあります。ここでは、ビルドしたサーバーを VS Code から使用する手順を説明します。
 
 #### 1. VS Code から指す
 

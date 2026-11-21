@@ -742,7 +742,7 @@ internal sealed partial class GlslRequirements
     {
         if (SpirvVersion > 0)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は SPIR-V を作るときには使えません。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は SPIR-V を作るときには使用できません。");
         }
     }
 
@@ -753,7 +753,7 @@ internal sealed partial class GlslRequirements
     {
         if (Vulkan == true)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL では使えません。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL では使用できません。");
         }
     }
 
@@ -764,7 +764,7 @@ internal sealed partial class GlslRequirements
     {
         if (Vulkan == false)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL でだけ使えます。設定ファイルの glsl: target が Vulkan か確認してください。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL でだけ使用できます。設定ファイルの glsl: target が Vulkan か確認してください。");
         }
     }
 
@@ -775,7 +775,7 @@ internal sealed partial class GlslRequirements
     {
         if (SpirvVersion == 0)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は SPIR-V を作るときにだけ使えます。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は SPIR-V を作るときにだけ使用できます。");
         }
     }
 

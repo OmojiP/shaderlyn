@@ -1,16 +1,16 @@
 # Unity
 
-既定の環境です。設定ファイルが無いか、`environment` を書いていなければ、Unity の環境で解析します。
-ShaderLab (`.shader`) とコンピュートシェーダー (`.compute`) を、プロジェクトのパッケージと Unity Editor のヘッダを読んで解析します。
+既定の環境です。設定ファイルが存在しないか、`environment` を書いていなければ、Unity の環境で解析します。
+ShaderLab (`.shader`) とコンピュートシェーダー (`.compute`) を、プロジェクトのパッケージと Unity Editor のヘッダを読み込んで解析します。
 
-ほかの環境と共通の使い方 (出力・終了コード・ベースラインなど) は [CLI の使い方](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unity) にあります。
+ほかの環境と共通の使用方法 (出力・終了コード・ベースラインなど) は [CLI の使用方法](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unity) にあります。
 
 ## 目次
 
 - [解析するファイル](#解析するファイル)
 - [プロジェクトを指定する](#プロジェクトを指定する)
 - [Unity Editor の場所](#unity-editor-の場所)
-- [Library と Unity Editor の無いマシンで解析する](#library-と-unity-editor-の無いマシンで解析する)
+- [Library と Unity Editor が存在しないマシンで解析する](#library-と-unity-editor-が存在しないマシンで解析する)
 - [`#include` の解決](#include-の解決)
 - [レンダーパイプライン](#レンダーパイプライン)
 - [シェーダーのコンパイラ](#シェーダーのコンパイラ)
@@ -46,7 +46,7 @@ shaderlyn . --unity-project .
 
 ## プロジェクトを指定する
 
-Unity が用意する関数などのヘッダーを探すときに、Unity プロジェクトのルートを `--unity-project` で指定します (設定ファイルなら `unity: project`)。
+Unity が用意する関数などのヘッダーを探すときに、Unity プロジェクトのルートを `--unity-project` で指定します (設定ファイルの場合は `unity: project`)。
 
 ```bash
 shaderlyn Assets --unity-project .
@@ -70,7 +70,7 @@ Assets/Shaders/Lit.shader(9:9): error TOOL0004: 取り込むヘッダを 1 つ�
 (Windows は `C:\Program Files\Unity\Hub\Editor`) から探します。
 
 Unity Hub でインストール先を変えた場合 (別のドライブなど) は見つからないので、`--unity-editor` で Editor のデータフォルダーを指定してください
-(設定ファイルなら `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱ヘッダを解決できず、
+(設定ファイルの場合は `unity: editor`)。見つからないと、`UnityCG.cginc` などの同梱ヘッダを解決できず、
 [CF0021](../../rules/CF0021.md) か [TOOL0004](../../rules/TOOL0004.md) に `--unity-editor` を指定するよう添えます。
 Unity 6.3.26f1 以降の Editor は、同梱のヘッダを `Editor/Data/Resources/CGIncludes` に置いています。指定するのはどちらでも `Editor/Data` です。
 
@@ -85,10 +85,10 @@ shaderlyn Assets --unity-project . --unity-editor "/Applications/Unity/Hub/Edito
 shaderlyn Assets --unity-project . --unity-editor "$HOME/Unity/Hub/Editor/6000.0.30f1/Editor/Data"
 ```
 
-## Library と Unity Editor の無いマシンで解析する
+## Library と Unity Editor が存在しないマシンで解析する
 
-GitHub のホストランナーのように、プロジェクトの `Library` も Unity Editor も無いマシンでは、パッケージのヘッダ
-(`Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl` など) と `UnityCG.cginc` を読めません。
+GitHub のホストランナーのように、プロジェクトの `Library` も Unity Editor も存在しないマシンでは、パッケージのヘッダ
+(`Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl` など) と `UnityCG.cginc` を読み込めません。
 `--unity-generate` で、解析に必要なヘッダだけをあらかじめ生成してリポジトリに含めると、そうしたマシンでも解析できます。
 
 ```bash
@@ -128,26 +128,26 @@ unity:
   解析を始めるときに標準エラーに伝えます (VS Code 拡張では通知)。解析は止めません。
   この確認には、比較対象のプロジェクトの指定 (`--unity-project` か `unity: project`) が必要です。指定がなくても書き出したファイルは読み込みますが、プロジェクトとの一致は確認しません
   ```text
-  --unity-generate で書き出したもの (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
+  --unity-generate で書き出したファイル (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
   ```
 
-> **ライセンスについて:** 書き出したものは Unity のパッケージと Unity Editor のファイルの写しです。
+> **ライセンスについて:** 書き出したファイルは Unity のパッケージと Unity Editor のファイルの写しです。
 > Unity のパッケージの多くは Unity Companion License で、Unity のコンテンツを作るための利用に限って写しと配布を認め、写しにライセンスの表示を添えることを求めます
 > (`--unity-generate` は `LICENSE.md` などを一緒に写します)。Asset Store などから入れたパッケージは、それぞれのライセンスに従います。
-> 書き出したものは private リポジトリで保管し、各パッケージのライセンスを確認してください。
+> 書き出したファイルは private リポジトリで保管し、各パッケージのライセンスを確認してください。
 
 ## `#include` の解決
 
 `#include` は、Unity と同じ規則で解決します。`#include` を書いたファイルからの相対パス、ヘッダの中ではシェーダーからの相対パス ([UN0102](../../rules/UN0102.md) の警告付き)、`Assets/...` と `Packages/...` の形式、Editor の同梱ヘッダです。
 
-この規則で解決できない場所にヘッダを置いている場合は、`--include-path` を指定します ([CLI の使い方「`#include` の追加探索パス」](../cli-usage.md#include-の追加探索パス))。
+この規則で解決できない場所にヘッダを置いている場合は、`--include-path` を指定します ([CLI の使用方法「`#include` の追加探索パス」](../cli-usage.md#include-の追加探索パス))。
 多くの場合、`--unity-project` だけで解決できるため、指定は不要です。
 
 ```bash
 shaderlyn Assets --unity-project . --include-path ../SharedShaderLibrary
 ```
 
-Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確認した)。Shaderlyn も Unity の環境では効かせず、書いてあれば [UN0101](../../rules/UN0101.md) で伝えます。
+Unity では `#pragma once` が無効です (2022.3 / 6.3 / 6.6 で確認した)。Shaderlyn も Unity の環境では有効にせず、書いてあれば [UN0101](../../rules/UN0101.md) で伝えます。
 
 ## レンダーパイプライン
 
@@ -158,7 +158,7 @@ Unity は `#pragma once` を効かせません (2022.3 / 6.3 / 6.6 で確認し�
 | プロファイル | 対応 |
 | --- | --- |
 | `urp` | すべてのルール (URP0001〜URP0003 を含む) |
-| `brp` | 共通のルールだけ。BRP だけのルールは追加しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使えます) |
+| `brp` | 共通のルールだけ。BRP だけのルールは追加しません (BRP は Unity 6.5 で非推奨になり、6.7 まで使用できます) |
 | `hdrp` | 共通のルールと SRP Batcher の検査 (URP0001 / URP0002) だけ |
 
 どのプロファイルでも、報告された誤検出は修正します。
@@ -169,18 +169,18 @@ shaderlyn Assets --unity-project . --profile brp
 
 ## シェーダーのコンパイラ
 
-Unity は既定で FXC を使い、パス (コンピュートシェーダーはカーネル) ごと・API ごとに DXC (HLSL 2018) へ切り替えます。
-コンパイラと言語のバージョンで使える構文は [汎用の HLSL「コンパイラと言語のバージョン」](hlsl.md#コンパイラと言語のバージョン) の表のとおりです。
+Unity は既定で FXC を使用し、パス (コンピュートシェーダーはカーネル) ごと・API ごとに DXC (HLSL 2018) へ切り替えます。
+コンパイラと言語のバージョンで使用できる構文は [汎用の HLSL「コンパイラと言語のバージョン」](hlsl.md#コンパイラと言語のバージョン) の表のとおりです。
 Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn の判定条件は Unity のバージョンごとに異なります。
 
 | | 2022.3 | 2023.2〜6.3 | 6.4〜6.5 | 6.6〜 |
 | --- | --- | --- | --- | --- |
 | include ファイルの中の `use_dxc` / `require` | 有効 | 無視 | 無視 | 無視 |
-| `use_dxc` (API なし) | DX11 も DXC (DX11 で使えない) | 同左 | 同左 | DX12 / Vulkan / Metal が DXC、DX11 は FXC |
+| `use_dxc` (API なし) | DX11 も DXC (DX11 で使用できない) | 同左 | 同左 | DX12 / Vulkan / Metal が DXC、DX11 は FXC |
 | `use_dxc d3d11` | DX12 と DX11 が DXC | 同左 | 同左 | DX12 が DXC (非推奨) |
 | `use_dxc dx12` | 無視 | 無視 | 無視 | DX12 が DXC |
 | `use_dxc d3d12` | 無視 | 無視 | 無視 | 無視 |
-| DXC が必要な `require` (12 個) | DXC (DX11 で使えない) | 同左 | 同左 | 同左 |
+| DXC が必要な `require` (12 個) | DXC (DX11 で使用できない) | 同左 | 同左 | 同左 |
 | `require inlineraytracing` | 知らない値 (FXC) | コンパイルされない | DXC | DXC |
 | `never_use_dxc` と DXC が必要な `require` | FXC | FXC | FXC | DXC |
 | `UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` が有効な構成 | DXC | DXC | DXC | DXC |
@@ -190,8 +190,8 @@ Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn の判
 
 - Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから読みます。設定ファイルで上書きできます
   ([設定](../configuration.md#unity))。読み込んだ内容は `--env` に表示されます
-- バージョンが分からないときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN0201 / UN0203 の一部と UN0202) は出しません
-- DXC でコンパイルされるパスは DX11 では使えません。使えない API でのエラーは利用者に見えないので、そこでは構文を報告しません
+- バージョンが不明なときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN0201 / UN0203 の一部と UN0202) は出しません
+- DXC でコンパイルされるパスは DX11 では使用できません。使用できない API でのエラーは利用者に表示されないので、そこでは構文を報告しません
 - この判定は、ShaderProbePack で実測した 2022.3〜6.6 (10 プロジェクト、DX11 / DX12 / Vulkan) の 5980 の組み合わせと一致することを確認しています
 
 ## Unity だけのルール
@@ -200,7 +200,7 @@ ShaderLab のルール (`SL`)、Unity のルール (`UN`)、URP のルール (`U
 宣言されていないシンボル ([CF0201](../../rules/CF0201.md)) は、下線で始まる大文字の名前 (`_NORMALMAP`) を報告します。
 
 構成の軸は `#pragma multi_compile` / `shader_feature` / `dynamic_branch` から、エントリポイントは `#pragma vertex` / `fragment` / `kernel` などから読みます。
-設定ファイルの `symbols:` と `units:` は使いません。
+設定ファイルの `symbols:` と `units:` は使用しません。
 
 ## 設定ファイルの例
 
@@ -210,7 +210,7 @@ environment: unity        # 省略してもよい
 unity:
   profile: urp
   project: .
-  # generated: .shaderlyn/unity   # Library と Unity Editor の無いマシンで解析するとき
+  # generated: .shaderlyn/unity   # Library と Unity Editor が存在しないマシンで解析するとき
 ```
 
 テンプレートが [samples/environments/unity](../../../samples/environments/unity/) にあります。

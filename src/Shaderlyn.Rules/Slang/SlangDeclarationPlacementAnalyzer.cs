@@ -180,7 +180,7 @@ internal sealed class SlangDeclarationPlacementAnalyzer : SemanticRuleAnalyzer
                 (Container.Interface, "enum" or "struct" or "class") => token.Text,
                 (Container.Global or Container.Namespace, "__init" or "associatedtype") => token.Text,
                 // extension の中の仮引数の無い __init (既定の初期化と重なる。E30851)。仮引数のある __init は書ける。
-                (Container.Extension, "__init") when i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Kind == ShaderSyntaxKind.CloseParenToken => "仮引数の無い __init",
+                (Container.Extension, "__init") when i + 2 < tokens.Length && tokens[i + 1].Kind == ShaderSyntaxKind.OpenParenToken && tokens[i + 2].Kind == ShaderSyntaxKind.CloseParenToken => "仮引数が存在しない __init",
                 _ => null,
             };
 

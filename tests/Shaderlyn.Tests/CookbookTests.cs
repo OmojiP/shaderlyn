@@ -180,7 +180,7 @@ public sealed class CookbookTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
         Assert.Equal("COOK0005", diagnostic.Id);
-        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。", diagnostic.GetMessage());
+        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使用できません。", diagnostic.GetMessage());
     }
 
     /// <summary>
@@ -205,7 +205,7 @@ public sealed class CookbookTests
                 """));
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使えません。", diagnostic.GetMessage());
+        Assert.Equal("構成：_LOW_QUALITY のとき、関数 'ExpensiveCall' は使用できません。", diagnostic.GetMessage());
     }
 
     [Fact]

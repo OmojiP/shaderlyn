@@ -44,7 +44,7 @@ internal static class WellKnownDescriptors
         messageFormat: "ファイル '{0}' を読み込めませんでした: {1}",
         category: "Tool",
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "対象ファイルが存在しないか、アクセス権限が無いか、他プロセスが排他ロックしています。");
+        description: "対象ファイルが存在しないか、アクセス権限が存在しないか、他プロセスが排他ロックしています。");
 
     /// <summary>
     /// 設定ファイルの内容に問題があることを表す。

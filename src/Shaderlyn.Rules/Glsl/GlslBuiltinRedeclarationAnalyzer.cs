@@ -15,7 +15,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 関数の外の変数の宣言のうち、組み込みの変数を宣言し直せるもの (<see cref="GlslReservedNameAnalyzer.MayRedeclare"/>) を、書いた順に見る。
+/// 関数の外の変数の宣言のうち、組み込みの変数を再宣言できるもの (<see cref="GlslReservedNameAnalyzer.MayRedeclare"/>) を、書いた順に見る。
 /// glslang と同じく、前の宣言し直しで決まったこと (<c>gl_FragCoord</c> の layout、<c>gl_FragDepth</c> の depth、配列の大きさ) と比べる。
 /// </para>
 /// <list type="bullet">
@@ -27,14 +27,14 @@ namespace Shaderlyn.Rules.Glsl;
 ///   <item><description>1.40 以前で <c>GL_ARB_separate_shader_objects</c> を有効にした <c>gl_Position</c> などは、使う前に、そのステージの向きの記憶域で、補間を変えずに書く</description></item>
 /// </list>
 /// <para>
-/// ブロック (<c>out gl_PerVertex { … };</c>、<c>in gl_PerVertex { … } gl_in[];</c>) は、宣言し直せる名前か、インスタンスの名前が組み込みのものか、
+/// ブロック (<c>out gl_PerVertex { … };</c>、<c>in gl_PerVertex { … } gl_in[];</c>) は、再宣言できる名前か、インスタンスの名前が組み込みのものか、
 /// 1 度だけか、組み込みのメンバーだけか、メンバーの型と配列かどうかを変えていないかを見る。
 /// 名前の無い出力のブロックを宣言し直した後は、含めなかったメンバー (<c>gl_PointSize</c> など) を使えない。
 /// </para>
 /// </remarks>
 internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 {
-    /// <summary>宣言し直せるブロック (redeclareBuiltinBlock)。</summary>
+    /// <summary>再宣言できるブロック (redeclareBuiltinBlock)。</summary>
     private static readonly HashSet<string> RedeclarableBlocks =
         ["gl_PerVertex", "gl_PerFragment", "gl_MeshPerVertexNV", "gl_MeshPerPrimitiveNV", "gl_MeshPerVertexEXT", "gl_MeshPerPrimitiveEXT"];
 
@@ -142,7 +142,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (!RedeclarableBlocks.Contains(name))
             {
-                Report(requirement, at, name, "宣言し直せるブロックは gl_PerVertex などの決まったものだけです。");
+                Report(requirement, at, name, "再宣言できるブロックは gl_PerVertex などの決まったものだけです。");
                 continue;
             }
 
@@ -182,16 +182,16 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (!redeclared.Add(instance?.Name ?? $"{storage} {name}"))
             {
-                Report(requirement, at, name, "組み込みのブロックは 1 度しか宣言し直せません。");
+                Report(requirement, at, name, "組み込みのブロックは 1 度しか再宣言できません。");
                 continue;
             }
 
-            // ジオメトリシェーダーの gl_in は、使った後には宣言し直せない。glslang は使うと配列の大きさを決めるために写しを作り、2 度目と同じに扱う。
+            // ジオメトリシェーダーの gl_in は、使った後には再宣言できない。glslang は使うと配列の大きさを決めるために写しを作り、2 度目と同じに扱う。
             // テッセレーションのシェーダーの gl_in は初めから大きさが決まっているので、使っても写しを作らない。
             if (instance is { Name: "gl_in" } && requirement.Stage == GlslShaderStage.Geometry
                 && program.Tree.Root.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>().Any(u => u.Name == instance.Name && IsBefore(u.Identifier, at)))
             {
-                Report(requirement, at, name, $"'{instance.Name}' を使った後には宣言し直せません。");
+                Report(requirement, at, name, $"'{instance.Name}' を使用した後には再宣言できません。");
                 continue;
             }
 
@@ -240,7 +240,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
                         && compilation.IsReportable(use.Identifier)
                         && types.Builtins.GetVariables(use.Name).Any(v => v.Storage == "out"))
                     {
-                        Report(requirement, use.Identifier, use.Name, "再宣言した gl_PerVertex に含めなかったメンバーは使えません。");
+                        Report(requirement, use.Identifier, use.Name, "再宣言した gl_PerVertex に含めなかったメンバーは使用できません。");
                     }
                 }
             }
@@ -285,7 +285,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (usedBefore)
             {
-                yield return "使った後には宣言し直せません。";
+                yield return "使用した後には再宣言できません。";
             }
 
             if (qualifiers.HasLayout)
@@ -351,7 +351,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
         {
             if (firstRedeclaration && usedBefore)
             {
-                yield return "使った後には宣言し直せません。";
+                yield return "使用した後には再宣言できません。";
             }
 
             if (qualifiers.Flat || qualifiers.NoPerspective || qualifiers.HasMemoryOrAuxiliary)
@@ -391,7 +391,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (usedBefore)
                 {
-                    yield return "depth の layout を書く場合は、使う前に再宣言してください。";
+                    yield return "depth の layout を書く場合は、使用する前に再宣言してください。";
                 }
 
                 if (state.Depth is { } previous && previous != depth)

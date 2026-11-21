@@ -152,7 +152,7 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
                         : null;
                 }
 
-                // 大きさを付けて宣言し直せる。使う位置より前の、最後の宣言を見る。
+                // 大きさを付けて再宣言できる。使う位置より前の、最後の宣言を見る。
                 if (resolution.Kind is not (DeclaredNameKind.Local or DeclaredNameKind.Global)
                     || resolution.Candidates.Any(c => c.Declarator is not VariableDeclaratorSyntax)
                     || resolution.Candidates
@@ -240,7 +240,7 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
                 when !invocation.ArgumentExpressions.Any() && io.Names.Contains(target.Name):
                 if (!io.IsSizedAt(target.Identifier))
                 {
-                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, method.NameToken, target.Name, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使ってください");
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, method.NameToken, target.Name, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使用してください");
                 }
 
                 return true;
@@ -276,7 +276,7 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
                     && ranks[i + 3].Kind == ShaderSyntaxKind.OpenParenToken
                     && !io.IsSizedAt(ranks[i]))
                 {
-                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, ranks[i + 2], ranks[i].Text, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使ってください");
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, ranks[i + 2], ranks[i].Text, $"length() で長さを求められません。{io.Sizing} で大きさを決めてから使用してください");
                 }
             }
         }

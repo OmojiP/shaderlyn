@@ -53,7 +53,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            _output.WriteLine($"{CorpusVariable} が無いため飛ばします。");
+            _output.WriteLine($"{CorpusVariable} が存在しないため飛ばします。");
             return;
         }
 
@@ -145,7 +145,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(Path.Combine(root, corpus)))
         {
-            _output.WriteLine($"{CorpusVariable} の下に {corpus} が無いため飛ばします。");
+            _output.WriteLine($"{CorpusVariable} の下に {corpus} が存在しないため飛ばします。");
             return;
         }
 
@@ -178,7 +178,7 @@ public sealed class GlslCorpusTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            _output.WriteLine($"{CorpusVariable} が無いため飛ばします。");
+            _output.WriteLine($"{CorpusVariable} が存在しないため飛ばします。");
             return;
         }
 

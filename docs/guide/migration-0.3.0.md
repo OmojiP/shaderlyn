@@ -20,11 +20,11 @@
 
 ## 書き換えが必要か
 
-ツールとして使うだけ (CLI・VS Code 拡張・GitHub Action) なら、書き換えは必要ありません。
+ツールとして使用するだけ (CLI・VS Code 拡張・GitHub Action) の場合は、書き換えは必要ありません。
 ルール ID・設定ファイル・CLI のオプション・出力の形は変わりません。
 
-自作ルール・自作の環境・自作の CLI を書いているなら、下の書き換えが必要です。
-構文木のノード (`InvocationExpressionSyntax` など) を使うルールは、`using` を書き換えることになります。
+自作ルール・自作の環境・自作の CLI を書いている場合は、下の書き換えが必要です。
+構文木のノード (`InvocationExpressionSyntax` など) を使用するルールは、`using` を書き換えることになります。
 
 ## 書き換えの手順
 
@@ -49,9 +49,9 @@
   同じ名前のプロパティが `HlslEnvironmentOptions` にもあり (こちらは変わらない)、名前だけでは見分けられません。
   [HLSL のコンパイラとバージョンの設定](#hlsl-のコンパイラとバージョンの設定) のとおりに書き換えてください
 - **`tree.Hlsl()` の `using`。** スクリプトは `program.Tree.CompileTargets` を `program.Tree.Hlsl().CompileTargets` に置き換えますが、
-  `Hlsl()` を使うには `using Shaderlyn.Hlsl.Parsing;` が必要です。「`Hlsl` の定義が含まれていません」のエラーが出たら追加してください
-- **使わない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を追加します。
-  cbuffer と namespace の節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) を使わないファイルでは、`Shaderlyn.Hlsl.Syntax` を消してかまいません
+  `Hlsl()` を使用するには `using Shaderlyn.Hlsl.Parsing;` が必要です。「`Hlsl` の定義が含まれていません」のエラーが出たら追加してください
+- **使用しない `using`。** スクリプトは `using Shaderlyn.Hlsl.Syntax;` を残したまま `using Shaderlyn.CFamily.Syntax;` を追加します。
+  cbuffer と namespace の節 (`ConstantBufferDeclarationSyntax` / `NamespaceDeclarationSyntax`) を使用しないファイルでは、`Shaderlyn.Hlsl.Syntax` を消してかまいません
 
 ## ルールの基底クラス
 
@@ -64,7 +64,7 @@
 | `HlslAnalysisContext` | `ShaderAnalysisContext` |
 | `HlslNodeAnalysisContext<TNode>` | `ShaderNodeAnalysisContext<TNode>` |
 
-名前空間 (`Shaderlyn.Semantics.Analysis`) と使い方は変わりません。
+名前空間 (`Shaderlyn.Semantics.Analysis`) と使用方法は変わりません。
 
 ```csharp
 // 0.2.1
@@ -125,7 +125,7 @@ HLSL に限らない型は、名前から `Hlsl` を外しました。
 | `Shaderlyn.Hlsl.Preprocessing` のすべての型 (`PreprocessorOptions`・`PragmaDirective`・`IIncludeResolver` など) | `Shaderlyn.Hlsl.Preprocessing` | `Shaderlyn.CFamily.Preprocessing` |
 
 解析済みのコードの型は `ShaderSyntaxTree` (`Shaderlyn.CFamily.Syntax`) になりました。
-`HlslSyntaxTree` は HLSL のコードを読む入口 (`HlslSyntaxTree.Parse`) だけを持つ静的クラスになり、`ShaderSyntaxTree` を返します。
+`HlslSyntaxTree` は HLSL のコードを解析する入口 (`HlslSyntaxTree.Parse`) だけを持つ静的クラスになり、`ShaderSyntaxTree` を返します。
 木の HLSL に固有の値は、`tree.Hlsl()` (`Shaderlyn.Hlsl.Parsing`) から読みます。
 
 | 0.2.1 | 0.3.0 |
@@ -134,10 +134,10 @@ HLSL に限らない型は、名前から `Hlsl` を外しました。
 | `program.Tree.CompileTargets` | `program.Tree.Hlsl().CompileTargets` |
 | `program.Tree.Dialects` / `LanguageVersion` / `Features` | `program.Tree.Hlsl().Dialects` / `LanguageVersion` / `Features` |
 
-`Root`・`PreprocessResult`・`Pragmas`・`Diagnostics`・`Text`・`UnanalyzedIdentifiers` は、これまでどおり木から読めます。
+`Root`・`PreprocessResult`・`Pragmas`・`Diagnostics`・`Text`・`UnanalyzedIdentifiers` は、これまでどおり木から取得できます。
 
 多くのルールは、`using Shaderlyn.Hlsl.Syntax;` を `using Shaderlyn.CFamily.Syntax;` に置き換えれば済みます
-(cbuffer か namespace の節を使うなら、両方を書きます)。
+(cbuffer か namespace の節を使用する場合は、両方を書きます)。
 
 ### HLSL のコンパイラとバージョンの設定
 
@@ -156,15 +156,15 @@ options = options.WithHlsl(h => h with { Dialects = [HlslDialect.Fxc] });
 HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 ```
 
-`options.Hlsl()` は、設定が無ければ既定 (FXC) を返します。
+`options.Hlsl()` は、設定が存在しなければ既定 (FXC) を返します。
 自作の環境 (`IHlslEnvironment`) でコンパイラや HLSL のバージョンを変えるときは、受け取った設定を `WithHlsl` で変えると、ほかの環境が入れた設定 (`DialectName` など) を残せます。
 
 ## 環境
 
 自作の環境 (独自エンジン) を書いている人向けです。ルールを書くだけなら関係ありません。
 
-環境のインターフェースを、言語に依らない `IShaderEnvironment` と、HLSL を使う環境の `IHlslEnvironment` に分けました。
-`IHlslEnvironment` は `IShaderEnvironment` に「HLSL として読む」ことを追加したもので、これまでどおり実装できます。
+環境のインターフェースを、言語に依らない `IShaderEnvironment` と、HLSL を使用する環境の `IHlslEnvironment` に分けました。
+`IHlslEnvironment` は `IShaderEnvironment` に「HLSL として解析する」ことを追加したもので、これまでどおり実装できます。
 メンバーは変わりません (追加した `Parse` は `IHlslEnvironment` が実装しているので、書かなくてかまいません)。
 
 名前の変わった型:
@@ -181,8 +181,8 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 | `compilation.Environment` (`IHlslEnvironment`) | `compilation.Environment` (`IShaderEnvironment`) |
 | `HostEnvironment` の `Func<IHlslEnvironment>` | `Func<IShaderEnvironment>`。`IHlslEnvironment` を返すラムダはそのまま渡せる |
 
-自作の環境が `IShaderEnvironment` を直接実装しているなら、`TypeSystem` (言語の型システム。型と組み込み関数) も実装します。
-`IHlslEnvironment` を実装しているなら、HLSL の型を返すので書かなくてかまいません。
+自作の環境が `IShaderEnvironment` を直接実装している場合は、`TypeSystem` (言語の型システム。型と組み込み関数) も実装します。
+`IHlslEnvironment` を実装している場合は、HLSL の型を返すので書かなくてかまいません。
 
 ## 型と組み込み関数
 
@@ -196,7 +196,7 @@ HlslLanguageVersion version = options.Hlsl().LanguageVersion;
 | `HlslNumericKind` | `ShaderNumericKind` |
 
 型の名前・変換・組み込み関数を尋ねる先として、`compilation.TypeSystem` (`ShaderTypeSystem`) を追加しました。
-`HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` はこれまでどおり使えますが、HLSL の表そのものです。
+`HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` はこれまでどおり使用できますが、HLSL の表そのものです。
 HLSL 以外の言語 (0.3.0 で追加する GLSL など) でも働かせたいルールは、`compilation.TypeSystem` から尋ねてください。
 
 ```csharp

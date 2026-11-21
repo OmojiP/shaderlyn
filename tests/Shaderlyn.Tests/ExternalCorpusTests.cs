@@ -52,7 +52,7 @@ public sealed class ExternalCorpusTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            _output.WriteLine($"{CorpusVariable} が無いため飛ばします。");
+            _output.WriteLine($"{CorpusVariable} が存在しないため飛ばします。");
             return;
         }
 

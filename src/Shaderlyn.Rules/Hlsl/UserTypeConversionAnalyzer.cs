@@ -613,7 +613,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             {
                 if (symbol is "++" or "--")
                 {
-                    ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。", reported);
+                    ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使用できません。", reported);
                 }
 
                 continue;
@@ -633,7 +633,7 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                 return;
             }
 
-            ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使えません。数として使う場合は型変換 ((int) x) を書いてください。", reported);
+            ReportEnum(context, expression, $"{DescribeEnum(enumeration)} の値に '{symbol}' は使用できません。数として使用する場合は型変換 ((int) x) を書いてください。", reported);
             return;
         }
     }
