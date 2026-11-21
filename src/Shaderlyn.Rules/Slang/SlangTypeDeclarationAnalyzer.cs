@@ -616,7 +616,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                     if (accessors.Any(a => a.HasBody) && accessors.FirstOrDefault(a => !a.HasBody) is { Accessor: { } missing })
                     {
                         report(SlangRuleDescriptors.AccessorForm, accessors.First(a => a.HasBody).Accessor,
-                            $"インターフェイスの {token.Text} の accessor に既定の実装を書くなら、すべての accessor に書いてください ({missing.Text} に本体がありません)。");
+                            $"インターフェイスの {token.Text} の accessor に既定の実装を書く場合は、すべての accessor に書いてください ({missing.Text} に本体がありません)。");
                     }
                     else if (token.Text == "property" && accessors.Count > 0 && accessors.All(a => a.HasBody))
                     {

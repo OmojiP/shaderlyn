@@ -43,7 +43,7 @@ internal static class HlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "エントリポイントに指定した名前の関数が定義されていません"
-            + " (Unity なら #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境なら units の entry)。"
+            + " (Unity の場合は #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境の場合は units の entry)。"
             + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
             + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0301"));
@@ -74,7 +74,7 @@ internal static class HlslRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "cbuffer (CBUFFER_START / CBUFFER_END) の中の関数をエントリポイントにしています。"
             + "DXC はこれをエントリポイントとして扱えず、「cannot find entry function」になります。"
-            + "Unity では、エラーの行も出ずに「Lost connection with shader compiler process. Suspected crash in DXC.」になります (Unity 6.6 で確かめました)。"
+            + "Unity では、エラーの行も出ずに「Lost connection with shader compiler process. Suspected crash in DXC.」になります (Unity 6.6 で確認しました)。"
             + "関数は cbuffer の外に書いてください。",
         helpLinkUri: DocumentationLinks.For("HL0304"));
 
@@ -233,8 +233,8 @@ internal static class HlslRuleDescriptors
         messageFormat: "関数 '{0}' の戻り値は {1} ですが、{2}。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "return が返している値が、関数の戻り値の型と噛み合っていません。"
-            + "成分が足りない、void の関数が値を返している、"
+        description: "return が返している値が、関数の戻り値の型と一致しません。"
+            + "成分が不足している、void の関数が値を返している、"
             + "値を返す関数が値なしで return している、のいずれかです。"
             + "いずれもコンパイルに失敗します。",
         helpLinkUri: DocumentationLinks.For("CF0411"));
@@ -283,7 +283,7 @@ internal static class HlslRuleDescriptors
         messageFormat: "関数 '{0}' は {1} を返しますが、値を返さない経路が存在します。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "値を返す関数に、return を通らずに末尾へ到達する経路があります。",
+        description: "値を返す関数に、return を経由せずに末尾へ到達する経路があります。",
         helpLinkUri: DocumentationLinks.For("CF0501"));
 
     /// <summary>波括弧による初期化の要素の個数が合わない。</summary>
@@ -466,7 +466,7 @@ internal static class HlslRuleDescriptors
         messageFormat: "'{0}' は for 文の初期化で宣言した変数です。HLSL 2021 ではエラーになります。",
         category: "Portability",
         defaultSeverity: DiagnosticSeverity.Info,
-        description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも見えますが、HLSL 2021 では C++ と同じくループの中だけで見えます。"
+        description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも参照できますが、HLSL 2021 では C++ と同じくループの中でだけ参照できます。"
             + "DXC の HLSL 2021 へ移すとき (Unity の DXC が 2021 になったときを含む) にエラーになるので、ループの前で宣言してください。",
         helpLinkUri: DocumentationLinks.For("HL0354"));
 
@@ -479,7 +479,7 @@ internal static class HlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "HLSL 2021 の && / || / ?: は短絡評価になり、スカラーにしか使えません。"
-            + "成分ごとに計算するなら and() / or() / select() を使ってください。FXC と DXC 2021 より前は成分ごとに計算します。",
+            + "成分ごとに計算する場合は and() / or() / select() を使ってください。FXC と DXC 2021 より前は成分ごとに計算します。",
         helpLinkUri: DocumentationLinks.For("HL0349"));
 
     /// <summary>構造体の値を増減している (FXC では何もしない)。</summary>

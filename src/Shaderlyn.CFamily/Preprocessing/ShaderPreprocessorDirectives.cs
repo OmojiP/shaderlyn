@@ -2013,7 +2013,7 @@ internal sealed partial class ShaderPreprocessor
 
             if (error is not null)
             {
-                Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の式を読めません: {error}");
+                Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(), $"#line の式を解析できません: {error}");
                 return;
             }
 
@@ -2139,7 +2139,7 @@ internal sealed partial class ShaderPreprocessor
         {
             Report(ShaderDescriptors.PreprocessorError, line[0].GetLocation(),
                 $"#{directive} の後には何も書けません: '{line[0].Text}'。"
-                + "コメントにするなら // を付けてください。");
+                + "コメントにする場合は // を付けてください。");
         }
 
         foreach (ShaderSyntaxToken token in line)

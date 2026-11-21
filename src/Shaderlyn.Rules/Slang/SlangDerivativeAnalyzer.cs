@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <remarks>
 /// <list type="bullet">
 /// <item>SG0350: <c>[Differentiable]</c>・<c>[ForwardDifferentiable]</c>・<c>[BackwardDifferentiable]</c> の関数の中の、繰り返しの回数を決められないループ (E30510)。
-/// <c>[MaxIters(n)]</c> か <c>[ForceUnroll]</c> を付けていない <c>while</c> と <c>do</c>、変数を定数と比べて定数ずつ増減する形でない <c>for</c>、本体でその変数を書き換える <c>for</c></item>
+/// <c>[MaxIters(n)]</c> か <c>[ForceUnroll]</c> を付けていない <c>while</c> と <c>do</c>、変数を定数と比較して定数ずつ増減する形でない <c>for</c>、本体でその変数を書き換える <c>for</c></item>
 /// <item>CF0310: <c>[BackwardDerivative(f)]</c> などの微分の属性に書いた、どこにも宣言されていない関数の名前 (E31148)</item>
 /// <item>SG0102: インターフェイスの要件でない関数の <c>[MaybeDifferentiable]</c> (E30314) と、インターフェイスの要件の <c>[TreatAsDifferentiable]</c> (E30313)</item>
 /// <item>SG0304: <c>[DerivativeGroupLinear]</c> の、スレッドの数の積が 4 の倍数でない <c>[numthreads]</c> (E31211) と、<c>[DerivativeGroupQuad]</c> の、x と y が 2 の倍数でない <c>[numthreads]</c> (E31210)</item>
@@ -192,7 +192,7 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
             }
 
             report(SlangRuleDescriptors.LoopNeedsIterationCount, keyword,
-                [$"微分する関数の中の{reason}は、繰り返しの回数を決められません。[MaxIters(n)] か [ForceUnroll] を付けるか、変数を定数と比べて定数ずつ増減する for にしてください。"]);
+                [$"微分する関数の中の{reason}は、繰り返しの回数を決められません。[MaxIters(n)] か [ForceUnroll] を付けるか、変数を定数と比較して定数ずつ増減する for にしてください。"]);
         }
     }
 

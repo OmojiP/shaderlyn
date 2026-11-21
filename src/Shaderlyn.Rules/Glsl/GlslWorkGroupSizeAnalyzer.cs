@@ -80,7 +80,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
                     && (declared is not { } at || use.Identifier.Span.Start < at))
                 {
                     requirement.Report(GlslRuleDescriptors.LayoutRequired, use.Identifier,
-                        "gl_WorkGroupSize を読む前に、ワークグループの大きさ (layout(local_size_x = …) in;) を宣言してください。");
+                        "gl_WorkGroupSize を読み取る前に、ワークグループの大きさ (layout(local_size_x = …) in;) を宣言してください。");
                 }
             }
         }

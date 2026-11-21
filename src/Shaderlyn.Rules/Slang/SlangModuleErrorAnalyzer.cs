@@ -71,13 +71,13 @@ internal sealed class SlangModuleErrorAnalyzer : SemanticRuleAnalyzer
             if (i > 0 && tokens[i - 1].Text == "export" && compilation.IsReportable(tokens[i - 1]) && tokens[i - 1].GetLocation() is { } exportLocation)
             {
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ModifierNotAllowed, exportLocation,
-                    "import には export を書けません。取り込んだモジュールの宣言を見せるなら __exported import と書いてください。"));
+                    "import には export を書けません。取り込んだモジュールの宣言を公開する場合は __exported import と書いてください。"));
             }
 
             if (IsExperimentalModule(name) && Semantics.Symbols.SlangTypeSystem.Instance.IsStandardModule(name.Replace('.', '/')) && compilation.IsReportable(tokens[i + 1]) && tokens[i + 1].GetLocation() is { } location)
             {
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ExperimentalModule, location,
-                    $"{name} は実験中のモジュールです。slangc に -experimental-feature を渡すなら、設定ファイルの slang: experimental-features を true にしてください。"));
+                    $"{name} は実験中のモジュールです。slangc に -experimental-feature を渡す場合は、設定ファイルの slang: experimental-features を true にしてください。"));
             }
         }
     }

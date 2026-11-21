@@ -96,7 +96,7 @@ internal static partial class HoverBuilder
             "COLOR" or "VECTOR" => "HLSL 側は `float4` / `half4` で受ける",
             "FLOAT" or "RANGE" => "HLSL 側は `float` / `half` で受ける",
             "INT" or "INTEGER" => "HLSL 側は `int` で受ける",
-            "2D" => "HLSL 側は `TEXTURE2D` と `SAMPLER`。`_ST` を使うなら `float4` も必要",
+            "2D" => "HLSL 側は `TEXTURE2D` と `SAMPLER`。`_ST` を使う場合は `float4` も必要",
             "3D" => "HLSL 側は `TEXTURE3D`",
             "CUBE" => "HLSL 側は `TEXTURECUBE`",
             "2DARRAY" => "HLSL 側は `TEXTURE2D_ARRAY`",
@@ -166,7 +166,7 @@ internal static partial class HoverBuilder
 
         string note = keyword.EndsWith("INCLUDE", StringComparison.Ordinal)
             ? "同じブロック内の各 PROGRAM の先頭へ差し込まれる共通コード片。"
-            : $"{info.Uniforms} 件の uniform が見えている。";
+            : $"{info.Uniforms} 件の uniform を参照できる。";
 
         return new HoverResult(
             $"```shaderlab\n{keyword}\n```\n\n{note}"

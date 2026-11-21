@@ -306,7 +306,7 @@ internal sealed class GlslAccessAnalyzer : SemanticRuleAnalyzer
 
             if (perVertexOutput)
             {
-                requirement.Report(GlslRuleDescriptors.NotWritable, at, $"'{array.Name}' の要素", "頂点ごとの出力は gl_InvocationID で引いた要素にしか書き込めません");
+                requirement.Report(GlslRuleDescriptors.NotWritable, at, $"'{array.Name}' の要素", "頂点ごとの出力は gl_InvocationID で参照した要素にしか書き込めません");
             }
         }
 

@@ -186,7 +186,7 @@ internal sealed class DeclarationSyntaxAnalyzer : SemanticRuleAnalyzer
         if (deprecated && IsSlang2026(invocation))
         {
             context.ReportDiagnostic(Diagnostic.Create(Slang.SlangRuleDescriptors.RemovedDeclaration, location,
-                $"{name} の作成で、ベクトルを含んで成分の足りない形 (成分は {written} 個で、{required} 個が必要です) は、言語のバージョン 2026 で取り除かれています。足りない成分を書いてください。"));
+                $"{name} の作成で、ベクトルを含んで成分が不足している形 (成分は {written} 個で、{required} 個が必要です) は、言語のバージョン 2026 で取り除かれています。不足している成分を書いてください。"));
             return;
         }
 

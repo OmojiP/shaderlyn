@@ -721,7 +721,7 @@ public sealed partial class ShaderLanguageServer
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                await LogFailureAsync("--unity-generate で書き出したものの確認", exception).ConfigureAwait(false);
+                await LogFailureAsync("--unity-generate で書き出したファイルの確認", exception).ConfigureAwait(false);
             }
         });
     }

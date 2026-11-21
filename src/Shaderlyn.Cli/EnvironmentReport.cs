@@ -186,7 +186,7 @@ internal static partial class EnvironmentReport
 
         if (options.NoConfig)
         {
-            Line(builder, "  --no-config のため読んでいません。");
+            Line(builder, "  --no-config のため読み込んでいません。");
         }
         else if (options.ConfigPath is { } explicitPath)
         {
@@ -355,13 +355,13 @@ internal static partial class EnvironmentReport
 
         Line(builder, $"  生成される取り込み (解決せず、CF0021 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
         Line(builder, $"  定義するマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}"
-                      + " (HLSL 2021 で読むシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
+                      + " (HLSL 2021 で解析するシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
 
         if (unreal.FollowEngineLanguageVersion && unreal.Compiler == Hlsl.Parsing.HlslCompiler.Dxc)
         {
             string decided = unreal.EngineHlsl2021Default switch
             {
-                null => $"エンジンの設定を読めないので {(int)unreal.LanguageVersion} (既定)",
+                null => $"エンジンの設定を読み込めないため {(int)unreal.LanguageVersion} (既定)",
                 1 => "グローバルシェーダーは 2021、マテリアルのシェーダー (Material.ush を取り込むもの) は 2018",
                 2 => "どのシェーダーも 2021",
                 _ => "どのシェーダーも 2018",
@@ -476,7 +476,7 @@ internal static partial class EnvironmentReport
             EditorDataSource.ProjectVersion => $"プロジェクトの ProjectVersion.txt と同じバージョン ({editor.ProjectVersion})",
             EditorDataSource.NewestInstalledInsteadOfProject => editor.ProjectVersion is { } wanted
                 ? $"{Warning}プロジェクトのバージョン {wanted} が見つからないため、インストール済みの最新バージョンで代用"
-                : $"{Warning}プロジェクトのバージョンが読めないため、インストール済みの最新バージョンで代用",
+                : $"{Warning}プロジェクトのバージョンを読み取れないため、インストール済みの最新バージョンで代用",
             EditorDataSource.NewestInstalled => "インストール済みの最新バージョン",
             _ => $"{Warning}見つかりませんでした",
         };
@@ -507,8 +507,8 @@ internal static partial class EnvironmentReport
         string full = Path.GetFullPath(generated);
         bool exists = File.Exists(Path.Combine(full, UnityIncludeGeneration.RecordFileName));
 
-        Section(builder, "--unity-generate で書き出したもの (unity: generated)");
-        Line(builder, $"  {(exists ? string.Empty : Warning)}フォルダー: {full}{(exists ? string.Empty : " (書き出したものがありません。--unity-generate で書き出してください)")}");
+        Section(builder, "--unity-generate で書き出したファイル (unity: generated)");
+        Line(builder, $"  {(exists ? string.Empty : Warning)}フォルダー: {full}{(exists ? string.Empty : " (書き出したファイルがありません。--unity-generate で書き出してください)")}");
 
         if (exists)
         {

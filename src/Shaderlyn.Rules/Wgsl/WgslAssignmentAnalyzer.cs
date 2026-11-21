@@ -136,7 +136,7 @@ internal sealed class WgslAssignmentAnalyzer : SemanticRuleAnalyzer
 
                 if (kind is "let" or "const" or "override")
                 {
-                    return $"{kind} の値は書き換えられません。書き換えるなら var で宣言してください";
+                    return $"{kind} の値は書き換えられません。書き換える場合は var で宣言してください";
                 }
 
                 // var<uniform> と、read_write でない var<storage>。
@@ -145,7 +145,7 @@ internal sealed class WgslAssignmentAnalyzer : SemanticRuleAnalyzer
                 return space switch
                 {
                     ["uniform", ..] => "var<uniform> の変数は読み取りだけです",
-                    ["storage"] or ["storage", "read"] => "読み取りだけの var<storage> の変数です。書き込むなら var<storage, read_write> にしてください",
+                    ["storage"] or ["storage", "read"] => "読み取りだけの var<storage> の変数です。書き込む場合は var<storage, read_write> にしてください",
                     _ => null,
                 };
 

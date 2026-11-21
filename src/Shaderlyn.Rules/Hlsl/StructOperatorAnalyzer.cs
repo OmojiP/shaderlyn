@@ -366,7 +366,7 @@ internal sealed class StructOperatorAnalyzer : SemanticRuleAnalyzer
     private static string HintFor(string structName, string symbol)
         => NotOverloadable.Contains(symbol)
             ? $"'{symbol}' はオーバーロードできないので、メンバーごとに計算してください。"
-            : "HLSL 2021 以降なら演算子オーバーロードを行ってください。";
+            : "HLSL 2021 以降の場合は演算子オーバーロードを行ってください。";
 
     /// <summary>報告する。</summary>
     /// <param name="context">解析コンテキスト。</param>

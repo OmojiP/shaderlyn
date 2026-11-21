@@ -144,7 +144,7 @@ internal sealed class SlangMutationAnalyzer : SemanticRuleAnalyzer
                         }
 
                         context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotWritable, location,
-                            $"メソッド '{method.Name}' は [mutating] でないので、フィールド '{name}' を書き換えられません。書き換えるなら、メソッドに [mutating] を付けてください。"));
+                            $"メソッド '{method.Name}' は [mutating] でないので、フィールド '{name}' を書き換えられません。書き換える場合は、メソッドに [mutating] を付けてください。"));
                     }
                 }
             }
@@ -202,7 +202,7 @@ internal sealed class SlangMutationAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotWritable, location,
-                    $"'{resource.Name}' は読むだけの資源 ({resource.Type}) なので、その要素には{how}。書き込むなら RW{resource.Type} にしてください。"));
+                    $"'{resource.Name}' は読み取り専用の資源 ({resource.Type}) なので、その要素には{how}。書き込む場合は RW{resource.Type} にしてください。"));
             }
         }
     }

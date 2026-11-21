@@ -57,7 +57,7 @@ internal sealed partial class ShaderPreprocessor
             && !IsReportedConditionally(nameToken.Text))
         {
             Report(ShaderDescriptors.MacroRedefinition, nameToken.GetLocation(),
-                $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています。"
+                $"マクロ '{nameToken.Text}' を中身を変えて再定義しています。"
                 + "#undef してから定義してください。");
         }
 
@@ -434,7 +434,7 @@ internal sealed partial class ShaderPreprocessor
             SymbolCondition both = _options.SymbolConstraints.Apply(previous.Condition.And(condition));
 
             Report(ShaderDescriptors.MacroRedefinition, nameToken.GetLocation(),
-                $"マクロ '{nameToken.Text}' を中身を変えて定義し直しています"
+                $"マクロ '{nameToken.Text}' を中身を変えて再定義しています"
                 + (both.IsAlways ? string.Empty : $" ({both} のとき)")
                 + "。#undef してから定義してください。");
             break;

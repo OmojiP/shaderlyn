@@ -512,7 +512,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                         if (visibility != "public")
                         {
-                            Report(memberName, $"'{memberName.Text}' を public にしていますが、親の {structName.Text} が public ではありません。メンバーは親より見えるようにできません。");
+                            Report(memberName, $"'{memberName.Text}' を public にしていますが、親の {structName.Text} が public ではありません。メンバーの公開範囲は親より広くできません。");
                             continue;
                         }
 

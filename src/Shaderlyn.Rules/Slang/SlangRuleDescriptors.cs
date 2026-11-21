@@ -20,19 +20,19 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "文字や文字列のリテラルに使えないエスケープ (\\q、桁の足りない \\u など) を書いているか、文字のリテラルの中身がちょうど 1 文字でないか、"
+        description: "文字や文字列のリテラルに使えないエスケープ (\\q、桁の不足している \\u など) を書いているか、文字のリテラルの中身がちょうど 1 文字でないか、"
             + "64 ビットの整数に収まらない整数のリテラルを書いています。slangc は字句の誤り (E10001・E10007・E10008・E10009・E10012・E10013) にします。",
         helpLinkUri: DocumentationLinks.For("SG0004"));
 
     /// <summary>UTF-8 として読めないバイト。</summary>
     public static DiagnosticDescriptor InvalidUtf8 { get; } = new(
         id: "SG0005",
-        title: "UTF-8 として読めないバイトがあります",
+        title: "UTF-8 として認識できないバイトがあります",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "ファイルに、UTF-8 として読めないバイトの並びがあります (Shift_JIS や Latin-1 で保存したファイルなど)。コメントの中も含みます。"
-            + "slangc はソースを UTF-8 として読むので、字句の誤り (E10006) にします。",
+        description: "ファイルに、UTF-8 として認識できないバイトの並びがあります (Shift_JIS や Latin-1 で保存したファイルなど)。コメントの中も含みます。"
+            + "slangc はソースを UTF-8 として扱うため、字句の誤り (E10006) にします。",
         helpLinkUri: DocumentationLinks.For("SG0005"));
 
     /// <summary>その場所に書けない宣言。</summary>
@@ -68,7 +68,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "register(…) の種類 (t・u・s・b) が、資源の型と合いません。t は読むだけの資源 (Texture2D・StructuredBuffer など)、u は書ける資源 (RW…)、"
+        description: "register(…) の種類 (t・u・s・b) が、資源の型と合いません。t は読み取り専用の資源 (Texture2D・StructuredBuffer など)、u は書ける資源 (RW…)、"
             + "s はサンプラー、b は定数バッファーです。番号の無い register(t)、2 つ目が space でない register(s0, s1)、番号の無い space も報告します。slangc はコンパイルの誤り (E31222・E39008・E39009・E39010) にします。",
         helpLinkUri: DocumentationLinks.For("SG0103"));
 
@@ -93,7 +93,7 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[mutating] を付けていない構造体 (かクラス) のメソッドの中で、自分のフィールドに代入しているか、++ / -- か複合代入で書き換えています。"
             + "Slang のメソッドは既定で自分を書き換えられないので、slangc はコンパイルの誤り (E30011・E30047) にします。"
-            + "読むだけの資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。Access::Read のポインターの指す先と、get だけの property への書き込みも報告します。",
+            + "読み取り専用の資源 (StructuredBuffer・Texture2D など) の要素への書き込み (Interlocked の書き込み先・out の実引数・& を含む) も報告します。Access::Read のポインターの指す先と、get だけの property への書き込みも報告します。",
         helpLinkUri: DocumentationLinks.For("SG0309"));
 
     /// <summary>条件がスカラーでない。</summary>
@@ -177,8 +177,8 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "[RemovedSince(版, \"説明\")] を書いた宣言を使っています。その版の言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。"
-            + "言語のバージョン 2026 で取り除かれた書き方 (ベクトルを含んで成分の足りない値の作成と並び。float4(v.xy, 1)) も報告します。",
+        description: "[RemovedSince(バージョン, \"説明\")] を書いた宣言を使っています。そのバージョンの言語 (#language slang 2026 など。書かなければ 2025) から取り除かれたので、slangc はコンパイルの誤りにします。"
+            + "言語のバージョン 2026 で取り除かれた書き方 (ベクトルを含んで成分が不足している値の作成と並び。float4(v.xy, 1)) も報告します。",
         helpLinkUri: DocumentationLinks.For("SG0341"));
 
     /// <summary>インターフェイスの適合が循環している。</summary>
@@ -244,7 +244,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[numthreads] に 1 より小さい値を、[WaveSize] に 4 から 128 までの 2 の累乗でない値を、[COM] に GUID でない文字列を、"
-            + "[RemovedSince] に -1 から 9999 の外の版を書いているか、[DerivativeGroupLinear] / [DerivativeGroupQuad] の [numthreads] のスレッドの数が合いません。"
+            + "[RemovedSince] に -1 から 9999 の外のバージョンを書いているか、[DerivativeGroupLinear] / [DerivativeGroupQuad] の [numthreads] のスレッドの数が合いません。"
             + "slangc はコンパイルの誤り (E31102・E31103・E31123・E31209・E31211・E31210) にします。",
         helpLinkUri: DocumentationLinks.For("SG0304"));
 
@@ -359,7 +359,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比べて定数ずつ増減する形でない for、"
+        description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比較して定数ずつ増減する形でない for、"
             + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が必要なので、slangc はコンパイルの誤り (E30510) にします。",
         helpLinkUri: DocumentationLinks.For("SG0350"));
 
@@ -393,7 +393,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "import したモジュール (それがたどって取り込んだモジュールを含む) に構文の誤りがあります。slangc はそのモジュールを読めないので、import の行もコンパイルの誤り (E39999) にします。",
+        description: "import したモジュール (それがたどって取り込んだモジュールを含む) に構文の誤りがあります。slangc はそのモジュールを読み込めないため、import の行もコンパイルの誤り (E39999) にします。",
         helpLinkUri: DocumentationLinks.For("SG0353"));
 
     /// <summary>空でありうる値の並びの使い方。</summary>
@@ -427,7 +427,7 @@ internal static class SlangRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "読むだけの資源 (StructuredBuffer・Texture など) の要素のアドレスを &x か __getAddress(x) で取っているか、GPU のコンパイル先で局所変数か仮引数のアドレスを __getAddress で取っています。"
+        description: "読み取り専用の資源 (StructuredBuffer・Texture など) の要素のアドレスを &x か __getAddress(x) で取っているか、GPU のコンパイル先で局所変数か仮引数のアドレスを __getAddress で取っています。"
             + "slangc はコンパイルの誤り (E30079・E31160) にします。",
         helpLinkUri: DocumentationLinks.For("SG0356"));
 
@@ -500,7 +500,7 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "実験中のモジュール (slang.neural・slang.numerics・slang.functional・experimental.workgraph など) を import しています。"
-            + "slangc は -experimental-feature を渡さなければ読みません (E00104)。-experimental-feature でコンパイルするなら、設定ファイルの slang: experimental-features を true にしてください。",
+            + "slangc は -experimental-feature を渡さない場合は読み込みません (E00104)。-experimental-feature でコンパイルする場合は、設定ファイルの slang: experimental-features を true にしてください。",
         helpLinkUri: DocumentationLinks.For("SG0362"));
 
     /// <summary>実引数から決まらないジェネリックの型引数。</summary>
@@ -523,6 +523,6 @@ internal static class SlangRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "if・while・for・do の条件に、括弧で包まない代入 (if (a = 0)) を書いています。'==' の書き間違いを防ぐため、slangc はコンパイルの誤り (E30057) にします。"
-            + "代入した値を条件に使うなら、括弧で包んでください (if ((a = 0)))。",
+            + "代入した値を条件に使う場合は、括弧で包んでください (if ((a = 0)))。",
         helpLinkUri: DocumentationLinks.For("SG0343"));
 }

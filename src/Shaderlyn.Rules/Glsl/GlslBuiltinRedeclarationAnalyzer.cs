@@ -161,7 +161,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (instance is not null && types.Builtins.GetVariables(instance.Name).IsEmpty)
             {
-                Report(requirement, at, name, $"この版とステージには、宣言し直す組み込みのブロック '{instance.Name}' がありません。");
+                Report(requirement, at, name, $"このバージョンとステージには、再宣言する組み込みのブロック '{instance.Name}' がありません。");
                 continue;
             }
 
@@ -169,7 +169,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (types.Builtins.GetVariables(declared[0].Name).IsEmpty)
                 {
-                    Report(requirement, at, name, $"この版とステージには、メンバー '{declared[0].Name}' を持つ組み込みのブロックがありません。");
+                    Report(requirement, at, name, $"このバージョンとステージには、メンバー '{declared[0].Name}' を持つ組み込みのブロックがありません。");
                     continue;
                 }
 
@@ -240,7 +240,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
                         && compilation.IsReportable(use.Identifier)
                         && types.Builtins.GetVariables(use.Name).Any(v => v.Storage == "out"))
                     {
-                        Report(requirement, use.Identifier, use.Name, "宣言し直した gl_PerVertex に含めなかったメンバーは使えません。");
+                        Report(requirement, use.Identifier, use.Name, "再宣言した gl_PerVertex に含めなかったメンバーは使えません。");
                     }
                 }
             }
@@ -341,7 +341,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
                 if (state.Sizes.TryGetValue(name, out int previous) && previous != length)
                 {
-                    yield return $"前の宣言し直しで大きさを {previous} にしています。";
+                    yield return $"前の再宣言で大きさを {previous} にしています。";
                 }
 
                 state.Sizes.TryAdd(name, length);
@@ -369,7 +369,7 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (!firstRedeclaration && (upperLeft != state.OriginUpperLeft || pixelCenter != state.PixelCenterInteger))
             {
-                yield return "前の宣言し直しと同じ layout (origin_upper_left・pixel_center_integer) にしてください。";
+                yield return "前の再宣言と同じ layout (origin_upper_left・pixel_center_integer) にしてください。";
             }
 
             state.OriginUpperLeft |= upperLeft;
@@ -391,12 +391,12 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (usedBefore)
                 {
-                    yield return "depth の layout を書くなら、使う前に宣言し直してください。";
+                    yield return "depth の layout を書く場合は、使う前に再宣言してください。";
                 }
 
                 if (state.Depth is { } previous && previous != depth)
                 {
-                    yield return $"前の宣言し直しの depth ({previous}) と同じにしてください。";
+                    yield return $"前の再宣言の depth ({previous}) と同じにしてください。";
                 }
 
                 state.Depth ??= depth;

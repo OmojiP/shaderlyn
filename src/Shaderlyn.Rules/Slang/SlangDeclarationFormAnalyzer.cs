@@ -359,7 +359,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case "RemovedSince" when values.Length > 0 && values[0] is { } version && version is < -1 or > 9999:
-                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[RemovedSince] の版 ({version}) が、使える範囲 (-1 から 9999) の外です。");
+                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[RemovedSince] のバージョン ({version}) が、使える範囲 (-1 から 9999) の外です。");
                     break;
             }
         }
@@ -384,7 +384,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 && NextDeclarationKeyword(tokens, i) is { } keyword && keyword + 1 < tokens.Length
                 && tokens[keyword].Text == "enum" && tokens[keyword + 1].Text is "class" or "struct")
             {
-                report(SlangRuleDescriptors.ModifierNotAllowed, token, $"[UnscopedEnum] は enum {tokens[keyword + 1].Text} と重なります (列挙子を修飾しないで書くなら、{tokens[keyword + 1].Text} を外してください)。");
+                report(SlangRuleDescriptors.ModifierNotAllowed, token, $"[UnscopedEnum] は enum {tokens[keyword + 1].Text} と重なります (列挙子を修飾しないで書く場合は、{tokens[keyword + 1].Text} を外してください)。");
             }
             else if (token.Text == "offset" && i > 1 && tokens[i - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[i - 2].Text == "vk"
                      && NextDeclarationKeyword(tokens, i) is { } next

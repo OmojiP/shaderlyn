@@ -29,7 +29,7 @@ internal static partial class AnalysisInspector
         [BothBranchDeclineReason.RegionSwitchesIncludes] = "分岐で取り込むファイルを切り替えている",
         [BothBranchDeclineReason.RegionUnterminated] = "#endif が無い",
         [BothBranchDeclineReason.CallsConfigurationDependentMacro] = "分岐の中で、構成によって定義が変わるマクロを使っている",
-        [BothBranchDeclineReason.UnreadableCondition] = "条件式をシンボルの条件として読めない (値として解いた)",
+        [BothBranchDeclineReason.UnreadableCondition] = "条件式をシンボルの条件として解析できない (値として解いた)",
         [BothBranchDeclineReason.OuterNotMerged] = "外側の #if を並べていない",
         [BothBranchDeclineReason.FollowsUnmergedBranch] = "並べなかった #if に続く #elif",
         [BothBranchDeclineReason.NotInFile] = "指令がマクロの展開から出てきた",
@@ -87,7 +87,7 @@ internal static partial class AnalysisInspector
                 : compilation.UnexploredSymbols.Contains(symbol)
                     ? ("unexplored", "方法 B が必要だが、上限で展開していない (CF0102)")
                     : (declined.Contains(symbol) || conflicts.Contains(symbol)) && defaults.Contains(symbol)
-                        ? ("default", "既定の構成で有効。無効な側は同じ行の別のシンボルの構成で読む")
+                        ? ("default", "既定の構成で有効。無効な側は同じ行の別のシンボルの構成で解析する")
                         : declined.Contains(symbol) || conflicts.Contains(symbol)
                             ? ("declined", "並べられなかったが、構成は作っていない")
                             : conditional.Contains(symbol)

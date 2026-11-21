@@ -402,11 +402,11 @@ internal static partial class CompletionBuilder
 
     /// <summary>Godot の組み込みの変数の種類を短く表す。</summary>
     /// <param name="variable">組み込みの変数。</param>
-    /// <returns>「組み込みの定数」「組み込み変数、読むだけ」など。</returns>
+    /// <returns>「組み込みの定数」「組み込み変数、読み取り専用」など。</returns>
     internal static string DescribeGodotBuiltin(GodotBuiltinVariable variable)
         => variable.Function == "constants"
             ? "組み込みの定数"
-            : variable.IsConstant ? "組み込み変数、読むだけ" : "組み込み変数";
+            : variable.IsConstant ? "組み込み変数、読み取り専用" : "組み込み変数";
 
     /// <summary>関数の中で宣言された名前を候補に足す。</summary>
     /// <param name="function">対象の関数。</param>

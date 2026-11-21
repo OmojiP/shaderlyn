@@ -41,7 +41,7 @@ internal sealed class Utf16FileAnalyzer : SemanticRuleAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(
                 UnityRuleDescriptors.Utf16File,
                 Location.Create(compilation.Text, new TextSpan(0, 0)),
-                "このファイルは UTF-16 で保存されています。Unity は UTF-16 のファイルを読めず (BOM があっても)、シェーダーがエラーになります。"
+                "このファイルは UTF-16 で保存されています。Unity は UTF-16 のファイルを読み込めず (BOM があっても)、シェーダーがエラーになります。"
                 + "UTF-8 で保存し直してください。"));
         }
 
@@ -64,7 +64,7 @@ internal sealed class Utf16FileAnalyzer : SemanticRuleAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(
                     UnityRuleDescriptors.Utf16File,
                     include.Location,
-                    $"取り込む '{name}' は UTF-16 で保存されています。Unity は UTF-16 のファイルを読めず (BOM があっても)、このシェーダーがエラーになります。"
+                    $"取り込む '{name}' は UTF-16 で保存されています。Unity は UTF-16 のファイルを読み込めず (BOM があっても)、このシェーダーがエラーになります。"
                     + $"'{name}' を UTF-8 で保存し直してください。"));
             }
         }

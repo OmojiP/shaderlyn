@@ -137,7 +137,7 @@ internal sealed class EffectiveSettings
                     new ConfigurationProblem(
                         0,
                         "symbols: と units: は Unity の環境では使いません。Unity の構成の軸は #pragma multi_compile などから、"
-                        + "コンパイル単位は ShaderLab から読みます。ほかの環境で使うなら environment を指定してください。"),
+                        + "コンパイル単位は ShaderLab から読み取ります。ほかの環境で使う場合は environment を指定してください。"),
                 ],
             };
         }
@@ -333,7 +333,7 @@ internal sealed class EffectiveSettings
 
             string message = id.StartsWith("HL", StringComparison.OrdinalIgnoreCase)
                 ? $"ルール {id} はありません。0.3.1 で、C 系の言語に共通のルールの ID を HL から CF に振り直しました (docs/guide/migration-0.3.1.md)。"
-                : $"ルール {id} はありません。ID の綴りを確かめてください (shaderlyn --list-rules で一覧を表示できます)。";
+                : $"ルール {id} はありません。ID の綴りを確認してください (shaderlyn --list-rules で一覧を表示できます)。";
 
             diagnostics.Add(Diagnostic.Create(
                 WellKnownDescriptors.ConfigurationProblem,

@@ -1212,7 +1212,7 @@ internal static class ConfigurationLoader
             catch (ArgumentException exception)
             {
                 problems.Add(new ConfigurationProblem(
-                    value.Line, $"ルール {key} を正規表現として読めません: {exception.Message}"));
+                    value.Line, $"ルール {key} を正規表現として解析できません: {exception.Message}"));
             }
         }
 

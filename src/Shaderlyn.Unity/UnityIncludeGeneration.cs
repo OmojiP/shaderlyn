@@ -218,7 +218,7 @@ internal static class UnityIncludeGeneration
             if (!File.Exists(Path.Combine(outputDirectory, RecordFileName)))
             {
                 throw new InvalidOperationException(
-                    $"{outputDirectory} には、--unity-generate で書き出したものでないファイルがあります。空のフォルダーか、新しいフォルダーを指定してください。");
+                    $"{outputDirectory} には、--unity-generate で書き出していないファイルがあります。空のフォルダーか、新しいフォルダーを指定してください。");
             }
 
             // 前に書き出したものを消す。パッケージを上げると古いフォルダー (名前@古いハッシュ) が残るため。
@@ -288,8 +288,8 @@ internal static class UnityIncludeGeneration
 
         if (!lines.Contains($"version\t{FormatVersion}"))
         {
-            return $"unity: generated のフォルダー ({generatedDirectory}) に、--unity-generate で書き出したものがありません。"
-                + "Library や Unity Editor の無いところで解析するなら、--unity-generate で書き出してください。";
+            return $"unity: generated のフォルダー ({generatedDirectory}) に、--unity-generate で書き出したファイルがありません。"
+                + "Library や Unity Editor の無いところで解析する場合は、--unity-generate で書き出してください。";
         }
 
         List<string> reasons = [];
@@ -331,7 +331,7 @@ internal static class UnityIncludeGeneration
 
         return reasons.Count == 0
             ? null
-            : $"--unity-generate で書き出したもの ({generatedDirectory}) が、プロジェクトと合っていません。{string.Join(string.Empty, reasons)}"
+            : $"--unity-generate で書き出したファイル ({generatedDirectory}) が、プロジェクトと合っていません。{string.Join(string.Empty, reasons)}"
               + "--unity-generate で書き出し直してください。";
 
         string? Value(string key)
@@ -342,7 +342,7 @@ internal static class UnityIncludeGeneration
     private static string CreateRecord(UnityGenerationPlan plan)
     {
         StringBuilder builder = new();
-        builder.AppendLine("# Shaderlyn が --unity-generate のときに書き出したものの記録。解析を始めるときに、プロジェクトと合っているかを確かめる。");
+        builder.AppendLine("# Shaderlyn が --unity-generate のときに書き出したファイルの記録。解析を始めるときに、プロジェクトと合っているかを確認する。");
         builder.Append("version\t").AppendLine(FormatVersion);
 
         if (plan.ProjectEditorVersion is { } editorVersion)

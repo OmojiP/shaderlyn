@@ -449,7 +449,7 @@ internal static class SemanticsSetup
                 bool inCandidate = candidate is not null
                     && Path.GetFullPath(outside).StartsWith(Path.GetFullPath(candidate) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-                return inCandidate ? projectHint : "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。";
+                return inCandidate ? projectHint : "読み込んでよい範囲の外にあるため読み込みません。読み込む場合は --include-path (設定ファイルは include-paths) に加えてください。";
             }
 
             if (isUnity

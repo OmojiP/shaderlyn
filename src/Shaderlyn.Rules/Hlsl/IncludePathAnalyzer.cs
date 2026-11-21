@@ -86,7 +86,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
     /// </remarks>
     private static string DescribeOutsideBoundary(IncludeReference include)
         => include.OutsideBoundaryPath is { } path
-            ? "読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。"
+            ? "読み込んでよい範囲の外にあるため読み込みません。読み込む場合は --include-path (設定ファイルは include-paths) に加えてください。"
             : string.Empty;
 
     /// <summary>
@@ -176,7 +176,7 @@ internal sealed class IncludePathAnalyzer : SemanticRuleAnalyzer
             // CLI は、--unity-project を付けていないなら見つけたプロジェクトを添えた文を作る (DescribeUnresolvedInclude)。
             // ここに来るのは、付けているのにパッケージを引けない場合か、言語サーバーの場合である。
             return "Unity プロジェクトとして解析する場合は --unity-project でプロジェクトのルートを指定してください"
-                + " (指定済みなら、Unity でプロジェクトを 1 度開いて Library/PackageCache を作ってください)。";
+                + " (指定済みの場合は、Unity でプロジェクトを 1 度開いて Library/PackageCache を作ってください)。";
         }
 
         // Unity 同梱のヘッダ (UnityCG.cginc / Lighting.cginc など) は、フォルダーを付けずに .cginc で書く。

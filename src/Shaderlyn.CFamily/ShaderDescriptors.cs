@@ -96,8 +96,8 @@ internal static class ShaderDescriptors
             + "int64_t / float32_t / float16_t などの型と、interface 型のグローバル変数も、コンパイラと HLSL のバージョンで使えるかが変わります。"
             + "1 つのコードが API ごとに別のコンパイラや HLSL のバージョンでコンパイルされるときは、使えない API とコンパイラを添えます。"
             + "#line 指令は Unity のシェーダーのコンパイルでエラーになります。class / interface の宣言はどのコンパイラと HLSL のバージョンでも使えます。"
-            + "構文は読み飛ばし、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (CF0101)。"
-            + "struct・定数・通常の関数で書き直してください。",
+            + "構文は解析を省略し、そのコードブロックでは「宣言が見つからない」ことを根拠とする検査を行いません (CF0101)。"
+            + "struct・定数・通常の関数で書き換えてください。",
         helpLinkUri: DocumentationLinks.For("HL0003"));
 
     /// <summary><c>#ifdef</c> / <c>#ifndef</c> の名前の後ろに記述がある。</summary>
@@ -133,14 +133,14 @@ internal static class ShaderDescriptors
     /// </remarks>
     public static DiagnosticDescriptor MacroRedefinition { get; } = new(
         id: "CF0004",
-        title: "マクロを中身を変えて定義し直しています",
+        title: "マクロを中身を変えて再定義しています",
         messageFormat: "{0}",
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "定義済みのマクロを、#undef せずに中身を変えて定義し直しています。"
+        description: "定義済みのマクロを、#undef せずに中身を変えて再定義しています。"
             + "コンパイラは警告を出したうえで後の定義を使うので、コンパイルは通ります。"
             + "ただし、取り込む順序や構成によって、どちらの定義が使われるかが読み手に分かりにくくなります。"
-            + "意図したものなら、#undef してから定義してください。",
+            + "意図したものである場合は、#undef してから定義してください。",
         helpLinkUri: DocumentationLinks.For("CF0004"));
 
     /// <summary>include の循環参照。</summary>
@@ -211,7 +211,7 @@ internal static class ShaderDescriptors
         category: "Correctness",
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#if / #elif の条件が、宣言されたシンボルをどう有効にしても成り立ちません。"
-            + "Unity は有効なシンボルを値 1 として定義するため、1 以外と比べる条件 (#if _A == 2) は通りません。"
+            + "Unity は有効なシンボルを値 1 として定義するため、1 以外と比較する条件 (#if _A == 2) は成立しません。"
             + "同じ #pragma 行のシンボルは同時に有効にならず、_ の無い multi_compile の行はどれか 1 つが必ず有効です。"
             + "この分岐のコードは決してコンパイルに含まれません。",
         helpLinkUri: DocumentationLinks.For("CF0203"));
@@ -246,6 +246,6 @@ internal static class ShaderDescriptors
             + "探索パスの設定が不足しているか、パスの書き方が誤っている可能性があります。"
             + "解決できない include があると、その中で定義されるマクロや型が未知のままになり、"
             + "その先の検査は根拠を欠いたまま行うことになります。"
-            + "ファイルがあっても、読んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外なら読みません。",
+            + "ファイルがあっても、読み込んでよい範囲 (解析対象・Unity プロジェクト・設定ファイルのフォルダー・探索パス) の外の場合は読み込みません。",
         helpLinkUri: DocumentationLinks.For("CF0021"));
 }

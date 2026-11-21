@@ -610,7 +610,7 @@ public sealed class ConditionalCompilationTests
     [InlineData("#line", "行番号が必要")]
     [InlineData("#line 10 5 extra", "余分な記述があります: 'extra'")]
     [InlineData("#line 10 \"a.hlsl\" 5", "余分な記述があります: '5'")]
-    [InlineData("#line 200 % 0", "読めません")]
+    [InlineData("#line 200 % 0", "解析できません")]
     public void lineの誤りを報告する(string directive, string expected)
     {
         PreprocessResult result = PreprocessorHarness.Run(directive + "\nint x;\n");

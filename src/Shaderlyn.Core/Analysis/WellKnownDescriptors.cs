@@ -95,10 +95,10 @@ internal static class WellKnownDescriptors
         category: "Tool",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "そのファイルが書いた #include を 1 つも解決できませんでした。"
-            + "Unity のパッケージ (Packages/...) なら Unity プロジェクトのルートを指定し、"
-            + "CI では Library/PackageCache がキャッシュされているかを確かめてください。"
-            + "自前のヘッダなら、パスの書き方と探索パスを確かめてください。"
-            + "ヘッダを引けないまま行った検査は、根拠を欠いたものになります。",
+            + "Unity のパッケージ (Packages/...) の場合は Unity プロジェクトのルートを指定し、"
+            + "CI では Library/PackageCache がキャッシュされているかを確認してください。"
+            + "自前のヘッダの場合は、パスの書き方と探索パスを確認してください。"
+            + "ヘッダを取得できないまま行った検査は、根拠を欠いたものになります。",
         helpLinkUri: DocumentationLinks.For("TOOL0004"));
 
     /// <summary>

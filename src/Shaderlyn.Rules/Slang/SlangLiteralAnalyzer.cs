@@ -93,7 +93,7 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
             if (location.LineSpan.Start.Line != lastLine)
             {
                 lastLine = location.LineSpan.Start.Line;
-                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InvalidUtf8, location, "UTF-8 として読めないバイトがあります。ファイルを UTF-8 で保存し直してください。"));
+                context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InvalidUtf8, location, "UTF-8 として認識できないバイトがあります。ファイルを UTF-8 で保存し直してください。"));
             }
         }
     }
@@ -283,7 +283,7 @@ internal sealed class SlangLiteralAnalyzer : SemanticRuleAnalyzer
         }
 
         return character && count != 1
-            ? count == 0 ? "文字のリテラルの中身がありません。" : "文字のリテラルには、ちょうど 1 文字を書いてください (文字列なら \" \" で囲みます)。"
+            ? count == 0 ? "文字のリテラルの中身がありません。" : "文字のリテラルには、ちょうど 1 文字を書いてください (文字列の場合は \" \" で囲みます)。"
             : null;
     }
 

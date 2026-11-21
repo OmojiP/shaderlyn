@@ -19,7 +19,7 @@ internal static class UnrealRuleDescriptors
         id: "UE0001",
         title: "エンジンが生成するファイルが無いため、一部の検査を行っていません",
         messageFormat: "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など) を行っていません。"
-            + "ビルドのときにエンジンが生成するファイル ({0}) の中身が分からないため、宣言の一覧が不完全です。"
+            + "ビルドのときにエンジンが生成するファイル ({0}) の中身が不明なため、宣言の一覧が不完全です。"
             + "--unreal-generate で C++ から作り、設定ファイルの unreal: generated に書くと検査できます。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
@@ -54,6 +54,6 @@ internal static class UnrealRuleDescriptors
         description: "--unreal-generate は、C++ の ShouldCompilePermutation を PC の Direct3D 12 (SM6) として読みます。"
             + "ファイルを登録したクラスがどれも、どのパーミュテーションでもコンパイルされないと分かったファイル "
             + "(モバイルだけ、コンソールだけのシェーダーなど) は、エンジンも PC ではコンパイルしません。"
-            + "既定の構成で読むと、実在しない構成の誤りを報告することになるので、解析しません。",
+            + "既定の構成で解析すると、実在しない構成の誤りを報告することになるので、解析しません。",
         helpLinkUri: DocumentationLinks.For("UE0003"));
 }

@@ -42,7 +42,7 @@ public static class UnrealGenerationStamp
         ArgumentNullException.ThrowIfNull(sourceRoots);
 
         StringBuilder builder = new();
-        builder.AppendLine("# Shaderlyn が --unreal-generate のときに読んだ ini と C++ の記録。解析を始めるときに、生成した後に変わったかを確かめる。");
+        builder.AppendLine("# Shaderlyn が --unreal-generate のときに読み込んだ ini と C++ の記録。解析を始めるときに、生成した後に変わったかを確認する。");
         builder.Append("version\t").AppendLine(FormatVersion);
 
         foreach (string ini in IniFiles(engineDirectory, projectDirectory))
@@ -247,7 +247,7 @@ public sealed class UnrealGenerationStaleness
         {
             return string.Join(
                 Environment.NewLine,
-                "Unreal の生成物に、前回の --unreal-generate で読んだ ini と C++ の記録がありません。",
+                "Unreal の生成物に、前回の --unreal-generate で読み込んだ ini と C++ の記録がありません。",
                 "--unreal-generate をやり直すと、ini や C++ の変更を検出できるようになります。");
         }
 

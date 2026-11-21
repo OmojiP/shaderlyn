@@ -174,7 +174,7 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
                 }
                 else if (left is null && op.Kind == ShaderSyntaxKind.MinusToken && !compound)
                 {
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, "整数から参照を引けません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, "整数から参照を取得できません。");
                 }
                 else if (references[reference])
                 {

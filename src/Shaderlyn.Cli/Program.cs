@@ -705,7 +705,7 @@ public static class Program
             if (ReadConfirmation() is not { } answer)
             {
                 await output.WriteLineAsync().ConfigureAwait(false);
-                await errorOutput.WriteLineAsync("入力を待てないため、確かめられませんでした。一覧を確かめたうえで書き出すなら、--yes を付けてください。").ConfigureAwait(false);
+                await errorOutput.WriteLineAsync("入力を待てないため、確認できませんでした。一覧を確認したうえで書き出す場合は、--yes を付けてください。").ConfigureAwait(false);
                 return ExitCode.ToolError;
             }
 
@@ -750,7 +750,7 @@ public static class Program
         builder.AppendLine("次のパッケージのシェーダーのファイルを書き出します。");
 
         foreach (IGrouping<string, UnityGeneratedPackage> group in plan.Packages
-                     .GroupBy(p => p.License ?? $"ライセンスが分からない")
+                     .GroupBy(p => p.License ?? $"ライセンスが不明")
                      .OrderBy(g => g.Key == "Unity Companion License" ? 0 : g.First().License is null ? 2 : 1)
                      .ThenBy(g => g.Key, StringComparer.Ordinal))
         {
@@ -774,7 +774,7 @@ public static class Program
         }
 
         builder.AppendLine(CultureInfo.InvariantCulture, $"合わせてファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)})。");
-        builder.AppendLine("書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。");
+        builder.AppendLine("書き出したファイルをリポジトリに入れるときは、各パッケージのライセンスを確認してください。公開のリポジトリには入れないでください。");
         return builder.ToString();
     }
 
@@ -862,7 +862,7 @@ public static class Program
         if (!generation.UnreadShaderRegistrations.IsEmpty)
         {
             // 独自のマクロで登録したシェーダーは、設定の units: に書けば解析できる。
-            report.AppendLine(CultureInfo.InvariantCulture, $"読めなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントが分からないので、必要なら設定の units: に書いてください):");
+            report.AppendLine(CultureInfo.InvariantCulture, $"解析できなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントを特定できないため、必要な場合は設定の units: に書いてください):");
 
             foreach ((string macro, int count) in generation.UnreadShaderRegistrations.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal))
             {

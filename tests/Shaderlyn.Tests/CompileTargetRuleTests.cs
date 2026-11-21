@@ -145,7 +145,7 @@ public sealed class CompileTargetRuleTests
         Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "UN0205");
         Assert.Equal(
             "定数バッファ 'UnityPerMaterial' の _BaseColor は half4 ですが、dx12 (DXC (HLSL 2018、16 ビットの型)) では 16 ビットの型になり、"
-            + "Unity が書き込んだ値を正しく読めません。float4 で宣言し、使うところで変換してください。",
+            + "Unity が書き込んだ値を正しく読み取れません。float4 で宣言し、使うところで変換してください。",
             diagnostic.GetMessage());
     }
 

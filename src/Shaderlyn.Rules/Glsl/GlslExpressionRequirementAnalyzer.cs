@@ -350,7 +350,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
         {
             if (OpaqueType().IsMatch(candidate.Type.TypeName) && requirement.Version >= 130)
             {
-                const string feature = "サンプラーの配列を定数でない添字で引くこと";
+                const string feature = "サンプラーの配列を定数でない添字で参照すること";
                 requirement.RequireProfile(at, GlslProfileMask.Es | GlslProfileMask.Core | GlslProfileMask.Compatibility, feature);
                 requirement.ProfileRequires(at, GlslProfileMask.Es, 320, ["GL_EXT_gpu_shader5", "GL_OES_gpu_shader5"], feature);
                 requirement.ProfileRequires(at, GlslProfileMask.Core | GlslProfileMask.Compatibility, 400, ["GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"], feature);
@@ -360,7 +360,7 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
                      && candidate.Declarator is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax } declaration }
                      && declaration.HasModifier("out"))
             {
-                requirement.RequireProfile(at, GlslProfileMask.NotEs, "フラグメントシェーダーの出力の配列を定数でない添字で引くこと");
+                requirement.RequireProfile(at, GlslProfileMask.NotEs, "フラグメントシェーダーの出力の配列を定数でない添字で参照すること");
             }
 
             return;
@@ -383,11 +383,11 @@ internal sealed partial class GlslExpressionRequirementAnalyzer : SemanticRuleAn
             switch (block.Keyword.Text)
             {
                 case "buffer":
-                    requirement.RequireProfile(at, GlslProfileMask.NotEs, "buffer のブロックの配列を定数でない添字で引くこと");
+                    requirement.RequireProfile(at, GlslProfileMask.NotEs, "buffer のブロックの配列を定数でない添字で参照すること");
                     break;
 
                 case "uniform":
-                    const string feature = "uniform のブロックの配列を定数でない添字で引くこと";
+                    const string feature = "uniform のブロックの配列を定数でない添字で参照すること";
                     requirement.ProfileRequires(at, GlslProfileMask.Es, 320, ["GL_EXT_gpu_shader5", "GL_OES_gpu_shader5"], feature);
                     requirement.ProfileRequires(at, GlslProfileMask.Core, 400, ["GL_ARB_gpu_shader5", "GL_NV_gpu_shader5"], feature);
                     break;

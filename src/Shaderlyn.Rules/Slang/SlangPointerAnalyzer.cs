@@ -144,7 +144,7 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
                 _ => false,
             };
 
-            // 読むだけの資源の要素 (StructuredBuffer の s[i] など)。
+            // 読み取り専用の資源の要素 (StructuredBuffer の s[i] など)。
             bool ReadOnlyElement(ExpressionSyntax expression)
                 => expression is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax buffer }
                    && DeclaredType(buffer)?.NameToken.Text is "StructuredBuffer" or "Buffer" or "ByteAddressBuffer" or "ConstantBuffer" || expression is ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax texture } && DeclaredType(texture)?.NameToken.Text is { } textureType && textureType.StartsWith("Texture", StringComparison.Ordinal);
@@ -185,11 +185,11 @@ internal sealed class SlangPointerAnalyzer : SemanticRuleAnalyzer
 
                         break;
 
-                    // __getAddress(x)。GPU のコンパイル先 (設定ファイルに書いたもの) では、局所変数と仮引数のアドレスは取れない (E31160)。読むだけの資源の要素のアドレスも取れない (&s[i] と InterlockedAdd は SG0309 が見る)。
+                    // __getAddress(x)。GPU のコンパイル先 (設定ファイルに書いたもの) では、局所変数と仮引数のアドレスは取れない (E31160)。読み取り専用の資源の要素のアドレスも取れない (&s[i] と InterlockedAdd は SG0309 が見る)。
                     case InvocationExpressionSyntax { TargetName: "__getAddress" } address when address.ArgumentExpressions.ToArray() is [var addressed]:
                         if (ReadOnlyElement(addressed))
                         {
-                            Report(SlangRuleDescriptors.AddressNotTakable, addressed, "読むだけの資源の要素のアドレスは取れません。");
+                            Report(SlangRuleDescriptors.AddressNotTakable, addressed, "読み取り専用の資源の要素のアドレスは取れません。");
                         }
                         else if (gpu && addressed is IdentifierExpressionSyntax local
                                  && binder.ResolveName(local).Kind == DeclaredNameKind.Local

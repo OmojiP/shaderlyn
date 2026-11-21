@@ -894,6 +894,6 @@ public sealed class HlslRobustnessTests
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("CF0001", diagnostic.Id);
-        Assert.StartsWith($"'{macro}(' を宣言として読めません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
+        Assert.StartsWith($"'{macro}(' を宣言として解析できません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
     }
 }

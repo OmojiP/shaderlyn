@@ -64,7 +64,7 @@ internal static class WgslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "エントリポイントの仮引数・戻り値 (構造体ならそのメンバー) に @location か @builtin が無い、頂点シェーダーが @builtin(position) を返さない、"
+        description: "エントリポイントの仮引数・戻り値 (構造体の場合はそのメンバー) に @location か @builtin が無い、頂点シェーダーが @builtin(position) を返さない、"
             + "@blend_src の使い方が正しくない (構造体のメンバーでない、location 0 の 2 つの出力 0 と 1 でない、型が違う、ほかに @location のメンバーがある、頂点シェーダーで使う)、"
             + "または @builtin(clip_distances) の型が array<f32, N> (N は 8 以下) でありません。naga はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("WG0322"));

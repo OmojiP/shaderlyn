@@ -180,7 +180,7 @@ internal sealed class MemberAccessAnalyzer : SemanticRuleAnalyzer
                 arrayLocation,
                 "配列",
                 $"メンバー '{access.Name}' ",
-                "配列には成分もメンバーもありません。要素を [ ] で引いてから選んでください。"));
+                "配列には成分もメンバーもありません。要素を [ ] で参照してから選んでください。"));
             return;
         }
 

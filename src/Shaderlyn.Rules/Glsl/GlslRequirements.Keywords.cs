@@ -764,7 +764,7 @@ internal sealed partial class GlslRequirements
     {
         if (Vulkan == false)
         {
-            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL でだけ使えます。設定ファイルの glsl: target が Vulkan か確かめてください。");
+            Report(GlslRuleDescriptors.NotAvailable, at, $"'{feature}' は Vulkan 向けの GLSL でだけ使えます。設定ファイルの glsl: target が Vulkan か確認してください。");
         }
     }
 

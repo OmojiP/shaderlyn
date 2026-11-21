@@ -187,7 +187,7 @@ public sealed class IncludePatternTests : IDisposable
         string[] messages = Messages(output);
 
         Assert.Contains(
-            "include '../../../secret/s.hlsl' を解決できませんでした。読んでよい範囲の外にあるため読みません。読む場合は --include-path (設定ファイルは include-paths) に加えてください。",
+            "include '../../../secret/s.hlsl' を解決できませんでした。読み込んでよい範囲の外にあるため読み込みません。読み込む場合は --include-path (設定ファイルは include-paths) に加えてください。",
             messages);
         Assert.Contains("include 'Missing.hlsl' を解決できませんでした。", messages);
         Assert.DoesNotContain("TOOL0004", output, StringComparison.Ordinal);

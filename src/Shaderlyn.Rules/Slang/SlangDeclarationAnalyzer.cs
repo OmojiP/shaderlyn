@@ -136,7 +136,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                             && function.OperatorTokens is not [{ Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.CloseParenToken }])
                         {
                             Report(SlangRuleDescriptors.DeclarationNotAllowed, function.NameToken,
-                                $"演算子 operator{string.Concat(function.OperatorTokens.Select(t => t.Text))} は、型 ({owner.Name}) の中に書けません。関数の外に、仮引数を 2 つ (単項なら 1 つ) にして書いてください。");
+                                $"演算子 operator{string.Concat(function.OperatorTokens.Select(t => t.Text))} は、型 ({owner.Name}) の中に書けません。関数の外に、仮引数を 2 つ (単項の場合は 1 つ) にして書いてください。");
                         }
 
                         break;
@@ -278,7 +278,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     && !structs.ContainsKey(declaration.Type.NameToken.Text))
                 {
                     Report(SlangRuleDescriptors.ReferenceField, declaration.Type.NameToken,
-                        $"参照の型 {declaration.Type.NameToken.Text}<…> は、構造体のフィールドにできません。値を持たせるなら、型引数の型をそのまま書いてください。");
+                        $"参照の型 {declaration.Type.NameToken.Text}<…> は、構造体のフィールドにできません。値を持たせる場合は、型引数の型をそのまま書いてください。");
                 }
 
                 if (field && modifiers.FirstOrDefault(t => t.Text is "__ref" or "__constref") is { } reference)

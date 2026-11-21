@@ -3325,8 +3325,8 @@ internal abstract class ShaderParser
             return null;
         }
 
-        return $"'{name.Text}(' を宣言として読めません。'{name.Text}' はここではマクロとして定義されていません。"
-            + $"'{name.Text}' を定義する #define (またはそれを含む #include) がこの位置より前にあり、この構成で有効か確かめてください。";
+        return $"'{name.Text}(' を宣言として解析できません。'{name.Text}' はここではマクロとして定義されていません。"
+            + $"'{name.Text}' を定義する #define (またはそれを含む #include) がこの位置より前にあり、この構成で有効か確認してください。";
     }
 
     /// <summary>

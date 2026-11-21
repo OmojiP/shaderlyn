@@ -116,7 +116,7 @@ internal sealed class GlslArrayValueAnalyzer : SemanticRuleAnalyzer
 
                 case BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken } binary
                     when specs.Count > 0 && (IsSpecSizedValue(binder, binary.Left, specs) || IsSpecSizedValue(binder, binary.Right, specs)):
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"特殊化の定数で大きさを決めた配列は、'{binary.OperatorToken.Text}' で比べられません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"特殊化の定数で大きさを決めた配列は、'{binary.OperatorToken.Text}' で比較できません。");
                     break;
 
                 // 大きさの決まっていない配列 (ブロックの最後のメンバー) には代入できない。

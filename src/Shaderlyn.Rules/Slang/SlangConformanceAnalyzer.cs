@@ -149,7 +149,7 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                             {
                                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ConstraintNotSatisfied, location,
                                     $"型の仮引数 {argument} の制約から、インターフェイス {requirement} に届かないので、{generic.Name} の型の仮引数 {generic.Parameters[i]} にできません。"
-                                    + $"where {argument} : {requirement} を書いてください (where optional では足りません)。"));
+                                    + $"where {argument} : {requirement} を書いてください (where optional では不十分です)。"));
                                 return;
                             }
                         }
@@ -1085,7 +1085,7 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                     && evaluator.Evaluate(member.Target) is "ByteAddressBuffer" or "RWByteAddressBuffer"
                     && Reachable(call))
                 {
-                    message = $"インターフェイスの型 {loaded} では、Load を特殊化できません。具体的な型を読んでください。";
+                    message = $"インターフェイスの型 {loaded} では、Load を特殊化できません。具体的な型で読み込んでください。";
                 }
                 else if (!versioned || !Reachable(call))
                 {

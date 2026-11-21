@@ -1136,7 +1136,7 @@ public sealed class LanguageServerTests
     [Theory]
     [InlineData("vertex", "頂点シェーダーのエントリポイントを指定する")]
     [InlineData("multi_compile_fog", "霧のモード")]
-    [InlineData("shader_feature_local_fragment", "実行時にスクリプトから有効にしても効かない")]
+    [InlineData("shader_feature_local_fragment", "実行時にスクリプトから有効にしても反映されない")]
     [InlineData("shader_feature_local_fragment", "`_local`")]
     [InlineData("shader_feature_local_fragment", "フラグメントシェーダーにだけ作られ")]
     public async Task pragmaの名前の意味を説明する(string target, string expected)

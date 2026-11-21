@@ -22,7 +22,7 @@ internal static partial class AnalysisInspector
               box.append(note(program.label + " — このファイルに書かれた宣言のみを表示しています。" +
                               "include したヘッダの中身は含みません。"));
               box.append(note("「マクロ展開」と付いたノードは、展開の結果として現れたものです。" +
-                              "位置は展開元のマクロを呼び出した場所を指すため、同じ行が重なって見えます。" +
+                              "位置は展開元のマクロを呼び出した場所を指すため、同じ行が重なって表示されます。" +
                               "「本体」が付いているものは、このファイル自身が書いたマクロから来たもので、" +
                               "その行が報告の位置になります。"));
               if (program.hoistedUnits) {

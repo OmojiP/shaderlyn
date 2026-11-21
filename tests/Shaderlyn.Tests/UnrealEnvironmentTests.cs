@@ -341,7 +341,7 @@ public sealed class UnrealEnvironmentTests : IDisposable
         Assert.Contains("/Engine → ", output, StringComparison.Ordinal);
         Assert.Contains("/Plugin/MyPlugin → ", output, StringComparison.Ordinal);
         Assert.Contains("(ありません)", output, StringComparison.Ordinal);
-        Assert.Contains("言語のバージョン: エンジンの設定を読めないので 2018 (既定)", output, StringComparison.Ordinal);
+        Assert.Contains("言語のバージョン: エンジンの設定を読み込めないため 2018 (既定)", output, StringComparison.Ordinal);
     }
 
     /// <summary>

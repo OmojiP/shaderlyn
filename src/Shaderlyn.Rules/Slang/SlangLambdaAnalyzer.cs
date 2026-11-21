@@ -158,7 +158,7 @@ internal sealed class SlangLambdaAnalyzer : SemanticRuleAnalyzer
                         if (returnsInteger && returnsFloating && !reportedReturn)
                         {
                             reportedReturn = true;
-                            Report(SlangRuleDescriptors.LambdaForm, token, "ラムダ式の return の値の型 (整数と浮動小数) が食い違っています。どちらかにそろえてください。");
+                            Report(SlangRuleDescriptors.LambdaForm, token, "ラムダ式の return の値の型 (整数と浮動小数) が一致しません。どちらかにそろえてください。");
                         }
                     }
                 }

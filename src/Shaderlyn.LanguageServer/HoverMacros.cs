@@ -98,7 +98,7 @@ internal static partial class HoverBuilder
             return new HoverResult(
                 $"```hlsl\n{FormatDefinition(macro)}\n```\n\n"
                 + (macro.IsFunctionLike ? "関数形式マクロ" : "マクロ")
-                + "。展開後のコードに名前は残らない。",
+                + "。展開後のコードに名前は含まれない。",
                 token.Span);
         }
 
@@ -143,7 +143,7 @@ internal static partial class HoverBuilder
                 string where = condition.IsAlways
                     ? string.Empty
                     : condition.IsUnknown
-                        ? "この定義に通る `#ifdef` の条件は追えていません。"
+                        ? "この定義に至る `#ifdef` の条件は追えていません。"
                         : $"`#if {condition}` のときの定義。";
 
                 string others = DescribeDefinitionsByCondition(program, definition.Name) is { } listed
@@ -151,7 +151,7 @@ internal static partial class HoverBuilder
                     : string.Empty;
 
                 return new HoverResult(
-                    $"```hlsl\n{FormatDefinition(definition)}\n```\n\n{kind}。{where}展開後のコードに名前は残らない。{others}",
+                    $"```hlsl\n{FormatDefinition(definition)}\n```\n\n{kind}。{where}展開後のコードに名前は含まれない。{others}",
                     token.Span);
             }
         }

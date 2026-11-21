@@ -142,7 +142,7 @@ internal sealed class SlangOperatorAnalyzer : SemanticRuleAnalyzer
                     && structOperator.GetLocation() is { } structLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.WrongOperandTypes, structLocation,
-                        $"演算子 '{structOperator.Text}' は構造体 {structName} の値に使えません。使うなら、operator{structOperator.Text.TrimEnd('=')} を定義してください。"));
+                        $"演算子 '{structOperator.Text}' は構造体 {structName} の値に使えません。使う場合は、operator{structOperator.Text.TrimEnd('=')} を定義してください。"));
                     continue;
                 }
 

@@ -44,7 +44,7 @@ internal static class FixWriter
 
         if (!source.InvalidUtf8Offsets.IsEmpty)
         {
-            return (null, "UTF-8 として読めないバイトがあります");
+            return (null, "UTF-8 として認識できないバイトがあります");
         }
 
         return (source, null);

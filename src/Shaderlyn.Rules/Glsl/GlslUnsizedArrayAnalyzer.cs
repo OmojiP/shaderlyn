@@ -107,11 +107,11 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
 
                     if (array.NonuniformIndexable)
                     {
-                        requirement.RequireExtensions(element.OpenBracket, ["GL_EXT_nonuniform_qualifier"], "大きさの決まっていない配列を定数でない添字で引くこと");
+                        requirement.RequireExtensions(element.OpenBracket, ["GL_EXT_nonuniform_qualifier"], "大きさの決まっていない配列を定数でない添字で参照すること");
                     }
                     else
                     {
-                        requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, element.OpenBracket, array.Name, "定数でない添字で引けません");
+                        requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, element.OpenBracket, array.Name, "定数でない添字で参照できません");
                     }
 
                     break;
@@ -248,7 +248,7 @@ internal sealed partial class GlslUnsizedArrayAnalyzer : SemanticRuleAnalyzer
             case ElementAccessExpressionSyntax { Target: IdentifierExpressionSyntax target } element when io.Names.Contains(target.Name):
                 if (!io.IsSizedAt(target.Identifier) && evaluator.IsCertainlyNotConstant(element.Index))
                 {
-                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, element.OpenBracket, target.Name, $"定数でない添字で引けません。{io.Sizing} で大きさを決めてから引いてください");
+                    requirement.Report(GlslRuleDescriptors.UnsizedArrayUse, element.OpenBracket, target.Name, $"定数でない添字で参照できません。{io.Sizing} で大きさを決めてから参照してください");
                 }
 
                 return true;
