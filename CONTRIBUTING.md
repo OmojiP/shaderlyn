@@ -70,6 +70,15 @@ dotnet test
   # 作り直しても表が変わらないことと、GLSL のコーパスの関数の呼び出しがすべて解決することを確認する
   SHADERLYN_GLSLANG=<glslang の実行ファイル> SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslBuiltinsTests"
   ```
+- システム値のセマンティクスの表 (`src/Shaderlyn.Semantics/Symbols/SystemValueSemantics.g.txt`。CF0302 が使用する) は、
+  FXC・DXC・slangc に組み合わせをコンパイルさせて作ります。FXC と DXC は Windows SDK のもの、slangc は環境変数か PATH で渡します。
+  数千回コンパイルするので時間がかかります。表の先頭に、作ったコンパイラのバージョンが書いてあります
+
+  ```sh
+  SHADERLYN_SLANGC=<slangc の実行ファイル> node tools/semantics/system-values.mjs .work/system-values
+  # 結果を残した作業フォルダーから、表だけを作り直す
+  node tools/semantics/system-values.mjs .work/system-values --reuse
+  ```
 - GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確認する
 
   ```sh
