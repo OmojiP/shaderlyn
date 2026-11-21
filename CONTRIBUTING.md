@@ -21,6 +21,35 @@ dotnet test
 - **警告はすべてエラーになります**（`TreatWarningsAsErrors`）。公開メンバーの説明コメント（`///`）が無いとビルドが通りません
 - **Native AOT で配布しています。** リフレクションに頼るコードはビルドで弾かれます（`IsAotCompatible`）
 - VS Code 拡張を動かすには `editors/vscode` で `npm install` し、VS Code の「実行とデバッグ」から「VS Code 拡張を起動」を選びます
+- Visual Studio 拡張と Rider プラグインは、言語サーバーを同梱して動かします。先に言語サーバーを publish します
+  (Windows では、Visual Studio Installer のフォルダーを `PATH` に入れておきます。Native AOT のリンクで `vswhere.exe` を使用するためです)
+
+  ```sh
+  dotnet publish src/Shaderlyn.LanguageServer.App -c Release -r win-x64 -o <言語サーバーのフォルダー>
+  ```
+
+- Visual Studio 拡張は、Visual Studio 2026 の「Visual Studio 拡張機能の開発」ワークロードの MSBuild でビルドし、実験用のインスタンス (Exp) に配置します。
+  配置のあとに `/updateconfiguration` を実行しないと、拡張機能の管理に出ないことがあります。無効になっていたら、拡張機能の管理で有効にします
+
+  ```sh
+  msbuild editors/visualstudio/Shaderlyn.VisualStudio/Shaderlyn.VisualStudio.csproj -restore -p:DeployExtension=true -p:VSSDKTargetPlatformRegRootSuffix=Exp -p:ShaderlynServerDirectory=<言語サーバーのフォルダー>
+  devenv /rootsuffix Exp /updateconfiguration
+  devenv /rootsuffix Exp <開くフォルダー>
+  ```
+
+  Debug のビルドでは、環境変数 `SHADERLYN_LSP_LOG` にフォルダーを指定すると、言語サーバーとのやり取りをそこへ書き出します
+- Rider プラグインは JDK 21 と Gradle 9.9 でビルドします (Gradle はリポジトリに入れません)。`runIde` で、プラグインを入れたサンドボックスの Rider が起動します
+
+  ```sh
+  cd editors/rider
+  gradle runIde -PriderLocalPath=<Rider のフォルダー> -PserverDirectory=<言語サーバーのフォルダー> -PopenPath=<開くフォルダー>
+  ```
+
+- Visual Studio 拡張と Rider プラグインの画面の動作は、自動テストで確認していません。言語サーバーやエディタの拡張を変えたときは、次を手で確認します
+  - `.shader` を開くと指摘が出て、編集・保存で更新される。クイックフィックスが働く。Visual Studio ではホバーと補完も働く
+  - Visual Studio 2026 で HLSL Tools が入っている場合、`.hlsl` で HLSL Tools の指摘と Shaderlyn の指摘が並ぶ
+  - Visual Studio 2022 で、シェーダーのタブを開いたまま閉じ、起動し直しても指摘とホバーが出る (起動時のタブの復元)
+  - 設定の「実行ファイル」に存在しないパスを指定すると、そのことが伝えられ、同梱の言語サーバーで動き続ける
 - Unity がインストールされていなくてもテストは通ります。Unity の実物を使う検証は、見つからなければ飛ばされます
 - DirectX 12 の公開サンプルを使う検証 (誤検出が無いか) は、コーパスを取ってきて環境変数で渡したときだけ動きます。コーパスはリポジトリに入れません (`.work/` は git の対象外)
 

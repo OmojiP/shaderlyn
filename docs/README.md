@@ -22,6 +22,8 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 - [CI に組み込む](guide/ci-setup.md) — GitHub Actions のセルフホストランナーで PR ごとに動かす
 - [条件付きコンパイルの扱い](guide/conditional-compilation.md) — `#ifdef` の分岐をどう解析しているか。`CF0102` / `CF0103` が出たとき。付録に実装の細部
 - [VS Code 拡張](../editors/vscode/README.md) — 導入、機能、設定
+- [Visual Studio 拡張](../editors/visualstudio/README.md) — Visual Studio 2022 (17.14 以降) と 2026。導入、機能、HLSL Tools との併用、設定
+- [Rider プラグイン](../editors/rider/README.md) — Rider 2026.3 以降。指摘とクイックフィックス、導入、設定
 - [トラブルシューティング](guide/troubleshooting.md) — 症状から原因と対処を探す
 
 ## 自作ルールを書く人

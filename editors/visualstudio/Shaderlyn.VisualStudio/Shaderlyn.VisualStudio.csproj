@@ -52,6 +52,18 @@
     <SuppressFromVsix Include="Microsoft.VisualStudio.Linux.ConnectionManager.Store.dll" />
   </ItemGroup>
 
+  <!-- ライセンスと、同梱した言語サーバーに入っている第三者のデータ (DXC の組み込み関数の表など) の著作権表示。 -->
+  <ItemGroup>
+    <Content Include="..\..\..\LICENSE">
+      <Link>LICENSE</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\..\..\THIRD-PARTY-NOTICES.txt">
+      <Link>THIRD-PARTY-NOTICES.txt</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">
     <Content Include="$(ShaderlynServerDirectory)\shaderlyn-lsp.exe">
       <Link>server\shaderlyn-lsp.exe</Link>

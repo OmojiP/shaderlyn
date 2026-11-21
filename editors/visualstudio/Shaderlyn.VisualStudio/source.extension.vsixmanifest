@@ -4,6 +4,9 @@
     <Identity Id="Shaderlyn.VisualStudio" Version="0.3.4" Language="en-US" Publisher="OmojiP" />
     <DisplayName>Shaderlyn</DisplayName>
     <Description xml:space="preserve">Unity・Unreal Engine・Godot・Slang・WGSL などのシェーダーの誤りを、エディタで指摘します。</Description>
+    <MoreInfo>https://github.com/OmojiP/shaderlyn</MoreInfo>
+    <License>LICENSE</License>
+    <Tags>shader;hlsl;glsl;unity;shaderlab;slang;wgsl;godot;unreal</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14,19.0)">

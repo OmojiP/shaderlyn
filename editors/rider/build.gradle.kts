@@ -58,6 +58,12 @@ tasks.runIde {
 // 言語サーバー (shaderlyn-lsp) をプラグインに同梱する。-PserverDirectory=<publish したフォルダー> を渡す。
 // buildPlugin の prepareSandbox だけでなく、runIde・テストの prepareSandbox_* にも同梱する。
 tasks.withType<PrepareSandboxTask>().configureEach {
+    // ライセンスと、同梱した言語サーバーに入っている第三者のデータ (DXC の組み込み関数の表など) の著作権表示。
+    from(rootProject.layout.projectDirectory.dir("../..")) {
+        include("LICENSE", "THIRD-PARTY-NOTICES.txt")
+        into(rootProject.name)
+    }
+
     val server = providers.gradleProperty("serverDirectory")
     if (server.isPresent) {
         from(server.get()) {
