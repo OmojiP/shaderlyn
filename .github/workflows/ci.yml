@@ -132,3 +132,42 @@ jobs:
         run: |
           npm ci
           npm run compile
+
+  visualstudio:
+    name: Visual Studio 拡張のビルド
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: microsoft/setup-msbuild@v3
+
+      # VSIX を作れることを確かめる。言語サーバーは同梱しない (ShaderlynServerDirectory を渡さない)。
+      # Debug の既定では Exp のインスタンスへ配置しようとするので、DeployExtension=false を渡す。
+      - name: VSIX を作る
+        run: >
+          msbuild editors/visualstudio/Shaderlyn.VisualStudio/Shaderlyn.VisualStudio.csproj
+          -restore -verbosity:minimal
+          -p:Configuration=Release -p:DeployExtension=false
+
+  rider:
+    name: Rider プラグインのビルドとテスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Gradle はリポジトリに置かない (Gradle Wrapper の jar も置かない) ので、ここで入れる。
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.9.0"
+
+      # 手元の Rider を渡さないので、gradle.properties の riderVersion の Rider を取得してビルドする。
+      - name: テストとプラグインの zip を作る
+        working-directory: editors/rider
+        run: gradle test buildPlugin

@@ -42,7 +42,10 @@ private val shaderExtensions = setOf(
     "gdshader", "gdshaderinc", "slang", "wgsl",
 )
 
-internal fun isShaderFile(file: VirtualFile): Boolean = file.extension?.lowercase() in shaderExtensions
+internal fun isShaderFile(file: VirtualFile): Boolean = isShaderFileName(file.name)
+
+/** ファイル名の拡張子が、Shaderlyn が解析するものか (大文字・小文字を区別しない)。 */
+internal fun isShaderFileName(name: String): Boolean = name.substringAfterLast('.', "").lowercase() in shaderExtensions
 
 /**
  * プロジェクトに 1 つの言語サーバー。
