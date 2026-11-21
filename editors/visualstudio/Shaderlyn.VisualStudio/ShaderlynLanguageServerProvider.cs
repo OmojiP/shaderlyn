@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.IO.Pipelines;
-using System.Reflection;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Editor;
 using Microsoft.VisualStudio.Extensibility.LanguageServer;
@@ -20,7 +18,7 @@ namespace Shaderlyn.VisualStudio;
 /// (サーバーの ShaderSourceKinds・各環境の Extensions)。
 /// </para>
 /// <para>
-/// 環境変数 <c>SHADERLYN_LSP_LOG</c> にフォルダーを指定すると、やり取りをそこへ書き出す (試作の確認用)。
+/// HLSL Tools が引き受けるファイル (.hlsl など) には付かない。それらは <see cref="HlslToolsDiagnostics"/> が指摘を出す。
 /// </para>
 /// </remarks>
 [VisualStudioContribution]
@@ -47,39 +45,12 @@ internal sealed class ShaderlynLanguageServerProvider : LanguageServerProvider
     /// <inheritdoc/>
     public override Task<IDuplexPipe?> CreateServerConnectionAsync(CancellationToken cancellationToken)
     {
-        string directory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        string server = Path.Combine(directory, "server", "shaderlyn-lsp.exe");
-
-        if (!File.Exists(server))
+        if (ServerProcess.Start() is not { } process)
         {
             return Task.FromResult<IDuplexPipe?>(null);
         }
 
-        ProcessStartInfo info = new(server)
-        {
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        Process process = new() { StartInfo = info };
-
-        if (!process.Start())
-        {
-            return Task.FromResult<IDuplexPipe?>(null);
-        }
-
-        Stream fromServer = process.StandardOutput.BaseStream;
-        Stream toServer = process.StandardInput.BaseStream;
-
-        if (Environment.GetEnvironmentVariable("SHADERLYN_LSP_LOG") is { Length: > 0 } logDirectory)
-        {
-            Directory.CreateDirectory(logDirectory);
-            fromServer = new LoggingStream(fromServer, Path.Combine(logDirectory, "from-server.log"));
-            toServer = new LoggingStream(toServer, Path.Combine(logDirectory, "to-server.log"));
-        }
-
+        (Stream fromServer, Stream toServer) = ServerProcess.Streams(process, "lsp");
         return Task.FromResult<IDuplexPipe?>(new DuplexPipe(PipeReader.Create(fromServer), PipeWriter.Create(toServer)));
     }
 
@@ -96,83 +67,5 @@ internal sealed class ShaderlynLanguageServerProvider : LanguageServerProvider
         }
 
         return base.OnServerInitializationResultAsync(serverInitializationResult, initializationFailureInfo, cancellationToken);
-    }
-
-    /// <summary>
-    /// 読み書きしたバイト列を、ファイルにも書き出すストリーム (試作の確認用)。
-    /// </summary>
-    private sealed class LoggingStream(Stream inner, string logPath) : Stream
-    {
-        private readonly FileStream _log = new(logPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-
-        public override bool CanRead => inner.CanRead;
-
-        public override bool CanSeek => false;
-
-        public override bool CanWrite => inner.CanWrite;
-
-        public override long Length => throw new NotSupportedException();
-
-        public override long Position
-        {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush()
-        {
-            inner.Flush();
-            _log.Flush();
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            int read = inner.Read(buffer, offset, count);
-            _log.Write(buffer, offset, read);
-            _log.Flush();
-            return read;
-        }
-
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            int read = await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            await _log.WriteAsync(buffer[..read], cancellationToken).ConfigureAwait(false);
-            await _log.FlushAsync(cancellationToken).ConfigureAwait(false);
-            return read;
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            inner.Write(buffer, offset, count);
-            _log.Write(buffer, offset, count);
-            _log.Flush();
-        }
-
-        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            await inner.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-            await _log.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-            await _log.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public override Task FlushAsync(CancellationToken cancellationToken)
-        {
-            return inner.FlushAsync(cancellationToken);
-        }
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-
-        public override void SetLength(long value) => throw new NotSupportedException();
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _log.Dispose();
-                inner.Dispose();
-            }
-
-            base.Dispose(disposing);
-        }
     }
 }
