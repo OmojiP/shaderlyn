@@ -12,5 +12,8 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <platform.lsp.integrationProvider implementation="dev.shaderlyn.rider.ShaderlynLspIntegrationProvider"/>
+    <notificationGroup id="Shaderlyn" displayType="BALLOON"/>
+    <applicationConfigurable parentId="tools" id="dev.shaderlyn.rider.settings" displayName="Shaderlyn"
+                             instance="dev.shaderlyn.rider.ShaderlynConfigurable"/>
   </extensions>
 </idea-plugin>

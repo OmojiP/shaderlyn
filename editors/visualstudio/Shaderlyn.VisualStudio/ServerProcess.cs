@@ -1,32 +1,49 @@
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace Shaderlyn.VisualStudio;
 
 /// <summary>
-/// 拡張機能に同梱した Shaderlyn のサーバー (server/shaderlyn-lsp.exe) を起動する。
+/// Shaderlyn の言語サーバーを起動する。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 環境変数 <c>SHADERLYN_SERVER_PATH</c> に実行ファイルを指定すると、同梱したものの代わりにそれを起動する (開発中のサーバーを試すときなど)。
-/// 設定の画面には置かない。設定は .shaderlyn.yaml だけにする方針で、実行ファイルの場所はリポジトリのファイルに書かせない。
+/// 設定のページ (ツール &gt; オプション &gt; Shaderlyn) に実行ファイルがあればそれを、なければ拡張機能に同梱したもの
+/// (server/shaderlyn-lsp.exe) を起動する。実行ファイルの場所はユーザーごとの設定にだけ書ける。
+/// リポジトリのファイル (.shaderlyn.yaml) には書かせない。
 /// </para>
 /// <para>
-/// 環境変数 <c>SHADERLYN_LSP_LOG</c> にフォルダーを指定すると、やり取りをそこへ書き出す (確認用)。
+/// 設定の実行ファイルが見つからない場合は、そのことを伝えて同梱したものを起動する。
+/// 起動を失敗させると、Visual Studio は「クライアントが有効な接続を返しませんでした」(InvalidOperationException) という通知を出し、
+/// 前のサーバーの指摘も画面に残り続ける。
 /// </para>
 /// </remarks>
 internal static class ServerProcess
 {
-    /// <summary>同梱したものの代わりに使うサーバーを指定する環境変数。</summary>
-    private const string ServerPathVariable = "SHADERLYN_SERVER_PATH";
+    /// <summary>拡張機能に同梱した言語サーバー。</summary>
+    private static string BundledServer
+        => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "server", "shaderlyn-lsp.exe");
 
-    /// <summary>サーバーを起動する。実行ファイルがないか起動できなければ <see langword="null"/>。</summary>
+    /// <summary>サーバーを起動する。起動できなければ <see langword="null"/>。</summary>
+    /// <param name="configuredPath">設定のページの実行ファイル。未設定なら <see langword="null"/>。</param>
     /// <returns>起動したプロセス。</returns>
-    public static Process? Start()
+    public static async Task<Process?> StartAsync(string? configuredPath)
     {
-        string server = Environment.GetEnvironmentVariable(ServerPathVariable) is { } specified && !string.IsNullOrWhiteSpace(specified)
-            ? specified
-            : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "server", "shaderlyn-lsp.exe");
+        string server = BundledServer;
+
+        if (configuredPath is not null)
+        {
+            if (File.Exists(configuredPath))
+            {
+                server = configuredPath;
+            }
+            else
+            {
+                await ReportMissingAsync(configuredPath).ConfigureAwait(false);
+            }
+        }
 
         if (!File.Exists(server))
         {
@@ -52,27 +69,62 @@ internal static class ServerProcess
         return process;
     }
 
-    /// <summary>サーバーとやり取りするストリームを返す。記録が有効なら、やり取りをファイルにも書き出す。</summary>
+    /// <summary>最後に「見つからない」と伝えたパス。言語クライアントが 2 つあるので、同じパスでは 1 度だけ伝える。</summary>
+    private static string? s_reportedMissing;
+
+    /// <summary>設定の実行ファイルが見つからないことを、メッセージで伝える。</summary>
+    /// <param name="server">見つからなかった実行ファイル。</param>
+    /// <returns>完了を表すタスク。</returns>
+    private static async Task ReportMissingAsync(string server)
+    {
+        if (Interlocked.Exchange(ref s_reportedMissing, server) == server)
+        {
+            return;
+        }
+
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        VsShellUtilities.ShowMessageBox(
+            ServiceProvider.GlobalProvider,
+            $"設定の言語サーバーが見つからないため、拡張機能に同梱したものを使います。\n\n{server}\n\n"
+            + "ツール > オプション > Shaderlyn の「実行ファイル」を確認してください。",
+            "Shaderlyn",
+            OLEMSGICON.OLEMSGICON_WARNING,
+            OLEMSGBUTTON.OLEMSGBUTTON_OK,
+            OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+    }
+
+    /// <summary>見つからないと伝えたパスを忘れる。設定を変えたあと、また見つからなければもう一度伝える。</summary>
+    public static void ForgetReportedMissing() => Interlocked.Exchange(ref s_reportedMissing, null);
+
+    /// <summary>サーバーとやり取りするストリームを返す。</summary>
     /// <param name="process">起動したサーバー。</param>
-    /// <param name="logName">記録のファイル名に付ける名前。</param>
+    /// <param name="logName">記録のファイル名に付ける名前 (Debug のビルドだけ)。</param>
     /// <returns>サーバーから読むストリームと、サーバーへ書くストリーム。</returns>
+    /// <remarks>
+    /// Debug のビルドでは、環境変数 <c>SHADERLYN_LSP_LOG</c> にフォルダーを指定すると、やり取りをそこへ書き出す (開発用)。
+    /// </remarks>
     public static (Stream FromServer, Stream ToServer) Streams(Process process, string logName)
     {
         Stream fromServer = process.StandardOutput.BaseStream;
         Stream toServer = process.StandardInput.BaseStream;
 
+#if DEBUG
         if (Environment.GetEnvironmentVariable("SHADERLYN_LSP_LOG") is { Length: > 0 } logDirectory)
         {
             Directory.CreateDirectory(logDirectory);
             fromServer = new LoggingStream(fromServer, Path.Combine(logDirectory, $"{logName}-from-server.log"));
             toServer = new LoggingStream(toServer, Path.Combine(logDirectory, $"{logName}-to-server.log"));
         }
+#else
+        _ = logName;
+#endif
 
         return (fromServer, toServer);
     }
 
+#if DEBUG
     /// <summary>
-    /// 読み書きしたバイト列を、ファイルにも書き出すストリーム (試作の確認用)。
+    /// 読み書きしたバイト列を、ファイルにも書き出すストリーム (開発用)。
     /// </summary>
     private sealed class LoggingStream(Stream inner, string logPath) : Stream
     {
@@ -148,4 +200,5 @@ internal static class ServerProcess
             base.Dispose(disposing);
         }
     }
+#endif
 }

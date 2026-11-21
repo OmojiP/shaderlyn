@@ -3,6 +3,8 @@ package dev.shaderlyn.rider
 import com.google.gson.JsonObject
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
@@ -46,7 +48,7 @@ internal fun isShaderFile(file: VirtualFile): Boolean = file.extension?.lowercas
  * プロジェクトに 1 つの言語サーバー。
  *
  * Rider は Unity の ShaderLab と HLSL の補完・ホバー・移動を自前で持つので、重ねずに指摘とコードアクションだけを使う。
- * サーバーにも初期化の設定 `languageFeatures: false` で同じことを伝え、名乗る機能を絞らせる。
+ * サーバーにも初期化の設定 `languageFeatures: false` で同じことを伝え、提供する機能を絞らせる。
  */
 private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor(project, "Shaderlyn") {
     override fun isSupportedFile(file: VirtualFile): Boolean = isShaderFile(file)
@@ -65,14 +67,25 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
     /**
      * 起動する言語サーバー。
      *
-     * 環境変数 `SHADERLYN_SERVER_PATH` に実行ファイルを指定すると、同梱したものの代わりにそれを使う (開発中のサーバーを試すときなど)。
-     * 設定の画面には置かない。設定は .shaderlyn.yaml だけにする方針で、実行ファイルの場所はリポジトリのファイルに書かせない。
+     * 設定の画面 (Settings > Tools > Shaderlyn) に実行ファイルがあればそれを、なければプラグインに同梱したものを使う。
+     * 実行ファイルの場所はユーザーごとの設定にだけ書ける。リポジトリのファイル (.shaderlyn.yaml) には書かせない。
+     * 設定の実行ファイルが見つからない場合は、そのことを通知して同梱したものを使う (指摘が止まらないように)。
      */
     private fun serverPath(): java.nio.file.Path {
-        System.getenv(SERVER_PATH_VARIABLE)?.takeIf { it.isNotBlank() }?.let { specified ->
-            val path = java.nio.file.Path.of(specified)
-            check(Files.isRegularFile(path)) { "$SERVER_PATH_VARIABLE に指定された言語サーバーが見つかりません: $path" }
-            return path
+        ShaderlynSettings.getInstance().state.serverPath?.takeIf { it.isNotBlank() }?.let { configured ->
+            val path = java.nio.file.Path.of(configured.trim().trim('"'))
+            if (Files.isRegularFile(path)) {
+                return path
+            }
+
+            NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATION_GROUP)
+                .createNotification(
+                    "Shaderlyn",
+                    "設定の言語サーバーが見つからないため、プラグインに同梱したものを使います: $path<br>" +
+                        "Settings > Tools > Shaderlyn の「実行ファイル」を確認してください。",
+                    NotificationType.WARNING,
+                )
+                .notify(project)
         }
 
         val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))
@@ -86,5 +99,5 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
 
 internal const val PLUGIN_ID = "dev.shaderlyn.rider"
 
-/** 同梱したものの代わりに使う言語サーバーを指定する環境変数。 */
-internal const val SERVER_PATH_VARIABLE = "SHADERLYN_SERVER_PATH"
+/** 通知のグループ (plugin.xml の notificationGroup)。 */
+internal const val NOTIFICATION_GROUP = "Shaderlyn"

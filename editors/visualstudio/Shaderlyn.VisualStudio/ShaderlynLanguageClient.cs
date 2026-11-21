@@ -1,5 +1,6 @@
 using System.ComponentModel.Composition;
 using Microsoft.VisualStudio.LanguageServer.Client;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Utilities;
 using Newtonsoft.Json.Linq;
@@ -55,15 +56,24 @@ internal sealed class HlslToolsLanguageClient : ShaderlynLanguageClientBase
 /// </summary>
 internal abstract class ShaderlynLanguageClientBase : ILanguageClient
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShaderlynLanguageClientBase"/> class.
+    /// </summary>
+    protected ShaderlynLanguageClientBase()
+    {
+        // 設定のページで実行ファイルを変えたら、言語サーバーを起動し直す。
+        ShaderlynOptions.Changed += (_, _) =>
+        {
+            ServerProcess.ForgetReportedMissing();
+            Task.Run(RestartAsync).FileAndForget("Shaderlyn/Restart");
+        };
+    }
+
     /// <inheritdoc/>
     public event AsyncEventHandler<EventArgs>? StartAsync;
 
-#pragma warning disable CS0067 // サーバーを止めることはないので、StopAsync は呼ばない。
-
     /// <inheritdoc/>
     public event AsyncEventHandler<EventArgs>? StopAsync;
-
-#pragma warning restore CS0067
 
     /// <inheritdoc/>
     public abstract string Name { get; }
@@ -84,15 +94,32 @@ internal abstract class ShaderlynLanguageClientBase : ILanguageClient
     protected abstract string LogName { get; }
 
     /// <inheritdoc/>
-    public Task<Connection?> ActivateAsync(CancellationToken token)
+    public async Task<Connection?> ActivateAsync(CancellationToken token)
     {
-        if (ServerProcess.Start() is not { } process)
+        string? configuredPath = await ShaderlynOptions.GetServerPathAsync().ConfigureAwait(false);
+
+        if (await ServerProcess.StartAsync(configuredPath).ConfigureAwait(false) is not { } process)
         {
-            return Task.FromResult<Connection?>(null);
+            return null;
         }
 
         (Stream fromServer, Stream toServer) = ServerProcess.Streams(process, LogName);
-        return Task.FromResult<Connection?>(new Connection(fromServer, toServer));
+        return new Connection(fromServer, toServer);
+    }
+
+    /// <summary>言語サーバーを止めて、起動し直す。</summary>
+    /// <returns>完了を表すタスク。</returns>
+    private async Task RestartAsync()
+    {
+        if (StopAsync is { } stop)
+        {
+            await stop.InvokeAsync(this, EventArgs.Empty).ConfigureAwait(false);
+        }
+
+        if (StartAsync is { } start)
+        {
+            await start.InvokeAsync(this, EventArgs.Empty).ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc/>

@@ -16,7 +16,8 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <RootNamespace>Shaderlyn.VisualStudio</RootNamespace>
-    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <!-- オプションのページ (ツール > オプション > Shaderlyn) を登録するパッケージの pkgdef を作る。 -->
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
@@ -32,7 +33,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.14.60" />
-    <PackageReference Include="Microsoft.VisualStudio.CoreUtility" Version="17.14.275" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
   </ItemGroup>
 
@@ -47,6 +48,8 @@
   <ItemGroup>
     <!-- 依存のパッケージから入る。Visual Studio が持っているものを使う。 -->
     <SuppressFromVsix Include="System.Text.Encodings.Web.dll" />
+    <SuppressFromVsix Include="Microsoft.VisualStudio.Extensibility.Editor.Contracts.dll" />
+    <SuppressFromVsix Include="Microsoft.VisualStudio.Linux.ConnectionManager.Store.dll" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">
