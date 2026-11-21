@@ -96,6 +96,7 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
             // セマンティックモデルが無いのは「問題が無い」ではなく「調べていない」である。
             // 報告しないのが正しい。
             if (treeContext.Unit.GetModel<ShaderCompilation>() is not { } compilation
+                || (!compilation.IsGlsl && !compilation.IsGodot && !compilation.IsSlang && !compilation.IsWgsl && !AnalyzesHlsl)
                 || (compilation.IsGlsl && !AnalyzesGlsl)
                 || (compilation.IsGodot && !AnalyzesGodot)
                 || (compilation.IsSlang && !AnalyzesSlang)
@@ -118,10 +119,10 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// 組み込みのルールは、GLSL で確かめたものだけがこれを立てる。
     /// </para>
     /// <para>
-    /// 自作のルールからはまだ立てられない。GLSL のモデルのどこを公開するかは、GLSL の検査ができてから決める。
+    /// 自作のルールは <see cref="Languages"/> で指定する。組み込みのルールは、これを上書きする。
     /// </para>
     /// </remarks>
-    internal virtual bool AnalyzesGlsl => false;
+    internal virtual bool AnalyzesGlsl => (Languages & ShaderLanguages.Glsl) != 0;
 
     /// <summary>
     /// Godot シェーダー言語のモデルも調べるか。既定は <see langword="false"/>。
@@ -130,7 +131,7 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// GLSL と同じく、組み込みのルールは Godot で確かめたものだけがこれを立てる (<see cref="AnalyzesGlsl"/>)。
     /// Godot の型と組み込み関数は GLSL ES と同じでも、組み込みの変数とステージの決まりが違うので、GLSL で確かめたルールをそのまま当てない。
     /// </remarks>
-    internal virtual bool AnalyzesGodot => false;
+    internal virtual bool AnalyzesGodot => (Languages & ShaderLanguages.Godot) != 0;
 
     /// <summary>
     /// Slang のモデルも調べるか。既定は <see langword="false"/>。
@@ -138,7 +139,7 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// <remarks>
     /// Slang は HLSL の型と組み込み関数を持つが、ジェネリック・インターフェイス・モジュールがあるので、HLSL で確かめたルールをそのまま当てない (<see cref="AnalyzesGlsl"/>)。
     /// </remarks>
-    internal virtual bool AnalyzesSlang => false;
+    internal virtual bool AnalyzesSlang => (Languages & ShaderLanguages.Slang) != 0;
 
     /// <summary>
     /// WGSL のモデルも調べるか。既定は <see langword="false"/>。
@@ -146,7 +147,26 @@ public abstract class ShaderRuleAnalyzer : DiagnosticAnalyzer
     /// <remarks>
     /// WGSL は型の名前も、暗黙の変換 (抽象的な数だけ) も、宣言の順序 (関数の外の名前は後ろで宣言してよい) も C 系の言語と違うので、ほかの言語で確かめたルールをそのまま当てない (<see cref="AnalyzesGlsl"/>)。
     /// </remarks>
-    internal virtual bool AnalyzesWgsl => false;
+    internal virtual bool AnalyzesWgsl => (Languages & ShaderLanguages.Wgsl) != 0;
+
+    /// <summary>HLSL のモデルを調べるか。</summary>
+    internal virtual bool AnalyzesHlsl => (Languages & ShaderLanguages.Hlsl) != 0;
+
+    /// <summary>
+    /// このルールを当てる言語。既定は <see cref="ShaderLanguages.Hlsl"/> (Unity・汎用の HLSL・Unreal Engine などの HLSL)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>言語を広げるときは、その言語のコードで確かめてから広げる。</b>
+    /// 構文木のノードの型 (<c>FunctionDeclarationSyntax</c> など) はどの言語でも同じだが、
+    /// 型の名前・組み込み関数・宣言の書き方は言語ごとに違う。HLSL のつもりの判断を GLSL に当てると誤検出になる。
+    /// 関数の長さや入れ子の深さのように、言語に依らない数を見るルールは <see cref="ShaderLanguages.All"/> にできる。
+    /// </para>
+    /// <para>
+    /// どの言語のモデルかは、<see cref="ShaderCompilation.Language"/> で分かる。
+    /// </para>
+    /// </remarks>
+    protected virtual ShaderLanguages Languages => ShaderLanguages.Hlsl;
 
     /// <summary>
     /// HLSL のノードに対する関心を登録する。

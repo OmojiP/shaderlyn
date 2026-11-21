@@ -76,6 +76,7 @@
 | メンバー                                                    |                           |
 | ----------------------------------------------------------- | ------------------------- |
 | `abstract void InitializeShader(ShaderAnalysisContext context)` | HLSL ノードへの関心の登録 |
+| `virtual ShaderLanguages Languages` | 当てる言語。既定は `ShaderLanguages.Hlsl` (Unity・汎用の HLSL・Unreal Engine・独自エンジン)。`Glsl`・`Godot`・`Slang`・`Wgsl`・`All` を組み合わせて指定できる ([実例集](cookbook.md#unity-以外の言語と環境)) |
 | `sealed override void Initialize(...)`                      | 上書き不可                |
 
 この基底クラスが引き受けることは次のとおりです。
@@ -559,6 +560,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `GetTreeConfiguration(program)` | その木が実際に表す構成のうち、木の中の出現条件では表されない部分。既定の木の場合は「バリアントになったシンボルはどれも無効」。**複数の木の結果を条件で突き合わせるルールは、ノードの出現条件にこれを掛ける。** 掛けないと、どの木も解析していない組み合わせについてまで結論を導く |
 | `GetHeaderDeclaredNames(block)` | そのコードブロック (Pass・カーネル) が取り込んだヘッダの宣言に現れた名前。別の Pass が取り込んだヘッダの名前は含まない |
 | `EnumerateOwnNodes(program)`       | 1 本の木として示すためのノード。バリアントにしか存在しないノードを既定の木の子として返す（検査には使用しない） |
+| `Language`                         | 解析した言語 (`ShaderLanguages`)。複数の言語に当てるルールが、言語ごとに判断を分けるときに使用する |
 | `IsReportable(node)`               | **そのノードを報告してよいか（これを使用する）** |
 | `IsReportable(token)`              | そのトークンを報告してよいか。ノードの一部だけを報告するときに使用する |
 | `IsUserFile(path)`                 | そのファイルが利用者のファイル (このファイルと、利用者が書いて取り込んだヘッダ) か |
@@ -1036,7 +1038,8 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | `AddInclude(path, content)`                | `#include` で取り込めるファイル。ディスクから読み込まない      |
 | `WithOptions(options)`                     | 設定ファイル相当の設定                                         |
 | `WithPredefinedMacros(macros)`             | 定義済みマクロ                                                 |
-| `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体を切り替える |
+| `WithEnvironment(environment)`             | 環境 (`unity` / `hlsl` / `glsl` / `godot` / `slang` / `wgsl`)。指定しなければ拡張子で決める |
+| `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体と、GLSL (`.vert` など)・Godot (`.gdshader`)・Slang (`.slang`)・WGSL (`.wgsl`) を切り替える |
 | `static Describe(diagnostics)`             | 落ちたときに何が出ていたかを示す                               |
 
 返るのは抑制コメントを適用したあとの指摘です。利用者の目に入るものと同じです。

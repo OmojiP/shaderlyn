@@ -89,6 +89,24 @@ public sealed class HostEnvironmentTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void 独自のpragmaのターゲットからステージを決める()
+    {
+        SourceText text = SourceText.From("""
+            #pragma entry MainVS vs_6_6
+            void MainVS(out float depth : SV_Depth, out float4 position : SV_Position) { depth = 0; position = 0; }
+            """, "Depth.fx");
+
+        ShaderCompilation compilation = ShaderCompilation.Create(
+            text, [HlslEnvironment.WholeFile(text)], text, new MyEngineEnvironment(), ShaderSourceInfo.None);
+
+        ImmutableArray<Diagnostic> diagnostics =
+            new AnalyzerDriver(BuiltInAnalyzers.All).Analyze(compilation.CreateAnalysisTarget());
+
+        Diagnostic diagnostic = Assert.Single(diagnostics, d => d.Id == "CF0302");
+        Assert.Contains("'SV_Depth' は頂点シェーダーの出力には使用できません", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task 自前のホストが足した環境を設定ファイルで選ぶ()
     {
         Directory.CreateDirectory(_workDirectory);

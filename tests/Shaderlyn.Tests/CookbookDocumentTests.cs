@@ -53,6 +53,8 @@ public sealed partial class CookbookDocumentTests
         using Shaderlyn.Semantics.Programs;
         using Shaderlyn.Semantics.Symbols;
         using Shaderlyn.ShaderLab.Syntax;
+        using Shaderlyn.Testing;
+        using Xunit;
         using static Shaderlyn.CookbookDocument.Stubs;
         """;
 

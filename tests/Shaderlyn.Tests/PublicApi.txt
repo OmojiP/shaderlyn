@@ -1367,6 +1367,14 @@ Shaderlyn.Semantics.Analysis.ShaderAnalysisContext : sealed class
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: .ctor()
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]])
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]], Shaderlyn.Semantics.Analysis.NodeActionOptions)
+Shaderlyn.Semantics.Analysis.ShaderLanguages : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: All = 31
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Glsl = 2
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Godot = 4
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Hlsl = 1
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: None = 0
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Slang = 8
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Wgsl = 16
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 : struct
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Analysis.AnalyzerOptions Options { get; }
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
@@ -1382,6 +1390,7 @@ Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer : abstract class (Shaderlyn.Core
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: System.Void Initialize(Shaderlyn.Core.Analysis.AnalysisContext)
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected .ctor()
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected abstract System.Void InitializeShader(Shaderlyn.Semantics.Analysis.ShaderAnalysisContext)
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected virtual Shaderlyn.Semantics.Analysis.ShaderLanguages Languages { get; }
 Shaderlyn.Semantics.AnalyzedProgram : sealed class
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.CFamily.Syntax.ShaderSyntaxTree Tree { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Diagnostics.Location GetBlockLocation()
@@ -1737,6 +1746,7 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition G
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition GetTreeConfiguration(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText CodeText { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText Text { get; }
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Analysis.ShaderLanguages Language { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Conditional.ConditionMap GetConditionMap()
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IShaderEnvironment Environment { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
@@ -2206,6 +2216,7 @@ Shaderlyn.ShaderLab.Syntax.VectorDefaultValueSyntax :: virtual System.Collection
 Shaderlyn.Testing.ShaderRuleVerifier : sealed class
 Shaderlyn.Testing.ShaderRuleVerifier :: .ctor(Shaderlyn.Core.Analysis.DiagnosticAnalyzer[])
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier AddInclude(System.String, System.String)
+Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithEnvironment(System.String)
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithOptions(Shaderlyn.Core.Analysis.AnalyzerOptions)
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithPredefinedMacros(System.Collections.Generic.IReadOnlyDictionary`2[System.String,System.String])
 Shaderlyn.Testing.ShaderRuleVerifier :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Analyze(System.String, System.String = Assets/Test.shader)

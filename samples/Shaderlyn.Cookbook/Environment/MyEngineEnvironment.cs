@@ -92,15 +92,29 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
     /// <inheritdoc/>
     public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
     {
-        return
-        [
-            .. result.Pragmas
-                .Where(pragma => pragma.Name == EntryPragma)
-                .Select(pragma => pragma.Arguments.FirstOrDefault())
-                .OfType<ShaderSyntaxToken>()
-                .Where(name => name.Kind == ShaderSyntaxKind.IdentifierToken)
-                .Select(name => new ShaderEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
-        ];
+        List<ShaderEntryPoint> entryPoints = [];
+
+        foreach (PragmaDirective pragma in result.Pragmas.Where(pragma => pragma.Name == EntryPragma))
+        {
+            ImmutableArray<ShaderSyntaxToken> arguments = [.. pragma.Arguments];
+
+            if (arguments.IsEmpty || arguments[0].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            // 2 つ目の引数 (ps_6_6 など) からステージが分かれば渡す。
+            // ステージを渡すと、システム値のセマンティクスの検査 (CF0302) がこのエントリポイントにも働く。
+            HlslShaderStage? stage = arguments.Length > 1
+                                     && HlslShaderTarget.TryParse(arguments[1].Text, out HlslShaderTarget? target)
+                                     && target.Value.Stage != HlslShaderStage.Library
+                ? target.Value.Stage
+                : null;
+
+            entryPoints.Add(new ShaderEntryPoint(arguments[0].Text, "#pragma entry", arguments[0].GetLocation(), stage));
+        }
+
+        return [.. entryPoints];
     }
 
     /// <inheritdoc/>

@@ -218,6 +218,18 @@ public sealed partial class ShaderCompilation
     /// <remarks>WGSL で確かめていないルールは、WGSL のモデルを調べない (<see cref="Analysis.ShaderRuleAnalyzer.AnalyzesWgsl"/>)。</remarks>
     internal bool IsWgsl => Environment is Environments.WgslEnvironment;
 
+    /// <summary>解析した言語。</summary>
+    /// <remarks>
+    /// 複数の言語に当てるルール (<see cref="Analysis.ShaderRuleAnalyzer.Languages"/>) は、これで言語ごとに判断を分ける。
+    /// Unity・汎用の HLSL・Unreal Engine と独自エンジンの環境は <see cref="Analysis.ShaderLanguages.Hlsl"/>。
+    /// </remarks>
+    public Analysis.ShaderLanguages Language
+        => IsGlsl ? Analysis.ShaderLanguages.Glsl
+            : IsGodot ? Analysis.ShaderLanguages.Godot
+            : IsSlang ? Analysis.ShaderLanguages.Slang
+            : IsWgsl ? Analysis.ShaderLanguages.Wgsl
+            : Analysis.ShaderLanguages.Hlsl;
+
     /// <summary>埋め込みコードブロックごとの解析結果。</summary>
     /// <remarks>
     /// 既定の構成 (どのシンボルも有効でない状態) のものだけを含む。

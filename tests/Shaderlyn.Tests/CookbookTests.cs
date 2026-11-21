@@ -1231,4 +1231,84 @@ public sealed class CookbookTests
 
                             float4 frag() : SV_Target { return _Color; }
                 """));
+
+    // ------------------------------------------------------------------
+    // Unity 以外の言語と環境
+
+    /// <summary>言語ごとの、仮引数が 3 つの関数。</summary>
+    public static TheoryData<string, string, string?> ThreeParameterFunctions => new()
+    {
+        { "Shaders/Lit.hlsl", "float f(float a, float b, float c) { return a + b + c; }\n", "hlsl" },
+        { "shaders/blur.frag", "#version 450\nfloat f(float a, float b, float c) { return a + b + c; }\nvoid main() { }\n", null },
+        { "shaders/water.gdshader", "shader_type spatial;\nfloat f(float a, float b, float c) { return a + b + c; }\n", null },
+        { "shaders/light.slang", "float f(float a, float b, float c) { return a + b + c; }\n", null },
+        { "shaders/sky.wgsl", "fn f(a: f32, b: f32, c: f32) -> f32 { return a + b + c; }\n", null },
+    };
+
+    [Theory]
+    [MemberData(nameof(ThreeParameterFunctions))]
+    public void 言語に依らないルールはどの言語にも当たる(string path, string source, string? environment)
+    {
+        ShaderRuleVerifier verifier = new(new ParameterCountLimitAnalyzer(defaultMaxParameters: 2));
+        ImmutableArray<Diagnostic> diagnostics = (environment is null ? verifier : verifier.WithEnvironment(environment)).Analyze(source, path);
+
+        Assert.Equal("COOK0030", Assert.Single(diagnostics).Id);
+    }
+
+    [Theory]
+    [MemberData(nameof(ThreeParameterFunctions))]
+    public void 言語に依らないルールも上限に収まれば報告しない(string path, string source, string? environment)
+    {
+        ShaderRuleVerifier verifier = new(new ParameterCountLimitAnalyzer(defaultMaxParameters: 3));
+        ImmutableArray<Diagnostic> diagnostics = (environment is null ? verifier : verifier.WithEnvironment(environment)).Analyze(source, path);
+
+        Assert.True(diagnostics.IsEmpty, ShaderRuleVerifier.Describe(diagnostics));
+    }
+
+    [Fact]
+    public void GLSLの古い組み込み関数を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new DeprecatedGlslFunctionAnalyzer()).Analyze("""
+            #version 330
+            uniform sampler2D tex;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color = texture2D(tex, uv); }
+            """, "shaders/old.frag");
+
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("'texture2D' は古い組み込み関数です。'texture' を使用してください。", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void GLSLの新しい組み込み関数とHLSLのファイルには報告しない()
+    {
+        ShaderRuleVerifier verifier = new(new DeprecatedGlslFunctionAnalyzer());
+
+        ImmutableArray<Diagnostic> glsl = verifier.Analyze("""
+            #version 330
+            uniform sampler2D tex;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color = texture(tex, uv); }
+            """, "shaders/new.frag");
+        Assert.True(glsl.IsEmpty, ShaderRuleVerifier.Describe(glsl));
+
+        // 同じ名前の関数を HLSL で書いても、GLSL だけに当てるルールは見ない。
+        ImmutableArray<Diagnostic> hlsl = verifier.WithEnvironment("hlsl").Analyze(
+            "float4 texture2D(float2 uv) { return 0; }\nfloat4 f(float2 uv) { return texture2D(uv); }\n", "Shaders/Lit.hlsl");
+        Assert.True(hlsl.IsEmpty, ShaderRuleVerifier.Describe(hlsl));
+    }
+
+    [Fact]
+    public void Slangのインターフェイスの名前を検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new SlangInterfaceNamingAnalyzer()).Analyze("""
+            interface Shape { float area(); }
+            interface IMaterial { float3 albedo(); }
+            interface Image { float4 load(uint2 p); }
+            """, "shaders/scene.slang");
+
+        Assert.Equal(["'Shape'", "'Image'"], diagnostics.Select(d => d.GetMessage().Split(' ')[1]));
+    }
 }

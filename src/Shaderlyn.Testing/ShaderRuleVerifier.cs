@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 using Shaderlyn.Semantics;
+using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
 
@@ -46,6 +47,7 @@ public sealed class ShaderRuleVerifier
     private readonly Dictionary<string, string> _includes = new(StringComparer.OrdinalIgnoreCase);
     private AnalyzerOptions _options = AnalyzerOptions.Default;
     private ImmutableDictionary<string, string>? _predefinedMacros;
+    private string? _environment;
 
     /// <summary>
     /// 検査するアナライザを指定して生成する。
@@ -113,6 +115,38 @@ public sealed class ShaderRuleVerifier
     }
 
     /// <summary>
+    /// 解析する環境を指定する。
+    /// </summary>
+    /// <param name="environment">
+    /// 設定ファイルの <c>environment</c> と同じ名前: <c>unity</c> / <c>hlsl</c> (汎用の HLSL) / <c>glsl</c> / <c>godot</c> / <c>slang</c> / <c>wgsl</c>。
+    /// </param>
+    /// <returns>自分自身。続けて呼べる。</returns>
+    /// <remarks>
+    /// <para>
+    /// 指定しない場合は、<see cref="Analyze"/> に渡したパスの拡張子で決める
+    /// (<c>.slang</c> は Slang、<c>.vert</c>・<c>.frag</c>・<c>.glsl</c> などは GLSL、<c>.gdshader</c> は Godot、<c>.wgsl</c> は WGSL、それ以外は Unity)。
+    /// <c>.hlsl</c> は Unity の HLSL として扱うので、汎用の HLSL として確かめる場合は <c>hlsl</c> を指定する。
+    /// </para>
+    /// <para>
+    /// Unity 以外の環境では、ファイル全体を 1 つのコンパイル単位にし、定義済みのマクロは置かない
+    /// (<see cref="WithPredefinedMacros"/> で指定できる)。CLI で設定ファイルを置かずに解析した場合と同じである。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException">知らない環境の名前。</exception>
+    public ShaderRuleVerifier WithEnvironment(string environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+
+        if (environment is not ("unity" or "hlsl" or "glsl" or "godot" or "slang" or "wgsl"))
+        {
+            throw new ArgumentException($"環境 '{environment}' は不明です。unity・hlsl・glsl・godot・slang・wgsl のどれかを指定してください。", nameof(environment));
+        }
+
+        _environment = environment;
+        return this;
+    }
+
+    /// <summary>
     /// ソースを解析して、出た指摘を返す。
     /// </summary>
     /// <param name="source">解析するソース。</param>
@@ -137,19 +171,46 @@ public sealed class ShaderRuleVerifier
         ArgumentNullException.ThrowIfNull(filePath);
 
         SourceText text = SourceText.From(source, filePath);
+        string environment = _environment ?? EnvironmentOf(filePath);
 
         SemanticsOptions semantics = new()
         {
             IncludeResolver = new InMemoryIncludeResolver(_includes),
-            PredefinedMacros = _predefinedMacros ?? UnityOptions.DefaultPredefinedMacros,
+            PredefinedMacros = _predefinedMacros ?? (environment == "unity" ? UnityOptions.DefaultPredefinedMacros : ImmutableDictionary<string, string>.Empty),
         };
 
-        ShaderCompilation compilation =
-            ShaderSourceKinds.FromPath(filePath) == ShaderSourceKind.Hlsl
-                ? UnityCompilation.CreateForHlsl(text, semantics)
-                : UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics);
+        ShaderCompilation compilation = environment switch
+        {
+            "unity" when ShaderSourceKinds.FromPath(filePath) == ShaderSourceKind.Hlsl => UnityCompilation.CreateForHlsl(text, semantics),
+            "unity" => UnityCompilation.Create(text, ShaderLabSyntaxTree.Parse(text), semantics),
+            "glsl" => Create(new GlslEnvironment(), GlslEnvironment.WholeFile(text)),
+            "godot" => Create(new GodotEnvironment(), GodotEnvironment.WholeFile(text)),
+            "slang" => Create(new SlangEnvironment(), SlangEnvironment.WholeFile(text)),
+            "wgsl" => Create(new WgslEnvironment(), WgslEnvironment.WholeFile(text)),
+            _ => Create(new HlslEnvironment(), new ShaderCompilationUnit(text, new TextSpan(0, text.Length))),
+        };
 
         return new AnalyzerDriver(_analyzers, _options).Analyze(compilation.CreateAnalysisTarget());
+
+        ShaderCompilation Create(IShaderEnvironment shaderEnvironment, ShaderCompilationUnit unit)
+            => ShaderCompilation.Create(text, [unit], text, shaderEnvironment, ShaderSourceInfo.None, semantics);
+    }
+
+    /// <summary>拡張子から環境を決める (<see cref="WithEnvironment"/>)。</summary>
+    private static string EnvironmentOf(string filePath)
+    {
+        string extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+        return extension switch
+        {
+            ".slang" => "slang",
+            ".wgsl" => "wgsl",
+            ".gdshader" or ".gdshaderinc" => "godot",
+            // CLI の GLSL の環境が探す拡張子と同じ。
+            ".glsl" or ".vert" or ".frag" or ".comp" or ".geom" or ".tesc" or ".tese" or ".mesh" or ".task"
+                or ".rgen" or ".rint" or ".rahit" or ".rchit" or ".rmiss" or ".rcall" => "glsl",
+            _ => "unity",
+        };
     }
 
     /// <summary>

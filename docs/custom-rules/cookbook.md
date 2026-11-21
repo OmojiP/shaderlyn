@@ -17,6 +17,7 @@
 - [型評価とオーバーロードの解析](#型評価とオーバーロードの解析)
 - [ShaderLab 構文解析ルール](#shaderlab-構文解析ルール)
 - [独自エンジンの環境](#独自エンジンの環境)
+- [Unity 以外の言語と環境](#unity-以外の言語と環境)
 - [そのほかの実装例](#そのほかの実装例)
 - [アナライザ実装時の共通ガイドライン](#アナライザ実装時の共通ガイドライン)
 
@@ -456,7 +457,7 @@ Unity・Unreal・汎用の HLSL (DXC) のどれにも当てはまらないエン
 | `ConfigurePreprocessor` | どの単位にも共通する設定。言語のバージョン、エンジンのコンパイラが定義するマクロ |
 | `PrepareUnit` | 単位ごとの設定。ターゲットで決まるマクロ (`HlslShaderTarget.CreateDxcMacros`) |
 | `ReadDeclaredVariants` / `ReadVariants` | 構成の軸。展開の前 (字句解析しただけのトークン) と後 (取り込んだヘッダの指令も含む) の 2 回読み取る |
-| `ReadEntryPoints` | エントリポイント。この名前の関数が存在しなければ CF0301 |
+| `ReadEntryPoints` | エントリポイント。この名前の関数が存在しなければ CF0301。ステージ (`Stage`) を渡すと、システム値のセマンティクスを CF0302 で検査する |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (CF0201) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか。解決できなくても CF0021 にしない |
 | `GetFunctionsDeclaredIn` | (省略可) 解決できない取り込みが宣言しうる関数の名前。分かっていれば、ほかの名前の呼び出しを CF0401 / CF0402 で検査できる |
@@ -501,14 +502,30 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
         => ReadVariantSpace(result.Pragmas);
 
     public ImmutableArray<ShaderEntryPoint> ReadEntryPoints(ShaderCompilationUnit unit, PreprocessResult result)
-        =>
-        [
-            .. result.Pragmas
-                .Where(pragma => pragma.Name == "entry")
-                .Select(pragma => pragma.Arguments.FirstOrDefault())
-                .OfType<ShaderSyntaxToken>()
-                .Select(name => new ShaderEntryPoint(name.Text, "#pragma entry", name.GetLocation())),
-        ];
+    {
+        List<ShaderEntryPoint> entryPoints = [];
+
+        foreach (PragmaDirective pragma in result.Pragmas.Where(pragma => pragma.Name == "entry"))
+        {
+            ImmutableArray<ShaderSyntaxToken> arguments = [.. pragma.Arguments];
+
+            if (arguments.IsEmpty)
+            {
+                continue;
+            }
+
+            // 2 つ目の引数 (ps_6_6) からステージを決める。ステージを渡すと CF0302 が働く。
+            HlslShaderStage? stage = arguments.Length > 1
+                                     && HlslShaderTarget.TryParse(arguments[1].Text, out HlslShaderTarget? target)
+                                     && target.Value.Stage != HlslShaderStage.Library
+                ? target.Value.Stage
+                : null;
+
+            entryPoints.Add(new ShaderEntryPoint(arguments[0].Text, "#pragma entry", arguments[0].GetLocation(), stage));
+        }
+
+        return [.. entryPoints];
+    }
 
     public bool LooksLikeVariantSymbol(string name) => name.StartsWith("USE_", StringComparison.Ordinal);
 
@@ -590,6 +607,149 @@ environment: myengine
 * 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使用するかどうかは環境が決めます
   (上の例はソースの `#pragma` だけを読みます)
 * 名前は組み込みの環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`) と重ねられません
+
+## Unity 以外の言語と環境
+
+ルールは既定では HLSL のファイルだけを調べます。HLSL には Unity の `.shader`・`.hlsl`・`.compute` のほか、
+汎用の HLSL (`environment: hlsl`)、Unreal Engine (`environment: unreal`)、[独自エンジンの環境](#独自エンジンの環境) が含まれます。
+GLSL・Godot・Slang・WGSL のファイルも調べる場合は、`Languages` を上書きします。
+
+| `ShaderLanguages` | 対象 |
+| --- | --- |
+| `Hlsl` (既定) | Unity・汎用の HLSL・Unreal Engine・独自エンジンの環境 |
+| `Glsl` | `.vert`・`.frag`・`.comp`・`.glsl` など |
+| `Godot` | `.gdshader`・`.gdshaderinc` |
+| `Slang` | `.slang` |
+| `Wgsl` | `.wgsl` |
+| `All` | すべて |
+
+構文木のノードの型 (`FunctionDeclarationSyntax`・`InvocationExpressionSyntax` など) はどの言語でも同じです。
+ただし、型の名前・組み込み関数・宣言の書き方は言語ごとに違います。HLSL のつもりの判断を GLSL に当てると誤検出になるので、
+言語を広げるときはその言語のコードでテストしてから広げてください。どの言語のファイルかは `c.Compilation.Language` で参照できます。
+
+### 10. 言語に依らないルールをすべての言語に当てる
+
+関数の仮引数の数のように、構文の形だけを見るルールは `ShaderLanguages.All` にできます
+(`samples` の `ParameterCountLimitAnalyzer`・`FunctionLengthLimitAnalyzer`。下は前者を短くしたものです)。
+
+```csharp
+public sealed class AnyLanguageParameterCountAnalyzer(int defaultMaxParameters = 8) : ShaderRuleAnalyzer
+{
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    // 関数の形だけを見るので、言語に依らない。どの言語のファイルにも当てる。
+    protected override ShaderLanguages Languages => ShaderLanguages.All;
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
+        {
+            int maximum = c.Options.GetIntOption(Rule.Id, "maxParameters", defaultMaxParameters);
+            int parameters = c.Node.ParameterList.Count();
+
+            if (c.Compilation.IsReportable(c.Node.NameToken) && parameters > maximum)
+            {
+                c.ReportDiagnostic(Rule, c.Node.NameToken.Span, c.Node.Name, parameters, maximum);
+            }
+        });
+}
+```
+
+WGSL の `fn f(a: f32, b: f32) -> f32` も、Godot の関数も、同じ `FunctionDeclarationSyntax` として渡ってきます。
+
+### 11. GLSL の古い組み込み関数を報告する
+
+`Languages` を `ShaderLanguages.Glsl` にすると、GLSL のファイルだけが渡ってきます (`DeprecatedGlslFunctionAnalyzer`)。
+`texture2D` などは GLSL 1.30 で非推奨になり、core プロファイルと GLSL ES 3.00 では使用できません。
+
+```csharp
+public sealed class DeprecatedGlslFunctionAnalyzer : ShaderRuleAnalyzer
+{
+    private static readonly ImmutableDictionary<string, string> Replacements = new Dictionary<string, string>
+    {
+        ["texture2D"] = "texture",
+        ["texture2DLod"] = "textureLod",
+        ["textureCube"] = "texture",
+    }.ToImmutableDictionary(StringComparer.Ordinal);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    protected override ShaderLanguages Languages => ShaderLanguages.Glsl;
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
+        {
+            // 利用者が同じ名前の関数を定義している場合は、組み込みの呼び出しではない。
+            if (c.Node.Target is IdentifierExpressionSyntax name
+                && Replacements.TryGetValue(name.Name, out string? replacement)
+                && !c.Program.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == name.Name))
+            {
+                c.ReportDiagnostic(Rule, name.Span, name.Name, replacement);
+            }
+        });
+}
+```
+
+### 12. Slang のインターフェイスの名前を検査する
+
+Slang の `interface` は、`Keyword` が `interface` の `StructDeclarationSyntax` として渡ってきます (`SlangInterfaceNamingAnalyzer`)。
+HLSL にも `interface` はありますが、名前の決まりは Slang のプロジェクトのものなので、Slang だけに当てます。
+
+```csharp
+public sealed class SlangInterfaceNamingAnalyzer : ShaderRuleAnalyzer
+{
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    protected override ShaderLanguages Languages => ShaderLanguages.Slang;
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<StructDeclarationSyntax>(c =>
+        {
+            // IFoo の形 (I の後ろが大文字) を求める。Image のような名前を通さない。
+            if (c.Node.Keyword.Text == "interface"
+                && c.Node.NameToken is { } name
+                && (name.Text.Length < 2 || name.Text[0] != 'I' || !char.IsUpper(name.Text[1])))
+            {
+                c.ReportDiagnostic(Rule, name.Span, name.Text);
+            }
+        });
+}
+```
+
+### Unity 以外のファイルでテストする
+
+`ShaderRuleVerifier` は、`Analyze` に渡したパスの拡張子で言語を決めます
+(`.slang` は Slang、`.vert`・`.frag`・`.glsl` などは GLSL、`.gdshader` は Godot、`.wgsl` は WGSL、それ以外は Unity)。
+`.hlsl` は Unity の HLSL として扱うので、汎用の HLSL として確かめる場合は `WithEnvironment("hlsl")` を指定します。
+Unity 以外の環境では、ファイル全体を 1 つのコンパイル単位にし、定義済みのマクロは置きません (設定ファイルを置かずに CLI で解析した場合と同じです)。
+
+```csharp
+public sealed class LanguageRuleTests
+{
+    [Fact]
+    public void GLSLの古い組み込み関数を報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new DeprecatedGlslFunctionAnalyzer()).Analyze("""
+            #version 330
+            uniform sampler2D tex;
+            in vec2 uv;
+            out vec4 color;
+            void main() { color = texture2D(tex, uv); }
+            """, "shaders/old.frag");
+
+        Assert.Single(diagnostics);
+    }
+
+    [Fact]
+    public void 汎用のHLSLでも仮引数の数を検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new AnyLanguageParameterCountAnalyzer(defaultMaxParameters: 2))
+            .WithEnvironment("hlsl")
+            .Analyze("float f(float a, float b, float c) { return a + b + c; }\n", "Shaders/Lit.hlsl");
+
+        Assert.Single(diagnostics);
+    }
+}
+```
 
 ## そのほかの実装例
 

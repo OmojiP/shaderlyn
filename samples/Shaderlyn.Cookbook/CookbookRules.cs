@@ -248,6 +248,24 @@ internal static class CookbookRules
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
+    /// <summary>GLSL の古い組み込み関数 (<c>texture2D</c> など) を使用している。</summary>
+    public static DiagnosticDescriptor DeprecatedGlslFunction { get; } = new(
+        id: "COOK0040",
+        title: "GLSL の古い組み込み関数",
+        messageFormat: "'{0}' は古い組み込み関数です。'{1}' を使用してください。",
+        category: "Portability",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>Slang のインターフェイスの名前が I で始まらない。</summary>
+    public static DiagnosticDescriptor SlangInterfaceNaming { get; } = new(
+        id: "COOK0041",
+        title: "インターフェイスの名前",
+        messageFormat: "インターフェイス '{0}' の名前は 'I' で始めてください。",
+        category: "Naming",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
     public static DiagnosticDescriptor WritableBufferNaming { get; } = new(
         id: "COOK0013",
         title: "書き込めるバッファの名前",

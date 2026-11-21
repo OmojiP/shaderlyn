@@ -25,6 +25,9 @@ public sealed class FunctionLengthLimitAnalyzer(int maxStatements) : ShaderRuleA
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [CookbookRules.FunctionTooLong];
 
+    // 関数の形だけを見るので、言語に依らない。どの言語のファイルにも当てる。
+    protected override ShaderLanguages Languages => ShaderLanguages.All;
+
     protected override void InitializeShader(ShaderAnalysisContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
