@@ -766,9 +766,10 @@ public sealed partial class ShaderLanguageServer
 
         // HLSL 以外の言語 (GLSL など) の拡張子は、CLI と同じく、設定の環境が読まなければその言語の環境で解析する。
         // 設定の環境 (Unity など) で読むと、GLSL を ShaderLab や HLSL として読んで構文エラーを並べる。
+        // 環境を決めていなければ、.usf・.ush は Unreal Engine の環境で解析する。
         if (path is null
-            || Cli.Environments.AnalysisSettings.LanguageFor(Path.GetExtension(path)) is not { } language
-            || configured.DefaultExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            || Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
+                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen) is not { } language)
         {
             return configured;
         }

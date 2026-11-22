@@ -126,7 +126,8 @@ public sealed class ShaderRuleVerifier
     /// <para>
     /// 指定しない場合は、<see cref="Analyze"/> に渡したパスの拡張子で決める
     /// (<c>.usf</c>・<c>.ush</c> は Unreal Engine、<c>.slang</c> は Slang、<c>.vert</c>・<c>.frag</c>・<c>.glsl</c> などは GLSL、
-    /// <c>.gdshader</c> は Godot、<c>.wgsl</c> は WGSL、それ以外は Unity)。
+    /// <c>.gdshader</c> は Godot、<c>.wgsl</c> は WGSL、それ以外は Unity)。設定ファイルを置かずに CLI でファイルを直接指定した場合と同じ環境である。
+    /// <c>.mesh</c> は Unity のメッシュのアセットと同じ拡張子なので、CLI と同じく Unity になる。GLSL として確かめる場合は <c>glsl</c> を指定する。
     /// Unreal Engine は、C++ のシェーダーの登録を読まず、エンジンの設定も既定のまま解析する (取り込むヘッダは <see cref="AddInclude"/> で与える)。
     /// <c>.hlsl</c> は Unity の HLSL として扱うので、汎用の HLSL として確かめる場合は <c>hlsl</c> を指定する。
     /// </para>
@@ -201,6 +202,10 @@ public sealed class ShaderRuleVerifier
     }
 
     /// <summary>拡張子から環境を決める (<see cref="WithEnvironment"/>)。</summary>
+    /// <remarks>
+    /// 設定ファイルを置かずに CLI でファイルを直接指定したときと同じ環境にする (テストで確かめている)。
+    /// <c>.mesh</c> は Unity のメッシュのアセットと同じ拡張子なので、CLI と同じく GLSL にしない。
+    /// </remarks>
     private static string EnvironmentOf(string filePath)
     {
         string extension = Path.GetExtension(filePath).ToLowerInvariant();
@@ -211,8 +216,7 @@ public sealed class ShaderRuleVerifier
             ".wgsl" => "wgsl",
             ".gdshader" or ".gdshaderinc" => "godot",
             ".usf" or ".ush" => "unreal",
-            // CLI の GLSL の環境が探す拡張子と同じ。
-            ".glsl" or ".vert" or ".frag" or ".comp" or ".geom" or ".tesc" or ".tese" or ".mesh" or ".task"
+            ".glsl" or ".vert" or ".frag" or ".comp" or ".geom" or ".tesc" or ".tese" or ".task"
                 or ".rgen" or ".rint" or ".rahit" or ".rchit" or ".rmiss" or ".rcall" => "glsl",
             _ => "unity",
         };

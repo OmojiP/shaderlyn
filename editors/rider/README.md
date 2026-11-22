@@ -38,7 +38,8 @@ zip から入れたプラグインには、Rider が「Cannot update plugin. Cho
 ## 動作条件
 
 - Unity プロジェクトでは、プロジェクトのルート (`Assets` と `ProjectSettings` が存在するフォルダー) を開いてください。パッケージのヘッダを自動で解決します
-- Unity 以外の環境 (汎用の HLSL・Unreal Engine など) では、`.shaderlyn.yaml` に `environment` を書いてください ([環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md))
+- Unity 以外の環境 (汎用の HLSL など) では、`.shaderlyn.yaml` に `environment` を書いてください ([環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md))
+- Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ (`/Engine/...`) を解決するには、`.shaderlyn.yaml` にエンジンの場所 (`unreal: engine`) を書いてください
 
 ## 設定
 

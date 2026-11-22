@@ -65,6 +65,12 @@ internal sealed class EffectiveSettings
     /// <summary>解析する環境の名前 (設定ファイルの <c>environment</c>、無ければ <see cref="DefaultEnvironment"/>)。</summary>
     public string Environment { get; }
 
+    /// <summary>
+    /// 設定ファイルの <c>environment</c> で環境を決めているか。
+    /// 決めていなければ、<c>.usf</c>・<c>.ush</c> を Unreal Engine の環境で解析する (<see cref="Environments.AnalysisSettings.EnvironmentForFile"/>)。
+    /// </summary>
+    public bool EnvironmentInConfiguration => Configuration.Environment is not null;
+
     /// <summary>適用するレンダーパイプラインプロファイルの名前。</summary>
     public string Profile { get; }
 

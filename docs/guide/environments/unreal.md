@@ -1,6 +1,8 @@
 # Unreal Engine
 
 `environment: unreal` で、Unreal Engine の `.usf` / `.ush` を解析します。フォルダーを指定すると `.usf` を探します。エンジン本体が存在しなくても動きます。
+`environment` を書いていない場合も、`.usf` / `.ush` は Unreal Engine の環境で解析します ([環境の選び方](../environments.md#環境の選び方))。
+ただし、`/Engine/...` の取り込みを解決するには、設定ファイルにエンジンの場所 (`unreal: engine`) を書く必要があります。
 
 ほかの環境と共通の使用方法は [CLI の使用方法](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unreal) にあります。
 

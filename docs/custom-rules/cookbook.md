@@ -728,13 +728,17 @@ public sealed class SlangInterfaceNamingAnalyzer : ShaderRuleAnalyzer
 ### 13. Godot の色のテクスチャに `source_color` を付ける
 
 Godot 4 は、`source_color` の付いていないテクスチャを sRGB から線形に変換しません。色のテクスチャに付け忘れると、色が明るく褪せて見えます。
-名前に `albedo`・`color` などを含む `uniform sampler2D` に `source_color` がなければ報告します (`GodotSourceColorAnalyzer`)。
+名前に `albedo`・`color` などを含む `uniform sampler2D` (`sampler2DArray` も) に `source_color` がなければ報告します (`GodotSourceColorAnalyzer`)。
 `: source_color, filter_linear` のヒントは、宣言子の `Semantics` に 1 つずつ入ります。
 
 ```csharp
 public sealed class GodotSourceColorAnalyzer : ShaderRuleAnalyzer
 {
-    private static readonly ImmutableArray<string> ColorWords = ["albedo", "color", "diffuse"];
+    private static readonly ImmutableArray<string> ColorWords = ["albedo", "color", "colour", "diffuse", "base_col"];
+
+    // 画面・深度・法線のテクスチャは、名前に color を含んでいても対象にしない。
+    private static readonly ImmutableHashSet<string> EngineTextureHints =
+        ["hint_screen_texture", "hint_depth_texture", "hint_normal_roughness_texture"];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
@@ -743,19 +747,19 @@ public sealed class GodotSourceColorAnalyzer : ShaderRuleAnalyzer
     protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<VariableDeclarationSyntax>(c =>
         {
-            if (!c.Node.HasModifier("uniform") || c.Node.Type.Name != "sampler2D")
+            if (!c.Node.HasModifier("uniform") || c.Node.Type.Name is not ("sampler2D" or "sampler2DArray"))
             {
                 return;
             }
 
             foreach (VariableDeclaratorSyntax variable in c.Node.Variables)
             {
-                // 画面のテクスチャ (hint_screen_texture) は、名前に color を含んでいても対象にしない。
                 string[] hints = [.. variable.Semantics.Select(s => s.Name)];
 
-                if (ColorWords.Any(w => variable.Name.Contains(w, StringComparison.OrdinalIgnoreCase))
+                if (c.Compilation.IsReportable(variable.NameToken)
+                    && ColorWords.Any(w => variable.Name.Contains(w, StringComparison.OrdinalIgnoreCase))
                     && !hints.Contains("source_color")
-                    && !hints.Contains("hint_screen_texture"))
+                    && !hints.Any(EngineTextureHints.Contains))
                 {
                     c.ReportDiagnostic(Rule, variable.NameToken.Span, variable.Name);
                 }
@@ -780,11 +784,32 @@ public sealed class WgslFunctionNamingAnalyzer : ShaderRuleAnalyzer
     protected override void InitializeShader(ShaderAnalysisContext context)
         => context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
         {
-            if (c.Compilation.IsReportable(c.Node.NameToken) && c.Node.Name.Any(char.IsUpper))
+            string name = c.Node.Name;
+
+            // メッセージは「関数 '{0}' の名前は小文字と '_' で書いてください ('{1}')。」で、{1} に直した名前を入れる。
+            if (c.Compilation.IsReportable(c.Node.NameToken) && name.Any(char.IsUpper))
             {
-                c.ReportDiagnostic(Rule, c.Node.NameToken.Span, c.Node.Name);
+                c.ReportDiagnostic(Rule, c.Node.NameToken.Span, name, ToSnakeCase(name));
             }
         });
+
+    // shadeSurface を shade_surface にする。
+    private static string ToSnakeCase(string name)
+    {
+        System.Text.StringBuilder builder = new();
+
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (char.IsUpper(name[i]) && i > 0 && name[i - 1] != '_' && (!char.IsUpper(name[i - 1]) || (i + 1 < name.Length && char.IsLower(name[i + 1]))))
+            {
+                builder.Append('_');
+            }
+
+            builder.Append(char.ToLowerInvariant(name[i]));
+        }
+
+        return builder.ToString();
+    }
 }
 ```
 
@@ -805,7 +830,8 @@ public sealed class UnrealTextureSampleAnalyzer : ShaderRuleAnalyzer
             if (c.Compilation.Environment.Name != "unreal"
                 || c.Node.Target is not MemberAccessExpressionSyntax { Name: "Sample" } member
                 || !c.Program.FunctionNames.Contains("Texture2DSample")
-                || c.Node.FirstAncestorOrDefault<FunctionDeclarationSyntax>()?.Name == "Texture2DSample")
+                || c.Node.FirstAncestorOrDefault<FunctionDeclarationSyntax>()?.Name == "Texture2DSample"
+                || !c.Compilation.IsReportable(member.NameToken))
             {
                 return;
             }
@@ -815,7 +841,7 @@ public sealed class UnrealTextureSampleAnalyzer : ShaderRuleAnalyzer
                 .GetEvaluatorFor(member.Target)
                 .Evaluate(member.Target);
 
-            if (type == "Texture2D" && c.Compilation.IsReportable(member.NameToken))
+            if (type is "Texture2D" or "Texture2D<float4>")
             {
                 c.ReportDiagnostic(Rule, member.NameToken.Span, "Texture2DSample");
             }
@@ -827,7 +853,9 @@ public sealed class UnrealTextureSampleAnalyzer : ShaderRuleAnalyzer
 
 `ShaderRuleVerifier` は、`Analyze` に渡したパスの拡張子で言語と環境を決めます
 (`.usf`・`.ush` は Unreal Engine、`.slang` は Slang、`.vert`・`.frag`・`.glsl` などは GLSL、`.gdshader` は Godot、`.wgsl` は WGSL、それ以外は Unity)。
+設定ファイルを置かずに CLI でファイルを直接指定した場合と同じ環境です。
 `.hlsl` は Unity の HLSL として扱うので、汎用の HLSL として確認する場合は `WithEnvironment("hlsl")` を指定します。
+`.mesh` は Unity のメッシュのアセットと同じ拡張子なので Unity になります。GLSL として確認する場合は `WithEnvironment("glsl")` を指定します。
 Unity 以外の環境では、ファイル全体を 1 つのコンパイル単位にし、定義済みのマクロは置きません (設定ファイルを置かずに CLI で解析した場合と同じです)。
 Unreal Engine は C++ のシェーダーの登録を読まないので、`Common.ush` などのヘッダは `AddInclude("/Engine/Private/Common.ush", …)` で与えます。
 

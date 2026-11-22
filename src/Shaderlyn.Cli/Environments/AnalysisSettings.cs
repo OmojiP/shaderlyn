@@ -29,6 +29,7 @@ internal sealed record AnalysisSetting(
 /// <b>環境は設定ファイル (かコマンドライン) の指定に従う。</b> ただし、その環境が集める拡張子でないファイルのうち、
 /// HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) の拡張子のものは、その言語の環境で読む。
 /// Unity のプロジェクトにある <c>.wgsl</c> は WGSL として読み、<c>.hlsl</c> (Unity では取り込まれる側) は今までどおり単体では読まない。
+/// 環境を決めていなければ、Unreal Engine の <c>.usf</c> は Unreal Engine の環境で読む (<see cref="EnvironmentForFile"/>)。
 /// </para>
 /// </remarks>
 internal static class AnalysisSettings
@@ -59,6 +60,117 @@ internal static class AnalysisSettings
     /// <remarks>VS Code 拡張も、CLI と同じくこれで GLSL などのファイルの環境を決める。</remarks>
     public static string? LanguageFor(string extension)
         => LanguageByExtension.TryGetValue(extension, out string? language) ? language : null;
+
+    /// <summary>
+    /// 拡張子から、環境を決めていないときに使う HLSL の環境の名前への対応。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>.usf</c>・<c>.ush</c> は Unreal Engine だけが使う拡張子なので、設定ファイルが無くても Unreal Engine の環境で読む。
+    /// </para>
+    /// <para>
+    /// <b>HLSL の言語の表 (<see cref="LanguageByExtension"/>) とは、使う条件が違う。</b>
+    /// GLSL などは HLSL の環境では読めないので、設定の環境 (Unity など) が何であってもその言語で読む。
+    /// <c>.usf</c> は HLSL なので、どの HLSL の環境でも読める。環境を決めていれば (<c>environment: hlsl</c> など) その環境を優先し、
+    /// この表は環境を決めていないときにだけ使う。
+    /// </para>
+    /// </remarks>
+    private static readonly FrozenDictionary<string, string> HlslEnvironmentByExtension =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".usf"] = Unreal.UnrealOptions.EnvironmentName,
+            [".ush"] = Unreal.UnrealOptions.EnvironmentName,
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 取り込まれる側の拡張子。フォルダーから集めたときは単体で解析しない (<c>environment: unreal</c> が <c>.usf</c> だけを集めるのと同じ)。
+    /// </summary>
+    private static readonly FrozenSet<string> HeaderExtensions =
+        new[] { ".ush" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 環境を決めていないとき、拡張子から HLSL の環境の名前を引く (<c>.usf</c>・<c>.ush</c> → <c>unreal</c>)。
+    /// </summary>
+    /// <param name="extension">拡張子。</param>
+    /// <returns>環境の名前。表に無い拡張子なら <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 言語サーバーは、設定ファイルに <c>environment</c> が無いときにこれで <c>.usf</c>・<c>.ush</c> の環境を決める。
+    /// <c>ShaderRuleVerifier</c> の拡張子の対応も、これと同じになるようテストで確かめる。
+    /// </remarks>
+    public static string? HlslEnvironmentFor(string extension)
+        => HlslEnvironmentByExtension.TryGetValue(extension, out string? environment) ? environment : null;
+
+    /// <summary>
+    /// CLI で、1 つのファイルを解析する環境を決める。
+    /// </summary>
+    /// <param name="extension">拡張子。</param>
+    /// <param name="configured">設定ファイル (とコマンドライン) で決まる環境の名前。設定ファイルの環境を作れなかったら <see langword="null"/>。</param>
+    /// <param name="configuredExtensions">その環境がフォルダーから集める拡張子。</param>
+    /// <param name="environmentChosen">環境を決めているか (設定ファイルの <c>environment</c> か <c>--environment</c> がある)。</param>
+    /// <param name="explicitFile">コマンドラインで直接指定したファイルか。<see langword="false"/> ならフォルダーから集めたもの。</param>
+    /// <returns>環境の名前。単体では解析しないなら <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 順に次で決める。
+    /// <list type="number">
+    /// <item>設定の環境が集める拡張子なら、設定の環境。</item>
+    /// <item>直接指定したファイルで、環境を決めていれば、設定の環境 (拡張子に関わらず)。</item>
+    /// <item>GLSL・Godot・Slang・WGSL の拡張子なら、その言語の環境。</item>
+    /// <item>環境を決めていなければ、<see cref="HlslEnvironmentFor"/> の環境 (フォルダーから集めた <c>.ush</c> は除く)。</item>
+    /// <item>直接指定したファイルなら、設定の環境。それ以外は単体では解析しない (Unity のプロジェクトの <c>.hlsl</c> など)。</item>
+    /// </list>
+    /// </remarks>
+    public static string? EnvironmentForFile(
+        string extension, string? configured, ImmutableArray<string> configuredExtensions, bool environmentChosen, bool explicitFile)
+    {
+        if (configured is not null && configuredExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            return configured;
+        }
+
+        if (configured is not null && explicitFile && environmentChosen)
+        {
+            return configured;
+        }
+
+        if (LanguageFor(extension) is { } language)
+        {
+            return language;
+        }
+
+        // 設定ファイルの環境を作れなかったとき (知らない環境の名前) は、その下の HLSL のファイルを解析しない。
+        if (configured is null)
+        {
+            return null;
+        }
+
+        if (!environmentChosen && HlslEnvironmentFor(extension) is { } hlsl && (explicitFile || !HeaderExtensions.Contains(extension)))
+        {
+            return hlsl;
+        }
+
+        return explicitFile ? configured : null;
+    }
+
+    /// <summary>
+    /// 言語サーバーで、開いたファイルを設定の環境とは別の環境で解析するかを決める。
+    /// </summary>
+    /// <param name="extension">拡張子。</param>
+    /// <param name="configuredExtensions">設定の環境が集める拡張子。</param>
+    /// <param name="environmentChosen">環境を決めているか (設定ファイルの <c>environment</c> がある)。</param>
+    /// <returns>別に使う環境の名前。設定の環境で解析するなら <see langword="null"/>。</returns>
+    /// <remarks>
+    /// GLSL などの拡張子は、設定の環境が集めなければその言語で解析する (環境を決めていても)。
+    /// <c>.usf</c>・<c>.ush</c> は、環境を決めていなければ Unreal Engine で解析する。CLI でファイルを直接指定したときと同じである。
+    /// </remarks>
+    public static string? EnvironmentForOpenedFile(string extension, ImmutableArray<string> configuredExtensions, bool environmentChosen)
+    {
+        if (configuredExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return LanguageFor(extension) ?? (environmentChosen ? null : HlslEnvironmentFor(extension));
+    }
 
     /// <summary>フォルダーから集める拡張子。どの設定ファイルがどの環境を指していても取りこぼさないよう、すべての環境の拡張子を集める。</summary>
     /// <param name="hosts">足した環境。</param>
@@ -111,16 +223,13 @@ internal static class AnalysisSettings
                 configured = byConfig[config] = Create(original.For(config.Length == 0 ? null : config, environment: null), hosts, problems);
             }
 
-            string extension = Path.GetExtension(file);
-
-            // 直接指定したファイルは設定の環境で読む。ただし環境を決めていない (既定の Unity) ときは、ほかの言語の拡張子 (.gdshader など) をその言語で読む。
             bool environmentChosen = original.Environment is not null || configured?.Settings.Configuration.Environment is not null;
-            string? environment =
-                configured is not null
-                && (configured.Environment.DefaultExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
-                    || (explicitFiles.Contains(file) && (environmentChosen || !LanguageByExtension.ContainsKey(extension))))
-                    ? configured.Environment.Name
-                    : LanguageByExtension.TryGetValue(extension, out string? language) ? language : null;
+            string? environment = EnvironmentForFile(
+                Path.GetExtension(file),
+                configured?.Environment.Name,
+                configured?.Environment.DefaultExtensions ?? [],
+                environmentChosen,
+                explicitFiles.Contains(file));
 
             // どの環境も読まない拡張子 (Unity のプロジェクトの .hlsl など)。今までどおり単体では解析しない。
             if (environment is null)

@@ -140,7 +140,8 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 ### 動作条件
 
 * Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
-* Unity 以外の環境（汎用の HLSL・Unreal など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
+* Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ（`/Engine/...`）を解決するには、`.shaderlyn.yaml` にエンジンの場所（`unreal: engine`）を書いてください
+* Unity 以外の環境（汎用の HLSL など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
 
 ### 設定項目 (`settings.json`)
 

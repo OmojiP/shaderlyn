@@ -1,6 +1,7 @@
 # Unity
 
-既定の環境です。設定ファイルが存在しないか、`environment` を書いていなければ、Unity の環境で解析します。
+既定の環境です。設定ファイルが存在しないか、`environment` を書いていなければ、Unity の環境で解析します
+(GLSL・Godot・Slang・WGSL と Unreal Engine の `.usf` / `.ush` は、拡張子で環境を決めます。[環境の選び方](../environments.md#環境の選び方))。
 ShaderLab (`.shader`) とコンピュートシェーダー (`.compute`) を、プロジェクトのパッケージと Unity Editor のヘッダを読み込んで解析します。
 
 ほかの環境と共通の使用方法 (出力・終了コード・ベースラインなど) は [CLI の使用方法](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unity) にあります。
