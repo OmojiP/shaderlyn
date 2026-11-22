@@ -172,3 +172,17 @@ jobs:
       - name: テストとプラグインの zip を作り、互換性を確認する
         working-directory: editors/rider
         run: gradle test buildPlugin verifyPlugin
+
+      # リリースで zip に署名する処理 (tools/rider/sign-zips.sh) を、その場で作った使い捨ての鍵で動かす。
+      # リリースのタグを打つ前に、署名の道具の取得・署名・確認が通ることを確かめる。
+      - name: 使い捨ての鍵で zip に署名する
+        shell: bash
+        env:
+          PRIVATE_KEY_PASSWORD: ci-only
+        run: |
+          set -euo pipefail
+          openssl genpkey -aes-256-cbc -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+            -pass env:PRIVATE_KEY_PASSWORD -out "${RUNNER_TEMP}/private.pem"
+          openssl req -new -x509 -days 1 -subj "/CN=shaderlyn-ci" \
+            -key "${RUNNER_TEMP}/private.pem" -passin env:PRIVATE_KEY_PASSWORD -out "${RUNNER_TEMP}/chain.crt"
+          tools/rider/sign-zips.sh editors/rider/build/distributions "${RUNNER_TEMP}/chain.crt" "${RUNNER_TEMP}/private.pem"

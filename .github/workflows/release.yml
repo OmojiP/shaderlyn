@@ -351,6 +351,26 @@ jobs:
             exit 1
           fi
 
+      # 作者の署名を付ける (付けないと、インストールのときに IDE が警告を出す)。
+      # シークレットは CONTRIBUTING.md の手順で作った証明書 (chain.crt) と秘密鍵 (private_encrypted.pem) の中身とパスフレーズ。
+      # 署名の処理は CI でも使い捨ての鍵で動かしている (ci.yml)。
+      - name: zip に署名する
+        shell: bash
+        env:
+          CERTIFICATE_CHAIN: ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CERTIFICATE_CHAIN}" ] || [ -z "${PRIVATE_KEY}" ] || [ -z "${PRIVATE_KEY_PASSWORD}" ]; then
+            echo "::warning::署名のシークレットが無いので、Rider の zip に署名していません。"
+            exit 0
+          fi
+          printf '%s\n' "${CERTIFICATE_CHAIN}" > "${RUNNER_TEMP}/chain.crt"
+          printf '%s\n' "${PRIVATE_KEY}" > "${RUNNER_TEMP}/private.pem"
+          tools/rider/sign-zips.sh editors/rider/build/distributions "${RUNNER_TEMP}/chain.crt" "${RUNNER_TEMP}/private.pem"
+          rm -f "${RUNNER_TEMP}/private.pem"
+
       - uses: actions/upload-artifact@v7
         with:
           name: shaderlyn-rider

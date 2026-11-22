@@ -178,5 +178,24 @@ JetBrains Marketplace へは、最初のバージョンだけ Web から手で�
 審査が通ったら、プロフィールの **My Tokens** でトークンを作り、リポジトリのシークレット `JETBRAINS_MARKETPLACE_TOKEN` に登録します。
 登録した後のリリースでは、6 つの zip を Marketplace へ送ります。シークレットが無い間は送りません。公開は Marketplace の審査の後になります。
 
+Rider の zip には、リリースのワークフローが作者の署名を付けます ([tools/rider/sign-zips.sh](tools/rider/sign-zips.sh))。
+署名が無いと、インストールのときに IDE が警告を出します。最初のリリースの前に、証明書と秘密鍵を作ってシークレットに登録してください。
+秘密鍵とパスフレーズはリポジトリの外に保管します。
+
+```sh
+# 秘密鍵 (パスフレーズを聞かれる)
+openssl genpkey -aes-256-cbc -algorithm RSA -out private_encrypted.pem -pkeyopt rsa_keygen_bits:4096
+# 証明書 (有効期間 10 年)。Git Bash では、/CN=… がパスに書き換えられないよう MSYS_NO_PATHCONV=1 を付ける
+MSYS_NO_PATHCONV=1 openssl req -key private_encrypted.pem -new -x509 -days 3650 -out chain.crt -subj "/CN=OmojiP"
+```
+
+| シークレット | 値 |
+| --- | --- |
+| `JETBRAINS_CERTIFICATE_CHAIN` | `chain.crt` の中身 (`-----BEGIN CERTIFICATE-----` から) |
+| `JETBRAINS_PRIVATE_KEY` | `private_encrypted.pem` の中身 (`-----BEGIN ENCRYPTED PRIVATE KEY-----` から) |
+| `JETBRAINS_PRIVATE_KEY_PASSWORD` | 秘密鍵のパスフレーズ |
+
+シークレットが無い間は、署名せずに警告を出します。署名の処理は、CI でも使い捨ての鍵で毎回動かしています。
+
 配布物には [LICENSE](LICENSE) と [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) を入れています。
 ほかのプロジェクトのデータやコードを取り込んだときは、THIRD-PARTY-NOTICES.txt に追記してください。

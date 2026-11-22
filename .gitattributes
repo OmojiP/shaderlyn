@@ -6,3 +6,6 @@ tests/Shaderlyn.Tests/fixtures/rules/UN0001.shader binary
 
 # GLSL の組み込みの表。tools/glsl/builtins.mjs が LF で書き出すので、作り直したときに差分が出ないよう LF のまま置く。
 src/Shaderlyn.Semantics/Symbols/GlslBuiltins.g.txt text eol=lf
+
+# シェルスクリプトは Linux のランナーで動かすので LF で置く。
+*.sh text eol=lf
