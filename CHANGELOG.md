@@ -41,8 +41,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - 言語サーバー: 初期化の設定に `hoverCodeBlocks: false` を渡すと、ホバーのコードをコードブロックでなく行内のコードで返す。
   Visual Studio はコードブロックに「コードのコピー」の見出しを付け、1 行の宣言でも大きな枠で表示するため
 - 自作ルール向け: GLSL・Godot・Slang・WGSL のファイルにもルールを当てられる (`ShaderRuleAnalyzer.Languages`。既定は HLSL だけで、今までと同じ)。
-  `ShaderCompilation.Language` で解析した言語を参照できる。`ShaderRuleVerifier` は拡張子で言語を決め、`WithEnvironment("hlsl")` で汎用の HLSL として確かめられる。
-  実例集に、Unity 以外の言語と環境の例を追加した ([実例集](docs/custom-rules/cookbook.md#unity-以外の言語と環境))
+  `ShaderCompilation.Language` で解析した言語を参照できる。`ShaderRuleVerifier` は拡張子で言語と環境を決め (`.usf`・`.ush` は Unreal Engine)、
+  `WithEnvironment("hlsl")` で汎用の HLSL、`WithEnvironment("unreal")` で Unreal Engine として確認できる。
+  実例集に、GLSL・Godot・Slang・WGSL・Unreal Engine の例を追加した。`samples/Shaderlyn.Cookbook` には言語ごとのフォルダーに置いている
+  ([実例集](docs/custom-rules/cookbook.md#unity-以外の言語と環境))
 - 自作ルール向け: 指摘の範囲の外も書き換えられる修正 (`DiagnosticFix`・`TextReplacement`・`Diagnostic.WithFix`・`Diagnostic.Fixes`)。
   マクロの展開から来たトークンの位置には修正を添えない
 

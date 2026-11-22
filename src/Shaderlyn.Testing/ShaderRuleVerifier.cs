@@ -7,6 +7,7 @@ using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Environments;
 using Shaderlyn.ShaderLab;
 using Shaderlyn.Unity;
+using Shaderlyn.Unreal;
 
 namespace Shaderlyn.Testing;
 
@@ -118,13 +119,15 @@ public sealed class ShaderRuleVerifier
     /// 解析する環境を指定する。
     /// </summary>
     /// <param name="environment">
-    /// 設定ファイルの <c>environment</c> と同じ名前: <c>unity</c> / <c>hlsl</c> (汎用の HLSL) / <c>glsl</c> / <c>godot</c> / <c>slang</c> / <c>wgsl</c>。
+    /// 設定ファイルの <c>environment</c> と同じ名前: <c>unity</c> / <c>hlsl</c> (汎用の HLSL) / <c>unreal</c> / <c>glsl</c> / <c>godot</c> / <c>slang</c> / <c>wgsl</c>。
     /// </param>
     /// <returns>自分自身。続けて呼べる。</returns>
     /// <remarks>
     /// <para>
     /// 指定しない場合は、<see cref="Analyze"/> に渡したパスの拡張子で決める
-    /// (<c>.slang</c> は Slang、<c>.vert</c>・<c>.frag</c>・<c>.glsl</c> などは GLSL、<c>.gdshader</c> は Godot、<c>.wgsl</c> は WGSL、それ以外は Unity)。
+    /// (<c>.usf</c>・<c>.ush</c> は Unreal Engine、<c>.slang</c> は Slang、<c>.vert</c>・<c>.frag</c>・<c>.glsl</c> などは GLSL、
+    /// <c>.gdshader</c> は Godot、<c>.wgsl</c> は WGSL、それ以外は Unity)。
+    /// Unreal Engine は、C++ のシェーダーの登録を読まず、エンジンの設定も既定のまま解析する (取り込むヘッダは <see cref="AddInclude"/> で与える)。
     /// <c>.hlsl</c> は Unity の HLSL として扱うので、汎用の HLSL として確かめる場合は <c>hlsl</c> を指定する。
     /// </para>
     /// <para>
@@ -137,9 +140,9 @@ public sealed class ShaderRuleVerifier
     {
         ArgumentNullException.ThrowIfNull(environment);
 
-        if (environment is not ("unity" or "hlsl" or "glsl" or "godot" or "slang" or "wgsl"))
+        if (environment is not ("unity" or "hlsl" or "unreal" or "glsl" or "godot" or "slang" or "wgsl"))
         {
-            throw new ArgumentException($"環境 '{environment}' は不明です。unity・hlsl・glsl・godot・slang・wgsl のどれかを指定してください。", nameof(environment));
+            throw new ArgumentException($"環境 '{environment}' は不明です。unity・hlsl・unreal・glsl・godot・slang・wgsl のどれかを指定してください。", nameof(environment));
         }
 
         _environment = environment;
@@ -187,6 +190,7 @@ public sealed class ShaderRuleVerifier
             "godot" => Create(new GodotEnvironment(), GodotEnvironment.WholeFile(text)),
             "slang" => Create(new SlangEnvironment(), SlangEnvironment.WholeFile(text)),
             "wgsl" => Create(new WgslEnvironment(), WgslEnvironment.WholeFile(text)),
+            "unreal" => Create(UnrealOptions.Default.CreateEnvironment(), new ShaderCompilationUnit(text, new TextSpan(0, text.Length))),
             _ => Create(new HlslEnvironment(), new ShaderCompilationUnit(text, new TextSpan(0, text.Length))),
         };
 
@@ -206,6 +210,7 @@ public sealed class ShaderRuleVerifier
             ".slang" => "slang",
             ".wgsl" => "wgsl",
             ".gdshader" or ".gdshaderinc" => "godot",
+            ".usf" or ".ush" => "unreal",
             // CLI の GLSL の環境が探す拡張子と同じ。
             ".glsl" or ".vert" or ".frag" or ".comp" or ".geom" or ".tesc" or ".tese" or ".mesh" or ".task"
                 or ".rgen" or ".rint" or ".rahit" or ".rchit" or ".rmiss" or ".rcall" => "glsl",

@@ -627,6 +627,16 @@ GLSL・Godot・Slang・WGSL のファイルも調べる場合は、`Languages` �
 ただし、型の名前・組み込み関数・宣言の書き方は言語ごとに違います。HLSL のつもりの判断を GLSL に当てると誤検出になるので、
 言語を広げるときはその言語のコードでテストしてから広げてください。どの言語のファイルかは `c.Compilation.Language` で参照できます。
 
+`samples/Shaderlyn.Cookbook/` には、言語ごとのフォルダーに例を置いています。
+
+| フォルダー | 例 |
+| --- | --- |
+| `Glsl/` | [11. GLSL の古い組み込み関数を報告する](#11-glsl-の古い組み込み関数を報告する) |
+| `Slang/` | [12. Slang のインターフェイスの名前を検査する](#12-slang-のインターフェイスの名前を検査する) |
+| `Godot/` | [13. Godot の色のテクスチャに `source_color` を付ける](#13-godot-の色のテクスチャに-source_color-を付ける) |
+| `Wgsl/` | [14. WGSL の関数の名前を検査する](#14-wgsl-の関数の名前を検査する) |
+| `Unreal/` | [15. Unreal Engine で `Texture2DSample` を使用する](#15-unreal-engine-で-texture2dsample-を使用する) |
+
 ### 10. 言語に依らないルールをすべての言語に当てる
 
 関数の仮引数の数のように、構文の形だけを見るルールは `ShaderLanguages.All` にできます
@@ -715,12 +725,111 @@ public sealed class SlangInterfaceNamingAnalyzer : ShaderRuleAnalyzer
 }
 ```
 
+### 13. Godot の色のテクスチャに `source_color` を付ける
+
+Godot 4 は、`source_color` の付いていないテクスチャを sRGB から線形に変換しません。色のテクスチャに付け忘れると、色が明るく褪せて見えます。
+名前に `albedo`・`color` などを含む `uniform sampler2D` に `source_color` がなければ報告します (`GodotSourceColorAnalyzer`)。
+`: source_color, filter_linear` のヒントは、宣言子の `Semantics` に 1 つずつ入ります。
+
+```csharp
+public sealed class GodotSourceColorAnalyzer : ShaderRuleAnalyzer
+{
+    private static readonly ImmutableArray<string> ColorWords = ["albedo", "color", "diffuse"];
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    protected override ShaderLanguages Languages => ShaderLanguages.Godot;
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<VariableDeclarationSyntax>(c =>
+        {
+            if (!c.Node.HasModifier("uniform") || c.Node.Type.Name != "sampler2D")
+            {
+                return;
+            }
+
+            foreach (VariableDeclaratorSyntax variable in c.Node.Variables)
+            {
+                // 画面のテクスチャ (hint_screen_texture) は、名前に color を含んでいても対象にしない。
+                string[] hints = [.. variable.Semantics.Select(s => s.Name)];
+
+                if (ColorWords.Any(w => variable.Name.Contains(w, StringComparison.OrdinalIgnoreCase))
+                    && !hints.Contains("source_color")
+                    && !hints.Contains("hint_screen_texture"))
+                {
+                    c.ReportDiagnostic(Rule, variable.NameToken.Span, variable.Name);
+                }
+            }
+        });
+}
+```
+
+### 14. WGSL の関数の名前を検査する
+
+WGSL の関数を小文字と `_` (`snake_case`) で書く決まりを検査します (`WgslFunctionNamingAnalyzer`)。
+HLSL や GLSL では `camelCase` が普通なので、言語を WGSL に絞らないと誤検出になります。
+`fn` は、ほかの言語の関数と同じ `FunctionDeclarationSyntax` として渡ってきます。
+
+```csharp
+public sealed class WgslFunctionNamingAnalyzer : ShaderRuleAnalyzer
+{
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    protected override ShaderLanguages Languages => ShaderLanguages.Wgsl;
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<FunctionDeclarationSyntax>(c =>
+        {
+            if (c.Compilation.IsReportable(c.Node.NameToken) && c.Node.Name.Any(char.IsUpper))
+            {
+                c.ReportDiagnostic(Rule, c.Node.NameToken.Span, c.Node.Name);
+            }
+        });
+}
+```
+
+### 15. Unreal Engine で `Texture2DSample` を使用する
+
+Unreal Engine の `.usf`・`.ush` は HLSL なので、`Languages` は既定のままにし、環境の名前 (`c.Compilation.Environment.Name`) で絞ります。
+この例は、`Texture2D` の `Sample` メソッドを直接呼んでいる箇所を報告し、`/Engine/Private/Common.ush` の `Texture2DSample` を使用するよう促します
+(`UnrealTextureSampleAnalyzer`)。`Common.ush` を取り込んでいないファイルでは置き換えられないので、関数の名前 (`c.Program.FunctionNames`) を確認します。
+
+```csharp
+public sealed class UnrealTextureSampleAnalyzer : ShaderRuleAnalyzer
+{
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
+
+    protected override void InitializeShader(ShaderAnalysisContext context)
+        => context.RegisterNodeAction<InvocationExpressionSyntax>(c =>
+        {
+            if (c.Compilation.Environment.Name != "unreal"
+                || c.Node.Target is not MemberAccessExpressionSyntax { Name: "Sample" } member
+                || !c.Program.FunctionNames.Contains("Texture2DSample")
+                || c.Node.FirstAncestorOrDefault<FunctionDeclarationSyntax>()?.Name == "Texture2DSample")
+            {
+                return;
+            }
+
+            // 型が求まらない場合は報告しない。TextureCube などの Sample も報告しない。
+            string? type = c.Compilation.GetExpressionTypeBinder(c.Program)
+                .GetEvaluatorFor(member.Target)
+                .Evaluate(member.Target);
+
+            if (type == "Texture2D" && c.Compilation.IsReportable(member.NameToken))
+            {
+                c.ReportDiagnostic(Rule, member.NameToken.Span, "Texture2DSample");
+            }
+        });
+}
+```
+
 ### Unity 以外のファイルでテストする
 
-`ShaderRuleVerifier` は、`Analyze` に渡したパスの拡張子で言語を決めます
-(`.slang` は Slang、`.vert`・`.frag`・`.glsl` などは GLSL、`.gdshader` は Godot、`.wgsl` は WGSL、それ以外は Unity)。
-`.hlsl` は Unity の HLSL として扱うので、汎用の HLSL として確かめる場合は `WithEnvironment("hlsl")` を指定します。
+`ShaderRuleVerifier` は、`Analyze` に渡したパスの拡張子で言語と環境を決めます
+(`.usf`・`.ush` は Unreal Engine、`.slang` は Slang、`.vert`・`.frag`・`.glsl` などは GLSL、`.gdshader` は Godot、`.wgsl` は WGSL、それ以外は Unity)。
+`.hlsl` は Unity の HLSL として扱うので、汎用の HLSL として確認する場合は `WithEnvironment("hlsl")` を指定します。
 Unity 以外の環境では、ファイル全体を 1 つのコンパイル単位にし、定義済みのマクロは置きません (設定ファイルを置かずに CLI で解析した場合と同じです)。
+Unreal Engine は C++ のシェーダーの登録を読まないので、`Common.ush` などのヘッダは `AddInclude("/Engine/Private/Common.ush", …)` で与えます。
 
 ```csharp
 public sealed class LanguageRuleTests

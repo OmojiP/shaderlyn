@@ -266,6 +266,33 @@ internal static class CookbookRules
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
+    /// <summary>Godot の色のテクスチャに source_color のヒントがない。</summary>
+    public static DiagnosticDescriptor GodotSourceColor { get; } = new(
+        id: "COOK0042",
+        title: "色のテクスチャの source_color",
+        messageFormat: "色のテクスチャ '{0}' に 'source_color' のヒントがありません。付けないと sRGB から線形に変換されません。",
+        category: "Correctness",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>WGSL の関数の名前が snake_case でない。</summary>
+    public static DiagnosticDescriptor WgslFunctionNaming { get; } = new(
+        id: "COOK0043",
+        title: "関数の名前",
+        messageFormat: "関数 '{0}' の名前は小文字と '_' で書いてください ('{1}')。",
+        category: "Naming",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>Unreal Engine で Texture2D の Sample を直接呼んでいる。</summary>
+    public static DiagnosticDescriptor UnrealTextureSample { get; } = new(
+        id: "COOK0044",
+        title: "Texture2D の Sample の直接の呼び出し",
+        messageFormat: "Texture2D の Sample を直接呼ばず、'{0}' を使用してください。",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
     public static DiagnosticDescriptor WritableBufferNaming { get; } = new(
         id: "COOK0013",
         title: "書き込めるバッファの名前",

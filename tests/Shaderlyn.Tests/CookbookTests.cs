@@ -1311,4 +1311,95 @@ public sealed class CookbookTests
 
         Assert.Equal(["'Shape'", "'Image'"], diagnostics.Select(d => d.GetMessage().Split(' ')[1]));
     }
+
+    [Fact]
+    public void Godotの色のテクスチャにsource_colorが無ければ報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new GodotSourceColorAnalyzer()).Analyze("""
+            shader_type spatial;
+            uniform sampler2D albedo_texture : filter_linear;
+            uniform sampler2D base_color_map : source_color, filter_linear;
+            uniform sampler2D normal_map : hint_normal;
+            uniform sampler2D screen_color : hint_screen_texture;
+            void fragment() { ALBEDO = texture(albedo_texture, UV).rgb * texture(base_color_map, UV).rgb; }
+            """, "shaders/rock.gdshader");
+
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal(
+            "色のテクスチャ 'albedo_texture' に 'source_color' のヒントがありません。付けないと sRGB から線形に変換されません。",
+            diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void WGSLの関数の名前を検査する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new WgslFunctionNamingAnalyzer()).Analyze("""
+            fn shadeSurface(n: vec3<f32>) -> vec3<f32> { return n; }
+            fn toHDRColor(c: vec3<f32>) -> vec3<f32> { return c; }
+            fn tone_map(c: vec3<f32>) -> vec3<f32> { return c; }
+            @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(tone_map(shadeSurface(vec3<f32>(1.0))), 1.0); }
+            """, "shaders/lit.wgsl");
+
+        Assert.Equal(
+            [
+                "関数 'shadeSurface' の名前は小文字と '_' で書いてください ('shade_surface')。",
+                "関数 'toHDRColor' の名前は小文字と '_' で書いてください ('to_hdr_color')。",
+            ],
+            diagnostics.Select(d => d.GetMessage()));
+
+        // HLSL の camelCase には当たらない。
+        ImmutableArray<Diagnostic> hlsl = new ShaderRuleVerifier(new WgslFunctionNamingAnalyzer())
+            .WithEnvironment("hlsl")
+            .Analyze("float3 shadeSurface(float3 n) { return n; }\n", "Shaders/Lit.hlsl");
+        Assert.True(hlsl.IsEmpty, ShaderRuleVerifier.Describe(hlsl));
+    }
+
+    /// <summary>Unreal の <c>Common.ush</c> を短くしたもの。</summary>
+    private const string UnrealCommon = """
+        float4 Texture2DSample(Texture2D Tex, SamplerState Sampler, float2 UV) { return Tex.Sample(Sampler, UV); }
+        """;
+
+    [Fact]
+    public void UnrealではTexture2DのSampleの直接の呼び出しを報告する()
+    {
+        ImmutableArray<Diagnostic> diagnostics = new ShaderRuleVerifier(new UnrealTextureSampleAnalyzer())
+            .AddInclude("/Engine/Private/Common.ush", UnrealCommon)
+            .Analyze("""
+                #include "/Engine/Private/Common.ush"
+                Texture2D SceneTexture;
+                SamplerState SceneSampler;
+                TextureCube SkyTexture;
+                void MainPS(float2 UV : TEXCOORD0, float3 Dir : TEXCOORD1, out float4 OutColor : SV_Target0)
+                {
+                    OutColor = SceneTexture.Sample(SceneSampler, UV) + Texture2DSample(SceneTexture, SceneSampler, UV) + SkyTexture.Sample(SceneSampler, Dir);
+                }
+                """, "Shaders/Private/Tonemap.usf");
+
+        // 取り込んだヘッダ (Common.ush) の中の呼び出しと、TextureCube には報告しない。
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("Texture2D の Sample を直接呼ばず、'Texture2DSample' を使用してください。", diagnostic.GetMessage());
+        Assert.Equal(6, diagnostic.Location.LineSpan.Start.Line);
+    }
+
+    [Fact]
+    public void UnrealでもCommon_ushを取り込まないファイルと汎用のHLSLには報告しない()
+    {
+        const string Source = """
+            Texture2D SceneTexture;
+            SamplerState SceneSampler;
+            float4 Texture2DSample(Texture2D Tex, SamplerState Sampler, float2 UV) { return Tex.Sample(Sampler, UV); }
+            float4 MainPS(float2 UV : TEXCOORD0) : SV_Target0 { return SceneTexture.Sample(SceneSampler, UV); }
+            """;
+
+        ImmutableArray<Diagnostic> withoutCommon = new ShaderRuleVerifier(new UnrealTextureSampleAnalyzer())
+            .Analyze("Texture2D T; SamplerState S;\nfloat4 MainPS(float2 UV : TEXCOORD0) : SV_Target0 { return T.Sample(S, UV); }\n", "Shaders/Private/Plain.usf");
+        Assert.True(withoutCommon.IsEmpty, ShaderRuleVerifier.Describe(withoutCommon));
+
+        ImmutableArray<Diagnostic> hlsl = new ShaderRuleVerifier(new UnrealTextureSampleAnalyzer()).WithEnvironment("hlsl").Analyze(Source, "Shaders/Lit.hlsl");
+        Assert.True(hlsl.IsEmpty, ShaderRuleVerifier.Describe(hlsl));
+
+        // 同じ内容を Unreal で解析すると、MainPS の呼び出しだけを報告する (Texture2DSample の定義の中は報告しない)。
+        ImmutableArray<Diagnostic> unreal = new ShaderRuleVerifier(new UnrealTextureSampleAnalyzer()).Analyze(Source, "Shaders/Private/Lit.usf");
+        Assert.Equal(4, Assert.Single(unreal).Location.LineSpan.Start.Line + 1);
+    }
 }

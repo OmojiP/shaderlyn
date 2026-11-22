@@ -1038,7 +1038,7 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | `AddInclude(path, content)`                | `#include` で取り込めるファイル。ディスクから読み込まない      |
 | `WithOptions(options)`                     | 設定ファイル相当の設定                                         |
 | `WithPredefinedMacros(macros)`             | 定義済みマクロ                                                 |
-| `WithEnvironment(environment)`             | 環境 (`unity` / `hlsl` / `glsl` / `godot` / `slang` / `wgsl`)。指定しなければ拡張子で決める |
+| `WithEnvironment(environment)`             | 環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`)。指定しなければ拡張子で決める |
 | `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体と、GLSL (`.vert` など)・Godot (`.gdshader`)・Slang (`.slang`)・WGSL (`.wgsl`) を切り替える |
 | `static Describe(diagnostics)`             | 落ちたときに何が出ていたかを示す                               |
 
