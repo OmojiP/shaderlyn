@@ -19,8 +19,18 @@ Unity の ShaderLab と HLSL、Unreal Engine、GLSL、Godot、Slang、WGSL の�
 
 ## インストール
 
-[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から `shaderlyn-rider-<バージョン>.zip` を取得します。
-Rider の「Settings」→「Plugins」の歯車のメニューから「Install Plugin from Disk...」を選び、その zip を指定します。インストールのあと、Rider を再起動してください。
+Rider の「Settings」→「Plugins」の「Marketplace」タブで **Shaderlyn** を検索してインストールします。インストールのあと、Rider を再起動してください。
+JetBrains Marketplace は、使用している OS と CPU に合う言語サーバーを同梱したものを配ります。
+
+Marketplace を使用できない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使用する環境の zip を取得します。
+
+| OS と CPU | ファイル |
+| --- | --- |
+| Windows (x64・arm64) | `shaderlyn-rider-<バージョン>-windows-x86_64.zip` / `-windows-arm64.zip` |
+| macOS (Apple シリコン・Intel) | `shaderlyn-rider-<バージョン>-mac-arm64.zip` / `-mac-x86_64.zip` |
+| Linux (x64・arm64) | `shaderlyn-rider-<バージョン>-linux-x86_64.zip` / `-linux-arm64.zip` |
+
+Rider の「Settings」→「Plugins」の歯車のメニューから「Install Plugin from Disk...」を選び、その zip を指定します。
 
 zip から入れたプラグインには、Rider が「Cannot update plugin. Choose where it was installed from」という警告を出すことがあります。
 入手元を特定できないため更新を確認できない、という意味で、Shaderlyn の動作には影響しません。

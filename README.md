@@ -227,7 +227,7 @@ VS Code の拡張機能ビューで **Shaderlyn** を検索してインストー
 
 ### 4. Visual Studio で使用する
 
-Visual Studio 2022 (17.14 以降) と Visual Studio 2026 に対応します。[リリースページ](https://github.com/OmojiP/shaderlyn/releases) の `Shaderlyn.VisualStudio.vsix` をダブルクリックしてインストールします。
+Visual Studio 2022 (17.14 以降) と Visual Studio 2026 に対応します。「拡張機能の管理」で **Shaderlyn** を検索してインストールします ([Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn-visualstudio))。
 指摘・クイックフィックス・ホバー・補完・定義へ移動など、VS Code 拡張と同じ機能が働きます (薄い表示とシンボルの選択は VS Code 拡張だけ)。
 HLSL Tools が入っている場合は、`.hlsl` などで HLSL Tools の機能と併用します。
 
@@ -235,7 +235,7 @@ HLSL Tools が入っている場合は、`.hlsl` などで HLSL Tools の機能�
 
 ### 5. Rider で使用する
 
-Rider 2026.3 以降に対応します。[リリースページ](https://github.com/OmojiP/shaderlyn/releases) の `shaderlyn-rider-<バージョン>.zip` を「Install Plugin from Disk...」でインストールします。
+Rider 2026.3 以降に対応します。「Settings」→「Plugins」の「Marketplace」タブで **Shaderlyn** を検索してインストールします (JetBrains Marketplace)。
 指摘とクイックフィックスを出します。ホバーや補完は Rider 自身のシェーダーの支援が働きます。
 
 導入と設定の詳細： [editors/rider/README.md](editors/rider/README.md)

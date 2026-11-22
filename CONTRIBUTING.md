@@ -142,8 +142,10 @@ dotnet test
 `v` で始まるタグを push すると、[release.yml](.github/workflows/release.yml) が次を行います。手動では実行できません。
 
 1. CLI と言語サーバーを 5 プラットフォーム向けに Native AOT でビルドし、VS Code 拡張の vsix を作る
-2. すべて組めたら、`src/` のライブラリの NuGet パッケージを nuget.org へ公開する
-3. GitHub のリリースを作り、アーカイブ・vsix・チェックサムを添付し、vsix を VS Code Marketplace へ公開する
+2. Visual Studio 拡張の vsix (言語サーバーは win-x64) と、Rider プラグインの OS と CPU の組ごとの zip (6 つ) を作る
+3. すべて組めたら、`src/` のライブラリの NuGet パッケージを nuget.org へ公開する
+4. GitHub のリリースを作り、アーカイブ・vsix・zip・チェックサムを添付し、VS Code 拡張を VS Code Marketplace へ公開する
+5. Visual Studio 拡張を Visual Studio Marketplace へ、Rider プラグインを JetBrains Marketplace へ公開する
 
 手順:
 
@@ -161,9 +163,17 @@ NuGet へは Trusted Publishing で公開します。API キーは保存しま�
 期限が切れたら nuget.org の画面から延ばせます。
 nuget.org に出したパッケージは消せない (一覧から隠せるだけ) ので、タグを打つ前に CI が通っていることを確認してください。
 
-VS Code Marketplace への公開には、リポジトリのシークレット `VSCE_PAT` が必要です。
-Azure DevOps の Personal Access Token (Organization は All accessible organizations、Scopes は Marketplace の Manage) を登録してください。
-トークンには有効期限があるので、切れたら作り直して登録し直します。Marketplace に出したバージョンも上書きできません。
+VS Code Marketplace と Visual Studio Marketplace へも Trusted Publishing で公開します (Azure DevOps の PAT は使用しません)。
+最初のリリースの前に、[Marketplace の発行者の管理画面](https://marketplace.visualstudio.com/manage/publishers) で発行者 `OmojiP` を開き、
+**Trusted Publishing** からポリシーを作成してください。Repository Owner は `OmojiP`、Repository は `shaderlyn`、Workflow は `release.yml`、Environment は空にします。
+1 つのポリシーで、VS Code 拡張 (`vsce publish --oidc`) と Visual Studio 拡張 (`VsixPublisher.exe publish -oidc`) の両方を公開できます。
+VS Code Marketplace に出したバージョンは上書きできません。Visual Studio Marketplace は、同じバージョンを出し直すと上書きします。
+
+JetBrains Marketplace へは、最初のバージョンだけ Web から手で上げる決まりです。
+[JetBrains Marketplace](https://plugins.jetbrains.com/) で Developer Agreement に同意してベンダーのプロフィールを作り、
+リリースに添付された `shaderlyn-rider-<バージョン>-<OS>-<CPU>.zip` を上げます (ライセンスは MIT、ソースのリンクはこのリポジトリ)。
+審査が通ったら、プロフィールの **My Tokens** でトークンを作り、リポジトリのシークレット `JETBRAINS_MARKETPLACE_TOKEN` に登録します。
+登録した後のリリースでは、6 つの zip を Marketplace へ送ります。シークレットが無い間は送りません。公開は Marketplace の審査の後になります。
 
 配布物には [LICENSE](LICENSE) と [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) を入れています。
 ほかのプロジェクトのデータやコードを取り込んだときは、THIRD-PARTY-NOTICES.txt に追記してください。

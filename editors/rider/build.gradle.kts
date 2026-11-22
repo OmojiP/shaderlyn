@@ -44,6 +44,35 @@ intellijPlatform {
         }
     }
     buildSearchableOptions = false
+
+    // OS と CPU の組ごとの版 (JetBrains Marketplace が利用者の環境に合うものを配る)。
+    // 言語サーバーは Native AOT なので組ごとに違う。-PnativeServerRoot=<フォルダー> に、
+    // <runtime>/server/shaderlyn-lsp(.exe) の形で publish した言語サーバーを置いて渡す (runtime は linux-x64 などの .NET の名前)。
+    // Windows の arm64 は x64 の言語サーバーを同梱する (Windows 11 の arm64 は x64 を実行できる。リリースで arm64 を作っていないため)。
+    val nativeServerRoot = providers.gradleProperty("nativeServerRoot")
+    if (nativeServerRoot.isPresent) {
+        val root = file(nativeServerRoot.get())
+        nativeVariants {
+            enabled = true
+            linux {
+                x86_64.from(root.resolve("linux-x64"))
+                arm64.from(root.resolve("linux-arm64"))
+            }
+            mac {
+                x86_64.from(root.resolve("osx-x64"))
+                arm64.from(root.resolve("osx-arm64"))
+            }
+            windows {
+                x86_64.from(root.resolve("win-x64"))
+                arm64.from(root.resolve("win-x64"))
+            }
+        }
+    }
+
+    // 公開のトークンは環境変数 PUBLISH_TOKEN から受け取る (リポジトリのファイルには書かない)。
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
 }
 
 // 試すときに開くフォルダー (-PopenPath=<フォルダー>)。LSP のやり取りを idea.log に残す。

@@ -42,8 +42,10 @@ HLSL Tools が入っていない場合は、これらのファイルでも Shade
 
 ## インストール
 
-[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から `Shaderlyn.VisualStudio.vsix` を取得し、ダブルクリックしてインストールします。
+「拡張機能」→「拡張機能の管理」で **Shaderlyn** を検索してインストールします ([Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn-visualstudio))。
 インストールのあと、Visual Studio を再起動してください。
+
+Marketplace を使用できない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から `shaderlyn-visualstudio.vsix` を取得し、ダブルクリックしてインストールします。
 
 ## 動作条件
 

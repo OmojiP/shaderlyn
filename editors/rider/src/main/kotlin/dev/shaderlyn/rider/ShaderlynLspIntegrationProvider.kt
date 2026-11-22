@@ -96,6 +96,12 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
         val executable = if (SystemInfo.isWindows) "shaderlyn-lsp.exe" else "shaderlyn-lsp"
         val path = plugin.pluginPath.resolve("server").resolve(executable)
         check(Files.isRegularFile(path)) { "言語サーバーが見つかりません: $path" }
+
+        // プラグインの zip を展開するときに、実行の権限が落ちることがある (Linux・macOS)。
+        if (!SystemInfo.isWindows && !Files.isExecutable(path)) {
+            path.toFile().setExecutable(true)
+        }
+
         return path
     }
 }

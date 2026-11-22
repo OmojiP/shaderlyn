@@ -2,9 +2,21 @@
   <id>dev.shaderlyn.rider</id>
   <name>Shaderlyn</name>
   <vendor url="https://github.com/OmojiP/shaderlyn">OmojiP</vendor>
+  <!-- JetBrains Marketplace の審査の条件: 説明は英語を最初に書く (日本語は後ろに併記する)。 -->
   <description><![CDATA[
-    Unity・Unreal Engine・Godot・Slang・WGSL などのシェーダーの誤りを、エディタで指摘します。
-    Rider 自身のシェーダーの支援 (補完・ホバーなど) はそのまま使い、Shaderlyn の指摘とコードアクションを加えます。
+    <p>Finds errors in shaders as you edit: Unity ShaderLab and HLSL, Unreal Engine, GLSL, Godot, Slang and WGSL.
+    The analysis runs in the same language server as the Shaderlyn extensions for VS Code and Visual Studio, and reports the same diagnostics.</p>
+    <ul>
+      <li>Diagnostics in the editor and the Problems tool window</li>
+      <li>Quick fixes for diagnostics with a single correct fix, and suppression comments</li>
+    </ul>
+    <p>Rider's own shader support (completion, hover, navigation) stays as it is; Shaderlyn adds diagnostics and code actions.
+    Rule severities are configured in <code>.shaderlyn.yaml</code>.
+    The language server is bundled with the plugin and runs locally. The plugin does not collect telemetry.</p>
+    <p>Documentation (in Japanese): <a href="https://github.com/OmojiP/shaderlyn">github.com/OmojiP/shaderlyn</a></p>
+    <hr/>
+    <p>Unity・Unreal Engine・Godot・Slang・WGSL などのシェーダーの誤りを、エディタで指摘します。
+    Rider 自身のシェーダーの支援 (補完・ホバーなど) はそのまま使い、Shaderlyn の指摘とコードアクションを加えます。</p>
   ]]></description>
 
   <depends>com.intellij.modules.platform</depends>

@@ -62,6 +62,10 @@
       <Link>THIRD-PARTY-NOTICES.txt</Link>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <!-- 拡張機能の管理と Marketplace に出すアイコン (90x90。VS Code 拡張の images/icon.png を縮小したもの)。 -->
+    <Content Include="Resources\icon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
   </ItemGroup>
 
   <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">

@@ -16,9 +16,11 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 - Visual Studio 拡張 (Visual Studio 2022 17.14 以降と Visual Studio 2026)。VS Code 拡張と同じ言語サーバーで、指摘・クイックフィックス・ホバー・補完・
   定義へ移動・参照・名前の変更が働く。HLSL Tools が受け持つファイル (`.hlsl` など) では、指摘とクイックフィックスだけを出して HLSL Tools の機能と併用する。
-  言語サーバーの実行ファイルは「ツール」→「オプション」→「Shaderlyn」で指定できる ([editors/visualstudio/README.md](editors/visualstudio/README.md))
+  言語サーバーの実行ファイルは「ツール」→「オプション」→「Shaderlyn」で指定できる。Visual Studio Marketplace で公開する
+  ([editors/visualstudio/README.md](editors/visualstudio/README.md))
 - Rider プラグイン (Rider 2026.3 以降)。指摘とクイックフィックスを出す。ホバーや補完は Rider 自身のシェーダーの支援が働く。
-  言語サーバーの実行ファイルは「Settings」→「Tools」→「Shaderlyn」で指定できる ([editors/rider/README.md](editors/rider/README.md))
+  言語サーバーの実行ファイルは「Settings」→「Tools」→「Shaderlyn」で指定できる。JetBrains Marketplace で公開する (審査の後)。
+  リリースページには、OS と CPU の組ごとの zip を置く ([editors/rider/README.md](editors/rider/README.md))
 - エディタのクイックフィックス (コードアクション) に、修正の方法が 1 つに決まる修正を追加した。
   SG0102 (関数の外の `const` に `static` を付ける)、SG0347 (`override` を付ける)、GD0101 (整数の varying に `flat` を付ける)、
   WG0001 (`enable f16;` などを追加する)、UN0002 (重なった BOM を消す)、
