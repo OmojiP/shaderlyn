@@ -248,6 +248,21 @@ jobs:
             exit 1
           }
 
+      # リリースの本文の先頭に置く概要 (英語、---、日本語)。NuGet への公開は取り消せないので、
+      # その前のこのジョブで、書き忘れていないかを確かめる。
+      - name: リリースの概要があるかを確かめる
+        shell: pwsh
+        run: |
+          $path = "docs/releases/${env:GITHUB_REF_NAME}.md"
+          if (-not (Test-Path $path)) {
+            Write-Output "::error::リリースの概要 $path がありません。英語、---、日本語の順に書いてください (CONTRIBUTING の「リリースする」)。"
+            exit 1
+          }
+          if (-not (Select-String -Path $path -Pattern '^---\s*$' -Quiet)) {
+            Write-Output "::error::$path に英語と日本語を分ける --- の行がありません。"
+            exit 1
+          }
+
       - uses: microsoft/setup-msbuild@v3
 
       - name: VSIX を作る
@@ -477,9 +492,16 @@ jobs:
             --packagePath artifacts/shaderlyn-vscode-*.vsix \
             --oidc
 
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: docs/releases
+          path: source
+
+      # 本文は、リリースの概要の下に、GitHub が作る PR の一覧が付く。
       - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
+          body_path: source/docs/releases/${{ github.ref_name }}.md
           generate_release_notes: true
           fail_on_unmatched_files: true
 
