@@ -316,6 +316,11 @@ jobs:
         with:
           gradle-version: "9.9.0"
 
+      # JetBrains Marketplace の審査の条件。内部 API の使用などがあれば止める。
+      - name: Plugin Verifier で互換性を確認する
+        working-directory: editors/rider
+        run: gradle verifyPlugin -PpluginVersion="${GITHUB_REF_NAME#v}"
+
       - name: 組ごとの zip を作る
         working-directory: editors/rider
         run: >
@@ -536,7 +541,7 @@ jobs:
             echo "送る: ${zip}"
             curl --fail-with-body --silent --show-error \
               --header "Authorization: Bearer ${JETBRAINS_MARKETPLACE_TOKEN}" \
-              --form xmlId=dev.shaderlyn.rider \
+              --form xmlId=dev.shaderlyn \
               --form "file=@${zip}" \
               https://plugins.jetbrains.com/api/updates/upload
             echo

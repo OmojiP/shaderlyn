@@ -168,6 +168,7 @@ jobs:
           gradle-version: "9.9.0"
 
       # 手元の Rider を渡さないので、gradle.properties の riderVersion の Rider を取得してビルドする。
-      - name: テストとプラグインの zip を作る
+      # verifyPlugin は Plugin Verifier による互換性の確認 (JetBrains Marketplace の審査の条件)。
+      - name: テストとプラグインの zip を作り、互換性を確認する
         working-directory: editors/rider
-        run: gradle test buildPlugin
+        run: gradle test buildPlugin verifyPlugin

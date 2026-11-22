@@ -45,6 +45,9 @@ dotnet test
   gradle runIde -PriderLocalPath=<Rider のフォルダー> -PserverDirectory=<言語サーバーのフォルダー> -PopenPath=<開くフォルダー>
   ```
 
+  `gradle verifyPlugin` で、Plugin Verifier による互換性の確認を行います (JetBrains Marketplace の審査の条件)。
+  内部 API の使用や、プラグインの ID の問題 (製品名を含むなど) があると失敗します
+
 - Visual Studio 拡張と Rider プラグインの画面の動作は、自動テストで確認していません。言語サーバーやエディタの拡張を変えたときは、次を手で確認します
   - `.shader` を開くと指摘が出て、編集・保存で更新される。クイックフィックスが働く。Visual Studio ではホバーと補完も働く
   - Visual Studio 2026 で HLSL Tools が入っている場合、`.hlsl` で HLSL Tools の指摘と Shaderlyn の指摘が並ぶ

@@ -2,3 +2,6 @@
 .intellijPlatform/
 .kotlin/
 build/
+# JVM がメモリー不足などで落ちたときのログ
+hs_err_pid*.log
+replay_pid*.log

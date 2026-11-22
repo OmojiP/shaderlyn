@@ -1,5 +1,5 @@
 <idea-plugin>
-  <id>dev.shaderlyn.rider</id>
+  <id>dev.shaderlyn</id>
   <name>Shaderlyn</name>
   <vendor url="https://github.com/OmojiP/shaderlyn">OmojiP</vendor>
   <!-- JetBrains Marketplace の審査の条件: 説明は英語を最初に書く (日本語は後ろに併記する)。 -->

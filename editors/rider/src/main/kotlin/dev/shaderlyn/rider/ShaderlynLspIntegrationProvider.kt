@@ -2,10 +2,9 @@ package dev.shaderlyn.rider
 
 import com.google.gson.JsonObject
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
@@ -91,7 +90,8 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
                 .notify(project)
         }
 
-        val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))
+        // PluginManagerCore.getPlugin などは内部 API (Plugin Verifier が報告する) なので、このクラスを読み込んだクラスローダーから求める。
+        val plugin = (javaClass.classLoader as? PluginAwareClassLoader)?.pluginDescriptor
             ?: error("プラグイン $PLUGIN_ID が見つかりません。")
         val executable = if (SystemInfo.isWindows) "shaderlyn-lsp.exe" else "shaderlyn-lsp"
         val path = plugin.pluginPath.resolve("server").resolve(executable)
@@ -108,7 +108,7 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
     }
 }
 
-internal const val PLUGIN_ID = "dev.shaderlyn.rider"
+internal const val PLUGIN_ID = "dev.shaderlyn"
 
 /** 通知のグループ (plugin.xml の notificationGroup)。 */
 internal const val NOTIFICATION_GROUP = "Shaderlyn"

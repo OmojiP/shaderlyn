@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 
@@ -32,6 +33,7 @@ dependencies {
 
         bundledModule("intellij.platform.lsp")
         testFramework(TestFrameworkType.Platform)
+        pluginVerifier()
     }
 
     testImplementation("junit:junit:4.13.2")
@@ -44,6 +46,19 @@ intellijPlatform {
         }
     }
     buildSearchableOptions = false
+
+    // JetBrains Marketplace の審査の条件 (Plugin Verifier で互換性を確認する)。gradle verifyPlugin で実行する。
+    // 手元の Rider (-PriderLocalPath) があればそれで、無ければ riderVersion の Rider で確かめる。
+    pluginVerification {
+        ides {
+            val local = providers.gradleProperty("riderLocalPath")
+            if (local.isPresent) {
+                local(file(local.get()))
+            } else {
+                create(IntelliJPlatformType.Rider, providers.gradleProperty("riderVersion").get()) { useInstaller = false }
+            }
+        }
+    }
 
     // OS と CPU の組ごとの zip を作る (JetBrains Marketplace が利用者の環境に合うものを配る)。
     // 言語サーバーは Native AOT なので組ごとに違う。-PnativeServerRoot=<フォルダー> に、
