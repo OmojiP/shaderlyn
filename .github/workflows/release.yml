@@ -486,7 +486,7 @@ jobs:
   # ------------------------------------------------------------------
   # Visual Studio Marketplace へ Visual Studio 拡張を公開する。
   #
-  # VsixPublisher.exe は Windows でしか動かない。Trusted Publishing (-oidc) に対応したものは
+  # VsixPublisher.exe は Windows でしか動かない。Trusted Publishing のトークンを受け付けるものは
   # Microsoft.VSSDK.BuildTools 18.11 以降に入っているので、ビルドに使うバージョン (17.14) とは別に取得する。
   # 同じバージョンを出し直すと上書きになる。
   # ------------------------------------------------------------------
@@ -518,15 +518,31 @@ jobs:
           Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.vssdk.buildtools/$version/microsoft.vssdk.buildtools.$version.nupkg" -OutFile $package
           Expand-Archive $package -DestinationPath (Join-Path $env:RUNNER_TEMP "vssdk")
 
+      # VsixPublisher 18.12.1606 の -oidc は、トークンを換える要求に api-version を付けないので
+      # Marketplace に断られる (VsixPub0047、microsoft/vsmarketplace#2310)。
+      # 直ったバージョンが出るまでは、vsce と同じ要求で自分で換えて、-personalAccessToken で渡す。
+      # 換えた資格情報は 15 分で切れる。
       - name: 公開する
         shell: pwsh
         working-directory: editors/visualstudio/marketplace
         run: |
+          $manifest = Get-Content publishManifest.json -Raw | ConvertFrom-Json
+          $oidc = Invoke-RestMethod -Method Get `
+            -Uri "$env:ACTIONS_ID_TOKEN_REQUEST_URL&audience=marketplace.visualstudio.com" `
+            -Headers @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"; Accept = 'application/json' }
+          Write-Output "::add-mask::$($oidc.value)"
+          $exchange = Invoke-RestMethod -Method Post `
+            -Uri 'https://marketplace.visualstudio.com/_apis/gallery/token?api-version=7.2-preview.1' `
+            -Headers @{ Authorization = "FederatedToken $($oidc.value)"; Accept = 'application/json'; 'X-Market-CI-Provider' = 'github-actions' } `
+            -ContentType 'application/json' `
+            -Body (@{ publisherName = $manifest.publisher } | ConvertTo-Json)
+          Write-Output "::add-mask::$($exchange.credential)"
+
           $publisher = Join-Path $env:RUNNER_TEMP "vssdk\tools\vssdk\bin\VsixPublisher.exe"
           & $publisher publish `
             -payload "${{ github.workspace }}\artifacts\shaderlyn-visualstudio.vsix" `
             -publishManifest publishManifest.json `
-            -oidc
+            -personalAccessToken $exchange.credential
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   # ------------------------------------------------------------------
