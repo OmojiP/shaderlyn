@@ -45,7 +45,7 @@ intellijPlatform {
     }
     buildSearchableOptions = false
 
-    // OS と CPU の組ごとの版 (JetBrains Marketplace が利用者の環境に合うものを配る)。
+    // OS と CPU の組ごとの zip を作る (JetBrains Marketplace が利用者の環境に合うものを配る)。
     // 言語サーバーは Native AOT なので組ごとに違う。-PnativeServerRoot=<フォルダー> に、
     // <runtime>/server/shaderlyn-lsp(.exe) の形で publish した言語サーバーを置いて渡す (runtime は linux-x64 などの .NET の名前)。
     // Windows の arm64 は x64 の言語サーバーを同梱する (Windows 11 の arm64 は x64 を実行できる。リリースで arm64 を作っていないため)。
@@ -67,11 +67,6 @@ intellijPlatform {
                 arm64.from(root.resolve("win-x64"))
             }
         }
-    }
-
-    // 公開のトークンは環境変数 PUBLISH_TOKEN から受け取る (リポジトリのファイルには書かない)。
-    publishing {
-        token = providers.environmentVariable("PUBLISH_TOKEN")
     }
 }
 

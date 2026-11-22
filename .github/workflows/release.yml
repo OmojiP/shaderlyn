@@ -323,6 +323,29 @@ jobs:
           -PpluginVersion="${GITHUB_REF_NAME#v}"
           -PnativeServerRoot="${GITHUB_WORKSPACE}/servers"
 
+      # 言語サーバーのフォルダーが欠けても Gradle は zip を作るので、6 つすべてに入っているかを調べる。
+      - name: zip に言語サーバーが入っているかを調べる
+        working-directory: editors/rider/build/distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          for zip in shaderlyn-rider-*-*.zip; do
+            case "${zip}" in
+              *-windows-*) server=shaderlyn-lsp.exe ;;
+              *) server=shaderlyn-lsp ;;
+            esac
+            if ! unzip -Z1 "${zip}" | grep -q "/server/${server}\$"; then
+              echo "::error::${zip} に server/${server} が入っていません。"
+              exit 1
+            fi
+            count=$((count + 1))
+          done
+          if [ "${count}" -ne 6 ]; then
+            echo "::error::zip が 6 つではありません (${count} 個)。"
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v7
         with:
           name: shaderlyn-rider
@@ -342,7 +365,7 @@ jobs:
   # ------------------------------------------------------------------
   nuget:
     name: NuGet パッケージを公開する
-    needs: build
+    needs: [build, visualstudio, rider]
     runs-on: ubuntu-latest
 
     permissions:

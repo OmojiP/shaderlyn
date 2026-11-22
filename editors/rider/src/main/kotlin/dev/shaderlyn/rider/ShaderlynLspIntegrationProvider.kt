@@ -99,7 +99,9 @@ private class ShaderlynLspClientDescriptor(project: Project) : ProjectWideLspCli
 
         // プラグインの zip を展開するときに、実行の権限が落ちることがある (Linux・macOS)。
         if (!SystemInfo.isWindows && !Files.isExecutable(path)) {
-            path.toFile().setExecutable(true)
+            check(path.toFile().setExecutable(true)) {
+                "言語サーバーに実行の権限を付けられません。プラグインのフォルダーに書き込めるかを確認してください: $path"
+            }
         }
 
         return path
