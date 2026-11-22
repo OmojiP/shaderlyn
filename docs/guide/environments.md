@@ -79,7 +79,7 @@ Unity の環境でも、`--unity-generate` で解析に必要なヘッダを生�
 ([CI に組み込む「GitHub-hosted runner で実行する」](ci-setup.md#1-github-hosted-runner-で実行する))。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.3.4
+- uses: OmojiP/shaderlyn/action@v0.3.5
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment

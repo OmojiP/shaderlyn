@@ -10,6 +10,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.5] - 2026-11-22
+
 ### 追加
 
 - Visual Studio 拡張 (Visual Studio 2022 17.14 以降と Visual Studio 2026)。VS Code 拡張と同じ言語サーバーで、指摘・クイックフィックス・ホバー・補完・
@@ -1156,7 +1158,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確認
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...v0.3.2

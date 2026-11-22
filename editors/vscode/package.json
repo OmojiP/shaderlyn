@@ -2,7 +2,7 @@
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
   "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL・Godot のシェーダー (.gdshader)・Slang・WGSL は、それぞれのコンパイラ (glslang・Godot 4・slangc・naga) と同じ誤りを報告する",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",
