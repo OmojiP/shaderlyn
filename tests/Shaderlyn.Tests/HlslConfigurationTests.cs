@@ -89,8 +89,8 @@ public sealed class HlslConfigurationTests : IDisposable
     [InlineData("unreal:\n  engines: x\n", "'engines'")]
     [InlineData("unreal:\n  permutations: maybe\n", "unreal: の permutations には true か false")]
     [InlineData("hlsl:\n  enable-16bit-types: yes-please\n", "true か false")]
-    [InlineData("hlsl:\n  compiler: fxc\n  enable-16bit-types: true\n", "compiler が fxc では使えません")]
-    [InlineData("hlsl:\n  version: 2017\n  enable-16bit-types: true\n", "HLSL 2018 から使えます")]
+    [InlineData("hlsl:\n  compiler: fxc\n  enable-16bit-types: true\n", "compiler が fxc では使用できません")]
+    [InlineData("hlsl:\n  version: 2017\n  enable-16bit-types: true\n", "HLSL 2018 から使用できます")]
     [InlineData("hlsl:\n  enable-16bit-types: true\nunits:\n  - files: a.hlsl\n    target: ps_6_0\n", "シェーダーモデル 6.2 から")]
     [InlineData("environment: [unreal]\n", "environment には値を 1 つだけ")]
     [InlineData("unity:\n  profile: [urp]\n", "unity: の profile には値を 1 つだけ")]
@@ -667,7 +667,7 @@ public sealed class HlslConfigurationTests : IDisposable
         (ExitCode code, _, string error) = await RunAsync(_workDirectory, "--environment", "hlsl", option, value);
 
         Assert.Equal(ExitCode.ToolError, code);
-        Assert.Contains($"{option} は Unity の環境でだけ使えます", error, StringComparison.Ordinal);
+        Assert.Contains($"{option} は Unity の環境でだけ使用できます", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -678,7 +678,7 @@ public sealed class HlslConfigurationTests : IDisposable
         Assert.True(CommandLineOptions.TryParse([_workDirectory], out CommandLineOptions? options, out _));
         EffectiveSettings settings = EffectiveSettings.Create(options);
 
-        Assert.Contains(settings.ConfigurationDiagnostics, d => d.GetMessage().Contains("Unity の環境では使いません", StringComparison.Ordinal));
+        Assert.Contains(settings.ConfigurationDiagnostics, d => d.GetMessage().Contains("Unity の環境では使用しません", StringComparison.Ordinal));
     }
 
     [Fact]

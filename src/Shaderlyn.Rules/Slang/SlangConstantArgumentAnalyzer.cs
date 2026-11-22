@@ -118,7 +118,7 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ArgumentMustBeConstant, location,
-                    $"{access.Name} の {found.Role} の実引数は、コンパイル時の定数でなければなりません ({nonConstant.What}を使っています)。"));
+                    $"{access.Name} の {found.Role} の実引数は、コンパイル時の定数でなければなりません ({nonConstant.What}を使用しています)。"));
             }
         }
     }

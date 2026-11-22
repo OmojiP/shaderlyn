@@ -13,16 +13,16 @@ internal static class CookbookRules
 {
     public static DiagnosticDescriptor BannedMacro { get; } = new(
         id: "COOK0001",
-        title: "使ってはいけないマクロ",
-        messageFormat: "マクロ '{0}' は使わないでください。",
+        title: "使用してはいけないマクロ",
+        messageFormat: "マクロ '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedFunction { get; } = new(
         id: "COOK0002",
-        title: "使ってはいけない関数",
-        messageFormat: "関数 '{0}' は使わないでください。",
+        title: "使用してはいけない関数",
+        messageFormat: "関数 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -30,7 +30,7 @@ internal static class CookbookRules
     public static DiagnosticDescriptor NoBranch { get; } = new(
         id: "COOK0003",
         title: "if を書かない",
-        messageFormat: "if は使わないでください。",
+        messageFormat: "if は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -45,8 +45,8 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedUnderSymbol { get; } = new(
         id: "COOK0005",
-        title: "この構成では使えない関数",
-        messageFormat: "{0}関数 '{1}' は使えません。",
+        title: "この構成では使用できない関数",
+        messageFormat: "{0}関数 '{1}' は使用できません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -77,7 +77,7 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor RequiredTag { get; } = new(
         id: "COOK0009",
-        title: "必須のタグが無い",
+        title: "必須のタグが存在しない",
         messageFormat: "SubShader に '{0}' タグがありません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -109,8 +109,8 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedOverload { get; } = new(
         id: "COOK0029",
-        title: "使ってはいけないオーバーロード",
-        messageFormat: "'{0}' を ({1}) の形で呼んでいます。この形は使わないでください。",
+        title: "使用してはいけないオーバーロード",
+        messageFormat: "'{0}' を ({1}) の形で呼んでいます。この形は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
@@ -133,31 +133,31 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor BannedType { get; } = new(
         id: "COOK0016",
-        title: "使ってはいけない型",
-        messageFormat: "型 '{0}' は使わないでください。",
+        title: "使用してはいけない型",
+        messageFormat: "型 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedOperator { get; } = new(
         id: "COOK0017",
-        title: "使ってはいけない演算子",
-        messageFormat: "演算子 '{0}' は使わないでください。",
+        title: "使用してはいけない演算子",
+        messageFormat: "演算子 '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor BannedSemantic { get; } = new(
         id: "COOK0018",
-        title: "使ってはいけないセマンティクス",
-        messageFormat: "セマンティクス '{0}' は使わないでください。",
+        title: "使用してはいけないセマンティクス",
+        messageFormat: "セマンティクス '{0}' は使用しないでください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");
 
     public static DiagnosticDescriptor MissingPragma { get; } = new(
         id: "COOK0019",
-        title: "必須の #pragma が無い",
+        title: "必須の #pragma が存在しない",
         messageFormat: "このコードブロックに '#pragma {0}' がありません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -189,7 +189,7 @@ internal static class CookbookRules
 
     public static DiagnosticDescriptor MissingInclude { get; } = new(
         id: "COOK0023",
-        title: "必須のヘッダが無い",
+        title: "必須のヘッダが存在しない",
         messageFormat: "このコードブロックは '{0}' を取り込んでいません。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
@@ -244,6 +244,51 @@ internal static class CookbookRules
         id: "COOK0030",
         title: "仮引数が多すぎる",
         messageFormat: "関数 '{0}' の仮引数は {1} 個です。{2} 個までにしてください。",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>GLSL の古い組み込み関数 (<c>texture2D</c> など) を使用している。</summary>
+    public static DiagnosticDescriptor DeprecatedGlslFunction { get; } = new(
+        id: "COOK0040",
+        title: "GLSL の古い組み込み関数",
+        messageFormat: "'{0}' は古い組み込み関数です。'{1}' を使用してください。",
+        category: "Portability",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>Slang のインターフェイスの名前が I で始まらない。</summary>
+    public static DiagnosticDescriptor SlangInterfaceNaming { get; } = new(
+        id: "COOK0041",
+        title: "インターフェイスの名前",
+        messageFormat: "インターフェイス '{0}' の名前は 'I' で始めてください。",
+        category: "Naming",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>Godot の色のテクスチャに source_color のヒントがない。</summary>
+    public static DiagnosticDescriptor GodotSourceColor { get; } = new(
+        id: "COOK0042",
+        title: "色のテクスチャの source_color",
+        messageFormat: "色のテクスチャ '{0}' に 'source_color' のヒントがありません。付けないと sRGB から線形に変換されません。",
+        category: "Correctness",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>WGSL の関数の名前が snake_case でない。</summary>
+    public static DiagnosticDescriptor WgslFunctionNaming { get; } = new(
+        id: "COOK0043",
+        title: "関数の名前",
+        messageFormat: "関数 '{0}' の名前は小文字と '_' で書いてください ('{1}')。",
+        category: "Naming",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        description: "テスト用。");
+
+    /// <summary>Unreal Engine で Texture2D の Sample を直接呼んでいる。</summary>
+    public static DiagnosticDescriptor UnrealTextureSample { get; } = new(
+        id: "COOK0044",
+        title: "Texture2D の Sample の直接の呼び出し",
+        messageFormat: "Texture2D の Sample を直接呼ばず、'{0}' を使用してください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "テスト用。");

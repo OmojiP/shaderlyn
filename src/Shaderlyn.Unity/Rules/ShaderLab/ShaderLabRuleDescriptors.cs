@@ -31,7 +31,7 @@ internal static class ShaderLabRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "既知のタグ名によく似た、しかし一致しないタグ名が指定されています。"
             + "Unity はタグ名のスペルミスをエラーにしないため、"
-            + "「設定したつもりが効いていない」という形でしか現れません。"
+            + "「設定したつもりが反映されていない」という形でしか現れません。"
             + "独自に定義したタグであれば、この指摘は無視して構いません。",
         helpLinkUri: DocumentationLinks.For("SL1010"));
 
@@ -44,7 +44,7 @@ internal static class ShaderLabRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "同じ SubShader 内に同名の Pass があります。"
             + "Unity は Pass 名を大文字に正規化して扱うため、大文字小文字だけが異なる名前も重複とみなされます。"
-            + "UsePass で参照した場合にどちらが使われるかは保証されません。",
+            + "UsePass で参照した場合にどちらが使用されるかは保証されません。",
         helpLinkUri: DocumentationLinks.For("SL1041"));
 
     /// <summary>
@@ -65,8 +65,8 @@ internal static class ShaderLabRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "既知の値によく似た、しかし一致しない値がタグに指定されています。"
             + "Unity はタグ値のスペルミスをエラーにしないため、"
-            + "「設定したつもりが効いていない」という形でしか現れません。"
-            + "意図してその値を使っている場合、この指摘は無視して構いません。",
+            + "「設定したつもりが反映されていない」という形でしか現れません。"
+            + "意図してその値を使用している場合、この指摘は無視して構いません。",
         helpLinkUri: DocumentationLinks.For("SL1012"));
 
     /// <summary>タグの値が不正。</summary>
@@ -147,11 +147,11 @@ internal static class ShaderLabRuleDescriptors
     public static DiagnosticDescriptor DuplicatedByteOrderMark { get; } = new(
         id: "UN0002",
         title: "ファイルの先頭に BOM が重なっています",
-        messageFormat: "ファイルの先頭に BOM (U+FEFF) が {0} 個あります。Unity は読めますが、見えない文字が先頭に残っています。重なった BOM を消してください。",
+        messageFormat: "ファイルの先頭に BOM (U+FEFF) が {0} 個あります。Unity は読み込めますが、表示されない文字が先頭に残っています。重なった BOM を消してください。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "UTF-8 の BOM が 2 つ以上重なっています。別のエディタやツールで BOM を付けて保存し直すと、こうなることがあります。"
-            + "Unity は読めます (Unity 6.6 で確かめました) が、ほかのツールではファイルの先頭に見えない文字があるものとして扱われ、"
+            + "Unity は読み込めます (Unity 6.6 で確認しました) が、ほかのツールではファイルの先頭に表示されない文字があるものとして扱われ、"
             + "構文エラーになることがあります。BOM を 1 つにするか、BOM なしの UTF-8 で保存し直してください。",
         helpLinkUri: DocumentationLinks.For("UN0002"));
 

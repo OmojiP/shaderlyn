@@ -80,7 +80,7 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
                     && (declared is not { } at || use.Identifier.Span.Start < at))
                 {
                     requirement.Report(GlslRuleDescriptors.LayoutRequired, use.Identifier,
-                        "gl_WorkGroupSize を読む前に、ワークグループの大きさ (layout(local_size_x = …) in;) を宣言してください。");
+                        "gl_WorkGroupSize を読み取る前に、ワークグループの大きさ (layout(local_size_x = …) in;) を宣言してください。");
                 }
             }
         }
@@ -260,17 +260,17 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
         switch (requirement.Stage)
         {
             case GlslShaderStage.TessellationControl when !Declares("out", "vertices"):
-                Require("テッセレーションの制御シェーダーには、出力のパッチの頂点の数 (layout(vertices = …) out;) が要ります。");
+                Require("テッセレーションの制御シェーダーには、出力のパッチの頂点の数 (layout(vertices = …) out;) が必要です。");
                 break;
 
             case GlslShaderStage.TessellationEvaluation when !Declares("in", "triangles", "quads", "isolines"):
-                Require("テッセレーションの評価シェーダーには、入力のプリミティブ (layout(triangles) in; など) が要ります。");
+                Require("テッセレーションの評価シェーダーには、入力のプリミティブ (layout(triangles) in; など) が必要です。");
                 break;
 
             case GlslShaderStage.Geometry:
                 if (!Declares("in", "points", "lines", "lines_adjacency", "triangles", "triangles_adjacency"))
                 {
-                    Require("ジオメトリシェーダーには、入力のプリミティブ (layout(triangles) in; など) が要ります。");
+                    Require("ジオメトリシェーダーには、入力のプリミティブ (layout(triangles) in; など) が必要です。");
                 }
 
                 // passthrough の入力 (GL_NV_geometry_shader_passthrough) があれば、出力のプリミティブと max_vertices は決まる。
@@ -284,12 +284,12 @@ internal sealed class GlslWorkGroupSizeAnalyzer : SemanticRuleAnalyzer
 
                 if (!Declares("out", "points", "line_strip", "triangle_strip"))
                 {
-                    Require("ジオメトリシェーダーには、出力のプリミティブ (layout(triangle_strip) out; など) が要ります。");
+                    Require("ジオメトリシェーダーには、出力のプリミティブ (layout(triangle_strip) out; など) が必要です。");
                 }
 
                 if (!Declares("out", "max_vertices"))
                 {
-                    Require("ジオメトリシェーダーには、layout(max_vertices = …) out; が要ります。");
+                    Require("ジオメトリシェーダーには、layout(max_vertices = …) out; が必要です。");
                 }
 
                 break;

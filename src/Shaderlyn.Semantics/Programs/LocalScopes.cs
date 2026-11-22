@@ -426,10 +426,7 @@ internal sealed class LocalScopes
             }
 
             // 波括弧を挟まずに入れ子になった for の変数は、この文の後では判断しない。
-            IEnumerable<ForStatementSyntax> nestedLoops = statements[i]
-                .DescendantNodesAndSelf()
-                .OfType<ForStatementSyntax>()
-                .Where(loop => !ReferenceEquals(loop, statements[i]));
+            IEnumerable<ForStatementSyntax> nestedLoops = UnbracedNestedLoops(statements[i]);
 
             foreach (ForStatementSyntax nested in _loopVariablesLeak ? nestedLoops : [])
             {
@@ -441,6 +438,44 @@ internal sealed class LocalScopes
                 {
                     AddLoopNames(scope, i, nestedInitializer);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 文の中で、波括弧のブロックと switch を挟まずに入れ子になった for を返す (文そのものは除く)。
+    /// </summary>
+    /// <param name="statement">文。</param>
+    /// <returns>入れ子の for。順番は決まっていない。</returns>
+    /// <remarks>
+    /// ブロックと switch の中には入らない。その中の for は、その範囲の文として別に調べる。
+    /// 子孫をすべて列挙してから除くと、深く入れ子になった文で、同じ子孫を外側の文の数だけ繰り返したどっていた。
+    /// </remarks>
+    private static IEnumerable<ForStatementSyntax> UnbracedNestedLoops(StatementSyntax statement)
+    {
+        if (statement is BlockStatementSyntax or SwitchStatementSyntax)
+        {
+            yield break;
+        }
+
+        Stack<SyntaxNode> pending = new();
+        pending.Push(statement);
+
+        while (pending.TryPop(out SyntaxNode? node))
+        {
+            if (node is BlockStatementSyntax or SwitchStatementSyntax)
+            {
+                continue;
+            }
+
+            if (node is ForStatementSyntax loop && !ReferenceEquals(loop, statement))
+            {
+                yield return loop;
+            }
+
+            foreach (SyntaxNode child in node.ChildNodes())
+            {
+                pending.Push(child);
             }
         }
     }

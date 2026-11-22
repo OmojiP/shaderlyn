@@ -186,7 +186,7 @@ internal static partial class EnvironmentReport
 
         if (options.NoConfig)
         {
-            Line(builder, "  --no-config のため読んでいません。");
+            Line(builder, "  --no-config のため読み込んでいません。");
         }
         else if (options.ConfigPath is { } explicitPath)
         {
@@ -327,9 +327,9 @@ internal static partial class EnvironmentReport
             ? $"  Shader Compiler Backend: FXC ({compiler.DxcBackendSource})"
             : $"  Shader Compiler Backend: DXC ({string.Join(", ", compiler.DxcBackendApis.Select(UnityGraphicsApis.GetName))}、{compiler.DxcBackendSource})");
         Line(builder, compiler.DxcBackendApis.IsEmpty
-            ? "  既定は FXC です。#pragma use_dxc、DXC が要る #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
-            : "  Backend を DXC にした API は、#pragma never_use_dxc の無いパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
-        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使えません。");
+            ? "  既定は FXC です。#pragma use_dxc、DXC が必要な #pragma require、UNITY_DEVICE_SUPPORTS_NATIVE_16BIT などの構成で"
+            : "  Backend を DXC にした API は、#pragma never_use_dxc が存在しないパスを DXC でコンパイルします。ほかの API は FXC で、#pragma use_dxc などの構成で");
+        Line(builder, "  DXC (HLSL 2018) になります。DXC になるパスは DX11 では使用できません。");
     }
 
     /// <summary>Unreal の仮想パスの割り当てと、生成される取り込みを書き出す。</summary>
@@ -355,13 +355,13 @@ internal static partial class EnvironmentReport
 
         Line(builder, $"  生成される取り込み (解決せず、CF0021 にしない): {string.Join(", ", Unreal.UnrealOptions.GeneratedIncludePrefixes)}");
         Line(builder, $"  定義するマクロ: {string.Join(", ", Unreal.UnrealOptions.DefaultPredefinedMacros.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}"
-                      + " (HLSL 2021 で読むシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
+                      + " (HLSL 2021 で解析するシェーダーには COMPILER_SUPPORTS_HLSL2021=1 も)");
 
         if (unreal.FollowEngineLanguageVersion && unreal.Compiler == Hlsl.Parsing.HlslCompiler.Dxc)
         {
             string decided = unreal.EngineHlsl2021Default switch
             {
-                null => $"エンジンの設定を読めないので {(int)unreal.LanguageVersion} (既定)",
+                null => $"エンジンの設定を読み込めないため {(int)unreal.LanguageVersion} (既定)",
                 1 => "グローバルシェーダーは 2021、マテリアルのシェーダー (Material.ush を取り込むもの) は 2018",
                 2 => "どのシェーダーも 2021",
                 _ => "どのシェーダーも 2018",
@@ -464,7 +464,7 @@ internal static partial class EnvironmentReport
         if (generated)
         {
             Line(builder, $"  データフォルダー: {editorData}");
-            Line(builder, "  決め方: プロジェクトと同じバージョンの Editor が見つからないため、unity: generated の中の Editor のヘッダを使う");
+            Line(builder, "  決め方: プロジェクトと同じバージョンの Editor が見つからないため、unity: generated の中の Editor のヘッダを使用する");
             Line(builder, $"  探したインストール先: {(editor.HubRoots.IsEmpty ? "(なし)" : string.Join(", ", editor.HubRoots))}");
             Line(builder, $"  インストール済み: {(editor.InstalledVersions.IsEmpty ? "(なし)" : string.Join(", ", editor.InstalledVersions))}");
             return;
@@ -476,7 +476,7 @@ internal static partial class EnvironmentReport
             EditorDataSource.ProjectVersion => $"プロジェクトの ProjectVersion.txt と同じバージョン ({editor.ProjectVersion})",
             EditorDataSource.NewestInstalledInsteadOfProject => editor.ProjectVersion is { } wanted
                 ? $"{Warning}プロジェクトのバージョン {wanted} が見つからないため、インストール済みの最新バージョンで代用"
-                : $"{Warning}プロジェクトのバージョンが読めないため、インストール済みの最新バージョンで代用",
+                : $"{Warning}プロジェクトのバージョンを読み取れないため、インストール済みの最新バージョンで代用",
             EditorDataSource.NewestInstalled => "インストール済みの最新バージョン",
             _ => $"{Warning}見つかりませんでした",
         };
@@ -507,12 +507,12 @@ internal static partial class EnvironmentReport
         string full = Path.GetFullPath(generated);
         bool exists = File.Exists(Path.Combine(full, UnityIncludeGeneration.RecordFileName));
 
-        Section(builder, "--unity-generate で書き出したもの (unity: generated)");
-        Line(builder, $"  {(exists ? string.Empty : Warning)}フォルダー: {full}{(exists ? string.Empty : " (書き出したものがありません。--unity-generate で書き出してください)")}");
+        Section(builder, "--unity-generate で書き出したファイル (unity: generated)");
+        Line(builder, $"  {(exists ? string.Empty : Warning)}フォルダー: {full}{(exists ? string.Empty : " (書き出したファイルがありません。--unity-generate で書き出してください)")}");
 
         if (exists)
         {
-            Line(builder, "  プロジェクトの Library/PackageCache と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読みます。");
+            Line(builder, "  プロジェクトの Library/PackageCache と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりに読み込みます。");
         }
     }
 
@@ -649,7 +649,7 @@ internal static partial class EnvironmentReport
     /// <param name="settings">設定ファイルを反映した実行時の設定。</param>
     private static void WriteMacros(StringBuilder builder, EffectiveSettings settings)
     {
-        Section(builder, "定義済みマクロ (展開に使う値)");
+        Section(builder, "定義済みマクロ (展開に使用する値)");
 
         ImmutableDictionary<string, string> macros = SemanticsSetup.BuildPredefinedMacros(settings.Environment, settings.Defines);
 

@@ -425,7 +425,7 @@ public sealed partial record UnrealOptions
             DisplayName = display,
             ExtraMacros = platformMacros.SetItems(classMacros).SetItems(UnrealShaderRegistrations.CreateStageMacros(registration.Frequency)),
             Variants = baseVariants?.Union(classVariants),
-            EntryPoints = [.. functions.Select(f => new ShaderEntryPoint(f, origin))],
+            EntryPoints = [.. functions.Select(f => new ShaderEntryPoint(f, origin, Stage: stage is HlslShaderStage.Library ? null : stage))],
             Target = stage is { } s ? new HlslShaderTarget(s, 6, 6) : null,
 
             // ライブラリ (レイトレーシングなど) は、ほかの単位とリンクするので、宣言だけの関数を誤りにしない (CF0311)。

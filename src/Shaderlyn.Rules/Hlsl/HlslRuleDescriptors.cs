@@ -43,10 +43,42 @@ internal static class HlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "エントリポイントに指定した名前の関数が定義されていません"
-            + " (Unity なら #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境なら units の entry)。"
+            + " (Unity の場合は #pragma vertex や #pragma fragment、設定ファイルでコンパイル単位を書く環境の場合は units の entry)。"
             + "関数名のスペルミスか、共通コード片の取り込み漏れです。"
-            + "このコンパイル単位はコンパイルできず、シェーダー全体が使えなくなります。",
+            + "このコンパイル単位はコンパイルできず、シェーダー全体が使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0301"));
+
+    /// <summary>システム値のセマンティクスを、そのステージの入力または出力に使用できない。</summary>
+    /// <remarks>
+    /// 使用できるかは、FXC・DXC・slangc に掛けて作った表 (<c>SystemValueSemantics.g.txt</c>) で決める。
+    /// 文の <c>{0}</c> は誤りの説明、<c>{1}</c> は誤りにするコンパイラ。
+    /// </remarks>
+    public static DiagnosticDescriptor SystemValueSemanticNotAllowed { get; } = new(
+        id: "CF0302",
+        title: "システム値のセマンティクスをそのステージで使用できません",
+        messageFormat: "{0} ({1} がエラーにします)",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "SV_ で始まるセマンティクス (システム値) は、使用できるステージと向き (入力か出力か) が決まっています。"
+            + "SV_Depth はピクセルシェーダーの出力、SV_VertexID は頂点シェーダーの入力、SV_DispatchThreadID はコンピュートシェーダーなどの入力にだけ使用できます。"
+            + "エントリポイントの仮引数・戻り値と、そこで受け渡す構造体のフィールドを検査します。",
+        helpLinkUri: DocumentationLinks.For("CF0302"));
+
+    /// <summary>メッシュシェーダーのエントリポイントに、必要な属性か出力が欠けている。</summary>
+    /// <remarks>
+    /// <c>[outputtopology]</c> が無いことと、<c>out vertices</c> などが大きさを書いた配列でないことは DXC 1.8 と slangc 2026.19 がエラーにする。
+    /// 頂点とインデックスの出力が無いことは slangc だけがエラーにする。文の <c>{0}</c> は誤りの説明、<c>{1}</c> は誤りにするコンパイラ。
+    /// </remarks>
+    public static DiagnosticDescriptor MeshShaderSignature { get; } = new(
+        id: "CF0303",
+        title: "メッシュシェーダーのエントリポイントに必要なものが欠けています",
+        messageFormat: "{0} ({1} がエラーにします)",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "メッシュシェーダーのエントリポイントには、[outputtopology(\"triangle\")] などの属性と、"
+            + "頂点の出力 (out vertices V verts[3] / OutputVertices<V, 3>) とインデックスの出力 (out indices uint3 tris[1] / OutputIndices<uint3, 1>) が必要です。"
+            + "out vertices などは、大きさを書いた配列にします。",
+        helpLinkUri: DocumentationLinks.For("CF0303"));
 
     /// <summary>cbuffer の中の関数をエントリポイントにしていて、FXC でコンパイルされる。</summary>
     /// <remarks>
@@ -74,7 +106,7 @@ internal static class HlslRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "cbuffer (CBUFFER_START / CBUFFER_END) の中の関数をエントリポイントにしています。"
             + "DXC はこれをエントリポイントとして扱えず、「cannot find entry function」になります。"
-            + "Unity では、エラーの行も出ずに「Lost connection with shader compiler process. Suspected crash in DXC.」になります (Unity 6.6 で確かめました)。"
+            + "Unity では、エラーの行も出ずに「Lost connection with shader compiler process. Suspected crash in DXC.」になります (Unity 6.6 で確認しました)。"
             + "関数は cbuffer の外に書いてください。",
         helpLinkUri: DocumentationLinks.For("HL0304"));
 
@@ -95,7 +127,7 @@ internal static class HlslRuleDescriptors
         description: "呼んでいる関数の定義が、その構成には存在しません。"
             + "宣言だけを書いて定義を #ifdef の中に置き、"
             + "条件の付け方が呼ぶ側とずれている場合に起きます。"
-            + "その構成ではリンクに失敗し、シェーダーが使えなくなります。",
+            + "その構成ではリンクに失敗し、シェーダーが使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0311"));
 
     /// <summary>使っている変数の宣言が、その構成には存在しない。</summary>
@@ -110,10 +142,22 @@ internal static class HlslRuleDescriptors
         messageFormat: "{1}変数 '{0}' の宣言が{2}存在しません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "使っている変数の宣言が、その構成には存在しません。"
-            + "宣言を #ifdef の中に置き、使う側をその条件の外に書いた場合に起きます。"
-            + "その構成ではコンパイルに失敗し、シェーダーが使えなくなります。",
+        description: "使用している変数の宣言が、その構成には存在しません。"
+            + "宣言を #ifdef の中に置き、使用する側をその条件の外に書いた場合に起きます。"
+            + "その構成ではコンパイルに失敗し、シェーダーが使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0315"));
+
+    /// <summary>既定値のある仮引数の後ろに、既定値の無い仮引数がある。</summary>
+    /// <remarks>FXC (X3044)・DXC 1.8・slangc 2026.19 (E30704) がエラーにする。</remarks>
+    public static DiagnosticDescriptor MissingDefaultValue { get; } = new(
+        id: "CF0316",
+        title: "既定値のある仮引数の後ろに、既定値のない仮引数があります",
+        messageFormat: "仮引数 '{0}' に既定値がありません。前の仮引数 '{1}' に既定値があるので、後ろの仮引数にもすべて既定値が必要です。",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "関数の仮引数に既定値 (= 1.0 など) を書いた場合、その後ろの仮引数にもすべて既定値が必要です。"
+            + "呼び出しで省略できるのは後ろの実引数だけだからです。FXC・DXC・slangc はコンパイルエラーにします。",
+        helpLinkUri: DocumentationLinks.For("CF0316"));
 
     /// <summary>参照している構造体のメンバーが、その構成には存在しない。</summary>
     /// <remarks>
@@ -131,7 +175,7 @@ internal static class HlslRuleDescriptors
         description: "参照している構造体のメンバーが、その構成には宣言されていません。"
             + "メンバーを #ifdef で囲んだのに、"
             + "参照する側に同じ条件を付け忘れた場合に起きます。"
-            + "その構成ではコンパイルに失敗し、シェーダーが使えなくなります。",
+            + "その構成ではコンパイルに失敗し、シェーダーが使用できなくなります。",
         helpLinkUri: DocumentationLinks.For("CF0313"));
 
     /// <summary>実引数を仮引数の型へ変換できない。</summary>
@@ -201,7 +245,7 @@ internal static class HlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "out / inout の仮引数は、呼び出し側の変数へ値を書き戻します。"
-            + "リテラルや関数の戻り値のように、書き戻す先が無い式は渡せません。"
+            + "リテラルや関数の戻り値のように、書き戻す先が存在しない式は渡せません。"
             + "その構成ではコンパイルに失敗します。",
         helpLinkUri: DocumentationLinks.For("CF0403"));
 
@@ -233,8 +277,8 @@ internal static class HlslRuleDescriptors
         messageFormat: "関数 '{0}' の戻り値は {1} ですが、{2}。{3}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "return が返している値が、関数の戻り値の型と噛み合っていません。"
-            + "成分が足りない、void の関数が値を返している、"
+        description: "return が返している値が、関数の戻り値の型と一致しません。"
+            + "成分が不足している、void の関数が値を返している、"
             + "値を返す関数が値なしで return している、のいずれかです。"
             + "いずれもコンパイルに失敗します。",
         helpLinkUri: DocumentationLinks.For("CF0411"));
@@ -283,7 +327,7 @@ internal static class HlslRuleDescriptors
         messageFormat: "関数 '{0}' は {1} を返しますが、値を返さない経路が存在します。{2}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "値を返す関数に、return を通らずに末尾へ到達する経路があります。",
+        description: "値を返す関数に、return を経由せずに末尾へ到達する経路があります。",
         helpLinkUri: DocumentationLinks.For("CF0501"));
 
     /// <summary>波括弧による初期化の要素の個数が合わない。</summary>
@@ -311,7 +355,7 @@ internal static class HlslRuleDescriptors
         messageFormat: "'{0}' は{1}宣言されていません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "使っている名前が、変数・仮引数・関数・構造体・マクロ・"
+        description: "使用している名前が、変数・仮引数・関数・構造体・マクロ・"
             + "シェーダーシンボルのいずれとしても宣言されていません。"
             + "一部の構成でだけ宣言されていない場合は、その構成を添えます。"
             + "スペルミスか、宣言しているヘッダの取り込み漏れです。"
@@ -369,11 +413,11 @@ internal static class HlslRuleDescriptors
     public static DiagnosticDescriptor DuplicateRegister { get; } = new(
         id: "HL0211",
         title: "レジスタが重複しています",
-        messageFormat: "レジスタ '{0}' は '{1}' でも使われています。",
+        messageFormat: "レジスタ '{0}' は '{1}' でも使用されています。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "同じレジスタを 2 つ以上の宣言が指定しています。"
-            + "どちらが使われるかは保証されず、コンパイルに失敗します。"
+            + "どちらが使用されるかは保証されず、コンパイルに失敗します。"
             + "レジスタの番号を振り直してください。",
         helpLinkUri: DocumentationLinks.For("HL0211"));
 
@@ -438,7 +482,7 @@ internal static class HlslRuleDescriptors
         description: "template の関数を型引数を書かずに呼ぶと、型引数は実引数の型から決まります (推論)。"
             + "同じ型引数に当たる実引数の型は完全に一致しなければならず、"
             + "float と half、float3 と float のような違いがあると呼び出せません。"
-            + "接尾辞の無い数 (1.0 / 1) は float / int とは別の型として扱われます。",
+            + "接尾辞が存在しない数 (1.0 / 1) は float / int とは別の型として扱われます。",
         helpLinkUri: DocumentationLinks.For("HL0345"));
 
     /// <summary>構造体の値に、使えない演算子を使っている。または多重定義できない演算子を定義している。</summary>
@@ -453,8 +497,8 @@ internal static class HlslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "HLSL の演算子は数値型 (スカラー・ベクトル・行列) の値にしか使えません。"
-            + "HLSL 2021 では、構造体の中で operator+ などを定義すると、その構造体を左辺にして使えます。"
+        description: "HLSL の演算子は数値型 (スカラー・ベクトル・行列) の値にしか使用できません。"
+            + "HLSL 2021 では、構造体の中で operator+ などを定義すると、その構造体を左辺にして使用できます。"
             + "条件演算子 (?:) は構造体の値を選べず、++ / -- / 複合代入 (+= など) / << / >> は多重定義できません。",
         helpLinkUri: DocumentationLinks.For("CF0406"));
 
@@ -466,7 +510,7 @@ internal static class HlslRuleDescriptors
         messageFormat: "'{0}' は for 文の初期化で宣言した変数です。HLSL 2021 ではエラーになります。",
         category: "Portability",
         defaultSeverity: DiagnosticSeverity.Info,
-        description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも見えますが、HLSL 2021 では C++ と同じくループの中だけで見えます。"
+        description: "for (int i = 0; ...) の i は、FXC と DXC 2021 より前ではループの後でも参照できますが、HLSL 2021 では C++ と同じくループの中でだけ参照できます。"
             + "DXC の HLSL 2021 へ移すとき (Unity の DXC が 2021 になったときを含む) にエラーになるので、ループの前で宣言してください。",
         helpLinkUri: DocumentationLinks.For("HL0354"));
 
@@ -478,8 +522,8 @@ internal static class HlslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "HLSL 2021 の && / || / ?: は短絡評価になり、スカラーにしか使えません。"
-            + "成分ごとに計算するなら and() / or() / select() を使ってください。FXC と DXC 2021 より前は成分ごとに計算します。",
+        description: "HLSL 2021 の && / || / ?: は短絡評価になり、スカラーにしか使用できません。"
+            + "成分ごとに計算する場合は and() / or() / select() を使用してください。FXC と DXC 2021 より前は成分ごとに計算します。",
         helpLinkUri: DocumentationLinks.For("HL0349"));
 
     /// <summary>構造体の値を増減している (FXC では何もしない)。</summary>
@@ -510,7 +554,7 @@ internal static class HlslRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "enum の型の変数や仮引数へ入れられるのは、同じ enum の値 (か、その型へ変換したもの) だけです。"
             + "数や別の enum の値は、型変換 ((Mode)1) を書かないと入れられません。"
-            + "enum class の値は数へ暗黙に変換されず、== / != (同じ enum どうし) のほかに演算子を使えません。"
-            + "ふつうの enum の値は数として使えますが、++ / -- は使えません。",
+            + "enum class の値は数へ暗黙に変換されず、== / != (同じ enum どうし) のほかに演算子を使用できません。"
+            + "ふつうの enum の値は数として使用できますが、++ / -- は使用できません。",
         helpLinkUri: DocumentationLinks.For("HL0347"));
 }

@@ -161,7 +161,7 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
         switch (op.Kind)
         {
             case ShaderSyntaxKind.EqualsEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken:
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, $"参照の型には演算子 '{text}' を使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, $"参照の型には演算子 '{text}' を使用できません。");
                 return;
 
             case ShaderSyntaxKind.PlusToken or ShaderSyntaxKind.MinusToken or ShaderSyntaxKind.PlusEqualsToken or ShaderSyntaxKind.MinusEqualsToken:
@@ -170,11 +170,11 @@ internal sealed class GlslBufferReferenceAnalyzer : SemanticRuleAnalyzer
                 // 参照どうしは、引き算 (差は int64_t) だけが書ける。
                 if (left is not null && right is not null && (compound || op.Kind != ShaderSyntaxKind.MinusToken))
                 {
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, $"参照の型どうしに演算子 '{text}' は使えません。参照に足し引きできるのは整数です。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, $"参照の型どうしに演算子 '{text}' は使用できません。参照に足し引きできるのは整数です。");
                 }
                 else if (left is null && op.Kind == ShaderSyntaxKind.MinusToken && !compound)
                 {
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, "整数から参照を引けません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, op, "整数から参照を取得できません。");
                 }
                 else if (references[reference])
                 {

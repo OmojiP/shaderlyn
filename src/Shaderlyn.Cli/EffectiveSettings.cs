@@ -65,6 +65,12 @@ internal sealed class EffectiveSettings
     /// <summary>解析する環境の名前 (設定ファイルの <c>environment</c>、無ければ <see cref="DefaultEnvironment"/>)。</summary>
     public string Environment { get; }
 
+    /// <summary>
+    /// 設定ファイルの <c>environment</c> で環境を決めているか。
+    /// 決めていなければ、<c>.usf</c>・<c>.ush</c> を Unreal Engine の環境で解析する (<see cref="Environments.AnalysisSettings.EnvironmentForFile"/>)。
+    /// </summary>
+    public bool EnvironmentInConfiguration => Configuration.Environment is not null;
+
     /// <summary>適用するレンダーパイプラインプロファイルの名前。</summary>
     public string Profile { get; }
 
@@ -136,8 +142,8 @@ internal sealed class EffectiveSettings
                     .. configuration.Problems,
                     new ConfigurationProblem(
                         0,
-                        "symbols: と units: は Unity の環境では使いません。Unity の構成の軸は #pragma multi_compile などから、"
-                        + "コンパイル単位は ShaderLab から読みます。ほかの環境で使うなら environment を指定してください。"),
+                        "symbols: と units: は Unity の環境では使用しません。Unity の構成の軸は #pragma multi_compile などから、"
+                        + "コンパイル単位は ShaderLab から読み取ります。ほかの環境で使用する場合は environment を指定してください。"),
                 ],
             };
         }
@@ -333,7 +339,7 @@ internal sealed class EffectiveSettings
 
             string message = id.StartsWith("HL", StringComparison.OrdinalIgnoreCase)
                 ? $"ルール {id} はありません。0.3.1 で、C 系の言語に共通のルールの ID を HL から CF に振り直しました (docs/guide/migration-0.3.1.md)。"
-                : $"ルール {id} はありません。ID の綴りを確かめてください (shaderlyn --list-rules で一覧を表示できます)。";
+                : $"ルール {id} はありません。ID の綴りを確認してください (shaderlyn --list-rules で一覧を表示できます)。";
 
             diagnostics.Add(Diagnostic.Create(
                 WellKnownDescriptors.ConfigurationProblem,

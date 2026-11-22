@@ -970,6 +970,7 @@ Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Threading.Cancellati
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.Diagnostic)
 Shaderlyn.Core.Analysis.SyntaxTreeAnalysisContext :: System.Void ReportDiagnostic(Shaderlyn.Core.Diagnostics.DiagnosticDescriptor, Shaderlyn.Core.Text.TextSpan, System.Object[])
 Shaderlyn.Core.Diagnostics.Diagnostic : sealed class
+Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithFix(Shaderlyn.Core.Diagnostics.DiagnosticFix)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithIncludeRoutes(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute])
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithLocation(Shaderlyn.Core.Diagnostics.Location)
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Diagnostic WithSeverity(Shaderlyn.Core.Diagnostics.DiagnosticSeverity)
@@ -978,6 +979,7 @@ Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticDe
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.DiagnosticSeverity Severity { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: Shaderlyn.Core.Diagnostics.Location Location { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Boolean IsSeverityExplicit { get; }
+Shaderlyn.Core.Diagnostics.Diagnostic :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.DiagnosticFix] Fixes { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.IncludeRoute] IncludeRoutes { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.Int32 MessageArgumentCount { get; }
 Shaderlyn.Core.Diagnostics.Diagnostic :: System.String GetMessage()
@@ -1005,6 +1007,21 @@ Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: static System.Boolean op_Ineq
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.Boolean Equals(System.Object)
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.Int32 GetHashCode()
 Shaderlyn.Core.Diagnostics.DiagnosticDescriptor :: virtual System.String ToString()
+Shaderlyn.Core.Diagnostics.DiagnosticFix : sealed class (System.IEquatable`1[Shaderlyn.Core.Diagnostics.DiagnosticFix])
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: .ctor(System.String, System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement], System.Boolean)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: Shaderlyn.Core.Diagnostics.DiagnosticFix <Clone>$()
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Boolean Equals(Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Boolean IsPreferred { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement] Replacements { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.String Title { get; set; }
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: System.Void Deconstruct(out System.String, out System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.TextReplacement], out System.Boolean)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static Shaderlyn.Core.Diagnostics.DiagnosticFix Insert(System.String, System.Int32, System.String, System.Boolean = True)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static Shaderlyn.Core.Diagnostics.DiagnosticFix Replace(System.String, Shaderlyn.Core.Text.TextSpan, System.String, System.Boolean = True)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static System.Boolean op_Equality(Shaderlyn.Core.Diagnostics.DiagnosticFix, Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: static System.Boolean op_Inequality(Shaderlyn.Core.Diagnostics.DiagnosticFix, Shaderlyn.Core.Diagnostics.DiagnosticFix)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Diagnostics.DiagnosticFix :: virtual System.String ToString()
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Error = 3
 Shaderlyn.Core.Diagnostics.DiagnosticSeverity :: Info = 1
@@ -1033,6 +1050,17 @@ Shaderlyn.Core.Diagnostics.Location :: System.String FilePath { get; }
 Shaderlyn.Core.Diagnostics.Location :: System.String GetLineText()
 Shaderlyn.Core.Diagnostics.Location :: static Shaderlyn.Core.Diagnostics.Location Create(Shaderlyn.Core.Text.SourceText, Shaderlyn.Core.Text.TextSpan)
 Shaderlyn.Core.Diagnostics.Location :: virtual System.String ToString()
+Shaderlyn.Core.Diagnostics.TextReplacement : struct (System.IEquatable`1[Shaderlyn.Core.Diagnostics.TextReplacement])
+Shaderlyn.Core.Diagnostics.TextReplacement :: .ctor(Shaderlyn.Core.Text.TextSpan, System.String)
+Shaderlyn.Core.Diagnostics.TextReplacement :: Shaderlyn.Core.Text.TextSpan Span { get; set; }
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.Boolean Equals(Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.String NewText { get; set; }
+Shaderlyn.Core.Diagnostics.TextReplacement :: System.Void Deconstruct(out Shaderlyn.Core.Text.TextSpan, out System.String)
+Shaderlyn.Core.Diagnostics.TextReplacement :: static System.Boolean op_Equality(Shaderlyn.Core.Diagnostics.TextReplacement, Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: static System.Boolean op_Inequality(Shaderlyn.Core.Diagnostics.TextReplacement, Shaderlyn.Core.Diagnostics.TextReplacement)
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.Boolean Equals(System.Object)
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.Int32 GetHashCode()
+Shaderlyn.Core.Diagnostics.TextReplacement :: virtual System.String ToString()
 Shaderlyn.Core.Syntax.SymbolCondition : struct (System.IEquatable`1[Shaderlyn.Core.Syntax.SymbolCondition])
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition And(Shaderlyn.Core.Syntax.SymbolCondition)
 Shaderlyn.Core.Syntax.SymbolCondition :: Shaderlyn.Core.Syntax.SymbolCondition Assume(System.Func`2[System.String,System.Nullable`1[System.Boolean]])
@@ -1339,6 +1367,14 @@ Shaderlyn.Semantics.Analysis.ShaderAnalysisContext : sealed class
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: .ctor()
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]])
 Shaderlyn.Semantics.Analysis.ShaderAnalysisContext :: System.Void RegisterNodeAction<TNode>(System.Action`1[Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1[TNode]], Shaderlyn.Semantics.Analysis.NodeActionOptions)
+Shaderlyn.Semantics.Analysis.ShaderLanguages : enum (System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable)
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: All = 31
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Glsl = 2
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Godot = 4
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Hlsl = 1
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: None = 0
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Slang = 8
+Shaderlyn.Semantics.Analysis.ShaderLanguages :: Wgsl = 16
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 : struct
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Analysis.AnalyzerOptions Options { get; }
 Shaderlyn.Semantics.Analysis.ShaderNodeAnalysisContext`1 :: Shaderlyn.Core.Syntax.SymbolCondition Condition { get; }
@@ -1354,6 +1390,7 @@ Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer : abstract class (Shaderlyn.Core
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: System.Void Initialize(Shaderlyn.Core.Analysis.AnalysisContext)
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected .ctor()
 Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected abstract System.Void InitializeShader(Shaderlyn.Semantics.Analysis.ShaderAnalysisContext)
+Shaderlyn.Semantics.Analysis.ShaderRuleAnalyzer :: protected virtual Shaderlyn.Semantics.Analysis.ShaderLanguages Languages { get; }
 Shaderlyn.Semantics.AnalyzedProgram : sealed class
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.CFamily.Syntax.ShaderSyntaxTree Tree { get; }
 Shaderlyn.Semantics.AnalyzedProgram :: Shaderlyn.Core.Diagnostics.Location GetBlockLocation()
@@ -1543,13 +1580,14 @@ Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Boolean
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.Int32 GetHashCode()
 Shaderlyn.Semantics.Environments.ShaderCompilationUnit :: virtual System.String ToString()
 Shaderlyn.Semantics.Environments.ShaderEntryPoint : sealed class (System.IEquatable`1[Shaderlyn.Semantics.Environments.ShaderEntryPoint])
-Shaderlyn.Semantics.Environments.ShaderEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: .ctor(System.String, System.String, Shaderlyn.Core.Diagnostics.Location = null, System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage] = null)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Core.Diagnostics.Location Location { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: Shaderlyn.Semantics.Environments.ShaderEntryPoint <Clone>$()
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Boolean Equals(Shaderlyn.Semantics.Environments.ShaderEntryPoint)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage] Stage { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Name { get; set; }
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.String Origin { get; set; }
-Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location)
+Shaderlyn.Semantics.Environments.ShaderEntryPoint :: System.Void Deconstruct(out System.String, out System.String, out Shaderlyn.Core.Diagnostics.Location, out System.Nullable`1[Shaderlyn.Semantics.Environments.HlslShaderStage])
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Equality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: static System.Boolean op_Inequality(Shaderlyn.Semantics.Environments.ShaderEntryPoint, Shaderlyn.Semantics.Environments.ShaderEntryPoint)
 Shaderlyn.Semantics.Environments.ShaderEntryPoint :: virtual System.Boolean Equals(System.Object)
@@ -1708,6 +1746,7 @@ Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition G
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Syntax.SymbolCondition GetTreeConfiguration(Shaderlyn.Semantics.AnalyzedProgram)
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText CodeText { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Core.Text.SourceText Text { get; }
+Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Analysis.ShaderLanguages Language { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Conditional.ConditionMap GetConditionMap()
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.IShaderEnvironment Environment { get; }
 Shaderlyn.Semantics.ShaderCompilation :: Shaderlyn.Semantics.Environments.ShaderSourceInfo Source { get; }
@@ -2177,6 +2216,7 @@ Shaderlyn.ShaderLab.Syntax.VectorDefaultValueSyntax :: virtual System.Collection
 Shaderlyn.Testing.ShaderRuleVerifier : sealed class
 Shaderlyn.Testing.ShaderRuleVerifier :: .ctor(Shaderlyn.Core.Analysis.DiagnosticAnalyzer[])
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier AddInclude(System.String, System.String)
+Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithEnvironment(System.String)
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithOptions(Shaderlyn.Core.Analysis.AnalyzerOptions)
 Shaderlyn.Testing.ShaderRuleVerifier :: Shaderlyn.Testing.ShaderRuleVerifier WithPredefinedMacros(System.Collections.Generic.IReadOnlyDictionary`2[System.String,System.String])
 Shaderlyn.Testing.ShaderRuleVerifier :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.Core.Diagnostics.Diagnostic] Analyze(System.String, System.String = Assets/Test.shader)

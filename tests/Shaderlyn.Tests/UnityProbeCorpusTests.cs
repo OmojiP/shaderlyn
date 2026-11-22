@@ -40,7 +40,7 @@ public sealed class UnityProbeCorpusTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            _output.WriteLine($"{ProbeVariable} が無いため飛ばします。");
+            _output.WriteLine($"{ProbeVariable} が存在しないため飛ばします。");
             return;
         }
 

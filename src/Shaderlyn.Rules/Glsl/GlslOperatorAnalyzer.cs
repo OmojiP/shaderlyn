@@ -108,11 +108,11 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
             {
                 // 文字列 (GL_EXT_debug_printf の書式) には、どの演算子も使えない。
                 case BinaryExpressionSyntax binary when IsString(binary.Left) || IsString(binary.Right):
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"文字列に演算子 '{binary.OperatorToken.Text}' は使えません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, binary.OperatorToken, $"文字列に演算子 '{binary.OperatorToken.Text}' は使用できません。");
                     break;
 
                 case ConditionalExpressionSyntax conditional when IsString(conditional.WhenTrue) || IsString(conditional.WhenFalse):
-                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, conditional.ColonToken, "文字列に演算子 '?:' は使えません。");
+                    requirement.Report(GlslRuleDescriptors.WrongOperandTypes, conditional.ColonToken, "文字列に演算子 '?:' は使用できません。");
                     break;
 
                 case BinaryExpressionSyntax binary when Classify(binary.OperatorToken.Kind) is { } op:
@@ -206,21 +206,21 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
             // 配列そのものに使えるのは == と != と = だけ (glslang の handleBinaryMath)。
             if (op != Op.Equality && (IsCertainlyArray(leftExpression) || IsCertainlyArray(rightExpression)))
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使用できません。");
                 return;
             }
 
             // サンプラー・イメージ・atomic_uint などの不透明な型と void は、どの演算子にも使えない。
             if ((OpaqueTypeOf(leftExpression) ?? OpaqueTypeOf(rightExpression)) is { } opaque)
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使用できません。");
                 return;
             }
 
             // サンプラーなどを含む構造体は、== と != で比べられない。
             if (op == Op.Equality && KnownType(leftExpression) is { } structure && StructContainsOpaque(structure, depth: 0))
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は、サンプラー・イメージを含む構造体 ({structure}) に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は、サンプラー・イメージを含む構造体 ({structure}) に使用できません。");
                 return;
             }
 
@@ -234,7 +234,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
                 requirement.Report(
                     GlslRuleDescriptors.WrongOperandTypes,
                     at,
-                    $"演算子 '{at.Text}' は、左が {left.Name}、右が {right.Name} の組に使えません。");
+                    $"演算子 '{at.Text}' は、左が {left.Name}、右が {right.Name} の組に使用できません。");
             }
         }
 
@@ -249,13 +249,13 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
             // 配列そのものには、単項の演算子を使えない (glslang の handleUnaryMath)。
             if (IsCertainlyArray(operandExpression))
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は配列に使用できません。");
                 return;
             }
 
             if (OpaqueTypeOf(operandExpression) is { } opaque)
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {opaque} に使用できません。");
                 return;
             }
 
@@ -273,7 +273,7 @@ internal sealed class GlslOperatorAnalyzer : SemanticRuleAnalyzer
 
             if (!allowed)
             {
-                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {operand.Name} に使えません。");
+                requirement.Report(GlslRuleDescriptors.WrongOperandTypes, at, $"演算子 '{at.Text}' は {operand.Name} に使用できません。");
             }
         }
 

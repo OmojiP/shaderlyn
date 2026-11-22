@@ -25,11 +25,11 @@ internal static partial class CompletionBuilder
         ("define", "マクロを定義する。"),
         ("undef", "マクロの定義を取り消す。"),
         ("include", "ファイルを取り込む。"),
-        ("if", "条件が成り立つときだけ、続くコードを使う。"),
-        ("ifdef", "マクロかシンボルが定義されているときだけ、続くコードを使う。"),
-        ("ifndef", "マクロかシンボルが定義されていないときだけ、続くコードを使う。"),
-        ("elif", "前の条件が成り立たず、この条件が成り立つときに使う。"),
-        ("else", "前の条件がどれも成り立たないときに使う。"),
+        ("if", "条件が成り立つときだけ、続くコードを使用する。"),
+        ("ifdef", "マクロかシンボルが定義されているときだけ、続くコードを使用する。"),
+        ("ifndef", "マクロかシンボルが定義されていないときだけ、続くコードを使用する。"),
+        ("elif", "前の条件が成り立たず、この条件が成り立つときに使用する。"),
+        ("else", "前の条件がどれも成り立たないときに使用する。"),
         ("endif", "#if / #ifdef / #ifndef を閉じる。"),
         ("pragma", "コンパイラと Unity への指示 (エントリポイント、シンボルの宣言など)。"),
         ("error", "この行に来たらコンパイルを失敗させる。"),
@@ -40,7 +40,7 @@ internal static partial class CompletionBuilder
     private static readonly (string Name, string Description)[] GlslDirectives =
     [
         ("version", "GLSL のバージョンとプロファイル (450、310 es など)。ファイルの先頭に書く。"),
-        ("extension", "拡張を使う (#extension GL_EXT_… : require / enable)。"),
+        ("extension", "拡張を使用する (#extension GL_EXT_… : require / enable)。"),
     ];
 
     /// <summary>指令の名前を候補にする。</summary>

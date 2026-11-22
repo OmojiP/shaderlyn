@@ -86,7 +86,7 @@ internal sealed class SlangMemberUseAnalyzer : SemanticRuleAnalyzer
                              && Members(structure).Fields.Contains(access.NameToken.Text)
                              && !(access.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, access)):
                         Report(SlangRuleDescriptors.NonStaticMemberFromStatic, access.NameToken,
-                            $"型の名前 {target.Name} からは、static でないフィールド '{access.NameToken.Text}' を使えません。値 (変数) から使ってください。");
+                            $"型の名前 {target.Name} からは、static でないフィールド '{access.NameToken.Text}' を使用できません。値 (変数) から使用してください。");
                         break;
 
                     // val->member (val がポインターでない構造体)
@@ -94,7 +94,7 @@ internal sealed class SlangMemberUseAnalyzer : SemanticRuleAnalyzer
                         when binder.GetTypesByConfiguration(arrow.Target) is [{ Type: { } type }]
                              && structs.ContainsKey(type)
                              && !(arrow.Target is IdentifierExpressionSyntax arrowTarget && binder.ResolveName(arrowTarget).Candidates.Any(c => c.Type.IsArray)):
-                        Report(SlangRuleDescriptors.WrongOperandTypes, arrow.DotToken, $"-> はポインターにだけ使えます ({type} はポインターではありません。'.' を使ってください)。");
+                        Report(SlangRuleDescriptors.WrongOperandTypes, arrow.DotToken, $"-> はポインターにだけ使用できます ({type} はポインターではありません。'.' を使用してください)。");
                         break;
 
                     case ElementAccessExpressionSyntax element when element.Target is IdentifierExpressionSyntax indexed
@@ -163,7 +163,7 @@ internal sealed class SlangMemberUseAnalyzer : SemanticRuleAnalyzer
             && shape.Kind == ShaderNumericKind.Scalar
             && !candidate.Type.TypeName.Contains('*', StringComparison.Ordinal))
         {
-            report(SlangRuleDescriptors.WrongOperandTypes, element.OpenBracket, $"スカラーの値 '{indexed.Name}' ({candidate.Type.TypeName}) に添字は使えません。");
+            report(SlangRuleDescriptors.WrongOperandTypes, element.OpenBracket, $"スカラーの値 '{indexed.Name}' ({candidate.Type.TypeName}) に添字は使用できません。");
         }
     }
 
@@ -226,7 +226,7 @@ internal sealed class SlangMemberUseAnalyzer : SemanticRuleAnalyzer
 
                 if (identifier.Name == "this")
                 {
-                    report(SlangRuleDescriptors.NonStaticMemberFromStatic, identifier.Identifier, $"static のメソッド '{method.Name}' の中では this を使えません。");
+                    report(SlangRuleDescriptors.NonStaticMemberFromStatic, identifier.Identifier, $"static のメソッド '{method.Name}' の中では this を使用できません。");
                     continue;
                 }
 
@@ -241,7 +241,7 @@ internal sealed class SlangMemberUseAnalyzer : SemanticRuleAnalyzer
                     || (!called && fields.Contains(identifier.Name)))
                 {
                     report(SlangRuleDescriptors.NonStaticMemberFromStatic, identifier.Identifier,
-                        $"static のメソッド '{method.Name}' からは、static でない{(called ? "メソッド" : "フィールド")} '{identifier.Name}' を使えません。");
+                        $"static のメソッド '{method.Name}' からは、static でない{(called ? "メソッド" : "フィールド")} '{identifier.Name}' を使用できません。");
                 }
             }
         }

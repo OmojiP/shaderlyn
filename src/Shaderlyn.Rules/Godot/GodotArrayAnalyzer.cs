@@ -138,7 +138,7 @@ internal sealed class GodotArrayAnalyzer : SemanticRuleAnalyzer
                         case InvocationExpressionSyntax { Target: ArrayTypeExpressionSyntax constructor } invocation
                             when LengthOfRanks(constructor.ArrayRanks) is { } own && own != invocation.ArgumentExpressions.Count():
                             report(GodotRuleDescriptors.ArraySizeMismatch, constructor.ElementType.Identifier,
-                                [$"配列の要素の数が合いません。{own} 個が要ります (今は {invocation.ArgumentExpressions.Count()} 個)。"]);
+                                [$"配列の要素の数が合いません。{own} 個が必要です (今は {invocation.ArgumentExpressions.Count()} 個)。"]);
                             break;
                     }
                 }
@@ -198,7 +198,7 @@ internal sealed class GodotArrayAnalyzer : SemanticRuleAnalyzer
                     if (length is { } expected && expected != elements.Length)
                     {
                         report(GodotRuleDescriptors.ArraySizeMismatch, list.OpenBrace,
-                            [$"配列の要素の数が合いません。{expected} 個が要ります (今は {elements.Length} 個)。"]);
+                            [$"配列の要素の数が合いません。{expected} 個が必要です (今は {elements.Length} 個)。"]);
                         return;
                     }
 
@@ -231,7 +231,7 @@ internal sealed class GodotArrayAnalyzer : SemanticRuleAnalyzer
                     if (constructed is { } own && own != count)
                     {
                         report(GodotRuleDescriptors.ArraySizeMismatch, constructor.ElementType.Identifier,
-                            [$"配列の要素の数が合いません。{own} 個が要ります (今は {count} 個)。"]);
+                            [$"配列の要素の数が合いません。{own} 個が必要です (今は {count} 個)。"]);
                         return;
                     }
 
@@ -240,7 +240,7 @@ internal sealed class GodotArrayAnalyzer : SemanticRuleAnalyzer
                     if (length is { } expectedLength && expectedLength != found)
                     {
                         report(GodotRuleDescriptors.ArraySizeMismatch, constructor.ElementType.Identifier,
-                            [$"配列の要素の数が合いません。{expectedLength} 個が要ります (今は {found} 個)。"]);
+                            [$"配列の要素の数が合いません。{expectedLength} 個が必要です (今は {found} 個)。"]);
                     }
 
                     break;

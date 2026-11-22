@@ -1467,7 +1467,7 @@ internal abstract class ShaderParser
         // 別名の名前の無い typedef (typedef int;)。
         if (RequiresTypedefName && target is not null && Current.Kind == ShaderSyntaxKind.SemicolonToken)
         {
-            ReportError("typedef には、型の後ろに別名の名前が要ります。");
+            ReportError("typedef には、型の後ろに別名の名前が必要です。");
         }
 
         if (target is not null
@@ -3067,7 +3067,7 @@ internal abstract class ShaderParser
                 if (suffix.Length > 0 && !IsNumericSuffixAccepted(suffix, ShaderLiteral.GetKind(literal) == ShaderLiteralKind.Floating))
                 {
                     _diagnostics.Add(Diagnostic.Create(
-                        ShaderDescriptors.SyntaxError, literal.GetLocation(), $"数値リテラルの接尾辞 '{suffix}' は {UnavailableSubject} では使えません。"));
+                        ShaderDescriptors.SyntaxError, literal.GetLocation(), $"数値リテラルの接尾辞 '{suffix}' は {UnavailableSubject} では使用できません。"));
                 }
 
                 return new LiteralExpressionSyntax(literal);
@@ -3325,8 +3325,8 @@ internal abstract class ShaderParser
             return null;
         }
 
-        return $"'{name.Text}(' を宣言として読めません。'{name.Text}' はここではマクロとして定義されていません。"
-            + $"'{name.Text}' を定義する #define (またはそれを含む #include) がこの位置より前にあり、この構成で有効か確かめてください。";
+        return $"'{name.Text}(' を宣言として解析できません。'{name.Text}' はここではマクロとして定義されていません。"
+            + $"'{name.Text}' を定義する #define (またはそれを含む #include) がこの位置より前にあり、この構成で有効か確認してください。";
     }
 
     /// <summary>

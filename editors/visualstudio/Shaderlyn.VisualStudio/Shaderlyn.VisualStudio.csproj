@@ -1,0 +1,84 @@
+<Project>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <!--
+    Visual Studio 拡張 (VSSDK の ILanguageClient。Visual Studio のプロセスの中で MEF で読み込まれる)。
+
+    言語サーバー (shaderlyn-lsp.exe) を起こして、指摘・コードアクション・ホバーなどを Visual Studio に出す。
+    言語サーバーは同梱する。ShaderlynServerDirectory に、publish した言語サーバーのフォルダーを渡す
+    (dotnet publish src/Shaderlyn.LanguageServer.App -r win-x64 の出力)。
+
+    VisualStudio.Extensibility の LanguageServerProvider は使わない。
+    Visual Studio 2022 では、起動時にシェーダーのタブが復元されると、拡張機能のサービスが登録される前に
+    言語サーバーの提供元を取りに行って失敗し、そのセッションの間ホバーや指摘が出なくなることがある。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Shaderlyn.VisualStudio</RootNamespace>
+    <!-- オプションのページ (ツール > オプション > Shaderlyn) を登録するパッケージの pkgdef を作る。 -->
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <!--
+      Microsoft.VisualStudio.LanguageServer.Client 17.14.60 は、nuget.org に無いバージョンの依存
+      (Microsoft.VisualStudio.Telemetry 17.13.28 など) を指していて、少し新しいバージョンに解決される。
+      これらのアセンブリは Visual Studio のものが使われ、拡張には入れない。
+    -->
+    <NoWarn>$(NoWarn);NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.14.60" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest" SubType="Designer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 依存のパッケージから入る。Visual Studio が持っているものを使う。 -->
+    <SuppressFromVsix Include="System.Text.Encodings.Web.dll" />
+    <SuppressFromVsix Include="Microsoft.VisualStudio.Extensibility.Editor.Contracts.dll" />
+    <SuppressFromVsix Include="Microsoft.VisualStudio.Linux.ConnectionManager.Store.dll" />
+  </ItemGroup>
+
+  <!-- ライセンスと、同梱した言語サーバーに入っている第三者のデータ (DXC の組み込み関数の表など) の著作権表示。 -->
+  <ItemGroup>
+    <Content Include="..\..\..\LICENSE">
+      <Link>LICENSE</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\..\..\THIRD-PARTY-NOTICES.txt">
+      <Link>THIRD-PARTY-NOTICES.txt</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <!-- 拡張機能の管理と Marketplace に出すアイコン (90x90。VS Code 拡張の images/icon.png を縮小したもの)。 -->
+    <Content Include="Resources\icon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ShaderlynServerDirectory)' != ''">
+    <Content Include="$(ShaderlynServerDirectory)\shaderlyn-lsp.exe">
+      <Link>server\shaderlyn-lsp.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- VSIX を作る処理。Microsoft.VSSDK.BuildTools が VSToolsPath を自分の tools フォルダーに向ける。SDK の処理より後に読み込む。 -->
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+
+</Project>

@@ -21,9 +21,9 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -58,9 +58,9 @@ jobs:
             runtime: osx-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -120,11 +120,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       # 型の誤りはここで止める。リリースで初めて気づくと、そのリリースの vsix がすべて作れない。
       - name: TypeScript をビルドする
@@ -132,3 +132,57 @@ jobs:
         run: |
           npm ci
           npm run compile
+
+  visualstudio:
+    name: Visual Studio 拡張のビルド
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: microsoft/setup-msbuild@v3
+
+      # VSIX を作れることを確かめる。言語サーバーは同梱しない (ShaderlynServerDirectory を渡さない)。
+      # Debug の既定では Exp のインスタンスへ配置しようとするので、DeployExtension=false を渡す。
+      - name: VSIX を作る
+        run: >
+          msbuild editors/visualstudio/Shaderlyn.VisualStudio/Shaderlyn.VisualStudio.csproj
+          -restore -verbosity:minimal
+          -p:Configuration=Release -p:DeployExtension=false
+
+  rider:
+    name: Rider プラグインのビルドとテスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Gradle はリポジトリに置かない (Gradle Wrapper の jar も置かない) ので、ここで入れる。
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.9.0"
+
+      # 手元の Rider を渡さないので、gradle.properties の riderVersion の Rider を取得してビルドする。
+      # verifyPlugin は Plugin Verifier による互換性の確認 (JetBrains Marketplace の審査の条件)。
+      - name: テストとプラグインの zip を作り、互換性を確認する
+        working-directory: editors/rider
+        run: gradle test buildPlugin verifyPlugin
+
+      # リリースで zip に署名する処理 (tools/rider/sign-zips.sh) を、その場で作った使い捨ての鍵で動かす。
+      # リリースのタグを打つ前に、署名の道具の取得・署名・確認が通ることを確かめる。
+      - name: 使い捨ての鍵で zip に署名する
+        shell: bash
+        env:
+          PRIVATE_KEY_PASSWORD: ci-only
+        run: |
+          set -euo pipefail
+          openssl genpkey -aes-256-cbc -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+            -pass env:PRIVATE_KEY_PASSWORD -out "${RUNNER_TEMP}/private.pem"
+          openssl req -new -x509 -days 1 -subj "/CN=shaderlyn-ci" \
+            -key "${RUNNER_TEMP}/private.pem" -passin env:PRIVATE_KEY_PASSWORD -out "${RUNNER_TEMP}/chain.crt"
+          tools/rider/sign-zips.sh editors/rider/build/distributions "${RUNNER_TEMP}/chain.crt" "${RUNNER_TEMP}/private.pem"

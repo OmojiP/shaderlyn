@@ -82,7 +82,7 @@ internal sealed class GlslFunctionNameAnalyzer : SemanticRuleAnalyzer
                         GlslRuleDescriptors.BuiltinRedeclared,
                         variable.NameToken,
                         variable.Name,
-                        "ES の 3.00 以降では、関数の外の変数に組み込み関数の名前を使えません。");
+                        "ES の 3.00 以降では、関数の外の変数に組み込み関数の名前を使用できません。");
                     break;
 
                 default:

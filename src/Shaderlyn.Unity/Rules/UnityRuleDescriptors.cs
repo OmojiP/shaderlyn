@@ -20,10 +20,10 @@ internal static class UnityRuleDescriptors
         messageFormat: "プロパティ '{0}' は HLSL コードで未使用です。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "Properties に宣言されているのに、HLSL 側に対応する uniform が無く、"
+        description: "Properties に宣言されているのに、HLSL 側に対応する uniform が存在せず、"
             + "コード中にその名前が一度も現れていません。"
             + "マテリアルのインスペクタには表示され、値も保存されますが、描画には一切影響しません。"
-            + "プロパティ名のスペルミスか、使わなくなったプロパティの消し忘れです。",
+            + "プロパティ名のスペルミスか、使用しなくなったプロパティの消し忘れです。",
         helpLinkUri: DocumentationLinks.For("SL1001"));
 
     /// <summary>マテリアル定数バッファの uniform が Properties に公開されていない。</summary>
@@ -50,7 +50,7 @@ internal static class UnityRuleDescriptors
         messageFormat: "プロパティ '{0}' は {1} ですが、HLSL では '{2}' として宣言されています。{3}が必要です。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "Properties に宣言された型と、HLSL 側の uniform の型が噛み合っていません。"
+        description: "Properties に宣言された型と、HLSL 側の uniform の型が一致しません。"
             + "Unity はこれをエラーにせず、値の一部だけを転送するか、まったく転送しません。"
             + "「マテリアルで設定した色が反映されない」「スライダーを動かしても何も起きない」"
             + "という形で現れます。"
@@ -64,10 +64,10 @@ internal static class UnityRuleDescriptors
         messageFormat: "プロパティ '{0}' は uniform として宣言されていますが、シェーダーコードで未使用です。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
-        description: "uniform の宣言はあるものの、その値をどこからも読んでいません。"
+        description: "uniform の宣言はあるものの、その値をどこからも読み取っていません。"
             + "機能を削除した際の消し残しであることが多く、"
             + "定数バッファの容量とマテリアルの表示を無駄に占有します。"
-            + "スクリプトから読む用途や、将来使う予定がある場合は抑制して構いません。",
+            + "スクリプトから読み取る用途や、将来使用する予定がある場合は抑制して構いません。",
         helpLinkUri: DocumentationLinks.For("SL1004"));
 
     /// <summary>シェーダーステージの指定が無い。</summary>
@@ -77,8 +77,8 @@ internal static class UnityRuleDescriptors
         messageFormat: "コードブロックに {0} が存在しません。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使うかが指定されていません。"
-            + "Unity はこの Pass をコンパイルから外し (警告だけを出す)、SubShader ごと使えなくなります。"
+        description: "どの関数を頂点シェーダー・フラグメントシェーダーとして使用するかが指定されていません。"
+            + "Unity はこの Pass をコンパイルから外し (警告だけを出す)、SubShader ごと使用できなくなります。"
             + "共通コード片 (HLSLINCLUDE) に書いたつもりの #pragma が、"
             + "別の SubShader に属していて届いていない場合によく起きます。",
         helpLinkUri: DocumentationLinks.For("UN0301"));
@@ -99,21 +99,21 @@ internal static class UnityRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "#pragma use_dxc / require のうち、Unity が認識しない、または効かない場所に書いたために無視されるものです。"
+        description: "#pragma use_dxc / require のうち、Unity が認識しない、または無効になる場所に書いたために無視されるものです。"
             + "use_dxc の API 名 d3d12 (どのバージョンでも)、dx12 (6.5 以前)、include ファイルの中の指定 (2023.2 以降)、"
-            + "require inlineraytracing (2022.3) が当たります。DXC に切り替わらず、ほかに DXC の指定が無ければ FXC でコンパイルされます。",
+            + "require inlineraytracing (2022.3) が当たります。DXC に切り替わらず、ほかに DXC の指定が存在しなければ FXC でコンパイルされます。",
         helpLinkUri: DocumentationLinks.For("UN0201"));
 
     /// <summary>コンパイラの指定で、パスが DX11 でも DXC でコンパイルされ、DX11 では使えなくなる。</summary>
     /// <remarks>Unity 2022.3〜6.6 の実測 (ShaderProbePack) による。</remarks>
     public static DiagnosticDescriptor CompilerPragmaBreaksDx11 { get; } = new(
         id: "UN0203",
-        title: "DX11 で使えなくなるコンパイラの指定です",
+        title: "DX11 で使用できなくなるコンパイラの指定です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "DXC でコンパイルしたシェーダーは DX11 では使えません。"
-            + "キーワードの条件の無い、DXC が要る #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
+        description: "DXC でコンパイルしたシェーダーは DX11 では使用できません。"
+            + "キーワードの条件が存在しない、DXC が必要な #pragma require と、Unity 6.5 以前の use_dxc (API なし / d3d11) は、"
             + "DX11 でもパスを DXC でコンパイルさせます。対象の API に DX11 があるときだけ報告します。",
         helpLinkUri: DocumentationLinks.For("UN0203"));
 
@@ -125,7 +125,7 @@ internal static class UnityRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "#pragma never_use_dxc と、DXC が要る #pragma require を同じコードブロックに書くと、"
+        description: "#pragma never_use_dxc と、DXC が必要な #pragma require を同じコードブロックに書くと、"
             + "Unity 6.5 以前は never_use_dxc が勝って FXC、6.6 からは require が勝って DXC でコンパイルされます。",
         helpLinkUri: DocumentationLinks.For("UN0204"));
 
@@ -148,11 +148,11 @@ internal static class UnityRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor PragmaOnceIgnored { get; } = new(
         id: "UN0101",
-        title: "Unity では #pragma once が効きません",
-        messageFormat: "Unity は #pragma once を効かせません。このファイルを 2 度取り込むと、中の宣言が再定義のエラーになります。#ifndef / #define / #endif のインクルードガードで囲んでください。",
+        title: "Unity では #pragma once が無効です",
+        messageFormat: "Unity では #pragma once が無効です。このファイルを 2 度取り込むと、中の宣言が再定義のエラーになります。#ifndef / #define / #endif のインクルードガードで囲んでください。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "Unity のシェーダーのプリプロセッサは #pragma once を無視します (Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
+        description: "Unity のシェーダーのプリプロセッサは #pragma once を無視します (Unity 2022.3 / 6.3 / 6.6 で確認しました)。"
             + "同じファイルを 2 か所から取り込むと、関数や構造体が再定義のエラーになります。"
             + "Unity のヘッダと同じく、#ifndef MY_HEADER_INCLUDED / #define MY_HEADER_INCLUDED / #endif で囲んでください。",
         helpLinkUri: DocumentationLinks.For("UN0101"));
@@ -164,11 +164,11 @@ internal static class UnityRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor Utf16File { get; } = new(
         id: "UN0001",
-        title: "Unity は UTF-16 のファイルを読めません",
+        title: "Unity は UTF-16 のファイルを読み込めません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "Unity は UTF-16 で保存したシェーダーのファイルを読めません (BOM があっても読めません。Unity 2022.3 / 6.3 / 6.6 で確かめました)。"
+        description: "Unity は UTF-16 で保存したシェーダーのファイルを読み込めません (BOM があっても読み込めません。Unity 2022.3 / 6.3 / 6.6 で確認しました)。"
             + ".shader は構文エラーに、取り込んだ .hlsl / .cginc は Unexpected directive や構文エラーになります。"
             + "UTF-8 (BOM の有無はどちらでもよい) で保存し直してください。",
         helpLinkUri: DocumentationLinks.For("UN0001"));
@@ -182,14 +182,14 @@ internal static class UnityRuleDescriptors
         id: "UN0102",
         title: "取り込みをシェーダーからの相対で見つけています",
         messageFormat: "'{0}' はこのファイルからは見つからず、取り込んでいるシェーダーからの相対で見つけています。"
-            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に直してください。",
+            + "Unity では通りますが、別のフォルダーのシェーダーから取り込むと見つからなくなります。このファイルからの相対の '{1}' に書き換えてください。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "ヘッダ (.hlsl など) の中の #include \"...\" が、そのヘッダからの相対では見つからず、"
             + "ヘッダを取り込んでいるシェーダー (.shader) からの相対で見つかりました。"
             + "Unity はヘッダから見つからないとシェーダーから探し直すので、このシェーダーではコンパイルできます。"
             + "しかし、別のフォルダーにあるシェーダーがこのヘッダを取り込むと見つからず、エラーになります。"
-            + "ヘッダからの相対パスに直してください。",
+            + "ヘッダからの相対パスに書き換えてください。",
         helpLinkUri: DocumentationLinks.For("UN0102"));
     /// <summary>キーワードの構成が <c>#error</c> に到達する。</summary>
     /// <remarks>
@@ -204,7 +204,7 @@ internal static class UnityRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "Unity は宣言したキーワードの構成をすべてコンパイルします。その構成の展開が #error に到達すると、コンパイルに失敗します。"
-            + "multi_compile ではシェーダー全体が使えなくなり (キーワードを有効にしていないマテリアルもピンクになります)、"
+            + "multi_compile ではシェーダー全体が使用できなくなり (キーワードを有効にしていないマテリアルもピンクになります)、"
             + "shader_feature ではキーワードを有効にしたマテリアルがピンクになります。"
             + "その構成を宣言から除くか、#error の条件を見直してください。",
         helpLinkUri: DocumentationLinks.For("UN0103"));
@@ -222,7 +222,7 @@ internal static class UnityRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         description: "#pragma require native16bit や UNITY_DEVICE_SUPPORTS_NATIVE_16BIT の構成では、DXC が 16 ビットの型を有効にしてコンパイルし、"
-            + "half / min16float は 2 バイトの float16_t になります。定数バッファの配置が変わり、Unity が 32 ビットで書き込んだ値を正しく読めません。"
-            + "定数バッファのメンバーは float で宣言し、使うところで half に変換してください。",
+            + "half / min16float は 2 バイトの float16_t になります。定数バッファの配置が変わり、Unity が 32 ビットで書き込んだ値を正しく読み取れません。"
+            + "定数バッファのメンバーは float で宣言し、使用するところで half に変換してください。",
         helpLinkUri: DocumentationLinks.For("UN0205"));
 }

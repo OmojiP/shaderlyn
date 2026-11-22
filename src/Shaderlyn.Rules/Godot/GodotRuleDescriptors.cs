@@ -16,25 +16,25 @@ internal static class GodotRuleDescriptors
     /// <summary>そのレンダラーでは使えない。</summary>
     public static DiagnosticDescriptor NotAvailableInRenderer { get; } = new(
         id: "GD0001",
-        title: "このレンダラーでは使えません",
+        title: "このレンダラーでは使用できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "Compatibility のレンダラーでは、high-end の組み込み関数 (textureGather・dFdxFine など) を使えません。"
-            + "hint_normal_roughness_texture は Forward+ のレンダラーでだけ使えます。"
+        description: "Compatibility のレンダラーでは、high-end の組み込み関数 (textureGather・dFdxFine など) を使用できません。"
+            + "hint_normal_roughness_texture は Forward+ のレンダラーでだけ使用できます。"
             + "レンダラーは godot: renderer か project.godot で決まります。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0001"));
 
     /// <summary>そのステージ (シェーダーの種類・ステージ関数) では使えない。</summary>
     public static DiagnosticDescriptor NotAvailableInStage { get; } = new(
         id: "GD0002",
-        title: "そのステージでは使えません",
+        title: "そのステージでは使用できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "フラグメントだけの組み込み関数 (dFdx など) とステージ関数の中でだけ使える組み込み関数 (texture_sdf など) を、"
-            + "vertex 関数の中か vertex 関数から呼ぶ関数の中で使っています。dFdx などは spatial・canvas_item・sky のシェーダーでだけ使えます。"
-            + "discard は spatial・canvas_item でだけ、vertex の外で使えます。varying は vertex と fragment でだけ書き込め、最初に書き込んだ関数で使えるところが決まります。"
+        description: "フラグメントだけの組み込み関数 (dFdx など) とステージ関数の中でだけ使用できる組み込み関数 (texture_sdf など) を、"
+            + "vertex 関数の中か vertex 関数から呼ぶ関数の中で使用しています。dFdx などは spatial・canvas_item・sky のシェーダーでだけ使用できます。"
+            + "discard は spatial・canvas_item でだけ、vertex の外で使用できます。varying は vertex と fragment でだけ書き込め、最初に書き込んだ関数で使用できるところが決まります。"
             + "Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0002"));
 
@@ -45,8 +45,8 @@ internal static class GodotRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "instance uniform をサンプラー・行列・配列に使うか、spatial と canvas_item 以外のシェーダーで使っています。"
-            + "または、global uniform を配列にするか、varying を particles・sky・fog のシェーダーで使うか、整数の varying に flat を書いていません。Godot はコンパイルの誤りにします。",
+        description: "instance uniform をサンプラー・行列・配列に使用するか、spatial と canvas_item 以外のシェーダーで使用しています。"
+            + "または、global uniform を配列にするか、varying を particles・sky・fog のシェーダーで使用するか、整数の varying に flat を書いていません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0101"));
 
     /// <summary>描画のモードかステンシルのモードが正しくない。</summary>
@@ -68,8 +68,8 @@ internal static class GodotRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "uniform のヒントを、使えない型に書いたか (float の source_color、サンプラーでない uniform の filter_linear など)、"
-            + "同じ種類のヒントを 2 度書いたか、そのシェーダーの種類で使えないヒント (sky の hint_screen_texture など) を書いています。"
+        description: "uniform のヒントを、使用できない型に書いたか (float の source_color、サンプラーでない uniform の filter_linear など)、"
+            + "同じ種類のヒントを 2 度書いたか、そのシェーダーの種類で使用できないヒント (sky の hint_screen_texture など) を書いています。"
             + "または、instance_index の範囲・instance uniform の数・既定値の型が正しくありません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0103"));
 
@@ -81,17 +81,17 @@ internal static class GodotRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "varying の数 (行列は列の数、配列は要素の数で数える) が上限の 32 を超えています。"
-            + "Forward+ と Mobile のレンダラーでは、組み込みの varying が spatial で 15、canvas_item で 9 を先に使います。Godot はコンパイルの誤りにします。",
+            + "Forward+ と Mobile のレンダラーでは、組み込みの varying が spatial で 15、canvas_item で 9 を先に使用します。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0104"));
 
     /// <summary>その宣言には使えない型。</summary>
     public static DiagnosticDescriptor TypeNotAllowed { get; } = new(
         id: "GD0403",
-        title: "その宣言には使えない型です",
+        title: "その宣言には使用できない型です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "uniform に構造体か void の型を、varying にサンプラー・構造体・void の型を、構造体のメンバーにサンプラーか void の型を使っています。"
+        description: "uniform に構造体か void の型を、varying にサンプラー・構造体・void の型を、構造体のメンバーにサンプラーか void の型を使用しています。"
             + "Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0403"));
 
@@ -131,17 +131,17 @@ internal static class GodotRuleDescriptors
     /// <summary>関数の名前を値として使った。</summary>
     public static DiagnosticDescriptor FunctionAsValue { get; } = new(
         id: "GD0312",
-        title: "関数を値として使っています",
+        title: "関数を値として使用しています",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "利用者の関数か組み込み関数の名前を、呼び出しの外で値として使っています (float a = f;)。Godot はコンパイルの誤りにします。",
+        description: "利用者の関数か組み込み関数の名前を、呼び出しの外で値として使用しています (float a = f;)。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0312"));
 
     /// <summary>定数の式が要る。</summary>
     public static DiagnosticDescriptor ConstantExpressionExpected { get; } = new(
         id: "GD0317",
-        title: "定数の式が要ります",
+        title: "定数の式が必要です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -166,7 +166,7 @@ internal static class GodotRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "関数の中で、その関数自身を呼んでいます。Godot シェーダー言語では再帰を使えません。Godot はコンパイルの誤りにします。",
+        description: "関数の中で、その関数自身を呼んでいます。Godot シェーダー言語では再帰を使用できません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0332"));
 
     /// <summary>整数のベクトルの 0 での割り算。</summary>
@@ -217,12 +217,12 @@ internal static class GodotRuleDescriptors
     /// <summary>組み込みの名前を宣言し直した。</summary>
     public static DiagnosticDescriptor BuiltinRedefinition { get; } = new(
         id: "GD0405",
-        title: "組み込みの名前を宣言し直せません",
+        title: "組み込みの名前を再宣言できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込みの変数か定数の名前 (TIME、PI、ALBEDO など) で、変数・仮引数・関数を宣言しているか、組み込み関数の名前 (sin など) で関数を宣言しています。"
-            + "関数の外の宣言・関数・仮引数には、そのシェーダーの種類のどの関数の組み込みの名前も使えません。Godot はコンパイルの誤りにします。",
+            + "関数の外の宣言・関数・仮引数には、そのシェーダーの種類のどの関数の組み込みの名前も使用できません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0405"));
 
     /// <summary>ステージ関数の形が正しくない。</summary>
@@ -239,11 +239,11 @@ internal static class GodotRuleDescriptors
     /// <summary>演算子を使えない型の組に使った。</summary>
     public static DiagnosticDescriptor WrongOperandTypes { get; } = new(
         id: "GD0301",
-        title: "この型には演算子を使えません",
+        title: "この型には演算子を使用できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "演算子を、使えない型の組 (vec3 + vec4、float + int、-mat4、ベクトルの < など) に使っています。"
+        description: "演算子を、使用できない型の組 (vec3 + vec4、float + int、-mat4、ベクトルの < など) に使用しています。"
             + "Godot シェーダー言語には暗黙の変換がありません。Godot はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GD0301"));
 

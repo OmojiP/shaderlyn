@@ -46,7 +46,7 @@ internal static class FileErrorDescriber
 
         if (exception is ArgumentException or NotSupportedException || TryGetFullPath(path) is not { } fullPath)
         {
-            return "パスに使えない文字が含まれています。";
+            return "パスに使用できない文字が含まれています。";
         }
 
         if (Directory.Exists(fullPath))
@@ -73,9 +73,9 @@ internal static class FileErrorDescriber
             UnauthorizedAccessException => File.Exists(fullPath) && File.GetAttributes(fullPath).HasFlag(FileAttributes.ReadOnly)
                 ? "ファイルが読み取り専用です。"
                 : "アクセスする権限がありません。",
-            IOException io when SharingViolations.Contains(io.HResult) => "ほかのプログラムがファイルを使っています。",
+            IOException io when SharingViolations.Contains(io.HResult) => "ほかのプログラムがファイルを使用しています。",
             IOException io when DiskFull.Contains(io.HResult) => "ディスクの空きがありません。",
-            IOException io when InvalidName.Contains(io.HResult) => "パスに使えない文字が含まれています。",
+            IOException io when InvalidName.Contains(io.HResult) => "パスに使用できない文字が含まれています。",
             _ => $"{exception.GetType().Name} (0x{exception.HResult:X8}) が起きました。",
         };
     }

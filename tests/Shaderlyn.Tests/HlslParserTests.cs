@@ -378,7 +378,7 @@ public sealed class HlslDeclarationParsingTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Equal("8", diagnostic.Location.Source.ToString(diagnostic.Location.Span));
         Assert.Contains("ビットフィールド", diagnostic.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("FXC では使えません", diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("FXC では使用できません", diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -894,6 +894,6 @@ public sealed class HlslRobustnessTests
 
         Diagnostic diagnostic = Assert.Single(tree.Diagnostics);
         Assert.Equal("CF0001", diagnostic.Id);
-        Assert.StartsWith($"'{macro}(' を宣言として読めません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
+        Assert.StartsWith($"'{macro}(' を宣言として解析できません。'{macro}' はここではマクロとして定義されていません。", diagnostic.GetMessage());
     }
 }

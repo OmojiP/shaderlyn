@@ -78,6 +78,21 @@ internal sealed class LanguageServerHarness : IAsyncDisposable
         (await ReceiveAsync()).Dispose();
     }
 
+    /// <summary>エディタの機能 (capabilities) を添えて初期化を済ませる。</summary>
+    /// <param name="capabilities">initialize の要求に添えるエディタの機能。</param>
+    /// <returns>完了を表すタスク。</returns>
+    public async Task InitializeWithCapabilitiesAsync(object capabilities)
+    {
+        await SendAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "initialize",
+            @params = new { capabilities },
+        });
+        (await ReceiveAsync()).Dispose();
+    }
+
     /// <summary>ワークスペースのルートを添えて初期化を済ませる。</summary>
     /// <param name="initializationOptions">initialize の要求に添える設定。</param>
     /// <param name="workspaceDirectory">ワークスペースのルート。設定ファイルはここから探される。</param>

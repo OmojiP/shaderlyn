@@ -4,19 +4,27 @@
 
 # Shaderlyn
 
-Unity の ShaderLab と HLSL（`.shader`、`.compute`）を、条件付きコンパイルも考慮して静的解析するツールです。解析ルールを追加する仕組みは Roslyn に似ています。
+複数のエンジンとシェーダー言語に対応した、シェーダーの静的解析ツールです。
+条件付きコンパイル（`#if` やキーワードの組み合わせ）も考慮して解析します。解析ルールを追加する仕組みは Roslyn に似ています。
 
-DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど）、Unreal Engine（`.usf`）、独自エンジンのシェーダーも解析できます（[環境ごとの使い方](docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` など）も、HLSL と同じく宣言・型・呼び出しを検査します（[GLSL](docs/guide/environments/glsl.md)）。
-Godot のシェーダー（`.gdshader`）は Godot 4 と、Slang（`.slang`）は slangc と、WGSL（`.wgsl`）は naga（wgpu）と同じ誤りを報告します（[Godot](docs/guide/environments/godot.md)・[Slang](docs/guide/environments/slang.md)・[WGSL](docs/guide/environments/wgsl.md)）。
+| 環境 | 対象 | 検査 |
+| --- | --- | --- |
+| [Unity](docs/guide/environments/unity.md) | ShaderLab と HLSL（`.shader`・`.compute`） | プロパティと HLSL の対応や、`multi_compile` などのキーワードの組み合わせも検査します |
+| [汎用の HLSL](docs/guide/environments/hlsl.md) | DXC で直接コンパイルする HLSL（DirectX 12 のエンジンなど、`.hlsl`） | 宣言・型・呼び出しを検査します |
+| [Unreal Engine](docs/guide/environments/unreal.md) | `.usf`・`.ush` | 仮想パス（`/Engine/...` など）を解決し、パーミュテーションを構成として扱います |
+| [GLSL](docs/guide/environments/glsl.md) | `.vert`・`.frag`・`.comp` など | glslang と同じ誤りを報告します |
+| [Godot](docs/guide/environments/godot.md) | `.gdshader`・`.gdshaderinc` | Godot 4 と同じ誤りを報告します |
+| [Slang](docs/guide/environments/slang.md) | `.slang` | slangc と同じ誤りを報告します |
+| [WGSL](docs/guide/environments/wgsl.md) | `.wgsl` | naga（wgpu）と同じ誤りを報告します |
 
-CLI、VS Code 拡張、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
+独自エンジンのシェーダーも、環境を自分で追加すると解析できます（[環境ごとの使用方法](docs/guide/environments.md)）。
+CLI、VS Code 拡張、Visual Studio 拡張、Rider プラグイン、GitHub Actions などから利用でき、自作の解析ルールも追加できます。
 
 ## 主な機能
 
 ### 1. シェーダーファイルを解析し、info/warning/error の３段階で報告
 
-構文エラーのほか、コンパイルは通るが誤りの可能性があるコードも報告します。重要度は error / warning / info の 3 段階です。
+構文エラーのほか、コンパイルはできるが誤りの可能性があるコードも報告します。重要度は error / warning / info の 3 段階です。
 
 次のコードは、 `float4` で受けることを想定した `Color` 型のプロパティ `_BaseColor` を `float` で受けていますが、暗黙の型変換が行われコンパイルが通ります。
 
@@ -54,12 +62,12 @@ Shader "Custom/Lit"
 Assets/Shaders/Lit.shader(5:21): warning SL1003: プロパティ '_BaseColor' は Color ですが、HLSL では 'float' として宣言されています。float4 / half4 などのベクトル型が必要です。
 ```
 
-ほかにも、スペルミスの可能性があるタグの値や、使われていないシンボルなどを報告します。
+ほかにも、スペルミスの可能性があるタグの値や、使用されていないシンボルなどを報告します。
 報告する内容の一覧は [ルール](docs/rules/README.md) にあります。
 
 Unity では、パスごと・グラフィックス API ごとに FXC と DXC (HLSL 2018) のどちらでコンパイルされるかを、Unity のバージョンに合わせて判定します。
-`#pragma use_dxc` / `#pragma require` の書き方で DX11 では使えなくなるシェーダー (UN0203) や、
-その構成のコンパイラでは通らない構文 (`int64_t` を FXC で使うなど、HL0003) を報告します。
+`#pragma use_dxc` / `#pragma require` の書き方で DX11 では使用できなくなるシェーダー (UN0203) や、
+その構成のコンパイラではコンパイルできない構文 (`int64_t` を FXC で使用するなど、HL0003) を報告します。
 判定の表は [Unity の環境「シェーダーのコンパイラ」](docs/guide/environments/unity.md#シェーダーのコンパイラ) にあります。
 Unity 以外にも、DXC で直接コンパイルする HLSL・Unreal Engine・独自エンジンのシェーダーを、設定ファイルで環境を選んで解析できます。
 
@@ -139,12 +147,14 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 }
 ```
 
-### 4. VS Code 拡張で使う
+### 4. エディタで使用する
 
-解析結果を VS Code 拡張の指摘として表示します。
+解析結果を VS Code・Visual Studio・Rider の指摘として表示します。
 自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を報告することもできます。
 
 VS Code 拡張の言語サーバー利用 : [editors/vscode/README.md](editors/vscode/README.md)
+
+Visual Studio 拡張 : [editors/visualstudio/README.md](editors/visualstudio/README.md) / Rider プラグイン : [editors/rider/README.md](editors/rider/README.md)
 
 ![VS Code で指摘が波線と「問題」パネルに出ている画面](./editors/vscode/images/error_hide.png)
 
@@ -158,14 +168,14 @@ GitHub Actions のセルフホストランナーでPRに使用する例 : [docs/
 
 ---
 
-## 導入・使い方
+## 導入・使用方法
 
 ### 1. CLI 利用
 
-詳しい使い方は [docs/guide/cli-usage.md](docs/guide/cli-usage.md) 
+詳しい使用方法は [docs/guide/cli-usage.md](docs/guide/cli-usage.md) 
 
-[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使う環境のアーカイブを取得して展開し、`shaderlyn` を PATH の通った場所に置きます。
-環境ごとのファイル名、パスの通し方、ソースからのビルドは [CLI の使い方](docs/guide/cli-usage.md#1-インストール) にあります。
+[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使用する環境のアーカイブを取得して展開し、`shaderlyn` を PATH の通った場所に置きます。
+環境ごとのファイル名、パスの通し方、ソースからのビルドは [CLI の使用方法](docs/guide/cli-usage.md#1-インストール) にあります。
 
 ```bash
 shaderlyn --version
@@ -190,7 +200,7 @@ shaderlyn /.../UnityProject/Assets --unity-project /.../UnityProject
 
 ---
 
-### 2. GitHub Actions で使う
+### 2. GitHub Actions で使用する
 
 手順は [CI に組み込む](docs/guide/ci-setup.md) にあります。
 
@@ -198,13 +208,13 @@ shaderlyn /.../UnityProject/Assets --unity-project /.../UnityProject
 
 ---
 
-### 3. VS Code 拡張で使う
+### 3. VS Code 拡張で使用する
 
 VS Code の拡張機能ビューで **Shaderlyn** を検索してインストールします（[Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn)）。
 
 導入とオプションの詳細： [editors/vscode/README.md](editors/vscode/README.md#インストール) 
 
-![スペルミスをクイックフィックスで直す様子](./editors/vscode/images/typo.gif)
+![スペルミスをクイックフィックスで修正する様子](./editors/vscode/images/typo.gif)
 
 | 機能               | 内容                                                                                                                   |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
@@ -213,7 +223,22 @@ VS Code の拡張機能ビューで **Shaderlyn** を検索してインストー
 | 移動・補完         | 定義へ移動 (`F12`)、参照検索 (`Shift+F12`)、リネーム (`F2`)、補完、シグネチャヘルプ                                    |
 | クイックフィックス | スペルミスの修正、抑制コメントの挿入                                                                                   |
 | HLSL 単体          | `.hlsl` / `.cginc` / `.hlslinc` / `.compute` も解析。`#ifdef` のシンボルを右上から定義済みにして、条件の中も検査できる |
-| 効いていない分岐   | どの構成でも条件が外れる `#if` / `#ifdef` の中を薄く表示（シンボルのバリアントで通る分岐は薄くしない）                     |
+| 無効な分岐         | どの構成でも条件が外れる `#if` / `#ifdef` の中を薄く表示（シンボルのバリアントで有効になる分岐は薄くしない）                     |
+
+### 4. Visual Studio で使用する
+
+Visual Studio 2022 (17.14 以降) と Visual Studio 2026 に対応します。「拡張機能の管理」で **Shaderlyn** を検索してインストールします ([Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn-visualstudio))。
+指摘・クイックフィックス・ホバー・補完・定義へ移動など、VS Code 拡張と同じ機能が働きます (薄い表示とシンボルの選択は VS Code 拡張だけ)。
+HLSL Tools が入っている場合は、`.hlsl` などで HLSL Tools の機能と併用します。
+
+導入と設定の詳細： [editors/visualstudio/README.md](editors/visualstudio/README.md)
+
+### 5. Rider で使用する
+
+Rider 2026.3 以降に対応します。「Settings」→「Plugins」の「Marketplace」タブで **Shaderlyn** を検索してインストールします (JetBrains Marketplace)。
+指摘とクイックフィックスを出します。ホバーや補完は Rider 自身のシェーダーの支援が働きます。
+
+導入と設定の詳細： [editors/rider/README.md](editors/rider/README.md)
 
 ---
 
@@ -221,7 +246,7 @@ VS Code の拡張機能ビューで **Shaderlyn** を検索してインストー
 
 ### 新規に混入したエラーのみを検知する
 
-今ある指摘を凍結し、新しく混入したものだけを報告させられます（手順: [CLI の使い方 6. ベースライン](docs/guide/cli-usage.md#6-ベースライン)）。
+今ある指摘を凍結し、新しく混入したものだけを報告させられます（手順: [CLI の使用方法 6. ベースライン](docs/guide/cli-usage.md#6-ベースライン)）。
 
 ```bash
 shaderlyn Assets --write-baseline .shaderlyn-baseline.json   # 今ある指摘を記録する
@@ -266,8 +291,8 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ツールを使う      | [CLI の使い方](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md) / [0.3.1 への移行](docs/guide/migration-0.3.1.md)       |
-| CI やエディタで使う | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md)                                                                                                  |
+| ツールを使用する      | [CLI の使用方法](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md) / [0.3.1 への移行](docs/guide/migration-0.3.1.md)       |
+| CI やエディタで使用する | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md) / [Visual Studio 拡張](editors/visualstudio/README.md) / [Rider プラグイン](editors/rider/README.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |
 | 開発に参加する     | [貢献の手引き](CONTRIBUTING.md) |

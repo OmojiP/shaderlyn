@@ -73,7 +73,7 @@ internal static partial class HoverBuilder
                 => new HoverResult(
                     $"```shaderlab\nProperties\n```\n\nマテリアルのインスペクタに出す値の宣言"
                     + $" ({properties.Properties.Length} 件)。"
-                    + "\n\nここに書いただけでは効かない。HLSL 側にも同じ名前の uniform が要る。",
+                    + "\n\nここに書いただけでは反映されない。HLSL 側にも同じ名前の uniform が必要。",
                     properties.Keyword.Span),
 
             TagsBlockSyntax tags when Touches(tags.Keyword, offset)
@@ -162,7 +162,7 @@ internal static partial class HoverBuilder
     {
         if (string.Equals(key, "RenderType", StringComparison.OrdinalIgnoreCase))
         {
-            return "\n\nよく使われる値: " + Join(ShaderLabKnownValues.RenderTypes)
+            return "\n\nよく使用される値: " + Join(ShaderLabKnownValues.RenderTypes)
                 + "\n\n置き換え用に独自の値を付けてもよい。";
         }
 

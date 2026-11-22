@@ -76,11 +76,12 @@
 | メンバー                                                    |                           |
 | ----------------------------------------------------------- | ------------------------- |
 | `abstract void InitializeShader(ShaderAnalysisContext context)` | HLSL ノードへの関心の登録 |
+| `virtual ShaderLanguages Languages` | 当てる言語。既定は `ShaderLanguages.Hlsl` (Unity・汎用の HLSL・Unreal Engine・独自エンジン)。`Glsl`・`Godot`・`Slang`・`Wgsl`・`All` を組み合わせて指定できる ([実例集](cookbook.md#unity-以外の言語と環境)) |
 | `sealed override void Initialize(...)`                      | 上書き不可                |
 
 この基底クラスが引き受けることは次のとおりです。
 
-- セマンティックモデルが無い場合は何も報告しない
+- セマンティックモデルが存在しない場合は何も報告しない
 - 利用者が書いたコードだけを歩きます。そのシェーダーと、利用者が書いて取り込んだヘッダ (共通の `.hlsl` など) です。
   Unity や外部パッケージのヘッダの中身は歩きません ([報告してよいノードか](#報告してよいノードか))
 - **既定の構成の木に加えて、シンボルを有効にした構成 (バリアント) の木も歩きます。**
@@ -144,7 +145,7 @@ When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_
 ```
 
 - 文字列で書けるのは `defined(X)` / `defined X` / `X`、値を持つシンボルと整数の比較 (`==` `!=` `<` `<=` `>` `>=`)、`!` `&&` `||` と括弧です
-- 値を持つシンボル (`QUALITY`) は、その単位の値の一覧で読みます (`QUALITY >= 2` は `QUALITY == 2 || QUALITY == 3`)。`X` だけなら `X != 0` です
+- 値を持つシンボル (`QUALITY`) は、その単位の値の一覧で解釈します (`QUALITY >= 2` は `QUALITY == 2 || QUALITY == 3`)。`X` だけの場合は `X != 0` です
 - 書き方の誤りは、登録するときに `FormatException` になります。値を持たないシンボルを数と比較すると、解析するときに `FormatException` になります (TOOL0001)
 
 ### `AnalysisStartContext`
@@ -181,7 +182,7 @@ When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_
 | メンバー      |                                                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `Compilation` | 対象シェーダーのセマンティックモデル。[`ShaderCompilation`](#shadercompilation-shaderlynsemantics)。`null` にはならない |
-| `Program`     | そのノードが属するコードブロック。[`AnalyzedProgram`](#analyzedprogram)。既定の構成の木か、バリアントの木のどちらか。型を求めるときは `Compilation.GetExpressionTypeBinder(Program)` を使う |
+| `Program`     | そのノードが属するコードブロック。[`AnalyzedProgram`](#analyzedprogram)。既定の構成の木か、バリアントの木のどちらか。型を求めるときは `Compilation.GetExpressionTypeBinder(Program)` を使用する |
 | `Condition`   | そのノードが存在する条件 (`SymbolCondition`)。`Compilation.GetEffectiveCondition(Node, Program)` と同じ。`IsUnknown` なら報告の根拠にしない |
 | `ReportWhen(when, descriptor, args...)` / `ReportWhen(when, descriptor, span, args...)` | 構成の条件が付く報告。メッセージの `{0}` に「構成：○○ のとき、」(どの構成でもなら空) が入り、`args` は `{1}` 以降に入る。下記 |
 
@@ -190,9 +191,9 @@ When = SymbolCondition.Symbol("SHADER_API_MOBILE").And(SymbolCondition.Symbol("_
 構成の条件が付く報告を、正しい順序で条件を掛けて出します。
 
 ```csharp
-// メッセージの書式: "{0}関数 '{1}' は使えません。"
+// メッセージの書式: "{0}関数 '{1}' は使用できません。"
 c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function);
-// → 「構成：_A のとき、関数 'tex2Dlod' は使えません。」
+// → 「構成：_A のとき、関数 'tex2Dlod' は使用できません。」
 ```
 
 1. 報告する構成 = ノードの条件 × その木が表す構成 (`GetTreeConfiguration`) × `when` × `NodeActionOptions.When`
@@ -202,11 +203,11 @@ c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function
 5. 読める形に短くします (`Simplify`)
 
 `ReportDiagnostic` で木ごとに報告すると、同じ位置の報告は最初の木のものだけが残り、ほかの木の構成の分が条件から落ちます。
-条件をメッセージに表示する場合は `ReportWhen` を使ってください。
+条件をメッセージに表示する場合は `ReportWhen` を使用してください。
 
-`ShaderRuleAnalyzer` を使わないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
+`ShaderRuleAnalyzer` を使用しないアナライザは、同じことを `ConditionalReports` (`Shaderlyn.Semantics.Analysis`) で行えます。
 `Add(program, node, when, descriptor, location, args...)` で集め、`Build()` で診断にします。
-メッセージの引数を条件から作るなら `Add(program, node, when, descriptor, location, key, condition => [...])` を使います (`key` は条件以外の引数で、同じ鍵の報告をまとめます)。
+メッセージの引数を条件から作る場合は `Add(program, node, when, descriptor, location, key, condition => [...])` を使用します (`key` は条件以外の引数で、同じ鍵の報告をまとめます)。
 両方の分岐を並べた木の中で、木の構成の外の構成について述べる報告 (「この構成では型が違う」) は、`withTreeConfiguration: false` で木の構成を掛けずに追加します。
 
 ---
@@ -219,17 +220,17 @@ c.ReportWhen(SymbolCondition.Symbol(keyword), Rule, c.Node.Target.Span, function
 new DiagnosticDescriptor(
     id: "MY0001",
     title: "短い表題",
-    messageFormat: "'{0}' は使えません。",
+    messageFormat: "'{0}' は使用できません。",
     category: "Usage",
     defaultSeverity: DiagnosticSeverity.Warning,
-    description: "なぜ駄目で、どう直すか。",
+    description: "なぜ駄目で、どう修正するか。",
     helpLinkUri: "https://example.com/MY0001");
 ```
 
 | 引数              |                                                     |
 | ----------------- | --------------------------------------------------- |
 | `id`              | 英大文字の接頭辞 + 4 桁。この書式でないと例外になる |
-| `title`           | 一覧表示に使う短い説明                              |
+| `title`           | 一覧表示に使用する短い説明                              |
 | `messageFormat`   | `string.Format` の書式                              |
 | `category`        | `Correctness` / `Usage` / `Naming` など             |
 | `defaultSeverity` | `Info` / `Warning` / `Error`。`None` は指定できない |
@@ -244,7 +245,7 @@ new DiagnosticDescriptor(
 ### `DiagnosticSeverity`
 
 値は `None` / `Info` / `Warning` / `Error` です。
-`None` は「無効」を表し、設定ファイルでの無効化に使います。
+`None` は「無効」を表し、設定ファイルでの無効化に使用します。
 
 ### `Diagnostic`
 
@@ -254,9 +255,29 @@ new DiagnosticDescriptor(
 | `GetMessage()`                                | 引数を埋めた最終的なメッセージ                        |
 | `MessageArgumentCount`                        | 渡された引数の数                                      |
 | `WithSuggestedReplacement(text)`              | 置き換え候補を添える。エディタが 1 回の操作で適用する |
+| `WithFix(fix)` / `Fixes`                      | 修正 (`DiagnosticFix`) を添える・取得する。指摘の範囲の外も書き換えられる |
 | `WithSeverity(...)` / `WithLocation(...)`     | 差し替えた複製を返す                                  |
 
 `Diagnostic.Create(descriptor, location, args...)` でも作れます。
+
+### `DiagnosticFix` と `TextReplacement`
+
+指摘の修正 1 つです。エディタはコードアクション (クイックフィックス) として出します。
+
+| メンバー | |
+| --- | --- |
+| `Title` | 操作の名前 (「static を付ける」など)。エディタのメニューに出る |
+| `Replacements` | 置き換え (`TextReplacement(span, newText)`) の並び。位置は指摘と同じファイルの中。互いに重ならないこと |
+| `IsPreferred` | 既定の候補として扱ってよいか。修正した後に指摘が消え、意味が書き手の意図から変わらないものだけを `true` にする |
+| `DiagnosticFix.Insert(title, position, text)` / `DiagnosticFix.Replace(title, span, text)` | 置き換え 1 つの修正を作る |
+
+```csharp
+context.ReportDiagnostic(
+    Diagnostic.Create(MyRules.MissingStatic, location, name)
+        .WithFix(DiagnosticFix.Insert("static を付ける", constToken.Span.Start, "static ")));
+```
+
+マクロの展開から来たトークン (`IsFromMacroExpansion`) の位置は、マクロの使用箇所か定義を指します。そこを書き換えるとほかのコードが壊れるので、修正を添えないでください。
 
 ### `Location` と `TextSpan`
 
@@ -264,7 +285,7 @@ new DiagnosticDescriptor(
 `Location.LineSpan` で行と桁を取得できます。
 
 `TextSpan.Contains(position)` は終端位置を含まず、`TextSpan.IntersectsWith(position)` は含みます。
-エディタのカーソルのように、語の直後の位置も「語の上」と扱いたいときは `IntersectsWith` を使います。
+エディタのカーソルのように、語の直後の位置も「語の上」と扱いたいときは `IntersectsWith` を使用します。
 
 ---
 
@@ -322,7 +343,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 | `CommandSyntax`         | `Cull Back` のような命令                               |
 | `GrabPassSyntax`        | `GrabPass { ... }`                                     |
 | `ProgramBlockSyntax`    | `HLSLPROGRAM` / `CGPROGRAM` / `HLSLINCLUDE` のブロック |
-| `SkippedTokensSyntax`   | 構文解析が読み飛ばしたトークン                         |
+| `SkippedTokensSyntax`   | 構文解析が解析を省略したトークン                       |
 
 `CommandArgumentSyntax` の派生:
 
@@ -441,7 +462,7 @@ if (ShaderLiteral.TryGetInt64(literal.Token, out long index)) { ... }
 | `GetCompoundAssignmentOperand(kind)`                        | `%=` が行う演算 (`%`)                    |
 | `GetKeyword(statement)`                                     | その文を始めるキーワードのトークン       |
 
-配列の長さは宣言子と仮引数から直接も引けます。
+配列の長さは宣言子と仮引数から直接も取得できます。
 
 ```csharp
 if (variable.TryGetArrayLength(out int length)) { ... }   // VariableDeclaratorSyntax
@@ -459,8 +480,8 @@ if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 | `TryDescribeNumeric(typeName, out shape)`                                  | 基底名・行・列への分解 (`ShaderNumericShape`)        |
 | `Compose(shape)` / `ComposeNumeric(baseName, components)`                  | 分解の逆。その言語での型の名前を作る                 |
 | `IsConvertible(valueType, targetType, exact)` / `IsTruncating(...)`        | 組み込みルールと同じ判定で、暗黙の変換の可否         |
-| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL ならコンパイラと HLSL のバージョン) は木から読む |
-| `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読む関数・メソッドかどうか、何を返すか   |
+| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL の場合はコンパイラと HLSL のバージョン) は木から読む |
+| `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読み取る関数・メソッドかどうか、何を返すか   |
 | `ComponentNameSets`                                                        | ベクトルの成分名の組 (HLSL は `xyzw` と `rgba`)      |
 
 ```csharp
@@ -469,7 +490,7 @@ compilation.TypeSystem.TryDescribeNumeric(type.Name, out ShaderNumericShape shap
 ```
 
 下の `HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` は、HLSL の表そのものです。
-HLSL にしか無い決まり (定数バッファの詰め方など) を見るルールで使います。
+HLSL にしか無い決まり (定数バッファの詰め方など) を見るルールで使用します。
 
 #### `HlslTypeClassifier` — HLSL の型名を読み解く
 
@@ -497,7 +518,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | メンバー                           |                                        |
 | ---------------------------------- | -------------------------------------- |
 | `IsKnownFunction(name)`            | 組み込み関数かどうか                   |
-| `IsTextureSamplingFunction(name)`  | テクスチャを読む関数・メソッドかどうか |
+| `IsTextureSamplingFunction(name)`  | テクスチャを読み取る関数・メソッドかどうか |
 | `GetTextureMethodReturnType(name)` | `Sample` などが何を返すか              |
 
 ---
@@ -525,24 +546,25 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `SymbolVariants`                  | シンボルを 1 つ有効にした構成での解析結果 |
 | `TryGetUniform(name, out _)`       | uniform を取得する                              |
 | `HasCompleteDependencies`          | `#include` をすべて解決できたか             |
-| `MayLackOverloadsOf(name)`         | その名前の関数の多重定義が見えていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
+| `MayLackOverloadsOf(name)`         | その名前の関数の多重定義を参照できていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
 | `AppearsOutsideAnalyzedCode(name)` | 名前が、どの構成でも解析されなかった領域かマクロ定義の本体に現れるか (シェーダー全体) |
-| `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使う。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
+| `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使用する。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
 | `UnanalyzedIdentifiers`            | どの構成でも解析されなかった領域に現れた名前 |
 | `AllDeclaredNames`                 | すべての木 (取り込んだヘッダを含む) で宣言された変数・仮引数・関数・構造体・定数バッファの名前 |
-| `LocalOnlyDeclaredNames`           | そのうち、関数の中の変数と仮引数としてしか宣言されていない名前。位置によって見えたり見えなかったりするので、`ResolveName` で確認する |
+| `LocalOnlyDeclaredNames`           | そのうち、関数の中の変数と仮引数としてしか宣言されていない名前。位置によって参照できたりできなかったりするので、`ResolveName` で確認する |
 | `HeaderDeclaredNames`              | そのうち、取り込んだヘッダの宣言に現れた名前。このファイルに書いた宣言は Pass ごとに違うので、`AnalyzedProgram.BlockKey` ごとに集めること |
-| `EnumerateRuleNodes()`             | **検査のために歩くノード（これを使う）。** 既定の構成と各バリアントの木にある、そのシェーダーが自分で書いたノードを、属する木とともに返す |
+| `EnumerateRuleNodes()`             | **検査のために歩くノード（これを使用する）。** 既定の構成と各バリアントの木にある、そのシェーダーが自分で書いたノードを、属する木とともに返す |
 | `EnumerateRuleDeclarations()`      | 同じく、トップレベルの宣言を属する木とともに返す |
 | `GetEffectiveCondition(node, program)` | そのノードが存在する条件。その木を解析した構成も掛け合わせる |
 | `TryEnumerateConfigurations(nodes, program, out configurations)` | ノードの条件に現れるシンボルの実在する組み合わせと、それぞれで存在するノード。**数えたり合計したりするルールはこれで構成ごとに数える**（[下の節](#数えるルールは構成ごとに数える)） |
-| `GetTreeConfiguration(program)` | その木が実際に表す構成のうち、木の中の出現条件では表されない部分。既定の木なら「バリアントになったシンボルはどれも無効」。**複数の木の結果を条件で突き合わせるルールは、ノードの出現条件にこれを掛ける。** 掛けないと、どの木も解析していない組み合わせについてまで結論を導く |
+| `GetTreeConfiguration(program)` | その木が実際に表す構成のうち、木の中の出現条件では表されない部分。既定の木の場合は「バリアントになったシンボルはどれも無効」。**複数の木の結果を条件で突き合わせるルールは、ノードの出現条件にこれを掛ける。** 掛けないと、どの木も解析していない組み合わせについてまで結論を導く |
 | `GetHeaderDeclaredNames(block)` | そのコードブロック (Pass・カーネル) が取り込んだヘッダの宣言に現れた名前。別の Pass が取り込んだヘッダの名前は含まない |
-| `EnumerateOwnNodes(program)`       | 1 本の木として見せるためのノード。バリアントにしか無いノードを既定の木の子として返す（検査には使わない） |
-| `IsReportable(node)`               | **そのノードを報告してよいか（これを使う）** |
-| `IsReportable(token)`              | そのトークンを報告してよいか。ノードの一部だけを報告するときに使う |
+| `EnumerateOwnNodes(program)`       | 1 本の木として示すためのノード。バリアントにしか存在しないノードを既定の木の子として返す（検査には使用しない） |
+| `Language`                         | 解析した言語 (`ShaderLanguages`)。複数の言語に当てるルールが、言語ごとに判断を分けるときに使用する |
+| `IsReportable(node)`               | **そのノードを報告してよいか（これを使用する）** |
+| `IsReportable(token)`              | そのトークンを報告してよいか。ノードの一部だけを報告するときに使用する |
 | `IsUserFile(path)`                 | そのファイルが利用者のファイル (このファイルと、利用者が書いて取り込んだヘッダ) か |
-| `IsWrittenHere(node)`              | そのノードが、このファイルに直接書かれているか。エディタの操作のための判定で、報告の判定には使わない |
+| `IsWrittenHere(node)`              | そのノードが、このファイルに直接書かれているか。エディタの操作のための判定で、報告の判定には使用しない |
 | `IsFromOwnMacro(node)`             | そのノードが、利用者のファイルが書いたマクロの本体から来たか |
 | `CodeTokens`                       | このファイルのコードの、マクロ展開前のトークン |
 | `UserIncludeCodeTokens`            | 利用者が書いて取り込んだヘッダの、マクロ展開前のトークン。位置はヘッダを指す |
@@ -552,7 +574,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `HasFunctionDeclarations`          | 関数の宣言が 1 つでもあるか                 |
 | `GetExpressionTypeBinder(program)` | 式の型を求める `ExpressionTypeBinder`       |
 | `Environment`                      | このモデルを作った環境 (`IShaderEnvironment`。[環境](#環境)) |
-| `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity なら ShaderLab の木) |
+| `Source`                           | 環境が解析した、ファイルそのものの情報 (Unity の場合は ShaderLab の木) |
 
 Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプラインのプロファイル・単体ファイルか) は `Shaderlyn.Unity` の
 `compilation.GetUnity()` (`UnityShaderModel`) から取得します。Unity 以外の環境で作ったモデルでは `null` です。
@@ -568,7 +590,7 @@ Unity の情報 (`Properties`・ShaderLab の木・レンダーパイプライ�
 #### 報告してよいノードか
 
 **指摘を報告する前に `IsReportable(node)` を確認してください。** Unity や外部パッケージのヘッダのコードや、
-それらのマクロが作ったコードを指摘しても、利用者には直しようがありません。
+それらのマクロが作ったコードを指摘しても、利用者には修正できません。
 
 ```csharp
 if (!context.Compilation.IsReportable(node))
@@ -582,7 +604,7 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 
 | 通すもの | 報告の位置 |
 | --- | --- |
-| 利用者のファイルに直接書かれたコード | そのコードの位置。ヘッダのコードならヘッダを指す |
+| 利用者のファイルに直接書かれたコード | そのコードの位置。ヘッダのコードの場合はヘッダを指す |
 | 利用者のファイルが書いたマクロの本体から来たコード（`IsFromOwnMacro`） | **マクロの本体の位置** |
 
 1 つ目には、次のものも入ります。
@@ -598,13 +620,13 @@ CLI と言語サーバーでは、Unity と外部パッケージのヘッダ (�
 ノードの一部だけを報告するルールは、報告する部分 (メンバー名のトークンなど) についても `IsReportable(token)` を確認してください。
 
 **利用者のヘッダのコードは、取り込むシェーダーの文脈で渡ってきます。**
-`ShaderRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードならヘッダの位置に出ます。
+`ShaderRuleAnalyzer` の `ReportDiagnostic(descriptor, span, ...)` は範囲をノードのファイルに付けるので、ヘッダのノードの場合はヘッダの位置に出ます。
 `DiagnosticAnalyzer` を直接継承したルールで範囲だけを渡すと、解析しているファイルの位置になります。
 ヘッダのノードを報告するときは `Diagnostic.Create(descriptor, node.GetLocation(), ...)` で位置ごと渡してください。
-`IsWrittenHere` はエディタの操作 (ホバーや定義へ移動) のための判定で、利用者のヘッダを含みません。報告の判定には使わないでください。
+`IsWrittenHere` はエディタの操作 (ホバーや定義へ移動) のための判定で、利用者のヘッダを含みません。報告の判定には使用しないでください。
 
 2 つ目は `node.GetLocation()` が自動でマクロの本体を指すので、ルール側で何かする必要はありません。
-同じマクロを何度使っても、報告は本体の 1 か所にまとまります。
+同じマクロを何度使用しても、報告は本体の 1 か所にまとまります。
 
 ```hlsl
 #define HELPER_DECL half4 helper() { return undeclared; }
@@ -616,7 +638,7 @@ HELPER_DECL
 
 #### 検査のために歩く
 
-**検査のためにノードを歩くなら `EnumerateRuleNodes()` を使ってください。**
+**検査のためにノードを走査する場合は `EnumerateRuleNodes()` を使用してください。**
 既定の構成の木とバリアントの木を、それぞれの文脈で歩きます。組み込みルールもこの形です。
 
 ```csharp
@@ -648,7 +670,7 @@ foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.Enumera
 `#ifdef ENABLE_ALPHA` の中の `color.w` は、`ENABLE_ALPHA` を有効にした木で `float4` として検査されます。
 
 `EnumerateOwnNodes(program)` は、バリアントにしか無いノードを既定の木の子として返します。
-そのノードの属さない構成の文脈で型を求めることになるので、検査には使いません。
+そのノードの属さない構成の文脈で型を求めることになるので、検査には使用しません。
 
 **バリアントの木の中で、条件が付いていないことは「どの構成でも」を意味しません。**
 そのシンボルを有効にした構成の中での話です。
@@ -666,7 +688,7 @@ foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.Enumera
 ```csharp
 List<StatementSyntax> statements = [.. body.DescendantNodesAndSelf().OfType<StatementSyntax>()];
 
-// 条件が分からないノードがある、シンボルが多すぎる (MaxConfigurationSymbols を超える) なら数えない
+// 条件が不明なノードがある、シンボルが多すぎる (MaxConfigurationSymbols を超える) 場合は数えない
 if (!compilation.TryEnumerateConfigurations(statements, program, out var configurations) || configurations.IsEmpty)
 {
     return;
@@ -680,7 +702,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 
 #### 構成ごとの結論を導くときの注意
 
-「ある構成で宣言が無い」「ある構成で return しない」のように、**構成を名指しして報告するルール**は次の 2 点に気を付けてください。
+「ある構成で宣言が存在しない」「ある構成で return しない」のように、**構成を名指しして報告するルール**は次の 2 点に気を付けてください。
 
 - **ノードの出現条件は、既定の木を基準にしたものです。** シンボルを有効にしたバリアントの木 (シンボルをまとめて有効にした木を含む) の中では、
   その木に実際にあるノードにも合わない条件が付くことがあります。構成ごとの判定は既定の木で行い、
@@ -691,7 +713,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 | `AnalyzedProgram` のメンバー |                                  |
 | --------------------------- | -------------------------------- |
 | `EnabledSymbols`            | その木で有効にしたシンボル       |
-| `AnalyzedCondition`         | それを条件として表したもの。既定の構成なら「常に」 |
+| `AnalyzedCondition`         | それを条件として表したもの。既定の構成の場合は「常に」 |
 | `BlockKey`                  | 別々に組み立てられるコード (Pass、コンピュートシェーダーのカーネル) を見分ける鍵。既定の構成とそのバリアントは同じ鍵を持つ。宣言を集めて突き合わせるなら、この鍵ごとに分ける |
 
 式の型は `GetExpressionTypeBinder(program)` が返すものから求めます。
@@ -700,11 +722,11 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 | `ExpressionTypeBinder` のメンバー |                                                                   |
 | --------------------------------- | ----------------------------------------------------------------- |
 | `GetEvaluatorFor(node)`           | そのノードを囲む関数の中で式の型を求める `ExpressionTypeEvaluator` |
-| `CountComponents(expression)`     | 式の数値の成分の個数 (`float3` なら 3)。型が分からなければ `null` |
+| `CountComponents(expression)`     | 式の数値の成分の個数 (`float3` の場合は 3)。型が不明な場合は `null` |
 | `ResolveName(identifier)`         | 識別子がその位置で指す宣言 (下の「`ResolveName`」)                 |
 
 識別子の位置から外側の波括弧を順にたどり、名前を検索します。
-同じ関数の中でも、内側の波括弧で宣言し直した名前はその中と外で別の変数として扱われます。
+同じ関数の中でも、内側の波括弧で再宣言した名前はその中と外で別の変数として扱われます。
 関数の外では uniform を取得し、無ければ `static` / `groupshared` の変数を取得します。
 
 ### `ResolveName`
@@ -728,18 +750,18 @@ if (c.Node is IdentifierExpressionSyntax identifier)
 | --------------------- | ----------------------------------------------------------- |
 | `Local`               | 関数の中の変数か仮引数                                      |
 | `Global`              | 関数の外の変数 (uniform、`static` / `groupshared`、定数バッファのメンバー) |
-| `NotFound`            | どちらにも宣言が無い。別の構成でだけ宣言されている名前もこれになる |
+| `NotFound`            | どちらにも宣言が存在しない。別の構成でだけ宣言されている名前もこれになる |
 | `Undecidable`         | 決められない。報告の根拠にしない                            |
 
 `Candidates` は指しうる宣言 (`DeclaredName`) の並びで、条件によって別の宣言を指すなら複数になります。
-`DeclaredName` は宣言子 (`Declarator`)、型 (`Type`)、その位置から見える条件 (`Condition`) を持ちます。
+`DeclaredName` は宣言子 (`Declarator`)、型 (`Type`)、その位置から参照できる条件 (`Condition`) を持ちます。
 次の場合は `Undecidable` になります。
 
-- 関数の中に、波括弧の無い `if (x) float a;` のような範囲の決まらない宣言がある
+- 関数の中に、波括弧が存在しない `if (x) float a;` のような範囲の決まらない宣言がある
 - 前の文の中で、波括弧を挟まずに入れ子になった `for` の初期化が同じ名前を宣言している
   (`for (...) for (int j = 0; ...) ...;` の後の `j`)。fxc が内部エラーになる形です
 
-`for` の初期化の変数は、囲む波括弧の中ではループの後でも見えます (Unity で通る読み方)。
+`for` の初期化の変数は、囲む波括弧の中ではループの後でも参照できます (Unity でコンパイルできる解釈)。
 
 ### `ResolveCall`
 
@@ -763,17 +785,17 @@ if (resolution.IsResolved)
 | `Declaration`    | 呼ばれる関数の宣言。決まらなければ `null` |
 | `ParameterTypes` | 解決先の仮引数の型名                      |
 | `Candidates`     | 名前と出現条件で絞った候補                |
-| `ArgumentTypes`  | 実引数の型。分からなかったものは `null`   |
+| `ArgumentTypes`  | 実引数の型。不明なものは `null`   |
 | `IsResolved`     | 1 つに決まったかどうか                    |
 
 | `Status`                | 意味                                   |
 | ----------------------- | -------------------------------------- |
 | `Resolved`              | 宣言が 1 つに決まった                  |
-| `Intrinsic`             | 組み込み関数だった。宣言は無い         |
-| `NotDeclared`           | その構成に、その名前の宣言が無い       |
-| `ArgumentCountMismatch` | その個数を受け付ける宣言が無い         |
-| `NoMatch`               | 個数は合うが、実引数を渡せる宣言が無い |
-| `Ambiguous`             | 渡せる宣言が複数あり、決め手が無い     |
+| `Intrinsic`             | 組み込み関数だった。宣言は存在しない         |
+| `NotDeclared`           | その構成に、その名前の宣言が存在しない       |
+| `ArgumentCountMismatch` | その個数を受け付ける宣言が存在しない         |
+| `NoMatch`               | 個数は合うが、実引数を渡せる宣言が存在しない |
+| `Ambiguous`             | 渡せる宣言が複数あり、決め手がない     |
 | `Unknown`               | 判断できない                           |
 
 これは HLSL のオーバーロード解決の近似です。
@@ -800,7 +822,7 @@ foreach (CalledFunction callee in c.Compilation.EnumerateCallees(c.Node, c.Progr
 
 - 同じ関数は、最初に (浅いところで) 見つけた 1 件だけを返します
 - 多重定義が 1 つに決まらなければ、候補をすべてたどります。組み込み関数と、宣言の見つからない呼び出しはたどりません
-- `When` には木が表す構成を掛けていません。報告には `ReportWhen` を使ってください
+- `When` には木が表す構成を掛けていません。報告には `ReportWhen` を使用してください
 
 ### `TryGetIdentifierUndeclaredCondition`
 
@@ -809,12 +831,12 @@ foreach (CalledFunction callee in c.Compilation.EnumerateCallees(c.Node, c.Progr
 ```csharp
 if (c.Compilation.TryGetIdentifierUndeclaredCondition(c.Node, c.Program, out SymbolCondition undeclared))
 {
-    // undeclared … 識別子を使っていて、宣言が無い構成 (どの構成でもなら Always)
+    // undeclared … 識別子を使用していて、宣言が存在しない構成 (どの構成でも存在しない場合は Always)
 }
 ```
 
 - 対象はグローバル変数 (定数バッファのメンバーを含む) です。局所変数・仮引数を指す名前と、どの木でもグローバル変数として宣言されていない名前 (CF0310 の範囲) は `false` です
-- 使う側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比較し、ありえない構成と `#error` に到達する構成を除きます
+- 使用する側の条件 (位置の条件 × 木の構成) と、宣言がある条件 (その木の同じ名前の宣言の条件の和) を比較し、ありえない構成と `#error` に到達する構成を除きます
 - 条件を追えなかったとき、どの構成でも解析しなかった領域に名前があるとき、依存関係が解決できていないときは `false` です
 
 ### `GetTypesByConfiguration`
@@ -826,15 +848,15 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 {
     // type.When … 構成、type.Type … その構成での型
 }
-// #ifdef _A float3 color; #else float4 color; #endif の color なら (_A, float3) と (!_A, float4)
+// #ifdef _A float3 color; #else float4 color; #endif の color の場合は (_A, float3) と (!_A, float4)
 ```
 
-`Evaluate` は型が構成で割れる名前を不明 (`null`) にします。型が分からない構成は結果に含みません。`When` には木が表す構成を掛けていません。
+`Evaluate` は型が構成で割れる名前を不明 (`null`) にします。型が不明な構成は結果に含みません。`When` には木が表す構成を掛けていません。
 
 ### `CallCompatibility` (`Shaderlyn.Semantics.Programs`)
 
 呼び出しが宣言に合うかを、自分で 1 つずつ確認するための判定です。
-`ResolveCall` と組み込みルール (CF0401〜CF0403) も同じ判定を使っています。
+`ResolveCall` と組み込みルール (CF0401〜CF0403) も同じ判定を使用しています。
 
 | メンバー                                   |                                                              |
 | ------------------------------------------ | ------------------------------------------------------------ |
@@ -842,7 +864,7 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 | `IsWriteback(parameter)`                   | `out` / `inout` の仮引数か                                   |
 | `IsWritebackModifier(modifier)`            | 語が `out` / `inout` か                                      |
 | `IsAssignable(expression)`                 | 書き戻せる式か。リテラルや演算の結果などは `false`           |
-| `IsPresentWith(conditions, declaration, call)` | 呼び出しの構成にその宣言が存在しうるか。条件が分からなければ `true` |
+| `IsPresentWith(conditions, declaration, call)` | 呼び出しの構成にその宣言が存在しうるか。条件が不明な場合は `true` |
 
 ### `ConditionMap` (`Shaderlyn.Semantics.Conditional`)
 
@@ -853,16 +875,16 @@ foreach (ConditionalType type in binder.GetTypesByConfiguration(expression))
 | ------------------------------ | ------------------------------------------------------------------------ |
 | `IsAlwaysPresent(node)`        | どの構成でも存在するか (`GetCondition(node).IsAlways` と同じ)           |
 | `GetCondition(node)`           | そのノードが存在する条件 (`SymbolCondition`)。入れ子の条件は掛け合わさる |
-| `IsPossible(condition)`        | その条件が成り立つ構成があるか。同じ `#pragma` 行のシンボルは同時に有効にならないこと、`_` の無い `multi_compile` の行はどれか 1 つが必ず有効なことも考える |
+| `IsPossible(condition)`        | その条件が成り立つ構成があるか。同じ `#pragma` 行のシンボルは同時に有効にならないこと、`_` が存在しない `multi_compile` の行はどれか 1 つが必ず有効なことも考える |
 | `EnumerateConditional()`       | 条件が付いているノードの一覧                                             |
 | `UnmergedLocations`            | 条件を追えなかった箇所。`CF0103` として報告される                        |
-| `IsComplete`                   | 条件を追えなかった箇所が 1 つも無いか                                    |
+| `IsComplete`                   | 条件を追えなかった箇所が 1 つも存在しないか                                    |
 
 **構成によって起きる誤りは、起きる構成を添えて報告してください。** 組み込みルールはこの形で書いています。
-シンボルの構成はどれもいつか通るコードなので、1 つの構成でしか起きない誤りも直すべき誤りです。
+シンボルの構成はどれもいずれ実行されるコードなので、1 つの構成でしか起きない誤りも修正すべき誤りです。
 黙っていると、そのシンボルを有効にしたときだけ現れる不具合になります。
 
-判定は条件の演算で書きます。たとえば「呼んでいる関数の定義が無い構成があるか」(CF0311) は、
+判定は条件の演算で書きます。たとえば「呼んでいる関数の定義が存在しない構成があるか」(CF0311) は、
 「呼ぶ位置の条件 ∧ ¬定義がある条件」が成り立ちうるかです。
 
 ```csharp
@@ -884,7 +906,7 @@ if (conditions.IsPossible(missing))
 ```
 
 どの構成でも存在するものだけを相手にしたい場合 (「無いこと」を根拠にする判断で、条件付きの宣言を数えたくないときなど) は
-`IsAlwaysPresent` が使えます。
+`IsAlwaysPresent` が使用できます。
 
 ### `SymbolCondition` (`Shaderlyn.Core.Syntax`)
 
@@ -899,7 +921,7 @@ if (conditions.IsPossible(missing))
 | `EnumerateSymbols()`              | 条件に出てくるシンボルの名前                                  |
 
 「この 2 つは同時に成り立つか」は `ConditionMap.IsPossible(a.And(b))` で判定します。
-`a.And(b).IsNever` では足りません。条件の代数は、`#pragma multi_compile _ _X _Y` の `_X` と `_Y` が
+`a.And(b).IsNever` では不十分です。条件の代数は、`#pragma multi_compile _ _X _Y` の `_X` と `_Y` が
 同時に有効にならないことを知らないため、`_X && _Y` を成り立つ条件として扱います。
 
 **`Unknown` を見たら報告しないでください。**
@@ -914,14 +936,14 @@ if (conditions.IsPossible(missing))
 | メンバー                                                        |                                  |
 | --------------------------------------------------------------- | -------------------------------- |
 | `Tree`                                                          | そのブロックの HLSL 構文木       |
-| `Uniforms` / `Structs` / `FunctionNames` / `FunctionSignatures` | そのブロックから見える宣言       |
+| `Uniforms` / `Structs` / `FunctionNames` / `FunctionSignatures` | そのブロックから参照できる宣言   |
 | `KernelName`                                                    | 同じ範囲から作った単位を見分ける名前 (`.compute` のカーネル名) |
 | `EnabledSymbols`                                                | どのシンボルを有効にした構成か。既定の構成では空 |
-| `Variants`                                                      | その木から環境が読んだ構成の空間 (`VariantSpace`) |
-| `EntryPoints`                                                   | 環境が読んだエントリポイント (既定の構成の木だけ) |
+| `Variants`                                                      | その木から環境が読み取った構成の空間 (`VariantSpace`) |
+| `EntryPoints`                                                   | 環境が読み取ったエントリポイント (既定の構成の木だけ) |
 | `Unit`                                                          | 解析したコンパイル単位 (`ShaderCompilationUnit`) |
 
-囲む `Pass` と ShaderLab のブロックは、Unity の環境なら `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から取得します。
+囲む `Pass` と ShaderLab のブロックは、Unity の環境の場合は `program.GetUnityBlock()` (`UnityProgramBlock`) の `Pass` / `PassName` / `Block` から取得します。
 
 ### `ConditionalTokenRange` (`Shaderlyn.CFamily.Preprocessing`)
 
@@ -933,7 +955,7 @@ if (conditions.IsPossible(missing))
 | `Start`     | 範囲の先頭の、展開後のトークン列での位置                                              |
 | `Length`    | 範囲に含まれるトークンの数                                                            |
 | `Condition` | その範囲が存在する条件 (`SymbolCondition`)                                            |
-| `IsHoisted` | 条件で中身が変わるマクロを使う文を、定義ごとに複製した範囲か (条件の巻き上げ)         |
+| `IsHoisted` | 条件で中身が変わるマクロを使用する文を、定義ごとに複製した範囲か (条件の巻き上げ)         |
 
 `IsHoisted` が `true` の範囲は、同じ文を定義の数だけ並べたものです。
 
@@ -948,10 +970,10 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ```
 
 **巻き上げた範囲は、ソース上の位置で見分けられません。**
-複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に直すと `_A` の複製と `!_A` の複製が重なります。
+複製はどれも同じ位置 (`CTYPE d = 1.0;` の位置) を持つため、`Location` や `TextSpan` に変換すると `_A` の複製と `!_A` の複製が重なります。
 複製ごとにトークンは別のインスタンスなので、見分けるにはトークンそのもので比較してください。
 
-ノードがどの条件で存在するかを知りたいだけなら、この範囲を読まずに `ConditionMap.GetCondition(node)` を使ってください。
+ノードがどの条件で存在するかを知りたいだけの場合は、この範囲を参照せずに `ConditionMap.GetCondition(node)` を使用してください。
 巻き上げた範囲の条件も、そこに含まれています。
 
 ### `AnalyzerOptions`
@@ -964,36 +986,36 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | `GetIntOption(ruleId, name, defaultValue)`  | 同上。数値として取得する                 |
 | `WithExtension<T>(x)` / `GetExtension<T>()` | 型をキーにした任意の設定の受け渡し   |
 
-重要度の上書きはドライバが一律に適用します。ルール側で設定を読む必要はありません。
+重要度の上書きはドライバが一律に適用します。ルール側で設定を読み取る必要はありません。
 
 ---
 
 ## 環境
 
-ルールを書くだけなら、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使います。
+ルールを書くだけの場合は、ここは読まなくてかまいません。独自エンジンの決まりを解析に教えるときに使用します。
 例は [ルールの実例集「独自エンジンの環境」](cookbook.md#独自エンジンの環境) にあります。
 
 ### `IHlslEnvironment` / `IShaderEnvironment` (`Shaderlyn.Semantics.Environments`)
 
 エンジンの決まり (構成の軸、エントリポイント、定義済みマクロ、生成される取り込み) を解析に教えます。
-言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使う環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として読むことを追加したもの) を実装します。
+言語に依らないインターフェースは `IShaderEnvironment` にあり、HLSL を使用する環境は `IHlslEnvironment` (`IShaderEnvironment` に HLSL として解析することを追加したもの) を実装します。
 組み込みの実装は `UnityHlslEnvironment` (`Shaderlyn.Unity`) と `HlslEnvironment` (汎用の HLSL。Unreal は `UnrealOptions.CreateEnvironment` で作る) です。
 セマンティックモデルを作った環境は `compilation.Environment` で取得できます。
 
 | メンバー | 役目 |
 | --- | --- |
 | `ConfigurePreprocessor` / `PrepareUnit` | 共通の設定と、単位ごとの設定 (言語のバージョン、マクロ) |
-| `Parse` | 単位のコードを環境の言語で読む。`IHlslEnvironment` は HLSL として読む (実装しなくてよい) |
-| `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読む |
+| `Parse` | 単位のコードを環境の言語で解析する。`IHlslEnvironment` は HLSL として解析する (実装しなくてよい) |
+| `ReadDeclaredVariants` / `ReadVariants` | 構成の空間 (`VariantSpace`)。展開の前と後に読み取る |
 | `ReadEntryPoints` | エントリポイント (`ShaderEntryPoint`)。CF0301 が見る |
 | `LooksLikeVariantSymbol` | 宣言されていない名前を、構成の軸の宣言し忘れとして報告するか (CF0201) |
 | `IsGeneratedInclude` | ビルドのときに生成される取り込みか (CF0021 にしない) |
-| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しないなら空、分からなければ `null` (既定)。CF0401 / CF0402 が見る |
+| `GetFunctionsDeclaredIn` | 解決できない取り込みが宣言しうる関数の名前。関数を宣言しない場合は空、不明な場合は `null` (既定)。CF0401 / CF0402 が見る |
 
 ### `ShaderCompilation.Create`
 
 コンパイル単位 (`ShaderCompilationUnit`) の並びと環境からセマンティックモデルを作ります。
-ファイル全体を 1 つの単位にするなら `HlslEnvironment.WholeFile(text)` を使います。
+ファイル全体を 1 つの単位にする場合は `HlslEnvironment.WholeFile(text)` を使用します。
 
 ### `VariantSpace` / `VariantValues` (`Shaderlyn.Core.Syntax`)
 
@@ -1013,11 +1035,12 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 | メンバー                                   |                                                                |
 | ------------------------------------------ | -------------------------------------------------------------- |
 | `new ShaderRuleVerifier(params analyzers)` | 検査するアナライザ。渡したものだけが走る                       |
-| `AddInclude(path, content)`                | `#include` で取り込めるファイル。ディスクを読まない            |
+| `AddInclude(path, content)`                | `#include` で取り込めるファイル。ディスクから読み込まない      |
 | `WithOptions(options)`                     | 設定ファイル相当の設定                                         |
 | `WithPredefinedMacros(macros)`             | 定義済みマクロ                                                 |
-| `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体を切り替える |
-| `static Describe(diagnostics)`             | 落ちたときに何が出ていたかを見せる                             |
+| `WithEnvironment(environment)`             | 環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`)。指定しなければ拡張子で決める |
+| `Analyze(source, filePath)`                | 解析して指摘を返す。拡張子で ShaderLab / HLSL 単体と、GLSL (`.vert` など)・Godot (`.gdshader`)・Slang (`.slang`)・WGSL (`.wgsl`)・Unreal Engine (`.usf`・`.ush`) を切り替える |
+| `static Describe(diagnostics)`             | 落ちたときに何が出ていたかを示す                               |
 
 返るのは抑制コメントを適用したあとの指摘です。利用者の目に入るものと同じです。
 
@@ -1026,6 +1049,6 @@ CTYPE d = 1.0;   // float3 d = 1.0; (_A) と float4 d = 1.0; (!_A) の 2 つの�
 ## 関連
 
 - [自作ルールの作り方](tutorial.md) — 手順と、書くときの原則
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
 - [条件付きコンパイルの扱い](../guide/conditional-compilation.md) — 出現条件がどう作られるか
 - [設定ファイル](../guide/configuration.md)

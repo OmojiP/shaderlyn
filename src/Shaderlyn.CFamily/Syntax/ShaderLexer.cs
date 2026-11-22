@@ -23,6 +23,15 @@ public sealed class ShaderLexer
     private readonly SourceText _text;
     private readonly List<LexerDiagnostic> _diagnostics = [];
 
+    /// <summary>
+    /// trivia を集める作業用の Builder。トークンごとに作らず使い回す。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="LexTrivia"/> は入れ子に呼ばれず、結果は <c>ToImmutable</c> で写して返すので、使い回してよい。
+    /// trivia の無いトークンが大半で、毎回作ると Builder と内部の配列の確保が字句解析の確保の多くを占めていた。
+    /// </remarks>
+    private readonly ImmutableArray<ShaderSyntaxTrivia>.Builder _trivia = ImmutableArray.CreateBuilder<ShaderSyntaxTrivia>();
+
     /// <summary>直前のトークンが、行頭の <c>#</c> か。</summary>
     private bool _afterDirectiveHash;
 
@@ -147,7 +156,8 @@ public sealed class ShaderLexer
     /// </remarks>
     private ImmutableArray<ShaderSyntaxTrivia> LexTrivia(bool isTrailing)
     {
-        ImmutableArray<ShaderSyntaxTrivia>.Builder trivia = ImmutableArray.CreateBuilder<ShaderSyntaxTrivia>();
+        ImmutableArray<ShaderSyntaxTrivia>.Builder trivia = _trivia;
+        trivia.Clear();
 
         while (_position < _text.Length)
         {
@@ -441,7 +451,8 @@ public sealed class ShaderLexer
         }
 
         string close = ")" + _text.ToString(TextSpan.FromBounds(open, paren)) + "\"";
-        string rest = _text.ToString(TextSpan.FromBounds(paren + 1, _text.Length));
+        // ファイルの末尾までを文字列にせずに探す。生文字列が多いファイルで、確保が文字列の数とファイルの長さの積で増えていた。
+        ReadOnlySpan<char> rest = _text.Content.AsSpan(paren + 1);
         int end = rest.IndexOf(close, StringComparison.Ordinal);
 
         if (end < 0)
@@ -449,7 +460,7 @@ public sealed class ShaderLexer
             return null;
         }
 
-        string value = rest[..end];
+        string value = rest[..end].ToString();
         _position = paren + 1 + end + close.Length;
         return (ShaderSyntaxKind.StringLiteralToken, value);
     }
@@ -663,7 +674,7 @@ public sealed class ShaderLexer
             foreach (string tail in Float8SuffixTails)
             {
                 if (_position + 1 + tail.Length <= _text.Length
-                    && string.CompareOrdinal(_text.ToString(new TextSpan(_position + 1, tail.Length)), tail) == 0
+                    && _text.Content.AsSpan(_position + 1, tail.Length).SequenceEqual(tail)
                     && !IsIdentifierPart(Peek(1 + tail.Length)))
                 {
                     _position += 1 + tail.Length;

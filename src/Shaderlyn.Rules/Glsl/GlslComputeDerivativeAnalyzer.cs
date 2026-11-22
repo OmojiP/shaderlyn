@@ -102,7 +102,7 @@ internal sealed class GlslComputeDerivativeAnalyzer : SemanticRuleAnalyzer
 
         if (requirement.Extensions.IsOn(Khr, null) && !groups.Any(g => g.Id.EndsWith("khr", StringComparison.Ordinal)))
         {
-            requirement.Report(GlslRuleDescriptors.LayoutRequired, end, "GL_KHR_compute_shader_derivatives を有効にしたら、derivative_group_quadsKHR か derivative_group_linearKHR の layout が要ります。");
+            requirement.Report(GlslRuleDescriptors.LayoutRequired, end, "GL_KHR_compute_shader_derivatives を有効にしたら、derivative_group_quadsKHR か derivative_group_linearKHR の layout が必要です。");
         }
 
         if (groups.Length == 0)

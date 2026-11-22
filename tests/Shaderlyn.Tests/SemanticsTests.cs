@@ -763,7 +763,7 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
     public void すべて展開できたときはCF0102を報告しない()
     {
         // 上限に達していないなら、調べ残しは無い。報告することも無い。
-        Assert.False(Has(Analyze(SymbolGuardedShader), "CF0102"), "調べ残しが無いのに報告している");
+        Assert.False(Has(Analyze(SymbolGuardedShader), "CF0102"), "調べ残しがないのに報告している");
     }
 
     [Fact]
@@ -1089,6 +1089,51 @@ Assert.True(compilation.TryGetUniform("_BumpMap", out UniformSymbol? bumpMap));
         ImmutableArray<Diagnostic> diagnostics = Analyze(source);
 
         Assert.True(Has(diagnostics, "URP0001"), Describe(diagnostics));
+
+        // バッファは別の Pass にあるので、移すと 2 つ目の Pass から宣言が消える。修正は添えない。
+        Assert.Empty(diagnostics.Single(d => d.Id == "URP0001").Fixes);
+    }
+
+    [Fact]
+    public void バッファの外の宣言をバッファの中へ移す修正で指摘が消える()
+    {
+        const string source = """
+            Shader "Test"
+            {
+                Properties { _Tint ("Tint", Float) = 1 }
+                SubShader
+                {
+                    Pass
+                    {
+                        HLSLPROGRAM
+                        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+                        half _Tint;
+                        CBUFFER_START(UnityPerMaterial)
+                            half4 _BaseColor;
+                        CBUFFER_END
+                        half4 frag() : SV_Target { return _BaseColor * _Tint; }
+                        ENDHLSL
+                    }
+                }
+            }
+            """;
+
+        Diagnostic diagnostic = Analyze(source).Single(d => d.Id == "URP0001");
+        DiagnosticFix fix = Assert.Single(diagnostic.Fixes);
+        Assert.True(fix.IsPreferred);
+
+        string fixedSource = source;
+
+        foreach (TextReplacement replacement in fix.Replacements.OrderByDescending(r => r.Span.Start))
+        {
+            fixedSource = fixedSource[..replacement.Span.Start] + replacement.NewText + fixedSource[replacement.Span.End..];
+        }
+
+        Assert.Contains(
+            "            CBUFFER_START(UnityPerMaterial)\n                half4 _BaseColor;\n                half _Tint;\n            CBUFFER_END\n",
+            fixedSource.Replace("\r\n", "\n", StringComparison.Ordinal),
+            StringComparison.Ordinal);
+        Assert.False(Has(Analyze(fixedSource), "URP0001"));
     }
 
     [Fact]

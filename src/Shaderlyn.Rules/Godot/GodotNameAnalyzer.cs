@@ -68,7 +68,7 @@ internal sealed class GodotNameAnalyzer : SemanticRuleAnalyzer
             {
                 if (builtins.Contains(name.Text))
                 {
-                    Report(GodotRuleDescriptors.BuiltinRedefinition, name, $"'{name.Text}' は組み込みの名前なので、宣言し直せません。");
+                    Report(GodotRuleDescriptors.BuiltinRedefinition, name, $"'{name.Text}' は組み込みの名前なので、再宣言できません。");
                 }
                 else if (function && GodotBuiltins.Instance.Functions.ContainsKey(name.Text))
                 {
@@ -126,7 +126,7 @@ internal sealed class GodotNameAnalyzer : SemanticRuleAnalyzer
                                 if (types.IsBuiltinVariableAvailable(declarator.Name, function.Name))
                                 {
                                     Report(GodotRuleDescriptors.BuiltinRedefinition, declarator.NameToken,
-                                        $"'{declarator.Name}' は組み込みの名前なので、宣言し直せません。");
+                                        $"'{declarator.Name}' は組み込みの名前なので、再宣言できません。");
                                 }
                                 else if (globals.TryGetValue(declarator.Name, out ShaderSyntaxToken? global)
                                          && global.GetLocation() is { } location)

@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Shaderlyn.Hlsl\Shaderlyn.Hlsl.csproj" />
     <ProjectReference Include="..\Shaderlyn.Semantics\Shaderlyn.Semantics.csproj" />
     <ProjectReference Include="..\Shaderlyn.Unity\Shaderlyn.Unity.csproj" />
+    <ProjectReference Include="..\Shaderlyn.Unreal\Shaderlyn.Unreal.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

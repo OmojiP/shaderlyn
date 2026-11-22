@@ -227,7 +227,7 @@ internal sealed class SlangGenericConversionAnalyzer : SemanticRuleAnalyzer
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.ValueNotConvertible, location, target.Name, source.NameToken.Text,
-                    $"ジェネリックの型 {source.NameToken.Text} の値は、具体的な型へ暗黙に変換されません ({target.Name}(x) と書いても、{source.NameToken.Text} の制約に変換の要件が要ります)。"));
+                    $"ジェネリックの型 {source.NameToken.Text} の値は、具体的な型へ暗黙に変換されません ({target.Name}(x) と書いても、{source.NameToken.Text} の制約に変換の要件が必要です)。"));
             }
 
             foreach (ShaderSyntaxNode node in root.DescendantNodesAndSelf())

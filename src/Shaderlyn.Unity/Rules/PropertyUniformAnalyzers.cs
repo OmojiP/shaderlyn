@@ -87,15 +87,63 @@ internal sealed class PropertyUniformAnalyzer : SemanticRuleAnalyzer
             return false;
         }
 
-        context.ReportDiagnostic(
+        Diagnostic diagnostic = Diagnostic.Create(
             UnityRuleDescriptors.PropertyTypeMismatch,
-            property.Declaration.NameToken.Span,
+            Location.Create(context.Unit.Text, property.Declaration.NameToken.Span),
             property.Name,
             property.Kind.ToDisplayName(),
             uniform.TypeName,
             PropertyTypeCompatibility.DescribeExpectedType(property.Kind));
 
+        context.ReportDiagnostic(CreateTypeFix(context, property, uniform) is { } fix ? diagnostic.WithFix(fix) : diagnostic);
         return true;
+    }
+
+    /// <summary>uniform の型の成分の数を、プロパティの型に合わせる修正を作る。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="property">対象のプロパティ。</param>
+    /// <param name="uniform">対応する uniform。</param>
+    /// <returns>作った修正。作れない場合は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 成分の型 (float・half など) は変えず、成分の数だけを変える。Color と Vector は 4 成分、数のプロパティはスカラーにする。
+    /// テクスチャの種類の食い違いは、どの型にするか (Texture2D か Cg 記法の sampler2D か) が決まらないので修正を作らない。
+    /// </para>
+    /// <para>
+    /// <b>書き換える位置は、指摘と同じ .shader の中の、書き手が書いた型の名前だけにする。</b>
+    /// HLSL は .shader を写したテキストの上で解析していて、位置は元のファイルと同じである (<see cref="Diagnostic.WithLocation"/>)。
+    /// ヘッダの中の宣言・マクロで書いた宣言・1 つの宣言に変数が 2 つ以上あるもの (型を変えるとほかの変数も変わる) は直さない。
+    /// </para>
+    /// <para>
+    /// 既定の候補にはしない。型を変えると、その変数を使う式の型も変わり、書き直しが要ることがあるため。
+    /// </para>
+    /// </remarks>
+    private static DiagnosticFix? CreateTypeFix(SyntaxTreeAnalysisContext context, PropertySymbol property, UniformSymbol uniform)
+    {
+        CFamily.Syntax.ShaderSyntaxToken token = uniform.Declaration.Type.NameToken;
+        Core.Text.SourceText text = context.Unit.Text;
+
+        if (!TokenFixes.CanEdit(token)
+            || uniform.Declaration.Variables.Count() != 1
+            || !string.Equals(token.Source.FilePath, text.FilePath, StringComparison.Ordinal)
+            || token.Span.End > text.Length
+            || text.ToString(token.Span) != token.Text
+            || System.Text.RegularExpressions.Regex.Match(token.Text, "^(float|half|fixed|min16float|min10float|double|int|uint|min16int|min16uint)[1-4]?(x[1-4])?$") is not { Success: true } match)
+        {
+            return null;
+        }
+
+        string element = match.Groups[1].Value;
+        string? replacement = property.Kind switch
+        {
+            ShaderPropertyKind.Color or ShaderPropertyKind.Vector => element + "4",
+            ShaderPropertyKind.Float or ShaderPropertyKind.Range or ShaderPropertyKind.Int or ShaderPropertyKind.Integer => element,
+            _ => null,
+        };
+
+        return replacement is null || replacement == token.Text
+            ? null
+            : DiagnosticFix.Replace($"型を '{replacement}' にする", token.Span, replacement, isPreferred: false);
     }
 
     /// <summary>

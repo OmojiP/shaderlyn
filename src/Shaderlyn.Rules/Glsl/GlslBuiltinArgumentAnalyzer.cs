@@ -204,12 +204,12 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
 
             if (((semantics | semantics2) & ~(MemoryOrder | MakeAvailable | MakeVisible | Volatile)) != 0)
             {
-                problems.Add("セマンティクスに使えない値が入っています");
+                problems.Add("セマンティクスに使用できない値が入っています");
             }
 
             if (((storage | storage2) & ~(0x40L | 0x100L | 0x800L | 0x1000L)) != 0)
             {
-                problems.Add("記憶域のセマンティクスに使えない値が入っています");
+                problems.Add("記憶域のセマンティクスに使用できない値が入っています");
             }
 
             if (!IsSingleOrder(semantics) || !IsSingleOrder(semantics2))
@@ -219,12 +219,12 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
 
             if (((semantics & MemoryOrder) != 0 && storage == 0) || ((semantics2 & MemoryOrder) != 0 && storage2 == 0))
             {
-                problems.Add("gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease を使うときは、記憶域のセマンティクスを 0 にできません");
+                problems.Add("gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease を使用するときは、記憶域のセマンティクスを 0 にできません");
             }
 
             if ((storage != 0 && (semantics & MemoryOrder) == 0) || (storage2 != 0 && (semantics2 & MemoryOrder) == 0))
             {
-                problems.Add("記憶域のセマンティクスが 0 でないときは、セマンティクスに gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+                problems.Add("記憶域のセマンティクスが 0 でないときは、セマンティクスに gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが必要です");
             }
 
             if (storage != 0 && name == "controlBarrierArrive" && (semantics & ~MakeAvailable) != Release)
@@ -240,55 +240,55 @@ internal sealed class GlslBuiltinArgumentAnalyzer : SemanticRuleAnalyzer
             if (((semantics & MakeAvailable) != 0 && (semantics & (Release | AcquireRelease)) == 0)
                 || ((semantics2 & MakeAvailable) != 0 && (semantics2 & (Release | AcquireRelease)) == 0))
             {
-                problems.Add("gl_SemanticsMakeAvailable には gl_SemanticsRelease か gl_SemanticsAcquireRelease が要ります");
+                problems.Add("gl_SemanticsMakeAvailable には gl_SemanticsRelease か gl_SemanticsAcquireRelease が必要です");
             }
 
             if (((semantics & MakeVisible) != 0 && (semantics & (Acquire | AcquireRelease)) == 0)
                 || ((semantics2 & MakeVisible) != 0 && (semantics2 & (Acquire | AcquireRelease)) == 0))
             {
-                problems.Add("gl_SemanticsMakeVisible には gl_SemanticsAcquire か gl_SemanticsAcquireRelease が要ります");
+                problems.Add("gl_SemanticsMakeVisible には gl_SemanticsAcquire か gl_SemanticsAcquireRelease が必要です");
             }
 
             if (store && (semantics & Acquire) != 0)
             {
-                problems.Add("ストアには gl_SemanticsAcquire を使えません");
+                problems.Add("ストアには gl_SemanticsAcquire を使用できません");
             }
 
             if (load && (semantics & Release) != 0)
             {
-                problems.Add("ロードには gl_SemanticsRelease を使えません");
+                problems.Add("ロードには gl_SemanticsRelease を使用できません");
             }
 
             if ((store || load) && (semantics & AcquireRelease) != 0)
             {
-                problems.Add("ロードとストアには gl_SemanticsAcquireRelease を使えません");
+                problems.Add("ロードとストアには gl_SemanticsAcquireRelease を使用できません");
             }
 
             if (name == "memoryBarrier" && (semantics & MemoryOrder) == 0)
             {
-                problems.Add("memoryBarrier のセマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが要ります");
+                problems.Add("memoryBarrier のセマンティクスには gl_SemanticsAcquire・gl_SemanticsRelease・gl_SemanticsAcquireRelease のどれかが必要です");
             }
 
             if (name is "memoryBarrier" or "controlBarrier" or "controlBarrierArrive" or "controlBarrierWait" && (semantics & Volatile) != 0)
             {
-                problems.Add($"{name} には gl_SemanticsVolatile を使えません");
+                problems.Add($"{name} には gl_SemanticsVolatile を使用できません");
             }
 
             if (compareSwap)
             {
                 if ((semantics2 & (Release | AcquireRelease)) != 0)
                 {
-                    problems.Add("等しくないときのセマンティクス (semUnequal) に gl_SemanticsRelease と gl_SemanticsAcquireRelease は使えません");
+                    problems.Add("等しくないときのセマンティクス (semUnequal) に gl_SemanticsRelease と gl_SemanticsAcquireRelease は使用できません");
                 }
 
                 if ((semantics2 & Acquire) != 0 && (semantics & (Acquire | AcquireRelease)) == 0)
                 {
-                    problems.Add("等しいときのセマンティクス (semEqual) が gl_SemanticsAcquire か gl_SemanticsAcquireRelease でなければ、semUnequal に gl_SemanticsAcquire は使えません");
+                    problems.Add("等しいときのセマンティクス (semEqual) が gl_SemanticsAcquire か gl_SemanticsAcquireRelease でなければ、semUnequal に gl_SemanticsAcquire は使用できません");
                 }
 
                 if ((semantics2 & MakeVisible) != 0 && (semantics & MakeVisible) == 0)
                 {
-                    problems.Add("semEqual に gl_SemanticsMakeVisible が無ければ、semUnequal にも使えません");
+                    problems.Add("semEqual に gl_SemanticsMakeVisible が存在しなければ、semUnequal にも使用できません");
                 }
 
                 if ((storage2 & ~storage) != 0)

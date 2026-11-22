@@ -23,7 +23,7 @@
 // 道具の場所は環境変数で渡す。SHADERLYN_GLSLANG (無ければ PATH の glslang)、
 // SHADERLYN_CLI (無ければ src/Shaderlyn.Cli.App の Release のビルドの出力)。
 //
-// glslang は #line で付け替えた行番号で報告する。Shaderlyn の指摘の行番号も、ファイルの #line を読んで同じ番号に直してから比べる (logicalLines)。
+// glslang は #line で付け替えた行番号で報告する。Shaderlyn の指摘の行番号も、ファイルの #line を読んで同じ番号に変換してから比べる (logicalLines)。
 //
 // 「誤報告」は glslang が誤りにしないファイルに Shaderlyn が出したエラー、
 // 「見落とし」は glslang の誤りの行に Shaderlyn のエラーが無いもの。行の無い誤り (リンクなど) は、ファイルにエラーがあればよいとする。
@@ -314,7 +314,7 @@ function runGlslang(file) {
 /**
  * #line で付け替えた後の行番号を、ファイルの行ごとに求める。#line が無ければ null。
  * glslang と同じく、ES か #version 330 以降では #line N の次の行が N、それより前のバージョンでは N + 1 になる。
- * 行番号の式は、整数を本体にする #define を展開して評価する (#line L1 + L2)。評価できなければ、そこから後ろは直さない。
+ * 行番号の式は、整数を本体にする #define を展開して評価する (#line L1 + L2)。評価できなければ、そこから後ろは変換しない。
  * #if で読み飛ばす分岐は見ない (glslang の Test では #line を分岐の中に書かない)。
  */
 function logicalLines(text) {

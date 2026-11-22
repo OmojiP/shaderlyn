@@ -204,11 +204,25 @@ public sealed class UnityHlslEnvironment(UnityOptions options) : IHlslEnvironmen
                 continue;
             }
 
-            entryPoints.Add(new ShaderEntryPoint(name.Text, "#pragma " + pragma.Name, name.GetLocation()));
+            entryPoints.Add(new ShaderEntryPoint(name.Text, "#pragma " + pragma.Name, name.GetLocation(), StageOf(pragma.Name)));
         }
 
         return entryPoints.ToImmutable();
     }
+
+    /// <summary>エントリポイントを指定する <c>#pragma</c> の名前から、ステージを返す。</summary>
+    /// <param name="pragma"><c>#pragma</c> の名前。</param>
+    /// <returns>ステージ。<c>surface</c> (Unity がエントリポイントを作る) は <see langword="null"/>。</returns>
+    private static HlslShaderStage? StageOf(string pragma) => pragma switch
+    {
+        "vertex" => HlslShaderStage.Vertex,
+        "fragment" => HlslShaderStage.Pixel,
+        "geometry" => HlslShaderStage.Geometry,
+        "hull" => HlslShaderStage.Hull,
+        "domain" => HlslShaderStage.Domain,
+        "kernel" => HlslShaderStage.Compute,
+        _ => null,
+    };
 
     /// <summary>
     /// 取り込む include ファイルの中の <c>#pragma use_dxc</c> / <c>require</c> を集める。

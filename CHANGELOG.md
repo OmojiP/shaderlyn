@@ -10,6 +10,97 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.5] - 2026-11-22
+
+### 追加
+
+- Visual Studio 拡張 (Visual Studio 2022 17.14 以降と Visual Studio 2026)。VS Code 拡張と同じ言語サーバーで、指摘・クイックフィックス・ホバー・補完・
+  定義へ移動・参照・名前の変更が働く。HLSL Tools が受け持つファイル (`.hlsl` など) では、指摘とクイックフィックスだけを出して HLSL Tools の機能と併用する。
+  言語サーバーの実行ファイルは「ツール」→「オプション」→「Shaderlyn」で指定できる。Visual Studio Marketplace で公開する
+  ([editors/visualstudio/README.md](editors/visualstudio/README.md))
+- Rider プラグイン (Rider 2026.3 以降)。指摘とクイックフィックスを出す。ホバーや補完は Rider 自身のシェーダーの支援が働く。
+  言語サーバーの実行ファイルは「Settings」→「Tools」→「Shaderlyn」で指定できる。JetBrains Marketplace で公開する (審査の後)。
+  リリースページには、OS と CPU の組ごとの zip を置く ([editors/rider/README.md](editors/rider/README.md))
+- エディタのクイックフィックス (コードアクション) に、修正の方法が 1 つに決まる修正を追加した。
+  SG0102 (関数の外の `const` に `static` を付ける)、SG0347 (`override` を付ける)、GD0101 (整数の varying に `flat` を付ける)、
+  WG0001 (`enable f16;` などを追加する)、UN0002 (重なった BOM を消す)、
+  SG0346 (class の作成に `new` を付ける)、HL0349 (HLSL 2021 のベクトルへの `&&`・`||`・`?:` を `and()`・`or()`・`select()` に書き換える)、
+  GL0001 (必要な拡張が 1 つに決まる場合に `#extension … : enable` を追加する)、
+  URP0001 (マテリアルの定数バッファの外の uniform の宣言を、バッファの中へ移す。バッファが 1 つで、移しても意味が変わらない場合だけ)。
+  SL1003 (プロパティと HLSL の型の食い違い) は、HLSL の型の成分の数をプロパティに合わせる修正を候補として出す
+  (その変数を使用する式も変わることがあるので、既定の候補にはしない)
+- ルール CF0302: システム値のセマンティクス (`SV_Depth` など) を、そのステージで使用できない向きに付けている箇所をエラーにする
+  (頂点シェーダーの出力の `SV_Depth`、コンピュートシェーダーの `out` の `SV_DispatchThreadID`、メッシュシェーダーの `out vertices` の `SV_PrimitiveID` など)。
+  エントリポイントの仮引数・戻り値と、そこで受け渡す構造体のフィールドを検査する。HLSL (Unity・汎用・Unreal) と Slang が対象。
+  使用できるかは FXC・DXC・slangc に掛けて作った表で決め、ファイルをコンパイルするコンパイラの表を使用する ([CF0302](docs/rules/CF0302.md))
+- ルール CF0316: 既定値のある仮引数の後ろに、既定値のない仮引数がある関数をエラーにする (FXC・DXC・slangc がエラーにする) ([CF0316](docs/rules/CF0316.md))
+- ルール CF0303: メッシュシェーダーのエントリポイントに、`[outputtopology]` の属性、大きさを書いた `out vertices` などの配列、
+  頂点とインデックスの出力が欠けている箇所をエラーにする ([CF0303](docs/rules/CF0303.md))
+- CLI: `--fix` で修正をファイルに書き込み、書き込んだ後のファイルを解析し直して報告する。`--fix-dry-run` は書き込まずに差分を表示する。
+  `--fix-rule <ID>` で修正するルールを絞れる。適用するのは既定の候補の修正で、指定したルールは候補が 1 つだけの修正 (SL1003 など) も適用する。
+  解析の対象のファイルだけを書き換え、BOM・エンコーディング・改行の書き方は変えない ([CLI の使用方法](docs/guide/cli-usage.md#8-修正を適用する))
+- CLI: JSON と SARIF の出力に、指摘の修正を書き出す (JSON は `fixes`、SARIF は `result.fixes`)
+- 言語サーバー: 初期化の設定 (`initializationOptions`) に `languageFeatures: false` を渡すと、指摘とコードアクションだけを提供する
+  (ホバー・補完・定義へ移動・参照・名前の変更・シグネチャを提供しない)。エディタ自身がシェーダーの補完などを持つ場合に、重ならないようにする
+- 言語サーバー: 初期化の設定に `hoverCodeBlocks: false` を渡すと、ホバーのコードをコードブロックでなく行内のコードで返す。
+  Visual Studio はコードブロックに「コードのコピー」の見出しを付け、1 行の宣言でも大きな枠で表示するため
+- 自作ルール向け: GLSL・Godot・Slang・WGSL のファイルにもルールを当てられる (`ShaderRuleAnalyzer.Languages`。既定は HLSL だけで、今までと同じ)。
+  `ShaderCompilation.Language` で解析した言語を参照できる。`ShaderRuleVerifier` は拡張子で言語と環境を決め (`.usf`・`.ush` は Unreal Engine)、
+  `WithEnvironment("hlsl")` で汎用の HLSL、`WithEnvironment("unreal")` で Unreal Engine として確認できる。
+  実例集に、GLSL・Godot・Slang・WGSL・Unreal Engine の例を追加した。`samples/Shaderlyn.Cookbook` には言語ごとのフォルダーに置いている
+  ([実例集](docs/custom-rules/cookbook.md#unity-以外の言語と環境))
+- 自作ルール向け: 指摘の範囲の外も書き換えられる修正 (`DiagnosticFix`・`TextReplacement`・`Diagnostic.WithFix`・`Diagnostic.Fixes`)。
+  マクロの展開から来たトークンの位置には修正を添えない
+
+### 変更
+
+- **破壊的変更:** 自作ルール向け: `ShaderEntryPoint` に、エントリポイントのステージ (`Stage`。Unity の `#pragma vertex`・設定ファイルの `target`・Unreal の登録から決まる) を加えた。
+  コンストラクターの引数と、分解 (`Deconstruct`) の値の数が 4 つになった
+- 環境を決めていない場合 (設定ファイルの `environment` も `--environment` もない場合)、Unreal Engine の `.usf`・`.ush` を Unreal Engine の環境で解析する。
+  CLI でフォルダーを指定すると、今まで飛ばしていた `.usf` を解析する (`.ush` は今までどおり単体では解析しない)。
+  エンジンの場所 (`unreal: engine`) を書いていないと、`/Engine/...` の取り込みを解決できずにエラー (TOOL0004) になる。
+  ファイルの直接指定とエディタでは、Unity の環境の代わりに Unreal Engine の環境で解析する。
+  環境を決めていれば、今までどおりその環境で解析する ([環境の選び方](docs/guide/environments.md#環境の選び方))
+- 自作ルール向け: `ShaderRuleVerifier` は、`.mesh` を GLSL でなく Unity の環境で解析する。
+  設定ファイルを置かずに CLI でファイルを直接指定した場合と同じにするため (`.mesh` は Unity のメッシュのアセットと同じ拡張子)。
+  GLSL として確認する場合は `WithEnvironment("glsl")` を指定する
+- 解析で確保するメモリーを減らした (コーパス 9 つで 4〜23%。指摘は変わらない)。
+  字句解析の作業用の領域を使い回し、生文字列の終わりの検索と数の接尾辞の比較で部分文字列を作らないようにした。
+  深い入れ子のスコープの構築と、生文字列の多いファイルの字句解析で、確保が入力の大きさの 2 乗で増えていたのを直した。
+  ファイルを並列に解析するとき、同じヘッダの字句解析が重なっていたのをやめた
+- VS Code 拡張: 依存のパッケージ (`vscode-languageclient` など) を 1 つの JavaScript にまとめて配布する。拡張に入るファイルが約 325 から約 10 になり、読み込みが速くなる。
+  まとめたパッケージのライセンスは、拡張の `out/THIRD-PARTY-NOTICES-npm.txt` に入れる
+- GitHub Action: SARIF のアップロードに `github/codeql-action/upload-sarif@v4` を使用する (v3 は Node.js 20 で動き、GitHub が Node.js 20 のアクションを廃止するため)。
+  セルフホストランナーは 2.327.1 以降が必要 ([CI に組み込む](docs/guide/ci-setup.md#3-2-マシンをランナーに登録する))
+- SG0407: Slang のエントリポイントの入力と出力に受け渡せない型 (`Atomic`・`DifferentialPair`、ほかのステージの `OutputVertices` やストリーム、
+  要素が `uint`・`uint2`・`uint3` でない `OutputIndices`、行か列が 5 以上の行列など) も報告する
+- ルールの題名・指摘のメッセージ・ホバーの「…が要ります」「…が要る」を、「…が必要です」「…が必要」にそろえた。
+  題名が変わったルール: GD0317・GL0317・GL0318・GL0402・SG0311・SG0316・SG0318・SG0350・WG0317。
+  メッセージの文字列で指摘を照合している場合は、照合する文字列を変更する必要がある
+- 指摘のメッセージとルールの説明の「直す」を、「修正する」「書き換える」にそろえた
+  (CF0101 の「… を修正すると、ファイル全体が検査されるようになります」、UN0102 の「… に書き換えてください」)。
+  メッセージの文字列で指摘を照合している場合は、照合する文字列を変更する必要がある
+- ルールの題名・指摘のメッセージ・ルールの説明・ホバー・CLI の出力の口語を、書き言葉にそろえた
+  (「読めません」→「解析できません」「読み込めません」「読み取れません」、「見える」→「参照できる」、「効かない」→「無効になる」「反映されない」、
+  「定義し直す」→「再定義する」、「足りない」→「不足している」、「噛み合わない」「食い違う」→「一致しない」、「〜なら」→「〜場合は」、「確かめる」→「確認する」、「使えません」「使います」→「使用できません」「使用します」、「無い」→「存在しない」など)。
+  題名が変わったルール: CF0004・GD0001・GD0002・GD0301・GD0312・GD0403・GD0405・GL0001・GL0002・GL0301・GL0310・GL0323・GL0325・GL0403・GL0405・GL0406・
+  HL0003・SG0005・SG0301・SG0308・SG0338・SG0341・SG0344・SG0354・SG0407・UE0001・UE0002・UN0001・UN0101・UN0203・WG0001・WG0002・WG0301・WG0338・WG0403。
+  ほかにも多くのルールで指摘のメッセージの言い回しが変わる。
+  メッセージの文字列で指摘を照合している場合は、照合する文字列を変更する必要がある
+- エディタ: SL1010・SL1012 (タグの名前と値の綴りの誤り) の修正を、既定の候補から外した。綴りの近さから選んだ候補で、書き手の意図と同じとは限らないため。
+  クイックフィックスの題名は「… に直す」から「… に修正する」に変えた
+
+### 修正
+
+- 言語サーバー: ホバーと補完の説明で、エディタが申告した形式 (`contentFormat`・`documentationFormat`) を見るようにした。
+  Markdown を申告しないエディタ (Visual Studio 2022 など) には、プレーンテキストで送る。これまでは常に Markdown で送り、`` ` `` や `**` がそのまま表示されていた
+- 言語サーバー: 応える処理のない `diagnosticProvider` (指摘を要求で返す機能) を提供すると通知していたのをやめた。
+  指摘は `textDocument/publishDiagnostics` の通知で送る。提供すると通知していると、要求で指摘を取りに来るエディタ (Visual Studio など) には `null` が返り、指摘が表示されなかった
+- 言語サーバー: 文書の同期 (`textDocumentSync`) を、数値ではなく開く・閉じる・保存の通知を明示した形で通知する。
+  数値だけでは、Visual Studio がファイルを開いた・閉じたの通知を送らず、指摘が出なかった
+- VS Code 拡張: 同梱の `brace-expansion` を 2.1.8 に更新した。2.1.4 には、細工したパターンで CPU を使い切らせる脆弱性
+  (GHSA-q2hr-2g5m-vwhr・GHSA-qhr7-859c-m2p7・GHSA-6j4f-fj2g-mc7p) があった。拡張がこのパッケージに渡すのは拡張自身が書いたパターンだけなので、影響はないと考えられる
+
 ## [0.3.4] - 2026-11-19
 
 Godot シェーダー言語・Slang・WGSL を読めるようにした。Godot 4.7.2・slangc 2026.19・naga 30 がエラーにする箇所を、それぞれのコンパイラと同じ行で報告する
@@ -441,7 +532,7 @@ glslang のテスト用シェーダーのうち、glslang がエラーにしな�
 ## [0.3.2] - 2026-11-02
 
 Unity のプロジェクトを、`Library` と Unity Editor の無いマシン (GitHub のホストランナーなど) でも解析できるようにした (`--unity-generate`)。
-Unity 6.3.26f1 以降の URP の標準のシェーダーに出ていた誤ったエラーと、マクロの `##` の不具合を直した。
+Unity 6.3.26f1 以降の URP の標準のシェーダーに出ていた誤ったエラーと、マクロの `##` の不具合を修正した。
 GLSL を glslang と同じに検査する作業は 0.3.3 に移した。
 
 ### 追加
@@ -471,7 +562,7 @@ GLSL を glslang と同じに検査する作業は 0.3.3 に移した。
 
 GLSL のファイルの宣言・型・呼び出しを検査し、VS Code 拡張の説明・定義へ移動・補完・引数の案内を GLSL でも使えるようにした (0.3.0 で予告したもの)。
 そのために、C 系の言語に共通のルールの ID を `CF` で振り直した。
-Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報告 (0.3.0 の既知の問題) を直した。
+Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報告 (0.3.0 の既知の問題) を修正した。
 
 **破壊的変更を含む** (下の「変更」)。ルールの ID を抑制コメント・設定ファイル・ベースラインに書いていれば書き換える。
 対応表と置き換えのスクリプトは [0.3.0 から 0.3.1 へ移行する](docs/guide/migration-0.3.1.md) にある。
@@ -520,7 +611,7 @@ Unreal Engine 5.5 のエンジンを解析したときに残っていた誤報�
 - Unreal Engine: `--unreal-generate` が、エンジンがどのシェーダーにも定義するマクロ (`GlobalBeginCompileShader`) のうち、
   `SHADING_PATH_DEFERRED`・`FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING`・`USES_BASE_PASS_VELOCITY` などを定義していなかった。
   `COMPILER_DXC` は 0 にしていた (PC の Direct3D 12 では 1)。`BasePassPixelShader.usf` など 5 つのファイルで、
-  `#error` に到達するために構成を捨てていた (CF0104)。次を直した
+  `#error` に到達するために構成を捨てていた (CF0104)。次を修正した
   - エンジンの C++ の `enum EShadingPath` と `namespace ERHIFeatureLevel { enum Type … }` を読み、`GetShadingPath` と `GetMaxSupportedFeatureLevel` の答えと比較できるようにする
   - シェーダーの登録の無いファイル (`RenderUtils.cpp`) の、プラットフォームを問う関数も読む。
     プラットフォームごとの ini の値 (`FShaderPlatformCachedIniValue`) を、コンソール変数として読む
@@ -661,7 +752,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 
 ### 修正
 
-- 値を持つシンボル (設定の `values:`、Unreal のパーミュテーション) の誤検出を直した
+- 値を持つシンボル (設定の `values:`、Unreal のパーミュテーション) の誤検出を修正した
   - 値に名前を付けたマクロとの比較 (`#if QUALITY == QUALITY_LOW`) と、左右を入れ替えた比較 (`#if SIZE_UINT1 == ELEMENT_SIZE`) を値の条件として読む。
     `#elif` の連なりの分岐ごとの定義を「定義し直し」(HL0002) と報告していた
   - 値ごとの構成の木で、ほかの値を持つシンボルを既定の値で読んだことを木の構成に入れず、その木の宣言をほかの値の構成のものとしても見ていた (HL0315)。
@@ -699,7 +790,7 @@ GLSL のファイルの構文の誤りを指摘する (宣言・型の検査は 
 - 構成によって関数の外の変数にも仮引数にもなる名前を、仮引数として使った箇所で「宣言されていない」(HL0310) と報告していた
 - ヘッダの `#ifndef X` の中の `#define X` (既定の値を与える書き方) を、ファイルが構成ごとに `X` を定義していると「定義し直し」(HL0002) と報告していた
 - `#if` の条件を読めない連なり (`#if CONFIG_DOF_ALPHA` / `#elif DIM_RGB`) の分岐ごとの定義を「定義し直し」(HL0002) と報告していた
-- 構文の読み違いを直した
+- 構文の読み違いを修正した
   - `globallycoherent` を付けた型への型変換 (`(globallycoherent RWByteAddressBuffer)x`) と、仮引数の型の前の `struct` (`F(struct P p)`) を構文の誤り (HL0001) にしていた
   - HLSL 2021 の template の呼び出しで、型でない引数に式を書いた形 (`Setup< SAMPLES, !TWO_SIDED >(x)`) を構文の誤り (HL0001) にしていた
   - 型でない引数の式を書いた型の静的メンバー (`TLayout<T, X * Y>::RowSize`) を読めず、構文の誤りにしていた
@@ -771,7 +862,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
 - `sizeof` を組み込みの名前として扱う (HL0310 にしない)
 - Unreal Engine の環境だけのルール [UE0001](docs/rules/UE0001.md) (エンジンが生成するファイルが無いので宣言の検査を見送った。`--unreal-generate` を案内する) と
   [UE0002](docs/rules/UE0002.md) (マテリアルごとに生成される `Material.ush` / `VertexFactory.ush` の中身が分からないので見送った)。
-  UE0002 は利用者には直せないので、要らなければ `rules:` で `UE0002: none` にできる
+  UE0002 は利用者には修正できないので、要らなければ `rules:` で `UE0002: none` にできる
 - [HL0303](docs/rules/HL0303.md) (警告) / [HL0304](docs/rules/HL0304.md) (エラー): cbuffer の中の関数をエントリポイントにしている。
   cbuffer の中に `#include` を書き、取り込んだファイルに関数があるとこうなる。FXC はコンパイルでき、DXC はエントリポイントを見つけられない
   (Unity の DXC は「Lost connection with shader compiler process」で落ちる)。FXC でだけコンパイルされるなら HL0303、DXC でコンパイルされるなら HL0304
@@ -801,7 +892,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
   ファイルの順につなぎ、どのコードブロックの前にも置く (Pass より後に書いたものも、別の SubShader や Pass の中のものも)。
   以前は、囲むブロックのものだけを書いた位置のまま並べていた。Pass より後の共通コード片のマクロが効かず「宣言されていない」(HL0310) と誤って報告し、
   別の SubShader の共通コード片の関数も見なかった。逆に `CGINCLUDE` を `HLSLPROGRAM` に含めていた (Unity では含めない) ので、その誤りを見逃していた
-- Unity: ほかのヘッダを引けていて、Unity 同梱のヘッダ (`UnityCG.cginc` など) だけを引けないとき、HL0321 に直し方が無かった。
+- Unity: ほかのヘッダを引けていて、Unity 同梱のヘッダ (`UnityCG.cginc` など) だけを引けないとき、HL0321 に修正方法が無かった。
   Editor が見つからなければ `--unity-editor` の指定を案内する
 - Unity 6.3.26f1 以降 (6.4 / 6.5 / 6.6 も) の Editor は、同梱のヘッダ (`UnityCG.cginc` など) を `Data/Resources/CGIncludes` に置いている。
   `Data/CGIncludes` しか見ていなかったので、CGPROGRAM のシェーダーが TOOL0004 になり、Editor の推定もできなかった
@@ -816,7 +907,7 @@ Unity では、共通コード片 (`HLSLINCLUDE`)・ヘッダの中の `#include
 - Unity: ヘッダの中の `#include "..."` を、そのヘッダから引けなければ、解析しているシェーダーからの相対で再検索する (Unity 6.6 と同じ)。
   シェーダーからの相対で書いた取り込みを、解決できない (HL0321) と誤って報告していた。
   再検索して見つけたときは、解析は続けたうえで、別のフォルダーのシェーダーからは見つからなくなることを [UN0102](docs/rules/UN0102.md) (警告) で伝える。
-  直し方 (ヘッダからの相対パス) を添え、VS Code ではそのまま置き換えられる
+  修正方法 (ヘッダからの相対パス) を添え、VS Code ではそのまま置き換えられる
 - 取り込みの展開結果を使い回すとき、入れ子で使い回した取り込みの「解決できなかった取り込み」などが、外側の取り込みの記録から抜けていた。
   ファイルを並べて解析すると、解決できない取り込みが消えて宣言が揃っていると判断し、宣言の検査を誤って行うことがあった。
   結果が解析順 (並列実行) によって変わり、Unreal Engine のエンジンシェーダーで HL0310 が 43 件報告されていた
@@ -873,8 +964,8 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
 - SL1055: Unity では効かない `#pragma once` (Unity 2022.3 / 6.3 / 6.6 で、2 度目の取り込みが再定義のエラーになることを確認した)。
   Unity の環境のプリプロセッサも `#pragma once` を効かせず、実際と同じく 2 度取り込む
 - SL1050 / SL1051 / SL1053 / SL1054: `#pragma use_dxc` / `never_use_dxc` / `require` が、対象の API や Unity のバージョンでは意図どおりに効かない。
-  直し方の種類で ID を分けた: 無視される指定 (SL1050)、DX11 で使えなくなる指定 (SL1053)、バージョンで結果が変わる組み合わせ (SL1054)、注意 (SL1051)。
-  文は「何が起きているか。何でコンパイルされるか。どう直すか。」の 3 文で書く
+  修正方法の種類で ID を分けた: 無視される指定 (SL1050)、DX11 で使えなくなる指定 (SL1053)、バージョンで結果が変わる組み合わせ (SL1054)、注意 (SL1051)。
+  文は「何が起きているか。何でコンパイルされるか。どう修正するか。」の 3 文で書く
   (無視される API 名、DX11 で使えなくなる指定、バージョンで結果が逆になる組み合わせ、2023.2 以降で無視される include ファイルの中の指定、6.6 で非推奨の `d3d11` など)。
 - SL1052: 16 ビットの型を有効にしたパス (`require native16bit`、`UNITY_DEVICE_SUPPORTS_NATIVE_16BIT` の構成) の定数バッファに `half` などがある
   (Unity が 32 ビットで書き込んだ値を正しく読めない。白が DX12 で (0, 1.875, 0, 1.875) になる)。
@@ -1006,7 +1097,7 @@ Unity のシェーダーの解析結果は 0.1.1 と変わらない (Unity 同�
   Unity プロジェクトとして解析するなら --unity-project を指定するよう、見つけたプロジェクトを添えて伝える (プロジェクトは推定しない)。範囲の外のファイルは、そのことを伝える。
   設定ファイルを置いたフォルダーは読み取り可能な範囲に含めた。
 - 解析対象をフォルダーを付けずに渡すと (`shaderlyn Main.shader`)、同じフォルダーのヘッダも引けなかった。
-- 読んでよい範囲の外にあるファイルを、ただ「解決できない」と報告していた。範囲の外なので読まないことと直し方を HL0321 の文に添える。
+- 読んでよい範囲の外にあるファイルを、ただ「解決できない」と報告していた。範囲の外なので読まないことと修正方法を HL0321 の文に添える。
 - SL1050 が、利用者のヘッダに書いた `#pragma use_dxc` をコードブロックに書いたものとして扱っていた。
 - `uint64_t2(...)` / `float16_t4(...)` のような明示のビット幅の型の作成を、宣言されていない関数 (HL0310) と報告していた。
 - `select` / `and` / `or` を HLSL 2021 だけの組み込み関数として扱い、DXC の 2018 などで HL0310 を報告していた (DXC 1.8 はどの版でも受け付ける)。
@@ -1077,7 +1168,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確認
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/OmojiP/shaderlyn/compare/v0.3.1...v0.3.2

@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Visual Studio 拡張のビルド設定。
+
+    リポジトリの直下の Directory.Build.props (ライブラリ向け) は読み込まない。
+    拡張は Visual Studio のプロセスの中 (.NET Framework 4.7.2) で動き、Native AOT にもしないので、
+    net10.0・IsAotCompatible・InvariantGlobalization を当てはめられない。
+    バージョンだけは CLI・VS Code 拡張と同じものにする。
+    VSIX のバージョンは source.extension.vsixmanifest の Identity に書く (-p:Version では変わらない)。
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Version>0.3.5</Version>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

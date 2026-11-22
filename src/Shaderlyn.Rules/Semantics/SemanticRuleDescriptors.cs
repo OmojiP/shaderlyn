@@ -41,12 +41,12 @@ internal static class SemanticRuleDescriptors
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "include を解決できなかった、あるいは HLSL の解析に失敗したため、"
-            + "uniform の一覧が不完全です。この状態で「対応する宣言が無い」と報告すると、"
+            + "uniform の一覧が不完全です。この状態で「対応する宣言が存在しない」と報告すると、"
             + "正しく書かれたシェーダーを誤りとして指摘することになるため、"
             + "対応検査 (SL1001 / SL1002 / SL1004 / URP0001 / URP0002) は実行していません。"
             + "include を解決できていない場合は、Unity プロジェクトのパスを --unity-project で"
             + "指定すると解決できる場合があります。"
-            + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを直してください。",
+            + "HLSL の解析に失敗している場合は、同じファイルに報告されている構文エラーを修正してください。",
         helpLinkUri: DocumentationLinks.For("CF0101"));
 
     /// <summary>シンボルの経路を調べきれていない。</summary>
@@ -70,12 +70,12 @@ internal static class SemanticRuleDescriptors
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Info,
         description: "#pragma shader_feature / multi_compile で宣言されたシンボルは、"
-            + "マテリアルからも C# からも切り替えられるため、どの経路もいつか通るコードです。"
+            + "マテリアルからも C# からも切り替えられるため、どの経路もいずれ実行されるコードです。"
             + "解析はこのシェーダー自身の条件が見ているシンボルを 1 つずつ有効にして展開し、"
-            + "入れ子や論理積の条件でしか通らない分岐は、シンボルの組を同時に有効にして展開します。"
+            + "入れ子や論理積の条件でしか実行されない分岐は、シンボルの組を同時に有効にして展開します。"
             + "ただし展開の件数には上限があります (--max-symbol-variants)。"
-            + "上限を超えた分の経路にあるコードは一度も読んでいないため、"
-            + "そこにある構文エラーや、そこでしか使われていないプロパティは報告されません。"
+            + "上限を超えた分の経路にあるコードは一度も解析していないため、"
+            + "そこにある構文エラーや、そこでしか使用されていないプロパティは報告されません。"
             + "上限を上げると調べられますが、解析時間はシンボルの数に比例して伸びます。",
         helpLinkUri: DocumentationLinks.For("CF0102"));
 
@@ -88,7 +88,7 @@ internal static class SemanticRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         description: "その構成の展開が #error に到達しました。#error に到達する構成はコンパイルできないので、エンジンもその構成をコンパイルしないはずです "
             + "(Unreal Engine は C++ の ShouldCompilePermutation で除きます)。その構成のコードは、宣言の有無を見る検査 (CF0310 / CF0315 など) で考えません。"
-            + "どの構成でも到達するなら、解析のマクロの状態 (設定の defines、Unreal の生成したファイル) が実際と違う見込みがあります。"
+            + "どの構成でも到達する場合は、解析のマクロの状態 (設定の defines、Unreal の生成したファイル) が実際と違う見込みがあります。"
             + "Unity では、宣言したキーワードの構成はコンパイルされるので、UN0103 (エラー) が伝えます。"
             + "GLSL では、どの構成でも到達するものを GL0003 (エラー) が伝えます。",
         helpLinkUri: DocumentationLinks.For("CF0104"));

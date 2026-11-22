@@ -159,7 +159,7 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
         }
 
         return es && version < 310 ? "SPIR-V を作るとき、ES のシェーダーは #version 310 es 以上でなければなりません。"
-            : profile == "compatibility" ? "SPIR-V を作るとき、互換のプロファイル (compatibility) は使えません。"
+            : profile == "compatibility" ? "SPIR-V を作るとき、互換のプロファイル (compatibility) は使用できません。"
             : !es && requirement.Vulkan == true && version < 140 ? "Vulkan 向けの SPIR-V を作るとき、デスクトップのシェーダーは #version 140 以上でなければなりません。"
             : !es && requirement.Vulkan == false && version < 330 ? "OpenGL 向けの SPIR-V を作るとき、デスクトップのシェーダーは #version 330 以上でなければなりません。"
             : null;

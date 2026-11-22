@@ -61,6 +61,12 @@ internal sealed class AnalysisSession
     public ImmutableArray<string> DefaultExtensions => _environment.DefaultExtensions;
 
     /// <summary>
+    /// 環境を決めているか (設定ファイルの <c>environment</c> か、別に使う環境の名前がある)。
+    /// 決めていなければ、<c>.usf</c>・<c>.ush</c> を Unreal Engine の環境で解析する (<see cref="AnalysisSettings.EnvironmentForOpenedFile"/>)。
+    /// </summary>
+    public bool EnvironmentChosen { get; }
+
+    /// <summary>
     /// 定義済みにするシンボルの組み合わせごとの、意味解析の設定と実行器。
     /// </summary>
     /// <remarks>
@@ -128,6 +134,7 @@ internal sealed class AnalysisSession
             : null;
         UnityProjectPath = options.UnityProjectPath;
         UnityGeneratedDirectory = options.UnityGeneratedDirectory;
+        EnvironmentChosen = environmentName is not null || settings.EnvironmentInConfiguration;
 
         _analyzers = all;
         _analyzerOptions = settings.AnalyzerOptions;

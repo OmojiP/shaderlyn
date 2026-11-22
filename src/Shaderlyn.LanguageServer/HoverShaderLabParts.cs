@@ -29,7 +29,7 @@ internal static partial class HoverBuilder
 
         string menu = separator > 0
             ? $"メニュー: `{shader.Name[..separator]}` の下に `{shader.Name[(separator + 1)..]}` として並ぶ"
-            : "メニューの階層が無い。`分類/名前` の形にすると探しやすくなる";
+            : "メニューの階層が存在しない。`分類/名前` の形にすると探しやすくなる";
 
         return new HoverResult(
             $"```shaderlab\nShader \"{shader.Name}\"\n```\n\n{menu}"
@@ -44,7 +44,7 @@ internal static partial class HoverBuilder
     private static HoverResult DescribeSubShader(SubShaderSyntax subShader)
         => new(
             $"```shaderlab\nSubShader\n```\n\n{subShader.Passes.Count()} 件の Pass。"
-            + "\n\nUnity は上から順に見て、動く最初の SubShader を使う。",
+            + "\n\nUnity は上から順に見て、動く最初の SubShader を使用する。",
             subShader.Keyword.Span);
 
     /// <summary>
@@ -96,7 +96,7 @@ internal static partial class HoverBuilder
             "COLOR" or "VECTOR" => "HLSL 側は `float4` / `half4` で受ける",
             "FLOAT" or "RANGE" => "HLSL 側は `float` / `half` で受ける",
             "INT" or "INTEGER" => "HLSL 側は `int` で受ける",
-            "2D" => "HLSL 側は `TEXTURE2D` と `SAMPLER`。`_ST` を使うなら `float4` も要る",
+            "2D" => "HLSL 側は `TEXTURE2D` と `SAMPLER`。`_ST` を使用する場合は `float4` も必要",
             "3D" => "HLSL 側は `TEXTURE3D`",
             "CUBE" => "HLSL 側は `TEXTURECUBE`",
             "2DARRAY" => "HLSL 側は `TEXTURE2D_ARRAY`",
@@ -128,7 +128,7 @@ internal static partial class HoverBuilder
             "MainColor" => "このシェーダーの主色。`Material.color` から読み書きされる",
             "MainTexture" => "このシェーダーの主テクスチャ。`Material.mainTexture` から読み書きされる",
             "HideInInspector" => "インスペクタに出さない。値は保存される",
-            "NoScaleOffset" => "テクスチャの Tiling / Offset を出さない。`_ST` も要らなくなる",
+            "NoScaleOffset" => "テクスチャの Tiling / Offset を出さない。`_ST` も不要になる",
             "Normal" => "法線マップとして扱う。設定を誤ると警告が出る",
             "HDR" => "HDR の色として扱う。1 を超える値を入れられる",
             "PerRendererData" => "マテリアルではなく描画側から与える。インスペクタでは編集できない",
@@ -166,7 +166,7 @@ internal static partial class HoverBuilder
 
         string note = keyword.EndsWith("INCLUDE", StringComparison.Ordinal)
             ? "同じブロック内の各 PROGRAM の先頭へ差し込まれる共通コード片。"
-            : $"{info.Uniforms} 件の uniform が見えている。";
+            : $"{info.Uniforms} 件の uniform を参照できる。";
 
         return new HoverResult(
             $"```shaderlab\n{keyword}\n```\n\n{note}"

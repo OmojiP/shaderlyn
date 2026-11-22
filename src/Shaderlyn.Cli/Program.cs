@@ -5,6 +5,7 @@ using System.Text;
 using Shaderlyn.Core.IO;
 using Shaderlyn.Cli.Baseline;
 using Shaderlyn.Cli.Caching;
+using Shaderlyn.Cli.Fixing;
 using Shaderlyn.Cli.Inspection;
 using Shaderlyn.Cli.Reporting;
 using Shaderlyn.Configuration;
@@ -132,7 +133,7 @@ public static class Program
         if (environment.Name != UnityAnalysisEnvironment.EnvironmentName && !settings.UnityOnlyCommandLineOptions.IsEmpty)
         {
             await errorOutput.WriteLineAsync(
-                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使えます (環境: {environment.Name})。")
+                $"{string.Join(", ", settings.UnityOnlyCommandLineOptions)} は Unity の環境でだけ使用できます (環境: {environment.Name})。")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -215,27 +216,95 @@ public static class Program
         AnalysisCache? cache = await LoadCacheAsync(options, groups, analyzers, errorOutput).ConfigureAwait(false);
         bool cacheWritable = await CheckCacheWritableAsync(options, errorOutput).ConfigureAwait(false);
 
-        List<AnalysisResult> perGroup = [];
+        // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数の解析設定が使う)。
+        // rules: に書いた知らない ID もここで伝える。ルールの一覧はアナライザ (自作のルールを含む) から決まる。
+        HashSet<string> knownRuleIds = [.. RuleCatalog.GetAllRules(analyzers).Select(d => d.Id)];
+        knownRuleIds = new HashSet<string>(knownRuleIds, StringComparer.OrdinalIgnoreCase);
 
-        foreach (AnalysisSetting group in groups)
+        // 修正するルールの ID の誤りは、解析の前に伝える。誤った ID で何も修正されないまま終わると、気付けない。
+        if (options.FixRuleIds.FirstOrDefault(id => !knownRuleIds.Contains(id)) is { } unknownFixRule)
         {
-            // 既定の解析設定は、上で作った解析の設定をそのまま使う (解析設定が 1 つなら今までと同じ)。
-            SemanticsOptions groupSemantics = ReferenceEquals(group, primary) || ReferenceEquals(group.Settings, settings)
-                ? semanticsOptions
-                : SemanticsSetup.Create(group.Options, group.Settings, timings);
-
-            AnalysisRunner runner = new(
-                analyzers, group.Settings.AnalyzerOptions, groupSemantics, timings, cache, group.Environment);
-
-            AnalysisResult groupResult = await runner.RunAsync(group.Files, cancellationToken).ConfigureAwait(false);
-            perGroup.Add(groupResult);
+            await errorOutput.WriteLineAsync(
+                $"--fix-rule のルール ID '{unknownFixRule}' は存在しません。--list-rules でルールの一覧を確認してください。")
+                .ConfigureAwait(false);
+            return ExitCode.ToolError;
         }
 
-        // 解析設定をまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つの解析設定が取り込むことがある)。
-        // 解析設定が 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
-        AnalysisResult result = perGroup.Count == 1
-            ? perGroup[0]
-            : AnalysisResult.Merge(perGroup.Select(r => r.Diagnostics), perGroup.Sum(r => r.AnalyzedFileCount));
+        ImmutableArray<Diagnostic> configurationDiagnostics =
+        [
+            .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics.AddRange(g.Settings.FindUnknownRules(knownRuleIds)))
+                .Concat(unusableConfigurations)
+                .DistinctBy(d => (d.Id, d.Location.FilePath, d.Location.Span, d.GetMessage())),
+        ];
+
+        // 解析して、設定ファイルの問題を加え、ベースラインで除く。--fix では修正を書き込んだ後にもう一度行う。
+        async Task<(AnalysisResult? Result, string? Error)> AnalyzeAsync()
+        {
+            List<AnalysisResult> perGroup = [];
+
+            foreach (AnalysisSetting group in groups)
+            {
+                // 既定の解析設定は、上で作った解析の設定をそのまま使う (解析設定が 1 つなら今までと同じ)。
+                SemanticsOptions groupSemantics = ReferenceEquals(group, primary) || ReferenceEquals(group.Settings, settings)
+                    ? semanticsOptions
+                    : SemanticsSetup.Create(group.Options, group.Settings, timings);
+
+                AnalysisRunner runner = new(
+                    analyzers, group.Settings.AnalyzerOptions, groupSemantics, timings, cache, group.Environment);
+
+                AnalysisResult groupResult = await runner.RunAsync(group.Files, cancellationToken).ConfigureAwait(false);
+                perGroup.Add(groupResult);
+            }
+
+            // 解析設定をまたいでも、同じ指摘は 1 件にまとめて並べ直す (同じヘッダを 2 つの解析設定が取り込むことがある)。
+            // 解析設定が 1 つならそのまま使う。並べ直しは同じ位置の指摘の順を保たないので、2 度並べると順が変わる。
+            AnalysisResult analyzed = perGroup.Count == 1
+                ? perGroup[0]
+                : AnalysisResult.Merge(perGroup.Select(r => r.Diagnostics), perGroup.Sum(r => r.AnalyzedFileCount));
+
+            analyzed = analyzed.WithAdditionalDiagnostics(configurationDiagnostics);
+
+            if (options.BaselinePath is { } baselinePath && !TryApplyBaseline(baselinePath, ref analyzed, out string? baselineError))
+            {
+                return (null, $"ベースラインを読み込めません ({baselinePath}): {baselineError}");
+            }
+
+            return (analyzed, null);
+        }
+
+        (AnalysisResult? first, string? analysisError) = await AnalyzeAsync().ConfigureAwait(false);
+
+        if (first is null)
+        {
+            await errorOutput.WriteLineAsync(analysisError).ConfigureAwait(false);
+            return ExitCode.ToolError;
+        }
+
+        AnalysisResult result = first;
+        int fixCount = 0;
+
+        if (options.Fix != FixMode.None)
+        {
+            FixPlan plan = FixPlan.Create(
+                result.Diagnostics,
+                files.ToHashSet(StringComparer.OrdinalIgnoreCase),
+                options.FixRuleIds.ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            fixCount = await ApplyFixesAsync(options, plan, output, errorOutput, cancellationToken).ConfigureAwait(false);
+
+            if (options.Fix == FixMode.Write && fixCount > 0)
+            {
+                (AnalysisResult? second, string? secondError) = await AnalyzeAsync().ConfigureAwait(false);
+
+                if (second is null)
+                {
+                    await errorOutput.WriteLineAsync(secondError).ConfigureAwait(false);
+                    return ExitCode.ToolError;
+                }
+
+                result = second;
+            }
+        }
 
         if (cacheWritable)
         {
@@ -248,26 +317,11 @@ public static class Program
             await errorOutput.WriteAsync(timings.Describe(semanticsOptions.IncludeCache, cache))
                 .ConfigureAwait(false);
         }
-        // 設定ファイルの問題は、設定ファイルごとに 1 回だけ出す (同じ設定ファイルを複数の解析設定が使う)。
-        // rules: に書いた知らない ID もここで伝える。ルールの一覧はアナライザ (自作のルールを含む) から決まる。
-        HashSet<string> knownRuleIds = [.. RuleCatalog.GetAllRules(analyzers).Select(d => d.Id)];
-        knownRuleIds = new HashSet<string>(knownRuleIds, StringComparer.OrdinalIgnoreCase);
-        ImmutableArray<Diagnostic> configurationDiagnostics =
-        [
-            .. groups.SelectMany(g => g.Settings.ConfigurationDiagnostics.AddRange(g.Settings.FindUnknownRules(knownRuleIds)))
-                .Concat(unusableConfigurations)
-                .DistinctBy(d => (d.Id, d.Location.FilePath, d.Location.Span, d.GetMessage())),
-        ];
-        result = result.WithAdditionalDiagnostics(configurationDiagnostics);
 
-        if (options.BaselinePath is { } baselinePath)
+        // 差分の表示では、指摘の報告は書かない。標準出力に差分と報告が混ざると、どちらも使えなくなる。
+        if (options.Fix == FixMode.DryRun)
         {
-            if (!TryApplyBaseline(baselinePath, ref result, out string? baselineError))
-            {
-                await errorOutput.WriteLineAsync(
-                    $"ベースラインを読み込めません ({baselinePath}): {baselineError}").ConfigureAwait(false);
-                return ExitCode.ToolError;
-            }
+            return fixCount > 0 ? ExitCode.DiagnosticsFound : ExitCode.Success;
         }
 
         if (options.WriteBaselinePath is { } writeBaselinePath)
@@ -299,6 +353,84 @@ public static class Program
         }
 
         return result.HasDiagnosticsAtOrAbove(options.ErrorOn) ? ExitCode.DiagnosticsFound : ExitCode.Success;
+    }
+
+    /// <summary>
+    /// 修正をファイルに書き込む (<c>--fix</c>)。書き込まずに差分を出力する (<c>--fix-dry-run</c>)。
+    /// </summary>
+    /// <param name="options">コマンドライン引数の解析結果。</param>
+    /// <param name="plan">適用する修正。</param>
+    /// <param name="output">差分の出力先。</param>
+    /// <param name="errorOutput">適用した数と、適用しなかった修正の出力先。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>適用した (差分の表示では、適用する) 修正の数。</returns>
+    /// <remarks>
+    /// 適用した数は標準エラーへ出す。標準出力は、修正の後の指摘の報告 (JSON・SARIF のこともある) か差分に使う。
+    /// </remarks>
+    private static async Task<int> ApplyFixesAsync(
+        CommandLineOptions options,
+        FixPlan plan,
+        TextWriter output,
+        TextWriter errorOutput,
+        CancellationToken cancellationToken)
+    {
+        string basePath = options.BasePath ?? Directory.GetCurrentDirectory();
+        bool dryRun = options.Fix == FixMode.DryRun;
+        List<PlannedFix> applied = [];
+        int fileCount = 0;
+
+        foreach (FileFixes file in plan.Files.Where(f => !f.Fixes.IsEmpty))
+        {
+            string shown = Path.GetRelativePath(basePath, file.FilePath).Replace('\\', '/');
+            (SourceText? source, string? error) = await FixWriter.LoadAsync(file, cancellationToken).ConfigureAwait(false);
+
+            if (source is null)
+            {
+                await errorOutput.WriteLineAsync($"{shown}: 修正を書き込みません ({error})。").ConfigureAwait(false);
+                continue;
+            }
+
+            if (dryRun)
+            {
+                await output.WriteAsync(FixWriter.Diff(shown, source, file)).ConfigureAwait(false);
+            }
+            else
+            {
+                await FixWriter.WriteAsync(source, file, cancellationToken).ConfigureAwait(false);
+            }
+
+            applied.AddRange(file.Fixes);
+            fileCount++;
+        }
+
+        string byRule = string.Join(", ", applied.GroupBy(f => f.RuleId).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => $"{g.Key}: {g.Count()}"));
+        string counts = applied.Count == 0 ? "0 件" : $"{applied.Count} 件 ({fileCount} ファイル。{byRule})";
+
+        await errorOutput.WriteLineAsync(dryRun ? $"適用する修正: {counts}" : $"修正を適用しました: {counts}").ConfigureAwait(false);
+
+        if (plan.AmbiguousCount > 0)
+        {
+            await errorOutput.WriteLineAsync(
+                $"候補を 1 つに決められない修正 {plan.AmbiguousCount} 件は適用しません。エディタのクイックフィックスで選ぶか、"
+                + "候補が 1 つの修正は --fix-rule でルールを指定してください。")
+                .ConfigureAwait(false);
+        }
+
+        if (plan.ConflictingCount > 0)
+        {
+            await errorOutput.WriteLineAsync(
+                $"ほかの修正と同じ位置を書き換える修正 {plan.ConflictingCount} 件は適用しません。もう一度実行すると適用できることがあります。")
+                .ConfigureAwait(false);
+        }
+
+        if (plan.OutsideTargetCount > 0)
+        {
+            await errorOutput.WriteLineAsync(
+                $"解析の対象の外 (取り込んだヘッダ) にある修正 {plan.OutsideTargetCount} 件は適用しません。そのファイルも解析の対象に指定してください。")
+                .ConfigureAwait(false);
+        }
+
+        return applied.Count;
     }
 
     /// <summary>
@@ -481,7 +613,7 @@ public static class Program
         // 中身を見せる画面は HLSL のセマンティックモデルを描く。HLSL ではない言語の環境では、まだ描けない。
         if (prepared.Compilation is not { } compilation)
         {
-            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使えません。")
+            await errorOutput.WriteLineAsync($"--inspect は環境 '{environment.Name}' のファイルにはまだ使用できません。")
                 .ConfigureAwait(false);
             return ExitCode.ToolError;
         }
@@ -573,7 +705,7 @@ public static class Program
             if (ReadConfirmation() is not { } answer)
             {
                 await output.WriteLineAsync().ConfigureAwait(false);
-                await errorOutput.WriteLineAsync("入力を待てないため、確かめられませんでした。一覧を確かめたうえで書き出すなら、--yes を付けてください。").ConfigureAwait(false);
+                await errorOutput.WriteLineAsync("入力を待てないため、確認できませんでした。一覧を確認したうえで書き出す場合は、--yes を付けてください。").ConfigureAwait(false);
                 return ExitCode.ToolError;
             }
 
@@ -601,7 +733,7 @@ public static class Program
 
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"ファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)}) を書き出しました: {fullOutput}");
-        report.AppendLine("解析に使うには、設定ファイルの unity: に次を書いてください (設定ファイルからの相対パスでも書けます):");
+        report.AppendLine("解析に使用するには、設定ファイルの unity: に次を書いてください (設定ファイルからの相対パスでも書けます):");
         report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
         report.AppendLine("Unity のバージョンかパッケージを変えたら、作り直してください。");
         await output.WriteAsync(report.ToString()).ConfigureAwait(false);
@@ -618,7 +750,7 @@ public static class Program
         builder.AppendLine("次のパッケージのシェーダーのファイルを書き出します。");
 
         foreach (IGrouping<string, UnityGeneratedPackage> group in plan.Packages
-                     .GroupBy(p => p.License ?? $"ライセンスが分からない")
+                     .GroupBy(p => p.License ?? $"ライセンスが不明")
                      .OrderBy(g => g.Key == "Unity Companion License" ? 0 : g.First().License is null ? 2 : 1)
                      .ThenBy(g => g.Key, StringComparer.Ordinal))
         {
@@ -642,7 +774,7 @@ public static class Program
         }
 
         builder.AppendLine(CultureInfo.InvariantCulture, $"合わせてファイル {plan.FileCount} 個 ({FormatBytes(plan.Bytes)})。");
-        builder.AppendLine("書き出したものをリポジトリに入れるときは、各パッケージのライセンスを確かめてください。公開のリポジトリには入れないでください。");
+        builder.AppendLine("書き出したファイルをリポジトリに入れるときは、各パッケージのライセンスを確認してください。公開のリポジトリには入れないでください。");
         return builder.ToString();
     }
 
@@ -713,9 +845,9 @@ public static class Program
         }
 
         StringBuilder report = new();
-        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読みました。");
-        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読みました。");
-        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読みました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"C++ のファイル {generation.SourceFileCount} 個から、uniform buffer {generation.UniformBufferCount} 個と、エンジンが定義するマクロ {generation.EngineDefineCount} 個を読み取りました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"シェーダーの登録 (エントリポイントとステージ) を {generation.ShaderRegistrationCount} 個読み取りました。");
+        report.AppendLine(CultureInfo.InvariantCulture, $"登録されたシェーダーのクラス {generation.ShaderClassCount} 個から、定義するマクロとパーミュテーションを読み取りました。");
 
         if (generation.MissingShaderClassCount > 0)
         {
@@ -730,7 +862,7 @@ public static class Program
         if (!generation.UnreadShaderRegistrations.IsEmpty)
         {
             // 独自のマクロで登録したシェーダーは、設定の units: に書けば解析できる。
-            report.AppendLine(CultureInfo.InvariantCulture, $"読めなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントが分からないので、必要なら設定の units: に書いてください):");
+            report.AppendLine(CultureInfo.InvariantCulture, $"解析できなかったシェーダーの登録 ({generation.UnreadShaderRegistrations.Values.Sum()} 個。これらの .usf はエントリポイントを特定できないため、必要な場合は設定の units: に書いてください):");
 
             foreach ((string macro, int count) in generation.UnreadShaderRegistrations.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal))
             {
@@ -755,7 +887,7 @@ public static class Program
 
         if (!string.Equals(configuration.UnrealGeneratedDirectory is { } configured ? Path.GetFullPath(configured) : null, fullOutput, StringComparison.OrdinalIgnoreCase))
         {
-            report.AppendLine("解析に使うには、設定ファイルの unreal: に次を書いてください:");
+            report.AppendLine("解析に使用するには、設定ファイルの unreal: に次を書いてください:");
             report.AppendLine(CultureInfo.InvariantCulture, $"  generated: {fullOutput.Replace('\\', '/')}");
         }
 

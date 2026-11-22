@@ -105,7 +105,7 @@ public sealed record HlslCompileTarget(string Platform, HlslDialect Dialect)
 
         if (!IsUsable)
         {
-            notes.Add("この API では使えない");
+            notes.Add("この API では使用できない");
         }
 
         if (Reason is not null)

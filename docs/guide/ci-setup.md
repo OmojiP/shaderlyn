@@ -1,6 +1,6 @@
 # CI に組み込む
 
-このガイドでは、private リポジトリの Unity プロジェクトを GitHub Actions で解析する方法を説明します。GitHub-hosted runner を使う方法を基本とし、self-hosted runner を使う方法も紹介します。
+このガイドでは、private リポジトリの Unity プロジェクトを GitHub Actions で解析する方法を説明します。GitHub-hosted runner を使用する方法を基本とし、self-hosted runner を使用する方法も紹介します。
 
 **どちらの方法も private リポジトリでのみ使用してください。**
 
@@ -13,8 +13,8 @@
   - [目次](#目次)
   - [1. GitHub-hosted runner で実行する](#1-github-hosted-runner-で実行する)
     - [1-1. Unity のファイルを生成する](#1-1-unity-のファイルを生成する)
-    - [1-2. 自作ルールを使わない場合](#1-2-自作ルールを使わない場合)
-    - [1-3. 自作ルール入りの CLI を使う場合](#1-3-自作ルール入りの-cli-を使う場合)
+    - [1-2. 自作ルールを使用しない場合](#1-2-自作ルールを使用しない場合)
+    - [1-3. 自作ルール入りの CLI を使用する場合](#1-3-自作ルール入りの-cli-を使用する場合)
   - [2. 自作ルール入り CLI をリリースする](#2-自作ルール入り-cli-をリリースする)
   - [3. セルフホストランナーを用意する](#3-セルフホストランナーを用意する)
     - [3-1. `Library` を作る](#3-1-library-を作る)
@@ -23,7 +23,7 @@
   - [4. セルフホストランナーのワークフローを設定する](#4-セルフホストランナーのワークフローを設定する)
     - [4-1. トークンを登録する](#4-1-トークンを登録する)
     - [4-2. ワークフロー](#4-2-ワークフロー)
-  - [5. セルフホストランナーでキャッシュを使う](#5-セルフホストランナーでキャッシュを使う)
+  - [5. セルフホストランナーでキャッシュを使用する](#5-セルフホストランナーでキャッシュを使用する)
     - [5-1. キャッシュの置き場所を作る](#5-1-キャッシュの置き場所を作る)
     - [5-2. ワークフローに `--cache` を追加する](#5-2-ワークフローに---cache-を追加する)
     - [5-3. キャッシュの利用を確認する](#5-3-キャッシュの利用を確認する)
@@ -34,7 +34,7 @@
 
 ## 1. GitHub-hosted runner で実行する
 
-この方法では、Unity Editor や `Library` を runner に用意せず、`--unity-generate` で private リポジトリに保存したファイルを使って解析します。生成したファイルには Unity のパッケージや Editor のヘッダーとライセンス情報が含まれるため、リポジトリは private にしてください。
+この方法では、Unity Editor や `Library` を runner に用意せず、`--unity-generate` で private リポジトリに保存したファイルを使用して解析します。生成したファイルには Unity のパッケージや Editor のヘッダーとライセンス情報が含まれるため、リポジトリは private にしてください。
 
 ### 1-1. Unity のファイルを生成する
 
@@ -52,11 +52,11 @@ unity:
   generated: .shaderlyn/unity
 ```
 
-`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [Unity「Library と Unity Editor の無いマシンで解析する」](environments/unity.md#library-と-unity-editor-の無いマシンで解析する) を確認してください。
+`.shaderlyn/unity` と `.shaderlyn.yaml` を private リポジトリにコミットします。Unity のバージョンかパッケージを更新したら、ファイルを再生成してコミットしてください。ライセンスの詳細は [Unity「Library と Unity Editor が存在しないマシンで解析する」](environments/unity.md#library-と-unity-editor-が存在しないマシンで解析する) を確認してください。
 
 ワークフローが作成するキャッシュファイルをコミットしないよう、`.shaderlyn-cache.json` を `.gitignore` に追加します。
 
-### 1-2. 自作ルールを使わない場合
+### 1-2. 自作ルールを使用しない場合
 
 `.github/workflows/shaders.yml` に次のワークフローを作成します。GitHub-hosted runner には実行ごとに新しい解析環境が用意されるため、`actions/cache` で Shaderlyn の解析キャッシュを引き継ぎます。
 
@@ -72,31 +72,31 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .shaderlyn-cache.json
           key: shaderlyn-${{ runner.os }}-${{ github.ref }}-${{ github.run_id }}
           restore-keys: |
             shaderlyn-${{ runner.os }}-${{ github.ref }}-
 
-      - uses: OmojiP/shaderlyn/action@v0.3.4
+      - uses: OmojiP/shaderlyn/action@v0.3.5
         with:
           paths: Assets/Shaders
           unity-project: .
           cache: .shaderlyn-cache.json
-          version: v0.3.4
+          version: v0.3.5
           upload-sarif: false
 ```
 
-`actions/cache` は前回の解析キャッシュを復元し、ジョブの終了後に更新分を保存します。キーには runner の OS、ブランチ、実行 ID を含めています。同じ PR の前回キャッシュを使います。最初の実行ではキャッシュが見つからないため全件を解析し、終了時にキャッシュを保存します。次の実行から、前回の結果を使えるファイルは解析を省略します。実行ログにキャッシュが復元されたことが表示されるか確認してください。キーを毎回変えることで、既存のキャッシュを上書きせずに更新します。詳しくは [GitHub Actions の依存関係キャッシュ](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) を参照してください。
+`actions/cache` は前回の解析キャッシュを復元し、ジョブの終了後に更新分を保存します。キーには runner の OS、ブランチ、実行 ID を含めています。同じ PR の前回キャッシュを使用します。最初の実行ではキャッシュが見つからないため全件を解析し、終了時にキャッシュを保存します。次の実行から、前回の結果を使用できるファイルは解析を省略します。実行ログにキャッシュが復元されたことが表示されるか確認してください。キーを毎回変えることで、既存のキャッシュを上書きせずに更新します。詳しくは [GitHub Actions の依存関係キャッシュ](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) を参照してください。
 
-### 1-3. 自作ルール入りの CLI を使う場合
+### 1-3. 自作ルール入りの CLI を使用する場合
 
 自作ルールを含む CLI を private リポジトリでリリースし、GitHub-hosted runner から取得します。以下の例は、2 章の手順で作成した `my-shaderlyn-win-x64.zip` を `windows-latest` で実行します。
 
-Unity プロジェクトのリポジトリとは別の private リポジトリから取得するため、`GITHUB_TOKEN` ではなく PAT を使います。GitHub で `Profile > Settings > Developer settings > Personal access tokens > Fine-grained tokens` を開き、CLI リポジトリを所有するアカウントを resource owner に指定します。対象の private リポジトリだけを選び、`Contents: Read-only` を付与して PAT を作成してください。Unity プロジェクトの private リポジトリで `Settings > Secrets and variables > Actions > Secrets > New repository secret` を開き、名前を `SHADERLYN_TOKEN` として登録します。GitHub-hosted runner には `gh` が用意されています ([GitHub CLI をワークフローで使う](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-github-cli))。private リリースを取得するときは、このトークンを `GH_TOKEN` として渡します。
+Unity プロジェクトのリポジトリとは別の private リポジトリから取得するため、`GITHUB_TOKEN` ではなく PAT を使用します。GitHub で `Profile > Settings > Developer settings > Personal access tokens > Fine-grained tokens` を開き、CLI リポジトリを所有するアカウントを resource owner に指定します。対象の private リポジトリだけを選び、`Contents: Read-only` を付与して PAT を作成してください。Unity プロジェクトの private リポジトリで `Settings > Secrets and variables > Actions > Secrets > New repository secret` を開き、名前を `SHADERLYN_TOKEN` として登録します。GitHub-hosted runner には `gh` が用意されています ([GitHub CLI をワークフローで使用する](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-github-cli))。private リリースを取得するときは、このトークンを `GH_TOKEN` として渡します。
 
 次の `.github/workflows/shaders.yml` は、CLI のダウンロード、解析、キャッシュの保存までを行います。
 
@@ -116,9 +116,9 @@ jobs:
       SHADERLYN_VERSION: v1.0.0-r1
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .shaderlyn-cache.json
           key: shaderlyn-${{ runner.os }}-${{ github.ref }}-${{ github.run_id }}
@@ -158,7 +158,7 @@ jobs:
 
 ## 2. 自作ルール入り CLI をリリースする
 
-自作ルールを使う場合は、CLI ツールをビルドしてリリースします。自作ルールを使わない場合、この節の作業は不要です。
+自作ルールを使用する場合は、CLI ツールをビルドしてリリースします。自作ルールを使用しない場合、この節の作業は不要です。
 
 `.github/workflows/release.yml` を置き換え、バージョンタグを push したときにリリースを作成するワークフローを組みます。
 
@@ -177,15 +177,15 @@ permissions:
 jobs:
   release:
     # Native AOT ビルドのため、ランナーと同じ Windows を設定
-    # windows-latest には AOT のリンクに使う MSVC が入っている
+    # windows-latest には AOT のリンクに使用する MSVC が入っている
     runs-on: windows-latest
 
     steps:
       # step1: ランナーにリポジトリソースを取得する
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # step2: ランナーで dotnet コマンドを使用できるようにする
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -207,7 +207,7 @@ jobs:
         run: Compress-Archive -Path artifacts/my-shaderlyn.exe -DestinationPath my-shaderlyn-win-x64.zip
 
       # step6: リリースを作り zip を添付する
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: my-shaderlyn-win-x64.zip
           # ファイルが見つからなければ失敗させる
@@ -225,7 +225,7 @@ git push origin v1.0.0-r1
 
 ## 3. セルフホストランナーを用意する
 
-Unity プロジェクトの `Library/PackageCache` をランナーのマシンから直接使う場合は、この方法を選びます。PR のコードがそのマシン上で実行されるため、private リポジトリで、信頼できる投稿者の PR にのみ使用してください。
+Unity プロジェクトの `Library/PackageCache` をランナーのマシンから直接使用する場合は、この方法を選びます。PR のコードがそのマシン上で実行されるため、private リポジトリで、信頼できる投稿者の PR にのみ使用してください。
 
 ### 3-1. `Library` を作る
 
@@ -234,7 +234,7 @@ Unity プロジェクトの `Library/PackageCache` をランナーのマシン�
 
 
 `C:\Users\<ユーザー名>\` の下には置かないでください。
-ランナーのサービスは既定で `NETWORK SERVICE` として動作するため、ユーザーフォルダー以下を読めません。
+ランナーのサービスは既定で `NETWORK SERVICE` として動作するため、ユーザーフォルダー以下を読み込めません。
 
 ### 3-2. マシンをランナーに登録する
 
@@ -250,6 +250,8 @@ Unity プロジェクトの `Library/PackageCache` をランナーのマシン�
 
    - `config.cmd` の途中で `run the runner as service?` と聞かれたら、`Y` と入力します。
 4. Runners の画面で **Idle** と表示されたら登録完了です。手動で起動する場合は `.\run.cmd` を実行します。
+
+このガイドのワークフローで使用するアクション (`actions/checkout@v7` など) と、Shaderlyn の GitHub Action が使用する `github/codeql-action/upload-sarif@v4` は Node.js 24 で動くため、ランナーのバージョンは 2.327.1 以降が必要です。ランナーは既定で自動的に更新されます。自動更新を止めている場合は、更新してください。
 
 ランナーの登録に失敗した場合は、`Settings → Actions → Runners` で該当するランナーの **Remove runner** を選びます。表示されたコマンドでランナーを削除してから、再度登録してください。
 
@@ -302,7 +304,7 @@ jobs:
 
     steps:
       # PR のコードを取得する
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ランナーの Library へのジャンクション (フォルダーのリンク) を作る。
       - name: Library をリンクする
@@ -348,15 +350,15 @@ jobs:
 
 ---
 
-## 5. セルフホストランナーでキャッシュを使う
+## 5. セルフホストランナーでキャッシュを使用する
 
 この節では、セルフホストランナーのマシンにキャッシュを保存します。ワークフローで `--cache` を指定すると、前回の解析結果を再利用できます。
 PR で変更していないシェーダーは再解析されないため、2 回目以降の解析時間を短縮できます。
 
 キャッシュはファイルの内容で照合します。取り込んでいるヘッダ (`Library/PackageCache` の中のものを含む) も照合するので、
 ヘッダだけを変えた PR でも、それを取り込むシェーダーは解析し直されます。
-ブランチや PR が違っても、内容が同じファイルの結果はそのまま使えます。
-詳しい仕組みは [CLI の使い方「キャッシュ」](cli-usage.md#7-キャッシュ) にあります。
+ブランチや PR が違っても、内容が同じファイルの結果はそのまま使用できます。
+詳しい仕組みは [CLI の使用方法「キャッシュ」](cli-usage.md#7-キャッシュ) にあります。
 
 ### 5-1. キャッシュの置き場所を作る
 
@@ -403,7 +405,7 @@ icacls D:\...\shaderlyn-cache /grant "NETWORK SERVICE:(OI)(CI)M"
 ```
 
 ファイル名にランナー名 (`RUNNER_NAME`) を含めているのは、同じマシンに複数のランナーを登録したときに、
-同時に動くジョブが同じファイルを書き換え合わないようにするためです。ランナーが 1 つなら、ファイルは 1 つになります。
+同時に動くジョブが同じファイルを書き換え合わないようにするためです。ランナーが 1 つの場合は、ファイルは 1 つになります。
 
 ### 5-3. キャッシュの利用を確認する
 
@@ -422,12 +424,12 @@ icacls D:\...\shaderlyn-cache /grant "NETWORK SERVICE:(OI)(CI)M"
 - **キャッシュを読み込めなくてもジョブは失敗しません。** キャッシュが壊れていたり書き込めなかったりした場合は、その旨を標準エラーに出力して全件を解析します。
   その状態では毎回の解析に時間がかかるため、ログに `キャッシュを読み込めませんでした` / `キャッシュを書き出せませんでした` と表示されていないか確認してください。
 - **結果がおかしいと思ったら、キャッシュファイルを消してください。** 次の実行で全件を解析し、作り直されます
-- **キャッシュはランナーのマシンごとのものです。** 記録は絶対パスで持っているので、別のマシンへ複製しても使えません
+- **キャッシュはランナーのマシンごとのものです。** 記録は絶対パスで持っているので、別のマシンへ複製しても使用できません
 
 ---
 
 ## 関連
 
 - [自作ルールの作り方](../custom-rules/tutorial.md) — 自作ルール入りの CLI の作り方
-- [CLI の使い方](cli-usage.md) — 実行方法、出力、オプション
+- [CLI の使用方法](cli-usage.md) — 実行方法、出力、オプション
 - [TOOL0004](../rules/TOOL0004.md) — `#include` を解決できないときのエラー

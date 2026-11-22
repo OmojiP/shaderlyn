@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
+using Shaderlyn.Cli.Fixing;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 
@@ -95,6 +96,53 @@ internal sealed class JsonDiagnosticReporter
         return Encoding.UTF8.GetString(buffer.WrittenSpan) + Environment.NewLine;
     }
 
+    /// <summary>
+    /// 指摘の修正を書き出す。修正が無ければ何も書かない。
+    /// </summary>
+    /// <param name="writer">書き出し先。</param>
+    /// <param name="diagnostic">対象の指摘。</param>
+    /// <remarks>
+    /// 行と桁は指摘の位置と同じく 1 始まり。差し込みは、始まりと終わりが同じ位置になる。
+    /// 置き換えは指摘と同じファイルの中のものなので、ファイルは書かない。
+    /// </remarks>
+    private static void WriteFixes(Utf8JsonWriter writer, Diagnostic diagnostic)
+    {
+        SourceText source = diagnostic.Location.Source;
+        ImmutableArray<DiagnosticFix> fixes = DiagnosticFixes.Collect(diagnostic, source.Length);
+
+        if (fixes.IsEmpty)
+        {
+            return;
+        }
+
+        writer.WriteStartArray("fixes");
+
+        foreach (DiagnosticFix fix in fixes)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("title", fix.Title);
+            writer.WriteBoolean("preferred", fix.IsPreferred);
+            writer.WriteStartArray("edits");
+
+            foreach (TextReplacement replacement in fix.Replacements)
+            {
+                LinePositionSpan span = source.GetLinePositionSpan(replacement.Span);
+                writer.WriteStartObject();
+                writer.WriteNumber("line", span.Start.Line + 1);
+                writer.WriteNumber("column", span.Start.Character + 1);
+                writer.WriteNumber("endLine", span.End.Line + 1);
+                writer.WriteNumber("endColumn", span.End.Character + 1);
+                writer.WriteString("text", replacement.NewText);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
+    }
+
     private void WriteDiagnostic(Utf8JsonWriter writer, Diagnostic diagnostic)
     {
         LinePositionSpan lineSpan = diagnostic.Location.LineSpan;
@@ -116,6 +164,8 @@ internal sealed class JsonDiagnosticReporter
         {
             writer.WriteString("helpUri", helpLink);
         }
+
+        WriteFixes(writer, diagnostic);
 
         if (_includeTrace != IncludeTraceMode.None && !diagnostic.IncludeRoutes.IsEmpty)
         {

@@ -137,11 +137,11 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
     private static string DescribeSkipped(ShaderCompilation compilation)
         => compilation.Source.Root is not null ? "プロパティと uniform の対応検査"
             : compilation.BrokenFunctionSpans is not null
-                ? "構文の誤りから、その誤りを含む関数の終わりまでの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
+                ? "構文の誤りから、その誤りを含む関数の終わりまでの位置で、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)"
             : compilation.FirstBreakOffset is not null
               && compilation.ReportableHlslDiagnostics.FirstOrDefault(ShaderCompilation.BreaksAnalysis) is { } first
-                ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)"
-                : "宣言が無いことを根拠にする検査 (CF0301 / CF0310 など)";
+                ? $"{first.Location.LineSpan.Start} の {first.Id} より後ろの位置で、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)"
+                : "宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など)";
 
     /// <summary>
     /// 検査を行えなかった理由を短くまとめる。
@@ -166,15 +166,15 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         // 取り込まれる断片は、取り込む側の宣言が見えない。直すものではないので、そう伝える。
         if (compilation.IsIncludedFragment)
         {
-            return "ステージを表す拡張子でないファイル (.glsl) は、ほかのファイルに取り込まれる断片として読むので、取り込む側で宣言した名前が分かりません。"
+            return "ステージを表す拡張子でないファイル (.glsl) は、ほかのファイルに取り込まれる断片として解析するため、取り込む側で宣言した名前を特定できません。"
                 + "取り込む側のファイル (.vert / .frag など) を解析すると、断片の中も検査されます。"
-                + "単体のシェーダーなら、ステージの拡張子 (.vert / .frag、.vert.glsl など) にすると検査されます。";
+                + "単体のシェーダーの場合は、ステージの拡張子 (.vert / .frag、.vert.glsl など) にすると検査されます。";
         }
 
         // ビルドのときに生成されるファイルだけが無いなら、設定の誤りではない。そう伝えないと、利用者は探索パスを探し回る。
         if (IsOnlyGeneratedIncludeMissing(compilation))
         {
-            return "ビルドのときにエンジンが生成するファイルの中身が分からないため、宣言の一覧が不完全です。"
+            return "ビルドのときにエンジンが生成するファイルの中身が不明なため、宣言の一覧が不完全です。"
                 + $"生成されるファイル: {string.Join(", ", compilation.UnresolvedIncludes.Take(MaxListedIncludes))}"
                 + (compilation.UnresolvedIncludes.Length > MaxListedIncludes ? $" ほか {compilation.UnresolvedIncludes.Length - MaxListedIncludes} 件" : string.Empty);
         }
@@ -194,11 +194,11 @@ internal sealed class SkippedCheckAnalyzer : SemanticRuleAnalyzer
         {
             // GLSL は、最初の誤りより前の位置を検査している (ShaderCompilation.FirstBreakOffset)。Slang は、誤りを含む関数の外を検査している (BrokenFunctionSpans)。
             return compilation.FirstBreakOffset is not null
-                ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Id} を直すと、ファイル全体が検査されるようになります。"
+                ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Id} を修正すると、ファイル全体が検査されるようになります。"
                 : compilation.BrokenFunctionSpans is not null
-                    ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Location.LineSpan.Start} の {reported.Id} を直すと、ファイル全体が検査されるようになります。"
+                    ? $"このファイルの {LanguageOf(compilation)} を解析できませんでした。{reported.Location.LineSpan.Start} の {reported.Id} を修正すると、ファイル全体が検査されるようになります。"
                     : $"このファイルの {LanguageOf(compilation)} を解析できませんでした。"
-                      + $"{reported.Location.LineSpan.Start} の {reported.Id} を直すと検査されるようになります。";
+                      + $"{reported.Location.LineSpan.Start} の {reported.Id} を修正すると検査されるようになります。";
         }
 
         // include 先のヘッダの中の問題は、それ自体は報告していない。

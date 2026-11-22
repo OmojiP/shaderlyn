@@ -53,7 +53,7 @@ public sealed class UnityGenerateTests : IDisposable
         Assert.Equal(ExitCode.Success, code);
         Assert.Contains("Unity Companion License (1 個):", output, StringComparison.Ordinal);
         Assert.Contains("com.example.toon", output, StringComparison.Ordinal);
-        Assert.Contains("ライセンスが分からない", output, StringComparison.Ordinal);
+        Assert.Contains("ライセンスが不明", output, StringComparison.Ordinal);
         Assert.Contains("書き出しますか? [y/n]", output, StringComparison.Ordinal);
 
         string package = Path.Combine(Output, "Library", "PackageCache", "com.example.toon@abc123");
@@ -109,7 +109,7 @@ public sealed class UnityGenerateTests : IDisposable
         (ExitCode code, _, string error) = await GenerateAsync("--yes");
 
         Assert.Equal(ExitCode.ToolError, code);
-        Assert.Contains("--unity-generate で書き出したものでない", error, StringComparison.Ordinal);
+        Assert.Contains("--unity-generate で書き出していない", error, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(Output, "keep.txt")));
     }
 

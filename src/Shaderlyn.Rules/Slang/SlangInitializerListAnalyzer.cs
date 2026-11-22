@@ -114,13 +114,13 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
                         && !list.OpenBrace.IsMissing && compilation.IsReportable(list.OpenBrace) && list.OpenBrace.GetLocation() is { } removedLocation)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.RemovedDeclaration, removedLocation,
-                            $"{type.Name} の並びで、ベクトルを含んで成分の足りない形 (成分は {written} 個で、{shape.Columns} 個が要ります) は、言語のバージョン 2026 で取り除かれています。足りない成分を書いてください。"));
+                            $"{type.Name} の並びで、ベクトルを含んで成分が不足している形 (成分は {written} 個で、{shape.Columns} 個が必要です) は、言語のバージョン 2026 で取り除かれています。不足している成分を書いてください。"));
                         continue;
                     }
 
                     if (IsResource(type.Name))
                     {
-                        Report(list.OpenBrace, $"資源の型 {type.Name} の変数には、初期化子の並びを使えません。");
+                        Report(list.OpenBrace, $"資源の型 {type.Name} の変数には、初期化子の並びを使用できません。");
                         continue;
                     }
 
@@ -149,7 +149,7 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
         if (structure.BaseTypeName is { } baseName && structs.TryGetValue(baseName, out StructDeclarationSyntax? baseStructure)
             && baseStructure is not null && baseStructure.Members.OfType<FunctionDeclarationSyntax>().Any(f => f.Name == "__init"))
         {
-            return $"{name} は __init を持つ構造体 {baseName} を継承しているので、初期化子の並びを使えません。__init を書いて呼んでください。";
+            return $"{name} は __init を持つ構造体 {baseName} を継承しているので、初期化子の並びを使用できません。__init を書いて呼んでください。";
         }
 
         if (initializers.Length > 0)
@@ -196,7 +196,7 @@ internal sealed class SlangInitializerListAnalyzer : SemanticRuleAnalyzer
             {
                 if (IsResource(field.Type.Name) && !variable.IsArray && variable.Initializer is null && index >= count)
                 {
-                    return $"{name} の資源の型のフィールド '{variable.Name}' ({field.Type.Name}) には既定の値が無いので、初期化子の並びで埋めてください。";
+                    return $"{name} の資源の型のフィールド '{variable.Name}' ({field.Type.Name}) には既定の値が存在しないので、初期化子の並びで埋めてください。";
                 }
 
                 index++;

@@ -63,7 +63,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                     && element.OpenBracket.GetLocation() is { } subscriptLocation)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotAccessible, subscriptLocation,
-                        $"{indexedType} の __subscript は private なので、{indexedType} の外からは添字を使えません。"));
+                        $"{indexedType} の __subscript は private なので、{indexedType} の外からは添字を使用できません。"));
                 }
 
                 continue;
@@ -91,7 +91,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
             }
 
             context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.NotAccessible, location,
-                $"'{access.Name}' は {type} の private のメンバーなので、{type} の外からは使えません。"));
+                $"'{access.Name}' は {type} の private のメンバーなので、{type} の外からは使用できません。"));
         }
     }
 
@@ -305,11 +305,11 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                          && identifier.Parent is not MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.ColonColonToken }
                          && !(identifier.Parent is MemberAccessExpressionSyntax parentAccess && ReferenceEquals(parentAccess.NameToken, identifier.FirstToken))
                          && binder.ResolveName(identifier).Kind is DeclaredNameKind.NotFound or DeclaredNameKind.Global:
-                    Report(identifier.FirstToken!, $"'{identifier.Name}' は別のモジュール ({hiddenFile[identifier.Name]}) の public でない宣言なので、このモジュールからは使えません。");
+                    Report(identifier.FirstToken!, $"'{identifier.Name}' は別のモジュール ({hiddenFile[identifier.Name]}) の public でない宣言なので、このモジュールからは使用できません。");
                     break;
 
                 case TypeSyntax { QualifierTokens.IsEmpty: true, NameToken: { } typeName } when hidden.Contains(typeName.Text):
-                    Report(typeName, $"'{typeName.Text}' は別のモジュール ({hiddenFile[typeName.Text]}) の public でない宣言なので、このモジュールからは使えません。");
+                    Report(typeName, $"'{typeName.Text}' は別のモジュール ({hiddenFile[typeName.Text]}) の public でない宣言なので、このモジュールからは使用できません。");
                     break;
 
                 // B(0.0) (別のモジュールの構造体の、public でない __init の呼び出し)。
@@ -326,7 +326,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                          && binder.ResolveName(owner).Kind == DeclaredNameKind.NotFound:
                     if (ownerInfo.Hidden.Contains(ownerAccess.Name))
                     {
-                        Report(ownerAccess.NameToken, $"'{ownerAccess.Name}' は別のモジュール ({ownerInfo.File}) の {owner.Name} の public でないメンバーなので、このモジュールからは使えません。");
+                        Report(ownerAccess.NameToken, $"'{ownerAccess.Name}' は別のモジュール ({ownerInfo.File}) の {owner.Name} の public でないメンバーなので、このモジュールからは使用できません。");
                     }
 
                     break;
@@ -335,7 +335,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                 case TypeSyntax { QualifierTokens: [.., { Kind: ShaderSyntaxKind.IdentifierToken } qualifier, _], NameToken: { } nestedType }
                     when foreignStructs.TryGetValue(qualifier.Text, out (string File, bool Since2026, HashSet<string> Hidden) qualifierInfo)
                          && qualifierInfo.Hidden.Contains(nestedType.Text):
-                    Report(nestedType, $"'{nestedType.Text}' は別のモジュール ({qualifierInfo.File}) の {qualifier.Text} の public でない宣言なので、このモジュールからは使えません。");
+                    Report(nestedType, $"'{nestedType.Text}' は別のモジュール ({qualifierInfo.File}) の {qualifier.Text} の public でない宣言なので、このモジュールからは使用できません。");
                     break;
 
                 case MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access
@@ -344,7 +344,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
                          && foreignStructs.TryGetValue(type, out (string File, bool Since2026, HashSet<string> Hidden) info)
                          && info.Hidden.Contains(access.Name)
                          && !open.Contains(type):
-                    Report(access.NameToken, $"'{access.Name}' は別のモジュール ({info.File}) の {type} の public でないメンバーなので、このモジュールからは使えません。");
+                    Report(access.NameToken, $"'{access.Name}' は別のモジュール ({info.File}) の {type} の public でないメンバーなので、このモジュールからは使用できません。");
                     break;
             }
         }
@@ -512,7 +512,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                         if (visibility != "public")
                         {
-                            Report(memberName, $"'{memberName.Text}' を public にしていますが、親の {structName.Text} が public ではありません。メンバーは親より見えるようにできません。");
+                            Report(memberName, $"'{memberName.Text}' を public にしていますが、親の {structName.Text} が public ではありません。メンバーの公開範囲は親より広くできません。");
                             continue;
                         }
 
@@ -529,7 +529,7 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                     if (exposesLessVisible)
                     {
-                        Report(structName, $"public の {structName.Text} の public のメンバーが、public でない型を使っています。");
+                        Report(structName, $"public の {structName.Text} の public のメンバーが、public でない型を使用しています。");
                     }
 
                     break;

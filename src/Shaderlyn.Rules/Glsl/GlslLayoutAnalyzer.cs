@@ -213,7 +213,7 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
             else if (!CheckName(entry.Name, id) && Stage is not null)
             {
                 Invalid(GlslRuleDescriptors.UnknownLayoutIdentifier, entry.Name,
-                    $"'{entry.Name.Text}' は layout の名前にありません ({StageName}で値を取らない名前として)。綴りを確かめるか、値を取る名前なら '{entry.Name.Text} = 値' と書いてください。");
+                    $"'{entry.Name.Text}' は layout の名前にありません ({StageName}で値を取らない名前として)。綴りを確認するか、値を取る名前の場合は '{entry.Name.Text} = 値' と書いてください。");
             }
         }
 
@@ -667,7 +667,7 @@ internal sealed partial class GlslLayoutAnalyzer : SemanticRuleAnalyzer
 
                     if (value is { } constantId && !_constantIds.Add(constantId))
                     {
-                        Value($"特殊化の定数の id {constantId.ToString(CultureInfo.InvariantCulture)} は、もう使われています。");
+                        Value($"特殊化の定数の id {constantId.ToString(CultureInfo.InvariantCulture)} は、もう使用されています。");
                     }
 
                     Literal();

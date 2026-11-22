@@ -102,7 +102,7 @@ internal static class MinimalYamlParser
                 // 「書いたのに効かない設定」という形で現れる。
                 if (indent < raw.Length && raw[indent] == '\t')
                 {
-                    _errors.Add(new YamlError(number, "字下げにタブを使うことはできません。空白を使ってください。"));
+                    _errors.Add(new YamlError(number, "字下げにタブを使用することはできません。空白を使用してください。"));
                     continue;
                 }
 

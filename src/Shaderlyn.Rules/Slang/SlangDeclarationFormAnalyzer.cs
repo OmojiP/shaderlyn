@@ -102,7 +102,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 switch (node)
                 {
                     case EnumDeclarationSyntax { ScopeKeyword: { } scope, NameToken: null }:
-                        Report(SlangRuleDescriptors.DeclarationNotAllowed, scope, "名前の無い enum class は書けません。名前を付けるか、class を外してください。");
+                        Report(SlangRuleDescriptors.DeclarationNotAllowed, scope, "名前が存在しない enum class は書けません。名前を付けるか、class を外してください。");
                         break;
 
                     case EnumDeclarationSyntax enumeration
@@ -110,7 +110,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                              && types.TryDescribeNumeric(tag.Text, out ShaderNumericShape shape)
                              && !SlangConstants.IsIntegerType(tag.Text)
                              && (shape.Kind != ShaderNumericKind.Scalar || !SlangConstants.IsIntegerType(shape.BaseName)):
-                        Report(SlangRuleDescriptors.InvalidDeclarationType, tag, $"列挙型の基の型は整数でなければなりません ({tag.Text} は使えません)。");
+                        Report(SlangRuleDescriptors.InvalidDeclarationType, tag, $"列挙型の基の型は整数でなければなりません ({tag.Text} は使用できません)。");
                         break;
 
                     case TypedefDeclarationSyntax typedef when typedef.Tokens.FirstOrDefault(t => t.Text == "volatile") is { } volatileToken:
@@ -145,7 +145,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
 
         if ((local || global || field) && type.Name == "void" && !type.IsPointer && type.NestedTypeTokens.IsDefaultOrEmpty)
         {
-            report(SlangRuleDescriptors.InvalidDeclarationType, type.NameToken, "変数の型に void は使えません。");
+            report(SlangRuleDescriptors.InvalidDeclarationType, type.NameToken, "変数の型に void は使用できません。");
         }
 
         if (type.IsPointer || type.NameToken.Text == "Ptr")
@@ -171,7 +171,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
             && (IsResourceName(type.NameToken.Text) || resourceStructs.Contains(type.NameToken.Text)))
         {
             report(SlangRuleDescriptors.ModifierNotAllowed, declaration.Variables.First(v => v.Initializer is not null).NameToken,
-                $"関数の外の static の変数 ({type.NameToken.Text}) に、資源を含む初期値は書けません。資源は関数の中で使うか、static でない変数にしてください。");
+                $"関数の外の static の変数 ({type.NameToken.Text}) に、資源を含む初期値は書けません。資源は関数の中で使用するか、static でない変数にしてください。");
         }
 
         if (modifiers.Any(t => t.Text == "groupshared"))
@@ -186,7 +186,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         {
             foreach (VariableDeclaratorSyntax variable in declaration.Variables.Where(v => v.Initializer is null))
             {
-                report(SlangRuleDescriptors.StaticConstWithoutInitializer, variable.NameToken, $"static const の '{variable.Name}' には初期値が要ります。");
+                report(SlangRuleDescriptors.StaticConstWithoutInitializer, variable.NameToken, $"static const の '{variable.Name}' には初期値が必要です。");
             }
         }
 
@@ -205,7 +205,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
 
             if (!scalar && !type.IsPointer)
             {
-                report(SlangRuleDescriptors.InvalidDeclarationType, specialization, $"特殊化定数の型は、スカラーか列挙型でなければなりません ({type.Name} は使えません)。");
+                report(SlangRuleDescriptors.InvalidDeclarationType, specialization, $"特殊化定数の型は、スカラーか列挙型でなければなりません ({type.Name} は使用できません)。");
             }
 
             foreach (VariableDeclaratorSyntax variable in declaration.Variables)
@@ -256,7 +256,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
 
         if (known && (!SlangConstants.IsIntegerType(name) || name == "bool"))
         {
-            report(SlangRuleDescriptors.InvalidDeclarationType, variable.NameToken, $"ビットフィールドの型は整数でなければなりません ({type.Name} は使えません)。");
+            report(SlangRuleDescriptors.InvalidDeclarationType, variable.NameToken, $"ビットフィールドの型は整数でなければなりません ({type.Name} は使用できません)。");
             return;
         }
 
@@ -351,7 +351,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case "WaveSize" when values.Length > 0 && values[0] is { } size && (size is < 4 or > 128 || (size & (size - 1)) != 0):
-                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[WaveSize] の値は、4 から 128 までの 2 の累乗でなければなりません ({size} は使えません)。");
+                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[WaveSize] の値は、4 から 128 までの 2 の累乗でなければなりません ({size} は使用できません)。");
                     break;
 
                 case "COM" when arguments is [[{ Kind: ShaderSyntaxKind.StringLiteralToken } guid]] && !IsGuid(guid.Text):
@@ -359,7 +359,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case "RemovedSince" when values.Length > 0 && values[0] is { } version && version is < -1 or > 9999:
-                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[RemovedSince] の版 ({version}) が、使える範囲 (-1 から 9999) の外です。");
+                    report(SlangRuleDescriptors.InvalidAttributeValue, name, $"[RemovedSince] のバージョン ({version}) が、使用できる範囲 (-1 から 9999) の外です。");
                     break;
             }
         }
@@ -384,7 +384,7 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 && NextDeclarationKeyword(tokens, i) is { } keyword && keyword + 1 < tokens.Length
                 && tokens[keyword].Text == "enum" && tokens[keyword + 1].Text is "class" or "struct")
             {
-                report(SlangRuleDescriptors.ModifierNotAllowed, token, $"[UnscopedEnum] は enum {tokens[keyword + 1].Text} と重なります (列挙子を修飾しないで書くなら、{tokens[keyword + 1].Text} を外してください)。");
+                report(SlangRuleDescriptors.ModifierNotAllowed, token, $"[UnscopedEnum] は enum {tokens[keyword + 1].Text} と重なります (列挙子を修飾しないで書く場合は、{tokens[keyword + 1].Text} を外してください)。");
             }
             else if (token.Text == "offset" && i > 1 && tokens[i - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[i - 2].Text == "vk"
                      && NextDeclarationKeyword(tokens, i) is { } next

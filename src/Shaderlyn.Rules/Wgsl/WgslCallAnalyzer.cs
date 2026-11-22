@@ -80,7 +80,7 @@ internal sealed class WgslCallAnalyzer : SemanticRuleAnalyzer
                         if (TypeOf(binder, operand) is { } type && binder.TypeSystem.TryDescribeNumeric(type, out ShaderNumericShape shape) && shape.Kind != ShaderNumericKind.Scalar)
                         {
                             Report(WgslRuleDescriptors.OperatorNotApplicable, logical,
-                                $"{logical.OperatorToken.Text} は bool のスカラーにだけ使えますが、{type} に使っています。成分ごとの論理演算は {logical.OperatorToken.Text[0]} で書きます。");
+                                $"{logical.OperatorToken.Text} は bool のスカラーにだけ使用できますが、{type} に使用しています。成分ごとの論理演算は {logical.OperatorToken.Text[0]} で書きます。");
                             break;
                         }
                     }

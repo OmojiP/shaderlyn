@@ -78,11 +78,13 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
-            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken? token, string message)
+            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken? token, string message) => ReportFix(descriptor, token, message, null);
+
+            void ReportFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken? token, string message, TokenFix? fix)
             {
                 if (token is { IsMissing: false } && compilation.IsReportable(token) && token.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
+                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message).WithFix(fix));
                 }
             }
 
@@ -134,7 +136,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                             && function.OperatorTokens is not [{ Kind: ShaderSyntaxKind.OpenParenToken }, { Kind: ShaderSyntaxKind.CloseParenToken }])
                         {
                             Report(SlangRuleDescriptors.DeclarationNotAllowed, function.NameToken,
-                                $"演算子 operator{string.Concat(function.OperatorTokens.Select(t => t.Text))} は、型 ({owner.Name}) の中に書けません。関数の外に、仮引数を 2 つ (単項なら 1 つ) にして書いてください。");
+                                $"演算子 operator{string.Concat(function.OperatorTokens.Select(t => t.Text))} は、型 ({owner.Name}) の中に書けません。関数の外に、仮引数を 2 つ (単項の場合は 1 つ) にして書いてください。");
                         }
 
                         break;
@@ -244,14 +246,14 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     // 特殊化定数 ([vk::constant_id(0)] const int N = 1;) は、static の無い const に初期値を書ける。
                     if (global && !IsSpecializationConstant(program.Tree.PreprocessResult.Tokens, declaration))
                     {
-                        CheckGlobalModifiers(declaration, declarator, isStatic, Report);
+                        CheckGlobalModifiers(declaration, declarator, isStatic, ReportFix);
                     }
 
                     if (global && isStatic && modifiers.Any(t => t.Text == "const") && declarator.Initializer is { } initializer
                         && FindNonConstant(binder, userFunctions, program.Tree.PreprocessResult.Tokens, initializer) is { } what)
                     {
                         Report(SlangRuleDescriptors.StaticConstNotConstant, declarator.NameToken,
-                            $"static const の '{declarator.Name}' の初期値には定数式が要りますが、{what}を使っています。");
+                            $"static const の '{declarator.Name}' の初期値には定数式が必要ですが、{what}を使用しています。");
                     }
 
                     if (global)
@@ -276,7 +278,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     && !structs.ContainsKey(declaration.Type.NameToken.Text))
                 {
                     Report(SlangRuleDescriptors.ReferenceField, declaration.Type.NameToken,
-                        $"参照の型 {declaration.Type.NameToken.Text}<…> は、構造体のフィールドにできません。値を持たせるなら、型引数の型をそのまま書いてください。");
+                        $"参照の型 {declaration.Type.NameToken.Text}<…> は、構造体のフィールドにできません。値を持たせる場合は、型引数の型をそのまま書いてください。");
                 }
 
                 if (field && modifiers.FirstOrDefault(t => t.Text is "__ref" or "__constref") is { } reference)
@@ -431,21 +433,23 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         VariableDeclarationSyntax declaration,
         VariableDeclaratorSyntax declarator,
         bool isStatic,
-        Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+        Action<DiagnosticDescriptor, ShaderSyntaxToken?, string, TokenFix?> report)
     {
         ImmutableArray<ShaderSyntaxToken> modifiers = declaration.ModifierTokens;
 
         if (!isStatic && !declaration.Type.IsPointer && modifiers.FirstOrDefault(t => t.Text == "constexpr") is { } constexpr)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, constexpr, $"関数の外の constexpr の '{declarator.Name}' には static が要ります (static constexpr と書きます)。");
+            report(SlangRuleDescriptors.ModifierNotAllowed, constexpr, $"関数の外の constexpr の '{declarator.Name}' には static が必要です (static constexpr と書きます)。",
+                TokenFixes.InsertBefore(constexpr, "static ", "static を付ける"));
         }
         else if (!isStatic && declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "const") is { } constant)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が要ります (static const と書きます)。static の無い const は uniform になり、初期値を持てません。");
+            report(SlangRuleDescriptors.ModifierNotAllowed, constant, $"関数の外の const の '{declarator.Name}' には static が必要です (static const と書きます)。static が存在しない const は uniform になり、初期値を持てません。",
+                TokenFixes.InsertBefore(constant, "static ", "static を付ける"));
         }
         else if (declarator.Initializer is not null && modifiers.FirstOrDefault(t => t.Text == "uniform") is { } uniform)
         {
-            report(SlangRuleDescriptors.ModifierNotAllowed, uniform, $"uniform の '{declarator.Name}' に初期値は書けません。値はアプリケーションから入ります。");
+            report(SlangRuleDescriptors.ModifierNotAllowed, uniform, $"uniform の '{declarator.Name}' に初期値は書けません。値はアプリケーションから入ります。", null);
         }
     }
 

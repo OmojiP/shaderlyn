@@ -118,24 +118,24 @@ public sealed class UnityCompilerSelectionTests
     /// <param name="expected">期待するコンパイル先 (<c>|</c> で区切る)。</param>
     [Theory]
     [InlineData("", "6.3", "dx11: FXC|dx12: FXC")]
-    [InlineData("use_dxc", "6.3", "dx11: DXC (HLSL 2018) (この API では使えない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使えない)|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
+    [InlineData("use_dxc", "6.3", "dx11: DXC (HLSL 2018) (この API では使用できない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使用できない)|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
     [InlineData("use_dxc", "6.6", "dx11: FXC|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
-    [InlineData("use_dxc d3d11", "6.3", "dx11: DXC (HLSL 2018) (この API では使えない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使えない)|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
+    [InlineData("use_dxc d3d11", "6.3", "dx11: DXC (HLSL 2018) (この API では使用できない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使用できない)|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
     [InlineData("use_dxc d3d11", "6.6", "dx11: FXC|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
     [InlineData("use_dxc dx12", "6.5", "dx11: FXC|dx12: FXC")]
     [InlineData("use_dxc dx12", "6.6", "dx11: FXC|dx12: DXC (HLSL 2018) (#pragma use_dxc)")]
     [InlineData("use_dxc d3d12", "6.6", "dx11: FXC|dx12: FXC")]
     [InlineData("use_dxc vulkan", "6.3", "dx11: FXC|dx12: FXC")]
-    [InlineData("require int64", "2022.3", "dx11: DXC (HLSL 2018) (この API では使えない、#pragma require int64 は DXC が要るので DX11 では使えない)|dx12: DXC (HLSL 2018) (#pragma require int64)")]
-    [InlineData("require Native16Bit", "6.3", "dx11: DXC (HLSL 2018、16 ビットの型) (この API では使えない、#pragma require native16bit は DXC が要るので DX11 では使えない)|dx12: DXC (HLSL 2018、16 ビットの型) (#pragma require native16bit)")]
+    [InlineData("require int64", "2022.3", "dx11: DXC (HLSL 2018) (この API では使用できない、#pragma require int64 は DXC が必要なので DX11 では使用できない)|dx12: DXC (HLSL 2018) (#pragma require int64)")]
+    [InlineData("require Native16Bit", "6.3", "dx11: DXC (HLSL 2018、16 ビットの型) (この API では使用できない、#pragma require native16bit は DXC が必要なので DX11 では使用できない)|dx12: DXC (HLSL 2018、16 ビットの型) (#pragma require native16bit)")]
     [InlineData("require 2darray", "6.3", "dx11: FXC|dx12: FXC")]
-    [InlineData("never_use_dxc|require int64", "6.3", "dx11: DXC (HLSL 2018) (この API では使えない、#pragma require int64 は DXC が要るので DX11 では使えない)|dx12: FXC (#pragma never_use_dxc)")]
-    [InlineData("never_use_dxc|require int64", "6.6", "dx11: DXC (HLSL 2018) (この API では使えない、#pragma require int64 は DXC が要るので DX11 では使えない)|dx12: DXC (HLSL 2018) (#pragma require int64)")]
+    [InlineData("never_use_dxc|require int64", "6.3", "dx11: DXC (HLSL 2018) (この API では使用できない、#pragma require int64 は DXC が必要なので DX11 では使用できない)|dx12: FXC (#pragma never_use_dxc)")]
+    [InlineData("never_use_dxc|require int64", "6.6", "dx11: DXC (HLSL 2018) (この API では使用できない、#pragma require int64 は DXC が必要なので DX11 では使用できない)|dx12: DXC (HLSL 2018) (#pragma require int64)")]
     [InlineData("never_use_dxc|use_dxc", "6.6", "dx11: FXC (#pragma never_use_dxc)|dx12: FXC (#pragma never_use_dxc)")]
     [InlineData("require inlineraytracing", "2022.3", "dx11: FXC|dx12: FXC")]
-    [InlineData("require inlineraytracing", "6.3", "dx11: DXC (HLSL 2018) (この API では使えない、#pragma require inlineraytracing はコンパイルされない)|dx12: DXC (HLSL 2018) (この API では使えない、#pragma require inlineraytracing はコンパイルされない)")]
-    [InlineData("require inlineraytracing", "6.4", "dx11: DXC (HLSL 2018) (この API では使えない、#pragma require inlineraytracing は DXC が要るので DX11 では使えない)|dx12: DXC (HLSL 2018) (#pragma require inlineraytracing)")]
-    [InlineData("multi_compile _ UNITY_DEVICE_SUPPORTS_NATIVE_16BIT", "6.3", "dx11: FXC (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成)|dx11: DXC (HLSL 2018、16 ビットの型) (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成、この API では使えない、DX11 では有効にならないキーワード)|dx12: FXC (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成)|dx12: DXC (HLSL 2018、16 ビットの型) (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成)")]
+    [InlineData("require inlineraytracing", "6.3", "dx11: DXC (HLSL 2018) (この API では使用できない、#pragma require inlineraytracing はコンパイルされない)|dx12: DXC (HLSL 2018) (この API では使用できない、#pragma require inlineraytracing はコンパイルされない)")]
+    [InlineData("require inlineraytracing", "6.4", "dx11: DXC (HLSL 2018) (この API では使用できない、#pragma require inlineraytracing は DXC が必要なので DX11 では使用できない)|dx12: DXC (HLSL 2018) (#pragma require inlineraytracing)")]
+    [InlineData("multi_compile _ UNITY_DEVICE_SUPPORTS_NATIVE_16BIT", "6.3", "dx11: FXC (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成)|dx11: DXC (HLSL 2018、16 ビットの型) (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成、この API では使用できない、DX11 では有効にならないキーワード)|dx12: FXC (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が無効な構成)|dx12: DXC (HLSL 2018、16 ビットの型) (UNITY_DEVICE_SUPPORTS_NATIVE_16BIT が有効な構成)")]
     [InlineData("multi_compile _ UNITY_DEVICE_SUPPORTS_INLINE_RAY_TRACING", "2022.3", "dx11: FXC|dx12: FXC")]
     [InlineData("multi_compile _ UNITY_DEVICE_SUPPORTS_WAVE_ANY", "6.3", "dx11: FXC|dx12: FXC")]
     public void パスのコンパイラを決める(string pragmas, string version, string expected)
@@ -151,7 +151,7 @@ public sealed class UnityCompilerSelectionTests
 
         Assert.Equal(
             "dx11: FXC (UNITY_DEVICE_SUPPORTS_WAVE_ANY が無効な構成)"
-            + "|dx11: DXC (HLSL 2018) (UNITY_DEVICE_SUPPORTS_WAVE_ANY が有効な構成、この API では使えない、DX11 では有効にならないキーワード)"
+            + "|dx11: DXC (HLSL 2018) (UNITY_DEVICE_SUPPORTS_WAVE_ANY が有効な構成、この API では使用できない、DX11 では有効にならないキーワード)"
             + "|dx12: FXC (UNITY_DEVICE_SUPPORTS_WAVE_ANY が無効な構成)"
             + "|dx12: DXC (HLSL 2018) (UNITY_DEVICE_SUPPORTS_WAVE_ANY が有効な構成)",
             actual);
@@ -190,7 +190,7 @@ public sealed class UnityCompilerSelectionTests
         string actual = Describe(Select("use_dxc", UnityOptions.Default, isCompute: false));
 
         Assert.Equal(
-            "dx11: DXC (HLSL 2018) (この API では使えない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使えない、Unity 6.5 以前)"
+            "dx11: DXC (HLSL 2018) (この API では使用できない、6.5 以前の #pragma use_dxc は DX11 も DXC にするので、DX11 では使用できない、Unity 6.5 以前)"
             + "|dx11: FXC (Unity 6.6 以降)"
             + "|dx12: DXC (HLSL 2018) (#pragma use_dxc)",
             actual);

@@ -37,7 +37,15 @@ namespace Shaderlyn.CFamily.Preprocessing;
 /// </remarks>
 public sealed class TokenCache
 {
-    private readonly ConditionalWeakTable<SourceText, Entry> _entries = [];
+    /// <summary>
+    /// ソーステキストごとの字句解析の結果。値は <see cref="Lazy{T}"/> で包む。
+    /// </summary>
+    /// <remarks>
+    /// <c>ConditionalWeakTable.GetValue</c> は、複数のスレッドが同じキーを同時に初めて引くと、値を作る処理を全員が実行する
+    /// (表に残るのは 1 つだけ)。ファイルを並列に解析すると、同じヘッダを取り込む解析が同時に始まり、同じ字句解析を重ねていた。
+    /// <c>Lazy</c> で包むと、表に残った 1 つの <c>Lazy</c> だけが評価され、ほかのスレッドはその結果を待つ。
+    /// </remarks>
+    private readonly ConditionalWeakTable<SourceText, Lazy<Entry>> _entries = [];
 
     /// <summary>字句解析の結果 1 件分。</summary>
     /// <param name="Tokens">トークン列。</param>
@@ -61,12 +69,14 @@ public sealed class TokenCache
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        Entry entry = _entries.GetValue(text, static source =>
-        {
-            ShaderLexer lexer = new(source);
-            ImmutableArray<ShaderSyntaxToken> tokens = lexer.Lex(out ImmutableArray<ShaderLexer.LexerDiagnostic> lexed);
-            return new Entry(tokens, lexed);
-        });
+        Entry entry = _entries.GetValue(text, static source => new Lazy<Entry>(
+            () =>
+            {
+                ShaderLexer lexer = new(source);
+                ImmutableArray<ShaderSyntaxToken> tokens = lexer.Lex(out ImmutableArray<ShaderLexer.LexerDiagnostic> lexed);
+                return new Entry(tokens, lexed);
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication)).Value;
 
         diagnostics = entry.Diagnostics;
         return entry.Tokens;

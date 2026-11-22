@@ -179,7 +179,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 if (i > 1)
                 {
-                    report(GodotRuleDescriptors.InvalidMode, token, $"{kind}の名前が要ります。");
+                    report(GodotRuleDescriptors.InvalidMode, token, $"{kind}の名前が必要です。");
                 }
 
                 return;
@@ -247,7 +247,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (type.Name == "void" || IsSampler(type.Name))
             {
-                report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, $"構造体のメンバーに {type.Name} の型は使えません。");
+                report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, $"構造体のメンバーに {type.Name} の型は使用できません。");
                 return;
             }
         }
@@ -277,19 +277,19 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
         if (instance && shaderType is not (null or "spatial" or "canvas_item"))
         {
             report(GodotRuleDescriptors.QualifierNotAllowed, variable.ModifierTokens.First(t => t.TextIs("instance")),
-                $"instance uniform は、{shaderType} のシェーダーでは使えません (spatial と canvas_item だけ)。");
+                $"instance uniform は、{shaderType} のシェーダーでは使用できません (spatial と canvas_item だけ)。");
             return;
         }
 
         if (structs.Contains(type))
         {
-            report(GodotRuleDescriptors.TypeNotAllowed, typeSyntax.NameToken, "uniform に構造体の型は使えません。");
+            report(GodotRuleDescriptors.TypeNotAllowed, typeSyntax.NameToken, "uniform に構造体の型は使用できません。");
             return;
         }
 
         if (type == "void")
         {
-            report(GodotRuleDescriptors.TypeNotAllowed, typeSyntax.NameToken, "uniform に void の型は使えません。");
+            report(GodotRuleDescriptors.TypeNotAllowed, typeSyntax.NameToken, "uniform に void の型は使用できません。");
             return;
         }
 
@@ -303,13 +303,13 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
         if (instance && sampler)
         {
-            report(GodotRuleDescriptors.QualifierNotAllowed, typeSyntax.NameToken, "instance uniform にサンプラーの型は使えません。");
+            report(GodotRuleDescriptors.QualifierNotAllowed, typeSyntax.NameToken, "instance uniform にサンプラーの型は使用できません。");
             return;
         }
 
         if (instance && type is "mat2" or "mat3" or "mat4")
         {
-            report(GodotRuleDescriptors.QualifierNotAllowed, typeSyntax.NameToken, "instance uniform に行列の型は使えません。");
+            report(GodotRuleDescriptors.QualifierNotAllowed, typeSyntax.NameToken, "instance uniform に行列の型は使用できません。");
             return;
         }
 
@@ -379,7 +379,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
             if (array && !ArrayHints.Contains(name))
             {
-                return Error(at, $"配列の uniform にはヒント '{name}' を使えません。");
+                return Error(at, $"配列の uniform にはヒント '{name}' を使用できません。");
             }
 
             switch (name)
@@ -387,7 +387,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                 case "source_color":
                     if (type is not ("vec3" or "vec4") && !sampler)
                     {
-                        return Error(at, "source_color は vec3・vec4・サンプラーの uniform にだけ使えます。");
+                        return Error(at, "source_color は vec3・vec4・サンプラーの uniform にだけ使用できます。");
                     }
 
                     if (sampler)
@@ -409,12 +409,12 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                 case "color_conversion_disabled":
                     if (type is not ("vec3" or "vec4"))
                     {
-                        return Error(at, "color_conversion_disabled は vec3 と vec4 の uniform にだけ使えます。");
+                        return Error(at, "color_conversion_disabled は vec3 と vec4 の uniform にだけ使用できます。");
                     }
 
                     if (hint != "source_color")
                     {
-                        return Error(at, "color_conversion_disabled の前には source_color が要ります。");
+                        return Error(at, "color_conversion_disabled の前には source_color が必要です。");
                     }
 
                     hint = null;
@@ -424,7 +424,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                 case "hint_range":
                     if (type is not ("float" or "int"))
                     {
-                        return Error(at, "hint_range は float と int の uniform にだけ使えます。");
+                        return Error(at, "hint_range は float と int の uniform にだけ使用できます。");
                     }
 
                     if (semantic.ArgumentTokens.FirstOrDefault(t => t.Kind == ShaderSyntaxKind.IdentifierToken && !constants.Contains(t.Text)) is { } unknown)
@@ -438,7 +438,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                 case "hint_enum":
                     if (type != "int")
                     {
-                        return Error(at, "hint_enum は int の uniform にだけ使えます。");
+                        return Error(at, "hint_enum は int の uniform にだけ使用できます。");
                     }
 
                     if (semantic.ArgumentTokens.FirstOrDefault(t => t.Kind is not (ShaderSyntaxKind.StringLiteralToken or ShaderSyntaxKind.CommaToken)) is { } notString)
@@ -472,18 +472,18 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
                     break;
 
                 case "hint_screen_texture" when shaderType is not (null or "spatial" or "canvas_item"):
-                    return Error(at, $"hint_screen_texture は、{shaderType} のシェーダーでは使えません。");
+                    return Error(at, $"hint_screen_texture は、{shaderType} のシェーダーでは使用できません。");
 
                 case "hint_normal_roughness_texture" when renderer != GodotRenderer.ForwardPlus:
                     report(GodotRuleDescriptors.NotAvailableInRenderer, at,
-                        $"hint_normal_roughness_texture は Forward+ のレンダラーでだけ使えます (今は {renderer.DisplayName()})。");
+                        $"hint_normal_roughness_texture は Forward+ のレンダラーでだけ使用できます (今は {renderer.DisplayName()})。");
                     return false;
 
                 case "hint_normal_roughness_texture" or "hint_depth_texture" when shaderType is not (null or "spatial"):
-                    return Error(at, $"{name} は、{shaderType} のシェーダーでは使えません。");
+                    return Error(at, $"{name} は、{shaderType} のシェーダーでは使用できません。");
 
                 case "hint_blit_source0" or "hint_blit_source1" or "hint_blit_source2" or "hint_blit_source3" when shaderType is not (null or "texture_blit"):
-                    return Error(at, $"hint_blit_source は、{shaderType} のシェーダーでは使えません。");
+                    return Error(at, $"hint_blit_source は、{shaderType} のシェーダーでは使用できません。");
 
                 case var _ when name.StartsWith("filter_", StringComparison.Ordinal):
                     newFilter = name;
@@ -506,7 +506,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
             if ((newFilter is not null || newRepeat is not null || samplerHint) && !sampler)
             {
-                return Error(at, $"ヒント '{name}' はサンプラーの uniform にだけ使えます。");
+                return Error(at, $"ヒント '{name}' はサンプラーの uniform にだけ使用できます。");
             }
 
             if (newHint is not null)
@@ -559,7 +559,7 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
         if (shaderType is "particles" or "sky" or "fog")
         {
             report(GodotRuleDescriptors.QualifierNotAllowed, variable.ModifierTokens.First(t => t.TextIs("varying")),
-                $"varying は、{shaderType} のシェーダーでは使えません。");
+                $"varying は、{shaderType} のシェーダーでは使用できません。");
             return;
         }
 
@@ -567,11 +567,11 @@ internal sealed class GodotDeclarationAnalyzer : SemanticRuleAnalyzer
 
         if (structs.Contains(type.Name))
         {
-            report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, "varying に構造体の型は使えません。");
+            report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, "varying に構造体の型は使用できません。");
         }
         else if (type.Name == "void" || (IsBuiltInType(type.Name) && !ValueTypes.Contains(type.Name)))
         {
-            report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, $"varying に {type.Name} の型は使えません。");
+            report(GodotRuleDescriptors.TypeNotAllowed, type.NameToken, $"varying に {type.Name} の型は使用できません。");
         }
     }
 

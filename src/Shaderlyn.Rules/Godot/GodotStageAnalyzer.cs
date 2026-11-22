@@ -74,13 +74,15 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
         HashSet<(string? File, int Start)> reported = [];
 
-        void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message)
+        void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message) => ReportFix(descriptor, token, message, null);
+
+        void ReportFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken token, string message, TokenFix? fix)
         {
             if (compilation.IsReportable(token)
                 && token.GetLocation() is { } location
                 && reported.Add((location.FilePath, location.Span.Start)))
             {
-                context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
+                context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message).WithFix(fix));
             }
         }
 
@@ -94,7 +96,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
             ImmutableArray<FunctionDeclarationSyntax> functions = [.. program.Tree.Root.Declarations.OfType<FunctionDeclarationSyntax>().Where(f => f.Body is not null)];
             CheckSignatures(functions, types, Report);
-            new Walker(program, compilation.GetExpressionTypeBinder(program), types, shaderType, Report).Run(functions);
+            new Walker(program, compilation.GetExpressionTypeBinder(program), types, shaderType, Report, ReportFix).Run(functions);
             CheckVaryingCount(program, shaderType, language.Renderer, Report);
         }
     }
@@ -117,7 +119,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
                 if (used > GodotRenderers.MaxVaryings)
                 {
-                    string builtin = baseIndex > 0 ? $"{renderer.DisplayName()} のレンダラーの {shaderType} のシェーダーでは組み込みの varying が {baseIndex} を使い、" : string.Empty;
+                    string builtin = baseIndex > 0 ? $"{renderer.DisplayName()} のレンダラーの {shaderType} のシェーダーでは組み込みの varying が {baseIndex} を使用し、" : string.Empty;
                     report(GodotRuleDescriptors.TooManyVaryings, declarator.NameToken,
                         $"varying が多すぎます。{builtin}'{declarator.Name}' までで {used} になり、上限の {GodotRenderers.MaxVaryings} を超えます。");
                     return;
@@ -181,6 +183,10 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
 
         public bool IsFlat { get; } = declaration.HasModifier("flat");
 
+        /// <summary>flat を書き足す位置 (varying のキーワード)。宣言子が 2 つ以上なら、ほかの変数も変わるので <see langword="null"/>。</summary>
+        public ShaderSyntaxToken? VaryingKeyword { get; } =
+            declaration.Variables.Count() == 1 ? declaration.ModifierTokens.FirstOrDefault(t => t.Text == "varying") : null;
+
         public VaryingStage Stage { get; set; }
     }
 
@@ -200,7 +206,8 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
         ExpressionTypeBinder binder,
         GodotTypeSystem types,
         string shaderType,
-        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         private readonly bool _fragmentFunctions = FragmentFunctionShaderTypes.Contains(shaderType);
         private readonly bool _discard = DiscardShaderTypes.Contains(shaderType);
@@ -233,8 +240,9 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             {
                 if (varying.Stage != VaryingStage.Fragment && IntegerTypes.Contains(varying.Type) && !varying.IsFlat)
                 {
-                    report(GodotRuleDescriptors.QualifierNotAllowed, varying.Declarator.NameToken,
-                        $"整数の varying '{varying.Declarator.Name}' には flat が要ります (fragment 関数で書き込むものを除く)。");
+                    reportFix(GodotRuleDescriptors.QualifierNotAllowed, varying.Declarator.NameToken,
+                        $"整数の varying '{varying.Declarator.Name}' には flat が必要です (fragment 関数で書き込むものを除く)。",
+                        TokenFixes.InsertAfter(varying.VaryingKeyword, " flat", "flat を付ける"));
                 }
             }
         }
@@ -246,13 +254,13 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
                 case JumpStatementSyntax { Keyword.Text: "discard" } jump:
                     if (!_discard)
                     {
-                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, $"discard は、{shaderType} のシェーダーでは使えません。");
+                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, $"discard は、{shaderType} のシェーダーでは使用できません。");
                         return;
                     }
 
                     if (_current.Name == "vertex" && types.IsStageFunction("vertex"))
                     {
-                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, "discard は vertex 関数の中では使えません。");
+                        report(GodotRuleDescriptors.NotAvailableInStage, jump.Keyword, "discard は vertex 関数の中では使用できません。");
                     }
 
                     _current.Items.Add((jump.Keyword, "discard", null));
@@ -307,7 +315,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             else if (varying.Stage == VaryingStage.Unknown && BooleanTypes.Contains(varying.Type))
             {
                 report(GodotRuleDescriptors.NotAvailableInStage, identifier.Identifier, _current.Name == "vertex"
-                    ? $"{varying.Type} の varying '{identifier.Name}' は fragment 関数でだけ使えます。"
+                    ? $"{varying.Type} の varying '{identifier.Name}' は fragment 関数でだけ使用できます。"
                     : $"varying '{identifier.Name}' は、先に fragment 関数で書き込みます。");
             }
         }
@@ -377,7 +385,7 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             {
                 if (!_fragmentFunctions)
                 {
-                    report(GodotRuleDescriptors.NotAvailableInStage, callee.Identifier, $"組み込み関数 '{name}' は、{shaderType} のシェーダーでは使えません。");
+                    report(GodotRuleDescriptors.NotAvailableInStage, callee.Identifier, $"組み込み関数 '{name}' は、{shaderType} のシェーダーでは使用できません。");
                     return;
                 }
 
@@ -425,8 +433,8 @@ internal sealed class GodotStageAnalyzer : SemanticRuleAnalyzer
             }
 
             report(GodotRuleDescriptors.NotAvailableInStage, token, inVertex
-                ? $"'{item}' は vertex 関数の中では使えません。"
-                : $"'{item}' はここでは使えません。関数 '{info.Name}' は vertex 関数から呼ばれています。");
+                ? $"'{item}' は vertex 関数の中では使用できません。"
+                : $"'{item}' はここでは使用できません。関数 '{info.Name}' は vertex 関数から呼ばれています。");
             return false;
         }
 

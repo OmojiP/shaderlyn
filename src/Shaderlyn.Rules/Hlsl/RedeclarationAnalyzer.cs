@@ -262,7 +262,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                 bool glsl = program.Tree.Language is GlslLanguageOptions;
                 bool sharesFunctionNames = program.Tree.Language is GlslLanguageOptions { Version: { } version } && version != 110;
 
-                // GLSL では、大きさを書かない配列 (float u[][7];) を、後から大きさを書いて宣言し直せる (GLSL 4.60 の 4.1.9 節)。
+                // GLSL では、大きさを書かない配列 (float u[][7];) を、後から大きさを書いて再宣言できる (GLSL 4.60 の 4.1.9 節)。
                 HashSet<string> unsized = glsl && declaration is VariableDeclarationSyntax variable
                     ? [.. variable.Variables
                         .Where(v => v.ArrayRankTokens is [{ Kind: ShaderSyntaxKind.OpenBracketToken }, { Kind: ShaderSyntaxKind.CloseBracketToken }, ..])
@@ -279,7 +279,7 @@ internal sealed class RedeclarationAnalyzer : SemanticRuleAnalyzer
                     }
 
                     // GLSL の組み込みの宣言し直し (layout(origin_upper_left) in vec4 gl_FragCoord;) は、何度書いても重複ではない。
-                    // 宣言し直せる組み込みかは glslang が別に調べる。
+                    // 再宣言できる組み込みかは glslang が別に調べる。
                     if (glsl && (declared.Name.StartsWith("gl_", StringComparison.Ordinal) || unsized.Contains(declared.Name)))
                     {
                         continue;

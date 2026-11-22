@@ -119,7 +119,7 @@ internal sealed class WgslAttributeAnalyzer : SemanticRuleAnalyzer
                 if (statement.Expression is InvocationExpressionSyntax { TargetName: { } name, Target: IdentifierExpressionSyntax target } && mustUse.Contains(name))
                 {
                     Report(WgslRuleDescriptors.UnusedMustUseResult, target.Identifier,
-                        $"関数 '{name}' は @must_use なので、戻り値を使ってください (_ = {name}(…); と書くか、let で受けてください)。");
+                        $"関数 '{name}' は @must_use なので、戻り値を使用してください (_ = {name}(…); と書くか、let で受けてください)。");
                 }
             }
         }

@@ -73,11 +73,11 @@ public sealed partial class ShaderLanguageServer
     private readonly HashSet<string> _checkedGeneratedDirectories = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 直近に送った指摘。直しの提示に使う。
+    /// 直近に送った指摘。修正の提示に使う。
     /// </summary>
     /// <remarks>
-    /// 直しを求められたときに解析し直すと、
-    /// 画面に出ている指摘と食い違う直しを出しうる。送ったものをそのまま覚えておく。
+    /// 修正を求められたときに解析し直すと、
+    /// 画面に出ている指摘と食い違う修正を出しうる。送ったものをそのまま覚えておく。
     /// </remarks>
     private readonly Dictionary<string, ImmutableArray<Diagnostic>> _lastDiagnostics =
         new(StringComparer.Ordinal);
@@ -221,6 +221,10 @@ public sealed partial class ShaderLanguageServer
             case "initialize":
                 _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
+                _languageFeatures = ReadLanguageFeaturesOption(message);
+                _hoverCodeBlocks = ReadHoverCodeBlocksOption(message);
+                _hoverMarkdown = AcceptsMarkdown(message, "hover", "contentFormat");
+                _completionMarkdown = AcceptsMarkdown(message, "completion", "completionItem", "documentationFormat");
                 await RespondInitializeAsync(message, cancellationToken).ConfigureAwait(false);
                 break;
 
@@ -481,8 +485,16 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("result");
 
             writer.WriteStartObject("contents");
-            writer.WriteString("kind", "markdown");
-            writer.WriteString("value", result.Markdown);
+            if (_hoverMarkdown)
+            {
+                writer.WriteString("kind", "markdown");
+                writer.WriteString("value", _hoverCodeBlocks ? result.Markdown : HoverInlineCode.Convert(result.Markdown));
+            }
+            else
+            {
+                writer.WriteString("kind", "plaintext");
+                writer.WriteString("value", MarkdownPlainText.Convert(result.Markdown));
+            }
             writer.WriteEndObject();
 
             writer.WriteEndObject();
@@ -709,7 +721,7 @@ public sealed partial class ShaderLanguageServer
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                await LogFailureAsync("--unity-generate で書き出したものの確認", exception).ConfigureAwait(false);
+                await LogFailureAsync("--unity-generate で書き出したファイルの確認", exception).ConfigureAwait(false);
             }
         });
     }
@@ -754,9 +766,10 @@ public sealed partial class ShaderLanguageServer
 
         // HLSL 以外の言語 (GLSL など) の拡張子は、CLI と同じく、設定の環境が読まなければその言語の環境で解析する。
         // 設定の環境 (Unity など) で読むと、GLSL を ShaderLab や HLSL として読んで構文エラーを並べる。
+        // 環境を決めていなければ、.usf・.ush は Unreal Engine の環境で解析する。
         if (path is null
-            || Cli.Environments.AnalysisSettings.LanguageFor(Path.GetExtension(path)) is not { } language
-            || configured.DefaultExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            || Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
+                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen) is not { } language)
         {
             return configured;
         }
@@ -814,7 +827,7 @@ public sealed partial class ShaderLanguageServer
             environment);
 
     /// <summary>
-    /// 指摘に対する直しを返す。
+    /// 指摘に対する修正を返す。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
@@ -822,7 +835,7 @@ public sealed partial class ShaderLanguageServer
     /// <remarks>
     /// <para>
     /// エディタが要求に添えてくる指摘をそのまま使う。
-    /// こちらで解析し直すと、画面に出ている指摘と食い違う直しを出しうる。
+    /// こちらで解析し直すと、画面に出ている指摘と食い違う修正を出しうる。
     /// </para>
     /// <para>
     /// <b>要求された範囲に重なる指摘だけを見る。</b>
@@ -830,7 +843,7 @@ public sealed partial class ShaderLanguageServer
     /// 抑制コメントは ID だけが見出しに出るので、どれがどこの行のものか区別できない。
     /// </para>
     /// <para>
-    /// 同じ直しは 1 つにまとめる。
+    /// 同じ修正は 1 つにまとめる。
     /// 1 行に同じ ID の指摘が複数あると、抑制コメントの差し込みはすべて同じ編集になる。
     /// </para>
     /// </remarks>
@@ -850,7 +863,7 @@ public sealed partial class ShaderLanguageServer
 
         HashSet<string> requested = ReadRequestedDiagnosticIds(message);
         List<CodeActionEdit> actions = [];
-        HashSet<CodeActionEdit> seen = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
 
         foreach (Diagnostic diagnostic in diagnostics)
         {
@@ -866,7 +879,7 @@ public sealed partial class ShaderLanguageServer
 
             foreach (CodeActionEdit action in CodeActionBuilder.Build(document.Text, diagnostic))
             {
-                if (seen.Add(action))
+                if (seen.Add(action.Key))
                 {
                     actions.Add(action);
                 }
@@ -917,7 +930,7 @@ public sealed partial class ShaderLanguageServer
     /// <remarks>
     /// 端どうしが接しているだけでも重なりとみなす。
     /// 要求はカーソル位置だけの幅 0 の範囲で来ることが多く、
-    /// 名前の直後にカーソルを置いた状態でも直しを出せないと使いにくい。
+    /// 名前の直後にカーソルを置いた状態でも修正を出せないと使いにくい。
     /// </remarks>
     private static bool Overlaps(LinePositionSpan diagnostic, LinePositionSpan requested) =>
         diagnostic.Start.CompareTo(requested.End) <= 0 && requested.Start.CompareTo(diagnostic.End) <= 0;
@@ -946,11 +959,11 @@ public sealed partial class ShaderLanguageServer
         return ids;
     }
 
-    /// <summary>直し 1 つを書き出す。</summary>
+    /// <summary>修正 1 つを書き出す。</summary>
     /// <param name="writer">書き出し先。</param>
     /// <param name="uri">対象のファイルの URI。</param>
     /// <param name="text">対象のソーステキスト。</param>
-    /// <param name="action">書き出す直し。</param>
+    /// <param name="action">書き出す修正。</param>
     private static void WriteCodeAction(
         Utf8JsonWriter writer,
         string uri,
@@ -966,13 +979,16 @@ public sealed partial class ShaderLanguageServer
         writer.WriteStartObject("changes");
         writer.WriteStartArray(uri);
 
-        writer.WriteStartObject();
-        writer.WriteStartObject("range");
-        WritePosition(writer, "start", text.GetLinePosition(action.Span.Start));
-        WritePosition(writer, "end", text.GetLinePosition(action.Span.End));
-        writer.WriteEndObject();
-        writer.WriteString("newText", action.NewText);
-        writer.WriteEndObject();
+        foreach (TextReplacement edit in action.Edits)
+        {
+            writer.WriteStartObject();
+            writer.WriteStartObject("range");
+            WritePosition(writer, "start", text.GetLinePosition(edit.Span.Start));
+            WritePosition(writer, "end", text.GetLinePosition(edit.Span.End));
+            writer.WriteEndObject();
+            writer.WriteString("newText", edit.NewText);
+            writer.WriteEndObject();
+        }
 
         writer.WriteEndArray();
         writer.WriteEndObject();
@@ -1459,6 +1475,77 @@ public sealed partial class ShaderLanguageServer
            && options.TryGetProperty("inactiveRegions", out JsonElement requested)
            && requested.ValueKind == JsonValueKind.True;
 
+    /// <summary>ホバー・補完などの言語の機能を名乗るかどうか。</summary>
+    /// <remarks>
+    /// Rider のように、エディタ自身がシェーダーの言語の機能を持つ場合がある。
+    /// 同じ位置にホバーや補完が 2 つずつ出ないよう、そのエディタには指摘とコードアクションだけを名乗る。
+    /// </remarks>
+    private bool _languageFeatures = true;
+
+    /// <summary>言語の機能を名乗るかを、初期化の要求から読む。</summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <returns><c>languageFeatures</c> が <see langword="false"/> のときだけ <see langword="false"/>。指定が無ければ名乗る。</returns>
+    private static bool ReadLanguageFeaturesOption(JsonElement message)
+        => !(message.TryGetProperty("params", out JsonElement parameters)
+             && parameters.TryGetProperty("initializationOptions", out JsonElement options)
+             && options.ValueKind == JsonValueKind.Object
+             && options.TryGetProperty("languageFeatures", out JsonElement requested)
+             && requested.ValueKind == JsonValueKind.False);
+
+    /// <summary>ホバーのコードをコードブロックで書くかどうか。</summary>
+    /// <remarks>
+    /// Visual Studio はコードブロックに「コードのコピー」の見出しを付けて大きく表示する。
+    /// そのエディタには、コードブロックを行内のコードにして返す (<see cref="HoverInlineCode"/>)。
+    /// </remarks>
+    private bool _hoverCodeBlocks = true;
+
+    /// <summary>ホバーのコードをコードブロックで書くかを、初期化の要求から読む。</summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <returns><c>hoverCodeBlocks</c> が <see langword="false"/> のときだけ <see langword="false"/>。指定が無ければコードブロックで書く。</returns>
+    private static bool ReadHoverCodeBlocksOption(JsonElement message)
+        => !(message.TryGetProperty("params", out JsonElement parameters)
+             && parameters.TryGetProperty("initializationOptions", out JsonElement options)
+             && options.ValueKind == JsonValueKind.Object
+             && options.TryGetProperty("hoverCodeBlocks", out JsonElement requested)
+             && requested.ValueKind == JsonValueKind.False);
+
+    /// <summary>ホバーを Markdown で送るかどうか。</summary>
+    /// <remarks>Markdown を表示できないエディタ (Visual Studio 2022 など) には、プレーンテキストにして送る (<see cref="MarkdownPlainText"/>)。</remarks>
+    private bool _hoverMarkdown = true;
+
+    /// <summary>補完の説明を Markdown で送るかどうか。</summary>
+    private bool _completionMarkdown = true;
+
+    /// <summary>
+    /// エディタが Markdown を受け取れるかを、初期化の要求の textDocument の機能から読む。
+    /// </summary>
+    /// <param name="message">initialize の要求。</param>
+    /// <param name="path">textDocument から形式の配列までのプロパティの名前。</param>
+    /// <returns>
+    /// 形式の配列に <c>markdown</c> があれば <see langword="true"/>。
+    /// 配列が無ければ、受け取れるものとして <see langword="true"/> (申告しないエディタの表示を変えない)。
+    /// </returns>
+    private static bool AcceptsMarkdown(JsonElement message, params string[] path)
+    {
+        if (!message.TryGetProperty("params", out JsonElement current)
+            || !current.TryGetProperty("capabilities", out current)
+            || !current.TryGetProperty("textDocument", out current))
+        {
+            return true;
+        }
+
+        foreach (string name in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(name, out current))
+            {
+                return true;
+            }
+        }
+
+        return current.ValueKind != JsonValueKind.Array
+               || current.EnumerateArray().Any(f => f.ValueKind == JsonValueKind.String && f.GetString() == "markdown");
+    }
+
     /// <summary>
     /// 処理が例外で終わったことを、エディタの出力へ記録する。
     /// </summary>
@@ -1548,8 +1635,13 @@ public sealed partial class ShaderLanguageServer
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
+    /// <para>
     /// スクリプトの同期は全文で受け取る。差分で受け取っても、
     /// 解析は毎回全文を見るため組み立て直す手間が増えるだけである。
+    /// </para>
+    /// <para>
+    /// 初期化の設定で <c>languageFeatures: false</c> を受け取ったら、指摘とコードアクションだけを名乗る (<see cref="_languageFeatures"/>)。
+    /// </para>
     /// </remarks>
     private async Task RespondInitializeAsync(JsonElement message, CancellationToken cancellationToken)
     {
@@ -1562,28 +1654,39 @@ public sealed partial class ShaderLanguageServer
             writer.WriteStartObject("result");
             writer.WriteStartObject("capabilities");
 
-            // 1 = Full。全文を毎回受け取る。
-            writer.WriteNumber("textDocumentSync", 1);
-            writer.WriteBoolean("hoverProvider", true);
-            writer.WriteBoolean("definitionProvider", true);
-            writer.WriteBoolean("referencesProvider", true);
-            writer.WriteBoolean("renameProvider", true);
-
-            writer.WriteStartObject("completionProvider");
-            writer.WriteStartArray("triggerCharacters");
-            writer.WriteStringValue(".");
-
-            // # を打った時点で指令の名前を出す (CompletionPlaces)。
-            writer.WriteStringValue("#");
-            writer.WriteEndArray();
+            // 開く・閉じる・保存の通知を受け取り、変更は全文で受け取る (change: 1 = Full)。
+            // 数値だけ (textDocumentSync: 1) で名乗ると、Visual Studio は開く・閉じるの通知 (didOpen・didClose) を送らない。
+            writer.WriteStartObject("textDocumentSync");
+            writer.WriteBoolean("openClose", true);
+            writer.WriteNumber("change", 1);
+            writer.WriteStartObject("save");
+            writer.WriteBoolean("includeText", false);
+            writer.WriteEndObject();
             writer.WriteEndObject();
 
-            writer.WriteStartObject("signatureHelpProvider");
-            writer.WriteStartArray("triggerCharacters");
-            writer.WriteStringValue("(");
-            writer.WriteStringValue(",");
-            writer.WriteEndArray();
-            writer.WriteEndObject();
+            if (_languageFeatures)
+            {
+                writer.WriteBoolean("hoverProvider", true);
+                writer.WriteBoolean("definitionProvider", true);
+                writer.WriteBoolean("referencesProvider", true);
+                writer.WriteBoolean("renameProvider", true);
+
+                writer.WriteStartObject("completionProvider");
+                writer.WriteStartArray("triggerCharacters");
+                writer.WriteStringValue(".");
+
+                // # を打った時点で指令の名前を出す (CompletionPlaces)。
+                writer.WriteStringValue("#");
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+
+                writer.WriteStartObject("signatureHelpProvider");
+                writer.WriteStartArray("triggerCharacters");
+                writer.WriteStringValue("(");
+                writer.WriteStringValue(",");
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
 
             writer.WriteStartObject("codeActionProvider");
             writer.WriteStartArray("codeActionKinds");
@@ -1591,11 +1694,8 @@ public sealed partial class ShaderLanguageServer
             writer.WriteEndArray();
             writer.WriteEndObject();
 
-            writer.WriteStartObject("diagnosticProvider");
-            writer.WriteBoolean("interFileDependencies", false);
-            writer.WriteBoolean("workspaceDiagnostics", false);
-            writer.WriteEndObject();
-
+            // 指摘は textDocument/publishDiagnostics で送る。diagnosticProvider (要求で取りに来る方式) は名乗らない。
+            // 名乗ると、Visual Studio は要求だけで指摘を取りに来て、通知の指摘を表示しない。
             writer.WriteEndObject();
 
             writer.WriteStartObject("serverInfo");

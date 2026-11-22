@@ -24,6 +24,10 @@ internal sealed class ShaderLabLexer
 {
     private readonly SourceText _text;
     private readonly List<LexerDiagnostic> _diagnostics = [];
+
+    /// <summary>trivia を集める作業用の Builder。トークンごとに作らず使い回す (<see cref="LexTrivia"/> は入れ子に呼ばれない)。</summary>
+    private readonly ImmutableArray<SyntaxTrivia>.Builder _trivia = ImmutableArray.CreateBuilder<SyntaxTrivia>();
+
     private int _position;
 
     /// <summary>まだ最初のトークンを読んでいないか (ファイルの先頭の trivia を読んでいるか)。</summary>
@@ -130,7 +134,8 @@ internal sealed class ShaderLabLexer
     /// </remarks>
     private ImmutableArray<SyntaxTrivia> LexTrivia(bool isTrailing)
     {
-        ImmutableArray<SyntaxTrivia>.Builder trivia = ImmutableArray.CreateBuilder<SyntaxTrivia>();
+        ImmutableArray<SyntaxTrivia>.Builder trivia = _trivia;
+        trivia.Clear();
 
         while (_position < _text.Length)
         {

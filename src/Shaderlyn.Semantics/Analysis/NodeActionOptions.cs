@@ -147,7 +147,7 @@ public sealed class NodeCondition
         {
             if (!values.TryGetValue(Symbol, out ImmutableArray<int> candidates))
             {
-                throw new FormatException($"'{text}' の '{Symbol}' は値を持つシンボルではないので、数と比べられません。");
+                throw new FormatException($"'{text}' の '{Symbol}' は値を持つシンボルではないので、数と比較できません。");
             }
 
             SymbolCondition result = SymbolCondition.Never;
@@ -197,7 +197,7 @@ public sealed class NodeCondition
 
             if (_position < text.Length)
             {
-                throw Error($"{_position + 1} 文字目の '{text[_position..]}' を読めません");
+                throw Error($"{_position + 1} 文字目の '{text[_position..]}' を解析できません");
             }
         }
 
@@ -310,7 +310,7 @@ public sealed class NodeCondition
         {
             if (!Accept(token))
             {
-                throw Error($"{_position + 1} 文字目に '{token}' が要ります");
+                throw Error($"{_position + 1} 文字目に '{token}' が必要です");
             }
         }
 
@@ -322,6 +322,6 @@ public sealed class NodeCondition
             }
         }
 
-        private FormatException Error(string reason) => new($"条件 '{text}' を読めません: {reason}。");
+        private FormatException Error(string reason) => new($"条件 '{text}' を解析できません: {reason}。");
     }
 }

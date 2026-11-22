@@ -73,9 +73,9 @@ public sealed partial class BothBranchConsistencyTests
         [Path.Combine("conditional", "MergedTypeByCondition.shader")] =
             "_A と _B が同時に有効なときだけ color が float3 になる。並べない経路はその構成を作らない",
         [Path.Combine("conditional", "TypeByCondition.shader")] =
-            "同上。#define は条件の中でしか使われないので並べられる",
+            "同上。#define は条件の中でしか使用されないので並べられる",
         [Path.Combine("conditional", "HoistedMacroType.shader")] =
-            "同上。CTYPE を使う文を定義ごとに複製するので、_A と _B の組み合わせが 1 本の木に載る",
+            "同上。CTYPE を使用する文を定義ごとに複製するので、_A と _B の組み合わせが 1 本の木に載る",
         [Path.Combine("conditional", "AssignmentTargetByCondition.shader")] =
             "_B と _D が同時に有効なときだけ float2 を float3 へ代入する。並べない経路はその構成を作らない",
     };

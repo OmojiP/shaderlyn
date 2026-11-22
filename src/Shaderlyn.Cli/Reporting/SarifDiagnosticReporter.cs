@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
+using Shaderlyn.Cli.Fixing;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Core.Text;
 
@@ -214,11 +215,77 @@ internal sealed class SarifDiagnosticReporter
 
         WriteIncludeRoutes(writer, diagnostic);
 
+        WriteFixes(writer, diagnostic);
+
         writer.WriteStartObject("partialFingerprints");
         writer.WriteString("shaderlyn/v1", DiagnosticFingerprint.ComputeSnippetHash(diagnostic));
         writer.WriteEndObject();
 
         writer.WriteEndObject();
+    }
+
+    /// <summary>
+    /// 指摘の修正を、SARIF の <c>fixes</c> として書き出す。修正が無ければ何も書かない。
+    /// </summary>
+    /// <param name="writer">書き出し先。</param>
+    /// <param name="diagnostic">対象の指摘。</param>
+    /// <remarks>
+    /// 置き換えは <c>deletedRegion</c> と <c>insertedContent</c> の組で書く。差し込みは、始まりと終わりが同じ範囲になる。
+    /// SARIF の <c>fix</c> には既定の候補を表す項目が無いので、<c>properties</c> に <c>preferred</c> として書く。
+    /// </remarks>
+    private void WriteFixes(Utf8JsonWriter writer, Diagnostic diagnostic)
+    {
+        SourceText source = diagnostic.Location.Source;
+        ImmutableArray<DiagnosticFix> fixes = DiagnosticFixes.Collect(diagnostic, source.Length);
+
+        if (fixes.IsEmpty)
+        {
+            return;
+        }
+
+        writer.WriteStartArray("fixes");
+
+        foreach (DiagnosticFix fix in fixes)
+        {
+            writer.WriteStartObject();
+            writer.WriteStartObject("description");
+            writer.WriteString("text", fix.Title);
+            writer.WriteEndObject();
+
+            writer.WriteStartArray("artifactChanges");
+            writer.WriteStartObject();
+            writer.WriteStartObject("artifactLocation");
+            writer.WriteString("uri", ToRelativeUri(diagnostic.Location.FilePath));
+            writer.WriteEndObject();
+            writer.WriteStartArray("replacements");
+
+            foreach (TextReplacement replacement in fix.Replacements)
+            {
+                LinePositionSpan span = source.GetLinePositionSpan(replacement.Span);
+                writer.WriteStartObject();
+                writer.WriteStartObject("deletedRegion");
+                writer.WriteNumber("startLine", span.Start.Line + 1);
+                writer.WriteNumber("startColumn", span.Start.Character + 1);
+                writer.WriteNumber("endLine", span.End.Line + 1);
+                writer.WriteNumber("endColumn", span.End.Character + 1);
+                writer.WriteEndObject();
+                writer.WriteStartObject("insertedContent");
+                writer.WriteString("text", replacement.NewText);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+
+            writer.WriteStartObject("properties");
+            writer.WriteBoolean("preferred", fix.IsPreferred);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
     }
 
     /// <summary>ヘッダの中の指摘に、取り込んだ経路の <c>#include</c> を relatedLocations として添える。</summary>

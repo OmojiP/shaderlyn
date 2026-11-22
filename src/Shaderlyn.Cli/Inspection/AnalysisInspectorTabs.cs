@@ -22,11 +22,11 @@ internal static partial class AnalysisInspector
               box.append(note(program.label + " — このファイルに書かれた宣言のみを表示しています。" +
                               "include したヘッダの中身は含みません。"));
               box.append(note("「マクロ展開」と付いたノードは、展開の結果として現れたものです。" +
-                              "位置は展開元のマクロを呼び出した場所を指すため、同じ行が重なって見えます。" +
+                              "位置は展開元のマクロを呼び出した場所を指すため、同じ行が重なって表示されます。" +
                               "「本体」が付いているものは、このファイル自身が書いたマクロから来たもので、" +
                               "その行が報告の位置になります。"));
               if (program.hoistedUnits) {
-                box.append(note("条件で中身が変わるマクロを使う文や、文の途中で分かれる #if を含む文を " + program.hoistedUnits +
+                box.append(note("条件で中身が変わるマクロを使用する文や、文の途中で分かれる #if を含む文を " + program.hoistedUnits +
                                 " か所で定義・分岐ごとに複製し、それぞれに条件を付けています。" +
                                 "同じ位置に複数の形が並ぶのはこのためです。" +
                                 (program.hoistGiveUps ? "文にならず複製を諦めた箇所が " +
@@ -178,7 +178,7 @@ internal static partial class AnalysisInspector
           build: () => {
             const box = document.createElement("div");
             box.append(note("マクロ展開前のトークンです。" +
-                            "「この識別子は使わない」という形のルールはこれを見て判断します。"));
+                            "「この識別子は使用しない」という形のルールはこれを見て判断します。"));
             box.append(tableView(
               ["種別", "文字列", "位置"],
               DATA.tokens.map(t => ({

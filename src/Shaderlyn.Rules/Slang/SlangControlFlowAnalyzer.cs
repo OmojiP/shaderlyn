@@ -65,7 +65,7 @@ internal sealed class SlangControlFlowAnalyzer : SemanticRuleAnalyzer
                 if (condition is AssignmentExpressionSyntax assignment)
                 {
                     Report(SlangRuleDescriptors.AssignmentInCondition, assignment.OperatorToken,
-                        "条件に代入は書けません。比べるなら '==' を、代入した値を使うなら括弧で包んでください ((a = b))。");
+                        "条件に代入は書けません。比較する場合は '==' を、代入した値を使用する場合は括弧で包んでください ((a = b))。");
                 }
 
                 switch (node)

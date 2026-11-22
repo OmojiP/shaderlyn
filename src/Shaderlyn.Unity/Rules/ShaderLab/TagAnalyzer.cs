@@ -252,7 +252,7 @@ internal sealed class TagAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// スペルミスを、直し方を添えて報告する。
+    /// スペルミスを、修正の候補を添えて報告する。
     /// </summary>
     /// <param name="context">解析コンテキスト。</param>
     /// <param name="descriptor">報告するルール。</param>
@@ -261,8 +261,9 @@ internal sealed class TagAnalyzer : DiagnosticAnalyzer
     /// <param name="messageArguments">メッセージへ埋め込む引数。</param>
     /// <remarks>
     /// <b>正しい綴りを知っているのはここだけである。</b>
-    /// メッセージの文面から読み取らせると、文面を変えるたびに直しが壊れる。
+    /// メッセージの文面から読み取らせると、文面を変えるたびに修正が壊れる。
     /// 診断に添えておけば、エディタはそれを 1 回の操作で適用できる。
+    /// 編集距離で選んだ候補なので、既定の候補 (<see cref="DiagnosticFix.IsPreferred"/>) にはしない。
     /// </remarks>
     private static void ReportMisspelling(
         NodeAnalysisContext<TagSyntax> context,
@@ -271,9 +272,12 @@ internal sealed class TagAnalyzer : DiagnosticAnalyzer
         string suggestion,
         params object?[] messageArguments)
     {
+        string replacement = Requote(token, suggestion);
+
+        // 綴りの近さから選んだ候補で、書き手の意図と同じとは限らない。既定の候補にしない (CLI の --fix は、--fix-rule でこのルールを指定したときだけ当てる)。
         context.ReportDiagnostic(
             Diagnostic.Create(descriptor, Location.Create(context.Unit.Text, token.Span), messageArguments)
-                .WithSuggestedReplacement(Requote(token, suggestion)));
+                .WithFix(DiagnosticFix.Replace($"{replacement} に修正する", token.Span, replacement, isPreferred: false)));
     }
 
     /// <summary>

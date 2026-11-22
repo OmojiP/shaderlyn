@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// (「redeclaration of array with a different element type」「… with a different array dimensions or sizes」) を移したもの。
 /// </summary>
 /// <remarks>
-/// GLSL では、一番外の次元の大きさを書かない配列 (<c>float a[][5];</c>) を、同じ範囲で大きさを書いて宣言し直せる。
+/// GLSL では、一番外の次元の大きさを書かない配列 (<c>float a[][5];</c>) を、同じ範囲で大きさを書いて再宣言できる。
 /// 宣言し直すときは、要素の型と、内側の次元の数と大きさが同じでなければならない。
 /// 内側の次元の大きさは、どちらも整数のリテラルのときだけ比べる。
 /// </remarks>

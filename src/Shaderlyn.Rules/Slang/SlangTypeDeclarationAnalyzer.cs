@@ -46,11 +46,13 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
             CompilationUnitSyntax root = program.Tree.Root;
             ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
 
-            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message)
+            void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message) => ReportFix(descriptor, at, message, null);
+
+            void ReportFix(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, string message, TokenFix? fix)
             {
                 if (!at.IsMissing && compilation.IsReportable(at) && at.GetLocation() is { } location)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
+                    context.ReportDiagnostic(Diagnostic.Create(descriptor, location, message).WithFix(fix));
                 }
             }
 
@@ -163,7 +165,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 return false;
             }
 
-            CheckTokens(tokens, kinds, VariablesAt, UnconstrainedAt, (a, b) => Derives(a, b) || Derives(b, a), DeclarationSyntaxAnalyzer.IsSlang2026(root), Report);
+            CheckTokens(tokens, kinds, VariablesAt, UnconstrainedAt, (a, b) => Derives(a, b) || Derives(b, a), DeclarationSyntaxAnalyzer.IsSlang2026(root), Report, ReportFix);
             // extension で足されうる型と、既定の実装を足されうるインターフェイスの名前 (extension NAME)。
             HashSet<string> extended = new(StringComparer.Ordinal);
 
@@ -176,7 +178,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckOverrides(tokens, types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report);
+            CheckOverrides(tokens, types, kinds, extended, SlangConformanceModel.Build(tokens, compilation.TypeSystem.ForTree(program.Tree)), Report, ReportFix);
             CheckCom(tokens, Report);
             CheckCapabilities(tokens, types, root, Report);
             CheckInterfaceMembers(tokens, Report);
@@ -201,7 +203,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (left is not null && right is not null && unconstrained.Contains(left) && left == right)
                 {
                     Report(SlangRuleDescriptors.WrongOperandTypes, tokens[i],
-                        $"制約の無いジェネリックの型 {left} の値に、{tokens[i].Text} は使えません。{left} に IArithmetic などの制約を付けてください。");
+                        $"制約が存在しないジェネリックの型 {left} の値に、{tokens[i].Text} は使用できません。{left} に IArithmetic などの制約を付けてください。");
                 }
             }
         }
@@ -349,7 +351,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<ShaderSyntaxToken, HashSet<string>> unconstrainedAt, Func<string, string, bool> related, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckTokens(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, int> kinds, Func<ShaderSyntaxToken, Dictionary<string, string?>?> variablesAt, Func<ShaderSyntaxToken, HashSet<string>> unconstrainedAt, Func<string, string, bool> related, bool since2026, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report, Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -378,7 +380,12 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 if (call || cast)
                 {
-                    report(SlangRuleDescriptors.ClassWithoutNew, token, $"class の {token.Text} の値は new で作ってください (new {token.Text}(…))。");
+                    // 呼び出しの形 (Counter(4)) は、前に new を付けるだけで直る。型変換の形 ((Counter)4) は書き換え方が 1 つに決まらないので、修正を添えない。
+                    reportFix(
+                        SlangRuleDescriptors.ClassWithoutNew,
+                        token,
+                        $"class の {token.Text} の値は new で作ってください (new {token.Text}(…))。",
+                        call ? TokenFixes.InsertBefore(token, "new ", "new を付ける") : null);
                 }
             }
 
@@ -415,7 +422,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                          && unconstrainedAt(token) is { Count: > 0 } unconstrained
                          && (unconstrained.Contains(before.Text) || (variablesAt(token) is { } known && known.TryGetValue(before.Text, out string? declaredType) && declaredType is not null && unconstrained.Contains(declaredType))))
                 {
-                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"制約の無いジェネリックの型の値に、is でインターフェイス ({target.Text}) を調べられません。");
+                    report(SlangRuleDescriptors.WrongOperandTypes, token, $"制約が存在しないジェネリックの型の値に、is でインターフェイス ({target.Text}) を調べられません。");
                 }
             }
 
@@ -431,7 +438,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 && leftType != right.Text
                 && !related(leftType, right.Text))
             {
-                report(SlangRuleDescriptors.WrongOperandTypes, token, $"{token.Text} は、関わりの無い具体的な型どうし ({leftType} と {right.Text}) には使えません (どちらかがインターフェイスの型でなければなりません)。");
+                report(SlangRuleDescriptors.WrongOperandTypes, token, $"{token.Text} は、関わりがない具体的な型どうし ({leftType} と {right.Text}) には使用できません (どちらかがインターフェイスの型でなければなりません)。");
             }
         }
     }
@@ -614,7 +621,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                     if (accessors.Any(a => a.HasBody) && accessors.FirstOrDefault(a => !a.HasBody) is { Accessor: { } missing })
                     {
                         report(SlangRuleDescriptors.AccessorForm, accessors.First(a => a.HasBody).Accessor,
-                            $"インターフェイスの {token.Text} の accessor に既定の実装を書くなら、すべての accessor に書いてください ({missing.Text} に本体がありません)。");
+                            $"インターフェイスの {token.Text} の accessor に既定の実装を書く場合は、すべての accessor に書いてください ({missing.Text} に本体がありません)。");
                     }
                     else if (token.Text == "property" && accessors.Count > 0 && accessors.All(a => a.HasBody))
                     {
@@ -739,7 +746,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (allowed.Concat(used).All(a => a.StartsWith("spv", StringComparison.Ordinal)) && used.FirstOrDefault(a => !allowed.Contains(a)) is { } extra)
                 {
                     report(SlangRuleDescriptors.InterfaceRequirement, implementation.NameToken,
-                        $"'{implementation.Name}' は、インターフェイスの要件で許されない機能 {extra} を使っています ({string.Join("・", allowed)} だけを使えます)。");
+                        $"'{implementation.Name}' は、インターフェイスの要件で許されない機能 {extra} を使用しています ({string.Join("・", allowed)} だけを使用できます)。");
                 }
             }
         }
@@ -1055,7 +1062,7 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>インターフェイスの既定の実装と override の対応。</summary>
-    private static void CheckOverrides(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
+    private static void CheckOverrides(ImmutableArray<ShaderSyntaxToken> tokens, StructDeclarationSyntax[] types, Dictionary<string, int> kinds, HashSet<string> extended, SlangConformanceModel model, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report, Action<DiagnosticDescriptor, ShaderSyntaxToken, string, TokenFix?> reportFix)
     {
         Dictionary<string, StructDeclarationSyntax> interfaces = types.Where(t => t.Keyword.Text == "interface" && kinds[t.NameToken!.Text] == 3)
             .GroupBy(t => t.NameToken!.Text, StringComparer.Ordinal)
@@ -1193,7 +1200,10 @@ internal sealed class SlangTypeDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
                 else if (!marked && required.Any(r => r.Name == method.Name && r.Body is not null && r.ParameterList.Count() == count))
                 {
-                    report(SlangRuleDescriptors.InheritanceAndOverride, method.NameToken, $"'{method.Name}' はインターフェイスの既定の実装を置き換えるので、override を書いてください。");
+                    // 戻り値の型 (その修飾子を含む) の前に書く。関数の修飾子 (public など) の後ろになる。
+                    ShaderSyntaxToken returnType = method.ReturnType.ModifierTokens.FirstOrDefault() ?? method.ReturnType.NameToken;
+                    reportFix(SlangRuleDescriptors.InheritanceAndOverride, method.NameToken, $"'{method.Name}' はインターフェイスの既定の実装を置き換えるので、override を書いてください。",
+                        TokenFixes.InsertBefore(returnType, "override ", "override を付ける"));
                 }
             }
         }

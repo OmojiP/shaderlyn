@@ -110,7 +110,7 @@ internal sealed class WgslConstantAnalyzer : SemanticRuleAnalyzer
                         if (declarator.Initializer is { } initializer && constants.FindRuntimeName(initializer) is { } kind)
                         {
                             Report(WgslRuleDescriptors.ConstantExpressionRequired, initializer, null,
-                                $"const の '{declarator.Name}' の初期値には定数式が要りますが、{kind} の値を使っています。");
+                                $"const の '{declarator.Name}' の初期値には定数式が必要ですが、{kind} の値を使用しています。");
                         }
                     }
 
@@ -137,7 +137,7 @@ internal sealed class WgslConstantAnalyzer : SemanticRuleAnalyzer
                 case InvocationExpressionSyntax { TargetName: "subgroupBroadcast" or "quadBroadcast" } broadcast
                     when broadcast.ArgumentExpressions.ElementAtOrDefault(1) is { } id && constants.FindRuntimeName(id) is { } kind:
                     Report(WgslRuleDescriptors.ConstantArgumentRequired, id, null,
-                        $"{broadcast.TargetName} の 2 つ目の実引数 (値を受け取る呼び出しの番号) は定数式でなければなりませんが、{kind} の値を使っています。");
+                        $"{broadcast.TargetName} の 2 つ目の実引数 (値を受け取る呼び出しの番号) は定数式でなければなりませんが、{kind} の値を使用しています。");
                     break;
 
                 case InvocationExpressionSyntax { TargetName: "select" } select when select.ArgumentExpressions.ElementAtOrDefault(2) is { } selector:
@@ -215,7 +215,7 @@ internal sealed class WgslConstantAnalyzer : SemanticRuleAnalyzer
 
         if (runtime is not null)
         {
-            report(WgslRuleDescriptors.ConstantExpressionRequired, condition, null, $"const_assert の条件には定数式が要りますが、{runtime} の値を使っています。");
+            report(WgslRuleDescriptors.ConstantExpressionRequired, condition, null, $"const_assert の条件には定数式が必要ですが、{runtime} の値を使用しています。");
             return;
         }
 

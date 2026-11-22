@@ -56,6 +56,9 @@ public sealed class RuleFixtureTests
         // Hlsl2021TemplateTests で、汎用の HLSL 環境の .hlsl として確かめている。
         ["HL0345"] = "HLSL 2021 の template の呼び出しなので、Unity の .shader では起こせない",
 
+        // Unity にはメッシュシェーダーを指定する #pragma が存在しない。SystemValueSemanticTests で、Slang と汎用の HLSL として確かめている。
+        ["CF0303"] = "メッシュシェーダーの規則なので、Unity の .shader では起こせない",
+
         // enum も HLSL 2021 の構文。Hlsl2021EnumTests で確かめている。
         ["HL0347"] = "HLSL 2021 の enum の値なので、Unity の .shader では起こせない",
 
@@ -265,7 +268,7 @@ public sealed class RuleFixtureTests
 
         Assert.True(
             missing.Count == 0,
-            $"違反するシェーダーが無い規則: {string.Join(", ", missing)}。"
+            $"違反するシェーダーが存在しない規則: {string.Join(", ", missing)}。"
             + $"fixtures/rules/<ID>.shader を足すか、理由を添えて Exempt へ入れること");
     }
 

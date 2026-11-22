@@ -64,7 +64,7 @@ internal sealed class GodotBuiltinCallAnalyzer : SemanticRuleAnalyzer
                     && reported.Add((highEnd.FilePath, highEnd.Span.Start)))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(GodotRuleDescriptors.NotAvailableInRenderer, highEnd,
-                        $"組み込み関数 '{callee.Name}' は high-end の関数で、{renderer.DisplayName()} のレンダラーでは使えません (Forward+ と Mobile で使えます)。"));
+                        $"組み込み関数 '{callee.Name}' は high-end の関数で、{renderer.DisplayName()} のレンダラーでは使用できません (Forward+ と Mobile で使用できます)。"));
                 }
 
                 continue;

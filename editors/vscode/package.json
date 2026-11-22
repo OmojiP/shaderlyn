@@ -2,7 +2,7 @@
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
   "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL・Godot のシェーダー (.gdshader)・Slang・WGSL は、それぞれのコンパイラ (glslang・Godot 4・slangc・naga) と同じ誤りを報告する",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -94,17 +94,17 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile",
-    "package": "npm run compile && npx --yes @vscode/vsce package"
-  },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "check": "tsc -p ./ --noEmit",
+    "compile": "npm run check && node build.mjs",
+    "watch": "node build.mjs --watch",
+    "vscode:prepublish": "npm run check && node build.mjs --production",
+    "package": "npx --yes @vscode/vsce package"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
-    "typescript": "^5.5.0"
+    "esbuild": "^0.28.2",
+    "typescript": "^5.5.0",
+    "vscode-languageclient": "^9.0.1"
   }
 }

@@ -266,7 +266,7 @@ internal static class ConditionalExpressionEvaluator
                     return 0;
 
                 default:
-                    Fail($"条件式に使えない記述があります: '{CurrentText}'");
+                    Fail($"条件式に使用できない記述があります: '{CurrentText}'");
                     return 0;
             }
         }
@@ -356,7 +356,7 @@ internal static class ConditionalExpressionEvaluator
                     return Int32 && left == int.MinValue && right == -1 ? 0 : left % right;
 
                 default:
-                    Fail($"条件式に使えない演算子です: '{operatorKind}'");
+                    Fail($"条件式に使用できない演算子です: '{operatorKind}'");
                     return 0;
             }
         }

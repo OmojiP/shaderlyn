@@ -140,10 +140,10 @@ public sealed class MinimalYamlParserTests
     public void 引用符の中のコロンとシャープを値として扱う()
     {
         YamlNode root = ParseWithoutErrors("""
-            message: "URP: SAMPLE_TEXTURE2D #1 を使ってください"
+            message: "URP: SAMPLE_TEXTURE2D #1 を使用してください"
             """);
 
-        Assert.Equal("URP: SAMPLE_TEXTURE2D #1 を使ってください", ScalarAt(root, "message"));
+        Assert.Equal("URP: SAMPLE_TEXTURE2D #1 を使用してください", ScalarAt(root, "message"));
     }
 
     [Fact]

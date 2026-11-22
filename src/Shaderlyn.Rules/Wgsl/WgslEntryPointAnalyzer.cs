@@ -244,7 +244,7 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
 
             if (stage == "vertex" && memberAttributes.FirstOrDefault(a => a.Name.Text == "blend_src") is { Name: { } blend })
             {
-                report(WgslRuleDescriptors.InvalidEntryPoint, blend, "頂点シェーダーの入出力に @blend_src は使えません (フラグメントシェーダーの出力だけ)。");
+                report(WgslRuleDescriptors.InvalidEntryPoint, blend, "頂点シェーダーの入出力に @blend_src は使用できません (フラグメントシェーダーの出力だけ)。");
             }
         }
     }
@@ -283,7 +283,7 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
         }
         else if (!(indices.Contains("0") && indices.Contains("1")))
         {
-            report(WgslRuleDescriptors.InvalidEntryPoint, at, "@blend_src を書いた構造体には、@blend_src(0) と @blend_src(1) の 2 つの出力が要ります。");
+            report(WgslRuleDescriptors.InvalidEntryPoint, at, "@blend_src を書いた構造体には、@blend_src(0) と @blend_src(1) の 2 つの出力が必要です。");
         }
         else if (sources[0].Member.Type.Name != sources[1].Member.Type.Name)
         {
@@ -341,7 +341,7 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
                 switch (node)
                 {
                     case JumpStatementSyntax { Keyword.Text: "discard" } discard when stage != "fragment":
-                        report(WgslRuleDescriptors.NotAvailableInStage, discard.Keyword, $"discard はフラグメントシェーダーでだけ使えます ({Describe(stage, entry)})。");
+                        report(WgslRuleDescriptors.NotAvailableInStage, discard.Keyword, $"discard はフラグメントシェーダーでだけ使用できます ({Describe(stage, entry)})。");
                         break;
 
                     case InvocationExpressionSyntax { TargetName: { } name } call:
@@ -354,11 +354,11 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
                         }
                         else if (stage != "fragment" && FragmentOnly.Contains(name) && call.Target is IdentifierExpressionSyntax fragment)
                         {
-                            report(WgslRuleDescriptors.NotAvailableInStage, fragment.Identifier, $"{name} はフラグメントシェーダーでだけ使えます ({Describe(stage, entry)})。");
+                            report(WgslRuleDescriptors.NotAvailableInStage, fragment.Identifier, $"{name} はフラグメントシェーダーでだけ使用できます ({Describe(stage, entry)})。");
                         }
                         else if (stage != "compute" && ComputeOnly.Contains(name) && call.Target is IdentifierExpressionSyntax compute)
                         {
-                            report(WgslRuleDescriptors.NotAvailableInStage, compute.Identifier, $"{name} は計算シェーダーでだけ使えます ({Describe(stage, entry)})。");
+                            report(WgslRuleDescriptors.NotAvailableInStage, compute.Identifier, $"{name} は計算シェーダーでだけ使用できます ({Describe(stage, entry)})。");
                         }
 
                         break;
@@ -368,5 +368,5 @@ internal sealed class WgslEntryPointAnalyzer : SemanticRuleAnalyzer
     }
 
     private static string Describe(string stage, FunctionDeclarationSyntax entry)
-        => $"{stage switch { "vertex" => "頂点シェーダー", "compute" => "計算シェーダー", _ => "フラグメントシェーダー" }} '{entry.Name}' から使っています";
+        => $"{stage switch { "vertex" => "頂点シェーダー", "compute" => "計算シェーダー", _ => "フラグメントシェーダー" }} '{entry.Name}' から使用しています";
 }

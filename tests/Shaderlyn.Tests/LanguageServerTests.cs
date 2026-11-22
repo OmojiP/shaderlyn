@@ -49,11 +49,13 @@ public sealed class LanguageServerTests
         await harness.SendAsync(new { jsonrpc = "2.0", id = 1, method = "initialize", @params = new { capabilities = new { } } });
         JsonDocument initialize = await harness.ReceiveAsync();
 
-        // 全文で同期する (1 = Full) と申告する。差分で受け取っても解析は毎回全文を見る。
-        Assert.Equal(
-            1,
-            initialize.RootElement.GetProperty("result").GetProperty("capabilities")
-                .GetProperty("textDocumentSync").GetInt32());
+        // 全文で同期する (change: 1 = Full) と申告する。差分で受け取っても解析は毎回全文を見る。
+        // 開く・閉じる・保存の通知も明示する。数値だけで名乗ると、Visual Studio は開く・閉じるの通知を送らない。
+        JsonElement sync = initialize.RootElement.GetProperty("result").GetProperty("capabilities")
+            .GetProperty("textDocumentSync");
+        Assert.True(sync.GetProperty("openClose").GetBoolean());
+        Assert.Equal(1, sync.GetProperty("change").GetInt32());
+        Assert.False(sync.GetProperty("save").GetProperty("includeText").GetBoolean());
 
         await harness.OpenAsync(BrokenShader);
         JsonElement diagnostics = await harness.ReceiveDiagnosticsAsync();
@@ -69,6 +71,45 @@ public sealed class LanguageServerTests
             "SL1021",
             first.GetProperty("codeDescription").GetProperty("href").GetString()!,
             StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task 言語の機能を名乗らない設定では指摘とコードアクションだけを名乗る(bool languageFeatures)
+    {
+        await using LanguageServerHarness harness = new();
+
+        await harness.SendAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "initialize",
+            @params = new { capabilities = new { }, initializationOptions = new { languageFeatures } },
+        });
+        JsonDocument initialize = await harness.ReceiveAsync();
+        JsonElement capabilities = initialize.RootElement.GetProperty("result").GetProperty("capabilities");
+
+        string[] names = [.. capabilities.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)];
+        string[] diagnosticsOnly = ["codeActionProvider", "textDocumentSync"];
+
+        if (languageFeatures)
+        {
+            Assert.Superset(diagnosticsOnly.ToHashSet(), names.ToHashSet());
+            Assert.Contains("hoverProvider", names);
+        }
+        else
+        {
+            Assert.Equal(diagnosticsOnly, names);
+        }
+
+        // 指摘は通知で送る。要求で取りに来る方式を名乗ると、Visual Studio が通知の指摘を表示しない。
+        Assert.DoesNotContain("diagnosticProvider", names);
+
+        // 名乗る機能を絞っても、指摘は同じように返す。
+        await harness.OpenAsync(BrokenShader);
+        JsonElement diagnostics = await harness.ReceiveDiagnosticsAsync();
+        Assert.Equal("SL1021", diagnostics[0].GetProperty("code").GetString());
     }
 
     [Fact]
@@ -791,6 +832,55 @@ public sealed class LanguageServerTests
         Assert.Contains("float", markdown, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task コードブロックを使わない設定ではホバーのコードを行内のコードで返す(bool hoverCodeBlocks)
+    {
+        // Visual Studio はコードブロックに「コードのコピー」の見出しを付けて大きく表示する。
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeAsync(new { hoverCodeBlocks });
+        await harness.OpenAsync(TypedShader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        string markdown = await harness.HoverAsync(TypedShader, "frag");
+
+        if (hoverCodeBlocks)
+        {
+            Assert.StartsWith("```hlsl\nhalf4 frag(", markdown, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("```", markdown, StringComparison.Ordinal);
+            Assert.StartsWith("`half4 frag(", markdown, StringComparison.Ordinal);
+            Assert.Contains("\n\n関数", markdown, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task Markdownを受け取れないエディタにはホバーをプレーンテキストで返す()
+    {
+        // Visual Studio 2022 はホバーの形式に plaintext だけを申告する。Markdown で送ると記号がそのまま表示される。
+        await using LanguageServerHarness harness = new();
+
+        await harness.InitializeWithCapabilitiesAsync(new
+        {
+            textDocument = new { hover = new { contentFormat = new[] { "plaintext" } } },
+        });
+        await harness.OpenAsync(TypedShader);
+        await harness.ReceiveDiagnosticsAsync();
+
+        // 10 行目 "            half4 frag(..." の frag の上。
+        using JsonDocument response = await harness.RequestHoverAsync(9, 19);
+        JsonElement contents = response.RootElement.GetProperty("result").GetProperty("contents");
+
+        Assert.Equal("plaintext", contents.GetProperty("kind").GetString());
+        string text = contents.GetProperty("value").GetString()!;
+        Assert.StartsWith("half4 frag(", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("`", text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task 答えるものが無くても応答は返す()
     {
@@ -883,7 +973,7 @@ public sealed class LanguageServerTests
         JsonElement fix = actions[0];
 
         Assert.Contains("Opaque", fix.GetProperty("title").GetString()!, StringComparison.Ordinal);
-        Assert.True(fix.GetProperty("isPreferred").GetBoolean());
+        Assert.False(fix.GetProperty("isPreferred").GetBoolean());
 
         // 引用符を含む範囲を指しているので、引用符ごと置き換えられなければならない。
         JsonElement edit = fix.GetProperty("edit").GetProperty("changes")
@@ -1046,7 +1136,7 @@ public sealed class LanguageServerTests
     [Theory]
     [InlineData("vertex", "頂点シェーダーのエントリポイントを指定する")]
     [InlineData("multi_compile_fog", "霧のモード")]
-    [InlineData("shader_feature_local_fragment", "実行時にスクリプトから有効にしても効かない")]
+    [InlineData("shader_feature_local_fragment", "実行時にスクリプトから有効にしても反映されない")]
     [InlineData("shader_feature_local_fragment", "`_local`")]
     [InlineData("shader_feature_local_fragment", "フラグメントシェーダーにだけ作られ")]
     public async Task pragmaの名前の意味を説明する(string target, string expected)

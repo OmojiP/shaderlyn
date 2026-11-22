@@ -108,29 +108,29 @@ public sealed class VariantShapeTests
         },
         {
             // 使う文を定義ごとに複製すれば (条件の巻き上げ)、どの構成の展開も 1 本の木に載る。
-            "04 構成で中身が変わるマクロを文で使う",
+            "04 構成で中身が変わるマクロを文で使用する",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() { CTYPE color = 1; return color.x; }",
             ""
         },
         {
-            "05 構成で中身が変わるマクロを式で使う",
+            "05 構成で中身が変わるマクロを式で使用する",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define SCALE(x) (x * 2)\n#else\n#define SCALE(x) (x)\n#endif\nfloat F(float v) { return SCALE(v) + SCALE(v * 3); }",
             ""
         },
         {
-            "06 構成で中身が変わるマクロを関数の頭で使う",
+            "06 構成で中身が変わるマクロを関数の頭で使用する",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define EXTRA_PARAM , float extra\n#else\n#define EXTRA_PARAM\n#endif\nfloat F(float v EXTRA_PARAM) { return v; }",
             ""
         },
         {
             // 別のマクロの本体を通して使っていても、その位置で CTYPE の定義ごとに複製する。
-            "15 構成で中身が変わるマクロを別のマクロの中で使う",
+            "15 構成で中身が変わるマクロを別のマクロの中で使用する",
             "#pragma multi_compile _ _A\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#define COLOR_TYPE CTYPE\nfloat F() { COLOR_TYPE color = 1; return color.x; }",
             ""
         },
         {
             // 別のマクロが、条件で中身が変わるマクロを 2 つ参照している。1 つの文で複製できるのは 1 つだけである。
-            "37 別のマクロを通して条件で中身が変わるマクロを 2 つ使う",
+            "37 別のマクロを通して条件で中身が変わるマクロを 2 つ使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define SCALE 2\n#else\n#define SCALE 1\n#endif\n#define MAKE CTYPE(SCALE)\nfloat F() { float4 c = MAKE; return c.x; }",
             "_A / _B"
         },
@@ -165,13 +165,13 @@ public sealed class VariantShapeTests
         },
         {
             // _B の分岐の中の V は、_A の値でしか展開されない。
-            "21 構成で変わるマクロを別のシンボルの分岐の中で使う",
+            "21 構成で変わるマクロを別のシンボルの分岐の中で使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define V 1\n#else\n#define V 2\n#endif\nfloat F() {\n#ifdef _B\n    return V;\n#else\n    return 0;\n#endif\n}",
             "_B"
         },
         {
             // 21 の書き換え。マクロを使う文を分岐の外へ出す。
-            "22 構成で変わるマクロを分岐の外で使う",
+            "22 構成で変わるマクロを分岐の外で使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define V 1\n#else\n#define V 2\n#endif\nfloat F() {\n    float v = V;\n#ifdef _B\n    return v;\n#else\n    return 0;\n#endif\n}",
             ""
         },
@@ -230,26 +230,26 @@ public sealed class VariantShapeTests
         },
         {
             // 定義の組み合わせ (_A と _B で 4 通り) ごとに複製する。04 と同じく構成は作らない。
-            "31 条件で中身が変わるマクロを 1 つの文で 2 つ使う",
+            "31 条件で中身が変わるマクロを 1 つの文で 2 つ使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE f = VTYPE(1); return f.x; }",
             ""
         },
         {
             // 31 の書き換え。文を分ければ、続けて書いた文もそれぞれ複製する。
-            "32 条件で中身が変わるマクロを文ごとに分けて使う",
+            "32 条件で中身が変わるマクロを文ごとに分けて使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\n#ifdef _B\n#define VTYPE float2\n#else\n#define VTYPE float\n#endif\nfloat F() { CTYPE d = 1; VTYPE e = 1; return d.x + e.x; }",
             ""
         },
         {
             // #ifdef _B の領域は文ごと複製するが、その中の CTYPE は複製しない (1 つの単位で複製するのは 1 回まで)。
             // CTYPE は既定の構成の値でしか展開されないので、_A は構成ごとに展開する。
-            "34 条件で中身が変わるマクロを使う文の中に #if がある",
+            "34 条件で中身が変わるマクロを使用する文の中に #if がある",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() {\n    CTYPE d = CTYPE(\n#ifdef _B\n        1, 2, 3, 4\n#else\n        0, 0, 0, 0\n#endif\n    );\n    return d.x;\n}",
             "_A"
         },
         {
             // 34 の書き換え。#if で分ける部分を、マクロを使わない文にする。
-            "35 #if で分ける部分をマクロを使わない文にする",
+            "35 #if で分ける部分をマクロを使用しない文にする",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define CTYPE float3\n#else\n#define CTYPE float4\n#endif\nfloat F() {\n#ifdef _B\n    float4 init = float4(1, 2, 3, 4);\n#else\n    float4 init = 0;\n#endif\n    CTYPE d = (CTYPE)init;\n    return d.x;\n}",
             ""
         },
@@ -284,13 +284,13 @@ public sealed class VariantShapeTests
         },
         {
             // #else の側 (!MODE_A、つまり MODE_B) も複製した文として並べる。
-            "11 _ の無い行の #else",
+            "11 _ が存在しない行の #else",
             "#pragma multi_compile MODE_A MODE_B\nfloat F() {\n    float m\n#ifdef MODE_A\n        = 1\n#else\n        = 2\n#endif\n        ;\n    return m;\n}",
             ""
         },
         {
             // USE_A_IN_CODE を使うのは、それを定義した _A の分岐の中だけである。
-            "12 分岐の中で定義したマクロを同じ分岐の中のコードで使う",
+            "12 分岐の中で定義したマクロを同じ分岐の中のコードで使用する",
             "#pragma multi_compile _ _A\n#pragma multi_compile _ _B\n#ifdef _A\n#define USE_A_IN_CODE 1\nfloat G() { return USE_A_IN_CODE; }\n#ifdef _B\nfloat H() { return 2; }\n#endif\n#endif",
             ""
         },

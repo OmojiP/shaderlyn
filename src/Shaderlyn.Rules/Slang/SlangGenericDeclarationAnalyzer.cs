@@ -13,7 +13,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <remarks>
 /// <list type="bullet">
 /// <item>型を書かない値の仮引数 (<c>let N</c>。E30625) と、整数・列挙型・bool でない型の値の仮引数 (<c>let F : float</c>。E30624)</item>
-/// <item>制約に書けない型 (<c>&lt;D : int&gt;</c>・<c>where D : int</c>・構造体の名前。E30401)。値の仮引数なら let と書く</item>
+/// <item>制約に書けない型 (<c>&lt;D : int&gt;</c>・<c>where D : int</c>・構造体の名前。E30401)。値の仮引数の場合は let と書く</item>
 /// <item>制約の型引数が、後ろの仮引数を指すもの (<c>&lt;Foo : IFoo&lt;T&gt;, T : IFloat&gt;</c>。E30117)</item>
 /// <item>extension の型の仮引数のうち、拡張する型に出てこないもの (<c>extension&lt;T&gt; int</c>。E30855)</item>
 /// <item>インターフェイスの static const の要件の初期値 (E30623。SG0101)</item>
@@ -97,7 +97,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     && i + 2 < tokens.Length && tokens[i + 2].Kind is not (ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.DotToken or ShaderSyntaxKind.ColonColonToken))
                 {
                     Report(SlangRuleDescriptors.GenericParameterForm, tokens[i + 1],
-                        $"インターフェイス {tokens[i + 1].Text} は extension で広げられません。適合する型すべてに足すなら extension<T : {tokens[i + 1].Text}> T と書いてください。");
+                        $"インターフェイス {tokens[i + 1].Text} は extension で広げられません。適合する型すべてに追加する場合は extension<T : {tokens[i + 1].Text}> T と書いてください。");
                 }
             }
 
@@ -168,7 +168,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     && (entry == "shader" || compilation.Environment is not Semantics.Environments.SlangEnvironment { Target: "cuda" or "ptx" }))
                 {
                     Report(SlangRuleDescriptors.GenericParameterForm, token,
-                        $"エントリポイント '{token.Text}' のジェネリックの仮引数が決まりません。slangc の -specialize か API (specialize) で型引数を決めるなら、設定ファイルの slang: generic-entry-points を true にしてください。");
+                        $"エントリポイント '{token.Text}' のジェネリックの仮引数が決まりません。slangc の -specialize か API (specialize) で型引数を決める場合は、設定ファイルの slang: generic-entry-points を true にしてください。");
                 }
 
                 // where D : int (宣言の後ろの where)
@@ -191,7 +191,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                         && tokens[j + 3].Kind == ShaderSyntaxKind.IdentifierToken
                         && DescribeNonInterface(tokens[j + 3].Text, kinds, binder) is { } what)
                     {
-                        Report(SlangRuleDescriptors.GenericParameterForm, tokens[j + 3], $"{tokens[j + 3].Text} は{what}なので、制約に書けません。{(what == "組み込みの型" ? $"値の仮引数なら let {constrained.Name.Text} : {tokens[j + 3].Text} と書いてください。" : "インターフェイスを書いてください。")}");
+                        Report(SlangRuleDescriptors.GenericParameterForm, tokens[j + 3], $"{tokens[j + 3].Text} は{what}なので、制約に書けません。{(what == "組み込みの型" ? $"値の仮引数の場合は let {constrained.Name.Text} : {tokens[j + 3].Text} と書いてください。" : "インターフェイスを書いてください。")}");
                     }
                 }
 
@@ -200,7 +200,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     && (close + 1 >= tokens.Length || tokens[close + 1].Kind != ShaderSyntaxKind.DotToken)
                     && !HasWhereFor(tokens, close, bare.Name.Text))
                 {
-                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[close], $"制約の無い型の仮引数 {bare.Name.Text} は、extension で広げられません。extension<{bare.Name.Text} : IFoo> {bare.Name.Text} のように制約を書いてください。");
+                    Report(SlangRuleDescriptors.GenericParameterForm, tokens[close], $"制約が存在しない型の仮引数 {bare.Name.Text} は、extension で広げられません。extension<{bare.Name.Text} : IFoo> {bare.Name.Text} のように制約を書いてください。");
                 }
 
                 // extension<T> int (拡張する型に出てこない型の仮引数)
@@ -345,8 +345,8 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
         foreach ((string name, ShaderSyntaxToken at) in declared.Where(p => used.Contains(p.Key)))
         {
             report(SlangRuleDescriptors.GenericParameterForm, at,
-                $"ファイル全体のジェネリックの仮引数 '{name}' を、エントリポイントから届くコードで使っています。型引数が決まらないので、slangc はコンパイルの誤り (E38207) にします。"
-                + "slangc の -specialize か API で型引数を決めるなら、設定ファイルの slang: generic-entry-points を true にしてください。");
+                $"ファイル全体のジェネリックの仮引数 '{name}' を、エントリポイントから届くコードで使用しています。型引数が決まらないので、slangc はコンパイルの誤り (E38207) にします。"
+                + "slangc の -specialize か API で型引数を決める場合は、設定ファイルの slang: generic-entry-points を true にしてください。");
         }
     }
 
@@ -461,7 +461,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             else if (brokenDefaults.TryGetValue(name.Text, out (int Index, string Text) broken) && arguments <= broken.Index)
             {
                 report(SlangRuleDescriptors.GenericParameterForm, name,
-                    $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約の無い型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
+                    $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約が存在しない型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
             }
         }
     }
@@ -590,7 +590,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
                 else if (parameter.Constraint is [{ Text: "float" or "double" or "half" } floating])
                 {
-                    report(SlangRuleDescriptors.GenericParameterForm, floating, $"値の仮引数の型に {floating.Text} は使えません。整数か列挙型か bool にしてください。");
+                    report(SlangRuleDescriptors.GenericParameterForm, floating, $"値の仮引数の型に {floating.Text} は使用できません。整数か列挙型か bool にしてください。");
                 }
 
                 continue;
@@ -599,7 +599,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             if (parameter.Constraint is [{ Kind: ShaderSyntaxKind.IdentifierToken } single] && DescribeNonInterface(single.Text, kinds, binder) is { } what)
             {
                 report(SlangRuleDescriptors.GenericParameterForm, single, what == "組み込みの型"
-                    ? $"{single.Text} は制約に書けません。値の仮引数なら let {(parameter.Pack ? "each " : string.Empty)}{parameter.Name.Text} : {single.Text} と書いてください。"
+                    ? $"{single.Text} は制約に書けません。値の仮引数の場合は let {(parameter.Pack ? "each " : string.Empty)}{parameter.Name.Text} : {single.Text} と書いてください。"
                     : $"{single.Text} は{what}なので、制約に書けません。インターフェイスを書いてください。");
                 continue;
             }

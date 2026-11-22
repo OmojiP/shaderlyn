@@ -166,7 +166,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                         && top.FirstOrDefault(t => t.Text == "nonuniformEXT") is { } nonuniform
                         && top.FirstOrDefault(t => Storage.Contains(t.Text) && t.Text != "in") is { } badStorage)
                     {
-                        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, nonuniform, $"nonuniformEXT は、仮引数でない変数では in か記憶域の無いものにだけ書けます ('{badStorage.Text}')。");
+                        requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, nonuniform, $"nonuniformEXT は、仮引数でない変数では in か記憶域が存在しないものにだけ書けます ('{badStorage.Text}')。");
                     }
 
                     // 初期値のある、配列か配列を含む構造体の変数 (glslang の declareVariable と executeInitializer の containsArray と arrayObjectCheck)。
@@ -376,7 +376,7 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
             if (io && program.Tree.Root.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>()
                     .Any(use => use.Name == name.Text && ReferenceEquals(use.Identifier.Source, program.Tree.Text) && use.Identifier.Span.Start < keyword.Span.Start))
             {
-                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, name, $"使った後の '{name.Text}' には invariant を足せません。宣言に invariant を書いてください。");
+                requirement.Report(GlslRuleDescriptors.QualifierNotAllowed, name, $"使用した後の '{name.Text}' には invariant を足せません。宣言に invariant を書いてください。");
             }
         }
     }

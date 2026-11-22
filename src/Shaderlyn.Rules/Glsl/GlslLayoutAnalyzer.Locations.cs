@@ -325,7 +325,7 @@ internal sealed partial class GlslLayoutAnalyzer
             if (!layout.HasLocation && withLocation && withoutLocation)
             {
                 Invalid(GlslRuleDescriptors.LayoutRequired, at,
-                    "ブロックに location が無いなら、メンバーの location は、すべてに書くか、どれにも書かないかにしてください。");
+                    "ブロックに location が存在しない場合は、メンバーの location は、すべてに書くか、どれにも書かないかにしてください。");
                 return;
             }
 

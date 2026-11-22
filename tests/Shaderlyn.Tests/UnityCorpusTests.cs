@@ -991,7 +991,7 @@ public sealed class UnityCorpusTests(ITestOutputHelper output)
             }
         }
 
-        _output.WriteLine($"理由の記録が無いバリアント: {unexplained.Count}");
+        _output.WriteLine($"理由の記録が存在しないバリアント: {unexplained.Count}");
 
         foreach (string example in unexplained.Take(MaxExamplesPerRule * 2))
         {

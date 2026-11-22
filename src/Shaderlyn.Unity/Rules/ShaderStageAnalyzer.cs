@@ -74,7 +74,7 @@ internal sealed class ShaderStageAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>ステージの指定が足りない Pass について、Unity がすること。</summary>
-    private const string PassExcluded = "Unity はこの Pass をコンパイルから外し、SubShader ごと使えなくなります。";
+    private const string PassExcluded = "Unity はこの Pass をコンパイルから外し、SubShader ごと使用できなくなります。";
 
     /// <summary>
     /// 頂点とフラグメントの片方だけを指定しているなら、足りない方の <c>#pragma</c> を返す。

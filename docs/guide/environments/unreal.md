@@ -1,8 +1,10 @@
 # Unreal Engine
 
-`environment: unreal` で、Unreal Engine の `.usf` / `.ush` を解析します。フォルダーを指定すると `.usf` を探します。エンジン本体が無くても動きます。
+`environment: unreal` で、Unreal Engine の `.usf` / `.ush` を解析します。フォルダーを指定すると `.usf` を探します。エンジン本体が存在しなくても動きます。
+`environment` を書いていない場合も、`.usf` / `.ush` は Unreal Engine の環境で解析します ([環境の選び方](../environments.md#環境の選び方))。
+ただし、`/Engine/...` の取り込みを解決するには、設定ファイルにエンジンの場所 (`unreal: engine`) を書く必要があります。
 
-ほかの環境と共通の使い方は [CLI の使い方](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unreal) にあります。
+ほかの環境と共通の使用方法は [CLI の使用方法](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unreal) にあります。
 
 ## 目次
 
@@ -34,7 +36,7 @@ units:
 ```
 
 - **パーミュテーションは、既定では C++ から読みません。** `SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください。
-  `unreal: permutations: true` にすると、`--unreal-generate` が C++ から読んだパーミュテーションを構成の軸にします ([下記](#c-から生成されるファイルを作る))
+  `unreal: permutations: true` にすると、`--unreal-generate` が C++ から読み取ったパーミュテーションを構成の軸にします ([下記](#c-から生成されるファイルを作る))
 - コンパイラと言語のバージョンは、汎用の HLSL と同じ表に従います ([汎用の HLSL「コンパイラと言語のバージョン」](hlsl.md#コンパイラと言語のバージョン))
 
 テンプレートとサンプルが [samples/environments/unreal](../../../samples/environments/unreal/) にあります。
@@ -68,16 +70,16 @@ uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりと
   | マテリアルのシェーダー (`/Engine/Generated/Material.ush` を、ヘッダを経由しても取り込むもの) | HLSL 2018 |
 
   シェーダーの C++ が `CFLAG_HLSL2021` で個別に 2021 にすることがある (Nanite・Lumen・パストレーシングなど) ので、
-  2018 で読むシェーダーでも、template・演算子の多重定義・ビットフィールドは誤りにしません。
-  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで読みます。エンジンのフォルダーが無いときの既定は 2018 です。
+  2018 で解析するシェーダーでも、template・演算子の多重定義・ビットフィールドは誤りにしません。
+  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで読みます。エンジンのフォルダーが存在しないときの既定は 2018 です。
   `--env` に、どう決めたかを表示します
 - `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
   プロジェクトの設定で値の変わるもの（`UE_LWC_RENDER_TILE_SIZE_*`、作業色空間の行列 `WORKING_COLOR_SPACE_*` など）と、
-  パーミュテーションの `DIM_*` は定義しません。使っている場合は `defines` / `symbols:` に書いてください。
+  パーミュテーションの `DIM_*` は定義しません。使用している場合は `defines` / `symbols:` に書いてください。
   C++ から生成されるファイルがあれば、これらの名前は値を特定できない状態でも「宣言されている」ものとして扱います (CF0310 にしません)
 - マテリアルから生成される `/Engine/Generated/Material.ush` が定義するマクロ（`INPUT_POSITION_QUALIFIERS`、`OPTIONAL_IsFrontFace` など）は、
-  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使う行が構文エラー (CF0001) になります。
+  そのままでは分かりません。マテリアルのシェーダー（`BasePassPixelShader.usf` など）では、これらを使用する行が構文エラー (CF0001) になります。
   C++ から生成されるファイルを作れば、その `Material.ush` が定義します ([下記](#c-から生成されるファイルを作る))
 
 > 既定のマクロは、PC の Direct3D 12 を想定した値です。プロジェクトのプラットフォームやエンジンのバージョンと合わないところがあれば、
@@ -106,13 +108,13 @@ unreal:
 | --- | --- |
 | `UniformBuffers/<名前>.ush`、`GeneratedUniformBuffers.ush` | uniform buffer の宣言。`View.ViewSizeAndInvSize` と `View_ViewSizeAndInvSize` のどちらの書き方でも解決できます。`Scene` も含みます |
 | `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
-| `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は分からないので、名前だけを「宣言されている」ものとして扱います |
+| `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は不明なため、名前だけを「宣言されている」ものとして扱います |
 | `ShaderlynShaderRegistrations.tsv` | シェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など。登録を包んだ独自のマクロも展開して読みます)。`.usf` ごとのエントリポイントとステージ |
 | `ShaderlynShaderClasses.tsv` | シェーダーのクラスが定義するマクロとパーミュテーション、どの組もコンパイルされないクラス、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED` など) |
 | `Material.ush`、`UniformBuffers/Material.ush` | マテリアルの代わり。エンジンの `MaterialTemplate.ush` の、マテリアルごとに埋まる穴を、何もしない中身で埋めたもの (下記) |
 | `VertexFactory.ush` | 頂点ファクトリ (`IMPLEMENT_VERTEX_FACTORY_TYPE`) の `.ush` を、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込むもの |
 | `ShaderlynVertexFactoryDefines.ush` | 頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロを、`SHADERLYN_VERTEX_FACTORY` の値で選んで定義するもの |
-| `ShaderlynGenerationStamp.tsv` | 読んだ ini の中身のハッシュと、C++ のファイルの一覧・更新日時・大きさ。生成した後に変わったかを確認するのに使います |
+| `ShaderlynGenerationStamp.tsv` | 読み込んだ ini の中身のハッシュと、C++ のファイルの一覧・更新日時・大きさ。生成した後に変わったかを確認するのに使用します |
 
 - **プロジェクトの設定 (コンソール変数) を読みます。** エンジンはプロジェクトの設定から、どのシェーダーにもマクロを定義し (`GlobalBeginCompileShader`)、
   シェーダーのクラスもそれを見てコンパイルするかを決めます (`Substrate::IsSubstrateEnabled()` など)。
@@ -123,19 +125,19 @@ unreal:
 - **マテリアルのシェーダーも、宣言を検査します。** エンジンは `Material.ush` を、マテリアルごとに `MaterialTemplate.ush` の穴 (`%{num_material_texcoords}` など) を埋めて作ります。
   Shaderlyn は、どのマテリアルでもない代わりを作ります。数を表す穴は `0`、値を返す関数は `0` を返すもの、
   `FPixelMaterialInputs` のメンバーは C++ のマテリアルの属性の一覧から埋め、ほかは空にします。
-  マテリアルのノードが書くコード (カスタムノードなど) は分からないので、それに関わる誤りは見つけられません。
+  マテリアルのノードが書くコード (カスタムノードなど) は不明なため、それに関わる誤りは見つけられません。
   作った `Material.ush` の中は、利用者のコードとしては検査しません
 - **頂点ファクトリは、シェーダーのクラスに合わせて選びます。** メッシュに描くマテリアルのシェーダー (`FMeshMaterialShader` の派生) は、
   頂点ファクトリごとにコンパイルされます。`ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読みます
   (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ読みます)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
   (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
-  そうでなければ 1 つ (コンパイルされるなら `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで読みます
+  そうでなければ 1 つ (コンパイルされる場合は `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで解析します
 - **マテリアルのブレンドモードは、既定のマテリアルと同じ不透明にします** (`MATERIALBLENDING_SOLID=1`)。
-  エンジンはマテリアルごとに `MATERIALBLENDING_*` のどれか 1 つを定義します。半透明などのマテリアルでだけ通る分岐は読みません
+  エンジンはマテリアルごとに `MATERIALBLENDING_*` のどれか 1 つを定義します。半透明などのマテリアルでだけ有効になる分岐は解析しません
 - 生成ファイルがない場合、マテリアルのシェーダーでは従来どおり宣言の検査を行いません (UE0002。不要な場合は `rules:` で `UE0002: none` に設定します)
 - マテリアルの「使用する対象」のフラグ (Used with Geometry Cache など) は C++ から決められないので、`unreal: permutations: true` では、どのフラグも立ちうるものとして頂点ファクトリを選びます。
   UE 5.5 のエンジンでは `VolumetricFogVoxelization.usf` に CF0313 が報告されます。ボリュームのマテリアルに Geometry Cache・Beam/Trail・APEX クロスのフラグが立つと、
-  エンジンがコンパイルして失敗する組み合わせで、エンジンのコードにある食い違いです
+  エンジンがコンパイルして失敗する組み合わせで、エンジンのコードにある不一致です
 - 宣言の型は、エンジンと同じ規則で C++ の型から決めます (`FVector4f` → `float4` など)。認識できない型は `float4` として扱い、`--unreal-generate` の出力に記載します
 - 生成したファイルは、エンジンかプロジェクトの C++ や ini を変更した場合に再生成してください。バージョン管理に含める必要はありません。
   **再生成が必要な場合は、解析開始時に通知します** (CLI は標準エラー、VS Code 拡張は通知)。

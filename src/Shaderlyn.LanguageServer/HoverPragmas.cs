@@ -33,39 +33,39 @@ internal static partial class HoverBuilder
         ["vertex"] = "頂点シェーダーのエントリポイントを指定する。",
         ["fragment"] = "フラグメント (ピクセル) シェーダーのエントリポイントを指定する。",
         ["geometry"] = "ジオメトリシェーダーのエントリポイントを指定する。`#pragma target 4.0` 以上が必要になる。",
-        ["hull"] = "ハルシェーダーのエントリポイントを指定する。テッセレーションに使い、`#pragma target 4.6` 以上が必要になる。",
-        ["domain"] = "ドメインシェーダーのエントリポイントを指定する。テッセレーションに使い、`#pragma target 4.6` 以上が必要になる。",
+        ["hull"] = "ハルシェーダーのエントリポイントを指定する。テッセレーションに使用し、`#pragma target 4.6` 以上が必要になる。",
+        ["domain"] = "ドメインシェーダーのエントリポイントを指定する。テッセレーションに使用し、`#pragma target 4.6` 以上が必要になる。",
         ["kernel"] =
-            "コンピュートシェーダーのカーネルを宣言する。C# からは `FindKernel` で名前を引いて `Dispatch` する。"
+            "コンピュートシェーダーのカーネルを宣言する。C# からは `FindKernel` で名前から取得して `Dispatch` する。"
             + "名前の後ろに書いたマクロは、このカーネルのコンパイルでだけ定義される。",
         ["surface"] = "サーフェスシェーダーの関数と照明モデルを指定する。ビルトインレンダーパイプライン専用。",
-        ["target"] = "シェーダーモデルの下限を指定する。満たさない GPU では、この SubShader は使われない。",
+        ["target"] = "シェーダーモデルの下限を指定する。満たさない GPU では、この SubShader は使用されない。",
         ["require"] =
-            "必要な GPU の機能を個別に指定する (`geometry`、`compute` など)。満たさない GPU では、この SubShader は使われない。"
+            "必要な GPU の機能を個別に指定する (`geometry`、`compute` など)。満たさない GPU では、この SubShader は使用されない。"
             + "`int64` / `native16bit` / ウェーブの命令 (`wavebasic` など) / `barycentrics` などの値は、パスを DXC (HLSL 2018) でコンパイルさせ、"
-            + "DX11 では使えなくなる。`inlineraytracing` は Unity 6.4 から DXC になる。",
+            + "DX11 では使用できなくなる。`inlineraytracing` は Unity 6.4 から DXC になる。",
         ["only_renderers"] = "指定したグラフィックス API に対してだけコンパイルする。",
         ["exclude_renderers"] = "指定したグラフィックス API に対してはコンパイルしない。",
         ["skip_variants"] = "指定したシンボルを含むバリアントをコンパイルしない。",
         ["instancing_options"] = "GPU インスタンシングの動作を調整する (`assumeuniformscaling`、`procedural:関数名` など)。",
         ["hardware_tier_variants"] = "グラフィックスの階層 (Tier) ごとにバリアントを作る。",
-        ["editor_sync_compilation"] = "エディタでこのシェーダーを非同期にコンパイルせず、使う前に同期でコンパイルする。",
+        ["editor_sync_compilation"] = "エディタでこのシェーダーを非同期にコンパイルせず、使用する前に同期でコンパイルする。",
         ["enable_d3d11_debug_symbols"] = "D3D11 向けにデバッグ情報を付けてコンパイルする。最適化も弱まるため、調査が済んだら外す。",
         ["use_dxc"] =
             "DXC (HLSL 2018) でコンパイルする。API を書くとその API だけ (`vulkan`、6.6 から `dx12`。6.5 以前の DX12 は `d3d11`。`d3d12` は無視される)。"
-            + "6.5 以前は API を書かないと DX11 も DXC になり、DX11 では使えなくなる。include ファイルの中に書いても、2023.2 以降は効かない。",
+            + "6.5 以前は API を書かないと DX11 も DXC になり、DX11 では使用できなくなる。include ファイルの中に書いても、2023.2 以降は反映されない。",
         ["once"] =
-            "このファイルを 1 度だけ取り込む (DXC / FXC)。Unity は効かせない (2022.3 / 6.3 / 6.6 で確かめた)。"
-            + "Unity では `#ifndef` / `#define` / `#endif` のインクルードガードを使う (UN0101)。",
+            "このファイルを 1 度だけ取り込む (DXC / FXC)。Unity では無効 (2022.3 / 6.3 / 6.6 で確認した)。"
+            + "Unity では `#ifndef` / `#define` / `#endif` のインクルードガードを使用する (UN0101)。",
         ["never_use_dxc"] =
-            "DXC を使わず、FXC でコンパイルする。6.5 以前は DXC が要る `require` より優先され、6.6 からは `require` に負ける。"
+            "DXC を使用せず、FXC でコンパイルする。6.5 以前は DXC が必要な `require` より優先され、6.6 からは `require` に負ける。"
             + "6.6 の Shader Compiler Backend の DXC の設定には勝つ。",
         ["multi_compile_fog"] =
             "霧のモード (`FOG_LINEAR` / `FOG_EXP` / `FOG_EXP2`) ごとのバリアントを作る。"
-            + "ビルドでは、プロジェクトで使っていない霧のモードのバリアントが取り除かれる。",
+            + "ビルドでは、プロジェクトで使用していない霧のモードのバリアントが取り除かれる。",
         ["multi_compile_instancing"] =
             "GPU インスタンシング用のバリアント (`INSTANCING_ON` など) を作る。"
-            + "マテリアルで Enable GPU Instancing を有効にしたときに使われる。",
+            + "マテリアルで Enable GPU Instancing を有効にしたときに使用される。",
         ["multi_compile_fwdbase"] = "ビルトインの ForwardBase パスに必要なバリアント (ライトマップ、影、球面調和など) を作る。",
         ["multi_compile_fwdadd"] = "ビルトインの ForwardAdd パスに必要なバリアント (ライトの種類ごと) を作る。追加ライトの影は含まない。",
         ["multi_compile_fwdadd_fullshadows"] = "`multi_compile_fwdadd` に加え、追加ライトの影に必要なバリアントも作る。",
@@ -84,8 +84,8 @@ internal static partial class HoverBuilder
     internal static readonly (string Prefix, string Description)[] KeywordPragmaDescriptions =
     [
         ("shader_feature",
-            "マテリアルが使っているシンボルの組み合わせだけを、バリアントとしてビルドに含める。"
-            + "**どのマテリアルも使っていないバリアントはビルドで取り除かれるため、実行時にスクリプトから有効にしても効かない。**"),
+            "マテリアルが使用しているシンボルの組み合わせだけを、バリアントとしてビルドに含める。"
+            + "**どのマテリアルも使用していないバリアントはビルドで取り除かれるため、実行時にスクリプトから有効にしても反映されない。**"),
         ("multi_compile",
             "列挙したシンボルのすべての組み合わせを、バリアントとしてビルドに含める。"
             + "実行時に切り替えられるが、バリアントの数は宣言ごとに掛け算で増える。"),
@@ -267,7 +267,7 @@ internal static partial class HoverBuilder
             "surface" => index switch
             {
                 0 => "サーフェスシェーダーの関数。",
-                1 => $"照明モデル。`Lighting{argument.Text}` という名前の関数が使われる。",
+                1 => $"照明モデル。`Lighting{argument.Text}` という名前の関数が使用される。",
                 _ => null,
             },
 

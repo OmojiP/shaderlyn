@@ -129,11 +129,16 @@ internal sealed class SrpBatcherAnalyzer : SemanticRuleAnalyzer
 
             if (FindUniformOutsideBuffer(compilation, property.Name, bufferName))
             {
-                context.ReportDiagnostic(
+                Diagnostic diagnostic = Diagnostic.Create(
                     RenderPipelineRuleDescriptors.SrpBatcherIncompatible,
-                    property.Declaration.NameToken.Span,
+                    Location.Create(compilation.Text, property.Declaration.NameToken.Span),
                     property.Name,
                     bufferName);
+
+                // バッファが 1 つで、外の宣言を移しても意味が変わらない場合は、移す修正を添える。
+                context.ReportDiagnostic(MaterialBufferFix.Create(compilation.Text.Content, property.Name, bufferName) is { } fix
+                    ? diagnostic.WithFix(fix)
+                    : diagnostic);
             }
         }
     }

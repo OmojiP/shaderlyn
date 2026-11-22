@@ -932,7 +932,7 @@ public static partial class UnrealUniformBufferGenerator
     {
         if (!definition.UnknownMacros.IsEmpty)
         {
-            reasons.Add($"{definition.Name} の {string.Join(" / ", definition.UnknownMacros.Distinct(StringComparer.Ordinal))} を読めない");
+            reasons.Add($"{definition.Name} の {string.Join(" / ", definition.UnknownMacros.Distinct(StringComparer.Ordinal))} を解析できない");
         }
     }
 

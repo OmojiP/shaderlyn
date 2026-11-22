@@ -1,4 +1,4 @@
-# 環境ごとの使い方
+# 環境ごとの使用方法
 
 Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 のエンジンなど)、Unreal Engine、GLSL、Godot、Slang、WGSL、独自エンジンのシェーダーを解析します。
 どのエンジンと言語のシェーダーとして解析するかを「環境」と呼び、設定ファイルの `environment` で選びます。このページは、環境ごとの設定と違いをまとめたものです。解析ルールと出力方法 (CLI・VS Code 拡張・GitHub Actions) は、どの環境でも共通です。
@@ -12,7 +12,7 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 - [環境ごとのページ](#環境ごとのページ)
 - [環境によって変わること](#環境によって変わること)
 - [独自エンジン](#独自エンジン)
-- [CI で使う](#ci-で使う)
+- [CI で使用する](#ci-で使用する)
 
 ## 環境の選び方
 
@@ -29,6 +29,16 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 | `wgsl` | WGSL (WebGPU。[WGSL](environments/wgsl.md)) | `.wgsl` |
 | (自前のホストが追加した名前) | 独自エンジン ([下記](#独自エンジン)) | ホストが決める |
 
+環境を決めていない場合 (`environment` も `--environment` もない場合) は Unity の環境で解析しますが、次の拡張子のファイルは拡張子で環境を決めます。
+
+| 拡張子 | 環境 | 環境を決めている場合 |
+| --- | --- | --- |
+| GLSL・Godot・Slang・WGSL の拡張子 (`.vert` / `.gdshader` / `.slang` / `.wgsl` など) | その言語の環境 | 決めた環境が集めない拡張子なら、その言語の環境で解析する |
+| `.usf` / `.ush` | Unreal Engine | 決めた環境で解析する (`.usf` は HLSL なので、どの HLSL の環境でも解析できる) |
+
+フォルダーを指定した場合、`.ush` (取り込まれる側のヘッダ) は単体では解析しません。
+`.mesh` は Unity のメッシュのアセットと同じ拡張子なので、拡張子では GLSL にしません。GLSL として解析するには `environment: glsl` を書きます。
+
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、明示的に指定した場合に限り解析します。
 
 HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) は、`environment` に関係なく、拡張子に応じた環境で解析します。
@@ -42,8 +52,8 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 
 | ページ | 内容 |
 | --- | --- |
-| [Unity](environments/unity.md) | プロジェクトと Unity Editor の指定、Library の無いマシンでの解析 (`--unity-generate`)、レンダーパイプライン、FXC と DXC の選ばれ方 |
-| [汎用の HLSL (DXC)](environments/hlsl.md) | コンパイル単位 (`units:`) と構成の軸 (`symbols:`)、コンパイラと言語のバージョンで使える構文 |
+| [Unity](environments/unity.md) | プロジェクトと Unity Editor の指定、Library が存在しないマシンでの解析 (`--unity-generate`)、レンダーパイプライン、FXC と DXC の選ばれ方 |
+| [汎用の HLSL (DXC)](environments/hlsl.md) | コンパイル単位 (`units:`) と構成の軸 (`symbols:`)、コンパイラと言語のバージョンで使用できる構文 |
 | [Unreal Engine](environments/unreal.md) | エンジンとプロジェクトの仮想パス、C++ から生成されるファイル (`--unreal-generate`)、解析の前提 |
 | [GLSL](environments/glsl.md) | glslang と同じ検査、`glsl: target` (Vulkan / OpenGL)、ステージと `#version` の決め方 |
 | [Godot](environments/godot.md) | Godot 4.7.2 と同じ検査、`project.godot` と `res://`、レンダラーの決め方 |
@@ -57,12 +67,12 @@ shaderlyn Shaders --env      # どの環境で、何を解析するかを表示�
 | 構成の軸 | `#pragma multi_compile` / `shader_feature` / `dynamic_branch` | 設定ファイルの `symbols:` |
 | エントリポイント | `#pragma vertex` / `fragment` / `kernel` など | 設定ファイルの `units:` の `entry` |
 | コンパイラと言語のバージョン | パスと API ごとに判定する。既定は FXC、`#pragma use_dxc` などで DXC の 2018 ([Unity](environments/unity.md#シェーダーのコンパイラ)) | `hlsl: compiler` と `hlsl: version` (汎用の HLSL は DXC の 2021。Unreal はエンジンの設定に合わせてシェーダーごとに決める) |
-| 宣言されていないシンボル (CF0201) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが条件に使われるため) |
+| 宣言されていないシンボル (CF0201) | 下線で始まる大文字の名前 (`_NORMALMAP`) を報告 | 報告しない (`_DEBUG` などが条件に使用されるため) |
 | Unity だけのルール | SL / UN / URP | 報告しない |
 | Unity だけのオプション | `--profile` / `--unity-project` / `--unity-editor` | 指定するとエラー |
 | VS Code の構成の選択 | `#pragma` で宣言したシンボル | `symbols:` のシンボル。値を持つシンボルは `QUALITY = 2` のように値を選ぶ |
 
-GLSL は `#version` と拡張で使える書き方が決まり、構成の軸は `symbols:`、エントリポイントは `main` です ([GLSL](environments/glsl.md))。
+GLSL は `#version` と拡張で使用できる書き方が決まり、構成の軸は `symbols:`、エントリポイントは `main` です ([GLSL](environments/glsl.md))。
 
 ## 独自エンジン
 
@@ -71,15 +81,15 @@ GLSL は `#version` と拡張で使える書き方が決まり、構成の軸は
 
 独自の書き方を持たないエンジン (`-D` を変えて DXC でコンパイルするだけ) は、[汎用の HLSL](environments/hlsl.md) で対応できます。
 
-## CI で使う
+## CI で使用する
 
-GitHub Action は設定ファイルの `environment` に従います。設定ファイルを使わないなら、入力の `environment` で選びます。
+GitHub Action は設定ファイルの `environment` に従います。設定ファイルを使用しない場合は、入力の `environment` で選びます。
 Unity 以外の環境では Unity プロジェクトの `Library/` は不要で、GitHub のホストランナーでも実行できます。
 Unity の環境でも、`--unity-generate` で解析に必要なヘッダを生成してリポジトリに含めれば、ホストランナーで実行できます
 ([CI に組み込む「GitHub-hosted runner で実行する」](ci-setup.md#1-github-hosted-runner-で実行する))。
 
 ```yaml
-- uses: OmojiP/shaderlyn/action@v0.3.4
+- uses: OmojiP/shaderlyn/action@v0.3.5
   with:
     paths: Shaders
     environment: hlsl      # 省略時は設定ファイルの environment

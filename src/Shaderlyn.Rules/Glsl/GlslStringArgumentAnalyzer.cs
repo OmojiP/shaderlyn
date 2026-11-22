@@ -132,7 +132,7 @@ internal sealed class GlslStringArgumentAnalyzer : SemanticRuleAnalyzer
             {
                 if (i + 2 >= literal.Length - 1 || !char.IsAsciiHexDigit(literal[i + 2]))
                 {
-                    return "\\x の後には 16 進数の桁が要ります";
+                    return "\\x の後には 16 進数の桁が必要です";
                 }
             }
             else if (next is not ('\\' or '"' or '\'' or '?' or 'a' or 'b' or 'f' or 'n' or 'r' or 't' or 'v') && next is not (>= '0' and <= '7'))

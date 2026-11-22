@@ -5,7 +5,7 @@
 //   node <このファイル> <フォルダー>   # そのフォルダーの下の .cs を書き換える
 //
 // 名前の置き換えだけを行い、書き換えたファイルを並べる。bin / obj / .git の下は見ない。
-// 置き換えたあとにビルドし、残ったエラーは docs/guide/migration-0.3.0.md の「スクリプトでは置き換えないもの」を見て直す。
+// 置き換えたあとにビルドし、残ったエラーは docs/guide/migration-0.3.0.md の「スクリプトでは置き換えないもの」を見て修正する。
 // ファイルを直接書き換えるので、先にコミットしておくこと。
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";

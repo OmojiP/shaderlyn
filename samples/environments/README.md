@@ -57,6 +57,6 @@ shaderlyn samples/environments/hlsl --env
 - シェーダーを開いて保存すると、上の表の指摘が報告される
 - エディタの右上の「条件のシンボルを選ぶ」で構成を選ぶと、効いていない `#if` の範囲が薄くなる。
   hlsl では `QUALITY = 0 / 1 / 2` のように値を選ぶ。unreal では `PERMUTATION_SAMPLES = 2` を選ぶと `#if PERMUTATION_SAMPLES > 1` の中が濃くなる
-- hlsl の `Hlsl2021.hlsl` で `MaxOf(1.0, adapt.Scale())` を `MaxOf(1.0f, adapt.Scale())` か `MaxOf<float>(1.0, adapt.Scale())` に直すと、HL0345 が消える
-- glsl の `lit.vert` の `out vec3 vNormal;` を `layout(location = 1) out vec3 vNormal;` に直すと、GL0104 が消える。`.shaderlyn.yaml` の `glsl: target` を消しても消える (どちら向けか決めないので)
+- hlsl の `Hlsl2021.hlsl` で `MaxOf(1.0, adapt.Scale())` を `MaxOf(1.0f, adapt.Scale())` か `MaxOf<float>(1.0, adapt.Scale())` に書き換えると、HL0345 が消える
+- glsl の `lit.vert` の `out vec3 vNormal;` を `layout(location = 1) out vec3 vNormal;` に書き換えると、GL0104 が消える。`.shaderlyn.yaml` の `glsl: target` を消しても消える (どちら向けか決めないので)
 - hlsl / unreal / glsl では、`#pragma` の補完と説明は出ない (Unity の書き方なので)

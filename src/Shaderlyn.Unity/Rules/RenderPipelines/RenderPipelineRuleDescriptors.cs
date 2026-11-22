@@ -78,10 +78,10 @@ internal static class RenderPipelineRuleDescriptors
     public static DiagnosticDescriptor ObsoleteApi { get; } = new(
         id: "URP0003",
         title: "このレンダーパイプラインで推奨されない API を使用しています",
-        messageFormat: "'{0}' は {1} では推奨されません。代わりに {2} を使ってください。",
+        messageFormat: "'{0}' は {1} では推奨されません。代わりに {2} を使用してください。",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "Built-in レンダーパイプライン向けの API を SRP のシェーダーで使っています。"
+        description: "Built-in レンダーパイプライン向けの API を SRP のシェーダーで使用しています。"
             + "多くは互換のために残されているだけで、SRP Batcher やインスタンシングと"
             + "組み合わせたときに正しく動かないことがあります。"
             + "このルールは、対象のシェーダーが実際に SRP のヘッダを取り込んでいる場合にのみ適用されます。",

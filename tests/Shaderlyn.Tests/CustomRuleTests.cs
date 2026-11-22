@@ -45,11 +45,11 @@ public sealed class CustomRuleTests
     {
         public static DiagnosticDescriptor Rule { get; } = new(
             id: "TEST0001",
-            title: "half を使わない",
-            messageFormat: "型 '{0}' は使わないでください。",
+            title: "half を使用しない",
+            messageFormat: "型 '{0}' は使用しないでください。",
             category: "Usage",
             defaultSeverity: DiagnosticSeverity.Warning,
-            description: "このプロジェクトでは half を使わない決まりです。");
+            description: "このプロジェクトでは half を使用しない決まりです。");
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 

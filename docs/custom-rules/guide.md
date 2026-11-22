@@ -1,15 +1,15 @@
 # 自作ルールの書き方の手引き
 
 [自作ルールの作り方](tutorial.md) で最初のルールを動かしたあとに読むページです。
-ShaderLab を見るルール、ファイル単位の集計、セマンティックモデルの使い方、外部データの受け渡しと、ルールを書くときの原則をまとめています。
+ShaderLab を見るルール、ファイル単位の集計、セマンティックモデルの使用方法、外部データの受け渡しと、ルールを書くときの原則をまとめています。
 
 ## 目次
 
 - [1. ShaderLab を見るルール](#1-shaderlab-を見るルール)
 - [2. ファイル単位の集計](#2-ファイル単位の集計)
-- [3. セマンティックモデルを使う](#3-セマンティックモデルを使う)
+- [3. セマンティックモデルを使用する](#3-セマンティックモデルを使用する)
 - [4. 外部データの受け渡し](#4-外部データの受け渡し)
-  - [閾値ひとつなら設定ファイルのオプションで足ります](#閾値ひとつなら設定ファイルのオプションで足ります)
+  - [閾値ひとつの場合は設定ファイルのオプションで十分です](#閾値ひとつの場合は設定ファイルのオプションで十分です)
 - [5. ルールを書くときの原則](#5-ルールを書くときの原則)
   - [言語の規則をルールの側に書き写さない](#言語の規則をルールの側に書き写さない)
 
@@ -43,7 +43,7 @@ public sealed class PassNeedsNameAnalyzer : DiagnosticAnalyzer
 `RegisterNodeAction` が歩くのは ShaderLab の構文木だけです。
 埋め込み HLSL はコードブロックごとに別の構文木になっており、マクロ展開と `#include` の解決を経て
 初めて出来上がるので、ShaderLab の木からは辿れません。
-HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `ShaderRuleAnalyzer` を使ってください。
+HLSL を見たいときは [3 章](tutorial.md#3-ルールを書く)の `ShaderRuleAnalyzer` を使用してください。
 
 ---
 
@@ -80,10 +80,10 @@ Roslyn の `RegisterCompilationStartAction` / `RegisterSymbolStartAction` と同
 
 ---
 
-## 3. セマンティックモデルを使う
+## 3. セマンティックモデルを使用する
 
 `Properties` と uniform の対応のような、層をまたぐ情報が必要な場合は、セマンティックモデルを参照します。
-`ShaderRuleAnalyzer` を使っていれば `c.Compilation` から直接取得できます。
+`ShaderRuleAnalyzer` を使用していれば `c.Compilation` から直接取得できます。
 
 ```csharp
 context.RegisterSyntaxTreeAction(c =>
@@ -122,7 +122,7 @@ foreach (PropertySymbol property in unity.Properties)
 }
 ```
 
-`ShaderRuleAnalyzer` を使っていれば、この歩き方は基底クラスが行います。
+`ShaderRuleAnalyzer` を使用していれば、この歩き方は基底クラスが行います。
 ノードは既定の構成の木とバリアントの木の両方から、それぞれの文脈で渡ってきます (`c.Program`)。
 同じ位置のコードは `Pass` と構成の数だけ渡りますが、同じ内容の報告は 1 度にまとまります。
 
@@ -131,10 +131,10 @@ foreach (PropertySymbol property in unity.Properties)
 ([API リファレンス](api-reference.md#数えるルールは構成ごとに数える))。
 
 識別子がどの変数を指すかは、名前で宣言を探さずに
-`c.Compilation.GetExpressionTypeBinder(c.Program).ResolveName(identifier)` で引いてください。
+`c.Compilation.GetExpressionTypeBinder(c.Program).ResolveName(identifier)` で取得してください。
 別の関数に同じ名前の局所変数があっても取り違えず、決められない場合は `Undecidable` を返します
 ([ルール API](api-reference.md#resolvename))。
-使う側と宣言の側が別の構成の木に載ることがあるので、1 つの木で `NotFound` だったことだけを根拠に報告しないでください。
+使用する側と宣言の側が別の構成の木に載ることがあるので、1 つの木で `NotFound` だったことだけを根拠に報告しないでください。
 
 ---
 
@@ -168,13 +168,13 @@ ImmutableArray<DiagnosticAnalyzer> analyzers =
 return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, Console.Error);
 ```
 
-YAML なら `YamlDotNet`、CSV なら `CsvHelper`、JSON なら `System.Text.Json` がそのまま使えます。
-INI なら数行の自作パーサでも足ります。
+YAML には `YamlDotNet`、CSV には `CsvHelper`、JSON には `System.Text.Json` がそのまま使用できます。
+INI の場合は数行の自作パーサでも十分です。
 
 可変の状態は持てませんが、読み取り専用のデータは持って構いません。
-全ファイルで共有され、並列に読まれるだけだからです。
+全ファイルで共有され、並列に読み取られるだけだからです。
 
-### 閾値ひとつなら設定ファイルのオプションで足ります
+### 閾値ひとつの場合は設定ファイルのオプションで十分です
 
 `.shaderlyn.yaml` の `rules:` に書いたオプションは、ルールから参照できます。
 一覧やテーブルは外部ファイルにしてください。
@@ -204,9 +204,9 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 - 未知の命令名・タグ名・属性名を誤りにしないでください。Unity のバージョンで増えます
 - `Cull [_Cull]` のようなプロパティ参照は検証しないでください。実際の値はマテリアル側で決まります
 - 波線はできるだけ狭くしてください。ノード全体ではなく問題のトークンだけを指してください
-- 検査を見送ったなら、そのことを報告する
-- `WithSuggestedReplacement` は、直し方が一意に決まるときだけ添えてください。
-  エディタが 1 回の操作で適用できてしまうので、推測で添えると誤りが広がります
+- 検査を見送った場合は、そのことを報告する
+- `WithSuggestedReplacement` と、`IsPreferred` を `true` にした `WithFix` は、修正の方法が一意に決まるときだけ添えてください。
+  エディタが 1 回の操作で適用できてしまうので、推測で添えると誤りが広がります。候補から選んでもらう修正は `IsPreferred` を `false` にします
 - `ResolveCall` の `Declaration` が `null` でも「呼ばれていない」とは限りません。
   `Ambiguous` と `Unknown` は「調べたが決められなかった」場合で、
   指摘の根拠にしてよいのは `Resolved` だけです
@@ -214,12 +214,12 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 ### 言語の規則をルールの側に書き写さない
 
 文字列を切り刻んで求めたものは、書き方が増えたときに気づけないまま取りこぼします。
-同じ判定をする仕組みが用意してあるので、そちらを使ってください。
+同じ判定をする仕組みが用意してあるので、そちらを使用してください。
 
-- リテラルの値は `ShaderLiteral` で読んでください。`int.TryParse(token.Text)` では `0x10` も `2u` も読めず、
+- リテラルの値は `ShaderLiteral` で解析してください。`int.TryParse(token.Text)` では `0x10` も `2u` も解析できず、
   「数字で書かれていない」として検査が素通りします
-- 配列の長さは `TryGetArrayLength` で読んでください。多次元の場合も積で返ります
-- 型名の分解は `compilation.TypeSystem` (`ShaderTypeSystem`) で行ってください。`Texture2D` の `2D` を成分数と読み違えず、HLSL 以外の言語 (`vec3` など) も同じ形で読めます
+- 配列の長さは `TryGetArrayLength` で取得してください。多次元の場合も積で返ります
+- 型名の分解は `compilation.TypeSystem` (`ShaderTypeSystem`) で行ってください。`Texture2D` の `2D` を成分数と取り違えず、HLSL 以外の言語 (`vec3` など) も同じ形で扱えます
 - 式の型は `GetExpressionTypeBinder(program)` が返すものから求めてください。
   `ExpressionTypeBinder` を自分で `new` すると、ノードごとに宣言と構造体のフィールドを
   集め直すため、走査が二乗になります
@@ -229,6 +229,6 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 ## 関連
 
 - [自作ルールの作り方](tutorial.md) — プロジェクトの用意から、CLI とエディタで動かすまで
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
 - [ルール API リファレンス](api-reference.md) — 型とメンバーの一覧
 - [トラブルシューティング「自作ルール」](../guide/troubleshooting.md#自作ルール) — 指摘が出ない、TOOL0001 / 0005 / 0006 が出る

@@ -202,7 +202,7 @@ public sealed class GlslRuleTests : IDisposable
     }
 
     /// <summary>
-    /// デスクトップでは組み込み関数を宣言し直せる (GL0405 は ES だけ)。1.10 では変数が関数を隠さない (GL0312)。
+    /// デスクトップでは組み込み関数を再宣言できる (GL0405 は ES だけ)。1.10 では変数が関数を隠さない (GL0312)。
     /// ES の 1.00 では、形の違う関数と関数の外の変数に組み込み関数の名前を使える。
     /// </summary>
     [Theory]
@@ -871,7 +871,7 @@ public sealed class GlslRuleTests : IDisposable
         Assert.Contains("CF0401", output, StringComparison.Ordinal);
         Assert.Contains("'before'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("'after'", output, StringComparison.Ordinal);
-        Assert.Contains("より後ろの位置で、宣言が無いことを根拠にする検査", output, StringComparison.Ordinal);
+        Assert.Contains("より後ろの位置で、宣言が存在しないことを根拠にする検査", output, StringComparison.Ordinal);
     }
 
     /// <summary>精度の文、名前を並べた invariant、特殊化の定数の組み込みは、既にある名前に修飾子を足す宣言の誤りにしない。</summary>

@@ -149,7 +149,7 @@ public sealed class GlslBuiltinsTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(glslang) || !File.Exists(glslang))
         {
-            _output.WriteLine("SHADERLYN_GLSLANG が無いため飛ばします。");
+            _output.WriteLine("SHADERLYN_GLSLANG が存在しないため飛ばします。");
             return;
         }
 
@@ -189,7 +189,7 @@ public sealed class GlslBuiltinsTests(ITestOutputHelper output)
 
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
-            _output.WriteLine("SHADERLYN_GLSL_CORPUS が無いため飛ばします。");
+            _output.WriteLine("SHADERLYN_GLSL_CORPUS が存在しないため飛ばします。");
             return;
         }
 

@@ -4,8 +4,8 @@
 最初のルールが動いたら、[自作ルールの書き方の手引き](guide.md) に進んでください。
 
 > **AI のコーディングエージェントに書かせるとき**は、[skills/shaderlyn-custom-rule](../../skills/shaderlyn-custom-rule/SKILL.md) をプロジェクトの
-> `.claude/skills/shaderlyn-custom-rule/SKILL.md` に写してください (Claude Code の Skill の形式です。ほかのエージェントでも、指示として読ませれば使えます)。
-> 組み込みのルールで足りないかを先に確認すること、ソースを文字列で調べず構文木とセマンティックモデルで判定することを、エージェントに守らせます。
+> `.claude/skills/shaderlyn-custom-rule/SKILL.md` に写してください (Claude Code の Skill の形式です。ほかのエージェントでも、指示として読ませれば使用できます)。
+> 組み込みのルールで不足していないかを先に確認すること、ソースを文字列で調べず構文木とセマンティックモデルで判定することを、エージェントに守らせます。
 
 ## 目次
 
@@ -30,7 +30,7 @@
 
 ## 1. 実例集を利用する
 
-使いたいものに近い例が [ルールの実例集](cookbook.md) にあれば、そのまま使用するか、調整することを推奨します。
+使用したいものに近い例が [ルールの実例集](cookbook.md) にあれば、そのまま使用するか、調整することを推奨します。
 
 実例集の実物は [samples/Shaderlyn.Cookbook](../../samples/Shaderlyn.Cookbook) にあります。
 [2 章](#2-プロジェクトを用意する)のプロジェクトにファイルをコピーしてください。
@@ -61,7 +61,7 @@ dotnet add MyShaderRules package Shaderlyn.Semantics
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Shaderlyn.Semantics" Version="(使うバージョン)" />
+    <PackageReference Include="Shaderlyn.Semantics" Version="(使用するバージョン)" />
   </ItemGroup>
 
 </Project>
@@ -81,7 +81,7 @@ dotnet add MyShaderRules package Shaderlyn.Semantics
 
 ## 3. ルールを書く
 
-「`half` 系の型を使わない」というルールを書いてみます。
+「`half` 系の型を使用しない」というルールを書いてみます。
 
 ### 3-1. ルールを定義する
 
@@ -92,18 +92,18 @@ internal static class MyRules
 {
     public static DiagnosticDescriptor NoHalf { get; } = new(
         id: "MY0001",
-        title: "half 系の型を使わない",
-        messageFormat: "型 '{0}' は使わないでください。float を使ってください。",
+        title: "half 系の型を使用しない",
+        messageFormat: "型 '{0}' は使用しないでください。float を使用してください。",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
-        description: "このプロジェクトは精度差による見た目の破綻を避けるため half を使いません。"
+        description: "このプロジェクトは精度差による見た目の破綻を避けるため half を使用しません。"
             + "モバイル向けの最適化が必要な箇所は、レビューで個別に判断します。");
 }
 ```
 
 - ID は「英大文字の接頭辞 + 4 桁」です。組み込みの `CF` / `HL` / `SL` / `UN` / `URP` / `UE` / `TOOL` と
   ぶつからない接頭辞を選んでください
-- 詳細ページがあるなら `helpLinkUri` も渡してください
+- 詳細ページがある場合は `helpLinkUri` も渡してください
 
 ### 3-2. アナライザを作成
 
@@ -115,7 +115,7 @@ HLSL のノードを見るので `ShaderRuleAnalyzer` を継承します。
 [HLSL のノード型](api-reference.md#hlsl-のノード型) にあります。
 
 基底型で登録すると派生型すべてで発火します。
-「式すべて」を見たいなら `ExpressionSyntax`、「文すべて」なら `StatementSyntax` です。
+「式すべて」を見たい場合は `ExpressionSyntax`、「文すべて」の場合は `StatementSyntax` です。
 
 
 ```csharp
@@ -214,11 +214,11 @@ public sealed class NoHalfAnalyzerTests
 
 | `ShaderRuleVerifier`        | できること                                                                    |
 | --------------------------- | ----------------------------------------------------------------------------- |
-| `AddInclude(path, content)` | `#include` で取り込めるファイルをその場で与える。ディスクを読まない           |
+| `AddInclude(path, content)` | `#include` で取り込めるファイルをその場で与える。ディスクから読み込まない     |
 | `WithOptions(options)`      | 重要度の上書きなど、設定ファイル相当の設定を与える                            |
 | `WithPredefinedMacros(...)` | 解析開始時に定義済みとするマクロを与える                                      |
 | `Analyze(source, filePath)` | 解析して指摘を返す。`.compute` を渡せばコンピュートシェーダーとして解析される |
-| `Describe(diagnostics)`     | 表明が落ちたときに何が出ていたかを見せる                                      |
+| `Describe(diagnostics)`     | 表明が落ちたときに何が出ていたかを示す                                        |
 
 ---
 
@@ -252,7 +252,7 @@ dotnet add MyShaderRules.Cli reference MyShaderRules
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Shaderlyn.Cli" Version="(使うバージョン)" />
+    <PackageReference Include="Shaderlyn.Cli" Version="(使用するバージョン)" />
     <ProjectReference Include="..\MyShaderRules\MyShaderRules.csproj" />
   </ItemGroup>
 
@@ -272,7 +272,7 @@ using Shaderlyn.Cli;
 using Shaderlyn.Core.Analysis;
 
 // Windows の既定のコードページのままだと、指摘の日本語が文字化けする。
-// コンソールの無い環境では設定に失敗するが、解析には関係ないのでそのまま続ける
+// コンソールが存在しない環境では設定に失敗するが、解析には関係ないのでそのまま続ける
 try
 {
     Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
@@ -341,7 +341,7 @@ dotnet add MyShaderRules.Lsp reference MyShaderRules
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Shaderlyn.LanguageServer" Version="(使うバージョン)" />
+    <PackageReference Include="Shaderlyn.LanguageServer" Version="(使用するバージョン)" />
     <ProjectReference Include="..\MyShaderRules\MyShaderRules.csproj" />
   </ItemGroup>
 
@@ -398,7 +398,7 @@ dotnet publish MyShaderRules.Lsp -c Release -r win-x64 -o bin
 **publish するプロジェクトを指定してください。** ソリューションのあるフォルダーで引数なしに実行すると、
 テストを含む全プロジェクトが 1 つのフォルダーへ出力されます（`NETSDK1194` の警告が出ます）。
 
-publish した実行ファイルを VS Code から使う手順は [VS Code 拡張の README](../../editors/vscode/README.md#自作ルールを使う) にあります。
+publish した実行ファイルを VS Code から使用する手順は [VS Code 拡張の README](../../editors/vscode/README.md#自作ルールを使用する) にあります。
 
 ---
 
@@ -413,7 +413,7 @@ publish した実行ファイルを VS Code から使う手順は [VS Code 拡�
 
 ## 関連
 
-- [ルールの実例集](cookbook.md) — 写して直せば動く例
-- [CI に組み込む](../guide/ci-setup.md) — 自作ルール入りのツールをリリースし、CI で使う方法
+- [ルールの実例集](cookbook.md) — 写して書き換えれば動く例
+- [CI に組み込む](../guide/ci-setup.md) — 自作ルール入りのツールをリリースし、CI で使用する方法
 - [ルール API リファレンス](api-reference.md) — 型とメンバーの一覧
 - [設計判断「配布と拡張」](../internals/design-decisions.md#配布と拡張) — なぜ C# で書き、DLL を動的に読み込まないか

@@ -149,18 +149,18 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
 
                 if (!WgslTypes.IsDataType(element))
                 {
-                    report(WgslRuleDescriptors.InvalidTypeForDeclaration, element.First, $"配列の要素に {element} は使えません。");
+                    report(WgslRuleDescriptors.InvalidTypeForDeclaration, element.First, $"配列の要素に {element} は使用できません。");
                 }
                 else if (types.ContainsRuntimeArray(element))
                 {
-                    report(WgslRuleDescriptors.InvalidTypeForDeclaration, element.First, $"配列の要素に、大きさを決めない配列 (を含む型) {element} は使えません。");
+                    report(WgslRuleDescriptors.InvalidTypeForDeclaration, element.First, $"配列の要素に、大きさを決めない配列 (を含む型) {element} は使用できません。");
                 }
 
                 break;
             }
 
             case "binding_array" when arguments.Length >= 1 && arguments[0].Name == "texture_external":
-                report(WgslRuleDescriptors.InvalidTypeForDeclaration, arguments[0].First, "binding_array の要素に texture_external は使えません。");
+                report(WgslRuleDescriptors.InvalidTypeForDeclaration, arguments[0].First, "binding_array の要素に texture_external は使用できません。");
                 break;
         }
 
@@ -185,7 +185,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
 
             if (!WgslTypes.IsDataType(type))
             {
-                report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"構造体のメンバー '{name}' に {type} は使えません (データの型だけが使えます)。");
+                report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"構造体のメンバー '{name}' に {type} は使用できません (データの型だけが使用できます)。");
             }
             else if (type.IsRuntimeArray && i != members.Length - 1)
             {
@@ -227,12 +227,12 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
         if (space is null && declaration.Type.NameToken.Text is not ("var" or "let" or "const" or "override") && !WgslTypes.HandleTypes.Contains(type.Name))
         {
             report(WgslRuleDescriptors.InvalidTypeForDeclaration, at,
-                $"アドレス空間を書かない var には、テクスチャ・サンプラーなどの資源の型だけが使えます ({type})。var<private> などのアドレス空間を書いてください。");
+                $"アドレス空間を書かない var には、テクスチャ・サンプラーなどの資源の型だけが使用できます ({type})。var<private> などのアドレス空間を書いてください。");
         }
 
         if (space is "private" or "function" or "workgroup" && type.Name == "binding_array")
         {
-            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<{space}> に binding_array は使えません。");
+            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<{space}> に binding_array は使用できません。");
         }
 
         if (space is "storage" or "uniform" && type is { Name: "binding_array", Arguments: [{ } element, ..] } && types.MembersOf(element.Name) is null)
@@ -242,7 +242,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
 
         if (space == "immediate" && types.ContainsScalar(type, s => s is "f16" or "i16" or "u16"))
         {
-            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<immediate> に 16 ビットの型 (f16・i16・u16) を含む型 {type} は使えません。");
+            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<immediate> に 16 ビットの型 (f16・i16・u16) を含む型 {type} は使用できません。");
         }
 
         if (space is "workgroup" or "storage" or "uniform" or "immediate" && declaration.Variables.FirstOrDefault() is { Initializer: { } } declarator
@@ -254,7 +254,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
         // 大きさを決めない配列は storage にだけ置ける。
         if (space is not null and not "storage" && types.ContainsRuntimeArray(type))
         {
-            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<{space}> に大きさを決めない配列 (を含む型) {type} は使えません。");
+            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"var<{space}> に大きさを決めない配列 (を含む型) {type} は使用できません。");
         }
     }
 
@@ -272,7 +272,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
             }
             else if (types.ContainsRuntimeArray(type))
             {
-                report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"関数の仮引数 '{parameter.Name}' に、大きさを決めない配列 (を含む型) {type} は使えません。");
+                report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"関数の仮引数 '{parameter.Name}' に、大きさを決めない配列 (を含む型) {type} は使用できません。");
             }
             else if (type is { Name: "ptr", Arguments: [_, { } pointee, ..] } && types.ContainsRuntimeArray(pointee))
             {
@@ -290,7 +290,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
 
         if (result.Name == "ptr" || !WgslTypes.IsDataType(result) || types.ContainsAtomic(result) || types.ContainsRuntimeArray(result))
         {
-            report(WgslRuleDescriptors.InvalidTypeForDeclaration, function.ReturnType.NameToken, $"関数の戻り値に {result} は使えません (ポインター・資源・アトミック・大きさを決めない配列を含む型は返せません)。");
+            report(WgslRuleDescriptors.InvalidTypeForDeclaration, function.ReturnType.NameToken, $"関数の戻り値に {result} は使用できません (ポインター・資源・アトミック・大きさを決めない配列を含む型は返せません)。");
         }
     }
 
@@ -310,7 +310,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
         if (keyword == "var"
             && (type.Name is "ptr" or "binding_array" || WgslTypes.HandleTypes.Contains(type.Name) || types.ContainsAtomic(type) || types.ContainsRuntimeArray(type)))
         {
-            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"局所の var に {type} は使えません (ポインター・資源・アトミック・大きさを決めない配列を含む型は置けません)。");
+            report(WgslRuleDescriptors.InvalidTypeForDeclaration, at, $"局所の var に {type} は使用できません (ポインター・資源・アトミック・大きさを決めない配列を含む型は置けません)。");
         }
 
         if (keyword is "let" or "const" && OverrideSized(overrides, type))
@@ -356,7 +356,7 @@ internal sealed class WgslTypeAnalyzer : SemanticRuleAnalyzer
         }
         else if (count == 0 && Semantics.Symbols.WgslTypeSystem.IsTypeGenerator(name.Text) && name.Text.StartsWith("mat", StringComparison.Ordinal))
         {
-            report(WgslRuleDescriptors.InvalidTypeArgument, name, $"型引数も実引数も無い {name.Text}() は、要素の型が決まりません。{name.Text}<f32>() のように型引数を書いてください。");
+            report(WgslRuleDescriptors.InvalidTypeArgument, name, $"型引数も実引数も存在しない {name.Text}() は、要素の型が決まりません。{name.Text}<f32>() のように型引数を書いてください。");
         }
     }
 

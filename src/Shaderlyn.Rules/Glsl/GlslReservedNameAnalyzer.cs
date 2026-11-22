@@ -15,7 +15,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// <remarks>
 /// <para>
 /// <c>gl_</c> で始まる名前の変数・仮引数・ブロックのメンバーとインスタンスの名前を報告する。
-/// 関数の外で、組み込みの変数を宣言し直せる場合 (デスクトップの 1.30 以降・ES の 3.20 以降か <c>GL_EXT_shader_io_blocks</c> の、
+/// 関数の外で、組み込みの変数を再宣言できる場合 (デスクトップの 1.30 以降・ES の 3.20 以降か <c>GL_EXT_shader_io_blocks</c> の、
 /// <c>gl_ClipDistance</c>、<c>gl_FragDepth</c> など決まった名前) は報告しない。
 /// <c>gl_</c> で始まる名前のブロック (<c>out gl_PerVertex { … }</c>) は、組み込みのブロックの宣言し直しなので見ない。
 /// </para>
@@ -29,7 +29,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
     private const string SpirvIntrinsics = "GL_EXT_spirv_intrinsics";
     private const string ConservativeDepth = "GL_EXT_conservative_depth";
 
-    /// <summary>関数の外で宣言し直せる組み込みの変数 (glslang の redeclareBuiltinVariable の名前の一覧)。版と言語で決まるものは別に見る。</summary>
+    /// <summary>関数の外で再宣言できる組み込みの変数 (glslang の redeclareBuiltinVariable の名前の一覧)。版と言語で決まるものは別に見る。</summary>
     private static readonly FrozenSet<string> Redeclarable = FrozenSet.ToFrozenSet(
     [
         "gl_ClipDistance", "gl_CullDistance", "gl_ShadingRateEXT", "gl_PrimitiveShadingRateEXT",
@@ -144,7 +144,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
             return false;
         }
 
-        requirement.Report(GlslRuleDescriptors.ReservedName, at, name.Text, "このバージョンと拡張ではキーワードなので、名前に使えません。");
+        requirement.Report(GlslRuleDescriptors.ReservedName, at, name.Text, "このバージョンと拡張ではキーワードなので、名前に使用できません。");
         return true;
     }
 
@@ -152,7 +152,7 @@ internal sealed class GlslReservedNameAnalyzer : SemanticRuleAnalyzer
     /// <param name="requirement">版と拡張。</param>
     /// <param name="name">名前のトークン。</param>
     /// <param name="at">報告する位置。</param>
-    /// <param name="mayRedeclare">組み込みの変数を宣言し直せる場所 (関数の外の変数) か。</param>
+    /// <param name="mayRedeclare">組み込みの変数を再宣言できる場所 (関数の外の変数) か。</param>
     private static void Check(GlslRequirements requirement, ShaderSyntaxToken name, ShaderSyntaxToken at, bool mayRedeclare)
     {
         string text = name.Text;

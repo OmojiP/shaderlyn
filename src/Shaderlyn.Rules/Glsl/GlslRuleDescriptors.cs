@@ -20,11 +20,11 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor NotAvailable { get; } = new(
         id: "GL0001",
-        title: "このバージョンと拡張では使えません",
+        title: "このバージョンと拡張では使用できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "#version で決まる言語のバージョンとプロファイル、#extension で有効にした拡張、作る SPIR-V のバージョンでは使えない機能を使っています。"
+        description: "#version で決まる言語のバージョンとプロファイル、#extension で有効にした拡張、作る SPIR-V のバージョンでは使用できない機能を使用しています。"
             + "glslang はコンパイルの誤りにします。拡張を有効にするか、バージョンを上げてください。",
         helpLinkUri: DocumentationLinks.For("GL0001"));
 
@@ -32,11 +32,11 @@ internal static class GlslRuleDescriptors
     /// <remarks>glslang の <c>requireStage</c> (「not supported in this stage」) に当たる。</remarks>
     public static DiagnosticDescriptor NotAvailableInStage { get; } = new(
         id: "GL0002",
-        title: "このステージでは使えません",
-        messageFormat: "{0} は{1}では使えません。",
+        title: "このステージでは使用できません",
+        messageFormat: "{0} は{1}では使用できません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "ファイルの拡張子で決まるステージ (.vert は頂点シェーダー、.frag はフラグメントシェーダーなど) では使えない機能を使っています。"
+        description: "ファイルの拡張子で決まるステージ (.vert は頂点シェーダー、.frag はフラグメントシェーダーなど) では使用できない機能を使用しています。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0002"));
 
@@ -79,7 +79,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "layout(…) に、GLSL に無い名前か、このステージでは使えない名前を書いています。値を取る名前 (location など) に値を書いていないときも当たります。"
+        description: "layout(…) に、GLSL に無い名前か、このステージでは使用できない名前を書いています。値を取る名前 (location など) に値を書いていないときも当たります。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0102"));
 
@@ -110,7 +110,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "宣言に要る layout の指定 (SPIR-V を作るときのブロックの binding、入力と出力の location など) を書いていません。"
+        description: "宣言に必要な layout の指定 (SPIR-V を作るときのブロックの binding、入力と出力の location など) を書いていません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0104"));
 
@@ -118,11 +118,11 @@ internal static class GlslRuleDescriptors
     /// <remarks>glslang の「wrong operand types: no operation '+' exists that takes …」と「wrong operand type」に当たる。文の <c>{0}</c> は、どの演算子をどの型に使ったか。</remarks>
     public static DiagnosticDescriptor WrongOperandTypes { get; } = new(
         id: "GL0301",
-        title: "この型には演算子を使えません",
+        title: "この型には演算子を使用できません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "演算子を、使えない型の組 (vec3 + vec4、float + bool、mat4 * vec3、ベクトルの < など) に使っています。"
+        description: "演算子を、使用できない型の組 (vec3 + vec4、float + bool、mat4 * vec3、ベクトルの < など) に使用しています。"
             + "GLSL には、成分の数を変える暗黙の変換も、bool から数への暗黙の変換もありません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0301"));
 
@@ -147,7 +147,7 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "組み込み関数の、定数でなければならない実引数 (textureOffset のオフセット、サブグループのクラスターの大きさなど) に、"
-            + "変数や仮引数を使う式を渡しています。glslang はコンパイルの誤りにします。",
+            + "変数や仮引数を使用する式を渡しています。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0303"));
 
     /// <summary>組み込み関数の実引数の値が、使える範囲の外にある。</summary>
@@ -158,7 +158,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "{0} は {1} でなければなりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "組み込み関数の実引数の値が、使える範囲の外にあります (テクセルのオフセットは -8 から 7、textureGather の成分の番号は 0 から 3 など)。"
+        description: "組み込み関数の実引数の値が、使用できる範囲の外にあります (テクセルのオフセットは -8 から 7、textureGather の成分の番号は 0 から 3 など)。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0304"));
 
@@ -175,7 +175,7 @@ internal static class GlslRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "テッセレーションの制御シェーダーの barrier() と、beginInvocationInterlockARB() / endInvocationInterlockARB() は、"
             + "main の中で、if・ループ・switch・?: の外に、return より前に書かなければなりません。"
-            + "サンプラーの値の作成 (sampler2D(t, s)) は、使う場所 (組み込み関数の実引数など) に直接書かなければなりません。glslang はコンパイルの誤りにします。",
+            + "サンプラーの値の作成 (sampler2D(t, s)) は、使用する場所 (組み込み関数の実引数など) に直接書かなければなりません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0305"));
 
     /// <summary>組み込み関数に、決まった種類の変数でなければならない実引数として、別のものを渡している。</summary>
@@ -219,7 +219,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "大きさの決まっていない配列 '{0}' を{1}。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "大きさを書かずに宣言した配列 (buffer のブロックの最後のメンバーを除く) は、定数でない添字で引けず、length() も使えません。"
+        description: "大きさを書かずに宣言した配列 (buffer のブロックの最後のメンバーを除く) は、定数でない添字で参照できず、length() も使用できません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0308"));
 
@@ -242,11 +242,11 @@ internal static class GlslRuleDescriptors
     /// <remarks>glslang の <c>rValueErrorCheck</c> (「can't read from writeonly object」) に当たる。文の <c>{0}</c> は変数。</remarks>
     public static DiagnosticDescriptor WriteOnlyRead { get; } = new(
         id: "GL0310",
-        title: "writeonly の値を読んでいます",
-        messageFormat: "writeonly の '{0}' は読めません。",
+        title: "writeonly の値を読み取っています",
+        messageFormat: "writeonly の '{0}' は読み取れません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "writeonly を付けた buffer のブロック (かそのメンバー) の値を、演算・代入の右辺・初期化子などで読んでいます。glslang はコンパイルの誤りにします。",
+        description: "writeonly を付けた buffer のブロック (かそのメンバー) の値を、演算・代入の右辺・初期化子などで読み取っています。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0310"));
 
     /// <summary>条件が bool のスカラーでない。</summary>
@@ -278,7 +278,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "'{0}' を渡せません。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "メモリの修飾子 (coherent・readonly・writeonly など) を持つイメージを、その修飾子の無い仮引数に渡しています。"
+        description: "メモリの修飾子 (coherent・readonly・writeonly など) を持つイメージを、その修飾子が存在しない仮引数に渡しています。"
             + "または、イメージの形式 (layout(rgba8) など) が仮引数と違います。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0313"));
 
@@ -300,7 +300,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "'{0}': {1}。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "接尾辞の無い整数と u の付いた整数のリテラルは、32 ビット (0xFFFFFFFF) に収まらなければなりません。0 で始まるリテラルは 8 進数なので、8 と 9 は書けません。"
+        description: "接尾辞が存在しない整数と u の付いた整数のリテラルは、32 ビット (0xFFFFFFFF) に収まらなければなりません。0 で始まるリテラルは 8 進数なので、8 と 9 は書けません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0315"));
 
@@ -326,7 +326,7 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ConstantExpressionRequired { get; } = new(
         id: "GL0317",
-        title: "定数の式が要ります",
+        title: "定数の式が必要です",
         messageFormat: "{0}は定数の式でなければなりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -339,7 +339,7 @@ internal static class GlslRuleDescriptors
     /// <remarks>glslang の <c>nonInitConstCheck</c> (「variables with qualifier 'const' must be initialized」) に当たる。文の <c>{0}</c> は変数の名前。</remarks>
     public static DiagnosticDescriptor ConstInitializerRequired { get; } = new(
         id: "GL0318",
-        title: "const の変数には初期値が要ります",
+        title: "const の変数には初期値が必要です",
         messageFormat: "const の変数 '{0}' に初期値がありません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -358,7 +358,7 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "配列を作る式 (float[3](a, b, c)) には、要素ごとに 1 つずつ実引数を渡さなければなりません。"
-            + "実引数の無い形 (float[]()) も書けません。glslang はコンパイルの誤りにします。",
+            + "実引数が存在しない形 (float[]()) も書けません。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0319"));
 
     /// <summary>利用者の関数の呼び出しに合う多重定義が 2 つ以上あり、どれを呼ぶか決まらない。</summary>
@@ -372,7 +372,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "関数 '{0}' の呼び出しには、暗黙の変換で {1} と {2} のどちらも合い、どれを呼ぶか決まりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "利用者の関数の呼び出しに型がすべて同じ宣言が無く、暗黙の変換で合う宣言が 2 つ以上あって、1 つに決まりません。"
+        description: "利用者の関数の呼び出しに型がすべて同じ宣言が存在せず、暗黙の変換で合う宣言が 2 つ以上あって、1 つに決まりません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0320"));
 
@@ -388,7 +388,7 @@ internal static class GlslRuleDescriptors
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "case / default を switch の波括弧の中にそのまま書いていない、同じ値の case や 2 つ目の default がある、"
-            + "最初の case より前に文がある、最後の case の後に文が無い、ループと switch の外に break を書いた、ループの外に continue を書いた、のどれかです。"
+            + "最初の case より前に文がある、最後の case の後に文が存在しない、ループと switch の外に break を書いた、ループの外に continue を書いた、のどれかです。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0321"));
 
@@ -412,12 +412,12 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor FunctionRedeclarationMismatch { get; } = new(
         id: "GL0323",
-        title: "関数の宣言どうしが食い違っています",
+        title: "関数の宣言どうしが一致しません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "仮引数の型が同じ関数を 2 度宣言し (プロトタイプと定義など)、仮引数の記憶域 (in・const in・out・inout) か精度の修飾子、または戻り値の型が前の宣言と違います。"
-            + "GLSL は仮引数の型だけで関数を区別するので、これらは同じ関数の食い違った宣言になります。glslang はコンパイルの誤りにします。",
+            + "GLSL は仮引数の型だけで関数を区別するので、これらは同じ関数の一致しない宣言になります。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0323"));
 
     /// <summary>型の引数が正しくない。</summary>
@@ -443,12 +443,12 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor CooperativeMatrixUse { get; } = new(
         id: "GL0325",
-        title: "協調行列の使い方が正しくありません",
+        title: "協調行列の使用方法が正しくありません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "協調行列 (coopmat、fcoopmatNV など) に、使えない演算子・添字・成分の選択・値の作成を書いています。"
-            + "協調行列どうしの演算は同じ型どうしだけで、スカラーとは要素と同じ型の * だけが使えます。glslang はコンパイルの誤りにします。",
+        description: "協調行列 (coopmat、fcoopmatNV など) に、使用できない演算子・添字・成分の選択・値の作成を書いています。"
+            + "協調行列どうしの演算は同じ型どうしだけで、スカラーとは要素と同じ型の * だけが使用できます。glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0325"));
 
     /// <summary>予約された名前を宣言している。</summary>
@@ -463,7 +463,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "'{0}' は予約された名前です。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "gl_ で始まる名前 (宣言し直せる組み込みの変数を除く) と、ES の 3.00 より前の __ を含む名前は宣言できません。"
+        description: "gl_ で始まる名前 (再宣言できる組み込みの変数を除く) と、ES の 3.00 より前の __ を含む名前は宣言できません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0401"));
 
@@ -474,7 +474,7 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor ArraySizeRequired { get; } = new(
         id: "GL0402",
-        title: "配列の大きさが要ります",
+        title: "配列の大きさが必要です",
         messageFormat: "{0}の配列には、大きさを書かなければなりません。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -489,11 +489,11 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor TypeNotAllowedHere { get; } = new(
         id: "GL0403",
-        title: "その宣言には使えない型です",
-        messageFormat: "'{0}' の型は使えません。{1}",
+        title: "その宣言には使用できない型です",
+        messageFormat: "'{0}' の型は使用できません。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "サンプラーとイメージの型 (とそれを含む構造体) は uniform の変数と仮引数にしか使えません。void の変数と、名前のある void の仮引数は宣言できません。"
+        description: "サンプラーとイメージの型 (とそれを含む構造体) は uniform の変数と仮引数にしか使用できません。void の変数と、名前のある void の仮引数は宣言できません。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0403"));
 
@@ -511,7 +511,7 @@ internal static class GlslRuleDescriptors
     /// <summary>ES で組み込み関数を宣言し直している。</summary>
     public static DiagnosticDescriptor BuiltinRedeclared { get; } = new(
         id: "GL0405",
-        title: "組み込み関数を宣言し直せません",
+        title: "組み込み関数を再宣言できません",
         messageFormat: "'{0}' は組み込み関数の名前です。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
@@ -525,12 +525,12 @@ internal static class GlslRuleDescriptors
     /// </remarks>
     public static DiagnosticDescriptor BuiltinVariableRedeclaration { get; } = new(
         id: "GL0406",
-        title: "組み込みの変数とブロックの宣言し直しが正しくありません",
-        messageFormat: "'{0}' を、この形では宣言し直せません。{1}",
+        title: "組み込みの変数とブロックの再宣言が正しくありません",
+        messageFormat: "'{0}' を、この形では再宣言できません。{1}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "組み込みの変数 (gl_FragCoord・gl_FragDepth・gl_ClipDistance など) とブロック (gl_PerVertex) を宣言し直すときは、型と記憶域を変えられず、変えられる修飾子も決まっています。"
-            + "使った後には宣言し直せないものもあります。ブロックは 1 度だけ、組み込みのメンバーだけで宣言し直せ、含めなかったメンバーは使えなくなります。"
+        description: "組み込みの変数 (gl_FragCoord・gl_FragDepth・gl_ClipDistance など) とブロック (gl_PerVertex) を再宣言するときは、型と記憶域を変えられず、変えられる修飾子も決まっています。"
+            + "使用した後には再宣言できないものもあります。ブロックは 1 度だけ、組み込みのメンバーだけで再宣言でき、含めなかったメンバーは使用できなくなります。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0406"));
 
@@ -543,7 +543,7 @@ internal static class GlslRuleDescriptors
         messageFormat: "'{0}' の精度を決めていません。宣言に highp / mediump / lowp を付けるか、その前で precision mediump {0}; と既定の精度を決めてください。",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "GLSL ES では、既定の精度の無い型 (フラグメントシェーダーの float、ほとんどのサンプラーとイメージ) の宣言に、精度の修飾子が要ります。"
+        description: "GLSL ES では、既定の精度が存在しない型 (フラグメントシェーダーの float、ほとんどのサンプラーとイメージ) の宣言に、精度の修飾子が必要です。"
             + "glslang はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("GL0201"));
 }

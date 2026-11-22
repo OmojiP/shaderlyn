@@ -44,7 +44,7 @@ internal static class WellKnownDescriptors
         messageFormat: "ファイル '{0}' を読み込めませんでした: {1}",
         category: "Tool",
         defaultSeverity: DiagnosticSeverity.Error,
-        description: "対象ファイルが存在しないか、アクセス権限が無いか、他プロセスが排他ロックしています。");
+        description: "対象ファイルが存在しないか、アクセス権限が存在しないか、他プロセスが排他ロックしています。");
 
     /// <summary>
     /// 設定ファイルの内容に問題があることを表す。
@@ -95,10 +95,10 @@ internal static class WellKnownDescriptors
         category: "Tool",
         defaultSeverity: DiagnosticSeverity.Error,
         description: "そのファイルが書いた #include を 1 つも解決できませんでした。"
-            + "Unity のパッケージ (Packages/...) なら Unity プロジェクトのルートを指定し、"
-            + "CI では Library/PackageCache がキャッシュされているかを確かめてください。"
-            + "自前のヘッダなら、パスの書き方と探索パスを確かめてください。"
-            + "ヘッダを引けないまま行った検査は、根拠を欠いたものになります。",
+            + "Unity のパッケージ (Packages/...) の場合は Unity プロジェクトのルートを指定し、"
+            + "CI では Library/PackageCache がキャッシュされているかを確認してください。"
+            + "自前のヘッダの場合は、パスの書き方と探索パスを確認してください。"
+            + "ヘッダを取得できないまま行った検査は、根拠を欠いたものになります。",
         helpLinkUri: DocumentationLinks.For("TOOL0004"));
 
     /// <summary>
