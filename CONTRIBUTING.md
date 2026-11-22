@@ -144,8 +144,8 @@ dotnet test
 
 `v` で始まるタグを push すると、[release.yml](.github/workflows/release.yml) が次を行います。手動では実行できません。
 
-1. CLI と言語サーバーを 5 プラットフォーム向けに Native AOT でビルドし、VS Code 拡張の vsix を作る
-2. Visual Studio 拡張の vsix (言語サーバーは win-x64) と、Rider プラグインの OS と CPU の組ごとの zip (6 つ) を作る
+1. CLI と言語サーバーを 6 プラットフォーム向けに Native AOT でビルドし、言語サーバーの起動を確認して、VS Code 拡張の vsix を作る
+2. Visual Studio 拡張の vsix (言語サーバーは win-x64 と win-arm64) と、Rider プラグインの OS と CPU の組ごとの zip (6 つ) を作る
 3. すべて組めたら、`src/` のライブラリの NuGet パッケージを nuget.org へ公開する
 4. GitHub のリリースを作り、アーカイブ・vsix・zip・チェックサムを添付し、VS Code 拡張を VS Code Marketplace へ公開する
 5. Visual Studio 拡張を Visual Studio Marketplace へ、Rider プラグインを JetBrains Marketplace へ公開する

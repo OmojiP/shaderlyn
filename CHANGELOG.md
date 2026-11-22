@@ -10,6 +10,11 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+### 追加
+
+- Windows の arm64 向けの CLI (`shaderlyn-win-arm64.zip`) と VS Code 拡張 (`shaderlyn-vscode-win32-arm64.vsix`)。
+  Visual Studio 拡張と Rider プラグインも、arm64 の Windows では arm64 の言語サーバーを起動する (これまでは x64 の言語サーバーをエミュレーションで動かしていたので、Windows 10 の arm64 では動かなかった)
+
 ## [0.3.5] - 2026-11-22
 
 ### 追加

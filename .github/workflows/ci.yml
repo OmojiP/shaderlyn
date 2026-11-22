@@ -54,6 +54,9 @@ jobs:
             runtime: linux-x64
           - os: windows-latest
             runtime: win-x64
+          # リリースで初めて arm64 の Windows で組んで失敗しないよう、PR でも組む。
+          - os: windows-11-arm
+            runtime: win-arm64
           - os: macos-latest
             runtime: osx-arm64
 
@@ -114,6 +117,24 @@ jobs:
           fi
 
           echo "解析は最後まで実行できました (終了コード ${code})。"
+
+      # 言語サーバーは CLI と別の実行ファイルなので、AOT で組んで起動し、プロトコルに応えるかを確かめる (release.yml と同じ)。
+      - name: 言語サーバーを AOT publish する
+        run: >
+          dotnet publish src/Shaderlyn.LanguageServer.App/Shaderlyn.LanguageServer.App.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --output artifacts/lsp
+
+      - name: 言語サーバーの起動を確認する
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            bash tools/lsp-smoke.sh artifacts/lsp/shaderlyn-lsp.exe
+          else
+            bash tools/lsp-smoke.sh artifacts/lsp/shaderlyn-lsp
+          fi
 
   extension:
     name: VS Code 拡張のビルド

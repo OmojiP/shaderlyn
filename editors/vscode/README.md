@@ -123,6 +123,7 @@ Marketplace を使用できない環境では、[リリースページ](https://
 | 環境                  | ファイル                                 |
 | --------------------- | ---------------------------------------- |
 | Windows (x64)         | `shaderlyn-vscode-win32-x64.vsix`        |
+| Windows (arm64)       | `shaderlyn-vscode-win32-arm64.vsix`      |
 | macOS (Apple Silicon) | `shaderlyn-vscode-darwin-arm64.vsix`     |
 | macOS (Intel)         | `shaderlyn-vscode-darwin-x64.vsix`       |
 | Linux (x64)           | `shaderlyn-vscode-linux-x64.vsix`        |

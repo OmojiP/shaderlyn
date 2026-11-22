@@ -32,6 +32,7 @@
 | 環境                  | アーカイブ                     |
 | --------------------- | ------------------------------ |
 | Windows (x64)         | `shaderlyn-win-x64.zip`        |
+| Windows (arm64)       | `shaderlyn-win-arm64.zip`      |
 | macOS (Apple Silicon) | `shaderlyn-osx-arm64.tar.gz`   |
 | macOS (Intel)         | `shaderlyn-osx-x64.tar.gz`     |
 | Linux (x64)           | `shaderlyn-linux-x64.tar.gz`   |
@@ -67,7 +68,7 @@ dotnet publish src/Shaderlyn.Cli.App/Shaderlyn.Cli.App.csproj \
   --configuration Release --runtime win-x64 --output ./bin
 ```
 
-`--runtime` は `win-x64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から指定
+`--runtime` は `win-x64` / `win-arm64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から指定
 
 ### パスを通す
 

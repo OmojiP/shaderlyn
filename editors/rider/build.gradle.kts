@@ -63,7 +63,6 @@ intellijPlatform {
     // OS と CPU の組ごとの zip を作る (JetBrains Marketplace が利用者の環境に合うものを配る)。
     // 言語サーバーは Native AOT なので組ごとに違う。-PnativeServerRoot=<フォルダー> に、
     // <runtime>/server/shaderlyn-lsp(.exe) の形で publish した言語サーバーを置いて渡す (runtime は linux-x64 などの .NET の名前)。
-    // Windows の arm64 は x64 の言語サーバーを同梱する (Windows 11 の arm64 は x64 を実行できる。リリースで arm64 を作っていないため)。
     val nativeServerRoot = providers.gradleProperty("nativeServerRoot")
     if (nativeServerRoot.isPresent) {
         val root = file(nativeServerRoot.get())
@@ -79,7 +78,7 @@ intellijPlatform {
             }
             windows {
                 x86_64.from(root.resolve("win-x64"))
-                arm64.from(root.resolve("win-x64"))
+                arm64.from(root.resolve("win-arm64"))
             }
         }
     }

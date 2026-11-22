@@ -41,6 +41,12 @@ jobs:
             archive: zip
             platform: win32
             vscode-target: win32-x64
+          # Native AOT はクロスコンパイルできないので、arm64 の Windows のランナーで組む。
+          - os: windows-11-arm
+            runtime: win-arm64
+            archive: zip
+            platform: win32
+            vscode-target: win32-arm64
           # Intel の mac は macos-13 が 2025-12-04 に廃止された。
           # 公開リポジトリの標準ランナーで Intel なのは macos-15-intel と macos-26-intel だけである。
           - os: macos-26-intel
@@ -137,7 +143,12 @@ jobs:
           name="shaderlyn-${{ matrix.runtime }}"
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            (cd "${staging}" && 7z a "../${name}.zip" .)
+            # arm64 の Windows のランナーに 7z があるとは限らないので、ない場合は PowerShell で圧縮する。
+            if command -v 7z > /dev/null; then
+              (cd "${staging}" && 7z a "../${name}.zip" .)
+            else
+              pwsh -NoProfile -Command "Compress-Archive -Path ${staging}/* -DestinationPath ${name}.zip"
+            fi
           else
             tar -czf "${name}.tar.gz" -C "${staging}" .
           fi
@@ -156,6 +167,17 @@ jobs:
           --runtime ${{ matrix.runtime }}
           --output artifacts/lsp-${{ matrix.runtime }}
           -p:Version=${{ steps.version.outputs.number }}
+
+      # 言語サーバーは CLI と別の実行ファイルなので、その OS と CPU で起動してプロトコルに応えるかを確かめる。
+      - name: 言語サーバーの起動を確認する
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            bash tools/lsp-smoke.sh "artifacts/lsp-${{ matrix.runtime }}/shaderlyn-lsp.exe"
+          else
+            bash tools/lsp-smoke.sh "artifacts/lsp-${{ matrix.runtime }}/shaderlyn-lsp"
+          fi
 
       - uses: actions/setup-node@v7
         with:
@@ -237,6 +259,11 @@ jobs:
           name: lsp-win-x64
           path: artifacts/lsp-win-x64
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: lsp-win-arm64
+          path: artifacts/lsp-win-arm64
+
       - name: vsixmanifest のバージョンをタグと比べる
         shell: pwsh
         run: |
@@ -270,7 +297,8 @@ jobs:
         run: |
           msbuild editors/visualstudio/Shaderlyn.VisualStudio/Shaderlyn.VisualStudio.csproj `
             -restore -p:Configuration=Release -v:minimal `
-            "-p:ShaderlynServerDirectory=${{ github.workspace }}\artifacts\lsp-win-x64"
+            "-p:ShaderlynServerDirectory=${{ github.workspace }}\artifacts\lsp-win-x64" `
+            "-p:ShaderlynArm64ServerDirectory=${{ github.workspace }}\artifacts\lsp-win-arm64"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item editors/visualstudio/Shaderlyn.VisualStudio/bin/Release/net472/Shaderlyn.VisualStudio.vsix shaderlyn-visualstudio.vsix
 
@@ -279,9 +307,11 @@ jobs:
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::OpenRead("shaderlyn-visualstudio.vsix")
-          $found = $zip.Entries | Where-Object FullName -eq 'server/shaderlyn-lsp.exe'
+          $names = $zip.Entries | ForEach-Object FullName
           $zip.Dispose()
-          if (-not $found) { Write-Output "::error::VSIX に server/shaderlyn-lsp.exe がありません。"; exit 1 }
+          foreach ($expected in 'server/shaderlyn-lsp.exe', 'server/arm64/shaderlyn-lsp.exe') {
+            if ($names -notcontains $expected) { Write-Output "::error::VSIX に $expected がありません。"; exit 1 }
+          }
 
       - uses: actions/upload-artifact@v7
         with:
@@ -294,7 +324,6 @@ jobs:
   #
   # 言語サーバーが OS と CPU の組ごとに違うので、組ごとの zip を作る (Gradle の nativeVariants)。
   # JetBrains Marketplace は、plugin.xml の OS と CPU の依存から、利用者の環境に合うものを配る。
-  # Windows の arm64 には x64 の言語サーバーを入れる (build.gradle.kts)。
   # ------------------------------------------------------------------
   rider:
     name: Rider プラグイン

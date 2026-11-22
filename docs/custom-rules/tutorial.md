@@ -299,7 +299,7 @@ publish すると、組み込みと同じ単一バイナリになります。
 dotnet publish MyShaderRules.Cli -c Release -r win-x64 -o bin
 ```
 
-`-r` は `win-x64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から選びます。
+`-r` は `win-x64` / `win-arm64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から選びます。
 Native AOT はクロスコンパイルできないので、対象と同じ OS で publish します。
 AOT にしない場合は `PublishAot` を外すか、`-p:PublishAot=false` を付けてください。
 
@@ -393,7 +393,7 @@ catch (OperationCanceledException)
 dotnet publish MyShaderRules.Lsp -c Release -r win-x64 -o bin
 ```
 
-`-r` は CLI と同じく `win-x64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から選びます。
+`-r` は CLI と同じく `win-x64` / `win-arm64` / `osx-arm64` / `osx-x64` / `linux-x64` / `linux-arm64` から選びます。
 
 **publish するプロジェクトを指定してください。** ソリューションのあるフォルダーで引数なしに実行すると、
 テストを含む全プロジェクトが 1 つのフォルダーへ出力されます（`NETSDK1194` の警告が出ます）。
