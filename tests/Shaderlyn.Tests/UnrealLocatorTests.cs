@@ -67,6 +67,17 @@ public sealed class UnrealLocatorTests : IDisposable
     }
 
     [Fact]
+    public void エンジンのプラグインのファイルならエンジンを見つけ_止める場所より上も見る()
+    {
+        // 言語サーバーでプラグインのフォルダーをワークスペースにした場合。エンジンの中のファイルかどうかは、取り違えがないので止めずに見る。
+        Write("Engine/Plugins/Fx/Shaders/Private/Fx.usf", "");
+
+        UnrealLocations found = UnrealLocator.Find(PathOf("Engine/Plugins/Fx/Shaders/Private/Fx.usf"), stopAt: PathOf("Engine/Plugins/Fx"));
+
+        Assert.Equal(PathOf("Engine"), found.EngineDirectory);
+    }
+
+    [Fact]
     public void 印のファイルがないEngineのShadersはエンジンとみなさない()
     {
         Write("Fake/Engine/Shaders/Private/X.usf", "");

@@ -24,7 +24,7 @@ internal sealed record UnrealLocations(string? EngineDirectory, string? ProjectD
 /// </para>
 /// <list type="number">
 ///   <item>
-///     <b>ファイルがエンジンの中にある。</b> <c>&lt;X&gt;/Engine/Shaders/…</c> のファイルなら、エンジンは <c>&lt;X&gt;/Engine</c> である。
+///     <b>ファイルがエンジンの中にある。</b> <c>&lt;X&gt;/Engine</c> の中のファイル (<c>Engine/Shaders/…</c> とエンジンのプラグインの <c>Engine/Plugins/…/Shaders/…</c>) なら、エンジンは <c>&lt;X&gt;/Engine</c> である。
 ///     ファイルの場所だけで決まる。
 ///   </item>
 ///   <item>
@@ -35,7 +35,7 @@ internal sealed record UnrealLocations(string? EngineDirectory, string? ProjectD
 ///   </item>
 /// </list>
 /// <para>
-/// <b>どこまで上へたどるかは呼び出し側が決める。</b> CLI は止めずにたどり、言語サーバーはワークスペースのルートで止める (利用者の決定)。
+/// <b><c>.uproject</c> をどこまで上へ探すかは呼び出し側が決める</b> (手がかり 1 は取り違えがないので、止める場所より上も見る)。CLI は止めずにたどり、言語サーバーはワークスペースのルートで止める (利用者の決定)。
 /// 同じフォルダーに <c>.uproject</c> が複数あれば、どれか決められないので使わない (そこで探すのをやめる)。
 /// エンジンのフォルダーは、印のファイル (<c>Build/Build.version</c> と <c>Shaders/Public/Platform.ush</c>) があるものだけを使う。
 /// </para>
@@ -66,20 +66,19 @@ internal static class UnrealLocator
 
         string? stop = stopAt is null ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(stopAt));
 
+        bool pastStop = false;
+
         for (DirectoryInfo? directory = first; directory is not null; directory = directory.Parent)
         {
-            // 手がかり 1: <X>/Engine/Shaders の中。
-            if (directory.Name.Equals("Shaders", StringComparison.OrdinalIgnoreCase)
-                && directory.Parent is { } parent
-                && parent.Name.Equals("Engine", StringComparison.OrdinalIgnoreCase)
-                && IsEngine(parent.FullName))
+            // 手がかり 1: <X>/Engine の中 (Engine/Shaders と、エンジンのプラグインの Engine/Plugins/…/Shaders)。
+            if (directory.Name.Equals("Engine", StringComparison.OrdinalIgnoreCase) && IsEngine(directory.FullName))
             {
                 // エンジンのファイルにプロジェクトはない。上へたどると、エンジンの外の無関係な .uproject を掴む。
-                return new UnrealLocations(parent.FullName, null, $"ファイルがエンジンの中にある ({parent.FullName})");
+                return new UnrealLocations(directory.FullName, null, $"ファイルがエンジンの中にある ({directory.FullName})");
             }
 
-            // 手がかり 2: .uproject。
-            string[] projects = SafeGetFiles(directory.FullName, "*.uproject");
+            // 手がかり 2: .uproject。止める場所より上は見ない (手がかり 1 は、ファイル自身がエンジンの中にあるので取り違えがなく、止めずに見る)。
+            string[] projects = pastStop ? [] : SafeGetFiles(directory.FullName, "*.uproject");
 
             if (projects.Length > 1)
             {
@@ -96,7 +95,7 @@ internal static class UnrealLocator
 
             if (stop is not null && Path.TrimEndingDirectorySeparator(directory.FullName).Equals(stop, PathComparison))
             {
-                break;
+                pastStop = true;
             }
         }
 
