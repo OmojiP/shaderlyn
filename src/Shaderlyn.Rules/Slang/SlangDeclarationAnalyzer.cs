@@ -153,7 +153,9 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 foreach (ShaderSyntaxToken name in names)
                 {
-                    if (name.IsMissing || name.Text.Length == 0)
+                    // 名前が void のものは、定義されていないマクロを前に書いたメソッドの読み違い (SETTER_DECL void set(…) を、型 SETTER_DECL のフィールド void と読む。
+                    // マクロの定義を取り込めていない構成)。同じ名前が並んで見えるので比べない (Falcor の LightBVHTypes.slang)。
+                    if (name.IsMissing || name.Text.Length == 0 || name.Text == "void")
                     {
                         continue;
                     }
@@ -234,6 +236,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
 
             // 同じ形の関数の本体の 2 つ目 (E30201「function already has a body」)。ジェネリック・where・コンパイル先の指定のある関数は、制約と先で別のものになりうるので見ない。
             ReportRedefinitions(context, compilation, root, conditions);
+            ReportTargetIntrinsicRedefinitions(context, compilation, root, conditions);
 
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
@@ -421,6 +424,44 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 string.Join(" ", p.ModifierTokens.Select(t => t.Text).Where(t => t is "in" or "out" or "inout" or "ref" or "constref")).Replace("in out", "inout", StringComparison.Ordinal)
                 + " " + p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)) + string.Concat(p.Type.NestedTypeTokens.Select(t => t.Text))
                 + new string('[', p.ArrayDimensions))) + ")";
+
+            if (!first.TryAdd((function.Parent, key), function)
+                && compilation.IsReportable(function.NameToken)
+                && function.NameToken.GetLocation() is { } location
+                && first[(function.Parent, key)].NameToken.GetLocation() is { } earlier)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, location, function.Name,
+                    (earlier.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 同じコンパイル先の <c>__target_intrinsic</c> を書いた、名前と仮引数が同じ関数の 2 つ目を報告する
+    /// (slangc 2026.19 の E30201「function already has a body」。コンパイル先の実装は、そのコンパイル先の本体になる)。
+    /// </summary>
+    /// <remarks>コンパイル先が違うもの (hlsl と glsl) と、本体のある宣言との組は報告しない (コンパイル先ごとの実装を選ぶ書き方)。</remarks>
+    private static void ReportTargetIntrinsicRedefinitions(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root, Semantics.Conditional.ConditionMap conditions)
+    {
+        Dictionary<(object Container, string Key), FunctionDeclarationSyntax> first = [];
+
+        foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            if (function.Parent is null || !conditions.IsAlwaysPresent(function))
+            {
+                continue;
+            }
+
+            ShaderSyntaxToken[] tokens = [.. function.DescendantTokens().TakeWhile(t => !ReferenceEquals(t, function.NameToken))];
+            int at = Array.FindIndex(tokens, t => t.Text == "__target_intrinsic");
+
+            if (at < 0 || at + 2 >= tokens.Length || tokens[at + 1].Kind != ShaderSyntaxKind.OpenParenToken || tokens[at + 2].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            string key = tokens[at + 2].Text + " " + function.Name + string.Concat(function.GenericParameterTokens.Select(t => t.Text))
+                         + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)))) + ")";
 
             if (!first.TryAdd((function.Parent, key), function)
                 && compilation.IsReportable(function.NameToken)

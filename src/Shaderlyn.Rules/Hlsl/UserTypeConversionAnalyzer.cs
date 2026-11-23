@@ -121,6 +121,10 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     CheckArguments(context, compilation, binder, invocation, name, reported);
                     break;
 
+                case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access, HasTypeArguments: false } method:
+                    CheckMethodArguments(context, compilation, binder, program, method, access, reported);
+                    break;
+
                 case BinaryExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.CommaToken } binary:
                     CheckOperands(context, binder, binary, binary.OperatorToken, [binary.Left, binary.Right], reported);
                     break;
@@ -325,6 +329,83 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                 continue;
             }
 
+            CheckConversion(context, binder, receiver, arguments[i], reported);
+        }
+    }
+
+    /// <summary>構造体のメソッドの呼び出し (<c>w.poke(1.0, t)</c>) の実引数を検査する。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="program">対象のプログラム。</param>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="access">メソッドを選ぶ <c>.</c> の式。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// <para>
+    /// 関数の呼び出し (<see cref="CheckArguments"/>) と同じ規則で、受け取る側の値の型の構造体に書いたメソッドだけを候補にする
+    /// (slangc 2026.19 の E30019・E39999「no overload for 'poke' applicable to arguments of type (float, Test)」)。
+    /// </para>
+    /// <para>
+    /// <b>候補がそろっていると分かる構造体だけを見る。</b> 基底の型を持つもの、ジェネリックのもの、<c>extension</c> でメソッドを足せるもの、
+    /// 取り込んだファイルの構造体 (見えていない宣言があるかもしれない) は見ない。
+    /// </para>
+    /// </remarks>
+    private static void CheckMethodArguments(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ExpressionTypeBinder binder,
+        AnalyzedProgram program,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        if (binder.TypeSystem is not SlangTypeSystem && binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion)
+        {
+            return;
+        }
+
+        if (binder.GetEvaluatorFor(access.Target).Evaluate(access.Target) is not { } ownerType
+            || program.Structs.Where(s => s.Name == ownerType).ToArray() is not [{ Keyword.Text: "struct" or "class" } owner]
+            || owner.BaseType is not null
+            || !owner.GenericParameterTokens.IsDefaultOrEmpty
+            || IsSlangConvertible(binder, ownerType)
+            || owner.FirstToken?.Source.FilePath != compilation.Text.FilePath)
+        {
+            return;
+        }
+
+        ImmutableArray<FunctionDeclarationSyntax> methods = [.. owner.Members.OfType<FunctionDeclarationSyntax>().Where(m => m.Name == access.Name)];
+
+        if (methods.IsEmpty || methods.Any(m => !m.GenericParameterTokens.IsDefaultOrEmpty))
+        {
+            return;
+        }
+
+        string name = $"{ownerType}.{access.Name}";
+        string[] shape = [.. methods[0].ParameterList.Select(p => p.Type.Name)];
+
+        if (methods.Any(m => !m.ParameterList.Select(p => p.Type.Name).SequenceEqual(shape)))
+        {
+            if (binder.TypeSystem is SlangTypeSystem)
+            {
+                CheckOverloadedArguments(context, compilation, binder, invocation, name, methods, reported);
+            }
+
+            return;
+        }
+
+        ParameterSyntax[] parameters = [.. methods[0].ParameterList];
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
+        {
+            if (parameters[i].IsArray || parameters[i].ModifierTokens.Any(m => m.Text is "out" or "inout"))
+            {
+                continue;
+            }
+
+            Receiver receiver = new(ReceiverKind.Argument, parameters[i].Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
             CheckConversion(context, binder, receiver, arguments[i], reported);
         }
     }

@@ -100,6 +100,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "class X { int a; };\nX x;\n")]
     [InlineData("SG0102", "[[vk::location(1)]]\nTexture2D tex;\n")]
     [InlineData("SG0304", "struct S { float4 a; };\n[[vk::binding(2, 1)]]\nParameterBlock<S> b;\n")]
+    // 同じコンパイル先の __target_intrinsic が 2 つ (E30201)、メソッドの実引数 (E39999・E30019)
+    [InlineData("CF0314", "__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(hlsl, \"b($0)\")\nfloat d(float x);\n")]
+    [InlineData("CF0401", "struct T { int t; }\nstruct W { float poke(float x, float2 y) { return 0; } float poke(float x, float3 y) { return 0; } }\nfloat f() { W w; T t; return w.poke(1.0, t); }\n")]
+    [InlineData("CF0401", "struct T { int t; }\nstruct W { float take(float2 y) { return 0; } }\nfloat f() { W w; T t; return w.take(t); }\n")]
     // property の名前に演算子 (slangc の E20020)
     [InlineData("CF0001", "struct S\n{\n    property int operator& { get { return 0; } }\n}\n")]
     // 型を書かない let / var は、初期値の式の型になる
@@ -491,6 +495,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // コンパイル先の違う __target_intrinsic、合う実引数のメソッドの呼び出し
+    [InlineData("__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(glsl, \"b($0)\")\nfloat d(float x);\nstruct W { float take(float2 y) { return y.x; } float pick(float x, float2 y) { return x; } float pick(float x, float3 y) { return x; } }\nfloat f() { W w; return w.take(float2(1, 2)) + w.pick(1.0, float3(1, 2, 3)); }\n")]
     // static の class の値、入力の [[vk::location]]、ParameterBlock の binding 0
     [InlineData("class X { int a; };\nstatic X x;\nstruct S { float4 a; };\n[[vk::binding(0, 1)]]\nParameterBlock<S> b;\n[shader(\"fragment\")]\nfloat4 main([[vk::location(0)]] float2 uv : TEXCOORD) : SV_Target { return float4(uv, 0, 1); }\n")]
     // コピーできる型の in の仮引数への [mutating] のメソッドの呼び出し (slangc は警告だけ)、inout のコピーできない型
@@ -682,6 +688,15 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 定義されていないマクロを前に書いたメソッドを重複と取り違えない()
+    {
+        // SETTER_DECL の定義を取り込めていない構成では、SETTER_DECL void set(…) を「型 SETTER_DECL のフィールド void」と読む (Falcor の LightBVHTypes.slang)。
+        string output = await AnalyzeAsync("struct S\n{\n    uint4 data;\n    SETTER_DECL void setA(uint a) { data.x = a; }\n    SETTER_DECL void setB(uint b) { data.y = b; }\n}\n");
+
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
     }
 
     [Fact]

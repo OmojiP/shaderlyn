@@ -39,6 +39,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Slang: `class` の型のシェーダーの仮引数 (関数の外の static でない変数) を SG0101 (slangc の E39031)、
   資源と定数バッファーの `[[vk::location]]` を SG0102 (E39021)、`ParameterBlock` の `[[vk::binding(b, s)]]` の 0 でない b を SG0304 (E39015)、
   循環する `import` を CF0020 (E38200) にする。public の構造体の public の `property` が public でない型を使用している箇所も SG0402 にする (E30604)
+- CF0401: 構造体のメソッドの呼び出し (`w.poke(1.0, t)`) の実引数も、関数と同じく検査する (slangc の E30019・E39999)。HLSL 2021 と Slang が対象
+- CF0314 (Slang): 同じコンパイル先の `__target_intrinsic` を書いた、同じ形の関数の 2 つ目 (slangc の E30201)
+- CF0314 (Slang) の誤報告: 定義を取り込めていないマクロを前に書いたメソッド (`SETTER_DECL void set(…)`) を、同じ名前 `void` のフィールドの重複として報告していた (Falcor)
 - Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
 - CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
   (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない
