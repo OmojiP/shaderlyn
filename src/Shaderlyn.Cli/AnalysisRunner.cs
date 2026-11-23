@@ -300,6 +300,28 @@ internal sealed class AnalysisRunner
         => Analyze(text, out _, cancellationToken);
 
     /// <summary>
+    /// 読み込み済みのソーステキストを解析し、組み立てたセマンティックモデルも返す (言語サーバー)。
+    /// </summary>
+    /// <param name="text">解析対象のソーステキスト。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>検出した診断と、セマンティックモデル (意味解析を行わない場合は <see langword="null"/>)。</returns>
+    /// <remarks>
+    /// 言語サーバーは、モデルが読み込んだ取り込み先を覚えておき、保存のときにキャッシュを捨てるかを決める。
+    /// </remarks>
+    internal (ImmutableArray<Diagnostic> Diagnostics, ShaderCompilation? Compilation) AnalyzeWithCompilation(
+        SourceText text,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        ShaderCompilation? compilation = null;
+        ImmutableArray<Diagnostic> diagnostics = DeepStack.Run(
+            () => AnalyzeCore(text, out _, out compilation, cancellationToken));
+
+        return (diagnostics, compilation);
+    }
+
+    /// <summary>
     /// 読み込み済みのソーステキストを解析し、取り込むファイル一式も返す。
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
@@ -325,7 +347,7 @@ internal sealed class AnalysisRunner
         // 捕まえる手立てが無いままプロセスが終了する (Shaderlyn.Core.Analysis.DeepStack)。
         ImmutableArray<string> resolved = [];
         ImmutableArray<Diagnostic> diagnostics = DeepStack.Run(
-            () => AnalyzeCore(text, out resolved, cancellationToken));
+            () => AnalyzeCore(text, out resolved, out _, cancellationToken));
 
         includePaths = resolved;
         return diagnostics;
@@ -336,11 +358,13 @@ internal sealed class AnalysisRunner
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
     /// <param name="includePaths">解析中に解決した <c>#include</c> のパス。</param>
+    /// <param name="model">組み立てたセマンティックモデル。意味解析を行わない場合は <see langword="null"/>。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>検出した診断。</returns>
     private ImmutableArray<Diagnostic> AnalyzeCore(
         SourceText text,
         out ImmutableArray<string> includePaths,
+        out ShaderCompilation? model,
         CancellationToken cancellationToken)
     {
         // どの言語として読み、どう単位に切り出すかは環境が決める。
@@ -348,6 +372,7 @@ internal sealed class AnalysisRunner
         ShaderCompilation? compilation = prepared.Compilation;
         AnalysisTarget unit = prepared.Target;
         includePaths = prepared.IncludePaths;
+        model = compilation;
 
         if (_timings is not null && compilation is not null)
         {

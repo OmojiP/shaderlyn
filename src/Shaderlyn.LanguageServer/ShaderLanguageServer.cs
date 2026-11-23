@@ -66,6 +66,9 @@ public sealed partial class ShaderLanguageServer
     /// <summary><c>window/logMessage</c> の <c>type</c> で、誤りを表す値 (LSP の <c>MessageType.Error</c>)。</summary>
     private const int LogMessageTypeError = 1;
 
+    /// <summary>window/logMessage の記録 (Log)。</summary>
+    private const int LogMessageTypeLog = 4;
+
     /// <summary><c>window/showMessage</c> の <c>type</c> で、警告を表す値 (LSP の <c>MessageType.Warning</c>)。</summary>
     private const int MessageTypeWarning = 2;
 
@@ -384,10 +387,15 @@ public sealed partial class ShaderLanguageServer
             return;
         }
 
-        // 保存したのが取り込まれるヘッダかもしれない。取り込みの読み込み結果と展開結果を捨て、
+        // 保存したのが取り込まれるヘッダかもしれない。その場合は取り込みの読み込み結果と展開結果を捨て、
         // 開いているスクリプトをすべて新しい中身で解析し直す。
         // 捨てずにいると、ヘッダを書き換えても古い中身で解析し、ヘッダへの指摘が書き換える前の行に出ていた。
-        ForgetIncludedFiles();
+        // 読み込んだファイルが変わっていなければ捨てない (IncludeReadLog)。
+        if (ReasonToForgetIncludedFiles(DocumentUri.ToFilePath(uri)) is { } reason)
+        {
+            await LogAsync($"取り込みのキャッシュを捨てます ({reason})。").ConfigureAwait(false);
+            ForgetIncludedFiles();
+        }
 
         await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
 
@@ -397,12 +405,29 @@ public sealed partial class ShaderLanguageServer
         }
     }
 
+    /// <summary>保存したファイルに合わせて、取り込んだファイルについて覚えていることを捨てるべきかを返す。</summary>
+    /// <param name="savedPath">保存したファイル。</param>
+    /// <returns>捨てるべきなら、その理由。捨てなくてよければ <see langword="null"/>。</returns>
+    /// <remarks>どれか 1 つの解析の単位で捨てるべきなら、すべて捨てる。判断の条件は <see cref="IncludeReadLog"/> を参照。</remarks>
+    private string? ReasonToForgetIncludedFiles(string? savedPath)
+    {
+        foreach (AnalysisSession session in _sessionsByConfiguration.Values.Select(entry => entry.Session).Prepend(_session))
+        {
+            if (session.Reads.ReasonToForget(savedPath) is { } reason)
+            {
+                return reason;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// 取り込んだファイルについて覚えていることを捨てる。
     /// </summary>
     /// <remarks>
     /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (IncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
-    /// 単位ごと作り直す。設定ファイルも読み直すが、保存のたびに 1 度なので重くはない。
+    /// 単位ごと作り直す。読み込んだファイルの記録 (<see cref="AnalysisSession.Reads"/>) も空になる。
     /// </remarks>
     private void ForgetIncludedFiles()
     {
@@ -1564,7 +1589,19 @@ public sealed partial class ShaderLanguageServer
     /// 打鍵のたびに走る処理で失敗が続いても、利用者の作業を遮らない。
     /// </para>
     /// </remarks>
-    private async Task LogFailureAsync(string operation, Exception exception)
+    private Task LogFailureAsync(string operation, Exception exception)
+        => LogAsync(LogMessageTypeError, $"{operation}に失敗しました: {exception}");
+
+    /// <summary>記録 (window/logMessage の Log) を送る。エディタの出力の欄に出る。</summary>
+    /// <param name="message">記録する文。</param>
+    /// <returns>送信の完了を表すタスク。</returns>
+    private Task LogAsync(string message) => LogAsync(LogMessageTypeLog, message);
+
+    /// <summary>記録を送る。</summary>
+    /// <param name="type">記録の種類 (window/logMessage の type)。</param>
+    /// <param name="message">記録する文。</param>
+    /// <returns>送信の完了を表すタスク。</returns>
+    private async Task LogAsync(int type, string message)
     {
         try
         {
@@ -1575,8 +1612,8 @@ public sealed partial class ShaderLanguageServer
                 writer.WriteString("method", "window/logMessage");
 
                 writer.WriteStartObject("params");
-                writer.WriteNumber("type", LogMessageTypeError);
-                writer.WriteString("message", $"{operation}に失敗しました: {exception}");
+                writer.WriteNumber("type", type);
+                writer.WriteString("message", message);
                 writer.WriteEndObject();
 
                 writer.WriteEndObject();

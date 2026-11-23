@@ -217,11 +217,19 @@ internal sealed class AnalysisSession
     /// <returns>組み立てたセマンティックモデル。</returns>
     private ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
     {
+        DateTime started = DateTime.UtcNow;
+
         // どの言語として読むかは環境が決める。CLI と同じ口を通す。片方だけ別に判定すると、
         // 「CLI では見るのにエディタでは見ない」という食い違いが生まれる。
-        return _environment.Prepare(text, semantics, timings: null).Compilation
+        ShaderCompilation compilation = _environment.Prepare(text, semantics, timings: null).Compilation
             ?? throw new InvalidOperationException($"環境 '{_environment.Name}' は HLSL のセマンティックモデルを作りません。");
+
+        Reads.Record(compilation, started);
+        return compilation;
     }
+
+    /// <summary>取り込みで読み込んだファイル。保存のときに、取り込みのキャッシュを捨てるかを決めるのに使う。</summary>
+    public IncludeReadLog Reads { get; } = new();
 
     /// <summary>ワークスペースのルート。</summary>
     public string? WorkspaceDirectory { get; }
@@ -274,8 +282,21 @@ internal sealed class AnalysisSession
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(definedSymbols);
 
-        AnalysisRunner runner = stage == AnalysisDepth.Full ? ForSymbols(definedSymbols).Full : _syntaxOnly;
-        return runner.Analyze(text, cancellationToken);
+        if (stage != AnalysisDepth.Full)
+        {
+            return _syntaxOnly.Analyze(text, cancellationToken);
+        }
+
+        DateTime started = DateTime.UtcNow;
+        (ImmutableArray<Diagnostic> diagnostics, ShaderCompilation? compilation) =
+            ForSymbols(definedSymbols).Full.AnalyzeWithCompilation(text, cancellationToken);
+
+        if (compilation is not null)
+        {
+            Reads.Record(compilation, started);
+        }
+
+        return diagnostics;
     }
 
     /// <summary>
