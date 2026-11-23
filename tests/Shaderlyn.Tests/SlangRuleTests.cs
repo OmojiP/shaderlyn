@@ -104,6 +104,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0314", "__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(hlsl, \"b($0)\")\nfloat d(float x);\n")]
     [InlineData("CF0401", "struct T { int t; }\nstruct W { float poke(float x, float2 y) { return 0; } float poke(float x, float3 y) { return 0; } }\nfloat f() { W w; T t; return w.poke(1.0, t); }\n")]
     [InlineData("CF0401", "struct T { int t; }\nstruct W { float take(float2 y) { return 0; } }\nfloat f() { W w; T t; return w.take(t); }\n")]
+    // レイトレーシングのエントリポイントの仮引数の向き (callable・miss は inout だけ (E39018)、intersection は out・inout にできない (E39017))
+    [InlineData("SG0102", "struct Payload { float3 data; };\n[shader(\"callable\")]\nvoid main(in Payload data) {}\n")]
+    [InlineData("SG0102", "struct Payload { float3 data; };\n[shader(\"miss\")]\nvoid main(Payload data) {}\n")]
+    [InlineData("SG0102", "[shader(\"intersection\")]\nvoid main(out float3 x : MY_SEMANTIC) { x = float3(0.0); }\n")]
     // property の名前に演算子 (slangc の E20020)
     [InlineData("CF0001", "struct S\n{\n    property int operator& { get { return 0; } }\n}\n")]
     // 型を書かない let / var は、初期値の式の型になる
@@ -495,6 +499,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // レイトレーシングのエントリポイントの正しい仮引数 (inout のペイロード、uniform の仮引数)
+    [InlineData("struct Payload { float3 data; };\n[shader(\"miss\")]\nvoid m(inout Payload p) { p.data = 0; }\n[shader(\"callable\")]\nvoid c(inout Payload p, uniform float s) { p.data = s; }\n")]
     // コンパイル先の違う __target_intrinsic、合う実引数のメソッドの呼び出し
     [InlineData("__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(glsl, \"b($0)\")\nfloat d(float x);\nstruct W { float take(float2 y) { return y.x; } float pick(float x, float2 y) { return x; } float pick(float x, float3 y) { return x; } }\nfloat f() { W w; return w.take(float2(1, 2)) + w.pick(1.0, float3(1, 2, 3)); }\n")]
     // static の class の値、入力の [[vk::location]]、ParameterBlock の binding 0

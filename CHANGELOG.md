@@ -44,6 +44,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - CF0401: 構造体のメソッドの呼び出し (`w.poke(1.0, t)`) の実引数も、関数と同じく検査する (slangc の E30019・E39999)。HLSL 2021 と Slang が対象
 - CF0314 (Slang): 同じコンパイル先の `__target_intrinsic` を書いた、同じ形の関数の 2 つ目 (slangc の E30201)
 - CF0314 (Slang) の誤報告: 定義を取り込めていないマクロを前に書いたメソッド (`SETTER_DECL void set(…)`) を、同じ名前 `void` のフィールドの重複として報告していた (Falcor)
+- SG0102 (Slang): レイトレーシングのエントリポイントの仮引数の向き。`miss`・`callable` の `in` の仮引数 (E39018) と、`intersection` の `out`・`inout` の仮引数 (E39017)
 - Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
 - CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
   (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない

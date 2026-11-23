@@ -129,6 +129,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     // 同じ属性を 2 度 ([numthreads] など)。
                     case FunctionDeclarationSyntax function:
                         CheckAttributesAndVisibility(function.Attributes, function.ModifierTokens, Report);
+                        CheckRayTracingParameters(function, Report);
 
                         // 型の中の演算子 (E30073)。演算子は関数の外に書く。呼び出しの operator() だけは型の中に書ける。
                         if (!function.OperatorTokens.IsDefaultOrEmpty
@@ -432,6 +433,54 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, location, function.Name,
                     (earlier.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// レイトレーシングのエントリポイントの仮引数の向きを検査する (slangc 2026.19 で確かめた)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item>miss と callable の仮引数 (ペイロード) は <c>inout</c> でなければならない。<c>in</c> (向きを書かないものを含む) は E39018</item>
+    ///   <item>intersection の仮引数は <c>out</c>・<c>inout</c> にできない (E39017)。交差の属性は ReportHit で渡す</item>
+    /// </list>
+    /// <c>uniform</c> の仮引数は、どのステージでも書ける。
+    /// </remarks>
+    private static void CheckRayTracingParameters(FunctionDeclarationSyntax function, Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+    {
+        if (function.Attributes.FirstOrDefault(a => a.Name == "shader") is not { ArgumentTokens: [{ Kind: ShaderSyntaxKind.StringLiteralToken } literal] })
+        {
+            return;
+        }
+
+        string stage = literal.Text.Trim('"');
+
+        if (stage is not ("miss" or "callable" or "intersection"))
+        {
+            return;
+        }
+
+        foreach (ParameterSyntax parameter in function.ParameterList)
+        {
+            string[] modifiers = [.. parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Select(t => t.Text)];
+
+            if (modifiers.Contains("uniform"))
+            {
+                continue;
+            }
+
+            bool writes = modifiers.Contains("out") || modifiers.Contains("inout");
+
+            if (stage == "intersection" && writes)
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, parameter.NameToken,
+                    $"intersection のエントリポイントの仮引数 '{parameter.Name}' は out・inout にできません。交差の属性は ReportHit で渡してください。");
+            }
+            else if (stage is "miss" or "callable" && !modifiers.Contains("inout") && !modifiers.Contains("out"))
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, parameter.NameToken,
+                    $"{stage} のエントリポイントの仮引数 '{parameter.Name}' は inout にしてください (in の仮引数は受け取れません)。");
             }
         }
     }
