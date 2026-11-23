@@ -230,6 +230,8 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            ReportAmbiguousModuleGlobals(context, compilation, program, conditions);
+
             // 同じ形の関数の本体の 2 つ目 (E30201「function already has a body」)。ジェネリック・where・コンパイル先の指定のある関数は、制約と先で別のものになりうるので見ない。
             ReportRedefinitions(context, compilation, root, conditions);
 
@@ -284,6 +286,102 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 if (field && modifiers.FirstOrDefault(t => t.Text is "__ref" or "__constref") is { } reference)
                 {
                     Report(SlangRuleDescriptors.ModifierNotAllowed, reference, $"構造体のフィールドに {reference.Text} は書けません。");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>import</c> したモジュールと同じ名前の大域の変数を、このファイルでも宣言している場合に、その名前の使用を報告する
+    /// (slangc 2026.19 の E39999「ambiguous reference」)。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">対象のプログラム。モジュールの宣言は、ファイルの宣言の前に並ぶ (SlangModules)。</param>
+    /// <param name="conditions">宣言の条件。どの構成にもある宣言だけを比べる。</param>
+    /// <remarks>
+    /// <para>
+    /// モジュールは別の名前の空間なので、同じ名前を宣言すること自体は誤りではない。使うと、どちらを指すか決まらない。
+    /// 宣言の行には報告しない (slangc も使用の行だけを誤りにする)。
+    /// </para>
+    /// <para>
+    /// 見るのは大域の変数だけである。関数は多重定義として並ぶので、同じ形のものだけがあいまいになるが、それは比べていない。
+    /// 関数の中で同じ名前の局所変数・仮引数を宣言していれば、そちらを指すので報告しない。<c>#include</c> で取り込んだファイルは同じモジュールなので比べない。
+    /// </para>
+    /// </remarks>
+    private static void ReportAmbiguousModuleGlobals(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
+        Semantics.Conditional.ConditionMap conditions)
+    {
+        HashSet<string> modules = new(
+            program.Tree.PreprocessResult.Includes
+                .Where(i => i.Directive == "import" && i.ResolvedFilePath is not null)
+                .Select(i => Path.GetFullPath(i.ResolvedFilePath!)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (modules.Count == 0)
+        {
+            return;
+        }
+
+        string file = compilation.Text.FilePath;
+        Dictionary<string, Location> own = new(StringComparer.Ordinal);
+        Dictionary<string, Location> inModules = new(StringComparer.Ordinal);
+
+        foreach (VariableDeclarationSyntax declaration in program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Where(conditions.IsAlwaysPresent))
+        {
+            foreach (VariableDeclaratorSyntax declarator in declaration.Variables)
+            {
+                if (declarator.NameToken.GetLocation() is not { } location || declarator.Name.Length == 0)
+                {
+                    continue;
+                }
+
+                if (string.Equals(location.FilePath, file, StringComparison.OrdinalIgnoreCase))
+                {
+                    own.TryAdd(declarator.Name, location);
+                }
+                else if (modules.Contains(Path.GetFullPath(location.FilePath)))
+                {
+                    inModules.TryAdd(declarator.Name, location);
+                }
+            }
+        }
+
+        // このファイルにもある名前の、モジュールの宣言の場所。
+        Dictionary<string, Location> ambiguous = own.Keys
+            .Where(inModules.ContainsKey)
+            .ToDictionary(name => name, name => inModules[name], StringComparer.Ordinal);
+
+        if (ambiguous.Count == 0)
+        {
+            return;
+        }
+
+        foreach (FunctionDeclarationSyntax function in program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            if (function.Body is not { } body)
+            {
+                continue;
+            }
+
+            HashSet<string> locals =
+            [
+                .. body.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>().Select(v => v.Name),
+                .. function.ParameterList.Select(p => p.Name),
+            ];
+
+            foreach (IdentifierExpressionSyntax use in body.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>())
+            {
+                if (ambiguous.TryGetValue(use.Name, out Location? declared) && !locals.Contains(use.Name)
+                    && !(use.Parent is MemberAccessExpressionSyntax access && !ReferenceEquals(access.Target, use))
+                    && compilation.IsReportable(use.Identifier) && use.Identifier.GetLocation() is { } useLocation)
+                {
+                    // 「'x' は lib.slang の 3 行目にも宣言されています。」
+                    context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, useLocation, use.Name,
+                        $"{Path.GetFileName(declared.FilePath)} の {(declared.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
                 }
             }
         }

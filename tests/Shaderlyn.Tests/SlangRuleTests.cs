@@ -671,6 +671,21 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task importしたモジュールと同じ名前の大域の変数の使用を報告する()
+    {
+        // slangc 2026.19 は使用の行を E39999「ambiguous reference」にする。宣言の行と、局所変数・仮引数で隠した使用は誤りにしない。
+        File.WriteAllText(Path.Combine(_workDirectory, "lib.slang"), "struct X { int m; }\nstatic X x;\nstatic int y;\n");
+
+        string output = await AnalyzeAsync(
+            "import lib;\nstatic X x;\nstatic int z;\nint f() { x.m = 2; return x.m + y + z; }\nint g() { X x; x.m = 1; return x.m; }\nint h(int x) { return x; }\n",
+            "main.slang");
+
+        Assert.Equal(2, output.Split('\n').Count(line => line.Contains("error CF0314: 'x' は lib.slang の 2 行目にも宣言されています。", StringComparison.Ordinal)));
+        Assert.Contains("main.slang(4:", output, StringComparison.Ordinal);
+        Assert.Contains("エラー 2 件", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(null, false)]
     [InlineData("spirv", true)]

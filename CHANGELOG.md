@@ -27,6 +27,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   応答の順序は、要求の順と変わることがある。組み立てを始める前に次の編集が届いたバージョンへの要求には、空の結果を返す
 - CF0401: 要素の構造体が違うバッファー (`StructuredBuffer<B>` や `ConstantBuffer<B>` の変数) を、`StructuredBuffer<A>` などの仮引数に渡す呼び出しもエラーにする
   (slangc の E30019、DXC の「no matching function」)。HLSL 2021 と Slang が対象で、FXC は誤りにしないので HLSL 2018 では見ない
+- CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
+  (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない
 
 ## [0.3.5] - 2026-11-22
 
