@@ -33,9 +33,11 @@ public sealed partial class ShaderLanguageServer
     private readonly Dictionary<string, OpenDocument> _documents = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CancellationTokenSource> _running = new(StringComparer.Ordinal);
 
-    /// <summary>カーソルの下を答えるために覚えておくセマンティックモデル。バージョンとあわせて持つ。</summary>
-    private readonly Dictionary<string, (int Version, ShaderCompilation Model)> _models =
-        new(StringComparer.Ordinal);
+    /// <summary>
+    /// 開いている文書ごとの、最後に組み立てたセマンティックモデル。指摘・効いていない範囲・カーソルの下を答えるのに共有する。
+    /// 受信のループだけが読み書きする (組み立てと使用は <see cref="DocumentModel"/> が受信のループの外で行う)。
+    /// </summary>
+    private readonly Dictionary<string, DocumentModel> _models = new(StringComparer.Ordinal);
 
     /// <summary>
     /// ファイルごとに、利用者が定義済みにしたシンボル。
@@ -253,27 +255,27 @@ public sealed partial class ShaderLanguageServer
                 break;
 
             case "textDocument/hover":
-                await OnHoverAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnHoverAsync, cancellationToken);
                 break;
 
             case "textDocument/definition":
-                await OnDefinitionAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnDefinitionAsync, cancellationToken);
                 break;
 
             case "textDocument/completion":
-                await OnCompletionAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnCompletionAsync, cancellationToken);
                 break;
 
             case "textDocument/signatureHelp":
-                await OnSignatureHelpAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnSignatureHelpAsync, cancellationToken);
                 break;
 
             case "textDocument/references":
-                await OnReferencesAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnReferencesAsync, cancellationToken);
                 break;
 
             case "textDocument/rename":
-                await OnRenameAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnRenameAsync, cancellationToken);
                 break;
 
             case "textDocument/codeAction":
@@ -474,6 +476,7 @@ public sealed partial class ShaderLanguageServer
     /// カーソルの下の要素について答える。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
@@ -481,13 +484,20 @@ public sealed partial class ShaderLanguageServer
     /// 要求に id がある以上、答えるものが無くても空で返さなければ
     /// エディタは待ち続ける。
     /// </remarks>
-    private async Task OnHoverAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnHoverAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         HoverResult? hover = null;
 
         try
         {
-            hover = BuildHover(message);
+            if (request is not null)
+            {
+                hover = await request.UseAsync(HoverBuilder.Build, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -528,38 +538,10 @@ public sealed partial class ShaderLanguageServer
     }
 
     /// <summary>
-    /// カーソルの下の要素の説明を組み立てる。
-    /// </summary>
-    /// <param name="message">受け取ったメッセージ。</param>
-    /// <returns>説明。答えるものが無い場合は <see langword="null"/>。</returns>
-    /// <remarks>
-    /// <b>セマンティックモデルはバージョンとあわせて覚えておく。</b>
-    /// 診断のために組み立てたものを使い回すと、
-    /// 編集のたびに古くなって位置が合わなくなる。
-    /// バージョンが変わっていれば組み立て直す。
-    /// カーソルを止めたときにしか呼ばれないため、その場で組み立てても間に合う。
-    /// </remarks>
-    private HoverResult? BuildHover(JsonElement message)
-    {
-        if (!TryReadTextDocument(message, out JsonElement textDocument)
-            || textDocument.GetProperty("uri").GetString() is not { } uri
-            || !_documents.TryGetValue(uri, out OpenDocument? document)
-            || !message.GetProperty("params").TryGetProperty("position", out JsonElement position))
-        {
-            return null;
-        }
-
-        int offset = document.Text.GetOffset(new LinePosition(
-            position.GetProperty("line").GetInt32(),
-            position.GetProperty("character").GetInt32()));
-
-        return HoverBuilder.Build(GetModel(uri, document), offset);
-    }
-
-    /// <summary>
     /// カーソルの下の名前の定義を返す。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
@@ -578,15 +560,22 @@ public sealed partial class ShaderLanguageServer
     /// 診断の通知が受け取った URI をそのまま返しているのと同じ理由である。
     /// </para>
     /// </remarks>
-    private async Task OnDefinitionAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnDefinitionAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         IReadOnlyList<DefinitionTarget> targets = [];
-        string? documentUri = null;
-        string? documentPath = null;
+        string? documentUri = request?.Document.Uri;
+        string? documentPath = request?.Document.FilePath;
 
         try
         {
-            targets = BuildDefinitions(message, out documentUri, out documentPath);
+            if (request is not null)
+            {
+                targets = await request.UseAsync(DefinitionBuilder.Build, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -639,55 +628,129 @@ public sealed partial class ShaderLanguageServer
             ? documentUri
             : DocumentUri.FromFilePath(target.FilePath, documentUri);
 
-    /// <summary>定義を探す。</summary>
-    /// <param name="message">受け取ったメッセージ。</param>
-    /// <param name="documentUri">エディタから受け取った URI を書き出す先。</param>
-    /// <param name="documentPath">開いているスクリプトのパスを書き出す先。</param>
-    /// <returns>見つかった定義。</returns>
-    private IReadOnlyList<DefinitionTarget> BuildDefinitions(
-        JsonElement message,
-        out string? documentUri,
-        out string? documentPath)
-    {
-        documentUri = null;
-        documentPath = null;
-
-        if (!TryReadTextDocument(message, out JsonElement textDocument)
-            || textDocument.GetProperty("uri").GetString() is not { } uri
-            || !_documents.TryGetValue(uri, out OpenDocument? document)
-            || !message.GetProperty("params").TryGetProperty("position", out JsonElement position))
-        {
-            return [];
-        }
-
-        documentUri = document.Uri;
-        documentPath = document.FilePath;
-
-        return DefinitionBuilder.Build(GetModel(uri, document), document.Text.GetOffset(new LinePosition(
-            position.GetProperty("line").GetInt32(),
-            position.GetProperty("character").GetInt32())));
-    }
-
     /// <summary>
-    /// スクリプトに対応するセマンティックモデルを取り出す。
+    /// 文書の今のバージョンのセマンティックモデルを返す。なければ組み立てを始める。受信のループから呼ぶ。
     /// </summary>
     /// <param name="uri">対象のファイルの URI。</param>
     /// <param name="document">対象のスクリプト。</param>
-    /// <returns>セマンティックモデル。</returns>
+    /// <returns>セマンティックモデル (組み立て中のこともある)。</returns>
     /// <remarks>
-    /// バージョンが変わっていれば組み立て直す。
-    /// 古いモデルを使うと、位置が編集前のものになる。
+    /// バージョンが変わっていれば組み立て直す。古いモデルを使うと、位置が編集前のものになる。
+    /// 設定ファイルを書き換えた場合と、定義済みにするシンボルを選び直した場合も組み立て直す。
     /// </remarks>
-    private ShaderCompilation GetModel(string uri, OpenDocument document)
+    private DocumentModel ModelFor(string uri, OpenDocument document)
     {
-        if (!_models.TryGetValue(uri, out (int Version, ShaderCompilation Model) cached)
-            || cached.Version != document.Version)
+        AnalysisSession session = SessionFor(uri);
+        ImmutableArray<string> symbols = DefinedSymbolsOf(uri);
+
+        if (_models.TryGetValue(uri, out DocumentModel? cached) && cached.Matches(document.Version, session, symbols))
         {
-            cached = (document.Version, SessionFor(uri).CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
-            _models[uri] = cached;
+            return cached;
         }
 
-        return cached.Model;
+        DocumentModel model = new(document.Version, session, symbols, () => session.Prepare(document.Text, symbols), cached);
+        _models[uri] = model;
+        return model;
+    }
+
+    /// <summary>
+    /// セマンティックモデルを使う要求を、受信のループの外で処理する。
+    /// </summary>
+    /// <param name="message">受け取った要求。</param>
+    /// <param name="handle">要求を処理して応答する処理。文書が開かれていなければ、モデルを渡さずに呼ぶ。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>モデルの組み立てを待つ間も、次のメッセージを受け取る。</b>
+    /// 受信のループで待つと、編集の通知と構文の段の指摘が組み立ての終わりまで遅れる
+    /// (URP の Lit.shader で、編集のたびに 1 秒)。応答の順序は要求の順と変わることがある (LSP では許されている)。
+    /// </para>
+    /// <para>
+    /// 文書とカーソルの位置は、受け取った時点のものを使う。後から届いた編集の中身で位置を数えると、ずれる。
+    /// </para>
+    /// </remarks>
+    private void StartModelRequest(
+        JsonElement message,
+        Func<JsonElement, ModelRequest?, CancellationToken, Task> handle,
+        CancellationToken cancellationToken)
+    {
+        // 受け取ったメッセージは、受信のループが次を読む前に破棄する。
+        JsonElement request = message.Clone();
+        ModelRequest? target = ReadModelRequest(request);
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await handle(request, target, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // 新しいバージョンのモデルに置き換えられ、組み立てなかった (DocumentModel)。応答は返す。
+                    await RespondNullAsync(request, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 終了する。
+                }
+                catch (Exception e)
+                {
+                    await LogFailureAsync("要求の処理", e).ConfigureAwait(false);
+                }
+            },
+            CancellationToken.None);
+    }
+
+    /// <summary>要求の文書とカーソルの位置を読み、モデルを用意する。受信のループから呼ぶ。</summary>
+    /// <param name="message">受け取った要求。</param>
+    /// <returns>文書とモデル。文書が開かれていなければ <see langword="null"/>。</returns>
+    private ModelRequest? ReadModelRequest(JsonElement message)
+    {
+        if (!TryReadTextDocument(message, out JsonElement textDocument)
+            || textDocument.GetProperty("uri").GetString() is not { } uri
+            || !_documents.TryGetValue(uri, out OpenDocument? document))
+        {
+            return null;
+        }
+
+        int offset;
+
+        try
+        {
+            offset = message.GetProperty("params").TryGetProperty("position", out JsonElement position)
+                ? document.Text.GetOffset(new LinePosition(
+                    position.GetProperty("line").GetInt32(),
+                    position.GetProperty("character").GetInt32()))
+                : 0;
+        }
+        catch (Exception e) when (e is InvalidOperationException or FormatException or KeyNotFoundException or ArgumentException)
+        {
+            // 読めない要求でも応答は返す。失敗は、それぞれの処理が記録して空で答える (ModelRequest.UseAsync が投げる)。
+            return new ModelRequest(document, null, 0, e);
+        }
+
+        return new ModelRequest(document, ModelFor(uri, document), offset, null);
+    }
+
+    /// <summary>モデルを使う要求の、文書・モデル・カーソルの位置。</summary>
+    /// <param name="Document">受け取った時点の文書。</param>
+    /// <param name="Model">その文書のモデル。</param>
+    /// <param name="Offset">カーソルのオフセット。</param>
+    /// <param name="Failure">要求を読めなかった場合の例外。</param>
+    private sealed record ModelRequest(OpenDocument Document, DocumentModel? Model, int Offset, Exception? Failure)
+    {
+        /// <summary>モデルの組み立てを待って使う (<see cref="DocumentModel.UseAsync"/>)。</summary>
+        /// <typeparam name="T">結果の型。</typeparam>
+        /// <param name="use">モデルとカーソルの位置を使う処理。</param>
+        /// <param name="cancellationToken">キャンセル用トークン。</param>
+        /// <returns>処理の結果。</returns>
+        public Task<T> UseAsync<T>(Func<ShaderCompilation, int, T> use, CancellationToken cancellationToken)
+            => Failure is not null || Model is null
+                ? Task.FromException<T>(Failure ?? new InvalidOperationException("モデルがありません。"))
+                : Model.UseAsync(
+                model => use(model.Compilation ?? throw new InvalidOperationException("この環境はセマンティックモデルを作りません。"), Offset),
+                cancellationToken);
     }
 
     /// <summary>
@@ -1221,8 +1284,7 @@ public sealed partial class ShaderLanguageServer
                 _selectedConfigurationDisplays.Remove(uri);
             }
 
-            // 覚えているモデルは前の定義で組み立てたものである。
-            _models.Remove(uri);
+            // 覚えているモデルは前の定義で組み立てたもので、次に使うときに組み立て直す (DocumentModel.Matches)。
         }
 
         if (message.TryGetProperty("id", out _))
@@ -1402,16 +1464,35 @@ public sealed partial class ShaderLanguageServer
         CheckUnrealGeneration(session);
         CheckUnityGeneration(session);
 
+        // 意味解析を伴う段は、ホバーなどと同じモデルを使う。モデルの用意は受信のループで行う (_models は受信のループだけが触る)。
+        DocumentModel? model = stage == AnalysisDepth.Full ? ModelFor(document.Uri, document) : null;
+        model?.Require();
+
         _ = Task.Run(
             async () =>
             {
                 try
                 {
-                    ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.ShaderEnvironment);
+                    // 効いていない範囲は、展開しなければ分からない。意味解析を伴う段でだけ送る。
+                    bool sendsInactiveRegions = model is not null && inactiveRegionsRequested && session.HasSemanticModel;
+                    ImmutableArray<InactiveLineRange>? regions = null;
 
-                    ImmutableArray<Diagnostic> diagnostics =
-                        session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+                    ImmutableArray<Diagnostic> diagnostics = model is null
+                        ? session.Analyze(document.Text, stage, cancellation.Token)
+                        : await model.UseAsync(
+                            prepared =>
+                            {
+                                ImmutableArray<Diagnostic> found = session.Analyze(prepared, cancellation.Token);
+
+                                // すべての構成を合わせた範囲は、同じモデルから求める。選んだ構成の範囲は、別のモデルを組み立てる (下)。
+                                if (sendsInactiveRegions && !selectedConfiguration && prepared.Compilation is { } compilation)
+                                {
+                                    regions = InactiveRegionCollector.Collect(compilation);
+                                }
+
+                                return found;
+                            },
+                            cancellation.Token).ConfigureAwait(false);
 
                     // 解析の間に次の編集が届いていたら、この結果は古い。送ると、新しい中身の上で行がずれて見える。
                     cancellation.Token.ThrowIfCancellationRequested();
@@ -1419,18 +1500,15 @@ public sealed partial class ShaderLanguageServer
                     await PublishAnalysisAsync(document, stage, diagnostics, cancellation.Token)
                         .ConfigureAwait(false);
 
-                    // 効いていない範囲は、展開しなければ分からない。意味解析を伴う段でだけ送る。
                     // 指摘より後に送る。範囲の計算に失敗しても、指摘は届いている。
-                    if (stage == AnalysisDepth.Full && inactiveRegionsRequested && session.HasSemanticModel)
+                    if (sendsInactiveRegions)
                     {
-                        ImmutableArray<InactiveLineRange> regions = selectedConfiguration
-                            ? InactiveRegionCollector.CollectSelectedConfiguration(
-                                session.CreateConfigurationModel(document.Text, symbols))
-                            : InactiveRegionCollector.Collect(session.CreateModel(document.Text, analysisSymbols));
+                        regions ??= InactiveRegionCollector.CollectSelectedConfiguration(
+                            session.CreateConfigurationModel(document.Text, symbols));
 
                         cancellation.Token.ThrowIfCancellationRequested();
 
-                        await PublishInactiveRegionsAsync(document.Uri, regions, cancellation.Token)
+                        await PublishInactiveRegionsAsync(document.Uri, regions.Value, cancellation.Token)
                             .ConfigureAwait(false);
                     }
                 }
