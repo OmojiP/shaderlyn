@@ -95,6 +95,65 @@ internal static class SystemValueSemantics
         return Shared.Value.Cells.Any(c => c.Key.Compiler == compiler && c.Value.Allowed.Contains(name));
     }
 
+    /// <summary>
+    /// セマンティクスがその型を受け取れるかを返す (<c>SystemValueTypes.g.txt</c>)。
+    /// </summary>
+    /// <param name="compiler">コンパイラ。</param>
+    /// <param name="stage">ステージ。</param>
+    /// <param name="shape">受け渡しの形。</param>
+    /// <param name="semantic">セマンティクスの名前。</param>
+    /// <param name="type">型の名前 (<c>uint2</c>。配列は <c>float[2]</c>)。</param>
+    /// <returns>受け取れれば <see langword="true"/>、型の誤りになれば <see langword="false"/>、表に無ければ <see langword="null"/>。</returns>
+    /// <remarks>型はステージと形で変わりうるので、表は調べたステージと形のものだけを持つ。ほかのステージと形では判断しない。</remarks>
+    public static bool? IsTypeAllowed(SystemValueCompiler compiler, HlslShaderStage stage, SystemValueShape shape, string semantic, string type)
+    {
+        string name = Normalize(semantic);
+        return SharedTypes.Value.TryGetValue((compiler, stage, shape, name), out Cell? cell)
+            ? cell.Allowed.Contains(type) ? true : cell.Rejected.Contains(type) ? false : null
+            : null;
+    }
+
+    /// <summary>セマンティクスが受け取れる型 (メッセージに出す)。</summary>
+    /// <param name="compiler">コンパイラ。</param>
+    /// <param name="stage">ステージ。</param>
+    /// <param name="shape">受け渡しの形。</param>
+    /// <param name="semantic">セマンティクスの名前。</param>
+    /// <returns>受け取れる型。表に無ければ空。</returns>
+    public static IReadOnlyCollection<string> AllowedTypes(SystemValueCompiler compiler, HlslShaderStage stage, SystemValueShape shape, string semantic)
+        => SharedTypes.Value.TryGetValue((compiler, stage, shape, Normalize(semantic)), out Cell? cell) ? cell.Allowed : [];
+
+    private const string TypesResourceName = "Shaderlyn.Semantics.SystemValueTypes.txt";
+
+    private static readonly Lazy<FrozenDictionary<(SystemValueCompiler, HlslShaderStage, SystemValueShape, string), Cell>> SharedTypes = new(LoadTypes);
+
+    private static FrozenDictionary<(SystemValueCompiler, HlslShaderStage, SystemValueShape, string), Cell> LoadTypes()
+    {
+        Dictionary<(SystemValueCompiler, HlslShaderStage, SystemValueShape, string), Cell> cells = [];
+
+        using Stream stream = typeof(SystemValueSemantics).Assembly.GetManifestResourceStream(TypesResourceName)
+                              ?? throw new InvalidOperationException($"埋め込みのリソース {TypesResourceName} がありません。");
+        using StreamReader reader = new(stream);
+
+        while (reader.ReadLine() is { } line)
+        {
+            if (line.Length == 0 || line[0] == '#')
+            {
+                continue;
+            }
+
+            string[] columns = line.Split('\t');
+
+            if (columns.Length != 6)
+            {
+                throw new InvalidOperationException($"{TypesResourceName} の行の列の数が 6 ではありません: {line}");
+            }
+
+            cells[(ParseCompiler(columns[0]), ParseStage(columns[1]), ParseShape(columns[2]), columns[3])] = new Cell(Split(columns[4]), Split(columns[5]));
+        }
+
+        return cells.ToFrozenDictionary();
+    }
+
     /// <summary>大文字にし、末尾の番号 (<c>SV_Target1</c> の 1) を除く。</summary>
     private static string Normalize(string semantic) => semantic.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9').ToUpperInvariant();
 

@@ -153,7 +153,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
 
             // 戻り値。ハルシェーダーの戻り値は制御点の出力。
             SystemValueShape returned = stage == HlslShaderStage.Hull ? SystemValueShape.OutControlPoint : SystemValueShape.Out;
-            CheckSemantics(function.Semantics, function.NameToken, returned);
+            CheckSemantics(function.Semantics, function.NameToken, returned, function.ReturnType.Name);
             CheckStruct(function.ReturnType.Name, returned, 0);
 
             // ハルシェーダーのパッチ定数の関数の戻り値。
@@ -161,7 +161,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
                 && function.Attributes.FirstOrDefault(a => a.Name == "patchconstantfunc") is { ArgumentTokens: [{ Kind: ShaderSyntaxKind.StringLiteralToken } literal] }
                 && functions.Where(f => f.Name == literal.Text.Trim('"')).ToArray() is [var patchConstant])
             {
-                CheckSemantics(patchConstant.Semantics, patchConstant.NameToken, SystemValueShape.OutPatchConstant);
+                CheckSemantics(patchConstant.Semantics, patchConstant.NameToken, SystemValueShape.OutPatchConstant, patchConstant.ReturnType.Name);
                 CheckStruct(patchConstant.ReturnType.Name, SystemValueShape.OutPatchConstant, 0);
             }
         }
@@ -218,13 +218,13 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
 
             if (input)
             {
-                CheckSemantics(parameter.Semantics, parameter.NameToken, SystemValueShape.In);
+                CheckSemantics(parameter.Semantics, parameter.NameToken, SystemValueShape.In, parameter.IsArray ? null : type);
                 CheckStruct(type, SystemValueShape.In, 0);
             }
 
             if (output)
             {
-                CheckSemantics(parameter.Semantics, parameter.NameToken, SystemValueShape.Out);
+                CheckSemantics(parameter.Semantics, parameter.NameToken, SystemValueShape.Out, parameter.IsArray ? null : type);
                 CheckStruct(type, SystemValueShape.Out, 0);
             }
         }
@@ -243,7 +243,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
             {
                 foreach (VariableDeclaratorSyntax declarator in field.Declarators.Select(d => d.Node).OfType<VariableDeclaratorSyntax>())
                 {
-                    CheckSemantics(declarator.Semantics, declarator.NameToken, shape);
+                    CheckSemantics(declarator.Semantics, declarator.NameToken, shape, declarator.IsArray ? null : field.Type.Name);
                 }
 
                 CheckStruct(field.Type.Name, shape, depth + 1);
@@ -253,7 +253,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
         private StructDeclarationSyntax? FindStruct(string name)
             => program.Structs.FirstOrDefault(s => s.Keyword.Text is "struct" or "class" && s.Name == name);
 
-        private void CheckSemantics(ImmutableArray<SemanticSyntax> semantics, ShaderSyntaxToken name, SystemValueShape shape)
+        private void CheckSemantics(ImmutableArray<SemanticSyntax> semantics, ShaderSyntaxToken name, SystemValueShape shape, string? type = null)
         {
             foreach (SemanticSyntax semantic in semantics)
             {
@@ -270,6 +270,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
 
                 if (rejecting.Length == 0)
                 {
+                    CheckType(semantic.Name, name, shape, type);
                     continue;
                 }
 
@@ -284,6 +285,42 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
                         message,
                         string.Join("・", rejecting.Select(NameOf))));
                 }
+            }
+        }
+
+        /// <summary>
+        /// セマンティクスを、受け取れない型の値に付けていないかを検査する (<c>uint2 id : SV_VertexID</c>・<c>float v : SV_ViewID</c>)。
+        /// </summary>
+        /// <remarks>
+        /// 型の表 (<see cref="SystemValueSemantics.IsTypeAllowed"/>) で、コンパイラが型の誤りにした型だけを報告する
+        /// (slangc 2026.19 の E30701、DXC 1.8 の「SV_VertexID must be uint.」、FXC の X4555 など)。
+        /// 表に無い型 (half・min16uint・構造体など) と、調べていないステージと形は見ない。配列の値も見ない。
+        /// </remarks>
+        private void CheckType(string semantic, ShaderSyntaxToken name, SystemValueShape shape, string? type)
+        {
+            if (type is null)
+            {
+                return;
+            }
+
+            SystemValueCompiler[] rejecting = [.. compilers.Where(c => SystemValueSemantics.IsTypeAllowed(c, stage, shape, semantic, type) == false)];
+
+            if (rejecting.Length == 0)
+            {
+                return;
+            }
+
+            string allowed = string.Join(" / ", SystemValueSemantics.AllowedTypes(rejecting[0], stage, shape, semantic).Order(StringComparer.Ordinal));
+            string message = $"'{semantic}' は {type} の値に付けられません{(allowed.Length > 0 ? $"。受け取れる型は {allowed} です" : string.Empty)}";
+            Location location = name.GetLocation();
+
+            if (reported.Add((location.FilePath, location.Span.Start, message)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.SystemValueSemanticNotAllowed,
+                    location,
+                    message,
+                    string.Join("・", rejecting.Select(NameOf))));
             }
         }
 

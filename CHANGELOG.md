@@ -33,6 +33,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   応答の順序は、要求の順と変わることがある。組み立てを始める前に次の編集が届いたバージョンへの要求には、空の結果を返す
 - CF0401: 要素の構造体が違うバッファー (`StructuredBuffer<B>` や `ConstantBuffer<B>` の変数) を、`StructuredBuffer<A>` などの仮引数に渡す呼び出しもエラーにする
   (slangc の E30019、DXC の「no matching function」)。HLSL 2021 と Slang が対象で、FXC は誤りにしないので HLSL 2018 では見ない
+- CF0302: システム値のセマンティクスを、受け取れない型の値に付けた箇所もエラーにする (`uint2 id : SV_VertexID`・`float id : SV_ViewID` など。
+  slangc の E30701、DXC・FXC の型の誤り)。受け取れる型は FXC・DXC・slangc に掛けて作った表で決め、表にない型は見ない
 - CF0302: ピクセルシェーダーの深度の出力 (`SV_Depth`・`SV_DepthGreaterEqual`・`SV_DepthLessEqual`) を 2 つ以上書いた箇所もエラーにする
   (DXC の検証の誤り、slangc の E30705。FXC は誤りにしないので見ない)
 - SG0309: コピーできない型 (`[__NonCopyableType]`) の `in` の仮引数への `[mutating]` のメソッドの呼び出しもエラーにする (slangc の E30067)

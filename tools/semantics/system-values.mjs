@@ -21,7 +21,7 @@ import { join } from "node:path";
 const [work, mode] = process.argv.slice(2);
 
 if (!work) {
-  console.error("使い方: node tools/semantics/system-values.mjs <作業フォルダー> [--reuse]");
+  console.error("使い方: node tools/semantics/system-values.mjs <作業フォルダー> [--reuse | --types]");
   process.exit(2);
 }
 
@@ -217,6 +217,11 @@ function probe(name) {
   return { version: compiler.version(exe), results };
 }
 
+if (mode === "--types") {
+  probeTypes();
+  process.exit(0);
+}
+
 const recorded = {};
 
 for (const name of Object.keys(compilers)) {
@@ -264,3 +269,74 @@ for (const [name, { results }] of Object.entries(recorded)) {
 const table = "src/Shaderlyn.Semantics/Symbols/SystemValueSemantics.g.txt";
 writeFileSync(table, lines.join("\n") + "\n");
 console.log(`${table} を書きました。`);
+
+/**
+ * --types: セマンティクスごとに、受け取れる型を調べて src/Shaderlyn.Semantics/Symbols/SystemValueTypes.g.txt に書く (CF0302 の型の検査が使う)。
+ * 作業フォルダーに残した結果 (--reuse と同じもの) から、そのセマンティクスを使用できる最初のステージと形を選び、型を変えてコンパイルする。
+ * 通った型と、型の誤りになった型 (判定はコンパイラごとの typeRejects) だけを書く。ほかの誤りになった型は書かない。
+ */
+function probeTypes() {
+  const probeTypeList = ["float", "float2", "float3", "float4", "int", "int2", "int3", "int4", "uint", "uint2", "uint3", "uint4", "bool", "float[2]", "float[4]", "uint[2]"];
+  const typeRejects = {
+    // E30701: type '…' is not valid for system value semantic '…'
+    slang: e => e.code === "E30701",
+    dxc: e => /invalid type|must be|type of|incompatible|cannot be used with|not valid for/i.test(e.message),
+    // X4502 は向きの誤り。
+    fxc: e => e.code !== "X4502" && /invalid|must be|type/i.test(e.message),
+  };
+  const lines = [
+    "# システム値のセマンティクスが受け取れる型 (o) と、型の誤りになる型 (x) の表。",
+    "# tools/semantics/system-values.mjs --types が作る。手で書き換えない。",
+    "# 列: コンパイラ、調べたステージ、受け渡しの形、セマンティクス (大文字)、受け取れる型、型の誤りになる型。",
+    "# 型はステージと形で変わりうるので、調べたステージと形でだけ使う。表に無い組み合わせと型は判断しない。",
+  ];
+
+  for (const name of Object.keys(compilers)) {
+    const compiler = compilers[name];
+    const exe = compiler.exe();
+    const recordedResults = JSON.parse(readFileSync(join(work, `${name}.json`), "utf8"));
+    lines.push(`# ${name}: ${recordedResults.version}`);
+    const dir = join(work, `tmp-types-${name}`);
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `p.${compiler.extension}`);
+    const out = join(dir, "p.out");
+    const stageInfo = stages(name === "slang");
+    const raw = [];
+
+    for (const semantic of semantics) {
+      const usable = recordedResults.results.find(r => r.semantic === semantic && r.passed);
+
+      if (!usable) {
+        continue;
+      }
+
+      const info = stageInfo[usable.stage];
+      const make = info.shapes[usable.shape];
+      const accepted = [];
+      const rejected = [];
+
+      for (const type of probeTypeList) {
+        const [f, w] = declaration(type, semantic);
+        writeFileSync(file, make(f, w));
+        const run = spawnSync(exe, compiler.args(exe, file, out, info.profile), { encoding: "utf8" });
+        const errors = compiler.errors((run.stdout ?? "") + (run.stderr ?? ""));
+        raw.push({ semantic, stage: usable.stage, shape: usable.shape, type, errors, status: run.status });
+
+        if (errors.length === 0 && run.status === 0) {
+          accepted.push(type);
+        } else if (errors.some(typeRejects[name])) {
+          rejected.push(type);
+        }
+      }
+
+      lines.push(`${name}\t${usable.stage}\t${usable.shape}\t${semantic.toUpperCase()}\t${accepted.join(",")}\t${rejected.join(",")}`);
+      process.stdout.write(`${name} ${semantic}: o ${accepted.join(",")} / x ${rejected.join(",")}\n`);
+    }
+
+    writeFileSync(join(work, `types-${name}.json`), JSON.stringify(raw, null, 1));
+  }
+
+  const typeTable = "src/Shaderlyn.Semantics/Symbols/SystemValueTypes.g.txt";
+  writeFileSync(typeTable, lines.join("\n") + "\n");
+  console.log(`${typeTable} を書きました。`);
+}

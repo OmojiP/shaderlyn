@@ -1,0 +1,102 @@
+# システム値のセマンティクスが受け取れる型 (o) と、型の誤りになる型 (x) の表。
+# tools/semantics/system-values.mjs --types が作る。手で書き換えない。
+# 列: コンパイラ、調べたステージ、受け渡しの形、セマンティクス (大文字)、受け取れる型、型の誤りになる型。
+# 型はステージと形で変わりうるので、調べたステージと形でだけ使う。表に無い組み合わせと型は判断しない。
+# fxc: fxc (Windows SDK 10.0.26100.0)
+fxc	vertex	in	SV_POSITION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool	
+fxc	pixel	out	SV_TARGET	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+fxc	pixel	out	SV_DEPTH	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool
+fxc	pixel	out	SV_DEPTHGREATEREQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool
+fxc	pixel	out	SV_DEPTHLESSEQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool
+fxc	pixel	in	SV_COVERAGE	float,int,uint,bool,float[4]	float2,float3,float4,int2,int3,int4,uint2,uint3,uint4
+fxc	pixel	in	SV_INNERCOVERAGE	float,int,uint,bool,float[4]	float2,float3,float4,int2,int3,int4,uint2,uint3,uint4
+fxc	pixel	out	SV_STENCILREF	uint,bool	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4
+fxc	vertex	in	SV_VERTEXID	uint,bool	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,float[2],float[4]
+fxc	vertex	in	SV_INSTANCEID	uint,bool	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,float[2],float[4]
+fxc	pixel	in	SV_PRIMITIVEID	uint,bool	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4
+fxc	pixel	in	SV_ISFRONTFACE	uint,bool	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4
+fxc	pixel	in	SV_SAMPLEINDEX	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4]
+fxc	vertex	in	SV_CLIPDISTANCE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],uint[2]	
+fxc	vertex	in	SV_CULLDISTANCE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],uint[2]	
+fxc	vertex	in	SV_RENDERTARGETARRAYINDEX	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool	
+fxc	vertex	in	SV_VIEWPORTARRAYINDEX	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool	
+fxc	geometry	in	SV_GSINSTANCEID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4]
+fxc	hull	in	SV_OUTPUTCONTROLPOINTID	int,int2,int3,int4,uint,uint2,uint3,uint4,uint[2]	float,float2,float3,float4,bool,float[2],float[4]
+fxc	domain	in	SV_DOMAINLOCATION	float,float2,float3	float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,uint[2]
+fxc	domain	in	SV_TESSFACTOR		float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],uint[2]
+fxc	domain	in	SV_INSIDETESSFACTOR	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,uint[2]
+fxc	compute	in	SV_DISPATCHTHREADID	int,int2,int3,uint,uint2,uint3	float,float2,float3,float4,int4,uint4,bool,float[2],float[4]
+fxc	compute	in	SV_GROUPID	int,int2,int3,uint,uint2,uint3	float,float2,float3,float4,int4,uint4,bool,float[2],float[4]
+fxc	compute	in	SV_GROUPTHREADID	int,int2,int3,uint,uint2,uint3,uint[2]	float,float2,float3,float4,int4,uint4,bool,float[2],float[4]
+fxc	compute	in	SV_GROUPINDEX	int,uint,uint[2]	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4]
+# dxc: dxcompiler.dll: 1.8 - 1.8.2502.11 (239921522)
+dxc	vertex	in	SV_POSITION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	pixel	out	SV_TARGET	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	pixel	out	SV_DEPTH	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	out	SV_DEPTHGREATEREQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	out	SV_DEPTHLESSEQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	in	SV_COVERAGE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	pixel	in	SV_INNERCOVERAGE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	pixel	out	SV_STENCILREF	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	vertex	in	SV_VERTEXID	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	vertex	in	SV_INSTANCEID	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	in	SV_PRIMITIVEID	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	in	SV_ISFRONTFACE	int,uint,bool	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,float[2],float[4],uint[2]
+dxc	pixel	in	SV_SAMPLEINDEX	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	vertex	in	SV_CLIPDISTANCE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	vertex	in	SV_CULLDISTANCE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	vertex	in	SV_RENDERTARGETARRAYINDEX	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	vertex	in	SV_VIEWPORTARRAYINDEX	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	geometry	in	SV_GSINSTANCEID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	domain	in	SV_DOMAINLOCATION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	compute	in	SV_DISPATCHTHREADID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	compute	in	SV_GROUPID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	compute	in	SV_GROUPTHREADID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	compute	in	SV_GROUPINDEX	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	vertex	in	SV_VIEWID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	pixel	in	SV_BARYCENTRICS	float3	int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	vertex	out	SV_SHADINGRATE	uint	float,float2,float3,float4,int,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+dxc	pixel	in	SV_CULLPRIMITIVE	int,int2,int3,int4,uint,uint2,uint3,uint4,bool	float,float2,float3,float4,float[2],float[4],uint[2]
+dxc	vertex	in	SV_STARTVERTEXLOCATION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+dxc	vertex	in	SV_STARTINSTANCELOCATION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+# slang: slangc 2026.19
+slang	vertex	out	SV_POSITION	float2,float3,float4	float,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_TARGET	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+slang	pixel	out	SV_DEPTH	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	out	SV_DEPTHGREATEREQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	out	SV_DEPTHLESSEQUAL	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_COVERAGE	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_INNERCOVERAGE	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	out	SV_STENCILREF	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_VERTEXID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_INSTANCEID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_PRIMITIVEID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_ISFRONTFACE	bool	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,float[2],float[4],uint[2]
+slang	pixel	in	SV_SAMPLEINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	out	SV_CLIPDISTANCE	float,float[2],float[4]	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,uint[2]
+slang	vertex	out	SV_CULLDISTANCE	float,float[2],float[4]	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,uint[2]
+slang	vertex	out	SV_RENDERTARGETARRAYINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	out	SV_VIEWPORTARRAYINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	geometry	in	SV_GSINSTANCEID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	geometry	in-array	SV_OUTPUTCONTROLPOINTID	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+slang	geometry	in-array	SV_DOMAINLOCATION	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+slang	geometry	in-array	SV_TESSFACTOR	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+slang	geometry	in-array	SV_INSIDETESSFACTOR	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],uint[2]	
+slang	compute	in	SV_DISPATCHTHREADID	int,int2,int3,uint,uint2,uint3	
+slang	compute	in	SV_GROUPID	int,int2,int3,uint,uint2,uint3	float,float2,float3,float4,int4,uint4,bool,float[2],float[4],uint[2]
+slang	compute	in	SV_GROUPTHREADID	int,int2,int3,uint,uint2,uint3	float,float2,float3,float4,int4,uint4,bool,float[2],float[4],uint[2]
+slang	compute	in	SV_GROUPINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_VIEWID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_BARYCENTRICS	float3	float,float2,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	out	SV_SHADINGRATE	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	geometry	in-array	SV_CULLPRIMITIVE	float,float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]	
+slang	vertex	in	SV_STARTVERTEXLOCATION	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_STARTINSTANCELOCATION	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_DRAWINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	out	SV_POINTSIZE	float	float2,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_POINTCOORD	float2	float,float3,float4,int,int2,int3,int4,uint,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_VULKANVERTEXID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_VULKANINSTANCEID	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	vertex	in	SV_DEVICEINDEX	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_FRAGINVOCATIONCOUNT	int,uint	float,float2,float3,float4,int2,int3,int4,uint2,uint3,uint4,bool,float[2],float[4],uint[2]
+slang	pixel	in	SV_FRAGSIZE	int2,uint2	float,float2,float3,float4,int,int3,int4,uint,uint3,uint4,bool,float[2],float[4],uint[2]

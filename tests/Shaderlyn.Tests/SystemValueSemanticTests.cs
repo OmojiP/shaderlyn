@@ -337,4 +337,24 @@ public sealed class SystemValueSemanticTests : IDisposable
 
         Assert.Equal(reported, Reports(output).Any(r => r.Contains("深度の出力は 1 つだけです", StringComparison.Ordinal)));
     }
+
+    /// <summary>セマンティクスを受け取れない型の値に付けたもの。型の表は、コンパイラが型の誤りにした型だけを持つ。</summary>
+    [Theory]
+    [InlineData("[shader(\"vertex\")]\nfloat4 main(float id : SV_ViewID) : SV_Position { return 0; }\n", "'SV_ViewID' は float の値に付けられません")]
+    [InlineData("[shader(\"fragment\")]\nfloat4 main(int f : SV_IsFrontFace) : SV_Target { return 0; }\n", "'SV_IsFrontFace' は int の値に付けられません")]
+    [InlineData("[shader(\"vertex\")]\nfloat4 main(uint id : SV_ViewID) : SV_Position { return 0; }\n", null)]
+    [InlineData("[shader(\"fragment\")]\nfloat4 main(bool f : SV_IsFrontFace) : SV_Target { return 0; }\n", null)]
+    public async Task セマンティクスを受け取れない型の値に付けたものを報告する(string code, string? expected)
+    {
+        string[] reports = [.. Reports(await AnalyzeAsync("a.slang", code, "--no-config")).Where(r => r.Contains("の値に付けられません", StringComparison.Ordinal))];
+
+        if (expected is null)
+        {
+            Assert.Empty(reports);
+        }
+        else
+        {
+            Assert.Contains(reports, r => r.Contains(expected, StringComparison.Ordinal));
+        }
+    }
 }

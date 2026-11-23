@@ -35,6 +35,8 @@
   <!-- システム値のセマンティクスを使用できるステージと受け渡しの形の表。tools/semantics/system-values.mjs が FXC・DXC・slangc に掛けて作る -->
   <ItemGroup>
     <EmbeddedResource Include="Symbols\SystemValueSemantics.g.txt" LogicalName="Shaderlyn.Semantics.SystemValueSemantics.txt" />
+    <!-- セマンティクスが受け取れる型の表。同じスクリプトに types の指定を付けて作る -->
+    <EmbeddedResource Include="Symbols\SystemValueTypes.g.txt" LogicalName="Shaderlyn.Semantics.SystemValueTypes.txt" />
   </ItemGroup>
 
   <ItemGroup>
