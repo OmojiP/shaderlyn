@@ -319,9 +319,79 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             }
 
             Receiver receiver = new(ReceiverKind.Argument, parameter.Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
+
+            if (CheckElementStruct(context, binder, receiver, parameter.Type, arguments[i], reported))
+            {
+                continue;
+            }
+
             CheckConversion(context, binder, receiver, arguments[i], reported);
         }
     }
+
+    /// <summary>
+    /// 要素の型を書くバッファー (<c>StructuredBuffer&lt;A&gt;</c>・<c>ConstantBuffer&lt;A&gt;</c> など) の仮引数に、
+    /// 要素の構造体が違うバッファーの変数を渡していないかを検査する。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="receiver">受け取る側。</param>
+    /// <param name="parameterType">仮引数の型。</param>
+    /// <param name="value">渡す値。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <returns>報告したなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 要素の型が違えば別の型で、暗黙には変換されない (slangc 2026.19 の E30019。DXC 1.8 は <c>-HV 2018</c> でも誤りにする)。
+    /// 型の名前 (<see cref="TypeSyntax.Name"/>) には要素の型が入らないので、ほかの検査では同じ型に見える。
+    /// FXC (cs_5_0) は誤りにしないので、構造体の検査と同じく HLSL 2021 と Slang だけで見る。
+    /// </para>
+    /// <para>
+    /// <b>どちらの要素も構造体の場合だけ見る。</b> 派生した構造体のバッファーも、基底のバッファーへは入らない (DXC 1.8・slangc 2026.19)。
+    /// 数の要素 (<c>Texture2D&lt;float4&gt;</c> と <c>&lt;int4&gt;</c>) は、別名や 16 ビットの型の扱いで同じ型になることがあるので見ない。
+    /// 渡すのは、宣言が 1 つに決まる変数 (仮引数・局所変数・大域の変数) だけにする。
+    /// </para>
+    /// </remarks>
+    private static bool CheckElementStruct(
+        SyntaxTreeAnalysisContext context,
+        ExpressionTypeBinder binder,
+        Receiver receiver,
+        TypeSyntax parameterType,
+        ExpressionSyntax value,
+        ReportedLocations reported)
+    {
+        if ((binder.TypeSystem is not SlangTypeSystem && binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion)
+            || ExpressionTypeBinder.GetTemplateArgument(parameterType) is not { } expected
+            || value is not IdentifierExpressionSyntax identifier
+            || binder.ResolveName(identifier) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Type: var declared }] }
+            || declared.IsArray
+            || declared.TypeName != parameterType.Name
+            || declared.TemplateArgument is not { } actual
+            || actual == expected
+            || !IsPlainStruct(binder, expected)
+            || !IsPlainStruct(binder, actual))
+        {
+            return false;
+        }
+
+        ReportStruct(
+            context,
+            receiver with { TypeName = $"{parameterType.Name}<{expected}>" },
+            value,
+            $"{declared.TypeName}<{actual}>",
+            $"要素の構造体が違うバッファーは別の型で、暗黙には変換されません。要素を {expected} にした変数を渡してください。",
+            reported);
+        return true;
+    }
+
+    /// <summary>テンプレートでも、Slang で変換を宣言から決められない型でもない構造体か。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="name">型の名前。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsPlainStruct(ExpressionTypeBinder binder, string name)
+        => binder.IsStructType(name)
+           && !binder.IsTemplateStruct(name)
+           && !(binder.TypeSystem is SlangTypeSystem && IsSlangConvertible(binder, name));
 
     /// <summary>
     /// 多重定義した関数の呼び出しで、構造体の値の実引数を受け取れる宣言が無いものを報告する (Slang)。

@@ -341,6 +341,43 @@ public sealed class Hlsl2021StructTests
         Assert.Equal(["CF0411", "CF0411"], diagnostics.Where(d => d.Severity >= DiagnosticSeverity.Warning).Select(d => d.Id));
     }
 
+    /// <summary>
+    /// 要素の構造体が違うバッファーを渡すと、DXC 1.8 (-HV 2021) は「no matching function」にする。FXC は誤りにしないので、HLSL 2018 では見ない。
+    /// </summary>
+    /// <param name="code">main の前に置くコード。</param>
+    /// <param name="expected">報告されるはずの規則。正しいなら <see langword="null"/>。</param>
+    [Theory]
+    [InlineData("StructuredBuffer<Q> gb; float r() { return TakeBuffer(gb); }", "CF0401")]
+    [InlineData("StructuredBuffer<P> gb; float r() { return TakeBuffer(gb); }", null)]
+    [InlineData("float r(StructuredBuffer<Q> b) { return TakeBuffer(b); }", "CF0401")]
+    [InlineData("StructuredBuffer<D> gb; float r() { return TakeBuffer(gb); }", "CF0401")]
+    [InlineData("ConstantBuffer<Q> cb; float r() { return TakeConstants(cb); }", "CF0401")]
+    [InlineData("Texture2D<int4> t; float r() { return TakeTexture(t); }", null)]
+    public void 要素の構造体が違うバッファーを渡す呼び出しを検査する(string code, string? expected)
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze($$"""
+            struct P { float x; };
+            struct Q { float x; };
+            struct D : P { float y; };
+            float TakeBuffer(StructuredBuffer<P> b) { return b[0].x; }
+            float TakeConstants(ConstantBuffer<P> c) { return c.x; }
+            float TakeTexture(Texture2D<float4> t) { return 0; }
+            {{code}}
+            float4 main() : SV_Target { return r(); }
+            """);
+
+        string[] errors = [.. diagnostics.Where(d => d.Id == "CF0401").Select(d => d.Id)];
+
+        if (expected is null)
+        {
+            Assert.Empty(errors);
+        }
+        else
+        {
+            Assert.Equal([expected], errors);
+        }
+    }
+
     [Fact]
     public void HLSL2018では構造体の変換を見ない()
     {
