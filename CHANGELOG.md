@@ -15,6 +15,12 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Windows の arm64 向けの CLI (`shaderlyn-win-arm64.zip`) と VS Code 拡張 (`shaderlyn-vscode-win32-arm64.vsix`)。
   Visual Studio 拡張と Rider プラグインも、arm64 の Windows では arm64 の言語サーバーを起動する (これまでは x64 の言語サーバーをエミュレーションで動かしていたので、Windows 10 の arm64 では動かなかった)
 
+- Unreal Engine: 設定ファイルに `unreal: engine` / `unreal: project` を書いていない場合、解析するファイルからエンジンとプロジェクトを探す。
+  エンジンの中のファイル (`…/Engine/Shaders/…`) ならそのエンジン、上のフォルダーに `.uproject` があればそのプロジェクトと、
+  `EngineAssociation` のエンジン (プロジェクトを含むエンジンの木、インストールしたエンジン、ソースからビルドして登録したエンジン) を使う。
+  CLI は止めずに上へたどり、エディタはワークスペースのルートまでたどる。同じフォルダーに `.uproject` が複数あれば使わない。
+  どう決めたかは `--env` に表示する ([Unreal Engine](docs/guide/environments/unreal.md#エンジンとプロジェクトの場所))
+
 ### 変更
 
 - 言語サーバー: 保存したときに、取り込んだファイルが変わっていなければ、取り込みの読み込み結果と展開結果を捨てずに使い回すようにした。

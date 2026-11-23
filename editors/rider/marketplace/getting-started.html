@@ -1,6 +1,6 @@
 <ul>
   <li>For a Unity project, open the project root (the folder that contains <code>Assets</code> and <code>ProjectSettings</code>). Package headers are resolved automatically.</li>
-  <li>Unreal Engine <code>.usf</code> and <code>.ush</code> files are analyzed as Unreal Engine without any configuration. To resolve engine headers (<code>/Engine/...</code>), set the engine location (<code>unreal: engine</code>) in <code>.shaderlyn.yaml</code>.</li>
+  <li>Unreal Engine <code>.usf</code> and <code>.ush</code> files are analyzed as Unreal Engine without any configuration. The engine and project locations are found from the opened file (a file inside the engine, or a <code>.uproject</code> in the workspace). If they are not found, set <code>unreal: engine</code> / <code>unreal: project</code> in <code>.shaderlyn.yaml</code>.</li>
   <li>For other environments (plain HLSL and so on), set <code>environment</code> in <code>.shaderlyn.yaml</code> (<a href="https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md">environments</a>).</li>
   <li>Rule severities are configured in <code>.shaderlyn.yaml</code> (<a href="https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md">configuration</a>).</li>
   <li>Plugin settings are under <b>Settings &gt; Tools &gt; Shaderlyn</b>.</li>

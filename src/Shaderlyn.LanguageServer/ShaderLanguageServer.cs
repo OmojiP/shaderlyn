@@ -224,7 +224,8 @@ public sealed partial class ShaderLanguageServer
         switch (method)
         {
             case "initialize":
-                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
+                _workspaceRoot = ReadWorkspaceDirectory(message);
+                _session = CreateWorkspaceSession();
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 _languageFeatures = ReadLanguageFeaturesOption(message);
                 _hoverCodeBlocks = ReadHoverCodeBlocksOption(message);
@@ -433,8 +434,9 @@ public sealed partial class ShaderLanguageServer
     /// </remarks>
     private void ForgetIncludedFiles()
     {
-        _session = new AnalysisSession(_session.WorkspaceDirectory, _analyzers, _environments);
+        _session = CreateWorkspaceSession();
         _sessionsByConfiguration.Clear();
+        _unrealByDirectory.Clear();
         _models.Clear();
     }
 
@@ -855,18 +857,57 @@ public sealed partial class ShaderLanguageServer
         // HLSL 以外の言語 (GLSL など) の拡張子は、CLI と同じく、設定の環境が読まなければその言語の環境で解析する。
         // 設定の環境 (Unity など) で読むと、GLSL を ShaderLab や HLSL として読んで構文エラーを並べる。
         // 環境を決めていなければ、.usf・.ush は Unreal Engine の環境で解析する。
-        if (path is null
-            || Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
-                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen) is not { } language)
+        string? language = path is null
+            ? null
+            : Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
+                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen);
+
+        string key = (configuration ?? string.Empty) + "\n" + language;
+        AnalysisSession session = language is null ? configured : Keyed(key, () => CreateSession(configuration, language, null));
+
+        // 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトは、開いたファイルから探す (ワークスペースのルートで止める)。
+        // 同じ設定ファイルの下でも、ファイルによってエンジン・プロジェクトが違えば別の単位にする。
+        if (path is null || session.UnrealLocations is not { } shared || LocateUnreal(path) is not { } here
+            || (SamePath(here.EngineDirectory, shared.EngineDirectory) && SamePath(here.ProjectDirectory, shared.ProjectDirectory)))
         {
-            return configured;
+            return session;
         }
 
-        return _sessionsByConfiguration.AddOrUpdate(
-            (configuration ?? string.Empty) + "\n" + language,
-            _ => (written, CreateSession(configuration, language)),
-            (_, existing) => existing.Written == written ? existing : (written, CreateSession(configuration, language))).Session;
+        return Keyed(
+            key + "\nunreal\n" + here.EngineDirectory + "\n" + here.ProjectDirectory,
+            () => CreateSession(configuration, language, path));
+
+        AnalysisSession Keyed(string sessionKey, Func<AnalysisSession> create)
+            => _sessionsByConfiguration.AddOrUpdate(
+                sessionKey,
+                _ => (written, create()),
+                (_, existing) => existing.Written == written ? existing : (written, create())).Session;
     }
+
+    /// <summary>開いたファイルのフォルダーごとに、Unreal Engine のエンジンとプロジェクトを探した結果。保存のときに捨てる。</summary>
+    private readonly ConcurrentDictionary<string, Unreal.UnrealLocations> _unrealByDirectory = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>開いたファイルから、Unreal Engine のエンジンとプロジェクトを探す。ワークスペースのルートより上へはたどらない (利用者の決定)。</summary>
+    /// <param name="path">開いたファイル。</param>
+    /// <returns>探した結果。フォルダーが分からなければ <see langword="null"/>。</returns>
+    private Unreal.UnrealLocations? LocateUnreal(string path)
+        => Path.GetDirectoryName(path) is { Length: > 0 } directory
+            ? _unrealByDirectory.GetOrAdd(directory, d => Unreal.UnrealLocator.Find(d, _workspaceRoot))
+            : null;
+
+    /// <summary>2 つのパスが同じフォルダーを指すか (どちらも <see langword="null"/> なら同じ)。</summary>
+    private static bool SamePath(string? a, string? b)
+        => string.Equals(
+            a is null ? null : Path.TrimEndingDirectorySeparator(a),
+            b is null ? null : Path.TrimEndingDirectorySeparator(b),
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>ワークスペースのルート (initialize で受け取ったもの)。設定ファイルのフォルダーで作った解析の単位の WorkspaceDirectory とは違う。</summary>
+    private string? _workspaceRoot;
+
+    /// <summary>ワークスペースのルートの解析の単位を作る。Unreal Engine の場所は、ワークスペースのルートから探し、上へはたどらない。</summary>
+    private AnalysisSession CreateWorkspaceSession()
+        => new(_workspaceRoot, _analyzers, _environments, unrealSearch: _workspaceRoot is null ? null : (_workspaceRoot, _workspaceRoot));
 
     /// <summary>ファイルから上へ辿って一番近い設定ファイルの設定を返す (<see cref="SessionFor"/>)。</summary>
     /// <param name="path">ファイルのパス。</param>
@@ -899,20 +940,22 @@ public sealed partial class ShaderLanguageServer
 
         return _sessionsByConfiguration.AddOrUpdate(
             found,
-            key => (stamp, CreateSession(key, environment: null)),
-            (key, existing) => existing.Written == stamp ? existing : (stamp, CreateSession(key, environment: null))).Session;
+            key => (stamp, CreateSession(key, environment: null, unrealStart: null)),
+            (key, existing) => existing.Written == stamp ? existing : (stamp, CreateSession(key, environment: null, unrealStart: null))).Session;
     }
 
     /// <summary>設定ファイルのフォルダーで解析の設定を作る。</summary>
     /// <param name="configurationPath">設定ファイル。無ければワークスペースのルートで作る。</param>
     /// <param name="environment">設定の環境の代わりに使う環境の名前。</param>
+    /// <param name="unrealStart">Unreal Engine のエンジンとプロジェクトを探し始めるファイル。<see langword="null"/> なら設定のフォルダーから探す。</param>
     /// <returns>設定。</returns>
-    private AnalysisSession CreateSession(string? configurationPath, string? environment)
-        => new(
-            configurationPath is null ? _session.WorkspaceDirectory : Path.GetDirectoryName(configurationPath),
-            _analyzers,
-            _environments,
-            environment);
+    private AnalysisSession CreateSession(string? configurationPath, string? environment, string? unrealStart)
+    {
+        string? directory = configurationPath is null ? _session.WorkspaceDirectory : Path.GetDirectoryName(configurationPath);
+        string? start = unrealStart ?? directory;
+
+        return new(directory, _analyzers, _environments, environment, start is null ? null : (start, _workspaceRoot));
+    }
 
     /// <summary>
     /// 指摘に対する修正を返す。

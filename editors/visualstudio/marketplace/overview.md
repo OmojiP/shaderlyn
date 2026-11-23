@@ -30,7 +30,7 @@ For those files Shaderlyn provides diagnostics and quick fixes only, and the hov
 ## Getting started
 
 - For a Unity project, open the project root (the folder that contains `Assets` and `ProjectSettings`) with **File > Open > Folder**. Package headers are resolved automatically.
-- Unreal Engine `.usf` and `.ush` files are analyzed as Unreal Engine without any configuration. To resolve engine headers (`/Engine/...`), set the engine location (`unreal: engine`) in `.shaderlyn.yaml`.
+- Unreal Engine `.usf` and `.ush` files are analyzed as Unreal Engine without any configuration. The engine and project locations are found from the opened file (a file inside the engine, or a `.uproject` in the workspace). If they are not found, set `unreal: engine` / `unreal: project` in `.shaderlyn.yaml`.
 - For other environments (plain HLSL and so on), set `environment` in `.shaderlyn.yaml`
   ([environments](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)).
 - Rule severities are configured in `.shaderlyn.yaml` ([configuration](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md)).

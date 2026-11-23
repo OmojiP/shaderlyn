@@ -203,8 +203,8 @@ slang:
 
 | キー            | 内容                                                                                   |
 | --------------- | -------------------------------------------------------------------------------------- |
-| `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます       |
-| `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます                     |
+| `engine`        | エンジンのフォルダー (`…/UE_5.4/Engine`)。`/Engine` を `Shaders` の下に割り当てます。書かなければ、解析するファイルから探します ([エンジンとプロジェクトの場所](environments/unreal.md#エンジンとプロジェクトの場所)) |
+| `project`       | プロジェクトのフォルダー。`/Project` を `Shaders` の下に割り当てます。書かなければ、上のフォルダーの `.uproject` から探します |
 | `generated`     | `--unreal-generate` で C++ から作ったフォルダー。`/Engine/Generated` に割り当てます ([環境ごとの使用方法](environments/unreal.md#c-から生成されるファイルを作る)) |
 | `virtual-paths` | そのほかの仮想パスの割り当て (`/Plugin/MyPlugin: Plugins/MyPlugin/Shaders`)            |
 | `permutations`  | `true` で、`generated` に生成したパーミュテーションの組を構成の軸にします (既定は `false`) |

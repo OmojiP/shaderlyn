@@ -111,11 +111,16 @@ internal sealed class AnalysisSession
     /// 設定ファイルの環境の代わりに使う環境の名前 (<c>--environment</c>)。
     /// GLSL などの拡張子のファイルを、CLI と同じくその言語の環境で解析するのに使う。
     /// </param>
+    /// <param name="unrealSearch">
+    /// 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトを探し始めるファイルと、それより上へたどらないフォルダー
+    /// (開いたファイルとワークスペースのルート)。<see langword="null"/> ならワークスペースから止めずに探す。
+    /// </param>
     public AnalysisSession(
         string? workspaceDirectory,
         IEnumerable<DiagnosticAnalyzer> analyzers,
         ImmutableArray<HostEnvironment> environments,
-        string? environmentName = null)
+        string? environmentName = null,
+        (string Start, string? Stop)? unrealSearch = null)
     {
         ArgumentNullException.ThrowIfNull(analyzers);
 
@@ -124,7 +129,11 @@ internal sealed class AnalysisSession
         ImmutableArray<DiagnosticAnalyzer> all = [.. analyzers];
 
         CommandLineOptions options = BuildOptions(workspaceDirectory, environmentName);
+        options.UnrealSearchStart = unrealSearch?.Start;
+        options.UnrealSearchStop = unrealSearch?.Stop;
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
+        UnrealLocations = settings.UnrealLocations;
+        EnvironmentName = settings.Environment;
 
         // rules: に書いた知らない ID も伝える (CLI と同じ)。ルールの一覧は、この言語サーバーで動かすアナライザから決まる。
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics.AddRange(
@@ -233,6 +242,15 @@ internal sealed class AnalysisSession
 
     /// <summary>ワークスペースのルート。</summary>
     public string? WorkspaceDirectory { get; }
+
+    /// <summary>
+    /// 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトを探した結果。
+    /// 書いてあるか、Unreal Engine の環境でなければ <see langword="null"/> (探していない)。
+    /// </summary>
+    public Unreal.UnrealLocations? UnrealLocations { get; }
+
+    /// <summary>設定の環境の名前 (<c>unity</c>・<c>unreal</c> など)。</summary>
+    public string EnvironmentName { get; }
 
     /// <summary>見つかった Unity プロジェクトのルート。無い場合は <see langword="null"/>。</summary>
     public string? UnityProjectPath { get; }

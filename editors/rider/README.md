@@ -39,7 +39,7 @@ zip から入れたプラグインには、Rider が「Cannot update plugin. Cho
 
 - Unity プロジェクトでは、プロジェクトのルート (`Assets` と `ProjectSettings` が存在するフォルダー) を開いてください。パッケージのヘッダを自動で解決します
 - Unity 以外の環境 (汎用の HLSL など) では、`.shaderlyn.yaml` に `environment` を書いてください ([環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md))
-- Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ (`/Engine/...`) を解決するには、`.shaderlyn.yaml` にエンジンの場所 (`unreal: engine`) を書いてください
+- Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンとプロジェクトの場所は、開いたファイルから探します (エンジンの中のファイルか、ワークスペースの中の `.uproject`)。見つからない場合は、`.shaderlyn.yaml` に `unreal: engine` / `unreal: project` を書いてください
 
 ## 設定
 

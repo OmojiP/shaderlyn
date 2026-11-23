@@ -1,7 +1,7 @@
 # Shaderlyn for VS Code
 
 Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.compute`）のリアルタイム静的解析・コーディング支援を提供する VS Code 拡張機能です。
-Unreal Engine（`.usf` / `.ush`）も、設定なしで Unreal Engine の環境で解析します（エンジンのヘッダ `/Engine/...` の解決には `unreal: engine` が必要です）。DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）は、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
+Unreal Engine（`.usf` / `.ush`）も、設定なしで Unreal Engine の環境で解析します（エンジンとプロジェクトの場所は、開いたファイルから探します）。DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）は、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
 GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
 Godot のシェーダー（`.gdshader` / `.gdshaderinc`）も、設定なしで Godot 4 のコンパイラと同じ誤りを報告し、説明・定義へ移動・補完・引数の案内も Godot の型と組み込み（`ALBEDO`・`TIME` など）で答えます。`render_mode` のモードと uniform のヒントも補完します。レンダラー（Forward+ / Mobile / Compatibility）は `project.godot` から読みます。
 Slang（`.slang`）も、設定なしで slangc と同じ誤りを報告し、説明・定義へ移動・補完では `import` したモジュールと標準ライブラリ（`CoopVec` など）を使用します。
@@ -141,7 +141,7 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 ### 動作条件
 
 * Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
-* Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ（`/Engine/...`）を解決するには、`.shaderlyn.yaml` にエンジンの場所（`unreal: engine`）を書いてください
+* Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンとプロジェクトの場所は、開いたファイルから探します（エンジンの中のファイルか、ワークスペースの中の `.uproject`）。見つからない場合は、`.shaderlyn.yaml` に `unreal: engine` / `unreal: project` を書いてください
 * Unity 以外の環境（汎用の HLSL など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
 
 ### 設定項目 (`settings.json`)
