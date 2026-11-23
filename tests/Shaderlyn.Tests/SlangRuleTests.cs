@@ -100,6 +100,16 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "class X { int a; };\nX x;\n")]
     [InlineData("SG0102", "[[vk::location(1)]]\nTexture2D tex;\n")]
     [InlineData("SG0304", "struct S { float4 a; };\n[[vk::binding(2, 1)]]\nParameterBlock<S> b;\n")]
+    [InlineData("SG0304", "struct S { float4 a; };\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(2, 1)]] ParameterBlock<S> p) { }\n")]
+    // 利用者の属性の置き場所 (E31002)、実引数の数 (E31001・E39999) と型 (E30019)
+    [InlineData("SG0102", "[__AttributeUsage(_AttributeTargets.Struct)]\nstruct MyStructAttribute { int i; };\nstruct A { [MyStruct(0)] float x; };\n")]
+    [InlineData("SG0102", "[__AttributeUsage(_AttributeTargets.Var)]\nstruct VAttribute { int i; };\nvoid f([V(1)] float x) { }\n")]
+    [InlineData("SG0304", "[__AttributeUsage(_AttributeTargets.Var)]\nstruct VAttribute { int i; float f; };\n[V(1)] static float g;\n")]
+    [InlineData("SG0304", "[__AttributeUsage(_AttributeTargets.Struct)]\nstruct MyStructAttribute { int i; float f; };\n[MyStruct(0, \"text\")]\nstruct A { float x; };\n")]
+    // 微分する関数の中の、ベクトルを条件にした ?: (E30055)
+    [InlineData("SG0301", "[Differentiable]\nfloat2 f(float2 x)\n{\n    return (x > float2(0)) ? x : -x;\n}\n")]
+    // ジェネリックの型の、型の仮引数に書いた値 (E30060)
+    [InlineData("SG0358", "struct Check<T> { T v; };\nvoid f() { Check<2 + 2> v; }\n")]
     // 同じコンパイル先の __target_intrinsic が 2 つ (E30201)、メソッドの実引数 (E39999・E30019)
     [InlineData("CF0314", "__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(hlsl, \"b($0)\")\nfloat d(float x);\n")]
     [InlineData("CF0401", "struct T { int t; }\nstruct W { float poke(float x, float2 y) { return 0; } float poke(float x, float3 y) { return 0; } }\nfloat f() { W w; T t; return w.poke(1.0, t); }\n")]
@@ -187,6 +197,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0308", "cbuffer ubo\n{\n    float4 data[];\n}\n")]
     // 宣言に使えない型: void の変数、ビットフィールド、列挙型の基の型、特殊化定数
     [InlineData("SG0407", "void f()\n{\n    void a;\n}\n")]
+    // [CudaKernel] の戻り値 (E31213) と、微分する [CudaKernel] の微分する仮引数 (E31214)
+    [InlineData("SG0407", "[CudaKernel]\nfloat k(TensorView<float> t) { return 0; }\n")]
+    [InlineData("SG0407", "[CudaKernel]\n[Differentiable]\nvoid k(float3 x, TensorView<float> t) { }\n")]
     [InlineData("SG0407", "struct S\n{\n    int foo : 33;\n}\n")]
     [InlineData("SG0407", "struct S\n{\n    float foo : 10;\n}\n")]
     [InlineData("SG0407", "enum Bad : float { A, B }\n")]
@@ -275,6 +288,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0350", "[ForwardDifferentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < 5; i++) { i = (int)x; }\n    return s;\n}\n")]
     // 微分の属性の関数の名前、属性の置き場所、微分のグループのスレッドの数
     [InlineData("CF0310", "[BackwardDerivative(nonexistent_bwd)]\nfloat f(float x) { return x * x; }\n")]
+    [InlineData("CF0310", "void __d_f(float x, float.Differential dout) { }\n[BackwardDerivative(__d_g)]\nfloat f(float x) { return x * x; }\n")]
     [InlineData("SG0102", "[MaybeDifferentiable]\nfloat bar(float x) { return x * x; }\n")]
     [InlineData("SG0102", "interface IFoo\n{\n    [TreatAsDifferentiable]\n    float compute(float x);\n}\n")]
     [InlineData("SG0304", "[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(3, 1, 1)]\nvoid main() { }\n")]
@@ -351,6 +365,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "interface Bug\n{\n    static const int badVar = 0;\n}\n")]
     // インターフェイスの要件の書き忘れ、[mutating] と static の食い違い
     [InlineData("SG0359", "interface IFoo\n{\n    void bar();\n}\nstruct T : IFoo\n{\n}\n")]
+    // 微分の属性が弱いメソッドで満たした要件 (E38110・E38105)、値とポインターの両方の微分への適合 (E30311)
+    [InlineData("SG0359", "struct M : IDifferentiable\n{\n    typealias Differential = M;\n    float val;\n    [ForwardDifferentiable] static M dzero() { return { 0.0 }; }\n    [Differentiable] static M dadd(M a, M b) { return { a.val + b.val }; }\n}\n")]
+    [InlineData("SG0359", "interface IR { [ForwardDifferentiable] float eval(float x); }\nstruct S : IR { float eval(float x) { return x * x; } }\n")]
+    [InlineData("SG0361", "struct B : IDifferentiable, IDifferentiablePtrType\n{\n    typealias Differential = B;\n    [Differentiable] static B dzero() { return B(); }\n    [Differentiable] static B dadd(B a, B b) { return a; }\n}\n")]
     [InlineData("SG0359", "interface IThing { int processValue(int inValue); }\nstruct Counter : IThing\n{\n    int state;\n    [mutating] int processValue(int inValue) { state += inValue; return state; }\n}\n")]
     [InlineData("SG0359", "interface Base { static int getValue(); }\nstruct Impl : Base\n{\n    int getValue() { return 5; }\n}\n")]
     // 言語のバージョンを書いたファイルの、存在型での特殊化
@@ -400,10 +418,14 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0361", "struct MyDiff : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float dy;\n}\nstruct MyType : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float x;\n}\n")]
     [InlineData("SG0361", "struct Bar : IDifferentiable\n{\n    typealias Differential = Bar;\n    float y;\n}\nstruct Foo : IDifferentiable\n{\n    typealias Differential = Bar;\n    [DerivativeMember(Differential.nonexistent)]\n    float x;\n}\n")]
     [InlineData("SG0361", "struct D : IDifferentiable\n{\n    typealias Differential = D;\n    float y;\n}\n[DerivativeMember(D.y)]\nfloat globalVar;\n")]
+    // 微分の型の微分が、その型自身でない (E30096)
+    [InlineData("SG0361", "struct E : IDifferentiable { float v; typealias Differential = E; }\nstruct D : IDifferentiable { [DerivativeMember(E.v)] float v; typealias Differential = E; }\nstruct MyType : IDifferentiable { [DerivativeMember(D.v)] float val; typealias Differential = D; }\n")]
     // 微分する関数の中の後ろ向きの微分、let の DifferentialPair、__constref と [constref]、インターフェイスの要件と微分の属性
     [InlineData("SG0360", "[Differentiable]\nfloat fff(float x, float y) { return x + y; }\n[Differentiable]\nfloat ggg(float x, float y)\n{\n    var xp = diffPair(x, 1.0);\n    var yp = diffPair(y, 1.0);\n    bwd_diff(fff)(xp, yp, 1.0);\n    return fff(x, y) + xp.d;\n}\nfloat h(float x)\n{\n    var p = diffPair(x, 1.0);\n    var q = diffPair(x, 1.0);\n    bwd_diff(ggg)(p, q, 1.0);\n    return p.d;\n}\n")]
     [InlineData("SG0360", "[Differentiable]\nfloat square(float x) { return x * x; }\nvoid main()\n{\n    let x = diffPair(3.0, 1.0);\n    bwd_diff(square)(x, 1.0);\n}\n")]
     [InlineData("SG0360", "[Differentiable]\nfloat f(__constref float3 val) { return val.x; }\n")]
+    // 置き換える関数の微分の属性が弱い (E31158)
+    [InlineData("SG0360", "[Differentiable]\nfloat f(float x) { return x; }\n[ForwardDifferentiable]\n[PrimalSubstituteOf(f)]\nfloat g(float x) { return x; }\n")]
     [InlineData("SG0360", "interface IBar\n{\n    [Differentiable]\n    float original(float x);\n    [ForwardDerivativeOf(original)]\n    DifferentialPair<float> fwd_original(DifferentialPair<float> x);\n}\n")]
     // 自分を含む構造体、制約の無いジェネリックの型の値の演算子、get だけの property への書き込み
     [InlineData("SG0407", "struct TA { TB tb; }\nstruct TB { TA ta[2]; }\n")]
@@ -477,6 +499,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0349", "struct U { uint x; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ParameterBlock<U>> input, uniform RWStructuredBuffer<uint> output) {}\n")]
     [InlineData("SG0349", "void g<T : IComparable>() {}\nvoid test() { g<Optional<int>>(); }\n")]
     [InlineData("SG0349", "interface IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<ByteAddressBuffer>(); }\n")]
+    // 微分しない組み込みの型の DifferentialPair (E38029)
+    [InlineData("SG0349", "void f() { DifferentialPair<int> p; }\n")]
+    [InlineData("SG0349", "float g(DifferentialPair<uint3> p) { return 0; }\n")]
     [InlineData("SG0358", "interface IFoo { int get(); }\ntype_param T : IFoo;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    T t;\n    output[0] = t.get();\n}\n")]
     [InlineData("SG0358", "__generic_value_param N : int;\nRWStructuredBuffer<int> output;\nint read() { return N; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = read(); }\n")]
     [InlineData("SG0349", "[anyValueSize(8)]\ninterface IFoo { float getValue(); }\nstruct ImplA : IFoo { float v; float getValue() { return v; } }\nRWByteAddressBuffer buffer;\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid computeMain()\n{\n    IFoo loaded = buffer.Load<IFoo>(0);\n    output[0] = loaded.getValue();\n}\n")]
@@ -665,6 +690,23 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct Counter\n{\n    int v;\n    __init(int x) { v = x; }\n    int get() { return v; }\n}\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    Counter(1).get();\n    output[0] = Counter(2).get();\n}\n")]
     [InlineData("__ignored_block\n{\n    arbitrary content, nested {} here.\n}\nstruct MyType\n{\n    __transparent_block\n    {\n        int myFunc() { return 0; }\n    }\n}\n__file_decl\n{\n    int f1() { return 1; }\n}\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main() { MyType t; output[0] = t.myFunc(); }\n")]
     [InlineData("enum MyError { Overflow }\nstruct MyCheckedInt { int v; }\n__prefix MyCheckedInt operator++(inout MyCheckedInt i) throws MyError { i.v++; return i; }\n__postfix MyCheckedInt operator++(inout MyCheckedInt i) throws MyError\n{\n    MyCheckedInt r = i;\n    try ++i;\n    return r;\n}\nvoid f() throws MyError { MyCheckedInt c = { 0 }; try c++; try ++c; }\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    do { try f(); } catch (e : MyError) {}\n    output[0] = 1;\n}\n")]
+    // 利用者の属性 (初期値のあるフィールドは省ける、static のフィールドは数えない、[[…]] の書き方)
+    [InlineData("[__AttributeUsage(_AttributeTargets.Var)]\nstruct DAttribute { int i; float f = 1.0; static int k; };\n[__AttributeUsage(_AttributeTargets.Param)]\nstruct PAttribute { int i; };\n[__AttributeUsage(_AttributeTargets.Function)]\nstruct FAttribute { String s; };\n[__AttributeUsage(_AttributeTargets.Struct)]\nstruct SAttribute { };\n[[S]]\nstruct A { [D(1)] float x; [F(\"m\")] void m() { } };\n[D(1, 2)] static float g;\n[F(\"f\")]\nvoid f([P(1)] float x) { [D(2)] float y = x; }\n")]
+    [InlineData("[__AttributeUsage(_AttributeTargets.Struct)]\n[__AttributeUsage(_AttributeTargets.Function)]\nstruct MyStructAttribute { int i; };\n[MyStruct(0)]\nstruct A { float x; };\n[MyStruct(1)]\nvoid f() { }\n")]
+    // 微分の要件を満たすメソッド (同じか強い属性、[TreatAsDifferentiable]、自分で書いた前向きの微分、[PrimalSubstituteOf] で置き換えたもの)
+    [InlineData("struct M : IDifferentiable\n{\n    typealias Differential = M;\n    float val;\n    [Differentiable] static M dzero() { return { 0.0 }; }\n    [TreatAsDifferentiable] static M dadd(M a, M b) { return { a.val + b.val }; }\n}\ninterface IR { [ForwardDifferentiable] float eval(float x); [Differentiable] float bar(float x); }\nstruct S : IR\n{\n    [ForwardDerivative(eval_fwd)]\n    float eval(float x) { return x; }\n    DifferentialPair<float> eval_fwd(DifferentialPair<float> x) { return x; }\n    float bar(float x) { return x; }\n    [Differentiable, PrimalSubstituteOf(bar)]\n    float bar_subst(float x) { return x; }\n}\n")]
+    // 大文字で書いた [OutputTopology] (属性の名前は大文字と小文字を区別しない)
+    [InlineData("struct V { float4 p : SV_Position; };\n[shader(\"mesh\")]\n[OutputTopology(\"triangle\")]\n[numthreads(3, 1, 1)]\nvoid main(out indices uint3 t[1], out vertices V v[3])\n{\n    SetMeshOutputCounts(3, 1);\n    v[0].p = float4(0); v[1].p = float4(0); v[2].p = float4(0);\n    t[0] = uint3(0, 1, 2);\n}\n")]
+    // 微分する [CudaKernel] の、微分しない型と no_diff の仮引数
+    [InlineData("[CudaKernel]\n[Differentiable]\nvoid k(int n, no_diff float x, TensorView<float> t) { }\n")]
+    // 微分する型の DifferentialPair と、構造体の DifferentialPair (コンパイラが IDifferentiable を追加する)
+    [InlineData("struct S : IDifferentiable { float a; }\nvoid f() { DifferentialPair<float3> p; DifferentialPair<half> q; DifferentialPair<float2x2> r; DifferentialPair<S> s; }\n")]
+    // 置き換える関数の微分の属性 (同じか強いもの、[TreatAsDifferentiable]、微分しない関数の置き換え)
+    [InlineData("[ForwardDifferentiable]\nfloat f(float x) { return x; }\n[BackwardDifferentiable]\n[PrimalSubstituteOf(f)]\nfloat g(float x) { return x; }\n[Differentiable]\nfloat h(float x) { return x; }\n[TreatAsDifferentiable]\n[PrimalSubstituteOf(h)]\nfloat k(float x) { return x; }\nfloat p(float x) { return x; }\n[PrimalSubstituteOf(p)]\nfloat q(float x) { return x; }\n")]
+    // 微分する関数の中の、スカラーを条件にした ?: と select
+    [InlineData("[Differentiable]\nfloat f(float x) { return x > 0 ? x : -x; }\n[Differentiable]\nfloat2 g(float2 x) { return select(x > float2(0), x, -x); }\n")]
+    // 値の仮引数への数のリテラル、仮引数の vk::binding(0, s) の ParameterBlock
+    [InlineData("struct Vec<T, let N : int> { T v[N]; }\nstruct Arr<int M> { float a[M]; }\nstruct S { float4 a; };\nstatic Vec<float, 3> a;\nstatic Arr<4> b;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(0, 1)]] ParameterBlock<S> p) { }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -793,6 +835,34 @@ public sealed class SlangRuleTests : IDisposable
         Assert.Contains("user.slang(7:5): error SG0401: 'InternalStruct'", output, StringComparison.Ordinal);
         Assert.Contains("user.slang(8:5): error SG0401: 'internalMethod'", output, StringComparison.Ordinal);
         Assert.Equal(3, output.Split("SG0401").Length - 1);
+    }
+
+    [Fact]
+    public async Task 公開する関数の微分に再公開しないimportの関数を使用した箇所を報告する()
+    {
+        // 文字列の import は、拡張子を省くと .slang を補う。__exported import で取り込んだモジュールの関数と、public でない関数は報告しない。
+        File.WriteAllText(Path.Combine(_workDirectory, "helper.slang"),
+            "module helper;\npublic DifferentialPair<float> helper_fwd(DifferentialPair<float> x) { return diffPair(x.p, x.d); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "shared.slang"),
+            "module shared;\npublic DifferentialPair<float> shared_fwd(DifferentialPair<float> x) { return diffPair(x.p, x.d); }\n");
+
+        string output = await AnalyzeAsync(
+            "module user;\nimport \"helper\";\n__exported import shared;\n[ForwardDerivative(helper_fwd)]\npublic float a(float x) { return x; }\n"
+            + "[ForwardDerivative(shared_fwd)]\npublic float b(float x) { return x; }\n[ForwardDerivative(helper_fwd)]\nfloat c(float x) { return x; }\n",
+            "user.slang");
+
+        Assert.Contains("user.slang(4:2): error SG0360: 'helper_fwd'", output, StringComparison.Ordinal);
+        Assert.Equal(1, output.Split("SG0360").Length - 1);
+    }
+
+    [Fact]
+    public async Task モジュールのexternの宣言を取り込んだ側のexportの定義と重複とみなさない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "lib.slang"), "module lib;\npublic extern static const int count;\npublic int twice() { return count * 2; }\n");
+
+        string output = await AnalyzeAsync("import lib;\nexport static const int count = 6;\nint f() { return count + twice(); }\n", "user.slang");
+
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
     }
 
     [Fact]

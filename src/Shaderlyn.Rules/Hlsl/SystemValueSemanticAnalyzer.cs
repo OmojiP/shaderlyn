@@ -86,7 +86,7 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
             }
 
             // [outputtopology] と out vertices などを持つ関数は、[shader("mesh")] が無くてもメッシュシェーダーである (slangc も検査する)。
-            if (function.Attributes.Any(a => a.Name == "outputtopology")
+            if (function.Attributes.Any(a => string.Equals(a.Name, "outputtopology", StringComparison.OrdinalIgnoreCase))
                 && function.ParameterList.Any(p => p.ModifierTokens.Concat(p.Type.ModifierTokens).Any(t => t.Text is "vertices" or "indices" or "primitives")
                                                    || p.Type.Name is "OutputVertices" or "OutputIndices" or "OutputPrimitives")
                 && seen.Add(function))

@@ -19,6 +19,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <item>インターフェイスの static const の要件の初期値 (E30623。SG0101)</item>
 /// <item>型引数を書かない Buffer・Tuple と、既定の型引数の無い利用者のジェネリックの型 (E30408)</item>
 /// <item>利用者のジェネリックの型の型引数の数 (E30441・E39999) と、空の <c>Buffer&lt;&gt;</c> (E30441)</item>
+/// <item>利用者のジェネリックの型の、型の仮引数に書いた数のリテラルか true・false で始まる値 (<c>Check&lt;2 + 2&gt;</c>。E30060)</item>
 /// <item>可変長の並びの後ろの仮引数 (<c>&lt;each T, U&gt;</c>。E30522) と、後ろの仮引数を指す既定の値 (<c>&lt;A = B, B = int&gt;</c>。E30122)</item>
 /// <item>where の左の組み込みの型 (<c>where int : IInteger</c>。E30402)、== の右のインターフェイス (E30404)、nonempty(…) の対象 (E30413・E30416)</item>
 /// <item>インターフェイスの extension (<c>extension IFoo</c>。E30852)</item>
@@ -73,6 +74,9 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
 
             // 利用者のジェネリックの型の、型引数の数 (要る数・書ける数。可変長の並びがあれば上限なし)。同じ名前が 2 つあれば null。
             Dictionary<string, (int Required, int Total)?> arities = new(StringComparer.Ordinal);
+
+            // 利用者のジェネリックの型の仮引数の並び。型の仮引数はその名前、値の仮引数は null。同じ名前が 2 つあるか可変長の並びがあれば null。
+            Dictionary<string, string?[]?> typeParameters = new(StringComparer.Ordinal);
 
             // 仮引数がどれも並びの型 (TwoPacks<let each A : int, let each B : int>) の、並びの数。型引数は並びの数で割り切れなければならない。
             Dictionary<string, int> packGroups = new(StringComparer.Ordinal);
@@ -141,6 +145,9 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                     arities[tokens[i + 1].Text] = arities.ContainsKey(tokens[i + 1].Text) || kinds.GetValueOrDefault(tokens[i + 1].Text) == "?"
                         ? null
                         : (parameters.Count(p => !p.HasDefault && !p.Pack), parameters.Any(p => p.Pack) ? int.MaxValue : parameters.Count);
+                    typeParameters[tokens[i + 1].Text] = arities[tokens[i + 1].Text] is null || parameters.Any(p => p.Pack)
+                        ? null
+                        : [.. parameters.Select(p => p.Value ? null : p.Name.Text)];
 
                     if (parameters.Count >= 2 && parameters.All(p => p.Pack))
                     {
@@ -238,7 +245,7 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
-            CheckArity(tokens, arities, packGroups, brokenDefaults, Report);
+            CheckArity(tokens, arities, typeParameters, packGroups, brokenDefaults, Report);
 
             // nonGeneric<G>() (ジェネリックでない利用者の関数に型引数を書く。E39999)。同じ名前のジェネリックの宣言・型・標準ライブラリの関数があれば見ない。
             void CheckNotGeneric(ShaderSyntaxToken name)
@@ -353,7 +360,8 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
     /// <summary>
     /// ジェネリックの型の型引数の数 (<c>Foo&lt;int&gt;</c> の Foo が 2 つの仮引数を持つ。E30441・E39999) と、空の <c>Buffer&lt;&gt;</c> (E30441) を見る。
     /// </summary>
-    private static void CheckArity(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, (int Required, int Total)?> arities, Dictionary<string, int> packGroups,
+    private static void CheckArity(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<string, (int Required, int Total)?> arities,
+        Dictionary<string, string?[]?> typeParameters, Dictionary<string, int> packGroups,
         Dictionary<string, (int Index, string Text)> brokenDefaults, Action<DiagnosticDescriptor, ShaderSyntaxToken, string> report)
     {
         for (int i = 1; i + 1 < tokens.Length; i++)
@@ -382,9 +390,17 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             bool any = false;
             bool closed = false;
 
+            // 型引数ごとの最初のトークン。
+            List<ShaderSyntaxToken> starts = [];
+
             for (int j = i + 1; j < tokens.Length; j++)
             {
                 ShaderSyntaxKind kind = tokens[j].Kind;
+
+                if (depth == 1 && paren == 0 && starts.Count == count && kind is not (ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.GreaterThanGreaterThanToken))
+                {
+                    starts.Add(tokens[j]);
+                }
 
                 if (kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken
                     or ShaderSyntaxKind.AmpersandAmpersandToken or ShaderSyntaxKind.BarBarToken || (kind == ShaderSyntaxKind.CloseParenToken && paren == 0))
@@ -462,6 +478,19 @@ internal sealed class SlangGenericDeclarationAnalyzer : SemanticRuleAnalyzer
             {
                 report(SlangRuleDescriptors.GenericParameterForm, name,
                     $"ジェネリックの型 {name.Text} の既定の型引数 {broken.Text} は、制約が存在しない型の仮引数のメンバーなので決まりません。型引数を書くか、制約を書いてください。");
+            }
+            else if (typeParameters.GetValueOrDefault(name.Text) is { } names && starts.Count == arguments)
+            {
+                // 型の仮引数に、数のリテラルや true・false で始まる値を書いた (Check<2 + 2>。E30060)。
+                for (int k = 0; k < starts.Count && k < names.Length; k++)
+                {
+                    if (names[k] is { } parameter
+                        && (starts[k].Kind == ShaderSyntaxKind.NumericLiteralToken || starts[k].Text is "true" or "false"))
+                    {
+                        report(SlangRuleDescriptors.GenericParameterForm, starts[k],
+                            $"ジェネリックの型 {name.Text} の仮引数 {parameter} は型の仮引数なので、型を書いてください (値は書けません)。");
+                    }
+                }
             }
         }
     }

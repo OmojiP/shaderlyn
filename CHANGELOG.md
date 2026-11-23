@@ -39,12 +39,30 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   (DXC の検証の誤り、slangc の E30705。FXC は誤りにしないので見ない)
 - SG0309: コピーできない型 (`[__NonCopyableType]`) の `in` の仮引数への `[mutating]` のメソッドの呼び出しもエラーにする (slangc の E30067)
 - Slang: `class` の型のシェーダーの仮引数 (関数の外の static でない変数) を SG0101 (slangc の E39031)、
-  資源と定数バッファーの `[[vk::location]]` を SG0102 (E39021)、`ParameterBlock` の `[[vk::binding(b, s)]]` の 0 でない b を SG0304 (E39015)、
+  資源と定数バッファーの `[[vk::location]]` を SG0102 (E39021)、`ParameterBlock` の `[[vk::binding(b, s)]]` の 0 でない b (エントリポイントの仮引数を含む) を SG0304 (E39015)、
   循環する `import` を CF0020 (E38200) にする。public の構造体の public の `property` が public でない型を使用している箇所も SG0402 にする (E30604)
 - CF0401: 構造体のメソッドの呼び出し (`w.poke(1.0, t)`) の実引数も、関数と同じく検査する (slangc の E30019・E39999)。HLSL 2021 と Slang が対象
 - CF0314 (Slang): 同じコンパイル先の `__target_intrinsic` を書いた、同じ形の関数の 2 つ目 (slangc の E30201)
+- CF0303 の誤報告: 大文字で書いた `[OutputTopology("triangle")]` を読まず、メッシュシェーダーの属性がないと報告していた (DXC と slangc は属性の名前の大文字と小文字を区別しない)
+- CF0314 (Slang) の誤報告: モジュールの `extern` の宣言 (`public extern static const int n;`) を、取り込んだ側の `export` の定義との重複として報告していた
 - CF0314 (Slang) の誤報告: 定義を取り込めていないマクロを前に書いたメソッド (`SETTER_DECL void set(…)`) を、同じ名前 `void` のフィールドの重複として報告していた (Falcor)
 - SG0102 (Slang): レイトレーシングのエントリポイントの仮引数の向き。`miss`・`callable` の `in` の仮引数 (E39018) と、`intersection` の `out`・`inout` の仮引数 (E39017)
+- Slang: 利用者が定義した属性 (`[__AttributeUsage(…)] struct MyStructAttribute`) を、`_AttributeTargets` と違う宣言に書いた箇所を SG0102 (slangc の E31002)、
+  実引数の数がフィールドと合わない箇所と、文字列と数を取り違えた実引数を SG0304 (E31001・E39999・E30019) にする
+- SG0301 (Slang): 微分する関数の中の、ベクトルか行列を条件にした `?:` (slangc の E30055。`select` を使う)
+- SG0360 (Slang): `[PrimalSubstituteOf(f)]` を書いた関数の微分の属性が f より弱いもの (`[Differentiable]` の f を、微分しない関数で置き換える。slangc の E31158)
+- SG0360 (Slang): 公開する関数の `[ForwardDerivative(g)]`・`[BackwardDerivative(g)]` の g が、`__exported import` でなく取り込んだモジュールの関数であるもの (slangc の E31162)
+- Slang: 文字列で書いた `import "helper";` を、slangc と同じく `helper.slang` の取り込みとして扱う。これまでは拡張子を省いた名前を取り込みに結び付けず、
+  取り込んだモジュールから見えない名前の検査 (CF0310) でそのモジュールの宣言をすべて見えるものとしていた
+- SG0349 (Slang): 微分しない組み込みの型 (整数・`bool` とそのベクトル・行列) を型引数にした `DifferentialPair` (`DifferentialPair<int>`) と、組み込みの数の型を型引数にした `DifferentialPtrPair` (slangc の E38029)
+- SG0359 (Slang): 微分の属性を書いたインターフェイスの要件を、弱い微分の属性のメソッドで満たしている箇所
+  (`IDifferentiable` の `[Differentiable]` でない `dzero`・`dadd`、`[ForwardDifferentiable]` の要件を微分しないメソッドで満たす。slangc の E38110・E38105)
+- SG0407 (Slang): `[CudaKernel]` の関数の void でない戻り値 (slangc の E31213) と、微分する `[CudaKernel]` の関数の微分する仮引数 (E31214)
+- SG0361 (Slang): `IDifferentiable` と `IDifferentiablePtrType` の両方に適合させた型 (slangc の E30311)
+- SG0361 (Slang): 微分の型の微分が、その型自身でないもの (`typealias Differential = D;` の D の微分が別の型。slangc の E30096)
+- SG0358 (Slang): 利用者のジェネリックの型の、型の仮引数に値を書いた箇所 (`Check<2 + 2>`。slangc の E30060)
+- CF0310 (Slang): 微分の属性 (`[BackwardDerivative(__d_g)]` など) に書いた、`__` で始まる宣言されていない関数の名前もエラーにする。
+  これまでは `__` で始まる名前をコンパイラの組み込みとみなして見ていなかった。標準ライブラリの関数の名前は通す
 - Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
 - CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
   (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない

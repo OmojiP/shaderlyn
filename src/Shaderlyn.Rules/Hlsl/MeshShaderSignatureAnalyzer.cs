@@ -80,7 +80,7 @@ internal sealed class MeshShaderSignatureAnalyzer : SemanticRuleAnalyzer
             return;
         }
 
-        if (!function.Attributes.Any(a => a.Name == "outputtopology"))
+        if (!function.Attributes.Any(a => string.Equals(a.Name, "outputtopology", StringComparison.OrdinalIgnoreCase)))
         {
             report(function.NameToken, $"メッシュシェーダー '{function.Name}' に [outputtopology(\"triangle\")] などの属性がありません", both);
         }

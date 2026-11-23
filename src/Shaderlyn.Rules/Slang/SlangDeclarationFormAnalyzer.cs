@@ -113,6 +113,11 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                         Report(SlangRuleDescriptors.InvalidDeclarationType, tag, $"列挙型の基の型は整数でなければなりません ({tag.Text} は使用できません)。");
                         break;
 
+                    // 関数の仮引数 (エントリポイントの uniform の仮引数) の [[vk::binding]]・[[vk::location]]。
+                    case ParameterSyntax parameter when ParameterAttributesBefore(tokens, positions, parameter) is { Count: > 0 } parameterAttributes:
+                        CheckBindingAttributes(parameter.Type, parameterAttributes, tokens, positions, Report);
+                        break;
+
                     case TypedefDeclarationSyntax typedef when typedef.Tokens.FirstOrDefault(t => t.Text == "volatile") is { } volatileToken:
                         Report(SlangRuleDescriptors.ModifierNotAllowed, volatileToken, "typedef に volatile は書けません。");
                         break;
@@ -340,6 +345,45 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         {
             if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken
                 && i > 0 && tokens[i - 1].Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.ColonColonToken)
+            {
+                names.Add(tokens[i]);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>仮引数の前の [[…]] と […] の属性の名前。仮引数の並びの ( か、前の仮引数の , までを見る。</summary>
+    private static List<ShaderSyntaxToken> ParameterAttributesBefore(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<ShaderSyntaxToken, int> positions, ParameterSyntax parameter)
+    {
+        List<ShaderSyntaxToken> names = [];
+
+        if (parameter.FirstToken is not { } first || !positions.TryGetValue(first, out int index))
+        {
+            return names;
+        }
+
+        int brackets = 0;
+
+        for (int i = index - 1; i >= 0; i--)
+        {
+            ShaderSyntaxKind kind = tokens[i].Kind;
+
+            if (kind == ShaderSyntaxKind.CloseBracketToken)
+            {
+                brackets++;
+            }
+            else if (kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                brackets--;
+            }
+            else if (brackets == 0 && kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.SemicolonToken
+                         or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken)
+            {
+                break;
+            }
+            else if (brackets > 0 && kind == ShaderSyntaxKind.IdentifierToken
+                     && i > 0 && tokens[i - 1].Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.ColonColonToken)
             {
                 names.Add(tokens[i]);
             }

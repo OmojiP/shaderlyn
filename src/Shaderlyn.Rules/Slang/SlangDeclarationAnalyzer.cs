@@ -346,6 +346,12 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
 
         foreach (VariableDeclarationSyntax declaration in program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Where(conditions.IsAlwaysPresent))
         {
+            // モジュールの extern の宣言は、取り込んだ側の export の定義で埋めるもので、重複ではない (ambiguous-extern-export)。
+            if (declaration.HasModifier("extern"))
+            {
+                continue;
+            }
+
             foreach (VariableDeclaratorSyntax declarator in declaration.Variables)
             {
                 if (declarator.NameToken.GetLocation() is not { } location || declarator.Name.Length == 0)
