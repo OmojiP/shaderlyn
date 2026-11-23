@@ -198,6 +198,11 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
             }
         }
 
+        if (global && AttributesBefore(tokens, positions, declaration) is { Count: > 0 } placed)
+        {
+            CheckBindingAttributes(type, placed, tokens, positions, report);
+        }
+
         if (global && AttributesBefore(tokens, positions, declaration) is { Count: > 0 } attributes
             && attributes.FirstOrDefault(a => a.Text is "constant_id" or "specialization_constant" or "SpecializationConstant") is { } specialization)
         {
@@ -218,6 +223,52 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 {
                     report(SlangRuleDescriptors.ModifierNotAllowed, variable.NameToken, $"'{variable.Name}' を push constant と特殊化定数の両方にはできません。");
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 関数の外の資源の宣言の、Vulkan の配置の属性を検査する。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><c>[[vk::location]]</c> は入出力 (varying) にだけ書ける。定数バッファーと資源に書くと、slangc 2026.19 は E39021 にする (配置は <c>[[vk::binding]]</c> で書く)</item>
+    ///   <item><c>ParameterBlock&lt;T&gt;</c> は記述子のセットを丸ごと使うので、<c>[[vk::binding(b, s)]]</c> の b は 0 でなければならない (E39015)</item>
+    /// </list>
+    /// </remarks>
+    private static void CheckBindingAttributes(
+        TypeSyntax type,
+        List<ShaderSyntaxToken> attributes,
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        Dictionary<ShaderSyntaxToken, int> positions,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+    {
+        bool block = type.NameToken.Text == "ParameterBlock";
+        bool resource = block || type.NameToken.Text == "ConstantBuffer" || IsResourceName(type.NameToken.Text);
+
+        foreach (ShaderSyntaxToken attribute in attributes)
+        {
+            bool vulkan = positions.TryGetValue(attribute, out int at) && at >= 2
+                          && tokens[at - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[at - 2].Text == "vk";
+
+            if (!vulkan)
+            {
+                continue;
+            }
+
+            if (attribute.Text == "location" && resource)
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, attribute,
+                    $"[[vk::location]] は入出力にだけ書けます。{type.NameToken.Text} の配置は [[vk::binding(…)]] で書いてください。");
+            }
+
+            // [[vk::binding(2, 1)]] の 2。
+            if (attribute.Text == "binding" && block
+                && at + 2 < tokens.Length && tokens[at + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                && tokens[at + 2].Kind == ShaderSyntaxKind.NumericLiteralToken && tokens[at + 2].Text != "0")
+            {
+                report(SlangRuleDescriptors.InvalidAttributeValue, attribute,
+                    $"ParameterBlock は記述子のセットを丸ごと使うので、[[vk::binding(b, s)]] の b は 0 にしてください ({tokens[at + 2].Text} が書かれています)。");
             }
         }
     }

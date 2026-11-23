@@ -312,4 +312,29 @@ public sealed class SystemValueSemanticTests : IDisposable
 
         Assert.Empty(Reports(output));
     }
+
+    /// <summary>ピクセルシェーダーの深度の出力は 1 つだけ。DXC 1.8 は検証の誤り、slangc 2026.19 は E30705 にする。FXC (ps_5_0) は通す。</summary>
+    [Theory]
+    [InlineData("ps_6_6", "void main(out float a : SV_DepthGreaterEqual, out float b : SV_Depth) { a = 0; b = 0; }", true)]
+    [InlineData("ps_6_6", "struct O { float a : SV_Depth; float b : SV_DepthLessEqual0; float4 c : SV_Target; }; O main() { O o = (O)0; return o; }", true)]
+    [InlineData("ps_6_6", "void main(out float a : SV_Depth, out float4 c : SV_Target) { a = 0; c = 0; }", false)]
+    [InlineData("ps_5_0", "void main(out float a : SV_DepthGreaterEqual, out float b : SV_Depth) { a = 0; b = 0; }", false)]
+    public async Task ピクセルシェーダーの深度の出力は1つだけ(string target, string code, bool reported)
+    {
+        string compiler = target == "ps_5_0" ? "fxc" : "dxc";
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $$"""
+            version: 1
+            environment: hlsl
+            hlsl:
+              compiler: {{compiler}}
+            units:
+              - files: "*.hlsl"
+                entry: main
+                target: {{target}}
+            """);
+
+        string output = await AnalyzeAsync("a.hlsl", code, "--config", Path.Combine(_workDirectory, ".shaderlyn.yaml"));
+
+        Assert.Equal(reported, Reports(output).Any(r => r.Contains("深度の出力は 1 つだけです", StringComparison.Ordinal)));
+    }
 }

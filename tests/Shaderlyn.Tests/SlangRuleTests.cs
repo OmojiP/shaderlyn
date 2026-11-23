@@ -55,6 +55,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0402", "private struct Hidden { }\n")]
     [InlineData("SG0402", "struct Inner { public int x; }\n")]
     [InlineData("SG0402", "struct IS { int a; }\npublic IS make() { return {}; }\n")]
+    [InlineData("SG0402", "struct IS { int a; }\npublic struct P\n{\n    public property IS p { get { return {}; } }\n}\n")]
     [InlineData("SG0402", "struct IS { int a; }\npublic struct P { public IS s; }\n")]
     // 構造体の値への組み込みの演算子、ConstantBuffer の値の縮める変換
     [InlineData("SG0301", "struct S { int a; }\nbool f(S s)\n{\n    return s == s;\n}\n")]
@@ -71,6 +72,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0309", "struct S\n{\n    float r;\n    void set(float x) { r = x; }\n}\n")]
     [InlineData("SG0309", "struct S\n{\n    float3 c;\n    void grow() { this.c.x += 1; }\n}\n")]
     // 読むだけの資源の要素への書き込み
+    // コピーできない型の in の仮引数への [mutating] のメソッドの呼び出し (E30067)
+    [InlineData("SG0309", "[__NonCopyableType]\nstruct N { int v; [mutating] void set(int x) { v = x; } }\nint f(N n) { n.set(1); return n.v; }\n")]
     [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    sb[0] = 1;\n}\n")]
     [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    InterlockedAdd(sb[0], 1);\n}\n")]
     [InlineData("SG0309", "Texture2D<float4> tex;\nvoid f()\n{\n    tex[uint2(0, 0)] = float4(0);\n}\n")]
@@ -93,6 +96,12 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0310", "struct S : INotExist { }\n")]
     [InlineData("CF0310", "struct S { Missing m; }\n")]
     [InlineData("CF0021", "import missing.module;\nfloat f() { return 1.0; }\n")]
+    // class の型のシェーダーの仮引数 (E39031)、資源の [[vk::location]] (E39021)、ParameterBlock の 0 でない binding (E39015)
+    [InlineData("SG0101", "class X { int a; };\nX x;\n")]
+    [InlineData("SG0102", "[[vk::location(1)]]\nTexture2D tex;\n")]
+    [InlineData("SG0304", "struct S { float4 a; };\n[[vk::binding(2, 1)]]\nParameterBlock<S> b;\n")]
+    // property の名前に演算子 (slangc の E20020)
+    [InlineData("CF0001", "struct S\n{\n    property int operator& { get { return 0; } }\n}\n")]
     // 型を書かない let / var は、初期値の式の型になる
     [InlineData("CF0410", "void f()\n{\n    let a = float3(1, 2, 3);\n    var b = a.xy;\n    float4 c = b;\n}\n")]
     [InlineData("CF0312", "void f()\n{\n    let a = float3(1, 2, 3);\n    let d = a.w;\n}\n")]
@@ -482,6 +491,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // static の class の値、入力の [[vk::location]]、ParameterBlock の binding 0
+    [InlineData("class X { int a; };\nstatic X x;\nstruct S { float4 a; };\n[[vk::binding(0, 1)]]\nParameterBlock<S> b;\n[shader(\"fragment\")]\nfloat4 main([[vk::location(0)]] float2 uv : TEXCOORD) : SV_Target { return float4(uv, 0, 1); }\n")]
+    // コピーできる型の in の仮引数への [mutating] のメソッドの呼び出し (slangc は警告だけ)、inout のコピーできない型
+    [InlineData("struct C { int v; [mutating] void set(int x) { v = x; } }\n[__NonCopyableType]\nstruct N { int v; [mutating] void set(int x) { v = x; } }\nint f(C c, inout N n) { c.set(1); n.set(2); return c.v + n.v; }\n")]
     // 循環しない適合: ポインターのフィールド、ほかのインターフェイスだけを持つ構造体
     [InlineData("interface INode { float get(); }\ninterface ILeaf { float v(); }\nstruct Node : INode { INode* next; ILeaf leaf; float get() { return 0; } }\nstruct Leaf : ILeaf { float x; float v() { return x; } }\n")]
     // 形のそろった演算子: スカラーと 1 成分の値はどの形とも組める、import glsl の行列とベクトルの積
@@ -669,6 +682,21 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 循環するimportを報告し_同じモジュールの部分は報告しない()
+    {
+        // slangc 2026.19 は import の循環を E38200「recursive module import」にする。__include と implementing は同じモジュールの部分なので、互いに書ける。
+        File.WriteAllText(Path.Combine(_workDirectory, "extra.slang"), "import main;\nfloat g() { return 1.0; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "part.slang"), "implementing whole;\nfloat p() { return 1.0; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "whole.slang"), "module whole;\n__include part;\nfloat w() { return p(); }\n");
+
+        string cyclic = await AnalyzeAsync("import extra;\nfloat f() { return g(); }\n", "main.slang");
+        string parts = await AnalyzeAsync(File.ReadAllText(Path.Combine(_workDirectory, "whole.slang")), "whole.slang");
+
+        Assert.Contains("main.slang(1:1): error CF0020: 'main' の include が循環しています。", cyclic, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0020", parts, StringComparison.Ordinal);
     }
 
     [Fact]

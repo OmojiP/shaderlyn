@@ -55,7 +55,8 @@ internal static class SlangModules
         List<Diagnostic> diagnostics = [];
         HashSet<string> visited = new(StringComparer.OrdinalIgnoreCase) { Path.GetFullPath(text.FilePath ?? "<無名>") };
 
-        Collect(text.FilePath ?? string.Empty, preprocessed.Tokens, options, visited, moduleTokens, resolved, unresolved, references, rootImport: null, isStandardModule);
+        List<string> chain = [Path.GetFullPath(text.FilePath ?? "<無名>")];
+        Collect(text.FilePath ?? string.Empty, preprocessed.Tokens, options, visited, chain, diagnostics, moduleTokens, resolved, unresolved, references, rootImport: null, isStandardModule);
 
         // 見つからないモジュールは、取り込みと同じく、その行で伝える (CF0021)。
         if (options.ReportUnresolvedIncludes)
@@ -95,6 +96,8 @@ internal static class SlangModules
         ImmutableArray<ShaderSyntaxToken> tokens,
         PreprocessorOptions options,
         HashSet<string> visited,
+        List<string> chain,
+        List<Diagnostic> diagnostics,
         List<ShaderSyntaxToken> moduleTokens,
         List<string> resolved,
         List<string> unresolved,
@@ -136,6 +139,24 @@ internal static class SlangModules
                 continue;
             }
 
+            // 取り込みの連なりの中のファイル (自分自身か、自分を取り込んだモジュール) をまた取り込むと、slangc は E38200「recursive module import」にする。
+            // 根のファイルの取り込みの行で伝える (モジュールのファイルには指摘を出さない)。
+            // 同じモジュールのほかの部分 (__include と implementing) は、互いに書いてよい。
+            if (chain.Contains(Path.GetFullPath(modulePath), StringComparer.OrdinalIgnoreCase))
+            {
+                if (at.Text is "__include" or "implementing")
+                {
+                    continue;
+                }
+
+                if ((rootImport ?? at).GetLocation() is { } cycleAt && !diagnostics.Any(d => d.Location == cycleAt))
+                {
+                    diagnostics.Add(Diagnostic.Create(CFamily.ShaderDescriptors.CircularInclude, cycleAt, name));
+                }
+
+                continue;
+            }
+
             if (!visited.Add(modulePath))
             {
                 continue;
@@ -152,7 +173,9 @@ internal static class SlangModules
             ImmutableArray<ShaderSyntaxToken> body = [.. result.Tokens.Where(t => t.Kind != ShaderSyntaxKind.EndOfFileToken)];
 
             // 先にモジュールの取り込みを置く (宣言の順を保つ)。
-            Collect(modulePath, body, options, visited, moduleTokens, resolved, unresolved, references, rootImport ?? at, isStandardModule);
+            chain.Add(Path.GetFullPath(modulePath));
+            Collect(modulePath, body, options, visited, chain, diagnostics, moduleTokens, resolved, unresolved, references, rootImport ?? at, isStandardModule);
+            chain.RemoveAt(chain.Count - 1);
             moduleTokens.AddRange(body);
         }
     }

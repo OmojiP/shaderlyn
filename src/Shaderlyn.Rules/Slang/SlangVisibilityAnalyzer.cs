@@ -498,6 +498,20 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                     foreach (DeclarationSyntax member in structure.Members)
                     {
+                        // public property IS ii2 { get { … } } (E30604)。property は構文木では読み飛ばした宣言になる。
+                        if (visibility == "public"
+                            && member is IncompleteDeclarationSyntax { Tokens: var propertyTokens }
+                            && propertyTokens.IndexOf(propertyTokens.FirstOrDefault(t => t.Text == "property")!) is var keywordAt and >= 0
+                            && keywordAt + 2 < propertyTokens.Length
+                            && (propertyTokens.Take(keywordAt).Any(t => t.Text == "public") || VisibilityBefore(propertyTokens[keywordAt], tokens, index) == "public")
+                            && propertyTokens[keywordAt + 1] is { Kind: ShaderSyntaxKind.IdentifierToken } propertyType
+                            && lessVisible.Contains(propertyType.Text)
+                            && propertyTokens[keywordAt + 2] is { Kind: ShaderSyntaxKind.IdentifierToken } propertyName)
+                        {
+                            Report(propertyName, $"public の property '{propertyName.Text}' の型 {propertyType.Text} は public ではありません。");
+                            continue;
+                        }
+
                         (ShaderSyntaxToken? memberName, ImmutableArray<ShaderSyntaxToken> modifiers) = member switch
                         {
                             VariableDeclarationSyntax field => (field.Variables.FirstOrDefault()?.NameToken, field.ModifierTokens),

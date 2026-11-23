@@ -1217,6 +1217,8 @@ internal sealed class SlangParser : ShaderParser
     private IncompleteDeclarationSyntax SkipPropertyOrSubscript()
     {
         List<ShaderSyntaxToken> skipped = [];
+        bool property = Current.Text == "property";
+        int? operatorName = null;
 
         while (!AtEnd && Current.Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
         {
@@ -1226,7 +1228,21 @@ internal sealed class SlangParser : ShaderParser
                 continue;
             }
 
+            if (property && operatorName is null && Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text == "operator")
+            {
+                operatorName = Position;
+            }
+
             skipped.Add(Advance());
+        }
+
+        // property の名前に演算子は使用できない (slangc 2026.19 の E20020「operator name used to declare a non-function」)。
+        if (operatorName is { } found)
+        {
+            int end = Position;
+            Position = found;
+            ReportError("property の名前に演算子 (operator…) は使用できません。演算子は関数として宣言してください。");
+            Position = end;
         }
 
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)

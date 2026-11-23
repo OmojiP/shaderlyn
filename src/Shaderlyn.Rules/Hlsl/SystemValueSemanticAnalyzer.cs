@@ -262,6 +262,8 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
                     continue;
                 }
 
+                CheckDepth(semantic.Name, name, shape);
+
                 SystemValueCompiler[] rejecting = shape == SystemValueShape.OutIndices
                     ? [.. compilers.Where(c => IsPerPrimitive(c, semantic.Name))]
                     : [.. compilers.Where(c => SystemValueSemantics.IsAllowed(c, stage, shape, semantic.Name) == false)];
@@ -282,6 +284,54 @@ internal sealed class SystemValueSemanticAnalyzer : SemanticRuleAnalyzer
                         message,
                         string.Join("・", rejecting.Select(NameOf))));
                 }
+            }
+        }
+
+        /// <summary>このエントリポイントで最初に見つけた深度の出力 (<see cref="CheckDepth"/>)。</summary>
+        private string? _depth;
+
+        /// <summary>
+        /// ピクセルシェーダーの深度の出力 (<c>SV_Depth</c>・<c>SV_DepthGreaterEqual</c>・<c>SV_DepthLessEqual</c>) が 2 つ以上ないかを検査する。
+        /// </summary>
+        /// <remarks>
+        /// DXC 1.8 は検証の誤り「Pixel Shader only allows one type of depth semantic to be declared」、slangc 2026.19 は E30705 にする。
+        /// 仮引数・戻り値・構造体のフィールドをまたいで数え、添字 (<c>SV_Depth0</c>) は除く。FXC (ps_5_0) は誤りにしないので見ない。
+        /// </remarks>
+        private void CheckDepth(string semantic, ShaderSyntaxToken name, SystemValueShape shape)
+        {
+            string bare = semantic.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+
+            if (stage != HlslShaderStage.Pixel || shape != SystemValueShape.Out
+                || !(bare.Equals("SV_Depth", StringComparison.OrdinalIgnoreCase)
+                     || bare.Equals("SV_DepthGreaterEqual", StringComparison.OrdinalIgnoreCase)
+                     || bare.Equals("SV_DepthLessEqual", StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            if (_depth is null)
+            {
+                _depth = semantic;
+                return;
+            }
+
+            SystemValueCompiler[] rejecting = [.. compilers.Where(c => c != SystemValueCompiler.Fxc)];
+
+            if (rejecting.Length == 0)
+            {
+                return;
+            }
+
+            string message = $"ピクセルシェーダーの深度の出力は 1 つだけです。'{semantic}' が、先の '{_depth}' と重なっています";
+            Location location = name.GetLocation();
+
+            if (reported.Add((location.FilePath, location.Span.Start, message)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HlslRuleDescriptors.SystemValueSemanticNotAllowed,
+                    location,
+                    message,
+                    string.Join("・", rejecting.Select(NameOf))));
             }
         }
 

@@ -263,6 +263,16 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                         CheckRegister(declaration, declarator, Report);
                     }
 
+                    // class の型のシェーダーの仮引数 (関数の外の static でない変数) は、配置を決められない (E39031「class types are not supported in type layout」)。
+                    if (global && !isStatic && !modifiers.Any(t => t.Text is "groupshared")
+                        && structs.TryGetValue(declaration.Type.NameToken.Text, out StructDeclarationSyntax? classType)
+                        && classType.Keyword.Text == "class")
+                    {
+                        // slangc と同じく class の宣言の位置で伝える。
+                        Report(SlangRuleDescriptors.DeclarationNotAllowed, classType.NameToken,
+                            $"class の型 ({classType.Name}) の値は、シェーダーの仮引数 (関数の外の static でない変数 '{declarator.Name}') にできません。struct にしてください。");
+                    }
+
                     if (declarator.IsArray && (global || field || local) && NonAddressable(structs, declaration.Type, declarator, 0) is { } reason)
                     {
                         Report(SlangRuleDescriptors.ArrayOfNonAddressable, declarator.NameToken, $"'{declarator.Name}' は配列にできません ({reason})。");

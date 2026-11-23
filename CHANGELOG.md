@@ -33,6 +33,13 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
   応答の順序は、要求の順と変わることがある。組み立てを始める前に次の編集が届いたバージョンへの要求には、空の結果を返す
 - CF0401: 要素の構造体が違うバッファー (`StructuredBuffer<B>` や `ConstantBuffer<B>` の変数) を、`StructuredBuffer<A>` などの仮引数に渡す呼び出しもエラーにする
   (slangc の E30019、DXC の「no matching function」)。HLSL 2021 と Slang が対象で、FXC は誤りにしないので HLSL 2018 では見ない
+- CF0302: ピクセルシェーダーの深度の出力 (`SV_Depth`・`SV_DepthGreaterEqual`・`SV_DepthLessEqual`) を 2 つ以上書いた箇所もエラーにする
+  (DXC の検証の誤り、slangc の E30705。FXC は誤りにしないので見ない)
+- SG0309: コピーできない型 (`[__NonCopyableType]`) の `in` の仮引数への `[mutating]` のメソッドの呼び出しもエラーにする (slangc の E30067)
+- Slang: `class` の型のシェーダーの仮引数 (関数の外の static でない変数) を SG0101 (slangc の E39031)、
+  資源と定数バッファーの `[[vk::location]]` を SG0102 (E39021)、`ParameterBlock` の `[[vk::binding(b, s)]]` の 0 でない b を SG0304 (E39015)、
+  循環する `import` を CF0020 (E38200) にする。public の構造体の public の `property` が public でない型を使用している箇所も SG0402 にする (E30604)
+- Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
 - CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
   (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない
 
