@@ -49,7 +49,7 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ArgumentMustBeConstant];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.ArgumentMustBeConstant, SlangRuleDescriptors.LoopNeedsIterationCount];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -62,6 +62,11 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
         foreach (AnalyzedProgram program in compilation.Programs)
         {
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
+
+            foreach (ForStatementSyntax loop in program.Tree.Root.DescendantNodesAndSelf().OfType<ForStatementSyntax>())
+            {
+                CheckForceUnroll(context, compilation, binder, loop);
+            }
 
             foreach (InvocationExpressionSyntax call in program.Tree.Root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
             {
@@ -88,6 +93,16 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
                             $"__floatAsInt の実引数は、浮動小数のリテラルでなければなりません ({problem}を渡しています)。"));
                     }
 
+                    continue;
+                }
+
+                // constexpr の仮引数 (int f(constexpr int c)) への実引数 (E40013・E40012)。ループの変数は slangc が展開するので通る。
+                // 呼ぶ側の関数の constexpr でない仮引数は、その関数を定数で呼んでいても誤り (slangc は関数ごとに見る)。
+                if (call.Target is IdentifierExpressionSyntax
+                    && compilation.ResolveCall(call, program).Declaration is { } callee
+                    && callee.ParameterList.Any(p => p.ModifierTokens.Any(t => t.Text == "constexpr")))
+                {
+                    CheckConstexprArguments(context, compilation, binder, call, callee);
                     continue;
                 }
 
@@ -124,10 +139,110 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>
+    /// [ForceUnroll] の for のうち、展開できないものを報告する (SG0350。slangc の E40020)。
+    /// 回数に負の数を書いたものと、条件で変数と比較する値が定数でないもの (uniform・エントリポイントの仮引数・展開しない外側のループの変数など) である。
+    /// 外側の [ForceUnroll] のループの変数は、外側を展開すれば定数になるので通る。break と return で抜けるループは見ない。
+    /// </summary>
+    private static void CheckForceUnroll(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, ExpressionTypeBinder binder, ForStatementSyntax loop)
+    {
+        if (loop.Attributes.IsDefaultOrEmpty
+            || loop.Attributes.FirstOrDefault(a => a.Name == "ForceUnroll") is not { } attribute
+            || !compilation.IsReportable(loop.ForKeyword)
+            || loop.ForKeyword.GetLocation() is not { } location)
+        {
+            return;
+        }
+
+        if (attribute.ArgumentTokens is [{ Kind: ShaderSyntaxKind.MinusToken }, { Kind: ShaderSyntaxKind.NumericLiteralToken } count])
+        {
+            context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.LoopNeedsIterationCount, location,
+                $"[ForceUnroll] の回数 (-{count.Text}) が負の数なので、ループを展開できません。"));
+            return;
+        }
+
+        // 条件 (i < n など) の、ループの変数でない側。
+        HashSet<string> variables = [.. loop.Initializer?.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>().Select(v => v.Name) ?? []];
+
+        if (loop.Condition is not BinaryExpressionSyntax { OperatorToken.Kind: ShaderSyntaxKind.LessThanToken or ShaderSyntaxKind.LessThanEqualsToken or ShaderSyntaxKind.GreaterThanToken or ShaderSyntaxKind.GreaterThanEqualsToken or ShaderSyntaxKind.ExclamationEqualsToken } comparison
+            || loop.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is not { } function)
+        {
+            return;
+        }
+
+        ExpressionSyntax? bound = comparison.Left is IdentifierExpressionSyntax { Name: var left } && variables.Contains(left) ? comparison.Right
+            : comparison.Right is IdentifierExpressionSyntax { Name: var right } && variables.Contains(right) ? comparison.Left
+            : null;
+
+        // break と return で抜けるループは、抜ける条件で回数が決まることがあるので見ない (外側を展開すれば定数になる値と比べる break など)。
+        bool exits = loop.Body.DescendantNodesAndSelf().Any(n => n is ReturnStatementSyntax or JumpStatementSyntax { Keyword.Text: "break" });
+
+        if (exits || bound is null || FindNonConstant(binder, function, bound, 0) is not { } nonConstant)
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.LoopNeedsIterationCount, location,
+            $"[ForceUnroll] のループの回数が決まらないので、展開できません (条件で比較する値に{nonConstant.What}を使用しています)。回数が決まらない場合は [ForceUnroll] を外してください。"));
+    }
+
+    /// <summary>constexpr の仮引数への実引数を検査する。</summary>
+    private static void CheckConstexprArguments(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, ExpressionTypeBinder binder, InvocationExpressionSyntax call, FunctionDeclarationSyntax callee)
+    {
+        ExpressionSyntax[] arguments = [.. call.ArgumentExpressions];
+        ParameterSyntax[] parameters = [.. callee.ParameterList];
+
+        if (call.Ancestors().OfType<FunctionDeclarationSyntax>().FirstOrDefault() is not { } caller)
+        {
+            return;
+        }
+
+        for (int i = 0; i < Math.Min(arguments.Length, parameters.Length); i++)
+        {
+            if (!parameters[i].ModifierTokens.Any(t => t.Text == "constexpr"))
+            {
+                continue;
+            }
+
+            (string What, ShaderSyntaxNode At)? nonConstant = FindNonConstant(binder, caller, arguments[i], 0, loops: false)
+                ?? NonConstexprParameter(binder, caller, arguments[i]);
+
+            if (nonConstant is not { } found || !compilation.IsReportable(found.At) || found.At.GetLocation() is not { } location)
+            {
+                continue;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.ArgumentMustBeConstant, location,
+                $"'{callee.Name}' の {i + 1} 番目の仮引数は constexpr なので、実引数はコンパイル時の定数でなければなりません ({found.What}を使用しています)。"));
+        }
+    }
+
+    /// <summary>式が使う、constexpr でない仮引数 (エントリポイントでない関数のもの)。無ければ <see langword="null"/>。</summary>
+    private static (string What, ShaderSyntaxNode At)? NonConstexprParameter(ExpressionTypeBinder binder, FunctionDeclarationSyntax function, ExpressionSyntax expression)
+    {
+        foreach (IdentifierExpressionSyntax identifier in expression.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>())
+        {
+            if (identifier.Parent is MemberAccessExpressionSyntax access && !ReferenceEquals(access.Target, identifier)
+                || identifier.Parent is InvocationExpressionSyntax call && ReferenceEquals(call.Target, identifier)
+                || binder.ResolveName(identifier).Candidates is not [var candidate])
+            {
+                continue;
+            }
+
+            if (candidate.Declarator is ParameterSyntax parameter && function.ParameterList.Contains(parameter)
+                && !parameter.ModifierTokens.Any(t => t.Text == "constexpr"))
+            {
+                return ($"constexpr でない仮引数 '{parameter.Name}' ", expression);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// 式の中の、定数でないと言える名前の説明と、報告する位置。無ければ <see langword="null"/>。
     /// 局所変数の初期値が定数でなければ、その初期値の位置で伝える (slangc と同じ)。
     /// </summary>
-    private static (string What, ShaderSyntaxNode At)? FindNonConstant(ExpressionTypeBinder binder, FunctionDeclarationSyntax function, ExpressionSyntax expression, int depth)
+    private static (string What, ShaderSyntaxNode At)? FindNonConstant(ExpressionTypeBinder binder, FunctionDeclarationSyntax function, ExpressionSyntax expression, int depth, bool loops = true)
     {
         if (depth > 8)
         {
@@ -165,7 +280,7 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
                 case CompilationUnitSyntax or NamespaceDeclarationSyntax when !(isConst && declaration.ModifierTokens.Any(t => t.Text == "static")):
                     return ($"uniform の '{variable.Name}' ", expression);
 
-                case ForStatementSyntax loop when loop.Attributes.IsDefaultOrEmpty || !loop.Attributes.Any(a => a.Name is "unroll" or "ForceUnroll"):
+                case ForStatementSyntax loop when loops && (loop.Attributes.IsDefaultOrEmpty || !loop.Attributes.Any(a => a.Name is "unroll" or "ForceUnroll")):
                     return ($"ループの変数 '{variable.Name}' ", expression);
 
                 case LocalDeclarationStatementSyntax when !isConst && IsReassigned(function, variable):
@@ -173,7 +288,7 @@ internal sealed class SlangConstantArgumentAnalyzer : SemanticRuleAnalyzer
 
                 // uint a = tid.x; (定数でない初期値の局所変数)。初期値の位置で伝える。
                 case LocalDeclarationStatementSyntax when variable.Initializer is { } initializer
-                                                          && FindNonConstant(binder, function, initializer, depth + 1) is { } inner:
+                                                          && FindNonConstant(binder, function, initializer, depth + 1, loops) is { } inner:
                     return (inner.What, initializer);
             }
         }

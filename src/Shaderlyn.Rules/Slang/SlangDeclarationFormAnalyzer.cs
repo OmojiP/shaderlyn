@@ -118,6 +118,16 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                         CheckBindingAttributes(parameter.Type, parameterAttributes, tokens, positions, Report);
                         break;
 
+                    // レイペイロードのフィールドのアクセス修飾子 (: read(caller) : write(closesthit)) のステージ名 (E40001)。
+                    case SemanticSyntax { Name: "read" or "write", HasArguments: true } access:
+                        foreach (ShaderSyntaxToken stage in access.ArgumentTokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken && t.Text is not ("anyhit" or "closesthit" or "miss" or "caller")))
+                        {
+                            Report(SlangRuleDescriptors.InvalidAttributeValue, stage,
+                                $"ペイロードのアクセス修飾子 {access.Name}(…) のステージ名 '{stage.Text}' は使用できません。anyhit・closesthit・miss・caller のどれかを書いてください。");
+                        }
+
+                        break;
+
                     case TypedefDeclarationSyntax typedef when typedef.Tokens.FirstOrDefault(t => t.Text == "volatile") is { } volatileToken:
                         Report(SlangRuleDescriptors.ModifierNotAllowed, volatileToken, "typedef に volatile は書けません。");
                         break;

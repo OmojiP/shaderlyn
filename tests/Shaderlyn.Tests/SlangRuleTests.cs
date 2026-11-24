@@ -508,6 +508,31 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = foo(() => Array<int, 2>()).x; }\n")]
     [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nstruct Functor : IFunc<Array<int, 2>> { Array<int, 2> operator()() { return Array<int, 2>(); } }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { Functor f; output[0] = foo(f).x; }\n")]
     [InlineData("SG0363", "void load<let N : int, each TIndex>(expand each TIndex indices) where countof(TIndex) == N {}\nvoid m() { load(1, 2, 3); }\n")]
+    // 微分する関数の戻り値に流れ込む、微分しない関数と前向きにだけ微分する関数の呼び出し (E41022)
+    [InlineData("SG0360", "float g(float v) { return v; }\n[Differentiable]\nfloat f(float x)\n{\n    float y = x * 2;\n    return g(y);\n}\n")]
+    [InlineData("SG0360", "[ForwardDifferentiable]\nfloat g(float v) { return v * v; }\n[BackwardDifferentiable]\nfloat f(float x) { float val = g(x + 1); return val; }\n")]
+    [InlineData("SG0360", "float g(float v) { return v; }\nuniform float u;\n[Differentiable]\nfloat f(float x) { return x + g(u); }\n")]
+    // 展開できない [ForceUnroll] のループ (E40020): 仮引数の uniform と比較する、展開しない外側のループの変数と比較する、回数が負の数
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main(uniform int n)\n{\n    int s = 0;\n    [ForceUnroll]\n    for (int j = 0; j < n; ++j) { s += j; }\n    o[0] = s;\n}\n")]
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    int s = 0;\n    for (int i = 0; i < 4; ++i)\n    {\n        [ForceUnroll]\n        for (int j = 0; j < i; ++j) { s += j; }\n    }\n    o[0] = s;\n}\n")]
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    [ForceUnroll(-2)]\n    for (int i = 0; i < 1; ++i) o[0] = i;\n}\n")]
+    // レイペイロードのアクセス修飾子の、存在しないステージ名 (E40001)
+    [InlineData("SG0304", "struct [raypayload] P\n{\n    float4 color : read(anyht, closesthit) : write(caller);\n};\n")]
+    // constexpr の仮引数への、constexpr でない仮引数・uniform・代入し直す局所変数 (E40013)
+    [InlineData("SG0352", "int f(constexpr int c) { return c + c; }\nint g(int a) { return f(a); }\n")]
+    [InlineData("SG0352", "int f(constexpr int c) { return c + c; }\nuniform int u;\nint g() { return f(u); }\n")]
+    [InlineData("SG0352", "RWStructuredBuffer<int> o;\nint f(constexpr int c) { return c + c; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid m(uint3 t : SV_DispatchThreadID)\n{\n    int i = 0;\n    if (t.x > 0) i = 1;\n    o[0] = f(i);\n}\n")]
+    // GetAttributeAtVertex の、nointerpolation のないスカラーの入力・局所変数・グローバル変数・ベクトルの成分 (E39027)
+    [InlineData("SG0364", "struct VertexOutput { float color; }\n[shader(\"fragment\")]\nfloat4 fsmain(VertexOutput vout) : SV_Target { return GetAttributeAtVertex(vout.color, 0); }\n")]
+    [InlineData("SG0364", "[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { float4 l = c; return GetAttributeAtVertex(l, 0); }\n")]
+    [InlineData("SG0364", "static float4 g;\n[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { return c + GetAttributeAtVertex(g, 0); }\n")]
+    [InlineData("SG0364", "[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { return GetAttributeAtVertex(c.x, 0).xxxx; }\n")]
+    // フラグメントシェーダー以外から届く discard・clip と、頂点シェーダーなどの微分 (E36107・E36100)
+    [InlineData("SG0365", "void test() { discard; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { test(); }\n")]
+    [InlineData("SG0365", "struct P { float v; };\n[shader(\"closesthit\")]\nvoid main(inout P p, BuiltInTriangleIntersectionAttributes a) { discard; }\n")]
+    [InlineData("SG0365", "[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { clip(v.x); return v; }\n")]
+    [InlineData("SG0365", "float4 h(float4 v) { return ddx(v); }\n[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { return h(v); }\n")]
+    [InlineData("SG0365", "[require(fragment)]\nfloat h(float x) { return x * 2.0; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { float v = h(1.0); }\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -707,6 +732,18 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("[Differentiable]\nfloat f(float x) { return x > 0 ? x : -x; }\n[Differentiable]\nfloat2 g(float2 x) { return select(x > float2(0), x, -x); }\n")]
     // 値の仮引数への数のリテラル、仮引数の vk::binding(0, s) の ParameterBlock
     [InlineData("struct Vec<T, let N : int> { T v[N]; }\nstruct Arr<int M> { float a[M]; }\nstruct S { float4 a; };\nstatic Vec<float, 3> a;\nstatic Arr<4> b;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(0, 1)]] ParameterBlock<S> p) { }\n")]
+    // 微分しない関数の呼び出しで通るもの: 結果を使わない・比較にだけ使う・リテラルだけを渡す・no_diff の仮引数・no_diff を書いた・前向き同士・out の仮引数
+    [InlineData("float g(float v) { return v; }\nfloat gn(no_diff float v) { return v; }\n[ForwardDifferentiable]\nfloat gf(float v) { return v; }\n[Differentiable]\nfloat f(float x)\n{\n    g(x);\n    float unused = g(x);\n    float c = 3;\n    if (g(x) > 0) { return x + g(1.0) + g(c) + gn(x) + no_diff g(x) + no_diff(g(x)); }\n    return -x;\n}\n[ForwardDifferentiable]\nfloat h(float x) { return gf(x); }\n[Differentiable]\nvoid o(float x, out float r) { r = g(x); }\n")]
+    // 後ろ向きの微分を [BackwardDerivativeOf] だけで書いた関数の呼び出し
+    [InlineData("float dg(NativeString label, float x) { return x; }\n[BackwardDerivativeOf(dg)]\nvoid dg_bwd(NativeString label, inout DifferentialPair<float> x, float dOut) { x = diffPair(x.p, dOut); }\n[Differentiable]\nfloat f(float y) { let y2 = dg(\"y2\", y * y); return y2; }\n")]
+    // 展開できる [ForceUnroll] のループ: 外側の [ForceUnroll] のループの変数と比較する、break で抜ける
+    [InlineData("RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main(uniform int n)\n{\n    int s = 0;\n    [ForceUnroll]\n    for (int i = 0; i < 4; ++i)\n    {\n        [ForceUnroll]\n        for (int k = 0; k < i; ++k) { s += k; }\n        [ForceUnroll]\n        for (int j = 0; j < n; ++j) { if (j >= i) break; s += j; }\n    }\n    o[0] = s;\n}\n")]
+    // constexpr の仮引数への、リテラル・定数で初期化した局所変数・ループの変数・constexpr の仮引数
+    [InlineData("RWStructuredBuffer<int> o;\nint f(constexpr int c) { return c + c; }\nint g(constexpr int a) { return f(a); }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid m()\n{\n    int i = 3;\n    o[0] = f(1) + f(i) + g(2);\n    for (int j = 0; j < 3; j++) o[j] = f(j);\n}\n")]
+    // GetAttributeAtVertex の、nointerpolation・pervertex の入力と、nointerpolation のないベクトルの入力 (slangc は通す)
+    [InlineData("struct S { nointerpolation float a; float4 b; }\n[shader(\"fragment\")]\nfloat4 fsmain(S s, pervertex float c : C, float4 d : D) : SV_Target\n{\n    return GetAttributeAtVertex(s.a, 0) + GetAttributeAtVertex(s.b, 1) + GetAttributeAtVertex(c, 2) + GetAttributeAtVertex(d, 0);\n}\n")]
+    // フラグメントシェーダーの discard・微分、どのステージでも通る Sample、レイトレーシングの微分
+    [InlineData("Texture2D t;\nSamplerState s;\nfloat4 h(float4 v) { if (v.x < 0) discard; return ddx(v); }\n[shader(\"fragment\")]\nfloat4 ps(float4 v : P) : SV_Target { clip(v.y); return h(v); }\n[shader(\"vertex\")]\nfloat4 vs(float4 v : P) : SV_Position { return t.Sample(s, v.xy); }\nstruct Payload { float4 v; };\n[shader(\"closesthit\")]\nvoid ch(inout Payload p, BuiltInTriangleIntersectionAttributes a) { p.v = ddx(p.v); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 

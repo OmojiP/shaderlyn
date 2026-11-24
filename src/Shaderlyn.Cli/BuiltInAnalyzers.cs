@@ -171,6 +171,8 @@ public static class BuiltInAnalyzers
         new Rules.Slang.SlangMutationAnalyzer(),
         new CompileTargetAnalyzer(),
         new VectorLogicalOperatorAnalyzer(),
+        new AttributeAtVertexAnalyzer(),
+        new StageRestrictedFeatureAnalyzer(),
         new LoopVariableScopeAnalyzer(),
         new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),

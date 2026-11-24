@@ -107,6 +107,7 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
 
             CheckNonExportedDerivatives(compilation, program, all, Report);
             CheckDifferentiableRequirements(compilation, program, context);
+            CheckNonDifferentiableCalls(compilation, program, all, tokens, context);
 
             foreach (FunctionDeclarationSyntax function in all)
             {

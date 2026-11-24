@@ -12,6 +12,14 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 追加
 
+- HL0356 / SG0365: エントリポイントから、そのステージでは使用できない機能に届くもの。
+  HLSL は、ピクセルシェーダー以外の `discard`・`clip` と、頂点・ジオメトリ・ハル・ドメインのシェーダーの微分 (`ddx` など) と LOD を指定しないサンプリング
+  (`Sample`・`tex2D` など。FXC はコンピュートシェーダーも) を、使用した箇所に報告する (FXC の X4532、DXC の「Opcode … not valid」)。
+  Slang は、フラグメントシェーダー以外の `discard`・`clip` と、頂点シェーダーなどの微分を、slangc と同じくエントリポイントの名前に報告する (slangc の E36107・E36100)。
+  コンパイラで条件が違うので、HLSL と Slang で規則を分けた ([HL0356](docs/rules/HL0356.md)・[SG0365](docs/rules/SG0365.md))
+- HL0355 / SG0364: `GetAttributeAtVertex` に、補間しない頂点の入力でない値を渡したもの。
+  HLSL (DXC) は `nointerpolation` のない入力とグローバル変数、Slang は局所変数・グローバル変数・ベクトルの成分と `nointerpolation` のないスカラーの入力
+  (DXC の「must have nointerpolation mode」、slangc の E39027。[HL0355](docs/rules/HL0355.md)・[SG0364](docs/rules/SG0364.md))
 - Windows の arm64 向けの CLI (`shaderlyn-win-arm64.zip`) と VS Code 拡張 (`shaderlyn-vscode-win32-arm64.vsix`)。
   Visual Studio 拡張と Rider プラグインも、arm64 の Windows では arm64 の言語サーバーを起動する (これまでは x64 の言語サーバーをエミュレーションで動かしていたので、Windows 10 の arm64 では動かなかった)
 
@@ -66,6 +74,13 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
 - CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
   (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない
+- SG0352 (Slang): `constexpr` の仮引数 (`int f(constexpr int c)`) への、定数でない実引数 (呼ぶ側の constexpr でない仮引数・uniform・代入し直す局所変数など。slangc の E40013)
+- SG0304 (Slang): レイペイロードのフィールドのアクセス修飾子 (`: read(…) : write(…)`) の、存在しないステージ名 (slangc の E40001)
+- SG0350 (Slang): 展開できない `[ForceUnroll]` のループ (回数が負の数か、条件で比較する値が uniform・エントリポイントの仮引数・展開しない外側のループの変数など。slangc の E40020)。
+  微分する関数の中かどうかによらない。題名を「ループの繰り返しの回数を決められません」にした
+- SG0360 (Slang): 微分する関数の戻り値に流れ込む、微分しない (か前向きにだけ微分する) 関数の呼び出し (slangc の E41022)。
+  実引数がリテラルだけのもの、`no_diff` を書いたもの、結果を比較にだけ使うものは報告しない
+- SG0365 (Slang): ステージを 1 つだけ書いた `[require(fragment)]` などの関数に、別のステージのエントリポイントから届くもの (slangc の E36107)
 
 ### 修正
 
