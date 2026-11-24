@@ -72,7 +72,14 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownSpirvVersions = ["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"];
 
     /// <summary><c>units:</c> の要素で認識するキー。</summary>
-    private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "defines", "symbols"];
+    private static readonly string[] KnownUnitKeys = ["files", "entry", "target", "stage", "defines", "symbols"];
+
+    /// <summary>units の stage に書けるステージ (slangc の -stage)。</summary>
+    private static readonly string[] KnownStages =
+    [
+        "vertex", "fragment", "pixel", "compute", "geometry", "hull", "domain", "mesh", "amplification",
+        "raygeneration", "intersection", "anyhit", "closesthit", "miss", "callable",
+    ];
 
     /// <summary><c>symbols:</c> の要素で認識するキー。</summary>
     private static readonly string[] KnownSymbolKeys = ["name", "values", "one-of", "at-most-one"];
@@ -939,7 +946,7 @@ internal static class ConfigurationLoader
             foreach (YamlMapping item in ReadMappingSequence("units"))
             {
                 ReportUnknownKeys(item, KnownUnitKeys, "units の要素");
-                ReportNonScalars(item, "units の要素の ", "files", "entry", "target");
+                ReportNonScalars(item, "units の要素の ", "files", "entry", "target", "stage");
 
                 if (ReadOptionalScalar(item, "files") is not { } files)
                 {
@@ -963,6 +970,16 @@ internal static class ConfigurationLoader
                     target = null;
                 }
 
+                string? stage = ReadOptionalScalar(item, "stage");
+
+                if (stage is not null && !KnownStages.Contains(stage))
+                {
+                    problems.Add(new ConfigurationProblem(
+                        item.Entries["stage"].Line,
+                        $"stage '{stage}' を解釈できません。slangc の -stage と同じ名前 ({string.Join(" / ", KnownStages)}) を書いてください。"));
+                    stage = null;
+                }
+
                 ImmutableArray<string>? unitSymbols = null;
 
                 if (item.TryGet("symbols", out YamlNode? _))
@@ -980,6 +997,7 @@ internal static class ConfigurationLoader
                 {
                     Entry = ReadOptionalScalar(item, "entry"),
                     Target = target,
+                    Stage = stage,
                     Defines = ReadStringSequence(item, "defines"),
                     Symbols = unitSymbols,
                 });

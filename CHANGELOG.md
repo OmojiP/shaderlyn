@@ -12,6 +12,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ### 追加
 
+- Slang: 設定ファイルの `units:` で、エントリポイントの名前 (`entry`) とステージ (`stage`。slangc の `-entry` と `-stage`) を指定できるようにした。
+  `[shader("…")]` を書かないエントリポイントも、システム値のセマンティクス (CF0302) とステージで使用できない機能 (SG0365) を検査する ([設定ファイル](docs/guide/configuration.md#units))
+- SG0366: Slang の `#language` の指令の誤り (知らないバージョン・言語の名前、バージョンがない) と、1 つの翻訳単位に `#language` と GLSL の `#version`、
+  または違うバージョンの `#language` を書いたもの (slangc の E15206・E15207・E15208・E00121・E00126。[SG0366](docs/rules/SG0366.md))
 - HL0356 / SG0365: エントリポイントから、そのステージでは使用できない機能に届くもの。
   HLSL は、ピクセルシェーダー以外の `discard`・`clip` と、頂点・ジオメトリ・ハル・ドメインのシェーダーの微分 (`ddx` など) と LOD を指定しないサンプリング
   (`Sample`・`tex2D` など。FXC はコンピュートシェーダーも) を、使用した箇所に報告する (FXC の X4532、DXC の「Opcode … not valid」)。
@@ -81,7 +85,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - SG0360 (Slang): 微分する関数の戻り値に流れ込む、微分しない (か前向きにだけ微分する) 関数の呼び出し (slangc の E41022)。
   実引数がリテラルだけのもの、`no_diff` を書いたもの、結果を比較にだけ使うものは報告しない
 - SG0365 (Slang): ステージを 1 つだけ書いた `[require(fragment)]` などの関数に、別のステージのエントリポイントから届くもの (slangc の E36107)
+- SG0402 (Slang): `extension` の本体の `public` のメソッドも検査する。可視性を書かない `extension` の中の `public` のメソッド (slangc の E30601) と、
+  `public` のメソッドが public でない型を使用するもの (E30604)
 - GL0001: `subroutine` を、glslang と同じくエラーにする (glslang 16.6.0 はサブルーチンを実装していない。「feature not yet implemented」)
+- SG0361 (Slang): `extension` で `IDifferentiable` に適合させ、`dzero`・`dadd` を書いていない型の、定義の側では微分しない型の仮引数を使うフィールド (slangc の E30125)
 
 ### 修正
 

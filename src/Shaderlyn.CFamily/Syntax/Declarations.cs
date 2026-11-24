@@ -1093,6 +1093,17 @@ public sealed class IncompleteDeclarationSyntax(ImmutableArray<ShaderSyntaxToken
     /// <summary>読み飛ばしたトークン。</summary>
     public ImmutableArray<ShaderSyntaxToken> Tokens { get; } = tokens;
 
+    /// <summary>
+    /// 本体の中を宣言として読んだもの (Slang の <c>extension</c> の本体のメンバー)。読んでいなければ空。
+    /// </summary>
+    /// <remarks>
+    /// <b>子のノードにはしない。</b>
+    /// 本体の中の名前は拡張する型のメンバーを指すが、意味の解析はそれを知らない。
+    /// 子にすると、木をたどる検査が本体の中の名前を「宣言されていない」と報告する。
+    /// 本体を見る検査 (メンバーの可視性など) だけが、このプロパティから読む。
+    /// </remarks>
+    public ImmutableArray<DeclarationSyntax> BodyMembers { get; init; } = [];
+
     /// <inheritdoc/>
     public override IEnumerable<ShaderNodeOrToken> ChildNodesAndTokens()
     {

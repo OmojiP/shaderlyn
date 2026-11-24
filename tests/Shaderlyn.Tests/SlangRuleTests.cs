@@ -533,6 +533,23 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0365", "[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { clip(v.x); return v; }\n")]
     [InlineData("SG0365", "float4 h(float4 v) { return ddx(v); }\n[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { return h(v); }\n")]
     [InlineData("SG0365", "[require(fragment)]\nfloat h(float x) { return x * 2.0; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { float v = h(1.0); }\n")]
+    // extension の public のメンバー: public でない extension の中 (E30601) と、public でない型の使用 (E30604)
+    [InlineData("SG0402", "public struct S { int a; }\nextension S { public void f() {} }\n")]
+    [InlineData("SG0402", "struct I {}\npublic struct S { int a; }\npublic extension S { public void f(I i) {} }\n")]
+    // extension で IDifferentiable に適合させ、dzero と dadd を書かず、定義の側で微分しないフィールド (E30125)
+    [InlineData("SG0361", "struct V<T : __BuiltinArithmeticType> { T x; }\nextension<T : __BuiltinFloatingPointType> V<T> : IDifferentiable where T.Differential == T { typedef V<T> Differential; static Differential dzero() { return {}; } }\n")]
+    [InlineData("SG0361", "struct V<T> { T x; }\nextension<T : IDifferentiable> V<T> : IDifferentiable { }\n")]
+    // #language の誤り (E15206・E15207・E15208) と、#version・別のバージョンとの食い違い (E00121・E00126)
+    [InlineData("SG0366", "#language 2026\n#version 450\nvoid f() {}\n")]
+    [InlineData("SG0366", "#version 450\n#lang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang 2025\n#language slang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language legacy\n#language 2025\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 2024\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language glsl\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 2026.0\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang 202c\n#language slang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 202x\nvoid f() {}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -734,6 +751,19 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct Vec<T, let N : int> { T v[N]; }\nstruct Arr<int M> { float a[M]; }\nstruct S { float4 a; };\nstatic Vec<float, 3> a;\nstatic Arr<4> b;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(0, 1)]] ParameterBlock<S> p) { }\n")]
     // 微分しない関数の呼び出しで通るもの: 結果を使わない・比較にだけ使う・リテラルだけを渡す・no_diff の仮引数・no_diff を書いた・前向き同士・out の仮引数
     [InlineData("float g(float v) { return v; }\nfloat gn(no_diff float v) { return v; }\n[ForwardDifferentiable]\nfloat gf(float v) { return v; }\n[Differentiable]\nfloat f(float x)\n{\n    g(x);\n    float unused = g(x);\n    float c = 3;\n    if (g(x) > 0) { return x + g(1.0) + g(c) + gn(x) + no_diff g(x) + no_diff(g(x)); }\n    return -x;\n}\n[ForwardDifferentiable]\nfloat h(float x) { return gf(x); }\n[Differentiable]\nvoid o(float x, out float r) { r = g(x); }\n")]
+    // public の extension の public のメンバーと、public でないメンバー。extension の本体の中の名前 (拡張する型のフィールド) は宣言されていないと報告しない
+    [InlineData("struct I {}\npublic struct S { int a; }\npublic extension S { public int f() { return a; } void g(I i) {} }\n")]
+    // dzero と dadd を書いた extension と、定義の側でも微分する型の仮引数・no_diff のフィールド
+    [InlineData("struct V<T : __BuiltinArithmeticType> { T x; int c; }\nextension<T : __BuiltinFloatingPointType> V<T> : IDifferentiable where T.Differential == T { typedef V<T> Differential; [Differentiable] static Differential dzero() { return {}; } [Differentiable] static Differential dadd(Differential a, Differential b) { return a; } }\nstruct W<T : __BuiltinFloatingPointType> { T x; }\nextension<T : __BuiltinFloatingPointType> W<T> : IDifferentiable { }\nstruct U<T> { no_diff T x; }\nextension<T : IDifferentiable> U<T> : IDifferentiable { }\n")]
+    // 書ける #language (同じバージョンを表す latest と 2026、legacy と 2018、大文字の SLANG、後ろの余分なトークン)
+    [InlineData("#language latest\n#language 2026\n#lang slang 2026 extra\nvoid f() {}\n")]
+    [InlineData("#language legacy\n#language SLANG 2018\nvoid f() {}\n")]
+    [InlineData("#if 0\n#version 450\n#language 2024\n#endif\n#language 2025\nvoid f() {}\n")]
+    // slangc が受け付ける 202a (2025)・202b (2026)・202c (2026 より新しいバージョン)・202e (どのバージョンとも食い違わない)
+    [InlineData("#language 202a\n#language 2025\nvoid f() {}\n")]
+    [InlineData("#language slang 202b\n#language latest\nvoid f() {}\n")]
+    [InlineData("#language 202c\n#language slang 202c\nvoid f() {}\n")]
+    [InlineData("#language 202e\n#language 2018\nvoid f() {}\n")]
     // 後ろ向きの微分を [BackwardDerivativeOf] だけで書いた関数の呼び出し
     [InlineData("float dg(NativeString label, float x) { return x; }\n[BackwardDerivativeOf(dg)]\nvoid dg_bwd(NativeString label, inout DifferentialPair<float> x, float dOut) { x = diffPair(x.p, dOut); }\n[Differentiable]\nfloat f(float y) { let y2 = dg(\"y2\", y * y); return y2; }\n")]
     // 展開できる [ForceUnroll] のループ: 外側の [ForceUnroll] のループの変数と比較する、break で抜ける

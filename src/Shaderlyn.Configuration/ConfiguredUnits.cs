@@ -40,6 +40,9 @@ internal sealed record ConfiguredUnit(string Files, string BaseDirectory, int Li
     /// <summary>コンパイルのターゲット (<c>target</c>、<c>ps_6_6</c> の形)。</summary>
     public string? Target { get; init; }
 
+    /// <summary>Slang のエントリポイントのステージ (<c>stage</c>、slangc の <c>-stage</c> と同じ名前)。</summary>
+    public string? Stage { get; init; }
+
     /// <summary>この単位でだけ定義するマクロ (<c>defines</c>)。<c>NAME</c> または <c>NAME=VALUE</c>。</summary>
     public ImmutableArray<string> Defines { get; init; } = [];
 

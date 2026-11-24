@@ -92,6 +92,10 @@ internal sealed partial class SlangDifferentialTypeAnalyzer : SemanticRuleAnalyz
                 }
             }
 
+            CheckExtensionSynthesis(root, byName, differentiableInterfaces,
+                s => s.NameToken is { } name && index.TryGetValue(name, out int from) && index.TryGetValue(s.OpenBrace, out int to) && tokens[from..to].Any(t => t.Text == "where"),
+                Report);
+
             foreach (StructDeclarationSyntax type in structs)
             {
                 if (type.Keyword.Text is not ("struct" or "class") || !index.TryGetValue(type.OpenBrace, out int open) || !index.TryGetValue(type.CloseBrace, out int close))

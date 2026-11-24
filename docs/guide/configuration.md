@@ -196,6 +196,16 @@ slang:
   generic-entry-points: true   # エントリポイントの型引数を slangc -specialize か Slang の API で決める
 ```
 
+`[shader("…")]` を書かずに、slangc の `-entry` と `-stage` でエントリポイントを選ぶ場合は、[units](#units) に `entry` と `stage` を書きます。
+ステージの分かるエントリポイントでは、システム値のセマンティクス ([CF0302](../rules/CF0302.md)) や、そのステージで使用できない機能 ([SG0365](../rules/SG0365.md)) を検査します。
+
+```yaml
+units:
+  - files: shaders/**/*.slang
+    entry: computeMain   # slangc -entry computeMain
+    stage: compute       # slangc -stage compute
+```
+
 ## unreal
 
 `environment: unreal` で使用する設定です。コンパイル単位と構成の軸 (パーミュテーション) は、汎用の HLSL と同じく `units:` と `symbols:` に書きます。
@@ -268,6 +278,9 @@ units:
     defines: [USE_FOO=1]       # この単位でだけ定義するマクロ
     symbols: [QUALITY]         # この単位で使用する構成の軸。省略するとすべて
 ```
+
+Slang のファイルでは、`entry` と `stage` (slangc の `-stage` と同じ名前。`vertex` / `fragment` / `compute` / `geometry` / `hull` / `domain` / `mesh` / `amplification` など) だけを読みます。
+ファイル全体を 1 つの単位にすることは変わらず、当てはまる単位のエントリポイントをすべて持ちます。レイトレーシングのステージは、まだ検査に使用しません。
 
 ## rules
 

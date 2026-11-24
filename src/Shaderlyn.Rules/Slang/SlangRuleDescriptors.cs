@@ -492,7 +492,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "IDifferentiable の型の微分の型 (typealias Differential) が自分でないのに、微分するフィールドに [DerivativeMember] も no_diff も書いていないか、"
             + "[DerivativeMember] に微分の型のフィールドでないものを書いているか、微分しない型のフィールドか関数の外の変数に [DerivativeMember] を書いています。"
-            + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132) にします。",
+            + "extension で IDifferentiable に適合させ、dzero と dadd を書いていない型の、定義の側では微分しないフィールドも報告します。"
+            + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132・E30125) にします。",
         helpLinkUri: DocumentationLinks.For("SG0361"));
 
     /// <summary>実験中のモジュールの import。</summary>
@@ -540,6 +541,18 @@ internal static class SlangRuleDescriptors
             + "[require(fragment)] のようにステージを書いた関数は、そのステージでしか使用できません。"
             + "エントリポイントから直接か間接にこれらに届くと、slangc はコンパイルの誤り (E36107・E36100) にします。",
         helpLinkUri: DocumentationLinks.For("SG0365"));
+
+    /// <summary>Slang の言語を選ぶ指令 (#language・#version) の誤りと食い違い。</summary>
+    public static DiagnosticDescriptor LanguageDirective { get; } = new(
+        id: "SG0366",
+        title: "#language の指令が誤っているか、ほかの指令と食い違っています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "#language には Slang のバージョン (2018・2025・2026・legacy・latest) を書きます。"
+            + "1 つの翻訳単位 (#include で取り込んだファイルを含む) に、#language と GLSL の #version を両方書いたり、違うバージョンの #language を 2 つ書いたりすると、"
+            + "slangc はコンパイルの誤り (E00121・E00126・E15206・E15207・E15208) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0366"));
 
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(

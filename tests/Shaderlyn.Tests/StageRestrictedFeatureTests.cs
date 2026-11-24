@@ -217,6 +217,43 @@ public sealed class StageRestrictedFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Slangのunitsのentryとstageでエントリポイントのステージを決める()
+    {
+        // slangc -entry vsMain -stage vertex と同じ。[shader] がなくても、頂点シェーダーとして検査する。
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            units:
+              - files: "*.slang"
+                entry: vsMain
+                stage: vertex
+            """);
+
+        string output = await AnalyzeAsync("a.slang", """
+            float4 vsMain(uint id : SV_GSInstanceID) : SV_Position
+            {
+                return ddx(float4(id, 0, 0, 1));
+            }
+            """, "--config", Path.Combine(_workDirectory, ".shaderlyn.yaml"));
+
+        Assert.Single(Reports(output, "CF0302"));
+        Assert.Single(Reports(output, "SG0365"));
+    }
+
+    [Fact]
+    public async Task unitsのstageに知らない名前を書くと設定の誤りにする()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), """
+            units:
+              - files: "*.slang"
+                entry: main
+                stage: vertexx
+            """);
+
+        string output = await AnalyzeAsync("a.slang", "void main() {}\n", "--config", Path.Combine(_workDirectory, ".shaderlyn.yaml"));
+
+        Assert.Contains(Reports(output, "TOOL0003"), r => r.Contains("stage 'vertexx' を解釈できません", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task FXCでコンパイルされるコードのGetAttributeAtVertexは見ない()
     {
         string output = await AnalyzeAsync("Test.shader", UnityShader(string.Empty, "c = GetAttributeAtVertex(i.uv.xyxy, 0);"), "--no-config");

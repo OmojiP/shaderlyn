@@ -173,6 +173,7 @@ public static class BuiltInAnalyzers
         new VectorLogicalOperatorAnalyzer(),
         new AttributeAtVertexAnalyzer(),
         new StageRestrictedFeatureAnalyzer(),
+        new Rules.Slang.SlangLanguageDirectiveAnalyzer(),
         new LoopVariableScopeAnalyzer(),
         new UserTypeConversionAnalyzer(),
         new ValueConversionAnalyzer(),

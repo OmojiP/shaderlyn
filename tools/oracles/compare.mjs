@@ -5,8 +5,8 @@
 //
 //   node tools/oracles/compare.mjs .work/v0.3.4/oracle/godot/*.json --details
 //
-// --use-args: 正解に記録したコンパイラの引数 (Slang の試験の -target・-experimental-feature・-specialize と -entry f<T>・-unscoped-enum・-D・-I) を、
-//   ファイルごとの一時の設定ファイル (slang: target / experimental-features / generic-entry-points / unscoped-enums と defines・include-paths) にして Shaderlyn に渡す。
+// --use-args: 正解に記録したコンパイラの引数 (Slang の試験の -target・-experimental-feature・-specialize と -entry f<T>・-entry と -stage・-unscoped-enum・-D・-I) を、
+//   ファイルごとの一時の設定ファイル (slang: target / experimental-features / generic-entry-points / unscoped-enums と defines・include-paths・units の entry と stage) にして Shaderlyn に渡す。
 //   -I のパスは、試験を動かすフォルダー (ファイルの上のフォルダーのどれか) からの相対として探す。
 //   設定に当たる項目の無い引数 (-entry・-stage・-capability など) は渡さない。付けなければ、どのファイルも --no-config で解析する。
 //
@@ -23,7 +23,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 const args = process.argv.slice(2);
 const details = args.includes("--details");
@@ -139,6 +139,7 @@ function configFor(language, commandLine, path) {
   const slang = [];
   const defines = [];
   const includes = [];
+  const entries = [];
   const targets = ["spirv", "glsl", "hlsl", "dxil", "metal", "wgsl", "cuda", "ptx", "cpp"];
 
   for (let i = 0; i < words.length; i++) {
@@ -147,9 +148,22 @@ function configFor(language, commandLine, path) {
       slang.push(`  target: ${words[++i]}`);
     } else if (word === "-experimental-feature") {
       slang.push("  experimental-features: true");
-    } else if (word === "-specialize" || (word === "-entry" && words[i + 1]?.includes("<"))) {
+    } else if (word === "-specialize") {
       // -specialize と -entry fragMain<Red> は、エントリポイントの型引数を決める。
       slang.push("  generic-entry-points: true");
+    } else if (word === "-entry" && words[i + 1]) {
+      // -entry main -stage compute は、設定ファイルの units: の entry と stage に当たる。
+      const name = words[++i];
+      if (name.includes("<")) {
+        slang.push("  generic-entry-points: true");
+      }
+      entries.push({ name: name.replace(/<.*$/, ""), stage: null });
+    } else if (word === "-stage" && words[i + 1]) {
+      const stage = words[++i];
+      const last = entries.findLast(e => e.stage === null);
+      if (last) {
+        last.stage = stage;
+      }
     } else if (word === "-unscoped-enum") {
       slang.push("  unscoped-enums: true");
     } else if (word === "-D" && words[i + 1]) {
@@ -169,7 +183,7 @@ function configFor(language, commandLine, path) {
     }
   }
 
-  if (slang.length === 0 && defines.length === 0 && includes.length === 0) {
+  if (slang.length === 0 && defines.length === 0 && includes.length === 0 && entries.length === 0) {
     return null;
   }
 
@@ -179,6 +193,13 @@ function configFor(language, commandLine, path) {
     ...(unique.length > 0 ? ["slang:", ...unique] : []),
     ...(includes.length > 0 ? ["include-paths:", ...includes.map(d => `  - "${d}"`)] : []),
     ...(defines.length > 0 ? ["defines:", ...defines.map(d => `  - "${d.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`)] : []),
+    ...(entries.length > 0
+      ? ["units:", ...entries.flatMap(e => [
+          `  - files: "${relative(configDirectory, resolve(path)).replaceAll("\\", "/")}"`,
+          `    entry: ${e.name}`,
+          ...(e.stage ? [`    stage: ${e.stage}`] : []),
+        ])]
+      : []),
   ].join("\n") + "\n";
 
   if (!configs.has(text)) {
