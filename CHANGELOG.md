@@ -81,6 +81,7 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - SG0360 (Slang): 微分する関数の戻り値に流れ込む、微分しない (か前向きにだけ微分する) 関数の呼び出し (slangc の E41022)。
   実引数がリテラルだけのもの、`no_diff` を書いたもの、結果を比較にだけ使うものは報告しない
 - SG0365 (Slang): ステージを 1 つだけ書いた `[require(fragment)]` などの関数に、別のステージのエントリポイントから届くもの (slangc の E36107)
+- GL0001: `subroutine` を、glslang と同じくエラーにする (glslang 16.6.0 はサブルーチンを実装していない。「feature not yet implemented」)
 
 ### 修正
 

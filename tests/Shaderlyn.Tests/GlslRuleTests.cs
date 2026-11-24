@@ -360,6 +360,8 @@ public sealed class GlslRuleTests : IDisposable
 
     /// <summary>型・修飾子・演算子・リテラルを、バージョン・ステージ・場所で検査する (glslang の文法の規則の検査)。</summary>
     [Theory]
+    // glslang が実装していない subroutine
+    [InlineData("GL0001", "a.frag", "#version 400\nsubroutine float subT1() { return 1.0; }\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { uint u = 1u; gl_FragColor = vec4(float(u)); }")]
     [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { int i = 5 % 2; gl_FragColor = vec4(float(i)); }")]
     [InlineData("GL0001", "a.frag", "#version 330\nout vec4 o;\nvoid main() { double d = 1.0lf; o = vec4(float(d)); }")]
