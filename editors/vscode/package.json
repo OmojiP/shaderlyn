@@ -81,14 +81,14 @@
         "shaderlyn.inactiveRegions.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "条件が外れて効いていない #if / #ifdef の中を薄く表示します。開いたとき・保存したとき・シンボルを選んだときの解析で更新されます。"
+          "description": "条件が外れて無効な #if / #ifdef の中を薄く表示します。開いたとき・保存したとき・シンボルを選んだときの解析で更新されます。"
         },
         "shaderlyn.inactiveRegions.opacity": {
           "type": "number",
           "default": 0.45,
           "minimum": 0.1,
           "maximum": 1,
-          "description": "効いていない範囲を表示するときの不透明度。"
+          "description": "無効な範囲を表示するときの不透明度。"
         }
       }
     }

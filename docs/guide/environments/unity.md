@@ -127,7 +127,7 @@ unity:
 - どちらを参照しているかは `--env` の「Unity Editor」に表示されます
 - **Unity のバージョンまたはパッケージを更新した場合は、書き出し直してください。** 書き出した後に `ProjectVersion.txt`・`packages-lock.json`・`Library/PackageCache` のパッケージが変わると、
   解析を始めるときに標準エラーに伝えます (VS Code 拡張では通知)。解析は止めません。
-  この確認には、比較対象のプロジェクトの指定 (`--unity-project` か `unity: project`) が必要です。指定がなくても書き出したファイルは読み込みますが、プロジェクトとの一致は確認しません
+  この確認には、比較対象のプロジェクトの指定 (`--unity-project` か `unity: project`) が必要です。指定しなくても書き出したファイルは読み込みますが、プロジェクトとの一致は確認しません
   ```text
   --unity-generate で書き出したファイル (…/.shaderlyn/unity) が、プロジェクトと合っていません。Unity のバージョンが変わりました (書き出したとき 6000.3.26f1、今 6000.3.30f1)。--unity-generate で書き出し直してください。
   ```
@@ -189,7 +189,7 @@ Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn の判
 | `UNITY_DEVICE_SUPPORTS_WAVE_*` が有効な構成 | コンピュートシェーダーだけ DXC | 同左 | 同左 | 同左 |
 | Shader Compiler Backend を DXC | ― | ― | ― | その API は DXC (`never_use_dxc` が優先される) |
 
-- Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから読みます。設定ファイルで上書きできます
+- Unity のバージョン・対象の API・Shader Compiler Backend は、`--unity-project` のプロジェクトから取得します。設定ファイルで上書きできます
   ([設定](../configuration.md#unity))。読み込んだ内容は `--env` に表示されます
 - バージョンが不明なときは、どのバージョンの結果も並べます。バージョンで変わる指摘 (UN0201 / UN0203 の一部と UN0202) は出しません
 - DXC でコンパイルされるパスは DX11 では使用できません。使用できない API でのエラーは利用者に表示されないので、そこでは構文を報告しません
@@ -200,7 +200,7 @@ Unity の DXC は `sampler2D` / `tex2D` を受け付けます。Shaderlyn の判
 ShaderLab のルール (`SL`)、Unity のルール (`UN`)、URP のルール (`URP`) は、Unity の環境でだけ報告します ([ルールの一覧](../../rules/README.md))。
 宣言されていないシンボル ([CF0201](../../rules/CF0201.md)) は、下線で始まる大文字の名前 (`_NORMALMAP`) を報告します。
 
-構成の軸は `#pragma multi_compile` / `shader_feature` / `dynamic_branch` から、エントリポイントは `#pragma vertex` / `fragment` / `kernel` などから読みます。
+構成の軸は `#pragma multi_compile` / `shader_feature` / `dynamic_branch` から、エントリポイントは `#pragma vertex` / `fragment` / `kernel` などから取得します。
 設定ファイルの `symbols:` と `units:` は使用しません。
 
 ## 設定ファイルの例

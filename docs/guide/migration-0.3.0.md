@@ -126,7 +126,7 @@ HLSL に限らない型は、名前から `Hlsl` を外しました。
 
 解析済みのコードの型は `ShaderSyntaxTree` (`Shaderlyn.CFamily.Syntax`) になりました。
 `HlslSyntaxTree` は HLSL のコードを解析する入口 (`HlslSyntaxTree.Parse`) だけを持つ静的クラスになり、`ShaderSyntaxTree` を返します。
-木の HLSL に固有の値は、`tree.Hlsl()` (`Shaderlyn.Hlsl.Parsing`) から読みます。
+木の HLSL に固有の値は、`tree.Hlsl()` (`Shaderlyn.Hlsl.Parsing`) から取得します。
 
 | 0.2.1 | 0.3.0 |
 | --- | --- |

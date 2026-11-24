@@ -51,7 +51,7 @@ rules:
 | `slang`         | Slang の設定 ([下記](#slang))                                   |
 | `symbols`       | 構成の軸になるシンボル。汎用の HLSL 環境で使用する ([下記](#symbols)) |
 | `units`         | コンパイル単位。汎用の HLSL 環境で使用する ([下記](#units))         |
-| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` で読み込んでよい範囲に入ります ([`#include` が読む範囲](cli-usage.md#include-で読み込む範囲)) |
+| `include-paths` | `#include` の追加探索パス。設定ファイルからの相対で解決されます。ここに書いたパスと、設定ファイルを置いたフォルダーは、`#include` で読み込んでよい範囲に入ります ([`#include` で読み込む範囲](cli-usage.md#include-で読み込む範囲)) |
 | `defines`       | 定義済みマクロ。`NAME` または `NAME=VALUE`。値を書かない `NAME` は、HLSL では `1`、GLSL と Slang では空のマクロです (DXC・glslang・slangc の `-D` と同じ) |
 | `rules`         | ルール ID ごとの重要度とオプション                              |
 | `report`        | 出力する指摘の重要度。出力形式ごとに変更できます ([下記](#report)) |
@@ -65,10 +65,10 @@ Unity の環境だけで使用する設定です。
 | `profile` | レンダーパイプライン: `urp` / `brp` / `hdrp`。`--profile` の指定が優先されます                    |
 | `project` | Unity プロジェクトのルート。設定ファイルからの相対で解決されます。`--unity-project` の指定が優先されます |
 | `editor`  | Unity Editor のデータフォルダー。`--unity-editor` の指定が優先されます                            |
-| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読みます ([CI で Library を使用せずに解析する](environments/unity.md#library-と-unity-editor-が存在しないマシンで解析する)) |
-| `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。無ければプロジェクトの `ProjectSettings/ProjectVersion.txt` から読みます |
-| `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。無ければプロジェクトの Windows 向けの設定から読み、それも存在しなければ `[dx11, dx12]` |
-| `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。無ければプロジェクトのビルドプロファイルから読みます |
+| `generated` | `--unity-generate` で生成したファイルのフォルダー。設定ファイルからの相対で解決されます。プロジェクトの `Library/PackageCache` と、プロジェクトと同じバージョンの Unity Editor が見つからないときに、代わりにここから読み込みます。`project` を指定しなくても読み込みます ([CI で Library を使用せずに解析する](environments/unity.md#library-と-unity-editor-が存在しないマシンで解析する)) |
+| `version` | Unity のバージョン (`6.3` / `6000.3.0f1` / `2022.3` など)。書いていない場合は、プロジェクトの `ProjectSettings/ProjectVersion.txt` から取得します |
+| `graphics-apis` | シェーダーをコンパイルするグラフィックス API の並び: `dx11` / `dx12` / `vulkan` / `metal` / `gles3` / `glcore`。書いていない場合は、プロジェクトの Windows 向けの設定から取得し、それも存在しなければ `[dx11, dx12]` |
+| `shader-compiler-backend` | Shader Compiler Backend (Unity 6.6 から): `fxc` / `dxc`。`dxc` は DX11 以外の API を DXC にします。書いていない場合は、プロジェクトのビルドプロファイルから取得します |
 
 ### シェーダーのコンパイラ
 
@@ -85,7 +85,7 @@ Shaderlyn はパスごと・API ごとにどちらでコンパイルされるか
 バージョンが不明なときは、どのバージョンの結果も並べます。
 読み込んだ設定は `--env` の「シェーダーのコンパイラ」に表示されます。
 
-`#pragma` はコードブロックと `HLSLINCLUDE` に直接書いたものを読みます。
+`#pragma` はコードブロックと `HLSLINCLUDE` に直接書いたものを解析します。
 include ファイル内の `use_dxc` / `require` は Unity 2022.3 だけで有効なため、2022.3 (またはバージョンが不明な場合) に限って読み込みます。
 その場合 `#if` は評価せず、書かれた `#include` をすべてたどります。
 
@@ -238,12 +238,12 @@ units:
 - フォルダーを指定した場合は `.usf` を探します。`.ush` は明示的に指定した場合に限り解析します
 - ビルドのときにエンジンが生成するファイル (`/Engine/Generated/…`) は、`generated` が存在しなければ解決できません。その `#include` は誤りとして報告しませんが、
   中身 (uniform buffer などの宣言) が不明なため、宣言が存在しないことを根拠にする検査 (CF0301 / CF0310 など) は行いません (UE0001 / UE0002 で伝えます)。
-  欠けているのが uniform buffer の宣言だけの場合は、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルがない場合」](environments/unreal.md#生成ファイルがない場合))
+  欠けているのが uniform buffer の宣言だけの場合は、呼び出しの引数の検査 (CF0401 / CF0402) は行います ([Unreal Engine「生成ファイルが存在しない場合」](environments/unreal.md#生成ファイルが存在しない場合))
 - シェーダーコンパイラが定義するマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   プロジェクトのプラットフォームと合わないときは `defines` で上書きしてください
 - パーミュテーションは、既定では C++ から読みません。`SHADER_PERMUTATION_BOOL` / `SHADER_PERMUTATION_INT` に合わせて `symbols:` に書いてください
 - `permutations: true` にすると、`--unreal-generate` が C++ から読み取ったパーミュテーションを構成の軸にします。
-  生成のときは、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を読み、
+  生成のときは、値の組ごとに `ShouldCompilePermutation` / `RemapPermutation` / `ModifyCompilationEnvironment` を解析し、
   コンパイルされない組を除きます。組で値の変わる定義 (`SetDefine`) とフラグ (`CFLAG_AllowRealTypes` など) は軸にして、同時には現れない値の組を記録します。
   プラットフォームを問う関数は PC の Direct3D 12 (SM6) として答えます。解析できなかった式があれば、その組は除きません。
   エントリポイントとステージが同じでも、定義するものが違うクラスは別のコンパイル単位にします
@@ -251,7 +251,7 @@ units:
 ## symbols
 
 構成の軸になるシンボルを宣言します。Unity の `#pragma multi_compile` に当たるもので、宣言したシンボルの構成ごとにコードを解析します。
-Unity の環境では使用しません (`#pragma` から読みます)。
+Unity の環境では使用しません (`#pragma` から取得します)。
 
 ```yaml
 symbols:
@@ -262,7 +262,7 @@ symbols:
   - at-most-one: [FX_A, FX_B]  # 同時には有効にならない
 ```
 
-値を持つシンボルは、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分けます。
+値を持つシンボルは、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに区別して解析します。
 指摘には `QUALITY == 2 のとき` のように、その値を添えます。
 
 ## units
@@ -279,7 +279,7 @@ units:
     symbols: [QUALITY]         # この単位で使用する構成の軸。省略するとすべて
 ```
 
-Slang のファイルでは、`entry` と `stage` (slangc の `-stage` と同じ名前。`vertex` / `fragment` / `compute` / `geometry` / `hull` / `domain` / `mesh` / `amplification` など) だけを読みます。
+Slang のファイルでは、`entry` と `stage` (slangc の `-stage` と同じ名前。`vertex` / `fragment` / `compute` / `geometry` / `hull` / `domain` / `mesh` / `amplification` など) だけを参照します。
 ファイル全体を 1 つの単位にすることは変わらず、当てはまる単位のエントリポイントをすべて持ちます。レイトレーシングのステージは、まだ検査に使用しません。
 
 ## rules

@@ -2,18 +2,18 @@
 
 Slang のファイル (`.slang`) は、設定ファイルが存在しなくても、ほかの環境の設定ファイルの下にあっても、Slang として解析します。VS Code 拡張も同じです。
 
-**C 系の言語に共通のルール (`CF` で始まるもの) のうち Slang で確認したものと、Slang にしか無いルール (`SG` で始まるもの。[一覧](../../rules/README.md#slang)) で検査します。**
+**C 系の言語に共通のルール (`CF` で始まるもの) のうち Slang で確認したものと、Slang 固有のルール (`SG` で始まるもの。[一覧](../../rules/README.md#slang)) で検査します。**
 SG のルールは、slangc 2026.19 がエラーにするものを、slangc と同じ行で報告します。
 
 - 構文は HLSL の構文に、Slang の `import` / `module`、`func`・`let`・`var`、ジェネリック (`<T : IFoo>`、`where`)、`interface`・`extension`・`typealias`・`associatedtype`・`property`・`__init`・`__subscript`、
-  ポインター (`T*`)、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、GLSL の書き方 (`layout(…)`) を追加したものとして読みます
+  ポインター (`T*`)、`is` / `as`、ラムダ式、`try` / `catch` / `throw` / `defer`、GLSL の書き方 (`layout(…)`) を追加したものとして扱います
 - 型は HLSL 2021 の型の決まりに、Slang の標準ライブラリの名前 (slang 2026.19 のソースから作った表) を追加したもので判断します。型を書かない `let` / `var` は、初期値の型として検査します
 - 変数・仮引数・戻り値・フィールドの型、構造体の基底、ジェネリックの制約 (`<T : IFoo>`・`where T : IFoo`)、`throws` の型に書いた、どこにも宣言されていない型の名前を [CF0310](../../rules/CF0310.md) にします。
   名前空間などで修飾した名前 (`ns::T`・`T.Differential`) はまだ見ません
 - 列挙子は、`[UnscopedEnum]` を付けた列挙型のものだけを修飾せずに書けるものとします (`Fruit.Apple`)。slangc に `-unscoped-enum` を渡す場合は、[`slang: unscoped-enums`](../configuration.md#slang) を `true` にしてください
 - 実験中のモジュール (`slang.neural` など) の import は、slangc の既定と同じく誤り ([SG0362](../../rules/SG0362.md)) にします。slangc に `-experimental-feature` を渡す場合は、[`slang: experimental-features`](../configuration.md#slang) を `true` にしてください
-- ジェネリックのエントリポイントは、型引数を決めない slangc と同じく誤り ([SG0358](../../rules/SG0358.md)) にします。slangc の `-specialize` か `-entry main<Foo>`、Slang の API (`specialize`) で型引数を決めるなら、[`slang: generic-entry-points`](../configuration.md#slang) を `true` にしてください
-- slangc に合わせて、変数の初期値の中では、宣言しているその変数はまだ参照できません (`int e = e;` の右の `e` は外側の `e`)。`for` の初期化の変数は、ループの外では参照できません。`if (let a = x)` の `a` は、then の側でだけ見えます
+- ジェネリックのエントリポイントは、型引数を決めない slangc と同じく誤り ([SG0358](../../rules/SG0358.md)) にします。slangc の `-specialize` か `-entry main<Foo>`、Slang の API (`specialize`) で型引数を決める場合は、[`slang: generic-entry-points`](../configuration.md#slang) を `true` にしてください
+- slangc に合わせて、変数の初期値の中では、宣言しているその変数はまだ参照できません (`int e = e;` の右の `e` は外側の `e`)。`for` の初期化の変数は、ループの外では参照できません。`if (let a = x)` の `a` は、then の側でだけ参照できます
 - `import a.b;` のモジュール (`a/b.slang`) を、ファイルのフォルダーと [`include-paths`](../configuration.md) から探し、その宣言を使用します。
   見つからないモジュールは [CF0021](../../rules/CF0021.md) になります。slangc に入っている標準のモジュール (`slang.neural` など) は探しません
 - slangc に合わせて、構造体の空の `{ }`、64 ビットに広がる整数のリテラル、局所変数で仮引数を隠すことは報告しません。

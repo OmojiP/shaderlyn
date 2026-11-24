@@ -35,10 +35,10 @@ internal static class WgslRuleDescriptors
             + "変数でない値 (演算の結果など) に、代入か ++ / -- で書き込んでいます。naga はコンパイルの誤りにします。",
         helpLinkUri: DocumentationLinks.For("WG0309"));
 
-    /// <summary>無い拡張の名前。</summary>
+    /// <summary>存在しない拡張の名前。</summary>
     public static DiagnosticDescriptor UnknownExtension { get; } = new(
         id: "WG0003",
-        title: "無い拡張の名前です",
+        title: "存在しない拡張の名前です",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,

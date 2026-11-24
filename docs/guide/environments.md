@@ -33,7 +33,7 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 
 | 拡張子 | 環境 | 環境を決めている場合 |
 | --- | --- | --- |
-| GLSL・Godot・Slang・WGSL の拡張子 (`.vert` / `.gdshader` / `.slang` / `.wgsl` など) | その言語の環境 | 決めた環境が集めない拡張子なら、その言語の環境で解析する |
+| GLSL・Godot・Slang・WGSL の拡張子 (`.vert` / `.gdshader` / `.slang` / `.wgsl` など) | その言語の環境 | 決めた環境が集めない拡張子の場合は、その言語の環境で解析する |
 | `.usf` / `.ush` | Unreal Engine | 決めた環境で解析する (`.usf` は HLSL なので、どの HLSL の環境でも解析できる) |
 
 フォルダーを指定した場合、`.ush` (取り込まれる側のヘッダ) は単体では解析しません。
@@ -42,7 +42,7 @@ Shaderlyn は、Unity、DXC で直接コンパイルする HLSL (DirectX 12 の�
 取り込まれる断片 (`.hlsli` / `.ush` / `.cginc` など) は、明示的に指定した場合に限り解析します。
 
 HLSL 以外の言語 (GLSL・Godot・Slang・WGSL) は、`environment` に関係なく、拡張子に応じた環境で解析します。
-たとえば Unity プロジェクト内の `.wgsl` も WGSL の解析対象です。ただし `.mesh` (GLSL のメッシュシェーダー) は Unity のメッシュアセットと拡張子が重なるため、`environment: glsl` を指定したときだけ読みます。
+たとえば Unity プロジェクト内の `.wgsl` も WGSL の解析対象です。ただし `.mesh` (GLSL のメッシュシェーダー) は Unity のメッシュアセットと拡張子が重なるため、`environment: glsl` を指定したときだけ解析します。
 
 ```sh
 shaderlyn Shaders --env      # どの環境で、何を解析するかを表示する (解析はしない)

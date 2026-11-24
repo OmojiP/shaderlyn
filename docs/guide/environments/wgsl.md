@@ -2,11 +2,11 @@
 
 WGSL のファイル (`.wgsl`) は、設定ファイルが存在しなくても、ほかの環境の設定ファイルの下にあっても、WGSL として解析します。VS Code 拡張も同じです。
 
-**C 系の言語に共通のルール (`CF` で始まるもの) と、WGSL にしか無いルール (`WG` で始まるもの。[一覧](../../rules/README.md#wgsl)) で検査します。**
+**C 系の言語に共通のルール (`CF` で始まるもの) と、WGSL 固有のルール (`WG` で始まるもの。[一覧](../../rules/README.md#wgsl)) で検査します。**
 WG のルールは、naga 30 (wgpu の WGSL のコンパイラ) がエラーにするものを、naga と同じ行で報告します。
 
-- 構文は WGSL の仕様どおりに読みます。属性 (`@group(0)`・`@vertex`)、`var<storage, read_write>`・`let`・`const`・`override`、`alias`、構造体、
-  `loop` と `continuing`・`break if`、`case` の値を並べた `switch`、`_ =`、入れ子のコメントを読みます。型引数を囲む `<` と比較演算子の `<` は、仕様と同じ手順で見分けます
+- 構文は WGSL の仕様どおりに解析します。属性 (`@group(0)`・`@vertex`)、`var<storage, read_write>`・`let`・`const`・`override`、`alias`、構造体、
+  `loop` と `continuing`・`break if`、`case` の値を並べた `switch`、`_ =`、入れ子のコメントを解析します。型引数を囲む `<` と比較演算子の `<` は、仕様と同じ手順で見分けます
 - 型は WGSL の決まりで判断します。型を書かない数 (`1`・`1.0`) は抽象的な数で、具体的な型に変換できます。それ以外の暗黙の変換は存在しないので、
   `i32` を `f32` の変数に代入すると [CF0410](../../rules/CF0410.md) になります。型を書かない `let` / `var` / `override` は初期値の型 (抽象的な数は `i32` か `f32`)、
   `const` は初期値の型として検査します

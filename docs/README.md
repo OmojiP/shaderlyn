@@ -2,7 +2,7 @@
 
 shaderlyn のドキュメントを、読む人ごとにまとめたページです。自分に当てはまる順路から読み始めてください。
 
-## ツールを使う人向け
+## ツールを使用する人向け
 
 1. [CLI の使い方](guide/cli-usage.md) — インストール、実行、出力の読み方、オプション
 2. [設定ファイル](guide/configuration.md) — `.shaderlyn.yaml` と抑制コメント
@@ -32,7 +32,7 @@ shaderlyn のドキュメントを、読む人ごとにまとめたページで�
 
 1. [自作ルールの作り方](custom-rules/tutorial.md) — プロジェクトの用意から、最初のルールを CLI とエディタで動かすまで
 2. [自作ルールの書き方の手引き](custom-rules/guide.md) — ShaderLab を見るルール、集計、セマンティックモデル、ルールを書くときの原則
-3. [ルールの実例集](custom-rules/cookbook.md) — そのまま使えるか、写して書き換えられる例
+3. [ルールの実例集](custom-rules/cookbook.md) — そのまま使用できるか、写して書き換えられる例
 4. [ルール API リファレンス](custom-rules/api-reference.md) — 型とメンバーの一覧
 
 ## 開発に参加する人
@@ -47,8 +47,8 @@ shaderlyn 自体のコードを変更する人向けです。
 
 | 場所 | 内容 |
 | --- | --- |
-| `docs/guide/` | ツールを使う人向け |
+| `docs/guide/` | ツールを使用する人向け |
 | `docs/custom-rules/` | 自作ルールを書く人向け |
 | `docs/rules/` | ルールごとの説明。診断のヘルプリンクがここを指すので、ファイル名はルール ID のまま動かさない |
 | `docs/internals/` | 開発に参加する人向け |
-| `docs/images/` | ドキュメントで使う画像 |
+| `docs/images/` | ドキュメントで使用する画像 |

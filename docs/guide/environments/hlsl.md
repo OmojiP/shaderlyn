@@ -34,7 +34,7 @@ units:
 - `entry` の関数が存在しなければ CF0301 になります。報告はファイルの先頭に表示されます
 - `target` から、DXC が定義するマクロ (`__SHADER_TARGET_STAGE` / `__SHADER_TARGET_MAJOR` / `__SHADER_TARGET_MINOR`) を決めます。
   `__HLSL_VERSION` と `__SHADER_STAGE_*` はどの単位でも定義します
-- 値を持つシンボルは `#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、指摘に `QUALITY == 2 のとき` を添えます
+- 値を持つシンボルは `#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに区別して解析し、指摘に `QUALITY == 2 のとき` を添えます
 - シェーダーモデル 6.x の組み込み関数 (メッシュシェーダー、wave、`Barrier` など) と、ディスクリプタヒープ (`ResourceDescriptorHeap`) を知っています。
   `select` / `and` / `or` は DXC の組み込み関数です (DXC 1.8 ではすべての HLSL バージョンで使用できます。DXC 1.6 では HLSL 2021 に限り使用できます)
 

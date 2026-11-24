@@ -545,7 +545,7 @@ internal static class SlangRuleDescriptors
     /// <summary>Slang の言語を選ぶ指令 (#language・#version) の誤りと食い違い。</summary>
     public static DiagnosticDescriptor LanguageDirective { get; } = new(
         id: "SG0366",
-        title: "#language の指令が誤っているか、ほかの指令と食い違っています",
+        title: "#language の指令が誤っているか、ほかの指令と一致しません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,

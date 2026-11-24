@@ -3,13 +3,13 @@
 Unity・汎用の HLSL (DXC)・Unreal Engine・GLSL・Godot・Slang・WGSL のシェーダーを解析する [Shaderlyn](https://github.com/OmojiP/shaderlyn) の、自作ルール用ライブラリです。
 
 プロジェクト固有の規約を C# のルールとして書き、組み込みのルールと一緒に動く CLI や言語サーバーを作れます。
-解析ツールとして使うだけなら、このパッケージは必要ありません。[リリースページ](https://github.com/OmojiP/shaderlyn/releases) の実行ファイルを使ってください。
+解析ツールとして使用するだけの場合は、このパッケージは必要ありません。[リリースページ](https://github.com/OmojiP/shaderlyn/releases) の実行ファイルを使用してください。
 
 | パッケージ | 用途 |
 | --- | --- |
 | `Shaderlyn.Semantics` | ルールを書く。`ShaderRuleAnalyzer` とセマンティックモデル |
 | `Shaderlyn.Unity` | Unity 固有の情報を見るルールを書く。`Properties`・Pass・レンダーパイプラインのプロファイル (`compilation.GetUnity()`) |
-| `Shaderlyn.Unreal` | Unreal Engine の環境を自前のホストで使う。仮想パスの解決 (`UnrealVirtualPathResolver`) と環境の設定 (`UnrealOptions`) |
+| `Shaderlyn.Unreal` | Unreal Engine の環境を自前のホストで使用する。仮想パスの解決 (`UnrealVirtualPathResolver`) と環境の設定 (`UnrealOptions`) |
 | `Shaderlyn.Testing` | ルールをテストする。`ShaderRuleVerifier` |
 | `Shaderlyn.Cli` | 自作ルール入りの CLI を作る。`Program.RunAsync` |
 | `Shaderlyn.LanguageServer` | 自作ルール入りの言語サーバーを作る。`ShaderLanguageServer` |

@@ -40,7 +40,7 @@
 | [`DiagnosticDescriptor`](#diagnosticdescriptor-shaderlyncorediagnostics) | 診断 |
 | [`DiagnosticSeverity`](#diagnosticseverity) | 診断 |
 | [`HlslIntrinsics`](#hlslintrinsics--hlsl-の組み込み関数を知る) | 構文木 |
-| [`HlslTypeClassifier`](#hlsltypeclassifier--hlsl-の型名を読み解く) | 構文木 |
+| [`HlslTypeClassifier`](#hlsltypeclassifier--hlsl-の型名を解析する) | 構文木 |
 | [`Location`](#location-と-textspan) | 診断 |
 | [`ResolveCall`](#resolvecall) | セマンティックモデル |
 | [`ResolveName`](#resolvename) | セマンティックモデル |
@@ -128,7 +128,7 @@
 
 | プロパティ                  |                                                                                                    |
 | --------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ReachableFromEntryPoints`  | エントリポイントから呼び出しをたどって届く関数の中のノードだけで呼ぶ。関数の外のノードでは今までどおり呼ぶ。エントリポイントが分からない木では、すべての関数で呼ぶ |
+| `ReachableFromEntryPoints`  | エントリポイントから呼び出しをたどって届く関数の中のノードだけで呼ぶ。関数の外のノードでは今までどおり呼ぶ。エントリポイントを特定できない木では、すべての関数で呼ぶ |
 | `When`                      | その構成で存在しうるノードだけで呼ぶ。その中の `ReportWhen` には、この条件も掛かる                    |
 
 `When` には `SymbolCondition` か、`#if` と同じ書き方の文字列を渡せます。
@@ -437,7 +437,7 @@ shaderlyn Assets/Shaders/Lit.shader --unity-project . --inspect tree.html
 
 #### `ShaderLiteral` — リテラルの値と型
 
-名前空間は `Shaderlyn.CFamily.Syntax` です。16 進・8 進・接尾辞を読み分けます。
+名前空間は `Shaderlyn.CFamily.Syntax` です。16 進・8 進・接尾辞を区別して解析します。
 
 | メンバー                         |                                                           |
 | -------------------------------- | --------------------------------------------------------- |
@@ -472,7 +472,7 @@ if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 #### `ShaderTypeSystem` — 型システム
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。解析した言語の型システム (型と組み込み関数) です。`compilation.TypeSystem` で取得できます。
-**言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として読めます。
+**言語に依らないルールは、型の名前・変換・組み込み関数をここから尋ねてください。** HLSL の `float3` も GLSL の `vec3` も、同じ形 (`float` の 3 成分のベクトル) として扱えます。
 
 | メンバー                                                                   |                                                      |
 | -------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -480,7 +480,7 @@ if (parameter.TryGetArrayLength(out int length)) { ... }  // ParameterSyntax
 | `TryDescribeNumeric(typeName, out shape)`                                  | 基底名・行・列への分解 (`ShaderNumericShape`)        |
 | `Compose(shape)` / `ComposeNumeric(baseName, components)`                  | 分解の逆。その言語での型の名前を作る                 |
 | `IsConvertible(valueType, targetType, exact)` / `IsTruncating(...)`        | 組み込みルールと同じ判定で、暗黙の変換の可否         |
-| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL の場合はコンパイラと HLSL のバージョン) は木から読む |
+| `IsKnownFunction(name, tree)` / `IsKnownConstant(name)`                    | 組み込み関数・定数かどうか。言語のバージョン (HLSL の場合はコンパイラと HLSL のバージョン) は木から取得する |
 | `IsTextureSamplingFunction(name)` / `GetTextureMethodReturnType(name)`     | テクスチャを読み取る関数・メソッドかどうか、何を返すか   |
 | `ComponentNameSets`                                                        | ベクトルの成分名の組 (HLSL は `xyzw` と `rgba`)      |
 
@@ -490,9 +490,9 @@ compilation.TypeSystem.TryDescribeNumeric(type.Name, out ShaderNumericShape shap
 ```
 
 下の `HlslTypeClassifier`・`HlslConversion`・`HlslIntrinsics` は、HLSL の表そのものです。
-HLSL にしか無い決まり (定数バッファの詰め方など) を見るルールで使用します。
+HLSL 固有の決まり (定数バッファの詰め方など) を見るルールで使用します。
 
-#### `HlslTypeClassifier` — HLSL の型名を読み解く
+#### `HlslTypeClassifier` — HLSL の型名を解析する
 
 名前空間は `Shaderlyn.Semantics.Symbols` です。
 
@@ -548,7 +548,7 @@ HlslTypeClassifier.TryDescribeNumeric(type.Name, out ShaderNumericShape shape);
 | `HasCompleteDependencies`          | `#include` をすべて解決できたか             |
 | `MayLackOverloadsOf(name)`         | その名前の関数の多重定義を参照できていないかもしれないか (解決できない取り込みが宣言しうる関数で判定する) |
 | `AppearsOutsideAnalyzedCode(name)` | 名前が、どの構成でも解析されなかった領域かマクロ定義の本体に現れるか (シェーダー全体) |
-| `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使用する。** 別の Pass の読み飛ばしで、この Pass の検査を見送らない |
+| `AppearsOutsideAnalyzedCode(name, program)` | 同じことを、そのコードブロック (Pass・カーネル) の中だけで判定する。**Pass ごとに判定する検査はこちらを使用する。** 別の Pass で解析を省略したことで、この Pass の検査を見送らない |
 | `UnanalyzedIdentifiers`            | どの構成でも解析されなかった領域に現れた名前 |
 | `AllDeclaredNames`                 | すべての木 (取り込んだヘッダを含む) で宣言された変数・仮引数・関数・構造体・定数バッファの名前 |
 | `LocalOnlyDeclaredNames`           | そのうち、関数の中の変数と仮引数としてしか宣言されていない名前。位置によって参照できたりできなかったりするので、`ResolveName` で確認する |
@@ -669,7 +669,7 @@ foreach ((ShaderSyntaxNode node, AnalyzedProgram program) in compilation.Enumera
 `#if !defined(ENABLE_ALPHA)` で書き分けた `CTYPE color` は既定の木では `float3` です。
 `#ifdef ENABLE_ALPHA` の中の `color.w` は、`ENABLE_ALPHA` を有効にした木で `float4` として検査されます。
 
-`EnumerateOwnNodes(program)` は、バリアントにしか無いノードを既定の木の子として返します。
+`EnumerateOwnNodes(program)` は、バリアントにしか存在しないノードを既定の木の子として返します。
 そのノードの属さない構成の文脈で型を求めることになるので、検査には使用しません。
 
 **バリアントの木の中で、条件が付いていないことは「どの構成でも」を意味しません。**
@@ -714,7 +714,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 | --------------------------- | -------------------------------- |
 | `EnabledSymbols`            | その木で有効にしたシンボル       |
 | `AnalyzedCondition`         | それを条件として表したもの。既定の構成の場合は「常に」 |
-| `BlockKey`                  | 別々に組み立てられるコード (Pass、コンピュートシェーダーのカーネル) を見分ける鍵。既定の構成とそのバリアントは同じ鍵を持つ。宣言を集めて突き合わせるなら、この鍵ごとに分ける |
+| `BlockKey`                  | 別々に組み立てられるコード (Pass、コンピュートシェーダーのカーネル) を見分ける鍵。既定の構成とそのバリアントは同じ鍵を持つ。宣言を集めて突き合わせる場合は、この鍵ごとに分ける |
 
 式の型は `GetExpressionTypeBinder(program)` が返すものから求めます。
 `ExpressionTypeBinder` を自分で `new` した場合、宣言と構造体のフィールドを毎回集め直します。
@@ -727,7 +727,7 @@ int count = configurations.Max(configuration => statements.Count(configuration.C
 
 識別子の位置から外側の波括弧を順にたどり、名前を検索します。
 同じ関数の中でも、内側の波括弧で再宣言した名前はその中と外で別の変数として扱われます。
-関数の外では uniform を取得し、無ければ `static` / `groupshared` の変数を取得します。
+関数の外では uniform を取得し、存在しなければ `static` / `groupshared` の変数を取得します。
 
 ### `ResolveName`
 
@@ -905,7 +905,7 @@ if (conditions.IsPossible(missing))
 }
 ```
 
-どの構成でも存在するものだけを相手にしたい場合 (「無いこと」を根拠にする判断で、条件付きの宣言を数えたくないときなど) は
+どの構成でも存在するものだけを相手にしたい場合 (「存在しないこと」を根拠にする判断で、条件付きの宣言を数えたくないときなど) は
 `IsAlwaysPresent` が使用できます。
 
 ### `SymbolCondition` (`Shaderlyn.Core.Syntax`)
