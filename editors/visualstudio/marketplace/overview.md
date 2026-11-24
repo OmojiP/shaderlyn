@@ -34,7 +34,8 @@ For those files Shaderlyn provides diagnostics and quick fixes only, and the hov
 - For other environments (plain HLSL and so on), set `environment` in `.shaderlyn.yaml`
   ([environments](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)).
 - Rule severities are configured in `.shaderlyn.yaml` ([configuration](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md)).
-- Extension settings are under **Tools > Options > Shaderlyn > General**.
+- Extension settings are under **Tools > Options > Shaderlyn > 全般** (General). The settings page is in Japanese.
+  In Visual Studio 2026, select **Shaderlyn** in the settings and open the classic Options dialog from the **全般** link shown there.
 
 The documentation is written in Japanese. See the [repository](https://github.com/OmojiP/shaderlyn) and the [extension README](https://github.com/OmojiP/shaderlyn/blob/main/editors/visualstudio/README.md).
 
