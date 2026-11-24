@@ -13,4 +13,4 @@ JetBrains Marketplace の Shaderlyn のページのうち、zip から作られ�
 | License | MIT |
 | Tags | Code Quality |
 
-Visual Studio Marketplace の概要は [../../visualstudio/marketplace/overview.md](../../visualstudio/marketplace/overview.md) で、リリースのたびに自動で反映されます。
+Visual Studio Marketplace の概要は [Visual Studio 拡張の README](../../visualstudio/README.md) (英語) で、リリースのたびに自動で反映されます。

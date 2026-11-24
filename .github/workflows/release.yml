@@ -589,6 +589,10 @@ jobs:
             -Body (@{ publisherName = $manifest.publisher } | ConvertTo-Json)
           Write-Output "::add-mask::$($exchange.credential)"
 
+          # Marketplace の概要は、拡張機能の README (英語) と同じ内容にする。
+          # Marketplace は相対リンクを書き換えないので、README のリンクは絶対 URL で書く。
+          Copy-Item ../README.md overview.md -Force
+
           $publisher = Join-Path $env:RUNNER_TEMP "vssdk\tools\vssdk\bin\VsixPublisher.exe"
           & $publisher publish `
             -payload "${{ github.workspace }}\artifacts\shaderlyn-visualstudio.vsix" `

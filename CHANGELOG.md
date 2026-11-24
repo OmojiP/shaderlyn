@@ -85,8 +85,10 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 ### 修正
 
 - Rider プラグイン: アイコンを付けた。これまでは JetBrains Marketplace と Rider のプラグインの一覧に、アイコンが表示されなかった
-- Visual Studio 拡張: Visual Studio Marketplace の短い説明を英語だけにした。日本語の部分が「?」に化けていた (日本語の説明は概要のページにある)。
-  概要の設定の場所を、実際の画面の名前 (「ツール」→「オプション」→「Shaderlyn」→「全般」) に合わせた
+- Visual Studio 拡張: Visual Studio Marketplace の短い説明を英語だけにした。日本語の部分が「?」に化けていた。
+  アイコンを 128×128 にした。これまでは 90×90 で、VS Code 拡張のページより小さく表示されていた
+- VS Code 拡張・Visual Studio 拡張・Rider プラグインの説明を揃えた。短い説明は同じ英語の文にし、README は英語 (`README.md`) と日本語 (`README.ja.md`) に分けて、先頭から互いに移れるようにした。
+  Visual Studio Marketplace の概要は、拡張機能の英語の README と同じ内容にした
 
 ## [0.3.5] - 2026-11-22
 

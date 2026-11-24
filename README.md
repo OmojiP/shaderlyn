@@ -152,9 +152,9 @@ public sealed class NoHalfAnalyzer : ShaderRuleAnalyzer
 解析結果を VS Code・Visual Studio・Rider の指摘として表示します。
 自作ルールを追加した言語サーバーを指定することで自作ルールの指摘を報告することもできます。
 
-VS Code 拡張の言語サーバー利用 : [editors/vscode/README.md](editors/vscode/README.md)
+VS Code 拡張の言語サーバー利用 : [editors/vscode/README.ja.md](editors/vscode/README.ja.md)
 
-Visual Studio 拡張 : [editors/visualstudio/README.md](editors/visualstudio/README.md) / Rider プラグイン : [editors/rider/README.md](editors/rider/README.md)
+Visual Studio 拡張 : [editors/visualstudio/README.ja.md](editors/visualstudio/README.ja.md) / Rider プラグイン : [editors/rider/README.ja.md](editors/rider/README.ja.md)
 
 ![VS Code で指摘が波線と「問題」パネルに出ている画面](./editors/vscode/images/error_hide.png)
 
@@ -212,7 +212,7 @@ shaderlyn /.../UnityProject/Assets --unity-project /.../UnityProject
 
 VS Code の拡張機能ビューで **Shaderlyn** を検索してインストールします（[Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn)）。
 
-導入とオプションの詳細： [editors/vscode/README.md](editors/vscode/README.md#インストール) 
+導入とオプションの詳細： [editors/vscode/README.ja.md](editors/vscode/README.ja.md#インストール) 
 
 ![スペルミスをクイックフィックスで修正する様子](./editors/vscode/images/typo.gif)
 
@@ -231,14 +231,14 @@ Visual Studio 2022 (17.14 以降) と Visual Studio 2026 に対応します。�
 指摘・クイックフィックス・ホバー・補完・定義へ移動など、VS Code 拡張と同じ機能が働きます (薄い表示とシンボルの選択は VS Code 拡張だけ)。
 HLSL Tools が入っている場合は、`.hlsl` などで HLSL Tools の機能と併用します。
 
-導入と設定の詳細： [editors/visualstudio/README.md](editors/visualstudio/README.md)
+導入と設定の詳細： [editors/visualstudio/README.ja.md](editors/visualstudio/README.ja.md)
 
 ### 5. Rider で使用する
 
 Rider 2026.3 以降に対応します。「Settings」→「Plugins」の「Marketplace」タブで **Shaderlyn** を検索してインストールします (JetBrains Marketplace)。
 指摘とクイックフィックスを出します。ホバーや補完は Rider 自身のシェーダーの支援が働きます。
 
-導入と設定の詳細： [editors/rider/README.md](editors/rider/README.md)
+導入と設定の詳細： [editors/rider/README.ja.md](editors/rider/README.ja.md)
 
 ---
 
@@ -292,7 +292,7 @@ return (int)await Shaderlyn.Cli.Program.RunAsync(args, analyzers, Console.Out, C
 | 読む人         | 最初に読むドキュメント                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ツールを使用する      | [CLI の使用方法](docs/guide/cli-usage.md) / [設定ファイル](docs/guide/configuration.md) / [Unity 以外の環境](docs/guide/environments.md) / [0.2 への移行](docs/guide/migration-0.2.md) / [0.2.1 への移行](docs/guide/migration-0.2.1.md) / [0.3.0 への移行](docs/guide/migration-0.3.0.md) / [0.3.1 への移行](docs/guide/migration-0.3.1.md)       |
-| CI やエディタで使用する | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.md) / [Visual Studio 拡張](editors/visualstudio/README.md) / [Rider プラグイン](editors/rider/README.md)                                                                                                  |
+| CI やエディタで使用する | [CI に組み込む](docs/guide/ci-setup.md) / [VS Code 拡張](editors/vscode/README.ja.md) / [Visual Studio 拡張](editors/visualstudio/README.ja.md) / [Rider プラグイン](editors/rider/README.ja.md)                                                                                                  |
 | トラブルシューティング | [トラブルシューティング](docs/guide/troubleshooting.md)                                                                                                                                 |
 | 自作ルールを書く    | [自作ルールの作り方](docs/custom-rules/tutorial.md) → [書き方の手引き](docs/custom-rules/guide.md) / [実例集](docs/custom-rules/cookbook.md) / [API リファレンス](docs/custom-rules/api-reference.md) |
 | 開発に参加する     | [貢献の手引き](CONTRIBUTING.md) |

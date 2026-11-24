@@ -3,7 +3,7 @@
   <Metadata>
     <Identity Id="Shaderlyn.VisualStudio" Version="0.3.5" Language="en-US" Publisher="OmojiP" />
     <DisplayName>Shaderlyn</DisplayName>
-    <!-- 英語だけにする。Visual Studio Marketplace の短い説明では、日本語が「?」に化ける (0.3.5 で確認)。日本語の説明は概要 (marketplace/overview.md) に書く。 -->
+    <!-- 英語だけにする。Visual Studio Marketplace の短い説明では、日本語が「?」に化ける (0.3.5 で確認)。VS Code と Rider と同じ文にする。 -->
     <Description xml:space="preserve">Finds errors in Unity, Unreal Engine, Godot, Slang, WGSL and other shaders as you edit.</Description>
     <MoreInfo>https://github.com/OmojiP/shaderlyn</MoreInfo>
     <License>LICENSE</License>

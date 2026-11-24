@@ -169,7 +169,7 @@ HLSL を見る検査は、ファイルを開いたときと保存したときに
 ### 自作ルール入りの言語サーバーを使用するとき
 
 サーバーの作り方は [自作ルールの作り方「エディタでも働かせる」](../custom-rules/tutorial.md#5-1-エディタでも働かせる)、
-VS Code からの指し方は [VS Code 拡張の README「自作ルールを使用する」](../../editors/vscode/README.md#自作ルールを使用する) にあります。
+VS Code からの指し方は [VS Code 拡張の README「自作ルールを使用する」](../../editors/vscode/README.ja.md#自作ルールを使用する) にあります。
 
 | 症状 | 原因 |
 | --- | --- |
@@ -213,5 +213,5 @@ VS Code からの指し方は [VS Code 拡張の README「自作ルールを使�
 - [CLI の使用方法](cli-usage.md)
 - [設定ファイル](configuration.md)
 - [CI に組み込む](ci-setup.md)
-- [VS Code 拡張](../../editors/vscode/README.md)
+- [VS Code 拡張](../../editors/vscode/README.ja.md)
 - [自作ルールの作り方](../custom-rules/tutorial.md)

@@ -398,7 +398,7 @@ dotnet publish MyShaderRules.Lsp -c Release -r win-x64 -o bin
 **publish するプロジェクトを指定してください。** ソリューションのあるフォルダーで引数なしに実行すると、
 テストを含む全プロジェクトが 1 つのフォルダーへ出力されます（`NETSDK1194` の警告が出ます）。
 
-publish した実行ファイルを VS Code から使用する手順は [VS Code 拡張の README](../../editors/vscode/README.md#自作ルールを使用する) にあります。
+publish した実行ファイルを VS Code から使用する手順は [VS Code 拡張の README](../../editors/vscode/README.ja.md#自作ルールを使用する) にあります。
 
 ---
 
