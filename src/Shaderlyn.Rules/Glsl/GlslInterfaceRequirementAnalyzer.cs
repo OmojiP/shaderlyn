@@ -22,7 +22,7 @@ internal sealed partial class GlslInterfaceRequirementAnalyzer : SemanticRuleAna
     protected override bool AnalyzesGlsl => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [GlslRuleDescriptors.NotAvailable, GlslRuleDescriptors.TypeNotAllowedHere];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -135,6 +135,13 @@ internal sealed partial class GlslInterfaceRequirementAnalyzer : SemanticRuleAna
 
         if (input && stage == GlslShaderStage.Vertex)
         {
+            // glslang の globalQualifierTypeCheck は、構造体の頂点シェーダーの入力を誤りにして、ほかの検査をしない。
+            if (structure is not null)
+            {
+                requirement.Report(GlslRuleDescriptors.TypeNotAllowedHere, at, declarators.FirstOrDefault()?.Name ?? typeName, "頂点シェーダーの入力は構造体にできません。");
+                return;
+            }
+
             if (typeDimensions > 0 || declarators.Any(d => d.IsArray))
             {
                 requirement.RequireProfile(at, GlslProfileMask.NotEs, "頂点シェーダーの入力の配列");

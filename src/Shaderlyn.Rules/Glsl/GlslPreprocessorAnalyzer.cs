@@ -20,7 +20,7 @@ namespace Shaderlyn.Rules.Glsl;
 /// <para>
 /// <c>#extension</c> の形 (<c>CPPextension</c> と Versions.cpp の <c>updateExtensionBehavior</c>) も見る。
 /// 名前・<c>:</c>・振る舞い (<c>require</c> / <c>enable</c> / <c>warn</c> / <c>disable</c>) の順に書き、後ろには何も書けない。
-/// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張を <c>require</c> にした誤りは、知っている拡張の一覧が要るので見ない。
+/// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張 (<see cref="GlslKnownExtensions"/> に存在しないもの) は <c>require</c> にできない。
 /// </para>
 /// <para>
 /// 到達した <c>#error</c> も伝える (<c>CPPerror</c>)。GLSL には構成を選ぶエンジンが無く、到達すればコンパイルが止まる。
@@ -374,6 +374,12 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
         if (tokens[0].Text == "all" && tokens[2].Text is "require" or "enable")
         {
             return $"#extension all には '{tokens[2].Text}' を書けません。warn か disable を書いてください。";
+        }
+
+        // glslang が知らない拡張を require にすると誤り (updateExtensionBehavior の「extension not supported」)。enable などは警告で済む。
+        if (tokens[2].Text == "require" && tokens[0].Text != "all" && !GlslKnownExtensions.Names.Contains(tokens[0].Text))
+        {
+            return $"拡張 '{tokens[0].Text}' は glslang 16.6.0 が対応していないので、require にできません。";
         }
 
         return tokens.Length > 3 ? $"#extension の後ろに余分な記述があります: '{tokens[3].Text}'" : null;

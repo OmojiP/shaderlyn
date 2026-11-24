@@ -88,6 +88,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - SG0402 (Slang): `extension` の本体の `public` のメソッドも検査する。可視性を書かない `extension` の中の `public` のメソッド (slangc の E30601) と、
   `public` のメソッドが public でない型を使用するもの (E30604)
 - GL0001: `subroutine` を、glslang と同じくエラーにする (glslang 16.6.0 はサブルーチンを実装していない。「feature not yet implemented」)
+- GLSL: ogl-samples を glslang と比較して見つけた見落としを報告する。glslang 16.6.0 が対応していない拡張の `require` (GL0003)、
+  `layout(override_coverage)` のない `gl_SampleMask` と、`viewport_relative` のない `gl_Layer` の再宣言、名前が存在しない `gl_PerVertex` に入れた `gl_ViewportMask` などの NV の変数 (GL0406)、
+  構造体の頂点シェーダーの入力 (GL0403)、1.50 以前の名前のある `gl_PerVertex` の再宣言 (GL0001)
 - SG0361 (Slang): `extension` で `IDifferentiable` に適合させ、`dzero`・`dadd` を書いていない型の、定義の側では微分しない型の仮引数を使用するフィールド (slangc の E30125)
 
 ### 修正

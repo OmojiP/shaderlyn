@@ -38,12 +38,16 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
     private static readonly HashSet<string> RedeclarableBlocks =
         ["gl_PerVertex", "gl_PerFragment", "gl_MeshPerVertexNV", "gl_MeshPerPrimitiveNV", "gl_MeshPerVertexEXT", "gl_MeshPerPrimitiveEXT"];
 
-    /// <summary>名前の無い gl_PerVertex のメンバーになりうる組み込みの変数 (表の gl_in と gl_out のメンバー)。</summary>
+    /// <summary>名前の存在しない gl_PerVertex のメンバーになりうる組み込みの変数。</summary>
+    /// <remarks>
+    /// 名前の存在しないブロックを書けるのは、頂点・テッセレーションの評価・ジオメトリシェーダーの出力である。
+    /// glslang の Initialize.cpp は、これらのステージの <c>gl_ViewportMask</c> などの NV の変数を、ブロックの外の変数として宣言している。
+    /// そのため、表の gl_out のメンバー (テッセレーションの制御シェーダーのもの) と違い、これらはメンバーにできない (「block redeclaration has extra members」)。
+    /// </remarks>
     private static readonly HashSet<string> PerVertexMembers =
     [
         "gl_Position", "gl_PointSize", "gl_ClipDistance", "gl_CullDistance", "gl_ClipVertex", "gl_FrontColor", "gl_BackColor",
-        "gl_FrontSecondaryColor", "gl_BackSecondaryColor", "gl_TexCoord", "gl_FogFragCoord", "gl_ViewportMask",
-        "gl_SecondaryPositionNV", "gl_SecondaryViewportMaskNV", "gl_PositionPerViewNV", "gl_ViewportMaskPerViewNV",
+        "gl_FrontSecondaryColor", "gl_BackSecondaryColor", "gl_TexCoord", "gl_FogFragCoord",
     ];
 
     /// <summary>色の組み込みの変数。補間の修飾子だけを変えられる。</summary>
@@ -374,6 +378,32 @@ internal sealed class GlslBuiltinRedeclarationAnalyzer : SemanticRuleAnalyzer
 
             state.OriginUpperLeft |= upperLeft;
             state.PixelCenterInteger |= pixelCenter;
+        }
+        else if (name == "gl_SampleMask")
+        {
+            if (!qualifiers.Layout.Contains("override_coverage"))
+            {
+                yield return "layout(override_coverage) を付けた場合だけ再宣言できます (GL_NV_sample_mask_override_coverage)。";
+            }
+        }
+        else if (name == "gl_Layer")
+        {
+            if (!qualifiers.Layout.Contains("viewport_relative") && !qualifiers.Layout.Contains("secondary_view_offset"))
+            {
+                yield return "layout(viewport_relative) か layout(secondary_view_offset = …) を付けた場合だけ再宣言できます。";
+            }
+        }
+        else if (name == "gl_PrimitiveIndicesNV")
+        {
+            if (qualifiers.HasLayout)
+            {
+                yield return "layout を書けません。";
+            }
+
+            if (!qualifiers.IsOutput)
+            {
+                yield return "記憶域は out のままにしてください。";
+            }
         }
         else if (name == "gl_FragDepth")
         {
