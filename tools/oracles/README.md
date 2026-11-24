@@ -102,12 +102,29 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
 | naga | 30.0.1 | crates.io の naga-cli (`cargo install naga-cli --locked`) |
 | Godot | 4.7.2-stable | [godotengine/godot のリリース](https://github.com/godotengine/godot/releases/tag/4.7.2-stable) |
 
-## コーパスでの結果 (2026-10-17)
+## コーパスでの結果 (2026-11-25)
 
-`tools/corpus/fetch.mjs` で取得したコーパスでの結果です。通らなかったファイルには、取り込み先やホスト側で用意する情報が必要なものが含まれます。
+`tools/corpus/fetch.mjs` で取得したコーパスを、Release の CLI でコンパイラと比較した結果です。
+誤報告・見落とし・先走りの数え方は上の各節のとおりです。GLSL の見落としは行の数、ほかはファイルの誤りの行の数です。
 
-| 言語 | コーパス | 通った | 通らない | 通らない理由 |
-| --- | --- | --- | --- | --- |
-| GLSL | SaschaWillems/Vulkan、Vulkan-Samples | 523 | 0 | — (取り込まれる側の `.glsl` 6 件は検査しない) |
-| Slang | SaschaWillems/Vulkan、slang の examples | 216 | 8 | 取り込みの場所 (`-I`) が必要、ホストが特殊化の引数や型の適合を与える前提 |
-| WGSL | webgpu-samples、wgpu の examples | 115 | 6 | サンプルが TypeScript で共通のコードを連結してから渡している、まだ naga に存在しない拡張 (`buffer_view`) |
+| 言語 | コンパイラ | コーパス | ファイル | コンパイラの誤り | 誤報告 | 見落とし | 先走り |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GLSL | glslang 16.6.0 | glslang の Test (baseResults) | 1,056 | 301 ファイル | 0 | 25 行 (11 ファイル) | — |
+| GLSL | glslang 16.6.0 | SaschaWillems/Vulkan・Vulkan-Samples (`--vulkan`) | 523 | 0 | 0 | 0 | — |
+| GLSL | glslang 16.6.0 | ogl-samples | 749 | 101 ファイル | 0 | 42 行 (21 ファイル) | — |
+| GLSL | glslang 16.6.0 | opengl-es-sdk-for-android・LearnOpenGL | 393 | 0 | 0 | 0 | — |
+| WGSL | naga 30.0.1 | 誤りの試験・naga・wgpu・webgpu-samples・Bevy | 565 | 248 | 0 | 0 | 14 |
+| Godot | Godot 4.7.2 | 誤りの例・godot-demo-projects・godot-shaders | 618 | 414 | 0 | 0 | 0 |
+| Slang | slangc 2026.19 | slang の tests (`--use-args`) | 4,453 | 965 | 4 | 699 | 59 |
+| Slang | slangc 2026.19 | slang の tests/diagnostics (`--use-args`) | 569 | 465 | 3 | 256 | 12 |
+| Slang | slangc 2026.19 | slang の examples (`--use-args`) | 48 | 7 | 2 | 6 | 0 |
+| Slang | slangc 2026.19 | Falcor (`--use-args`) | 446 | 192 | 623 | 551 | 289 |
+
+残っているものの理由:
+
+- GLSL の glslang の Test の見落としは、前の行の誤りの巻き添えと、前処理の誤りを報告する行の違いです (docs/guide/environments/glsl.md の「glslang と違う所」)。
+  通るファイルの警告 2 件は、値を返さない経路 (CF0501) です
+- GLSL の ogl-samples の見落としは、拡張 (`GL_GOOGLE_include_directive` / `GL_ARB_shading_language_include`) を有効にしていない `#include` です。
+  ogl-samples はアプリケーションが取り込みを解決する前提で書かれています
+- WGSL の先走りは、naga が最初の誤りで止まった後ろの、本当の誤りです
+- Slang の Falcor は、Falcor のビルドと同じ取り込みの場所 (`-I`) と定義を与えていないため、取り込みが見つからない (CF0021) ことと、その巻き添えの構文の誤り (CF0001) が大半です
