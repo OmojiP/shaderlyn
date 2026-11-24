@@ -400,8 +400,7 @@ report:
 // shaderlyn-disable-next-line SL1003 移行中のため (#1234)
 half _Color;
 
-// shaderlyn-disable-line SL1021
-Cull Sideways
+Cull Sideways // shaderlyn-disable-line SL1021
 
 // shaderlyn-disable SL1020
 ...

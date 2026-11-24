@@ -753,7 +753,7 @@ internal sealed class CommandLineOptions
 
         指摘を個別に抑制するには、コードにコメントを書きます。
           // shaderlyn-disable-next-line SL1003
-          // shaderlyn-disable-line SL1003
+          half _Color; // shaderlyn-disable-line SL1003
           // shaderlyn-disable SL1003  …  // shaderlyn-enable SL1003
           // shaderlyn-disable-file SL1003
         ルール ID を省略すると、すべてのルールが対象になります。
