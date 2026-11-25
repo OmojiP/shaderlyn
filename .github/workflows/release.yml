@@ -569,6 +569,33 @@ jobs:
           Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.vssdk.buildtools/$version/microsoft.vssdk.buildtools.$version.nupkg" -OutFile $package
           Expand-Archive $package -DestinationPath (Join-Path $env:RUNNER_TEMP "vssdk")
 
+      # 18.12.1606 は Microsoft.Identity.Client 4.87.0.0 を同梱しているが、Microsoft.VisualStudio.Services.Common は 4.85.2.0 を参照し、
+      # VsixPublisher.exe.config に転送の指定が存在しない。-personalAccessToken の認証でこれを読み込むと止まる (VsixPub0031)。
+      # 同梱しているバージョンへの bindingRedirect を追加する。
+      - name: VsixPublisher の Microsoft.Identity.Client の参照を、同梱しているバージョンに向ける
+        shell: pwsh
+        run: |
+          $bin = Join-Path $env:RUNNER_TEMP "vssdk\tools\vssdk\bin"
+          $config = Join-Path $bin "VsixPublisher.exe.config"
+          $version = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $bin "lib\Microsoft.Identity.Client.dll")).Version.ToString()
+          [xml]$xml = Get-Content $config -Raw
+          $ns = "urn:schemas-microsoft-com:asm.v1"
+          $binding = $xml.CreateElement("assemblyBinding", $ns)
+          $dependent = $xml.CreateElement("dependentAssembly", $ns)
+          $identity = $xml.CreateElement("assemblyIdentity", $ns)
+          $identity.SetAttribute("name", "Microsoft.Identity.Client")
+          $identity.SetAttribute("publicKeyToken", "0a613f4dd989e8ae")
+          $identity.SetAttribute("culture", "neutral")
+          $redirect = $xml.CreateElement("bindingRedirect", $ns)
+          $redirect.SetAttribute("oldVersion", "0.0.0.0-$version")
+          $redirect.SetAttribute("newVersion", $version)
+          [void]$dependent.AppendChild($identity)
+          [void]$dependent.AppendChild($redirect)
+          [void]$binding.AppendChild($dependent)
+          [void]$xml.configuration.runtime.AppendChild($binding)
+          $xml.Save($config)
+          Write-Output "Microsoft.Identity.Client -> $version"
+
       # VsixPublisher 18.12.1606 の -oidc は、トークンを換える要求に api-version を付けないので
       # Marketplace に断られる (VsixPub0047、microsoft/vsmarketplace#2310)。
       # 直ったバージョンが出るまでは、vsce と同じ要求で自分で換えて、-personalAccessToken で渡す。
