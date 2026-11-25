@@ -24,6 +24,9 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 - HL0355 / SG0364: `GetAttributeAtVertex` に、補間しない頂点の入力でない値を渡したもの。
   HLSL (DXC) は `nointerpolation` を付けていない入力とグローバル変数、Slang は局所変数・グローバル変数・ベクトルの成分と `nointerpolation` を付けていないスカラーの入力
   (DXC の「must have nointerpolation mode」、slangc の E39027。[HL0355](docs/rules/HL0355.md)・[SG0364](docs/rules/SG0364.md))
+- GLSL: 設定ファイルの `glsl: compiler` (`glslang` / `glslc`)。`glslang` のときは、拡張 (`GL_GOOGLE_include_directive` / `GL_ARB_shading_language_include`) を有効にする前の `#include` を GL0003 にする
+  (glslangValidator の「required extension not requested」)。glslc はファイルの最初でこの拡張を有効にするので、`glslc` と省略したときは、
+  `#extension GL_GOOGLE_include_directive : disable` で無効にした後ろの `#include` だけを報告する ([設定ファイル](docs/guide/configuration.md#glsl))
 - Windows の arm64 向けの CLI (`shaderlyn-win-arm64.zip`) と VS Code 拡張 (`shaderlyn-vscode-win32-arm64.vsix`)。
   Visual Studio 拡張と Rider プラグインも、arm64 の Windows では arm64 の言語サーバーを起動する (これまでは x64 の言語サーバーをエミュレーションで動かしていたので、Windows 10 の arm64 では動かなかった)
 

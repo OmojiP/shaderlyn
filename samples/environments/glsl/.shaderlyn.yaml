@@ -4,6 +4,7 @@ version: 1
 environment: glsl         # .vert / .frag などは、設定ファイルが無くても GLSL として解析する。.mesh は glsl を指定したときだけ読む
 
 glsl:
+  # compiler: glslang      # glslangValidator でコンパイルする場合 (glslang / glslc)。省略すると glslc と同じく、拡張を書かない #include を通す
   target: vulkan1.3       # glslang の --target-env: vulkan / vulkan1.0 ～ vulkan1.4 / opengl。省略すると、どちら向けかを決めない
   # spirv: "1.6"          # 作る SPIR-V のバージョン (1.0 ～ 1.6)。省略すると target から決める
   # auto-map-locations: true   # glslang の --auto-map-locations。location の無い入出力を GL0104 にしない

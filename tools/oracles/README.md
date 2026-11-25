@@ -111,7 +111,7 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | GLSL | glslang 16.6.0 | glslang の Test (baseResults) | 1,056 | 301 ファイル | 0 | 25 行 (11 ファイル) | — |
 | GLSL | glslang 16.6.0 | SaschaWillems/Vulkan・Vulkan-Samples (`--vulkan`) | 523 | 0 | 0 | 0 | — |
-| GLSL | glslang 16.6.0 | ogl-samples | 749 | 101 ファイル | 0 | 42 行 (21 ファイル) | — |
+| GLSL | glslang 16.6.0 | ogl-samples | 749 | 101 ファイル | 0 | 0 | — |
 | GLSL | glslang 16.6.0 | opengl-es-sdk-for-android・LearnOpenGL | 393 | 0 | 0 | 0 | — |
 | WGSL | naga 30.0.1 | 誤りの試験・naga・wgpu・webgpu-samples・Bevy | 565 | 248 | 0 | 0 | 14 |
 | Godot | Godot 4.7.2 | 誤りの例・godot-demo-projects・godot-shaders | 618 | 414 | 0 | 0 | 0 |
@@ -124,7 +124,7 @@ node tools/oracles/compare.mjs .work/v0.3.4/oracle/slang/tests.json --use-args
 
 - GLSL の glslang の Test の見落としは、前の行の誤りの巻き添えと、前処理の誤りを報告する行の違いです (docs/guide/environments/glsl.md の「glslang と違う所」)。
   通るファイルの警告 2 件は、値を返さない経路 (CF0501) です
-- GLSL の ogl-samples の見落としは、拡張 (`GL_GOOGLE_include_directive` / `GL_ARB_shading_language_include`) を有効にしていない `#include` です。
-  ogl-samples はアプリケーションが取り込みを解決する前提で書かれています
+- GLSL の比較では、Shaderlyn に `glsl: compiler: glslang` を渡します。拡張 (`GL_GOOGLE_include_directive` / `GL_ARB_shading_language_include`) を
+  有効にしていない `#include` は glslangValidator だけが誤りにし、glslc は通すためです (ogl-samples の 21 ファイル)
 - WGSL の先走りは、naga が最初の誤りで止まった後ろの、本当の誤りです
 - Slang の Falcor は、Falcor のビルドと同じ取り込みの場所 (`-I`) と定義を与えていないため、取り込みが見つからない (CF0021) ことと、その巻き添えの構文の誤り (CF0001) が大半です

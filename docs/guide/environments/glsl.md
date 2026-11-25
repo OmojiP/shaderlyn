@@ -23,7 +23,8 @@ GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Sam
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内も、GLSL の型と組み込みで答えます (組み込み関数の説明と引数の案内には、glslang の表の多重定義を並べます)。
 
 - `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
-  HLSL と同じく、解析対象の外のファイルは読みません
+  HLSL と同じく、解析対象の外のファイルは読みません。
+  拡張を書かない `#include` は、glslc は通し、glslangValidator は誤りにします。glslangValidator でコンパイルする場合は [`glsl: compiler: glslang`](../configuration.md#glsl) を指定してください
 - `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ解析します
 - 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
 - ステージはファイルの拡張子で決めます (glslang と同じ)。`shadow.vert.glsl` のように `.glsl` の前にステージの拡張子があれば、そのステージです
@@ -41,7 +42,8 @@ environment: glsl
 include-paths:
   - shaders/include
 glsl:
-  target: vulkan1.3  # glslang -V --target-env vulkan1.3 でコンパイルする場合
+  compiler: glslc    # glslc でコンパイルする場合 (glslangValidator は glslang)
+  target: vulkan1.3  # --target-env vulkan1.3 でコンパイルする場合
 symbols:
   - name: USE_FOG    # #ifdef USE_FOG の両方の分岐を解析する
 ```

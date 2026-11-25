@@ -288,7 +288,7 @@ function writeConfig({ target, spirv, noAutoMap }) {
 
   if (!existsSync(path)) {
     const autoMapKeys = autoMap ? "  auto-map-locations: true\n  auto-map-bindings: true\n" : "";
-    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  target: ${target}\n${spirv ? `  spirv: "${spirv}"\n` : ""}${autoMapKeys}`);
+    writeFileSync(path, `version: 1\nenvironment: glsl\nglsl:\n  compiler: glslang\n  target: ${target}\n${spirv ? `  spirv: "${spirv}"\n` : ""}${autoMapKeys}`);
   }
 
   return path;

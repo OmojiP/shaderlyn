@@ -121,10 +121,15 @@ GLSL のファイルで使用する設定です。
 
 | キー | 内容 |
 | ---- | ---- |
+| `compiler` | コンパイラ: `glslang` (glslangValidator) / `glslc` (shaderc) |
 | `target` | コンパイル先。`vulkan` / `vulkan1.0` ～ `vulkan1.4` / `opengl` を指定します (glslang の `--target-env`) |
 | `spirv` | 生成する SPIR-V のバージョン (`1.0` ～ `1.6`) |
 | `auto-map-locations` | コンパイラに入力・出力の `location` を割り当てさせるかどうか |
 | `auto-map-bindings` | コンパイラに uniform・buffer の `binding` を割り当てさせるかどうか |
+
+`compiler` を省略すると、`glslc` と同じに扱います。今は、コンパイラで結果が変わるのは `#include` だけです。glslc はファイルの最初で `GL_GOOGLE_include_directive` を有効にするので、`glslc` と省略したときは拡張を書かない `#include` も誤りにしません。
+`glslang` を指定すると、glslangValidator と同じく、`GL_GOOGLE_include_directive` か `GL_ARB_shading_language_include` を有効にする前の `#include` を [GL0003](../rules/GL0003.md) にします。
+どのコンパイラでも、`#extension GL_GOOGLE_include_directive : disable` で無効にした後ろの `#include` は誤りです。
 
 `target` を省略すると、コンパイル先は不明として扱います。そのため、Vulkan と OpenGL のどちらかでしか使用できない書き方も誤りにしません。
 

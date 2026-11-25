@@ -38,6 +38,12 @@ internal sealed record GlslEnvironmentOptions
     /// <summary>入力と出力の location をコンパイラが決めるか (設定ファイルの <c>glsl: auto-map-locations</c>)。</summary>
     public bool AutoMapLocations { get; init; }
 
+    /// <summary>
+    /// 拡張を有効にしていない <c>#include</c> を誤りにするか。設定ファイルの <c>glsl: compiler</c> が <c>glslang</c> のときだけ誤りにする。
+    /// </summary>
+    /// <remarks>glslang (glslangValidator) は誤りにする。glslc (shaderc) は <c>GL_GOOGLE_include_directive</c> を自分で有効にするので通す。</remarks>
+    public bool IncludeRequiresExtension { get; init; }
+
     /// <summary>uniform と buffer の binding をコンパイラが決めるか (設定ファイルの <c>glsl: auto-map-bindings</c>)。</summary>
     public bool AutoMapBindings { get; init; }
 
@@ -158,6 +164,7 @@ internal sealed class GlslEnvironment(GlslEnvironmentOptions? options = null) : 
                         : null),
                 SpirvVersion = Options.SpirvVersion,
                 AutoMapLocations = Options.AutoMapLocations,
+                IncludeRequiresExtension = Options.IncludeRequiresExtension,
                 AutoMapBindings = Options.AutoMapBindings,
             };
 

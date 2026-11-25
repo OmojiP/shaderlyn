@@ -785,6 +785,39 @@ public sealed class GlslRuleTests : IDisposable
     }
 
     /// <summary>
+    /// 拡張を有効にしていない <c>#include</c> は、<c>glsl: compiler: glslang</c> のときだけ GL0003 にする。
+    /// glslc はファイルの最初で GL_GOOGLE_include_directive を有効にするので、glslc のときと指定が無いときは、無効にした後ろだけを報告する。
+    /// 拡張を有効にしていても、<c>#include</c> より後ろなら有効になっていない。
+    /// </summary>
+    [Theory]
+    [InlineData("  compiler: glslang\n", "", true)]
+    [InlineData("  compiler: glslang\n", "#extension GL_GOOGLE_include_directive : enable\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension GL_ARB_shading_language_include : warn\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension all : warn\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "", false)]
+    [InlineData("  compiler: glslc\n", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "#extension all : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "#extension GL_GOOGLE_include_directive : disable\n#extension GL_ARB_shading_language_include : enable\n", false)]
+    [InlineData("", "", false)]
+    [InlineData("", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    public async Task 拡張を有効にしていないinclude(string compiler, string extension, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n{compiler}  target: opengl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "common.glsl"), "#define TINT vec4(1.0)\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), $"#version 450\n{extension}#include \"common.glsl\"\nout vec4 o;\nvoid main() {{ o = TINT; }}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "b.frag"), "#version 450\n#include \"common.glsl\"\n#extension GL_GOOGLE_include_directive : enable\nout vec4 o;\nvoid main() { o = TINT; }\n");
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), Path.Combine(_workDirectory, "b.frag"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("a.frag(", StringComparison.Ordinal) && output.ToString().Contains("error GL0003", StringComparison.Ordinal));
+        Assert.Equal(compiler.Contains("glslang", StringComparison.Ordinal), output.ToString().Contains("b.frag(2", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// その版に無い組み込みの関数と変数は GL0001、同じ版の別のステージにあるものは GL0002 で伝える。宣言されていない名前 (CF0310) とは言わない。
     /// </summary>
     [Theory]

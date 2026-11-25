@@ -51,7 +51,7 @@ internal static class ConfigurationLoader
     private static readonly string[] KnownHlslKeys = ["compiler", "version", "enable-16bit-types"];
 
     /// <summary><c>glsl:</c> の節で認識するキー。</summary>
-    private static readonly string[] KnownGlslKeys = ["target", "spirv", "auto-map-locations", "auto-map-bindings"];
+    private static readonly string[] KnownGlslKeys = ["compiler", "target", "spirv", "auto-map-locations", "auto-map-bindings"];
 
     /// <summary><c>glsl: target</c> に書ける値 (glslang の <c>--target-env</c> と同じ名前)。</summary>
     private static readonly string[] KnownGlslTargets = ["vulkan", "vulkan1.0", "vulkan1.1", "vulkan1.2", "vulkan1.3", "vulkan1.4", "opengl"];
@@ -240,7 +240,7 @@ internal static class ConfigurationLoader
                 ReportUnknownKeys(glsl, KnownGlslKeys, "glsl:");
             }
 
-            ReportNonScalars(glsl, "glsl: の ", "target", "spirv", "auto-map-locations", "auto-map-bindings");
+            ReportNonScalars(glsl, "glsl: の ", "compiler", "target", "spirv", "auto-map-locations", "auto-map-bindings");
 
             YamlMapping? godot = ReadSection("godot");
 
@@ -282,6 +282,7 @@ internal static class ConfigurationLoader
                 HlslCompiler = ReadHlslCompiler(hlsl),
                 HlslVersion = ReadHlslVersion(hlsl),
                 HlslEnable16BitTypes = ReadHlslEnable16BitTypes(hlsl),
+                GlslCompiler = ReadGlslCompiler(glsl),
                 GlslTarget = ReadGlslTarget(glsl),
                 GlslSpirv = ReadGlslSpirv(glsl),
                 GlslAutoMapLocations = ReadOptionalBoolean(glsl, "auto-map-locations", "glsl:") ?? false,
@@ -592,6 +593,28 @@ internal static class ConfigurationLoader
 
             problems.Add(new ConfigurationProblem(
                 compiler.Line, $"hlsl: の compiler には dxc か fxc を指定してください ('{compiler.Value}')。"));
+            return null;
+        }
+
+        /// <summary>GLSL のコンパイラ (<c>glsl: compiler</c>) を読む。</summary>
+        /// <param name="glsl"><c>glsl:</c> の節。無ければ <see langword="null"/>。</param>
+        /// <returns><c>glslang</c> か <c>glslc</c>。指定が無いか読めなければ <see langword="null"/>。</returns>
+        private string? ReadGlslCompiler(YamlMapping? glsl)
+        {
+            if (glsl is null || !glsl.TryGetScalar("compiler", out YamlScalar? compiler) || compiler.Value.Length == 0)
+            {
+                return null;
+            }
+
+            string value = compiler.Value.Trim().ToLowerInvariant();
+
+            if (value is "glslang" or "glslc")
+            {
+                return value;
+            }
+
+            problems.Add(new ConfigurationProblem(
+                compiler.Line, $"glsl: の compiler には glslang か glslc を指定してください ('{compiler.Value}')。"));
             return null;
         }
 

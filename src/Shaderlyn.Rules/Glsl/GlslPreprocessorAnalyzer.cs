@@ -23,6 +23,13 @@ namespace Shaderlyn.Rules.Glsl;
 /// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張 (<see cref="GlslKnownExtensions"/> に存在しないもの) は <c>require</c> にできない。
 /// </para>
 /// <para>
+/// <c>GL_GOOGLE_include_directive</c> と <c>GL_ARB_shading_language_include</c> のどちらも有効でない位置の <c>#include</c> も誤りにする
+/// (Pp.cpp の <c>CPPinclude</c> の「required extension not requested」)。
+/// glslc (shaderc) は、ファイルの最初で <c>GL_GOOGLE_include_directive</c> を有効にする (<c>-E</c> の出力に <c>#extension</c> の行が入る)。
+/// そのため、設定ファイルの <c>glsl: compiler</c> が <c>glslang</c> のときだけ、拡張を書かない <c>#include</c> を誤りにする。
+/// <c>glslc</c> のときと指定が無いときは、<c>#extension</c> で無効にした (<c>disable</c>、<c>all : disable</c>) 後ろの <c>#include</c> だけを誤りにする (glslc も誤りにする)。
+/// </para>
+/// <para>
 /// 到達した <c>#error</c> も伝える (<c>CPPerror</c>)。GLSL には構成を選ぶエンジンが無く、到達すればコンパイルが止まる。
 /// HLSL と同じく情報として伝える CF0104 は、GLSL では構成によらないものを出さない (<see cref="ErrorConfigurationAnalyzer"/>)。
 /// </para>
@@ -70,8 +77,12 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
 
             bool versionSeen = false;
 
-            foreach (RecordedDirective directive in program.Tree.PreprocessResult.RecordedDirectives)
+            ImmutableArray<RecordedDirective> directives = program.Tree.PreprocessResult.RecordedDirectives;
+
+            for (int index = 0; index < directives.Length; index++)
             {
+                RecordedDirective directive = directives[index];
+
                 if (directive.Directive.Text == "version")
                 {
                     if (compilation.IsReportable(directive.Directive))
@@ -96,6 +107,15 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                 else if (directive.Directive.Text == "extension" && compilation.IsReportable(directive.Directive) && DescribeExtensionError(directive.Tokens) is { } message)
                 {
                     requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, message);
+                }
+                else if (directive.Directive.Text == "include" && compilation.IsReportable(directive.Directive)
+                         && !requirement.Extensions.IsOnBefore("GL_GOOGLE_include_directive", index, onByDefault: !requirement.IncludeRequiresExtension)
+                         && !requirement.Extensions.IsOnBefore("GL_ARB_shading_language_include", index))
+                {
+                    requirement.Report(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        directive.Directive,
+                        "#include の前に、GL_GOOGLE_include_directive か GL_ARB_shading_language_include を有効にする必要があります。");
                 }
                 else if (directive.Directive.Text is "define" or "undef" && compilation.IsReportable(directive.Directive)
                          && DescribeReservedName(requirement, directive) is { } reserved)
