@@ -354,15 +354,16 @@ internal static class SlangRuleDescriptors
             + "slangc はコンパイルの誤り (E38029・E30440・E33180) にします。",
         helpLinkUri: DocumentationLinks.For("SG0349"));
 
-    /// <summary>微分する関数の、繰り返しの回数を決められないループ。</summary>
+    /// <summary>微分する関数の、繰り返しの回数を決められないループと、展開できない [ForceUnroll] のループ。</summary>
     public static DiagnosticDescriptor LoopNeedsIterationCount { get; } = new(
         id: "SG0350",
-        title: "微分する関数のループには、繰り返しの回数が必要です",
+        title: "ループの繰り返しの回数を決められません",
         messageFormat: "{0}",
         category: CorrectnessCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         description: "[Differentiable]・[ForwardDifferentiable]・[BackwardDifferentiable] の関数の中に、繰り返しの回数を決められないループ (while・do、変数を定数と比較して定数ずつ増減する形でない for、"
-            + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が必要なので、slangc はコンパイルの誤り (E30510) にします。",
+            + "本体でその変数を書き換える for) を、[MaxIters(n)] も [ForceUnroll] も付けずに書いています。微分のためにループの回数が必要なので、slangc はコンパイルの誤り (E30510) にします。"
+            + "[ForceUnroll] のループの回数が決まらないもの (条件で比較する値が uniform やエントリポイントの仮引数、回数が負の数) も、展開できないので誤り (E40020) です。",
         helpLinkUri: DocumentationLinks.For("SG0350"));
 
     /// <summary>初期化子の並びが型に合わない。</summary>
@@ -491,7 +492,8 @@ internal static class SlangRuleDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         description: "IDifferentiable の型の微分の型 (typealias Differential) が自分でないのに、微分するフィールドに [DerivativeMember] も no_diff も書いていないか、"
             + "[DerivativeMember] に微分の型のフィールドでないものを書いているか、微分しない型のフィールドか関数の外の変数に [DerivativeMember] を書いています。"
-            + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132) にします。",
+            + "extension で IDifferentiable に適合させ、dzero と dadd を書いていない型の、定義の側では微分しないフィールドも報告します。"
+            + "slangc はコンパイルの誤り (E30121・E31130・E30310・E31132・E30125) にします。",
         helpLinkUri: DocumentationLinks.For("SG0361"));
 
     /// <summary>実験中のモジュールの import。</summary>
@@ -516,6 +518,41 @@ internal static class SlangRuleDescriptors
             + "where countof(T) == N の N のように並びの数からしか決まらないか、関数の型の戻り値の vector<…, N> に数のベクトルでない型を返す関数を渡しているので、決まりません。"
             + "slangc はコンパイルの誤り (E30439・E30442・E39999) にします。f<int>() のように型引数を書いてください。",
         helpLinkUri: DocumentationLinks.For("SG0363"));
+
+    /// <summary>GetAttributeAtVertex に、頂点の入力でない値を渡している。</summary>
+    public static DiagnosticDescriptor AttributeAtVertexInput { get; } = new(
+        id: "SG0364",
+        title: "GetAttributeAtVertex に頂点の入力でない値を渡しています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "GetAttributeAtVertex には、フラグメントシェーダーのエントリポイントの入力を直接渡す必要があります。"
+            + "局所変数・グローバル変数・ベクトルの成分と、nointerpolation (か pervertex) のないスカラーの入力を渡すと、slangc はコンパイルの誤り (E39027) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0364"));
+
+    /// <summary>そのステージで使用できない機能に、エントリポイントから届く。</summary>
+    public static DiagnosticDescriptor StageRestrictedFeature { get; } = new(
+        id: "SG0365",
+        title: "エントリポイントから、そのステージでは使用できない機能に届きます",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "discard と clip はフラグメントシェーダーでしか使用できず、微分 (ddx など) は頂点・ジオメトリ・ハル・ドメインのシェーダーでは使用できません。"
+            + "[require(fragment)] のようにステージを書いた関数は、そのステージでしか使用できません。"
+            + "エントリポイントから直接か間接にこれらに届くと、slangc はコンパイルの誤り (E36107・E36100) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0365"));
+
+    /// <summary>Slang の言語を選ぶ指令 (#language・#version) の誤りと食い違い。</summary>
+    public static DiagnosticDescriptor LanguageDirective { get; } = new(
+        id: "SG0366",
+        title: "#language の指令が誤っているか、ほかの指令と一致しません",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "#language には Slang のバージョン (2018・2025・2026・legacy・latest) を書きます。"
+            + "1 つの翻訳単位 (#include で取り込んだファイルを含む) に、#language と GLSL の #version を両方書いたり、違うバージョンの #language を 2 つ書いたりすると、"
+            + "slangc はコンパイルの誤り (E00121・E00126・E15206・E15207・E15208) にします。",
+        helpLinkUri: DocumentationLinks.For("SG0366"));
 
     /// <summary>条件の中の代入。</summary>
     public static DiagnosticDescriptor AssignmentInCondition { get; } = new(

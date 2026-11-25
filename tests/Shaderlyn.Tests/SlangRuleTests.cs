@@ -55,6 +55,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0402", "private struct Hidden { }\n")]
     [InlineData("SG0402", "struct Inner { public int x; }\n")]
     [InlineData("SG0402", "struct IS { int a; }\npublic IS make() { return {}; }\n")]
+    [InlineData("SG0402", "struct IS { int a; }\npublic struct P\n{\n    public property IS p { get { return {}; } }\n}\n")]
     [InlineData("SG0402", "struct IS { int a; }\npublic struct P { public IS s; }\n")]
     // 構造体の値への組み込みの演算子、ConstantBuffer の値の縮める変換
     [InlineData("SG0301", "struct S { int a; }\nbool f(S s)\n{\n    return s == s;\n}\n")]
@@ -71,6 +72,8 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0309", "struct S\n{\n    float r;\n    void set(float x) { r = x; }\n}\n")]
     [InlineData("SG0309", "struct S\n{\n    float3 c;\n    void grow() { this.c.x += 1; }\n}\n")]
     // 読むだけの資源の要素への書き込み
+    // コピーできない型の in の仮引数への [mutating] のメソッドの呼び出し (E30067)
+    [InlineData("SG0309", "[__NonCopyableType]\nstruct N { int v; [mutating] void set(int x) { v = x; } }\nint f(N n) { n.set(1); return n.v; }\n")]
     [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    sb[0] = 1;\n}\n")]
     [InlineData("SG0309", "StructuredBuffer<uint> sb;\nvoid f()\n{\n    InterlockedAdd(sb[0], 1);\n}\n")]
     [InlineData("SG0309", "Texture2D<float4> tex;\nvoid f()\n{\n    tex[uint2(0, 0)] = float4(0);\n}\n")]
@@ -93,6 +96,30 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("CF0310", "struct S : INotExist { }\n")]
     [InlineData("CF0310", "struct S { Missing m; }\n")]
     [InlineData("CF0021", "import missing.module;\nfloat f() { return 1.0; }\n")]
+    // class の型のシェーダーの仮引数 (E39031)、資源の [[vk::location]] (E39021)、ParameterBlock の 0 でない binding (E39015)
+    [InlineData("SG0101", "class X { int a; };\nX x;\n")]
+    [InlineData("SG0102", "[[vk::location(1)]]\nTexture2D tex;\n")]
+    [InlineData("SG0304", "struct S { float4 a; };\n[[vk::binding(2, 1)]]\nParameterBlock<S> b;\n")]
+    [InlineData("SG0304", "struct S { float4 a; };\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(2, 1)]] ParameterBlock<S> p) { }\n")]
+    // 利用者の属性の置き場所 (E31002)、実引数の数 (E31001・E39999) と型 (E30019)
+    [InlineData("SG0102", "[__AttributeUsage(_AttributeTargets.Struct)]\nstruct MyStructAttribute { int i; };\nstruct A { [MyStruct(0)] float x; };\n")]
+    [InlineData("SG0102", "[__AttributeUsage(_AttributeTargets.Var)]\nstruct VAttribute { int i; };\nvoid f([V(1)] float x) { }\n")]
+    [InlineData("SG0304", "[__AttributeUsage(_AttributeTargets.Var)]\nstruct VAttribute { int i; float f; };\n[V(1)] static float g;\n")]
+    [InlineData("SG0304", "[__AttributeUsage(_AttributeTargets.Struct)]\nstruct MyStructAttribute { int i; float f; };\n[MyStruct(0, \"text\")]\nstruct A { float x; };\n")]
+    // 微分する関数の中の、ベクトルを条件にした ?: (E30055)
+    [InlineData("SG0301", "[Differentiable]\nfloat2 f(float2 x)\n{\n    return (x > float2(0)) ? x : -x;\n}\n")]
+    // ジェネリックの型の、型の仮引数に書いた値 (E30060)
+    [InlineData("SG0358", "struct Check<T> { T v; };\nvoid f() { Check<2 + 2> v; }\n")]
+    // 同じコンパイル先の __target_intrinsic が 2 つ (E30201)、メソッドの実引数 (E39999・E30019)
+    [InlineData("CF0314", "__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(hlsl, \"b($0)\")\nfloat d(float x);\n")]
+    [InlineData("CF0401", "struct T { int t; }\nstruct W { float poke(float x, float2 y) { return 0; } float poke(float x, float3 y) { return 0; } }\nfloat f() { W w; T t; return w.poke(1.0, t); }\n")]
+    [InlineData("CF0401", "struct T { int t; }\nstruct W { float take(float2 y) { return 0; } }\nfloat f() { W w; T t; return w.take(t); }\n")]
+    // レイトレーシングのエントリポイントの仮引数の向き (callable・miss は inout だけ (E39018)、intersection は out・inout にできない (E39017))
+    [InlineData("SG0102", "struct Payload { float3 data; };\n[shader(\"callable\")]\nvoid main(in Payload data) {}\n")]
+    [InlineData("SG0102", "struct Payload { float3 data; };\n[shader(\"miss\")]\nvoid main(Payload data) {}\n")]
+    [InlineData("SG0102", "[shader(\"intersection\")]\nvoid main(out float3 x : MY_SEMANTIC) { x = float3(0.0); }\n")]
+    // property の名前に演算子 (slangc の E20020)
+    [InlineData("CF0001", "struct S\n{\n    property int operator& { get { return 0; } }\n}\n")]
     // 型を書かない let / var は、初期値の式の型になる
     [InlineData("CF0410", "void f()\n{\n    let a = float3(1, 2, 3);\n    var b = a.xy;\n    float4 c = b;\n}\n")]
     [InlineData("CF0312", "void f()\n{\n    let a = float3(1, 2, 3);\n    let d = a.w;\n}\n")]
@@ -170,6 +197,9 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0308", "cbuffer ubo\n{\n    float4 data[];\n}\n")]
     // 宣言に使えない型: void の変数、ビットフィールド、列挙型の基の型、特殊化定数
     [InlineData("SG0407", "void f()\n{\n    void a;\n}\n")]
+    // [CudaKernel] の戻り値 (E31213) と、微分する [CudaKernel] の微分する仮引数 (E31214)
+    [InlineData("SG0407", "[CudaKernel]\nfloat k(TensorView<float> t) { return 0; }\n")]
+    [InlineData("SG0407", "[CudaKernel]\n[Differentiable]\nvoid k(float3 x, TensorView<float> t) { }\n")]
     [InlineData("SG0407", "struct S\n{\n    int foo : 33;\n}\n")]
     [InlineData("SG0407", "struct S\n{\n    float foo : 10;\n}\n")]
     [InlineData("SG0407", "enum Bad : float { A, B }\n")]
@@ -258,6 +288,7 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0350", "[ForwardDifferentiable]\nfloat f(float x)\n{\n    float s = 0;\n    for (int i = 0; i < 5; i++) { i = (int)x; }\n    return s;\n}\n")]
     // 微分の属性の関数の名前、属性の置き場所、微分のグループのスレッドの数
     [InlineData("CF0310", "[BackwardDerivative(nonexistent_bwd)]\nfloat f(float x) { return x * x; }\n")]
+    [InlineData("CF0310", "void __d_f(float x, float.Differential dout) { }\n[BackwardDerivative(__d_g)]\nfloat f(float x) { return x * x; }\n")]
     [InlineData("SG0102", "[MaybeDifferentiable]\nfloat bar(float x) { return x * x; }\n")]
     [InlineData("SG0102", "interface IFoo\n{\n    [TreatAsDifferentiable]\n    float compute(float x);\n}\n")]
     [InlineData("SG0304", "[shader(\"compute\")]\n[DerivativeGroupLinear]\n[numthreads(3, 1, 1)]\nvoid main() { }\n")]
@@ -334,6 +365,10 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0101", "interface Bug\n{\n    static const int badVar = 0;\n}\n")]
     // インターフェイスの要件の書き忘れ、[mutating] と static の食い違い
     [InlineData("SG0359", "interface IFoo\n{\n    void bar();\n}\nstruct T : IFoo\n{\n}\n")]
+    // 微分の属性が弱いメソッドで満たした要件 (E38110・E38105)、値とポインターの両方の微分への適合 (E30311)
+    [InlineData("SG0359", "struct M : IDifferentiable\n{\n    typealias Differential = M;\n    float val;\n    [ForwardDifferentiable] static M dzero() { return { 0.0 }; }\n    [Differentiable] static M dadd(M a, M b) { return { a.val + b.val }; }\n}\n")]
+    [InlineData("SG0359", "interface IR { [ForwardDifferentiable] float eval(float x); }\nstruct S : IR { float eval(float x) { return x * x; } }\n")]
+    [InlineData("SG0361", "struct B : IDifferentiable, IDifferentiablePtrType\n{\n    typealias Differential = B;\n    [Differentiable] static B dzero() { return B(); }\n    [Differentiable] static B dadd(B a, B b) { return a; }\n}\n")]
     [InlineData("SG0359", "interface IThing { int processValue(int inValue); }\nstruct Counter : IThing\n{\n    int state;\n    [mutating] int processValue(int inValue) { state += inValue; return state; }\n}\n")]
     [InlineData("SG0359", "interface Base { static int getValue(); }\nstruct Impl : Base\n{\n    int getValue() { return 5; }\n}\n")]
     // 言語のバージョンを書いたファイルの、存在型での特殊化
@@ -383,10 +418,14 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0361", "struct MyDiff : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float dy;\n}\nstruct MyType : IDifferentiable\n{\n    typealias Differential = MyDiff;\n    float x;\n}\n")]
     [InlineData("SG0361", "struct Bar : IDifferentiable\n{\n    typealias Differential = Bar;\n    float y;\n}\nstruct Foo : IDifferentiable\n{\n    typealias Differential = Bar;\n    [DerivativeMember(Differential.nonexistent)]\n    float x;\n}\n")]
     [InlineData("SG0361", "struct D : IDifferentiable\n{\n    typealias Differential = D;\n    float y;\n}\n[DerivativeMember(D.y)]\nfloat globalVar;\n")]
+    // 微分の型の微分が、その型自身でない (E30096)
+    [InlineData("SG0361", "struct E : IDifferentiable { float v; typealias Differential = E; }\nstruct D : IDifferentiable { [DerivativeMember(E.v)] float v; typealias Differential = E; }\nstruct MyType : IDifferentiable { [DerivativeMember(D.v)] float val; typealias Differential = D; }\n")]
     // 微分する関数の中の後ろ向きの微分、let の DifferentialPair、__constref と [constref]、インターフェイスの要件と微分の属性
     [InlineData("SG0360", "[Differentiable]\nfloat fff(float x, float y) { return x + y; }\n[Differentiable]\nfloat ggg(float x, float y)\n{\n    var xp = diffPair(x, 1.0);\n    var yp = diffPair(y, 1.0);\n    bwd_diff(fff)(xp, yp, 1.0);\n    return fff(x, y) + xp.d;\n}\nfloat h(float x)\n{\n    var p = diffPair(x, 1.0);\n    var q = diffPair(x, 1.0);\n    bwd_diff(ggg)(p, q, 1.0);\n    return p.d;\n}\n")]
     [InlineData("SG0360", "[Differentiable]\nfloat square(float x) { return x * x; }\nvoid main()\n{\n    let x = diffPair(3.0, 1.0);\n    bwd_diff(square)(x, 1.0);\n}\n")]
     [InlineData("SG0360", "[Differentiable]\nfloat f(__constref float3 val) { return val.x; }\n")]
+    // 置き換える関数の微分の属性が弱い (E31158)
+    [InlineData("SG0360", "[Differentiable]\nfloat f(float x) { return x; }\n[ForwardDifferentiable]\n[PrimalSubstituteOf(f)]\nfloat g(float x) { return x; }\n")]
     [InlineData("SG0360", "interface IBar\n{\n    [Differentiable]\n    float original(float x);\n    [ForwardDerivativeOf(original)]\n    DifferentialPair<float> fwd_original(DifferentialPair<float> x);\n}\n")]
     // 自分を含む構造体、制約の無いジェネリックの型の値の演算子、get だけの property への書き込み
     [InlineData("SG0407", "struct TA { TB tb; }\nstruct TB { TA ta[2]; }\n")]
@@ -460,12 +499,57 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("SG0349", "struct U { uint x; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main(uniform DescriptorHandle<ParameterBlock<U>> input, uniform RWStructuredBuffer<uint> output) {}\n")]
     [InlineData("SG0349", "void g<T : IComparable>() {}\nvoid test() { g<Optional<int>>(); }\n")]
     [InlineData("SG0349", "interface IMine {}\nvoid g<T : IMine>() {}\nvoid test() { g<ByteAddressBuffer>(); }\n")]
+    // 微分しない組み込みの型の DifferentialPair (E38029)
+    [InlineData("SG0349", "void f() { DifferentialPair<int> p; }\n")]
+    [InlineData("SG0349", "float g(DifferentialPair<uint3> p) { return 0; }\n")]
     [InlineData("SG0358", "interface IFoo { int get(); }\ntype_param T : IFoo;\nRWStructuredBuffer<int> output;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    T t;\n    output[0] = t.get();\n}\n")]
     [InlineData("SG0358", "__generic_value_param N : int;\nRWStructuredBuffer<int> output;\nint read() { return N; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = read(); }\n")]
     [InlineData("SG0349", "[anyValueSize(8)]\ninterface IFoo { float getValue(); }\nstruct ImplA : IFoo { float v; float getValue() { return v; } }\nRWByteAddressBuffer buffer;\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid computeMain()\n{\n    IFoo loaded = buffer.Load<IFoo>(0);\n    output[0] = loaded.getValue();\n}\n")]
     [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { output[0] = foo(() => Array<int, 2>()).x; }\n")]
     [InlineData("SG0363", "func foo<let N : int>(f : functype()->vector<float, N>)->vector<float, N> { return f(); }\nstruct Functor : IFunc<Array<int, 2>> { Array<int, 2> operator()() { return Array<int, 2>(); } }\nRWStructuredBuffer<float> output;\n[numthreads(1, 1, 1)]\nvoid main() { Functor f; output[0] = foo(f).x; }\n")]
     [InlineData("SG0363", "void load<let N : int, each TIndex>(expand each TIndex indices) where countof(TIndex) == N {}\nvoid m() { load(1, 2, 3); }\n")]
+    // 微分する関数の戻り値に流れ込む、微分しない関数と前向きにだけ微分する関数の呼び出し (E41022)
+    [InlineData("SG0360", "float g(float v) { return v; }\n[Differentiable]\nfloat f(float x)\n{\n    float y = x * 2;\n    return g(y);\n}\n")]
+    [InlineData("SG0360", "[ForwardDifferentiable]\nfloat g(float v) { return v * v; }\n[BackwardDifferentiable]\nfloat f(float x) { float val = g(x + 1); return val; }\n")]
+    [InlineData("SG0360", "float g(float v) { return v; }\nuniform float u;\n[Differentiable]\nfloat f(float x) { return x + g(u); }\n")]
+    // 展開できない [ForceUnroll] のループ (E40020): 仮引数の uniform と比較する、展開しない外側のループの変数と比較する、回数が負の数
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main(uniform int n)\n{\n    int s = 0;\n    [ForceUnroll]\n    for (int j = 0; j < n; ++j) { s += j; }\n    o[0] = s;\n}\n")]
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    int s = 0;\n    for (int i = 0; i < 4; ++i)\n    {\n        [ForceUnroll]\n        for (int j = 0; j < i; ++j) { s += j; }\n    }\n    o[0] = s;\n}\n")]
+    [InlineData("SG0350", "RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    [ForceUnroll(-2)]\n    for (int i = 0; i < 1; ++i) o[0] = i;\n}\n")]
+    // レイペイロードのアクセス修飾子の、存在しないステージ名 (E40001)
+    [InlineData("SG0304", "struct [raypayload] P\n{\n    float4 color : read(anyht, closesthit) : write(caller);\n};\n")]
+    // constexpr の仮引数への、constexpr でない仮引数・uniform・代入し直す局所変数 (E40013)
+    [InlineData("SG0352", "int f(constexpr int c) { return c + c; }\nint g(int a) { return f(a); }\n")]
+    [InlineData("SG0352", "int f(constexpr int c) { return c + c; }\nuniform int u;\nint g() { return f(u); }\n")]
+    [InlineData("SG0352", "RWStructuredBuffer<int> o;\nint f(constexpr int c) { return c + c; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid m(uint3 t : SV_DispatchThreadID)\n{\n    int i = 0;\n    if (t.x > 0) i = 1;\n    o[0] = f(i);\n}\n")]
+    // GetAttributeAtVertex の、nointerpolation のないスカラーの入力・局所変数・グローバル変数・ベクトルの成分 (E39027)
+    [InlineData("SG0364", "struct VertexOutput { float color; }\n[shader(\"fragment\")]\nfloat4 fsmain(VertexOutput vout) : SV_Target { return GetAttributeAtVertex(vout.color, 0); }\n")]
+    [InlineData("SG0364", "[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { float4 l = c; return GetAttributeAtVertex(l, 0); }\n")]
+    [InlineData("SG0364", "static float4 g;\n[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { return c + GetAttributeAtVertex(g, 0); }\n")]
+    [InlineData("SG0364", "[shader(\"fragment\")]\nfloat4 fsmain(nointerpolation float4 c : COLOR) : SV_Target { return GetAttributeAtVertex(c.x, 0).xxxx; }\n")]
+    // フラグメントシェーダー以外から届く discard・clip と、頂点シェーダーなどの微分 (E36107・E36100)
+    [InlineData("SG0365", "void test() { discard; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { test(); }\n")]
+    [InlineData("SG0365", "struct P { float v; };\n[shader(\"closesthit\")]\nvoid main(inout P p, BuiltInTriangleIntersectionAttributes a) { discard; }\n")]
+    [InlineData("SG0365", "[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { clip(v.x); return v; }\n")]
+    [InlineData("SG0365", "float4 h(float4 v) { return ddx(v); }\n[shader(\"vertex\")]\nfloat4 main(float4 v : POSITION) : SV_Position { return h(v); }\n")]
+    [InlineData("SG0365", "[require(fragment)]\nfloat h(float x) { return x * 2.0; }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main() { float v = h(1.0); }\n")]
+    // extension の public のメンバー: public でない extension の中 (E30601) と、public でない型の使用 (E30604)
+    [InlineData("SG0402", "public struct S { int a; }\nextension S { public void f() {} }\n")]
+    [InlineData("SG0402", "struct I {}\npublic struct S { int a; }\npublic extension S { public void f(I i) {} }\n")]
+    // extension で IDifferentiable に適合させ、dzero と dadd を書かず、定義の側で微分しないフィールド (E30125)
+    [InlineData("SG0361", "struct V<T : __BuiltinArithmeticType> { T x; }\nextension<T : __BuiltinFloatingPointType> V<T> : IDifferentiable where T.Differential == T { typedef V<T> Differential; static Differential dzero() { return {}; } }\n")]
+    [InlineData("SG0361", "struct V<T> { T x; }\nextension<T : IDifferentiable> V<T> : IDifferentiable { }\n")]
+    // #language の誤り (E15206・E15207・E15208) と、#version・別のバージョンとの食い違い (E00121・E00126)
+    [InlineData("SG0366", "#language 2026\n#version 450\nvoid f() {}\n")]
+    [InlineData("SG0366", "#version 450\n#lang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang 2025\n#language slang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language legacy\n#language 2025\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 2024\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language glsl\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 2026.0\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language slang 202c\n#language slang 2026\nvoid f() {}\n")]
+    [InlineData("SG0366", "#language 202x\nvoid f() {}\n")]
     public async Task slangcが誤りにする書き方を報告する(string id, string code)
         => Assert.Contains($"error {id}", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -482,6 +566,14 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct P { float _v; property float v { get { return _v; } } }\nfloat f(P p) { return p.v; }\n")]
     // 64 ビットに広がる整数のリテラル
     [InlineData("void f()\n{\n    uint64_t a = 0x9E3779B97F4A7C15ull;\n    int64_t b = 0x1122334455667788;\n}\n")]
+    // レイトレーシングのエントリポイントの正しい仮引数 (inout のペイロード、uniform の仮引数)
+    [InlineData("struct Payload { float3 data; };\n[shader(\"miss\")]\nvoid m(inout Payload p) { p.data = 0; }\n[shader(\"callable\")]\nvoid c(inout Payload p, uniform float s) { p.data = s; }\n")]
+    // コンパイル先の違う __target_intrinsic、合う実引数のメソッドの呼び出し
+    [InlineData("__target_intrinsic(hlsl, \"a($0)\")\nfloat d(float x);\n__target_intrinsic(glsl, \"b($0)\")\nfloat d(float x);\nstruct W { float take(float2 y) { return y.x; } float pick(float x, float2 y) { return x; } float pick(float x, float3 y) { return x; } }\nfloat f() { W w; return w.take(float2(1, 2)) + w.pick(1.0, float3(1, 2, 3)); }\n")]
+    // static の class の値、入力の [[vk::location]]、ParameterBlock の binding 0
+    [InlineData("class X { int a; };\nstatic X x;\nstruct S { float4 a; };\n[[vk::binding(0, 1)]]\nParameterBlock<S> b;\n[shader(\"fragment\")]\nfloat4 main([[vk::location(0)]] float2 uv : TEXCOORD) : SV_Target { return float4(uv, 0, 1); }\n")]
+    // コピーできる型の in の仮引数への [mutating] のメソッドの呼び出し (slangc は警告だけ)、inout のコピーできない型
+    [InlineData("struct C { int v; [mutating] void set(int x) { v = x; } }\n[__NonCopyableType]\nstruct N { int v; [mutating] void set(int x) { v = x; } }\nint f(C c, inout N n) { c.set(1); n.set(2); return c.v + n.v; }\n")]
     // 循環しない適合: ポインターのフィールド、ほかのインターフェイスだけを持つ構造体
     [InlineData("interface INode { float get(); }\ninterface ILeaf { float v(); }\nstruct Node : INode { INode* next; ILeaf leaf; float get() { return 0; } }\nstruct Leaf : ILeaf { float x; float v() { return x; } }\n")]
     // 形のそろった演算子: スカラーと 1 成分の値はどの形とも組める、import glsl の行列とベクトルの積
@@ -640,6 +732,48 @@ public sealed class SlangRuleTests : IDisposable
     [InlineData("struct Counter\n{\n    int v;\n    __init(int x) { v = x; }\n    int get() { return v; }\n}\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    Counter(1).get();\n    output[0] = Counter(2).get();\n}\n")]
     [InlineData("__ignored_block\n{\n    arbitrary content, nested {} here.\n}\nstruct MyType\n{\n    __transparent_block\n    {\n        int myFunc() { return 0; }\n    }\n}\n__file_decl\n{\n    int f1() { return 1; }\n}\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main() { MyType t; output[0] = t.myFunc(); }\n")]
     [InlineData("enum MyError { Overflow }\nstruct MyCheckedInt { int v; }\n__prefix MyCheckedInt operator++(inout MyCheckedInt i) throws MyError { i.v++; return i; }\n__postfix MyCheckedInt operator++(inout MyCheckedInt i) throws MyError\n{\n    MyCheckedInt r = i;\n    try ++i;\n    return r;\n}\nvoid f() throws MyError { MyCheckedInt c = { 0 }; try c++; try ++c; }\nRWStructuredBuffer<int> output;\n[numthreads(1, 1, 1)]\nvoid main()\n{\n    do { try f(); } catch (e : MyError) {}\n    output[0] = 1;\n}\n")]
+    // 利用者の属性 (初期値のあるフィールドは省ける、static のフィールドは数えない、[[…]] の書き方)
+    [InlineData("[__AttributeUsage(_AttributeTargets.Var)]\nstruct DAttribute { int i; float f = 1.0; static int k; };\n[__AttributeUsage(_AttributeTargets.Param)]\nstruct PAttribute { int i; };\n[__AttributeUsage(_AttributeTargets.Function)]\nstruct FAttribute { String s; };\n[__AttributeUsage(_AttributeTargets.Struct)]\nstruct SAttribute { };\n[[S]]\nstruct A { [D(1)] float x; [F(\"m\")] void m() { } };\n[D(1, 2)] static float g;\n[F(\"f\")]\nvoid f([P(1)] float x) { [D(2)] float y = x; }\n")]
+    [InlineData("[__AttributeUsage(_AttributeTargets.Struct)]\n[__AttributeUsage(_AttributeTargets.Function)]\nstruct MyStructAttribute { int i; };\n[MyStruct(0)]\nstruct A { float x; };\n[MyStruct(1)]\nvoid f() { }\n")]
+    // 微分の要件を満たすメソッド (同じか強い属性、[TreatAsDifferentiable]、自分で書いた前向きの微分、[PrimalSubstituteOf] で置き換えたもの)
+    [InlineData("struct M : IDifferentiable\n{\n    typealias Differential = M;\n    float val;\n    [Differentiable] static M dzero() { return { 0.0 }; }\n    [TreatAsDifferentiable] static M dadd(M a, M b) { return { a.val + b.val }; }\n}\ninterface IR { [ForwardDifferentiable] float eval(float x); [Differentiable] float bar(float x); }\nstruct S : IR\n{\n    [ForwardDerivative(eval_fwd)]\n    float eval(float x) { return x; }\n    DifferentialPair<float> eval_fwd(DifferentialPair<float> x) { return x; }\n    float bar(float x) { return x; }\n    [Differentiable, PrimalSubstituteOf(bar)]\n    float bar_subst(float x) { return x; }\n}\n")]
+    // 大文字で書いた [OutputTopology] (属性の名前は大文字と小文字を区別しない)
+    [InlineData("struct V { float4 p : SV_Position; };\n[shader(\"mesh\")]\n[OutputTopology(\"triangle\")]\n[numthreads(3, 1, 1)]\nvoid main(out indices uint3 t[1], out vertices V v[3])\n{\n    SetMeshOutputCounts(3, 1);\n    v[0].p = float4(0); v[1].p = float4(0); v[2].p = float4(0);\n    t[0] = uint3(0, 1, 2);\n}\n")]
+    // 微分する [CudaKernel] の、微分しない型と no_diff の仮引数
+    [InlineData("[CudaKernel]\n[Differentiable]\nvoid k(int n, no_diff float x, TensorView<float> t) { }\n")]
+    // 微分する型の DifferentialPair と、構造体の DifferentialPair (コンパイラが IDifferentiable を追加する)
+    [InlineData("struct S : IDifferentiable { float a; }\nvoid f() { DifferentialPair<float3> p; DifferentialPair<half> q; DifferentialPair<float2x2> r; DifferentialPair<S> s; }\n")]
+    // 置き換える関数の微分の属性 (同じか強いもの、[TreatAsDifferentiable]、微分しない関数の置き換え)
+    [InlineData("[ForwardDifferentiable]\nfloat f(float x) { return x; }\n[BackwardDifferentiable]\n[PrimalSubstituteOf(f)]\nfloat g(float x) { return x; }\n[Differentiable]\nfloat h(float x) { return x; }\n[TreatAsDifferentiable]\n[PrimalSubstituteOf(h)]\nfloat k(float x) { return x; }\nfloat p(float x) { return x; }\n[PrimalSubstituteOf(p)]\nfloat q(float x) { return x; }\n")]
+    // 微分する関数の中の、スカラーを条件にした ?: と select
+    [InlineData("[Differentiable]\nfloat f(float x) { return x > 0 ? x : -x; }\n[Differentiable]\nfloat2 g(float2 x) { return select(x > float2(0), x, -x); }\n")]
+    // 値の仮引数への数のリテラル、仮引数の vk::binding(0, s) の ParameterBlock
+    [InlineData("struct Vec<T, let N : int> { T v[N]; }\nstruct Arr<int M> { float a[M]; }\nstruct S { float4 a; };\nstatic Vec<float, 3> a;\nstatic Arr<4> b;\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid main([[vk::binding(0, 1)]] ParameterBlock<S> p) { }\n")]
+    // 微分しない関数の呼び出しで通るもの: 結果を使わない・比較にだけ使う・リテラルだけを渡す・no_diff の仮引数・no_diff を書いた・前向き同士・out の仮引数
+    [InlineData("float g(float v) { return v; }\nfloat gn(no_diff float v) { return v; }\n[ForwardDifferentiable]\nfloat gf(float v) { return v; }\n[Differentiable]\nfloat f(float x)\n{\n    g(x);\n    float unused = g(x);\n    float c = 3;\n    if (g(x) > 0) { return x + g(1.0) + g(c) + gn(x) + no_diff g(x) + no_diff(g(x)); }\n    return -x;\n}\n[ForwardDifferentiable]\nfloat h(float x) { return gf(x); }\n[Differentiable]\nvoid o(float x, out float r) { r = g(x); }\n")]
+    // public の extension の public のメンバーと、public でないメンバー。extension の本体の中の名前 (拡張する型のフィールド) は宣言されていないと報告しない
+    [InlineData("struct I {}\npublic struct S { int a; }\npublic extension S { public int f() { return a; } void g(I i) {} }\n")]
+    // dzero と dadd を書いた extension と、定義の側でも微分する型の仮引数・no_diff のフィールド
+    [InlineData("struct V<T : __BuiltinArithmeticType> { T x; int c; }\nextension<T : __BuiltinFloatingPointType> V<T> : IDifferentiable where T.Differential == T { typedef V<T> Differential; [Differentiable] static Differential dzero() { return {}; } [Differentiable] static Differential dadd(Differential a, Differential b) { return a; } }\nstruct W<T : __BuiltinFloatingPointType> { T x; }\nextension<T : __BuiltinFloatingPointType> W<T> : IDifferentiable { }\nstruct U<T> { no_diff T x; }\nextension<T : IDifferentiable> U<T> : IDifferentiable { }\n")]
+    // 書ける #language (同じバージョンを表す latest と 2026、legacy と 2018、大文字の SLANG、後ろの余分なトークン)
+    [InlineData("#language latest\n#language 2026\n#lang slang 2026 extra\nvoid f() {}\n")]
+    [InlineData("#language legacy\n#language SLANG 2018\nvoid f() {}\n")]
+    [InlineData("#if 0\n#version 450\n#language 2024\n#endif\n#language 2025\nvoid f() {}\n")]
+    // slangc が受け付ける 202a (2025)・202b (2026)・202c (2026 より新しいバージョン)・202e (どのバージョンとも食い違わない)
+    [InlineData("#language 202a\n#language 2025\nvoid f() {}\n")]
+    [InlineData("#language slang 202b\n#language latest\nvoid f() {}\n")]
+    [InlineData("#language 202c\n#language slang 202c\nvoid f() {}\n")]
+    [InlineData("#language 202e\n#language 2018\nvoid f() {}\n")]
+    // 後ろ向きの微分を [BackwardDerivativeOf] だけで書いた関数の呼び出し
+    [InlineData("float dg(NativeString label, float x) { return x; }\n[BackwardDerivativeOf(dg)]\nvoid dg_bwd(NativeString label, inout DifferentialPair<float> x, float dOut) { x = diffPair(x.p, dOut); }\n[Differentiable]\nfloat f(float y) { let y2 = dg(\"y2\", y * y); return y2; }\n")]
+    // 展開できる [ForceUnroll] のループ: 外側の [ForceUnroll] のループの変数と比較する、break で抜ける
+    [InlineData("RWStructuredBuffer<int> o;\n[numthreads(1, 1, 1)]\nvoid main(uniform int n)\n{\n    int s = 0;\n    [ForceUnroll]\n    for (int i = 0; i < 4; ++i)\n    {\n        [ForceUnroll]\n        for (int k = 0; k < i; ++k) { s += k; }\n        [ForceUnroll]\n        for (int j = 0; j < n; ++j) { if (j >= i) break; s += j; }\n    }\n    o[0] = s;\n}\n")]
+    // constexpr の仮引数への、リテラル・定数で初期化した局所変数・ループの変数・constexpr の仮引数
+    [InlineData("RWStructuredBuffer<int> o;\nint f(constexpr int c) { return c + c; }\nint g(constexpr int a) { return f(a); }\n[shader(\"compute\")]\n[numthreads(1, 1, 1)]\nvoid m()\n{\n    int i = 3;\n    o[0] = f(1) + f(i) + g(2);\n    for (int j = 0; j < 3; j++) o[j] = f(j);\n}\n")]
+    // GetAttributeAtVertex の、nointerpolation・pervertex の入力と、nointerpolation のないベクトルの入力 (slangc は通す)
+    [InlineData("struct S { nointerpolation float a; float4 b; }\n[shader(\"fragment\")]\nfloat4 fsmain(S s, pervertex float c : C, float4 d : D) : SV_Target\n{\n    return GetAttributeAtVertex(s.a, 0) + GetAttributeAtVertex(s.b, 1) + GetAttributeAtVertex(c, 2) + GetAttributeAtVertex(d, 0);\n}\n")]
+    // フラグメントシェーダーの discard・微分、どのステージでも通る Sample、レイトレーシングの微分
+    [InlineData("Texture2D t;\nSamplerState s;\nfloat4 h(float4 v) { if (v.x < 0) discard; return ddx(v); }\n[shader(\"fragment\")]\nfloat4 ps(float4 v : P) : SV_Target { clip(v.y); return h(v); }\n[shader(\"vertex\")]\nfloat4 vs(float4 v : P) : SV_Position { return t.Sample(s, v.xy); }\nstruct Payload { float4 v; };\n[shader(\"closesthit\")]\nvoid ch(inout Payload p, BuiltInTriangleIntersectionAttributes a) { p.v = ddx(p.v); }\n")]
     public async Task slangcが通す書き方に誤りを出さない(string code)
         => Assert.Contains("1 ファイルを解析: エラー 0 件, 警告 0 件, 情報 0 件", await AnalyzeAsync(code), StringComparison.Ordinal);
 
@@ -669,6 +803,45 @@ public sealed class SlangRuleTests : IDisposable
         Assert.DoesNotContain("'thrice'", output, StringComparison.Ordinal);
         Assert.DoesNotContain("CF0021", output, StringComparison.Ordinal);
         Assert.DoesNotContain("helpers.slang", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 定義されていないマクロを前に書いたメソッドを重複と取り違えない()
+    {
+        // SETTER_DECL の定義を取り込めていない構成では、SETTER_DECL void set(…) を「型 SETTER_DECL のフィールド void」と読む (Falcor の LightBVHTypes.slang)。
+        string output = await AnalyzeAsync("struct S\n{\n    uint4 data;\n    SETTER_DECL void setA(uint a) { data.x = a; }\n    SETTER_DECL void setB(uint b) { data.y = b; }\n}\n");
+
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 循環するimportを報告し_同じモジュールの部分は報告しない()
+    {
+        // slangc 2026.19 は import の循環を E38200「recursive module import」にする。__include と implementing は同じモジュールの部分なので、互いに書ける。
+        File.WriteAllText(Path.Combine(_workDirectory, "extra.slang"), "import main;\nfloat g() { return 1.0; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "part.slang"), "implementing whole;\nfloat p() { return 1.0; }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "whole.slang"), "module whole;\n__include part;\nfloat w() { return p(); }\n");
+
+        string cyclic = await AnalyzeAsync("import extra;\nfloat f() { return g(); }\n", "main.slang");
+        string parts = await AnalyzeAsync(File.ReadAllText(Path.Combine(_workDirectory, "whole.slang")), "whole.slang");
+
+        Assert.Contains("main.slang(1:1): error CF0020: 'main' の include が循環しています。", cyclic, StringComparison.Ordinal);
+        Assert.DoesNotContain("CF0020", parts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task importしたモジュールと同じ名前の大域の変数の使用を報告する()
+    {
+        // slangc 2026.19 は使用の行を E39999「ambiguous reference」にする。宣言の行と、局所変数・仮引数で隠した使用は誤りにしない。
+        File.WriteAllText(Path.Combine(_workDirectory, "lib.slang"), "struct X { int m; }\nstatic X x;\nstatic int y;\n");
+
+        string output = await AnalyzeAsync(
+            "import lib;\nstatic X x;\nstatic int z;\nint f() { x.m = 2; return x.m + y + z; }\nint g() { X x; x.m = 1; return x.m; }\nint h(int x) { return x; }\n",
+            "main.slang");
+
+        Assert.Equal(2, output.Split('\n').Count(line => line.Contains("error CF0314: 'x' は lib.slang の 2 行目にも宣言されています。", StringComparison.Ordinal)));
+        Assert.Contains("main.slang(4:", output, StringComparison.Ordinal);
+        Assert.Contains("エラー 2 件", output, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -729,6 +902,34 @@ public sealed class SlangRuleTests : IDisposable
         Assert.Contains("user.slang(7:5): error SG0401: 'InternalStruct'", output, StringComparison.Ordinal);
         Assert.Contains("user.slang(8:5): error SG0401: 'internalMethod'", output, StringComparison.Ordinal);
         Assert.Equal(3, output.Split("SG0401").Length - 1);
+    }
+
+    [Fact]
+    public async Task 公開する関数の微分に再公開しないimportの関数を使用した箇所を報告する()
+    {
+        // 文字列の import は、拡張子を省くと .slang を補う。__exported import で取り込んだモジュールの関数と、public でない関数は報告しない。
+        File.WriteAllText(Path.Combine(_workDirectory, "helper.slang"),
+            "module helper;\npublic DifferentialPair<float> helper_fwd(DifferentialPair<float> x) { return diffPair(x.p, x.d); }\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "shared.slang"),
+            "module shared;\npublic DifferentialPair<float> shared_fwd(DifferentialPair<float> x) { return diffPair(x.p, x.d); }\n");
+
+        string output = await AnalyzeAsync(
+            "module user;\nimport \"helper\";\n__exported import shared;\n[ForwardDerivative(helper_fwd)]\npublic float a(float x) { return x; }\n"
+            + "[ForwardDerivative(shared_fwd)]\npublic float b(float x) { return x; }\n[ForwardDerivative(helper_fwd)]\nfloat c(float x) { return x; }\n",
+            "user.slang");
+
+        Assert.Contains("user.slang(4:2): error SG0360: 'helper_fwd'", output, StringComparison.Ordinal);
+        Assert.Equal(1, output.Split("SG0360").Length - 1);
+    }
+
+    [Fact]
+    public async Task モジュールのexternの宣言を取り込んだ側のexportの定義と重複とみなさない()
+    {
+        File.WriteAllText(Path.Combine(_workDirectory, "lib.slang"), "module lib;\npublic extern static const int count;\npublic int twice() { return count * 2; }\n");
+
+        string output = await AnalyzeAsync("import lib;\nexport static const int count = 6;\nint f() { return count + twice(); }\n", "user.slang");
+
+        Assert.DoesNotContain("CF0314", output, StringComparison.Ordinal);
     }
 
     [Fact]

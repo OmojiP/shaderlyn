@@ -1203,9 +1203,14 @@ internal sealed class SlangConformanceAnalyzer : SemanticRuleAnalyzer
                                               && !structs.ContainsKey(type.NameToken.Text) && !interfaces.ContainsKey(type.NameToken.Text):
                         List<string?> standardArguments = SimpleArguments(type.TemplateArguments);
 
-                        foreach ((int index, string standardParameter, string constraint) in model.StandardConstraints(type.NameToken.Text))
+                        foreach ((int index, string standardParameter, string constraint) in model.StandardConstraints(type.NameToken.Text, synthesized: true))
                         {
-                            if (index < standardArguments.Count && standardArguments[index] is { } standardArgument && Violates(standardArgument, constraint))
+                            // コンパイラが自分で足す適合 (IDifferentiable など) は、組み込みの数の型と bool の型引数だけで見る (DifferentialPair<int>。E38029)。
+                            bool synthesizedConstraint = SlangStandardConformance.Instance.Synthesized.Contains(constraint);
+
+                            if (index < standardArguments.Count && standardArguments[index] is { } standardArgument
+                                && (!synthesizedConstraint || binder.TypeSystem.TryDescribeNumeric(standardArgument, out _) || standardArgument == "bool")
+                                && Violates(standardArgument, constraint))
                             {
                                 Report(type.NameToken, standardArgument, constraint, standardParameter, type.NameToken.Text);
                                 break;

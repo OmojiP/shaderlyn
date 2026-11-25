@@ -111,11 +111,16 @@ internal sealed class AnalysisSession
     /// 設定ファイルの環境の代わりに使う環境の名前 (<c>--environment</c>)。
     /// GLSL などの拡張子のファイルを、CLI と同じくその言語の環境で解析するのに使う。
     /// </param>
+    /// <param name="unrealSearch">
+    /// 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトを探し始めるファイルと、それより上へたどらないフォルダー
+    /// (開いたファイルとワークスペースのルート)。<see langword="null"/> ならワークスペースから止めずに探す。
+    /// </param>
     public AnalysisSession(
         string? workspaceDirectory,
         IEnumerable<DiagnosticAnalyzer> analyzers,
         ImmutableArray<HostEnvironment> environments,
-        string? environmentName = null)
+        string? environmentName = null,
+        (string Start, string? Stop)? unrealSearch = null)
     {
         ArgumentNullException.ThrowIfNull(analyzers);
 
@@ -124,7 +129,11 @@ internal sealed class AnalysisSession
         ImmutableArray<DiagnosticAnalyzer> all = [.. analyzers];
 
         CommandLineOptions options = BuildOptions(workspaceDirectory, environmentName);
+        options.UnrealSearchStart = unrealSearch?.Start;
+        options.UnrealSearchStop = unrealSearch?.Stop;
         EffectiveSettings settings = EffectiveSettings.Create(options, environments);
+        UnrealLocations = settings.UnrealLocations;
+        EnvironmentName = settings.Environment;
 
         // rules: に書いた知らない ID も伝える (CLI と同じ)。ルールの一覧は、この言語サーバーで動かすアナライザから決まる。
         ConfigurationDiagnostics = settings.ConfigurationDiagnostics.AddRange(
@@ -217,14 +226,31 @@ internal sealed class AnalysisSession
     /// <returns>組み立てたセマンティックモデル。</returns>
     private ShaderCompilation Build(SourceText text, SemanticsOptions semantics)
     {
+        DateTime started = DateTime.UtcNow;
+
         // どの言語として読むかは環境が決める。CLI と同じ口を通す。片方だけ別に判定すると、
         // 「CLI では見るのにエディタでは見ない」という食い違いが生まれる。
-        return _environment.Prepare(text, semantics, timings: null).Compilation
+        ShaderCompilation compilation = DeepStack.Run(() => _environment.Prepare(text, semantics, timings: null)).Compilation
             ?? throw new InvalidOperationException($"環境 '{_environment.Name}' は HLSL のセマンティックモデルを作りません。");
+
+        Reads.Record(compilation, started);
+        return compilation;
     }
+
+    /// <summary>取り込みで読み込んだファイル。保存のときに、取り込みのキャッシュを捨てるかを決めるのに使う。</summary>
+    public IncludeReadLog Reads { get; } = new();
 
     /// <summary>ワークスペースのルート。</summary>
     public string? WorkspaceDirectory { get; }
+
+    /// <summary>
+    /// 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトを探した結果。
+    /// 書いてあるか、Unreal Engine の環境でなければ <see langword="null"/> (探していない)。
+    /// </summary>
+    public Unreal.UnrealLocations? UnrealLocations { get; }
+
+    /// <summary>設定の環境の名前 (<c>unity</c>・<c>unreal</c> など)。</summary>
+    public string EnvironmentName { get; }
 
     /// <summary>見つかった Unity プロジェクトのルート。無い場合は <see langword="null"/>。</summary>
     public string? UnityProjectPath { get; }
@@ -274,8 +300,69 @@ internal sealed class AnalysisSession
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(definedSymbols);
 
-        AnalysisRunner runner = stage == AnalysisDepth.Full ? ForSymbols(definedSymbols).Full : _syntaxOnly;
-        return runner.Analyze(text, cancellationToken);
+        if (stage != AnalysisDepth.Full)
+        {
+            return _syntaxOnly.Analyze(text, cancellationToken);
+        }
+
+        return Analyze(PrepareWith(text, [.. definedSymbols]), cancellationToken);
+    }
+
+    /// <summary>
+    /// 指摘・効いていない範囲・カーソルの下を答えるのに共通の、解析単位とセマンティックモデルを組み立てる。
+    /// </summary>
+    /// <param name="text">対象のテキスト。</param>
+    /// <param name="definedSymbols">利用者が定義済みにしたシンボル。このファイルが宣言したシンボルは除く (<see cref="ConditionSymbols.ExcludeDeclaredSymbols"/>)。</param>
+    /// <returns>組み立てたもの。</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>文書のバージョンごとに 1 度だけ組み立てて使い回す。</b> 時間の大半はここで、ルールは残りの 2 割ほどである
+    /// (URP の Lit.shader で、組み立て 1.1 秒・ルール 0.3 秒)。以前は指摘・効いていない範囲・ホバーで別々に組み立てていた。
+    /// </para>
+    /// <para>
+    /// 構文木を歩く処理は木の深さだけ再帰するので、大きなスタックを持つスレッドで組み立てる (<see cref="DeepStack"/>)。
+    /// </para>
+    /// <para>
+    /// <b>組み立てたモデルは、複数のスレッドから同時に使えない。</b> 中で覚える索引 (関数の宣言や式の型) を、普通の辞書に入れている。
+    /// 使う側で 1 つずつ使う (<see cref="DocumentModel"/>)。
+    /// </para>
+    /// </remarks>
+    public PreparedModel Prepare(SourceText text, ImmutableArray<string> definedSymbols)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return PrepareWith(text, ConditionSymbols.ExcludeDeclaredSymbols(text, definedSymbols, ShaderEnvironment));
+    }
+
+    /// <summary>シンボルをそのまま定義済みにして、解析単位とセマンティックモデルを組み立てる。</summary>
+    /// <param name="text">対象のテキスト。</param>
+    /// <param name="symbols">定義済みにするシンボル。</param>
+    /// <returns>組み立てたもの。</returns>
+    private PreparedModel PrepareWith(SourceText text, ImmutableArray<string> symbols)
+    {
+        SemanticsOptions semantics = ForSymbols(symbols).Semantics;
+        DateTime started = DateTime.UtcNow;
+
+        // どの言語として読むかは環境が決める。CLI と同じ口を通す。
+        PreparedFile prepared = DeepStack.Run(() => _environment.Prepare(text, semantics, timings: null));
+
+        if (prepared.Compilation is { } compilation)
+        {
+            Reads.Record(compilation, started);
+        }
+
+        return new PreparedModel(prepared, symbols);
+    }
+
+    /// <summary>組み立てた解析単位にルールを当てる。</summary>
+    /// <param name="model">このセッションの <see cref="Prepare"/> で組み立てたもの。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>検出した診断。</returns>
+    public ImmutableArray<Diagnostic> Analyze(PreparedModel model, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        return ForSymbols(model.Symbols).Full.AnalyzePrepared(model.File, cancellationToken);
     }
 
     /// <summary>

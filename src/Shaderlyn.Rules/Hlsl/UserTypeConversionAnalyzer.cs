@@ -121,6 +121,10 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
                     CheckArguments(context, compilation, binder, invocation, name, reported);
                     break;
 
+                case InvocationExpressionSyntax { Target: MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken } access, HasTypeArguments: false } method:
+                    CheckMethodArguments(context, compilation, binder, program, method, access, reported);
+                    break;
+
                 case BinaryExpressionSyntax { OperatorToken.Kind: not ShaderSyntaxKind.CommaToken } binary:
                     CheckOperands(context, binder, binary, binary.OperatorToken, [binary.Left, binary.Right], reported);
                     break;
@@ -319,9 +323,156 @@ internal sealed class UserTypeConversionAnalyzer : SemanticRuleAnalyzer
             }
 
             Receiver receiver = new(ReceiverKind.Argument, parameter.Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
+
+            if (CheckElementStruct(context, binder, receiver, parameter.Type, arguments[i], reported))
+            {
+                continue;
+            }
+
             CheckConversion(context, binder, receiver, arguments[i], reported);
         }
     }
+
+    /// <summary>構造体のメソッドの呼び出し (<c>w.poke(1.0, t)</c>) の実引数を検査する。</summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="program">対象のプログラム。</param>
+    /// <param name="invocation">呼び出し。</param>
+    /// <param name="access">メソッドを選ぶ <c>.</c> の式。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <remarks>
+    /// <para>
+    /// 関数の呼び出し (<see cref="CheckArguments"/>) と同じ規則で、受け取る側の値の型の構造体に書いたメソッドだけを候補にする
+    /// (slangc 2026.19 の E30019・E39999「no overload for 'poke' applicable to arguments of type (float, Test)」)。
+    /// </para>
+    /// <para>
+    /// <b>候補がそろっていると分かる構造体だけを見る。</b> 基底の型を持つもの、ジェネリックのもの、<c>extension</c> でメソッドを足せるもの、
+    /// 取り込んだファイルの構造体 (見えていない宣言があるかもしれない) は見ない。
+    /// </para>
+    /// </remarks>
+    private static void CheckMethodArguments(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        ExpressionTypeBinder binder,
+        AnalyzedProgram program,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        ReportedLocations reported)
+    {
+        if (binder.TypeSystem is not SlangTypeSystem && binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion)
+        {
+            return;
+        }
+
+        if (binder.GetEvaluatorFor(access.Target).Evaluate(access.Target) is not { } ownerType
+            || program.Structs.Where(s => s.Name == ownerType).ToArray() is not [{ Keyword.Text: "struct" or "class" } owner]
+            || owner.BaseType is not null
+            || !owner.GenericParameterTokens.IsDefaultOrEmpty
+            || IsSlangConvertible(binder, ownerType)
+            || owner.FirstToken?.Source.FilePath != compilation.Text.FilePath)
+        {
+            return;
+        }
+
+        ImmutableArray<FunctionDeclarationSyntax> methods = [.. owner.Members.OfType<FunctionDeclarationSyntax>().Where(m => m.Name == access.Name)];
+
+        if (methods.IsEmpty || methods.Any(m => !m.GenericParameterTokens.IsDefaultOrEmpty))
+        {
+            return;
+        }
+
+        string name = $"{ownerType}.{access.Name}";
+        string[] shape = [.. methods[0].ParameterList.Select(p => p.Type.Name)];
+
+        if (methods.Any(m => !m.ParameterList.Select(p => p.Type.Name).SequenceEqual(shape)))
+        {
+            if (binder.TypeSystem is SlangTypeSystem)
+            {
+                CheckOverloadedArguments(context, compilation, binder, invocation, name, methods, reported);
+            }
+
+            return;
+        }
+
+        ParameterSyntax[] parameters = [.. methods[0].ParameterList];
+        ExpressionSyntax[] arguments = [.. invocation.ArgumentExpressions];
+
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
+        {
+            if (parameters[i].IsArray || parameters[i].ModifierTokens.Any(m => m.Text is "out" or "inout"))
+            {
+                continue;
+            }
+
+            Receiver receiver = new(ReceiverKind.Argument, parameters[i].Type.Name, $"関数 '{name}' の第 {i + 1} 引数", name, i + 1);
+            CheckConversion(context, binder, receiver, arguments[i], reported);
+        }
+    }
+
+    /// <summary>
+    /// 要素の型を書くバッファー (<c>StructuredBuffer&lt;A&gt;</c>・<c>ConstantBuffer&lt;A&gt;</c> など) の仮引数に、
+    /// 要素の構造体が違うバッファーの変数を渡していないかを検査する。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="receiver">受け取る側。</param>
+    /// <param name="parameterType">仮引数の型。</param>
+    /// <param name="value">渡す値。</param>
+    /// <param name="reported">報告済みの位置。</param>
+    /// <returns>報告したなら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// <para>
+    /// 要素の型が違えば別の型で、暗黙には変換されない (slangc 2026.19 の E30019。DXC 1.8 は <c>-HV 2018</c> でも誤りにする)。
+    /// 型の名前 (<see cref="TypeSyntax.Name"/>) には要素の型が入らないので、ほかの検査では同じ型に見える。
+    /// FXC (cs_5_0) は誤りにしないので、構造体の検査と同じく HLSL 2021 と Slang だけで見る。
+    /// </para>
+    /// <para>
+    /// <b>どちらの要素も構造体の場合だけ見る。</b> 派生した構造体のバッファーも、基底のバッファーへは入らない (DXC 1.8・slangc 2026.19)。
+    /// 数の要素 (<c>Texture2D&lt;float4&gt;</c> と <c>&lt;int4&gt;</c>) は、別名や 16 ビットの型の扱いで同じ型になることがあるので見ない。
+    /// 渡すのは、宣言が 1 つに決まる変数 (仮引数・局所変数・大域の変数) だけにする。
+    /// </para>
+    /// </remarks>
+    private static bool CheckElementStruct(
+        SyntaxTreeAnalysisContext context,
+        ExpressionTypeBinder binder,
+        Receiver receiver,
+        TypeSyntax parameterType,
+        ExpressionSyntax value,
+        ReportedLocations reported)
+    {
+        if ((binder.TypeSystem is not SlangTypeSystem && binder.Program.Tree.Hlsl().Features.ImplicitUserTypeConversion)
+            || ExpressionTypeBinder.GetTemplateArgument(parameterType) is not { } expected
+            || value is not IdentifierExpressionSyntax identifier
+            || binder.ResolveName(identifier) is not { Kind: DeclaredNameKind.Local or DeclaredNameKind.Global, Candidates: [{ Type: var declared }] }
+            || declared.IsArray
+            || declared.TypeName != parameterType.Name
+            || declared.TemplateArgument is not { } actual
+            || actual == expected
+            || !IsPlainStruct(binder, expected)
+            || !IsPlainStruct(binder, actual))
+        {
+            return false;
+        }
+
+        ReportStruct(
+            context,
+            receiver with { TypeName = $"{parameterType.Name}<{expected}>" },
+            value,
+            $"{declared.TypeName}<{actual}>",
+            $"要素の構造体が違うバッファーは別の型で、暗黙には変換されません。要素を {expected} にした変数を渡してください。",
+            reported);
+        return true;
+    }
+
+    /// <summary>テンプレートでも、Slang で変換を宣言から決められない型でもない構造体か。</summary>
+    /// <param name="binder">式の型を引く仕組み。</param>
+    /// <param name="name">型の名前。</param>
+    /// <returns>そうなら <see langword="true"/>。</returns>
+    private static bool IsPlainStruct(ExpressionTypeBinder binder, string name)
+        => binder.IsStructType(name)
+           && !binder.IsTemplateStruct(name)
+           && !(binder.TypeSystem is SlangTypeSystem && IsSlangConvertible(binder, name));
 
     /// <summary>
     /// 多重定義した関数の呼び出しで、構造体の値の実引数を受け取れる宣言が無いものを報告する (Slang)。

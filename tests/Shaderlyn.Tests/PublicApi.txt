@@ -519,6 +519,7 @@ Shaderlyn.CFamily.Syntax.IfStatementSyntax :: System.Collections.Immutable.Immut
 Shaderlyn.CFamily.Syntax.IfStatementSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax : sealed class (Shaderlyn.CFamily.Syntax.DeclarationSyntax)
 Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: .ctor(System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken])
+Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.DeclarationSyntax] BodyMembers { get; set; }
 Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: System.Collections.Immutable.ImmutableArray`1[Shaderlyn.CFamily.Syntax.ShaderSyntaxToken] Tokens { get; }
 Shaderlyn.CFamily.Syntax.IncompleteDeclarationSyntax :: virtual System.Collections.Generic.IEnumerable`1[Shaderlyn.CFamily.Syntax.ShaderNodeOrToken] ChildNodesAndTokens()
 Shaderlyn.CFamily.Syntax.IncompleteExpressionSyntax : sealed class (Shaderlyn.CFamily.Syntax.ExpressionSyntax)

@@ -3,7 +3,7 @@
 GLSL のファイル (`.vert` / `.frag` / `.comp` / `.geom` / `.tesc` / `.tese` / `.task`、レイトレーシングの `.rgen` などと、`.glsl`) は、
 設定ファイルが存在しなくても、ほかの環境の設定ファイルの下にあっても、GLSL として解析します。VS Code 拡張も同じです。
 
-**C 系の言語に共通のルール (`CF` で始まるもの) と、GLSL にしか無いルール (`GL` で始まるもの。[一覧](../../rules/README.md)) で検査します。** HLSL にしか無いルール (`HL` で始まるもの) は出しません。
+**C 系の言語に共通のルール (`CF` で始まるもの) と、GLSL 固有のルール (`GL` で始まるもの。[一覧](../../rules/README.md)) で検査します。** HLSL 固有のルール (`HL` で始まるもの) は出しません。
 GL のルールは、glslang 16.6.0 がエラーにするもの (その `#version` や拡張で使用できない機能、layout の誤りなど) を、glslang と同じ行で報告します。
 
 - glslang 16.6.0 が解析できる書き方は、拡張のもの (協調行列の `coopmat<…>`、長いベクトルの `vector<T, N>`、`GL_EXT_spirv_intrinsics` など) も含めてすべて解析します。
@@ -13,7 +13,7 @@ GL のルールは、glslang 16.6.0 がエラーにするもの (その `#versio
 - glslang から作った一覧を使用し、ファイルのステージと `#version` で使用できる組み込み関数と変数 (`texture`、`gl_FragCoord` など) を解析対象にします。
   頂点シェーダーで `gl_FragCoord` を使用すると、宣言されていない名前 ([CF0310](../../rules/CF0310.md)) になります
 - Vulkan 向けか OpenGL 向けかは、設定ファイルの [`glsl: target`](../configuration.md#glsl) で決めます。書かなければ、Vulkan と OpenGL の組み込みはどちらも使用できるものとします
-- ステージのファイルのエントリポイントは `main` です。無ければ [CF0301](../../rules/CF0301.md) になります
+- ステージのファイルのエントリポイントは `main` です。存在しなければ [CF0301](../../rules/CF0301.md) になります
 - 取り込まれる断片 (`.glsl`) を単体で解析すると、取り込む側で宣言した名前を特定できないため、宣言が存在しないことを根拠にする検査を見送ります
   ([CF0101](../../rules/CF0101.md) で伝えます)。取り込む側のステージのファイルを解析すれば、断片の中も検査します。
   ステージの拡張子でないファイルはすべて断片として解析するので、単体のシェーダーを `.glsl` で置いている場合は、`shadow.vert.glsl` のようにステージの拡張子を付けると検査されます
@@ -23,15 +23,16 @@ GLSL の公開されたシェーダー集 (Vulkan の SaschaWillems・Vulkan-Sam
 VS Code 拡張の説明 (ホバー)・定義へ移動・補完・引数の案内も、GLSL の型と組み込みで答えます (組み込み関数の説明と引数の案内には、glslang の表の多重定義を並べます)。
 
 - `#include` (`GL_GOOGLE_include_directive`) は、取り込む側のファイルからの相対パスと、設定ファイルの `include-paths` で探します。
-  HLSL と同じく、解析対象の外のファイルは読みません
-- `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ読みます
+  HLSL と同じく、解析対象の外のファイルは読みません。
+  拡張を書かない `#include` は、glslc は通し、glslangValidator は誤りにします。glslangValidator でコンパイルする場合は [`glsl: compiler: glslang`](../configuration.md#glsl) を指定してください
+- `.mesh` (メッシュシェーダー) は Unity のメッシュのアセットと同じ拡張子なので、`environment: glsl` を指定したときだけ解析します
 - 取り込まれる側の `.glsl` も、フォルダーを指定すると単体で解析します
 - ステージはファイルの拡張子で決めます (glslang と同じ)。`shadow.vert.glsl` のように `.glsl` の前にステージの拡張子があれば、そのステージです
 - 言語のバージョンはファイルの `#version` で決め、glslang と同じマクロを定義します (`__VERSION__`、ES の `GL_ES`、1.50 以降の `GL_core_profile`、
   glslang が解析できる拡張の名前のマクロ `GL_EXT_ray_tracing` など、デスクトップのステージのマクロ `GL_FRAGMENT_SHADER` など)。
-  `#version` が存在しないステージのファイルは、glslang と同じく ES の 100 として読みます。`#version` が存在しない `.glsl` は、取り込む側で決まるのでバージョンを決めません
+  `#version` が存在しないステージのファイルは、glslang と同じく ES の 100 として扱います。`#version` が存在しない `.glsl` は、取り込む側で決まるのでバージョンを決めません
 - `VULKAN` と `GL_SPIRV` は、[`glsl: target`](../configuration.md#glsl) と `glsl: spirv` で決まります (glslang の `-V` / `-G`)。`defines:` に書いても同じです
-- `#if` で切り替える分岐は、設定ファイルの `symbols:` に書くと両方を読みます (書き方は[汎用の HLSL](hlsl.md) と同じ)
+- `#if` で切り替える分岐は、設定ファイルの `symbols:` に書くと両方を解析します (書き方は[汎用の HLSL](hlsl.md) と同じ)
 
 ## 設定ファイルの例
 
@@ -41,7 +42,8 @@ environment: glsl
 include-paths:
   - shaders/include
 glsl:
-  target: vulkan1.3  # glslang -V --target-env vulkan1.3 でコンパイルする場合
+  compiler: glslc    # glslc でコンパイルする場合 (glslangValidator は glslang)
+  target: vulkan1.3  # --target-env vulkan1.3 でコンパイルする場合
 symbols:
   - name: USE_FOG    # #ifdef USE_FOG の両方の分岐を解析する
 ```
@@ -56,3 +58,7 @@ symbols:
 - マクロを一段通した実引数の中で空白を挟んだ字句を、`##` で連結しません。glslang は
   `#define S e1 D` を `#define Q(a, b) P(a, b)` (`P` は `a##b`) に渡した `Q(imag, S)` を `image1D` にしますが、
   C の規則では `image1 D` です。OpenGL のドライバーのコンパイラは C の規則で解析するので、Shaderlyn も C の規則に従います
+- 誤りの後に glslang が続けて出す誤りは報告しません。たとえば、組み込み関数を再定義した関数を glslang は void の関数として再解析し、その中の `return 1.0;` も誤りにしますが、
+  Shaderlyn は再定義した行だけを報告します
+- 前処理の誤りのいくつかは、glslang と違う行に報告します。閉じない括弧を書いた `#if` は書いた行に (glslang は次の行)、ファイルの終わりまで閉じないマクロの実引数は最後の行に
+  (glslang はファイルの終わり)、`:` のない長すぎる `#extension` の名前は書いた行に報告します

@@ -113,6 +113,21 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                         Report(SlangRuleDescriptors.InvalidDeclarationType, tag, $"列挙型の基の型は整数でなければなりません ({tag.Text} は使用できません)。");
                         break;
 
+                    // 関数の仮引数 (エントリポイントの uniform の仮引数) の [[vk::binding]]・[[vk::location]]。
+                    case ParameterSyntax parameter when ParameterAttributesBefore(tokens, positions, parameter) is { Count: > 0 } parameterAttributes:
+                        CheckBindingAttributes(parameter.Type, parameterAttributes, tokens, positions, Report);
+                        break;
+
+                    // レイペイロードのフィールドのアクセス修飾子 (: read(caller) : write(closesthit)) のステージ名 (E40001)。
+                    case SemanticSyntax { Name: "read" or "write", HasArguments: true } access:
+                        foreach (ShaderSyntaxToken stage in access.ArgumentTokens.Where(t => t.Kind == ShaderSyntaxKind.IdentifierToken && t.Text is not ("anyhit" or "closesthit" or "miss" or "caller")))
+                        {
+                            Report(SlangRuleDescriptors.InvalidAttributeValue, stage,
+                                $"ペイロードのアクセス修飾子 {access.Name}(…) のステージ名 '{stage.Text}' は使用できません。anyhit・closesthit・miss・caller のどれかを書いてください。");
+                        }
+
+                        break;
+
                     case TypedefDeclarationSyntax typedef when typedef.Tokens.FirstOrDefault(t => t.Text == "volatile") is { } volatileToken:
                         Report(SlangRuleDescriptors.ModifierNotAllowed, volatileToken, "typedef に volatile は書けません。");
                         break;
@@ -198,6 +213,11 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
             }
         }
 
+        if (global && AttributesBefore(tokens, positions, declaration) is { Count: > 0 } placed)
+        {
+            CheckBindingAttributes(type, placed, tokens, positions, report);
+        }
+
         if (global && AttributesBefore(tokens, positions, declaration) is { Count: > 0 } attributes
             && attributes.FirstOrDefault(a => a.Text is "constant_id" or "specialization_constant" or "SpecializationConstant") is { } specialization)
         {
@@ -218,6 +238,52 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
                 {
                     report(SlangRuleDescriptors.ModifierNotAllowed, variable.NameToken, $"'{variable.Name}' を push constant と特殊化定数の両方にはできません。");
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 関数の外の資源の宣言の、Vulkan の配置の属性を検査する。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item><c>[[vk::location]]</c> は入出力 (varying) にだけ書ける。定数バッファーと資源に書くと、slangc 2026.19 は E39021 にする (配置は <c>[[vk::binding]]</c> で書く)</item>
+    ///   <item><c>ParameterBlock&lt;T&gt;</c> は記述子のセットを丸ごと使うので、<c>[[vk::binding(b, s)]]</c> の b は 0 でなければならない (E39015)</item>
+    /// </list>
+    /// </remarks>
+    private static void CheckBindingAttributes(
+        TypeSyntax type,
+        List<ShaderSyntaxToken> attributes,
+        ImmutableArray<ShaderSyntaxToken> tokens,
+        Dictionary<ShaderSyntaxToken, int> positions,
+        Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+    {
+        bool block = type.NameToken.Text == "ParameterBlock";
+        bool resource = block || type.NameToken.Text == "ConstantBuffer" || IsResourceName(type.NameToken.Text);
+
+        foreach (ShaderSyntaxToken attribute in attributes)
+        {
+            bool vulkan = positions.TryGetValue(attribute, out int at) && at >= 2
+                          && tokens[at - 1].Kind == ShaderSyntaxKind.ColonColonToken && tokens[at - 2].Text == "vk";
+
+            if (!vulkan)
+            {
+                continue;
+            }
+
+            if (attribute.Text == "location" && resource)
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, attribute,
+                    $"[[vk::location]] は入出力にだけ書けます。{type.NameToken.Text} の配置は [[vk::binding(…)]] で書いてください。");
+            }
+
+            // [[vk::binding(2, 1)]] の 2。
+            if (attribute.Text == "binding" && block
+                && at + 2 < tokens.Length && tokens[at + 1].Kind == ShaderSyntaxKind.OpenParenToken
+                && tokens[at + 2].Kind == ShaderSyntaxKind.NumericLiteralToken && tokens[at + 2].Text != "0")
+            {
+                report(SlangRuleDescriptors.InvalidAttributeValue, attribute,
+                    $"ParameterBlock は記述子のセットを丸ごと使うので、[[vk::binding(b, s)]] の b は 0 にしてください ({tokens[at + 2].Text} が書かれています)。");
             }
         }
     }
@@ -289,6 +355,45 @@ internal sealed class SlangDeclarationFormAnalyzer : SemanticRuleAnalyzer
         {
             if (tokens[i].Kind == ShaderSyntaxKind.IdentifierToken
                 && i > 0 && tokens[i - 1].Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.ColonColonToken)
+            {
+                names.Add(tokens[i]);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>仮引数の前の [[…]] と […] の属性の名前。仮引数の並びの ( か、前の仮引数の , までを見る。</summary>
+    private static List<ShaderSyntaxToken> ParameterAttributesBefore(ImmutableArray<ShaderSyntaxToken> tokens, Dictionary<ShaderSyntaxToken, int> positions, ParameterSyntax parameter)
+    {
+        List<ShaderSyntaxToken> names = [];
+
+        if (parameter.FirstToken is not { } first || !positions.TryGetValue(first, out int index))
+        {
+            return names;
+        }
+
+        int brackets = 0;
+
+        for (int i = index - 1; i >= 0; i--)
+        {
+            ShaderSyntaxKind kind = tokens[i].Kind;
+
+            if (kind == ShaderSyntaxKind.CloseBracketToken)
+            {
+                brackets++;
+            }
+            else if (kind == ShaderSyntaxKind.OpenBracketToken)
+            {
+                brackets--;
+            }
+            else if (brackets == 0 && kind is ShaderSyntaxKind.OpenParenToken or ShaderSyntaxKind.CommaToken or ShaderSyntaxKind.SemicolonToken
+                         or ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.CloseBraceToken)
+            {
+                break;
+            }
+            else if (brackets > 0 && kind == ShaderSyntaxKind.IdentifierToken
+                     && i > 0 && tokens[i - 1].Kind is ShaderSyntaxKind.OpenBracketToken or ShaderSyntaxKind.ColonColonToken)
             {
                 names.Add(tokens[i]);
             }

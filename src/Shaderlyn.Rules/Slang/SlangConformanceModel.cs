@@ -76,9 +76,10 @@ internal sealed partial class SlangConformanceModel
 
     /// <summary>
     /// 標準ライブラリのジェネリックの型 <paramref name="type"/> の、型の仮引数 (位置) の制約。利用者が同じ名前の型を宣言していれば無い。
-    /// コンパイラが自分で適合を足すインターフェイス (IDifferentiable など) の制約は除く。
+    /// コンパイラが自分で適合を足すインターフェイス (IDifferentiable など) の制約は、<paramref name="synthesized"/> が true のときだけ含める
+    /// (利用者の構造体には足すが、組み込みの数の型には足さない)。
     /// </summary>
-    public IEnumerable<(int Index, string Parameter, string Constraint)> StandardConstraints(string type)
+    public IEnumerable<(int Index, string Parameter, string Constraint)> StandardConstraints(string type, bool synthesized = false)
     {
         SlangStandardConformance table = SlangStandardConformance.Instance;
 
@@ -89,7 +90,7 @@ internal sealed partial class SlangConformanceModel
 
         foreach ((int index, string parameter, string constraint, string module) in rows)
         {
-            if (_isImported(module) && !table.Synthesized.Contains(constraint))
+            if (_isImported(module) && (synthesized || !table.Synthesized.Contains(constraint)))
             {
                 yield return (index, parameter, constraint);
             }

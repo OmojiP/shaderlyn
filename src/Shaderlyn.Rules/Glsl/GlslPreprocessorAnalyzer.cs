@@ -20,7 +20,14 @@ namespace Shaderlyn.Rules.Glsl;
 /// <para>
 /// <c>#extension</c> の形 (<c>CPPextension</c> と Versions.cpp の <c>updateExtensionBehavior</c>) も見る。
 /// 名前・<c>:</c>・振る舞い (<c>require</c> / <c>enable</c> / <c>warn</c> / <c>disable</c>) の順に書き、後ろには何も書けない。
-/// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張を <c>require</c> にした誤りは、知っている拡張の一覧が要るので見ない。
+/// <c>all</c> には <c>require</c> と <c>enable</c> を書けない。glslang が知らない拡張 (<see cref="GlslKnownExtensions"/> に存在しないもの) は <c>require</c> にできない。
+/// </para>
+/// <para>
+/// <c>GL_GOOGLE_include_directive</c> と <c>GL_ARB_shading_language_include</c> のどちらも有効でない位置の <c>#include</c> も誤りにする
+/// (Pp.cpp の <c>CPPinclude</c> の「required extension not requested」)。
+/// glslc (shaderc) は、ファイルの最初で <c>GL_GOOGLE_include_directive</c> を有効にする (<c>-E</c> の出力に <c>#extension</c> の行が入る)。
+/// そのため、設定ファイルの <c>glsl: compiler</c> が <c>glslang</c> のときだけ、拡張を書かない <c>#include</c> を誤りにする。
+/// <c>glslc</c> のときと指定が無いときは、<c>#extension</c> で無効にした (<c>disable</c>、<c>all : disable</c>) 後ろの <c>#include</c> だけを誤りにする (glslc も誤りにする)。
 /// </para>
 /// <para>
 /// 到達した <c>#error</c> も伝える (<c>CPPerror</c>)。GLSL には構成を選ぶエンジンが無く、到達すればコンパイルが止まる。
@@ -70,8 +77,12 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
 
             bool versionSeen = false;
 
-            foreach (RecordedDirective directive in program.Tree.PreprocessResult.RecordedDirectives)
+            ImmutableArray<RecordedDirective> directives = program.Tree.PreprocessResult.RecordedDirectives;
+
+            for (int index = 0; index < directives.Length; index++)
             {
+                RecordedDirective directive = directives[index];
+
                 if (directive.Directive.Text == "version")
                 {
                     if (compilation.IsReportable(directive.Directive))
@@ -96,6 +107,15 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
                 else if (directive.Directive.Text == "extension" && compilation.IsReportable(directive.Directive) && DescribeExtensionError(directive.Tokens) is { } message)
                 {
                     requirement.Report(GlslRuleDescriptors.PreprocessorDirective, directive.Directive, message);
+                }
+                else if (directive.Directive.Text == "include" && compilation.IsReportable(directive.Directive)
+                         && !requirement.Extensions.IsOnBefore("GL_GOOGLE_include_directive", index, onByDefault: !requirement.IncludeRequiresExtension)
+                         && !requirement.Extensions.IsOnBefore("GL_ARB_shading_language_include", index))
+                {
+                    requirement.Report(
+                        GlslRuleDescriptors.PreprocessorDirective,
+                        directive.Directive,
+                        "#include の前に、GL_GOOGLE_include_directive か GL_ARB_shading_language_include を有効にする必要があります。");
                 }
                 else if (directive.Directive.Text is "define" or "undef" && compilation.IsReportable(directive.Directive)
                          && DescribeReservedName(requirement, directive) is { } reserved)
@@ -374,6 +394,12 @@ internal sealed class GlslPreprocessorAnalyzer : SemanticRuleAnalyzer
         if (tokens[0].Text == "all" && tokens[2].Text is "require" or "enable")
         {
             return $"#extension all には '{tokens[2].Text}' を書けません。warn か disable を書いてください。";
+        }
+
+        // glslang が知らない拡張を require にすると誤り (updateExtensionBehavior の「extension not supported」)。enable などは警告で済む。
+        if (tokens[2].Text == "require" && tokens[0].Text != "all" && !GlslKnownExtensions.Names.Contains(tokens[0].Text))
+        {
+            return $"拡張 '{tokens[0].Text}' は glslang 16.6.0 が対応していないので、require にできません。";
         }
 
         return tokens.Length > 3 ? $"#extension の後ろに余分な記述があります: '{tokens[3].Text}'" : null;

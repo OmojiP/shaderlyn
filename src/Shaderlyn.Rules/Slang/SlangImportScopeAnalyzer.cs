@@ -125,7 +125,7 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
     }
 
     /// <summary>根のファイルのモジュールから見えるファイルと、根のファイルのモジュールのファイル。</summary>
-    private static (HashSet<string> Files, HashSet<string> RootModule)? Visible(string root, Dictionary<string, List<ShaderSyntaxToken>> files)
+    private static (HashSet<string> Files, HashSet<string> RootModule, HashSet<string> Reexported, HashSet<string> Reachable)? Visible(string root, Dictionary<string, List<ShaderSyntaxToken>> files)
     {
         Dictionary<string, List<(string Target, Import Import)>> edges = new(StringComparer.OrdinalIgnoreCase);
 
@@ -243,7 +243,70 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
             }
         }
 
-        return (visible, rootModule);
+        // 根のモジュールを取り込んだモジュールから見えるファイル (根のモジュールと、__exported import でたどれるモジュール)。
+        HashSet<string> reexported = new(rootModule, StringComparer.OrdinalIgnoreCase);
+        Stack<string> exported = new(rootModule.SelectMany(file => edges[file]).Where(e => e.Import.Kind is "import" or "__import" && e.Import.Exported).Select(e => e.Target));
+
+        while (exported.TryPop(out string? next))
+        {
+            foreach (string file in ModuleOf(next))
+            {
+                if (!reexported.Add(file))
+                {
+                    continue;
+                }
+
+                foreach ((string target, Import import) in edges[file])
+                {
+                    if (import.Kind is "import" or "__import" && import.Exported)
+                    {
+                        exported.Push(target);
+                    }
+                }
+            }
+        }
+
+        return (visible, rootModule, reexported, reachable);
+    }
+
+    /// <summary>
+    /// 根のファイル <paramref name="rootPath"/> のモジュールから見えるが、そのモジュールを取り込んだモジュールからは見えないファイル
+    /// (根のモジュールが __exported でなく取り込んだモジュール)。取り込みでたどりつけないファイルは含めない。見え方を決められなければ空。
+    /// </summary>
+    internal static HashSet<string> NotReexportedFiles(string rootPath, AnalyzedProgram program)
+    {
+        HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
+
+        if (!program.Tree.PreprocessResult.UnresolvedIncludes.IsEmpty)
+        {
+            return result;
+        }
+
+        string root = Path.GetFullPath(rootPath);
+        Dictionary<string, List<ShaderSyntaxToken>> files = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (ShaderSyntaxToken token in program.Tree.PreprocessResult.Tokens)
+        {
+            if (token.Source.FilePath is { } path)
+            {
+                string full = Path.GetFullPath(path);
+
+                if (!files.TryGetValue(full, out List<ShaderSyntaxToken>? list))
+                {
+                    files[full] = list = [];
+                }
+
+                list.Add(token);
+            }
+        }
+
+        if (files.Count > 1 && files.ContainsKey(root) && Visible(root, files) is { } visible)
+        {
+            // 取り込みでたどりつけないファイル (#include で取り込んだものなど) は、Files に入っていても見え方を決めていないので除く。
+            result.UnionWith(visible.Files.Where(f => visible.Reachable.Contains(f) && !visible.Reexported.Contains(f)));
+        }
+
+        return result;
     }
 
     private static void Report(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, AnalyzedProgram program,
@@ -496,12 +559,25 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
         }
     }
 
-    /// <summary>取り込みの名前に当たる、読んだファイル。無いか決められなければ <see langword="null"/>。</summary>
+    /// <summary>
+    /// 取り込みの名前に当たるファイルの名前の候補。<c>import a.b;</c> は <c>a/b.slang</c> (_ を - にしたものも)、
+    /// 文字列で書いた名前は、そのままと、拡張子が無ければ .slang を補ったもの (slangc は <c>import "helper";</c> で helper.slang を読む)。
+    /// </summary>
+    private static string[] CandidateNames(Import import)
+    {
+        if (import.IsString)
+        {
+            return Path.HasExtension(import.Name) ? [import.Name] : [import.Name, import.Name + ".slang"];
+        }
+
+        string relative = import.Name + ".slang";
+        return [relative, relative.Replace('_', '-')];
+    }
+
     /// <summary>取り込みの名前に当たる読んだファイルが、近くに無く、探索パスで 2 つ以上あるか。</summary>
     private static bool IsAmbiguous(Import import, string from, IEnumerable<string> loaded)
     {
-        string relative = import.IsString ? import.Name : import.Name + ".slang";
-        string[] names = import.IsString ? [relative] : [relative, relative.Replace('_', '-')];
+        string[] names = CandidateNames(import);
         string directory = Path.GetDirectoryName(from) ?? string.Empty;
 
         if (names.Any(n => loaded.Contains(Path.GetFullPath(Path.Combine(directory, n)), StringComparer.OrdinalIgnoreCase)))
@@ -512,10 +588,10 @@ internal sealed class SlangImportScopeAnalyzer : SemanticRuleAnalyzer
         return loaded.Count(f => names.Any(n => f.Replace('\\', '/').EndsWith("/" + n.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))) > 1;
     }
 
+    /// <summary>取り込みの名前に当たる、読んだファイル。無いか決められなければ <see langword="null"/>。</summary>
     private static string? Resolve(Import import, string from, IEnumerable<string> loaded)
     {
-        string relative = import.IsString ? import.Name : import.Name + ".slang";
-        string[] names = import.IsString ? [relative] : [relative, relative.Replace('_', '-')];
+        string[] names = CandidateNames(import);
         string directory = Path.GetDirectoryName(from) ?? string.Empty;
 
         foreach (string name in names)

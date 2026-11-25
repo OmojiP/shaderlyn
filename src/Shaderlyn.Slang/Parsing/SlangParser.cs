@@ -392,7 +392,7 @@ internal sealed class SlangParser : ShaderParser
                 return SkipTypeLikeDeclaration();
 
             case "extension" or "__extension":
-                return SkipTypeLikeDeclaration();
+                return SkipTypeLikeDeclaration(readBody: true);
 
             case "property" or "__subscript":
                 return SkipPropertyOrSubscript();
@@ -1190,9 +1190,11 @@ internal sealed class SlangParser : ShaderParser
     }
 
     /// <summary><c>extension T : IFoo { … }</c> を読み飛ばす。</summary>
-    private IncompleteDeclarationSyntax SkipTypeLikeDeclaration()
+    /// <param name="readBody">本体の中も宣言として読み、<see cref="IncompleteDeclarationSyntax.BodyMembers"/> に入れるなら <see langword="true"/>。</param>
+    private IncompleteDeclarationSyntax SkipTypeLikeDeclaration(bool readBody = false)
     {
         List<ShaderSyntaxToken> skipped = [];
+        ImmutableArray<DeclarationSyntax> members = [];
 
         while (!AtEnd && Current.Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
         {
@@ -1201,7 +1203,14 @@ internal sealed class SlangParser : ShaderParser
 
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)
         {
-            skipped.AddRange(SkipBalanced(ShaderSyntaxKind.OpenBraceToken, ShaderSyntaxKind.CloseBraceToken));
+            List<ShaderSyntaxToken> body = SkipBalanced(ShaderSyntaxKind.OpenBraceToken, ShaderSyntaxKind.CloseBraceToken);
+            skipped.AddRange(body);
+
+            // { と } の間を、構造体の本体と同じく読む。誤りは捨てる (本体は読み飛ばしたものとして扱い、報告は本体を見る検査に任せる)。
+            if (readBody && body.Count > 2 && body[0].Kind == ShaderSyntaxKind.OpenBraceToken && body[^1].Kind == ShaderSyntaxKind.CloseBraceToken)
+            {
+                members = new SlangParser([.. body.Skip(1).Take(body.Count - 2)]).ParseMemberDeclarations();
+            }
         }
 
         if (Current.Kind == ShaderSyntaxKind.SemicolonToken)
@@ -1210,13 +1219,15 @@ internal sealed class SlangParser : ShaderParser
         }
 
         MarkUnanalyzed(skipped);
-        return new IncompleteDeclarationSyntax([.. skipped]);
+        return new IncompleteDeclarationSyntax([.. skipped]) { BodyMembers = members };
     }
 
     /// <summary><c>property x : T { get { … } set { … } }</c> と <c>__subscript(…) -&gt; T { … }</c> を読み飛ばす。</summary>
     private IncompleteDeclarationSyntax SkipPropertyOrSubscript()
     {
         List<ShaderSyntaxToken> skipped = [];
+        bool property = Current.Text == "property";
+        int? operatorName = null;
 
         while (!AtEnd && Current.Kind is not (ShaderSyntaxKind.OpenBraceToken or ShaderSyntaxKind.SemicolonToken))
         {
@@ -1226,7 +1237,21 @@ internal sealed class SlangParser : ShaderParser
                 continue;
             }
 
+            if (property && operatorName is null && Current.Kind == ShaderSyntaxKind.IdentifierToken && Current.Text == "operator")
+            {
+                operatorName = Position;
+            }
+
             skipped.Add(Advance());
+        }
+
+        // property の名前に演算子は使用できない (slangc 2026.19 の E20020「operator name used to declare a non-function」)。
+        if (operatorName is { } found)
+        {
+            int end = Position;
+            Position = found;
+            ReportError("property の名前に演算子 (operator…) は使用できません。演算子は関数として宣言してください。");
+            Position = end;
         }
 
         if (Current.Kind == ShaderSyntaxKind.OpenBraceToken)

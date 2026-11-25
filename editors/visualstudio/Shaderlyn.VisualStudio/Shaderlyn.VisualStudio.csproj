@@ -76,6 +76,16 @@
     </Content>
   </ItemGroup>
 
+  <!-- arm64 の Visual Studio が起動する言語サーバー。ShaderlynArm64ServerDirectory に、win-arm64 で publish したフォルダーを渡す。
+       渡さない場合は、arm64 の Visual Studio でも x64 のもの (Windows 11 のエミュレーションで動く) を起動する。 -->
+  <ItemGroup Condition="'$(ShaderlynArm64ServerDirectory)' != ''">
+    <Content Include="$(ShaderlynArm64ServerDirectory)\shaderlyn-lsp.exe">
+      <Link>server\arm64\shaderlyn-lsp.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
   <!-- VSIX を作る処理。Microsoft.VSSDK.BuildTools が VSToolsPath を自分の tools フォルダーに向ける。SDK の処理より後に読み込む。 -->

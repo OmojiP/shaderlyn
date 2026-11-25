@@ -129,6 +129,7 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     // 同じ属性を 2 度 ([numthreads] など)。
                     case FunctionDeclarationSyntax function:
                         CheckAttributesAndVisibility(function.Attributes, function.ModifierTokens, Report);
+                        CheckRayTracingParameters(function, Report);
 
                         // 型の中の演算子 (E30073)。演算子は関数の外に書く。呼び出しの operator() だけは型の中に書ける。
                         if (!function.OperatorTokens.IsDefaultOrEmpty
@@ -153,7 +154,9 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
 
                 foreach (ShaderSyntaxToken name in names)
                 {
-                    if (name.IsMissing || name.Text.Length == 0)
+                    // 名前が void のものは、定義されていないマクロを前に書いたメソッドの読み違い (SETTER_DECL void set(…) を、型 SETTER_DECL のフィールド void と読む。
+                    // マクロの定義を取り込めていない構成)。同じ名前が並んで見えるので比べない (Falcor の LightBVHTypes.slang)。
+                    if (name.IsMissing || name.Text.Length == 0 || name.Text == "void")
                     {
                         continue;
                     }
@@ -230,8 +233,11 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            ReportAmbiguousModuleGlobals(context, compilation, program, conditions);
+
             // 同じ形の関数の本体の 2 つ目 (E30201「function already has a body」)。ジェネリック・where・コンパイル先の指定のある関数は、制約と先で別のものになりうるので見ない。
             ReportRedefinitions(context, compilation, root, conditions);
+            ReportTargetIntrinsicRedefinitions(context, compilation, root, conditions);
 
             foreach (VariableDeclarationSyntax declaration in root.DescendantNodesAndSelf().OfType<VariableDeclarationSyntax>())
             {
@@ -259,6 +265,16 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                     if (global)
                     {
                         CheckRegister(declaration, declarator, Report);
+                    }
+
+                    // class の型のシェーダーの仮引数 (関数の外の static でない変数) は、配置を決められない (E39031「class types are not supported in type layout」)。
+                    if (global && !isStatic && !modifiers.Any(t => t.Text is "groupshared")
+                        && structs.TryGetValue(declaration.Type.NameToken.Text, out StructDeclarationSyntax? classType)
+                        && classType.Keyword.Text == "class")
+                    {
+                        // slangc と同じく class の宣言の位置で伝える。
+                        Report(SlangRuleDescriptors.DeclarationNotAllowed, classType.NameToken,
+                            $"class の型 ({classType.Name}) の値は、シェーダーの仮引数 (関数の外の static でない変数 '{declarator.Name}') にできません。struct にしてください。");
                     }
 
                     if (declarator.IsArray && (global || field || local) && NonAddressable(structs, declaration.Type, declarator, 0) is { } reason)
@@ -289,6 +305,108 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary>
+    /// <c>import</c> したモジュールと同じ名前の大域の変数を、このファイルでも宣言している場合に、その名前の使用を報告する
+    /// (slangc 2026.19 の E39999「ambiguous reference」)。
+    /// </summary>
+    /// <param name="context">解析コンテキスト。</param>
+    /// <param name="compilation">対象シェーダーのセマンティックモデル。</param>
+    /// <param name="program">対象のプログラム。モジュールの宣言は、ファイルの宣言の前に並ぶ (SlangModules)。</param>
+    /// <param name="conditions">宣言の条件。どの構成にもある宣言だけを比べる。</param>
+    /// <remarks>
+    /// <para>
+    /// モジュールは別の名前の空間なので、同じ名前を宣言すること自体は誤りではない。使うと、どちらを指すか決まらない。
+    /// 宣言の行には報告しない (slangc も使用の行だけを誤りにする)。
+    /// </para>
+    /// <para>
+    /// 見るのは大域の変数だけである。関数は多重定義として並ぶので、同じ形のものだけがあいまいになるが、それは比べていない。
+    /// 関数の中で同じ名前の局所変数・仮引数を宣言していれば、そちらを指すので報告しない。<c>#include</c> で取り込んだファイルは同じモジュールなので比べない。
+    /// </para>
+    /// </remarks>
+    private static void ReportAmbiguousModuleGlobals(
+        SyntaxTreeAnalysisContext context,
+        ShaderCompilation compilation,
+        AnalyzedProgram program,
+        Semantics.Conditional.ConditionMap conditions)
+    {
+        HashSet<string> modules = new(
+            program.Tree.PreprocessResult.Includes
+                .Where(i => i.Directive == "import" && i.ResolvedFilePath is not null)
+                .Select(i => Path.GetFullPath(i.ResolvedFilePath!)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (modules.Count == 0)
+        {
+            return;
+        }
+
+        string file = compilation.Text.FilePath;
+        Dictionary<string, Location> own = new(StringComparer.Ordinal);
+        Dictionary<string, Location> inModules = new(StringComparer.Ordinal);
+
+        foreach (VariableDeclarationSyntax declaration in program.Tree.Root.Declarations.OfType<VariableDeclarationSyntax>().Where(conditions.IsAlwaysPresent))
+        {
+            // モジュールの extern の宣言は、取り込んだ側の export の定義で埋めるもので、重複ではない (ambiguous-extern-export)。
+            if (declaration.HasModifier("extern"))
+            {
+                continue;
+            }
+
+            foreach (VariableDeclaratorSyntax declarator in declaration.Variables)
+            {
+                if (declarator.NameToken.GetLocation() is not { } location || declarator.Name.Length == 0)
+                {
+                    continue;
+                }
+
+                if (string.Equals(location.FilePath, file, StringComparison.OrdinalIgnoreCase))
+                {
+                    own.TryAdd(declarator.Name, location);
+                }
+                else if (modules.Contains(Path.GetFullPath(location.FilePath)))
+                {
+                    inModules.TryAdd(declarator.Name, location);
+                }
+            }
+        }
+
+        // このファイルにもある名前の、モジュールの宣言の場所。
+        Dictionary<string, Location> ambiguous = own.Keys
+            .Where(inModules.ContainsKey)
+            .ToDictionary(name => name, name => inModules[name], StringComparer.Ordinal);
+
+        if (ambiguous.Count == 0)
+        {
+            return;
+        }
+
+        foreach (FunctionDeclarationSyntax function in program.Tree.Root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            if (function.Body is not { } body)
+            {
+                continue;
+            }
+
+            HashSet<string> locals =
+            [
+                .. body.DescendantNodesAndSelf().OfType<VariableDeclaratorSyntax>().Select(v => v.Name),
+                .. function.ParameterList.Select(p => p.Name),
+            ];
+
+            foreach (IdentifierExpressionSyntax use in body.DescendantNodesAndSelf().OfType<IdentifierExpressionSyntax>())
+            {
+                if (ambiguous.TryGetValue(use.Name, out Location? declared) && !locals.Contains(use.Name)
+                    && !(use.Parent is MemberAccessExpressionSyntax access && !ReferenceEquals(access.Target, use))
+                    && compilation.IsReportable(use.Identifier) && use.Identifier.GetLocation() is { } useLocation)
+                {
+                    // 「'x' は lib.slang の 3 行目にも宣言されています。」
+                    context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, useLocation, use.Name,
+                        $"{Path.GetFileName(declared.FilePath)} の {(declared.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
+                }
+            }
+        }
+    }
+
     /// <summary>同じ入れ物 (ファイル・名前空間・構造体) の、名前と仮引数の型が同じ関数の 2 つ目の本体を報告する。</summary>
     private static void ReportRedefinitions(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root, Semantics.Conditional.ConditionMap conditions)
     {
@@ -313,6 +431,92 @@ internal sealed class SlangDeclarationAnalyzer : SemanticRuleAnalyzer
                 string.Join(" ", p.ModifierTokens.Select(t => t.Text).Where(t => t is "in" or "out" or "inout" or "ref" or "constref")).Replace("in out", "inout", StringComparison.Ordinal)
                 + " " + p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)) + string.Concat(p.Type.NestedTypeTokens.Select(t => t.Text))
                 + new string('[', p.ArrayDimensions))) + ")";
+
+            if (!first.TryAdd((function.Parent, key), function)
+                && compilation.IsReportable(function.NameToken)
+                && function.NameToken.GetLocation() is { } location
+                && first[(function.Parent, key)].NameToken.GetLocation() is { } earlier)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(HlslRuleDescriptors.Redeclaration, location, function.Name,
+                    (earlier.LineSpan.Start.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// レイトレーシングのエントリポイントの仮引数の向きを検査する (slangc 2026.19 で確かめた)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    ///   <item>miss と callable の仮引数 (ペイロード) は <c>inout</c> でなければならない。<c>in</c> (向きを書かないものを含む) は E39018</item>
+    ///   <item>intersection の仮引数は <c>out</c>・<c>inout</c> にできない (E39017)。交差の属性は ReportHit で渡す</item>
+    /// </list>
+    /// <c>uniform</c> の仮引数は、どのステージでも書ける。
+    /// </remarks>
+    private static void CheckRayTracingParameters(FunctionDeclarationSyntax function, Action<DiagnosticDescriptor, ShaderSyntaxToken?, string> report)
+    {
+        if (function.Attributes.FirstOrDefault(a => a.Name == "shader") is not { ArgumentTokens: [{ Kind: ShaderSyntaxKind.StringLiteralToken } literal] })
+        {
+            return;
+        }
+
+        string stage = literal.Text.Trim('"');
+
+        if (stage is not ("miss" or "callable" or "intersection"))
+        {
+            return;
+        }
+
+        foreach (ParameterSyntax parameter in function.ParameterList)
+        {
+            string[] modifiers = [.. parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Select(t => t.Text)];
+
+            if (modifiers.Contains("uniform"))
+            {
+                continue;
+            }
+
+            bool writes = modifiers.Contains("out") || modifiers.Contains("inout");
+
+            if (stage == "intersection" && writes)
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, parameter.NameToken,
+                    $"intersection のエントリポイントの仮引数 '{parameter.Name}' は out・inout にできません。交差の属性は ReportHit で渡してください。");
+            }
+            else if (stage is "miss" or "callable" && !modifiers.Contains("inout") && !modifiers.Contains("out"))
+            {
+                report(SlangRuleDescriptors.ModifierNotAllowed, parameter.NameToken,
+                    $"{stage} のエントリポイントの仮引数 '{parameter.Name}' は inout にしてください (in の仮引数は受け取れません)。");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 同じコンパイル先の <c>__target_intrinsic</c> を書いた、名前と仮引数が同じ関数の 2 つ目を報告する
+    /// (slangc 2026.19 の E30201「function already has a body」。コンパイル先の実装は、そのコンパイル先の本体になる)。
+    /// </summary>
+    /// <remarks>コンパイル先が違うもの (hlsl と glsl) と、本体のある宣言との組は報告しない (コンパイル先ごとの実装を選ぶ書き方)。</remarks>
+    private static void ReportTargetIntrinsicRedefinitions(SyntaxTreeAnalysisContext context, ShaderCompilation compilation, CompilationUnitSyntax root, Semantics.Conditional.ConditionMap conditions)
+    {
+        Dictionary<(object Container, string Key), FunctionDeclarationSyntax> first = [];
+
+        foreach (FunctionDeclarationSyntax function in root.DescendantNodesAndSelf().OfType<FunctionDeclarationSyntax>())
+        {
+            if (function.Parent is null || !conditions.IsAlwaysPresent(function))
+            {
+                continue;
+            }
+
+            ShaderSyntaxToken[] tokens = [.. function.DescendantTokens().TakeWhile(t => !ReferenceEquals(t, function.NameToken))];
+            int at = Array.FindIndex(tokens, t => t.Text == "__target_intrinsic");
+
+            if (at < 0 || at + 2 >= tokens.Length || tokens[at + 1].Kind != ShaderSyntaxKind.OpenParenToken || tokens[at + 2].Kind != ShaderSyntaxKind.IdentifierToken)
+            {
+                continue;
+            }
+
+            string key = tokens[at + 2].Text + " " + function.Name + string.Concat(function.GenericParameterTokens.Select(t => t.Text))
+                         + "(" + string.Join(",", function.ParameterList.Select(p => p.Type.Name + string.Concat(p.Type.TemplateArguments.Select(t => t.Text)))) + ")";
 
             if (!first.TryAdd((function.Parent, key), function)
                 && compilation.IsReportable(function.NameToken)

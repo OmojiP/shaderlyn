@@ -33,9 +33,11 @@ public sealed partial class ShaderLanguageServer
     private readonly Dictionary<string, OpenDocument> _documents = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CancellationTokenSource> _running = new(StringComparer.Ordinal);
 
-    /// <summary>カーソルの下を答えるために覚えておくセマンティックモデル。バージョンとあわせて持つ。</summary>
-    private readonly Dictionary<string, (int Version, ShaderCompilation Model)> _models =
-        new(StringComparer.Ordinal);
+    /// <summary>
+    /// 開いている文書ごとの、最後に組み立てたセマンティックモデル。指摘・効いていない範囲・カーソルの下を答えるのに共有する。
+    /// 受信のループだけが読み書きする (組み立てと使用は <see cref="DocumentModel"/> が受信のループの外で行う)。
+    /// </summary>
+    private readonly Dictionary<string, DocumentModel> _models = new(StringComparer.Ordinal);
 
     /// <summary>
     /// ファイルごとに、利用者が定義済みにしたシンボル。
@@ -65,6 +67,9 @@ public sealed partial class ShaderLanguageServer
 
     /// <summary><c>window/logMessage</c> の <c>type</c> で、誤りを表す値 (LSP の <c>MessageType.Error</c>)。</summary>
     private const int LogMessageTypeError = 1;
+
+    /// <summary>window/logMessage の記録 (Log)。</summary>
+    private const int LogMessageTypeLog = 4;
 
     /// <summary><c>window/showMessage</c> の <c>type</c> で、警告を表す値 (LSP の <c>MessageType.Warning</c>)。</summary>
     private const int MessageTypeWarning = 2;
@@ -219,7 +224,8 @@ public sealed partial class ShaderLanguageServer
         switch (method)
         {
             case "initialize":
-                _session = new AnalysisSession(ReadWorkspaceDirectory(message), _analyzers, _environments);
+                _workspaceRoot = ReadWorkspaceDirectory(message);
+                _session = CreateWorkspaceSession();
                 _inactiveRegionsRequested = ReadInactiveRegionsOption(message);
                 _languageFeatures = ReadLanguageFeaturesOption(message);
                 _hoverCodeBlocks = ReadHoverCodeBlocksOption(message);
@@ -250,27 +256,27 @@ public sealed partial class ShaderLanguageServer
                 break;
 
             case "textDocument/hover":
-                await OnHoverAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnHoverAsync, cancellationToken);
                 break;
 
             case "textDocument/definition":
-                await OnDefinitionAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnDefinitionAsync, cancellationToken);
                 break;
 
             case "textDocument/completion":
-                await OnCompletionAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnCompletionAsync, cancellationToken);
                 break;
 
             case "textDocument/signatureHelp":
-                await OnSignatureHelpAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnSignatureHelpAsync, cancellationToken);
                 break;
 
             case "textDocument/references":
-                await OnReferencesAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnReferencesAsync, cancellationToken);
                 break;
 
             case "textDocument/rename":
-                await OnRenameAsync(message, cancellationToken).ConfigureAwait(false);
+                StartModelRequest(message, OnRenameAsync, cancellationToken);
                 break;
 
             case "textDocument/codeAction":
@@ -384,10 +390,15 @@ public sealed partial class ShaderLanguageServer
             return;
         }
 
-        // 保存したのが取り込まれるヘッダかもしれない。取り込みの読み込み結果と展開結果を捨て、
+        // 保存したのが取り込まれるヘッダかもしれない。その場合は取り込みの読み込み結果と展開結果を捨て、
         // 開いているスクリプトをすべて新しい中身で解析し直す。
         // 捨てずにいると、ヘッダを書き換えても古い中身で解析し、ヘッダへの指摘が書き換える前の行に出ていた。
-        ForgetIncludedFiles();
+        // 読み込んだファイルが変わっていなければ捨てない (IncludeReadLog)。
+        if (ReasonToForgetIncludedFiles(DocumentUri.ToFilePath(uri)) is { } reason)
+        {
+            await LogAsync($"取り込みのキャッシュを捨てます ({reason})。").ConfigureAwait(false);
+            ForgetIncludedFiles();
+        }
 
         await PublishAsync(saved, AnalysisDepth.Full, cancellationToken).ConfigureAwait(false);
 
@@ -397,17 +408,35 @@ public sealed partial class ShaderLanguageServer
         }
     }
 
+    /// <summary>保存したファイルに合わせて、取り込んだファイルについて覚えていることを捨てるべきかを返す。</summary>
+    /// <param name="savedPath">保存したファイル。</param>
+    /// <returns>捨てるべきなら、その理由。捨てなくてよければ <see langword="null"/>。</returns>
+    /// <remarks>どれか 1 つの解析の単位で捨てるべきなら、すべて捨てる。判断の条件は <see cref="IncludeReadLog"/> を参照。</remarks>
+    private string? ReasonToForgetIncludedFiles(string? savedPath)
+    {
+        foreach (AnalysisSession session in _sessionsByConfiguration.Values.Select(entry => entry.Session).Prepend(_session))
+        {
+            if (session.Reads.ReasonToForget(savedPath) is { } reason)
+            {
+                return reason;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// 取り込んだファイルについて覚えていることを捨てる。
     /// </summary>
     /// <remarks>
     /// 取り込みの読み込み結果 (FileSystemIncludeResolver) と展開結果 (IncludeCache) は、解析の単位 (<see cref="AnalysisSession"/>) が持っている。
-    /// 単位ごと作り直す。設定ファイルも読み直すが、保存のたびに 1 度なので重くはない。
+    /// 単位ごと作り直す。読み込んだファイルの記録 (<see cref="AnalysisSession.Reads"/>) も空になる。
     /// </remarks>
     private void ForgetIncludedFiles()
     {
-        _session = new AnalysisSession(_session.WorkspaceDirectory, _analyzers, _environments);
+        _session = CreateWorkspaceSession();
         _sessionsByConfiguration.Clear();
+        _unrealByDirectory.Clear();
         _models.Clear();
     }
 
@@ -449,6 +478,7 @@ public sealed partial class ShaderLanguageServer
     /// カーソルの下の要素について答える。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
@@ -456,13 +486,20 @@ public sealed partial class ShaderLanguageServer
     /// 要求に id がある以上、答えるものが無くても空で返さなければ
     /// エディタは待ち続ける。
     /// </remarks>
-    private async Task OnHoverAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnHoverAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         HoverResult? hover = null;
 
         try
         {
-            hover = BuildHover(message);
+            if (request is not null)
+            {
+                hover = await request.UseAsync(HoverBuilder.Build, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -503,38 +540,10 @@ public sealed partial class ShaderLanguageServer
     }
 
     /// <summary>
-    /// カーソルの下の要素の説明を組み立てる。
-    /// </summary>
-    /// <param name="message">受け取ったメッセージ。</param>
-    /// <returns>説明。答えるものが無い場合は <see langword="null"/>。</returns>
-    /// <remarks>
-    /// <b>セマンティックモデルはバージョンとあわせて覚えておく。</b>
-    /// 診断のために組み立てたものを使い回すと、
-    /// 編集のたびに古くなって位置が合わなくなる。
-    /// バージョンが変わっていれば組み立て直す。
-    /// カーソルを止めたときにしか呼ばれないため、その場で組み立てても間に合う。
-    /// </remarks>
-    private HoverResult? BuildHover(JsonElement message)
-    {
-        if (!TryReadTextDocument(message, out JsonElement textDocument)
-            || textDocument.GetProperty("uri").GetString() is not { } uri
-            || !_documents.TryGetValue(uri, out OpenDocument? document)
-            || !message.GetProperty("params").TryGetProperty("position", out JsonElement position))
-        {
-            return null;
-        }
-
-        int offset = document.Text.GetOffset(new LinePosition(
-            position.GetProperty("line").GetInt32(),
-            position.GetProperty("character").GetInt32()));
-
-        return HoverBuilder.Build(GetModel(uri, document), offset);
-    }
-
-    /// <summary>
     /// カーソルの下の名前の定義を返す。
     /// </summary>
     /// <param name="message">受け取ったメッセージ。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">キャンセル用トークン。</param>
     /// <returns>送信の完了を表すタスク。</returns>
     /// <remarks>
@@ -553,15 +562,22 @@ public sealed partial class ShaderLanguageServer
     /// 診断の通知が受け取った URI をそのまま返しているのと同じ理由である。
     /// </para>
     /// </remarks>
-    private async Task OnDefinitionAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnDefinitionAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         IReadOnlyList<DefinitionTarget> targets = [];
-        string? documentUri = null;
-        string? documentPath = null;
+        string? documentUri = request?.Document.Uri;
+        string? documentPath = request?.Document.FilePath;
 
         try
         {
-            targets = BuildDefinitions(message, out documentUri, out documentPath);
+            if (request is not null)
+            {
+                targets = await request.UseAsync(DefinitionBuilder.Build, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -614,55 +630,129 @@ public sealed partial class ShaderLanguageServer
             ? documentUri
             : DocumentUri.FromFilePath(target.FilePath, documentUri);
 
-    /// <summary>定義を探す。</summary>
-    /// <param name="message">受け取ったメッセージ。</param>
-    /// <param name="documentUri">エディタから受け取った URI を書き出す先。</param>
-    /// <param name="documentPath">開いているスクリプトのパスを書き出す先。</param>
-    /// <returns>見つかった定義。</returns>
-    private IReadOnlyList<DefinitionTarget> BuildDefinitions(
-        JsonElement message,
-        out string? documentUri,
-        out string? documentPath)
-    {
-        documentUri = null;
-        documentPath = null;
-
-        if (!TryReadTextDocument(message, out JsonElement textDocument)
-            || textDocument.GetProperty("uri").GetString() is not { } uri
-            || !_documents.TryGetValue(uri, out OpenDocument? document)
-            || !message.GetProperty("params").TryGetProperty("position", out JsonElement position))
-        {
-            return [];
-        }
-
-        documentUri = document.Uri;
-        documentPath = document.FilePath;
-
-        return DefinitionBuilder.Build(GetModel(uri, document), document.Text.GetOffset(new LinePosition(
-            position.GetProperty("line").GetInt32(),
-            position.GetProperty("character").GetInt32())));
-    }
-
     /// <summary>
-    /// スクリプトに対応するセマンティックモデルを取り出す。
+    /// 文書の今のバージョンのセマンティックモデルを返す。なければ組み立てを始める。受信のループから呼ぶ。
     /// </summary>
     /// <param name="uri">対象のファイルの URI。</param>
     /// <param name="document">対象のスクリプト。</param>
-    /// <returns>セマンティックモデル。</returns>
+    /// <returns>セマンティックモデル (組み立て中のこともある)。</returns>
     /// <remarks>
-    /// バージョンが変わっていれば組み立て直す。
-    /// 古いモデルを使うと、位置が編集前のものになる。
+    /// バージョンが変わっていれば組み立て直す。古いモデルを使うと、位置が編集前のものになる。
+    /// 設定ファイルを書き換えた場合と、定義済みにするシンボルを選び直した場合も組み立て直す。
     /// </remarks>
-    private ShaderCompilation GetModel(string uri, OpenDocument document)
+    private DocumentModel ModelFor(string uri, OpenDocument document)
     {
-        if (!_models.TryGetValue(uri, out (int Version, ShaderCompilation Model) cached)
-            || cached.Version != document.Version)
+        AnalysisSession session = SessionFor(uri);
+        ImmutableArray<string> symbols = DefinedSymbolsOf(uri);
+
+        if (_models.TryGetValue(uri, out DocumentModel? cached) && cached.Matches(document.Version, session, symbols))
         {
-            cached = (document.Version, SessionFor(uri).CreateModel(document.Text, AnalysisSymbolsOf(uri, document)));
-            _models[uri] = cached;
+            return cached;
         }
 
-        return cached.Model;
+        DocumentModel model = new(document.Version, session, symbols, () => session.Prepare(document.Text, symbols), cached);
+        _models[uri] = model;
+        return model;
+    }
+
+    /// <summary>
+    /// セマンティックモデルを使う要求を、受信のループの外で処理する。
+    /// </summary>
+    /// <param name="message">受け取った要求。</param>
+    /// <param name="handle">要求を処理して応答する処理。文書が開かれていなければ、モデルを渡さずに呼ぶ。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <remarks>
+    /// <para>
+    /// <b>モデルの組み立てを待つ間も、次のメッセージを受け取る。</b>
+    /// 受信のループで待つと、編集の通知と構文の段の指摘が組み立ての終わりまで遅れる
+    /// (URP の Lit.shader で、編集のたびに 1 秒)。応答の順序は要求の順と変わることがある (LSP では許されている)。
+    /// </para>
+    /// <para>
+    /// 文書とカーソルの位置は、受け取った時点のものを使う。後から届いた編集の中身で位置を数えると、ずれる。
+    /// </para>
+    /// </remarks>
+    private void StartModelRequest(
+        JsonElement message,
+        Func<JsonElement, ModelRequest?, CancellationToken, Task> handle,
+        CancellationToken cancellationToken)
+    {
+        // 受け取ったメッセージは、受信のループが次を読む前に破棄する。
+        JsonElement request = message.Clone();
+        ModelRequest? target = ReadModelRequest(request);
+
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await handle(request, target, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // 新しいバージョンのモデルに置き換えられ、組み立てなかった (DocumentModel)。応答は返す。
+                    await RespondNullAsync(request, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 終了する。
+                }
+                catch (Exception e)
+                {
+                    await LogFailureAsync("要求の処理", e).ConfigureAwait(false);
+                }
+            },
+            CancellationToken.None);
+    }
+
+    /// <summary>要求の文書とカーソルの位置を読み、モデルを用意する。受信のループから呼ぶ。</summary>
+    /// <param name="message">受け取った要求。</param>
+    /// <returns>文書とモデル。文書が開かれていなければ <see langword="null"/>。</returns>
+    private ModelRequest? ReadModelRequest(JsonElement message)
+    {
+        if (!TryReadTextDocument(message, out JsonElement textDocument)
+            || textDocument.GetProperty("uri").GetString() is not { } uri
+            || !_documents.TryGetValue(uri, out OpenDocument? document))
+        {
+            return null;
+        }
+
+        int offset;
+
+        try
+        {
+            offset = message.GetProperty("params").TryGetProperty("position", out JsonElement position)
+                ? document.Text.GetOffset(new LinePosition(
+                    position.GetProperty("line").GetInt32(),
+                    position.GetProperty("character").GetInt32()))
+                : 0;
+        }
+        catch (Exception e) when (e is InvalidOperationException or FormatException or KeyNotFoundException or ArgumentException)
+        {
+            // 読めない要求でも応答は返す。失敗は、それぞれの処理が記録して空で答える (ModelRequest.UseAsync が投げる)。
+            return new ModelRequest(document, null, 0, e);
+        }
+
+        return new ModelRequest(document, ModelFor(uri, document), offset, null);
+    }
+
+    /// <summary>モデルを使う要求の、文書・モデル・カーソルの位置。</summary>
+    /// <param name="Document">受け取った時点の文書。</param>
+    /// <param name="Model">その文書のモデル。</param>
+    /// <param name="Offset">カーソルのオフセット。</param>
+    /// <param name="Failure">要求を読めなかった場合の例外。</param>
+    private sealed record ModelRequest(OpenDocument Document, DocumentModel? Model, int Offset, Exception? Failure)
+    {
+        /// <summary>モデルの組み立てを待って使う (<see cref="DocumentModel.UseAsync"/>)。</summary>
+        /// <typeparam name="T">結果の型。</typeparam>
+        /// <param name="use">モデルとカーソルの位置を使う処理。</param>
+        /// <param name="cancellationToken">キャンセル用トークン。</param>
+        /// <returns>処理の結果。</returns>
+        public Task<T> UseAsync<T>(Func<ShaderCompilation, int, T> use, CancellationToken cancellationToken)
+            => Failure is not null || Model is null
+                ? Task.FromException<T>(Failure ?? new InvalidOperationException("モデルがありません。"))
+                : Model.UseAsync(
+                model => use(model.Compilation ?? throw new InvalidOperationException("この環境はセマンティックモデルを作りません。"), Offset),
+                cancellationToken);
     }
 
     /// <summary>
@@ -767,18 +857,57 @@ public sealed partial class ShaderLanguageServer
         // HLSL 以外の言語 (GLSL など) の拡張子は、CLI と同じく、設定の環境が読まなければその言語の環境で解析する。
         // 設定の環境 (Unity など) で読むと、GLSL を ShaderLab や HLSL として読んで構文エラーを並べる。
         // 環境を決めていなければ、.usf・.ush は Unreal Engine の環境で解析する。
-        if (path is null
-            || Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
-                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen) is not { } language)
+        string? language = path is null
+            ? null
+            : Cli.Environments.AnalysisSettings.EnvironmentForOpenedFile(
+                Path.GetExtension(path), configured.DefaultExtensions, configured.EnvironmentChosen);
+
+        string key = (configuration ?? string.Empty) + "\n" + language;
+        AnalysisSession session = language is null ? configured : Keyed(key, () => CreateSession(configuration, language, null));
+
+        // 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトは、開いたファイルから探す (ワークスペースのルートで止める)。
+        // 同じ設定ファイルの下でも、ファイルによってエンジン・プロジェクトが違えば別の単位にする。
+        if (path is null || session.UnrealLocations is not { } shared || LocateUnreal(path) is not { } here
+            || (SamePath(here.EngineDirectory, shared.EngineDirectory) && SamePath(here.ProjectDirectory, shared.ProjectDirectory)))
         {
-            return configured;
+            return session;
         }
 
-        return _sessionsByConfiguration.AddOrUpdate(
-            (configuration ?? string.Empty) + "\n" + language,
-            _ => (written, CreateSession(configuration, language)),
-            (_, existing) => existing.Written == written ? existing : (written, CreateSession(configuration, language))).Session;
+        return Keyed(
+            key + "\nunreal\n" + here.EngineDirectory + "\n" + here.ProjectDirectory,
+            () => CreateSession(configuration, language, path));
+
+        AnalysisSession Keyed(string sessionKey, Func<AnalysisSession> create)
+            => _sessionsByConfiguration.AddOrUpdate(
+                sessionKey,
+                _ => (written, create()),
+                (_, existing) => existing.Written == written ? existing : (written, create())).Session;
     }
+
+    /// <summary>開いたファイルのフォルダーごとに、Unreal Engine のエンジンとプロジェクトを探した結果。保存のときに捨てる。</summary>
+    private readonly ConcurrentDictionary<string, Unreal.UnrealLocations> _unrealByDirectory = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>開いたファイルから、Unreal Engine のエンジンとプロジェクトを探す。ワークスペースのルートより上へはたどらない (利用者の決定)。</summary>
+    /// <param name="path">開いたファイル。</param>
+    /// <returns>探した結果。フォルダーが分からなければ <see langword="null"/>。</returns>
+    private Unreal.UnrealLocations? LocateUnreal(string path)
+        => Path.GetDirectoryName(path) is { Length: > 0 } directory
+            ? _unrealByDirectory.GetOrAdd(directory, d => Unreal.UnrealLocator.Find(d, _workspaceRoot))
+            : null;
+
+    /// <summary>2 つのパスが同じフォルダーを指すか (どちらも <see langword="null"/> なら同じ)。</summary>
+    private static bool SamePath(string? a, string? b)
+        => string.Equals(
+            a is null ? null : Path.TrimEndingDirectorySeparator(a),
+            b is null ? null : Path.TrimEndingDirectorySeparator(b),
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>ワークスペースのルート (initialize で受け取ったもの)。設定ファイルのフォルダーで作った解析の単位の WorkspaceDirectory とは違う。</summary>
+    private string? _workspaceRoot;
+
+    /// <summary>ワークスペースのルートの解析の単位を作る。Unreal Engine の場所は、ワークスペースのルートから探し、上へはたどらない。</summary>
+    private AnalysisSession CreateWorkspaceSession()
+        => new(_workspaceRoot, _analyzers, _environments, unrealSearch: _workspaceRoot is null ? null : (_workspaceRoot, _workspaceRoot));
 
     /// <summary>ファイルから上へ辿って一番近い設定ファイルの設定を返す (<see cref="SessionFor"/>)。</summary>
     /// <param name="path">ファイルのパス。</param>
@@ -811,20 +940,22 @@ public sealed partial class ShaderLanguageServer
 
         return _sessionsByConfiguration.AddOrUpdate(
             found,
-            key => (stamp, CreateSession(key, environment: null)),
-            (key, existing) => existing.Written == stamp ? existing : (stamp, CreateSession(key, environment: null))).Session;
+            key => (stamp, CreateSession(key, environment: null, unrealStart: null)),
+            (key, existing) => existing.Written == stamp ? existing : (stamp, CreateSession(key, environment: null, unrealStart: null))).Session;
     }
 
     /// <summary>設定ファイルのフォルダーで解析の設定を作る。</summary>
     /// <param name="configurationPath">設定ファイル。無ければワークスペースのルートで作る。</param>
     /// <param name="environment">設定の環境の代わりに使う環境の名前。</param>
+    /// <param name="unrealStart">Unreal Engine のエンジンとプロジェクトを探し始めるファイル。<see langword="null"/> なら設定のフォルダーから探す。</param>
     /// <returns>設定。</returns>
-    private AnalysisSession CreateSession(string? configurationPath, string? environment)
-        => new(
-            configurationPath is null ? _session.WorkspaceDirectory : Path.GetDirectoryName(configurationPath),
-            _analyzers,
-            _environments,
-            environment);
+    private AnalysisSession CreateSession(string? configurationPath, string? environment, string? unrealStart)
+    {
+        string? directory = configurationPath is null ? _session.WorkspaceDirectory : Path.GetDirectoryName(configurationPath);
+        string? start = unrealStart ?? directory;
+
+        return new(directory, _analyzers, _environments, environment, start is null ? null : (start, _workspaceRoot));
+    }
 
     /// <summary>
     /// 指摘に対する修正を返す。
@@ -1196,8 +1327,7 @@ public sealed partial class ShaderLanguageServer
                 _selectedConfigurationDisplays.Remove(uri);
             }
 
-            // 覚えているモデルは前の定義で組み立てたものである。
-            _models.Remove(uri);
+            // 覚えているモデルは前の定義で組み立てたもので、次に使うときに組み立て直す (DocumentModel.Matches)。
         }
 
         if (message.TryGetProperty("id", out _))
@@ -1377,16 +1507,35 @@ public sealed partial class ShaderLanguageServer
         CheckUnrealGeneration(session);
         CheckUnityGeneration(session);
 
+        // 意味解析を伴う段は、ホバーなどと同じモデルを使う。モデルの用意は受信のループで行う (_models は受信のループだけが触る)。
+        DocumentModel? model = stage == AnalysisDepth.Full ? ModelFor(document.Uri, document) : null;
+        model?.Require();
+
         _ = Task.Run(
             async () =>
             {
                 try
                 {
-                    ImmutableArray<string> analysisSymbols =
-                        ConditionSymbols.ExcludeDeclaredSymbols(document.Text, symbols, session.ShaderEnvironment);
+                    // 効いていない範囲は、展開しなければ分からない。意味解析を伴う段でだけ送る。
+                    bool sendsInactiveRegions = model is not null && inactiveRegionsRequested && session.HasSemanticModel;
+                    ImmutableArray<InactiveLineRange>? regions = null;
 
-                    ImmutableArray<Diagnostic> diagnostics =
-                        session.Analyze(document.Text, stage, analysisSymbols, cancellation.Token);
+                    ImmutableArray<Diagnostic> diagnostics = model is null
+                        ? session.Analyze(document.Text, stage, cancellation.Token)
+                        : await model.UseAsync(
+                            prepared =>
+                            {
+                                ImmutableArray<Diagnostic> found = session.Analyze(prepared, cancellation.Token);
+
+                                // すべての構成を合わせた範囲は、同じモデルから求める。選んだ構成の範囲は、別のモデルを組み立てる (下)。
+                                if (sendsInactiveRegions && !selectedConfiguration && prepared.Compilation is { } compilation)
+                                {
+                                    regions = InactiveRegionCollector.Collect(compilation);
+                                }
+
+                                return found;
+                            },
+                            cancellation.Token).ConfigureAwait(false);
 
                     // 解析の間に次の編集が届いていたら、この結果は古い。送ると、新しい中身の上で行がずれて見える。
                     cancellation.Token.ThrowIfCancellationRequested();
@@ -1394,18 +1543,15 @@ public sealed partial class ShaderLanguageServer
                     await PublishAnalysisAsync(document, stage, diagnostics, cancellation.Token)
                         .ConfigureAwait(false);
 
-                    // 効いていない範囲は、展開しなければ分からない。意味解析を伴う段でだけ送る。
                     // 指摘より後に送る。範囲の計算に失敗しても、指摘は届いている。
-                    if (stage == AnalysisDepth.Full && inactiveRegionsRequested && session.HasSemanticModel)
+                    if (sendsInactiveRegions)
                     {
-                        ImmutableArray<InactiveLineRange> regions = selectedConfiguration
-                            ? InactiveRegionCollector.CollectSelectedConfiguration(
-                                session.CreateConfigurationModel(document.Text, symbols))
-                            : InactiveRegionCollector.Collect(session.CreateModel(document.Text, analysisSymbols));
+                        regions ??= InactiveRegionCollector.CollectSelectedConfiguration(
+                            session.CreateConfigurationModel(document.Text, symbols));
 
                         cancellation.Token.ThrowIfCancellationRequested();
 
-                        await PublishInactiveRegionsAsync(document.Uri, regions, cancellation.Token)
+                        await PublishInactiveRegionsAsync(document.Uri, regions.Value, cancellation.Token)
                             .ConfigureAwait(false);
                     }
                 }
@@ -1564,7 +1710,19 @@ public sealed partial class ShaderLanguageServer
     /// 打鍵のたびに走る処理で失敗が続いても、利用者の作業を遮らない。
     /// </para>
     /// </remarks>
-    private async Task LogFailureAsync(string operation, Exception exception)
+    private Task LogFailureAsync(string operation, Exception exception)
+        => LogAsync(LogMessageTypeError, $"{operation}に失敗しました: {exception}");
+
+    /// <summary>記録 (window/logMessage の Log) を送る。エディタの出力の欄に出る。</summary>
+    /// <param name="message">記録する文。</param>
+    /// <returns>送信の完了を表すタスク。</returns>
+    private Task LogAsync(string message) => LogAsync(LogMessageTypeLog, message);
+
+    /// <summary>記録を送る。</summary>
+    /// <param name="type">記録の種類 (window/logMessage の type)。</param>
+    /// <param name="message">記録する文。</param>
+    /// <returns>送信の完了を表すタスク。</returns>
+    private async Task LogAsync(int type, string message)
     {
         try
         {
@@ -1575,8 +1733,8 @@ public sealed partial class ShaderLanguageServer
                 writer.WriteString("method", "window/logMessage");
 
                 writer.WriteStartObject("params");
-                writer.WriteNumber("type", LogMessageTypeError);
-                writer.WriteString("message", $"{operation}に失敗しました: {exception}");
+                writer.WriteNumber("type", type);
+                writer.WriteString("message", message);
                 writer.WriteEndObject();
 
                 writer.WriteEndObject();

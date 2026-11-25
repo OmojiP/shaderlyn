@@ -39,7 +39,7 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
     protected override bool AnalyzesSlang => true;
 
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.CustomDerivative];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [SlangRuleDescriptors.CustomDerivative, SlangRuleDescriptors.InterfaceRequirement];
 
     /// <inheritdoc/>
     protected override void Analyze(SyntaxTreeAnalysisContext context, ShaderCompilation compilation)
@@ -105,6 +105,10 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
 
             bool IsRequirement(FunctionDeclarationSyntax f) => f.Body is null && f.Parent is StructDeclarationSyntax { Keyword.Text: "interface" };
 
+            CheckNonExportedDerivatives(compilation, program, all, Report);
+            CheckDifferentiableRequirements(compilation, program, context);
+            CheckNonDifferentiableCalls(compilation, program, all, tokens, context);
+
             foreach (FunctionDeclarationSyntax function in all)
             {
                 CheckRequirementDerivatives(function, requirements, IsRequirement(function), Report);
@@ -113,6 +117,18 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
 
                 foreach (AttributeSyntax attribute in function.Attributes)
                 {
+                    // [PrimalSubstituteOf(f)] の関数は、f と同じか強い微分の属性が必要 (前向き < 後ろ向き。E31158)。
+                    if (attribute.Name == "PrimalSubstituteOf"
+                        && attribute.ArgumentTokens is [{ Kind: ShaderSyntaxKind.IdentifierToken } substituted]
+                        && Find(substituted.Text, function.Parent) is { } original
+                        && DifferentiabilityLevel(original) is var required and > 0 and < 3
+                        && DifferentiabilityLevel(function) < required)
+                    {
+                        Report(attribute.NameToken,
+                            $"'{original.Name}' は{(required == 2 ? "後ろ向き" : "前向き")}に微分する関数なので、置き換える関数 '{function.Name}' にも [{(required == 2 ? "Differentiable" : "ForwardDifferentiable")}] を書いてください。");
+                        continue;
+                    }
+
                     if (attribute.Name is not ("ForwardDerivative" or "BackwardDerivative" or "ForwardDerivativeOf" or "BackwardDerivativeOf")
                         || attribute.ArgumentTokens is not [{ Kind: ShaderSyntaxKind.IdentifierToken } target]
                         || Find(target.Text, function.Parent) is not { } other)
@@ -284,6 +300,230 @@ internal sealed partial class SlangCustomDerivativeAnalyzer : SemanticRuleAnalyz
     }
 
     private static bool IsStatic(FunctionDeclarationSyntax function) => function.ModifierTokens.Any(t => t.Text == "static");
+
+    /// <summary>
+    /// 公開する関数の <c>[ForwardDerivative(g)]</c>・<c>[BackwardDerivative(g)]</c> の g が、__exported でなく取り込んだモジュールの関数 (E31162)。
+    /// </summary>
+    /// <remarks>
+    /// 公開するとは、module の宣言のあるファイルでは public を書いた関数 (入れ物の型も public)、module の宣言の無いファイルでは internal・private を書いていない関数。
+    /// g の宣言がどれも、根のモジュールから見えるが根のモジュールを取り込んだモジュールからは見えないファイルにある場合に報告する。
+    /// </remarks>
+    private static void CheckNonExportedDerivatives(ShaderCompilation compilation, AnalyzedProgram program, FunctionDeclarationSyntax[] all, Action<ShaderSyntaxToken, string> report)
+    {
+        if (compilation.Text.FilePath is not { } rootPath
+            || !all.Any(f => f.Attributes.Any(a => a.Name is "ForwardDerivative" or "BackwardDerivative")))
+        {
+            return;
+        }
+
+        string root = Path.GetFullPath(rootPath);
+        HashSet<string> hidden = SlangImportScopeAnalyzer.NotReexportedFiles(root, program);
+
+        if (hidden.Count == 0)
+        {
+            return;
+        }
+
+        bool InFile(ShaderSyntaxToken token, Func<string, bool> predicate) => token.Source.FilePath is { } path && predicate(Path.GetFullPath(path));
+
+        // 根のファイルの module の宣言 (文の先頭の module)。
+        ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+        bool hasModule = tokens.Where((t, i) => t.Text == "module" && (i == 0 || tokens[i - 1].Kind is ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.CloseBraceToken)
+                                                && InFile(t, p => string.Equals(p, root, StringComparison.OrdinalIgnoreCase))).Any();
+
+        bool IsPublic(FunctionDeclarationSyntax function)
+        {
+            if (!hasModule)
+            {
+                return !function.ModifierTokens.Any(t => t.Text is "internal" or "private");
+            }
+
+            if (!function.ModifierTokens.Any(t => t.Text == "public"))
+            {
+                return false;
+            }
+
+            for (Shaderlyn.Core.Syntax.SyntaxNode? parent = function.Parent; parent is not null and not CompilationUnitSyntax; parent = parent.Parent)
+            {
+                if (parent is StructDeclarationSyntax type && !type.Modifiers.Any(t => t.Text == "public"))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        foreach (FunctionDeclarationSyntax function in all)
+        {
+            if (!InFile(function.NameToken, p => string.Equals(p, root, StringComparison.OrdinalIgnoreCase)) || !IsPublic(function))
+            {
+                continue;
+            }
+
+            foreach (AttributeSyntax attribute in function.Attributes)
+            {
+                if (attribute.Name is not ("ForwardDerivative" or "BackwardDerivative")
+                    || attribute.ArgumentTokens is not [{ Kind: ShaderSyntaxKind.IdentifierToken } target])
+                {
+                    continue;
+                }
+
+                FunctionDeclarationSyntax[] declarations = [.. all.Where(f => f.Name == target.Text && f.QualifierTokens.IsEmpty)];
+
+                if (declarations.Length > 0 && declarations.All(d => InFile(d.NameToken, hidden.Contains)))
+                {
+                    report(attribute.NameToken,
+                        $"'{target.Text}' は __exported import でなく取り込んだモジュールの関数なので、公開する関数 '{function.Name}' の微分にできません。"
+                        + "そのモジュールを __exported import で取り込むか、微分の関数をこのモジュールで定義してください。");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 微分の属性を書いたインターフェイスの要件を、弱い微分の属性のメソッドで満たしている箇所 (SG0359。E38110・E38105)。
+    /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    /// <item><c>IDifferentiable</c> の <c>dzero</c>・<c>dadd</c> は後ろ向きに微分する要件なので、自分で書く場合は <c>[Differentiable]</c> が必要 (<c>[ForwardDifferentiable]</c> では足りない)</item>
+    /// <item>利用者のインターフェイスの要件に <c>[ForwardDifferentiable]</c>・<c>[Differentiable]</c>・<c>[BackwardDifferentiable]</c> を書いた場合は、それと同じか強い属性が必要</item>
+    /// </list>
+    /// <c>[TreatAsDifferentiable]</c> はどちらにも当たる。型の宣言の継承の並びに書いたインターフェイス (継承したインターフェイスを含む) だけを見る (extension の適合は見ない)。
+    /// 同じ名前の要件が 2 つ以上あるか、型に同じ名前のメソッドが 2 つ以上あれば見ない。
+    /// </remarks>
+    private static void CheckDifferentiableRequirements(ShaderCompilation compilation, AnalyzedProgram program, SyntaxTreeAnalysisContext context)
+    {
+        ImmutableArray<ShaderSyntaxToken> tokens = program.Tree.PreprocessResult.Tokens;
+        Dictionary<ShaderSyntaxToken, int> index = new(ReferenceEqualityComparer.Instance);
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            index[tokens[i]] = i;
+        }
+
+        StructDeclarationSyntax[] types = [.. program.Tree.Root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>().Where(t => t.NameToken is not null)];
+
+        // 型の継承の並びの名前 (名前の後ろの : から { まで、<…> の外の名前)。
+        List<string> BasesOf(StructDeclarationSyntax type)
+        {
+            List<string> names = [];
+
+            if (!index.TryGetValue(type.NameToken!, out int start) || !index.TryGetValue(type.OpenBrace, out int open))
+            {
+                return names;
+            }
+
+            int angle = 0;
+            bool afterColon = false;
+
+            for (int i = start + 1; i < open && tokens[i].Text != "where"; i++)
+            {
+                angle += tokens[i].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, ShaderSyntaxKind.GreaterThanGreaterThanToken => -2, _ => 0 };
+                afterColon |= angle == 0 && tokens[i].Kind == ShaderSyntaxKind.ColonToken;
+
+                if (afterColon && angle == 0 && tokens[i].Kind == ShaderSyntaxKind.IdentifierToken
+                    && tokens[i - 1].Kind is ShaderSyntaxKind.ColonToken or ShaderSyntaxKind.CommaToken)
+                {
+                    names.Add(tokens[i].Text);
+                }
+            }
+
+            return names;
+        }
+
+        // 利用者のインターフェイス (1 度だけ宣言したもの) の、微分の属性を書いた要件の名前と強さ。
+        Dictionary<string, StructDeclarationSyntax?> interfaces = new(StringComparer.Ordinal);
+
+        foreach (StructDeclarationSyntax face in types.Where(t => t.Keyword.Text == "interface"))
+        {
+            interfaces[face.Name] = interfaces.ContainsKey(face.Name) ? null : face;
+        }
+
+        // インターフェイスと、その継承をたどった要件 (名前 → 強さ。同じ名前が 2 つ以上なら 0)。IDifferentiable は dzero・dadd を後ろ向きに微分する。
+        Dictionary<string, int> Requirements(string name, int depth)
+        {
+            Dictionary<string, int> result = new(StringComparer.Ordinal);
+
+            if (depth > 8)
+            {
+                return result;
+            }
+
+            if (name == "IDifferentiable" && !interfaces.ContainsKey(name))
+            {
+                result["dzero"] = 2;
+                result["dadd"] = 2;
+                return result;
+            }
+
+            if (!interfaces.TryGetValue(name, out StructDeclarationSyntax? face) || face is null)
+            {
+                return result;
+            }
+
+            foreach (FunctionDeclarationSyntax requirement in face.Members.OfType<FunctionDeclarationSyntax>().Where(m => m.Body is null))
+            {
+                result[requirement.Name] = result.ContainsKey(requirement.Name) ? 0 : DifferentiabilityLevel(requirement) is var level and < 3 ? level : 0;
+            }
+
+            foreach (string inherited in BasesOf(face))
+            {
+                foreach ((string key, int level) in Requirements(inherited, depth + 1))
+                {
+                    result[key] = result.ContainsKey(key) ? 0 : level;
+                }
+            }
+
+            return result;
+        }
+
+        foreach (StructDeclarationSyntax type in types.Where(t => t.Keyword.Text is "struct" or "class"))
+        {
+            Dictionary<string, int> required = new(StringComparer.Ordinal);
+
+            foreach (string face in BasesOf(type))
+            {
+                foreach ((string key, int level) in Requirements(face, 0))
+                {
+                    required[key] = required.ContainsKey(key) ? 0 : level;
+                }
+            }
+
+            foreach (IGrouping<string, FunctionDeclarationSyntax> methods in type.Members.OfType<FunctionDeclarationSyntax>().GroupBy(m => m.Name, StringComparer.Ordinal))
+            {
+                if (methods.Count() != 1 || !required.TryGetValue(methods.Key, out int level) || level == 0)
+                {
+                    continue;
+                }
+
+                FunctionDeclarationSyntax method = methods.First();
+
+                // 自分で書いた微分は、前向き ([ForwardDerivative]) で前向きの、前向きと後ろ向きの両方で後ろ向きの要件を満たす
+                // (後ろ向きだけでは前向きの要件が残る)。[PrimalSubstituteOf] で置き換えた関数と [PrimalSubstitute] の関数は見ない。
+                bool PointsHere(string attribute) => type.Members.OfType<FunctionDeclarationSyntax>()
+                    .Any(m => m.Attributes.Any(a => a.Name == attribute && a.ArgumentTokens.Any(t => t.Text == method.Name)));
+
+                bool forwardCustom = method.Attributes.Any(a => a.Name == "ForwardDerivative") || PointsHere("ForwardDerivativeOf");
+                bool backwardCustom = method.Attributes.Any(a => a.Name == "BackwardDerivative") || PointsHere("BackwardDerivativeOf");
+                int custom = forwardCustom ? backwardCustom ? 2 : 1 : 0;
+                bool substituted = method.Attributes.Any(a => a.Name == "PrimalSubstitute") || PointsHere("PrimalSubstituteOf");
+
+                if (!substituted && Math.Max(DifferentiabilityLevel(method), custom) < level &&compilation.IsReportable(method.NameToken) && method.NameToken.GetLocation() is { } location)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(SlangRuleDescriptors.InterfaceRequirement, location,
+                        $"'{method.Name}' は{(level == 2 ? "後ろ向き" : "前向き")}に微分するインターフェイスの要件なので、{(level == 2 ? "[Differentiable] を" : "[ForwardDifferentiable] 以上の微分の属性を")}書いてください。"));
+                }
+            }
+        }
+    }
+
+    /// <summary>関数の微分の属性の強さ。0 は微分しない、1 は前向き、2 は後ろ向き ([Differentiable] を含む)、3 は [TreatAsDifferentiable]。</summary>
+    private static int DifferentiabilityLevel(FunctionDeclarationSyntax function)
+        => function.Attributes.Any(a => a.Name == "TreatAsDifferentiable") ? 3
+           : function.Attributes.Any(a => a.Name is "Differentiable" or "BackwardDifferentiable") ? 2
+           : function.Attributes.Any(a => a.Name == "ForwardDifferentiable") ? 1
+           : 0;
 
     /// <summary>微分の関数の仮引数の、合わないところ。合うか、決められなければ <see langword="null"/>。</summary>
     private static string? CheckSignature(FunctionDeclarationSyntax primal, FunctionDeclarationSyntax derivative, bool backward)

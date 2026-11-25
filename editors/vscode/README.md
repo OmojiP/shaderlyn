@@ -1,168 +1,189 @@
 # Shaderlyn for VS Code
 
-Unity の ShaderLab と HLSL（`.shader` / `.hlsl` / `.cginc` / `.hlslinc` / `.compute`）のリアルタイム静的解析・コーディング支援を提供する VS Code 拡張機能です。
-DXC で直接コンパイルする HLSL（`.hlsl` / `.hlsli`）と Unreal Engine（`.usf` / `.ush`）も、`.shaderlyn.yaml` で環境を選ぶと解析します（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。
-GLSL（`.vert` / `.frag` / `.comp` / `.glsl` など）も、設定なしで宣言・型・呼び出しを検査し、説明（ホバー）・定義へ移動・補完・引数の案内も GLSL の型と組み込み関数で答えます。
-Godot のシェーダー（`.gdshader` / `.gdshaderinc`）も、設定なしで Godot 4 のコンパイラと同じ誤りを報告し、説明・定義へ移動・補完・引数の案内も Godot の型と組み込み（`ALBEDO`・`TIME` など）で答えます。`render_mode` のモードと uniform のヒントも補完します。レンダラー（Forward+ / Mobile / Compatibility）は `project.godot` から読みます。
-Slang（`.slang`）も、設定なしで slangc と同じ誤りを報告し、説明・定義へ移動・補完では `import` したモジュールと標準ライブラリ（`CoopVec` など）を使用します。
-WGSL（`.wgsl`）も、設定なしで naga（wgpu）と同じ誤りを報告し、説明・定義へ移動・補完も WGSL の型と組み込み関数で答えます。
+English | [日本語](README.ja.md)
 
-## 主な機能
+Shaderlyn finds errors in shaders as you edit.
+It analyzes Unity ShaderLab and HLSL, Unreal Engine, plain HLSL, GLSL, Godot, Slang and WGSL, and also provides hover, completion and navigation.
+For GLSL, Godot, Slang and WGSL, it reports the same errors as each language's compiler (glslang, Godot 4, slangc and naga).
 
-### 1. 快適性を損なわない 2段階の静的解析
+| Language | Extensions | Configuration |
+| --- | --- | --- |
+| Unity ShaderLab and HLSL | `.shader` `.hlsl` `.cginc` `.hlslinc` `.compute` | Not needed (open the Unity project root) |
+| Unreal Engine | `.usf` `.ush` | Not needed (the engine and project are found from the opened file) |
+| HLSL compiled directly with DXC | `.hlsl` `.hlsli` | Select the environment in `.shaderlyn.yaml` ([environments](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)) |
+| GLSL | `.vert` `.frag` `.comp` `.geom` `.tesc` `.tese` `.task` `.rgen` `.rint` `.rahit` `.rchit` `.rmiss` `.rcall` `.glsl` | Not needed |
+| Godot | `.gdshader` `.gdshaderinc` | Not needed (the renderer is read from `project.godot`) |
+| Slang | `.slang` | Not needed (`import`ed modules and the standard library are used) |
+| WGSL | `.wgsl` | Not needed |
 
-入力中のストレスをなくすため、編集時と保存時で異なるレベルの解析を行います。
+The same analysis is available for [Visual Studio](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn-visualstudio) and [Rider](https://plugins.jetbrains.com/plugin/36384-shaderlyn).
 
-* **入力のたび（即時）:** 構文エラー、タグ、Pass 名、レンダーステート、プロパティ名などを高速チェック
-* **ファイル保存時:** プロパティと HLSL の整合性（宣言漏れ・型不一致）、SRP Batcher 適合性など、`#include` の解決を要するチェック
-* **取り込んだヘッダの指摘:** `.shader` を開いたとき・保存したときに、取り込んでいる共通の `.hlsl` などの指摘も、そのヘッダのファイルに出ます。取り込む側の文脈 (先に宣言した名前やシンボルの構成) で検査した結果です。Unity や外部パッケージのヘッダ (`Library` の下と Unity Editor に同梱のもの) は報告しません
-* **有効になっている分岐の表示:** どの構成でも条件が外れる `#if` / `#ifdef` の中を薄く表示します。`multi_compile` などのシンボルのバリアントで有効になる分岐は薄くしません（シンボルを選んで、その構成で表示することもできます）。`SHADER_API_*` / `SHADER_STAGE_*` / `UNITY_VERSION` などプラットフォームやバージョンで決まる分岐、取り込むヘッダを解決できていない場合、展開の上限で調べきれなかったシンボルの分岐も、判断できないため薄くしません。開いたとき・保存したとき・シンボルを選んだときに更新されます（設定: `shaderlyn.inactiveRegions.enabled` / `.opacity`）
+## Features
 
-![CF0411 の指摘が波線と「問題」パネルに出て、条件が外れた #if の中が薄く表示されている画面](images/error_hide.png)
+| Feature | Description |
+| --- | --- |
+| Diagnostics | Squiggles and the Problems panel. Syntax and ShaderLab values are checked as you type. Declarations, types and `#include` resolution are checked when a file is opened or saved |
+| Quick fixes | Fixes for diagnostics with a single correct fix (typos, for example), and insertion of a suppression comment (`// shaderlyn-disable-next-line <ID>`) |
+| Hover | Types, macro expansions, the mapping between ShaderLab properties and HLSL, semantics and `#pragma` |
+| Completion and signature help | Candidates that take conditional compilation into account, and function parameters |
+| Go to definition, references, rename | Variables, functions, structs, macros, and ShaderLab properties mapped to HLSL uniforms |
+| Inactive regions | `#if` / `#ifdef` blocks whose condition is false are dimmed. You can also select symbols and view that configuration |
+| Inspect the analysis | The syntax tree, tokens, types and macros of the current file |
 
-### 2. リッチなホバー情報（型・対応関係の可視化）
+### Diagnostics in two stages
 
-コード上にカーソルを置くだけで、型情報や構造体の構成、HLSL へのマッピング状態を確認できます。
+Analysis is split so that typing stays responsive.
 
-* **プロパティと HLSL の対応:** `Properties` の項目が HLSL 側でどう宣言されているか（またはバッファにどう入っているか）を提示
-* **型・式:** 判定された型（例: `uv.x` → `float`）、マクロの中身、定数バッファの構成や SRP Batcher への影響
-* **言語要素:** セマンティクス（`SV_Target` 等）の意味、タグやレンダーステートで指定可能な値の一覧
-* **`#pragma`:** `vertex` / `multi_compile_fog` / `shader_feature_local_fragment` などの役割と、エントリポイントやシンボルとして書かれた引数の意味
+* **As you type:** syntax errors, tags, Pass names, render states, property names and other checks that need only the current file
+* **When a file is opened or saved:** consistency between properties and HLSL (missing declarations, type mismatches), SRP Batcher compatibility and other checks that need `#include` resolution
+* **Diagnostics in included headers:** when you open or save a `.shader`, diagnostics in the shared `.hlsl` files it includes are shown in those files. They are checked in the context of the including file (names declared before the `#include`, and the symbol configuration). Headers of Unity and external packages (under `Library` and those bundled with the Unity Editor) are not reported
+* **Inactive regions:** `#if` / `#ifdef` blocks that are false in every configuration are dimmed. Branches enabled by a variant of `multi_compile` and similar symbols are not dimmed (you can select symbols to view one configuration). Branches decided by the platform or version (`SHADER_API_*`, `SHADER_STAGE_*`, `UNITY_VERSION` and so on), configurations whose headers cannot be resolved, and symbols beyond the expansion limit are not dimmed either, because they cannot be decided. The display is updated when a file is opened or saved, and when symbols are selected (settings: `shaderlyn.inactiveRegions.enabled` / `.opacity`)
 
+![A CF0411 diagnostic shown as a squiggle and in the Problems panel, with an inactive #if block dimmed](images/error_hide.png)
 
-![プロパティ _BaseColor のホバー。プロパティの型と、HLSL 側の宣言 (UnityPerMaterial の中の half4) が出ている](images/property.png)
+### Hover
 
-![変数 b のホバー。型と、「この構成でだけ存在します: #if !_A && _B」が出ている](images/condition.png)
+Hover over code to see types, struct layouts and how ShaderLab maps to HLSL.
 
-![タグ RenderType の値のホバー。よく使用される値の一覧が出ている](images/candidate.png)
+* **Properties and HLSL:** how an entry in `Properties` is declared in HLSL (or which constant buffer it is in)
+* **Types and expressions:** the inferred type (`uv.x` → `float`, for example), macro expansions, constant buffer layouts and their effect on the SRP Batcher
+* **Language elements:** the meaning of semantics (`SV_Target` and so on), and the values allowed for tags and render states
+* **`#pragma`:** the role of `vertex`, `multi_compile_fog`, `shader_feature_local_fragment` and so on, and the meaning of the entry points and symbols written as arguments
 
-### 3. 定義への移動（F12）& 参照・補完支援
+![Hover on the property _BaseColor, showing its type and the HLSL declaration (a half4 in UnityPerMaterial)](images/property.png)
 
-* **定義へ移動 (`F12`):** `Properties` 名と HLSL 側 uniform 名の相互ジャンプ、変数・関数・構造体・マクロの宣言箇所へジャンプ
-* **Package Cache の自動解決:** `Packages/com.unity...` などの仮想パスを実際の `Library/PackageCache` 配下のファイルへ自動解決してジャンプ
-* **インテリセンス・補完:** `#ifdef` などの条件付きコンパイル情報を考慮し、現在のコンテキストで利用可能なメンバーや引数（シグネチャヘルプ）を提示
-  * `#` の後ろでは指令の名前、`#pragma` の後ろでは pragma の名前（説明付き）、`#pragma vertex` などの後ろではこのファイルの関数、`#if` / `#ifdef` ではシェーダーのシンボルとマクロを出します
-  * コメント・文字列の中と、`.shader` の ShaderLab の部分では、HLSL の候補を出しません
-* **一括リネーム (`F2`) / 参照検索 (`Shift+F12`):** スコープを正確に解釈し、安全にコードを変更・検索
+![Hover on the variable b, showing its type and "exists only in this configuration: #if !_A && _B"](images/condition.png)
 
-![引数 IN の参照を一覧した画面](images/f12.png)
+![Hover on a value of the RenderType tag, listing the commonly used values](images/candidate.png)
 
-![引数 IN の名前を変更している画面](images/f2.png)
+### Go to definition, references and completion
 
-### 4. クイックフィックス (コード修正)
+* **Go to definition (`F12`):** jumps between a `Properties` name and the HLSL uniform, and to the declarations of variables, functions, structs and macros
+* **Package paths:** virtual paths such as `Packages/com.unity...` are resolved to the actual files under `Library/PackageCache`
+* **Completion and signature help:** members and parameters available in the current context, taking conditional compilation (`#ifdef` and so on) into account
+  * After `#`, directive names. After `#pragma`, pragma names (with descriptions). After `#pragma vertex` and similar, the functions in the file. In `#if` / `#ifdef`, shader symbols and macros
+  * No HLSL candidates are shown in comments, strings, or the ShaderLab part of a `.shader`
+* **Rename (`F2`) and find references (`Shift+F12`):** scopes are resolved, so only the right names are changed
 
-電球アイコン（`Ctrl+.` / `Cmd+.`）から、1回の操作で問題を修正できます。
+![Listing the references of the parameter IN](images/f12.png)
 
-* **値の自動修正:** スペルミス（`SL1010` 等）など、正しい値が一意に定まる場合に修正案を提示
-* **警告の抑制:** 該当行にルールID付きの抑制コメント（`// shaderlyn-disable-next-line <ID>`）を自動挿入
+![Renaming the parameter IN](images/f2.png)
 
-![スペルミスをクイックフィックスで修正する様子](images/typo.gif)
+### Quick fixes
 
-![クイックフィックスで抑制コメントを挿入する様子](images/comment.gif)
+Fix a diagnostic in one step from the light bulb (`Ctrl+.` / `Cmd+.`).
 
-### 5. 解析状況のインスペクト（内部状態の可視化）
+* **Value fixes:** when the correct value is unique, such as a typo (`SL1010` and so on)
+* **Suppression:** inserts a suppression comment with the rule ID (`// shaderlyn-disable-next-line <ID>`) on the line
 
-コマンドパレットから **「Shaderlyn: 解析の中身を見る」** を実行すると、構文木・トークン・式ごとの型判定結果・マクロ一覧を別タブで確認できます。エラーの原因特定に便利です。
+![Fixing a typo with a quick fix](images/typo.gif)
 
-![「解析の中身を見る」で構文木や型判定の結果を表示する様子](images/inspect.gif)
+![Inserting a suppression comment with a quick fix](images/comment.gif)
 
-### 6. HLSL ファイル単体の解析と条件のシンボル
+### Inspect the analysis
 
-`.hlsl` / `.cginc` / `.hlslinc` / `.compute` を開くと、ファイル全体を 1 つの HLSL として解析します。
+Run **Shaderlyn: 解析の中身を見る** (Inspect the analysis) from the Command Palette to see the syntax tree, tokens, the type of each expression and the macros in a separate tab. This helps find the cause of a diagnostic.
 
-`.hlsl` / `.cginc` / `.hlslinc` のような include 前提のファイルでは、次の 2 つを報告しません。(`.shader` に書くことが多いため)
-`.compute` は 1 ファイルで完結するので報告します。
+![Showing the syntax tree and inferred types with the inspect command](images/inspect.gif)
 
-* シェーダーステージの `#pragma` が存在しない（`UN0301`）
-* 宣言されていないシンボルを条件に使用している（`CF0201`）
+### Analyzing an HLSL file on its own
 
-**条件の中のコードを検査する:** 
-`#ifdef _FOO` の `_FOO` をファイルのどこでも定義していないと、その分岐の中は解析されません。
-エディタ右上のボタン（またはコマンドパレットの **「Shaderlyn: 条件のシンボルを選ぶ」**）で有効にするシンボルにチェックを付けると、`#define _FOO 1` と同じ状態で解析し直します。
-`#include` 前提で `#define` を内部で書いていない場合等に有効です。
+Opening a `.hlsl`, `.cginc`, `.hlslinc` or `.compute` file analyzes the whole file as one HLSL program.
 
-* 候補は、このファイルの `#if` / `#ifdef` が参照していて、`#define` にも取り込んだヘッダにも定義が存在しない名前です
-* 選んだシンボルはファイルごとにワークスペースへ保存され、ウィンドウを再読み込みしても残ります
-* チェックをすべて外して確定すると、定義を追加しない状態に戻ります
+Files meant to be included (`.hlsl`, `.cginc`, `.hlslinc`) are often used from a `.shader`, so the following are not reported in them.
+A `.compute` file is complete on its own, so they are reported there.
 
-![右上のボタンから条件のシンボルを選び、分岐の中を解析し直す様子](images/select-symbol.gif)
+* No shader stage `#pragma` (`UN0301`)
+* A symbol that is not declared is used in a condition (`CF0201`)
 
-### 7. シンボルの構成を選んで表示する
+**Checking code inside conditions:**
+If `_FOO` in `#ifdef _FOO` is not defined anywhere in the file, the code inside that branch is not analyzed.
+Check symbols with the button at the top right of the editor (or **Shaderlyn: 条件のシンボルを選ぶ** (Select condition symbols) from the Command Palette) to analyze the file again as if `#define _FOO 1` were written.
+This is useful for files that are included and do not `#define` the symbol themselves.
 
-`.shader` でも HLSL のファイルでも使用できます。
+* The candidates are names that the file's `#if` / `#ifdef` refer to and that are defined neither by `#define` nor in an included header
+* The selected symbols are saved per file in the workspace, and remain after the window is reloaded
+* Confirming with every check cleared goes back to analyzing without extra definitions
 
-`#pragma multi_compile` / `#pragma shader_feature` のシンボルで分かれる分岐は、どれかの構成で有効になるので、ふだんは薄くしません。同じボタン（**「Shaderlyn: 条件のシンボルを選ぶ」**）でシンボルにチェックを入れて確定すると、そのシンボルだけを有効にした構成で、効いていない分岐を薄く表示します。
+![Selecting condition symbols from the button at the top right and analyzing the branches again](images/select-symbol.gif)
 
-* チェックしなかったシンボルは無効として扱います。`multi_compile _ _A _B` で `_A` を選ぶと、`#ifdef _B` の中と `#ifdef _A` の `#else` 側が薄くなります
-* 同じ `#pragma` の行に並べたシンボルは、同時には有効になりません。1 つにチェックを付けると、その行の他のチェックが外れます
-* `_` を書いていない行（`multi_compile _A _B`）は、どれか 1 つが必ず有効です。その行を空にはできず、最後の 1 つを外すと戻ります
-* シンボルを 1 つも有効にしない構成を見るには、**「すべての構成を合わせて表示」** のチェックを外して確定します。ただし `_` が存在しない行があると、その行には 1 つ入ります
-* 元の表示に戻すには、**「すべての構成を合わせて表示」** にチェックを入れ、シンボルのチェックをすべて外して確定します
-* 変わるのは薄く表示する範囲だけです。指摘はこれまでどおり、シンボルのバリアントをすべて検査した結果を出します
-* プラットフォームで決まる分岐（`SHADER_API_*` など）と、取り込むヘッダを解決できない構成は、構成を選んでも薄くしません
+### Viewing one symbol configuration
 
-汎用の HLSL・Unreal の環境では、設定ファイルの `symbols:` で宣言したシンボルが並びます。
-値を持つシンボル（`QUALITY: [0, 1, 2]` など）は `QUALITY = 0` / `QUALITY = 1` / `QUALITY = 2` のように並び、値を 1 つ選びます。
+This works in `.shader` files and HLSL files.
 
-![シンボルを選んで、その構成で無効な分岐を薄く表示する様子](images/select-symbol.gif)
+Branches separated by the symbols of `#pragma multi_compile` / `#pragma shader_feature` are enabled in some configuration, so they are normally not dimmed. Check symbols with the same button (**Shaderlyn: 条件のシンボルを選ぶ**) and confirm, and the branches that are inactive in the configuration with only those symbols enabled are dimmed.
+
+* Symbols that are not checked are treated as disabled. Selecting `_A` in `multi_compile _ _A _B` dims the inside of `#ifdef _B` and the `#else` side of `#ifdef _A`
+* Symbols on the same `#pragma` line cannot be enabled together. Checking one clears the other checks on that line
+* On a line without `_` (`multi_compile _A _B`), one symbol is always enabled. The line cannot be empty, and clearing the last one restores it
+* To view the configuration with no symbol enabled, clear **すべての構成を合わせて表示** (Combine all configurations) and confirm. A line without `_` still gets one symbol
+* To go back to the original display, check **すべての構成を合わせて表示**, clear every symbol and confirm
+* Only the dimmed regions change. Diagnostics are still the result of checking every symbol variant
+* Branches decided by the platform (`SHADER_API_*` and so on) and configurations whose headers cannot be resolved are not dimmed even when a configuration is selected
+
+In the plain HLSL and Unreal environments, the symbols declared in `symbols:` of the configuration file are listed.
+Symbols with values (`QUALITY: [0, 1, 2]` and so on) are listed as `QUALITY = 0` / `QUALITY = 1` / `QUALITY = 2`, and you select one value.
+
+![Selecting symbols and dimming the branches that are inactive in that configuration](images/select-symbol.gif)
 
 ---
 
-## 導入と設定
+## Installation
 
-### インストール
+Search for **Shaderlyn** in the Extensions view of VS Code and install it ([Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn)).
+From the command line, run `code --install-extension OmojiP.shaderlyn`.
+The language server is bundled, so .NET does not need to be installed.
 
-VS Code の拡張機能ビューで **Shaderlyn** を検索してインストールします（[Marketplace](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn)）。
-コマンドラインからは `code --install-extension OmojiP.shaderlyn` で入れられます。
-言語サーバーを同梱しているので、.NET のインストールは不要です。
+### Installing from a vsix
 
-#### vsix からインストールする
+Where the Marketplace is not available, download the vsix for your platform from the [releases page](https://github.com/OmojiP/shaderlyn/releases).
 
-Marketplace を使用できない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使用する環境の vsix を取得します。
+| Platform | File |
+| --- | --- |
+| Windows (x64) | `shaderlyn-vscode-win32-x64.vsix` |
+| Windows (arm64) | `shaderlyn-vscode-win32-arm64.vsix` |
+| macOS (Apple Silicon) | `shaderlyn-vscode-darwin-arm64.vsix` |
+| macOS (Intel) | `shaderlyn-vscode-darwin-x64.vsix` |
+| Linux (x64) | `shaderlyn-vscode-linux-x64.vsix` |
+| Linux (arm64) | `shaderlyn-vscode-linux-arm64.vsix` |
 
-| 環境                  | ファイル                                 |
-| --------------------- | ---------------------------------------- |
-| Windows (x64)         | `shaderlyn-vscode-win32-x64.vsix`        |
-| macOS (Apple Silicon) | `shaderlyn-vscode-darwin-arm64.vsix`     |
-| macOS (Intel)         | `shaderlyn-vscode-darwin-x64.vsix`       |
-| Linux (x64)           | `shaderlyn-vscode-linux-x64.vsix`        |
-| Linux (arm64)         | `shaderlyn-vscode-linux-arm64.vsix`      |
-
-VS Code のコマンドパレットで **「拡張機能: VSIX からのインストール...」**（`Extensions: Install from VSIX...`）を選び、取得したファイルを指定します。
-コマンドラインからは次のように入れられます。
+Select **Extensions: Install from VSIX...** in the Command Palette and choose the downloaded file.
+From the command line:
 
 ```bash
 code --install-extension shaderlyn-vscode-win32-x64.vsix
 ```
 
-環境に合わない vsix を選ぶと、VS Code がインストールを断ります。
+VS Code refuses a vsix for a different platform.
 
-### 動作条件
+## Getting started
 
-* Unity プロジェクトのルート（`Assets` と `ProjectSettings` が存在するフォルダー）を VS Code で開いてください。自動でパッケージ参照などを解決します。
-* Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ（`/Engine/...`）を解決するには、`.shaderlyn.yaml` にエンジンの場所（`unreal: engine`）を書いてください
-* Unity 以外の環境（汎用の HLSL など）では、`.shaderlyn.yaml` に `environment` を書いてください（[環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)）。試すためのテンプレートが [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments) にあります
+* For a Unity project, open the project root (the folder that contains `Assets` and `ProjectSettings`) in VS Code. Package references are resolved automatically
+* Unreal Engine `.usf` and `.ush` files are analyzed as Unreal Engine without any configuration. The engine and project locations are found from the opened file (a file inside the engine, or a `.uproject` in the workspace). If they are not found, set `unreal: engine` / `unreal: project` in `.shaderlyn.yaml`
+* For other environments (plain HLSL and so on), set `environment` in `.shaderlyn.yaml` ([environments](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md)). Templates to try are in [samples/environments](https://github.com/OmojiP/shaderlyn/tree/main/samples/environments)
 
-### 設定項目 (`settings.json`)
+## Settings
 
-| 設定項目 | 説明 | 既定値 |
+Rule severities and disabling rules are configured in `.shaderlyn.yaml` ([configuration](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md)). The nearest `.shaderlyn.yaml` above the opened file is used, and changes take effect from the next analysis.
+
+Extension settings (`settings.json`):
+
+| Setting | Description | Default |
 | --- | --- | --- |
-| `shaderlyn.serverPath` | 独自ビルドした言語サーバーの実行ファイルパス（空の場合は同梱バイナリを使用）。変更したらウィンドウの再読み込みが必要です | `""` |
-| `shaderlyn.trace.server` | VS Code と言語サーバー間の通信ログを出力パネルに記録する | `"off"` |
-| `shaderlyn.inactiveRegions.enabled` | 条件が外れて無効な `#if` / `#ifdef` の中を薄く表示する | `true` |
-| `shaderlyn.inactiveRegions.opacity` | 無効な範囲を表示するときの不透明度（0.1〜1） | `0.45` |
+| `shaderlyn.serverPath` | The language server executable to start. When empty, the bundled one is used. Reload the window after changing it | `""` |
+| `shaderlyn.trace.server` | Records the communication between VS Code and the language server in the Output panel | `"off"` |
+| `shaderlyn.inactiveRegions.enabled` | Dims `#if` / `#ifdef` blocks whose condition is false | `true` |
+| `shaderlyn.inactiveRegions.opacity` | The opacity of inactive regions (0.1 to 1) | `0.45` |
 
-*※ ルールの詳細設定や無効化は `.shaderlyn.yaml` に書きます。開いたファイルから上へ辿って一番近い `.shaderlyn.yaml` を使用し、書き換えると次の解析から反映されます。*
+## Using custom rules
 
-### 自作ルールを使用する
+The bundled language server runs only the built-in rules. To see diagnostics from your own rules in the editor, build a language server that includes them and point `shaderlyn.serverPath` to it.
 
-同梱の言語サーバーが実行するのは組み込みルールだけです。自作ルールをエディタでも働かせる場合は、アナライザの一覧を渡すサーバーを自分でビルドし、`shaderlyn.serverPath` に指します。
+How to build the server (project, `Program.cs`, publish) is described in [writing custom rules, 5-1](https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/tutorial.md#5-1-エディタでも働かせる). This section describes how to use the built server from VS Code.
 
-サーバーの作り方（プロジェクト・`Program.cs`・publish）は [自作ルールの作り方「エディタでも働かせる」](../../docs/custom-rules/tutorial.md#5-1-エディタでも働かせる) にあります。ここでは、ビルドしたサーバーを VS Code から使用する手順を説明します。
+### 1. Point VS Code to the server
 
-#### 1. VS Code から指す
-
-`settings.json` に、publish した**実行ファイル**の絶対パスを書きます。拡張はこのファイルを引数なしで起動するため、`.dll` は指せません。
+Write the absolute path of the published **executable** in `settings.json`. The extension starts this file without arguments, so a `.dll` cannot be used.
 
 ```json
 {
@@ -170,34 +191,40 @@ code --install-extension shaderlyn-vscode-win32-x64.vsix
 }
 ```
 
-#### 2. ウィンドウを再読み込みする
+### 2. Reload the window
 
-コマンドパレット（`Ctrl+Shift+P` / `Cmd+Shift+P`）から **Developer: Reload Window** を実行します。
+Run **Developer: Reload Window** from the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
 
-**設定を保存しただけでは、サーバーは切り替わりません。** 拡張は `shaderlyn.serverPath` を起動したときに一度だけ読みます。再読み込みするまでは前のサーバー（同梱のサーバーなど）が動き続け、エラーも出ないまま自作ルールの指摘だけが出ない状態になります。
+**Saving the setting does not switch the server.** The extension reads `shaderlyn.serverPath` only once, when it starts. Until the window is reloaded, the previous server (the bundled one, for example) keeps running, and your rules report nothing without any error.
 
-次のときは、そのたびに再読み込みしてください。
+Reload the window each time you:
 
-- `serverPath` を変えたとき
-- ルールを追加したり直したりして、サーバーを publish し直したとき
+- change `serverPath`
+- add or fix rules and publish the server again
 
-再読み込みしたら `.shader` を開いて保存し、自作ルールの指摘が報告されるかを確認します。HLSL を見るルールは、ファイルを開いたときと保存したときに走ります。打っている最中は ShaderLab 単体の検査だけが走るため、HLSL の指摘はいったん消え、保存すると戻ります。
+After reloading, open and save a `.shader` and check that your rules report diagnostics. Rules that look at HLSL run when a file is opened or saved. While you type, only the ShaderLab checks run, so HLSL diagnostics disappear for a moment and come back when you save.
 
-> **Note**: Windows では、VS Code が動かしているサーバーの実行ファイルは上書きできません。同じフォルダーへ再度 publish すると失敗するため、ウィンドウを閉じてから publish するか、別のフォルダーを指定して `serverPath` を変えてください。
+> **Note**: On Windows, the executable of a server that VS Code is running cannot be overwritten. Publishing again to the same folder fails, so close the window before publishing, or publish to another folder and change `serverPath`.
 
-#### つまずいたとき
+### Troubleshooting
 
-症状ごとの原因と対処は [トラブルシューティング「VS Code 拡張」](../../docs/guide/troubleshooting.md#vs-code-拡張) にまとめてあります。
-ルールそのものが指摘を報告しない場合は、同じページの [「自作ルール」](../../docs/guide/troubleshooting.md#自作ルール) を見てください。
+Causes and fixes for each symptom are in [troubleshooting, VS Code extension](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/troubleshooting.md#vs-code-拡張).
+If a rule itself reports nothing, see [custom rules](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/troubleshooting.md#自作ルール) on the same page.
 
-### 他のシェーダー関連拡張機能との共存について
+## Other shader extensions
 
-本拡張機能は `.shader` や `.hlsl` に対する**独自言語の登録（構文ハイライトの強制上書き）を行いません**。VS Code 組み込みの `shaderlab` や、他の Unity / Shader 関連拡張機能のカラーリング機能を崩すことなく、静的解析とLanguage Server機能（補完・ホバー・定義ジャンプ等）のみを安全に追加します。
+This extension **does not register its own languages** for `.shader` or `.hlsl` (it does not override syntax highlighting). The coloring of the built-in `shaderlab` language and other Unity or shader extensions stays as it is, and Shaderlyn adds only analysis and language server features (completion, hover, go to definition and so on).
 
----
+## Documentation
 
-## ライセンス
+The documentation is written in Japanese. See the [repository](https://github.com/OmojiP/shaderlyn).
+
+## Privacy
+
+The extension does not collect telemetry and does not connect to the network. Analysis runs in a local process bundled with the extension.
+
+## License
 
 MIT License
 
-組み込み関数の表は DirectXShaderCompiler のデータから作っています。その著作権表示とライセンスは、拡張に同梱した THIRD-PARTY-NOTICES.txt にあります。
+The intrinsic function tables are generated from DirectXShaderCompiler data. Its copyright notice and license are in THIRD-PARTY-NOTICES.txt bundled with the extension.

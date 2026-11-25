@@ -2,16 +2,34 @@
 
 `environment: unreal` で、Unreal Engine の `.usf` / `.ush` を解析します。フォルダーを指定すると `.usf` を探します。エンジン本体が存在しなくても動きます。
 `environment` を書いていない場合も、`.usf` / `.ush` は Unreal Engine の環境で解析します ([環境の選び方](../environments.md#環境の選び方))。
-ただし、`/Engine/...` の取り込みを解決するには、設定ファイルにエンジンの場所 (`unreal: engine`) を書く必要があります。
+`/Engine/...` と `/Project/...` の取り込みは、設定ファイルに場所を書かなくても、解析するファイルから見つけたエンジンとプロジェクトで解決します ([エンジンとプロジェクトの場所](#エンジンとプロジェクトの場所))。
 
 ほかの環境と共通の使用方法は [CLI の使用方法](../cli-usage.md)、設定ファイルのキーは [設定](../configuration.md#unreal) にあります。
 
 ## 目次
 
+- [エンジンとプロジェクトの場所](#エンジンとプロジェクトの場所)
 - [設定ファイル](#設定ファイル)
-- [生成ファイルがない場合](#生成ファイルがない場合)
+- [生成ファイルが存在しない場合](#生成ファイルが存在しない場合)
 - [解析時の前提](#解析時の前提)
 - [C++ から生成されるファイルを作る](#c-から生成されるファイルを作る)
+
+## エンジンとプロジェクトの場所
+
+設定ファイルに `unreal: engine` / `unreal: project` を書いていない場合は、解析するファイルから探します。書いた場合は、書いたほうを使用します。
+
+1. **ファイルがエンジンの中にある場合:** エンジンの `Engine` フォルダーの中のファイル (`Engine/Shaders/…` と、エンジンのプラグインの `Engine/Plugins/…/Shaders/…`) の場合は、その `Engine` をエンジンにします。
+   `Engine/Build/Build.version` と `Engine/Shaders/Public/Platform.ush` があるフォルダーだけを、エンジンとみなします。プロジェクトは探しません。
+2. **上のフォルダーに `.uproject` がある場合:** そのフォルダーをプロジェクトにし、`.uproject` の `EngineAssociation` からエンジンを決めます。
+   - 空の場合: プロジェクトを含むエンジンの木 (エンジンのソースの中のプロジェクト)
+   - `5.5` のようなバージョンの場合: その PC にインストールしたエンジン (Epic Games Launcher の記録とレジストリ。Linux・macOS は `Install.ini`)
+   - `{GUID}` の場合: ソースからビルドして登録したエンジン (Windows はレジストリ、Linux・macOS は `Install.ini`)
+
+   同じフォルダーに `.uproject` が複数ある場合は、どれか決められないので使用しません。
+
+`.uproject` を探すときは、CLI では止めずに上のフォルダーへたどり、エディタ (言語サーバー) ではワークスペースのルートまでたどります。
+エンジンの中のファイルかどうかは、取り違えが起きないので、エディタでもワークスペースのルートより上まで見ます (エンジンのプラグインのフォルダーを開いた場合など)。
+どう決めたかは `--env` に表示します。インストールしたエンジンで決まる場合は PC によって結果が変わるので、CI では `unreal: engine` を書くことを勧めます。
 
 ## 設定ファイル
 
@@ -41,13 +59,13 @@ units:
 
 テンプレートとサンプルが [samples/environments/unreal](../../../samples/environments/unreal/) にあります。
 
-## 生成ファイルがない場合
+## 生成ファイルが存在しない場合
 
 ビルド時にエンジンが生成するファイル (`/Engine/Generated/…`) は、生成していないと解決できません。該当する `#include` はエラーとして報告しませんが、
 uniform buffer などの宣言も読み取れないため、宣言の有無を調べる検査 (CF0301 / CF0310 など) を行いません。この状態は UE0001 (情報) で知らせます。
 型の誤りなど、取り込んだ先の宣言を必要としない検査は行います。
 
-関数呼び出しの引数を調べる検査 (CF0401 / CF0402) は、欠けているファイルに関数宣言が含まれないと分かっている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけなら、検査します。
+関数呼び出しの引数を調べる検査 (CF0401 / CF0402) は、欠けているファイルに関数宣言が含まれないと分かっている場合に行います。たとえば、欠けているのが uniform buffer の宣言 (`GeneratedUniformBuffers.ush` / `UniformBuffers/…`) だけの場合は、検査します。
 
 - `GeneratedInstancedStereo.ush` は `GetPrimaryView` など 3 つの関数だけを宣言するため、これらの関数呼び出しは検査しません
 - `Material.ush` / `VertexFactory.ush` を取り込むシェーダーでは、関数の宣言が欠けている可能性があるため、引数の検査を行いません
@@ -56,13 +74,13 @@ uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりと
 
 ## 解析時の前提
 - エディタがプロジェクトの `Intermediate/ShaderAutogen/<プラットフォーム>` に生成する GBuffer の取り込み
-  (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読みます。エディタで一度プロジェクトを開くと作られます
+  (`/Engine/Generated/ShaderAutogen/AutogenShaderHeaders.ush`) は、そのフォルダーがあれば読み込みます。エディタで一度プロジェクトを開くと作られます
 - マテリアルのシェーダーには、エンジンと同じく `IS_MATERIAL_SHADER=1` を定義します
 - シェーダーコンパイラのマクロは、PC の Direct3D 12 を想定して `COMPILER_HLSL=1` / `COMPILER_DXC=1` / `SM6_PROFILE=1` を定義します。
   ほかのプラットフォームに合わせるときは `defines` で上書きしてください
 - **言語のバージョンは、エンジンの設定に合わせてシェーダーごとに決めます。** エンジンはプラットフォームの設定
   (`Engine/Config/<プラットフォーム>/DataDrivenPlatformInfo.ini` の `EnablesHLSL2021ByDefault`) で決めており、
-  Shaderlyn もそれを読みます (既定は PC の `PCD3D_SM6`)。UE 5.5 の PC は `1` で、次のようになります。
+  Shaderlyn もそれを参照します (既定は PC の `PCD3D_SM6`)。UE 5.5 の PC は `1` で、次のようになります。
 
   | シェーダー | 言語のバージョン |
   | --- | --- |
@@ -71,7 +89,7 @@ uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりと
 
   シェーダーの C++ が `CFLAG_HLSL2021` で個別に 2021 にすることがある (Nanite・Lumen・パストレーシングなど) ので、
   2018 で解析するシェーダーでも、template・演算子の多重定義・ビットフィールドは誤りにしません。
-  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで読みます。エンジンのフォルダーが存在しないときの既定は 2018 です。
+  `hlsl: version` を書くと、すべてのシェーダーをそのバージョンで解析します。エンジンのフォルダーが存在しないときの既定は 2018 です。
   `--env` に、どう決めたかを表示します
 - `#pragma once` を扱います。エンジンのヘッダは、インクルードガードではなく `#pragma once` で二重の取り込みを防いでいます
 - エンジンの C++ がコンパイルのときに定義するマクロのうち、PC の Direct3D で値の決まる `HAS_INVERTED_Z_BUFFER=1` は既定で定義します。
@@ -88,13 +106,13 @@ uniform buffer の宣言や `Material.ush` / `VertexFactory.ush` の代わりと
 ## C++ から生成されるファイルを作る
 
 エンジンは、C++ に書いた uniform buffer の構造体 (`BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT` など) から、
-シェーダーをコンパイルする直前に `/Engine/Generated/` の宣言をメモリ上で作ります。Shaderlyn は同じ C++ を読み、これらの宣言をファイルに出力できます。
+シェーダーをコンパイルする直前に `/Engine/Generated/` の宣言をメモリ上で作ります。Shaderlyn は同じ C++ を解析し、これらの宣言をファイルに出力できます。
 
 ```sh
 shaderlyn --config .shaderlyn.yaml --unreal-generate Intermediate/Shaderlyn/Generated
 ```
 
-設定ファイルの `unreal: engine` と `project` で指定した `Source` / `Plugins` 以下の C++ を読みます (UE 5.5 のエンジンで 2 分ほどかかります)。
+設定ファイルの `unreal: engine` と `project` で指定した `Source` / `Plugins` 以下の C++ を解析します (UE 5.5 のエンジンで 2 分ほどかかります)。
 生成先のフォルダーを `unreal: generated` に指定すると、`/Engine/Generated` に割り当てて解析します。
 
 ```yaml
@@ -109,14 +127,14 @@ unreal:
 | `UniformBuffers/<名前>.ush`、`GeneratedUniformBuffers.ush` | uniform buffer の宣言。`View.ViewSizeAndInvSize` と `View_ViewSizeAndInvSize` のどちらの書き方でも解決できます。`Scene` も含みます |
 | `GeneratedInstancedStereo.ush` | `ViewState` と `GetPrimaryView` などの宣言 |
 | `ShaderlynEngineDefines.txt` | エンジンの C++ がシェーダーに定義するマクロの名前 (`SetDefine`、`SET_SHADER_DEFINE`、パーミュテーションの次元)。値は不明なため、名前だけを「宣言されている」ものとして扱います |
-| `ShaderlynShaderRegistrations.tsv` | シェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など。登録を包んだ独自のマクロも展開して読みます)。`.usf` ごとのエントリポイントとステージ |
+| `ShaderlynShaderRegistrations.tsv` | シェーダーの登録 (`IMPLEMENT_GLOBAL_SHADER` など。登録を包んだ独自のマクロも展開して解析します)。`.usf` ごとのエントリポイントとステージ |
 | `ShaderlynShaderClasses.tsv` | シェーダーのクラスが定義するマクロとパーミュテーション、どの組もコンパイルされないクラス、エンジンがどのシェーダーにも定義するマクロ (`SUBSTRATE_ENABLED` など) |
 | `Material.ush`、`UniformBuffers/Material.ush` | マテリアルの代わり。エンジンの `MaterialTemplate.ush` の、マテリアルごとに埋まる穴を、何もしない中身で埋めたもの (下記) |
 | `VertexFactory.ush` | 頂点ファクトリ (`IMPLEMENT_VERTEX_FACTORY_TYPE`) の `.ush` を、`SHADERLYN_VERTEX_FACTORY` の値で選んで取り込むもの |
 | `ShaderlynVertexFactoryDefines.ush` | 頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロを、`SHADERLYN_VERTEX_FACTORY` の値で選んで定義するもの |
 | `ShaderlynGenerationStamp.tsv` | 読み込んだ ini の中身のハッシュと、C++ のファイルの一覧・更新日時・大きさ。生成した後に変わったかを確認するのに使用します |
 
-- **プロジェクトの設定 (コンソール変数) を読みます。** エンジンはプロジェクトの設定から、どのシェーダーにもマクロを定義し (`GlobalBeginCompileShader`)、
+- **プロジェクトの設定 (コンソール変数) を読み込みます。** エンジンはプロジェクトの設定から、どのシェーダーにもマクロを定義し (`GlobalBeginCompileShader`)、
   シェーダーのクラスもそれを見てコンパイルするかを決めます (`Substrate::IsSubstrateEnabled()` など)。
   値は C++ に書いた既定値 (`TAutoConsoleVariable` の宣言) を、エンジンとプロジェクトの ini (`DefaultEngine.ini` の `[/Script/Engine.RendererSettings]` など) が上書きします。
   プロジェクトの設定を変更した場合は再生成してください
@@ -128,13 +146,13 @@ unreal:
   マテリアルのノードが書くコード (カスタムノードなど) は不明なため、それに関わる誤りは見つけられません。
   作った `Material.ush` の中は、利用者のコードとしては検査しません
 - **頂点ファクトリは、シェーダーのクラスに合わせて選びます。** メッシュに描くマテリアルのシェーダー (`FMeshMaterialShader` の派生) は、
-  頂点ファクトリごとにコンパイルされます。`ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを読みます
-  (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ読みます)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
+  頂点ファクトリごとにコンパイルされます。`ShouldCompilePermutation` を頂点ファクトリごとに実行し、コンパイルされる頂点ファクトリだけを解析します
+  (`HairStrandsMaterialVS.usf` は髪の頂点ファクトリでだけ解析します)。頂点ファクトリの `ModifyCompilationEnvironment` が定義するマクロ
   (`PARTICLE_SPRITE_FACTORY` など) も、エンジンのコマンドラインと同じく、どのファイルよりも先に定義します。`unreal: permutations: true` なら頂点ファクトリを構成の軸 (`SHADERLYN_VERTEX_FACTORY`) にし、
   そうでなければ 1 つ (コンパイルされる場合は `FLocalVertexFactory`、されなければ、コンパイルされるものの最初) を選んで解析します
 - **マテリアルのブレンドモードは、既定のマテリアルと同じ不透明にします** (`MATERIALBLENDING_SOLID=1`)。
   エンジンはマテリアルごとに `MATERIALBLENDING_*` のどれか 1 つを定義します。半透明などのマテリアルでだけ有効になる分岐は解析しません
-- 生成ファイルがない場合、マテリアルのシェーダーでは従来どおり宣言の検査を行いません (UE0002。不要な場合は `rules:` で `UE0002: none` に設定します)
+- 生成ファイルが存在しない場合、マテリアルのシェーダーでは従来どおり宣言の検査を行いません (UE0002。不要な場合は `rules:` で `UE0002: none` に設定します)
 - マテリアルの「使用する対象」のフラグ (Used with Geometry Cache など) は C++ から決められないので、`unreal: permutations: true` では、どのフラグも立ちうるものとして頂点ファクトリを選びます。
   UE 5.5 のエンジンでは `VolumetricFogVoxelization.usf` に CF0313 が報告されます。ボリュームのマテリアルに Geometry Cache・Beam/Trail・APEX クロスのフラグが立つと、
   エンジンがコンパイルして失敗する組み合わせで、エンジンのコードにある不一致です

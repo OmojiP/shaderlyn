@@ -16,7 +16,7 @@
 - [VS Code 拡張](#vs-code-拡張)
 - [自作ルール](#自作ルール)
 - [自前の CLI と言語サーバー](#自前の-cli-と言語サーバー)
-- [Unity 以外の環境を使い始める](#unity-以外の環境を使い始める)
+- [Unity 以外の環境を使用する](#unity-以外の環境を使用する)
 
 ## 書き換えが必要か
 
@@ -57,7 +57,7 @@ Unity の環境で、0.2 から出るようになった指摘です。どれも 
 定義されていない関数形式のマクロ (`DECLARE_TEX(_Main);`) は、そのことを伝える 1 件になります。
 
 **対象の API は、既定で DX11 と DX12 です。** DX12 だけのプロジェクトで DX11 についての指摘が報告される場合は、
-`--unity-project` でプロジェクトを渡すか (`ProjectSettings.asset` の Windows の API を読みます)、設定ファイルに書いてください。
+`--unity-project` でプロジェクトを渡すか (`ProjectSettings.asset` の Windows の API を取得します)、設定ファイルに書いてください。
 
 ```yaml
 unity:
@@ -97,7 +97,7 @@ unity:
 ```
 
 > **移さないと CI が落ちることがあります。**
-> 節の外の `profile` も読みますが、移すよう伝える警告 (`TOOL0003`) が出ます。
+> 節の外の `profile` も読み込みますが、移すよう伝える警告 (`TOOL0003`) が出ます。
 > 既定の `--error-on warning` では、この警告でも終了コードが `1` になります。上げる前に移してください。
 
 `--unity-project` と `--unity-editor` に当たる設定も、`unity:` の節の `project` / `editor` に書けます (0.2 で追加したもの。移す必要はありません)。
@@ -150,7 +150,7 @@ Unity 固有の部分を `Shaderlyn.Unity` パッケージへ分けました。
 | `PropertySymbol` / `ShaderPropertyKind` | `Shaderlyn.Semantics.Symbols` | `Shaderlyn.Unity` |
 | `IRenderPipelineProfile` | `Shaderlyn.Semantics.Profiles` | `Shaderlyn.Unity.Profiles` |
 | `ShaderSymbols` | `Shaderlyn.Hlsl.Preprocessing` | `Shaderlyn.Unity` |
-| `SymbolGroup` | `Shaderlyn.Hlsl.Preprocessing` | 無くなった。構成の空間 `program.Variants` (`VariantSpace` / `VariantGroup`、`Shaderlyn.Core.Syntax`) を使用する |
+| `SymbolGroup` | `Shaderlyn.Hlsl.Preprocessing` | 削除された。構成の空間 `program.Variants` (`VariantSpace` / `VariantGroup`、`Shaderlyn.Core.Syntax`) を使用する |
 
 ### 書き換えの例
 
@@ -207,7 +207,7 @@ Unity 以外の環境でルールを確認するときは、`ShaderCompilation.C
 独自エンジンの環境を追加するための多重定義が増えました
 ([ルールの実例集「独自エンジンの環境」](../custom-rules/cookbook.md#独自エンジンの環境))。
 
-## Unity 以外の環境を使い始める
+## Unity 以外の環境を使用する
 
 DXC で直接コンパイルする HLSL と Unreal Engine は、[環境ごとの使用方法](environments.md) を見てください。
 環境ごとの設定ファイルのテンプレートが [samples/environments](../../samples/environments/) にあります。

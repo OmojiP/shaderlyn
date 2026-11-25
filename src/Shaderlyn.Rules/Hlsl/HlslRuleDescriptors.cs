@@ -110,6 +110,30 @@ internal static class HlslRuleDescriptors
             + "関数は cbuffer の外に書いてください。",
         helpLinkUri: DocumentationLinks.For("HL0304"));
 
+    /// <summary>GetAttributeAtVertex に、補間しない頂点の入力でない値を渡している。</summary>
+    public static DiagnosticDescriptor AttributeAtVertexInput { get; } = new(
+        id: "HL0355",
+        title: "GetAttributeAtVertex に nointerpolation の入力でない値を渡しています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "GetAttributeAtVertex は、ピクセルシェーダーの入力のうち nointerpolation を付けたものの、頂点ごとの値を読みます。"
+            + "nointerpolation のない入力やグローバル変数を渡すと、DXC はコンパイルの誤り (Attribute ... must have nointerpolation mode) にします。"
+            + "入力の宣言に nointerpolation を付けてください。",
+        helpLinkUri: DocumentationLinks.For("HL0355"));
+
+    /// <summary>そのステージで使用できない機能に、エントリポイントから届く。</summary>
+    public static DiagnosticDescriptor StageRestrictedFeature { get; } = new(
+        id: "HL0356",
+        title: "そのステージでは使用できない機能を使用しています",
+        messageFormat: "{0}",
+        category: CorrectnessCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        description: "discard と clip はピクセルシェーダーでしか使用できません。微分 (ddx など) と LOD を指定しないサンプリング (Sample・tex2D など) は、"
+            + "頂点・ジオメトリ・ハル・ドメインのシェーダーでは使用できません (FXC はコンピュートシェーダーでも使用できません)。"
+            + "FXC は X4532、DXC は「Opcode ... not valid in shader model」でコンパイルの誤りにします。SampleLevel や tex2Dlod で LOD を指定してください。",
+        helpLinkUri: DocumentationLinks.For("HL0356"));
+
     /// <summary>呼んでいる関数の定義が、その構成には存在しない。</summary>
     /// <remarks>
     /// <b>「定義があるか」ではなく「その構成に定義があるか」を見る。</b>

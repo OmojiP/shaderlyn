@@ -18,18 +18,23 @@ public sealed partial class ShaderLanguageServer
 {
     /// <summary>その位置で書ける名前を返す。</summary>
     /// <param name="message">受け取った要求。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">中断の合図。</param>
     /// <returns>応答を書き終えるまでの待ち。</returns>
-    private async Task OnCompletionAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnCompletionAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         ImmutableArray<CompletionItem> items = [];
 
         try
         {
-            if (TryGetPosition(message, out ShaderCompilation? model, out int offset, out _))
+            if (request is not null)
             {
-                items = CompletionBuilder.Build(model, offset);
+                items = await request.UseAsync(CompletionBuilder.Build, cancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -80,18 +85,23 @@ public sealed partial class ShaderLanguageServer
 
     /// <summary>呼び出しの途中で、その関数の形を返す。</summary>
     /// <param name="message">受け取った要求。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">中断の合図。</param>
     /// <returns>応答を書き終えるまでの待ち。</returns>
-    private async Task OnSignatureHelpAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnSignatureHelpAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         SignatureHelp? help = null;
 
         try
         {
-            if (TryGetPosition(message, out ShaderCompilation? model, out int offset, out _))
+            if (request is not null)
             {
-                help = SignatureHelpBuilder.Build(model, offset);
+                help = await request.UseAsync(SignatureHelpBuilder.Build, cancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -142,19 +152,24 @@ public sealed partial class ShaderLanguageServer
 
     /// <summary>カーソルの下の名前が現れる場所をすべて返す。</summary>
     /// <param name="message">受け取った要求。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">中断の合図。</param>
     /// <returns>応答を書き終えるまでの待ち。</returns>
-    private async Task OnReferencesAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnReferencesAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         ImmutableArray<TextSpan> spans = [];
-        OpenDocument? document = null;
+        OpenDocument? document = request?.Document;
 
         try
         {
-            if (TryGetPosition(message, out ShaderCompilation? model, out int offset, out document))
+            if (request is not null)
             {
-                spans = SymbolOccurrences.Find(model, offset);
+                spans = await request.UseAsync(SymbolOccurrences.Find, cancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -188,6 +203,7 @@ public sealed partial class ShaderLanguageServer
     /// カーソルの下の名前を書き換える編集を返す。
     /// </summary>
     /// <param name="message">受け取った要求。</param>
+    /// <param name="request">文書とモデル。文書が開かれていなければ <see langword="null"/>。</param>
     /// <param name="cancellationToken">中断の合図。</param>
     /// <returns>応答を書き終えるまでの待ち。</returns>
     /// <remarks>
@@ -195,20 +211,24 @@ public sealed partial class ShaderLanguageServer
     /// 取り込んだヘッダの名前まで書き換えると、
     /// このファイルからは見えない場所を壊す。
     /// </remarks>
-    private async Task OnRenameAsync(JsonElement message, CancellationToken cancellationToken)
+    private async Task OnRenameAsync(JsonElement message, ModelRequest? request, CancellationToken cancellationToken)
     {
         ImmutableArray<TextSpan> spans = [];
-        OpenDocument? document = null;
+        OpenDocument? document = request?.Document;
         string? newName = null;
 
         try
         {
-            if (TryGetPosition(message, out ShaderCompilation? model, out int offset, out document)
+            if (request is not null
                 && message.GetProperty("params").TryGetProperty("newName", out JsonElement name))
             {
                 newName = name.GetString();
-                spans = SymbolOccurrences.Find(model, offset);
+                spans = await request.UseAsync(SymbolOccurrences.Find, cancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -260,40 +280,5 @@ public sealed partial class ShaderLanguageServer
         WritePosition(writer, "start", lines.Start);
         WritePosition(writer, "end", lines.End);
         writer.WriteEndObject();
-    }
-
-    /// <summary>
-    /// 要求からカーソルの位置とセマンティックモデルを取り出す。
-    /// </summary>
-    /// <param name="message">受け取った要求。</param>
-    /// <param name="model">対象シェーダーのセマンティックモデル。</param>
-    /// <param name="offset">カーソルのオフセット。</param>
-    /// <param name="document">対象のスクリプト。</param>
-    /// <returns>取り出せた場合は <see langword="true"/>。</returns>
-    private bool TryGetPosition(
-        JsonElement message,
-        [NotNullWhen(true)] out ShaderCompilation? model,
-        out int offset,
-        out OpenDocument? document)
-    {
-        model = null;
-        offset = 0;
-        document = null;
-
-        if (!TryReadTextDocument(message, out JsonElement textDocument)
-            || textDocument.GetProperty("uri").GetString() is not { } uri
-            || !_documents.TryGetValue(uri, out OpenDocument? found)
-            || !message.GetProperty("params").TryGetProperty("position", out JsonElement position))
-        {
-            return false;
-        }
-
-        document = found;
-        model = GetModel(uri, found);
-        offset = found.Text.GetOffset(new LinePosition(
-            position.GetProperty("line").GetInt32(),
-            position.GetProperty("character").GetInt32()));
-
-        return true;
     }
 }

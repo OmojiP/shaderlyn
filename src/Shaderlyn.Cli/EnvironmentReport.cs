@@ -342,9 +342,15 @@ internal static partial class EnvironmentReport
         Unreal.UnrealOptions unreal = SemanticsSetup.CreateUnreal(settings);
         ImmutableDictionary<string, string> mappings = unreal.GetVirtualPathMappings();
 
+        // 設定ファイルに書いていない場所は、解析するファイルから探す (UnrealLocator)。どう決めたかを出す。
+        if (settings.UnrealLocations is { } found)
+        {
+            Line(builder, $"  エンジンとプロジェクトの自動検出: {found.Description}");
+        }
+
         if (mappings.IsEmpty)
         {
-            Line(builder, $"  {Warning}仮想パスの割り当てがありません。/Engine/... を解決するには unreal: の engine を書いてください。");
+            Line(builder, $"  {Warning}仮想パスの割り当てがありません。/Engine/... を解決するには unreal: の engine を書くか、エンジンの中のファイルか .uproject のあるプロジェクトの中のファイルを解析してください。");
         }
 
         foreach ((string virtualPath, string directory) in mappings.OrderBy(pair => pair.Key, StringComparer.Ordinal))

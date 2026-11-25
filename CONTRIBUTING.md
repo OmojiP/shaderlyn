@@ -18,7 +18,7 @@ dotnet build
 dotnet test
 ```
 
-- **警告はすべてエラーになります**（`TreatWarningsAsErrors`）。公開メンバーの説明コメント（`///`）が無いとビルドが通りません
+- **警告はすべてエラーになります**（`TreatWarningsAsErrors`）。公開メンバーの説明コメント（`///`）が存在しないとビルドが通りません
 - **Native AOT で配布しています。** リフレクションに頼るコードはビルドで弾かれます（`IsAotCompatible`）
 - VS Code 拡張を動かすには `editors/vscode` で `npm install` し、VS Code の「実行とデバッグ」から「VS Code 拡張を起動」を選びます
 - Visual Studio 拡張と Rider プラグインは、言語サーバーを同梱して動かします。先に言語サーバーを publish します
@@ -53,8 +53,8 @@ dotnet test
   - Visual Studio 2026 で HLSL Tools が入っている場合、`.hlsl` で HLSL Tools の指摘と Shaderlyn の指摘が並ぶ
   - Visual Studio 2022 で、シェーダーのタブを開いたまま閉じ、起動し直しても指摘とホバーが出る (起動時のタブの復元)
   - 設定の「実行ファイル」に存在しないパスを指定すると、そのことが伝えられ、同梱の言語サーバーで動き続ける
-- Unity がインストールされていなくてもテストは通ります。Unity の実物を使う検証は、見つからなければ飛ばされます
-- DirectX 12 の公開サンプルを使う検証 (誤検出が無いか) は、コーパスを取ってきて環境変数で渡したときだけ動きます。コーパスはリポジトリに入れません (`.work/` は git の対象外)
+- Unity がインストールされていなくてもテストは通ります。Unity の実物を使用する検証は、見つからなければ飛ばされます
+- DirectX 12 の公開サンプルを使用する検証 (誤検出が存在しないか) は、コーパスを取ってきて環境変数で渡したときだけ動きます。コーパスはリポジトリに入れません (`.work/` は git の対象外)
 
   ```sh
   node tools/corpus/fetch.mjs
@@ -82,13 +82,13 @@ dotnet test
   # 結果を残した作業フォルダーから、表だけを作り直す
   node tools/semantics/system-values.mjs .work/system-values --reuse
   ```
-- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が無いこと) を確認する
+- GLSL のコーパス (Vulkan と GLSL ES のシェーダー) で、誤りと警告が出ないこと (誤検出が存在しないこと) を確認する
 
   ```sh
   node tools/corpus/fetch.mjs --only=glsl
   SHADERLYN_GLSL_CORPUS=.work/corpus dotnet test --filter "FullyQualifiedName~GlslCorpusTests"
   ```
-- Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使う検証も動きます。時間がかかるので、ふだんの確認では外せます
+- Unity をインストールしてあれば、Unity 同梱のシェーダー (約 400 件) を使用する検証も動きます。時間がかかるので、ふだんの確認では外せます
 
   ```sh
   # ふだんの確認 (20 秒ほど)
@@ -119,13 +119,13 @@ dotnet test
 
 あわせて守ってほしいこと:
 
-- **検査に必要な情報が足りないときは、誤りと断定せず、その検査を見送って理由を診断として伝えてください。** たとえば include を解決できない場合、その中の識別子を「未定義」とはせず、依存ファイルを読み込めず検査できなかったことを報告します
+- **検査に必要な情報が不足しているときは、誤りと断定せず、その検査を見送って理由を診断として伝えてください。** たとえば include を解決できない場合、その中の識別子を「未定義」とはせず、依存ファイルを読み込めず検査できなかったことを報告します
 - **推測で規則を決めないでください。** 可能な限り、実際のコンパイラ（Unity）の結果と突き合わせてください
 - 利用者から見て挙動が変わる変更は、[CHANGELOG.md](CHANGELOG.md) の「未リリース」に書いてください
 - **新しい型やメンバーは、まず internal で書いてください。** `src/` のライブラリは NuGet で配っており、public にしたものは自作ルールの利用者との約束になります。
   public にするのは、自作ルールを書くのに必要なものだけです。公開 API は `tests/Shaderlyn.Tests/PublicApi.txt` に記録してあり、
-  変わると `PublicApiTests` が落ちます。意図した変更なら、環境変数 `SHADERLYN_UPDATE_PUBLIC_API=1` を付けてそのテストを実行し、
-  書き直された差分を PR に含めてください
+  変わると `PublicApiTests` が落ちます。意図した変更の場合は、環境変数 `SHADERLYN_UPDATE_PUBLIC_API=1` を付けてそのテストを実行し、
+  書き換えられた差分を PR に含めてください
 
 ## 設計を変える
 
@@ -144,16 +144,30 @@ dotnet test
 
 `v` で始まるタグを push すると、[release.yml](.github/workflows/release.yml) が次を行います。手動では実行できません。
 
-1. CLI と言語サーバーを 5 プラットフォーム向けに Native AOT でビルドし、VS Code 拡張の vsix を作る
-2. Visual Studio 拡張の vsix (言語サーバーは win-x64) と、Rider プラグインの OS と CPU の組ごとの zip (6 つ) を作る
+1. CLI と言語サーバーを 6 プラットフォーム向けに Native AOT でビルドし、言語サーバーの起動を確認して、VS Code 拡張の vsix を作る
+2. Visual Studio 拡張の vsix (言語サーバーは win-x64 と win-arm64) と、Rider プラグインの OS と CPU の組ごとの zip (6 つ) を作る
 3. すべて組めたら、`src/` のライブラリの NuGet パッケージを nuget.org へ公開する
 4. GitHub のリリースを作り、アーカイブ・vsix・zip・チェックサムを添付し、VS Code 拡張を VS Code Marketplace へ公開する
 5. Visual Studio 拡張を Visual Studio Marketplace へ、Rider プラグインを JetBrains Marketplace へ公開する
 
 手順:
 
-1. [CHANGELOG.md](CHANGELOG.md) の「未リリース」を、出すバージョンと日付の見出しに変えてコミットする
-2. `git tag v0.1.0` のようにタグを打ち、`git push origin v0.1.0` で push する
+1. [CHANGELOG.md](CHANGELOG.md) の「未リリース」を、出すバージョンと日付の見出しに変える
+2. リリースの概要を `docs/releases/v<バージョン>.md` に書く (下の「リリースの概要」)。1 と一緒にコミットする
+3. `git tag v0.1.0` のようにタグを打ち、`git push origin v0.1.0` で push する
+
+### リリースの概要
+
+リリースの本文の先頭には、[docs/releases](docs/releases) のそのバージョンのファイルを置きます。その下に、GitHub が作る PR の一覧が付きます。
+ファイルが存在しない場合や、英語と日本語を分ける `---` の行が存在しない場合は、NuGet へ公開する前にリリースのワークフローが止まります。
+
+- 英語を先に書き、`---` の行のあとに同じ内容の日本語を書く
+- 1 行の要約と、目玉の変更を 3〜7 個の箇条書きにする。主なものは太字にする
+- 破壊的変更がある場合は、移行の手順へのリンクを付けた箇条を加える
+- 最後に CHANGELOG のそのバージョンの見出しへのリンクを付ける。英語の側から日本語のページへのリンクには「(in Japanese)」を添える
+- 日本語は体言止めにする (「〜に対応」「〜を追加」「〜が使用可能」)
+
+書き方は、これまでのバージョンのファイルを参照してください。
 
 NuGet へは Trusted Publishing で公開します。API キーは保存しません。最初のリリースの前に次を用意してください。
 
@@ -176,10 +190,10 @@ JetBrains Marketplace へは、最初のバージョンだけ Web から手で�
 [JetBrains Marketplace](https://plugins.jetbrains.com/) で Developer Agreement に同意してベンダーのプロフィールを作り、
 リリースに添付された `shaderlyn-rider-<バージョン>-<OS>-<CPU>.zip` を上げます (ライセンスは MIT、ソースのリンクはこのリポジトリ)。
 審査が通ったら、プロフィールの **My Tokens** でトークンを作り、リポジトリのシークレット `JETBRAINS_MARKETPLACE_TOKEN` に登録します。
-登録した後のリリースでは、6 つの zip を Marketplace へ送ります。シークレットが無い間は送りません。公開は Marketplace の審査の後になります。
+登録した後のリリースでは、6 つの zip を Marketplace へ送ります。シークレットを登録していない間は送りません。公開は Marketplace の審査の後になります。
 
 Rider の zip には、リリースのワークフローが作者の署名を付けます ([tools/rider/sign-zips.sh](tools/rider/sign-zips.sh))。
-署名が無いと、インストールのときに IDE が警告を出します。最初のリリースの前に、証明書と秘密鍵を作ってシークレットに登録してください。
+署名していないと、インストールのときに IDE が警告を出します。最初のリリースの前に、証明書と秘密鍵を作ってシークレットに登録してください。
 秘密鍵とパスフレーズはリポジトリの外に保管します。
 
 ```sh
@@ -195,7 +209,7 @@ MSYS_NO_PATHCONV=1 openssl req -key private_encrypted.pem -new -x509 -days 3650 
 | `JETBRAINS_PRIVATE_KEY` | `private_encrypted.pem` の中身 (`-----BEGIN ENCRYPTED PRIVATE KEY-----` から) |
 | `JETBRAINS_PRIVATE_KEY_PASSWORD` | 秘密鍵のパスフレーズ |
 
-シークレットが無い間は、署名せずに警告を出します。署名の処理は、CI でも使い捨ての鍵で毎回動かしています。
+シークレットを登録していない間は、署名せずに警告を出します。署名の処理は、CI でも使い捨ての鍵で毎回動かしています。
 
 配布物には [LICENSE](LICENSE) と [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) を入れています。
 ほかのプロジェクトのデータやコードを取り込んだときは、THIRD-PARTY-NOTICES.txt に追記してください。

@@ -417,7 +417,7 @@ function pickSymbols(
   quickPick.items = items;
   quickPick.canSelectMany = true;
   quickPick.title = "条件のシンボルを選ぶ";
-  quickPick.placeholder = "シンボルを選ぶと、その構成で効いていない範囲を薄く表示します";
+  quickPick.placeholder = "シンボルを選ぶと、その構成で無効な範囲を薄く表示します";
 
   // 区切りは選べないので、最初の選択から外しておく。
   quickPick.selectedItems = items.filter(

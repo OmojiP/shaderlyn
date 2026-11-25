@@ -1,66 +1,77 @@
 # Shaderlyn for Rider
 
-Unity の ShaderLab と HLSL、Unreal Engine、GLSL、Godot、Slang、WGSL のシェーダーの誤りを、JetBrains Rider で指摘するプラグインです。
-解析は VS Code 拡張と同じ言語サーバーで行い、同じ指摘を出します。
+English | [日本語](README.ja.md)
 
-対象のバージョンは Rider 2026.3 以降です。
+Shaderlyn finds errors in shaders as you edit.
+It analyzes Unity ShaderLab and HLSL, Unreal Engine, plain HLSL, GLSL, Godot, Slang and WGSL.
+For GLSL, Godot, Slang and WGSL, it reports the same errors as each language's compiler (glslang, Godot 4, slangc and naga).
 
-## 主な機能
+The file extensions and the configuration needed for each language are the same as for the [Visual Studio extension](../visualstudio/README.md).
+The same analysis is available for [VS Code](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn) and [Visual Studio](https://marketplace.visualstudio.com/items?itemName=OmojiP.shaderlyn-visualstudio).
+Supported versions: Rider 2026.3 or later.
 
-| 機能 | 内容 |
+## Features
+
+| Feature | Description |
 | --- | --- |
-| 指摘 | エディタの波線と「Problems」ツールウィンドウに出します。入力のたびに構文・ShaderLab の値などを検査し、開いたときと保存したときに宣言・型・`#include` の解決を要する検査まで行います |
-| クイックフィックス | 修正が 1 つに決まる指摘 (スペルミスなど) の修正と、抑制コメント (`// shaderlyn-disable-next-line <ID>`) の挿入 |
+| Diagnostics | Squiggles in the editor and the Problems tool window. Syntax and ShaderLab values are checked as you type. Declarations, types and `#include` resolution are checked when a file is opened or saved |
+| Quick fixes | Fixes for diagnostics with a single correct fix (typos, for example), and insertion of a suppression comment (`// shaderlyn-disable-next-line <ID>`) |
 
-ホバー・補完・定義へ移動・参照は、Rider 自身のシェーダーの支援 (Unity の ShaderLab と HLSL など) が働きます。
-同じ位置に 2 つずつ出ないよう、Shaderlyn はこれらを提供しません。
+Hover, completion, go to definition and references come from Rider's own shader support (Unity ShaderLab, HLSL and so on).
+Shaderlyn does not provide them, so that they do not appear twice at the same place.
 
-対象のファイルの拡張子は、[Visual Studio 拡張](../visualstudio/README.md#主な機能) と同じです。
+## Installation
 
-## インストール
+Search for **Shaderlyn** on the **Marketplace** tab of **Settings > Plugins** and install it. Restart Rider after installing.
+JetBrains Marketplace delivers the build that bundles the language server for your OS and CPU.
 
-Rider の「Settings」→「Plugins」の「Marketplace」タブで **Shaderlyn** を検索してインストールします。インストールのあと、Rider を再起動してください。
-JetBrains Marketplace は、使用している OS と CPU に合う言語サーバーを同梱したものを配ります。
+Where the Marketplace is not available, download the zip for your platform from the [releases page](https://github.com/OmojiP/shaderlyn/releases).
 
-Marketplace を使用できない環境では、[リリースページ](https://github.com/OmojiP/shaderlyn/releases) から使用する環境の zip を取得します。
-
-| OS と CPU | ファイル |
+| OS and CPU | File |
 | --- | --- |
-| Windows (x64・arm64) | `shaderlyn-rider-<バージョン>-windows-x86_64.zip` / `-windows-arm64.zip` |
-| macOS (Apple シリコン・Intel) | `shaderlyn-rider-<バージョン>-mac-arm64.zip` / `-mac-x86_64.zip` |
-| Linux (x64・arm64) | `shaderlyn-rider-<バージョン>-linux-x86_64.zip` / `-linux-arm64.zip` |
+| Windows (x64, arm64) | `shaderlyn-rider-<version>-windows-x86_64.zip` / `-windows-arm64.zip` |
+| macOS (Apple Silicon, Intel) | `shaderlyn-rider-<version>-mac-arm64.zip` / `-mac-x86_64.zip` |
+| Linux (x64, arm64) | `shaderlyn-rider-<version>-linux-x86_64.zip` / `-linux-arm64.zip` |
 
-Rider の「Settings」→「Plugins」の歯車のメニューから「Install Plugin from Disk...」を選び、その zip を指定します。
+Select **Install Plugin from Disk...** from the gear menu of **Settings > Plugins** and choose the zip.
 
-zip から入れたプラグインには、Rider が「Cannot update plugin. Choose where it was installed from」という警告を出すことがあります。
-入手元を特定できないため更新を確認できない、という意味で、Shaderlyn の動作には影響しません。
+For a plugin installed from a zip, Rider may show the warning "Cannot update plugin. Choose where it was installed from".
+It means that Rider cannot check for updates because it does not know where the plugin came from. It does not affect Shaderlyn.
 
-## 動作条件
+## Getting started
 
-- Unity プロジェクトでは、プロジェクトのルート (`Assets` と `ProjectSettings` が存在するフォルダー) を開いてください。パッケージのヘッダを自動で解決します
-- Unity 以外の環境 (汎用の HLSL など) では、`.shaderlyn.yaml` に `environment` を書いてください ([環境ごとの使用方法](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md))
-- Unreal Engine の `.usf`・`.ush` は、`environment` を書かなくても Unreal Engine の環境で解析します。エンジンのヘッダ (`/Engine/...`) を解決するには、`.shaderlyn.yaml` にエンジンの場所 (`unreal: engine`) を書いてください
+- For a Unity project, open the project root (the folder that contains `Assets` and `ProjectSettings`). Package headers are resolved automatically
+- Unreal Engine `.usf` and `.ush` files are analyzed as Unreal Engine without any configuration. The engine and project locations are found from the opened file (a file inside the engine, or a `.uproject` in the workspace). If they are not found, set `unreal: engine` / `unreal: project` in `.shaderlyn.yaml`
+- For other environments (plain HLSL and so on), set `environment` in `.shaderlyn.yaml` ([environments](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/environments.md))
 
-## 設定
+## Settings
 
-ルールの重要度や無効化は `.shaderlyn.yaml` に書きます ([設定ファイル](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md))。開いたファイルから上へたどって、一番近い `.shaderlyn.yaml` を使用します。
+Rule severities and disabling rules are configured in `.shaderlyn.yaml` ([configuration](https://github.com/OmojiP/shaderlyn/blob/main/docs/guide/configuration.md)). The nearest `.shaderlyn.yaml` above the opened file is used.
 
-Rider の設定は、「Settings」→「Tools」→「Shaderlyn」にあります。
+Plugin settings are under **Settings > Tools > Shaderlyn**.
 
-| 項目 | 内容 | 既定値 |
+| Setting | Description | Default |
 | --- | --- | --- |
-| 言語サーバー > 実行ファイル | 起動する言語サーバー (`shaderlyn-lsp`) のパス。空の場合は、プラグインに同梱したものを使用します。変更すると言語サーバーを起動し直します | 空 |
+| 言語サーバー > 実行ファイル (Language server > Executable) | The language server (`shaderlyn-lsp`) to start. When empty, the bundled one is used. Changing it restarts the language server | Empty |
 
-指定した実行ファイルが存在しない場合は、そのことを通知で伝え、同梱したものを使用します。
+If the specified executable does not exist, a notification says so and the bundled one is used.
 
-## 自作ルールを使用する
+## Using custom rules
 
-同梱の言語サーバーは、組み込みのルールだけを解析します。
-自作ルールの指摘をエディタに出すには、自作ルールを含む言語サーバーをビルドし ([自作ルールの作り方 5-1](https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/tutorial.md#5-1-エディタでも働かせる))、
-設定の「実行ファイル」にそのパスを指定します。
+The bundled language server runs only the built-in rules.
+To see diagnostics from your own rules in the editor, build a language server that includes them ([writing custom rules, 5-1](https://github.com/OmojiP/shaderlyn/blob/main/docs/custom-rules/tutorial.md#5-1-エディタでも働かせる))
+and set its path in the executable setting.
 
-## ライセンス
+## Documentation
+
+The documentation is written in Japanese. See the [repository](https://github.com/OmojiP/shaderlyn).
+
+## Privacy
+
+The plugin does not collect telemetry and does not connect to the network. Analysis runs in a local process bundled with the plugin.
+
+## License
 
 MIT License
 
-組み込み関数の表は DirectXShaderCompiler のデータから作っています。その著作権表示とライセンスは、プラグインに同梱した THIRD-PARTY-NOTICES.txt にあります。
+The intrinsic function tables are generated from DirectXShaderCompiler data. Its copyright notice and license are in THIRD-PARTY-NOTICES.txt bundled with the plugin.

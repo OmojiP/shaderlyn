@@ -10,6 +10,102 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.6] - 2026-11-25
+
+### 追加
+
+- Slang: 設定ファイルの `units:` で、エントリポイントの名前 (`entry`) とステージ (`stage`。slangc の `-entry` と `-stage`) を指定できるようにした。
+  `[shader("…")]` を書かないエントリポイントも、システム値のセマンティクス (CF0302) とステージで使用できない機能 (SG0365) を検査する ([設定ファイル](docs/guide/configuration.md#units))
+- SG0366: Slang の `#language` の指令の誤り (知らないバージョン・言語の名前、バージョンを書いていない) と、1 つの翻訳単位に `#language` と GLSL の `#version`、
+  または違うバージョンの `#language` を書いたもの (slangc の E15206・E15207・E15208・E00121・E00126。[SG0366](docs/rules/SG0366.md))
+- HL0356 / SG0365: エントリポイントから、そのステージでは使用できない機能に届くもの。
+  HLSL は、ピクセルシェーダー以外の `discard`・`clip` と、頂点・ジオメトリ・ハル・ドメインのシェーダーの微分 (`ddx` など) と LOD を指定しないサンプリング
+  (`Sample`・`tex2D` など。FXC はコンピュートシェーダーも) を、使用した箇所に報告する (FXC の X4532、DXC の「Opcode … not valid」)。
+  Slang は、フラグメントシェーダー以外の `discard`・`clip` と、頂点シェーダーなどの微分を、slangc と同じくエントリポイントの名前に報告する (slangc の E36107・E36100)。
+  コンパイラで条件が違うので、HLSL と Slang で規則を分けた ([HL0356](docs/rules/HL0356.md)・[SG0365](docs/rules/SG0365.md))
+- HL0355 / SG0364: `GetAttributeAtVertex` に、補間しない頂点の入力でない値を渡したもの。
+  HLSL (DXC) は `nointerpolation` を付けていない入力とグローバル変数、Slang は局所変数・グローバル変数・ベクトルの成分と `nointerpolation` を付けていないスカラーの入力
+  (DXC の「must have nointerpolation mode」、slangc の E39027。[HL0355](docs/rules/HL0355.md)・[SG0364](docs/rules/SG0364.md))
+- GLSL: 設定ファイルの `glsl: compiler` (`glslang` / `glslc`)。`glslang` のときは、拡張 (`GL_GOOGLE_include_directive` / `GL_ARB_shading_language_include`) を有効にする前の `#include` を GL0003 にする
+  (glslangValidator の「required extension not requested」)。glslc はファイルの最初でこの拡張を有効にするので、`glslc` と省略したときは、
+  `#extension GL_GOOGLE_include_directive : disable` で無効にした後ろの `#include` だけを報告する ([設定ファイル](docs/guide/configuration.md#glsl))
+- Windows の arm64 向けの CLI (`shaderlyn-win-arm64.zip`) と VS Code 拡張 (`shaderlyn-vscode-win32-arm64.vsix`)。
+  Visual Studio 拡張と Rider プラグインも、arm64 の Windows では arm64 の言語サーバーを起動する (これまでは x64 の言語サーバーをエミュレーションで動かしていたので、Windows 10 の arm64 では動かなかった)
+
+- Unreal Engine: 設定ファイルに `unreal: engine` / `unreal: project` を書いていない場合、解析するファイルからエンジンとプロジェクトを探す。
+  エンジンの中のファイル (`Engine/Shaders/…` とエンジンのプラグインの `Engine/Plugins/…/Shaders/…`) ならそのエンジン、上のフォルダーに `.uproject` があればそのプロジェクトと、
+  `EngineAssociation` のエンジン (プロジェクトを含むエンジンの木、インストールしたエンジン、ソースからビルドして登録したエンジン) を使用する。
+  `.uproject` は、CLI は止めずに上へたどり、エディタはワークスペースのルートまでたどる。同じフォルダーに `.uproject` が複数あれば使用しない。
+  どう決めたかは `--env` に表示する ([Unreal Engine](docs/guide/environments/unreal.md#エンジンとプロジェクトの場所))
+
+### 変更
+
+- 言語サーバー: 保存したときに、取り込んだファイルが変わっていなければ、取り込みの読み込み結果と展開結果を捨てずに再利用するようにした。
+  これまでは保存のたびにすべてのヘッダを再度読み込んでいた (URP の `Lit.shader` で、保存のあとの指摘が出るまで 5〜7 秒から 1.5 秒)。
+  取り込んだファイルを保存した場合、エディタの外で書き換えた場合、解決できなかった取り込みがある場合は、これまでどおり再度読み込む
+- 言語サーバー: 指摘・無効な範囲・ホバー・定義へ移動・補完・引数の案内・参照・名前の変更で、同じセマンティックモデルを使用するようにした
+  (これまでは別々に組み立てていた)。モデルの組み立ては、メッセージの受け取りと別に行う。組み立ての間も編集の通知を受け取り、入力のたびの指摘が遅れない。
+  URP の `Lit.shader` で、開いてから指摘・無効な範囲・ホバーが出るまで 10〜12 秒から 5.5 秒、
+  変更のない保存のあとが 5〜7 秒から 0.1 秒、続けて入力したときのホバーが 5.3 秒から 1.8 秒。
+  応答の順序は、要求の順と変わることがある。組み立てを始める前に次の編集が届いたバージョンへの要求には、空の結果を返す
+- CF0401: 要素の構造体が違うバッファー (`StructuredBuffer<B>` や `ConstantBuffer<B>` の変数) を、`StructuredBuffer<A>` などの仮引数に渡す呼び出しもエラーにする
+  (slangc の E30019、DXC の「no matching function」)。HLSL 2021 と Slang が対象で、FXC は誤りにしないので HLSL 2018 では見ない
+- CF0302: システム値のセマンティクスを、受け取れない型の値に付けた箇所もエラーにする (`uint2 id : SV_VertexID`・`float id : SV_ViewID` など。
+  slangc の E30701、DXC・FXC の型の誤り)。受け取れる型は FXC・DXC・slangc に掛けて作った表で決め、表に存在しない型は見ない
+- CF0302: ピクセルシェーダーの深度の出力 (`SV_Depth`・`SV_DepthGreaterEqual`・`SV_DepthLessEqual`) を 2 つ以上書いた箇所もエラーにする
+  (DXC の検証の誤り、slangc の E30705。FXC は誤りにしないので見ない)
+- SG0309: コピーできない型 (`[__NonCopyableType]`) の `in` の仮引数への `[mutating]` のメソッドの呼び出しもエラーにする (slangc の E30067)
+- Slang: `class` の型のシェーダーの仮引数 (関数の外の static でない変数) を SG0101 (slangc の E39031)、
+  資源と定数バッファーの `[[vk::location]]` を SG0102 (E39021)、`ParameterBlock` の `[[vk::binding(b, s)]]` の 0 でない b (エントリポイントの仮引数を含む) を SG0304 (E39015)、
+  循環する `import` を CF0020 (E38200) にする。public の構造体の public の `property` が public でない型を使用している箇所も SG0402 にする (E30604)
+- CF0401: 構造体のメソッドの呼び出し (`w.poke(1.0, t)`) の実引数も、関数と同じく検査する (slangc の E30019・E39999)。HLSL 2021 と Slang が対象
+- CF0314 (Slang): 同じコンパイル先の `__target_intrinsic` を書いた、同じ形の関数の 2 つ目 (slangc の E30201)
+- CF0303 の誤報告: 大文字で書いた `[OutputTopology("triangle")]` を認識せず、メッシュシェーダーの属性が存在しないと報告していた (DXC と slangc は属性の名前の大文字と小文字を区別しない)
+- CF0314 (Slang) の誤報告: モジュールの `extern` の宣言 (`public extern static const int n;`) を、取り込んだ側の `export` の定義との重複として報告していた
+- CF0314 (Slang) の誤報告: 定義を取り込めていないマクロを前に書いたメソッド (`SETTER_DECL void set(…)`) を、同じ名前 `void` のフィールドの重複として報告していた (Falcor)
+- SG0102 (Slang): レイトレーシングのエントリポイントの仮引数の向き。`miss`・`callable` の `in` の仮引数 (E39018) と、`intersection` の `out`・`inout` の仮引数 (E39017)
+- Slang: 利用者が定義した属性 (`[__AttributeUsage(…)] struct MyStructAttribute`) を、`_AttributeTargets` と違う宣言に書いた箇所を SG0102 (slangc の E31002)、
+  実引数の数がフィールドと合わない箇所と、文字列と数を取り違えた実引数を SG0304 (E31001・E39999・E30019) にする
+- SG0301 (Slang): 微分する関数の中の、ベクトルか行列を条件にした `?:` (slangc の E30055。`select` を使用する)
+- SG0360 (Slang): `[PrimalSubstituteOf(f)]` を書いた関数の微分の属性が f より弱いもの (`[Differentiable]` の f を、微分しない関数で置き換える。slangc の E31158)
+- SG0360 (Slang): 公開する関数の `[ForwardDerivative(g)]`・`[BackwardDerivative(g)]` の g が、`__exported import` でなく取り込んだモジュールの関数であるもの (slangc の E31162)
+- Slang: 文字列で書いた `import "helper";` を、slangc と同じく `helper.slang` の取り込みとして扱う。これまでは拡張子を省いた名前を取り込みに結び付けず、
+  取り込んだモジュールから参照できない名前の検査 (CF0310) でそのモジュールの宣言をすべて参照できるものとしていた
+- SG0349 (Slang): 微分しない組み込みの型 (整数・`bool` とそのベクトル・行列) を型引数にした `DifferentialPair` (`DifferentialPair<int>`) と、組み込みの数の型を型引数にした `DifferentialPtrPair` (slangc の E38029)
+- SG0359 (Slang): 微分の属性を書いたインターフェイスの要件を、弱い微分の属性のメソッドで満たしている箇所
+  (`IDifferentiable` の `[Differentiable]` でない `dzero`・`dadd`、`[ForwardDifferentiable]` の要件を微分しないメソッドで満たす。slangc の E38110・E38105)
+- SG0407 (Slang): `[CudaKernel]` の関数の void でない戻り値 (slangc の E31213) と、微分する `[CudaKernel]` の関数の微分する仮引数 (E31214)
+- SG0361 (Slang): `IDifferentiable` と `IDifferentiablePtrType` の両方に適合させた型 (slangc の E30311)
+- SG0361 (Slang): 微分の型の微分が、その型自身でないもの (`typealias Differential = D;` の D の微分が別の型。slangc の E30096)
+- SG0358 (Slang): 利用者のジェネリックの型の、型の仮引数に値を書いた箇所 (`Check<2 + 2>`。slangc の E30060)
+- CF0310 (Slang): 微分の属性 (`[BackwardDerivative(__d_g)]` など) に書いた、`__` で始まる宣言されていない関数の名前もエラーにする。
+  これまでは `__` で始まる名前をコンパイラの組み込みとみなして見ていなかった。標準ライブラリの関数の名前は通す
+- Slang の `property` の名前に演算子 (`property int operator& { … }`) を書いた箇所を構文の誤り (CF0001) にする (slangc の E20020)
+- CF0314 (Slang): `import` したモジュールと同じ名前の大域の変数をファイルでも宣言している場合、その名前の使用をエラーにする
+  (slangc の E39999「ambiguous reference」)。局所変数・仮引数で隠した使用は報告しない
+- SG0352 (Slang): `constexpr` の仮引数 (`int f(constexpr int c)`) への、定数でない実引数 (呼ぶ側の constexpr でない仮引数・uniform・代入し直す局所変数など。slangc の E40013)
+- SG0304 (Slang): レイペイロードのフィールドのアクセス修飾子 (`: read(…) : write(…)`) の、存在しないステージ名 (slangc の E40001)
+- SG0350 (Slang): 展開できない `[ForceUnroll]` のループ (回数が負の数か、条件で比較する値が uniform・エントリポイントの仮引数・展開しない外側のループの変数など。slangc の E40020)。
+  微分する関数の中かどうかによらない。題名を「ループの繰り返しの回数を決められません」にした
+- SG0360 (Slang): 微分する関数の戻り値に流れ込む、微分しない (か前向きにだけ微分する) 関数の呼び出し (slangc の E41022)。
+  実引数がリテラルだけのもの、`no_diff` を書いたもの、結果を比較にだけ使用するものは報告しない
+- SG0365 (Slang): ステージを 1 つだけ書いた `[require(fragment)]` などの関数に、別のステージのエントリポイントから届くもの (slangc の E36107)
+- SG0402 (Slang): `extension` の本体の `public` のメソッドも検査する。可視性を書かない `extension` の中の `public` のメソッド (slangc の E30601) と、
+  `public` のメソッドが public でない型を使用するもの (E30604)
+- GL0001: `subroutine` を、glslang と同じくエラーにする (glslang 16.6.0 はサブルーチンを実装していない。「feature not yet implemented」)
+- GLSL: ogl-samples を glslang と比較して見つけた見落としを報告する。glslang 16.6.0 が対応していない拡張の `require` (GL0003)、
+  `layout(override_coverage)` のない `gl_SampleMask` と、`viewport_relative` のない `gl_Layer` の再宣言、名前が存在しない `gl_PerVertex` に入れた `gl_ViewportMask` などの NV の変数 (GL0406)、
+  構造体の頂点シェーダーの入力 (GL0403)、1.50 以前の名前のある `gl_PerVertex` の再宣言 (GL0001)
+- SG0361 (Slang): `extension` で `IDifferentiable` に適合させ、`dzero`・`dadd` を書いていない型の、定義の側では微分しない型の仮引数を使用するフィールド (slangc の E30125)
+
+### 修正
+
+- Rider プラグイン: アイコンを付けた。これまでは JetBrains Marketplace と Rider のプラグインの一覧に、アイコンが表示されなかった
+- Visual Studio 拡張: Visual Studio Marketplace の短い説明を英語だけにした。日本語の部分が「?」に化けていた。
+  アイコンを 128×128 にした。これまでは 90×90 で、VS Code 拡張のページより小さく表示されていた
+- VS Code 拡張・Visual Studio 拡張・Rider プラグインの説明を揃えた。短い説明は同じ英語の文にし、README は英語 (`README.md`) と日本語 (`README.ja.md`) に分けて、先頭から互いに移れるようにした。
+  Visual Studio Marketplace の概要は、拡張機能の英語の README と同じ内容にした
+
 ## [0.3.5] - 2026-11-22
 
 ### 追加
@@ -1168,7 +1264,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確認
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3

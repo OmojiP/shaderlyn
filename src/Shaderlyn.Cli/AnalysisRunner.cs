@@ -300,6 +300,22 @@ internal sealed class AnalysisRunner
         => Analyze(text, out _, cancellationToken);
 
     /// <summary>
+    /// 環境が組み立てた解析単位とセマンティックモデル (<see cref="IAnalysisEnvironment.Prepare"/>) に、ルールを当てる (言語サーバー)。
+    /// </summary>
+    /// <param name="prepared">この実行器と同じ設定で組み立てたもの。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>検出した診断。</returns>
+    /// <remarks>
+    /// 言語サーバーは、指摘・効いていない範囲・ホバーなどで同じモデルを使う。モデルの組み立てが時間の大半を占めるので、文書のバージョンごとに 1 度だけ組み立てる。
+    /// </remarks>
+    internal ImmutableArray<Diagnostic> AnalyzePrepared(PreparedFile prepared, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(prepared);
+
+        return DeepStack.Run(() => RunRules(prepared, cancellationToken));
+    }
+
+    /// <summary>
     /// 読み込み済みのソーステキストを解析し、取り込むファイル一式も返す。
     /// </summary>
     /// <param name="text">解析対象のソーステキスト。</param>
@@ -345,9 +361,18 @@ internal sealed class AnalysisRunner
     {
         // どの言語として読み、どう単位に切り出すかは環境が決める。
         PreparedFile prepared = _environment.Prepare(text, _semanticsOptions, _timings);
+        includePaths = prepared.IncludePaths;
+        return RunRules(prepared, cancellationToken);
+    }
+
+    /// <summary>組み立てた解析単位にルールを当てる。大きなスタックを持つスレッドから呼ばれる。</summary>
+    /// <param name="prepared">環境が組み立てたもの。</param>
+    /// <param name="cancellationToken">キャンセル用トークン。</param>
+    /// <returns>検出した診断。</returns>
+    private ImmutableArray<Diagnostic> RunRules(PreparedFile prepared, CancellationToken cancellationToken)
+    {
         ShaderCompilation? compilation = prepared.Compilation;
         AnalysisTarget unit = prepared.Target;
-        includePaths = prepared.IncludePaths;
 
         if (_timings is not null && compilation is not null)
         {

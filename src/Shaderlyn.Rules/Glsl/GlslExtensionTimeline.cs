@@ -82,6 +82,9 @@ internal sealed class GlslExtensionTimeline
     /// <summary>指令ごとの、指令の名前のトークンとその指令の後の振る舞い。<see cref="_states"/> と同じ順。</summary>
     private readonly ImmutableArray<(ShaderSyntaxToken Directive, FrozenDictionary<string, GlslExtensionBehavior> State)> _directives;
 
+    /// <summary>指令ごとの、<see cref="PreprocessResult.RecordedDirectives"/> の中の順番。<see cref="_states"/> と同じ順。</summary>
+    private readonly ImmutableArray<int> _order;
+
     /// <summary>展開した木から作る。</summary>
     /// <param name="tree">GLSL の木。</param>
     public GlslExtensionTimeline(ShaderSyntaxTree tree)
@@ -101,8 +104,13 @@ internal sealed class GlslExtensionTimeline
         ImmutableArray<(ShaderSyntaxToken, FrozenDictionary<string, GlslExtensionBehavior>)>.Builder directives =
             ImmutableArray.CreateBuilder<(ShaderSyntaxToken, FrozenDictionary<string, GlslExtensionBehavior>)>();
 
-        foreach (RecordedDirective directive in tree.PreprocessResult.RecordedDirectives)
+        ImmutableArray<int>.Builder order = ImmutableArray.CreateBuilder<int>();
+        ImmutableArray<RecordedDirective> recorded = tree.PreprocessResult.RecordedDirectives;
+
+        for (int i = 0; i < recorded.Length; i++)
         {
+            RecordedDirective directive = recorded[i];
+
             if (directive.Directive.Text != "extension" || ReadExtension(directive) is not { } extension)
             {
                 continue;
@@ -112,10 +120,12 @@ internal sealed class GlslExtensionTimeline
             FrozenDictionary<string, GlslExtensionBehavior> after = current.ToFrozenDictionary(StringComparer.Ordinal);
             states.Add((directive.OutputIndex, after));
             directives.Add((directive.Directive, after));
+            order.Add(i);
         }
 
         _states = states.ToImmutable();
         _directives = directives.ToImmutable();
+        _order = order.ToImmutable();
     }
 
     /// <summary>トークンの時点での、拡張の振る舞いを返す。</summary>
@@ -169,6 +179,37 @@ internal sealed class GlslExtensionTimeline
     /// <param name="at">位置のトークン。</param>
     /// <returns>有効なら <see langword="true"/>。</returns>
     public bool IsOn(string extension, ShaderSyntaxToken? at) => GetBehavior(extension, at) != GlslExtensionBehavior.Disable;
+
+    /// <summary>
+    /// 指令の時点で、拡張を有効にしているか (<c>#include</c> など)。プリプロセッサが指令を覚えた順で比較する。
+    /// </summary>
+    /// <param name="extension">拡張の名前。</param>
+    /// <param name="directiveIndex">指令の、<see cref="PreprocessResult.RecordedDirectives"/> の中の順番。</param>
+    /// <param name="onByDefault">
+    /// <c>#extension</c> で名前を出していない (<c>all</c> も書いていない) 間は、有効とするか。
+    /// glslc がファイルの最初で <c>GL_GOOGLE_include_directive</c> を有効にするのを表す。
+    /// </param>
+    /// <returns>有効なら <see langword="true"/>。</returns>
+    /// <remarks>
+    /// 取り込んだファイルがトークンを出力しない (<c>#define</c> だけ) と、<c>#include</c> とその後ろの <c>#extension</c> の出力の位置が同じになる。
+    /// そのため、出力の位置ではなく覚えた順で比較する。
+    /// </remarks>
+    public bool IsOnBefore(string extension, int directiveIndex, bool onByDefault = false)
+    {
+        FrozenDictionary<string, GlslExtensionBehavior>? state = null;
+
+        for (int i = 0; i < _order.Length && _order[i] < directiveIndex; i++)
+        {
+            state = _states[i].State;
+        }
+
+        if (onByDefault && (state is null || (!state.ContainsKey(extension) && !state.ContainsKey(AllExtensions))))
+        {
+            return true;
+        }
+
+        return Lookup(state, extension) != GlslExtensionBehavior.Disable;
+    }
 
     /// <summary><c>#extension</c> の行から、名前と振る舞いを読む。</summary>
     /// <param name="directive">指令。</param>

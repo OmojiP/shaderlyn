@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -11,7 +12,7 @@ namespace Shaderlyn.VisualStudio;
 /// <remarks>
 /// <para>
 /// 設定のページ (ツール &gt; オプション &gt; Shaderlyn) に実行ファイルがあればそれを、なければ拡張機能に同梱したもの
-/// (server/shaderlyn-lsp.exe) を起動する。実行ファイルの場所はユーザーごとの設定にだけ書ける。
+/// (server/shaderlyn-lsp.exe。arm64 の Visual Studio では server/arm64/shaderlyn-lsp.exe) を起動する。実行ファイルの場所はユーザーごとの設定にだけ書ける。
 /// リポジトリのファイル (.shaderlyn.yaml) には書かせない。
 /// </para>
 /// <para>
@@ -23,8 +24,23 @@ namespace Shaderlyn.VisualStudio;
 internal static class ServerProcess
 {
     /// <summary>拡張機能に同梱した言語サーバー。</summary>
+    /// <remarks>
+    /// arm64 の Visual Studio では arm64 のものを使う。入っていない場合 (手元で x64 のものだけを入れて組んだ場合) は、
+    /// x64 のものを起動する (Windows 11 の arm64 はエミュレーションで x64 を実行できる)。
+    /// x64 の Visual Studio をエミュレーションで動かしている場合は、プロセスが x64 なので x64 のものを使う。
+    /// </remarks>
     private static string BundledServer
-        => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "server", "shaderlyn-lsp.exe");
+    {
+        get
+        {
+            string server = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "server");
+            string arm64 = Path.Combine(server, "arm64", "shaderlyn-lsp.exe");
+
+            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 && File.Exists(arm64)
+                ? arm64
+                : Path.Combine(server, "shaderlyn-lsp.exe");
+        }
+    }
 
     /// <summary>サーバーを起動する。起動できなければ <see langword="null"/>。</summary>
     /// <param name="configuredPath">設定のページの実行ファイル。未設定なら <see langword="null"/>。</param>

@@ -593,9 +593,11 @@ internal sealed partial class GlslRequirements
                 RequireExtensions(at, ["GL_EXT_ray_tracing"], "'shadercallcoherent'");
                 break;
 
+            // glslang 16.6.0 はサブルーチンを実装していない (glslang.y の SUBROUTINE で unimplemented。「feature not yet implemented」)。
             case "subroutine":
                 SpvRemoved(at, "subroutine");
                 GlobalCheck(at, global, "subroutine");
+                Report(GlslRuleDescriptors.NotAvailable, at, "'subroutine' は glslang がまだ実装していないので、コンパイルの誤りになります。");
                 break;
 
             case "taskPayloadSharedEXT":

@@ -15,6 +15,7 @@ namespace Shaderlyn.Rules.Slang;
 /// <list type="bullet">
 /// <item><c>[mutating]</c> でないメソッドの中の、同じ型の <c>[mutating]</c> のメソッドの修飾しない呼び出し (自分は書き換えられない。E30050)</item>
 /// <item>定数バッファーのメンバー・関数の外の static でない変数 (uniform)・<c>ParameterBlock&lt;T&gt;</c> と <c>ConstantBuffer&lt;T&gt;</c> の値への、<c>[mutating]</c> のメソッドの呼び出し (E30050)</item>
+/// <item>コピーできない型 (<c>[__NonCopyableType]</c>) の <c>in</c> の仮引数への、<c>[mutating]</c> のメソッドの呼び出し (E30067。コピーできる型では slangc の警告だけなので報告しない)</item>
 /// </list>
 /// </remarks>
 internal sealed class SlangMutatingCallAnalyzer : SemanticRuleAnalyzer
@@ -74,6 +75,10 @@ internal sealed class SlangMutatingCallAnalyzer : SemanticRuleAnalyzer
                 }
             }
 
+            // コピーできない型 ([__NonCopyableType]) は、in の仮引数でも呼び出し元の値そのものなので書き換えられない (E30067)。
+            // 型の宣言の前の属性は構文木に残らないので、トークンの並びから読む ([__NonCopyableType] struct S)。
+            HashSet<string> nonCopyable = NonCopyableTypes(program.Tree.PreprocessResult.Tokens);
+
             ExpressionTypeBinder binder = compilation.GetExpressionTypeBinder(program);
 
             void Report(ShaderSyntaxToken at, string message)
@@ -101,7 +106,7 @@ internal sealed class SlangMutatingCallAnalyzer : SemanticRuleAnalyzer
                     // gCounter.increment() (定数バッファーのメンバー・uniform・ParameterBlock の値)
                     case MemberAccessExpressionSyntax { DotToken.Kind: ShaderSyntaxKind.DotToken, Target: IdentifierExpressionSyntax receiver } access
                         when binder.ResolveName(receiver).Candidates is [{ Declarator: var declarator }]
-                             && DescribeImmutable(declarator) is ({ } what, { } typeName)
+                             && DescribeImmutable(declarator, nonCopyable) is ({ } what, { } typeName)
                              && mutating.TryGetValue(typeName, out HashSet<string>? methods) && methods.Contains(access.Name):
                         Report(access.NameToken, $"{what} '{receiver.Name}' は書き換えられないので、[mutating] のメソッド '{access.Name}' を呼べません。");
                         break;
@@ -110,8 +115,32 @@ internal sealed class SlangMutatingCallAnalyzer : SemanticRuleAnalyzer
         }
     }
 
+    /// <summary><c>[__NonCopyableType]</c> を付けた struct の名前を、トークンの並びから集める。</summary>
+    private static HashSet<string> NonCopyableTypes(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        HashSet<string> names = new(StringComparer.Ordinal);
+
+        for (int i = 1; i + 3 < tokens.Length; i++)
+        {
+            if (tokens[i].Text == "__NonCopyableType" && tokens[i - 1].Kind == ShaderSyntaxKind.OpenBracketToken && tokens[i + 1].Kind == ShaderSyntaxKind.CloseBracketToken)
+            {
+                // 間にほかの属性があってもよい ([__NonCopyableType] [Foo] struct S)。
+                for (int j = i + 2; j + 1 < tokens.Length && tokens[j].Kind is not (ShaderSyntaxKind.SemicolonToken or ShaderSyntaxKind.OpenBraceToken); j++)
+                {
+                    if (tokens[j].Text is "struct" or "class" && tokens[j + 1].Kind == ShaderSyntaxKind.IdentifierToken)
+                    {
+                        names.Add(tokens[j + 1].Text);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return names;
+    }
+
     /// <summary>書き換えられない値の説明と、その値の型の名前。書き換えられるか、分からなければ (null, null)。</summary>
-    private static (string? What, string? Type) DescribeImmutable(ShaderSyntaxNode declarator)
+    private static (string? What, string? Type) DescribeImmutable(ShaderSyntaxNode declarator, HashSet<string> nonCopyable)
     {
         (TypeSyntax? type, string? what) = declarator switch
         {
@@ -119,6 +148,9 @@ internal sealed class SlangMutatingCallAnalyzer : SemanticRuleAnalyzer
             VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Parent: CompilationUnitSyntax or NamespaceDeclarationSyntax } declaration }
                 when !declaration.ModifierTokens.Any(t => t.Text is "static" or "groupshared") => (declaration.Type, "uniform の値"),
             VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaration } => (declaration.Type, null),
+            ParameterSyntax parameter when nonCopyable.Contains(parameter.Type.NameToken.Text)
+                && !parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Any(t => t.Text is "out" or "inout" or "ref" or "__ref" or "borrow")
+                => (parameter.Type, "コピーできない型 ([__NonCopyableType]) の in の仮引数"),
             ParameterSyntax parameter => (parameter.Type, null),
             _ => (null, null),
         };

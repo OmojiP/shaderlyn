@@ -283,7 +283,7 @@ internal sealed class BannedUnderSymbolAnalyzer(string keyword, string function)
 
 #### 引数の評価 (`ExpressionTypeBinder`)
 
-型バインダーは `c.Compilation.GetExpressionTypeBinder(c.Program)` から取得して使い回します（インスタンスの再生成はパフォーマンス劣化の原因となります）。
+型バインダーは `c.Compilation.GetExpressionTypeBinder(c.Program)` から取得して再利用します（インスタンスの再生成はパフォーマンス劣化の原因となります）。
 
 ```csharp
 internal sealed class ArgumentTypeAnalyzer(string function, int parameter, string expectedType)
@@ -582,7 +582,7 @@ public sealed class MyEngineEnvironment : IHlslEnvironment
 }
 ```
 
-値を持つシンボル (`VariantSpace.ForValues`) は、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに読み分け、
+値を持つシンボル (`VariantSpace.ForValues`) は、`#if QUALITY == 2` / `#if QUALITY >= 1` / `#if QUALITY` を値ごとに区別して解析し、
 指摘に `QUALITY == 2 のとき` を添えます。
 
 ### 9. 自前の CLI と言語サーバーに環境を追加する
@@ -605,7 +605,7 @@ environment: myengine
 
 * コンパイル単位は、汎用の HLSL 環境と同じく設定ファイルの `units:` から作ります。当てはまらないファイルは、ファイル全体を 1 つの単位にします
 * 設定ファイルの `symbols:` と `units:` の `entry` は、単位の `Variants` / `EntryPoints` に入ります。使用するかどうかは環境が決めます
-  (上の例はソースの `#pragma` だけを読みます)
+  (上の例はソースの `#pragma` だけを解析します)
 * 名前は組み込みの環境 (`unity` / `hlsl` / `unreal` / `glsl` / `godot` / `slang` / `wgsl`) と重ねられません
 
 ## Unity 以外の言語と環境
@@ -857,7 +857,7 @@ public sealed class UnrealTextureSampleAnalyzer : ShaderRuleAnalyzer
 `.hlsl` は Unity の HLSL として扱うので、汎用の HLSL として確認する場合は `WithEnvironment("hlsl")` を指定します。
 `.mesh` は Unity のメッシュのアセットと同じ拡張子なので Unity になります。GLSL として確認する場合は `WithEnvironment("glsl")` を指定します。
 Unity 以外の環境では、ファイル全体を 1 つのコンパイル単位にし、定義済みのマクロは置きません (設定ファイルを置かずに CLI で解析した場合と同じです)。
-Unreal Engine は C++ のシェーダーの登録を読まないので、`Common.ush` などのヘッダは `AddInclude("/Engine/Private/Common.ush", …)` で与えます。
+Unreal Engine は C++ のシェーダーの登録を解析しないので、`Common.ush` などのヘッダは `AddInclude("/Engine/Private/Common.ush", …)` で与えます。
 
 ```csharp
 public sealed class LanguageRuleTests

@@ -92,6 +92,10 @@ internal sealed partial class SlangDifferentialTypeAnalyzer : SemanticRuleAnalyz
                 }
             }
 
+            CheckExtensionSynthesis(root, byName, differentiableInterfaces,
+                s => s.NameToken is { } name && index.TryGetValue(name, out int from) && index.TryGetValue(s.OpenBrace, out int to) && tokens[from..to].Any(t => t.Text == "where"),
+                Report);
+
             foreach (StructDeclarationSyntax type in structs)
             {
                 if (type.Keyword.Text is not ("struct" or "class") || !index.TryGetValue(type.OpenBrace, out int open) || !index.TryGetValue(type.CloseBrace, out int close))
@@ -101,22 +105,27 @@ internal sealed partial class SlangDifferentialTypeAnalyzer : SemanticRuleAnalyz
 
                 bool differentiable = Bases(type, tokens, index).Any(differentiableInterfaces.Contains);
 
-                // typealias Differential = D; (型の直下)
-                string? differentialName = null;
-                int depth = 0;
-
-                for (int i = open; i < close; i++)
+                // 値の微分 (IDifferentiable) とポインターの微分 (IDifferentiablePtrType) の両方には適合できない (E30311)。
+                if (differentiable && Bases(type, tokens, index).Contains("IDifferentiablePtrType") && type.NameToken is { } bothName)
                 {
-                    depth += tokens[i].Kind switch { ShaderSyntaxKind.OpenBraceToken => 1, ShaderSyntaxKind.CloseBraceToken => -1, _ => 0 };
-
-                    if (depth == 1 && i + 4 < close && tokens[i].Text == "typealias" && tokens[i + 1].Text == "Differential" && tokens[i + 2].Kind == ShaderSyntaxKind.EqualsToken
-                        && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 4].Kind == ShaderSyntaxKind.SemicolonToken)
-                    {
-                        differentialName = tokens[i + 3].Text;
-                    }
+                    Report(bothName, $"{type.Name} は、IDifferentiable と IDifferentiablePtrType のどちらか一方にだけ適合させてください。");
                 }
 
+                // typealias Differential = D; (型の直下)
+                string? differentialName = DifferentialName(tokens, open, close);
+
                 StructDeclarationSyntax? differential = differentialName is not null && byName.TryGetValue(differentialName, out StructDeclarationSyntax? d) ? d : null;
+
+                // 微分の型 D の微分は D でなければならない (D の typealias Differential が別の型。E30096)。
+                if (differentiable && differential is not null && differentialName != type.Name
+                    && differential.GenericParameterTokens.IsDefaultOrEmpty
+                    && index.TryGetValue(differential.OpenBrace, out int differentialOpen) && index.TryGetValue(differential.CloseBrace, out int differentialClose)
+                    && DifferentialName(tokens, differentialOpen, differentialClose) is { } inner && inner != differentialName && inner != "This"
+                    && Bases(type, tokens, index).FirstOrDefault(differentiableInterfaces.Contains) is { } baseName
+                    && tokens.Skip(index[type.NameToken!]).Take(open - index[type.NameToken!]).FirstOrDefault(t => t.Text == baseName) is { } baseToken)
+                {
+                    Report(baseToken, $"{type.Name} の微分の型 {differentialName} の微分は、{differentialName} 自身でなければなりません ({differentialName} の Differential は {inner} です)。");
+                }
                 HashSet<string>? differentialFields = differential is null || !differential.GenericParameterTokens.IsDefaultOrEmpty
                     ? null
                     : [.. differential.Fields.SelectMany(f => f.Variables.Select(v => v.Name))];
@@ -169,6 +178,26 @@ internal sealed partial class SlangDifferentialTypeAnalyzer : SemanticRuleAnalyz
                 }
             }
         }
+    }
+
+    /// <summary>型の直下の <c>typealias Differential = D;</c> の D。書いていなければ <see langword="null"/>。</summary>
+    private static string? DifferentialName(ImmutableArray<ShaderSyntaxToken> tokens, int open, int close)
+    {
+        string? name = null;
+        int depth = 0;
+
+        for (int i = open; i < close; i++)
+        {
+            depth += tokens[i].Kind switch { ShaderSyntaxKind.OpenBraceToken => 1, ShaderSyntaxKind.CloseBraceToken => -1, _ => 0 };
+
+            if (depth == 1 && i + 4 < close && tokens[i].Text == "typealias" && tokens[i + 1].Text == "Differential" && tokens[i + 2].Kind == ShaderSyntaxKind.EqualsToken
+                && tokens[i + 3].Kind == ShaderSyntaxKind.IdentifierToken && tokens[i + 4].Kind == ShaderSyntaxKind.SemicolonToken)
+            {
+                name = tokens[i + 3].Text;
+            }
+        }
+
+        return name;
     }
 
     /// <summary>型の宣言の基底の名前 (: の後ろの、{ の前の名前)。</summary>

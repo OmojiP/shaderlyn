@@ -4,6 +4,7 @@ using Shaderlyn.Core.Analysis;
 using Shaderlyn.Core.Diagnostics;
 using Shaderlyn.Semantics;
 using Shaderlyn.Semantics.Programs;
+using Shaderlyn.Semantics.Symbols;
 
 namespace Shaderlyn.Rules.Slang;
 
@@ -16,6 +17,8 @@ namespace Shaderlyn.Rules.Slang;
 /// <c>[MaxIters(n)]</c> か <c>[ForceUnroll]</c> を付けていない <c>while</c> と <c>do</c>、変数を定数と比較して定数ずつ増減する形でない <c>for</c>、本体でその変数を書き換える <c>for</c></item>
 /// <item>CF0310: <c>[BackwardDerivative(f)]</c> などの微分の属性に書いた、どこにも宣言されていない関数の名前 (E31148)</item>
 /// <item>SG0102: インターフェイスの要件でない関数の <c>[MaybeDifferentiable]</c> (E30314) と、インターフェイスの要件の <c>[TreatAsDifferentiable]</c> (E30313)</item>
+/// <item>SG0301: 微分する関数の中の、ベクトルか行列を条件にした <c>?:</c> (E30055)</item>
+/// <item>SG0407: <c>[CudaKernel]</c> の戻り値 (E31213) と、微分する <c>[CudaKernel]</c> の微分する仮引数 (E31214)</item>
 /// <item>SG0304: <c>[DerivativeGroupLinear]</c> の、スレッドの数の積が 4 の倍数でない <c>[numthreads]</c> (E31211) と、<c>[DerivativeGroupQuad]</c> の、x と y が 2 の倍数でない <c>[numthreads]</c> (E31210)</item>
 /// </list>
 /// </remarks>
@@ -36,6 +39,8 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
         SlangRuleDescriptors.ModifierNotAllowed,
         SlangRuleDescriptors.InvalidAttributeValue,
         HlslRuleDescriptors.UndeclaredIdentifier,
+        SlangRuleDescriptors.WrongOperandTypes,
+        SlangRuleDescriptors.InvalidDeclarationType,
     ];
 
     /// <inheritdoc/>
@@ -50,6 +55,11 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
         {
             CompilationUnitSyntax root = program.Tree.Root;
             SlangConstants constants = SlangConstants.Of(root);
+
+            // 継承の並びに IDifferentiable を書いた構造体 (1 度だけ宣言したもの)。
+            HashSet<string> differentiableStructs = [.. root.DescendantNodesAndSelf().OfType<StructDeclarationSyntax>()
+                .Where(s => s.Keyword.Text == "struct" && s.NameToken is not null && s.BaseType?.NameToken.Text == "IDifferentiable")
+                .GroupBy(s => s.Name).Where(g => g.Count() == 1).Select(g => g.Key)];
 
             void Report(DiagnosticDescriptor descriptor, ShaderSyntaxToken at, params object?[] arguments)
             {
@@ -84,11 +94,13 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
                 }
 
                 CheckDerivativeGroup(function, Report);
+                CheckCudaKernel(function, differentiableStructs, Report);
 
                 if (function.Body is { } body
                     && function.Attributes.Any(a => a.Name is "Differentiable" or "ForwardDifferentiable" or "BackwardDifferentiable"))
                 {
                     CheckLoops(body, constants, Report);
+                    CheckVectorConditionals(body, compilation.GetExpressionTypeBinder(program), Report);
                 }
             }
         }
@@ -103,11 +115,73 @@ internal sealed class SlangDerivativeAnalyzer : SemanticRuleAnalyzer
                IncompleteDeclarationSyntax d => d.Tokens.Any(t => t.Text == name),
                _ => false,
            }))
-           && !compilation.TypeSystem.ForTree(program.Tree).IsKnownFunction(name, program.Tree)
+           // __ で始まる名前は、型の仕組みがコンパイラの組み込みとして通すので、標準ライブラリの関数の名前の一覧で見る。
+           && !(name.StartsWith("__", StringComparison.Ordinal)
+               ? compilation.TypeSystem.ForTree(program.Tree).FunctionNames.Contains(name)
+               : compilation.TypeSystem.ForTree(program.Tree).IsKnownFunction(name, program.Tree))
            && !compilation.UnanalyzedIdentifiers.Contains(name)
            && !program.Tree.PreprocessResult.Macros.ContainsKey(name)
-           && compilation.HasCompleteDependencies
-           && !name.StartsWith("__", StringComparison.Ordinal);
+           && compilation.HasCompleteDependencies;
+
+    /// <summary>
+    /// 微分する関数の中の、ベクトルか行列を条件にした ?: (成分ごとに選ぶので、短絡しない)。slangc 2026.19 は E30055 にする (no_diff の中も同じ)。
+    /// </summary>
+    private static void CheckVectorConditionals(BlockStatementSyntax body, ExpressionTypeBinder binder, Action<DiagnosticDescriptor, ShaderSyntaxToken, object?[]> report)
+    {
+        foreach (ConditionalExpressionSyntax conditional in body.DescendantNodesAndSelf().OfType<ConditionalExpressionSyntax>())
+        {
+            ExpressionSyntax condition = conditional.Condition;
+
+            while (condition is ParenthesizedExpressionSyntax parenthesized)
+            {
+                condition = parenthesized.Expression;
+            }
+
+            if (binder.GetTypesByConfiguration(condition) is [{ Type: { } name }]
+                && binder.TypeSystem.TryDescribeNumeric(name, out ShaderNumericShape shape)
+                && shape.Kind is ShaderNumericKind.Vector or ShaderNumericKind.Matrix)
+            {
+                report(SlangRuleDescriptors.WrongOperandTypes, conditional.QuestionToken,
+                    [$"微分する関数の中では、{(shape.Kind == ShaderNumericKind.Vector ? "ベクトル" : "行列")} ({name}) を条件にした ?: は使用できません。select(条件, 真の値, 偽の値) を使用してください。"]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>[CudaKernel]</c> の関数の戻り値の型 (void だけ。E31213) と、微分する <c>[CudaKernel]</c> の関数の微分する仮引数 (E31214)。
+    /// 微分する仮引数は、浮動小数 (float・half・double とそのベクトル・行列) と、IDifferentiable を継承の並びの先頭に書いた構造体で、no_diff を書いていないもの。
+    /// </summary>
+    private static void CheckCudaKernel(FunctionDeclarationSyntax function, HashSet<string> differentiableStructs, Action<DiagnosticDescriptor, ShaderSyntaxToken, object?[]> report)
+    {
+        if (!function.Attributes.Any(a => a.Name == "CudaKernel"))
+        {
+            return;
+        }
+
+        if (function.ReturnType.NameToken.Text != "void" && function.ReturnType.OpenAngle is null)
+        {
+            report(SlangRuleDescriptors.InvalidDeclarationType, function.NameToken, [$"[CudaKernel] の関数 '{function.Name}' の戻り値は void にしてください ({function.ReturnType.NameToken.Text} は使用できません)。"]);
+        }
+
+        if (!function.Attributes.Any(a => a.Name is "Differentiable" or "ForwardDifferentiable" or "BackwardDifferentiable"))
+        {
+            return;
+        }
+
+        foreach (ParameterSyntax parameter in function.ParameterList)
+        {
+            string type = parameter.Type.NameToken.Text;
+            bool noDiff = parameter.ModifierTokens.Concat(parameter.Type.ModifierTokens).Any(t => t.Text == "no_diff");
+            bool floating = parameter.Type.OpenAngle is null
+                            && System.Text.RegularExpressions.Regex.IsMatch(type, @"^(float|half|double)([1-4](x[1-4])?)?$");
+
+            if (!noDiff && (floating || differentiableStructs.Contains(type)))
+            {
+                report(SlangRuleDescriptors.InvalidDeclarationType, parameter.NameToken,
+                    [$"微分する [CudaKernel] の関数の仮引数 '{parameter.Name}' は、微分する型 ({type}) にできません。no_diff を付けるか、TensorView などで渡してください。"]);
+            }
+        }
+    }
 
     /// <summary>[DerivativeGroupLinear] と [DerivativeGroupQuad] の [numthreads] の値。</summary>
     private static void CheckDerivativeGroup(FunctionDeclarationSyntax function, Action<DiagnosticDescriptor, ShaderSyntaxToken, object?[]> report)

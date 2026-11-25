@@ -1,8 +1,8 @@
 {
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
-  "description": "Unity の ShaderLab / HLSL、DirectX 12 の HLSL、Unreal Engine のシェーダーを編集しながら解析する。GLSL・Godot のシェーダー (.gdshader)・Slang・WGSL は、それぞれのコンパイラ (glslang・Godot 4・slangc・naga) と同じ誤りを報告する",
-  "version": "0.3.5",
+  "description": "Finds errors in Unity, Unreal Engine, Godot, Slang, WGSL and other shaders as you edit.",
+  "version": "0.3.6",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -81,14 +81,14 @@
         "shaderlyn.inactiveRegions.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "条件が外れて効いていない #if / #ifdef の中を薄く表示します。開いたとき・保存したとき・シンボルを選んだときの解析で更新されます。"
+          "description": "条件が外れて無効な #if / #ifdef の中を薄く表示します。開いたとき・保存したとき・シンボルを選んだときの解析で更新されます。"
         },
         "shaderlyn.inactiveRegions.opacity": {
           "type": "number",
           "default": 0.45,
           "minimum": 0.1,
           "maximum": 1,
-          "description": "効いていない範囲を表示するときの不透明度。"
+          "description": "無効な範囲を表示するときの不透明度。"
         }
       }
     }

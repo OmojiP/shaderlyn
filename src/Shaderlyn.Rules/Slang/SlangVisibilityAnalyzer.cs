@@ -498,6 +498,20 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                     foreach (DeclarationSyntax member in structure.Members)
                     {
+                        // public property IS ii2 { get { … } } (E30604)。property は構文木では読み飛ばした宣言になる。
+                        if (visibility == "public"
+                            && member is IncompleteDeclarationSyntax { Tokens: var propertyTokens }
+                            && propertyTokens.IndexOf(propertyTokens.FirstOrDefault(t => t.Text == "property")!) is var keywordAt and >= 0
+                            && keywordAt + 2 < propertyTokens.Length
+                            && (propertyTokens.Take(keywordAt).Any(t => t.Text == "public") || VisibilityBefore(propertyTokens[keywordAt], tokens, index) == "public")
+                            && propertyTokens[keywordAt + 1] is { Kind: ShaderSyntaxKind.IdentifierToken } propertyType
+                            && lessVisible.Contains(propertyType.Text)
+                            && propertyTokens[keywordAt + 2] is { Kind: ShaderSyntaxKind.IdentifierToken } propertyName)
+                        {
+                            Report(propertyName, $"public の property '{propertyName.Text}' の型 {propertyType.Text} は public ではありません。");
+                            continue;
+                        }
+
                         (ShaderSyntaxToken? memberName, ImmutableArray<ShaderSyntaxToken> modifiers) = member switch
                         {
                             VariableDeclarationSyntax field => (field.Variables.FirstOrDefault()?.NameToken, field.ModifierTokens),
@@ -534,8 +548,57 @@ internal sealed class SlangVisibilityAnalyzer : SemanticRuleAnalyzer
 
                     break;
                 }
+
+                // extension S { public void f(I i) { … } }。可視性を書かない extension は public でない (slangc 2026.19)。
+                // public でない extension の public のメンバーは E30601、public のメンバーが public でない型を使うと E30604 (両方とも起こる)。
+                case IncompleteDeclarationSyntax { Tokens: [{ Text: "extension" or "__extension" } keyword, ..] } extension when !extension.BodyMembers.IsEmpty:
+                {
+                    string visibility = Visibility(keyword, []);
+                    string target = ExtensionTarget(extension.Tokens) ?? "型";
+
+                    foreach (FunctionDeclarationSyntax method in extension.BodyMembers.OfType<FunctionDeclarationSyntax>())
+                    {
+                        if (!method.ModifierTokens.Any(t => t.Text == "public"))
+                        {
+                            continue;
+                        }
+
+                        if (visibility != "public")
+                        {
+                            Report(method.NameToken, $"'{method.Name}' を public にしていますが、{target} の extension が public ではありません。メンバーの公開範囲は親より広くできません。");
+                        }
+
+                        CheckSignature(method);
+                    }
+
+                    break;
+                }
             }
         }
+    }
+
+    /// <summary><c>extension&lt;T&gt; Optional&lt;T&gt; : I { … }</c> の拡張する型の名前 (Optional)。</summary>
+    /// <param name="tokens">extension のキーワードから始まるトークン。</param>
+    internal static string? ExtensionTarget(ImmutableArray<ShaderSyntaxToken> tokens)
+    {
+        int i = 1;
+
+        // extension の後ろのジェネリックの仮引数 (<T : I>) を越える。
+        if (i < tokens.Length && tokens[i].Kind == ShaderSyntaxKind.LessThanToken)
+        {
+            for (int depth = 0; i < tokens.Length; i++)
+            {
+                depth += tokens[i].Kind switch { ShaderSyntaxKind.LessThanToken => 1, ShaderSyntaxKind.GreaterThanToken => -1, ShaderSyntaxKind.GreaterThanGreaterThanToken => -2, _ => 0 };
+
+                if (depth <= 0)
+                {
+                    i++;
+                    break;
+                }
+            }
+        }
+
+        return i < tokens.Length && tokens[i].Kind == ShaderSyntaxKind.IdentifierToken ? tokens[i].Text : null;
     }
 
     /// <summary>

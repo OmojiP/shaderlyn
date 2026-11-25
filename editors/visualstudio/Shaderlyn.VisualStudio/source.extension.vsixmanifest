@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="Shaderlyn.VisualStudio" Version="0.3.5" Language="en-US" Publisher="OmojiP" />
+    <Identity Id="Shaderlyn.VisualStudio" Version="0.3.6" Language="en-US" Publisher="OmojiP" />
     <DisplayName>Shaderlyn</DisplayName>
-    <Description xml:space="preserve">Finds errors in Unity, Unreal Engine, Godot, Slang, WGSL and other shaders as you edit. Unity・Unreal Engine・Godot・Slang・WGSL などのシェーダーの誤りを、エディタで指摘します。</Description>
+    <!-- 英語だけにする。Visual Studio Marketplace の短い説明では、日本語が「?」に化ける (0.3.5 で確認)。VS Code と Rider と同じ文にする。 -->
+    <Description xml:space="preserve">Finds errors in Unity, Unreal Engine, Godot, Slang, WGSL and other shaders as you edit.</Description>
     <MoreInfo>https://github.com/OmojiP/shaderlyn</MoreInfo>
     <License>LICENSE</License>
     <Icon>Resources\icon.png</Icon>

@@ -312,4 +312,49 @@ public sealed class SystemValueSemanticTests : IDisposable
 
         Assert.Empty(Reports(output));
     }
+
+    /// <summary>ピクセルシェーダーの深度の出力は 1 つだけ。DXC 1.8 は検証の誤り、slangc 2026.19 は E30705 にする。FXC (ps_5_0) は通す。</summary>
+    [Theory]
+    [InlineData("ps_6_6", "void main(out float a : SV_DepthGreaterEqual, out float b : SV_Depth) { a = 0; b = 0; }", true)]
+    [InlineData("ps_6_6", "struct O { float a : SV_Depth; float b : SV_DepthLessEqual0; float4 c : SV_Target; }; O main() { O o = (O)0; return o; }", true)]
+    [InlineData("ps_6_6", "void main(out float a : SV_Depth, out float4 c : SV_Target) { a = 0; c = 0; }", false)]
+    [InlineData("ps_5_0", "void main(out float a : SV_DepthGreaterEqual, out float b : SV_Depth) { a = 0; b = 0; }", false)]
+    public async Task ピクセルシェーダーの深度の出力は1つだけ(string target, string code, bool reported)
+    {
+        string compiler = target == "ps_5_0" ? "fxc" : "dxc";
+        File.WriteAllText(Path.Combine(_workDirectory, ".shaderlyn.yaml"), $$"""
+            version: 1
+            environment: hlsl
+            hlsl:
+              compiler: {{compiler}}
+            units:
+              - files: "*.hlsl"
+                entry: main
+                target: {{target}}
+            """);
+
+        string output = await AnalyzeAsync("a.hlsl", code, "--config", Path.Combine(_workDirectory, ".shaderlyn.yaml"));
+
+        Assert.Equal(reported, Reports(output).Any(r => r.Contains("深度の出力は 1 つだけです", StringComparison.Ordinal)));
+    }
+
+    /// <summary>セマンティクスを受け取れない型の値に付けたもの。型の表は、コンパイラが型の誤りにした型だけを持つ。</summary>
+    [Theory]
+    [InlineData("[shader(\"vertex\")]\nfloat4 main(float id : SV_ViewID) : SV_Position { return 0; }\n", "'SV_ViewID' は float の値に付けられません")]
+    [InlineData("[shader(\"fragment\")]\nfloat4 main(int f : SV_IsFrontFace) : SV_Target { return 0; }\n", "'SV_IsFrontFace' は int の値に付けられません")]
+    [InlineData("[shader(\"vertex\")]\nfloat4 main(uint id : SV_ViewID) : SV_Position { return 0; }\n", null)]
+    [InlineData("[shader(\"fragment\")]\nfloat4 main(bool f : SV_IsFrontFace) : SV_Target { return 0; }\n", null)]
+    public async Task セマンティクスを受け取れない型の値に付けたものを報告する(string code, string? expected)
+    {
+        string[] reports = [.. Reports(await AnalyzeAsync("a.slang", code, "--no-config")).Where(r => r.Contains("の値に付けられません", StringComparison.Ordinal))];
+
+        if (expected is null)
+        {
+            Assert.Empty(reports);
+        }
+        else
+        {
+            Assert.Contains(reports, r => r.Contains(expected, StringComparison.Ordinal));
+        }
+    }
 }

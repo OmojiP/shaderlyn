@@ -134,7 +134,8 @@ internal sealed class GlslDeclarationRequirementAnalyzer : SemanticRuleAnalyzer
                 case StructDeclarationSyntax { NameOverride: not null } block:
                     CheckQualifiers(requirement, [.. block.Modifiers, block.Keyword], global);
                     CheckCombination(requirement, [.. block.Modifiers, block.Keyword], vertexInput: false);
-                    CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword], block.Name);
+                    // 名前のあるブロックの Name は記憶域を含む (in gl_PerVertex)。組み込みのブロックかは名前のトークンで見る。
+                    CheckBlockStage(requirement, [.. block.Modifiers, block.Keyword], block.NameToken?.Text ?? block.Name);
                     CheckBlockQualifiers(requirement, [.. block.Modifiers, block.Keyword]);
                     CheckBlockMembers(requirement, block.Keyword.Text, block.Fields);
                     CheckUniformBlock(requirement, [.. block.Modifiers, block.Keyword]);

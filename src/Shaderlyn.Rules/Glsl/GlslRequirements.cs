@@ -72,6 +72,7 @@ internal sealed partial class GlslRequirements
         SpirvVersion = language.SpirvVersion;
         AutoMapLocations = language.AutoMapLocations;
         AutoMapBindings = language.AutoMapBindings;
+        IncludeRequiresExtension = language.IncludeRequiresExtension;
         Extensions = new GlslExtensionTimeline(tree);
     }
 
@@ -98,6 +99,9 @@ internal sealed partial class GlslRequirements
 
     /// <summary>uniform と buffer の binding をコンパイラが決めるか (glslang の <c>--auto-map-bindings</c>)。</summary>
     public bool AutoMapBindings { get; }
+
+    /// <summary>拡張を有効にしていない <c>#include</c> を誤りにするか (設定ファイルの <c>glsl: compiler: glslang</c>)。</summary>
+    public bool IncludeRequiresExtension { get; }
 
     /// <summary>位置ごとの拡張の振る舞い。</summary>
     public GlslExtensionTimeline Extensions { get; }

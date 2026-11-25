@@ -45,7 +45,7 @@ flowchart TD
 
 1. 実行ファイルの入口 [Shaderlyn.Cli.App/Program.cs](../../src/Shaderlyn.Cli.App/Program.cs) が組み込みルールを渡して `Program.RunAsync` を呼び、[Program.cs](../../src/Shaderlyn.Cli/Program.cs) が引数・対象ファイル・設定・意味解析の環境を整えます。
    自作ルール入りの CLI も、同じ `Program.RunAsync` を呼びます。
-2. [AnalysisRunner.cs](../../src/Shaderlyn.Cli/AnalysisRunner.cs) がファイルを `SourceText` として読み、設定ファイルの `environment` で選んだ環境 ([Environments](../../src/Shaderlyn.Cli/Environments/)) に渡します。
+2. [AnalysisRunner.cs](../../src/Shaderlyn.Cli/AnalysisRunner.cs) がファイルを `SourceText` として読み込み、設定ファイルの `environment` で選んだ環境 ([Environments](../../src/Shaderlyn.Cli/Environments/)) に渡します。
    環境がファイルをコンパイル単位に切り出します。Unity は拡張子で判定し、`.shader` は ShaderLab、`.compute` や HLSL ファイルは HLSL として扱います。
    汎用の HLSL と Unreal は、設定ファイルの `units:` に当てはまる単位ごとに、当てはまらなければファイル全体を 1 つの単位にします。
 3. 字句解析と構文解析を行います（[4 章](#4-字句解析と構文解析)）。
@@ -110,7 +110,7 @@ flowchart TD
 [AnalyzerDriver](../../src/Shaderlyn.Core/Analysis/AnalyzerDriver.cs) が、登録済みの [DiagnosticAnalyzer](../../src/Shaderlyn.Core/Analysis/DiagnosticAnalyzer.cs) のアクションを実行します。
 アナライザは、構文ノードやセマンティックモデルに関心を登録する形で書きます（Roslyn と同じ考え方）。組み込みのルールは `BuiltInAnalyzers.All` に静的に並べてあります。
 
-[DiagnosticCollector](../../src/Shaderlyn.Core/Analysis/DiagnosticCollector.cs) は、宣言済みのルールか（`TOOL0005`）、メッセージの引数の数（`TOOL0006`）、重要度の上書き、抑制コメントを確かめてから診断を集めます。
+[DiagnosticCollector](../../src/Shaderlyn.Core/Analysis/DiagnosticCollector.cs) は、宣言済みのルールか（`TOOL0005`）、メッセージの引数の数（`TOOL0006`）、重要度の上書き、抑制コメントを確認してから診断を集めます。
 ルールが例外を投げた場合、`AnalyzerDriver` は解析全体を止めずにそのルールだけを打ち切り、`TOOL0001` として報告します。
 
 ルールが報告してよいかは `ShaderCompilation.IsReportable` で決めます。このファイルと、利用者が書いて取り込んだヘッダのコードを通し、

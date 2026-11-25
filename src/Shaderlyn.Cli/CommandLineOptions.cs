@@ -90,6 +90,18 @@ internal sealed class CommandLineOptions
     public string? UnrealGenerateOutputPath { get; private set; }
 
     /// <summary>
+    /// 設定ファイルに書いていない Unreal Engine のエンジンとプロジェクトを、探し始める場所 (言語サーバーは開いたファイル)。
+    /// <see langword="null"/> なら最初の解析対象から探す (<see cref="Unreal.UnrealLocator"/>)。
+    /// </summary>
+    internal string? UnrealSearchStart { get; set; }
+
+    /// <summary>
+    /// エンジンとプロジェクトを探すとき、これより上のフォルダーへたどらない (言語サーバーはワークスペースのルート)。
+    /// <see langword="null"/> なら止めない (CLI)。
+    /// </summary>
+    internal string? UnrealSearchStop { get; set; }
+
+    /// <summary>
     /// Unity プロジェクトの <c>Library</c> と Unity Editor から、解析に必要なヘッダを出力するフォルダー (<c>--unity-generate</c>)。
     /// 指定が無い場合は <see langword="null"/>。
     /// </summary>
@@ -741,7 +753,7 @@ internal sealed class CommandLineOptions
 
         指摘を個別に抑制するには、コードにコメントを書きます。
           // shaderlyn-disable-next-line SL1003
-          // shaderlyn-disable-line SL1003
+          half _Color; // shaderlyn-disable-line SL1003
           // shaderlyn-disable SL1003  …  // shaderlyn-enable SL1003
           // shaderlyn-disable-file SL1003
         ルール ID を省略すると、すべてのルールが対象になります。

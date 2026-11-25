@@ -151,7 +151,7 @@ public sealed class BannedFunctionAnalyzer(params string[] banned) : ShaderRuleA
 }
 ```
 
-自分の CLI の中で読み、渡します。
+自分の CLI の中で読み込み、渡します。
 
 ```csharp
 string[] banned = File.ReadAllLines("banned-functions.txt")
@@ -198,7 +198,7 @@ int maximum = c.Options.GetIntOption("MY0001", "maxValue", defaultValue: 64);
 
 - `IsMissing` が真のトークンには報告しないでください。構文エラーとして既に報告済みであり、
   重ねて指摘すると出力が読めなくなります
-- 「無いこと」を根拠にする指摘は、知識が完全であることを確認してから出してください。
+- 「存在しないこと」を根拠にする指摘は、知識が完全であることを確認してから出してください。
   `HasCompleteDependencies` が偽なら解析ができていません。
 - `GetModel<ShaderCompilation>()` が `null` を返したら報告しないでください。
 - 未知の命令名・タグ名・属性名を誤りにしないでください。Unity のバージョンで増えます

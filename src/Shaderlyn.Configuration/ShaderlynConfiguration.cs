@@ -128,6 +128,12 @@ internal sealed record ShaderlynConfiguration
     public bool? HlslEnable16BitTypes { get; init; }
 
     /// <summary>
+    /// GLSL をコンパイルするコンパイラ (<c>glsl: compiler</c>)。<c>glslang</c> (glslangValidator) か <c>glslc</c> (shaderc)。
+    /// 指定が無い場合は <see langword="null"/> で、glslc と同じく <c>GL_GOOGLE_include_directive</c> を最初から有効とする (拡張を書いていない <c>#include</c> を誤りにしない)。
+    /// </summary>
+    public string? GlslCompiler { get; init; }
+
+    /// <summary>
     /// GLSL をどこ向けにコンパイルするか (<c>glsl: target</c>、glslang の <c>--target-env</c>)。
     /// <c>vulkan</c> (バージョンを決めない)、<c>vulkan1.0</c> ～ <c>vulkan1.4</c>、<c>opengl</c>。
     /// 指定が無い場合は <see langword="null"/> で、どちらにしかない書き方も誤りにしない。

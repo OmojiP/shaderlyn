@@ -108,6 +108,12 @@ internal sealed partial class ShaderPreprocessor
                 break;
 
             case "include":
+                // GLSL の #include は、拡張を有効にした位置より後ろでだけ書ける (glslang)。取り込む前の出力の位置と一緒に覚える。
+                if (_options.GlslRules)
+                {
+                    _recordedDirectives.Add(new RecordedDirective(directiveToken, [], _output.Count));
+                }
+
                 ProcessInclude(directiveToken);
                 break;
 

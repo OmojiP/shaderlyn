@@ -360,6 +360,8 @@ public sealed class GlslRuleTests : IDisposable
 
     /// <summary>型・修飾子・演算子・リテラルを、バージョン・ステージ・場所で検査する (glslang の文法の規則の検査)。</summary>
     [Theory]
+    // glslang が実装していない subroutine
+    [InlineData("GL0001", "a.frag", "#version 400\nsubroutine float subT1() { return 1.0; }\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { uint u = 1u; gl_FragColor = vec4(float(u)); }")]
     [InlineData("GL0001", "a.frag", "#version 120\nvoid main() { int i = 5 % 2; gl_FragColor = vec4(float(i)); }")]
     [InlineData("GL0001", "a.frag", "#version 330\nout vec4 o;\nvoid main() { double d = 1.0lf; o = vec4(float(d)); }")]
@@ -410,6 +412,15 @@ public sealed class GlslRuleTests : IDisposable
     [InlineData("GL0406", "a.vert", "#version 450\nout gl_PerVertex { vec4 gl_Position; vec4 t; };\nvoid main() { gl_Position = vec4(0.0); }")]
     [InlineData("GL0406", "a.vert", "#version 450\nout gl_PerVertex { vec4 gl_Position; };\nvoid main() { gl_Position = vec4(0.0); gl_PointSize = 1.0; }")]
     [InlineData("GL0406", "a.geom", "#version 450\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nin gl_PerVertex { vec4 gl_Position; } myIn[];\nvoid main() { }")]
+    // ogl-samples との比較で見つけたもの: override_coverage のない gl_SampleMask、viewport_relative のない gl_Layer、
+    // ブロックの外の変数 (gl_ViewportMask) を名前の存在しない gl_PerVertex に入れたもの、知らない拡張の require、
+    // 構造体の頂点シェーダーの入力、1.50 の名前のある gl_PerVertex
+    [InlineData("GL0406", "a.frag", "#version 400 core\nout int gl_SampleMask[];\nout vec4 o;\nvoid main() { o = vec4(1.0); }")]
+    [InlineData("GL0406", "a.vert", "#version 450\nout int gl_Layer;\nvoid main() { gl_Position = vec4(0.0); }")]
+    [InlineData("GL0406", "a.vert", "#version 450\n#extension GL_NV_viewport_array2 : require\nout gl_PerVertex { vec4 gl_Position; int gl_ViewportMask[]; };\nvoid main() { gl_Position = vec4(0.0); }")]
+    [InlineData("GL0003", "a.vert", "#version 450\n#extension GL_FOO_bar : require\nvoid main() { gl_Position = vec4(0.0); }")]
+    [InlineData("GL0403", "a.vert", "#version 150 core\nstruct V { vec2 p; };\nin V v;\nvoid main() { gl_Position = vec4(v.p, 0.0, 1.0); }")]
+    [InlineData("GL0001", "a.geom", "#version 150 core\nlayout(points) in;\nlayout(points, max_vertices = 1) out;\nin gl_PerVertex { vec4 gl_Position; } gl_in[];\nvoid main() { }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { struct S { float a[2]; } s1, s2; s1 = s2; gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nstruct S { float a[2]; };\nS f() { S s; return s; }\nvoid main() { gl_FragColor = vec4(1.0); }")]
     [InlineData("GL0001", "a.frag", "#version 100\nprecision mediump float;\nvoid main() { float a[2]; gl_FragColor = vec4(a.length()); }")]
@@ -774,6 +785,39 @@ public sealed class GlslRuleTests : IDisposable
     }
 
     /// <summary>
+    /// 拡張を有効にしていない <c>#include</c> は、<c>glsl: compiler: glslang</c> のときだけ GL0003 にする。
+    /// glslc はファイルの最初で GL_GOOGLE_include_directive を有効にするので、glslc のときと指定が無いときは、無効にした後ろだけを報告する。
+    /// 拡張を有効にしていても、<c>#include</c> より後ろなら有効になっていない。
+    /// </summary>
+    [Theory]
+    [InlineData("  compiler: glslang\n", "", true)]
+    [InlineData("  compiler: glslang\n", "#extension GL_GOOGLE_include_directive : enable\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension GL_ARB_shading_language_include : warn\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension all : warn\n", false)]
+    [InlineData("  compiler: glslang\n", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "", false)]
+    [InlineData("  compiler: glslc\n", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "#extension all : disable\n", true)]
+    [InlineData("  compiler: glslc\n", "#extension GL_GOOGLE_include_directive : disable\n#extension GL_ARB_shading_language_include : enable\n", false)]
+    [InlineData("", "", false)]
+    [InlineData("", "#extension GL_GOOGLE_include_directive : disable\n", true)]
+    public async Task 拡張を有効にしていないinclude(string compiler, string extension, bool expected)
+    {
+        string config = Path.Combine(_workDirectory, "shaderlyn.yml");
+        File.WriteAllText(config, $"version: 1\nenvironment: glsl\nglsl:\n{compiler}  target: opengl\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "common.glsl"), "#define TINT vec4(1.0)\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "a.frag"), $"#version 450\n{extension}#include \"common.glsl\"\nout vec4 o;\nvoid main() {{ o = TINT; }}\n");
+        File.WriteAllText(Path.Combine(_workDirectory, "b.frag"), "#version 450\n#include \"common.glsl\"\n#extension GL_GOOGLE_include_directive : enable\nout vec4 o;\nvoid main() { o = TINT; }\n");
+        StringWriter output = new();
+        StringWriter error = new();
+        await Program.RunAsync([Path.Combine(_workDirectory, "a.frag"), Path.Combine(_workDirectory, "b.frag"), "--config", config, "--environment", "glsl"], BuiltInAnalyzers.All, output, error);
+
+        Assert.True(error.ToString().Length == 0, error.ToString());
+        Assert.Equal(expected, output.ToString().Contains("a.frag(", StringComparison.Ordinal) && output.ToString().Contains("error GL0003", StringComparison.Ordinal));
+        Assert.Equal(compiler.Contains("glslang", StringComparison.Ordinal), output.ToString().Contains("b.frag(2", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// その版に無い組み込みの関数と変数は GL0001、同じ版の別のステージにあるものは GL0002 で伝える。宣言されていない名前 (CF0310) とは言わない。
     /// </summary>
     [Theory]
@@ -909,6 +953,27 @@ public sealed class GlslRuleTests : IDisposable
 
         Assert.DoesNotContain("GL0406", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("GL0406", vertex, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// glslang 16.6.0 が通すもの: override_coverage を付けた gl_SampleMask、知らない拡張の enable (警告だけ) と知っている拡張の require、
+    /// 構造体の頂点シェーダーの出力、名前の存在しない gl_PerVertex の外の gl_ViewportMask。
+    /// </summary>
+    [Fact]
+    public async Task glslangが通す再宣言と拡張と構造体の出力()
+    {
+        string[] outputs =
+        [
+            await AnalyzeAsync("a.frag", "#version 450\n#extension GL_NV_sample_mask_override_coverage : require\nlayout(override_coverage) out int gl_SampleMask[];\nlayout(location = 0) out vec4 o;\nvoid main() { o = vec4(1.0); }\n"),
+            await AnalyzeAsync("b.vert", "#version 450\n#extension GL_FOO_bar : enable\n#extension GL_EXT_samplerless_texture_functions : require\nvoid main() { gl_Position = vec4(0.0); }\n"),
+            await AnalyzeAsync("c.vert", "#version 150 core\nstruct V { vec2 p; };\nout V v;\nvoid main() { v.p = vec2(0.0); gl_Position = vec4(0.0); }\n"),
+            await AnalyzeAsync("d.vert", "#version 450\n#extension GL_NV_viewport_array2 : require\nout gl_PerVertex { vec4 gl_Position; };\nvoid main() { gl_Position = vec4(0.0); gl_ViewportMask[0] = 1; }\n"),
+        ];
+
+        foreach (string output in outputs)
+        {
+            Assert.DoesNotContain("error", output, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>GLSL の __FILE__ は文字列の番号 (整数) なので、#line の式に書ける。</summary>

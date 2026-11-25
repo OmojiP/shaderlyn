@@ -140,6 +140,9 @@ internal sealed record GlslLanguageOptions(int? Version, GlslProfile Profile, Gl
     /// <remarks>決めるなら、SPIR-V を作るときに binding を書かなくてよい。</remarks>
     public bool AutoMapBindings { get; init; }
 
+    /// <summary>拡張を有効にしていない <c>#include</c> を誤りにするか (glslang は誤り、glslc は拡張を自分で有効にする)。</summary>
+    public bool IncludeRequiresExtension { get; init; }
+
     /// <summary><c>#extension</c> で有効にした拡張で決まる、数値の型の機能。</summary>
     public GlslNumericFeatures NumericFeatures => Extensions.NumericFeatures;
 

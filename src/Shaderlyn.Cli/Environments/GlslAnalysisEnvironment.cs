@@ -36,6 +36,7 @@ internal sealed class GlslAnalysisEnvironment(ShaderlynConfiguration configurati
         HlslAnalysisEnvironment.BuildVariants(configuration, null)) with
     {
         AutoMapLocations = configuration.GlslAutoMapLocations,
+        IncludeRequiresExtension = configuration.GlslCompiler == "glslang",
         AutoMapBindings = configuration.GlslAutoMapBindings,
     });
 

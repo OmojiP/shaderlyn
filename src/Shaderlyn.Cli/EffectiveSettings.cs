@@ -56,6 +56,11 @@ internal sealed class EffectiveSettings
     /// </summary>
     public string? UnityProjectPath { get; private init; }
 
+    /// <summary>
+    /// 設定ファイルに書いていないエンジンとプロジェクトを探した結果 (<c>--env</c> と言語サーバーの記録に出す)。探さなかった場合は <see langword="null"/>。
+    /// </summary>
+    internal Unreal.UnrealLocations? UnrealLocations { get; private init; }
+
     /// <summary>自前のホストが足した環境。</summary>
     public ImmutableArray<HostEnvironment> HostEnvironments { get; private init; } = [];
 
@@ -164,6 +169,23 @@ internal sealed class EffectiveSettings
             };
         }
 
+        // Unreal Engine のエンジンとプロジェクトを書いていなければ、解析するファイルから探す (UnrealLocator)。
+        // 環境を決めていない場合も、.usf・.ush は Unreal Engine の環境で解析するので探す。
+        Unreal.UnrealLocations? unrealLocations = null;
+
+        if ((options.Environment ?? configuration.Environment) is null or Unreal.UnrealOptions.EnvironmentName
+            && (configuration.UnrealEngineDirectory is null || configuration.UnrealProjectDirectory is null))
+        {
+            string start = options.UnrealSearchStart
+                ?? (options.InputPaths.Length > 0 ? options.InputPaths[0] : Directory.GetCurrentDirectory());
+            unrealLocations = Unreal.UnrealLocator.Find(start, options.UnrealSearchStop);
+            configuration = configuration with
+            {
+                UnrealEngineDirectory = configuration.UnrealEngineDirectory ?? unrealLocations.EngineDirectory,
+                UnrealProjectDirectory = configuration.UnrealProjectDirectory ?? unrealLocations.ProjectDirectory,
+            };
+        }
+
         // 探索パスと定義は積み上げる。設定ファイルの内容を先に置くことで、
         // 同じマクロを両方で定義した場合にコマンドラインの指定が勝つ。
         ImmutableArray<string> includePaths = [.. configuration.IncludePaths, .. options.IncludePaths];
@@ -185,6 +207,7 @@ internal sealed class EffectiveSettings
             UnityOnlyCommandLineOptions = unityOnlyOptions,
             HostEnvironments = hostEnvironments,
             UnityProjectPath = isUnity ? options.UnityProjectPath : null,
+            UnrealLocations = unrealLocations,
         };
     }
 
