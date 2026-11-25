@@ -10,6 +10,8 @@ CLI、VS Code 拡張、NuGet パッケージは、同じタグで同じバージ
 
 ## [未リリース]
 
+## [0.3.6] - 2026-11-25
+
 ### 追加
 
 - Slang: 設定ファイルの `units:` で、エントリポイントの名前 (`entry`) とステージ (`stage`。slangc の `-entry` と `-stage`) を指定できるようにした。
@@ -1262,7 +1264,8 @@ CI で `--error-on` を使っている場合は、上げる前に手元で確認
   写して使えるルールの実例集 ([自作ルールの作り方](docs/custom-rules/tutorial.md))
 - Native AOT の単一バイナリ (5 プラットフォーム)
 
-[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...HEAD
+[未リリース]: https://github.com/OmojiP/shaderlyn/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/OmojiP/shaderlyn/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/OmojiP/shaderlyn/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/OmojiP/shaderlyn/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/OmojiP/shaderlyn/compare/v0.3.2...v0.3.3

@@ -2,7 +2,7 @@
   "name": "shaderlyn",
   "displayName": "Shaderlyn",
   "description": "Finds errors in Unity, Unreal Engine, Godot, Slang, WGSL and other shaders as you edit.",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "OmojiP",
   "license": "MIT",
   "icon": "images/icon.png",
